@@ -425,10 +425,10 @@ T18 → T19 → T20
 
 **Done when**:
 
-- [ ] A test mutates the start `Date` after `new FakeClock(start)` and asserts `now()` still equals the original instant
-- [ ] A test mutates the argument after `set(date)` and asserts `now()` still equals the set instant
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 21 tests pass in `@d2rmm/api` (no silent deletions)
+- [x] A test mutates the start `Date` after `new FakeClock(start)` and asserts `now()` still equals the original instant
+- [x] A test mutates the argument after `set(date)` and asserts `now()` still equals the set instant
+- [x] Gate check passes: `pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 21 tests pass in `@d2rmm/api` (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick

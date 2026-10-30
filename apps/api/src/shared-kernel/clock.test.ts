@@ -34,4 +34,23 @@ describe('FakeClock', () => {
 
     expect(clock.now().toISOString()).toBe(START);
   });
+
+  it('the constructor copies the start date: mutating it afterwards does not move the clock', () => {
+    const start = new Date(START);
+    const clock = new FakeClock(start);
+
+    start.setTime(0);
+
+    expect(clock.now().toISOString()).toBe(START);
+  });
+
+  it('set copies its argument: mutating the date afterwards does not move the clock', () => {
+    const clock = new FakeClock(new Date(START));
+    const next = new Date('2027-01-15T08:30:00.000Z');
+
+    clock.set(next);
+    next.setTime(0);
+
+    expect(clock.now().toISOString()).toBe('2027-01-15T08:30:00.000Z');
+  });
 });
