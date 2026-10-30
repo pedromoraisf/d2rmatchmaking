@@ -76,7 +76,7 @@ T16 → T17
 ### Phase 5: Verifier findings (round 1)
 
 ```
-T18 → T19 → T20 → T21
+T18 → T19 → T20 → T21 → T22
 ```
 
 ---
@@ -495,6 +495,27 @@ T18 → T19 → T20 → T21
 
 ---
 
+### T22: Unit-test the count reporter on a synthetic event stream
+
+**What**: A test in `count-reporter.test.mjs` that imports the reporter and drives it with an in-memory event stream shaped like Node's runner events (leaf tests, not suites or file-level events). A mixed stream has one passing and one failing leaf; the test asserts the output ends with `1 passed` and that the reporter set `process.exitCode` to 1, and restores `process.exitCode` afterwards. A passing stream with one passing leaf leaves `process.exitCode` unset. The Node test runner already exits non-zero on any failure, so only a direct test sees the reporter's own failure handling (verification.md finding 7, mutation M9; T21's subprocess test cannot kill it).
+**Where**: `scripts/test/count-reporter.test.mjs`
+**Depends on**: T21
+**Reuses**: T20 reporter
+**Requirement**: HF-03
+
+**Done when**:
+
+- [ ] Mixed stream (one pass, one fail): output contains `1 passed` and `process.exitCode` is 1
+- [ ] Passing stream (one pass): `process.exitCode` is not set to a failure
+- [ ] `process.exitCode` is restored after each case, so the harness run itself is not failed
+- [ ] Gate check passes: `pnpm test:harness && pnpm lint && pnpm format:check`
+- [ ] Test count: ≥ 82 harness tests pass (no silent deletions)
+
+**Tests**: unit
+**Gate**: quick
+
+---
+
 ## Checks
 
 **C1** - `pnpm ls -r --depth -1` lists the six `@d2rmm/*` workspaces (HF-01, AC 1)
@@ -608,6 +629,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 
 execute-batch-4 attempt 1 stopped on a manual mutant probe the orchestrator asked for; the probe moved to `check_proofs.py --mutations`; retried.
 
+**Finding 7 not killed by T21 (2026-10-30)** — proofs with mutations at 8f452ca: 23 pass, 8 killed, M9 not killed (proofs failure 1/3). Root cause (orchestrator): the Node test runner exits non-zero on any failing test regardless of the reporter, so a subprocess test cannot observe the reporter's `anyFailure` branch. Planned T22, a direct test of the reporter on a synthetic event stream; tasks gate re-run.
+
 **Round 2 (2026-10-30)** — proofs with mutations: 23 pass, 6 killed (e859e80). verify-r2 (62fa323): round-1 findings 1–4 and 6 closed, 5 accepted as an observation; new finding 7 (`count-reporter.mjs:39`, mutant M9 survives: no test has a failing test among passing ones). Planned as T21; tasks gate re-run. Next: execute-batch-5 (T21), proofs with mutations, fill `Closed`, verification gate once.
 
 **Replanned (2026-10-30), verifier findings** — orchestrator root cause: the fix prompt named gate steps (`fix-clock`, `fix-mutation`, `fix-count`) that are not task ids. The findings are now tasks T18–T20 (Phase 5); tasks gate re-run. Next: execute-batch-4 retry 2 runs T18–T20 with their task ids.
@@ -625,7 +648,7 @@ Phase 1:  T3 → T1 → T2 → T4 → T5 → T6 → T7
 Phase 2:  T8 → T9 → T10 → T11 → T12
 Phase 3:  T13 → T14 → T15
 Phase 4:  T16 → T17
-Phase 5:  T18 → T19 → T20 → T21
+Phase 5:  T18 → T19 → T20 → T21 → T22
 ```
 
 Batches: `execute-batch-1` = Phase 1 (7 tasks); `execute-batch-2` = Phase 2 (5 tasks); `execute-batch-3` = Phases 3–4
