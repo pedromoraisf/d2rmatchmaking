@@ -164,9 +164,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: each event accepts its example; `SiteStreamEvent` rejects `room.assigned` without a game name; `AgentStreamEvent` does not accept `agent.presence_changed`
-- [ ] Gate check passes: `pnpm --filter @d2rmm/contracts typecheck && pnpm --filter @d2rmm/contracts test`
-- [ ] Test count: ≥ 26 tests pass (no silent deletions)
+- [x] Tests: each event accepts its example; `SiteStreamEvent` rejects `room.assigned` without a game name; `AgentStreamEvent` does not accept `agent.presence_changed`
+- [x] Gate check passes: `pnpm --filter @d2rmm/contracts typecheck && pnpm --filter @d2rmm/contracts test`
+- [x] Test count: ≥ 26 tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick

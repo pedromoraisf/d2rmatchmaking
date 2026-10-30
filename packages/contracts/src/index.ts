@@ -3,3 +3,4 @@ export * from './http/common.ts';
 export * from './http/agents.ts';
 export * from './http/lobby.ts';
 export * from './http/platform.ts';
+export * from './events/stream.ts';
