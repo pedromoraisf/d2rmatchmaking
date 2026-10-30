@@ -146,9 +146,9 @@ T16 → T17
 
 **Done when**:
 
-- [ ] `pnpm --filter @d2rmm/web build`, `typecheck`, `lint` and `test` each exit 0
-- [ ] `pnpm arch` exits 0 with the root `tsconfig.base.json` that extends the preset (moved from T2: depcruise needs `apps/`, which this task creates)
-- [ ] Gate check passes: `pnpm install && pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web lint && pnpm --filter @d2rmm/web test && pnpm arch`
+- [x] `pnpm --filter @d2rmm/web build`, `typecheck`, `lint` and `test` each exit 0
+- [x] `pnpm arch` exits 0 with the root `tsconfig.base.json` that extends the preset (moved from T2: depcruise needs `apps/`, which this task creates)
+- [x] Gate check passes: `pnpm install && pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web lint && pnpm --filter @d2rmm/web test && pnpm arch`
 
 **Tests**: none
 **Gate**: build

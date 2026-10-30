@@ -45,6 +45,21 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@26.6.6)(vite@8.3.5(@types/node@26.6.6))
 
+  apps/web:
+    devDependencies:
+      '@d2rmm/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      eslint:
+        specifier: ^9.39.0
+        version: 9.39.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@types/node@26.6.6)(vite@8.3.5(@types/node@26.6.6))
+
   packages/config:
     dependencies:
       '@eslint/js':
