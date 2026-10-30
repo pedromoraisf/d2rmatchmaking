@@ -260,9 +260,9 @@ T16 → T17
 
 **Done when**:
 
-- [ ] Tests assert `now()` equals the start, `advance(1500)` moves it by exactly 1500 ms, `set` replaces it, and mutating a returned `Date` does not change the clock
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 4 tests pass (no silent deletions)
+- [x] Tests assert `now()` equals the start, `advance(1500)` moves it by exactly 1500 ms, `set` replaces it, and mutating a returned `Date` does not change the clock
+- [x] Gate check passes: `pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 4 tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick
