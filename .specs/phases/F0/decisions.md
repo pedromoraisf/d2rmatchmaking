@@ -28,6 +28,14 @@ review. Reversals become tasks in a follow-up feature.
 | AD-044 | api-web-skeleton   | HF-04 scenario lines change from "no paths/channels" to "matches the committed file"                 | none (routes exist)          |            |
 | AD-045 | api-web-skeleton   | Test-control endpoints (reset, clock) only in `main/local.ts` under `D2RMM_ACCEPTANCE`               | per-scenario DBs, real waits |            |
 | AD-046 | api-web-skeleton   | F0 site without TanStack Router/Query                                                                | add them in F1               |            |
+| AD-056 | api-web-skeleton   | Presence and revoke events are transient (bus only, not the outbox)                                  | move presence to Postgres    |            |
+
+## Queued for F1 (from the api-web-skeleton security review)
+
+- Global ceiling on failed pairing-code submissions across accounts, and a rate limit on token claims (the F0 limits are the spec's, AD-032 and AD-041).
+- Sign-out and revoke-agent routes (FR-04) with real Battle.net login.
+- Verify Render's proxy hop count on the deployed API (`TRUST_PROXY_HOPS`) before F1 relies on the IP limit.
+- In-memory rate-limit counters reset on restart (ADR 006); revisit if abuse appears.
 
 ## Blocked
 

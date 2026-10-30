@@ -393,7 +393,7 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 
 ### AD-044 (assumed)
 
-- **Decision**: harness-foundation's HF-04 scenario lines "declares version 3.1 with no paths" and "3.0 with no channels" become "declares version 3.1/3.0 and matches the committed file" when api-web-skeleton adds routes and events.
+- **Decision**: harness-foundation's HF-04 scenario lines "declares version 3.1 with no paths" and "3.0 with no channels" become structural assertions — "declares version 3.1 and the path /healthz" and "declares version 3.0 and the channel stream" — when api-web-skeleton adds routes and events.
 - **Reason**: api-web-skeleton design: the empty documents were declared placeholders (`packages/contracts/src/documents.ts`); with real routes the old lines are false. The drift check that HF-04 exists for stays.
 - **Trade-off**: edits a done feature's scenario; the gate asks the maintainer to confirm it. Reversal is impossible without removing the routes.
 - **Scope**: harness-foundation, api-web-skeleton / contracts
@@ -418,13 +418,22 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-30
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-056 (assumed)
+
+- **Decision**: `AgentPresenceChanged` and `AgentRevoked` are transient events on the in-memory bus, not outbox rows; their stream ids are `<lastOutboxId>.<k>` and the site re-reads presence on every (re)connect.
+- **Reason**: api-web-skeleton design: ADR 008 puts events in the outbox in the same transaction as their state change, but presence is not in Postgres (ADR 006, AWS-13 forbids a Postgres write per heartbeat). A presence event lost to a restart is rebuilt from the next heartbeat.
+- **Trade-off**: presence changes are not replayed by `Last-Event-ID`; reversal is moving presence to Postgres, which NFR-07 rules out.
+- **Scope**: api-web-skeleton / agents, platform
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: api-web-skeleton (Design)
 - **Phase / Task**: F0 run; api-web-skeleton spec approved by the maintainer (3407f61); design drafted, design gate next
 - **Completed**: `spec.md` (AWS-01…AWS-40), `acceptance.feature`, AD-029…AD-043 (assumed)
 - **In-progress**: none
-- **Next step**: architecture-reviewer and security-reviewer on design.md; then Tasks. agent-skeleton Specify in parallel (its Execute waits, AD-035)
+- **Next step**: re-run architecture-reviewer and security-reviewer (retry 1) on design.md revision 2; then Tasks. agent-skeleton spec drafted in its worktree, gate not run
 - **Blockers**: none. Execute needs Docker running and, for agent-skeleton, a Rust toolchain (not installed)
 - **Uncommitted files**: none after the blocker commit
 - **Branch**: feat/F0-api-web-skeleton
