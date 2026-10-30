@@ -485,10 +485,10 @@ T18 → T19 → T20 → T21
 
 **Done when**:
 
-- [ ] A `*.fixture.mjs` file under `scripts/test/fixtures/count-reporter/` has one passing and one failing test and is not matched by the `pnpm test:harness` glob
-- [ ] A test runs the reporter on it and asserts a non-zero exit and `1 passed` in the output
-- [ ] Gate check passes: `pnpm test:harness && pnpm lint && pnpm format:check`
-- [ ] Test count: ≥ 80 harness tests pass (no silent deletions)
+- [x] A `*.fixture.mjs` file under `scripts/test/fixtures/count-reporter/` has one passing and one failing test and is not matched by the `pnpm test:harness` glob
+- [x] A test runs the reporter on it and asserts a non-zero exit and `1 passed` in the output
+- [x] Gate check passes: `pnpm test:harness && pnpm lint && pnpm format:check`
+- [x] Test count: ≥ 80 harness tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick

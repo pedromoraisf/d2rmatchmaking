@@ -43,3 +43,10 @@ test('a failing fixture test exits non-zero and prints 1 failed', () => {
   assert.notEqual(run.status, 0, run.stdout + run.stderr);
   assert.match(run.stdout, /^1 failed$/m);
 });
+
+test('a failing test among passing ones exits non-zero and still prints 1 passed', () => {
+  const run = runWithCountReporter('mixed.fixture.mjs');
+
+  assert.notEqual(run.status, 0, run.stdout + run.stderr);
+  assert.match(run.stdout, /^1 passed$/m);
+});
