@@ -61,13 +61,11 @@ jobs:
         run: |
           mkdir -p reports
           pnpm run lint
-          pnpm exec eslint --format json --output-file reports/eslint.json --no-warn-ignored scripts .claude/hooks || true
       - name: Typecheck
         run: pnpm run typecheck
       - name: Architecture (dependency-cruiser)
         run: |
           if compgen -G "apps/*/src" > /dev/null || compgen -G "packages/*/src" > /dev/null; then
-            pnpm exec depcruise --config .dependency-cruiser.cjs --output-type json --output-to reports/depcruise.json apps packages || true
             pnpm run arch
           else
             echo '{"summary":{"error":0}}' > reports/depcruise.json
@@ -93,8 +91,7 @@ jobs:
       - name: Quality ratchet (pr)
         run: |
           echo "{\"seconds\": $(( $(date +%s) - CI_STARTED ))}" > reports/ci-timing.json
-          pnpm run quality:collect
-          pnpm run quality:ratchet -- --context pr --current reports/quality.json
+          pnpm run quality:gate
       - uses: actions/upload-artifact@v4
         if: always()
         with:

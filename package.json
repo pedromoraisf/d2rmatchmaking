@@ -32,6 +32,7 @@
     "harness:gate": "harness-score . --config .harness-score.json --min-level 4 --quiet",
     "harness:json": "harness-score . --config .harness-score.json --json --quiet > .harness-score.report.json",
     "quality:collect": "node scripts/quality-collect.mjs",
+    "quality:reports": "node scripts/quality-reports.mjs",
     "quality:ratchet": "node scripts/quality-ratchet.mjs",
     "specs:check": "node scripts/specs-check.mjs && node scripts/acceptance-check.mjs",
     "tlc:selftest": "python3 .claude/skills/tlc-spec-driven/scripts/selftest.py",
@@ -42,7 +43,7 @@
     "test:acceptance": "turbo run test:acceptance",
     "acceptance:check": "node scripts/acceptance-check.mjs",
     "phase:status": "node scripts/phase-status.mjs",
-    "quality:gate": "pnpm run harness:json && node scripts/quality-collect.mjs && node scripts/quality-ratchet.mjs --context pr --current reports/quality.json"
+    "quality:gate": "pnpm run harness:json && pnpm run quality:reports && node scripts/quality-collect.mjs && node scripts/quality-ratchet.mjs --context pr --current reports/quality.json"
   },
   "devDependencies": {
     "@d2rmm/config": "workspace:*",

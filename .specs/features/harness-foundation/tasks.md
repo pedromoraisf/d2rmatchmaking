@@ -339,10 +339,10 @@ T16 → T17
 
 **Done when**:
 
-- [ ] `summarize` test: a Vitest JSON with 2 pending and 1 todo test gives `skipped` 3
-- [ ] `pnpm quality:reports` writes `reports/depcruise.json`, `reports/eslint.json`, `reports/tests-summary.json` and `pnpm quality:collect` prints values for `arch.violations`, `lint.warnings`, `tests.skipped`
-- [ ] `ci.yml` keeps `pnpm run lint`, `pnpm run arch` and `pnpm test`; only the `|| true` report-writing lines go, and the ratchet step calls `pnpm run quality:gate`
-- [ ] Gate check passes: `pnpm test:harness && pnpm quality:reports && pnpm quality:collect`
+- [x] `summarize` test: a Vitest JSON with 2 pending and 1 todo test gives `skipped` 3
+- [x] `pnpm quality:reports` writes `reports/depcruise.json`, `reports/eslint.json`, `reports/tests-summary.json` and `pnpm quality:collect` prints values for `arch.violations`, `lint.warnings`, `tests.skipped`
+- [x] `ci.yml` keeps `pnpm run lint`, `pnpm run arch` and `pnpm test`; only the `|| true` report-writing lines go, and the ratchet step calls `pnpm run quality:gate`
+- [x] Gate check passes: `pnpm test:harness && pnpm quality:reports && pnpm quality:collect`
 
 **Tests**: unit
 **Gate**: quick
