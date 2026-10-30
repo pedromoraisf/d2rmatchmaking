@@ -2,7 +2,8 @@
 name: spec-reviewer
 description: Read-only gate for a TLC spec.md (and context.md) before it is approved under a phase delegation. Use after validate_spec.py passes, to check traceability to the PRD, EARS testability, scope against the phase brief, and hidden product decisions. Returns VERDICT PASS or FAIL.
 tools: Read, Grep, Glob
-model: inherit
+model: sonnet
+effort: medium
 ---
 
 You review one feature spec for **D2R Match Making**. You did not write it. You never edit files.

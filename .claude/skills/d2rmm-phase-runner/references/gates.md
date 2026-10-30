@@ -76,7 +76,7 @@ Record it in `.specs/STATE.md` (TLC format, plus the `(assumed)` marker on the h
 - **Status**: active (pending phase review: .specs/phases/<F>/decisions.md)
 ```
 
-Numbering: AD-001…AD-024 mirror ADR 001…024. New decisions continue from AD-025; if one becomes an ADR, it keeps its number.
+Numbering: AD-001…AD-025 mirror ADR 001…025. New decisions continue from AD-026; if one becomes an ADR, it keeps its number.
 
 ## Budgets
 
