@@ -129,7 +129,6 @@ T16 → T17
 **Done when**:
 
 - [x] `pnpm lint` exits 0 with 0 warnings and `pnpm format:check` exits 0 (same rules as before the move)
-- [ ] `pnpm arch` still starts (it reads root `tsconfig.base.json`)
 - [x] Gate check passes: `pnpm install && pnpm lint && pnpm format:check && pnpm --filter @d2rmm/config typecheck && pnpm --filter @d2rmm/config test`
 
 **Tests**: none
@@ -148,7 +147,8 @@ T16 → T17
 **Done when**:
 
 - [ ] `pnpm --filter @d2rmm/web build`, `typecheck`, `lint` and `test` each exit 0
-- [ ] Gate check passes: `pnpm install && pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web lint && pnpm --filter @d2rmm/web test`
+- [ ] `pnpm arch` exits 0 with the root `tsconfig.base.json` that extends the preset (moved from T2: depcruise needs `apps/`, which this task creates)
+- [ ] Gate check passes: `pnpm install && pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web lint && pnpm --filter @d2rmm/web test && pnpm arch`
 
 **Tests**: none
 **Gate**: build
@@ -475,6 +475,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Settled mid-build:** none
 **Dispatched:** review-spec (prior session, no recorded verdict); review-spec at f67c607^ → FAIL; review-spec retry 1 → PASS (spec committed f67c607); review-architecture on design draft → FAIL (findings applied in the rewritten design.md, not yet re-reviewed); execute-batch-1 (T1–T7) at the tasks commit → pending; execute-batch-1 attempt 1 → stopped at T1 (invocation error, see below); execute-batch-1 retry 1 at 02ff3ec + uncommitted T1 files → pending; execute-batch-1 retry 1 → T1 gate passed (6 tests), commit refused by pre-commit `unit-related` (no root Vitest yet); replanned: T3 (root Vitest) runs first, T2 gate adds the config typecheck; tasks gate passed again. Next: execute-batch-1 retry 2 (T3, then commit T1 from the uncommitted files, then T2, T4–T7)
 **Walked:** none
+
+**execute-batch-1 retry 2 (2026-10-30)** — T3 ddb36eb, T1 814665b, T2 d048c4c committed, gates passed. T2's "`pnpm arch` still starts" was unsatisfiable before `apps/` exists (`Can't open 'apps' for reading`). Orchestrator replan: that check moves to T4, whose gate now ends with `&& pnpm arch`; tasks gate re-run. Next: execute-batch-1 continues with T4–T7.
 
 **Batch-1 worker stopped (2026-10-30), not a T1 failure** — orchestrator root cause: each call appended `; echo EXIT=$?` after the quoted gate, a second command outside the wrapper, so the hook refused it; the gate command itself is valid (quoted `&&` is stripped before splitting). The ledger has no `gate:harness-foundation/T1` unit and `dispatch:harness-foundation/execute-batch-1` shows 0 failures. Re-dispatched as execute-batch-1 retry 1 with the exact invocation form. Worker notes as written:
 
