@@ -203,9 +203,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Fixtures `module-imports-platform/`, `platform-imports-internal/`, `render-imports-test-controls/` each fail with their rule name; the `clean` fixture still passes
-- [ ] Gate check passes: `pnpm test:harness && pnpm arch`
-- [ ] Test count: the three new fixture cases pass and no existing harness test disappears
+- [x] Fixtures `module-imports-platform/`, `platform-imports-internal/`, `render-imports-test-controls/` each fail with their rule name; the `clean` fixture still passes
+- [x] Gate check passes: `pnpm test:harness && pnpm arch`
+- [x] Test count: the three new fixture cases pass and no existing harness test disappears
 
 **Tests**: unit
 **Gate**: quick

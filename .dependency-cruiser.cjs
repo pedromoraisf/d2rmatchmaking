@@ -37,7 +37,29 @@ module.exports = {
       comment: 'The shared kernel never depends on modules or composition.',
       severity: 'error',
       from: { path: `${API}/shared-kernel`, pathNot: TESTS },
-      to: { path: [`${API}/modules`, `${API}/main`] },
+      to: { path: [`${API}/modules`, `${API}/main`, `${API}/platform`] },
+    },
+    {
+      name: 'platform-is-adapter',
+      comment:
+        'Modules never import the platform. Platform adapters are reached through module ports or events.',
+      severity: 'error',
+      from: { path: `${API}/modules/` },
+      to: { path: `${API}/platform/` },
+    },
+    {
+      name: 'platform-uses-public-ports',
+      comment: 'Platform reaches a module only through its public index.ts port, never its internal layers.',
+      severity: 'error',
+      from: { path: `${API}/platform/` },
+      to: { path: `${API}/modules/[^/]+/(domain|application|adapters)/` },
+    },
+    {
+      name: 'render-no-test-controls',
+      comment: 'The Render composition root never imports the test controls (AD-045).',
+      severity: 'error',
+      from: { path: `${API}/main/render\\.ts$` },
+      to: { path: `${API}/main/test-controls\\.ts$` },
     },
     {
       name: 'nobody-imports-main',
