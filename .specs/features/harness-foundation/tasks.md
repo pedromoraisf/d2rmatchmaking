@@ -89,8 +89,8 @@ T16 → T17
 
 **Done when**:
 
-- [ ] `pnpm exec vitest run --passWithNoTests` from the root exits 0 (and runs the `@d2rmm/config` tests once that workspace exists)
-- [ ] Gate check passes: `pnpm install && pnpm exec vitest run --passWithNoTests`
+- [x] `pnpm exec vitest run --passWithNoTests` from the root exits 0 (and runs the `@d2rmm/config` tests once that workspace exists)
+- [x] Gate check passes: `pnpm install && pnpm exec vitest run --passWithNoTests`
 
 **Tests**: none
 **Gate**: quick
