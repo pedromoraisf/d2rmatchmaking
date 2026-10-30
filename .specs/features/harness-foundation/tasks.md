@@ -505,11 +505,11 @@ T18 → T19 → T20 → T21 → T22
 
 **Done when**:
 
-- [ ] Mixed stream (one pass, one fail): output contains `1 passed` and `process.exitCode` is 1
-- [ ] Passing stream (one pass): `process.exitCode` is not set to a failure
-- [ ] `process.exitCode` is restored after each case, so the harness run itself is not failed
-- [ ] Gate check passes: `pnpm test:harness && pnpm lint && pnpm format:check`
-- [ ] Test count: ≥ 82 harness tests pass (no silent deletions)
+- [x] Mixed stream (one pass, one fail): output contains `1 passed` and `process.exitCode` is 1
+- [x] Passing stream (one pass): `process.exitCode` is not set to a failure
+- [x] `process.exitCode` is restored after each case, so the harness run itself is not failed
+- [x] Gate check passes: `pnpm test:harness && pnpm lint && pnpm format:check`
+- [x] Test count: ≥ 82 harness tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick
