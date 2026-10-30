@@ -256,13 +256,130 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-30
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-029 (assumed)
+
+- **Decision**: In F0 a player signs in with a test sign-in (`POST /v1/auth/test-login`, display name) that exists only while `ENABLE_STAGING_ENDPOINTS=true`; Battle.net OAuth comes in F1.
+- **Reason**: api-web-skeleton AWS-01: FR-01's primary phase is F1 and the brief scopes F0 to a stub; staging-only adds no production-visible behaviour.
+- **Trade-off**: none in production; reversal is deleting the route when OAuth lands.
+- **Scope**: api-web-skeleton / identity
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-030 (assumed)
+
+- **Decision**: The agent gets its token by polling `POST /v1/agents/pairing-codes/claim` with a one-time `claimSecret` returned with the code; the token is returned once and stored as a SHA-256 hash.
+- **Reason**: api-web-skeleton AWS-07: ADR 011 does not say how the token reaches the agent, which has no session or stream before pairing.
+- **Trade-off**: a few polling requests during pairing; reversal is a contract change shared with agent-skeleton.
+- **Scope**: api-web-skeleton, agent-skeleton / agents
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-031 (assumed)
+
+- **Decision**: The agent sends a heartbeat every 15 s and the API shows it offline after 45 s without one; both are constants in one place.
+- **Reason**: api-web-skeleton AWS-13/AWS-15: the PRD sets no number; three missed beats tolerate one lost request and keep Render bandwidth low.
+- **Trade-off**: presence lags up to 45 s on a crash; reversal is changing the constants.
+- **Scope**: api-web-skeleton, agent-skeleton / agents
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-032 (assumed)
+
+- **Decision**: Pairing accepts at most 10 code submissions per account per 5 minutes; the 11th answers 429.
+- **Reason**: api-web-skeleton AWS-09: a 6-digit code valid 5 minutes needs a brute-force cap; stricter on safety and invisible to an honest player.
+- **Trade-off**: a player who mistypes 10 times waits up to 5 minutes; reversal is a constant.
+- **Scope**: api-web-skeleton / agents
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-033 (assumed)
+
+- **Decision**: The staging `match-formed` endpoint forms a one-member Leveling Baal match in Hell with the caller as host; its room name is `mmbaalh-<n>` (ADR 017).
+- **Reason**: api-web-skeleton AWS-19: Q3 names the endpoint but not the match; one member is the smallest match that exercises the host path.
+- **Trade-off**: staging-only; reversal is a parameter on the endpoint.
+- **Scope**: api-web-skeleton / lobby-room
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-034 (assumed)
+
+- **Decision**: A `GAME_NAME_SEEN` observation matches when its value equals the expected room name after trimming and lower-casing; confidence is stored but not used in F0.
+- **Reason**: api-web-skeleton AWS-23: ADR 017 names are lower-case ASCII; fuzzy matching is the agent's fusion (F2). Exact match is the stricter option.
+- **Trade-off**: an OCR misread leaves the room Awaiting host; reversal is a matcher change in the domain.
+- **Scope**: api-web-skeleton / lobby-room
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-035 (assumed)
+
+- **Decision**: `agent-skeleton` executes after `api-web-skeleton` is merged into `phase/F0`; its Specify and Design may run earlier.
+- **Reason**: Both features would otherwise edit `packages/contracts` in parallel worktrees; the agent consumes the contracts written by api-web-skeleton.
+- **Trade-off**: the two features run one after the other instead of in parallel; reversal is splitting contracts into their own feature.
+- **Scope**: phase F0
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-036 (assumed)
+
+- **Decision**: The F0 session lasts 7 days in an `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/` cookie whose random id is stored in `identity.sessions`.
+- **Reason**: api-web-skeleton AWS-01: FR-01 asks for a cookie session without a lifetime; 7 days is shorter than the usual 30 and the cookie is first-party through the Pages proxy (ADR 012).
+- **Trade-off**: testers sign in again weekly; reversal is a constant.
+- **Scope**: api-web-skeleton / identity
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-037 (assumed)
+
+- **Decision**: An account has one paired agent; pairing a new agent revokes the previous agent's token.
+- **Reason**: api-web-skeleton AWS-10: the PRD speaks of "the agent"; one live token per account is stricter (NFR-06) and FR-04's revoke is F1.
+- **Trade-off**: a player with two PCs re-pairs when switching; reversal is dropping the revoke-on-pair rule.
+- **Scope**: api-web-skeleton / agents
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-038 (assumed)
+
+- **Decision**: In F0 the presence screen is `UNKNOWN` or `AUTOMAP_OPEN`; F2 adds values.
+- **Reason**: api-web-skeleton AWS-14: FR-05 names "current screen" without a list, and F0's agent detects no screen; adding enum values later is backward compatible.
+- **Trade-off**: none user-visible beyond "Unknown"; reversal is a contract addition.
+- **Scope**: api-web-skeleton, agent-skeleton / contracts
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-039 (assumed)
+
+- **Decision**: A room is created and moved to `awaiting_host` in the same transaction; the `n` of `mm{activity}{difficulty}-{n}` comes from one Postgres sequence shared by every room.
+- **Reason**: api-web-skeleton AWS-20: `formed` has no observable duration before the ready check (F1); ADR 017 does not say how `n` is chosen, and a global sequence never repeats a name.
+- **Trade-off**: names grow (`mmbaalh-1234`); F1 may reset or scope the counter with FR-14. Reversal is a domain change, no data migration.
+- **Scope**: api-web-skeleton / lobby-room
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-040 (assumed)
+
+- **Decision**: The site renders in pt-BR when the browser's first preferred language starts with `pt`, in English otherwise; F0 has no language switcher.
+- **Reason**: api-web-skeleton AWS-37: NFR-12 asks for both languages from day 0, not for a control; no switcher adds no UI commitment.
+- **Trade-off**: a Portuguese speaker with an English browser sees English; reversal is adding a switcher.
+- **Scope**: api-web-skeleton / web
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-041 (assumed)
+
+- **Decision**: The unauthenticated pairing-code endpoint answers 429 after 10 requests per IP address per hour.
+- **Reason**: api-web-skeleton AWS-09: ADR 011 requires rate limiting; the endpoint is reachable without auth and each request creates a row.
+- **Trade-off**: players behind one shared IP may wait; reversal is a constant.
+- **Scope**: api-web-skeleton / agents
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
-- **Feature**: none — pre-foundation committed; phase F0 brief drafted, awaiting the maintainer's approval
-- **Phase / Task**: F0 kickoff
-- **Completed**: pre-foundation (harness, docs, ADRs, specs scaffolding)
-- **In-progress**: none
-- **Next step**: maintainer answers the F0 brief's open questions and approves it with delegation; then `/phase-run F0`
-- **Blockers**: none
-- **Uncommitted files**: none
-- **Branch**: main
+- **Feature**: api-web-skeleton (Specify). harness-foundation is done and merged into `phase/F0` (f5aae0f; runner state 01fce13)
+- **Phase / Task**: F0 run; api-web-skeleton spec gate not started
+- **Completed**: draft `spec.md` (AW-01…AW-16) and `acceptance.feature` in the worktree `.claude/worktrees/api-web-skeleton`; AD-029…AD-035 (assumed) recorded here and in `.specs/phases/F0/decisions.md`
+- **In-progress**: spec gate (validate_spec, acceptance-check, traceability, spec-reviewer), not yet run
+- **Next step**: in a new session, run `pnpm phase:status`; commit these drafts (`Feature: api-web-skeleton`, `Step: fix`); run the spec gate with one `attempt.mjs` call per Bash command and nothing chained; then Specify agent-skeleton (its Execute waits for api-web-skeleton, AD-035)
+- **Blockers**: the orchestrator session was exhausted by the gate hook (third denial of "quote the whole gate command": `prettier` chained before `attempt.mjs` in one Bash call). Environment: Docker (OrbStack) is not running; api-web-skeleton's Testcontainers and acceptance runs need it at Execute
+- **Uncommitted files**: `.specs/STATE.md`, `.specs/phases/F0/decisions.md`, `.specs/features/api-web-skeleton/{spec.md,acceptance.feature}` (worktree `feat/F0-api-web-skeleton`; the session could not commit)
+- **Branch**: feat/F0-api-web-skeleton
