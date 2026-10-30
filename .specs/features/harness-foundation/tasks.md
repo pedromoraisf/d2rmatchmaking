@@ -320,9 +320,9 @@ T16 → T17
 
 **Done when**:
 
-- [ ] Importer layers pinned as in design.md; one test per case, named after its rule (`domain-is-pure`, `application-no-adapters`, `no-cross-module-internals`, `nobody-imports-main`) asserting exit ≠ 0 and that the error-severity rule names equal exactly that rule; the `clean` test asserts exit 0 and no violation
-- [ ] `pnpm arch` on the real tree still exits 0
-- [ ] Gate check passes: `pnpm test:harness && pnpm arch && pnpm lint && pnpm format:check`
+- [x] Importer layers pinned as in design.md; one test per case, named after its rule (`domain-is-pure`, `application-no-adapters`, `no-cross-module-internals`, `nobody-imports-main`) asserting exit ≠ 0 and that the error-severity rule names equal exactly that rule; the `clean` test asserts exit 0 and no violation
+- [x] `pnpm arch` on the real tree still exits 0
+- [x] Gate check passes: `pnpm test:harness && pnpm arch && pnpm lint && pnpm format:check`
 
 **Tests**: unit
 **Gate**: quick
