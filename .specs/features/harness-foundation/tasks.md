@@ -200,10 +200,10 @@ T16 → T17
 
 **Done when**:
 
-- [ ] Tests assert `openapi` = `3.1.0` with `paths` `{}`, `asyncapi` = `3.0.0` with `channels` `{}`, and two calls return deep-equal documents
-- [ ] `pnpm contracts:check` exits 0 twice in a row with no diff
-- [ ] Gate check passes: `pnpm install && pnpm --filter @d2rmm/contracts test && pnpm contracts:check && pnpm format:check`
-- [ ] Test count: ≥ 3 tests pass (no silent deletions)
+- [x] Tests assert `openapi` = `3.1.0` with `paths` `{}`, `asyncapi` = `3.0.0` with `channels` `{}`, and two calls return deep-equal documents
+- [x] `pnpm contracts:check` exits 0 twice in a row with no diff
+- [x] Gate check passes: `pnpm install && pnpm --filter @d2rmm/contracts test && pnpm contracts:check && pnpm format:check`
+- [x] Test count: ≥ 3 tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick
