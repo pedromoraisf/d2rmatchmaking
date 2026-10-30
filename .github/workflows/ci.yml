@@ -20,7 +20,8 @@ env:
 
 jobs:
   verify:
-    name: verify (format, lint, types, architecture, tests, specs, harness, ratchet)
+    # format, lint, types, architecture, tests, specs, harness, ratchet
+    name: verify # required check in .github/rulesets/main.json — renaming it breaks the ruleset
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -89,7 +90,8 @@ jobs:
           retention-days: 14
 
   integration:
-    name: integration (Testcontainers) and e2e (Playwright)
+    # Testcontainers, Playwright e2e, BDD acceptance
+    name: integration
     if: hashFiles('apps/api/package.json') != '' || hashFiles('.specs/features/*/acceptance.feature') != ''
     needs: verify
     runs-on: ubuntu-latest
@@ -116,7 +118,8 @@ jobs:
           retention-days: 14
 
   agent:
-    name: 'agent (Rust — fmt, clippy, nextest)'
+    # Rust: fmt, clippy, nextest
+    name: agent
     if: hashFiles('apps/agent/src-tauri/Cargo.toml') != ''
     runs-on: windows-latest
     timeout-minutes: 30
@@ -139,7 +142,7 @@ jobs:
       - run: cargo nextest run
 
   secrets:
-    name: secrets (gitleaks)
+    name: secrets # gitleaks; required check in .github/rulesets/main.json
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
