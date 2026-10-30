@@ -183,7 +183,7 @@ T16 → T17
 
 **Done when**:
 
-- [ ] Gate check passes: `pnpm install && pnpm --filter @d2rmm/telemetry build && pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test`
+- [x] Gate check passes: `pnpm install && pnpm --filter @d2rmm/telemetry build && pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test`
 
 **Tests**: none
 **Gate**: build
