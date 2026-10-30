@@ -1331,5 +1331,5 @@ Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** none
-**Dispatched:** none
+**Dispatched:** execute-batch-1 (T1–T5) at e6e13d6 → pending
 **Walked:** none
