@@ -393,11 +393,11 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 
 ## Handoff
 
-- **Feature**: api-web-skeleton (Specify, spec gate). harness-foundation is done and merged into `phase/F0`
-- **Phase / Task**: F0 run; api-web-skeleton spec committed (41d8232), first `review-spec` FAIL fixed in one pass
-- **Completed**: `spec.md` (AWS-01…AWS-40) and `acceptance.feature`; AD-029…AD-043 (assumed) here and in `.specs/phases/F0/decisions.md`
-- **In-progress**: spec gate re-run and `review-spec` retry 1
-- **Next step**: `pnpm phase:status` in the worktree; then Design for api-web-skeleton; Specify agent-skeleton (its Execute waits for api-web-skeleton, AD-035)
-- **Blockers**: none for Specify/Design. Execute needs Docker running (Testcontainers, acceptance) and, for agent-skeleton, a Rust toolchain (not installed on this machine)
-- **Uncommitted files**: none after the next commit
+- **Feature**: api-web-skeleton — BLOCKED at the spec gate (`dispatch:api-web-skeleton/review-spec`, 3/3)
+- **Phase / Task**: F0 run; spec at 0719825 passes `validate_spec.py` and `acceptance-check.mjs`; review 1 FAIL and review 2 FAIL were fixed; review 3 was cut off by an API usage limit and still counted
+- **Completed**: `spec.md` (AWS-01…AWS-40), `acceptance.feature`, AD-029…AD-043 (assumed)
+- **In-progress**: none
+- **Next step**: maintainer chooses in `.specs/phases/F0/decisions.md` → Blocked (reset the review-spec budget, or approve the spec). Meanwhile agent-skeleton Specify can run (AD-035: its Execute waits for api-web-skeleton)
+- **Blockers**: review-spec budget exhausted. Execute later needs Docker running and, for agent-skeleton, a Rust toolchain (not installed)
+- **Uncommitted files**: none after the blocker commit
 - **Branch**: feat/F0-api-web-skeleton
