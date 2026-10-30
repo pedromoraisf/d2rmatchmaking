@@ -27,7 +27,7 @@
     "test:mutation": "turbo run test:mutation",
     "arch": "depcruise --config .dependency-cruiser.cjs apps packages tests",
     "contracts:openapi": "turbo run contracts:openapi",
-    "contracts:check": "turbo run contracts:openapi && git diff --exit-code -- packages/contracts/openapi.json packages/contracts/asyncapi.json",
+    "contracts:check": "turbo run contracts:openapi && git diff --exit-code -- packages/contracts/openapi.json packages/contracts/asyncapi.json packages/contracts/json-schema/",
     "harness": "harness-score . --config .harness-score.json",
     "harness:gate": "harness-score . --config .harness-score.json --min-level 4 --quiet",
     "harness:json": "harness-score . --config .harness-score.json --json --quiet > .harness-score.report.json",

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "token": {
+      "type": "string",
+      "pattern": "^d2rmm_a_[A-Za-z0-9_-]{43}$"
+    }
+  },
+  "required": [
+    "token"
+  ],
+  "additionalProperties": false
+}

@@ -183,10 +183,10 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `documents.test.ts` asserts: AsyncAPI version `3.0.0` with channel `stream` and the three messages; the six JSON Schema file names (test `writes one JSON Schema per agent message`); two runs produce byte-identical output
-- [ ] Root `package.json` `contracts:check` runs `git diff --exit-code` on `openapi.json`, `asyncapi.json` and `json-schema/`
-- [ ] Gate check passes: `pnpm --filter @d2rmm/contracts typecheck && pnpm --filter @d2rmm/contracts test && pnpm contracts:check`
-- [ ] Test count: ≥ 29 tests pass (no silent deletions)
+- [x] `documents.test.ts` asserts: AsyncAPI version `3.0.0` with channel `stream` and the three messages; the six JSON Schema file names (test `writes one JSON Schema per agent message`); two runs produce byte-identical output
+- [x] Root `package.json` `contracts:check` runs `git diff --exit-code` on `openapi.json`, `asyncapi.json` and `json-schema/`
+- [x] Gate check passes: `pnpm --filter @d2rmm/contracts typecheck && pnpm --filter @d2rmm/contracts test && pnpm contracts:check`
+- [x] Test count: ≥ 29 tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick
