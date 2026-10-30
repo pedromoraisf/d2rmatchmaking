@@ -1,0 +1,8 @@
+{
+  "asyncapi": "3.0.0",
+  "info": {
+    "title": "D2R Match Making events",
+    "version": "0.0.0"
+  },
+  "channels": {}
+}

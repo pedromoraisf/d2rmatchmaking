@@ -1,0 +1,25 @@
+{
+  "name": "@d2rmm/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Modular monolith API for D2R Match Making (Node 26, Fastify 5): five modules with domain, application and adapters layers.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint --max-warnings 0 .",
+    "test": "vitest run --passWithNoTests",
+    "test:mutation": "node scripts/mutation.ts"
+  },
+  "devDependencies": {
+    "@d2rmm/config": "workspace:*",
+    "@stryker-mutator/core": "^10.1.1",
+    "@stryker-mutator/typescript-checker": "^10.1.1",
+    "@stryker-mutator/vitest-runner": "^10.1.1",
+    "@types/node": "^26.6.6",
+    "eslint": "^9.39.0",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}

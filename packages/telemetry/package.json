@@ -1,0 +1,23 @@
+{
+  "name": "@d2rmm/telemetry",
+  "version": "0.0.0",
+  "private": true,
+  "description": "OpenTelemetry bootstrap for Node and the browser (observability-e2e fills it).",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint --max-warnings 0 .",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@d2rmm/config": "workspace:*",
+    "eslint": "^9.39.0",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}

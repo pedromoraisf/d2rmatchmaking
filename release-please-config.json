@@ -1,0 +1,11 @@
+{
+  "packages": {
+    "apps/agent": {
+      "release-type": "node",
+      "component": "agent",
+      "include-component-in-tag": true,
+      "tag-separator": "-",
+      "include-v-in-tag": true
+    }
+  }
+}

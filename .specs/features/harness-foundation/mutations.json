@@ -1,0 +1,65 @@
+[
+  {
+    "file": "apps/api/src/shared-kernel/clock.ts",
+    "old": "this.#current = new Date(start.getTime());",
+    "new": "this.#current = start;",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run src/shared-kernel/clock.test.ts",
+    "label": "FakeClock constructor stores the caller's Date instead of a copy"
+  },
+  {
+    "file": "apps/api/src/shared-kernel/clock.ts",
+    "old": "this.#current = new Date(date.getTime());",
+    "new": "this.#current = date;",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run src/shared-kernel/clock.test.ts",
+    "label": "FakeClock.set stores the caller's Date instead of a copy"
+  },
+  {
+    "file": "apps/api/src/shared-kernel/clock.ts",
+    "old": "    return new Date(this.#current.getTime());\n  }\n\n  advance",
+    "new": "    return this.#current;\n  }\n\n  advance",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run src/shared-kernel/clock.test.ts",
+    "label": "FakeClock.now returns the internal Date"
+  },
+  {
+    "file": "apps/api/scripts/mutation-plan.ts",
+    "old": "'!src/**/*.test.ts'",
+    "new": "'!src/**/*.spec.ts'",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run scripts/mutation-plan.test.ts",
+    "label": "Stryker mutate list no longer excludes test files"
+  },
+  {
+    "file": "apps/api/scripts/mutation.ts",
+    "old": "if (exitCode === 0) {",
+    "new": "if (true) {",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run scripts/mutation-plan.test.ts",
+    "label": "last Stryker exit code wins instead of first non-zero"
+  },
+  {
+    "file": "apps/api/src/shared-kernel/id-generator.ts",
+    "old": "prefix = 'id'",
+    "new": "prefix = 'ID'",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run src/shared-kernel/id-generator.test.ts",
+    "label": "default id prefix changed"
+  },
+  {
+    "file": "scripts/lib/count-reporter.mjs",
+    "old": "if (passed === 0 || anyFailure)",
+    "new": "if (anyFailure)",
+    "proof": "node --test scripts/test/count-reporter.test.mjs",
+    "label": "count reporter no longer fails on zero passed tests"
+  },
+  {
+    "file": "scripts/lib/count-reporter.mjs",
+    "old": "if (passed === 0 || anyFailure)",
+    "new": "if (passed === 0)",
+    "proof": "node --test scripts/test/count-reporter.test.mjs",
+    "label": "count reporter ignores failures"
+  },
+  {
+    "file": "apps/api/stryker.config.mjs",
+    "old": "  ...layerConfig(layer),\n",
+    "new": "  thresholds: { break: 0 },\n",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run scripts/mutation-plan.test.ts",
+    "label": "stryker.config.mjs stops spreading the layer config"
+  }
+]

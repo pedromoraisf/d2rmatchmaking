@@ -30,6 +30,7 @@
     },
     "test:mutation": {
       "dependsOn": ["^build"],
+      "cache": false,
       "outputs": ["reports/mutation/**"]
     },
     "contracts:openapi": {
