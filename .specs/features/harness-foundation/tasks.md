@@ -76,7 +76,7 @@ T16 → T17
 ### Phase 5: Verifier findings (round 1)
 
 ```
-T18 → T19 → T20
+T18 → T19 → T20 → T21
 ```
 
 ---
@@ -475,6 +475,26 @@ T18 → T19 → T20
 
 ---
 
+### T21: Prove the count reporter fails a run with a failing test among passing ones
+
+**What**: A fixture with one passing and one failing test, and a test in `count-reporter.test.mjs` asserting the run exits non-zero and prints `1 passed` (verification.md finding 7, mutation M9).
+**Where**: `scripts/test/count-reporter.test.mjs`
+**Depends on**: T20
+**Reuses**: T20 reporter and fixtures
+**Requirement**: HF-03
+
+**Done when**:
+
+- [ ] A `*.fixture.mjs` file under `scripts/test/fixtures/count-reporter/` has one passing and one failing test and is not matched by the `pnpm test:harness` glob
+- [ ] A test runs the reporter on it and asserts a non-zero exit and `1 passed` in the output
+- [ ] Gate check passes: `pnpm test:harness && pnpm lint && pnpm format:check`
+- [ ] Test count: ≥ 80 harness tests pass (no silent deletions)
+
+**Tests**: unit
+**Gate**: quick
+
+---
+
 ## Checks
 
 **C1** - `pnpm ls -r --depth -1` lists the six `@d2rmm/*` workspaces (HF-01, AC 1)
@@ -588,6 +608,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 
 execute-batch-4 attempt 1 stopped on a manual mutant probe the orchestrator asked for; the probe moved to `check_proofs.py --mutations`; retried.
 
+**Round 2 (2026-10-30)** — proofs with mutations: 23 pass, 6 killed (e859e80). verify-r2 (62fa323): round-1 findings 1–4 and 6 closed, 5 accepted as an observation; new finding 7 (`count-reporter.mjs:39`, mutant M9 survives: no test has a failing test among passing ones). Planned as T21; tasks gate re-run. Next: execute-batch-5 (T21), proofs with mutations, fill `Closed`, verification gate once.
+
 **Replanned (2026-10-30), verifier findings** — orchestrator root cause: the fix prompt named gate steps (`fix-clock`, `fix-mutation`, `fix-count`) that are not task ids. The findings are now tasks T18–T20 (Phase 5); tasks gate re-run. Next: execute-batch-4 retry 2 runs T18–T20 with their task ids.
 
 **BLOCKED (2026-10-30), execute-batch-4 retry, fix F1 (verification findings M1/M2)** — `attempt.mjs run --step fix-clock` is rejected before the command runs: "step \"fix-clock\" is not a task id in tasks.md nor one of: spec, design, tasks, proofs, verification, integration". Steps must be task ids from `tasks.md` or the fixed steps, so the gate cannot be recorded under a fix name. Reusing `T10` would charge the fix to T10's budget, which the rules do not allow. No gate attempt was recorded and no budget was spent. Changes so far, uncommitted: `apps/api/src/shared-kernel/clock.test.ts` (the two M1/M2 tests, prettier-clean; they mutate the caller's `Date` after construction and after `set` and assert `now()` unchanged). `clock.ts` is untouched. F2 and F3 not started (stop rule: the batch stops at the first impossible fix). Next: the orchestrator either names a step the wrapper accepts for F1 or adds a fix step to the tasks.md step list, then execute-batch-4 resumes at F1's gate.
@@ -603,7 +625,7 @@ Phase 1:  T3 → T1 → T2 → T4 → T5 → T6 → T7
 Phase 2:  T8 → T9 → T10 → T11 → T12
 Phase 3:  T13 → T14 → T15
 Phase 4:  T16 → T17
-Phase 5:  T18 → T19 → T20
+Phase 5:  T18 → T19 → T20 → T21
 ```
 
 Batches: `execute-batch-1` = Phase 1 (7 tasks); `execute-batch-2` = Phase 2 (5 tasks); `execute-batch-3` = Phases 3–4
