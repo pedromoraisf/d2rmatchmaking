@@ -1,7 +1,7 @@
 # API and Web Skeleton Design
 
 **Spec**: `.specs/features/api-web-skeleton/spec.md`
-**Status**: Draft (revision 2: closes the first architecture and security reviews)
+**Status**: Approved (architecture-reviewer PASS and security-reviewer PASS on retry 1, 2026-10-30)
 
 ---
 
@@ -176,6 +176,7 @@ module's adapters, so no module imports platform's code.
   - Resume: on open, subscribe to live events and buffer them; then replay the client's projected events from the outbox with `id > Last-Event-ID` in order; then flush the buffer skipping ids already sent; then stream live. Recipients are resolved at replay time (the member's current agent).
   - Keep-alive comment `: ka` every 25 s (AWS-40). Headers `Content-Type: text/event-stream`, `Cache-Control: no-store, no-transform`, `X-Accel-Buffering: no`.
   - Closing: `AgentRevoked` closes that agent's streams; a site stream closes at its session's `expiresAt`; a 6th stream for the same account or agent closes the oldest (free single instance).
+- **Recipients**: room events carry `members[]` in their payload (`docs/domain/events.md`), so the projection needs no Lobby Room query; agent recipients come from `AgentsPort.currentAgentOf(accountId)`.
 - **`stream-projection.ts`** (pure) — `RoomAssignmentChanged` → `room.assigned` for each member account and each member's current agent; `RoomStageChanged` → `room.stage_changed` for each member account; transient `AgentPresenceChanged` → `agent.presence_changed` for the owner account.
 - **Event ids** (AWS-39): durable events carry `id: "<outboxId>"`; transient presence events carry `id: "<lastOutboxIdSentToThisStream>.<k>"` with `k` increasing per stream. Ids compare as `(outboxId, k)`, so every id increases; resume uses the part before the dot. The site re-reads presence with `GET /v1/agents/me` on every (re)connect, so a presence event lost in a reconnect is never stale (AD-056).
 
@@ -198,7 +199,7 @@ module's adapters, so no module imports platform's code.
 | `platform-uses-public-ports` | `^apps/api/src/platform/`        | `^apps/api/src/modules/[^/]+/(domain    | application                                                | adapters)/` | `scripts/test/fixtures/arch/platform-imports-internal/` |
 | `render-no-test-controls`    | `^apps/api/src/main/render\.ts$` | `^apps/api/src/main/test-controls\.ts$` | `scripts/test/fixtures/arch/render-imports-test-controls/` |
 
-`platform → main` is already forbidden by `nobody-imports-main`. The existing fixture test gains the three cases.
+`platform → main` is already forbidden by `nobody-imports-main`; the existing `shared-kernel-is-leaf` rule also gains `^apps/api/src/platform` in its `to` list. The existing fixture test gains the three cases.
 
 ### Contracts (`packages/contracts/src/`)
 

@@ -422,7 +422,7 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 
 - **Decision**: `AgentPresenceChanged` and `AgentRevoked` are transient events on the in-memory bus, not outbox rows; their stream ids are `<lastOutboxId>.<k>` and the site re-reads presence on every (re)connect.
 - **Reason**: api-web-skeleton design: ADR 008 puts events in the outbox in the same transaction as their state change, but presence is not in Postgres (ADR 006, AWS-13 forbids a Postgres write per heartbeat). A presence event lost to a restart is rebuilt from the next heartbeat.
-- **Trade-off**: presence changes are not replayed by `Last-Event-ID`; reversal is moving presence to Postgres, which NFR-07 rules out.
+- **Trade-off**: presence changes are not replayed by `Last-Event-ID`; reversal is moving presence to Postgres, which NFR-07 rules out. `AgentRevoked` follows a committed revoke: if a crash loses it, the restart drops every open stream and the token read-through checks `revoked_at`. The phase review proposes amending ADR 008's wording to name transient events.
 - **Scope**: api-web-skeleton / agents, platform
 - **Date**: 2026-10-30
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)

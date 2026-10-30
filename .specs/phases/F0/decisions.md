@@ -36,6 +36,9 @@ review. Reversals become tasks in a follow-up feature.
 - Sign-out and revoke-agent routes (FR-04) with real Battle.net login.
 - Verify Render's proxy hop count on the deployed API (`TRUST_PROXY_HOPS`) before F1 relies on the IP limit.
 - In-memory rate-limit counters reset on restart (ADR 006); revisit if abuse appears.
+- Before any real player uses the F0 Render service: turn `ENABLE_STAGING_ENDPOINTS` off or add the global pairing ceiling (staging lets anyone create `#test` accounts, each with its own pairing budget).
+- A per-IP limit on `POST /v1/auth/test-login` (unbounded test accounts against Neon's 1 GB).
+- Amend ADR 008's wording to name transient bus events (AD-056) — a new ADR superseding the sentence, maintainer's call.
 
 ## Blocked
 
