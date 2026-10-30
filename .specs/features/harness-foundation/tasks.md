@@ -73,6 +73,12 @@ T13 → T14 → T15
 T16 → T17
 ```
 
+### Phase 5: Verifier findings (round 1)
+
+```
+T18 → T19 → T20
+```
+
 ---
 
 ## Task Breakdown
@@ -407,6 +413,68 @@ T16 → T17
 
 ---
 
+#### Phase 5: Verifier findings (round 1)
+
+### T18: Prove `FakeClock` copies the dates it is given
+
+**What**: Tests in `clock.test.ts` that mutate the caller's `Date` after construction and after `set`, and assert `now()` is unchanged (verification.md findings M1, M2).
+**Where**: `apps/api/src/shared-kernel/clock.test.ts`
+**Depends on**: T17
+**Reuses**: T10 tests
+**Requirement**: HF-06
+
+**Done when**:
+
+- [ ] A test mutates the start `Date` after `new FakeClock(start)` and asserts `now()` still equals the original instant
+- [ ] A test mutates the argument after `set(date)` and asserts `now()` still equals the set instant
+- [ ] Gate check passes: `pnpm --filter @d2rmm/api test`
+- [ ] Test count: ≥ 21 tests pass in `@d2rmm/api` (no silent deletions)
+
+**Tests**: unit
+**Gate**: quick
+
+---
+
+### T19: Prove the Stryker mutate lists and the live per-layer thresholds
+
+**What**: Tests asserting the literal `layerConfig('domain').mutate` and `layerConfig('application').mutate` arrays (with the `!src/**/*.test.ts` exclusion), and that the config exported by `stryker.config.mjs` carries `thresholds.break` 80 for domain and 70 for application (verification.md finding M3 and HF-06 AC 4). `stryker.config.mjs` changes only if it cannot be imported in a test, with identical behaviour.
+**Where**: `apps/api/scripts/mutation-plan.test.ts`
+**Depends on**: T18
+**Reuses**: T12 `layerConfig`
+**Requirement**: HF-06
+
+**Done when**:
+
+- [ ] The `mutate` arrays of both layers are asserted literally
+- [ ] The config `stryker.config.mjs` exports for each layer is asserted to break at 80 (domain) and 70 (application)
+- [ ] Gate check passes: `pnpm --filter @d2rmm/api test`
+- [ ] Test count: ≥ 24 tests pass in `@d2rmm/api` (no silent deletions)
+
+**Tests**: unit
+**Gate**: quick
+
+---
+
+### T20: Count node:test proofs and fail on zero tests
+
+**What**: `scripts/lib/count-reporter.mjs`, a node:test custom reporter that prints each test's result and a final `<n> passed`, and fails the run when no test ran or one failed; `scripts/test/count-reporter.test.mjs` runs it on a fixture under `scripts/test/fixtures/count-reporter/` that `pnpm test:harness` does not pick up (verification.md finding 6; C5–C8 use it).
+**Where**: `scripts/lib/count-reporter.mjs`
+**Depends on**: T19
+**Reuses**: none
+**Requirement**: HF-03
+
+**Done when**:
+
+- [ ] Tests: a matching name pattern exits 0 and prints `1 passed`; a pattern matching nothing exits non-zero; a failing fixture test exits non-zero
+- [ ] `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="domain-is-pure" scripts/test/arch-fixtures.test.mjs` exits 0 and prints `1 passed`
+- [ ] Gate check passes: `pnpm test:harness && pnpm lint && pnpm format:check`
+- [ ] Test count: ≥ 3 new tests pass (no silent deletions)
+
+**Tests**: unit
+**Gate**: quick
+
+---
+
 ## Checks
 
 **C1** - `pnpm ls -r --depth -1` lists the six `@d2rmm/*` workspaces (HF-01, AC 1)
@@ -518,17 +586,24 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - Domain mutation score 100.00 (7 killed, 0 survived, 12 excluded as compile errors by the TypeScript checker, so the score rests on 7 valid mutants). Application: zero mutants, `null` in the baseline.
 - Recommendation for the orchestrator: add `pnpm install` to the T12 gate in tasks.md (or to the gate of any task that adds dependencies).
 
+execute-batch-4 attempt 1 stopped on a manual mutant probe the orchestrator asked for; the probe moved to `check_proofs.py --mutations`; retried.
+
+**Replanned (2026-10-30), verifier findings** — orchestrator root cause: the fix prompt named gate steps (`fix-clock`, `fix-mutation`, `fix-count`) that are not task ids. The findings are now tasks T18–T20 (Phase 5); tasks gate re-run. Next: execute-batch-4 retry 2 runs T18–T20 with their task ids.
+
+**BLOCKED (2026-10-30), execute-batch-4 retry, fix F1 (verification findings M1/M2)** — `attempt.mjs run --step fix-clock` is rejected before the command runs: "step \"fix-clock\" is not a task id in tasks.md nor one of: spec, design, tasks, proofs, verification, integration". Steps must be task ids from `tasks.md` or the fixed steps, so the gate cannot be recorded under a fix name. Reusing `T10` would charge the fix to T10's budget, which the rules do not allow. No gate attempt was recorded and no budget was spent. Changes so far, uncommitted: `apps/api/src/shared-kernel/clock.test.ts` (the two M1/M2 tests, prettier-clean; they mutate the caller's `Date` after construction and after `set` and assert `now()` unchanged). `clock.ts` is untouched. F2 and F3 not started (stop rule: the batch stops at the first impossible fix). Next: the orchestrator either names a step the wrapper accepts for F1 or adds a fix step to the tasks.md step list, then execute-batch-4 resumes at F1's gate.
+
 ---
 
 ## Phase Execution Map
 
 ```
-Phase 1 → Phase 2 → Phase 3 → Phase 4
+Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5
 
 Phase 1:  T3 → T1 → T2 → T4 → T5 → T6 → T7
 Phase 2:  T8 → T9 → T10 → T11 → T12
 Phase 3:  T13 → T14 → T15
 Phase 4:  T16 → T17
+Phase 5:  T18 → T19 → T20
 ```
 
 Batches: `execute-batch-1` = Phase 1 (7 tasks); `execute-batch-2` = Phase 2 (5 tasks); `execute-batch-3` = Phases 3–4
