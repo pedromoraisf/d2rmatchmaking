@@ -391,13 +391,40 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-30
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-044 (assumed)
+
+- **Decision**: harness-foundation's HF-04 scenario lines "declares version 3.1 with no paths" and "3.0 with no channels" become "declares version 3.1/3.0 and matches the committed file" when api-web-skeleton adds routes and events.
+- **Reason**: api-web-skeleton design: the empty documents were declared placeholders (`packages/contracts/src/documents.ts`); with real routes the old lines are false. The drift check that HF-04 exists for stays.
+- **Trade-off**: edits a done feature's scenario; the gate asks the maintainer to confirm it. Reversal is impossible without removing the routes.
+- **Scope**: harness-foundation, api-web-skeleton / contracts
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-045 (assumed)
+
+- **Decision**: Acceptance isolation uses test-control endpoints (`POST /__test/reset`, `POST /__test/clock`) mounted only by `main/local.ts` when `D2RMM_ACCEPTANCE=true`; `main/render.ts` can never mount them (dependency rule).
+- **Reason**: api-web-skeleton design: scenarios reuse personas and need code expiry and rate windows without waiting minutes; the brief's single staging fake is the test match, and these are not reachable on staging or production.
+- **Trade-off**: a local-only test surface to keep out of production; reversal is per-scenario databases and real waits.
+- **Scope**: api-web-skeleton / main, tests/acceptance
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-046 (assumed)
+
+- **Decision**: The F0 site uses `fetch` and `EventSource` without TanStack Router or Query; F1 adds them with real navigation.
+- **Reason**: api-web-skeleton design: the Design Doc stack lists both, but F0 has one page and three requests; smallest scope.
+- **Trade-off**: F1 introduces the router and query cache; no user-visible change.
+- **Scope**: api-web-skeleton / web
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
-- **Feature**: api-web-skeleton — BLOCKED at the spec gate (`dispatch:api-web-skeleton/review-spec`, 3/3)
-- **Phase / Task**: F0 run; spec at 0719825 passes `validate_spec.py` and `acceptance-check.mjs`; review 1 FAIL and review 2 FAIL were fixed; review 3 was cut off by an API usage limit and still counted
+- **Feature**: api-web-skeleton (Design)
+- **Phase / Task**: F0 run; api-web-skeleton spec approved by the maintainer (3407f61); design drafted, design gate next
 - **Completed**: `spec.md` (AWS-01…AWS-40), `acceptance.feature`, AD-029…AD-043 (assumed)
 - **In-progress**: none
-- **Next step**: maintainer chooses in `.specs/phases/F0/decisions.md` → Blocked (reset the review-spec budget, or approve the spec). Meanwhile agent-skeleton Specify can run (AD-035: its Execute waits for api-web-skeleton)
-- **Blockers**: review-spec budget exhausted. Execute later needs Docker running and, for agent-skeleton, a Rust toolchain (not installed)
+- **Next step**: architecture-reviewer and security-reviewer on design.md; then Tasks. agent-skeleton Specify in parallel (its Execute waits, AD-035)
+- **Blockers**: none. Execute needs Docker running and, for agent-skeleton, a Rust toolchain (not installed)
 - **Uncommitted files**: none after the blocker commit
 - **Branch**: feat/F0-api-web-skeleton

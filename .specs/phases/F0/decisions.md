@@ -5,26 +5,29 @@ review. Reversals become tasks in a follow-up feature.
 
 ## Assumed decisions
 
-| AD     | Feature            | Decision                                                                                             | Reversal cost           | Maintainer |
-| ------ | ------------------ | ---------------------------------------------------------------------------------------------------- | ----------------------- | ---------- |
-| AD-026 | harness-foundation | `apps/agent` is the TS UI workspace only; the Rust crate comes with agent-skeleton                   | add the crate earlier   |            |
-| AD-027 | harness-foundation | Shared kernel written here; domain mutation covers `modules/*/domain` + `shared-kernel`              | narrow the Stryker glob |            |
-| AD-028 | harness-foundation | release-please config + manifest only; workflow in agent-skeleton                                    | move the workflow       |            |
-| AD-029 | api-web-skeleton   | Test sign-in behind `ENABLE_STAGING_ENDPOINTS`; OAuth in F1                                          | delete the route        |            |
-| AD-030 | api-web-skeleton   | Agent claims its token by polling with a one-time `claimSecret`                                      | contract change         |            |
-| AD-031 | api-web-skeleton   | Heartbeat every 15 s; offline after 45 s                                                             | change two constants    |            |
-| AD-032 | api-web-skeleton   | 10 pairing attempts per account per 5 min, then 429                                                  | a constant              |            |
-| AD-033 | api-web-skeleton   | Staging match: one member, Leveling Baal Hell, `mmbaalh-<n>`                                         | endpoint parameter      |            |
-| AD-034 | api-web-skeleton   | Game name matches exactly after trim + lower-case                                                    | domain matcher change   |            |
-| AD-035 | phase F0           | agent-skeleton executes after api-web-skeleton merges                                                | split contracts out     |            |
-| AD-036 | api-web-skeleton   | Session 7 days, `HttpOnly` `Secure` `SameSite=Lax` cookie                                            | a constant              |            |
-| AD-037 | api-web-skeleton   | One paired agent per account; a new pairing revokes the old token                                    | drop the revoke rule    |            |
-| AD-038 | api-web-skeleton   | Presence screen is `UNKNOWN` or `AUTOMAP_OPEN` in F0                                                 | contract addition       |            |
-| AD-039 | api-web-skeleton   | Room starts in `awaiting_host`; `n` from one global sequence                                         | domain change           |            |
-| AD-040 | api-web-skeleton   | Site language follows the browser; no switcher                                                       | add a switcher          |            |
-| AD-041 | api-web-skeleton   | 10 pairing-code requests per IP per hour                                                             | a constant              |            |
-| AD-042 | api-web-skeleton   | Test-account names compare ignoring case                                                             | comparison change       |            |
-| AD-043 | api-web-skeleton   | `X-Agent-Version` required on every agent endpoint; minimum from `AGENT_MIN_VERSION` (default 0.0.0) | exempt pairing          |            |
+| AD     | Feature            | Decision                                                                                             | Reversal cost                | Maintainer |
+| ------ | ------------------ | ---------------------------------------------------------------------------------------------------- | ---------------------------- | ---------- |
+| AD-026 | harness-foundation | `apps/agent` is the TS UI workspace only; the Rust crate comes with agent-skeleton                   | add the crate earlier        |            |
+| AD-027 | harness-foundation | Shared kernel written here; domain mutation covers `modules/*/domain` + `shared-kernel`              | narrow the Stryker glob      |            |
+| AD-028 | harness-foundation | release-please config + manifest only; workflow in agent-skeleton                                    | move the workflow            |            |
+| AD-029 | api-web-skeleton   | Test sign-in behind `ENABLE_STAGING_ENDPOINTS`; OAuth in F1                                          | delete the route             |            |
+| AD-030 | api-web-skeleton   | Agent claims its token by polling with a one-time `claimSecret`                                      | contract change              |            |
+| AD-031 | api-web-skeleton   | Heartbeat every 15 s; offline after 45 s                                                             | change two constants         |            |
+| AD-032 | api-web-skeleton   | 10 pairing attempts per account per 5 min, then 429                                                  | a constant                   |            |
+| AD-033 | api-web-skeleton   | Staging match: one member, Leveling Baal Hell, `mmbaalh-<n>`                                         | endpoint parameter           |            |
+| AD-034 | api-web-skeleton   | Game name matches exactly after trim + lower-case                                                    | domain matcher change        |            |
+| AD-035 | phase F0           | agent-skeleton executes after api-web-skeleton merges                                                | split contracts out          |            |
+| AD-036 | api-web-skeleton   | Session 7 days, `HttpOnly` `Secure` `SameSite=Lax` cookie                                            | a constant                   |            |
+| AD-037 | api-web-skeleton   | One paired agent per account; a new pairing revokes the old token                                    | drop the revoke rule         |            |
+| AD-038 | api-web-skeleton   | Presence screen is `UNKNOWN` or `AUTOMAP_OPEN` in F0                                                 | contract addition            |            |
+| AD-039 | api-web-skeleton   | Room starts in `awaiting_host`; `n` from one global sequence                                         | domain change                |            |
+| AD-040 | api-web-skeleton   | Site language follows the browser; no switcher                                                       | add a switcher               |            |
+| AD-041 | api-web-skeleton   | 10 pairing-code requests per IP per hour                                                             | a constant                   |            |
+| AD-042 | api-web-skeleton   | Test-account names compare ignoring case                                                             | comparison change            |            |
+| AD-043 | api-web-skeleton   | `X-Agent-Version` required on every agent endpoint; minimum from `AGENT_MIN_VERSION` (default 0.0.0) | exempt pairing               |            |
+| AD-044 | api-web-skeleton   | HF-04 scenario lines change from "no paths/channels" to "matches the committed file"                 | none (routes exist)          |            |
+| AD-045 | api-web-skeleton   | Test-control endpoints (reset, clock) only in `main/local.ts` under `D2RMM_ACCEPTANCE`               | per-scenario DBs, real waits |            |
+| AD-046 | api-web-skeleton   | F0 site without TanStack Router/Query                                                                | add them in F1               |            |
 
 ## Blocked
 
