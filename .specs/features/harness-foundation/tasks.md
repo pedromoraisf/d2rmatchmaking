@@ -165,8 +165,8 @@ T16 → T17
 
 **Done when**:
 
-- [ ] `apps/agent/package.json` has `"version": "0.0.0"`; no `apps/agent/src-tauri` exists
-- [ ] Gate check passes: `pnpm install && pnpm --filter @d2rmm/agent build && pnpm --filter @d2rmm/agent typecheck && pnpm --filter @d2rmm/agent lint && pnpm --filter @d2rmm/agent test`
+- [x] `apps/agent/package.json` has `"version": "0.0.0"`; no `apps/agent/src-tauri` exists
+- [x] Gate check passes: `pnpm install && pnpm --filter @d2rmm/agent build && pnpm --filter @d2rmm/agent typecheck && pnpm --filter @d2rmm/agent lint && pnpm --filter @d2rmm/agent test`
 
 **Tests**: none
 **Gate**: build
