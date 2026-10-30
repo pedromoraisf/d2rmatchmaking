@@ -40,5 +40,26 @@
     "new": "prefix = 'ID'",
     "proof": "pnpm --filter @d2rmm/api exec vitest run src/shared-kernel/id-generator.test.ts",
     "label": "default id prefix changed"
+  },
+  {
+    "file": "scripts/lib/count-reporter.mjs",
+    "old": "if (passed === 0 || anyFailure)",
+    "new": "if (anyFailure)",
+    "proof": "node --test scripts/test/count-reporter.test.mjs",
+    "label": "count reporter no longer fails on zero passed tests"
+  },
+  {
+    "file": "scripts/lib/count-reporter.mjs",
+    "old": "if (passed === 0 || anyFailure)",
+    "new": "if (passed === 0)",
+    "proof": "node --test scripts/test/count-reporter.test.mjs",
+    "label": "count reporter ignores failures"
+  },
+  {
+    "file": "apps/api/stryker.config.mjs",
+    "old": "  ...layerConfig(layer),\n",
+    "new": "  thresholds: { break: 0 },\n",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run scripts/mutation-plan.test.ts",
+    "label": "stryker.config.mjs stops spreading the layer config"
   }
 ]
