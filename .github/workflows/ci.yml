@@ -19,8 +19,24 @@ env:
   FORCE_COLOR: '1'
 
 jobs:
+  detect:
+    # hashFiles() is not allowed in a job-level `if:`; compute what exists once and share it as outputs.
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.d.outputs.api }}
+      agent: ${{ steps.d.outputs.agent }}
+      acceptance: ${{ steps.d.outputs.acceptance }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: d
+        run: |
+          [ -f apps/api/package.json ] && echo "api=true" >> "$GITHUB_OUTPUT" || echo "api=false" >> "$GITHUB_OUTPUT"
+          [ -f apps/agent/src-tauri/Cargo.toml ] && echo "agent=true" >> "$GITHUB_OUTPUT" || echo "agent=false" >> "$GITHUB_OUTPUT"
+          if compgen -G ".specs/features/*/acceptance.feature" > /dev/null; then echo "acceptance=true"; else echo "acceptance=false"; fi >> "$GITHUB_OUTPUT"
+
   verify:
-    name: verify (format, lint, types, architecture, tests, specs, harness, ratchet)
+    # format, lint, types, architecture, tests, specs, harness, ratchet
+    name: verify # required check in .github/rulesets/main.json — renaming it breaks the ruleset
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -89,9 +105,10 @@ jobs:
           retention-days: 14
 
   integration:
-    name: integration (Testcontainers) and e2e (Playwright)
-    if: hashFiles('apps/api/package.json') != '' || hashFiles('.specs/features/*/acceptance.feature') != ''
-    needs: verify
+    # Testcontainers, Playwright e2e, BDD acceptance
+    name: integration
+    needs: [detect, verify]
+    if: needs.detect.outputs.api == 'true' || needs.detect.outputs.acceptance == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -116,8 +133,10 @@ jobs:
           retention-days: 14
 
   agent:
-    name: 'agent (Rust — fmt, clippy, nextest)'
-    if: hashFiles('apps/agent/src-tauri/Cargo.toml') != ''
+    # Rust: fmt, clippy, nextest
+    name: agent
+    needs: detect
+    if: needs.detect.outputs.agent == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     defaults:
@@ -139,7 +158,7 @@ jobs:
       - run: cargo nextest run
 
   secrets:
-    name: secrets (gitleaks)
+    name: secrets # gitleaks; required check in .github/rulesets/main.json
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
