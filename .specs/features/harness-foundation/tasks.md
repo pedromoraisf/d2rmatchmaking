@@ -379,9 +379,9 @@ T16 → T17
 
 **Done when**:
 
-- [ ] `bddgen` generates with no missing step; every scenario except `@HF-07` passes (HF-07 passes after T17)
-- [ ] No import from `apps/` or `packages/(telemetry|config)`; `pnpm arch` exits 0
-- [ ] Gate check passes: `pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep-invert @HF-07`
+- [x] `bddgen` generates with no missing step; every scenario except `@HF-07` passes (HF-07 passes after T17)
+- [x] No import from `apps/` or `packages/(telemetry|config)`; `pnpm arch` exits 0
+- [x] Gate check passes: `pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep-invert @HF-07`
 
 **Tests**: e2e
 **Gate**: full
