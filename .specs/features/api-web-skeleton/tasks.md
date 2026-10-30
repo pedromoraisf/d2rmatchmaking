@@ -144,10 +144,10 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Each schema has a test that accepts the design's example payload and one test per bound it enforces (code not 6 digits, value of 65 chars, confidence 1.1, unknown screen)
-- [ ] `Observation.parse({ type: 'SOMETHING_NEW', … })` yields `type: 'UNKNOWN'` (test `catches an unknown observation type`)
-- [ ] Gate check passes: `pnpm --filter @d2rmm/contracts typecheck && pnpm --filter @d2rmm/contracts test`
-- [ ] Test count: ≥ 20 tests pass (no silent deletions)
+- [x] Each schema has a test that accepts the design's example payload and one test per bound it enforces (code not 6 digits, value of 65 chars, confidence 1.1, unknown screen)
+- [x] `Observation.parse({ type: 'SOMETHING_NEW', … })` yields `type: 'UNKNOWN'` (test `catches an unknown observation type`)
+- [x] Gate check passes: `pnpm --filter @d2rmm/contracts typecheck && pnpm --filter @d2rmm/contracts test`
+- [x] Test count: ≥ 20 tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick
