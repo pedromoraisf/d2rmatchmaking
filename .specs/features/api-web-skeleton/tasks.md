@@ -222,10 +222,10 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `rules.test.ts`: `process.env.X` in `apps/api/src/modules/a/application/x.ts` reports `n/no-process-env` (test `n/no-process-env reports a process.env read in a module file`) and in `apps/api/src/main/config.ts` reports nothing; `<p>Hello</p>` in `apps/web/src/app/x.tsx` reports `i18next/no-literal-string` (test `reports a literal string in a component`); `Math.random()` in `apps/api/src/platform/x.ts` reports `no-restricted-properties`
-- [ ] `pnpm lint` still exits 0
-- [ ] Gate check passes: `pnpm --filter @d2rmm/config typecheck && pnpm --filter @d2rmm/config test && pnpm lint`
-- [ ] Test count: ≥ 4 new tests pass (no silent deletions)
+- [x] `rules.test.ts`: `process.env.X` in `apps/api/src/modules/a/application/x.ts` reports `n/no-process-env` (test `n/no-process-env reports a process.env read in a module file`) and in `apps/api/src/main/config.ts` reports nothing; `<p>Hello</p>` in `apps/web/src/app/x.tsx` reports `i18next/no-literal-string` (test `reports a literal string in a component`); `Math.random()` in `apps/api/src/platform/x.ts` reports `no-restricted-properties`
+- [x] `pnpm lint` still exits 0
+- [x] Gate check passes: `pnpm --filter @d2rmm/config typecheck && pnpm --filter @d2rmm/config test && pnpm lint`
+- [x] Test count: ≥ 4 new tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick
