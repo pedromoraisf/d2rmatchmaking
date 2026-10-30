@@ -373,13 +373,31 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-30
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-042 (assumed)
+
+- **Decision**: Test-account names compare ignoring case: `PlayerOne` and `playerone` open the same `<name>#test` account, displayed as first typed.
+- **Reason**: api-web-skeleton AWS-01: the test sign-in reuses an account by name and nothing says whether case matters; one account per name avoids look-alikes.
+- **Trade-off**: staging only; reversal is a comparison change.
+- **Scope**: api-web-skeleton / identity
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-043 (assumed)
+
+- **Decision**: Every agent endpoint (pairing code and claim included) requires `X-Agent-Version`; the minimum comes from `AGENT_MIN_VERSION`, read only in `main/`, default `0.0.0`.
+- **Reason**: api-web-skeleton AWS-12: ADR 011 sets the 426 rule without a value or an endpoint list; requiring the header everywhere lets an outdated agent be stopped before pairing.
+- **Trade-off**: the maintainer raises the minimum by config; reversal is exempting pairing.
+- **Scope**: api-web-skeleton, agent-skeleton / agents
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
-- **Feature**: api-web-skeleton (Specify). harness-foundation is done and merged into `phase/F0` (f5aae0f; runner state 01fce13)
-- **Phase / Task**: F0 run; api-web-skeleton spec gate not started
-- **Completed**: draft `spec.md` (AW-01…AW-16) and `acceptance.feature` in the worktree `.claude/worktrees/api-web-skeleton`; AD-029…AD-035 (assumed) recorded here and in `.specs/phases/F0/decisions.md`
-- **In-progress**: spec gate (validate_spec, acceptance-check, traceability, spec-reviewer), not yet run
-- **Next step**: in a new session, run `pnpm phase:status`; commit these drafts (`Feature: api-web-skeleton`, `Step: fix`); run the spec gate with one `attempt.mjs` call per Bash command and nothing chained; then Specify agent-skeleton (its Execute waits for api-web-skeleton, AD-035)
-- **Blockers**: the orchestrator session was exhausted by the gate hook (third denial of "quote the whole gate command": `prettier` chained before `attempt.mjs` in one Bash call). Environment: Docker (OrbStack) is not running; api-web-skeleton's Testcontainers and acceptance runs need it at Execute
-- **Uncommitted files**: `.specs/STATE.md`, `.specs/phases/F0/decisions.md`, `.specs/features/api-web-skeleton/{spec.md,acceptance.feature}` (worktree `feat/F0-api-web-skeleton`; the session could not commit)
+- **Feature**: api-web-skeleton (Specify, spec gate). harness-foundation is done and merged into `phase/F0`
+- **Phase / Task**: F0 run; api-web-skeleton spec committed (41d8232), first `review-spec` FAIL fixed in one pass
+- **Completed**: `spec.md` (AWS-01…AWS-40) and `acceptance.feature`; AD-029…AD-043 (assumed) here and in `.specs/phases/F0/decisions.md`
+- **In-progress**: spec gate re-run and `review-spec` retry 1
+- **Next step**: `pnpm phase:status` in the worktree; then Design for api-web-skeleton; Specify agent-skeleton (its Execute waits for api-web-skeleton, AD-035)
+- **Blockers**: none for Specify/Design. Execute needs Docker running (Testcontainers, acceptance) and, for agent-skeleton, a Rust toolchain (not installed on this machine)
+- **Uncommitted files**: none after the next commit
 - **Branch**: feat/F0-api-web-skeleton

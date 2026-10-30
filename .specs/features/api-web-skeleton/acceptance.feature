@@ -14,6 +14,12 @@ Feature: A test room becomes Created
   # not-scenario: AWS-33 — an architecture rule; proved by a test that the API's dependency tree has no Redis or broker client and that heartbeats issue no SQL (query counter in an integration test)
   # not-scenario: AWS-34 — the deploy workflows run only after the maintainer's push with secrets (AGENTS.md rules 6-7); proved by a static test of `deploy-api.yml` and `deploy-web.yml` and by their first runs, listed in the phase review
   # not-scenario: AWS-35 — spans are internal; proved by an application test with an in-memory span exporter
+  # not-scenario: AWS-39 — event ordering is internal to the stream; proved by a Testcontainers integration test that commits events in several transactions and asserts the stream ids strictly increase in outbox order, on a site stream and on an agent stream
+  # not-scenario: AWS-40 — waiting 25 s of real time per run is wasted CI time; proved by a stream integration test with FakeClock (a keep-alive comment at 25 s, none at 24.999 s)
+  # not-scenario: AWS-04 (expired session only) — needs time travel; proved by an application unit test with FakeClock (session valid at 7 days minus 1 ms, 401 at 7 days); the unknown and missing cases are the scenarios below
+  # not-scenario: AWS-14 ("Agent offline" label only) — reaching offline takes 45 s (AWS-15); proved by a web component test that renders the presence panel from an offline presence event
+  # not-scenario: AWS-20 (host is the lowest join order only) — the test match has one member (AD-033); proved by a domain unit test of room creation from a three-member `MatchFormed`
+  # not-scenario: AWS-24 (non-host member only) — the test match has one member (AD-033); proved by a domain unit test where a non-host member's matching observation leaves the room `awaiting_host`
   # not-scenario: AWS-36 — a build rule; proved by `pnpm contracts:check` and a test that every route is in `openapi.json` and every agent message has a JSON Schema file
 
   @AWS-30 @api
@@ -26,8 +32,11 @@ Feature: A test room becomes Created
     Given test sign-in is enabled
     When a visitor signs in on the site as "PlayerOne"
     Then the site shows "Signed in as PlayerOne"
+    And the session cookie is HttpOnly, Secure, SameSite Lax, for path "/" and lasts 7 days
     When the visitor reloads the site
     Then the site shows "Signed in as PlayerOne"
+    When another visitor signs in on the site as "playerone"
+    Then both visitors are signed in to the same account
 
   @AWS-02 @FR-01 @web
   Scenario Outline: A player name outside the rules is refused
@@ -38,9 +47,22 @@ Feature: A test room becomes Created
 
     Examples:
       | name              |
+      |                   |
       | P                 |
-      | PlayerWithLongName |
+      | PlayerNameIs17chr |
       | Player One        |
+      | Player_One        |
+
+  @AWS-01 @FR-01 @web
+  Scenario Outline: A player name at the limits is accepted
+    Given test sign-in is enabled
+    When a visitor signs in on the site as "<name>"
+    Then the site shows "Signed in as <name>"
+
+    Examples:
+      | name             |
+      | Pl               |
+      | Player-Name-16ch |
 
   @AWS-03 @web
   Scenario: Test sign-in and test matches do not exist when staging endpoints are off
@@ -56,6 +78,14 @@ Feature: A test room becomes Created
     Then the API answers "401"
     When a client calls a site endpoint with an unknown session
     Then the API answers "401"
+
+  @AWS-04 @web
+  Scenario: A visitor with an unknown session sees the site signed out
+    Given test sign-in is enabled
+    And the browser holds a session cookie the API does not know
+    When a visitor opens the site
+    Then the site shows "Sign in with a test account"
+    And the site shows no "Signed in as" text
 
   @AWS-05 @FR-03 @api
   Scenario: An agent receives a pairing code
@@ -76,6 +106,12 @@ Feature: A test room becomes Created
     Given an agent shows a pairing code
     When the agent claims before anyone typed the code
     Then the API answers "202" with no token
+
+  @AWS-07 @FR-03 @api
+  Scenario: A claim for a code that expired unused is refused
+    Given an agent showed a pairing code that expired unused
+    When the agent claims with its claim secret
+    Then the API answers "410" with no token
 
   @AWS-08 @FR-03 @web
   Scenario Outline: A pairing code that cannot be used is refused
@@ -120,14 +156,19 @@ Feature: A test room becomes Created
 
   @AWS-12 @api
   Scenario Outline: An outdated agent is told to upgrade
-    Given "PlayerOne" has a paired agent
-    When the agent sends a heartbeat with <version>
-    Then the API answers "426"
+    Given the minimum agent version is "0.0.1"
+    And "PlayerOne" has a paired agent
+    When the agent sends a <request> with <version>
+    Then the API answers "<status>"
 
     Examples:
-      | version                     |
-      | a version below the minimum |
-      | no version                  |
+      | request              | version                | status |
+      | heartbeat            | version "0.0.0"        | 426    |
+      | heartbeat            | no version             | 426    |
+      | heartbeat            | version "banana"       | 426    |
+      | heartbeat            | version "0.0.1"        | 204    |
+      | pairing code request | version "0.0.0"        | 426    |
+      | pairing code request | version "0.0.2"        | 201    |
 
   @AWS-13 @AWS-14 @FR-05 @NFR-01 @web
   Scenario: A paired agent shows as online with the game open
@@ -137,10 +178,18 @@ Feature: A test room becomes Created
     Then the API answers "204"
     And within 2 seconds the site shows "Agent online", "Game open" and "Screen: Automap open"
 
+  @AWS-14 @FR-05 @NFR-01 @web
+  Scenario: The site follows a presence change
+    Given "PlayerOne" is signed in on the site
+    And "PlayerOne" has a paired agent that reports the game running on the automap
+    When the agent reports that the game is closed on an unknown screen
+    Then within 2 seconds the site shows "Agent online", "Game closed" and "Screen: Unknown"
+
   @AWS-16 @FR-03 @web
   Scenario: A player without an agent is offered pairing
     Given "PlayerOne" is signed in on the site
-    When "PlayerOne" has no paired agent
+    And "PlayerOne" has no paired agent
+    When "PlayerOne" opens the site
     Then the site shows the field "Pairing code" and the action "Pair agent"
 
   @AWS-17 @web
@@ -161,8 +210,15 @@ Feature: A test room becomes Created
     And "PlayerOne" has a paired agent that is online
     When "PlayerOne" uses "Start test match"
     Then within 2 seconds the site shows a room named like "mmbaalh-", "No password" and the stage "Awaiting host"
-    And the agent's stream and assignment name that room, run 1 and its game name
+    And the agent's stream and assignment name that room, run 1, its game name and "PlayerOne" as host and only member
     When the agent reports seeing the game name of the room
+    Then within 2 seconds the site shows the room as "Created"
+
+  @AWS-23 @INV-06 @web
+  Scenario: The game name matches whatever its letter case
+    Given "PlayerOne" is signed in on the site
+    And "PlayerOne" has started a test match with a paired agent
+    When the agent reports seeing the game name of the room in upper case
     Then within 2 seconds the site shows the room as "Created"
 
   @AWS-20 @api
@@ -178,6 +234,13 @@ Feature: A test room becomes Created
     When "PlayerOne" reloads the site
     Then the site shows the room's game name and the stage "Awaiting host"
 
+  @AWS-21 @web
+  Scenario: A newer test match replaces the room on the site
+    Given "PlayerOne" is signed in on the site
+    And "PlayerOne" has started a test match
+    When "PlayerOne" uses "Start test match" again
+    Then within 2 seconds the site shows a game name different from the first room's
+
   @AWS-24 @INV-06 @web
   Scenario Outline: An observation that does not prove the game leaves the room waiting
     Given "PlayerOne" is signed in on the site
@@ -187,9 +250,17 @@ Feature: A test room becomes Created
     And the site shows the room as "Awaiting host"
 
     Examples:
-      | reporter                          | name                            |
-      | the host's agent                  | the game name "mmbaalh-999999"  |
-      | the host's agent                  | the game name of run 2          |
+      | reporter         | name                           |
+      | the host's agent | the game name "mmbaalh-999999" |
+      | the host's agent | the game name of run 2         |
+
+  @AWS-24 @INV-06 @api
+  Scenario: A second sighting after Created changes nothing
+    Given "PlayerOne" has started a test match with a paired agent
+    And the agent has reported seeing the game name of the room
+    When the agent reports seeing the game name of the room again with a new observation
+    Then the API answers "202"
+    And the room changed stage only once
 
   @AWS-24 @INV-09 @api
   Scenario: A repeated observation changes nothing
@@ -221,6 +292,13 @@ Feature: A test room becomes Created
     When the agent of "PlayerOne" reports seeing the game name of the room
     Then the stream of "PlayerOne" receives the room's stage change
     And the stream of "PlayerTwo" receives no room event
+
+  @AWS-27 @api
+  Scenario: Each agent's stream carries only that agent's events
+    Given "PlayerOne" and "PlayerTwo" each have a paired agent with an open stream
+    When "PlayerOne" starts a test match
+    Then the stream of the agent of "PlayerOne" receives the room assignment
+    And the stream of the agent of "PlayerTwo" receives no room event
 
   @AWS-27 @api
   Scenario: A stream without a session is refused
