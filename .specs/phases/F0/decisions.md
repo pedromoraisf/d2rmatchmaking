@@ -13,10 +13,12 @@ review. Reversals become tasks in a follow-up feature.
 
 ## Blocked
 
-| Feature / task | Gate | Attempts | Last error | Options |
-| -------------- | ---- | -------- | ---------- | ------- |
+| Feature / task                      | Gate                   | Attempts                                                 | Last error                                                                                                  | Options                                                                                                                                                                                                            |
+| ----------------------------------- | ---------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| harness-foundation / spec amendment | dispatch `review-spec` | 3 dispatches (1 FAIL, 1 PASS, 1 from an earlier session) | Fourth review needed for the HF-07 vs HF-09 contradiction; gate refuses the dispatch and blocks the feature | (a) reset `dispatch:harness-foundation/review-spec` and let the runner re-review; (b) maintainer approves the amended spec in their own words; (c) revert the amendment and drop HF-09's empty-report path instead |
 
 ## Escalations raised
 
-| When | What | Answer |
-| ---- | ---- | ------ |
+| When       | What                                                                                                                         | Answer                                                                                                                                                                                              |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-10-30 | harness-foundation blocked by the retry budget on `review-spec`; every other F0 feature depends on it (`phaseBlocked: true`) | maintainer: "I approve the amendment" (2026-10-30). The gate refuses a direct approval line in spec.md during a phase run, and the ledger still blocks the feature; a reset is required to continue |

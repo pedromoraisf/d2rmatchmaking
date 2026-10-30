@@ -36,13 +36,13 @@ workspaces, the five API modules with their three layers, and sensors that are p
 
 ## Assumptions & Open Questions
 
-| Assumption / decision                                               | Chosen default                                                                                                                                                                | Rationale                                                                                                                                                           | Confirmed? |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| What "empty workspace" means for `apps/agent`                       | `apps/agent` is the TypeScript UI workspace only (`package.json`, no `src-tauri/`)                                                                                            | `ci.yml` turns the Rust job on when `apps/agent/src-tauri/Cargo.toml` exists; the crate belongs to `agent-skeleton`. AD-026 (assumed)                               | y (AD-026) |
-| What the domain mutation report mutates before any aggregate exists | The shared kernel (`Result`, `Clock`, `IdGenerator`) is written here with its unit tests; the domain Stryker run mutates `src/modules/*/domain/**` and `src/shared-kernel/**` | Without code, Stryker reports no score and the exit criterion "a domain mutation report" has no proof. The shared kernel is pure, like the domain. AD-027 (assumed) | y (AD-027) |
-| Release-please scope                                                | Config and manifest for the `apps/agent` package only (component `agent`, tag `agent-v*`, start version `0.0.0`); no workflow                                                 | ADR 015 releases only the agent; the workflow pushes tags and belongs with the release pipeline in `agent-skeleton`. AD-028 (assumed)                               | y (AD-028) |
-| How acceptance scenarios observe a developer-tooling feature        | Scenarios describe what a contributor runs and observes; step definitions run the repository commands in a child process and assert on exit code and output                   | ADR 023 requires executable scenarios; this feature has no screen or API. No browser is needed                                                                      | y          |
-| Which metrics get their first value here                            | `arch.violations`, `lint.warnings`, `tests.skipped`, `mutation.api.domain`, `mutation.api.application` (plus the harness metrics, already measured)                           | These are measurable locally; CI time and load need GitHub and k6                                                                                                   | y          |
+| Assumption / decision                                               | Chosen default                                                                                                                                                                                                                                                                                   | Rationale                                                                                                                                                           | Confirmed? |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| What "empty workspace" means for `apps/agent`                       | `apps/agent` is the TypeScript UI workspace only (`package.json`, no `src-tauri/`)                                                                                                                                                                                                               | `ci.yml` turns the Rust job on when `apps/agent/src-tauri/Cargo.toml` exists; the crate belongs to `agent-skeleton`. AD-026 (assumed)                               | y (AD-026) |
+| What the domain mutation report mutates before any aggregate exists | The shared kernel (`Result`, `Clock`, `IdGenerator`) is written here with its unit tests; the domain Stryker run mutates `src/modules/*/domain/**` and `src/shared-kernel/**`                                                                                                                    | Without code, Stryker reports no score and the exit criterion "a domain mutation report" has no proof. The shared kernel is pure, like the domain. AD-027 (assumed) | y (AD-027) |
+| Release-please scope                                                | Config and manifest for the `apps/agent` package only (component `agent`, tag `agent-v*`, start version `0.0.0`); no workflow                                                                                                                                                                    | ADR 015 releases only the agent; the workflow pushes tags and belongs with the release pipeline in `agent-skeleton`. AD-028 (assumed)                               | y (AD-028) |
+| How acceptance scenarios observe a developer-tooling feature        | Scenarios describe what a contributor runs and observes; step definitions run the repository commands in a child process and assert on exit code and output                                                                                                                                      | ADR 023 requires executable scenarios; this feature has no screen or API. No browser is needed                                                                      | y          |
+| Which metrics get their first value here                            | `arch.violations`, `lint.warnings`, `tests.skipped`, `mutation.api.domain` (plus the harness metrics, already measured); `mutation.api.application` stays `null` while the application layer has no mutant (HF-09) and gets its first value with the first application code (`api-web-skeleton`) | These are measurable locally; CI time and load need GitHub and k6                                                                                                   | y          |
 
 **Open questions:** none - all resolved or logged above.
 
@@ -120,11 +120,11 @@ measurements rather than from `null`.
 
 **Acceptance Criteria**:
 
-1. WHEN `pnpm quality:collect && pnpm quality:ratchet --context phase --update` runs on the finished feature branch THEN `.quality-baseline.json` SHALL hold non-null values for `arch.violations`, `lint.warnings`, `tests.skipped`, `mutation.api.domain` and `mutation.api.application`.
+1. WHEN `pnpm quality:collect && pnpm quality:ratchet --context phase --update` runs on the finished feature branch THEN `.quality-baseline.json` SHALL hold non-null values for `arch.violations`, `lint.warnings`, `tests.skipped` and `mutation.api.domain`, and `mutation.api.application` SHALL stay `null` because its report has zero mutants (HF-09; the collector scores zero mutants as not measured).
 2. The update SHALL not raise any `floor` or lower any `ceiling` beyond what the ratchet computes, and SHALL leave `ci.duration_seconds` and the `load.*` metrics at `null`.
 3. WHEN a contributor runs `pnpm harness:gate` after this feature THEN it SHALL exit 0 (harness-score level 4, NFR-11).
 
-**Independent Test**: diff of `.quality-baseline.json` shows only the five values set and `harness:gate` exits 0.
+**Independent Test**: diff of `.quality-baseline.json` shows only the four values set and `harness:gate` exits 0.
 
 ---
 
@@ -185,21 +185,21 @@ the workflow and the first release follows Conventional Commits.
 
 ## Requirement Traceability
 
-| Requirement ID | Story                                           | Phase  | Status  |
-| -------------- | ----------------------------------------------- | ------ | ------- |
-| HF-01          | P1: Six workspaces build together (AC 1-2)      | Design | Pending |
-| HF-02          | P1: Six workspaces build together (AC 3)        | Design | Pending |
-| HF-03          | P1: Layers that the sensors enforce (AC 3-6)    | Design | Pending |
-| HF-04          | P1: Six workspaces build together (AC 4)        | Design | Pending |
-| HF-05          | P1: Layers that the sensors enforce (AC 1-2, 7) | Design | Pending |
-| HF-06          | P1: Test pyramid with mutation (AC 1-4)         | Design | Pending |
-| HF-07          | P2: First measured quality baseline (AC 1-2)    | Design | Pending |
-| HF-08          | P2: First measured quality baseline (AC 3)      | Design | Pending |
-| HF-09          | P1: Test pyramid with mutation (AC 5)           | Design | Pending |
-| HF-10          | P3: First CI run on GitHub                      | -      | Pending |
-| HF-11          | P2: Release configuration for the agent         | Design | Pending |
+| Requirement ID | Story                                           | Phase | Status                               |
+| -------------- | ----------------------------------------------- | ----- | ------------------------------------ |
+| HF-01          | P1: Six workspaces build together (AC 1-2)      | Tasks | Mapped (T3-T6, T16)                  |
+| HF-02          | P1: Six workspaces build together (AC 3)        | Tasks | Mapped (T1, T2)                      |
+| HF-03          | P1: Layers that the sensors enforce (AC 3-6)    | Tasks | Mapped (T13)                         |
+| HF-04          | P1: Six workspaces build together (AC 4)        | Tasks | Mapped (T7)                          |
+| HF-05          | P1: Layers that the sensors enforce (AC 1-2, 7) | Tasks | Mapped (T8, T13)                     |
+| HF-06          | P1: Test pyramid with mutation (AC 1-4)         | Tasks | Mapped (T9-T12)                      |
+| HF-07          | P2: First measured quality baseline (AC 1-2)    | Tasks | Mapped (T14, T17)                    |
+| HF-08          | P2: First measured quality baseline (AC 3)      | Tasks | Mapped (T17)                         |
+| HF-09          | P1: Test pyramid with mutation (AC 5)           | Tasks | Mapped (T12)                         |
+| HF-10          | P3: First CI run on GitHub                      | -     | Queued (needs the maintainer's push) |
+| HF-11          | P2: Release configuration for the agent         | Tasks | Mapped (T15)                         |
 
-**Coverage:** 11 total, 0 mapped to tasks, 11 unmapped ⚠️ (Tasks not written yet)
+**Coverage:** 11 total, 10 mapped to tasks, 1 unmapped ⚠️ (HF-10: proved by the first CI run after the maintainer's push)
 
 ---
 
@@ -225,4 +225,4 @@ the workflow and the first release follows Conventional Commits.
 
 - [ ] `pnpm check` exits 0 on the feature branch with the six workspaces in place.
 - [ ] Removing any one fixture import makes the fixture test fail.
-- [ ] `.quality-baseline.json` has five new non-null values and nothing loosened.
+- [ ] `.quality-baseline.json` has four new non-null values and nothing loosened.

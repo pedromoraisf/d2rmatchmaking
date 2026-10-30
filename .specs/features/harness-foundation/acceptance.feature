@@ -57,8 +57,8 @@ Feature: A contributor builds every workspace and the sensors enforce the layers
   @HF-07
   Scenario: The quality baseline holds the first measured values
     When the contributor reads the quality baseline
-    Then the metrics "arch.violations", "lint.warnings", "tests.skipped", "mutation.api.domain" and "mutation.api.application" have a measured value
-    # HF-07 AC 2 (CI and load metrics stay null) holds only until load-baseline; proved by the baseline diff check at Tasks.
+    Then the metrics "arch.violations", "lint.warnings", "tests.skipped" and "mutation.api.domain" have a measured value
+    # HF-07 AC 1's null application score and AC 2 (CI and load metrics stay null) hold only until later features; proved by the baseline check at Tasks.
 
   # NFR-11 asks for level 4 verified in CI; this scenario proves the local gate, and HF-10 proves the CI run.
   @HF-08 @NFR-11
