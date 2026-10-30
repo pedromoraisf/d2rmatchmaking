@@ -260,7 +260,8 @@ export function checkEdit(rel, toolInput, ctx) {
     }
   }
   if (TEST_FILE.test(rel) && before !== null) {
-    if (/\b(it|test|describe)\.only\s*\(/.test(after))
+    const onlyRe = /\b(it|test|describe)\.only\s*\(/g;
+    if ((after.match(onlyRe) ?? []).length > (before.match(onlyRe) ?? []).length)
       return deny('.only() would silence the rest of the suite.');
     const skipsBefore = (before.match(/\.(skip|todo)\s*\(|#\[ignore\]/g) ?? []).length;
     const skipsAfter = (after.match(/\.(skip|todo)\s*\(|#\[ignore\]/g) ?? []).length;
