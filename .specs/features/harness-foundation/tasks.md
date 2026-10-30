@@ -359,8 +359,8 @@ T16 → T17
 
 **Done when**:
 
-- [ ] Exactly one package (`apps/agent`), release type `node`, component `agent`, tag separator `-`, `include-v-in-tag` true; manifest maps `apps/agent` to `0.0.0`
-- [ ] Gate check passes: `pnpm format:check`
+- [x] Exactly one package (`apps/agent`), release type `node`, component `agent`, tag separator `-`, `include-v-in-tag` true; manifest maps `apps/agent` to `0.0.0`
+- [x] Gate check passes: `pnpm format:check`
 
 **Tests**: none
 **Gate**: build
