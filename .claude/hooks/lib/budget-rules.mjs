@@ -24,13 +24,23 @@ const allow = (effects = []) => ({ decision: null, effects });
 const FEATURE_BRANCH = /^feat\/(F\d+)-(.+)$/;
 const PHASE_BRANCH = /^phase\/(F\d+)$/;
 const WORKTREE = /(?:^|[\s"'=/])\.claude\/worktrees\/([a-z0-9][a-z0-9-]*)(?:\/|\s|"|'|$)/;
+const SPECS_FILE = /^(\.claude\/worktrees\/[a-z0-9][a-z0-9-]*\/)?\.specs\//;
 const LEDGER_REF = /\.git\/d2rmm|d2rmm\/ledger|D2RMM_LEDGER/;
 const WRAPPER = /(^|\s)(node\s+)?(\.\/)?scripts\/attempt\.mjs\s+run\s/;
 const WRAPPER_ANY = /scripts\/attempt\.mjs\s+(\w+)/;
-const SENSOR_CMD =
-  /\b(vitest|jest|playwright\s+test|cargo\s+(nextest|test|clippy|mutants)|turbo\s+run\s+(test|typecheck|lint)\S*|pnpm\s+(run\s+|exec\s+)?(test|check|lint|typecheck|arch|test:\S+|harness:gate)\b|check_proofs\.py|validate_(spec|tasks|verification)\.py|acceptance-check\.mjs|bddgen|stryker|depcruise|eslint|tsc)\b/;
+// A sensor runs when it is the command a shell segment executes — never when its name is only an argument or a path
+// (`grep -i stryker x`, `sed -n 1p scripts/acceptance-check.mjs`). Runners (npx, pnpm exec, python3, node…) are
+// peeled off first, so `npx vitest` and `python3 …/check_proofs.py` still count.
+const SENSOR_HEAD =
+  /^(vitest|jest|playwright\s+test|cargo\s+(nextest|test|clippy|mutants)|turbo\s+run\s+(test|typecheck|lint)\S*|check_proofs\.py|validate_(spec|tasks|verification)\.py|acceptance-check\.mjs|bddgen|stryker|depcruise|eslint|tsc)(\s|$)/;
+const PKG_SCRIPT = /^(test|check|lint|typecheck|arch|test:\S+|harness:gate)(\s|$)/;
+const RUNNER =
+  /^(npx|pnpx|bunx|pnpm\s+(exec|dlx)|npm\s+exec|uv\s+run|time|env|exec|python[\d.]*|node|tsx)(\s+-\S+)*\s+/;
+const PKG_MANAGER =
+  /^(pnpm|npm|yarn)(\s+(-[Cw]|--(dir|filter|prefix|workspace))\s+\S+|\s+(-r|-w|--recursive|--workspace-root))*\s+/;
+const ENV_PREFIX = /^([A-Za-z_][A-Za-z0-9_]*=\S*\s+)+/;
 const READ_ONLY_BASH =
-  /^(git\s+(status|diff|log|show|branch)|node\s+(\.\/)?scripts\/attempt\.mjs\s+(status|report)|ls|cat|head|tail|grep|rg|wc|pwd)\b/;
+  /^(git\s+(status|diff|log|show|branch)|node\s+(\.\/)?scripts\/attempt\.mjs\s+(status|report)|python[\d.]*\s+\S*lessons\.py\s+list|ls|cat|head|tail|grep|rg|wc|pwd)\b/;
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const DISPATCH_TOOLS = new Set(['Agent', 'Task']);
 const DISPATCH_HEADER = /\[d2rmm\s+feature=([a-z0-9][a-z0-9-]*)\s+step=([a-z0-9][a-z0-9-]*)\]/i;
@@ -41,6 +51,23 @@ const segments = (s) =>
     .split(/\n|;|&&|\|\||\|/)
     .map((x) => x.trim())
     .filter(Boolean);
+
+/** Whether a shell segment executes a test/gate tool (not merely names one). */
+function runsSensor(segment) {
+  let s = segment.replace(ENV_PREFIX, '');
+  for (let prev = null; prev !== s;) {
+    prev = s;
+    s = s.replace(RUNNER, '').replace(ENV_PREFIX, '');
+  }
+  const pkg = PKG_MANAGER.exec(s);
+  if (pkg) {
+    const rest = s.slice(pkg[0].length).replace(/^(run|run-script)\s+/, '');
+    if (PKG_SCRIPT.test(rest)) return true;
+    s = rest; // `pnpm vitest`, `yarn eslint`
+  }
+  s = s.replace(/^\S*\//, ''); // ./node_modules/.bin/vitest, …/scripts/check_proofs.py
+  return SENSOR_HEAD.test(s);
+}
 
 function hash(text) {
   let h = 5381;
@@ -81,7 +108,7 @@ export function checkBudget(input, ctx, sid, rel) {
 
   // 2. An exhausted session may only record the blocker and read.
   if (sessionExhausted(ledger, sid)) {
-    const recording = EDIT_TOOLS.has(tool) && rel.startsWith('.specs/');
+    const recording = EDIT_TOOLS.has(tool) && SPECS_FILE.test(rel);
     const readOnly = tool === 'Bash' && segments(cmd).every((s) => READ_ONLY_BASH.test(s));
     if (!recording && !readOnly && (EDIT_TOOLS.has(tool) || tool === 'Bash' || DISPATCH_TOOLS.has(tool))) {
       return deny(
@@ -149,7 +176,7 @@ export function checkBudget(input, ctx, sid, rel) {
       }
       return null;
     }
-    if (segments(cmd).some((s) => SENSOR_CMD.test(s))) {
+    if (segments(cmd).some(runsSensor)) {
       return deny(
         'During a phase run, tests and gates run only through the retry-budget wrapper: ' +
           '`node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- "<command>"`.',
@@ -159,7 +186,7 @@ export function checkBudget(input, ctx, sid, rel) {
 
   // 5. A blocked feature takes no more code changes and no commits.
   if (where.kind === 'feature' && featureBlocked(ledger, where.feature)) {
-    if (EDIT_TOOLS.has(tool) && !/^(\.claude\/worktrees\/[^/]+\/)?\.specs\//.test(rel)) {
+    if (EDIT_TOOLS.has(tool) && !SPECS_FILE.test(rel)) {
       return deny(
         `Feature ${where.feature} is blocked (retry budget). Record the blocker in .specs/ and return.`,
       );
