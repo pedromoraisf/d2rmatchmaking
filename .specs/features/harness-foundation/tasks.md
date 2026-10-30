@@ -466,7 +466,7 @@ T18 → T19 → T20
 **Done when**:
 
 - [x] Tests: a matching name pattern exits 0 and prints `1 passed`; a pattern matching nothing exits non-zero; a failing fixture test exits non-zero
-- [ ] `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="domain-is-pure" scripts/test/arch-fixtures.test.mjs` exits 0 and prints `1 passed`
+- [x] `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="domain-is-pure" scripts/test/arch-fixtures.test.mjs` exits 0 and prints `1 passed`
 - [x] Gate check passes: `pnpm test:harness && pnpm lint && pnpm format:check`
 - [x] Test count: ≥ 3 new tests pass (no silent deletions)
 
