@@ -128,9 +128,9 @@ T16 → T17
 
 **Done when**:
 
-- [ ] `pnpm lint` exits 0 with 0 warnings and `pnpm format:check` exits 0 (same rules as before the move)
+- [x] `pnpm lint` exits 0 with 0 warnings and `pnpm format:check` exits 0 (same rules as before the move)
 - [ ] `pnpm arch` still starts (it reads root `tsconfig.base.json`)
-- [ ] Gate check passes: `pnpm install && pnpm lint && pnpm format:check && pnpm --filter @d2rmm/config typecheck && pnpm --filter @d2rmm/config test`
+- [x] Gate check passes: `pnpm install && pnpm lint && pnpm format:check && pnpm --filter @d2rmm/config typecheck && pnpm --filter @d2rmm/config test`
 
 **Tests**: none
 **Gate**: build
@@ -492,6 +492,15 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - Commit refused by lefthook `pre-commit` `unit-related`: it runs `pnpm exec vitest related --run --passWithNoTests` at the root for any staged `packages/**/*.ts`. The root has no Vitest (`node_modules/.bin/vitest` absent), so the hook exits 254 with `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL: Command "vitest" not found`. Root Vitest is T3's deliverable, and T3 comes after T1.
 - State: T1 files and the lockfile are staged, not committed. No `--no-verify`, no hook change. T2–T7 not started.
 - Needed from the orchestrator: order root Vitest (T3) before the first commit that stages `packages/**/*.ts`, or decide another route. The worker did not change the plan.
+
+**execute-batch-1 (batch 1, 2026-10-30) — stopped after T2 (plan order, not a T2 gate failure)**
+
+- T3 done: root Vitest config and devDependency; gate passed on attempt 1 (6 tests).
+- T1 done: presets commit; gate passed on attempt 2 (6 tests). The ledger counts the earlier denied run as attempt 1.
+- T2 gate passed on attempt 2 (lint, format, config typecheck, 6 tests). Attempt 1 failed the config typecheck: `packages/config/test/presets.test.ts` uses `node:fs`, `URL` and `import.meta.url`, and the package had no Node types. Fixed in the package by adding `@types/node@^26.6.6` as a devDependency. The test was not changed.
+- T2 Done-when `pnpm arch still starts` is open and cannot pass before T4. `depcruise apps packages tests` exits with `Can't open 'apps' for reading`; `apps/` does not exist until T4 creates `apps/web`. The arch run was a separate wrapper call and counted as failure 2/3 on `gate:harness-foundation/T2` (1 retry left). The T2 gate itself passed. Decision for the orchestrator: move the arch check to T4 or later, or accept it as deferred.
+- Deviation: T2 `What` lists root `tsconfig.base.json`, root `package.json` and `.prettierrc.json`, while `Where` lists only `eslint.config.mjs`. All `What` items were implemented, following design.md lines 81–85.
+- Not started: T4, T5, T6, T7 (stopped at the T2 arch item, per the stop rule).
 
 ---
 
