@@ -229,6 +229,33 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-30
 - **Status**: active
 
+### AD-026 (assumed)
+
+- **Decision**: In F0 `apps/agent` is the TypeScript UI workspace only; `apps/agent/src-tauri` (Rust) is created by `agent-skeleton`.
+- **Reason**: harness-foundation creates "empty workspaces"; `ci.yml` turns the Rust job on when `apps/agent/src-tauri/Cargo.toml` exists, and an empty crate would only add a job with nothing to check.
+- **Trade-off**: the Rust job stays skipped until `agent-skeleton`; reversal is adding the crate earlier.
+- **Scope**: harness-foundation
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-027 (assumed)
+
+- **Decision**: harness-foundation writes the shared kernel (`Result`, `Clock` + `FakeClock`, `IdGenerator` + fake) with unit tests, and the domain Stryker run mutates `src/modules/*/domain/**` plus `src/shared-kernel/**`.
+- **Reason**: the F0 exit criterion asks for a domain mutation report; with no code Stryker reports no score. The shared kernel is pure like the domain (rule `shared-kernel-is-leaf`) and AGENTS.md already lists its contents.
+- **Trade-off**: the `mutation.api.domain` metric also counts shared-kernel mutants; reversal is narrowing the Stryker `mutate` glob.
+- **Scope**: harness-foundation / apps/api
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-028 (assumed)
+
+- **Decision**: harness-foundation ships only `release-please-config.json` and `.release-please-manifest.json` (package `apps/agent`, component `agent`, tags `agent-v*`, version `0.0.0`); the `release-please.yml` workflow comes with `agent-skeleton`.
+- **Reason**: ADR 015 releases only the agent; the workflow creates tags on `main`, which belongs with the release pipeline it feeds.
+- **Trade-off**: none user-visible; reversal is moving the workflow between features.
+- **Scope**: harness-foundation
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: none — pre-foundation committed; phase F0 brief drafted, awaiting the maintainer's approval
