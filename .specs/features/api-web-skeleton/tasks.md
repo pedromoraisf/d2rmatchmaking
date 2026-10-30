@@ -1331,5 +1331,7 @@ Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** none
-**Dispatched:** execute-batch-1 (T1–T5) at e6e13d6 → pending
+**Dispatched:** execute-batch-1 (T1–T5) at e6e13d6 → returned (T1 6d5306e, T2 4b5c0c9, T3 6ad6335, T4 0139cd7, T5 34eabbd; all gates green, T3 on retry 1); execute-batch-2 (T6–T13) at 34eabbd + this note → pending
+
+**execute-batch-1 notes (2026-10-30)** — accepted by the orchestrator: T3 replaced the placeholder AsyncAPI "no channels" unit assertion with the stream-channel assertion T3 requires (a requirement change, not a weakened test); T3 added `packages/contracts/json-schema/` to `.prettierignore` and to the turbo `contracts:openapi` outputs, like the other generated contract files; `claim.json` holds `ClaimResponse`; `room.stage_changed` members use the `Member` schema; `@d2rmm/contracts` exports its TypeScript source, which Node 26 loads through the workspace symlink (verified by the orchestrator, no build step needed). HF-04's AsyncAPI line is false until T37 (AD-044), as planned.
 **Walked:** none
