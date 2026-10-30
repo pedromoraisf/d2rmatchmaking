@@ -418,13 +418,121 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-30
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-047 (assumed)
+
+- **Decision**: The FR-27 fixture is a synthetic image (`apps/agent/fixtures/automap-game-name.png`) drawn by a repository script with an openly licensed font — dark background, the game name and "Difficulty: Hell" in the automap's top-right text block — not a game screenshot.
+- **Reason**: agent-skeleton AGS-16: no screenshot with its owner's consent exists yet (Design Doc § testes) and the repository never publishes Blizzard assets (AGENTS.md "Never do"); F0 proves the pipeline, F2 adds real crops.
+- **Trade-off**: the fixture is easier than the real automap; F2's reference images replace it. Reversal is adding consented crops.
+- **Scope**: agent-skeleton / vision
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-048 (assumed)
+
+- **Decision**: The agent keeps its token only in the Windows Credential Manager, never in a file.
+- **Reason**: agent-skeleton AGS-06/AGS-09: NFR-06 asks for a revocable, restricted token and ADR 011 says nothing about storage; the OS store keeps it out of files, backups and logs.
+- **Trade-off**: none user-visible; reversal is a storage adapter.
+- **Scope**: agent-skeleton / pairing
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-049 (assumed)
+
+- **Decision**: The agent checks for updates at start, every 6 hours while running, and right after a `426`.
+- **Reason**: agent-skeleton AGS-24: ADR 015 says "at start and periodically" without a period; 6 h keeps GitHub requests low and the `426` path covers urgent minimum-version raises.
+- **Trade-off**: a release can take up to 6 h to reach a running agent unless the minimum is raised; reversal is a constant.
+- **Scope**: agent-skeleton / updater
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-050 (assumed)
+
+- **Decision**: While showing a pairing code, the agent claims every 2 seconds.
+- **Reason**: agent-skeleton AGS-06: AD-030 sets polling without a period; 2 s shows "Paired" within a few seconds and stays far below the code's 5 minutes.
+- **Trade-off**: up to 150 claims per code; reversal is a constant.
+- **Scope**: agent-skeleton / pairing
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-051 (assumed)
+
+- **Decision**: In F0 observations are retried in memory with the same idempotency key, 5 attempts in total with 1, 2, 4 and 8 s between them, then dropped and counted; no SQLite outbox.
+- **Reason**: agent-skeleton AGS-19: nothing captures live in F0, so the Design Doc's local outbox has no producer yet; it comes with F2's capture.
+- **Trade-off**: an observation can be lost if the agent quits mid-retry; reversal is adding the outbox in F2 as planned.
+- **Scope**: agent-skeleton / api_client
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-052 (assumed)
+
+- **Decision**: Fusion accepts a read only when its text, trimmed and lower-cased, equals the expected game name lower-cased, and sends that normalised text as the observation's value.
+- **Reason**: agent-skeleton AGS-17/18 (spec-reviewer finding 1): game names differ only by their number (`-12` vs `-13` is edit distance 1), so any tolerance can mark the wrong room Created (INV-06); exact match is the stricter option and agrees with the server (AD-034).
+- **Trade-off**: an OCR slip leaves the room Awaiting host; F2's fusion adds tolerance with the "same server as host" signal. Reversal is a fusion change.
+- **Scope**: agent-skeleton / fusion
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-053 (assumed)
+
+- **Decision**: `release-agent.yml` signs the installer through SignPath only when the SignPath secrets exist; otherwise it publishes it unsigned and the site shows the SmartScreen note.
+- **Reason**: agent-skeleton AGS-29/AGS-30: ADR 016 — "Until accepted, releases are unsigned and the site explains the warning."
+- **Trade-off**: players see SmartScreen until SignPath accepts the project; reversal is automatic once the secrets exist.
+- **Scope**: agent-skeleton / release
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-054 (assumed)
+
+- **Decision**: The agent window renders in pt-BR when the Windows display language starts with `pt`, in English otherwise; no switcher.
+- **Reason**: agent-skeleton AGS-32: same rule as the site (AD-040); NFR-12 and AGENTS.md rule 9.
+- **Trade-off**: none beyond AD-040's; reversal is a switcher.
+- **Scope**: agent-skeleton / ui
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-055 (assumed)
+
+- **Decision**: "Game open" means a process named `D2R.exe` is in the toolhelp snapshot (`CreateToolhelp32Snapshot`, `Process32FirstW`/`Process32NextW`); the agent never opens a handle to the game process, `OpenProcess` is a clippy error and `sysinfo` a `cargo deny` ban.
+- **Reason**: agent-skeleton AGS-10: ADR 010 allows OS signals only, and the Design Doc lists "abrir o processo do jogo" among what the agent never does; the toolhelp snapshot lists names without opening processes, while `sysinfo` opens process handles on Windows.
+- **Trade-off**: a renamed executable is not detected; reversal is adding window-title detection in F2.
+- **Scope**: agent-skeleton / sensors
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-057 (assumed)
+
+- **Decision**: In F0 the agent reads the reference image only in builds with the Cargo feature `fixture-read`, started with `--read-fixture <png>`; `release-agent.yml` never enables it, so released agents never read an image nor post an observation.
+- **Reason**: agent-skeleton AGS-33 (spec-reviewer finding 2): a release build posting `GAME_NAME_SEEN` from a fixture would mark real rooms Created with no game open; observability-e2e builds the agent with the feature to drive the end-to-end trace.
+- **Trade-off**: released F0 agents confirm no room; live capture is F2. Reversal is removing the feature gate when live capture lands.
+- **Scope**: agent-skeleton, observability-e2e / vision
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-058 (assumed)
+
+- **Decision**: After 2 consecutive codes expire unused the agent stops requesting codes and shows "Pairing paused" with "Get a new code"; a `429` on the code request waits `Retry-After`, or 60 minutes without it.
+- **Reason**: agent-skeleton AGS-34/35 (spec-reviewer finding 3): the API allows 10 code requests per IP per hour (AD-041); an unattended agent renewing every 5 minutes would reach 12 per hour on its own.
+- **Trade-off**: a player who leaves the agent open for more than 10 minutes clicks once to get a code. Reversal is a constant.
+- **Scope**: agent-skeleton / pairing
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-059 (assumed)
+
+- **Decision**: The agent reconnects a dropped stream after 1 s, doubling to at most 60 s, and resets the delay once a stream has stayed open 60 s.
+- **Reason**: agent-skeleton AGS-13 (spec-reviewer finding 11): ADR 007 sets no client delay; a bounded backoff keeps a down API on the free tier from being hammered.
+- **Trade-off**: up to 60 s to see a new room after a long outage; the assignment is re-fetched on reconnect. Reversal is a constant.
+- **Scope**: agent-skeleton / stream
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
-- **Feature**: api-web-skeleton (Design)
-- **Phase / Task**: F0 run; api-web-skeleton spec approved by the maintainer (3407f61); design drafted, design gate next
-- **Completed**: `spec.md` (AWS-01…AWS-40), `acceptance.feature`, AD-029…AD-043 (assumed)
+- **Feature**: agent-skeleton (spec gate not run) and api-web-skeleton (Tasks next)
+- **Phase / Task**: F0 run. api-web-skeleton: spec approved by the maintainer (3407f61); design approved by architecture-reviewer and security-reviewer on retry 1 (d7f576e, branch `feat/F0-api-web-skeleton`, committed). agent-skeleton: `spec.md` (AGS-01…AGS-32), `acceptance.feature` and AD-047…AD-055 written and formatted in this worktree, **uncommitted**
+- **Completed**: see above; AD-029…AD-056 recorded (AD-056 and the F1 queue are on the api-web-skeleton branch)
 - **In-progress**: none
-- **Next step**: architecture-reviewer and security-reviewer on design.md; then Tasks. agent-skeleton Specify in parallel (its Execute waits, AD-035)
-- **Blockers**: none. Execute needs Docker running and, for agent-skeleton, a Rust toolchain (not installed)
-- **Uncommitted files**: none after the blocker commit
-- **Branch**: feat/F0-api-web-skeleton
+- **Next step**: new session, working directory = this worktree. Commit these drafts (`Feature: agent-skeleton`, `Step: spec`). Run the spec gate — each `node scripts/attempt.mjs run …` as its own Bash call with nothing before it (no `cd … &&`, no `prettier … ;`) — then `spec-reviewer`. In the api-web-skeleton worktree: Tasks
+- **Blockers**: the orchestrator session was exhausted by the gate hook (third denial of "quote the whole gate command": a `cd` or `prettier` chained before `attempt.mjs`). Execute needs Docker running and, for agent-skeleton, a Rust toolchain (not installed)
+- **Uncommitted files**: `.specs/STATE.md`, `.specs/phases/F0/decisions.md`, `.specs/features/agent-skeleton/{spec.md,acceptance.feature}` in worktree `.claude/worktrees/agent-skeleton`
+- **Branch**: feat/F0-agent-skeleton

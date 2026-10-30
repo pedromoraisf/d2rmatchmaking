@@ -28,6 +28,18 @@ review. Reversals become tasks in a follow-up feature.
 | AD-044 | api-web-skeleton   | HF-04 scenario lines change from "no paths/channels" to "matches the committed file"                 | none (routes exist)          |            |
 | AD-045 | api-web-skeleton   | Test-control endpoints (reset, clock) only in `main/local.ts` under `D2RMM_ACCEPTANCE`               | per-scenario DBs, real waits |            |
 | AD-046 | api-web-skeleton   | F0 site without TanStack Router/Query                                                                | add them in F1               |            |
+| AD-047 | agent-skeleton     | FR-27 fixture is a synthetic image, not a game screenshot                                            | add consented crops (F2)     |            |
+| AD-048 | agent-skeleton     | Token only in the Windows Credential Manager                                                         | storage adapter              |            |
+| AD-049 | agent-skeleton     | Update check at start, every 6 h, and after a 426                                                    | a constant                   |            |
+| AD-050 | agent-skeleton     | Claim every 2 s while a code is shown                                                                | a constant                   |            |
+| AD-051 | agent-skeleton     | Observations retried in memory (5 attempts), no SQLite outbox in F0                                  | outbox in F2                 |            |
+| AD-052 | agent-skeleton     | Fusion accepts only an exact match after trim + lower-case                                           | fusion change (F2)           |            |
+| AD-053 | agent-skeleton     | SignPath signing only when its secrets exist; unsigned until then                                    | automatic                    |            |
+| AD-054 | agent-skeleton     | Agent window language follows Windows                                                                | a switcher                   |            |
+| AD-055 | agent-skeleton     | Game open = `D2R.exe` in the toolhelp snapshot, no handle opened, `sysinfo` banned                   | window-title detection       |            |
+| AD-057 | agent-skeleton     | Fixture read only with Cargo feature `fixture-read`; releases never read or post observations        | drop the gate in F2          |            |
+| AD-058 | agent-skeleton     | Pairing pauses after 2 unused codes; 429 waits `Retry-After` (60 min default)                        | a constant                   |            |
+| AD-059 | agent-skeleton     | Stream reconnect 1 s doubling to 60 s                                                                | a constant                   |            |
 
 ## Blocked
 
