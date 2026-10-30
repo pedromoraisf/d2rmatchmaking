@@ -20,7 +20,8 @@ const has = (name) => (['python3', 'rustfmt'].includes(name) ? which(name) : bin
 const failures = [];
 const results = [];
 for (const step of planFeedback(rel, has)) {
-  const exe = step.cmd === 'node' || step.cmd === 'python3' || step.cmd === 'rustfmt' ? step.cmd : bin(root, step.cmd);
+  const exe =
+    step.cmd === 'node' || step.cmd === 'python3' || step.cmd === 'rustfmt' ? step.cmd : bin(root, step.cmd);
   const r = run(exe, step.args, { cwd: root, timeoutMs: step.timeoutMs ?? 90_000 });
   if (step.fix) continue;
   results.push({ id: step.id, ok: r.ok, out: tail(r.out, 10) });
@@ -37,13 +38,17 @@ if (blocked.length > 0) {
   process.exit(2);
 }
 if (failures.length > 0) {
-  process.stderr.write(`[d2rmm feedback] Fix these before moving on (each sensor/file allows ${MAX_RETRIES} retries):\n\n${failures.join('\n\n')}\n`);
+  process.stderr.write(
+    `[d2rmm feedback] Fix these before moving on (each sensor/file allows ${MAX_RETRIES} retries):\n\n${failures.join('\n\n')}\n`,
+  );
   process.exit(2);
 }
 const notes = reminders(rel);
 if (notes.length > 0) {
   process.stdout.write(
-    JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: notes.join('\n') } }),
+    JSON.stringify({
+      hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: notes.join('\n') },
+    }),
   );
 }
 process.exit(0);

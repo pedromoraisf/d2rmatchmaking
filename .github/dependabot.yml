@@ -4,8 +4,13 @@ updates:
     directory: /
     schedule: { interval: weekly }
     groups:
+      # playwright-bdd reaches into Playwright internals: they only move together, and only to a pair
+      # playwright-bdd's changelog lists as supported (ADR 023).
+      playwright:
+        patterns: ['@playwright/test', 'playwright', 'playwright-bdd']
       dev-tooling:
         dependency-type: development
+        exclude-patterns: ['@playwright/test', 'playwright', 'playwright-bdd']
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }

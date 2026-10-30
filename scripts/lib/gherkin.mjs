@@ -19,7 +19,15 @@ const KEYWORD = {
  *   errors: string[] }}
  */
 export function parseFeature(text) {
-  const out = { language: 'en', feature: null, featureTags: [], scenarios: [], backgroundSteps: [], notScenario: [], errors: [] };
+  const out = {
+    language: 'en',
+    feature: null,
+    featureTags: [],
+    scenarios: [],
+    backgroundSteps: [],
+    notScenario: [],
+    errors: [],
+  };
   let pendingTags = [];
   let current = null; // scenario | 'background'
   let inDocString = false;
@@ -73,7 +81,14 @@ export function parseFeature(text) {
     }
     if ((m = KEYWORD.outline.exec(line)) || (m = KEYWORD.scenario.exec(line))) {
       const outline = KEYWORD.outline.test(line);
-      current = { name: (outline ? m[2] : m[2]).trim(), line: n, tags: pendingTags, outline, steps: [], examples: 0 };
+      current = {
+        name: (outline ? m[2] : m[2]).trim(),
+        line: n,
+        tags: pendingTags,
+        outline,
+        steps: [],
+        examples: 0,
+      };
       out.scenarios.push(current);
       pendingTags = [];
       lastEffective = null;

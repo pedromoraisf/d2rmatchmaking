@@ -14,7 +14,11 @@ export function ledgerPath(cwd) {
   if (process.env.D2RMM_LEDGER) return process.env.D2RMM_LEDGER; // tests only
   let common;
   try {
-    common = execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    common = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
   } catch {
     return null; // not a git repo: no budget tracking possible
   }
@@ -37,7 +41,15 @@ function readJsonLedger(file) {
   } catch {
     // A corrupt ledger must not become an open drain: keep the broken file for inspection and
     // block everything until the maintainer looks at it.
-    return { version: 1, units: { 'gate:ledger/corrupt': { status: 'blocked', attempts: [{ at: new Date().toISOString(), ok: false, note: `corrupt ledger at ${file}` }] } } };
+    return {
+      version: 1,
+      units: {
+        'gate:ledger/corrupt': {
+          status: 'blocked',
+          attempts: [{ at: new Date().toISOString(), ok: false, note: `corrupt ledger at ${file}` }],
+        },
+      },
+    };
   }
 }
 

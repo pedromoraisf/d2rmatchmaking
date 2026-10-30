@@ -1,4 +1,5 @@
-# Secret scanning (pre-commit + CI). Extends the default ruleset.
+# Secret scanning in CI (gitleaks GitHub Action). Locally, pre-commit uses secretlint (.secretlintrc.json),
+# installed by `pnpm install`. Keep the custom rules of both files in sync.
 title = "d2r-match-making"
 
 [extend]

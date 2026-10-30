@@ -50,7 +50,8 @@ test('failures accumulate even across a pass: no fresh budget by breaking a gree
 test('dispatches: three allowed, the fourth is refused and blocks the unit', () => {
   const l = emptyLedger();
   const k = unitKey('dispatch', 'f', 'execute-batch-1', 'feature-worker');
-  for (let i = 1; i <= MAX_ATTEMPTS; i += 1) assert.equal(recordDispatch(l, k).allowed, true, `dispatch ${i}`);
+  for (let i = 1; i <= MAX_ATTEMPTS; i += 1)
+    assert.equal(recordDispatch(l, k).allowed, true, `dispatch ${i}`);
   const fourth = recordDispatch(l, k);
   assert.equal(fourth.allowed, false);
   assert.equal(l.units[k].status, 'blocked');

@@ -17,7 +17,10 @@ export function checkTrailers(branch, message, taskIdsOfFeature) {
   const t = parseTrailers(message);
   const errors = [];
   if (t.feature !== feature) errors.push(`add the trailer "Feature: ${feature}"`);
-  if (!t.task && !t.step) errors.push('add "Task: T<n>" (a task from tasks.md) or "Step: <spec|design|tasks|proofs|verification|integration|fix>"');
+  if (!t.task && !t.step)
+    errors.push(
+      'add "Task: T<n>" (a task from tasks.md) or "Step: <spec|design|tasks|proofs|verification|integration|fix>"',
+    );
   if (t.task && !taskIdsOfFeature.includes(t.task.toUpperCase())) {
     errors.push(`"Task: ${t.task}" is not a task id in .specs/features/${feature}/tasks.md`);
   }

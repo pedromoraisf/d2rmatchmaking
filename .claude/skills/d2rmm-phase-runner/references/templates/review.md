@@ -10,22 +10,22 @@ report; the command is next to each number.
 ## Exit criteria
 
 | Criterion | Status | Proof |
-| --- | --- | --- |
+| --------- | ------ | ----- |
 
 ## Acceptance scenarios
 
 | Requirement | Scenario(s) | Result |
-| --- | --- | --- |
+| ----------- | ----------- | ------ |
 
 ## Features
 
 | Feature | Status | Commits | Verifier | Mutations killed |
-| --- | --- | --- | --- | --- |
+| ------- | ------ | ------- | -------- | ---------------- |
 
 ## Decisions to confirm
 
-| AD | Decision | Confirm / reverse |
-| --- | --- | --- |
+| AD  | Decision | Confirm / reverse |
+| --- | -------- | ----------------- |
 
 ## Blocked and deferred
 
@@ -33,12 +33,12 @@ Retry budget (`node scripts/attempt.mjs report`): every unit, attempts, failures
 
 ## Quality
 
-| Metric | Baseline | Now | Command |
-| --- | --- | --- | --- |
-| harness-score level / % | | | `pnpm harness:json` |
-| mutation api domain / application / agent core | | | `pnpm test:mutation` |
-| CI duration (s) | | | CI run <link> |
-| load: max players / bytes per player-hour / p95 | | | `k6 …` |
+| Metric                                          | Baseline | Now | Command              |
+| ----------------------------------------------- | -------- | --- | -------------------- |
+| harness-score level / %                         |          |     | `pnpm harness:json`  |
+| mutation api domain / application / agent core  |          |     | `pnpm test:mutation` |
+| CI duration (s)                                 |          |     | CI run <link>        |
+| load: max players / bytes per player-hour / p95 |          |     | `k6 …`               |
 
 ## Harness changes in this phase
 

@@ -35,13 +35,18 @@ if (turbo && existsSync(`${root}/node_modules`) && any(/^(apps|packages)\//)) {
 if (turbo && any(/^(packages\/contracts\/src|apps\/api\/src\/modules\/[^/]+\/adapters\/http)\//)) {
   checks.push(['openapi drift', 'pnpm', ['run', 'contracts:check']]);
 }
-if (any(/^(scripts|\.claude\/hooks)\//)) checks.push(['harness tests', 'node', ['--test', 'scripts/**/*.test.mjs', '.claude/hooks/**/*.test.mjs']]);
+if (any(/^(scripts|\.claude\/hooks)\//))
+  checks.push(['harness tests', 'node', ['--test', 'scripts/**/*.test.mjs', '.claude/hooks/**/*.test.mjs']]);
 if (any(/^\.specs\//)) {
   checks.push(['specs check', 'node', ['scripts/specs-check.mjs']]);
   checks.push(['acceptance check', 'node', ['scripts/acceptance-check.mjs']]);
 }
 if (any(/^apps\/agent\/src-tauri\//) && existsSync(`${root}/apps/agent/src-tauri/Cargo.toml`)) {
-  checks.push(['cargo check', 'cargo', ['check', '--manifest-path', 'apps/agent/src-tauri/Cargo.toml', '--all-targets']]);
+  checks.push([
+    'cargo check',
+    'cargo',
+    ['check', '--manifest-path', 'apps/agent/src-tauri/Cargo.toml', '--all-targets'],
+  ]);
 }
 
 const failures = [];

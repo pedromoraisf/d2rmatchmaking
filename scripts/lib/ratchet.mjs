@@ -22,7 +22,8 @@ export function compareBaselines(prev, next) {
     const higher = p.direction === 'higher';
     if (p.value !== null && p.value !== undefined) {
       if (n.value === null || n.value === undefined) problems.push(`${name}: measured value cleared`);
-      else if (higher ? n.value < p.value : n.value > p.value) problems.push(`${name}: value ${p.value} → ${n.value}`);
+      else if (higher ? n.value < p.value : n.value > p.value)
+        problems.push(`${name}: value ${p.value} → ${n.value}`);
     }
     if (typeof p.floor === 'number' && !(typeof n.floor === 'number' && n.floor >= p.floor)) {
       problems.push(`${name}: floor ${p.floor} → ${n.floor ?? 'none'}`);
@@ -30,7 +31,8 @@ export function compareBaselines(prev, next) {
     if (typeof p.ceiling === 'number' && !(typeof n.ceiling === 'number' && n.ceiling <= p.ceiling)) {
       problems.push(`${name}: ceiling ${p.ceiling} → ${n.ceiling ?? 'none'}`);
     }
-    if ((n.tolerance ?? 0) > (p.tolerance ?? 0)) problems.push(`${name}: tolerance ${p.tolerance ?? 0} → ${n.tolerance}`);
+    if ((n.tolerance ?? 0) > (p.tolerance ?? 0))
+      problems.push(`${name}: tolerance ${p.tolerance ?? 0} → ${n.tolerance}`);
     const lostCtx = (p.contexts ?? []).filter((c) => !(n.contexts ?? []).includes(c));
     if (lostCtx.length) problems.push(`${name}: no longer checked in ${lostCtx.join(', ')}`);
   }
@@ -51,19 +53,23 @@ export function evaluate(baseline, current, context) {
     const higher = m.direction === 'higher';
     if (v === undefined || v === null) {
       if (m.value === null || m.value === undefined) notes.push(`${name}: not measured yet`);
-      else failures.push(`${name}: was measured (${m.value}) but is missing now — a sensor stopped reporting`);
+      else
+        failures.push(`${name}: was measured (${m.value}) but is missing now — a sensor stopped reporting`);
       continue;
     }
     if (typeof v !== 'number' || Number.isNaN(v)) {
       failures.push(`${name}: not a number (${v})`);
       continue;
     }
-    if (typeof m.floor === 'number' && v < m.floor) failures.push(`${name}: ${v} is below the floor ${m.floor}`);
-    if (typeof m.ceiling === 'number' && v > m.ceiling) failures.push(`${name}: ${v} is above the ceiling ${m.ceiling}`);
+    if (typeof m.floor === 'number' && v < m.floor)
+      failures.push(`${name}: ${v} is below the floor ${m.floor}`);
+    if (typeof m.ceiling === 'number' && v > m.ceiling)
+      failures.push(`${name}: ${v} is above the ceiling ${m.ceiling}`);
     if (m.value !== null && m.value !== undefined) {
       const tol = m.tolerance ?? 0;
       const limit = higher ? m.value * (1 - tol) : m.value * (1 + tol);
-      if (higher ? v < limit : v > limit) failures.push(`${name}: regressed ${m.value} → ${v}${tol ? ` (tolerance ${tol * 100}%)` : ''}`);
+      if (higher ? v < limit : v > limit)
+        failures.push(`${name}: regressed ${m.value} → ${v}${tol ? ` (tolerance ${tol * 100}%)` : ''}`);
     }
     const better = m.value === null || m.value === undefined || (higher ? v > m.value : v < m.value);
     if (better) improvements[name] = v;

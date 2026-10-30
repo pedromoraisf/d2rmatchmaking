@@ -53,7 +53,9 @@ test('parser: scenarios, outline examples, background, tags, not-scenario', () =
   assert.equal(f.scenarios[1].examples, 2);
   assert.equal(f.backgroundSteps.length, 1);
   assert.deepEqual(f.scenarios[0].tags, ['@ROOM-01', '@FR-15', '@INV-06', '@web']);
-  assert.deepEqual(f.notScenario, [{ id: 'PERF-01', reason: 'proven by the k6 load test (tests/load), NFR-01' }]);
+  assert.deepEqual(f.notScenario, [
+    { id: 'PERF-01', reason: 'proven by the k6 load test (tests/load), NFR-01' },
+  ]);
   assert.equal(countScenarios(GOOD), 3);
 });
 
@@ -67,16 +69,24 @@ test('missing file, uncovered requirement and unknown IDs fail', () => {
   const errs = checkAcceptance('x', SPEC, uncovered);
   assert.ok(errs.some((e) => /ROOM-02 has no scenario/.test(e)));
   assert.ok(errs.some((e) => /tag it with the requirement ID/.test(e)));
-  assert.ok(checkAcceptance('x', SPEC, GOOD.replace('@ROOM-01 ', '@ROOM-09 ')).some((e) => /ROOM-09 is not a requirement/.test(e)));
+  assert.ok(
+    checkAcceptance('x', SPEC, GOOD.replace('@ROOM-01 ', '@ROOM-09 ')).some((e) =>
+      /ROOM-09 is not a requirement/.test(e),
+    ),
+  );
 });
 
 test('skipped or focused scenarios, other languages and missing When/Then fail', () => {
-  assert.ok(checkAcceptance('x', SPEC, GOOD.replace('@web', '@skip')).some((e) => /@skip is not allowed/.test(e)));
-  assert.ok(checkAcceptance('x', SPEC, GOOD.replace('@web', '@only')).some((e) => /@only is not allowed/.test(e)));
+  assert.ok(
+    checkAcceptance('x', SPEC, GOOD.replace('@web', '@skip')).some((e) => /@skip is not allowed/.test(e)),
+  );
+  assert.ok(
+    checkAcceptance('x', SPEC, GOOD.replace('@web', '@only')).some((e) => /@only is not allowed/.test(e)),
+  );
   assert.ok(checkAcceptance('x', SPEC, `# language: pt\n${GOOD}`).some((e) => /English/.test(e)));
   const noThen = GOOD.replace('    Then the site shows the room as "Created" within 2 seconds\n', '');
   assert.ok(checkAcceptance('x', SPEC, noThen).some((e) => /needs a "Then"/.test(e)));
-  const noExamples = GOOD.replace(/\n    Examples:[\s\S]*$/, '\n');
+  const noExamples = GOOD.replace(/\n {4}Examples:[\s\S]*$/, '\n');
   assert.ok(checkAcceptance('x', SPEC, noExamples).some((e) => /without example rows/.test(e)));
   assert.ok(checkAcceptance('x', SPEC, GOOD.replace('@web', '@banana')).some((e) => /unknown tag/.test(e)));
 });

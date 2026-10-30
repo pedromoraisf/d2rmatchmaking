@@ -15,14 +15,14 @@ The game itself is created **manually in-game** by the host, with a generated na
 
 ## Docs
 
-| | |
-| --- | --- |
-| Product requirements | [`docs/product/prd.md`](docs/product/prd.md) |
-| Design doc | [`docs/architecture/design-doc.md`](docs/architecture/design-doc.md) |
-| Architecture decisions | [`docs/adr/`](docs/adr/) |
-| Domain model | [`docs/domain/`](docs/domain/) |
-| Engineering rules | [`docs/engineering/`](docs/engineering/) |
-| Agent & contributor guide | [`AGENTS.md`](AGENTS.md) |
+|                           |                                                                      |
+| ------------------------- | -------------------------------------------------------------------- |
+| Product requirements      | [`docs/product/prd.md`](docs/product/prd.md)                         |
+| Design doc                | [`docs/architecture/design-doc.md`](docs/architecture/design-doc.md) |
+| Architecture decisions    | [`docs/adr/`](docs/adr/)                                             |
+| Domain model              | [`docs/domain/`](docs/domain/)                                       |
+| Engineering rules         | [`docs/engineering/`](docs/engineering/)                             |
+| Agent & contributor guide | [`AGENTS.md`](AGENTS.md)                                             |
 
 ## Stack
 
@@ -34,7 +34,7 @@ Node.js 26 + TypeScript + Fastify 5 + Kysely · React 19 + Vite + TanStack · Ta
 ```sh
 nvm use            # Node 26
 corepack enable    # pnpm 10
-pnpm install       # also installs git hooks (Lefthook)
+pnpm install       # also installs git hooks (Lefthook) and the secret scanner (secretlint)
 pnpm check         # everything CI runs
 ```
 

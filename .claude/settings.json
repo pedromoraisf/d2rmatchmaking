@@ -15,6 +15,7 @@
       "Bash(pnpm quality:*)",
       "Bash(pnpm specs:check)",
       "Bash(pnpm contracts:*)",
+      "Bash(pnpm secrets:scan)",
       "Bash(node --test:*)",
       "Bash(node scripts/:*)",
       "Bash(node scripts/attempt.mjs run:*)",
@@ -53,23 +54,43 @@
     "PreToolUse": [
       {
         "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Read|Grep|Agent|Task",
-        "hooks": [{ "type": "command", "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/gate.mjs", "timeout": 15 }]
+        "hooks": [
+          { "type": "command", "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/gate.mjs", "timeout": 15 }
+        ]
       }
     ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
-        "hooks": [{ "type": "command", "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/feedback.mjs", "timeout": 240 }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/feedback.mjs",
+            "timeout": 240
+          }
+        ]
       }
     ],
     "Stop": [
       {
-        "hooks": [{ "type": "command", "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/stop.mjs", "timeout": 600 }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/stop.mjs",
+            "timeout": 600
+          }
+        ]
       }
     ],
     "SubagentStop": [
       {
-        "hooks": [{ "type": "command", "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/stop.mjs", "timeout": 600 }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/stop.mjs",
+            "timeout": 600
+          }
+        ]
       }
     ]
   }

@@ -4,12 +4,12 @@ Every gate is a command with an exit code or a reviewer verdict line. "I checked
 
 ## Spec gate
 
-| # | Gate | Pass condition |
-| --- | --- | --- |
-| 1 | `python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py <feature>` | exit 0 |
-| 2 | Traceability (below) | every requirement sourced; every FR/NFR assigned by the brief covered |
-| 3 | `node scripts/acceptance-check.mjs <feature>` | exit 0: every requirement has an English Gherkin scenario tagged with its ID (ADR 023) |
-| 4 | `spec-reviewer` subagent (dispatch step `review-spec`) | last line `VERDICT: PASS` |
+| #   | Gate                                                                        | Pass condition                                                                         |
+| --- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 1   | `python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py <feature>` | exit 0                                                                                 |
+| 2   | Traceability (below)                                                        | every requirement sourced; every FR/NFR assigned by the brief covered                  |
+| 3   | `node scripts/acceptance-check.mjs <feature>`                               | exit 0: every requirement has an English Gherkin scenario tagged with its ID (ADR 023) |
+| 4   | `spec-reviewer` subagent (dispatch step `review-spec`)                      | last line `VERDICT: PASS`                                                              |
 
 ## Design gate (Large/Complex)
 
@@ -29,8 +29,9 @@ Scenario steps are implemented in the task that delivers the behaviour (missing 
 ## Per-task gate
 
 The task's `Gate` command (TLC), run as `node scripts/attempt.mjs run --feature <f> --step T<n> -- "<gate>"`,
-+ the hooks (feedback on edit, Stop hook) + `check_commit.py` on the message. The commit is refused unless that gate
-passed after the previous commit.
+
+- the hooks (feedback on edit, Stop hook) + `check_commit.py` on the message. The commit is refused unless that gate
+  passed after the previous commit.
 
 ## Feature done
 
@@ -66,6 +67,7 @@ Record it in `.specs/STATE.md` (TLC format, plus the `(assumed)` marker on the h
 
 ```markdown
 ### AD-0NN (assumed)
+
 - **Decision**: <the conservative default, one sentence>
 - **Reason**: <feature, requirement, why the docs do not settle it; why this default is conservative>
 - **Trade-off**: <what the maintainer gives up if it stands; reversal cost>
@@ -82,14 +84,14 @@ Numbering: AD-001…AD-024 mirror ADR 001…024. New decisions continue from AD-
 red stops, repeated sensor failures and repeated denials. Enforced by code; full rules in
 [`retry-budget.md`](retry-budget.md) (ADR 022).
 
-| Budget | Limit | On exhaustion |
-| --- | --- | --- |
-| Gate attempts per `gate:<feature>/<step>` | 1 + 2 retries (cumulative) | unit + feature **blocked**; `attempt.mjs` exits 3 and never runs the 4th attempt |
-| Dispatches per `dispatch:<feature>/<step>` (reviewers included) | 1 + 2 retries | 4th dispatch refused; feature blocked |
-| Red stops per agent session | 2 forced continuations | session exhausted: record the blocker and report |
-| Same sensor failing on the same file | 1 + 2 retries (consecutive) | session exhausted |
-| Same gate-hook denial | 1 + 2 retries | session exhausted |
-| Wall-clock per feature (Large / Complex) | 6 h / 10 h of agent time (the brief may lower it) | feature blocked |
-| Verifier rounds | 2 (TLC: `verify`, `verify-r2`) | what still fails goes to the review |
+| Budget                                                          | Limit                                             | On exhaustion                                                                    |
+| --------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Gate attempts per `gate:<feature>/<step>`                       | 1 + 2 retries (cumulative)                        | unit + feature **blocked**; `attempt.mjs` exits 3 and never runs the 4th attempt |
+| Dispatches per `dispatch:<feature>/<step>` (reviewers included) | 1 + 2 retries                                     | 4th dispatch refused; feature blocked                                            |
+| Red stops per agent session                                     | 2 forced continuations                            | session exhausted: record the blocker and report                                 |
+| Same sensor failing on the same file                            | 1 + 2 retries (consecutive)                       | session exhausted                                                                |
+| Same gate-hook denial                                           | 1 + 2 retries                                     | session exhausted                                                                |
+| Wall-clock per feature (Large / Complex)                        | 6 h / 10 h of agent time (the brief may lower it) | feature blocked                                                                  |
+| Verifier rounds                                                 | 2 (TLC: `verify`, `verify-r2`)                    | what still fails goes to the review                                              |
 
 The runner then continues with features that do not depend on the blocked one.

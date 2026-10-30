@@ -20,9 +20,21 @@ test('missing tools are skipped, not failed', () => {
 });
 
 test('specs run the TLC validators and the delegation check', () => {
-  assert.deepEqual(ids('.specs/features/agent-skeleton/spec.md'), ['prettier', 'validate_spec.py', 'acceptance-check', 'specs-check']);
-  assert.deepEqual(ids('.specs/features/agent-skeleton/acceptance.feature'), ['acceptance-check', 'specs-check']);
-  assert.deepEqual(ids('.specs/features/agent-skeleton/tasks.md'), ['prettier', 'validate_tasks.py', 'specs-check']);
+  assert.deepEqual(ids('.specs/features/agent-skeleton/spec.md'), [
+    'prettier',
+    'validate_spec.py',
+    'acceptance-check',
+    'specs-check',
+  ]);
+  assert.deepEqual(ids('.specs/features/agent-skeleton/acceptance.feature'), [
+    'acceptance-check',
+    'specs-check',
+  ]);
+  assert.deepEqual(ids('.specs/features/agent-skeleton/tasks.md'), [
+    'prettier',
+    'validate_tasks.py',
+    'specs-check',
+  ]);
 });
 
 test('harness scripts run their own tests; vendored files are never reformatted', () => {

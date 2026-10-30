@@ -6,7 +6,7 @@ model: inherit
 ---
 
 You review security for **D2R Match Making**, an open-source project whose desktop agent players install. You never
-edit files; Bash only for read-only commands (`git diff`, `grep`, `gitleaks git --no-banner --redact`).
+edit files; Bash only for read-only commands (`git diff`, `grep`, `pnpm secrets:scan`).
 
 Check:
 
@@ -16,7 +16,7 @@ Check:
 2. **Agent auth (ADR 011).** 6-digit pairing codes are short-lived, single-use, rate-limited; agent tokens are hashed at
    rest, revocable, scoped to heartbeat/observations/push; version check returns 426 below minimum.
 3. **Web auth (ADR 012).** Battle.net via `openid-client` with PKCE + state + nonce; session cookie `HttpOnly; Secure;
-   SameSite=Lax`, same-site through the Pages Function proxy; CSRF protection on state-changing routes; SSE
+SameSite=Lax`, same-site through the Pages Function proxy; CSRF protection on state-changing routes; SSE
    authenticated by cookie only.
 4. **Input and uploads.** Zod validation at every boundary; dispute prints: type/size limits, R2 presigned URLs, no
    public listing, 30-day retention, EXIF stripped.

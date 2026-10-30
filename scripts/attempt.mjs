@@ -64,7 +64,12 @@ if (cmd === 'run') {
     process.exit(3);
   }
   console.error(`attempt ${pre.attempt}/${MAX_ATTEMPTS} for ${key}: ${command}`);
-  const r = spawnSync(command, { cwd: root, shell: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const r = spawnSync(command, {
+    cwd: root,
+    shell: true,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   process.stdout.write(r.stdout ?? '');
   process.stderr.write(r.stderr ?? '');
   const ok = r.status === 0;
@@ -88,9 +93,13 @@ if (cmd === 'run') {
 if (cmd === 'status') {
   const ledger = loadLedger(file);
   const feature = opt('--feature');
-  const units = Object.entries(ledger.units).filter(([k]) => !feature || k.split(':')[1]?.startsWith(`${feature}/`));
+  const units = Object.entries(ledger.units).filter(
+    ([k]) => !feature || k.split(':')[1]?.startsWith(`${feature}/`),
+  );
   for (const [k, u] of units) {
-    console.log(`${u.status.padEnd(7)} ${k}  (${u.attempts.filter((a) => !a.ok).length}/${MAX_ATTEMPTS} failures)`);
+    console.log(
+      `${u.status.padEnd(7)} ${k}  (${u.attempts.filter((a) => !a.ok).length}/${MAX_ATTEMPTS} failures)`,
+    );
   }
   if (feature && featureBlocked(ledger, feature)) process.exit(1);
   process.exit(0);

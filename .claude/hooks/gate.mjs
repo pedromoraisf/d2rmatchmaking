@@ -24,7 +24,10 @@ try {
     });
   }
 } catch (err) {
-  result = { decision: 'ask', reason: `Gate hook error (${err?.message ?? err}). Asking instead of allowing.` };
+  result = {
+    decision: 'ask',
+    reason: `Gate hook error (${err?.message ?? err}). Asking instead of allowing.`,
+  };
 }
 
 if (result?.decision) {

@@ -26,7 +26,14 @@ const BRIEF_APPROVED = [
 
 test('bash: safe everyday commands pass', () => {
   const ctx = fakeCtx();
-  for (const c of ['pnpm test', 'git status', 'git commit -m "feat: x"', 'rm -rf node_modules dist', 'rm -rf apps/api/coverage', 'node --test']) {
+  for (const c of [
+    'pnpm test',
+    'git status',
+    'git commit -m "feat: x"',
+    'rm -rf node_modules dist',
+    'rm -rf apps/api/coverage',
+    'node --test',
+  ]) {
     assert.equal(d(checkBash(c, ctx)), 'allow', c);
   }
 });
@@ -44,7 +51,7 @@ test('bash: destructive and bypass commands are denied', () => {
     'rm -rf src',
     'rm -fr apps/api',
     'cat .env',
-    'psql "postgres://u:p@ep-x.neon.tech/db"',
+    'psql "postgres://u:p@ep-x.neon.tech/db"', // secretlint-disable-line -- fake fixture for the gate test
     'echo $NEON_DATABASE_URL',
     'sed -i s/80/10/ .quality-baseline.json',
   ]) {
@@ -59,7 +66,7 @@ test('bash: escalations ask the maintainer', () => {
     'gh pr merge 12 --squash',
     'gh secret set RENDER_DEPLOY_HOOK',
     'npx wrangler pages deploy dist',
-    'curl -X POST https://api.render.com/deploy/srv-1?key=x',
+    'curl -X POST https://api.render.com/deploy/srv-1?key=x', // secretlint-disable-line -- fake fixture for the gate test
     'git rm apps/api/src/x.test.ts',
     'pnpm publish',
     'git tag agent-v0.0.1',
@@ -109,12 +116,21 @@ test('edit: approvals — only delegated, verbatim, cited', () => {
   const rel = '.specs/features/harness-foundation/spec.md';
   const good = `**Approved**: 2026-11-03 - user: "${words}" (delegated via .specs/phases/F0/brief.md)`;
   assert.equal(d(checkEdit(rel, { content: `# Spec\n${good}\n` }, ctx)), 'allow');
-  assert.equal(d(checkEdit(rel, { content: '# Spec\n**Approved**: 2026-11-03 - user: "looks good"\n' }, ctx)), 'deny');
-  assert.equal(d(checkEdit(rel, { content: `# Spec\n**Approved**: 2026-11-03 - user: "${words}"\n` }, ctx)), 'deny');
+  assert.equal(
+    d(checkEdit(rel, { content: '# Spec\n**Approved**: 2026-11-03 - user: "looks good"\n' }, ctx)),
+    'deny',
+  );
+  assert.equal(
+    d(checkEdit(rel, { content: `# Spec\n**Approved**: 2026-11-03 - user: "${words}"\n` }, ctx)),
+    'deny',
+  );
   // No active phase → ask the human.
   assert.equal(d(checkEdit(rel, { content: `# Spec\n${good}\n` }, fakeCtx())), 'ask');
   // Brief without approval → ask.
-  const unapproved = { ...files, '.specs/phases/F0/brief.md': BRIEF_APPROVED.replace(/\*\*Approved.*$/m, '') };
+  const unapproved = {
+    ...files,
+    '.specs/phases/F0/brief.md': BRIEF_APPROVED.replace(/\*\*Approved.*$/m, ''),
+  };
   assert.equal(d(checkEdit(rel, { content: `# Spec\n${good}\n` }, fakeCtx(unapproved))), 'ask');
   // Writing the brief approval itself always asks.
   assert.equal(d(checkEdit('.specs/phases/F0/brief.md', { content: BRIEF_APPROVED }, fakeCtx())), 'ask');
@@ -138,9 +154,18 @@ test('edit: accepted ADRs and harness files escalate unless delegated', () => {
 
 test('decide: routes tools and blocks reading secrets', () => {
   const ctx = fakeCtx();
-  assert.equal(d(decide({ tool_name: 'Read', tool_input: { file_path: '/repo/.env' } }, ctx, toRelative)), 'deny');
-  assert.equal(d(decide({ tool_name: 'Read', tool_input: { file_path: '/repo/README.md' } }, ctx, toRelative)), 'allow');
-  assert.equal(d(decide({ tool_name: 'Write', tool_input: { file_path: '/repo/.env', content: '' } }, ctx, toRelative)), 'deny');
+  assert.equal(
+    d(decide({ tool_name: 'Read', tool_input: { file_path: '/repo/.env' } }, ctx, toRelative)),
+    'deny',
+  );
+  assert.equal(
+    d(decide({ tool_name: 'Read', tool_input: { file_path: '/repo/README.md' } }, ctx, toRelative)),
+    'allow',
+  );
+  assert.equal(
+    d(decide({ tool_name: 'Write', tool_input: { file_path: '/repo/.env', content: '' } }, ctx, toRelative)),
+    'deny',
+  );
   assert.equal(d(decide({ tool_name: 'WebSearch', tool_input: {} }, ctx, toRelative)), 'allow');
 });
 
@@ -152,17 +177,23 @@ test('approval examples inside HTML comments never count', async () => {
   assert.equal(activePhase(ctx).approved, false);
 });
 
-
 test('acceptance scenarios: never focused, skipped, removed or in another language without the maintainer', () => {
   const rel = '.specs/features/api-web-skeleton/acceptance.feature';
-  const before = 'Feature: x\n\n  @ROOM-01\n  Scenario: a\n    When b\n    Then c\n\n  @ROOM-02\n  Scenario: d\n    When e\n    Then f\n';
+  const before =
+    'Feature: x\n\n  @ROOM-01\n  Scenario: a\n    When b\n    Then c\n\n  @ROOM-02\n  Scenario: d\n    When e\n    Then f\n';
   const ctx = fakeCtx({ [rel]: before });
   assert.equal(d(checkEdit(rel, { content: before.replace('@ROOM-01', '@ROOM-01 @only') }, ctx)), 'deny');
   assert.equal(d(checkEdit(rel, { content: `# language: pt\n${before}` }, ctx)), 'deny');
   assert.equal(d(checkEdit(rel, { content: before.replace('@ROOM-02', '@ROOM-02 @skip') }, ctx)), 'ask');
   assert.equal(d(checkEdit(rel, { content: before.slice(0, before.indexOf('  @ROOM-02')) }, ctx)), 'ask');
-  assert.equal(d(checkEdit(rel, { content: `${before}  # not-scenario: ROOM-03 — load test\n` }, ctx)), 'ask');
-  assert.equal(d(checkEdit(rel, { content: `${before}\n  @ROOM-03\n  Scenario: g\n    When h\n    Then i\n` }, ctx)), 'allow');
+  assert.equal(
+    d(checkEdit(rel, { content: `${before}  # not-scenario: ROOM-03 — load test\n` }, ctx)),
+    'ask',
+  );
+  assert.equal(
+    d(checkEdit(rel, { content: `${before}\n  @ROOM-03\n  Scenario: g\n    When h\n    Then i\n` }, ctx)),
+    'allow',
+  );
   assert.equal(d(checkEdit('tests/acceptance/playwright.config.ts', { content: 'retries: 2' }, ctx)), 'ask');
 });
 

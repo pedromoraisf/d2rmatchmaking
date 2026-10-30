@@ -9,7 +9,8 @@ module.exports = {
   forbidden: [
     {
       name: 'domain-is-pure',
-      comment: 'Domain imports only its own domain and the shared kernel. No I/O, no frameworks, no node builtins.',
+      comment:
+        'Domain imports only its own domain and the shared kernel. No I/O, no frameworks, no node builtins.',
       severity: 'error',
       from: { path: `${API}/modules/[^/]+/domain`, pathNot: TESTS },
       to: { pathNot: [`${API}/modules/[^/]+/domain`, `${API}/shared-kernel`] },
@@ -47,7 +48,8 @@ module.exports = {
     },
     {
       name: 'contracts-are-leaf',
-      comment: 'packages/contracts is consumed by api, web and (as JSON Schema) the Rust agent; it imports nothing internal.',
+      comment:
+        'packages/contracts is consumed by api, web and (as JSON Schema) the Rust agent; it imports nothing internal.',
       severity: 'error',
       from: { path: '^packages/contracts/src', pathNot: TESTS },
       to: { path: '^(apps|packages/(telemetry|config))/' },
@@ -67,7 +69,8 @@ module.exports = {
     },
     {
       name: 'acceptance-is-black-box',
-      comment: 'Acceptance tests (ADR 023) drive the system through HTTP, SSE and the browser only. Contracts are allowed.',
+      comment:
+        'Acceptance tests (ADR 023) drive the system through HTTP, SSE and the browser only. Contracts are allowed.',
       severity: 'error',
       from: { path: '^tests/acceptance/' },
       to: { path: ['^apps/', '^packages/(telemetry|config)/'] },
@@ -83,7 +86,13 @@ module.exports = {
       severity: 'warn',
       from: {
         orphan: true,
-        pathNot: [TESTS, '\\.d\\.ts$', '(^|/)(eslint|vite|vitest|stryker|playwright|tsup)\\.config\\.', '^scripts/', '^\\.claude/'],
+        pathNot: [
+          TESTS,
+          '\\.d\\.ts$',
+          '(^|/)(eslint|vite|vitest|stryker|playwright|tsup)\\.config\\.',
+          '^scripts/',
+          '^\\.claude/',
+        ],
       },
       to: {},
     },
@@ -102,7 +111,9 @@ module.exports = {
   ],
   options: {
     doNotFollow: { path: 'node_modules' },
-    exclude: { path: ['(^|/)(dist|coverage|target|reports|\\.features-gen)/', '\\.claude/skills/tlc-spec-driven/'] },
+    exclude: {
+      path: ['(^|/)(dist|coverage|target|reports|\\.features-gen)/', '\\.claude/skills/tlc-spec-driven/'],
+    },
     tsPreCompilationDeps: true,
     combinedDependencies: true,
     tsConfig: { fileName: 'tsconfig.base.json' },

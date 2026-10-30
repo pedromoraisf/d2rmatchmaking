@@ -18,18 +18,35 @@ export const FEATURE_STEPS = [
   'done',
 ];
 
-export const PHASE_STEPS = ['kickoff', 'awaiting-approval', 'run', 'review', 'awaiting-review', 'merge', 'closed'];
+export const PHASE_STEPS = [
+  'kickoff',
+  'awaiting-approval',
+  'run',
+  'review',
+  'awaiting-review',
+  'merge',
+  'closed',
+];
 
 /** Features table of a brief: | Feature | Size | Depends on | … |. */
 export function briefFeatures(briefText) {
   const rows = [];
-  const section = String(briefText ?? '').split(/^## /m).find((s) => /^Features\b/.test(s)) ?? '';
+  const section =
+    String(briefText ?? '')
+      .split(/^## /m)
+      .find((s) => /^Features\b/.test(s)) ?? '';
   for (const line of section.split('\n')) {
     if (!line.trim().startsWith('|')) continue;
-    const cells = line.split('|').slice(1, -1).map((c) => c.trim());
+    const cells = line
+      .split('|')
+      .slice(1, -1)
+      .map((c) => c.trim());
     if (cells.length < 3 || /^-+$/.test(cells[0]) || /^feature$/i.test(cells[0])) continue;
     if (!/^[a-z0-9][a-z0-9-]*$/.test(cells[0])) continue;
-    const deps = cells[2] === '—' || cells[2] === '-' || cells[2] === '' ? [] : cells[2].split(/[,\s]+/).filter((d) => /^[a-z0-9-]+$/.test(d));
+    const deps =
+      cells[2] === '—' || cells[2] === '-' || cells[2] === ''
+        ? []
+        : cells[2].split(/[,\s]+/).filter((d) => /^[a-z0-9-]+$/.test(d));
     rows.push({ feature: cells[0], size: cells[1], dependsOn: deps, covers: cells[4] ?? '' });
   }
   return rows;
@@ -60,7 +77,8 @@ export function derivePhaseState(ev) {
   const features = briefFeatures(ev.brief);
   const commitTrailers = ev.commits.map((c) => parseTrailers(c.body));
   const phaseTrailers = ev.phaseCommits.map((c) => parseTrailers(c.body));
-  const tasksDone = (f) => new Set(commitTrailers.filter((t) => t.feature === f && t.task).map((t) => t.task.toUpperCase()));
+  const tasksDone = (f) =>
+    new Set(commitTrailers.filter((t) => t.feature === f && t.task).map((t) => t.task.toUpperCase()));
   const stepDone = (f, s) => commitTrailers.some((t) => t.feature === f && t.step === s);
   // Integrated = the feature's closing commit (Step: verification) is reachable from phase/<F>.
   const merged = (f) => phaseTrailers.some((t) => t.feature === f && t.step === 'verification');
@@ -127,7 +145,11 @@ export function derivePhaseState(ev) {
     features: all,
     // What may run now, in parallel (each in its own worktree): every ready feature.
     runnable: ready.map((s) => ({ feature: s.feature, step: s.next, task: s.task })),
-    phaseBlocked: all.length > 0 && ready.length === 0 && all.some((s) => s.status === 'blocked') && all.some((s) => s.status !== 'done' && s.status !== 'blocked'),
+    phaseBlocked:
+      all.length > 0 &&
+      ready.length === 0 &&
+      all.some((s) => s.status === 'blocked') &&
+      all.some((s) => s.status !== 'done' && s.status !== 'blocked'),
   };
 }
 

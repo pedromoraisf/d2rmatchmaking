@@ -17,11 +17,14 @@ export function checkSpecs(read, list) {
   const active = (read('.specs/phases/ACTIVE') ?? '').trim();
   let brief = null;
   if (active) {
-    if (!/^F\d+$/.test(active)) errors.push(`.specs/phases/ACTIVE must hold a phase id like F0 (found "${active}").`);
+    if (!/^F\d+$/.test(active))
+      errors.push(`.specs/phases/ACTIVE must hold a phase id like F0 (found "${active}").`);
     brief = read(`.specs/phases/${active}/brief.md`);
     if (brief === null) errors.push(`.specs/phases/${active}/brief.md is missing for the active phase.`);
     if (read(`.specs/phases/${active}/decisions.md`) === null) {
-      errors.push(`.specs/phases/${active}/decisions.md is missing (queue of assumed decisions for the phase review).`);
+      errors.push(
+        `.specs/phases/${active}/decisions.md is missing (queue of assumed decisions for the phase review).`,
+      );
     }
   }
 
@@ -39,10 +42,13 @@ export function checkSpecs(read, list) {
           continue;
         }
         const words = approvalsIn(b).map((x) => x.words);
-        if (!words.includes(a.words)) errors.push(`${rel}: delegated approval does not quote the kickoff approval in ${m[1]} verbatim.`);
-        if (!delegatedScopes(b).has('specs-and-tasks')) errors.push(`${rel}: ${m[1]} does not delegate specs-and-tasks.`);
+        if (!words.includes(a.words))
+          errors.push(`${rel}: delegated approval does not quote the kickoff approval in ${m[1]} verbatim.`);
+        if (!delegatedScopes(b).has('specs-and-tasks'))
+          errors.push(`${rel}: ${m[1]} does not delegate specs-and-tasks.`);
         const phaseId = /phases\/(F\d+)\//.exec(m[1])[1];
-        if (!new RegExp(`\\b${feature}\\b`).test(b)) errors.push(`${rel}: feature "${feature}" is not listed in the ${phaseId} brief.`);
+        if (!new RegExp(`\\b${feature}\\b`).test(b))
+          errors.push(`${rel}: feature "${feature}" is not listed in the ${phaseId} brief.`);
       }
     }
   }
@@ -52,7 +58,9 @@ export function checkSpecs(read, list) {
     for (const line of state.split('\n')) {
       const m = ASSUMED_RE.exec(line.trim());
       if (m && !queue.includes(m[1])) {
-        errors.push(`${m[1]} is marked assumed in STATE.md but missing from .specs/phases/${active}/decisions.md.`);
+        errors.push(
+          `${m[1]} is marked assumed in STATE.md but missing from .specs/phases/${active}/decisions.md.`,
+        );
       }
     }
   }

@@ -9,3 +9,6 @@ docs/product/prd.md
 docs/architecture/design-doc.md
 packages/contracts/openapi.json
 packages/contracts/asyncapi.json
+# written by scripts (quality-ratchet --update, phase-status --write)
+.quality-baseline.json
+.specs/phases/*/attempts.json

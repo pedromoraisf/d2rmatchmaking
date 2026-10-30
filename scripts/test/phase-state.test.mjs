@@ -1,7 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { derivePhaseState, briefFeatures, parseTrailers, renderRunnerState, writeRunnerState } from '../lib/phase-state.mjs';
+import {
+  derivePhaseState,
+  briefFeatures,
+  parseTrailers,
+  renderRunnerState,
+  writeRunnerState,
+} from '../lib/phase-state.mjs';
 import { checkTrailers } from '../lib/trailers.mjs';
 import { checkRoadmap, prdRequirements } from '../lib/roadmap.mjs';
 import { mergeLedgers, emptyLedger, recordAttempt, unitKey, MAX_ATTEMPTS } from '../lib/budget.mjs';
@@ -43,7 +49,13 @@ function ev(files = {}, commits = [], phaseCommits = [], extra = {}) {
 const next = (s, f) => s.features.find((x) => x.feature === f);
 
 test('brief features table and trailers parse', () => {
-  assert.deepEqual(briefFeatures(BRIEF).map((r) => [r.feature, r.dependsOn]), [['core', []], ['web', ['core']]]);
+  assert.deepEqual(
+    briefFeatures(BRIEF).map((r) => [r.feature, r.dependsOn]),
+    [
+      ['core', []],
+      ['web', ['core']],
+    ],
+  );
   assert.deepEqual(parseTrailers('feat: x\n\nFeature: core\nTask: T2\n'), { feature: 'core', task: 'T2' });
 });
 
@@ -100,18 +112,29 @@ test('dependencies, blocked features and phase-level steps', () => {
   s = derivePhaseState(ev({}, [], [], { blocked: (f) => f === 'core' }));
   assert.equal(s.phaseBlocked, true, 'everything left depends on a blocked feature');
   assert.equal(derivePhaseState(ev({}, [], [], { brief: null })).next, 'kickoff');
-  assert.equal(derivePhaseState(ev({}, [], [], { brief: BRIEF.replace(/\*\*Approved.*\n/, '') })).next, 'awaiting-approval');
+  assert.equal(
+    derivePhaseState(ev({}, [], [], { brief: BRIEF.replace(/\*\*Approved.*\n/, '') })).next,
+    'awaiting-approval',
+  );
 });
 
 test('phase closes only after review approval and merge to main', () => {
   const files = {};
   for (const f of ['core', 'web']) {
     Object.assign(files, {
-      [`${f}/spec.md`]: APPROVED, [`${f}/acceptance.feature`]: 'F', [`${f}/design.md`]: 'd',
-      [`${f}/tasks.md`]: TASKS, [`${f}/proofs.md`]: 'p', [`${f}/verification.md`]: 'v',
+      [`${f}/spec.md`]: APPROVED,
+      [`${f}/acceptance.feature`]: 'F',
+      [`${f}/design.md`]: 'd',
+      [`${f}/tasks.md`]: TASKS,
+      [`${f}/proofs.md`]: 'p',
+      [`${f}/verification.md`]: 'v',
     });
   }
-  const c = ['core', 'web'].flatMap((f) => [`Feature: ${f}\nTask: T1`, `Feature: ${f}\nTask: T2`, `Feature: ${f}\nStep: verification`]);
+  const c = ['core', 'web'].flatMap((f) => [
+    `Feature: ${f}\nTask: T1`,
+    `Feature: ${f}\nTask: T2`,
+    `Feature: ${f}\nStep: verification`,
+  ]);
   assert.equal(derivePhaseState(ev(files, c, c)).next, 'review');
   assert.equal(derivePhaseState(ev(files, c, c, { review: '# review' })).next, 'awaiting-review');
   const reviewed = `# review\n**Approved**: 2026-11-20 - user: "aprovo a F0"`;
@@ -141,11 +164,12 @@ test('ledger snapshot merge never loosens; a newer maintainer reset wins', () =>
   const live = emptyLedger();
   const snap = emptyLedger();
   const k = unitKey('gate', 'core', 'T1');
-  for (let i = 0; i < MAX_ATTEMPTS; i += 1) recordAttempt(snap, k, false, { at: `2026-11-0${i + 1}T00:00:00Z` });
+  for (let i = 0; i < MAX_ATTEMPTS; i += 1)
+    recordAttempt(snap, k, false, { at: `2026-11-0${i + 1}T00:00:00Z` });
   recordAttempt(live, k, false, { at: '2026-11-01T00:00:00Z' });
   assert.equal(mergeLedgers(live, snap).units[k].status, 'blocked', 'fresh clone keeps the block');
   live.resets = [{ key: k, by: 'pedro', at: '2026-11-09T00:00:00Z' }];
-  delete live.units[k];
+  live.units = {};
   assert.equal(mergeLedgers(live, snap).units[k], undefined, 'reset newer than the snapshot clears it');
 });
 
@@ -156,8 +180,12 @@ test('roadmap: every PRD requirement has exactly one primary phase; approved bri
   assert.deepEqual(checkRoadmap(prd, roadmap, {}), []);
   const f0 = readFileSync(new URL('../../.specs/phases/F0/brief.md', import.meta.url), 'utf8');
   const approvedF0 = `${f0}\n**Approved**: 2026-11-02 - user: "ok"\n`;
-  assert.deepEqual(checkRoadmap(prd, roadmap, { F0: approvedF0 }), [], 'the F0 draft covers every F0 requirement');
+  assert.deepEqual(
+    checkRoadmap(prd, roadmap, { F0: approvedF0 }),
+    [],
+    'the F0 draft covers every F0 requirement',
+  );
   assert.ok(checkRoadmap(prd, roadmap, { F1: '**Approved**: 2026-12-01 - user: "ok"\nFR-01' }).length > 10);
-  const dup = roadmap.replace('| F4 | NFR-05 |', '| F4 | NFR-05, FR-01 |');
+  const dup = roadmap.replace(/(\|\s*F4\s*\|\s*NFR-05)/, '$1, FR-01');
   assert.ok(checkRoadmap(prd, dup, {}).some((e) => /FR-01 has more than one/.test(e)));
 });

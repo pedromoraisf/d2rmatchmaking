@@ -15,7 +15,10 @@ export function prdRequirements(prdText) {
 
 export function roadmapCoverage(roadmapText) {
   const map = new Map(); // req -> [phases]
-  const section = String(roadmapText ?? '').split(/^## /m).find((s) => /^Requirement coverage/.test(s)) ?? '';
+  const section =
+    String(roadmapText ?? '')
+      .split(/^## /m)
+      .find((s) => /^Requirement coverage/.test(s)) ?? '';
   for (const line of section.split('\n')) {
     const m = /^\|\s*(F\d+)\s*\|(.*)\|\s*$/.exec(line);
     if (!m) continue;
@@ -33,14 +36,16 @@ export function checkRoadmap(prdText, roadmapText, briefs /* {F0: text|null, …
   for (const r of reqs) {
     const phases = cov.get(r) ?? [];
     if (phases.length === 0) errors.push(`ROADMAP: ${r} has no primary phase.`);
-    if (phases.length > 1) errors.push(`ROADMAP: ${r} has more than one primary phase (${phases.join(', ')}).`);
+    if (phases.length > 1)
+      errors.push(`ROADMAP: ${r} has more than one primary phase (${phases.join(', ')}).`);
   }
   for (const r of cov.keys()) if (!reqs.includes(r)) errors.push(`ROADMAP: ${r} is not in the PRD.`);
   for (const [phase, brief] of Object.entries(briefs)) {
     if (!brief || approvalsIn(brief).length === 0) continue; // drafts may still be incomplete
     const covered = new Set(brief.match(REQ) ?? []);
     for (const [r, phases] of cov) {
-      if (phases.includes(phase) && !covered.has(r)) errors.push(`${phase} brief is approved but does not cover ${r} (primary in ${phase}).`);
+      if (phases.includes(phase) && !covered.has(r))
+        errors.push(`${phase} brief is approved but does not cover ${r} (primary in ${phase}).`);
     }
   }
   return errors;

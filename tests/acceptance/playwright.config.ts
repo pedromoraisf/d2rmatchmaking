@@ -4,6 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
 import { defineBddConfig } from 'playwright-bdd';
 
 const testDir = defineBddConfig({
+  featuresRoot: '../../.specs/features',
   features: '../../.specs/features/*/acceptance.feature',
   steps: ['./fixtures.ts', './steps/**/*.steps.ts'],
   outputDir: '.features-gen',

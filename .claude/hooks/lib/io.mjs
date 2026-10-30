@@ -29,7 +29,11 @@ export function toRelative(root, filePath) {
 export function makeRepoContext(root) {
   const git = (...args) => {
     try {
-      return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      return execFileSync('git', args, {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
     } catch {
       return null;
     }

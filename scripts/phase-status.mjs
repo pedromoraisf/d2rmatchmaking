@@ -55,13 +55,19 @@ const state = derivePhaseState({
 if (args.includes('--json')) {
   console.log(JSON.stringify(state, null, 2));
 } else {
-  console.log(`phase ${phase}: next = ${state.next}${state.phaseBlocked ? '  ⚠ PHASE BLOCKED — escalate' : ''}`);
+  console.log(
+    `phase ${phase}: next = ${state.next}${state.phaseBlocked ? '  ⚠ PHASE BLOCKED — escalate' : ''}`,
+  );
   for (const s of state.features) {
     const extra = s.waitingOn.length ? ` (waiting on ${s.waitingOn.join(', ')})` : '';
-    console.log(`  ${s.status.padEnd(8)} ${s.feature.padEnd(22)} next: ${s.next}${s.task ? ` ${s.task}` : ''}  tasks ${s.tasks.done}/${s.tasks.total}${extra}`);
+    console.log(
+      `  ${s.status.padEnd(8)} ${s.feature.padEnd(22)} next: ${s.next}${s.task ? ` ${s.task}` : ''}  tasks ${s.tasks.done}/${s.tasks.total}${extra}`,
+    );
   }
   if (state.runnable.length) {
-    console.log(`runnable now: ${state.runnable.map((r) => `${r.feature}→${r.step}${r.task ? `(${r.task})` : ''}`).join(', ')}`);
+    console.log(
+      `runnable now: ${state.runnable.map((r) => `${r.feature}→${r.step}${r.task ? `(${r.task})` : ''}`).join(', ')}`,
+    );
   }
 }
 

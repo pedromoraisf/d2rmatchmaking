@@ -27,13 +27,18 @@ const WRAPPER = /(^|\s)(node\s+)?(\.\/)?scripts\/attempt\.mjs\s+run\s/;
 const WRAPPER_ANY = /scripts\/attempt\.mjs\s+(\w+)/;
 const SENSOR_CMD =
   /\b(vitest|jest|playwright\s+test|cargo\s+(nextest|test|clippy|mutants)|turbo\s+run\s+(test|typecheck|lint)\S*|pnpm\s+(run\s+|exec\s+)?(test|check|lint|typecheck|arch|test:\S+|harness:gate)\b|check_proofs\.py|validate_(spec|tasks|verification)\.py|acceptance-check\.mjs|bddgen|stryker|depcruise|eslint|tsc)\b/;
-const READ_ONLY_BASH = /^(git\s+(status|diff|log|show|branch)|node\s+(\.\/)?scripts\/attempt\.mjs\s+(status|report)|ls|cat|head|tail|grep|rg|wc|pwd)\b/;
+const READ_ONLY_BASH =
+  /^(git\s+(status|diff|log|show|branch)|node\s+(\.\/)?scripts\/attempt\.mjs\s+(status|report)|ls|cat|head|tail|grep|rg|wc|pwd)\b/;
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const DISPATCH_TOOLS = new Set(['Agent', 'Task']);
 const DISPATCH_HEADER = /\[d2rmm\s+feature=([a-z0-9][a-z0-9-]*)\s+step=([a-z0-9][a-z0-9-]*)\]/i;
 
 const unquoted = (s) => s.replace(/"[^"]*"|'[^']*'/g, '""');
-const segments = (s) => unquoted(s).split(/\n|;|&&|\|\||\|/).map((x) => x.trim()).filter(Boolean);
+const segments = (s) =>
+  unquoted(s)
+    .split(/\n|;|&&|\|\||\|/)
+    .map((x) => x.trim())
+    .filter(Boolean);
 
 function hash(text) {
   let h = 5381;
@@ -65,7 +70,11 @@ export function checkBudget(input, ctx, sid, rel) {
     return deny('The retry ledger is maintained by the hooks and scripts/attempt.mjs only.');
   }
   if (tool === 'Bash' && WRAPPER_ANY.exec(cmd)?.[1] === 'reset') {
-    return { decision: 'ask', reason: 'Resetting a retry budget is a maintainer decision (ADR 022).', effects: [] };
+    return {
+      decision: 'ask',
+      reason: 'Resetting a retry budget is a maintainer decision (ADR 022).',
+      effects: [],
+    };
   }
 
   // 2. An exhausted session may only record the blocker and read.
@@ -89,22 +98,29 @@ export function checkBudget(input, ctx, sid, rel) {
   if (DISPATCH_TOOLS.has(tool) && running) {
     const m = DISPATCH_HEADER.exec(String(ti.prompt ?? ''));
     if (!m) {
-      return deny('During a phase run every dispatch starts with "[d2rmm feature=<feature> step=<step>]" so its retry budget can be counted.');
+      return deny(
+        'During a phase run every dispatch starts with "[d2rmm feature=<feature> step=<step>]" so its retry budget can be counted.',
+      );
     }
     const [, feature, rawStep] = m;
     const step = rawStep.toLowerCase();
     if (!DISPATCH_STEPS.test(step)) {
-      return deny(`Unknown dispatch step "${step}". Allowed: ${DISPATCH_STEPS.source.replace(/^\^\(|\)\$$/g, '').replace(/\|/g, ', ')}.`);
+      return deny(
+        `Unknown dispatch step "${step}". Allowed: ${DISPATCH_STEPS.source.replace(/^\^\(|\)\$$/g, '').replace(/\|/g, ', ')}.`,
+      );
     }
     const brief = ctx.readFile(phase.briefPath) ?? '';
     if (!new RegExp(`(^|[^a-z0-9-])${feature}([^a-z0-9-]|$)`, 'm').test(brief)) {
       return deny(`Feature "${feature}" is not listed in ${phase.briefPath}.`);
     }
-    if (featureBlocked(ledger, feature)) return deny(`Feature ${feature} is blocked; do not dispatch more work for it.`);
+    if (featureBlocked(ledger, feature))
+      return deny(`Feature ${feature} is blocked; do not dispatch more work for it.`);
     const key = unitKey('dispatch', feature, step);
     const used = (ledger.units[key]?.attempts ?? []).length;
     if (ledger.units[key]?.status === 'blocked' || used >= MAX_ATTEMPTS) {
-      return deny(blockedMessage(key, ledger.units[key]), [{ op: 'dispatch', key, note: ti.description ?? '' }]);
+      return deny(blockedMessage(key, ledger.units[key]), [
+        { op: 'dispatch', key, note: ti.description ?? '' },
+      ]);
     }
     return allow([{ op: 'dispatch', key, note: ti.description ?? '' }]);
   }
@@ -130,11 +146,14 @@ export function checkBudget(input, ctx, sid, rel) {
   // 5. A blocked feature takes no more code changes and no commits.
   if (where.kind === 'feature' && featureBlocked(ledger, where.feature)) {
     if (EDIT_TOOLS.has(tool) && !rel.startsWith('.specs/')) {
-      return deny(`Feature ${where.feature} is blocked (retry budget). Record the blocker in .specs/ and return.`);
+      return deny(
+        `Feature ${where.feature} is blocked (retry budget). Record the blocker in .specs/ and return.`,
+      );
     }
   }
   if (tool === 'Bash' && where.kind === 'feature' && segments(cmd).some((s) => /\bgit\s+commit\b/.test(s))) {
-    if (featureBlocked(ledger, where.feature)) return deny(`Feature ${where.feature} is blocked (retry budget): no commits.`);
+    if (featureBlocked(ledger, where.feature))
+      return deny(`Feature ${where.feature} is blocked (retry budget): no commits.`);
     const last = lastGateAttempt(ledger, where.feature);
     const head = ctx.headTime?.() ?? null;
     if (!last || !last.ok || (head !== null && Date.parse(last.at) / 1000 < head)) {
@@ -156,7 +175,11 @@ export function countDenial(result, ctx, sid) {
     failures >= MAX_ATTEMPTS
       ? ` [denial ${failures}/${MAX_ATTEMPTS}: retry budget exhausted — this session may now only record the blocker and report]`
       : ` [denial ${failures}/${MAX_ATTEMPTS}: do not retry the same action; ${MAX_ATTEMPTS - failures} left]`;
-  return { ...result, reason: result.reason + suffix, effects: [...(result.effects ?? []), { op: 'fail', key, note: result.reason }] };
+  return {
+    ...result,
+    reason: result.reason + suffix,
+    effects: [...(result.effects ?? []), { op: 'fail', key, note: result.reason }],
+  };
 }
 
 /**

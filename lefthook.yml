@@ -19,7 +19,8 @@ pre-commit:
       glob: 'apps/agent/src-tauri/**/*.rs'
       run: cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check
     secrets:
-      run: gitleaks git --staged --no-banner --redact --config .gitleaks.toml || (echo "gitleaks not installed or secret found" && exit 1)
+      # secretlint is a devDependency (no system install). CI also runs gitleaks via its GitHub Action.
+      run: pnpm exec secretlint --maskSecrets {staged_files}
     harness-tests:
       glob: '{scripts,.claude/hooks}/**/*.mjs'
       run: pnpm run test:harness

@@ -6,8 +6,20 @@ const base = {
   updated: '2026-10-30',
   metrics: {
     'harness.percent': { value: 90, direction: 'higher', floor: 80, contexts: ['pr', 'nightly'] },
-    'mutation.api.domain': { value: null, direction: 'higher', floor: 80, tolerance: 0.02, contexts: ['nightly'] },
-    'ci.duration_seconds': { value: 300, direction: 'lower', ceiling: 900, tolerance: 0.25, contexts: ['pr'] },
+    'mutation.api.domain': {
+      value: null,
+      direction: 'higher',
+      floor: 80,
+      tolerance: 0.02,
+      contexts: ['nightly'],
+    },
+    'ci.duration_seconds': {
+      value: 300,
+      direction: 'lower',
+      ceiling: 900,
+      tolerance: 0.25,
+      contexts: ['pr'],
+    },
   },
 };
 

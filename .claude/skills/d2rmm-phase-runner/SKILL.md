@@ -6,7 +6,7 @@ description: Run a whole roadmap phase of D2R Match Making autonomously on top o
 # D2R Match Making — Phase Runner
 
 Wraps **tlc-spec-driven** (`.claude/skills/tlc-spec-driven/SKILL.md`, the method) so the maintainer reviews **once per
-phase**. TLC's rules all still hold; this skill only replaces *who* gives the two per-feature approvals and adds the
+phase**. TLC's rules all still hold; this skill only replaces _who_ gives the two per-feature approvals and adds the
 gates that make that safe. Decision record: `docs/adr/021-automated-phase-delivery.md`.
 
 ```
@@ -61,12 +61,12 @@ The phase brief's approval is the only human approval during the run. It is vali
   (the gate hook asks the maintainer to confirm that edit — never write it unprompted);
 - `## Delegation` ticks the scopes the maintainer granted. Unticked = not delegated = ask.
 
-| Scope | What it lets the runner do without asking |
-| --- | --- |
-| `specs-and-tasks` | Write the per-feature approvals once the automatic gates pass |
-| `sub-agents` | Dispatch feature workers, the Verifier and the reviewers (TLC's offer-then-confirm is answered here) |
-| `harness-edits` | Edit sensor/harness config (lint, depcruise, CI, Stryker…) — **only to tighten or extend**. The gate hook still asks for `.claude/hooks/**` and `.claude/settings.json` |
-| `local-merge-phase-branch` | Merge a green feature branch into `phase/<F>` locally |
+| Scope                      | What it lets the runner do without asking                                                                                                                               |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `specs-and-tasks`          | Write the per-feature approvals once the automatic gates pass                                                                                                           |
+| `sub-agents`               | Dispatch feature workers, the Verifier and the reviewers (TLC's offer-then-confirm is answered here)                                                                    |
+| `harness-edits`            | Edit sensor/harness config (lint, depcruise, CI, Stryker…) — **only to tighten or extend**. The gate hook still asks for `.claude/hooks/**` and `.claude/settings.json` |
+| `local-merge-phase-branch` | Merge a green feature branch into `phase/<F>` locally                                                                                                                   |
 
 A per-feature approval line under delegation is exactly:
 

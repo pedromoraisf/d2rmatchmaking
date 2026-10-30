@@ -26,7 +26,8 @@ export const FIXED_STEPS = ['spec', 'design', 'tasks', 'proofs', 'verification',
  * the step ("execute-batch-1b"). The subagent type is NOT part of the key: switching agent types for the
  * same step shares the same budget.
  */
-export const DISPATCH_STEPS = /^(feature|spec|design|tasks|execute|execute-batch-[1-9]|verify|verify-r2|screens|review-spec|review-architecture|review-security|review-diff)$/;
+export const DISPATCH_STEPS =
+  /^(feature|spec|design|tasks|execute|execute-batch-[1-9]|verify|verify-r2|screens|review-spec|review-architecture|review-security|review-diff)$/;
 
 export function emptyLedger() {
   return { version: 1, units: {} };
@@ -34,7 +35,13 @@ export function emptyLedger() {
 
 export function unitKey(kind, ...parts) {
   if (!UNIT_KINDS.includes(kind)) throw new Error(`unknown unit kind: ${kind}`);
-  const clean = parts.map((p) => String(p ?? '').trim().replace(/\s+/g, ' ')).filter(Boolean);
+  const clean = parts
+    .map((p) =>
+      String(p ?? '')
+        .trim()
+        .replace(/\s+/g, ' '),
+    )
+    .filter(Boolean);
   if (clean.length === 0) throw new Error('unit key needs at least one part');
   return `${kind}:${clean.join('/')}`;
 }
@@ -77,7 +84,12 @@ export function recordAttempt(ledger, key, ok, { note = '', at = new Date().toIS
   else if (failures >= MAX_ATTEMPTS) u.status = 'blocked';
   else u.status = 'open';
   ledger.units[key] = u;
-  return { status: u.status, attempt: u.attempts.length, failures, remainingRetries: Math.max(0, MAX_ATTEMPTS - failures) };
+  return {
+    status: u.status,
+    attempt: u.attempts.length,
+    failures,
+    remainingRetries: Math.max(0, MAX_ATTEMPTS - failures),
+  };
 }
 
 /**
@@ -87,10 +99,15 @@ export function recordAttempt(ledger, key, ok, { note = '', at = new Date().toIS
  */
 export function recordDispatch(ledger, key, { note = '', at = new Date().toISOString() } = {}) {
   const u = structuredClone(unit(ledger, key));
-  if (u.status === 'blocked') return { allowed: false, attempt: u.attempts.length, reason: blockedMessage(key, u) };
+  if (u.status === 'blocked')
+    return { allowed: false, attempt: u.attempts.length, reason: blockedMessage(key, u) };
   if (u.attempts.length >= MAX_ATTEMPTS) {
     u.status = 'blocked';
-    u.attempts.push({ at, ok: false, note: `refused dispatch #${u.attempts.length + 1}: ${note}`.slice(0, 500) });
+    u.attempts.push({
+      at,
+      ok: false,
+      note: `refused dispatch #${u.attempts.length + 1}: ${note}`.slice(0, 500),
+    });
     ledger.units[key] = u;
     return { allowed: false, attempt: u.attempts.length, reason: blockedMessage(key, u) };
   }
@@ -100,10 +117,14 @@ export function recordDispatch(ledger, key, { note = '', at = new Date().toISOSt
   return { allowed: true, attempt: u.attempts.length, of: MAX_ATTEMPTS };
 }
 
+function removeUnit(ledger, key) {
+  ledger.units = Object.fromEntries(Object.entries(ledger.units).filter(([k]) => k !== key));
+}
+
 /** A green outcome resets a per-session counter (stop hook) without un-blocking anything. */
 export function clearIfOpen(ledger, key) {
   const u = ledger.units[key];
-  if (u && u.status !== 'blocked') delete ledger.units[key];
+  if (u && u.status !== 'blocked') removeUnit(ledger, key);
 }
 
 /** Maintainer-only. Returns true when something was reset. */
@@ -111,7 +132,7 @@ export function reset(ledger, key, { by, at = new Date().toISOString() } = {}) {
   const u = ledger.units[key];
   if (!u) return false;
   ledger.resets = [...(ledger.resets ?? []), { key, by: by ?? 'unknown', at, previous: u }];
-  delete ledger.units[key];
+  removeUnit(ledger, key);
   return true;
 }
 
@@ -125,7 +146,9 @@ export function blockedUnits(ledger, prefix = '') {
 export function featureBlocked(ledger, feature) {
   return Object.entries(ledger.units).some(([k, u]) => {
     const [kind, rest = ''] = k.split(':');
-    return u.status === 'blocked' && (kind === 'gate' || kind === 'dispatch') && rest.split('/')[0] === feature;
+    return (
+      u.status === 'blocked' && (kind === 'gate' || kind === 'dispatch') && rest.split('/')[0] === feature
+    );
   });
 }
 
@@ -148,7 +171,9 @@ export function sessionId(input) {
 
 export function sessionExhausted(ledger, sid) {
   return Object.entries(ledger.units).some(
-    ([k, u]) => u.status === 'blocked' && (k === `stop:${sid}` || k.startsWith(`denial:${sid}/`) || k.startsWith(`feedback:${sid}/`)),
+    ([k, u]) =>
+      u.status === 'blocked' &&
+      (k === `stop:${sid}` || k.startsWith(`denial:${sid}/`) || k.startsWith(`feedback:${sid}/`)),
   );
 }
 
@@ -166,7 +191,11 @@ export function report(ledger) {
     const failures = u.attempts.filter((a) => !a.ok).length;
     return `| \`${k}\` | ${u.status} | ${u.attempts.length} | ${failures} | ${(u.attempts.filter((a) => !a.ok).at(-1)?.note ?? '').replace(/\|/g, '\\|').slice(0, 120)} |`;
   });
-  return ['| Unit | Status | Attempts | Failures | Last error |', '| --- | --- | --- | --- | --- |', ...rows].join('\n');
+  return [
+    '| Unit | Status | Attempts | Failures | Last error |',
+    '| --- | --- | --- | --- | --- |',
+    ...rows,
+  ].join('\n');
 }
 
 /**
@@ -184,8 +213,12 @@ export function mergeLedgers(a, b) {
       if (resetAt.has(k) && resetAt.get(k) > last) continue;
       const cur = out.units[k];
       const fails = (x) => x.attempts.filter((t) => !t.ok).length;
-      if (!cur || u.status === 'blocked' && cur.status !== 'blocked' || (cur.status !== 'blocked' && fails(u) > fails(cur)) ||
-        (fails(u) === fails(cur) && u.attempts.length > cur.attempts.length)) {
+      if (
+        !cur ||
+        (u.status === 'blocked' && cur.status !== 'blocked') ||
+        (cur.status !== 'blocked' && fails(u) > fails(cur)) ||
+        (fails(u) === fails(cur) && u.attempts.length > cur.attempts.length)
+      ) {
         out.units[k] = structuredClone(u);
       }
     }

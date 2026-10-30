@@ -116,7 +116,7 @@ jobs:
           retention-days: 14
 
   agent:
-    name: agent (Rust: fmt, clippy, nextest)
+    name: 'agent (Rust — fmt, clippy, nextest)'
     if: hashFiles('apps/agent/src-tauri/Cargo.toml') != ''
     runs-on: windows-latest
     timeout-minutes: 30

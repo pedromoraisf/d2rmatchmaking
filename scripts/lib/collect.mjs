@@ -9,7 +9,10 @@ export function pointer(obj, ptr) {
   return ptr
     .split('/')
     .slice(1)
-    .reduce((o, k) => (o === null || o === undefined ? undefined : o[k.replace(/~1/g, '/').replace(/~0/g, '~')]), obj);
+    .reduce(
+      (o, k) => (o === null || o === undefined ? undefined : o[k.replace(/~1/g, '/').replace(/~0/g, '~')]),
+      obj,
+    );
 }
 
 /** Stryker mutation-testing-report-schema → mutation score (detected / valid, in %). */
@@ -52,7 +55,9 @@ export function harnessField(report, field) {
 }
 
 export function eslintWarnings(results) {
-  return Array.isArray(results) ? results.reduce((n, r) => n + (r.warningCount ?? 0) + (r.errorCount ?? 0), 0) : undefined;
+  return Array.isArray(results)
+    ? results.reduce((n, r) => n + (r.warningCount ?? 0) + (r.errorCount ?? 0), 0)
+    : undefined;
 }
 
 export function collect(baseline, root, { harnessReport } = {}) {
@@ -62,7 +67,8 @@ export function collect(baseline, root, { harnessReport } = {}) {
     const file = s.path ? path.join(root, s.path) : null;
     let v;
     try {
-      if (s.type === 'harness-score') v = harnessField(harnessReport ?? readJson(path.join(root, '.harness-score.report.json')), s.field);
+      if (s.type === 'harness-score')
+        v = harnessField(harnessReport ?? readJson(path.join(root, '.harness-score.report.json')), s.field);
       else if (s.type === 'stryker') v = strykerScore(readJson(file));
       else if (s.type === 'cargo-mutants') v = cargoMutantsScore(readJson(file));
       else if (s.type === 'eslint') v = eslintWarnings(readJson(file));

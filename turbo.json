@@ -3,68 +3,41 @@
   "ui": "stream",
   "tasks": {
     "build": {
-      "dependsOn": [
-        "^build"
-      ],
-      "outputs": [
-        "dist/**"
-      ]
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
     },
     "dev": {
       "cache": false,
       "persistent": true
     },
     "lint": {
-      "dependsOn": [
-        "^build"
-      ]
+      "dependsOn": ["^build"]
     },
     "typecheck": {
-      "dependsOn": [
-        "^build"
-      ]
+      "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": [
-        "^build"
-      ],
-      "outputs": [
-        "coverage/**"
-      ]
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
     },
     "test:integration": {
-      "dependsOn": [
-        "^build"
-      ],
+      "dependsOn": ["^build"],
       "cache": false
     },
     "test:e2e": {
-      "dependsOn": [
-        "build"
-      ],
+      "dependsOn": ["build"],
       "cache": false
     },
     "test:mutation": {
-      "dependsOn": [
-        "^build"
-      ],
-      "outputs": [
-        "reports/mutation/**"
-      ]
+      "dependsOn": ["^build"],
+      "outputs": ["reports/mutation/**"]
     },
     "contracts:openapi": {
-      "dependsOn": [
-        "^build"
-      ],
-      "outputs": [
-        "openapi.json",
-        "asyncapi.json"
-      ]
+      "dependsOn": ["^build"],
+      "outputs": ["openapi.json", "asyncapi.json"]
     },
     "test:acceptance": {
-      "dependsOn": [
-        "^build"
-      ],
+      "dependsOn": ["^build"],
       "cache": false,
       "outputs": []
     }

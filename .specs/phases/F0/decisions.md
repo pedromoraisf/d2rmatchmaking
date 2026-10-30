@@ -5,15 +5,15 @@ review. Reversals become tasks in a follow-up feature.
 
 ## Assumed decisions
 
-| AD | Feature | Decision | Reversal cost | Maintainer |
-| --- | --- | --- | --- | --- |
+| AD  | Feature | Decision | Reversal cost | Maintainer |
+| --- | ------- | -------- | ------------- | ---------- |
 
 ## Blocked
 
 | Feature / task | Gate | Attempts | Last error | Options |
-| --- | --- | --- | --- | --- |
+| -------------- | ---- | -------- | ---------- | ------- |
 
 ## Escalations raised
 
 | When | What | Answer |
-| --- | --- | --- |
+| ---- | ---- | ------ |

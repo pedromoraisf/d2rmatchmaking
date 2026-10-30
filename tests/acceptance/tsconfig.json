@@ -3,7 +3,7 @@
   "compilerOptions": {
     "lib": ["ES2024", "DOM"],
     "noEmit": true,
-    "types": ["node"]
+    "types": []
   },
   "include": ["**/*.ts"],
   "exclude": [".features-gen", "node_modules"]

@@ -18,7 +18,9 @@ const update = args.includes('--update');
 
 const baseline = JSON.parse(readFileSync('.quality-baseline.json', 'utf8'));
 const current =
-  currentPath && existsSync(currentPath) ? JSON.parse(readFileSync(currentPath, 'utf8')) : collect(baseline, process.cwd());
+  currentPath && existsSync(currentPath)
+    ? JSON.parse(readFileSync(currentPath, 'utf8'))
+    : collect(baseline, process.cwd());
 
 const { failures, notes, improvements } = evaluate(baseline, current, context);
 for (const n of notes) console.log(`  · ${n}`);
@@ -28,10 +30,13 @@ if (failures.length > 0) {
   console.error('Fix the regression. Lowering the baseline is a maintainer decision (ADR 021).');
   process.exit(1);
 }
-console.log(`quality-ratchet [${context}]: OK${Object.keys(improvements).length ? ` — ${Object.keys(improvements).length} improvement(s)` : ''}`);
+console.log(
+  `quality-ratchet [${context}]: OK${Object.keys(improvements).length ? ` — ${Object.keys(improvements).length} improvement(s)` : ''}`,
+);
 if (update && Object.keys(improvements).length > 0) {
   const next = tighten(baseline, improvements, new Date().toISOString().slice(0, 10));
-  if (compareBaselines(baseline, next).length > 0) throw new Error('tighten() produced a looser baseline — bug');
+  if (compareBaselines(baseline, next).length > 0)
+    throw new Error('tighten() produced a looser baseline — bug');
   writeFileSync('.quality-baseline.json', `${JSON.stringify(next, null, 2)}\n`);
   for (const [k, v] of Object.entries(improvements)) console.log(`  ↑ ${k} = ${v}`);
 }

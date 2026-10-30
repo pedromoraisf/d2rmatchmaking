@@ -38,26 +38,28 @@ Bounded contexts: **Identity** (Account, Character) · **Agents** (pairing, pres
 
 ## Commands
 
-| Goal | Command |
-| --- | --- |
-| Install (also installs Lefthook git hooks) | `pnpm install` |
-| Everything CI runs, locally | `pnpm check` |
-| Unit tests (all workspaces + harness) | `pnpm test` |
-| Harness self-tests only (hooks, ratchet, specs) | `pnpm test:harness` |
-| Lint / types / architecture | `pnpm lint` · `pnpm typecheck` · `pnpm arch` |
-| Integration (Testcontainers) / e2e (Playwright) | `pnpm test:integration` · `pnpm test:e2e` |
-| Acceptance (Gherkin via playwright-bdd) | `pnpm test:acceptance` · coverage check: `pnpm acceptance:check` |
-| Mutation (Stryker / cargo-mutants) | `pnpm test:mutation` |
-| Regenerate OpenAPI + AsyncAPI | `pnpm contracts:openapi` (then commit the JSON) |
-| Harness maturity gate (L4) | `pnpm harness:gate` |
-| Quality ratchet | `pnpm quality:collect && pnpm quality:ratchet --context pr` |
-| Phase-delegation checks on `.specs/` | `pnpm specs:check` |
-| Run a gate within the retry budget (phase runs) | `node scripts/attempt.mjs run --feature <f> --step <T#> -- "<cmd>"` |
-| Where is the phase? (derived from evidence) | `pnpm phase:status` · `--json` · `--write` |
-| Retry-budget status / report | `node scripts/attempt.mjs status [--feature <f>]` · `node scripts/attempt.mjs report` |
-| Rust agent | `cargo nextest run` / `cargo clippy --all-targets -- -D warnings` in `apps/agent/src-tauri` |
+| Goal                                                  | Command                                                                                     |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Install (also installs Lefthook git hooks)            | `pnpm install`                                                                              |
+| Everything CI runs, locally                           | `pnpm check`                                                                                |
+| Unit tests (all workspaces + harness)                 | `pnpm test`                                                                                 |
+| Harness self-tests only (hooks, ratchet, specs)       | `pnpm test:harness`                                                                         |
+| Secret scan (secretlint locally; gitleaks runs in CI) | `pnpm secrets:scan`                                                                         |
+| Lint / types / architecture                           | `pnpm lint` · `pnpm typecheck` · `pnpm arch`                                                |
+| Integration (Testcontainers) / e2e (Playwright)       | `pnpm test:integration` · `pnpm test:e2e`                                                   |
+| Acceptance (Gherkin via playwright-bdd)               | `pnpm test:acceptance` · coverage check: `pnpm acceptance:check`                            |
+| Mutation (Stryker / cargo-mutants)                    | `pnpm test:mutation`                                                                        |
+| Regenerate OpenAPI + AsyncAPI                         | `pnpm contracts:openapi` (then commit the JSON)                                             |
+| Harness maturity gate (L4)                            | `pnpm harness:gate`                                                                         |
+| Quality ratchet                                       | `pnpm quality:collect && pnpm quality:ratchet --context pr`                                 |
+| Phase-delegation checks on `.specs/`                  | `pnpm specs:check`                                                                          |
+| Run a gate within the retry budget (phase runs)       | `node scripts/attempt.mjs run --feature <f> --step <T#> -- "<cmd>"`                         |
+| Where is the phase? (derived from evidence)           | `pnpm phase:status` · `--json` · `--write`                                                  |
+| Retry-budget status / report                          | `node scripts/attempt.mjs status [--feature <f>]` · `node scripts/attempt.mjs report`       |
+| Rust agent                                            | `cargo nextest run` / `cargo clippy --all-targets -- -D warnings` in `apps/agent/src-tauri` |
 
-Node 26 (`.nvmrc`), pnpm 10, Python 3.8+ (TLC gate scripts, stdlib only), Rust stable for the agent.
+Node 26 (`.nvmrc`), pnpm 10, Python 3.8+ (TLC gate scripts, stdlib only), Rust stable for the agent. Everything
+else (secret scanning, Playwright, Lefthook…) comes from `pnpm install`; no other system install is needed.
 
 ## Inviolable rules
 

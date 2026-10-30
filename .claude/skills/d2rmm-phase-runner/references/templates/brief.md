@@ -9,9 +9,9 @@
 
 ## Features
 
-| Feature | Size | Depends on | Parallel | Covers | Wall-clock |
-| --- | --- | --- | --- | --- | --- |
-| <feature-slug> | Large | — | yes | FR-xx, NFR-xx, ADR nnn | default |
+| Feature        | Size  | Depends on | Parallel | Covers                 | Wall-clock |
+| -------------- | ----- | ---------- | -------- | ---------------------- | ---------- |
+| <feature-slug> | Large | —          | yes      | FR-xx, NFR-xx, ADR nnn | default    |
 
 Every feature ships an English `acceptance.feature` covering each requirement ID (ADR 023).
 

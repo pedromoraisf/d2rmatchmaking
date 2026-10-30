@@ -34,7 +34,7 @@
     "quality:ratchet": "node scripts/quality-ratchet.mjs",
     "specs:check": "node scripts/specs-check.mjs && node scripts/acceptance-check.mjs",
     "tlc:selftest": "python3 .claude/skills/tlc-spec-driven/scripts/selftest.py",
-    "secrets:scan": "gitleaks git --no-banner --redact --config .gitleaks.toml",
+    "secrets:scan": "secretlint --maskSecrets \"**/*\"",
     "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run arch && pnpm run test && pnpm run specs:check && pnpm run harness:gate && pnpm run quality:ratchet",
     "attempt": "node scripts/attempt.mjs",
     "attempt:report": "node scripts/attempt.mjs report",
@@ -44,6 +44,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
+    "@secretlint/secretlint-rule-pattern": "^10.0.0",
+    "@secretlint/secretlint-rule-preset-recommend": "^10.0.0",
     "dependency-cruiser": "^17.3.0",
     "eslint": "^9.39.0",
     "eslint-config-prettier": "^10.1.8",
@@ -51,6 +53,7 @@
     "harness-score": "^1.8.3",
     "lefthook": "^2.0.0",
     "prettier": "^3.6.2",
+    "secretlint": "^10.0.0",
     "turbo": "^2.6.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.0"

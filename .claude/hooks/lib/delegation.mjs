@@ -7,7 +7,8 @@ export const DELEGATION_SCOPES = [
   'local-merge-phase-branch',
 ];
 
-const APPROVED_RE = /^\**\s*Approved\s*\**\s*:\s*\**\s*(\d{4}-\d{2}-\d{2})\b.*?\buser\s*:\s*["“]([^"”]*\S[^"”]*)["”]/i;
+const APPROVED_RE =
+  /^\**\s*Approved\s*\**\s*:\s*\**\s*(\d{4}-\d{2}-\d{2})\b.*?\buser\s*:\s*["“]([^"”]*\S[^"”]*)["”]/i;
 
 export function parseApproval(line) {
   const m = APPROVED_RE.exec(line.trim());

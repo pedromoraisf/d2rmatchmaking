@@ -4,7 +4,7 @@
   "updated": "2026-10-30",
   "metrics": {
     "harness.level": {
-      "value": null,
+      "value": 4,
       "direction": "higher",
       "floor": 4,
       "contexts": [
@@ -18,7 +18,7 @@
       }
     },
     "harness.percent": {
-      "value": null,
+      "value": 100,
       "direction": "higher",
       "floor": 80,
       "contexts": [
@@ -32,7 +32,7 @@
       }
     },
     "harness.failed_checks": {
-      "value": null,
+      "value": 0,
       "direction": "lower",
       "contexts": [
         "pr",
