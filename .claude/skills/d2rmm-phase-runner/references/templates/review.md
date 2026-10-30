@@ -12,6 +12,11 @@ report; the command is next to each number.
 | Criterion | Status | Proof |
 | --- | --- | --- |
 
+## Acceptance scenarios
+
+| Requirement | Scenario(s) | Result |
+| --- | --- | --- |
+
 ## Features
 
 | Feature | Status | Commits | Verifier | Mutations killed |

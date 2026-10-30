@@ -82,15 +82,19 @@ for it to merge into `phase/<F>`.
 
 ### 2. Specify (TLC `references/specify.md`)
 
+- Write `acceptance.feature` next to `spec.md` from `references/templates/acceptance.feature` (ADR 023): English
+  Gherkin, one or more scenarios per requirement ID, tagged `@<REQ-ID>` (+ `@FR-xx`/`@INV-xx`), describing what a
+  player or the agent does and observes. These scenarios are the acceptance tests — never copy them into code.
 - Gray areas: answer from PRD → Design Doc → ADRs → STATE decisions → lessons. If still open and it is a **product**
   decision the brief did not settle, take the **conservative default** (`references/gates.md#conservative-defaults`),
   record `### AD-NNN — <decision> (assumed)` in `.specs/STATE.md` and a line in `decisions.md`. If no conservative
   default exists (it would change what users see in a way the PRD contradicts), **escalate**.
 - **Spec gate** (all must pass, in order):
   1. `node scripts/attempt.mjs run --feature <feature> --step spec -- "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py <feature>"` exits 0.
-  2. Traceability: every requirement cites an `FR-xx`/`NFR-xx`/ADR in `## Sources`, and every FR/NFR the brief assigns
+  2. `node scripts/attempt.mjs run --feature <feature> --step spec -- "node scripts/acceptance-check.mjs <feature>"` exits 0.
+  3. Traceability: every requirement cites an `FR-xx`/`NFR-xx`/ADR in `## Sources`, and every FR/NFR the brief assigns
      to the feature is covered (`references/gates.md#traceability`).
-  3. `spec-reviewer` subagent returns `VERDICT: PASS` (findings fixed; dispatch step `review-spec`, 1 + 2 retries).
+  4. `spec-reviewer` subagent returns `VERDICT: PASS` (findings fixed; dispatch step `review-spec`, 1 + 2 retries).
 - Then write the delegated approval line in `spec.md`.
 
 ### 3. Design (Large/Complex only)

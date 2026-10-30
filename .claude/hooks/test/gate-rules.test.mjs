@@ -152,3 +152,16 @@ test('approval examples inside HTML comments never count', async () => {
   assert.equal(activePhase(ctx).approved, false);
 });
 
+
+test('acceptance scenarios: never focused, skipped, removed or in another language without the maintainer', () => {
+  const rel = '.specs/features/api-web-skeleton/acceptance.feature';
+  const before = 'Feature: x\n\n  @ROOM-01\n  Scenario: a\n    When b\n    Then c\n\n  @ROOM-02\n  Scenario: d\n    When e\n    Then f\n';
+  const ctx = fakeCtx({ [rel]: before });
+  assert.equal(d(checkEdit(rel, { content: before.replace('@ROOM-01', '@ROOM-01 @only') }, ctx)), 'deny');
+  assert.equal(d(checkEdit(rel, { content: `# language: pt\n${before}` }, ctx)), 'deny');
+  assert.equal(d(checkEdit(rel, { content: before.replace('@ROOM-02', '@ROOM-02 @skip') }, ctx)), 'ask');
+  assert.equal(d(checkEdit(rel, { content: before.slice(0, before.indexOf('  @ROOM-02')) }, ctx)), 'ask');
+  assert.equal(d(checkEdit(rel, { content: `${before}  # not-scenario: ROOM-03 — load test\n` }, ctx)), 'ask');
+  assert.equal(d(checkEdit(rel, { content: `${before}\n  @ROOM-03\n  Scenario: g\n    When h\n    Then i\n` }, ctx)), 'allow');
+  assert.equal(d(checkEdit('tests/acceptance/playwright.config.ts', { content: 'retries: 2' }, ctx)), 'ask');
+});

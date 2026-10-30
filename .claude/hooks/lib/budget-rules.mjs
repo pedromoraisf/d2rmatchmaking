@@ -26,7 +26,7 @@ const LEDGER_REF = /\.git\/d2rmm|d2rmm\/ledger|D2RMM_LEDGER/;
 const WRAPPER = /(^|\s)(node\s+)?(\.\/)?scripts\/attempt\.mjs\s+run\s/;
 const WRAPPER_ANY = /scripts\/attempt\.mjs\s+(\w+)/;
 const SENSOR_CMD =
-  /\b(vitest|jest|playwright\s+test|cargo\s+(nextest|test|clippy|mutants)|turbo\s+run\s+(test|typecheck|lint)\S*|pnpm\s+(run\s+|exec\s+)?(test|check|lint|typecheck|arch|test:\S+|harness:gate)\b|check_proofs\.py|validate_(spec|tasks|verification)\.py|stryker|depcruise|eslint|tsc)\b/;
+  /\b(vitest|jest|playwright\s+test|cargo\s+(nextest|test|clippy|mutants)|turbo\s+run\s+(test|typecheck|lint)\S*|pnpm\s+(run\s+|exec\s+)?(test|check|lint|typecheck|arch|test:\S+|harness:gate)\b|check_proofs\.py|validate_(spec|tasks|verification)\.py|acceptance-check\.mjs|bddgen|stryker|depcruise|eslint|tsc)\b/;
 const READ_ONLY_BASH = /^(git\s+(status|diff|log|show|branch)|node\s+(\.\/)?scripts\/attempt\.mjs\s+(status|report)|ls|cat|head|tail|grep|rg|wc|pwd)\b/;
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const DISPATCH_TOOLS = new Set(['Agent', 'Task']);

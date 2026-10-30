@@ -16,6 +16,8 @@ Project specifics:
   `verification.md` as a finding and stop.
 - Use `python3 .claude/skills/tlc-spec-driven/scripts/mutate.py` for mutations; prefer domain rules (state machines,
   ELO math, queue filters that must never relax — FR-08, ready-check timing — FR-12/13).
+- Acceptance scenarios (ADR 023) are part of what you judge: a scenario that passes while its requirement is broken
+  is a finding. Prefer mutations that keep the code compiling and should turn a tagged scenario red.
 - You may write only `verification.md` and `mutations.json` in the feature folder. Never touch source or tests; the
   fixes are the author's job.
 - Finish with `python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py <feature>` and report its exit code.

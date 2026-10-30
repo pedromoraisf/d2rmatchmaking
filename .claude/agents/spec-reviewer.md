@@ -23,7 +23,12 @@ Check, in order, and cite file:line for every finding:
    without one is a FAIL.
 5. **Invariants and safety.** Consistent with `docs/domain/invariants.md` and the agent's read-only limits (ADR 010);
    consent/retention (NFR-04/05); region/difficulty/ladder/era never relaxed in matchmaking (FR-08).
-6. **i18n and telemetry.** User-facing text goes through i18n; new flows name their spans/metrics.
+6. **Acceptance scenarios (`acceptance.feature`, ADR 023).** `node scripts/acceptance-check.mjs <feature>` exits 0
+   (you may run it). Then judge: each scenario proves its tagged requirement exactly (not a weaker version); the
+   outcome is observable by a player, the site or the agent's contract; no selectors, URLs or internal ids; edge cases
+   from the spec's "Edge Cases" have scenarios; examples in outlines include the boundaries (e.g. 3 minutes for FR-17);
+   any `# not-scenario` exemption names a real alternative proof.
+7. **i18n and telemetry.** User-facing text goes through i18n; new flows name their spans/metrics.
 
 If a command or read you need fails three times (1 attempt + 2 retries, ADR 022), stop and report it as a
 `BLOCKER` finding instead of retrying.

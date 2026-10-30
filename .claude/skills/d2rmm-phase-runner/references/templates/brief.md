@@ -13,6 +13,8 @@
 | --- | --- | --- | --- | --- | --- |
 | <feature-slug> | Large | — | yes | FR-xx, NFR-xx, ADR nnn | default |
 
+Every feature ships an English `acceptance.feature` covering each requirement ID (ADR 023).
+
 Retry budget is fixed for every feature: 1 attempt + 2 retries per unit (ADR 022); a brief cannot raise it.
 
 ## Scope notes

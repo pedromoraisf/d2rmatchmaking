@@ -3,6 +3,7 @@ dist/
 coverage/
 target/
 reports/
+.features-gen/
 .claude/skills/tlc-spec-driven/
 docs/product/prd.md
 docs/architecture/design-doc.md

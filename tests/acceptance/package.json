@@ -1,0 +1,17 @@
+{
+  "name": "@d2rmm/acceptance",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "BDD acceptance tests (ADR 023): runs .specs/features/*/acceptance.feature with playwright-bdd.",
+  "scripts": {
+    "acceptance:gen": "bddgen",
+    "test:acceptance": "bddgen && playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "playwright-bdd": "^8.4.0",
+    "typescript": "^5.9.3"
+  }
+}

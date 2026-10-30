@@ -37,11 +37,30 @@ From Design Doc § Walking skeleton. Every item needs a proof in the phase revie
 
 Retry budget is fixed for every feature: 1 attempt + 2 retries per unit (ADR 022); a brief cannot raise it.
 
+Every feature ships an English `acceptance.feature` covering each requirement ID (ADR 023). Seed for the walking
+skeleton's journey (the runner refines it in `api-web-skeleton`'s Specify, with that spec's requirement IDs):
+
+```gherkin
+Feature: A test room becomes Created
+  The walking skeleton proves web, API, agent, outbox and SSE end to end.
+
+  Background:
+    Given "Player One" is signed in on the site
+    And "Player One" has a paired agent that is online
+
+  Scenario: The host's agent sees the expected game name
+    Given a test match is formed with "Player One" as host
+    And the site shows the room as "Awaiting host"
+    When the agent reports the game name of the room
+    Then the site shows the room as "Created" within 2 seconds
+    And the trace links the site, the API, the outbox and the agent
+```
+
 What the pre-foundation already delivered (do not redo; extend): AGENTS.md/CLAUDE.md, scoped rules, hooks + tests,
 phase-runner skill, reviewer/verifier/worker subagents, commands, dependency-cruiser rules, Lefthook, CI + nightly
 workflows, quality baseline + ratchet, specs-check, ADRs 001–021, domain and engineering docs.
 
-`harness-foundation` therefore covers: the first `pnpm install` (the pre-foundation was written without registry access, so no lockfile and no ESLint/Prettier run yet), `pnpm format` + `pnpm lint` fixes across the harness files, committing `pnpm-lock.yaml`, `packages/config` presets, empty workspaces for the
+`harness-foundation` therefore covers: installing Playwright browsers and running a first `bddgen` against a sample feature (ADR 023), the first `pnpm install` (the pre-foundation was written without registry access, so no lockfile and no ESLint/Prettier run yet), `pnpm format` + `pnpm lint` fixes across the harness files, committing `pnpm-lock.yaml`, `packages/config` presets, empty workspaces for the
 three apps and three packages, the five modules × three layers with a deliberate-violation fixture, Vitest + Stryker
 configs, release-please config, first green CI on GitHub, and the first measured baseline values.
 

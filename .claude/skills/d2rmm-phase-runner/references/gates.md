@@ -8,7 +8,8 @@ Every gate is a command with an exit code or a reviewer verdict line. "I checked
 | --- | --- | --- |
 | 1 | `python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py <feature>` | exit 0 |
 | 2 | Traceability (below) | every requirement sourced; every FR/NFR assigned by the brief covered |
-| 3 | `spec-reviewer` subagent (dispatch step `review-spec`) | last line `VERDICT: PASS` |
+| 3 | `node scripts/acceptance-check.mjs <feature>` | exit 0: every requirement has an English Gherkin scenario tagged with its ID (ADR 023) |
+| 4 | `spec-reviewer` subagent (dispatch step `review-spec`) | last line `VERDICT: PASS` |
 
 ## Design gate (Large/Complex)
 
@@ -17,6 +18,10 @@ the desktop agent, tokens/secrets, file uploads (dispute prints), CORS/cookies/p
 internet without auth.
 
 ## Tasks gate
+
+Every `## Checks` claim for a requirement with scenarios uses the scenarios as its proof:
+`**Proof**: \`pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep @<REQ-ID>\``.
+Scenario steps are implemented in the task that delivers the behaviour (missing steps fail generation).
 
 `validate_tasks.py <feature>` exit 0 → write the delegated approval → `validate_tasks.py <feature> --execute` exit 0.
 `**Mutations**:` at least 3; at least 5 for features with domain rules (ranking, ready check, room state machine).
@@ -69,7 +74,7 @@ Record it in `.specs/STATE.md` (TLC format, plus the `(assumed)` marker on the h
 - **Status**: active (pending phase review: .specs/phases/<F>/decisions.md)
 ```
 
-Numbering: AD-001…AD-022 mirror ADR 001…022. New decisions continue from AD-023; if one becomes an ADR, it keeps its number.
+Numbering: AD-001…AD-023 mirror ADR 001…023. New decisions continue from AD-024; if one becomes an ADR, it keeps its number.
 
 ## Budgets
 

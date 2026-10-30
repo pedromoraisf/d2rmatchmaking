@@ -66,6 +66,13 @@ module.exports = {
       to: { path: '^apps/web/src/(features/([^/]+)/|app/)', pathNot: '^apps/web/src/features/$1/' },
     },
     {
+      name: 'acceptance-is-black-box',
+      comment: 'Acceptance tests (ADR 023) drive the system through HTTP, SSE and the browser only. Contracts are allowed.',
+      severity: 'error',
+      from: { path: '^tests/acceptance/' },
+      to: { path: ['^apps/', '^packages/(telemetry|config)/'] },
+    },
+    {
       name: 'no-circular',
       severity: 'error',
       from: {},
@@ -95,7 +102,7 @@ module.exports = {
   ],
   options: {
     doNotFollow: { path: 'node_modules' },
-    exclude: { path: ['(^|/)(dist|coverage|target|reports)/', '\\.claude/skills/tlc-spec-driven/'] },
+    exclude: { path: ['(^|/)(dist|coverage|target|reports|\\.features-gen)/', '\\.claude/skills/tlc-spec-driven/'] },
     tsPreCompilationDeps: true,
     combinedDependencies: true,
     tsConfig: { fileName: 'tsconfig.base.json' },

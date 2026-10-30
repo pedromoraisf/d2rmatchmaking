@@ -16,6 +16,8 @@ Rules:
 - Work only inside the worktree you were given (`.claude/worktrees/<feature>`, branch `feat/<F>-<feature>`).
 - Pass every gate in `references/gates.md` before writing a delegated approval; quote the kickoff words verbatim and
   cite the brief.
+- Acceptance: the feature's `acceptance.feature` is the contract (ADR 023). Implement the step definitions in
+  `tests/acceptance/steps/<context>.steps.ts`; never edit a scenario to make it pass — that is a spec change.
 - One commit per task; never push; never merge (the orchestrator integrates).
 - On an escalation, stop and return it to the orchestrator with options — do not ask the maintainer directly.
 - **Retry budget: 1 attempt + 2 retries per unit, enforced by the hooks** (`references/retry-budget.md`). Run every

@@ -90,7 +90,7 @@ jobs:
 
   integration:
     name: integration (Testcontainers) and e2e (Playwright)
-    if: hashFiles('apps/api/package.json') != ''
+    if: hashFiles('apps/api/package.json') != '' || hashFiles('.specs/features/*/acceptance.feature') != ''
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -105,6 +105,15 @@ jobs:
       - run: pnpm run test:integration
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm run test:e2e
+      - name: Acceptance (BDD scenarios from .specs)
+        if: hashFiles('.specs/features/*/acceptance.feature') != ''
+        run: pnpm run test:acceptance
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-report
+          path: reports/acceptance/
+          retention-days: 14
 
   agent:
     name: agent (Rust: fmt, clippy, nextest)

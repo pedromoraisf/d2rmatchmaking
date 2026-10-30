@@ -8,6 +8,7 @@ import { activePhase, approvalsIn } from './delegation.mjs';
 import { compareBaselines } from '../../../scripts/lib/ratchet.mjs';
 import { sessionId } from '../../../scripts/lib/budget.mjs';
 import { checkBudget, countDenial } from './budget-rules.mjs';
+import { countScenarios } from '../../../scripts/lib/acceptance.mjs';
 
 const deny = (reason) => ({ decision: 'deny', reason });
 const ask = (reason) => ({ decision: 'ask', reason });
@@ -18,7 +19,9 @@ const VENDORED = /^\.claude\/skills\/tlc-spec-driven\//;
 const MIGRATION = /^apps\/api\/(src\/)?.*migrations\/[^/]+\.(sql|ts)$/;
 const ADR = /^docs\/adr\/\d{3}-[^/]+\.md$/;
 const BASELINE = '.quality-baseline.json';
-const TEST_FILE = /(\.(test|spec)\.[cm]?[jt]sx?$)|(^|\/)tests?\/.*\.rs$|(^|\/)__tests__\//;
+const TEST_FILE = /(\.(test|spec)\.[cm]?[jt]sx?$)|(^|\/)tests?\/.*\.rs$|(^|\/)__tests__\/|\.feature$|^tests\/acceptance\/steps\//;
+const FEATURE_FILE = /\.feature$/;
+const GHERKIN_SKIP = /(^|\s)@(skip|fixme|fail|wip|ignore|todo)\b/gi;
 const SPEC_DOC = /^\.specs\/features\/[^/]+\/(spec|tasks)\.md$/;
 const BRIEF = /^\.specs\/phases\/F\d+\/brief\.md$/;
 const HARNESS_FILES = [
@@ -34,6 +37,8 @@ const HARNESS_FILES = [
   /^\.github\/workflows\//,
   /(^|\/)stryker\.config\.[cm]?[jt]s(on)?$/,
   /(^|\/)vitest\.config\.[cm]?[jt]s$/,
+  /(^|\/)playwright\.config\.[cm]?[jt]s$/,
+  /^scripts\/(acceptance-check\.mjs|lib\/(gherkin|acceptance)\.mjs)$/,
   /^scripts\/(quality-|specs-check)/,
   /^scripts\/lib\//,
 ];
@@ -187,6 +192,21 @@ export function checkEdit(rel, toolInput, ctx) {
     return null;
   }
 
+  if (FEATURE_FILE.test(rel)) {
+    if (/(^|\s)@only\b/i.test(after)) return deny('@only would silence the rest of the acceptance suite.');
+    if (/^#\s*language:\s*(?!en\b)/m.test(after)) return deny('Gherkin keywords are English in this project (ADR 023).');
+    if (before !== null) {
+      if ((after.match(GHERKIN_SKIP) ?? []).length > (before.match(GHERKIN_SKIP) ?? []).length) {
+        return ask('Skipping acceptance scenarios is an escalation (ADR 023).');
+      }
+      if (countScenarios(after) < countScenarios(before)) {
+        return ask('This edit removes acceptance scenarios. Removing scenarios is an escalation.');
+      }
+      if ((after.match(/^\s*#\s*not-scenario:/gm) ?? []).length > (before.match(/^\s*#\s*not-scenario:/gm) ?? []).length) {
+        return ask('A new not-scenario exemption: the maintainer confirms that requirement is proved another way.');
+      }
+    }
+  }
   if (TEST_FILE.test(rel) && before !== null) {
     if (/\b(it|test|describe)\.only\s*\(/.test(after)) return deny('.only() would silence the rest of the suite.');
     const skipsBefore = (before.match(/\.(skip|todo)\s*\(|#\[ignore\]/g) ?? []).length;

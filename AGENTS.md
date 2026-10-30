@@ -46,6 +46,7 @@ Bounded contexts: **Identity** (Account, Character) · **Agents** (pairing, pres
 | Harness self-tests only (hooks, ratchet, specs) | `pnpm test:harness` |
 | Lint / types / architecture | `pnpm lint` · `pnpm typecheck` · `pnpm arch` |
 | Integration (Testcontainers) / e2e (Playwright) | `pnpm test:integration` · `pnpm test:e2e` |
+| Acceptance (Gherkin via playwright-bdd) | `pnpm test:acceptance` · coverage check: `pnpm acceptance:check` |
 | Mutation (Stryker / cargo-mutants) | `pnpm test:mutation` |
 | Regenerate OpenAPI + AsyncAPI | `pnpm contracts:openapi` (then commit the JSON) |
 | Harness maturity gate (L4) | `pnpm harness:gate` |
@@ -114,10 +115,12 @@ One commit per task (Conventional Commits, checked by `check_commit.py`), on a f
 ## How to test
 
 - Pyramid: unit (Vitest / `cargo nextest`, snapshot with `insta`) → integration (Testcontainers Postgres) → contract
-  (schema + OpenAPI drift) → e2e (Playwright) → load (k6, NFR-14: ≥100 concurrent players). Mutation on domain and
+  (schema + OpenAPI drift) → **acceptance (BDD)**: the English Gherkin scenarios in each feature's
+  `.specs/features/<feature>/acceptance.feature`, run as-is by playwright-bdd (ADR 023) → load (k6, NFR-14: ≥100 concurrent players). Mutation on domain and
   application (StrykerJS) and agent core (`cargo-mutants`).
 - Domain tests use fakes for ports (`FakeClock`, in-memory stores). No mocks of what you own.
-- Each acceptance criterion has a check in `tasks.md ## Checks` whose command selects its test.
+- Each requirement has at least one scenario tagged with its ID; its `## Checks` proof runs those scenarios
+  (`playwright test --grep @<REQ-ID>`). Scenarios are never edited to make code pass, skipped or focused.
 - Details: `docs/engineering/testing.md`.
 
 ## Conventions

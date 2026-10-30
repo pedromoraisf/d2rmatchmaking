@@ -2,8 +2,8 @@
 // Pure: returns a list of steps; feedback.mjs executes them. Tested in feedback-plan.test.mjs.
 
 const JS = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
-const FORMATTABLE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|json|md|ya?ml|css|html)$/;
-const IN_WORKSPACE = /^(apps|packages)\/[^/]+\//;
+const FORMATTABLE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|json|md|ya?ml|css|html)$/; // .feature is checked, not reformatted
+const IN_WORKSPACE = /^(apps|packages|tests)\/[^/]+\//;
 const NOT_FORMATTED = /^(\.claude\/skills\/tlc-spec-driven\/|docs\/product\/prd\.md$|docs\/architecture\/design-doc\.md$|pnpm-lock\.yaml$)/;
 
 /**
@@ -38,6 +38,10 @@ export function planFeedback(rel, has) {
   if (spec && has('python3')) {
     const script = spec[2] === 'spec' ? 'validate_spec.py' : 'validate_tasks.py';
     steps.push({ id: script, cmd: 'python3', args: [`.claude/skills/tlc-spec-driven/scripts/${script}`, spec[1]] });
+  }
+  const acc = /^\.specs\/features\/([^/]+)\/(spec\.md|acceptance\.feature)$/.exec(rel);
+  if (acc) {
+    steps.push({ id: 'acceptance-check', cmd: 'node', args: ['scripts/acceptance-check.mjs', acc[1]] });
   }
   if (/^\.specs\//.test(rel)) {
     steps.push({ id: 'specs-check', cmd: 'node', args: ['scripts/specs-check.mjs'] });

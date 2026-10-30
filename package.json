@@ -24,7 +24,7 @@
     "test:integration": "turbo run test:integration",
     "test:e2e": "turbo run test:e2e",
     "test:mutation": "turbo run test:mutation",
-    "arch": "depcruise --config .dependency-cruiser.cjs apps packages",
+    "arch": "depcruise --config .dependency-cruiser.cjs apps packages tests",
     "contracts:openapi": "turbo run contracts:openapi",
     "contracts:check": "turbo run contracts:openapi && git diff --exit-code -- packages/contracts/openapi.json packages/contracts/asyncapi.json",
     "harness": "harness-score . --config .harness-score.json",
@@ -32,12 +32,14 @@
     "harness:json": "harness-score . --config .harness-score.json --json --quiet > .harness-score.report.json",
     "quality:collect": "node scripts/quality-collect.mjs",
     "quality:ratchet": "node scripts/quality-ratchet.mjs",
-    "specs:check": "node scripts/specs-check.mjs",
+    "specs:check": "node scripts/specs-check.mjs && node scripts/acceptance-check.mjs",
     "tlc:selftest": "python3 .claude/skills/tlc-spec-driven/scripts/selftest.py",
     "secrets:scan": "gitleaks git --no-banner --redact --config .gitleaks.toml",
     "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run arch && pnpm run test && pnpm run specs:check && pnpm run harness:gate && pnpm run quality:ratchet",
     "attempt": "node scripts/attempt.mjs",
-    "attempt:report": "node scripts/attempt.mjs report"
+    "attempt:report": "node scripts/attempt.mjs report",
+    "test:acceptance": "turbo run test:acceptance",
+    "acceptance:check": "node scripts/acceptance-check.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

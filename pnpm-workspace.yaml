@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - tests/*
 
 # Exact versions in lockfile; no surprise post-install scripts except the allow-listed ones.
 onlyBuiltDependencies:
