@@ -298,10 +298,10 @@ T16 → T17
 
 **Done when**:
 
-- [ ] Tests: `layerConfig('domain').thresholds.break` is 80 and `layerConfig('application').thresholds.break` is 70; report paths are `reports/mutation/api-<layer>/mutation.json` at the repository root; on an empty temporary tree the runner writes an application report with zero mutants and exits 0
-- [ ] `pnpm --filter @d2rmm/api test:mutation` exits 0 and writes both report files; the domain score is ≥ 80
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:mutation`
-- [ ] Test count: ≥ 4 tests pass (no silent deletions)
+- [x] Tests: `layerConfig('domain').thresholds.break` is 80 and `layerConfig('application').thresholds.break` is 70; report paths are `reports/mutation/api-<layer>/mutation.json` at the repository root; on an empty temporary tree the runner writes an application report with zero mutants and exits 0
+- [x] `pnpm --filter @d2rmm/api test:mutation` exits 0 and writes both report files; the domain score is ≥ 80
+- [x] Gate check passes: `pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:mutation`
+- [x] Test count: ≥ 4 tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick
@@ -507,6 +507,12 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - T2 Done-when `pnpm arch still starts` is open and cannot pass before T4. `depcruise apps packages tests` exits with `Can't open 'apps' for reading`; `apps/` does not exist until T4 creates `apps/web`. The arch run was a separate wrapper call and counted as failure 2/3 on `gate:harness-foundation/T2` (1 retry left). The T2 gate itself passed. Decision for the orchestrator: move the arch check to T4 or later, or accept it as deferred.
 - Deviation: T2 `What` lists root `tsconfig.base.json`, root `package.json` and `.prettierrc.json`, while `Where` lists only `eslint.config.mjs`. All `What` items were implemented, following design.md lines 81–85.
 - Not started: T4, T5, T6, T7 (stopped at the T2 arch item, per the stop rule).
+
+**execute-batch-2 (2026-10-30) — T8–T12 committed (T8 d6b548c, T9 cc5eea7, T10 192a672, T11 8e1c00a, T12 in this commit)**
+
+- T12 gate passed on attempt 3 of 3, which used the whole budget for `gate:harness-foundation/T12`. Failure 1: the gate command has no `pnpm install`, so the new Stryker packages were not linked. Setup `pnpm install` was run directly, not as a gate. Failure 2: Stryker's default `@stryker-mutator/*` plugin glob scans the pnpm store and cannot find `typescript-checker`. Fix: `plugins` set explicitly in `apps/api/stryker.config.mjs`.
+- Domain mutation score 100.00 (7 killed, 0 survived, 12 excluded as compile errors by the TypeScript checker, so the score rests on 7 valid mutants). Application: zero mutants, `null` in the baseline.
+- Recommendation for the orchestrator: add `pnpm install` to the T12 gate in tasks.md (or to the gate of any task that adds dependencies).
 
 ---
 
