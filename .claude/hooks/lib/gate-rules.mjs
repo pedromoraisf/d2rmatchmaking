@@ -315,10 +315,30 @@ export function checkEdit(rel, toolInput, ctx) {
   return null;
 }
 
+/**
+ * Edits inside a feature worktree (.claude/worktrees/<feature>/…) are judged exactly like edits to the same path in
+ * the repository — same protected files, same test rules — reading the worktree's own copy of each file.
+ */
+function worktreeView(rel, ctx) {
+  const m = /^(\.claude\/worktrees\/[^/]+)\/(.*)$/.exec(rel);
+  if (!m) return { rel, ctx };
+  const [, prefix, inner] = m;
+  return {
+    rel: inner,
+    ctx: {
+      ...ctx,
+      readFile: (r) => ctx.readFile(`${prefix}/${r}`),
+      isTracked: (r) =>
+        ctx.git ? ctx.git('-C', prefix, 'ls-files', '--error-unmatch', '--', r) !== null : false,
+    },
+  };
+}
+
 function regularRules(tool, ti, ctx, toRelative) {
   if (tool === 'Bash') return checkBash(ti.command, ctx);
   if (tool === 'Edit' || tool === 'Write' || tool === 'MultiEdit' || tool === 'NotebookEdit') {
-    return checkEdit(toRelative(ctx.root, ti.file_path ?? ti.notebook_path), ti, ctx);
+    const view = worktreeView(toRelative(ctx.root, ti.file_path ?? ti.notebook_path), ctx);
+    return checkEdit(view.rel, ti, view.ctx);
   }
   if (tool === 'Read' || tool === 'Grep') {
     const rel = toRelative(ctx.root, ti.file_path ?? ti.path ?? '');

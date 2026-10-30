@@ -50,8 +50,8 @@ export function makeRepoContext(root) {
     currentBranch() {
       return git('rev-parse', '--abbrev-ref', 'HEAD');
     },
-    headTime() {
-      const t = git('log', '-1', '--format=%ct');
+    headTime(dir) {
+      const t = dir ? git('-C', dir, 'log', '-1', '--format=%ct') : git('log', '-1', '--format=%ct');
       return t ? Number(t) : null;
     },
     git,
