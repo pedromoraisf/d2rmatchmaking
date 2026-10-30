@@ -19,4 +19,6 @@ tags = ["signing"]
 
 [allowlist]
 description = "Fixtures and docs with fake values"
-paths = ['''(^|/)fixtures?/''', '''\.env\.example$''', '''docs/.*\.md$''']
+paths = ['''(^|/)fixtures?/''', '''\.env\.example$''', '''docs/.*\.md$''', '''^\.claude/hooks/test/''']
+# fake values used by the gate-hook tests (also marked with secretlint-disable-line)
+regexes = ['''ep-x\.neon\.tech''', '''srv-1\?key=x''']
