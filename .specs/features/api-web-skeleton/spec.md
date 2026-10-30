@@ -1,5 +1,7 @@
 # API and Web Skeleton Specification
 
+**Approved**: 2026-10-30 - user: "aprovo a spec do api-web-skeleton no commit 0719825"
+
 ## Problem Statement
 
 The workspaces exist but nothing runs: there is no API process, no database schema, no site, no event stream. The
