@@ -478,6 +478,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 
 **execute-batch-1 retry 2 (2026-10-30)** — T3 ddb36eb, T1 814665b, T2 d048c4c committed, gates passed. T2's "`pnpm arch` still starts" was unsatisfiable before `apps/` exists (`Can't open 'apps' for reading`). Orchestrator replan: that check moves to T4, whose gate now ends with `&& pnpm arch`; tasks gate re-run. Next: execute-batch-1 continues with T4–T7.
 
+**Unblocked (2026-10-30)** — the maintainer reset `dispatch:harness-foundation/execute-batch-1` (by pedromoraisf). Re-dispatched: execute-batch-1 for T4–T7 at HEAD.
+
 **BLOCKED (2026-10-30)** — `dispatch:harness-foundation/execute-batch-1` used its 3 dispatches; the gate refused the fourth (T4–T7). T4–T7 not started; HEAD 1a7b577, worktree clean. Feature blocked until the maintainer resets the unit (`attempt.mjs reset --unit dispatch:harness-foundation/execute-batch-1 --by <maintainer>`) or picks another route. Recorded in `.specs/phases/F0/decisions.md` → Blocked.
 
 **Batch-1 worker stopped (2026-10-30), not a T1 failure** — orchestrator root cause: each call appended `; echo EXIT=$?` after the quoted gate, a second command outside the wrapper, so the hook refused it; the gate command itself is valid (quoted `&&` is stripped before splitting). The ledger has no `gate:harness-foundation/T1` unit and `dispatch:harness-foundation/execute-batch-1` shows 0 failures. Re-dispatched as execute-batch-1 retry 1 with the exact invocation form. Worker notes as written:
