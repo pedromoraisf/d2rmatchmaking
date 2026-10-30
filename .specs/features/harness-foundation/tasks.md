@@ -279,9 +279,9 @@ T16 → T17
 
 **Done when**:
 
-- [ ] Tests assert the exact sequence for the default and a custom prefix, and that two generators do not share a counter
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 3 tests pass (no silent deletions)
+- [x] Tests assert the exact sequence for the default and a custom prefix, and that two generators do not share a counter
+- [x] Gate check passes: `pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 3 tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick
