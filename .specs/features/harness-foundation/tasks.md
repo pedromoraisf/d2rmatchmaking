@@ -52,7 +52,7 @@ rule.
 ### Phase 1: Presets and workspaces
 
 ```
-T1 → T2 → T3 → T4 → T5 → T6 → T7
+T3 → T1 → T2 → T4 → T5 → T6 → T7
 ```
 
 ### Phase 2: API workspace and mutation
@@ -79,21 +79,39 @@ T16 → T17
 
 #### Phase 1: Presets and workspaces
 
+### T3: Add the root Vitest projects configuration
+
+**What**: Root `vitest.config.ts` with `test.projects: ['apps/*', 'packages/*']` and Vitest as a root devDependency, so Lefthook's `vitest related` and the quality reports run every workspace. It comes first because the pre-commit `unit-related` hook runs root Vitest on every staged `apps/**`/`packages/**` TypeScript file.
+**Where**: `vitest.config.ts`
+**Depends on**: None
+**Reuses**: Lefthook `unit-related` command
+**Requirement**: HF-01
+
+**Done when**:
+
+- [ ] `pnpm exec vitest run --passWithNoTests` from the root exits 0 (and runs the `@d2rmm/config` tests once that workspace exists)
+- [ ] Gate check passes: `pnpm install && pnpm exec vitest run --passWithNoTests`
+
+**Tests**: none
+**Gate**: quick
+
+---
+
 ### T1: Create the `@d2rmm/config` presets workspace
 
 **What**: `packages/config` with `tsconfig.base.json`, `tsconfig.dom.json`, `eslint.mjs`, `prettier.json` moved verbatim from the root files, its `package.json` (exports, ESLint plugin dependencies) and `test/presets.test.ts`.
 **Where**: `packages/config/`
-**Depends on**: None
+**Depends on**: T3
 **Reuses**: root `tsconfig.base.json`, `eslint.config.mjs`, `.prettierrc.json` (content moved, no rule changed)
 **Requirement**: HF-02
 
 **Done when**:
 
-- [ ] `packages/config/package.json` exports `./tsconfig.base.json`, `./tsconfig.dom.json`, `./eslint`, `./prettier`; scripts `build`, `typecheck`, `test` as in design.md
-- [ ] `tsconfig.base.json` = the old root options plus `rewriteRelativeImportExtensions` and `erasableSyntaxOnly` (both `true`); `eslint.mjs` = the old root array with every rule unchanged and the ignores `.claude/worktrees/**`, `**/.features-gen/**`, `**/.stryker-tmp/**`, `**/.turbo/**` added
-- [ ] `test/presets.test.ts` asserts deep equality against a literal copy of the expected configuration: full `compilerOptions`, full Prettier options, and every ESLint block written in the repo (all `ignores`, `no-console`, `eqeqeq`, the `TSEnumDeclaration` ban, `no-explicit-any`, `consistent-type-imports`, the domain `no-restricted-globals`/`no-restricted-properties` block with its `files` glob, the scripts/hooks override); plugin blocks asserted present by reference
-- [ ] Gate check passes: `pnpm install && pnpm --filter @d2rmm/config test`
-- [ ] Test count: ≥ 3 tests pass (no silent deletions)
+- [x] `packages/config/package.json` exports `./tsconfig.base.json`, `./tsconfig.dom.json`, `./eslint`, `./prettier`; scripts `build`, `typecheck`, `test` as in design.md
+- [x] `tsconfig.base.json` = the old root options plus `rewriteRelativeImportExtensions` and `erasableSyntaxOnly` (both `true`); `eslint.mjs` = the old root array with every rule unchanged and the ignores `.claude/worktrees/**`, `**/.features-gen/**`, `**/.stryker-tmp/**`, `**/.turbo/**` added
+- [x] `test/presets.test.ts` asserts deep equality against a literal copy of the expected configuration: full `compilerOptions`, full Prettier options, and every ESLint block written in the repo (all `ignores`, `no-console`, `eqeqeq`, the `TSEnumDeclaration` ban, `no-explicit-any`, `consistent-type-imports`, the domain `no-restricted-globals`/`no-restricted-properties` block with its `files` glob, the scripts/hooks override); plugin blocks asserted present by reference
+- [x] Gate check passes: `pnpm install && pnpm --filter @d2rmm/config test`
+- [x] Test count: ≥ 3 tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick
@@ -112,28 +130,10 @@ T16 → T17
 
 - [ ] `pnpm lint` exits 0 with 0 warnings and `pnpm format:check` exits 0 (same rules as before the move)
 - [ ] `pnpm arch` still starts (it reads root `tsconfig.base.json`)
-- [ ] Gate check passes: `pnpm install && pnpm lint && pnpm format:check && pnpm --filter @d2rmm/config test`
+- [ ] Gate check passes: `pnpm install && pnpm lint && pnpm format:check && pnpm --filter @d2rmm/config typecheck && pnpm --filter @d2rmm/config test`
 
 **Tests**: none
 **Gate**: build
-
----
-
-### T3: Add the root Vitest projects configuration
-
-**What**: Root `vitest.config.ts` with `test.projects: ['apps/*', 'packages/*']` and Vitest as a root devDependency, so Lefthook's `vitest related` and the quality reports run every workspace.
-**Where**: `vitest.config.ts`
-**Depends on**: T2
-**Reuses**: Lefthook `unit-related` command
-**Requirement**: HF-01
-
-**Done when**:
-
-- [ ] `pnpm exec vitest run --passWithNoTests` from the root runs the `@d2rmm/config` tests
-- [ ] Gate check passes: `pnpm install && pnpm exec vitest run --passWithNoTests`
-
-**Tests**: none
-**Gate**: quick
 
 ---
 
@@ -141,7 +141,7 @@ T16 → T17
 
 **What**: `apps/web` with `package.json` (scripts `build`, `typecheck`, `lint` = `eslint --max-warnings 0 .`, `test` as in design.md), `tsconfig.json` extending `@d2rmm/config/tsconfig.dom.json`, `tsconfig.build.json`, and `src/index.ts`.
 **Where**: `apps/web/`
-**Depends on**: T3
+**Depends on**: T2
 **Reuses**: T1 presets
 **Requirement**: HF-01
 
@@ -473,10 +473,25 @@ Proof: `pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acce
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** none
-**Dispatched:** review-spec (prior session, no recorded verdict); review-spec at f67c607^ → FAIL; review-spec retry 1 → PASS (spec committed f67c607); review-architecture on design draft → FAIL (findings applied in the rewritten design.md, not yet re-reviewed); execute-batch-1 (T1–T7) at the tasks commit → pending
+**Dispatched:** review-spec (prior session, no recorded verdict); review-spec at f67c607^ → FAIL; review-spec retry 1 → PASS (spec committed f67c607); review-architecture on design draft → FAIL (findings applied in the rewritten design.md, not yet re-reviewed); execute-batch-1 (T1–T7) at the tasks commit → pending; execute-batch-1 attempt 1 → stopped at T1 (invocation error, see below); execute-batch-1 retry 1 at 02ff3ec + uncommitted T1 files → pending; execute-batch-1 retry 1 → T1 gate passed (6 tests), commit refused by pre-commit `unit-related` (no root Vitest yet); replanned: T3 (root Vitest) runs first, T2 gate adds the config typecheck; tasks gate passed again. Next: execute-batch-1 retry 2 (T3, then commit T1 from the uncommitted files, then T2, T4–T7)
 **Walked:** none
 
+**Batch-1 worker stopped (2026-10-30), not a T1 failure** — orchestrator root cause: each call appended `; echo EXIT=$?` after the quoted gate, a second command outside the wrapper, so the hook refused it; the gate command itself is valid (quoted `&&` is stripped before splitting). The ledger has no `gate:harness-foundation/T1` unit and `dispatch:harness-foundation/execute-batch-1` shows 0 failures. Re-dispatched as execute-batch-1 retry 1 with the exact invocation form. Worker notes as written:
+
+- Last error: the PreToolUse gate denied every `node scripts/attempt.mjs run --feature harness-foundation --step T1 -- "<cmd>"` call with `[d2rmm gate] Quote the whole gate command after "--" so nothing runs outside the attempt wrapper` (denials 1/3, 2/3, 3/3). Denials 1 and 2 used the gate command `pnpm install && pnpm --filter @d2rmm/config test` (denial 1 came in a call whose heredoc also contained the words `vitest` and `eslint`); denial 3 used `pnpm --filter @d2rmm/config test` alone. The session is now exhausted (`Retry budget exhausted for this agent session (2 retries used)`), so no further gate ran.
+- Attempts: none recorded in `.git/d2rmm/ledger.json` for `gate:harness-foundation/T1` (the wrapper never executed the command). Prior to the denials the worker ran `pnpm install` directly (setup, registry reachable; lockfile updated, `pnpm-lock.yaml` modified) and wrote the T1 files, uncommitted: `packages/config/{package.json,tsconfig.json,tsconfig.base.json,tsconfig.dom.json,eslint.mjs,prettier.json,test/presets.test.ts}`.
+- Changed for T1 so far: the preset copies of the root configs (`tsconfig.base.json` + the two options, `eslint.config.mjs` → `eslint.mjs` with the four ignores, `.prettierrc.json` → `prettier.json`); verified with `git diff --no-index` that the only differences are the allowed additions. The root files are untouched (T2 has not started).
+- Tasks T1–T7: none committed, none marked done.
+- Next step for the orchestrator: check whether the gate hook expects a different wrapper form for the `&&` gate command (the tasks.md gate for T1 is a two-segment command), or reset the unit with `attempt.mjs reset --unit gate:harness-foundation/T1 --by <maintainer>` after the hook is understood. The T1 test itself has not been run and may need fixes once it is.
+
 **Unblocked (2026-10-30)** — the maintainer reset `dispatch:harness-foundation/review-spec` after it used its 3 dispatches on the HF-07 vs HF-09 amendment (maintainer's words: "I approve the amendment", recorded in `.specs/phases/F0/decisions.md`). Re-dispatched: review-spec (amendment) and review-architecture retry 1, in parallel.
+
+**execute-batch-1 retry 1 — T1 commit blocked by plan order (2026-10-30), not a gate failure**
+
+- Gate `gate:harness-foundation/T1`, attempt 1/3: passed (`pnpm install && pnpm --filter @d2rmm/config test`, 6 tests). T1 checkboxes are marked in the worktree.
+- Commit refused by lefthook `pre-commit` `unit-related`: it runs `pnpm exec vitest related --run --passWithNoTests` at the root for any staged `packages/**/*.ts`. The root has no Vitest (`node_modules/.bin/vitest` absent), so the hook exits 254 with `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL: Command "vitest" not found`. Root Vitest is T3's deliverable, and T3 comes after T1.
+- State: T1 files and the lockfile are staged, not committed. No `--no-verify`, no hook change. T2–T7 not started.
+- Needed from the orchestrator: order root Vitest (T3) before the first commit that stages `packages/**/*.ts`, or decide another route. The worker did not change the plan.
 
 ---
 
@@ -485,7 +500,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 ```
 Phase 1 → Phase 2 → Phase 3 → Phase 4
 
-Phase 1:  T1 → T2 → T3 → T4 → T5 → T6 → T7
+Phase 1:  T3 → T1 → T2 → T4 → T5 → T6 → T7
 Phase 2:  T8 → T9 → T10 → T11 → T12
 Phase 3:  T13 → T14 → T15
 Phase 4:  T16 → T17
