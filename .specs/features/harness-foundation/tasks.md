@@ -222,9 +222,9 @@ T16 → T17
 
 **Done when**:
 
-- [ ] The 5 × 3 folders and 5 `index.ts` files exist; no `src/main/`
-- [ ] `pnpm arch` exits 0
-- [ ] Gate check passes: `pnpm install && pnpm --filter @d2rmm/api build && pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api lint && pnpm --filter @d2rmm/api test && pnpm arch`
+- [x] The 5 × 3 folders and 5 `index.ts` files exist; no `src/main/`
+- [x] `pnpm arch` exits 0
+- [x] Gate check passes: `pnpm install && pnpm --filter @d2rmm/api build && pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api lint && pnpm --filter @d2rmm/api test && pnpm arch`
 
 **Tests**: none
 **Gate**: build
