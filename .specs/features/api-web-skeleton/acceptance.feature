@@ -20,6 +20,9 @@ Feature: A test room becomes Created
   # not-scenario: AWS-14 ("Agent offline" label only) — reaching offline takes 45 s (AWS-15); proved by a web component test that renders the presence panel from an offline presence event
   # not-scenario: AWS-20 (host is the lowest join order only) — the test match has one member (AD-033); proved by a domain unit test of room creation from a three-member `MatchFormed`
   # not-scenario: AWS-24 (non-host member only) — the test match has one member (AD-033); proved by a domain unit test where a non-host member's matching observation leaves the room `awaiting_host`
+  # not-scenario: AWS-37 (key parity and literal-string lint only) — build rules; proved by a web unit test that the `en` and `pt-BR` files hold the same keys and by an ESLint fixture test where a literal JSX string fails `pnpm lint`; the language choice is the scenario below
+  # not-scenario: AWS-29 (unbuffered streaming only) — proved by a test of the Pages Function against a streaming upstream that asserts the first event reaches the client before the upstream sends the second; the same-origin and cookie parts are the scenario below
+  # not-scenario: AWS-24 and AWS-25 (what is stored only) — storage is not observable by a player; proved by Testcontainers integration tests that read `lobby.observations` after a non-matching observation (one row) and after an unknown-type or non-member observation (no row)
   # not-scenario: AWS-36 — a build rule; proved by `pnpm contracts:check` and a test that every route is in `openapi.json` and every agent message has a JSON Schema file
 
   @AWS-30 @api
@@ -37,6 +40,7 @@ Feature: A test room becomes Created
     Then the site shows "Signed in as PlayerOne"
     When another visitor signs in on the site as "playerone"
     Then both visitors are signed in to the same account
+    And the other visitor's site shows "Signed in as PlayerOne"
 
   @AWS-02 @FR-01 @web
   Scenario Outline: A player name outside the rules is refused
@@ -52,6 +56,13 @@ Feature: A test room becomes Created
       | PlayerNameIs17chr |
       | Player One        |
       | Player_One        |
+
+  @AWS-02 @FR-01 @web
+  Scenario: A player name with a leading space is refused, not trimmed
+    Given test sign-in is enabled
+    When a visitor signs in on the site as " PlayerOne"
+    Then the site shows "Use 2 to 16 letters, digits or hyphens."
+    And the visitor is still signed out
 
   @AWS-01 @FR-01 @web
   Scenario Outline: A player name at the limits is accepted
@@ -129,8 +140,10 @@ Feature: A test room becomes Created
   @AWS-09 @FR-03 @web
   Scenario: Too many pairing attempts are refused for a while
     Given "PlayerOne" is signed in on the site
-    And "PlayerOne" has typed 10 wrong codes in the last 5 minutes
-    When "PlayerOne" types another code on the site
+    And "PlayerOne" has typed 9 wrong codes in the last 5 minutes
+    When "PlayerOne" types the code "000000" on the site
+    Then the site shows "This code is invalid or has expired."
+    When "PlayerOne" types the code "000000" on the site
     Then the site shows "Too many attempts. Try again in a few minutes."
 
   @AWS-09 @FR-03 @api
@@ -209,7 +222,8 @@ Feature: A test room becomes Created
     Given "PlayerOne" is signed in on the site
     And "PlayerOne" has a paired agent that is online
     When "PlayerOne" uses "Start test match"
-    Then within 2 seconds the site shows a room named like "mmbaalh-", "No password" and the stage "Awaiting host"
+    Then the API answered "202" to the test match request
+    And within 2 seconds the site shows a room named like "mmbaalh-", "No password" and the stage "Awaiting host"
     And the agent's stream and assignment name that room, run 1, its game name and "PlayerOne" as host and only member
     When the agent reports seeing the game name of the room
     Then within 2 seconds the site shows the room as "Created"

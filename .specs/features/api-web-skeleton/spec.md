@@ -70,8 +70,8 @@ journey before Battle.net login exists.
 
 **Acceptance Criteria**:
 
-1. WHERE `ENABLE_STAGING_ENDPOINTS` is `true`, WHEN a visitor uses "Sign in with a test account" and submits a player name of 2–16 letters, digits or `-` THEN the system SHALL open the account `<name>#test` — creating it on the first sign-in and reusing it when the same name, compared ignoring case, signs in again (AD-042) — set the session cookie with `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/` and `Max-Age=604800` (7 days), and show "Signed in as <name>".
-2. IF the submitted player name is empty, has 1 character or 17 or more characters, or contains a character other than an ASCII letter, a digit or `-` THEN the system SHALL keep the visitor signed out and show "Use 2 to 16 letters, digits or hyphens."
+1. WHERE `ENABLE_STAGING_ENDPOINTS` is `true`, WHEN a visitor uses "Sign in with a test account" and submits a player name of 2–16 letters, digits or `-` THEN the system SHALL open the account `<name>#test` — creating it on the first sign-in and reusing it when the same name, compared ignoring case, signs in again (AD-042) — set the session cookie with `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/` and `Max-Age=604800` (7 days), and show "Signed in as <display name>", where the display name is the name exactly as typed at the account's first sign-in.
+2. IF the submitted player name is empty, has 1 character or 17 or more characters, or contains a character other than an ASCII letter, a digit or `-` (the name is not trimmed, so a leading or trailing space is such a character) THEN the system SHALL keep the visitor signed out and show "Use 2 to 16 letters, digits or hyphens."
 3. IF `ENABLE_STAGING_ENDPOINTS` is not `true` THEN the API SHALL answer 404 to the test sign-in and test-match endpoints and the site SHALL not show "Sign in with a test account" or "Start test match".
 4. IF a request to a site endpoint carries no session cookie, an unknown one or an expired one THEN the API SHALL answer 401 and the site SHALL show "Sign in with a test account" (staging) and no "Signed in as" text.
 
@@ -89,7 +89,7 @@ my account without ever touching my Battle.net credentials.
 
 **Acceptance Criteria**:
 
-1. WHEN an agent requests a pairing code THEN the API SHALL return a 6-digit code (`000000`–`999999`), its expiry 5 minutes later and a claim secret, and store the code with no account.
+1. WHEN an agent requests a pairing code THEN the API SHALL answer 201 with a 6-digit code (`000000`–`999999`), its expiry 5 minutes later and a claim secret, and store the code with no account.
 2. WHEN a signed-in player submits an unexpired, unused code THEN the API SHALL bind that agent to the player's account, mark the code used and the site SHALL show "Agent paired".
 3. WHEN an agent whose code was used claims with its claim secret THEN the API SHALL return an agent token once, store only its SHA-256 hash, and answer 410 to any later claim with the same secret.
 4. IF an agent claims with the claim secret of a code that expired unused THEN the API SHALL answer 410 with no token.
