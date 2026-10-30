@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { checkBash, checkEdit, decide } from '../lib/gate-rules.mjs';
 import { toRelative } from '../lib/io.mjs';
+import { emptyLedger, unitKey, recordAttempt, MAX_ATTEMPTS } from '../../../scripts/lib/budget.mjs';
 
 function fakeCtx(files = {}, { tracked = [], branch = 'feat/x' } = {}) {
   return {
@@ -195,6 +196,68 @@ test('acceptance scenarios: never focused, skipped, removed or in another langua
     'allow',
   );
   assert.equal(d(checkEdit('tests/acceptance/playwright.config.ts', { content: 'retries: 2' }, ctx)), 'ask');
+});
+
+function phaseRunCtx(ledger = emptyLedger()) {
+  return {
+    ...fakeCtx(
+      { '.specs/phases/ACTIVE': 'F0', '.specs/phases/F0/brief.md': BRIEF_APPROVED },
+      { branch: 'feat/F0-x' },
+    ),
+    headTime: () => 0,
+    ledger,
+  };
+}
+const bash = (command, ctx) =>
+  d(decide({ tool_name: 'Bash', tool_input: { command }, session_id: 's1' }, ctx, toRelative));
+
+test('phase run: the wrapper rule matches the command a segment runs, not a tool name in its arguments', () => {
+  const ctx = phaseRunCtx();
+  for (const c of [
+    'python3 .claude/skills/tlc-spec-driven/scripts/lessons.py list --status confirmed',
+    'sed -n 1,80p scripts/acceptance-check.mjs',
+    'grep -i stryker scripts/quality-collect.mjs',
+  ]) {
+    assert.equal(bash(c, ctx), 'allow', c);
+  }
+  for (const c of ['pnpm exec vitest run', 'stryker run']) {
+    assert.equal(bash(c, ctx), 'deny', c);
+  }
+});
+
+test('exhausted session: lessons.py list reads, and worktree .specs/ records the blocker', () => {
+  const ledger = emptyLedger();
+  const key = unitKey('denial', 's1', 'x');
+  for (let i = 0; i < MAX_ATTEMPTS; i += 1) recordAttempt(ledger, key, false, { note: 'x' });
+  const ctx = phaseRunCtx(ledger);
+  const write = (file_path) =>
+    d(
+      decide(
+        { tool_name: 'Write', tool_input: { file_path, content: 'blocked' }, session_id: 's1' },
+        ctx,
+        toRelative,
+      ),
+    );
+  assert.equal(
+    bash('python3 .claude/skills/tlc-spec-driven/scripts/lessons.py list --status confirmed', ctx),
+    'allow',
+  );
+  assert.equal(bash('pnpm build', ctx), 'deny');
+  assert.equal(
+    write('/repo/.claude/worktrees/agent-skeleton/.specs/features/agent-skeleton/tasks.md'),
+    'allow',
+  );
+  assert.equal(write('/repo/.specs/phases/F0/decisions.md'), 'allow');
+  assert.equal(write('/repo/.claude/worktrees/agent-skeleton/apps/agent/x.rs'), 'deny');
+});
+
+test('edit: an existing .only( fixture string does not block other edits; adding one does', () => {
+  const ONLY = '.only'; // built at runtime so this file never contains the literal call the gate looks for
+  const rel = 'x.test.mjs';
+  const before = `const fixture = "test${ONLY}('b'";\ntest('a', () => {});\n`;
+  const ctx = fakeCtx({ [rel]: before });
+  assert.equal(d(checkEdit(rel, { old_string: "test('a'", new_string: "test('c'" }, ctx)), 'allow');
+  assert.equal(d(checkEdit(rel, { old_string: "test('a'", new_string: `test${ONLY}('a'` }, ctx)), 'deny');
 });
 
 test('the committed retry-ledger snapshot cannot be edited by agents', () => {
