@@ -1,4 +1,1102 @@
 {
   "version": 1,
-  "units": {}
+  "units": {
+    "denial:61d1faa0-a1b1-4641-bac9-56738c267bb8/f2ef373b": {
+      "attempts": [
+        {
+          "at": "2026-10-30T13:48:53.879Z",
+          "ok": false,
+          "note": "Edits outside the repository are not allowed."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:harness-foundation/feature": {
+      "attempts": [
+        {
+          "at": "2026-10-30T13:52:40.396Z",
+          "ok": true,
+          "note": "dispatch: Run harness-foundation feature"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:61d1faa0-a1b1-4641-bac9-56738c267bb8#a71adf7f92504e0d7/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-10-30T13:53:17.661Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:61d1faa0-a1b1-4641-bac9-56738c267bb8/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-10-30T14:04:55.661Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        },
+        {
+          "at": "2026-10-30T14:04:58.742Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        },
+        {
+          "at": "2026-10-30T14:07:54.656Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "blocked"
+    },
+    "denial:61d1faa0-a1b1-4641-bac9-56738c267bb8/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-10-30T14:07:16.376Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:harness-foundation/spec": {
+      "attempts": [
+        {
+          "at": "2026-10-30T14:07:19.865Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py harness-foundation"
+        },
+        {
+          "at": "2026-10-30T14:07:22.580Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs harness-foundation"
+        },
+        {
+          "at": "2026-10-30T14:43:01.244Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py harness-foundation"
+        },
+        {
+          "at": "2026-10-30T14:43:06.071Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs harness-foundation"
+        },
+        {
+          "at": "2026-10-30T14:51:55.168Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py harness-foundation"
+        },
+        {
+          "at": "2026-10-30T14:51:56.324Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs harness-foundation"
+        }
+      ],
+      "status": "passed"
+    },
+    "stop:4257dab6-06ce-4eb3-91d7-2613c1298ff1": {
+      "attempts": [
+        {
+          "at": "2026-10-30T14:22:46.535Z",
+          "ok": false,
+          "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+        },
+        {
+          "at": "2026-10-30T14:22:55.427Z",
+          "ok": false,
+          "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+        },
+        {
+          "at": "2026-10-30T14:23:02.853Z",
+          "ok": false,
+          "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+        }
+      ],
+      "status": "blocked"
+    },
+    "denial:26396464-ce3b-40f0-8be4-b0c31290b28a/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-10-30T14:42:47.952Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-10-30T15:04:25.407Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:26396464-ce3b-40f0-8be4-b0c31290b28a/d2f534a6": {
+      "attempts": [
+        {
+          "at": "2026-10-30T14:46:11.306Z",
+          "ok": false,
+          "note": "Unknown dispatch step \"review-design\". Allowed: execute-batch-[1-9], verify, verify-r2, screens, review-spec, review-architecture, review-security, review-diff."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:harness-foundation/review-architecture": {
+      "attempts": [
+        {
+          "at": "2026-10-30T14:46:18.514Z",
+          "ok": true,
+          "note": "dispatch: Review harness-foundation design"
+        },
+        {
+          "at": "2026-10-30T15:02:24.578Z",
+          "ok": true,
+          "note": "dispatch: Re-review harness-foundation design"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:26396464-ce3b-40f0-8be4-b0c31290b28a/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-10-30T14:48:25.849Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        },
+        {
+          "at": "2026-10-30T14:49:59.869Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:26396464-ce3b-40f0-8be4-b0c31290b28a/9430240f": {
+      "attempts": [
+        {
+          "at": "2026-10-30T14:52:04.856Z",
+          "ok": false,
+          "note": "BLOCKED — dispatch:harness-foundation/review-spec used its 3 attempts (1 + 2 retries). Do not try again by any other route. Record it as blocked (feature tasks.md \"## Handoff\" and the phase decisions.md \"Blocked\" table) and return to the orchestrator / maintainer."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:26396464-ce3b-40f0-8be4-b0c31290b28a/42e40f50": {
+      "attempts": [
+        {
+          "at": "2026-10-30T14:52:12.925Z",
+          "ok": false,
+          "note": "Feature harness-foundation is blocked; do not dispatch more work for it."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:26396464-ce3b-40f0-8be4-b0c31290b28a/11d2eb69": {
+      "attempts": [
+        {
+          "at": "2026-10-30T15:00:02.142Z",
+          "ok": false,
+          "note": "A delegated approval must quote the kickoff words verbatim and cite \"(delegated via .specs/phases/F0/brief.md)\". Run the automatic gates first."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:26396464-ce3b-40f0-8be4-b0c31290b28a/f63fcc16": {
+      "attempts": [
+        {
+          "at": "2026-10-30T15:01:05.469Z",
+          "ok": false,
+          "note": "The retry ledger is maintained by the hooks and scripts/attempt.mjs only."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:harness-foundation/review-spec": {
+      "attempts": [
+        {
+          "at": "2026-10-30T15:02:18.273Z",
+          "ok": true,
+          "note": "dispatch: Review harness-foundation spec amendment"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:harness-foundation/tasks": {
+      "attempts": [
+        {
+          "at": "2026-10-30T15:04:07.933Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py harness-foundation → exit 1:   WARN  T15: Tests: none - confirm the Test Coverage Matrix says 'none' for this layer\n  ERROR T13 declares `Depends on: T12` but the diagram has no T12 -> T13 arrow\n  ERROR T16 declares `Depends on: T15` but the diagram has no T15 -> T16 arrow\n  ERROR T8 declares `Depends on: T7` but the diagram has no T7 -> T8 arrow\n\nvalidate_tasks: 3 error(s), 7 warning(s) in ./.specs/features/harness-foundation/task"
+        },
+        {
+          "at": "2026-10-30T15:04:33.759Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py harness-foundation"
+        },
+        {
+          "at": "2026-10-30T15:04:48.210Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py harness-foundation --execute"
+        },
+        {
+          "at": "2026-10-30T15:11:19.049Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py harness-foundation --execute"
+        },
+        {
+          "at": "2026-10-30T17:07:23.508Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py harness-foundation && python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py harness-foundation --execute"
+        },
+        {
+          "at": "2026-10-30T17:59:11.349Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py harness-foundation"
+        },
+        {
+          "at": "2026-10-30T18:02:40.331Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py harness-foundation"
+        },
+        {
+          "at": "2026-10-30T18:12:26.494Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py harness-foundation"
+        },
+        {
+          "at": "2026-10-30T18:15:50.661Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py harness-foundation"
+        },
+        {
+          "at": "2026-10-30T18:16:27.272Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py harness-foundation"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:26396464-ce3b-40f0-8be4-b0c31290b28a#ab9d4656e1f139c60/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-10-30T15:06:54.274Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-10-30T15:07:15.575Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-10-30T15:07:26.987Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "blocked"
+    },
+    "gate:harness-foundation/T1": {
+      "attempts": [
+        {
+          "at": "2026-10-30T15:09:37.704Z",
+          "ok": true,
+          "note": "pnpm install && pnpm --filter @d2rmm/config test"
+        },
+        {
+          "at": "2026-10-30T17:02:59.988Z",
+          "ok": true,
+          "note": "pnpm install && pnpm --filter @d2rmm/config test"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:a42c3001-8720-48ff-9a61-74c65e432ef7/f63fcc16": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:01:35.311Z",
+          "ok": false,
+          "note": "The retry ledger is maintained by the hooks and scripts/attempt.mjs only."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:harness-foundation/T3": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:02:33.276Z",
+          "ok": true,
+          "note": "pnpm install && pnpm exec vitest run --passWithNoTests"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:harness-foundation/T2": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:04:26.182Z",
+          "ok": false,
+          "note": "pnpm install && pnpm lint && pnpm format:check && pnpm --filter @d2rmm/config typecheck && pnpm --filter @d2rmm/config test → exit 2: test/presets.test.ts(1,30): error TS2307: Cannot find module 'node:fs' or its corresponding type declarations.\ntest/presets.test.ts(13,31): error TS2304: Cannot find name 'URL'.\ntest/presets.test.ts(13,61): error TS2339: Property 'url' does not exist on type 'ImportMeta'.\n/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/harness-foundation/packages/config:\n"
+        },
+        {
+          "at": "2026-10-30T17:05:11.249Z",
+          "ok": true,
+          "note": "pnpm install && pnpm lint && pnpm format:check && pnpm --filter @d2rmm/config typecheck && pnpm --filter @d2rmm/config test"
+        },
+        {
+          "at": "2026-10-30T17:06:05.137Z",
+          "ok": false,
+          "note": "pnpm arch → exit 1: > depcruise --config .dependency-cruiser.cjs apps packages tests\n\n ELIFECYCLE  Command failed with exit code 1.\n\n\n  ERROR: Can't open 'apps' for reading. Does it exist?"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:a42c3001-8720-48ff-9a61-74c65e432ef7#a00dca4d106d0057a/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:05:27.391Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:a42c3001-8720-48ff-9a61-74c65e432ef7#a00dca4d106d0057a/f2ef373b": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:05:38.017Z",
+          "ok": false,
+          "note": "Edits outside the repository are not allowed."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:a42c3001-8720-48ff-9a61-74c65e432ef7/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:07:28.370Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:a42c3001-8720-48ff-9a61-74c65e432ef7/566134da": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:07:46.456Z",
+          "ok": false,
+          "note": "BLOCKED — dispatch:harness-foundation/execute-batch-1 used its 3 attempts (1 + 2 retries). Do not try again by any other route. Record it as blocked (feature tasks.md \"## Handoff\" and the phase decisions.md \"Blocked\" table) and return to the orchestrator / maintainer."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:harness-foundation/execute-batch-1": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:14:54.206Z",
+          "ok": true,
+          "note": "dispatch: Execute harness-foundation T4–T7"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:harness-foundation/T4": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:15:47.080Z",
+          "ok": true,
+          "note": "pnpm install && pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web lint && pnpm --filter @d2rmm/web test && pnpm arch"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:52ce5725-fdb6-5b26-8eef-5b1b119c6dda#a999ed7a7f8073ce3/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:16:18.608Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:harness-foundation/T5": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:16:40.845Z",
+          "ok": true,
+          "note": "pnpm install && pnpm --filter @d2rmm/agent build && pnpm --filter @d2rmm/agent typecheck && pnpm --filter @d2rmm/agent lint && pnpm --filter @d2rmm/agent test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:harness-foundation/T6": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:17:15.179Z",
+          "ok": true,
+          "note": "pnpm install && pnpm --filter @d2rmm/telemetry build && pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:harness-foundation/T7": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:18:23.954Z",
+          "ok": false,
+          "note": "pnpm install && pnpm --filter @d2rmm/contracts test && pnpm contracts:check && pnpm format:check → exit 1: Checking formatting...\n ELIFECYCLE  Command failed with exit code 1.\n\n WARNING  no output files found for task @d2rmm/config#build. Please check your `outputs` key in `turbo.json`\n[warn] packages/contracts/scripts/generate.ts\n[warn] Code style issues found in the above file. Run Prettier with --write to fix."
+        },
+        {
+          "at": "2026-10-30T17:18:42.006Z",
+          "ok": true,
+          "note": "pnpm install && pnpm --filter @d2rmm/contracts test && pnpm contracts:check && pnpm format:check"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:harness-foundation/execute-batch-2": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:19:38.295Z",
+          "ok": true,
+          "note": "dispatch: Execute harness-foundation T8–T12"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:harness-foundation/T8": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:21:05.548Z",
+          "ok": true,
+          "note": "pnpm install && pnpm --filter @d2rmm/api build && pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api lint && pnpm --filter @d2rmm/api test && pnpm arch"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:harness-foundation/T9": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:21:44.125Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:harness-foundation/T10": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:22:14.566Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:harness-foundation/T11": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:22:42.371Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:harness-foundation/T12": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:25:17.735Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:mutation → exit 254: \nundefined\n ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command \"stryker\" not found\n/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/harness-foundation/apps/api:\n ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @d2rmm/api@0.0.0 test:mutation: `node scripts/mutation.ts`\nExit status 254"
+        },
+        {
+          "at": "2026-10-30T17:25:51.623Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:mutation → exit 1:     at emit (node:internal/child_process:1004:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:91:21) {\n  innerError: undefined\n}\n\nNode.js v26.13.0"
+        },
+        {
+          "at": "2026-10-30T17:28:35.848Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:mutation"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:harness-foundation/execute-batch-3": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:29:44.504Z",
+          "ok": true,
+          "note": "dispatch: Execute harness-foundation T13–T17"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:52ce5725-fdb6-5b26-8eef-5b1b119c6dda#afe8aa73408c92f38/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:31:35.382Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:52ce5725-fdb6-5b26-8eef-5b1b119c6dda#afe8aa73408c92f38/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:32:06.980Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:harness-foundation/T13": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:32:29.707Z",
+          "ok": true,
+          "note": "pnpm test:harness && pnpm arch && pnpm lint && pnpm format:check"
+        }
+      ],
+      "status": "passed"
+    },
+    "feedback:52ce5725-fdb6-5b26-8eef-5b1b119c6dda#afe8aa73408c92f38/.claude/worktrees/harness-foundation/scripts/quality-reports.mjs:eslint": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:33:58.063Z",
+          "ok": false,
+          "note": "/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/harness-foundation/scripts/quality-reports.mjs\n  26:3  error  Unexpected console statement. Only these console methods are allowed: warn, error  no-console\n  61:1  error  Unexpected console statement. Only these console methods are allowed: wa"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:harness-foundation/T14": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:35:24.280Z",
+          "ok": true,
+          "note": "pnpm test:harness && pnpm quality:reports && pnpm quality:collect"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:harness-foundation/T15": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:36:09.661Z",
+          "ok": true,
+          "note": "pnpm format:check"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:harness-foundation/T16": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:41:34.864Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep-invert @HF-07 → exit 1:     at TestFilesGenerator.buildFiles (/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/harness-foundation/node_modules/.pnpm/playwright-bdd@9.2.1_@playwright+test@1.61.1/node_modules/playwright-bdd/src/generate/index.ts:81:8)\n    at TestFilesGenerator.generate (/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktre"
+        },
+        {
+          "at": "2026-10-30T17:46:32.387Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep-invert @HF-07"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:harness-foundation/T17": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:51:55.667Z",
+          "ok": true,
+          "note": "pnpm quality:reports && pnpm test:mutation && pnpm harness:json && pnpm quality:collect && pnpm quality:ratchet --context phase --update && pnpm harness:gate && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:harness-foundation/proofs": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:54:16.843Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py harness-foundation"
+        },
+        {
+          "at": "2026-10-30T18:10:35.917Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py harness-foundation --mutations .specs/features/harness-foundation/mutations.json"
+        },
+        {
+          "at": "2026-10-30T18:15:17.986Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py harness-foundation --mutations .specs/features/harness-foundation/mutations.json → exit 1: **HEAD**: 8f452ca\n**Tree**: clean\n**Result**: 23 pass, 0 fail; mutations 8 killed, 1 not\n  mutation not killed: count reporter ignores failures"
+        },
+        {
+          "at": "2026-10-30T18:19:32.734Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py harness-foundation --mutations .specs/features/harness-foundation/mutations.json"
+        },
+        {
+          "at": "2026-10-30T18:21:48.053Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py harness-foundation --mutations .specs/features/harness-foundation/mutations.json"
+        },
+        {
+          "at": "2026-10-30T18:23:49.886Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py harness-foundation --mutations .specs/features/harness-foundation/mutations.json"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:harness-foundation/verify": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:54:36.904Z",
+          "ok": true,
+          "note": "dispatch: Verify harness-foundation"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:52ce5725-fdb6-5b26-8eef-5b1b119c6dda#adb2ee6af4c7f62d7/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:55:10.096Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        },
+        {
+          "at": "2026-10-30T17:56:39.538Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:52ce5725-fdb6-5b26-8eef-5b1b119c6dda#adb2ee6af4c7f62d7/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:55:47.476Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:52ce5725-fdb6-5b26-8eef-5b1b119c6dda/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:59:01.166Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-10-30T18:22:09.996Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:harness-foundation/execute-batch-4": {
+      "attempts": [
+        {
+          "at": "2026-10-30T17:59:35.941Z",
+          "ok": true,
+          "note": "dispatch: Fix harness-foundation verifier findings"
+        },
+        {
+          "at": "2026-10-30T18:01:28.028Z",
+          "ok": true,
+          "note": "dispatch: Resume harness-foundation fix batch"
+        },
+        {
+          "at": "2026-10-30T18:02:59.104Z",
+          "ok": true,
+          "note": "dispatch: Execute harness-foundation T18–T20"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:52ce5725-fdb6-5b26-8eef-5b1b119c6dda#acb89c55308ef4ebe/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-10-30T18:00:14.707Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:harness-foundation/T18": {
+      "attempts": [
+        {
+          "at": "2026-10-30T18:03:16.820Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api test"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:52ce5725-fdb6-5b26-8eef-5b1b119c6dda#ae67e8bdc2a5c5ffd/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-10-30T18:04:05.777Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:harness-foundation/T19": {
+      "attempts": [
+        {
+          "at": "2026-10-30T18:04:14.805Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:harness-foundation/T20": {
+      "attempts": [
+        {
+          "at": "2026-10-30T18:06:26.326Z",
+          "ok": false,
+          "note": "pnpm test:harness && pnpm lint && pnpm format:check → exit 1:     actual: 0,\n    expected: 0,\n    operator: 'notStrictEqual',\n    diff: 'simple'\n  }\n ELIFECYCLE  Command failed with exit code 1."
+        },
+        {
+          "at": "2026-10-30T18:08:05.631Z",
+          "ok": true,
+          "note": "pnpm test:harness && pnpm lint && pnpm format:check"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:52ce5725-fdb6-5b26-8eef-5b1b119c6dda#ae67e8bdc2a5c5ffd/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-10-30T18:07:45.111Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:harness-foundation/verify-r2": {
+      "attempts": [
+        {
+          "at": "2026-10-30T18:10:59.524Z",
+          "ok": true,
+          "note": "dispatch: Round-2 verify harness-foundation"
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:harness-foundation/execute-batch-5": {
+      "attempts": [
+        {
+          "at": "2026-10-30T18:12:38.806Z",
+          "ok": true,
+          "note": "dispatch: Execute harness-foundation T21"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:harness-foundation/T21": {
+      "attempts": [
+        {
+          "at": "2026-10-30T18:13:13.454Z",
+          "ok": true,
+          "note": "pnpm test:harness && pnpm lint && pnpm format:check"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:52ce5725-fdb6-5b26-8eef-5b1b119c6dda/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-10-30T18:15:49.009Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:52ce5725-fdb6-5b26-8eef-5b1b119c6dda/f2ef373b": {
+      "attempts": [
+        {
+          "at": "2026-10-30T18:16:02.934Z",
+          "ok": false,
+          "note": "Edits outside the repository are not allowed."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:harness-foundation/execute-batch-6": {
+      "attempts": [
+        {
+          "at": "2026-10-30T18:16:44.728Z",
+          "ok": true,
+          "note": "dispatch: Execute harness-foundation T22"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:harness-foundation/T22": {
+      "attempts": [
+        {
+          "at": "2026-10-30T18:17:24.076Z",
+          "ok": true,
+          "note": "pnpm test:harness && pnpm lint && pnpm format:check"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:harness-foundation/verification": {
+      "attempts": [
+        {
+          "at": "2026-10-30T18:21:51.458Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py harness-foundation → exit 1: ERROR harness-foundation: finding '`count-reporter.mjs` ignores a failure when anothe' is not closed - fix it and write the commit in `Closed`\n\nvalidate_verification: 1 error(s), 0 warning(s) across [harness-foundation]"
+        },
+        {
+          "at": "2026-10-30T18:23:50.728Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py harness-foundation"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:harness-foundation/integration": {
+      "attempts": [
+        {
+          "at": "2026-10-30T18:24:33.010Z",
+          "ok": true,
+          "note": "pnpm check && pnpm quality:collect && pnpm quality:ratchet --context pr && pnpm contracts:check"
+        }
+      ],
+      "status": "passed"
+    }
+  },
+  "resets": [
+    {
+      "key": "feedback:4257dab6-06ce-4eb3-91d7-2613c1298ff1/.claude/hooks/lib/budget-rules.mjs:eslint",
+      "by": "pedromoraisf",
+      "at": "2026-10-30T14:18:41.240Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-10-30T14:14:11.172Z",
+            "ok": false,
+            "note": "/Users/pedromoraisf/www/d2rmatchmaking/.claude/hooks/lib/budget-rules.mjs\n   27:7   error  'SPECS_FILE' is assigned a value but never used   @typescript-eslint/no-unused-vars\n   34:7   error  'SENSOR_HEAD' is assigned a value but never used  @typescript-eslint/no-unused-vars\n   36:7   error  'PKG_SC"
+          },
+          {
+            "at": "2026-10-30T14:16:16.848Z",
+            "ok": false,
+            "note": "/Users/pedromoraisf/www/d2rmatchmaking/.claude/hooks/lib/budget-rules.mjs\n   27:7   error  'SPECS_FILE' is assigned a value but never used  @typescript-eslint/no-unused-vars\n   56:10  error  'runsSensor' is defined but never used           @typescript-eslint/no-unused-vars\n  179:35  error  'SENSOR_C"
+          },
+          {
+            "at": "2026-10-30T14:16:25.363Z",
+            "ok": false,
+            "note": "/Users/pedromoraisf/www/d2rmatchmaking/.claude/hooks/lib/budget-rules.mjs\n   56:10  error  'runsSensor' is defined but never used  @typescript-eslint/no-unused-vars\n  179:35  error  'SENSOR_CMD' is not defined             no-undef\n\n✖ 2 problems (2 errors, 0 warnings)"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "feedback:4257dab6-06ce-4eb3-91d7-2613c1298ff1/.claude/hooks/lib/budget-rules.mjs:harness-tests",
+      "by": "pedromoraisf",
+      "at": "2026-10-30T14:18:41.438Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-10-30T14:14:11.174Z",
+            "ok": false,
+            "note": "Could not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+          },
+          {
+            "at": "2026-10-30T14:16:16.848Z",
+            "ok": false,
+            "note": "Could not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+          },
+          {
+            "at": "2026-10-30T14:16:25.363Z",
+            "ok": false,
+            "note": "Could not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "stop:4257dab6-06ce-4eb3-91d7-2613c1298ff1",
+      "by": "pedromoraisf",
+      "at": "2026-10-30T14:18:41.627Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-10-30T14:16:49.196Z",
+            "ok": false,
+            "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+          },
+          {
+            "at": "2026-10-30T14:17:08.835Z",
+            "ok": false,
+            "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+          },
+          {
+            "at": "2026-10-30T14:17:18.083Z",
+            "ok": false,
+            "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "stop:4257dab6-06ce-4eb3-91d7-2613c1298ff1",
+      "by": "pedromoraisf",
+      "at": "2026-10-30T14:22:08.929Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-10-30T14:19:08.577Z",
+            "ok": false,
+            "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+          },
+          {
+            "at": "2026-10-30T14:19:17.793Z",
+            "ok": false,
+            "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+          },
+          {
+            "at": "2026-10-30T14:19:25.725Z",
+            "ok": false,
+            "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:0b49de29-c089-4728-afc3-7b5840e6b5d5/c41f3661",
+      "by": "pedromoraisf",
+      "at": "2026-10-30T14:30:06.548Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-10-30T14:28:36.740Z",
+            "ok": false,
+            "note": ".only() would silence the rest of the suite."
+          },
+          {
+            "at": "2026-10-30T14:28:38.178Z",
+            "ok": false,
+            "note": ".only() would silence the rest of the suite."
+          },
+          {
+            "at": "2026-10-30T14:29:23.710Z",
+            "ok": false,
+            "note": ".only() would silence the rest of the suite."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "dispatch:harness-foundation/review-spec",
+      "by": "pedromoraisf",
+      "at": "2026-10-30T15:01:54.756Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-10-30T14:07:30.829Z",
+            "ok": true,
+            "note": "dispatch: Review harness-foundation spec"
+          },
+          {
+            "at": "2026-10-30T14:40:28.333Z",
+            "ok": true,
+            "note": "dispatch: Review harness-foundation spec"
+          },
+          {
+            "at": "2026-10-30T14:43:19.070Z",
+            "ok": true,
+            "note": "dispatch: Re-review harness-foundation spec"
+          },
+          {
+            "at": "2026-10-30T14:52:04.854Z",
+            "ok": false,
+            "note": "refused dispatch #4: Review harness-foundation spec amendment"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "dispatch:harness-foundation/execute-batch-1",
+      "by": "pedromoraisf",
+      "at": "2026-10-30T17:13:52.563Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-10-30T15:05:15.331Z",
+            "ok": true,
+            "note": "dispatch: Execute harness-foundation batch 1"
+          },
+          {
+            "at": "2026-10-30T15:08:56.109Z",
+            "ok": true,
+            "note": "dispatch: Execute harness-foundation batch 1 (retry)"
+          },
+          {
+            "at": "2026-10-30T17:01:54.638Z",
+            "ok": true,
+            "note": "dispatch: harness-foundation batch 1"
+          },
+          {
+            "at": "2026-10-30T17:07:46.454Z",
+            "ok": false,
+            "note": "refused dispatch #4: harness-foundation batch 1 (T4–T7)"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "gate:harness-foundation/verification",
+      "by": "pedromoraisf",
+      "at": "2026-10-30T17:58:08.280Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-10-30T17:55:51.933Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/mutate.py --spec .specs/features/harness-foundation/mutations.json → exit 2: mutate: cannot read spec: [Errno 2] No such file or directory: '.specs/features/harness-foundation/mutations.json'"
+          },
+          {
+            "at": "2026-10-30T17:56:11.143Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/mutate.py --spec .specs/features/harness-foundation/mutations.json → exit 1: | FakeClock.now returns the internal Date | `apps/api/src/shared-kernel/clock.ts:15` | yes |\n| Stryker mutate list no longer excludes test files | `apps/api/scripts/mutation-plan.ts:38` | no |\n| last Stryker exit code wins instead of first non-zero | `apps/api/scripts/mutation.ts:39` | yes |\n| default id prefix changed | `apps/api/src/shared-kernel/id-generator.ts:11` | yes"
+          },
+          {
+            "at": "2026-10-30T17:56:45.021Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py harness-foundation → exit 1:   ERROR harness-foundation: finding 'The Stryker `mutate` exclusion of test files is un' is not closed - fix it and write the commit in `Closed`\n  ERROR harness-foundation: finding 'HF-06 AC4 (Stryker breaks below 80% / 70%) is prov' is not closed - fix it and write the commit in `Closed`\n  ERROR harness-foundation: finding 'Domain mutation score of 100% is on 7 valid mutant' is not closed - fix "
+          }
+        ],
+        "status": "blocked"
+      }
+    }
+  ]
 }
