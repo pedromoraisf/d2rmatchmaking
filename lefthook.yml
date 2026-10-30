@@ -37,6 +37,8 @@ commit-msg:
 
 pre-push:
   parallel: true
+  env:
+    TURBO_TELEMETRY_DISABLED: '1'
   commands:
     typecheck:
       run: pnpm exec turbo run typecheck --affected
@@ -48,4 +50,5 @@ pre-push:
     harness:
       run: pnpm run harness:gate
     ratchet:
-      run: pnpm run quality:ratchet
+      # measure first, then compare: a metric that was measured and is now missing is a regression
+      run: pnpm run quality:gate
