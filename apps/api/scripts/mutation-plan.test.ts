@@ -1,9 +1,29 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { layerConfig, planLayer, type Layer } from './mutation-plan.ts';
 import { runMutation, type StrykerRunner } from './mutation.ts';
+
+const STRYKER_CONFIG = '../stryker.config.mjs';
+
+interface StrykerExport {
+  readonly mutate: readonly string[];
+  readonly thresholds: { readonly break: number };
+}
+
+/** Loads stryker.config.mjs with STRYKER_LAYER set, as `stryker run` does for one layer, and returns its default export. */
+async function loadStrykerConfig(layer: Layer): Promise<StrykerExport> {
+  vi.stubEnv('STRYKER_LAYER', layer);
+  vi.resetModules();
+  try {
+    // A variable specifier keeps the untyped .mjs out of the type check; the shape is asserted by the tests.
+    const loaded: unknown = await import(STRYKER_CONFIG);
+    return (loaded as { default: StrykerExport }).default;
+  } finally {
+    vi.unstubAllEnvs();
+  }
+}
 
 // A temporary repository mirroring the real layout: <repo>/apps/api is the API root, reports go to <repo>/reports.
 let repo: string;
@@ -44,6 +64,39 @@ describe('mutation plan', () => {
   it('break threshold: domain is 80 and application is 70', () => {
     expect(layerConfig('domain').thresholds.break).toBe(80);
     expect(layerConfig('application').thresholds.break).toBe(70);
+  });
+
+  it('domain mutate list is the domain globs plus the test-file exclusion, literally', () => {
+    expect(layerConfig('domain').mutate).toEqual([
+      'src/modules/*/domain/**/*.ts',
+      'src/shared-kernel/**/*.ts',
+      '!src/**/*.test.ts',
+    ]);
+  });
+
+  it('application mutate list is the application glob plus the test-file exclusion, literally', () => {
+    expect(layerConfig('application').mutate).toEqual([
+      'src/modules/*/application/**/*.ts',
+      '!src/**/*.test.ts',
+    ]);
+  });
+
+  it('stryker.config.mjs for domain breaks at 80 and mutates the domain list', async () => {
+    const config = await loadStrykerConfig('domain');
+
+    expect(config.thresholds.break).toBe(80);
+    expect(config.mutate).toEqual([
+      'src/modules/*/domain/**/*.ts',
+      'src/shared-kernel/**/*.ts',
+      '!src/**/*.test.ts',
+    ]);
+  });
+
+  it('stryker.config.mjs for application breaks at 70 and mutates the application list', async () => {
+    const config = await loadStrykerConfig('application');
+
+    expect(config.thresholds.break).toBe(70);
+    expect(config.mutate).toEqual(['src/modules/*/application/**/*.ts', '!src/**/*.test.ts']);
   });
 
   it('report paths are reports/mutation/api-<layer>/mutation.json at the repository root', async () => {

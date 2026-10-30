@@ -445,10 +445,10 @@ T18 → T19 → T20
 
 **Done when**:
 
-- [ ] The `mutate` arrays of both layers are asserted literally
-- [ ] The config `stryker.config.mjs` exports for each layer is asserted to break at 80 (domain) and 70 (application)
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 24 tests pass in `@d2rmm/api` (no silent deletions)
+- [x] The `mutate` arrays of both layers are asserted literally
+- [x] The config `stryker.config.mjs` exports for each layer is asserted to break at 80 (domain) and 70 (application)
+- [x] Gate check passes: `pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 24 tests pass in `@d2rmm/api` (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick
