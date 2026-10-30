@@ -3,7 +3,7 @@
 **Goal**: the thinnest slice through every layer and environment — "a test room becomes Created" — with the three
 pipelines, telemetry and the harness live, before any real feature.
 **Roadmap**: .specs/phases/ROADMAP.md#f0
-**Status**: DRAFT — waiting for the maintainer (open questions + approval + delegation)
+**Status**: DRAFT — questions answered and delegation chosen by the maintainer (2026-10-30); waiting for the approval line
 
 ## Exit criteria
 
@@ -69,26 +69,27 @@ configs, release-please config, first green CI on GitHub, and the first measured
 - In: only what the exit criteria need. The staging-only endpoint that simulates `MatchFormed` is the single fake.
 - Out: real Battle.net login beyond a stub flow if the OAuth app is not ready (see Q2), real matchmaking, ranking, UI polish.
 
-## Open questions (answer before approving)
+## Open questions (answered by the maintainer on 2026-10-30)
 
-1. **GitHub repository** — owner/name and when it becomes public. Recommendation: `pedromoraisf/d2r-match-making`,
-   public from the first push (ADR 001 needs it for Actions minutes and the updater).
-2. **External accounts and secrets** — you create them (agents never do): Cloudflare (Pages + R2), Render, Neon,
-   Grafana Cloud, Battle.net OAuth app, Tauri updater key pair. Recommendation: create them during `harness-foundation`;
-   the runner lists the exact secret names when each feature needs them, as an escalation.
-3. **Staging** — Recommendation: Neon branch `staging` + PR previews on Pages; one Render service for F0 with the
-   simulate-`MatchFormed` endpoint enabled only by `ENABLE_STAGING_ENDPOINTS=true` (off in production after F0).
-4. **Windows validation of the updater** — the `v0.0.1 → v0.0.2` self-update needs a real Windows machine. Recommendation:
-   your Windows PC, as a checklist step in the phase review.
+1. **GitHub repository** — **Answer**: `pedromoraisf/d2rmatchmaking`, public from the first push (done; rulesets in
+   `.github/rulesets/` imported).
+2. **External accounts and secrets** — **Answer**: on demand. The maintainer creates each account and secret when a
+   feature needs it; the runner raises it as an escalation listing the exact secret names (agents never create
+   secrets). `harness-foundation` needs none.
+3. **Staging** — **Answer**: Neon branch `staging` + Cloudflare Pages previews per PR + a single Render service; the
+   simulate-`MatchFormed` endpoint exists only when `ENABLE_STAGING_ENDPOINTS=true` (off in production after F0).
+4. **Windows validation of the updater** — **Answer**: the maintainer's Windows PC, as a checklist item in the phase
+   review (install `v0.0.1`, confirm the self-update to `v0.0.2`).
 
 ## Delegation
 
-Tick what you delegate. Unticked items are asked during the run.
+Tick what you delegate. Unticked items are asked during the run. Chosen by the maintainer on 2026-10-30: all four
+scopes delegated — the maintainer reviews at the end of the phase (escalations still interrupt).
 
-- [ ] specs-and-tasks: approve each feature's spec.md and tasks.md once they pass the automatic gates
-- [ ] sub-agents: dispatch feature workers (worktrees), the Verifier and the reviewer subagents
-- [ ] harness-edits: edit sensor/harness configuration to tighten or extend it (hooks and settings.json still ask)
-- [ ] local-merge-phase-branch: merge green feature branches into phase/F0 locally (never push)
+- [x] specs-and-tasks: approve each feature's spec.md and tasks.md once they pass the automatic gates
+- [x] sub-agents: dispatch feature workers (worktrees), the Verifier and the reviewer subagents
+- [x] harness-edits: edit sensor/harness configuration to tighten or extend it (hooks and settings.json still ask)
+- [x] local-merge-phase-branch: merge green feature branches into phase/F0 locally (never push)
 
 ## Approval
 
