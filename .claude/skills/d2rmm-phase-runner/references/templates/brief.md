@@ -9,9 +9,11 @@
 
 ## Features
 
-| Feature | Size | Depends on | Parallel | Covers | Budget |
+| Feature | Size | Depends on | Parallel | Covers | Wall-clock |
 | --- | --- | --- | --- | --- | --- |
 | <feature-slug> | Large | — | yes | FR-xx, NFR-xx, ADR nnn | default |
+
+Retry budget is fixed for every feature: 1 attempt + 2 retries per unit (ADR 022); a brief cannot raise it.
 
 ## Scope notes
 

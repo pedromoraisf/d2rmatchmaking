@@ -16,7 +16,8 @@ the runner must also stop on its own for the ones a hook cannot see.
 | Loosening a sensor (lint, depcruise, Stryker thresholds, CI steps) | gate (ask) + reviewers | Fixes the code instead |
 | Editing the hooks or `.claude/settings.json` | gate (ask, always) | Explains why |
 | Product gray area with no conservative default | runner | Asks one precise question with options |
-| Blocked feature that blocks the rest of the phase | runner | Summarises the blocker, attempts and options |
+| Blocked feature that blocks the rest of the phase | runner + retry budget (ADR 022) | Summarises the blocker, the 3 attempts and options |
+| Resetting a retry budget | gate (ask) | Never asks for it as a way to keep going; the maintainer decides in the review or on escalation |
 | Anything that costs money (paid plan, domain, paid API) | runner | Asks |
 
 How to ask: one message, the decision, 2–4 options with the consequence of each, the runner's recommendation first.

@@ -51,6 +51,8 @@ Bounded contexts: **Identity** (Account, Character) · **Agents** (pairing, pres
 | Harness maturity gate (L4) | `pnpm harness:gate` |
 | Quality ratchet | `pnpm quality:collect && pnpm quality:ratchet --context pr` |
 | Phase-delegation checks on `.specs/` | `pnpm specs:check` |
+| Run a gate within the retry budget (phase runs) | `node scripts/attempt.mjs run --feature <f> --step <T#> -- "<cmd>"` |
+| Retry-budget status / report | `node scripts/attempt.mjs status [--feature <f>]` · `node scripts/attempt.mjs report` |
 | Rust agent | `cargo nextest run` / `cargo clippy --all-targets -- -D warnings` in `apps/agent/src-tauri` |
 
 Node 26 (`.nvmrc`), pnpm 10, Python 3.8+ (TLC gate scripts, stdlib only), Rust stable for the agent.
@@ -78,6 +80,10 @@ Node 26 (`.nvmrc`), pnpm 10, Python 3.8+ (TLC gate scripts, stdlib only), Rust s
    delegation, quote the kickoff words verbatim and cite the brief (see "Phase workflow").
 9. **i18n from day 0.** No user-facing string hard-coded in components; English source strings, pt-BR translation.
 10. **Telemetry from day 0.** New request paths, jobs and agent loops get spans; see `docs/engineering/telemetry.md`.
+11. **Retry budget: 1 attempt + 2 retries.** Any failing unit of work — a gate, a subagent dispatch, a red stop, the
+    same sensor failing on the same file, the same denied action — may be retried at most twice. The third failure
+    blocks it; record the blocker and move on or report. Never route around it. Enforced by code (ADR 022,
+    `.claude/skills/d2rmm-phase-runner/references/retry-budget.md`).
 
 The Claude Code gate hook (`.claude/hooks/gate.mjs`) enforces most of these deterministically. If it denies or asks,
 do not look for a workaround: follow the reason it gives.
@@ -96,9 +102,11 @@ the project skill **`d2rmm-phase-runner`** (ADR 021). The maintainer reviews **o
    `**Approved**: <date> - user: "<kickoff words>" (delegated via .specs/phases/F<n>/brief.md)`.
    Gray areas take the **conservative default**, are recorded as `AD-NNN … (assumed)` in `.specs/STATE.md` and queued in
    `.specs/phases/F<n>/decisions.md`.
-3. **Escalations interrupt mid-phase** (everything else waits for the review): push/merge to `main`, deploy, production
+3. **Retry budget** — every failing unit gets 2 retries, then it is blocked (ADR 022). During a run, gates go through
+   `scripts/attempt.mjs` and subagent prompts start with `[d2rmm feature=<f> step=<step>]`.
+4. **Escalations interrupt mid-phase** (everything else waits for the review): push/merge to `main`, deploy, production
    DB, secrets, changing an accepted ADR, loosening tests/thresholds/sensors, a blocked feature that blocks the phase.
-4. **Review** — `/phase-review F<n>` generates `.specs/phases/F<n>/review.md`: what shipped, proofs, mutation results,
+5. **Review** — `/phase-review F<n>` generates `.specs/phases/F<n>/review.md`: what shipped, proofs, mutation results,
    harness and ratchet deltas, assumed decisions to confirm, blocked items. The maintainer approves or sends back.
 
 One commit per task (Conventional Commits, checked by `check_commit.py`), on a feature branch off `phase/F<n>`.

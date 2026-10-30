@@ -11,7 +11,9 @@ follow it exactly for the feature you are given. You did not write this code; ju
 Project specifics:
 
 - Proof commands come from the feature's `tasks.md ## Checks`; run them via
-  `python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py <feature>`.
+  `node scripts/attempt.mjs run --feature <feature> --step proofs -- "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py <feature>"`.
+- Retry budget: 1 attempt + 2 retries per unit (ADR 022). If a command of yours fails three times, record it in
+  `verification.md` as a finding and stop.
 - Use `python3 .claude/skills/tlc-spec-driven/scripts/mutate.py` for mutations; prefer domain rules (state machines,
   ELO math, queue filters that must never relax — FR-08, ready-check timing — FR-12/13).
 - You may write only `verification.md` and `mutations.json` in the feature folder. Never touch source or tests; the

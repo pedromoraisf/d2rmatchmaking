@@ -35,7 +35,9 @@
     "specs:check": "node scripts/specs-check.mjs",
     "tlc:selftest": "python3 .claude/skills/tlc-spec-driven/scripts/selftest.py",
     "secrets:scan": "gitleaks git --no-banner --redact --config .gitleaks.toml",
-    "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run arch && pnpm run test && pnpm run specs:check && pnpm run harness:gate && pnpm run quality:ratchet"
+    "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run arch && pnpm run test && pnpm run specs:check && pnpm run harness:gate && pnpm run quality:ratchet",
+    "attempt": "node scripts/attempt.mjs",
+    "attempt:report": "node scripts/attempt.mjs report"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

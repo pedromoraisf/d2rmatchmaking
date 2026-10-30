@@ -4,17 +4,26 @@
 // Guarded by stop_hook_active so it never loops: a second consecutive stop is let through.
 import { existsSync } from 'node:fs';
 import { readStdinJson, projectDir, bin, run, tail, makeRepoContext } from './lib/io.mjs';
+import { onStop } from './lib/budget-rules.mjs';
+import { sessionId } from '../../scripts/lib/budget.mjs';
+import { ledgerPath, withLedger } from '../../scripts/lib/ledger-store.mjs';
 
+// Termination is guaranteed by the retry budget (ADR 022), not by stop_hook_active: a red stop is
+// blocked at most MAX_RETRIES times per agent session, then the agent stops with the session exhausted.
 const input = await readStdinJson();
-if (input.stop_hook_active) process.exit(0);
 const root = projectDir(input);
+const sid = sessionId(input);
+const ledgerFile = ledgerPath(root);
 const ctx = makeRepoContext(root);
 
 const changed = [
   ...(ctx.git('diff', '--name-only', 'HEAD') ?? '').split('\n'),
   ...(ctx.git('ls-files', '--others', '--exclude-standard') ?? '').split('\n'),
 ].filter(Boolean);
-if (changed.length === 0) process.exit(0);
+if (changed.length === 0) {
+  withLedger(ledgerFile, (l) => onStop(l, sid, ''));
+  process.exit(0);
+}
 
 const any = (re) => changed.some((f) => re.test(f));
 const checks = [];
@@ -37,12 +46,10 @@ for (const [name, cmd, args] of checks) {
   const r = run(cmd, args, { cwd: root, timeoutMs: 300_000 });
   if (!r.ok) failures.push(`## ${name}\n${tail(r.out, 50)}`);
 }
-if (failures.length > 0) {
-  process.stdout.write(
-    JSON.stringify({
-      decision: 'block',
-      reason: `[d2rmm stop] Sensors are red. Fix before ending the turn (or record the blocker in the feature's tasks.md Handoff):\n\n${failures.join('\n\n')}`,
-    }),
-  );
+const verdict = withLedger(ledgerFile, (l) => onStop(l, sid, failures.join('\n\n')));
+if (verdict.block) {
+  process.stdout.write(JSON.stringify({ decision: 'block', reason: verdict.message }));
+} else if (verdict.message) {
+  process.stdout.write(JSON.stringify({ systemMessage: verdict.message }));
 }
 process.exit(0);

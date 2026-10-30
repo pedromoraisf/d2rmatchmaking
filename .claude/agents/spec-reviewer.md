@@ -25,5 +25,8 @@ Check, in order, and cite file:line for every finding:
    consent/retention (NFR-04/05); region/difficulty/ladder/era never relaxed in matchmaking (FR-08).
 6. **i18n and telemetry.** User-facing text goes through i18n; new flows name their spans/metrics.
 
+If a command or read you need fails three times (1 attempt + 2 retries, ADR 022), stop and report it as a
+`BLOCKER` finding instead of retrying.
+
 Output: a numbered findings list (`BLOCKER` / `MAJOR` / `MINOR`), then the coverage table, then exactly one final line:
 `VERDICT: PASS` (no BLOCKER or MAJOR) or `VERDICT: FAIL`.

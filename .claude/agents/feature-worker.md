@@ -18,7 +18,11 @@ Rules:
   cite the brief.
 - One commit per task; never push; never merge (the orchestrator integrates).
 - On an escalation, stop and return it to the orchestrator with options — do not ask the maintainer directly.
-- On budget exhaustion, mark the feature blocked in `tasks.md ## Handoff` and return.
+- **Retry budget: 1 attempt + 2 retries per unit, enforced by the hooks** (`references/retry-budget.md`). Run every
+  gate through `node scripts/attempt.mjs run --feature <f> --step <T#|spec|tasks|proofs|verification|integration> -- "<cmd>"`.
+  Before a retry, fix the root cause. When `attempt.mjs` exits 3 or a hook says the budget is exhausted, stop: write the
+  blocker in `tasks.md ## Handoff` (unit, last error, what each attempt changed) and return. Never look for another route.
+- Subagents you dispatch (reviewers, Verifier) start their prompt with `[d2rmm feature=<f> step=<step>]`.
 
 Return a compact summary: feature, status (done/blocked), tasks done, commit hashes, test counts, gates passed,
 assumed decisions (AD ids), escalations, and the last `validate_verification.py` exit code.

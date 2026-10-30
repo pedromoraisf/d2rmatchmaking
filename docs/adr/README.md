@@ -25,3 +25,4 @@ Format: Context · Decision · Alternatives · Consequences. Only the maintainer
 | [019](019-harness-l4.md) | Agentic harness at L4 | Accepted |
 | [020](020-openapi-generated.md) | OpenAPI generated from contracts | Accepted |
 | [021](021-automated-phase-delivery.md) | Automated per-phase delivery | Accepted |
+| [022](022-retry-budget.md) | Retry budget: one attempt plus two retries, enforced by code | Accepted |

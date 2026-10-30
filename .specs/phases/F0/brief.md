@@ -27,13 +27,15 @@ From Design Doc § Walking skeleton. Every item needs a proof in the phase revie
 
 ## Features
 
-| Feature | Size | Depends on | Parallel | Covers | Budget |
+| Feature | Size | Depends on | Parallel | Covers | Wall-clock |
 | --- | --- | --- | --- | --- | --- |
 | harness-foundation | Large | — | no (first) | NFR-10, NFR-11, ADR 001/003/004/014/019/020/021 | default |
 | api-web-skeleton | Large | harness-foundation | with agent-skeleton | FR-01 (stub), FR-03, FR-05, NFR-01, NFR-07, NFR-08, NFR-12, ADR 002/005/006/007/008/009/012/017 | default |
 | agent-skeleton | Complex | harness-foundation | with api-web-skeleton | FR-03, FR-05, FR-27 (fixture), FR-29, NFR-04, NFR-06, ADR 010/011/015/016 | 10 h |
 | observability-e2e | Large | api-web-skeleton, agent-skeleton | no | NFR-09, ADR 013 | default |
 | load-baseline | Large | observability-e2e | no | NFR-01, NFR-14 | default |
+
+Retry budget is fixed for every feature: 1 attempt + 2 retries per unit (ADR 022); a brief cannot raise it.
 
 What the pre-foundation already delivered (do not redo; extend): AGENTS.md/CLAUDE.md, scoped rules, hooks + tests,
 phase-runner skill, reviewer/verifier/worker subagents, commands, dependency-cruiser rules, Lefthook, CI + nightly

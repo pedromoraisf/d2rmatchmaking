@@ -2,7 +2,7 @@
 
 ## Decisions
 
-AD-001…AD-021 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR is the full record). New project-level decisions continue at AD-022. Decisions the phase runner takes on its own carry `(assumed)` on the heading and are queued in `.specs/phases/<F>/decisions.md` until the phase review.
+AD-001…AD-022 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR is the full record). New project-level decisions continue at AD-023. Decisions the phase runner takes on its own carry `(assumed)` on the heading and are queued in `.specs/phases/<F>/decisions.md` until the phase review.
 
 ### AD-001
 - **Decision**: One public repository (MIT) with pnpm workspaces and Turborepo: `apps/web`, `apps/api`, `apps/agent`, `packages/contracts`, `packages/telemetry`, `packages/config`.
@@ -168,6 +168,14 @@ AD-001…AD-021 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Decision**: The project skill `d2rmm-phase-runner` wraps TLC.
 - **Reason**: see [ADR 021](../docs/adr/021-automated-phase-delivery.md) — Automated per-phase delivery
 - **Trade-off**: see ADR 021 § Consequences
+- **Scope**: project
+- **Date**: 2026-10-30
+- **Status**: active
+
+### AD-022
+- **Decision**: Every unit of agentic work gets one attempt plus at most 2 retries; the third failure blocks it, enforced by hooks and `scripts/attempt.mjs`.
+- **Reason**: see [ADR 022](../docs/adr/022-retry-budget.md) — Retry budget: one attempt plus two retries, enforced by code
+- **Trade-off**: see ADR 022 § Consequences
 - **Scope**: project
 - **Date**: 2026-10-30
 - **Status**: active

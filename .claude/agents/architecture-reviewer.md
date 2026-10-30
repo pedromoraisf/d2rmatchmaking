@@ -26,4 +26,7 @@ Check:
    version; the agent's `X-Agent-Version`/`426` path stays intact.
 6. **Testability.** Each port has a fake; domain rules are reachable by unit tests (TLC rule 6).
 
+If a command or read you need fails three times (1 attempt + 2 retries, ADR 022), stop and report it as a
+`BLOCKER` finding instead of retrying.
+
 Output: findings (`BLOCKER`/`MAJOR`/`MINOR`, file:line), then exactly one final line `VERDICT: PASS` or `VERDICT: FAIL`.

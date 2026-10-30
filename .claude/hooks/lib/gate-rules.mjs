@@ -6,6 +6,8 @@
 // ask  → Claude Code asks the human. This is how mid-phase escalations reach the user.
 import { activePhase, approvalsIn } from './delegation.mjs';
 import { compareBaselines } from '../../../scripts/lib/ratchet.mjs';
+import { sessionId } from '../../../scripts/lib/budget.mjs';
+import { checkBudget, countDenial } from './budget-rules.mjs';
 
 const deny = (reason) => ({ decision: 'deny', reason });
 const ask = (reason) => ({ decision: 'ask', reason });
@@ -37,7 +39,13 @@ const HARNESS_FILES = [
 ];
 const isHarnessFile = (rel) => HARNESS_FILES.some((re) => re.test(rel));
 // The gate guards itself: no delegation covers editing the hooks or their registration.
-const SELF_PROTECTED = [/^\.claude\/settings\.json$/, /^\.claude\/hooks\//, /^scripts\/lib\/ratchet\.mjs$/];
+const SELF_PROTECTED = [
+  /^\.claude\/settings\.json$/,
+  /^\.claude\/hooks\//,
+  /^scripts\/lib\/(ratchet|budget|ledger-store|steps)\.mjs$/, // ratchet and retry budget (ADR 021/022)
+  /^scripts\/attempt\.mjs$/,
+  /^scripts\/test\/(ratchet|budget|attempt-cli)\.test\.mjs$/,
+];
 const isSelfProtected = (rel) => SELF_PROTECTED.some((re) => re.test(rel));
 
 // ---------------------------------------------------------------- bash
@@ -222,10 +230,7 @@ export function checkEdit(rel, toolInput, ctx) {
   return null;
 }
 
-/** Entry point. Returns { decision, reason } or null (no opinion → normal permission flow). */
-export function decide(input, ctx, toRelative) {
-  const tool = input?.tool_name ?? '';
-  const ti = input?.tool_input ?? {};
+function regularRules(tool, ti, ctx, toRelative) {
   if (tool === 'Bash') return checkBash(ti.command, ctx);
   if (tool === 'Edit' || tool === 'Write' || tool === 'MultiEdit' || tool === 'NotebookEdit') {
     return checkEdit(toRelative(ctx.root, ti.file_path ?? ti.notebook_path), ti, ctx);
@@ -235,4 +240,26 @@ export function decide(input, ctx, toRelative) {
     if (ENV_FILE.test(rel)) return deny('.env files hold secrets and are off-limits to the agent.');
   }
   return null;
+}
+
+/**
+ * Entry point. Returns { decision, reason, effects } or null (no opinion → normal permission flow).
+ * `effects` are ledger updates (ADR 022) that gate.mjs applies under the ledger lock.
+ */
+export function decide(input, ctx, toRelative) {
+  const tool = input?.tool_name ?? '';
+  const ti = input?.tool_input ?? {};
+  const sid = sessionId(input);
+  const rel = toRelative(ctx.root, ti.file_path ?? ti.notebook_path ?? '');
+
+  const budget = checkBudget(input, ctx, sid, rel);
+  if (budget?.decision) {
+    return budget.reason.startsWith('Retry budget exhausted') ? budget : countDenial(budget, ctx, sid);
+  }
+  const result = regularRules(tool, ti, ctx, toRelative);
+  const counted = countDenial(result, ctx, sid);
+  if (budget?.effects?.length) {
+    return counted ? { ...counted, effects: [...budget.effects, ...(counted.effects ?? [])] } : { decision: null, reason: '', effects: budget.effects };
+  }
+  return counted;
 }

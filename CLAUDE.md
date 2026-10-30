@@ -10,4 +10,6 @@
 - Subagents (`.claude/agents/`): `spec-reviewer`, `architecture-reviewer`, `security-reviewer` (read-only gates),
   `feature-worker` (executes one feature in its own git worktree), `verifier` (TLC's fresh Verifier).
 - Commands: `/phase-kickoff`, `/phase-run`, `/phase-review`, `/check`, `/adr`.
+- Retry budget (ADR 022): 1 attempt + 2 retries per unit. The hooks count gates, dispatches, red stops, repeated sensor
+  failures and repeated denials in `.git/d2rmm/ledger.json`; when one is exhausted, record the blocker and report.
 - Escalations come to the maintainer as a permission prompt ("ask"). Everything else is recorded for the phase review.

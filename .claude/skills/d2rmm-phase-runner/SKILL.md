@@ -16,6 +16,18 @@ with delegation      + automatic gates     maintainer accepts / sends back
                      escalations interrupt
 ```
 
+## Retry budget — 1 attempt + 2 retries, no exceptions
+
+Every unit of work (gate, subagent dispatch, red stop, repeated sensor failure, repeated denial) gets its first
+attempt plus **at most 2 retries**. The third failure blocks the unit and the hooks refuse any further attempt by any
+route; only the maintainer resets it. This is enforced by code (ADR 022), not by this text — see
+[`references/retry-budget.md`](references/retry-budget.md). Consequences for how you work:
+
+- During a run, run every gate through `node scripts/attempt.mjs run --feature <f> --step <T#|spec|tasks|proofs|verification|integration> -- "<cmd>"`.
+- Start every subagent prompt with `[d2rmm feature=<f> step=<step>]` (closed list of steps in retry-budget.md).
+- Before each retry, change something real (root cause), never the test, the gate or the sensor.
+- When a unit blocks: record it, move on, never look for another route.
+
 ## Read first, every time (also after a compaction)
 
 1. This file to the end, then `.claude/skills/tlc-spec-driven/SKILL.md` to the end.
@@ -64,7 +76,8 @@ for features in dependency order (independent ones in parallel when `sub-agents`
 ### 1. Branch / worktree
 
 `phase/<F>` from `main` (once). Each feature: `git worktree add .claude/worktrees/<feature> -b feat/<F>-<feature> phase/<F>`.
-Parallel features each get a `feature-worker` subagent in their own worktree; a feature that depends on another waits
+Parallel features each get a `feature-worker` subagent in their own worktree (prompt header
+`[d2rmm feature=<feature> step=feature]`); a feature that depends on another waits
 for it to merge into `phase/<F>`.
 
 ### 2. Specify (TLC `references/specify.md`)
@@ -74,10 +87,10 @@ for it to merge into `phase/<F>`.
   record `### AD-NNN — <decision> (assumed)` in `.specs/STATE.md` and a line in `decisions.md`. If no conservative
   default exists (it would change what users see in a way the PRD contradicts), **escalate**.
 - **Spec gate** (all must pass, in order):
-  1. `python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py <feature>` exits 0.
+  1. `node scripts/attempt.mjs run --feature <feature> --step spec -- "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py <feature>"` exits 0.
   2. Traceability: every requirement cites an `FR-xx`/`NFR-xx`/ADR in `## Sources`, and every FR/NFR the brief assigns
      to the feature is covered (`references/gates.md#traceability`).
-  3. `spec-reviewer` subagent returns `VERDICT: PASS` (findings fixed, max 2 rounds).
+  3. `spec-reviewer` subagent returns `VERDICT: PASS` (findings fixed; dispatch step `review-spec`, 1 + 2 retries).
 - Then write the delegated approval line in `spec.md`.
 
 ### 3. Design (Large/Complex only)
@@ -89,25 +102,27 @@ an accepted ADR is an escalation — propose a new ADR instead.
 ### 4. Tasks
 
 TLC `references/tasks.md`. **Tasks gate:** `validate_tasks.py <feature>` exits 0, every criterion has a check with a
-proof command, `**Mutations**:` ≥ 3. Write the delegated approval in `tasks.md`, then
-`validate_tasks.py <feature> --execute` must exit 0.
+proof command, `**Mutations**:` ≥ 3 (all run as step `tasks` through `attempt.mjs`). Write the delegated approval in
+`tasks.md`, then `validate_tasks.py <feature> --execute` must exit 0 (same step).
 
 ### 5. Execute
 
-TLC `references/implement.md`, one atomic commit per task (`check_commit.py`). Hooks give feedback on every edit and
-block the stop while sensors are red. **Budgets** (from the brief; defaults in `references/gates.md#budgets`):
-3 attempts per task gate; on exhaustion mark the task and the feature **blocked** in `tasks.md ## Handoff`, add it to
+TLC `references/implement.md`, one atomic commit per task (`check_commit.py`). Each task's gate runs as
+`attempt.mjs run --step T<n>`; the commit is refused until that gate passed. Hooks give feedback on every edit and
+block the stop while sensors are red — each within the retry budget. On exhaustion (exit 3, or a hook saying the
+session is exhausted) mark the task and the feature **blocked** in `tasks.md ## Handoff`, add it to
 `decisions.md → Blocked`, and move on to features that do not depend on it. A blocked feature that blocks every
 remaining feature of the phase is an escalation.
 
 ### 6. Verify (fresh agent, always)
 
-`check_proofs.py <feature>` → dispatch the `verifier` subagent (author ≠ verifier) with TLC `references/validate.md`
-→ fix findings in one pass → `check_proofs.py --mutations` → `validate_verification.py <feature>` exits 0.
+`check_proofs.py <feature>` (step `proofs`) → dispatch the `verifier` subagent (step `verify`; author ≠ verifier) with
+TLC `references/validate.md` → fix findings in one pass → `check_proofs.py --mutations` (step `proofs`) and, if TLC's
+round 2 applies, step `verify-r2` → `validate_verification.py <feature>` (step `verification`) exits 0.
 
 ### 7. Integrate
 
-In the feature worktree: `pnpm check` green, `pnpm quality:collect && pnpm quality:ratchet --context pr` green,
+In the feature worktree, all as step `integration` through `attempt.mjs`: `pnpm check` green, `pnpm quality:collect && pnpm quality:ratchet --context pr` green,
 `harness-score --min-level 4` green, OpenAPI drift clean. Then (with `local-merge-phase-branch`) merge into `phase/<F>`
 with `--no-ff`, rerun `pnpm check` on `phase/<F>`, remove the worktree. Without the scope, leave it ready and list it
 in the review. **Never push** — pushing `phase/<F>` and opening the PR to `main` happen after the phase review, with
@@ -130,10 +145,10 @@ phase. Everything else is decided, recorded and shown in the review.
 ## REVIEW — `/phase-review F<n>`
 
 1. On `phase/<F>`: `pnpm check`; `pnpm harness:json`; `pnpm quality:collect`;
-   `pnpm quality:ratchet --context phase`; for each feature `validate_verification.py`.
+   `pnpm quality:ratchet --context phase`; for each feature `validate_verification.py`; `node scripts/attempt.mjs report`.
 2. Generate `.specs/phases/F<n>/review.md` from `references/templates/review.md` with **real numbers** from those runs
    (never estimates): exit criteria ✓/✗ with proof links, features and commits, assumed decisions to confirm, blocked
-   items, harness score and ratchet deltas, mutation scores, CI time, what changed in the harness, risks for the next
+   items with the retry-budget report (units, attempts, last error, resets), harness score and ratchet deltas, mutation scores, CI time, what changed in the harness, risks for the next
    phase, and the exact commands the maintainer runs to push and open the PR.
 3. Stop. The maintainer accepts (then: push `phase/<F>`, PR to `main`, `pnpm quality:ratchet --update` after merge)
    or sends items back (they become a follow-up feature in the same phase).

@@ -24,6 +24,8 @@ report; the command is next to each number.
 
 ## Blocked and deferred
 
+Retry budget (`node scripts/attempt.mjs report`): every unit, attempts, failures, last error, maintainer resets.
+
 ## Quality
 
 | Metric | Baseline | Now | Command |

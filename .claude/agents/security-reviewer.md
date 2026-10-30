@@ -24,5 +24,8 @@ Check:
    documented field, or raw images. Production DB URL only in deploy/backup workflows.
 6. **Abuse.** Rate limits on queue join, ready-check, pairing, reports; ranking only from double-confirmed results.
 
+If a command or read you need fails three times (1 attempt + 2 retries, ADR 022), stop and report it as a
+`BLOCKER` finding instead of retrying.
+
 Output: findings (`BLOCKER`/`MAJOR`/`MINOR`, file:line, exploit sketch in one line), then exactly one final line
 `VERDICT: PASS` or `VERDICT: FAIL`.

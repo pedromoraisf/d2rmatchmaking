@@ -46,6 +46,10 @@ export function makeRepoContext(root) {
     currentBranch() {
       return git('rev-parse', '--abbrev-ref', 'HEAD');
     },
+    headTime() {
+      const t = git('log', '-1', '--format=%ct');
+      return t ? Number(t) : null;
+    },
     git,
   };
 }
