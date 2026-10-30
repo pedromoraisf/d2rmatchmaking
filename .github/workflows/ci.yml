@@ -19,6 +19,21 @@ env:
   FORCE_COLOR: '1'
 
 jobs:
+  detect:
+    # hashFiles() is not allowed in a job-level `if:`; compute what exists once and share it as outputs.
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.d.outputs.api }}
+      agent: ${{ steps.d.outputs.agent }}
+      acceptance: ${{ steps.d.outputs.acceptance }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: d
+        run: |
+          [ -f apps/api/package.json ] && echo "api=true" >> "$GITHUB_OUTPUT" || echo "api=false" >> "$GITHUB_OUTPUT"
+          [ -f apps/agent/src-tauri/Cargo.toml ] && echo "agent=true" >> "$GITHUB_OUTPUT" || echo "agent=false" >> "$GITHUB_OUTPUT"
+          if compgen -G ".specs/features/*/acceptance.feature" > /dev/null; then echo "acceptance=true"; else echo "acceptance=false"; fi >> "$GITHUB_OUTPUT"
+
   verify:
     # format, lint, types, architecture, tests, specs, harness, ratchet
     name: verify # required check in .github/rulesets/main.json — renaming it breaks the ruleset
@@ -92,8 +107,8 @@ jobs:
   integration:
     # Testcontainers, Playwright e2e, BDD acceptance
     name: integration
-    if: hashFiles('apps/api/package.json') != '' || hashFiles('.specs/features/*/acceptance.feature') != ''
-    needs: verify
+    needs: [detect, verify]
+    if: needs.detect.outputs.api == 'true' || needs.detect.outputs.acceptance == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -120,7 +135,8 @@ jobs:
   agent:
     # Rust: fmt, clippy, nextest
     name: agent
-    if: hashFiles('apps/agent/src-tauri/Cargo.toml') != ''
+    needs: detect
+    if: needs.detect.outputs.agent == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     defaults:
