@@ -1,0 +1,11 @@
+---
+description: Rules for API domain layer code (aggregates, value objects, domain events)
+globs: apps/api/src/modules/*/domain/**
+alwaysApply: false
+---
+
+- Imports: only this module's `domain/` and `apps/api/src/shared-kernel`. No Fastify, Kysely, pg, OpenTelemetry, node builtins.
+- No `Date.now()`, `new Date()` without an injected `Clock`, no `Math.random()` (inject `IdGenerator`/`Random`).
+- Aggregates protect invariants from `docs/domain/invariants.md`; state changes return domain events.
+- Expected failures return `Result<T, DomainError>`; throw only for programmer errors.
+- Names come from `docs/domain/glossary.md`. Every rule has a unit test; mutation floor 80% (Stryker).

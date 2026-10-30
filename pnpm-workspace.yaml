@@ -1,0 +1,8 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Exact versions in lockfile; no surprise post-install scripts except the allow-listed ones.
+onlyBuiltDependencies:
+  - esbuild
+  - lefthook

@@ -1,0 +1,8 @@
+---
+description: Project-wide pointer to AGENTS.md (canonical guide) and the inviolable rules
+alwaysApply: true
+---
+
+Follow `AGENTS.md` at the repository root — it is canonical. Key rules: domain is pure; contracts first (regenerate
+OpenAPI); never weaken tests or sensors; the desktop agent only reads pixels/OS signals; never touch `.env*`; push,
+deploy, secrets and production DB need the maintainer. Feature work follows `.specs/` (TLC spec-driven + phase runner).

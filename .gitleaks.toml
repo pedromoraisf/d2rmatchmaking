@@ -1,0 +1,21 @@
+# Secret scanning (pre-commit + CI). Extends the default ruleset.
+title = "d2r-match-making"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "neon-connection-string"
+description = "Neon/Postgres connection string with password"
+regex = '''postgres(ql)?://[^:\s]+:[^@\s]+@[^/\s]*neon\.tech'''
+tags = ["database", "neon"]
+
+[[rules]]
+id = "tauri-signing-key"
+description = "Tauri updater private key"
+regex = '''untrusted comment: (rsign|minisign) encrypted secret key'''
+tags = ["signing"]
+
+[allowlist]
+description = "Fixtures and docs with fake values"
+paths = ['''(^|/)fixtures?/''', '''\.env\.example$''', '''docs/.*\.md$''']

@@ -1,0 +1,8 @@
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.exe binary
+pnpm-lock.yaml linguist-generated=true -diff
+packages/contracts/openapi.json linguist-generated=true
+packages/contracts/asyncapi.json linguist-generated=true

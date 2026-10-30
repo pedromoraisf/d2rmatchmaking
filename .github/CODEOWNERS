@@ -1,0 +1,8 @@
+# The maintainer reviews every change to the harness, the agent's safety boundary and the decisions.
+*                                   @pedromoraisf
+/.claude/                           @pedromoraisf
+/.github/                           @pedromoraisf
+/.quality-baseline.json             @pedromoraisf
+/.dependency-cruiser.cjs            @pedromoraisf
+/docs/adr/                          @pedromoraisf
+/apps/agent/                        @pedromoraisf

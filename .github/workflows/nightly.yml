@@ -1,0 +1,82 @@
+# Nightly sensors: full mutation, harness report, ratchet (nightly context) and Postgres backup.
+name: nightly
+
+on:
+  schedule:
+    - cron: '17 6 * * *' # 03:17 America/Sao_Paulo
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Mutation (full)
+        if: hashFiles('apps/api/stryker.config.*') != ''
+        run: pnpm run test:mutation
+      - name: Harness report
+        run: |
+          pnpm run harness:json
+          pnpm exec harness-score . --config .harness-score.json --md reports/harness-score.md --quiet
+      - name: Quality ratchet (nightly)
+        run: |
+          pnpm run quality:collect
+          pnpm run quality:ratchet -- --context nightly --current reports/quality.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-quality
+          path: |
+            reports/
+            .harness-score.report.json
+          retention-days: 30
+
+  agent-mutation:
+    if: hashFiles('apps/agent/src-tauri/Cargo.toml') != ''
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+      - run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --output reports/mutation/agent-core
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-mutation
+          path: reports/mutation/agent-core
+
+  backup:
+    # Runs only once the production secrets exist (created by the maintainer, never by an agent).
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      R2_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+    steps:
+      - name: Skip until configured
+        id: cfg
+        run: |
+          if [ -z "$NEON_DATABASE_URL" ]; then echo "configured=false" >> "$GITHUB_OUTPUT"; else echo "configured=true" >> "$GITHUB_OUTPUT"; fi
+      - name: pg_dump → R2
+        if: steps.cfg.outputs.configured == 'true'
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          f="d2rmm-$(date -u +%Y%m%dT%H%M%SZ).dump"
+          pg_dump --format=custom --no-owner "$NEON_DATABASE_URL" -f "$f"
+          aws s3 cp "$f" "s3://$R2_BUCKET/backups/$f" --endpoint-url "$R2_ENDPOINT"

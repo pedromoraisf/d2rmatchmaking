@@ -1,0 +1,104 @@
+{
+  "$comment": "Quality ratchet (ADR 021). Values only tighten: `pnpm quality:ratchet --update` raises them after a green run; loosening anything needs the maintainer (the PreToolUse gate denies it). value=null means not measured yet — the first measurement sets it. contexts = where the metric is enforced (pr: every PR CI run; nightly: nightly.yml; phase: phase review).",
+  "version": 1,
+  "updated": "2026-10-30",
+  "metrics": {
+    "harness.level": {
+      "value": null,
+      "direction": "higher",
+      "floor": 4,
+      "contexts": ["pr", "nightly", "phase"],
+      "source": { "type": "harness-score", "field": "level" }
+    },
+    "harness.percent": {
+      "value": null,
+      "direction": "higher",
+      "floor": 80,
+      "contexts": ["pr", "nightly", "phase"],
+      "source": { "type": "harness-score", "field": "percent" }
+    },
+    "harness.failed_checks": {
+      "value": null,
+      "direction": "lower",
+      "contexts": ["pr", "nightly", "phase"],
+      "source": { "type": "harness-score", "field": "failed" }
+    },
+    "mutation.api.domain": {
+      "value": null,
+      "direction": "higher",
+      "floor": 80,
+      "tolerance": 0.02,
+      "contexts": ["nightly", "phase"],
+      "source": { "type": "stryker", "path": "reports/mutation/api-domain/mutation.json" }
+    },
+    "mutation.api.application": {
+      "value": null,
+      "direction": "higher",
+      "floor": 70,
+      "tolerance": 0.02,
+      "contexts": ["nightly", "phase"],
+      "source": { "type": "stryker", "path": "reports/mutation/api-application/mutation.json" }
+    },
+    "mutation.agent.core": {
+      "value": null,
+      "direction": "higher",
+      "floor": 70,
+      "tolerance": 0.02,
+      "contexts": ["nightly", "phase"],
+      "source": { "type": "cargo-mutants", "path": "reports/mutation/agent-core/outcomes.json" }
+    },
+    "arch.violations": {
+      "value": null,
+      "direction": "lower",
+      "ceiling": 0,
+      "contexts": ["pr", "phase"],
+      "source": { "type": "json", "path": "reports/depcruise.json", "pointer": "/summary/error" }
+    },
+    "lint.warnings": {
+      "value": null,
+      "direction": "lower",
+      "ceiling": 0,
+      "contexts": ["pr", "phase"],
+      "source": { "type": "eslint", "path": "reports/eslint.json" }
+    },
+    "tests.skipped": {
+      "value": null,
+      "direction": "lower",
+      "ceiling": 0,
+      "contexts": ["pr", "phase"],
+      "source": { "type": "json", "path": "reports/tests-summary.json", "pointer": "/skipped" }
+    },
+    "ci.duration_seconds": {
+      "value": null,
+      "direction": "lower",
+      "ceiling": 900,
+      "tolerance": 0.25,
+      "contexts": ["pr"],
+      "source": { "type": "json", "path": "reports/ci-timing.json", "pointer": "/seconds" }
+    },
+    "load.max_concurrent_players": {
+      "value": null,
+      "direction": "higher",
+      "floor": 100,
+      "tolerance": 0.1,
+      "contexts": ["phase"],
+      "source": { "type": "json", "path": "reports/load/summary.json", "pointer": "/maxConcurrentPlayers" }
+    },
+    "load.bytes_per_player_hour": {
+      "value": null,
+      "direction": "lower",
+      "ceiling": 70000,
+      "tolerance": 0.1,
+      "contexts": ["phase"],
+      "source": { "type": "json", "path": "reports/load/summary.json", "pointer": "/bytesPerPlayerHour" }
+    },
+    "load.p95_state_latency_ms": {
+      "value": null,
+      "direction": "lower",
+      "ceiling": 2000,
+      "tolerance": 0.15,
+      "contexts": ["phase"],
+      "source": { "type": "json", "path": "reports/load/summary.json", "pointer": "/p95StateLatencyMs" }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+pnpm-lock.yaml
+dist/
+coverage/
+target/
+reports/
+.claude/skills/tlc-spec-driven/
+docs/product/prd.md
+docs/architecture/design-doc.md
+packages/contracts/openapi.json
+packages/contracts/asyncapi.json

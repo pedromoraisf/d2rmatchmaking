@@ -1,0 +1,12 @@
+---
+description: Rules for the Tauri desktop agent (Rust core and UI)
+globs: apps/agent/**
+alwaysApply: false
+---
+
+- READ-ONLY (ADR 010): capture the game window only (windows-capture cascade), Windows OCR, OS signals (sysinfo).
+  Never: process memory, injection, DirectX hooks, packet capture, input that confirms in-game actions, server commands.
+- Sensors implement the `Sensor` trait (id, active_in, interval, sample) and emit `Signal`s; fusion produces observations.
+- Types from the generated JSON Schema (typify). Send `X-Agent-Version`; on 426 force the updater.
+- `clippy -D warnings`, `rustfmt`, `cargo nextest`, `insta` snapshots for OCR fixtures, `cargo-mutants` on the core.
+- CPU < 2% average (NFR-02); adaptive intervals per PC state.

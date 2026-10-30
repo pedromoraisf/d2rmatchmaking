@@ -1,0 +1,142 @@
+# CI sensors (ADR 019). Every step here also runs locally via `pnpm check` / Lefthook.
+# Loosening any step is an escalation (see .claude/skills/d2rmm-phase-runner/references/escalation.md).
+name: ci
+
+on:
+  push:
+    branches: [main, 'phase/**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: '1'
+  FORCE_COLOR: '1'
+
+jobs:
+  verify:
+    name: verify (format, lint, types, architecture, tests, specs, harness, ratchet)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Start timer
+        run: echo "CI_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pnpm install --frozen-lockfile
+
+      - name: Format
+        run: pnpm run format:check
+      - name: Lint
+        run: |
+          mkdir -p reports
+          pnpm run lint
+          pnpm exec eslint --format json --output-file reports/eslint.json --no-warn-ignored scripts .claude/hooks || true
+      - name: Typecheck
+        run: pnpm run typecheck
+      - name: Architecture (dependency-cruiser)
+        run: |
+          if compgen -G "apps/*/src" > /dev/null || compgen -G "packages/*/src" > /dev/null; then
+            pnpm exec depcruise --config .dependency-cruiser.cjs --output-type json --output-to reports/depcruise.json apps packages || true
+            pnpm run arch
+          else
+            echo '{"summary":{"error":0}}' > reports/depcruise.json
+            echo "No source yet — architecture rules have nothing to check."
+          fi
+      - name: Unit tests (workspaces + harness self-tests)
+        run: pnpm test
+      - name: TLC gate scripts self-test
+        run: pnpm run tlc:selftest
+      - name: Specs and phase delegation
+        run: pnpm run specs:check
+      - name: Contracts drift (OpenAPI / AsyncAPI)
+        if: hashFiles('packages/contracts/package.json') != ''
+        run: pnpm run contracts:check
+      - name: Mutation (incremental, changed files)
+        if: github.event_name == 'pull_request' && hashFiles('apps/api/stryker.config.*') != ''
+        run: pnpm exec turbo run test:mutation --affected -- --incremental
+
+      - name: Harness maturity (L4 gate)
+        run: |
+          pnpm run harness:json
+          pnpm run harness:gate
+      - name: Quality ratchet (pr)
+        run: |
+          echo "{\"seconds\": $(( $(date +%s) - CI_STARTED ))}" > reports/ci-timing.json
+          pnpm run quality:collect
+          pnpm run quality:ratchet -- --context pr --current reports/quality.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quality-reports
+          path: |
+            reports/
+            .harness-score.report.json
+          retention-days: 14
+
+  integration:
+    name: integration (Testcontainers) and e2e (Playwright)
+    if: hashFiles('apps/api/package.json') != ''
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:integration
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm run test:e2e
+
+  agent:
+    name: agent (Rust: fmt, clippy, nextest)
+    if: hashFiles('apps/agent/src-tauri/Cargo.toml') != ''
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/agent/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/agent/src-tauri
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo nextest run
+
+  secrets:
+    name: secrets (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml

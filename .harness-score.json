@@ -1,0 +1,4 @@
+{
+  "gate": "maturity",
+  "scopes": { "user": false, "system": false }
+}

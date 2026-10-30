@@ -1,0 +1,10 @@
+---
+description: Rules for the composition roots (provider-aware wiring)
+globs: apps/api/src/main/**
+alwaysApply: false
+---
+
+- `main/` is the only provider-aware layer: Render, Neon, Grafana Cloud/OTLP, R2. `local.ts` and `render.ts` compose the
+  same app with different adapters/config. Nothing imports `main/`.
+- Config comes from validated env (Zod); secrets only from the platform. Fail fast on missing config.
+- Single instance, in-process worker (outbox relay, timers) — no Redis (ADR 006).

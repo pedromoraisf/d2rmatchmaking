@@ -1,0 +1,15 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "stream",
+  "tasks": {
+    "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
+    "dev": { "cache": false, "persistent": true },
+    "lint": { "dependsOn": ["^build"] },
+    "typecheck": { "dependsOn": ["^build"] },
+    "test": { "dependsOn": ["^build"], "outputs": ["coverage/**"] },
+    "test:integration": { "dependsOn": ["^build"], "cache": false },
+    "test:e2e": { "dependsOn": ["build"], "cache": false },
+    "test:mutation": { "dependsOn": ["^build"], "outputs": ["reports/mutation/**"] },
+    "contracts:openapi": { "dependsOn": ["^build"], "outputs": ["openapi.json", "asyncapi.json"] }
+  }
+}

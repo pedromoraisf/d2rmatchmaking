@@ -1,0 +1,10 @@
+---
+description: Rules for shared contracts (Zod schemas, JSON Schema, OpenAPI/AsyncAPI generation)
+globs: packages/contracts/**
+alwaysApply: false
+---
+
+- Zod 4 is the single source (ADR 009). JSON Schema is generated for the Rust agent (typify); OpenAPI 3.1 and AsyncAPI
+  are generated and committed. CI fails on drift.
+- Breaking change → bump the contract version and keep the old shape until agents below minimum get 426.
+- This package imports nothing from apps or other internal packages.

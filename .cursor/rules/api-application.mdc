@@ -1,0 +1,11 @@
+---
+description: Rules for API application layer (use cases, ports, event handlers)
+globs: apps/api/src/modules/*/application/**
+alwaysApply: false
+---
+
+- One use case per file; input/output types from `packages/contracts` or local DTOs.
+- Talk to the world only through ports declared here (`ports.ts`); implementations live in `adapters/`.
+- Other modules: through their public `index.ts` or domain events (outbox, ADR 008). Never their internals.
+- Transactions: the use case defines the unit of work; events are written to the outbox in the same transaction.
+- Tests use in-memory fakes of ports. Mutation floor 70%.

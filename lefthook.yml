@@ -1,0 +1,48 @@
+# Local sensors (ADR 019). Installed by `pnpm install` (prepare script).
+# Never bypass with --no-verify: the Claude Code gate hook blocks it, and CI runs the same checks.
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      glob: '*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml,css}'
+      run: pnpm exec prettier --check {staged_files}
+    lint:
+      glob: '*.{ts,tsx,js,mjs,cjs}'
+      run: pnpm exec eslint --max-warnings 0 --no-warn-ignored {staged_files}
+    arch:
+      glob: '{apps,packages}/**/*.{ts,tsx}'
+      run: pnpm exec depcruise --config .dependency-cruiser.cjs {staged_files}
+    unit-related:
+      glob: '{apps,packages}/**/*.{ts,tsx}'
+      run: pnpm exec vitest related --run --passWithNoTests {staged_files}
+    rust-fmt:
+      glob: 'apps/agent/src-tauri/**/*.rs'
+      run: cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check
+    secrets:
+      run: gitleaks git --staged --no-banner --redact --config .gitleaks.toml || (echo "gitleaks not installed or secret found" && exit 1)
+    harness-tests:
+      glob: '{scripts,.claude/hooks}/**/*.mjs'
+      run: pnpm run test:harness
+    specs:
+      glob: '.specs/**/*.md'
+      run: node scripts/specs-check.mjs
+
+commit-msg:
+  commands:
+    conventional:
+      run: python3 .claude/skills/tlc-spec-driven/scripts/check_commit.py {1}
+
+pre-push:
+  parallel: true
+  commands:
+    typecheck:
+      run: pnpm exec turbo run typecheck --affected
+    test:
+      run: pnpm exec turbo run test --affected
+    rust:
+      glob: 'apps/agent/src-tauri/**/*.rs'
+      run: cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings
+    harness:
+      run: pnpm run harness:gate
+    ratchet:
+      run: pnpm run quality:ratchet

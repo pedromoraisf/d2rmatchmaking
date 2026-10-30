@@ -1,0 +1,10 @@
+---
+description: Rules for the React web app (Cloudflare Pages)
+globs: apps/web/**
+alwaysApply: false
+---
+
+- React 19 + Vite + TanStack Router/Query. `features/<context>/` per bounded context, `shared/` for UI kit, `app/` composes.
+- No hard-coded user-facing strings: English source + pt-BR via i18n files (NFR-12). Keyboard navigable, AA contrast (NFR-13).
+- API calls go to same-origin `/api/*` (Pages Function proxy, ADR 012); SSE via `EventSource` with cookie auth.
+- No Blizzard assets; show the non-affiliation notice. Browser OpenTelemetry via `packages/telemetry`.

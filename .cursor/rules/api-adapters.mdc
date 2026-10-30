@@ -1,0 +1,11 @@
+---
+description: Rules for API adapters (HTTP routes, SSE, Kysely repositories, external clients)
+globs: apps/api/src/modules/*/adapters/**
+alwaysApply: false
+---
+
+- HTTP: Fastify routes with the Zod type provider; schemas from `packages/contracts`. After any route/schema change run
+  `pnpm contracts:openapi` and commit `openapi.json` (ADR 020).
+- Persistence: Kysely, one schema per module, migrations are append-only. No write per heartbeat (Neon budget).
+- SSE: `GET /v1/stream`, `Last-Event-ID`, 25 s keep-alive, minimal payloads (egress budget).
+- Every adapter has an integration test (Testcontainers Postgres) and emits OpenTelemetry spans.

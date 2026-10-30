@@ -1,0 +1,12 @@
+D2R Match Making
+Copyright (c) 2026 Pedro Morais and contributors. Licensed under the MIT License (see LICENSE).
+
+Diablo II: Resurrected is a trademark of Blizzard Entertainment, Inc. This is a community project,
+not affiliated with or endorsed by Blizzard Entertainment.
+
+Third-party material included in this repository:
+
+- .claude/skills/tlc-spec-driven/ — "Tech Lead's Club - Spec-Driven Development" skill v4.0.0
+  by Felipe Rodrigues (github.com/felipfr) / Tech Leads Club,
+  https://github.com/tech-leads-club/agent-skills — licensed under CC-BY-4.0
+  (https://creativecommons.org/licenses/by/4.0/). Included unmodified; see VENDORED.md in that folder.

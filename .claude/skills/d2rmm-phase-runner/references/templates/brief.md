@@ -1,0 +1,43 @@
+# Phase F<n> — <name>
+
+**Goal**: <one sentence>
+**Roadmap**: .specs/phases/ROADMAP.md#f<n>
+
+## Exit criteria
+
+- [ ] <observable, provable criterion> — proof: <command / workflow / link>
+
+## Features
+
+| Feature | Size | Depends on | Parallel | Covers | Budget |
+| --- | --- | --- | --- | --- | --- |
+| <feature-slug> | Large | — | yes | FR-xx, NFR-xx, ADR nnn | default |
+
+## Scope notes
+
+- In: <…>
+- Out: <…>
+
+## Open questions (answer before approving)
+
+1. <question> — options: <a> / <b>. Recommendation: <a>, because <…>.
+
+## Delegation
+
+Tick what you delegate. Unticked items are asked during the run.
+
+- [ ] specs-and-tasks: approve each feature's spec.md and tasks.md once they pass the automatic gates
+- [ ] sub-agents: dispatch feature workers (worktrees), the Verifier and the reviewer subagents
+- [ ] harness-edits: edit sensor/harness configuration to tighten or extend it (hooks and settings.json still ask)
+- [ ] local-merge-phase-branch: merge green feature branches into phase/F<n> locally (never push)
+
+## Approval
+
+<!-- The maintainer writes or dictates this line. The agent never fills it in on its own. Example:
+**Approved**: 2026-11-02 - user: "aprovo specs e tasks da F<n> que passarem nos gates automáticos"
+-->
+
+## Runner state
+
+| Feature | Step | Status | Last commit | Notes |
+| --- | --- | --- | --- | --- |

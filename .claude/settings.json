@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install)",
+      "Bash(pnpm install --frozen-lockfile)",
+      "Bash(pnpm run:*)",
+      "Bash(pnpm exec:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm typecheck:*)",
+      "Bash(pnpm check)",
+      "Bash(pnpm arch)",
+      "Bash(pnpm harness:*)",
+      "Bash(pnpm quality:*)",
+      "Bash(pnpm specs:check)",
+      "Bash(pnpm contracts:*)",
+      "Bash(node --test:*)",
+      "Bash(node scripts/:*)",
+      "Bash(python3 .claude/skills/tlc-spec-driven/scripts/:*)",
+      "Bash(cargo check:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(cargo nextest:*)",
+      "Bash(cargo test:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git switch:*)",
+      "Bash(git checkout -b:*)",
+      "Bash(git branch:*)",
+      "Bash(git worktree:*)",
+      "Bash(git stash:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git ls-files:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)"
+    ],
+    "ask": ["Bash(git push:*)", "Bash(gh pr merge:*)", "Bash(gh secret:*)", "Bash(gh release:*)"]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Read|Grep",
+        "hooks": [{ "type": "command", "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/gate.mjs", "timeout": 15 }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [{ "type": "command", "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/feedback.mjs", "timeout": 240 }]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [{ "type": "command", "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/stop.mjs", "timeout": 600 }]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [{ "type": "command", "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/stop.mjs", "timeout": 600 }]
+      }
+    ]
+  }
+}
