@@ -1,8 +1,8 @@
 # harness-foundation proofs
 
-**HEAD**: 0990c5e
+**HEAD**: 9ca3d4a
 **Tree**: clean
-**Result**: 23 pass, 0 fail; mutations 6 killed, 0 not
+**Result**: 23 pass, 0 fail; mutations 9 killed, 0 not
 
 | Check | Proof                                                                                                            | Ran           | Passed | Result        |
 | ----- | ---------------------------------------------------------------------------------------------------------------- | ------------- | ------ | ------------- |
@@ -40,3 +40,6 @@
 | Stryker mutate list no longer excludes test files                | `apps/api/scripts/mutation-plan.ts:38`          | yes    |
 | last Stryker exit code wins instead of first non-zero            | `apps/api/scripts/mutation.ts:39`               | yes    |
 | default id prefix changed                                        | `apps/api/src/shared-kernel/id-generator.ts:11` | yes    |
+| count reporter no longer fails on zero passed tests              | `scripts/lib/count-reporter.mjs:39`             | yes    |
+| count reporter ignores failures                                  | `scripts/lib/count-reporter.mjs:39`             | yes    |
+| stryker.config.mjs stops spreading the layer config              | `apps/api/stryker.config.mjs:20`                | yes    |
