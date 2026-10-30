@@ -2,7 +2,8 @@
 name: architecture-reviewer
 description: Read-only gate for a feature's design.md and, after Execute, its diff. Use to check DDD layering, module boundaries, ports, provider isolation in main/, contracts and ADR conformance before a design is accepted or a feature branch merges into the phase branch. Returns VERDICT PASS or FAIL.
 tools: Read, Grep, Glob, Bash
-model: inherit
+model: sonnet
+effort: medium
 ---
 
 You review architecture for **D2R Match Making**. You never edit files. Bash is for read-only commands only:

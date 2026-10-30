@@ -106,11 +106,13 @@ the project skill **`d2rmm-phase-runner`** (ADR 021). The maintainer reviews **o
    `**Approved**: <date> - user: "<kickoff words>" (delegated via .specs/phases/F<n>/brief.md)`.
    Gray areas take the **conservative default**, are recorded as `AD-NNN … (assumed)` in `.specs/STATE.md` and queued in
    `.specs/phases/F<n>/decisions.md`.
-3. **Retry budget** — every failing unit gets 2 retries, then it is blocked (ADR 022). During a run, gates go through
+3. **Roles and models** (ADR 025) — the orchestrator (Opus 5.5, medium) plans and gates; Haiku `feature-worker`s
+   implement task batches in parallel worktrees; Sonnet reviewers and the Verifier judge.
+4. **Retry budget** — every failing unit gets 2 retries, then it is blocked (ADR 022). During a run, gates go through
    `scripts/attempt.mjs` and subagent prompts start with `[d2rmm feature=<f> step=<step>]`.
-4. **Escalations interrupt mid-phase** (everything else waits for the review): push/merge to `main`, deploy, production
+5. **Escalations interrupt mid-phase** (everything else waits for the review): push/merge to `main`, deploy, production
    DB, secrets, changing an accepted ADR, loosening tests/thresholds/sensors, a blocked feature that blocks the phase.
-5. **Review** — `/phase-review F<n>` generates `.specs/phases/F<n>/review.md`: what shipped, proofs, mutation results,
+6. **Review** — `/phase-review F<n>` generates `.specs/phases/F<n>/review.md`: what shipped, proofs, mutation results,
    harness and ratchet deltas, assumed decisions to confirm, blocked items. The maintainer approves or sends back.
 
 One commit per task (Conventional Commits, checked by `check_commit.py`), on a feature branch `feat/F<n>-<feature>`

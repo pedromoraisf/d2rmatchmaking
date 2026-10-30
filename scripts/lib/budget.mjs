@@ -22,12 +22,11 @@ export const UNIT_KINDS = /** @type {const} */ ([
 export const FIXED_STEPS = ['spec', 'design', 'tasks', 'proofs', 'verification', 'integration'];
 
 /**
- * Step names a subagent dispatch may use. Closed list, so a re-dispatch cannot dodge the budget by renaming
- * the step ("execute-batch-1b"). The subagent type is NOT part of the key: switching agent types for the
- * same step shares the same budget.
+ * Step names a subagent dispatch may use: a closed list, so a re-dispatch cannot dodge the budget by renaming the
+ * step. The subagent type is NOT part of the key. The list and the step → subagent mapping live in model-policy.mjs
+ * (ADR 025): planning steps are done by the orchestrator and are not dispatchable.
  */
-export const DISPATCH_STEPS =
-  /^(feature|spec|design|tasks|execute|execute-batch-[1-9]|verify|verify-r2|screens|review-spec|review-architecture|review-security|review-diff)$/;
+export { DISPATCH_STEP_RE as DISPATCH_STEPS } from './model-policy.mjs';
 
 export function emptyLedger() {
   return { version: 1, units: {} };

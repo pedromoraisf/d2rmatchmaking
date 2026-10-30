@@ -2,7 +2,7 @@
 
 ## Decisions
 
-AD-001…AD-024 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR is the full record). New project-level decisions continue at AD-025. Decisions the phase runner takes on its own carry `(assumed)` on the heading and are queued in `.specs/phases/<F>/decisions.md` until the phase review.
+AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR is the full record). New project-level decisions continue at AD-026. Decisions the phase runner takes on its own carry `(assumed)` on the heading and are queued in `.specs/phases/<F>/decisions.md` until the phase review.
 
 ### AD-001
 
@@ -216,6 +216,15 @@ AD-001…AD-024 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Decision**: Phase and feature state are derived by `scripts/phase-status.mjs` from .specs files, git commit trailers and the retry ledger; the roadmap assigns every requirement to one phase.
 - **Reason**: see [ADR 024](../docs/adr/024-deterministic-phase-state.md) — Deterministic phase state and idempotent resume
 - **Trade-off**: see ADR 024 § Consequences
+- **Scope**: project
+- **Date**: 2026-10-30
+- **Status**: active
+
+### AD-025
+
+- **Decision**: The orchestrator (Opus 5.5, medium) plans and gates; Haiku `feature-worker`s implement task batches in parallel; Sonnet reviewers and Verifier judge — enforced by the gate through `scripts/lib/model-policy.mjs`.
+- **Reason**: see [ADR 025](../docs/adr/025-agent-roles-and-models.md) — Agent roles and models
+- **Trade-off**: see ADR 025 § Consequences
 - **Scope**: project
 - **Date**: 2026-10-30
 - **Status**: active

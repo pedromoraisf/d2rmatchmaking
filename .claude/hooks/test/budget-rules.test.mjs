@@ -125,8 +125,8 @@ test('subagent dispatch: header required, then 1 + 2 retries per (feature, step,
     assert.equal(r?.decision ?? null, null, `dispatch ${i} allowed`);
     apply(ledger, r);
   }
-  const fourth = call('Agent', { ...input, subagent_type: 'general-purpose' }, ctx);
-  assert.equal(fourth.decision, 'deny', 'switching the subagent type does not reset the budget');
+  const fourth = call('Agent', input, ctx);
+  assert.equal(fourth.decision, 'deny', 'the fourth dispatch of the same step is refused');
   assert.match(fourth.reason, /BLOCKED/);
   const renamed = { ...input, prompt: '[d2rmm feature=api-web-skeleton step=execute-batch-1b] go' };
   assert.equal(call('Agent', renamed, ctx).decision, 'deny', 'renaming the step does not reset the budget');
@@ -235,5 +235,113 @@ test('the retry budget code and its tests protect themselves even under harness-
     checkEdit('lefthook.yml', { content: 'x' }, ctx)?.decision ?? null,
     null,
     'delegated harness file still editable',
+  );
+});
+
+test('model policy: each dispatch step has a fixed subagent; no model or effort overrides; planning is not dispatchable', () => {
+  const ledger = emptyLedger();
+  const ctx = ctxFor({ ledger, branch: 'phase/F0' });
+  const go = (input) => call('Agent', input, ctx)?.decision ?? null;
+  const hdr = (step) => `[d2rmm feature=api-web-skeleton step=${step}] go`;
+  assert.equal(go({ subagent_type: 'feature-worker', prompt: hdr('execute-batch-1') }), null);
+  assert.equal(
+    go({ subagent_type: 'general-purpose', prompt: hdr('execute-batch-2') }),
+    'deny',
+    'implementation only on feature-worker',
+  );
+  assert.equal(
+    go({ subagent_type: 'feature-worker', model: 'opus', prompt: hdr('execute-batch-3') }),
+    'deny',
+    'no model override',
+  );
+  assert.equal(
+    go({ subagent_type: 'feature-worker', effort: 'high', prompt: hdr('execute-batch-4') }),
+    'deny',
+    'no effort override',
+  );
+  assert.equal(
+    go({ subagent_type: 'feature-worker', prompt: hdr('verify') }),
+    'deny',
+    'the implementer never verifies',
+  );
+  assert.equal(go({ subagent_type: 'verifier', prompt: hdr('verify') }), null);
+  assert.equal(go({ subagent_type: 'spec-reviewer', prompt: hdr('review-spec') }), null);
+  assert.equal(go({ subagent_type: 'security-reviewer', prompt: hdr('review-diff') }), null);
+  for (const planning of ['spec', 'design', 'tasks', 'feature', 'execute']) {
+    assert.equal(
+      go({ subagent_type: 'feature-worker', prompt: hdr(planning) }),
+      'deny',
+      `${planning} is the orchestrator's`,
+    );
+  }
+  assert.equal(
+    go({ subagent_type: 'Explore', prompt: 'find the outbox code' }),
+    null,
+    'read-only helper needs no header',
+  );
+  assert.equal(go({ subagent_type: 'Explore', model: 'opus', prompt: 'x' }), 'deny');
+});
+
+test('agent frontmatter matches the model policy, and the orchestrator is pinned', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { SUBAGENTS, ORCHESTRATOR, frontmatter } = await import('../../../scripts/lib/model-policy.mjs');
+  const root = new URL('../../../', import.meta.url);
+  for (const [type, pin] of Object.entries(SUBAGENTS)) {
+    const fm = frontmatter(readFileSync(new URL(`.claude/agents/${type}.md`, root), 'utf8'));
+    assert.equal(fm.model, pin.model, `${type} model`);
+    assert.equal(fm.effort, pin.effort, `${type} effort`);
+  }
+  const settings = JSON.parse(readFileSync(new URL('.claude/settings.json', root), 'utf8'));
+  assert.equal(settings.model, ORCHESTRATOR.model);
+  assert.equal(settings.effortLevel, ORCHESTRATOR.effort);
+});
+
+test('worktrees are judged as their feature branch, and protected files stay protected inside them', () => {
+  const ledger = emptyLedger();
+  for (let i = 0; i < MAX_ATTEMPTS; i += 1)
+    recordAttempt(ledger, unitKey('gate', 'agent-skeleton', 'T3'), false);
+  const ctx = ctxFor({ ledger, branch: 'phase/F0' });
+  assert.equal(
+    call('Bash', { command: 'cd .claude/worktrees/agent-skeleton && git commit -m x' }, ctx).decision,
+    'deny',
+  );
+  assert.equal(
+    call('Bash', { command: 'git -C .claude/worktrees/agent-skeleton commit -m x' }, ctx).decision,
+    'deny',
+  );
+  assert.equal(
+    call(
+      'Edit',
+      {
+        file_path: '/repo/.claude/worktrees/agent-skeleton/apps/agent/x.rs',
+        old_string: 'a',
+        new_string: 'b',
+      },
+      ctx,
+    ).decision,
+    'deny',
+    'blocked feature: no code edits in its worktree',
+  );
+  const clean = ctxFor({ branch: 'phase/F0' });
+  assert.equal(
+    call(
+      'Write',
+      { file_path: '/repo/.claude/worktrees/api-web-skeleton/.claude/hooks/gate.mjs', content: 'x' },
+      clean,
+    ).decision,
+    'ask',
+  );
+  assert.equal(
+    call('Write', { file_path: '/repo/.claude/worktrees/api-web-skeleton/.env', content: 'x' }, clean)
+      .decision,
+    'deny',
+  );
+  assert.equal(
+    call(
+      'Write',
+      { file_path: '/repo/.claude/worktrees/api-web-skeleton/.specs/phases/F0/attempts.json', content: '{}' },
+      clean,
+    ).decision,
+    'deny',
   );
 });

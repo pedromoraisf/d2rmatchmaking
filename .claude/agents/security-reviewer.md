@@ -2,7 +2,8 @@
 name: security-reviewer
 description: Read-only security gate for features touching auth/session, Battle.net OAuth, the desktop agent, agent tokens and pairing, secrets, dispute print uploads, cookies/CORS/the Pages proxy, or any unauthenticated endpoint. Use on design.md and again on the diff before merge. Returns VERDICT PASS or FAIL.
 tools: Read, Grep, Glob, Bash
-model: inherit
+model: sonnet
+effort: medium
 ---
 
 You review security for **D2R Match Making**, an open-source project whose desktop agent players install. You never

@@ -16,12 +16,14 @@ import {
   DISPATCH_STEPS,
 } from '../../../scripts/lib/budget.mjs';
 import { activePhase } from './delegation.mjs';
+import { checkDispatchPolicy, READ_ONLY_HELPERS } from '../../../scripts/lib/model-policy.mjs';
 
 const deny = (reason, effects = []) => ({ decision: 'deny', reason, effects });
 const allow = (effects = []) => ({ decision: null, effects });
 
 const FEATURE_BRANCH = /^feat\/(F\d+)-(.+)$/;
 const PHASE_BRANCH = /^phase\/(F\d+)$/;
+const WORKTREE = /(?:^|[\s"'=/])\.claude\/worktrees\/([a-z0-9][a-z0-9-]*)(?:\/|\s|"|'|$)/;
 const LEDGER_REF = /\.git\/d2rmm|d2rmm\/ledger|D2RMM_LEDGER/;
 const WRAPPER = /(^|\s)(node\s+)?(\.\/)?scripts\/attempt\.mjs\s+run\s/;
 const WRAPPER_ANY = /scripts\/attempt\.mjs\s+(\w+)/;
@@ -92,10 +94,20 @@ export function checkBudget(input, ctx, sid, rel) {
 
   const phase = activePhase(ctx);
   const running = Boolean(phase?.approved);
-  const where = branchInfo(ctx);
+  // Hooks run in the main checkout, but implementers work in .claude/worktrees/<feature>: a command or edit that
+  // targets a worktree is judged as work on that feature's branch.
+  const worktree = WORKTREE.exec(tool === 'Bash' ? cmd : rel)?.[1] ?? null;
+  const where = worktree
+    ? { kind: 'feature', feature: worktree, dir: `.claude/worktrees/${worktree}` }
+    : branchInfo(ctx);
 
   // 3. Subagent dispatches: each (feature, step, type) gets 1 + MAX_RETRIES dispatches.
   if (DISPATCH_TOOLS.has(tool) && running) {
+    if (READ_ONLY_HELPERS.includes(ti.subagent_type)) {
+      return ti.model === undefined
+        ? null
+        : deny('Read-only helpers run on their default model; do not override it.');
+    }
     const m = DISPATCH_HEADER.exec(String(ti.prompt ?? ''));
     if (!m) {
       return deny(
@@ -109,6 +121,8 @@ export function checkBudget(input, ctx, sid, rel) {
         `Unknown dispatch step "${step}". Allowed: ${DISPATCH_STEPS.source.replace(/^\^\(|\)\$$/g, '').replace(/\|/g, ', ')}.`,
       );
     }
+    const policy = checkDispatchPolicy(step, ti);
+    if (policy) return deny(policy);
     const brief = ctx.readFile(phase.briefPath) ?? '';
     if (!new RegExp(`(^|[^a-z0-9-])${feature}([^a-z0-9-]|$)`, 'm').test(brief)) {
       return deny(`Feature "${feature}" is not listed in ${phase.briefPath}.`);
@@ -145,17 +159,21 @@ export function checkBudget(input, ctx, sid, rel) {
 
   // 5. A blocked feature takes no more code changes and no commits.
   if (where.kind === 'feature' && featureBlocked(ledger, where.feature)) {
-    if (EDIT_TOOLS.has(tool) && !rel.startsWith('.specs/')) {
+    if (EDIT_TOOLS.has(tool) && !/^(\.claude\/worktrees\/[^/]+\/)?\.specs\//.test(rel)) {
       return deny(
         `Feature ${where.feature} is blocked (retry budget). Record the blocker in .specs/ and return.`,
       );
     }
   }
-  if (tool === 'Bash' && where.kind === 'feature' && segments(cmd).some((s) => /\bgit\s+commit\b/.test(s))) {
+  if (
+    tool === 'Bash' &&
+    where.kind === 'feature' &&
+    segments(cmd).some((s) => /\bgit\b(?:\s+-[Cc]\s+\S+)*\s+commit\b/.test(s))
+  ) {
     if (featureBlocked(ledger, where.feature))
       return deny(`Feature ${where.feature} is blocked (retry budget): no commits.`);
     const last = lastGateAttempt(ledger, where.feature);
-    const head = ctx.headTime?.() ?? null;
+    const head = ctx.headTime?.(where.dir) ?? null;
     if (!last || !last.ok || (head !== null && Date.parse(last.at) / 1000 < head)) {
       return deny(
         'Commit refused: the latest gate of this feature since the last commit has not passed through ' +

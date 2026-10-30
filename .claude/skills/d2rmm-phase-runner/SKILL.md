@@ -16,6 +16,25 @@ with delegation      + automatic gates     maintainer accepts / sends back
                      escalations interrupt
 ```
 
+## Roles and models (ADR 025)
+
+| Role         | Who                                                                       | Model / effort                                                       | Does                                                                                                         | Never                                        |
+| ------------ | ------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| Orchestrator | the main Claude Code session running this skill                           | Opus 5.5, medium (pinned in `.claude/settings.json`; Sonnet allowed) | reads `phase-status`, writes and gates **Specify, Design, Tasks**, dispatches, integrates, writes the review | writes feature code or tests itself          |
+| Implementer  | `feature-worker` subagents, **N in parallel** (one per runnable feature)  | Haiku, medium (frontmatter)                                          | executes one task batch (`execute-batch-N`) in the feature's worktree                                        | plans, edits specs/tasks content, dispatches |
+| Judges       | `spec-reviewer`, `architecture-reviewer`, `security-reviewer`, `verifier` | Sonnet, medium (frontmatter)                                         | independent review and verification (author ≠ verifier, and a different model from the implementer)          | edit code                                    |
+
+Rules (enforced by the gate hook through `scripts/lib/model-policy.mjs`):
+
+- Execution is **always** delegated, whatever the feature's size — this overrides TLC's "≤ ~8 tasks: execute inline".
+  Batches follow TLC's packing (~7 tasks, whole phases, `references/sub-agents.md`) and are numbered
+  `execute-batch-1..9`.
+- Each dispatch step has a fixed subagent type; planning steps are not dispatchable. Never pass a `model` or
+  `effort` override on a dispatch: the pins are the maintainer's decision.
+- Read-only search helpers (`Explore`) may be used by the orchestrator without a header.
+- When an implementer reports a task as wrong or impossible, the orchestrator replans (edits `tasks.md`, which needs
+  the tasks gate again) — implementers never change the plan.
+
 ## Retry budget — 1 attempt + 2 retries, no exceptions
 
 Every unit of work (gate, subagent dispatch, red stop, repeated sensor failure, repeated denial) gets its first
@@ -102,9 +121,10 @@ until no feature is runnable. `phaseBlocked: true` is an escalation.
 ### 1. Branch / worktree
 
 `phase/<F>` from `main` (once). Each feature: `git worktree add .claude/worktrees/<feature> -b feat/<F>-<feature> phase/<F>`.
-Parallel features each get a `feature-worker` subagent in their own worktree (prompt header
-`[d2rmm feature=<feature> step=feature]`); a feature that depends on another waits
-for it to merge into `phase/<F>`.
+The orchestrator writes Specify, Design and Tasks for each runnable feature (steps 2–4 below). For Execute it dispatches
+one `feature-worker` (Haiku) per batch into that feature's worktree, with the prompt header
+`[d2rmm feature=<feature> step=execute-batch-<n>]`; runnable features run their workers in parallel, each in its own
+worktree. A feature that depends on another waits for it to merge into `phase/<F>`.
 
 ### 2. Specify (TLC `references/specify.md`)
 
@@ -135,9 +155,11 @@ TLC `references/tasks.md`. **Tasks gate:** `validate_tasks.py <feature>` exits 0
 proof command, `**Mutations**:` ≥ 3 (all run as step `tasks` through `attempt.mjs`). Write the delegated approval in
 `tasks.md`, then `validate_tasks.py <feature> --execute` must exit 0 (same step).
 
-### 5. Execute
+### 5. Execute (delegated to Haiku workers)
 
-TLC `references/implement.md`, one atomic commit per task (`check_commit.py`). Each task's gate runs as
+Pack the tasks into batches (TLC `references/sub-agents.md`), then dispatch `feature-worker` for batch 1, wait for its
+summary, then batch 2, and so on (batches of one feature are sequential; different features run in parallel). Each
+worker follows TLC `references/implement.md`, one atomic commit per task (`check_commit.py`). Each task's gate runs as
 `attempt.mjs run --step T<n>`; the commit is refused until that gate passed. Hooks give feedback on every edit and
 block the stop while sensors are red — each within the retry budget. On exhaustion (exit 3, or a hook saying the
 session is exhausted) mark the task and the feature **blocked** in `tasks.md ## Handoff`, add it to
@@ -146,8 +168,8 @@ remaining feature of the phase is an escalation.
 
 ### 6. Verify (fresh agent, always)
 
-`check_proofs.py <feature>` (step `proofs`) → dispatch the `verifier` subagent (step `verify`; author ≠ verifier) with
-TLC `references/validate.md` → fix findings in one pass → `check_proofs.py --mutations` (step `proofs`) and, if TLC's
+`check_proofs.py <feature>` (step `proofs`) → dispatch the `verifier` subagent (Sonnet; step `verify`; author ≠ verifier) with
+TLC `references/validate.md` → fix findings in one pass (dispatched as the next `execute-batch-<n>` with the findings as its tasks) → `check_proofs.py --mutations` (step `proofs`) and, if TLC's
 round 2 applies, step `verify-r2` → `validate_verification.py <feature>` (step `verification`) exits 0.
 
 ### 7. Integrate
