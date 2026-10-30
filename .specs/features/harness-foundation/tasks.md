@@ -398,9 +398,9 @@ T16 → T17
 
 **Done when**:
 
-- [ ] `arch.violations`, `lint.warnings`, `tests.skipped`, `mutation.api.domain` are non-null; `mutation.api.application` stays `null` (zero mutants, HF-07 AC 1)
-- [ ] No `floor` raised or `ceiling` lowered by hand; `ci.duration_seconds` and `load.*` stay `null`
-- [ ] Gate check passes: `pnpm harness:gate && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test`
+- [x] `arch.violations`, `lint.warnings`, `tests.skipped`, `mutation.api.domain` are non-null; `mutation.api.application` stays `null` (zero mutants, HF-07 AC 1)
+- [x] No `floor` raised or `ceiling` lowered by hand; `ci.duration_seconds` and `load.*` stay `null`
+- [x] Gate check passes: `pnpm harness:gate && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test`
 
 **Tests**: e2e
 **Gate**: full
