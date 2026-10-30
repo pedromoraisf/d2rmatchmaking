@@ -31,6 +31,8 @@ commit-msg:
   commands:
     conventional:
       run: python3 .claude/skills/tlc-spec-driven/scripts/check_commit.py {1}
+    progress-trailers:
+      run: node scripts/commit-trailers.mjs {1}
 
 pre-push:
   parallel: true

@@ -18,6 +18,7 @@ test('harness-score report fields', () => {
   assert.equal(harnessField(r, 'level'), 4);
   assert.equal(harnessField(r, 'percent'), 91);
   assert.equal(harnessField(r, 'failed'), 1);
+  assert.equal(harnessField(null, 'failed'), undefined, 'a missing report is not a measurement');
 });
 
 test('json pointer and eslint counts', () => {

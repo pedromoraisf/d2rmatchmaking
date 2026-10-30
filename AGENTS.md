@@ -53,6 +53,7 @@ Bounded contexts: **Identity** (Account, Character) · **Agents** (pairing, pres
 | Quality ratchet | `pnpm quality:collect && pnpm quality:ratchet --context pr` |
 | Phase-delegation checks on `.specs/` | `pnpm specs:check` |
 | Run a gate within the retry budget (phase runs) | `node scripts/attempt.mjs run --feature <f> --step <T#> -- "<cmd>"` |
+| Where is the phase? (derived from evidence) | `pnpm phase:status` · `--json` · `--write` |
 | Retry-budget status / report | `node scripts/attempt.mjs status [--feature <f>]` · `node scripts/attempt.mjs report` |
 | Rust agent | `cargo nextest run` / `cargo clippy --all-targets -- -D warnings` in `apps/agent/src-tauri` |
 
@@ -110,7 +111,10 @@ the project skill **`d2rmm-phase-runner`** (ADR 021). The maintainer reviews **o
 5. **Review** — `/phase-review F<n>` generates `.specs/phases/F<n>/review.md`: what shipped, proofs, mutation results,
    harness and ratchet deltas, assumed decisions to confirm, blocked items. The maintainer approves or sends back.
 
-One commit per task (Conventional Commits, checked by `check_commit.py`), on a feature branch off `phase/F<n>`.
+One commit per task (Conventional Commits, checked by `check_commit.py`), on a feature branch `feat/F<n>-<feature>`
+off `phase/F<n>`, with progress trailers `Feature: <feature>` + `Task: T<n>` (or `Step: …`). State is never
+remembered: `pnpm phase:status` derives it from files, trailers and the retry ledger (ADR 024), so any session
+resumes idempotently. `ROADMAP.md` assigns every PRD requirement to exactly one of the five phases.
 
 ## How to test
 

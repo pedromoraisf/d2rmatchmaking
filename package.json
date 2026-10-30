@@ -39,7 +39,8 @@
     "attempt": "node scripts/attempt.mjs",
     "attempt:report": "node scripts/attempt.mjs report",
     "test:acceptance": "turbo run test:acceptance",
-    "acceptance:check": "node scripts/acceptance-check.mjs"
+    "acceptance:check": "node scripts/acceptance-check.mjs",
+    "phase:status": "node scripts/phase-status.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

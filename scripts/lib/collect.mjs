@@ -40,6 +40,7 @@ export function cargoMutantsScore(outcomes) {
 }
 
 export function harnessField(report, field) {
+  if (!report) return undefined; // no report = not measured, never a fake 0
   const maturity = report?.maturity ?? report;
   if (field === 'level') return maturity?.level?.index;
   if (field === 'percent') return maturity?.score?.percent;

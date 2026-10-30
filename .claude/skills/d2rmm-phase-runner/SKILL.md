@@ -28,11 +28,30 @@ route; only the maintainer resets it. This is enforced by code (ADR 022), not by
 - Before each retry, change something real (root cause), never the test, the gate or the sensor.
 - When a unit blocks: record it, move on, never look for another route.
 
+## Idempotency contract (ADR 024)
+
+The runner never decides "where we are" from memory, chat or notes. It asks the evidence:
+
+1. **Start every step with `node scripts/phase-status.mjs --json`.** It derives the phase's next step and each
+   feature's next step from `.specs/` files, approval lines, git commit trailers and the retry ledger. Do exactly the
+   step it reports for each runnable feature — never one you remember.
+2. **Record progress only as evidence**: the artifact itself (spec, acceptance.feature, design, tasks, proofs,
+   verification) and a commit whose trailers say what it closes:
+   `Feature: <feature>` + `Task: T<n>`, or `Feature: <feature>` + `Step: spec|design|tasks|proofs|verification|integration|fix`.
+   The commit-msg hook rejects commits on feature branches without them.
+3. **Re-running is safe.** A step whose evidence exists is skipped by construction. Artifacts are regenerated, not
+   appended. An approved spec, tasks or brief is never rewritten — a change to it is a new approval.
+4. **`## Runner state` is generated** (`phase-status --write`), together with the committed retry-ledger snapshot
+   `.specs/phases/<F>/attempts.json`. Never edit either by hand.
+5. After a compaction or in a new session: re-read the files below, run `phase-status`, and continue. If evidence and
+   a note disagree, evidence wins; if two pieces of evidence disagree (e.g. an approval line without its gate run),
+   stop and escalate.
+
 ## Read first, every time (also after a compaction)
 
 1. This file to the end, then `.claude/skills/tlc-spec-driven/SKILL.md` to the end.
 2. `.specs/phases/ACTIVE`, the active `brief.md`, `decisions.md`, and `.specs/STATE.md` (Decisions + Handoff).
-3. `runner-state` in the brief (`## Runner state`) and `git log --oneline phase/<F>..` — evidence wins over notes.
+3. `node scripts/phase-status.mjs` — the only source of "what's next".
 
 ## The delegation contract
 
@@ -60,7 +79,12 @@ before the gates pass, is a fabricated approval.
 
 ## KICKOFF — `/phase-kickoff F<n>`
 
-1. Read the roadmap (`.specs/phases/ROADMAP.md`), PRD and Design Doc sections the phase touches, ADRs, lessons
+0. Preconditions: the previous phase reports `closed` in `phase-status F<n-1>` (review approved and `phase/F<n-1>`
+   merged into `main`). Then, on a new `phase/F<n>` branch from `main`, tighten the baseline with the merged numbers:
+   `pnpm quality:collect && pnpm quality:ratchet --context phase --update`. If `brief.md` already exists and is
+   approved, do not touch it — report and stop; if it is an unapproved draft, update it in place.
+1. Read the roadmap (its `## Requirement coverage` lists the requirements this phase must cover — every one must
+   appear in the brief's features "Covers"; `pnpm specs:check` enforces it once approved) (`.specs/phases/ROADMAP.md`), PRD and Design Doc sections the phase touches, ADRs, lessons
    (`python3 .claude/skills/tlc-spec-driven/scripts/lessons.py list --status confirmed`).
 2. Draft `.specs/phases/F<n>/brief.md` from `references/templates/brief.md`: goal, exit criteria, features with size
    (TLC auto-sizing), dependency order and which can run in parallel, FR/NFR covered, budgets, risks, open questions
@@ -70,8 +94,10 @@ before the gates pass, is a fabricated approval.
 
 ## RUN — `/phase-run F<n>`
 
-Refuse to start unless the brief is approved (`pnpm specs:check` passes and the brief has an approval line). Then,
-for features in dependency order (independent ones in parallel when `sub-agents` is delegated):
+Refuse to start unless `phase-status` reports `run` (brief approved) and `pnpm specs:check` passes. Then loop:
+`phase-status --json` → for every entry in `runnable`, do that feature's `step` (in parallel worktrees when
+`sub-agents` is delegated; a feature waits until its dependencies are integrated) → `phase-status --write` → repeat
+until no feature is runnable. `phaseBlocked: true` is an escalation.
 
 ### 1. Branch / worktree
 
@@ -136,8 +162,9 @@ the maintainer's go-ahead.
 
 TLC `references/lessons.md` after each feature's gate.
 
-Update `## Runner state` in the brief after every step (feature → phase → status → last commit), so a compacted or new
-session resumes from files, not memory.
+After each integration, run `node scripts/phase-status.mjs --write` on `phase/<F>` and commit the regenerated
+`## Runner state` and `attempts.json` (`chore(specs): runner state <F>`), so a compacted or new session — on any
+machine — resumes from the same evidence.
 
 ## Escalations — stop and ask (the gate hook enforces most as "ask")
 
@@ -148,14 +175,17 @@ phase. Everything else is decided, recorded and shown in the review.
 
 ## REVIEW — `/phase-review F<n>`
 
+Precondition: `phase-status` reports `review` (every feature done or blocked).
+
 1. On `phase/<F>`: `pnpm check`; `pnpm harness:json`; `pnpm quality:collect`;
    `pnpm quality:ratchet --context phase`; for each feature `validate_verification.py`; `node scripts/attempt.mjs report`.
 2. Generate `.specs/phases/F<n>/review.md` from `references/templates/review.md` with **real numbers** from those runs
    (never estimates): exit criteria ✓/✗ with proof links, features and commits, assumed decisions to confirm, blocked
    items with the retry-budget report (units, attempts, last error, resets), harness score and ratchet deltas, mutation scores, CI time, what changed in the harness, risks for the next
    phase, and the exact commands the maintainer runs to push and open the PR.
-3. Stop. The maintainer accepts (then: push `phase/<F>`, PR to `main`, `pnpm quality:ratchet --update` after merge)
-   or sends items back (they become a follow-up feature in the same phase).
+3. Stop. The maintainer accepts by writing the approval line in `review.md` (then pushes `phase/<F>` and merges the PR
+   to `main`; `phase-status` moves to `closed`) or sends items back (they become a follow-up feature row in the brief,
+   which needs the maintainer's approval like any brief change).
 
 ## Output
 

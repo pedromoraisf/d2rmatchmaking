@@ -165,3 +165,8 @@ test('acceptance scenarios: never focused, skipped, removed or in another langua
   assert.equal(d(checkEdit(rel, { content: `${before}\n  @ROOM-03\n  Scenario: g\n    When h\n    Then i\n` }, ctx)), 'allow');
   assert.equal(d(checkEdit('tests/acceptance/playwright.config.ts', { content: 'retries: 2' }, ctx)), 'ask');
 });
+
+test('the committed retry-ledger snapshot cannot be edited by agents', () => {
+  assert.equal(d(checkEdit('.specs/phases/F0/attempts.json', { content: '{}' }, fakeCtx())), 'deny');
+  assert.equal(d(checkEdit('scripts/lib/phase-state.mjs', { content: 'x' }, fakeCtx())), 'ask');
+});

@@ -13,7 +13,7 @@ let result;
 try {
   const ctx = makeRepoContext(root);
   const file = ledgerPath(root);
-  ctx.ledger = loadLedger(file);
+  ctx.ledger = loadLedger(file, root);
   result = decide(input, ctx, toRelative);
   if (result?.effects?.length) {
     withLedger(file, (ledger) => {

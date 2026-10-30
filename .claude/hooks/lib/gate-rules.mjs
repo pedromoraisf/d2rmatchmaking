@@ -39,6 +39,8 @@ const HARNESS_FILES = [
   /(^|\/)vitest\.config\.[cm]?[jt]s$/,
   /(^|\/)playwright\.config\.[cm]?[jt]s$/,
   /^scripts\/(acceptance-check\.mjs|lib\/(gherkin|acceptance)\.mjs)$/,
+  /^scripts\/(phase-status|commit-trailers)\.mjs$/,
+  /^scripts\/lib\/(phase-state|trailers|roadmap)\.mjs$/,
   /^scripts\/(quality-|specs-check)/,
   /^scripts\/lib\//,
 ];
@@ -171,6 +173,7 @@ function newApprovalLines(before, after) {
 export function checkEdit(rel, toolInput, ctx) {
   if (!rel || rel.startsWith('..')) return deny('Edits outside the repository are not allowed.');
   if (ENV_FILE.test(rel)) return deny('.env files hold secrets. Put placeholders in .env.example; real values live in GitHub/Render secrets.');
+  if (/^\.specs\/phases\/F\d+\/attempts\.json$/.test(rel)) return deny('attempts.json is the committed retry-ledger snapshot; only `phase-status --write` writes it (ADR 024).');
   if (VENDORED.test(rel)) return deny('tlc-spec-driven is vendored and unmodified (see VENDORED.md). Project behaviour goes in .claude/skills/d2rmm-phase-runner.');
   if (MIGRATION.test(rel) && ctx.isTracked(rel)) return deny('This migration is already committed. Add a new migration instead of editing an applied one.');
 

@@ -27,3 +27,4 @@ Format: Context · Decision · Alternatives · Consequences. Only the maintainer
 | [021](021-automated-phase-delivery.md) | Automated per-phase delivery | Accepted |
 | [022](022-retry-budget.md) | Retry budget: one attempt plus two retries, enforced by code | Accepted |
 | [023](023-bdd-acceptance.md) | BDD acceptance tests: Gherkin in the spec, executed by playwright-bdd | Accepted |
+| [024](024-deterministic-phase-state.md) | Deterministic phase state and idempotent resume | Accepted |

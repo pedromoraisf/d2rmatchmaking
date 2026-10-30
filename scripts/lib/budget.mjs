@@ -168,3 +168,27 @@ export function report(ledger) {
   });
   return ['| Unit | Status | Attempts | Failures | Last error |', '| --- | --- | --- | --- | --- |', ...rows].join('\n');
 }
+
+/**
+ * Merge two ledgers without ever loosening: for each unit keep the version with more failures; blocked wins.
+ * Used to combine the live ledger (.git/d2rmm) with the committed snapshot (.specs/phases/<F>/attempts.json),
+ * so a fresh clone or another machine never gets a fresh budget.
+ */
+export function mergeLedgers(a, b) {
+  const out = { version: 1, units: {}, resets: [...(a?.resets ?? []), ...(b?.resets ?? [])] };
+  const resetAt = new Map(out.resets.map((r) => [r.key, r.at]));
+  for (const src of [a, b]) {
+    for (const [k, u] of Object.entries(src?.units ?? {})) {
+      // A maintainer reset newer than every attempt in a snapshot drops that stale copy.
+      const last = u.attempts?.at(-1)?.at ?? '';
+      if (resetAt.has(k) && resetAt.get(k) > last) continue;
+      const cur = out.units[k];
+      const fails = (x) => x.attempts.filter((t) => !t.ok).length;
+      if (!cur || u.status === 'blocked' && cur.status !== 'blocked' || (cur.status !== 'blocked' && fails(u) > fails(cur)) ||
+        (fails(u) === fails(cur) && u.attempts.length > cur.attempts.length)) {
+        out.units[k] = structuredClone(u);
+      }
+    }
+  }
+  return out;
+}

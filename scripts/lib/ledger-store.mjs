@@ -8,7 +8,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { emptyLedger } from './budget.mjs';
+import { emptyLedger, mergeLedgers } from './budget.mjs';
 
 export function ledgerPath(cwd) {
   if (process.env.D2RMM_LEDGER) return process.env.D2RMM_LEDGER; // tests only
@@ -21,7 +21,15 @@ export function ledgerPath(cwd) {
   return path.join(path.resolve(cwd, common), 'd2rmm', 'ledger.json');
 }
 
-export function loadLedger(file) {
+/** Committed snapshot of the active phase (written by `pnpm phase:status --write`), relative to a checkout. */
+export function snapshotPath(cwd) {
+  const active = existsSync(path.join(cwd, '.specs/phases/ACTIVE'))
+    ? readFileSync(path.join(cwd, '.specs/phases/ACTIVE'), 'utf8').trim()
+    : '';
+  return /^F\d+$/.test(active) ? path.join(cwd, '.specs/phases', active, 'attempts.json') : null;
+}
+
+function readJsonLedger(file) {
   if (!file || !existsSync(file)) return emptyLedger();
   try {
     const parsed = JSON.parse(readFileSync(file, 'utf8'));
@@ -31,6 +39,13 @@ export function loadLedger(file) {
     // block everything until the maintainer looks at it.
     return { version: 1, units: { 'gate:ledger/corrupt': { status: 'blocked', attempts: [{ at: new Date().toISOString(), ok: false, note: `corrupt ledger at ${file}` }] } } };
   }
+}
+
+/** Live ledger merged with the committed snapshot of the active phase (never looser than either). */
+export function loadLedger(file, cwd = process.cwd()) {
+  const live = readJsonLedger(file);
+  const snap = snapshotPath(cwd);
+  return snap && existsSync(snap) ? mergeLedgers(live, readJsonLedger(snap)) : live;
 }
 
 function acquire(lockDir, timeoutMs = 5000) {
@@ -59,7 +74,7 @@ export function withLedger(file, fn) {
   const lock = `${file}.lock`;
   acquire(lock);
   try {
-    const ledger = loadLedger(file);
+    const ledger = loadLedger(file, path.resolve(path.dirname(file), '..', '..'));
     const result = fn(ledger);
     const tmp = `${file}.${process.pid}.tmp`;
     writeFileSync(tmp, `${JSON.stringify(ledger, null, 2)}\n`);
