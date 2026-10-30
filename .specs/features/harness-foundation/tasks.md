@@ -422,16 +422,16 @@ Proof: `pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acce
 Proof: `pnpm --filter @d2rmm/config exec vitest run test/presets.test.ts`
 
 **C5** - A domain file importing an adapter fails with rule `domain-is-pure` (HF-03, AC 3)
-Proof: `node --test --test-name-pattern="domain-is-pure" scripts/test/arch-fixtures.test.mjs`
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="domain-is-pure" scripts/test/arch-fixtures.test.mjs`
 
 **C6** - An application file importing an adapter fails with rule `application-no-adapters` (HF-03, AC 4)
-Proof: `node --test --test-name-pattern="application-no-adapters" scripts/test/arch-fixtures.test.mjs`
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="application-no-adapters" scripts/test/arch-fixtures.test.mjs`
 
 **C7** - A module importing another module's internal fails with rule `no-cross-module-internals` (HF-03, AC 5)
-Proof: `node --test --test-name-pattern="no-cross-module-internals" scripts/test/arch-fixtures.test.mjs`
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="no-cross-module-internals" scripts/test/arch-fixtures.test.mjs`
 
 **C8** - A module file importing `main/` fails with rule `nobody-imports-main` (HF-03, AC 6)
-Proof: `node --test --test-name-pattern="nobody-imports-main" scripts/test/arch-fixtures.test.mjs`
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="nobody-imports-main" scripts/test/arch-fixtures.test.mjs`
 
 **C9** - `pnpm contracts:check` exits 0 with no diff; OpenAPI 3.1 with no paths, AsyncAPI 3.0 with no channels (HF-04, AC 4)
 Proof: `pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@HF-04"`
@@ -477,6 +477,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Walked:** none
 
 **execute-batch-1 retry 2 (2026-10-30)** — T3 ddb36eb, T1 814665b, T2 d048c4c committed, gates passed. T2's "`pnpm arch` still starts" was unsatisfiable before `apps/` exists (`Can't open 'apps' for reading`). Orchestrator replan: that check moves to T4, whose gate now ends with `&& pnpm arch`; tasks gate re-run. Next: execute-batch-1 continues with T4–T7.
+
+**Unblocked (2026-10-30), verification** — the maintainer reset `gate:harness-foundation/verification` (by pedromoraisf). Orchestrator replan for finding 6: C5–C8 proofs run with `--test-reporter=./scripts/lib/count-reporter.mjs`, a node:test reporter that prints `<n> passed` and fails on zero tests, so a renamed test turns the proof red; tasks gate re-run. Next: execute-batch-4 closes the six findings, then `check_proofs.py --mutations`, verify-r2, and the verification gate run once.
 
 **BLOCKED (2026-10-30), verification** — batches 2 and 3 done (T8–T17); proofs 23/23 (69cab66). Verifier (67839ea) → FAIL, 6 findings, round 2 applies: M1/M2 `FakeClock` aliases the start and `set` dates (clock.ts:11,23); M3 `layerConfig().mutate` unasserted (mutation-plan.ts:38); HF-06 AC4 thresholds not proven wired into `stryker.config.mjs`; domain 100% rests on 7 valid mutants; C5–C8 `--test-name-pattern` passes on zero matches. The Verifier ran `validate_verification.py` three times before any fix, so `gate:harness-foundation/verification` is blocked. Root cause (orchestrator): the verify prompt did not say the gate runs once, after the fix batch. T16's out-of-Where changes (scenario fixture, @types/node, tsconfig types, env.d.ts removed) were judged acceptable. Next after a maintainer reset: execute-batch-4 with the findings as tasks → `check_proofs.py --mutations` → verify-r2 → verification gate.
 
