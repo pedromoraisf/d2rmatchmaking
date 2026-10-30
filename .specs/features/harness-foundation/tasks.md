@@ -241,9 +241,9 @@ T16 → T17
 
 **Done when**:
 
-- [ ] Tests assert the exact value/error carried and both guards on both variants
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 4 tests pass (no silent deletions)
+- [x] Tests assert the exact value/error carried and both guards on both variants
+- [x] Gate check passes: `pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 4 tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick
