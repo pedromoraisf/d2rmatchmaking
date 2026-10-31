@@ -18,6 +18,7 @@ use axum::middleware::{self, Next};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
+use chrono::{DateTime, TimeDelta, Utc};
 use jsonschema::Validator;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
@@ -87,7 +88,10 @@ pub struct StreamEvent {
 }
 
 pub const CODE: &str = "123456";
-pub const EXPIRES_AT: &str = "2026-10-31T10:05:00Z";
+/// The wall time at the fake's start. A code issued later expires `CODE_LIFETIME` after its issue time, as the real API
+/// does, measured on the tokio clock so that a paused test clock moves it too.
+pub const WALL_START: &str = "2026-10-31T10:00:00Z";
+pub const CODE_LIFETIME: Duration = Duration::from_secs(5 * 60);
 pub const CLAIM_SECRET: &str = "claim-secret-fake-0001";
 pub const TOKEN: &str = "d2rmm_a_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
@@ -179,6 +183,7 @@ impl FakeApi {
 }
 
 struct Shared {
+    started: tokio::time::Instant,
     script: Mutex<HashMap<Operation, VecDeque<Answer>>>,
     log: Mutex<Vec<Logged>>,
     events: Mutex<Vec<StreamEvent>>,
@@ -192,6 +197,7 @@ impl Shared {
     fn new() -> Self {
         let (live, _) = broadcast::channel(LIVE_EVENTS_BUFFER);
         Self {
+            started: tokio::time::Instant::now(),
             script: Mutex::new(HashMap::new()),
             log: Mutex::new(Vec::new()),
             events: Mutex::new(Vec::new()),
@@ -372,13 +378,24 @@ fn unexpected(answer: Answer) -> Response {
     error(500, &format!("no route answers {answer:?}"))
 }
 
-async fn request_code(Extension(answer): Extension<Answer>) -> Response {
+async fn request_code(
+    State(shared): State<Arc<Shared>>,
+    Extension(answer): Extension<Answer>,
+) -> Response {
     match answer {
-        Answer::Ok => (
-            StatusCode::CREATED,
-            Json(json!({ "code": CODE, "expiresAt": EXPIRES_AT, "claimSecret": CLAIM_SECRET })),
-        )
-            .into_response(),
+        Answer::Ok => {
+            let elapsed = tokio::time::Instant::now().duration_since(shared.started);
+            let start: DateTime<Utc> = WALL_START.parse().expect("a valid instant");
+            let issued = start
+                + TimeDelta::from_std(elapsed).expect("elapsed test time fits a TimeDelta")
+                + TimeDelta::from_std(CODE_LIFETIME).expect("the lifetime fits a TimeDelta");
+            let expires_at = serde_json::to_value(issued).expect("a date-time serializes");
+            (
+                StatusCode::CREATED,
+                Json(json!({ "code": CODE, "expiresAt": expires_at, "claimSecret": CLAIM_SECRET })),
+            )
+                .into_response()
+        }
         other => unexpected(other),
     }
 }

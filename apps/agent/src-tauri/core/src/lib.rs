@@ -3,7 +3,9 @@
 
 pub mod api_client;
 pub mod config;
+pub mod context;
 pub mod contracts;
+pub mod pairing;
 pub mod ports;
 pub mod secret;
 pub mod telemetry;

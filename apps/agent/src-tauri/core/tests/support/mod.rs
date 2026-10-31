@@ -3,3 +3,6 @@
 
 pub mod capture;
 pub mod fake_api;
+pub mod fakes;
+pub mod harness;
+pub mod paused;

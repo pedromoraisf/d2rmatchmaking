@@ -382,9 +382,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] `core/tests/pairing.rs` (paused clock, fake API, fake token store), tests named: `shows_code_with_minutes_left` (5 → … → 1, rounded up), `claims_every_two_seconds_until_token`, `keeps_claiming_on_202`, `stores_token_and_shows_paired`, `new_code_after_410_or_expiry`, `unauthorized_deletes_token_and_repairs`, `save_failure_requests_a_new_code`, `pauses_after_two_unused_codes` (and "Get a new code" requests one code and resets), `pairing_success_resets_the_unused_count`, `waits_retry_after_on_429` (120 s, and 60 min without the header; no "Get a new code" meanwhile), `retries_code_request_every_15s_when_unreachable`
-- [ ] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
-- [ ] Test count: ≥ 11 new tests pass
+- [x] `core/tests/pairing.rs` (paused clock, fake API, fake token store), tests named: `shows_code_with_minutes_left` (5 → … → 1, rounded up), `claims_every_two_seconds_until_token`, `keeps_claiming_on_202`, `stores_token_and_shows_paired`, `new_code_after_410_or_expiry`, `unauthorized_deletes_token_and_repairs`, `save_failure_requests_a_new_code`, `pauses_after_two_unused_codes` (and "Get a new code" requests one code and resets), `pairing_success_resets_the_unused_count`, `waits_retry_after_on_429` (120 s, and 60 min without the header; no "Get a new code" meanwhile), `retries_code_request_every_15s_when_unreachable`
+- [x] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
+- [x] Test count: ≥ 11 new tests pass
 
 **Tests**: integration
 **Gate**: quick
