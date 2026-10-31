@@ -998,9 +998,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `src/main/__tests__/agents-routes.int.test.ts`: the full pairing flow (201 → 202 → pair 200 → claim 200 → claim 410); a heartbeat issues no SQL statement, counted on the `pg` pool (test `a heartbeat issues no SQL statement`); an invalid heartbeat → 400 and the previous presence kept; a forged left-most `X-Forwarded-For` does not change the rate-limit key (test `ignores a forged left-most X-Forwarded-For`); captured logs of the pairing flow contain no code, claim secret or token (test `logs no pairing secret`)
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 8 new integration tests pass
+- [x] `src/main/__tests__/agents-routes.int.test.ts`: the full pairing flow (201 → 202 → pair 200 → claim 200 → claim 410); a heartbeat issues no SQL statement, counted on the `pg` pool (test `a heartbeat issues no SQL statement`); an invalid heartbeat → 400 and the previous presence kept; a forged left-most `X-Forwarded-For` does not change the rate-limit key (test `ignores a forged left-most X-Forwarded-For`); captured logs of the pairing flow contain no code, claim secret or token (test `logs no pairing secret`)
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
+- [x] Test count: ≥ 8 new integration tests pass
 
 **Tests**: integration
 **Gate**: full

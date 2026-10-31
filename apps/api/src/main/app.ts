@@ -20,6 +20,7 @@ import type { Kysely } from 'kysely';
 import type { Writable } from 'node:stream';
 import { z } from 'zod';
 import type { AgentsPort } from '../modules/agents/index.ts';
+import { agentsRoutes } from '../modules/agents/adapters/http/routes.ts';
 import { MemoryAgentTokenCache } from '../modules/agents/adapters/memory/memory-agent-token-cache.ts';
 import { MemoryPresenceStore } from '../modules/agents/adapters/memory/memory-presence-store.ts';
 import { MemoryRateLimitStore } from '../modules/agents/adapters/memory/memory-rate-limit-store.ts';
@@ -218,6 +219,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     minAgentVersion: config.minAgentVersion,
   }));
   identityRoutes(app, { useCases: identity, guards, stagingEndpoints: config.stagingEndpoints });
+  agentsRoutes(app, { useCases: agents, guards });
   hub.register(app);
 
   return { app, relay, bus, stores };
