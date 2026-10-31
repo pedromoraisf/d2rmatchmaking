@@ -8,6 +8,8 @@ declare module 'fastify' {
     agentId?: string;
     /** Set by `requireSession`: the account of a valid session cookie. */
     accountId?: string;
+    /** Set by `requireSession`: when the session cookie stops being valid (the stream hub closes at this instant). */
+    sessionExpiresAt?: Date;
   }
 }
 
@@ -100,6 +102,7 @@ export function createGuards(deps: GuardDeps): Guards {
         return reply.code(401).send({ error: 'unauthenticated' });
       }
       request.accountId = session.value.accountId;
+      request.sessionExpiresAt = session.value.expiresAt;
       return undefined;
     },
 

@@ -941,9 +941,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `stream-hub.int.test.ts` over real HTTP: a site stream gets only its account's events, an agent stream only its agent's; reconnect with `Last-Event-ID: 3` gets 4, 5 in order then live, no duplicate (test `replays the events after Last-Event-ID in order`); ids increase (test `event ids increase`); `: ka` at 25 s and 50 s on the fake scheduler (test `sends a keep-alive comment every 25 seconds`); `AgentRevoked` closes the agent's stream; the 6th stream closes the oldest; `?token=` → 400
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 8 new integration tests pass
+- [x] `stream-hub.int.test.ts` over real HTTP: a site stream gets only its account's events, an agent stream only its agent's; reconnect with `Last-Event-ID: 3` gets 4, 5 in order then live, no duplicate (test `replays the events after Last-Event-ID in order`); ids increase (test `event ids increase`); `: ka` at 25 s and 50 s on the fake scheduler (test `sends a keep-alive comment every 25 seconds`); `AgentRevoked` closes the agent's stream; the 6th stream closes the oldest; `?token=` → 400
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
+- [x] Test count: ≥ 8 new integration tests pass
 
 **Tests**: integration
 **Gate**: full
