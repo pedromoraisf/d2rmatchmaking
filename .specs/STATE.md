@@ -606,6 +606,33 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-31
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-068 (assumed)
+
+- **Decision**: `core/src/stream.rs` reads SSE with its own line parser instead of `eventsource-stream` (design.md § Stream).
+- **Reason**: the 64 KiB line and event bounds (AGS-15) must be enforced before an event is assembled and dispatched; no new dependency.
+- **Trade-off**: about 100 lines of parser the crate would have provided, covered by the T16 tests. Reversal is swapping in the crate with a bounded byte stream.
+- **Scope**: agent-skeleton / T16
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-069 (assumed)
+
+- **Decision**: the F0 heartbeat body is `pcState: IDLE`, `window: ""` and no `assignment`; while a 426 is pending the window keeps "Update required" even after a failed update check; the stream checks the update gate before each request.
+- **Reason**: neither the spec nor the design fixes the F0 heartbeat values (presence detection beyond `D2R.exe` is F2); keeping "Update required" is the conservative reading of AGS-27.
+- **Trade-off**: the site shows the agent idle in F0. Reversal is filling the fields when F2 detection lands.
+- **Scope**: agent-skeleton / T15, T19
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-070 (assumed)
+
+- **Decision**: the built-in 1920×1080 automap game-name region is `{x:1380, y:40, w:520, h:80}` (`AUTOMAP_NAME_1080P` in `core/src/vision.rs`).
+- **Reason**: the design names the region but not its coordinates; the T24 synthetic fixture (AD-047) is drawn inside it.
+- **Trade-off**: a wrong region shows up only on a real game screen (F2 tuning). Reversal is a constant.
+- **Scope**: agent-skeleton / T17
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

@@ -49,6 +49,9 @@ review. Reversals become tasks in a follow-up feature.
 | AD-065 | agent-skeleton     | Tauri identifier `com.d2rmm.agent`; placeholder icons; pt-BR string "Requesting a pairing code…" needs review                     | rename before first release           |            |
 | AD-066 | agent-skeleton     | T7 test checks the app's `windows` features are a subset of the allow-list (no `windows` dependency before T23/T24), not equality | tighten to equality                   |            |
 | AD-067 | agent-skeleton     | Agent parses SSE `data` as `RoomAssignedEventData` (the API writes the inner payload, `stream-hub.ts:139`); `event:` is the type  | parse the envelope if the API changes |            |
+| AD-068 | agent-skeleton     | In-crate SSE reader instead of `eventsource-stream`, so the 64 KiB bounds hold before dispatch                                    | swap in the crate                     |            |
+| AD-069 | agent-skeleton     | F0 heartbeat sends `pcState: IDLE`, `window: ""`, no assignment; 426 keeps "Update required" after a failed check                 | heartbeat fields in F2                |            |
+| AD-070 | agent-skeleton     | Built-in 1920×1080 automap-name region `{x:1380,y:40,w:520,h:80}`; the T24 fixture is drawn inside it                             | a constant                            |            |
 
 ## Queued for F1 (from the api-web-skeleton security review)
 
