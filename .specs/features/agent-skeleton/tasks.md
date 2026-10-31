@@ -362,7 +362,7 @@ T29 → T30 → T31 → T32 → T33
 **Done when**:
 
 - [ ] `core/tests/api_client.rs` against the fake API: every request carries `X-Agent-Version` equal to the config version and a valid `traceparent` (test `every_request_carries_version_and_traceparent`); each status maps to its `ApiError`; `Retry-After: 0` → 1 s and `999999` → 60 min (test `retry_after_is_clamped`); request bodies validate against their schemas and are only the four request types (test `sends_only_contract_request_types`)
-- [ ] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
+- [x] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
 - [ ] Test count: ≥ 8 new tests pass
 
 **Tests**: integration
