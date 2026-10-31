@@ -41,7 +41,7 @@ export interface SendOptions {
   /** The bearer token; `null` omits the Authorization header. Defaults to the agent's token. */
   readonly bearer?: string | null | undefined;
   /** Extra headers, such as a session cookie for a request the tests make on behalf of the site. */
-  readonly headers?: Readonly<Record<string, string>>;
+  readonly headers?: Readonly<Record<string, string>> | undefined;
 }
 
 export interface SimulatedAgentOptions {
@@ -185,13 +185,19 @@ export class SimulatedAgent {
   /** `POST /v1/agents/heartbeat`: the game state the agent reports. */
   async heartbeat(
     state: GameState,
-    options: { version?: string | null | undefined; bearer?: string | null | undefined; body?: unknown } = {},
+    options: {
+      version?: string | null | undefined;
+      bearer?: string | null | undefined;
+      body?: unknown;
+      headers?: Readonly<Record<string, string>> | undefined;
+    } = {},
   ): Promise<HttpAnswer> {
     return this.send('/v1/agents/heartbeat', {
       method: 'POST',
       body: options.body ?? heartbeatBody(state),
       version: options.version,
       bearer: options.bearer,
+      headers: options.headers,
     });
   }
 

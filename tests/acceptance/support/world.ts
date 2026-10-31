@@ -1,8 +1,10 @@
 // What the steps of one scenario share (design.md § Acceptance stack). A fresh World is made for every scenario, after the
 // reset of both APIs, so nothing leaks between scenarios. Visitors are browser contexts: each one is a person with their
 // own cookies (AWS-01). The World is black-box state only: URLs, answers, sessions and browser pages.
+import { randomInt } from 'node:crypto';
 import { MeResponse } from '@d2rmm/contracts';
 import { expect, type Browser, type BrowserContext, type Cookie, type Page } from '@playwright/test';
+import { SimulatedAgent } from './agent-client.ts';
 import type { Endpoint, Stack } from './stack.ts';
 
 /** The session cookie name of the API (identity routes, `__Host-` prefix). */
@@ -46,6 +48,33 @@ export interface Player {
   session?: string;
   /** The browser visitor, when the player signed in on the site. */
   visitor?: Visitor;
+  /** The agents this player paired, oldest first. */
+  readonly agents: SimulatedAgent[];
+}
+
+/** The pairing answer of `POST /v1/agents/pair` for a session and a code: the status and the parsed body. */
+export interface PairSubmission {
+  readonly status: number;
+  readonly body: unknown;
+}
+
+/** Submits a pairing code with a session, as the site does (same origin, JSON, the session cookie). */
+export async function submitPairingCode(
+  endpoint: Endpoint,
+  session: string,
+  code: string,
+): Promise<PairSubmission> {
+  const response = await fetch(`${endpoint.api}/v1/agents/pair`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Origin: endpoint.site,
+      Cookie: `${SESSION_COOKIE}=${session}`,
+    },
+    body: JSON.stringify({ code }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  return { status: response.status, body: await response.json().catch(() => undefined) };
 }
 
 /** Signs in through the API (`POST /v1/auth/test-login`) as the given endpoint's site. Returns the account and session. */
@@ -76,6 +105,21 @@ export class World {
   readonly #browser: Browser;
   readonly #visitors: Visitor[] = [];
   readonly #players = new Map<string, Player>();
+  /**
+   * The address this scenario's agents come from (`X-Forwarded-For`). The rate limits of pairing codes key on it, so each
+   * scenario gets its own address and nothing carries over from another scenario.
+   */
+  readonly forwardedFor = `10.${randomInt(0, 256)}.${randomInt(0, 256)}.${randomInt(1, 255)}`;
+  /** Every agent the scenario paired, in pairing order (AWS-10 names the first and the second). */
+  readonly paired: SimulatedAgent[] = [];
+  /** The agent the last step created or used: "the agent" of a step. */
+  #lastAgent: SimulatedAgent | undefined;
+  /** The name of the player the last paired agent belongs to: "the site" of a step that acts for that agent. */
+  lastOwner: string | undefined;
+  /** The six-digit code the agent last showed, which "types that code" enters on the site. */
+  shownCode: string | undefined;
+  /** The presence the site reads for the owner, taken before a step that must not change it (AWS-18). */
+  presenceSnapshot: unknown;
   /** The site the scenario uses: staging unless it says test sign-in is disabled (AWS-03). */
   site: Endpoint;
   /** The browser language a visitor's context prefers (AWS-37); undefined keeps the default. */
@@ -111,9 +155,58 @@ export class World {
     if (existing !== undefined) {
       return existing;
     }
-    const created: Player = { name };
+    const created: Player = { name, agents: [] };
     this.#players.set(name, created);
     return created;
+  }
+
+  /** A new simulated agent of this scenario, which becomes "the agent" of the following steps. */
+  newAgent(): SimulatedAgent {
+    const agent = new SimulatedAgent({ api: this.site.api, forwardedFor: this.forwardedFor });
+    this.#lastAgent = agent;
+    return agent;
+  }
+
+  /** The agent the last step created or used. Fails when no agent exists yet in the scenario. */
+  get lastAgent(): SimulatedAgent {
+    if (this.#lastAgent === undefined) {
+      throw new Error('no agent exists in this scenario');
+    }
+    return this.#lastAgent;
+  }
+
+  /** Uses an existing agent as "the agent" of the following steps. */
+  useAgent(agent: SimulatedAgent): void {
+    this.#lastAgent = agent;
+  }
+
+  /**
+   * Pairs a new agent of the player, through the API: a pairing code, the code typed with the player's session, and the
+   * claim of the token. The agent becomes "the agent" of the following steps.
+   */
+  async pairAgent(name: string): Promise<SimulatedAgent> {
+    const session = await this.sessionOf(name);
+    const agent = this.newAgent();
+    const shown = await agent.requestPairingCode();
+    expect(shown.status, 'the pairing code').toBe(201);
+    const paired = await submitPairingCode(this.site, session, agent.code ?? '');
+    expect(paired.status, `pairing an agent of "${name}"`).toBe(200);
+    const claimed = await agent.claim();
+    expect(claimed.status, 'the claim after pairing').toBe(200);
+    this.player(name).agents.push(agent);
+    this.paired.push(agent);
+    this.lastOwner = name;
+    return agent;
+  }
+
+  /** The presence the site reads for the player's paired agent: `GET /v1/agents/me` with the player's session. */
+  async presenceOf(name: string): Promise<{ status: number; body: unknown }> {
+    const session = await this.sessionOf(name);
+    const response = await fetch(`${this.site.api}/v1/agents/me`, {
+      headers: { Cookie: `${SESSION_COOKIE}=${session}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    return { status: response.status, body: await response.json().catch(() => undefined) };
   }
 
   /** The player's session token, signing in through the API when the player has none yet. */
