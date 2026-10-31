@@ -597,6 +597,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-31
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-067 (assumed)
+
+- **Decision**: the agent's stream handler dispatches on the SSE `event:` name and parses the SSE `data:` as `RoomAssignedEventData` (the `data` member of `agent-event-room-assigned.json`), not the `{type, data}` envelope. The T12 fake API writes events the same way the real API does.
+- **Reason**: the merged API writes `event: <type>` and `data: <JSON of event.data>` (`apps/api/src/platform/stream-hub.ts:139`). AsyncAPI and design.md § Stream describe the envelope; the wire is the evidence.
+- **Trade-off**: the contract document and the wire differ until the docs are aligned (follow-up queued). Reversal is parsing the envelope if the API starts sending it.
+- **Scope**: agent-skeleton / T16
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

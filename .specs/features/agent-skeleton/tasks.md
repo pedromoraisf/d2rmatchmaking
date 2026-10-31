@@ -930,6 +930,6 @@ Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.to
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** the maintainer confirmed the `# not-scenario` exemptions ("Ponto 2: A", 2026-10-30)
-**Dispatched:** execute-batch-2 (Phase 3, T9–T13) to feature-worker, 2026-10-31. Batch 1 done: T1–T8 (f58ecec, d250ad3, e26a081, 5eae324, 4d3123c, bc3b06f, 69ff9ed, 661142f)
+**Dispatched:** execute-batch-3 (Phase 4, T14–T20) to feature-worker, 2026-10-31. Batch 1 done: T1–T8 (f58ecec, d250ad3, e26a081, 5eae324, 4d3123c, bc3b06f, 69ff9ed, 661142f). Batch 2 done: T9–T13 (cdd577b, d1d17b4, 3cfe186, 846be89, 9e3a946 + 40bcf2e; T13 gate passed on its last attempt)
 **Walked:** none
 **Replanned (execute-batch-1):** T6 stopped at failure 1/3 of `gate:agent-skeleton/T6`: cargo-deny 0.20.2 takes `--config` before `check`, not after (`error: unexpected argument '--config' found`). The T6 gate and the matching proof in `## Checks` now pass `--config` first (AD-063); the tasks gate re-ran. T1–T5 done (f58ecec, d250ad3, e26a081, 5eae324, 4d3123c); the four fixtures are written, uncommitted; T6–T8 then passed in a second dispatch of execute-batch-1
