@@ -526,9 +526,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: the appended event has mode `leveling`, activity `baal`, difficulty `hell`, region `americas`, ladder `sc-ladder`, era `rotw`, one member with join order 1 and role `host`; each call gets a new `matchId`
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 3 new tests pass
+- [x] Tests: the appended event has mode `leveling`, activity `baal`, difficulty `hell`, region `americas`, ladder `sc-ladder`, era `rotw`, one member with join order 1 and role `host`; each call gets a new `matchId`
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 3 new tests pass
 
 **Tests**: unit
 **Gate**: quick
