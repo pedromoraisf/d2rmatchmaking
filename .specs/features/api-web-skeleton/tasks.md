@@ -351,9 +351,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: first sign-in creates `PlayerOne#test` with display name as typed; `playerone` later reuses it and keeps `PlayerOne` (test `reuses the account ignoring case`); the lookup never returns a non-test account; the session token is `d2rmm_s_` + 43 base64url chars and only its hash is stored; unknown and expired tokens give `unauthenticated`; span names asserted
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 8 new tests pass
+- [x] Tests: first sign-in creates `PlayerOne#test` with display name as typed; `playerone` later reuses it and keeps `PlayerOne` (test `reuses the account ignoring case`); the lookup never returns a non-test account; the session token is `d2rmm_s_` + 43 base64url chars and only its hash is stored; unknown and expired tokens give `unauthenticated`; span names asserted
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 8 new tests pass
 
 **Tests**: unit
 **Gate**: quick
