@@ -469,9 +469,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: `of('baal','hell',12)` is `mmbaalh-12`; `normal` → `unsupported-difficulty`; `matches('MMBAALH-12')` true, `matches(' mmbaalh-12')` false, `matches('mmbaalh-13')` false; 65-char value and confidence 1.1 rejected
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 7 new tests pass
+- [x] Tests: `of('baal','hell',12)` is `mmbaalh-12`; `normal` → `unsupported-difficulty`; `matches('MMBAALH-12')` true, `matches(' mmbaalh-12')` false, `matches('mmbaalh-13')` false; 65-char value and confidence 1.1 rejected
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 7 new tests pass
 
 **Tests**: unit
 **Gate**: quick
