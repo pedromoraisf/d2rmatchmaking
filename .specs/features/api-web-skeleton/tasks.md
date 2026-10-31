@@ -1036,9 +1036,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `src/main/__tests__/roots.int.test.ts`: `local.ts` started as a child process answers `/healthz`; `render.ts` exits non-zero with `ENABLE_STAGING_ENDPOINTS=true` and `D2RMM_ENV=production` (test `render refuses staging endpoints outside staging`) and with `D2RMM_ACCEPTANCE` set; the Render app has no `/__test` route; reset without the secret → 403, against a database not named `acc_w<n>` → refused
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration && pnpm arch`
-- [ ] Test count: ≥ 5 new integration tests pass
+- [x] `src/main/__tests__/roots.int.test.ts`: `local.ts` started as a child process answers `/healthz`; `render.ts` exits non-zero with `ENABLE_STAGING_ENDPOINTS=true` and `D2RMM_ENV=production` (test `render refuses staging endpoints outside staging`) and with `D2RMM_ACCEPTANCE` set; the Render app has no `/__test` route; reset without the secret → 403, against a database not named `acc_w<n>` → refused
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration && pnpm arch`
+- [x] Test count: ≥ 5 new integration tests pass
 
 **Tests**: integration
 **Gate**: full

@@ -15,4 +15,9 @@ export class MemoryPresenceStore implements PresenceStore {
   list(): PresenceEntry[] {
     return [...this.#entries.values()];
   }
+
+  /** Forgets every presence (the test controls' reset). */
+  clear(): void {
+    this.#entries.clear();
+  }
 }

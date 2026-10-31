@@ -86,6 +86,8 @@ export interface BuiltApp {
   /** The outbox relay. The composition root calls `sweep()` once the app listens (the start-up sweep). */
   readonly relay: OutboxRelay;
   readonly bus: InMemoryEventBus;
+  /** The open event streams. The test controls close them on reset. */
+  readonly hub: StreamHub;
   /** The in-memory stores of the process (ADR 006): the only state outside Postgres. */
   readonly stores: {
     readonly presence: MemoryPresenceStore;
@@ -249,5 +251,5 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   matchmakingRoutes(app, { useCases: matchmaking, guards, stagingEndpoints: config.stagingEndpoints });
   hub.register(app);
 
-  return { app, relay, bus, stores };
+  return { app, relay, bus, hub, stores };
 }

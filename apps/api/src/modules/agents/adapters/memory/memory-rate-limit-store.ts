@@ -12,6 +12,11 @@ export class MemoryRateLimitStore implements RateLimitStore {
     this.#entries.set(key, [...(this.#entries.get(key) ?? []), new Date(at.getTime())]);
   }
 
+  /** Forgets every submission (the test controls' reset). */
+  clear(): void {
+    this.#entries.clear();
+  }
+
   async prune(cutoff: Date): Promise<void> {
     for (const [key, times] of this.#entries) {
       const kept = times.filter((t) => t.getTime() > cutoff.getTime());

@@ -201,6 +201,13 @@ export class StreamHub {
     }
   }
 
+  /** Closes every open stream (the test controls' reset). Each closed stream leaves the set through its `onClose`. */
+  closeAll(): void {
+    for (const connection of [...this.#connections]) {
+      connection.close();
+    }
+  }
+
   /** Registers the route on the app. */
   register(app: FastifyInstance): void {
     app.get('/v1/stream', (request, reply) => this.#open(request, reply));

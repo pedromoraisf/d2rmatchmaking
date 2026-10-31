@@ -39,4 +39,9 @@ export class MemoryAgentTokenCache implements AgentTokenCache {
   invalidate(tokenHash: string): void {
     this.#entries.delete(tokenHash);
   }
+
+  /** Forgets every token (the test controls' reset). */
+  clear(): void {
+    this.#entries.clear();
+  }
 }
