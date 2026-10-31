@@ -1,5 +1,7 @@
 # Agent Skeleton Specification
 
+**Approved**: 2026-10-30 - user: "aprovo specs e tasks da F0 que passarem nos gates automáticos; delego sub-agents, harness-edits e local-merge-phase-branch" (delegated via .specs/phases/F0/brief.md)
+
 ## Problem Statement
 
 Players must install a desktop agent before they can queue, and nothing of it exists yet: `apps/agent` is an empty
@@ -94,8 +96,8 @@ for my account without my Battle.net password.
 4. IF a claim answers 410, or the code's expiry passes, THEN the agent SHALL request a new code and show it, except as limited by AGS-34.
 5. IF any agent request answers 401 THEN the agent SHALL delete the stored token and return to showing a new pairing code.
 6. The token SHALL never be written to a file, a log line or a telemetry attribute.
-7. IF 2 consecutive codes expire unused (by expiry or a 410 claim) THEN the agent SHALL stop requesting codes and show "Pairing paused" with the action "Get a new code", and WHEN the player uses that action THEN it SHALL request one new code and reset the count (AD-058).
-8. IF the pairing-code request answers 429 THEN the agent SHALL show "Too many codes requested. Try again later." and request no code before the response's `Retry-After` has passed, or 60 minutes when it has none (AD-058).
+7. IF 2 consecutive codes expire unused (by expiry or a 410 claim) THEN the agent SHALL stop requesting codes and show "Pairing paused" with the action "Get a new code", and WHEN the player uses that action THEN it SHALL request one new code and reset the count; a successful pairing and a return to pairing after a 401 also reset the count (AD-058).
+8. IF the pairing-code request answers 429 THEN the agent SHALL show "Too many codes requested. Try again later." and request no code before the response's `Retry-After` has passed, or 60 minutes when it has none, and SHALL not offer "Get a new code" during that wait (AD-058).
 
 **Independent Test**: against a fake API server, start with no token, see the code, mark it used on the fake, see
 "Paired" and the token in the credential store; answer 401 next and see a new code; let two codes expire and see
@@ -155,7 +157,7 @@ Created without me typing anything.
 3. IF the normalised read text differs from the expected game name in any character — `mmbaalh-13` for an expected `mmbaalh-12` included — or there is no assignment THEN fusion SHALL produce no observation.
 4. WHEN an observation is produced THEN the agent SHALL post it to the room's observation endpoint and, IF the post fails with a network error or a 5xx, retry it with the same idempotency key up to 5 attempts in total with 1, 2, 4 and 8 s between attempts (AD-051).
 5. The text reader SHALL run on the local machine; no image or crop SHALL leave the process.
-6. The agent SHALL read the reference image only in a build with the Cargo feature `fixture-read`, started with `--read-fixture <png>` while it holds an assignment, and then read it once; `release-agent.yml` SHALL never enable that feature, so a released agent never reads an image nor posts an observation in F0 (AD-057).
+6. The agent SHALL read the reference image only in a build with the Cargo feature `fixture-read`, started with `--read-fixture <png>`, and then read it once, when it holds an assignment (at start, or when the first assignment arrives after start); `release-agent.yml` SHALL never enable that feature, so a released agent never reads an image nor posts an observation in F0 (AD-057).
 
 **Independent Test**: `cargo nextest run` on Windows reads the fixture and gets `mmbaalh-12`; fusion with expected
 `mmbaalh-12` or `MMBAALH-12` yields one observation, with `mmbaalh-13` or `mmbaalh-1` yields none; a release-profile
