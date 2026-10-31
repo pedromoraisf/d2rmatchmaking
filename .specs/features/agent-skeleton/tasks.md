@@ -304,9 +304,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] Tests: `https://` accepted; `http://127.0.0.1` accepted only with `AllowLoopbackHttp`, `http://example.com` always refused (test `api base must be https outside loopback`); `PausedWallClock` advances with `tokio::time::advance` (test `wall clock follows paused time`); `AgentView` serialises in camelCase
-- [ ] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
-- [ ] Test count: ≥ 5 new tests pass
+- [x] Tests: `https://` accepted; `http://127.0.0.1` accepted only with `AllowLoopbackHttp`, `http://example.com` always refused (test `api base must be https outside loopback`); `PausedWallClock` advances with `tokio::time::advance` (test `wall clock follows paused time`); `AgentView` serialises in camelCase
+- [x] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
+- [x] Test count: ≥ 5 new tests pass
 
 **Tests**: unit
 **Gate**: quick
