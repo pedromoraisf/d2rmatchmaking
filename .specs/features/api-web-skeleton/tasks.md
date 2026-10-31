@@ -664,9 +664,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: no agent → form shown; 200 → "Agent paired"; 400 → "This code is invalid or has expired."; 429 → "Too many attempts. Try again in a few minutes."; a presence event switches "Agent offline" to "Agent online" and "Game open"
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
-- [ ] Test count: ≥ 5 new tests pass
+- [x] Tests: no agent → form shown; 200 → "Agent paired"; 400 → "This code is invalid or has expired."; 429 → "Too many attempts. Try again in a few minutes."; a presence event switches "Agent offline" to "Agent online" and "Game open"
+- [x] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
+- [x] Test count: ≥ 5 new tests pass
 
 **Tests**: unit
 **Gate**: quick

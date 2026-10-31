@@ -1,6 +1,7 @@
-import { cleanup, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { SiteStreamHandlers, StreamOpener } from '../shared/stream.ts';
 import { createApiClient } from '../shared/api-client.ts';
 import { jsonResponse, routeFetch } from '../test/fake-api.ts';
 import { renderInLanguage } from '../test/render.tsx';
@@ -10,6 +11,26 @@ afterEach(cleanup);
 
 const config = { stagingEndpoints: true, minAgentVersion: '0.0.1' };
 const player = { accountId: 'acc-1', displayName: 'PlayerOne' };
+const pairedAgent = {
+  status: 'paired',
+  agentId: 'agent-1',
+  online: false,
+  gameRunning: false,
+  screen: 'UNKNOWN',
+  lastSeenAt: '2026-10-31T01:00:00Z',
+};
+
+// Captures the handlers App hands to the stream, so a test plays the server's events.
+function fakeStream() {
+  const seen: { handlers?: SiteStreamHandlers; closed: number } = { closed: 0 };
+  const openStream: StreamOpener = (handlers) => {
+    seen.handlers = handlers;
+    return () => {
+      seen.closed += 1;
+    };
+  };
+  return { openStream, seen };
+}
 
 describe('App', () => {
   it('shows Loading… until the configuration answers', () => {
@@ -40,12 +61,13 @@ describe('App', () => {
     const { fetch } = routeFetch({
       'GET /api/v1/config': () => jsonResponse(200, config),
       'GET /api/v1/me': () => (signedIn ? jsonResponse(200, player) : jsonResponse(401)),
+      'GET /api/v1/agents/me': () => jsonResponse(200, { status: 'none' }),
       'POST /api/v1/auth/test-login': () => {
         signedIn = true;
         return jsonResponse(204);
       },
     });
-    renderInLanguage(<App client={createApiClient(fetch)} />);
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={fakeStream().openStream} />);
     await screen.findByText('Sign in with a test account');
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Player name'), 'PlayerOne');
@@ -61,5 +83,53 @@ describe('App', () => {
     renderInLanguage(<App client={createApiClient(fetch)} />);
     await screen.findByRole('link', { name: 'Download the agent' });
     expect(screen.queryByText('Sign in with a test account')).toBeNull();
+  });
+
+  it('shows the pairing form to a signed-in player without an agent', async () => {
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(200, player),
+      'GET /api/v1/agents/me': () => jsonResponse(200, { status: 'none' }),
+    });
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={fakeStream().openStream} />);
+    expect(await screen.findByText('Pairing code')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Pair agent' })).toBeTruthy();
+  });
+
+  it('shows "Agent paired" after the player submits an accepted code', async () => {
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(200, player),
+      'GET /api/v1/agents/me': () => jsonResponse(200, { status: 'none' }),
+      'POST /api/v1/agents/pair': () => jsonResponse(200),
+    });
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={fakeStream().openStream} />);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText('Pairing code'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Pair agent' }));
+    expect((await screen.findByRole('status')).textContent).toBe('Agent paired');
+  });
+
+  it('switches from "Agent offline" to "Agent online" and "Game open" on a presence event', async () => {
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(200, player),
+      'GET /api/v1/agents/me': () => jsonResponse(200, pairedAgent),
+    });
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={stream.openStream} />);
+    expect(await screen.findByText('Agent offline')).toBeTruthy();
+    expect(screen.getByText('Game closed')).toBeTruthy();
+
+    await vi.waitFor(() => expect(stream.seen.handlers).toBeDefined());
+    act(() => {
+      stream.seen.handlers?.onEvent({
+        type: 'agent.presence_changed',
+        data: { agentId: 'agent-1', online: true, gameRunning: true, screen: 'AUTOMAP_OPEN' },
+      });
+    });
+    expect(screen.getByText('Agent online')).toBeTruthy();
+    expect(screen.getByText('Game open')).toBeTruthy();
+    expect(screen.getByText('Screen: Automap open')).toBeTruthy();
   });
 });
