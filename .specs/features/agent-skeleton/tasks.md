@@ -342,9 +342,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] `core/tests/fake_api.rs`: a body that breaks a schema is answered 400 and logged as invalid; scripted answers come back in order; the SSE endpoint streams events with ids
-- [ ] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
-- [ ] Test count: ≥ 3 new tests pass
+- [x] `core/tests/fake_api.rs`: a body that breaks a schema is answered 400 and logged as invalid; scripted answers come back in order; the SSE endpoint streams events with ids
+- [x] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
+- [x] Test count: ≥ 3 new tests pass
 
 **Tests**: integration
 **Gate**: quick
