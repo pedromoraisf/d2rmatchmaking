@@ -207,10 +207,10 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] `expect-failure.test.mjs`: passes when the command fails and prints the id (test `expect-failure passes only on the named failure`); fails when the command succeeds; fails when it fails without the id (a build error)
-- [ ] `cargo deny --locked check` and clippy are green on the clean workspace (the task records in tasks.md any ban adjusted after `cargo tree` shows a transitive need)
-- [ ] Gate check passes: `pnpm test:harness && cargo deny --manifest-path apps/agent/src-tauri/Cargo.toml --locked check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings`
-- [ ] Test count: ≥ 3 new harness tests pass
+- [x] `expect-failure.test.mjs`: passes when the command fails and prints the id (test `expect-failure passes only on the named failure`); fails when the command succeeds; fails when it fails without the id (a build error)
+- [x] `cargo deny --locked check` and clippy are green on the clean workspace (the task records in tasks.md any ban adjusted after `cargo tree` shows a transitive need)
+- [x] Gate check passes: `pnpm test:harness && cargo deny --manifest-path apps/agent/src-tauri/Cargo.toml --locked check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings`
+- [x] Test count: ≥ 3 new harness tests pass
 
 **Tests**: unit
 **Gate**: quick
