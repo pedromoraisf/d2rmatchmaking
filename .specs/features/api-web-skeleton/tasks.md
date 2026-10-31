@@ -587,10 +587,10 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: `en` and `pt-BR` hold the same keys (test `en and pt-BR hold the same keys`); `pt-BR`, `pt-PT`, `pt` → pt-BR; `fr-FR`, `en-US`, none → en
-- [ ] `pnpm --filter @d2rmm/web build` writes `apps/web/dist`
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test && pnpm --filter @d2rmm/web build`
-- [ ] Test count: ≥ 6 tests pass
+- [x] Tests: `en` and `pt-BR` hold the same keys (test `en and pt-BR hold the same keys`); `pt-BR`, `pt-PT`, `pt` → pt-BR; `fr-FR`, `en-US`, none → en
+- [x] `pnpm --filter @d2rmm/web build` writes `apps/web/dist`
+- [x] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test && pnpm --filter @d2rmm/web build`
+- [x] Test count: ≥ 6 tests pass
 
 **Tests**: unit
 **Gate**: quick
