@@ -63,8 +63,9 @@ review. Reversals become tasks in a follow-up feature.
 
 ## Follow-ups queued
 
-| From                        | Item                                                                                                                        |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| agent-skeleton design rev 2 | Updater key rotation plan (the public key is embedded; a lost or leaked key strands installed agents) — maintainer decision |
-| agent-skeleton design rev 2 | Pin every `uses:` of the existing `ci.yml` jobs by SHA (the `agent` job is pinned by this feature)                          |
-| agent-skeleton design rev 2 | ADR 015 constraint: `releases/latest` is repo-wide; any future released package sets `make_latest: false`                   |
+| From                        | Item                                                                                                                                                                  |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| agent-skeleton design rev 2 | Updater key rotation plan (the public key is embedded; a lost or leaked key strands installed agents) — maintainer decision                                           |
+| agent-skeleton design rev 2 | Pin every `uses:` of the existing `ci.yml` jobs by SHA (the `agent` job is pinned by this feature)                                                                    |
+| agent-skeleton design rev 2 | ADR 015 constraint: `releases/latest` is repo-wide; any future released package sets `make_latest: false`                                                             |
+| agent-skeleton design rev 3 | ADR 015 is implemented by chaining: release-please calls `release-agent.yml` (`workflow_call`); `push: tags` stays for tags the maintainer pushes — not an ADR change |

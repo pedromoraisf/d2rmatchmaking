@@ -1,7 +1,7 @@
 # Agent Skeleton Design
 
 **Spec**: `.specs/features/agent-skeleton/spec.md`
-**Status**: Draft (rev. 2 — closes architecture-reviewer and security-reviewer findings of attempt 1)
+**Status**: Draft (rev. 3 — closes the architecture-reviewer's retry-1 findings and the security-reviewer's minor items)
 
 ---
 
@@ -151,7 +151,7 @@ deny.toml, clippy.toml, .cargo/mutants.toml
 
 - **Interfaces**: `request_code()`, `claim(&Secret)`, `heartbeat(&Heartbeat)`, `assignment()`, `post_observation(RoomId, &Observation)`, `open_stream(last_event_id)`; `Result<T, ApiError>` with `ApiError = Unauthorized | UpgradeRequired | RateLimited { retry_after } | Gone | Pending | Server | Network | Invalid`.
 - **Rules**: every request opens a child span `agent.http.<operation>` (`request_code`, `claim`, `heartbeat`, `assignment`, `observation`, `stream`) inside its loop span and sends that span's `traceparent` plus `X-Agent-Version`; `Authorization` built with `HeaderValue::set_sensitive(true)`; bodies only of contract types; no body or header is logged.
-- **Client** (app adapter): `reqwest::Client` with `https_only(true)` unless the base is an allowed loopback in a debug build, `redirect(Policy::none())`, connect timeout 10 s, request timeout 30 s; the stream uses no request timeout and an idle timeout of 60 s (the API sends `: ka` every 25 s).
+- **Client** (app adapter, built in `src/adapters/http.rs` and handed to core already configured): `reqwest::Client` with `https_only(true)` unless the base is an allowed loopback in a debug build, `redirect(Policy::none())`, connect timeout 10 s, request timeout 30 s; the stream uses no request timeout and an idle timeout of 60 s (the API sends `: ka` every 25 s).
 - **Server-supplied values**: `Retry-After` clamped to [1 s, 60 min]; room ids parsed as UUID before building paths; `game_name` accepted only if ≤ 32 chars of `[A-Za-z0-9-]`, else the event is ignored; error bodies are never shown.
 
 ### Pairing (`core/src/pairing.rs`)
@@ -212,7 +212,7 @@ deny.toml, clippy.toml, .cargo/mutants.toml
 
 - Each boundary fixture is a standalone crate with its own `[workspace]`, copies nothing: it runs with the real files (`cargo deny --manifest-path … check bans --config ../../deny.toml`, `cargo clippy --manifest-path … -- -D warnings` with `CLIPPY_CONF_DIR` pointing at `apps/agent/src-tauri`).
 - `scripts/agent/expect-failure.mjs <id> -- <command>` runs a command and passes only when it fails **and** its output contains `<id>` (a build error does not pass). It has its own `node:test` tests (unconditional, in `pnpm test:harness`). The fixture runs are explicit steps of the CI `agent` job, not a skipped test.
-- `scripts/test/agent-source-rules.test.mjs` (unconditional, `pnpm test:harness`): the `windows` feature allow-list, the unsafe-allow locations, `#[instrument]` with `skip_all`, no `fixture-read` in `default`, `tauri.conf.json` (version path, CSP, `withGlobalTauri: false`, updater endpoint and no insecure transport, empty `beforeBuildCommand`), `capabilities/*.json` (window `main`, the three permissions only).
+- `scripts/test/agent-source-rules.test.mjs` (unconditional, `pnpm test:harness`): the `windows` feature allow-list, the unsafe-allow locations, `#[instrument]` with `skip_all`, no `fixture-read` in `default`, `tauri.conf.json` (version path, CSP, `withGlobalTauri: false`, updater endpoint and no insecure transport, empty `beforeBuildCommand`, no `build.features`), the `windows::` paths referenced by the two unsafe-allowed files (allow-list: `toolhelp.rs` — `CreateToolhelp32Snapshot`, `Process32FirstW`, `Process32NextW`, `CloseHandle`, `PROCESSENTRY32W`, `TH32CS_SNAPPROCESS`, `HANDLE`; `windows_ocr.rs` — `Media::Ocr`, `Graphics::Imaging`, `Globalization::Language`, `Storage::Streams` types), since feature unification can expose more of the `windows` crate than the app enables, `capabilities/*.json` (window `main`, the three permissions only).
 
 ### CI `agent` job (`.github/workflows/ci.yml`, harness edit)
 
@@ -221,15 +221,16 @@ deny.toml, clippy.toml, .cargo/mutants.toml
 
 ### Release workflows (`.github/workflows/`)
 
-- `release-please.yml` — on push to `main`: `googleapis/release-please-action` (SHA-pinned) with the existing config and the default `GITHUB_TOKEN`; release-please creates the tag and the GitHub Release. When its output `apps/agent--release_created` is `true`, the same workflow calls the reusable `release-agent.yml` (`workflow_call`) with the tag name — a `GITHUB_TOKEN` tag would not trigger a `push: tags` workflow, and no PAT is needed. Permissions: `contents: write`, `pull-requests: write` on the release-please job only.
-- `release-agent.yml` (`on: workflow_call` only, input `tag`), job `build`, `windows-latest`, `environment: release` (environment secrets with required reviewers — created by the maintainer), `permissions: contents: write`, checkout with `persist-credentials: false`:
-  1. assert the tag's commit is an ancestor of `origin/main`;
+- `release-please.yml` — on push to `main`: job `release-please` runs `googleapis/release-please-action` (SHA-pinned) with the existing config and the default `GITHUB_TOKEN` (`contents: write`, `pull-requests: write`); release-please creates the tag and the GitHub Release. Job `release-agent` (`needs: release-please`, `if: needs.release-please.outputs['apps/agent--release_created'] == 'true'` on the calling job, its own `permissions: contents: write`) calls the reusable `release-agent.yml` with the tag name — a `GITHUB_TOKEN` tag does not trigger a `push: tags` workflow, and no PAT is needed. Because a PR opened with `GITHUB_TOKEN` gets no `pull_request` CI either, when release-please opens or updates its release PR the job runs `gh workflow run ci.yml --ref <release PR branch>` (a `workflow_dispatch` run, which `GITHUB_TOKEN` may start) so the PR's head commit gets the required `verify` check; `ci.yml` gains a `workflow_dispatch` trigger. Fallback, written in the release runbook in `docs/engineering/releases.md`: the maintainer closes and reopens the release PR.
+- `release-agent.yml` — triggers: `workflow_call` (input `tag`, from release-please), `push: tags: ['agent-v*']` (AGS-28 as written: a tag pushed by the maintainer; release-please's `GITHUB_TOKEN` tags never fire it, so there is no double run) and `workflow_dispatch` (input `tag`, to re-run a failed release). The tag resolves as `inputs.tag || github.ref_name`. Job `build`, `windows-latest`, `environment: release` (environment secrets with required reviewers — created by the maintainer), `permissions: contents: write`, checkout of `ref: <tag>` with `persist-credentials: false`:
+  1. assert the tag's commit is an ancestor of `origin/main` (tag passed through `env:`);
   2. `pnpm install --frozen-lockfile --ignore-scripts`, `pnpm --filter @d2rmm/agent build` (so `beforeBuildCommand` stays empty);
   3. `cargo tree --locked -p d2rmm-agent -e features` must not contain `fixture-read` (AGS-33);
   4. `tauri-apps/tauri-action` (SHA-pinned) with `tagName: ${{ inputs.tag }}` (uploads to release-please's existing release), `includeUpdaterJson: true`, env `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, `D2RMM_API_BASE: ${{ vars.API_BASE_URL }}`, `args: --ci -- --locked`; never `--features`;
-  5. copy the NSIS installer to `D2RMatchMaking-setup.exe`, write `SHA256SUMS` for both installers, `gh release upload "$TAG" …` (tag through `env:`, no `--clobber`).
-- **SignPath (AD-053)**: a second job `sign` in `release-agent.yml`, `needs: build`, runs only when the repository variable `SIGNPATH_ENABLED == 'true'` (secrets cannot be used in `if:`). It uses `signpath/github-action-submit-signing-request` (SHA-pinned, origin-verified artifact upload, one approval per release), re-signs the updater artifact with `tauri signer sign` and rewrites `latest.json`'s signature (`scripts/agent/latest-json.mjs`, `node:test`), then replaces those assets. Unsigned is the F0 path; this job is proved only by the static test until ADR 016 is accepted.
-- `scripts/test/release-workflows.test.mjs`: call chain and `release_created` guard; `workflow_call` only; environment `release`; secrets only in `build`/`sign`; ancestor check; `--ignore-scripts`; the `fixture-read` check before tauri-action and no `--features`; `tagName` from the input; fixed asset and `SHA256SUMS` without `--clobber`; SignPath gated by the variable; every `uses:` in both workflows and in the CI `agent` job pinned by a 40-char SHA; minimal permissions.
+  5. smoke check: the built `d2rmm-agent.exe --read-fixture x` exits with code 2 (AGS-33, the release binary rejects the flag);
+  6. copy the NSIS installer to `D2RMatchMaking-setup.exe`, write `SHA256SUMS` for both installers, `gh release upload "$TAG" …` (tag through `env:`, no `--clobber` in this job).
+- **SignPath (AD-053)**: a second job `sign` in `release-agent.yml`, `needs: build`, runs only when the repository variable `SIGNPATH_ENABLED == 'true'` (secrets cannot be used in `if:`). It uses `signpath/github-action-submit-signing-request` (SHA-pinned, origin-verified artifact upload, one approval per release), runs in `environment: release`, re-signs the updater artifact with `tauri signer sign`, rewrites `latest.json`'s signature (`scripts/agent/latest-json.mjs`, `node:test`), regenerates `D2RMatchMaking-setup.exe` and `SHA256SUMS` from the signed installer, and replaces those assets (`--clobber` allowed only in this job). Unsigned is the F0 path; this job is proved only by the static test until ADR 016 is accepted.
+- `scripts/test/release-workflows.test.mjs`: the three triggers and the tag resolution; the `release_created` guard on the calling job's `if:` and its `contents: write`; the CI dispatch for the release PR and `ci.yml`'s `workflow_dispatch`; checkout of the tag; environment `release` on `build` and `sign`; secrets only in `build`/`sign`; ancestor check; `--ignore-scripts`; the `fixture-read` check before tauri-action and no `--features`; `tagName` from the input; the exit-code-2 smoke check; fixed asset and `SHA256SUMS` without `--clobber` in `build`; SignPath gated by the variable; every `uses:` in both workflows and in the CI `agent` job pinned by a 40-char SHA; minimal permissions.
 
 ### Site note (`apps/web`)
 
@@ -253,7 +254,9 @@ pub struct AgentView { pub pairing: PairingView, pub connectivity: Connectivity,
 pub struct RoomView { pub game_name: String }
 ```
 
-No local storage besides the Credential Manager entry (`service = "d2rmm-agent"`, `user = "agent-token"`).
+No local storage besides the Credential Manager entry (`service = "d2rmm-agent"`, `user = "agent-token"`). `KeyringTokenStore` has a `#[cfg(windows)]` round-trip test (save, load, delete) under a unique service name that it removes, run by the CI `agent` job.
+
+`CODEOWNERS` assigns the maintainer to `apps/agent/src-tauri/src/adapters/toolhelp.rs`, `windows_ocr.rs`, `boundary-fixtures/`, `deny.toml` and `clippy.toml`.
 
 ---
 
@@ -298,13 +301,13 @@ No local storage besides the Credential Manager entry (`service = "d2rmm-agent"`
 
 ## Tech Decisions (only non-obvious ones)
 
-| Decision            | Choice                                                                                                                              | Rationale                                                                                                        |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Crates              | app `d2rmm-agent` (Tauri package at `src-tauri/`) + `d2rmm-agent-core` + `xtask`                                                    | AGS-01; generator and `typify` out of shipped binaries; `fixture-read` only in the leaf app                      |
-| Time in tests       | `#[tokio::test(start_paused = true)]`; deadlines on `tokio::time::Instant`; `PausedWallClock`                                       | One clock drives cadences and expiries                                                                           |
-| Fake API            | `axum` server in `core/tests/support/fake_api.rs`, validating bodies against the JSON Schemas                                       | Contract-faithful; SSE; scripted 202, 410, 429, 401, 426, 5xx                                                    |
-| Secret capture test | `core/tests/support/capture.rs` (tracing capture layer + span recorder) used by the AGS-09 test over a pair → heartbeat → 401 cycle | Proves neither token nor claim secret reaches logs or spans                                                      |
-| State to UI         | One `agent-state` event with `AgentView`; one command `get_new_code`                                                                | The UI holds no rule; minimal capability                                                                         |
-| Release chain       | release-please calls `release-agent.yml` via `workflow_call` on `release_created`                                                   | `GITHUB_TOKEN` tags do not trigger workflows; no PAT                                                             |
-| Signing key         | `release` environment; no install scripts; empty `beforeBuildCommand`; `--locked`                                                   | Limits what runs next to `TAURI_SIGNING_PRIVATE_KEY` while tauri-action keeps publishing `latest.json` (ADR 015) |
-| API base URL        | Build-time `D2RMM_API_BASE`, HTTPS-only in release                                                                                  | No runtime override in shipped builds; provider URL only in the app crate                                        |
+| Decision            | Choice                                                                                                                                                    | Rationale                                                                                                        |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Crates              | app `d2rmm-agent` (Tauri package at `src-tauri/`) + `d2rmm-agent-core` + `xtask`                                                                          | AGS-01; generator and `typify` out of shipped binaries; `fixture-read` only in the leaf app                      |
+| Time in tests       | `#[tokio::test(start_paused = true)]`; deadlines on `tokio::time::Instant`; `PausedWallClock`                                                             | One clock drives cadences and expiries                                                                           |
+| Fake API            | `axum` server in `core/tests/support/fake_api.rs`, validating bodies against the JSON Schemas                                                             | Contract-faithful; SSE; scripted 202, 410, 429, 401, 426, 5xx                                                    |
+| Secret capture test | `core/tests/support/capture.rs` (tracing capture layer + span recorder) used by the AGS-09 test over a pair → heartbeat → 401 cycle                       | Proves neither token nor claim secret reaches logs or spans                                                      |
+| State to UI         | One `agent-state` event with `AgentView`; one command `get_new_code`                                                                                      | The UI holds no rule; minimal capability                                                                         |
+| Release chain       | release-please calls `release-agent.yml` via `workflow_call` on `release_created`; `push: tags` kept for maintainer tags, `workflow_dispatch` for re-runs | `GITHUB_TOKEN` tags do not trigger workflows; no PAT; AGS-28 holds as written                                    |
+| Signing key         | `release` environment; no install scripts; empty `beforeBuildCommand`; `--locked`                                                                         | Limits what runs next to `TAURI_SIGNING_PRIVATE_KEY` while tauri-action keeps publishing `latest.json` (ADR 015) |
+| API base URL        | Build-time `D2RMM_API_BASE`, HTTPS-only in release                                                                                                        | No runtime override in shipped builds; provider URL only in the app crate                                        |
