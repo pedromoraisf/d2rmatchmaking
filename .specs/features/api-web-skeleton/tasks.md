@@ -1112,8 +1112,8 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Every scenario tagged `@AWS-01` … `@AWS-04` passes
-- [ ] Gate check passes: `pnpm --filter @d2rmm/acceptance exec bddgen test --tags "@AWS-01 or @AWS-02 or @AWS-03 or @AWS-04" && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@AWS-0[1-4]"`
+- [x] Every scenario tagged `@AWS-01` … `@AWS-04` passes
+- [x] Gate check passes: `pnpm --filter @d2rmm/acceptance exec bddgen test --tags "@AWS-01 or @AWS-02 or @AWS-03 or @AWS-04" && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@AWS-0[1-4]"`
 
 **Tests**: acceptance
 **Gate**: acceptance

@@ -2,19 +2,10 @@
 // site scenario shares. Black box: the browser and HTTP only. Each pattern is anchored, so one line matches one step.
 import { expect } from '@playwright/test';
 import { Given, Then, When } from '../fixtures.ts';
-import type { Visitor } from '../support/world.ts';
-
-/** The text a page shows while it waits for the first answer of the API. */
-const LOADING_TEXT = /^(Loading…|Carregando…)$/;
 
 /** Every quoted text of a step line, in order. */
 function quoted(text: string): string[] {
   return [...text.matchAll(/"([^"]*)"/g)].map((match) => match[1] ?? '');
-}
-
-/** Waits until the site has left its loading state, so the first assertion sees the real view. */
-async function settle(visitor: Visitor): Promise<void> {
-  await expect(visitor.page.getByText(LOADING_TEXT)).toHaveCount(0, { timeout: 15_000 });
 }
 
 // AWS-30: the API answers its health check.
@@ -33,11 +24,10 @@ Given(/^the browser prefers "(.+)"$/, ({ world }, language: string) => {
   world.locale = language;
 });
 
-// Opens the site in a visitor's browser (a new visitor, unless the step is given one already).
+// Opens the site in a new visitor's browser and waits for the first view of the site.
 When('a visitor opens the site', async ({ world }) => {
   const visitor = await world.newVisitor();
-  await visitor.page.goto(`${world.site.site}/`);
-  await settle(visitor);
+  await world.openSite(visitor);
 });
 
 // AWS-17: the download button points to the latest agent release.
