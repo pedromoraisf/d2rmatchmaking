@@ -54,3 +54,30 @@ describe('FakeClock', () => {
     expect(clock.now().toISOString()).toBe('2027-01-15T08:30:00.000Z');
   });
 });
+
+describe('FakeClock.onMove', () => {
+  it('calls the listener with the new instant on advance and on set', () => {
+    const clock = new FakeClock(new Date(START));
+    const seen: string[] = [];
+    clock.onMove((now) => seen.push(now.toISOString()));
+
+    clock.advance(1000);
+    clock.set(new Date('2027-01-15T08:30:00.000Z'));
+
+    expect(seen).toEqual(['2026-10-30T12:00:01.000Z', '2027-01-15T08:30:00.000Z']);
+  });
+
+  it('stops calling a listener after it unsubscribes', () => {
+    const clock = new FakeClock(new Date(START));
+    let calls = 0;
+    const unsubscribe = clock.onMove(() => {
+      calls += 1;
+    });
+
+    clock.advance(1);
+    unsubscribe();
+    clock.advance(1);
+
+    expect(calls).toBe(1);
+  });
+});

@@ -1,0 +1,49 @@
+{
+  "app": {
+    "title": "D2R Match Making",
+    "loading": "Loading…",
+    "error": "Something went wrong. Try again.",
+    "notice": "D2R Match Making is a community project and is not affiliated with Blizzard Entertainment.",
+    "downloadAgent": "Download the agent"
+  },
+  "signIn": {
+    "heading": "Sign in with a test account",
+    "playerName": "Player name",
+    "submit": "Sign in",
+    "invalidName": "Use 2 to 16 letters, digits or hyphens.",
+    "signedInAs": "Signed in as {{name}}"
+  },
+  "pairing": {
+    "codeLabel": "Pairing code",
+    "submit": "Pair agent",
+    "paired": "Agent paired",
+    "invalidCode": "This code is invalid or has expired.",
+    "tooManyAttempts": "Too many attempts. Try again in a few minutes."
+  },
+  "presence": {
+    "online": "Agent online",
+    "offline": "Agent offline",
+    "gameOpen": "Game open",
+    "gameClosed": "Game closed",
+    "screen": {
+      "UNKNOWN": "Screen: Unknown",
+      "AUTOMAP_OPEN": "Screen: Automap open"
+    }
+  },
+  "room": {
+    "gameName": "Game name",
+    "noPassword": "No password",
+    "stage": "Stage",
+    "stages": {
+      "formed": "Formed",
+      "awaiting_host": "Awaiting host",
+      "created": "Created",
+      "active": "Active",
+      "closed": "Closed",
+      "expired": "Expired"
+    }
+  },
+  "testMatch": {
+    "start": "Start test match"
+  }
+}

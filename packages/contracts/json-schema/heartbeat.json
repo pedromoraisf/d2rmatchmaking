@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "agentVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "pcState": {
+      "type": "string",
+      "enum": [
+        "IDLE",
+        "IN_QUEUE",
+        "IN_ROOM_JOINING",
+        "IN_GAME"
+      ]
+    },
+    "game": {
+      "type": "object",
+      "properties": {
+        "running": {
+          "type": "boolean"
+        },
+        "window": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "screen": {
+          "type": "string",
+          "enum": [
+            "UNKNOWN",
+            "AUTOMAP_OPEN"
+          ]
+        }
+      },
+      "required": [
+        "running",
+        "window",
+        "screen"
+      ],
+      "additionalProperties": false
+    },
+    "assignment": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "roomId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "run": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "roomId",
+            "run"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "capture": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "readRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "method",
+        "readRate"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "agentVersion",
+    "pcState",
+    "game",
+    "capture"
+  ],
+  "additionalProperties": false
+}

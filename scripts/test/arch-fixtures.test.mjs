@@ -38,6 +38,17 @@ const violations = [
   ['application-imports-adapter', 'application-no-adapters', 'an application file importing an adapter'],
   ['cross-module-internal', 'no-cross-module-internals', "a module importing another module's internal file"],
   ['module-imports-main', 'nobody-imports-main', 'a module file importing the composition root'],
+  ['module-imports-platform', 'platform-is-adapter', 'a module file importing the platform'],
+  [
+    'platform-imports-internal',
+    'platform-uses-public-ports',
+    "a platform file importing a module's internal layer",
+  ],
+  [
+    'render-imports-test-controls',
+    'render-no-test-controls',
+    'the Render composition root importing the test controls',
+  ],
 ];
 
 for (const [caseName, rule, description] of violations) {
