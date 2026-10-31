@@ -547,9 +547,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: a two-member assignment yields two site and two agent recipients; a stage change yields no agent recipient; presence goes to its owner only; `12` < `12.1` < `12.2` < `13` (test `ids increase with outbox order`)
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 6 new tests pass
+- [x] Tests: a two-member assignment yields two site and two agent recipients; a stage change yields no agent recipient; presence goes to its owner only; `12` < `12.1` < `12.2` < `13` (test `ids increase with outbox order`)
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 6 new tests pass
 
 **Tests**: unit
 **Gate**: quick

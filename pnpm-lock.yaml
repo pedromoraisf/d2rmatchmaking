@@ -62,6 +62,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@d2rmm/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@opentelemetry/api':
         specifier: ~1.9.1
         version: 1.9.1
