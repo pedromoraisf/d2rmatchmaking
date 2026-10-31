@@ -29,6 +29,7 @@ describe('Pages Function proxy', () => {
   it('rejects hostile paths with 404 and never calls the API', async () => {
     const hostile = [
       '/api/__test/reset',
+      '/api/__test/redeliver-match-formed',
       '/api/v1/../x',
       '/api/v1//x',
       '/api/v1%2fx',

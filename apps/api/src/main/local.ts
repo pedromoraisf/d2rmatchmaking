@@ -56,6 +56,7 @@ export async function startLocal(config: Config): Promise<LocalServer> {
         stores: built.stores,
         hub: built.hub,
         relay: built.relay,
+        bus: built.bus,
       });
     }
     const address = await built.app.listen({ host: LOCAL_HOST, port: config.port });

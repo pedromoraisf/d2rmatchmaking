@@ -1148,10 +1148,10 @@ T47 → T48 → T49 → T53 → T50
 
 **Done when**:
 
-- [ ] Integration tests in `src/main/__tests__/` (e.g. `roots.int.test.ts`): after a staging match-formed, redeliver answers 204, a recording handler subscribed on the bus receives the original outbox id a second time, and the account still has exactly one room for that `matchId`; with no `MatchFormed`, 404 `no-match`; without the secret and with a wrong secret, 403 and nothing published; against a database not named `acc_w<n>`, 403 and nothing published; the app built the way `render.ts` builds it (no test controls) answers 404 on `/__test/redeliver-match-formed`
-- [ ] `api-proxy.test.ts` refuses `/api/__test/redeliver-match-formed` with 404
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration && pnpm --filter @d2rmm/web test && pnpm arch`
-- [ ] Test count: ≥ 5 new integration tests pass
+- [x] Integration tests in `src/main/__tests__/` (e.g. `roots.int.test.ts`): after a staging match-formed, redeliver answers 204, a recording handler subscribed on the bus receives the original outbox id a second time, and the account still has exactly one room for that `matchId`; with no `MatchFormed`, 404 `no-match`; without the secret and with a wrong secret, 403 and nothing published; against a database not named `acc_w<n>`, 403 and nothing published; the app built the way `render.ts` builds it (no test controls) answers 404 on `/__test/redeliver-match-formed`
+- [x] `api-proxy.test.ts` refuses `/api/__test/redeliver-match-formed` with 404
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration && pnpm --filter @d2rmm/web test && pnpm arch`
+- [x] Test count: ≥ 5 new integration tests pass
 
 **Tests**: integration
 **Gate**: full

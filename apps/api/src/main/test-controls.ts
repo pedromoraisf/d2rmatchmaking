@@ -1,18 +1,19 @@
-// The test controls of the acceptance stack (design.md § Composition roots, AD-045): `POST /__test/reset` and
-// `POST /__test/clock`. Only `local.ts` registers them, and only when `D2RMM_ACCEPTANCE=true`; `render.ts` never does.
+// The test controls of the acceptance stack (design.md § Composition roots, AD-045, AD-062): `POST /__test/reset`,
+// `POST /__test/clock` and `POST /__test/redeliver-match-formed` (the at-least-once redelivery of AWS-20). Only `local.ts`
+// registers them, and only when `D2RMM_ACCEPTANCE=true`; `render.ts` never does, and they are never in `openapi.json`.
 import { timingSafeEqual } from 'node:crypto';
 import { ErrorResponse } from '@d2rmm/contracts';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { sql, type Kysely } from 'kysely';
 import { z } from 'zod';
-import type { Clock } from '../shared-kernel/index.ts';
+import type { AnyDomainEvent, Clock, EventBus } from '../shared-kernel/index.ts';
 import type { AppDatabase } from './app.ts';
 
 /** The header that carries `TEST_CONTROL_SECRET` (the acceptance stack generates it per run). */
 export const TEST_CONTROL_HEADER = 'x-test-control';
 
-/** Reset runs only on a per-worker acceptance database and only on loopback (AD-045). */
+/** Reset and redelivery run only on a per-worker acceptance database and only on loopback (AD-045). */
 const ACCEPTANCE_DATABASE = /^acc_w\d+$/;
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1']);
 
@@ -55,6 +56,13 @@ export interface TestControlDeps {
   };
   readonly hub: { closeAll(): void };
   readonly relay: { sweep(): Promise<void> };
+  /** The bus the redelivery publishes on: the one the relay and the consumers of this process share (AD-062). */
+  readonly bus: EventBus;
+}
+
+/** True when the process is connected to a per-worker acceptance database on loopback (AD-045). */
+function onAcceptanceDatabase(deps: TestControlDeps): boolean {
+  return ACCEPTANCE_DATABASE.test(deps.database.name) && LOOPBACK_HOSTS.has(deps.database.host);
 }
 
 /** Every table of the API, truncated in one statement by reset (design.md § Data Models). */
@@ -80,7 +88,7 @@ function secretMatches(presented: unknown, expected: string): boolean {
   return given.length === wanted.length && timingSafeEqual(given, wanted);
 }
 
-/** Registers the two control routes. Call before the app listens. */
+/** Registers the three control routes. Call before the app listens. */
 export function registerTestControls(app: FastifyInstance, deps: TestControlDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
@@ -101,7 +109,7 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
       schema: { response: { 204: z.null(), 403: ErrorResponse } },
     },
     async (_request, reply) => {
-      if (!ACCEPTANCE_DATABASE.test(deps.database.name) || !LOOPBACK_HOSTS.has(deps.database.host)) {
+      if (!onAcceptanceDatabase(deps)) {
         return reply.code(403).send({ error: 'forbidden' });
       }
       await sql`truncate table ${sql.raw(TABLES.join(', '))} restart identity cascade`.execute(deps.db);
@@ -126,6 +134,35 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
     },
     async (request, reply) => {
       deps.clock.advance(request.body.advanceMs);
+      return reply.code(204).send(null);
+    },
+  );
+
+  // AD-062: the relay's at-least-once redelivery, on demand. The real consumers run on the bus, so a repeated match
+  // must not make a second room (AWS-20). Guards run in reset's order, before the outbox is read.
+  typed.post(
+    '/__test/redeliver-match-formed',
+    {
+      preHandler: [requireSecret],
+      schema: { response: { 204: z.null(), 403: ErrorResponse, 404: ErrorResponse } },
+    },
+    async (_request, reply) => {
+      if (!onAcceptanceDatabase(deps)) {
+        return reply.code(403).send({ error: 'forbidden' });
+      }
+      const row = await deps.db
+        .selectFrom('platform.outbox')
+        .select(['id', 'event_type', 'payload'])
+        .where('event_type', '=', 'MatchFormed')
+        .orderBy('id', 'desc')
+        .limit(1)
+        .executeTakeFirst();
+      if (row === undefined) {
+        return reply.code(404).send({ error: 'no-match' });
+      }
+      // The same call the relay makes in its #publish (outbox-relay.ts): the original outbox id and the stored payload.
+      const event = { type: row.event_type, payload: row.payload } as AnyDomainEvent;
+      await deps.bus.publish({ kind: 'durable', id: BigInt(row.id), event });
       return reply.code(204).send(null);
     },
   );
