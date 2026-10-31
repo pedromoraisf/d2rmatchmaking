@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SequentialIdGenerator, type MatchFormedPayload } from '../../../shared-kernel/index.ts';
-import { LobbyRoom } from './lobby-room.ts';
+import { GameName } from './game-name.ts';
+import { LobbyRoom, type RestoredRoomProps } from './lobby-room.ts';
 import { Observation, type ObservationProps, type ObservationType } from './observation.ts';
 
 const CAPTURED_AT = new Date('2026-10-31T10:00:00.000Z');
@@ -148,5 +149,141 @@ describe('LobbyRoom.observe', () => {
     }
 
     expect(created.room.observe(observation({ idempotencyKey: 'key-2' }))).toEqual({ outcome: 'ignored' });
+  });
+});
+
+function gameName(n = 12): GameName {
+  const result = GameName.of('baal', 'hell', n);
+  if (!result.ok) {
+    throw new Error('expected the game name to build');
+  }
+  return result.value;
+}
+
+function restoredProps(overrides: Partial<RestoredRoomProps> = {}): RestoredRoomProps {
+  return {
+    id: 'room-1',
+    matchId: 'match-1',
+    mode: 'leveling',
+    activity: 'baal',
+    difficulty: 'hell',
+    hostAccountId: 'account-1',
+    stage: 'awaiting_host',
+    currentRun: 1,
+    gameName: gameName(),
+    members: [
+      { accountId: 'account-2', characterId: null, joinOrder: 2, role: 'member' },
+      { accountId: 'account-1', characterId: null, joinOrder: 1, role: 'host' },
+    ],
+    ...overrides,
+  };
+}
+
+function restore(overrides: Partial<RestoredRoomProps> = {}): LobbyRoom {
+  const result = LobbyRoom.restore(restoredProps(overrides));
+  if (!result.ok) {
+    throw new Error('expected the room to restore');
+  }
+  return result.value;
+}
+
+describe('LobbyRoom.restore', () => {
+  it('restored room behaves like the formed room', () => {
+    const formed = open();
+    const restored = restore();
+    const matching = observed('GAME_NAME_SEEN', { roomId: 'room-1', value: 'MMBAALH-12' });
+    const otherName = observed('GAME_NAME_SEEN', { roomId: 'room-1', value: 'mmbaalh-13' });
+
+    expect(restored.id).toBe(formed.id);
+    expect(restored.hostAccountId).toBe(formed.hostAccountId);
+    expect(restored.members).toEqual(formed.members);
+    expect(restored.observe(matching).outcome).toBe(formed.observe(matching).outcome);
+    expect(restored.observe(otherName).outcome).toBe(formed.observe(otherName).outcome);
+    expect(restored.observe(matching)).toMatchObject({ outcome: 'created' });
+  });
+
+  it('a restored created room ignores further sightings', () => {
+    const created = restore({ stage: 'created' });
+
+    const again = created.observe(observed('GAME_NAME_SEEN', { roomId: 'room-1', value: 'mmbaalh-12' }));
+
+    expect(again).toEqual({ outcome: 'ignored' });
+    expect(created.stage).toBe('created');
+  });
+
+  it('restore raises no event', () => {
+    const result = LobbyRoom.restore(restoredProps({ stage: 'created' }));
+
+    expect(result).toMatchObject({ ok: true });
+    if (!result.ok) {
+      throw new Error('expected the room to restore');
+    }
+    expect('events' in result.value).toBe(false);
+    expect(Object.keys(result)).toEqual(['ok', 'value']);
+  });
+
+  it('keeps the members in join order and the host as the lowest join order', () => {
+    const room = restore();
+
+    expect(room.members.map((member) => member.accountId)).toEqual(['account-1', 'account-2']);
+    expect(room.hostAccountId).toBe('account-1');
+    expect(room.password).toBe('');
+  });
+
+  it.each([
+    ['a stage outside awaiting_host and created', { stage: 'formed' as const }],
+    ['a run below 1', { currentRun: 0 }],
+    ['a run that is not an integer', { currentRun: 1.5 }],
+    ['a host account that is not among the members', { hostAccountId: 'account-9' }],
+    [
+      'a host that is not the lowest join order member',
+      {
+        members: [
+          { accountId: 'account-1', characterId: null, joinOrder: 2, role: 'host' as const },
+          { accountId: 'account-2', characterId: null, joinOrder: 1, role: 'member' as const },
+        ],
+      },
+    ],
+    [
+      'a second member with role host',
+      {
+        members: [
+          { accountId: 'account-1', characterId: null, joinOrder: 1, role: 'host' as const },
+          { accountId: 'account-2', characterId: null, joinOrder: 2, role: 'host' as const },
+        ],
+      },
+    ],
+    [
+      'a host account whose member has role member',
+      {
+        hostAccountId: 'account-2',
+        members: [
+          { accountId: 'account-2', characterId: null, joinOrder: 1, role: 'member' as const },
+          { accountId: 'account-1', characterId: null, joinOrder: 2, role: 'member' as const },
+        ],
+      },
+    ],
+    [
+      'a second host among several members',
+      {
+        members: [
+          { accountId: 'account-1', characterId: null, joinOrder: 1, role: 'host' as const },
+          { accountId: 'account-2', characterId: null, joinOrder: 2, role: 'member' as const },
+          { accountId: 'account-3', characterId: null, joinOrder: 3, role: 'host' as const },
+        ],
+      },
+    ],
+    ['no members', { members: [] }],
+    [
+      'a repeated account',
+      {
+        members: [
+          { accountId: 'account-1', characterId: null, joinOrder: 1, role: 'host' as const },
+          { accountId: 'account-1', characterId: null, joinOrder: 2, role: 'member' as const },
+        ],
+      },
+    ],
+  ])('refuses %s', (_label, overrides) => {
+    expect(LobbyRoom.restore(restoredProps(overrides))).toEqual({ ok: false, error: 'invalid-room' });
   });
 });

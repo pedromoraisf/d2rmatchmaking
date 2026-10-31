@@ -20,6 +20,20 @@ export interface RoomChange {
 export type ObservationOutcome =
   { readonly outcome: 'ignored' } | ({ readonly outcome: 'created' } & RoomChange);
 
+/** Stored state of a room, as `LobbyRoom.restore` takes it. The host is named explicitly and checked against the members. */
+export interface RestoredRoomProps {
+  readonly id: string;
+  readonly matchId: string;
+  readonly mode: 'pvp' | 'leveling';
+  readonly activity: string;
+  readonly difficulty: GameDifficulty;
+  readonly hostAccountId: string;
+  readonly stage: RoomStage;
+  readonly currentRun: number;
+  readonly gameName: GameName;
+  readonly members: readonly MatchMember[];
+}
+
 export interface LobbyRoomProps {
   readonly id: string;
   readonly matchId: string;
@@ -106,6 +120,45 @@ export class LobbyRoom {
         { type: 'RoomStageChanged', payload: { roomId: room.id, stage: 'awaiting_host', members } },
       ],
     });
+  }
+
+  /**
+   * Rebuilds a room from stored state (the Postgres repository's read path). Raises no event: the stored room already
+   * had its events. Refuses state that breaks the aggregate's invariants: a stage other than `awaiting_host` or
+   * `created`, a run below 1, members with a repeated account, and a host that is not the lowest join order member
+   * with role `host` (every other member has role `member`).
+   */
+  static restore(props: RestoredRoomProps): Result<LobbyRoom, 'invalid-room'> {
+    if (props.stage !== 'awaiting_host' && props.stage !== 'created') {
+      return err('invalid-room');
+    }
+    if (!Number.isInteger(props.currentRun) || props.currentRun < 1) {
+      return err('invalid-room');
+    }
+    const members = [...props.members].sort((a, b) => a.joinOrder - b.joinOrder);
+    const host = members[0];
+    if (host === undefined || host.role !== 'host' || host.accountId !== props.hostAccountId) {
+      return err('invalid-room');
+    }
+    if (members.slice(1).some((member) => member.role !== 'member')) {
+      return err('invalid-room');
+    }
+    if (new Set(members.map((member) => member.accountId)).size !== members.length) {
+      return err('invalid-room');
+    }
+    return ok(
+      new LobbyRoom({
+        id: props.id,
+        matchId: props.matchId,
+        mode: props.mode,
+        activity: props.activity,
+        difficulty: props.difficulty,
+        stage: props.stage,
+        currentRun: props.currentRun,
+        gameName: props.gameName,
+        members,
+      }),
+    );
   }
 
   /**

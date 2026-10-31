@@ -764,7 +764,7 @@ T47 → T48 → T49 → T50
 **Done when**:
 
 - [x] `test/support/postgres.int.test.ts`: two test files' databases are distinct and `select 1` answers; the integration config includes `src/**/*.int.test.ts` and `test/**/*.int.test.ts`
-- [ ] `pnpm --filter @d2rmm/api test` runs no `*.int.test.ts`; `pnpm --filter @d2rmm/api test:mutation` still exits 0
+- [x] `pnpm --filter @d2rmm/api test` runs no `*.int.test.ts`; `pnpm --filter @d2rmm/api test:mutation` still exits 0
 - [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`
 - [x] Test count: ≥ 2 integration tests pass
 
@@ -900,10 +900,10 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: a restored `awaiting_host` room accepts the host's matching observation exactly as a `fromMatch` room does (test `restored room behaves like the formed room`); a restored `created` room ignores further sightings; restore raises no event; each invalid prop is refused
-- [ ] `pnpm --filter @d2rmm/api test:mutation` still exits 0 (also closes T9's last box)
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:mutation`
-- [ ] Test count: ≥ 4 new tests pass
+- [x] Tests: a restored `awaiting_host` room accepts the host's matching observation exactly as a `fromMatch` room does (test `restored room behaves like the formed room`); a restored `created` room ignores further sightings; restore raises no event; each invalid prop is refused
+- [x] `pnpm --filter @d2rmm/api test:mutation` still exits 0 (also closes T9's last box)
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:mutation`
+- [x] Test count: ≥ 4 new tests pass
 
 **Tests**: unit
 **Gate**: quick
