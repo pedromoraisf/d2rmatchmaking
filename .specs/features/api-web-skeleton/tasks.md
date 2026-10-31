@@ -429,9 +429,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: a cached token authenticates without a repository call; a revoked agent's token → `unauthenticated` and is evicted; a heartbeat changing `gameRunning` publishes one `AgentPresenceChanged`, an identical one publishes none; `sweep` 45 s after the last heartbeat publishes offline once; `getMyAgent` returns presence or `none`
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 8 new tests pass
+- [x] Tests: a cached token authenticates without a repository call; a revoked agent's token → `unauthenticated` and is evicted; a heartbeat changing `gameRunning` publishes one `AgentPresenceChanged`, an identical one publishes none; `sweep` 45 s after the last heartbeat publishes offline once; `getMyAgent` returns presence or `none`
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 8 new tests pass
 
 **Tests**: unit
 **Gate**: quick

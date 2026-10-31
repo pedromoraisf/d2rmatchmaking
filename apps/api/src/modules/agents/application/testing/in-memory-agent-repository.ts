@@ -4,6 +4,8 @@ import type { AgentRepository } from '../ports.ts';
 /** In-memory AgentRepository. The claim mirrors the Postgres statement's conditions. */
 export class InMemoryAgentRepository implements AgentRepository {
   readonly #agents = new Map<string, Agent>();
+  /** Test helper: how many token-hash lookups reached the repository. */
+  tokenLookups = 0;
 
   async insert(_tx: unknown, agent: Agent): Promise<void> {
     this.#agents.set(agent.id, agent);
@@ -19,6 +21,11 @@ export class InMemoryAgentRepository implements AgentRepository {
 
   async findByClaimSecretHash(claimSecretHash: string): Promise<Agent | null> {
     return [...this.#agents.values()].find((agent) => agent.claimSecretHash === claimSecretHash) ?? null;
+  }
+
+  async findByTokenHash(tokenHash: string): Promise<Agent | null> {
+    this.tokenLookups += 1;
+    return [...this.#agents.values()].find((agent) => agent.tokenHash === tokenHash) ?? null;
   }
 
   async findCurrentByAccount(accountId: string): Promise<Agent | null> {

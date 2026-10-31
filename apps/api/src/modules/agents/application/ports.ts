@@ -1,5 +1,6 @@
 import type { Agent } from '../domain/agent.ts';
 import type { PairingCode } from '../domain/pairing-code.ts';
+import type { Presence } from '../domain/presence.ts';
 import type { Transaction } from '../../../shared-kernel/index.ts';
 
 /** Which table a secret belongs to: a value hashed for one domain never matches another (design.md § Identity). */
@@ -14,6 +15,7 @@ export interface AgentRepository {
   save(tx: Transaction, agent: Agent): Promise<void>;
   findById(agentId: string): Promise<Agent | null>;
   findByClaimSecretHash(claimSecretHash: string): Promise<Agent | null>;
+  findByTokenHash(tokenHash: string): Promise<Agent | null>;
   /** The account's agent that is not revoked, if any. */
   findCurrentByAccount(accountId: string): Promise<Agent | null>;
   /**
@@ -39,6 +41,8 @@ export interface PairingCodeRepository {
 export interface RateLimitStore {
   timestamps(key: string): Promise<Date[]>;
   record(key: string, at: Date): Promise<void>;
+  /** Drops every timestamp at or before `cutoff` (the sweep keeps only the widest window). */
+  prune(cutoff: Date): Promise<void>;
 }
 
 /** Cached token resolution: the agent and its account for a token hash (memory, ADR 006). */
@@ -46,4 +50,17 @@ export interface AgentTokenCache {
   get(tokenHash: string): { readonly agentId: string; readonly accountId: string } | undefined;
   set(tokenHash: string, value: { readonly agentId: string; readonly accountId: string }): void;
   invalidate(tokenHash: string): void;
+}
+
+/** The latest presence of an agent, with the account that owns it (memory, ADR 006). */
+export interface PresenceEntry {
+  readonly agentId: string;
+  readonly accountId: string;
+  readonly presence: Presence;
+}
+
+export interface PresenceStore {
+  get(agentId: string): PresenceEntry | undefined;
+  set(entry: PresenceEntry): void;
+  list(): PresenceEntry[];
 }

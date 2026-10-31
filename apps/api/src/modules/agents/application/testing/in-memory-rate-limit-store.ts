@@ -8,6 +8,15 @@ export class InMemoryRateLimitStore implements RateLimitStore {
     return [...(this.#entries.get(key) ?? [])];
   }
 
+  async prune(cutoff: Date): Promise<void> {
+    for (const [key, times] of this.#entries) {
+      this.#entries.set(
+        key,
+        times.filter((t) => t.getTime() > cutoff.getTime()),
+      );
+    }
+  }
+
   async record(key: string, at: Date): Promise<void> {
     this.#entries.set(key, [...(this.#entries.get(key) ?? []), new Date(at.getTime())]);
   }
