@@ -166,9 +166,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] Tests: `en` and `pt-BR` hold the same keys (test `agent en and pt-BR hold the same keys`); `pt-BR`, `pt` → pt-BR, `fr-FR`, `en-US` → en (test `follows the Windows display language`); `rules.test.ts` reports a literal in `apps/agent/src/views/x.tsx` (test `reports a literal string in an agent component`)
-- [ ] Gate check passes: `pnpm --filter @d2rmm/agent typecheck && pnpm --filter @d2rmm/agent test && pnpm --filter @d2rmm/agent build && pnpm --filter @d2rmm/config test`
-- [ ] Test count: ≥ 5 tests pass
+- [x] Tests: `en` and `pt-BR` hold the same keys (test `agent en and pt-BR hold the same keys`); `pt-BR`, `pt` → pt-BR, `fr-FR`, `en-US` → en (test `follows the Windows display language`); `rules.test.ts` reports a literal in `apps/agent/src/views/x.tsx` (test `reports a literal string in an agent component`)
+- [x] Gate check passes: `pnpm --filter @d2rmm/agent typecheck && pnpm --filter @d2rmm/agent test && pnpm --filter @d2rmm/agent build && pnpm --filter @d2rmm/config test`
+- [x] Test count: ≥ 5 tests pass
 
 **Tests**: unit
 **Gate**: quick

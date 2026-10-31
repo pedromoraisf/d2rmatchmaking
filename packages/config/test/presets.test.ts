@@ -130,7 +130,7 @@ describe('@d2rmm/config presets', () => {
         },
       },
       {
-        files: ['apps/web/src/**/*.tsx'],
+        files: ['apps/web/src/**/*.tsx', 'apps/agent/src/**/*.tsx'],
         plugins: { i18next },
         rules: { 'i18next/no-literal-string': ['error', { mode: 'jsx-only' }] },
       },
