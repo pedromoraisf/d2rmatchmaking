@@ -1,8 +1,8 @@
 # api-web-skeleton proofs
 
-**HEAD**: 60c231f
+**HEAD**: 47f73e6
 **Tree**: clean
-**Result**: 77 pass, 0 fail; mutations 0 killed, 0 not
+**Result**: 78 pass, 0 fail; mutations 3 killed, 0 not
 
 | Check | Proof                                                                                                            | Ran           | Passed | Result        |
 | ----- | ---------------------------------------------------------------------------------------------------------------- | ------------- | ------ | ------------- |
@@ -79,7 +79,16 @@
 | C71   | `pnpm --filter @d2rmm/api exec vitest run src/platform -t "ids increase with outbox order"`                      | 1             | -      | pass          |
 | C72   | `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform -t "event ids increase"`  | 1             | -      | pass          |
 | C73   | `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform -t "sends a keep-alive c` | 1             | -      | pass          |
+| C74   | `pnpm --filter @d2rmm/api exec vitest run src/modules/lobby-room/domain -t "ignores a GAME_NAME_SEEN from a mem` | 1             | -      | pass          |
 | Build | `pnpm build`                                                                                                     | -             | -      | pass          |
 | Build | `pnpm typecheck`                                                                                                 | -             | -      | pass          |
 | Build | `pnpm lint`                                                                                                      | -             | -      | pass          |
 | Build | `pnpm arch`                                                                                                      | -             | -      | pass          |
+
+## Mutations
+
+| Mutation                                        | Location                                                   | Killed |
+| ----------------------------------------------- | ---------------------------------------------------------- | ------ |
+| drop host-only check on GAME_NAME_SEEN (INV-06) | `apps/api/src/modules/lobby-room/domain/lobby-room.ts:174` | yes    |
+| offline boundary 45 s shifted by one            | `apps/api/src/modules/agents/domain/presence.ts:31`        | yes    |
+| rate window boundary inclusive                  | `apps/api/src/modules/agents/domain/sliding-window.ts:25`  | yes    |
