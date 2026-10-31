@@ -448,9 +448,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: the 10 001st token evicts the least recently used; `invalidate` removes; rate-limit timestamps pruned before the widest window; presence get/set/list
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 5 new tests pass
+- [x] Tests: the 10 001st token evicts the least recently used; `invalidate` removes; rate-limit timestamps pruned before the widest window; presence get/set/list
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 5 new tests pass
 
 **Tests**: unit
 **Gate**: quick
