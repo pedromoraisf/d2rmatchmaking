@@ -588,6 +588,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-31
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-066 (assumed)
+
+- **Decision**: the T7 test `windows features stay on the allow-list` fails when the app enables a `windows` feature outside the allow-list (subset check), not when a listed feature is missing.
+- **Reason**: the app has no `windows` dependency until T23/T24, so design.md's "exactly" fails on the repo today. The subset direction is the one that enforces the read-only boundary (ADR 010).
+- **Trade-off**: a missing allow-listed feature shows up as a build error, not a test failure. Reversal is equality once T24 lands.
+- **Scope**: agent-skeleton / T7
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
