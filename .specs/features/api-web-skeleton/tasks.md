@@ -488,9 +488,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests 1:1 to AWS-20/23/24 (INV-06, INV-08): two members → host is join order 1 (test `fromMatch creates awaiting_host with run 1`); non-host, other run, other name, other type each `ignored`; matching → `created` with one `RoomStageChanged`; a second match after `created` → `ignored`, no event
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 8 new tests pass
+- [x] Tests 1:1 to AWS-20/23/24 (INV-06, INV-08): two members → host is join order 1 (test `fromMatch creates awaiting_host with run 1`); non-host, other run, other name, other type each `ignored`; matching → `created` with one `RoomStageChanged`; a second match after `created` → `ignored`, no event
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 8 new tests pass
 
 **Tests**: unit
 **Gate**: quick
