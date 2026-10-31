@@ -723,9 +723,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `deploy-workflows.test.mjs`: trigger and guards; migrate step before the deploy-hook step; health loop bounded to 5 minutes (test `deploy-api runs migrations before the deploy hook and polls healthz 5 minutes`); secrets only in the deploy job; no `${{ github.event.* }}` inside `run:`; actions pinned by SHA
-- [ ] Gate check passes: `pnpm test:harness`
-- [ ] Test count: ≥ 5 new harness tests pass
+- [x] `deploy-workflows.test.mjs`: trigger and guards; migrate step before the deploy-hook step; health loop bounded to 5 minutes (test `deploy-api runs migrations before the deploy hook and polls healthz 5 minutes`); secrets only in the deploy job; no `${{ github.event.* }}` inside `run:`; actions pinned by SHA
+- [x] Gate check passes: `pnpm test:harness`
+- [x] Test count: ≥ 5 new harness tests pass
 
 **Tests**: unit
 **Gate**: quick
