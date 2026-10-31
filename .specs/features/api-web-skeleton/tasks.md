@@ -1140,17 +1140,18 @@ T47 → T48 → T49 → T53 → T50
 
 ### T53: Add the match-formed redelivery test control
 
-**What**: `POST /__test/redeliver-match-formed` in `main/test-controls.ts`: reads the newest `MatchFormed` row of `platform.outbox` and publishes it again on the `EventBus` with its original outbox id and payload, as the relay does on an at-least-once redelivery; answers 204, or 404 `{ error: 'no-match' }` when no `MatchFormed` exists. Same guards as reset: `X-Test-Control` secret (403 without it), database `acc_w<n>` on `localhost`/`127.0.0.1` (refused otherwise). Registered only by `local.ts` under `D2RMM_ACCEPTANCE` (AD-045, AD-062). Added by the orchestrator after T50's AWS-20 scenario found no black-box way to redeliver a match.
-**Where**: `apps/api/src/main/test-controls.ts`
+**What**: `POST /__test/redeliver-match-formed` in `main/test-controls.ts`: reads the newest `MatchFormed` row of `platform.outbox` and publishes it again on the `EventBus` with its original outbox id and payload (`{ kind: 'durable', id, event }`, the relay's own call), so the real `onMatchFormed` consumer runs on an at-least-once redelivery; answers 204, or 404 `{ error: 'no-match' }` when no `MatchFormed` exists. Guards in reset's order: `X-Test-Control` secret (403 `forbidden` without it or with a wrong one), then database `acc_w<n>` on `localhost`/`127.0.0.1` (403 `forbidden` otherwise), both before the outbox read. Response schemas 204/403/404 reuse `ErrorResponse`, like the other controls. `TestControlDeps` gains `readonly bus: EventBus` (the shared-kernel port); `local.ts` passes `built.bus`. Registered only by `local.ts` under `D2RMM_ACCEPTANCE` (AD-045, AD-062); never in `openapi.json`. Update the file's header and `registerTestControls` comments (three controls). Pin the threat-table claim: add `/api/__test/redeliver-match-formed` to the `hostile` list of `apps/web/functions/api/api-proxy.test.ts`. Added by the orchestrator after T50's AWS-20 scenario found no black-box way to redeliver a match; reviewed by architecture-reviewer and security-reviewer (PASS, minors folded in).
+**Where**: `apps/api/src/main/test-controls.ts`, `apps/api/src/main/local.ts`, `apps/web/functions/api/api-proxy.test.ts`
 **Depends on**: T49
 **Reuses**: T35 test controls, T13 relay, T26 `onMatchFormed`
 **Requirement**: AWS-20
 
 **Done when**:
 
-- [ ] `src/main/__tests__/roots.int.test.ts` (or a sibling in `main/__tests__/`): after a staging match-formed, redeliver answers 204 and the account still has exactly one room for that `matchId`; redeliver with no `MatchFormed` → 404 `no-match`; without the secret → 403; against a database not named `acc_w<n>` → refused; the Render app has no `/__test/redeliver-match-formed` route
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration && pnpm arch`
-- [ ] Test count: ≥ 4 new integration tests pass
+- [ ] Integration tests in `src/main/__tests__/` (e.g. `roots.int.test.ts`): after a staging match-formed, redeliver answers 204, a recording handler subscribed on the bus receives the original outbox id a second time, and the account still has exactly one room for that `matchId`; with no `MatchFormed`, 404 `no-match`; without the secret and with a wrong secret, 403 and nothing published; against a database not named `acc_w<n>`, 403 and nothing published; the app built the way `render.ts` builds it (no test controls) answers 404 on `/__test/redeliver-match-formed`
+- [ ] `api-proxy.test.ts` refuses `/api/__test/redeliver-match-formed` with 404
+- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration && pnpm --filter @d2rmm/web test && pnpm arch`
+- [ ] Test count: ≥ 5 new integration tests pass
 
 **Tests**: integration
 **Gate**: full
