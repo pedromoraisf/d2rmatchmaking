@@ -626,9 +626,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: the link's `href` equals the release URL; the notice text in en and pt-BR; "Loading…" and "Something went wrong. Try again." states
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
-- [ ] Test count: ≥ 4 new tests pass
+- [x] Tests: the link's `href` equals the release URL; the notice text in en and pt-BR; "Loading…" and "Something went wrong. Try again." states
+- [x] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
+- [x] Test count: ≥ 4 new tests pass
 
 **Tests**: unit
 **Gate**: quick
