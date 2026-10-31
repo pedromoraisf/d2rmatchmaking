@@ -245,9 +245,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] Tests named `windows features stay on the allow-list`, `unsafe is allowed only in the two adapters`, `unsafe adapters reference only allowed windows paths`, `instrument always skips arguments`, `fixture-read is never a default feature` — each fails on its fixture and passes on the repo
-- [ ] Gate check passes: `pnpm test:harness`
-- [ ] Test count: ≥ 10 new harness tests pass (rule + fixture each)
+- [x] Tests named `windows features stay on the allow-list`, `unsafe is allowed only in the two adapters`, `unsafe adapters reference only allowed windows paths`, `instrument always skips arguments`, `fixture-read is never a default feature` — each fails on its fixture and passes on the repo
+- [x] Gate check passes: `pnpm test:harness`
+- [x] Test count: ≥ 10 new harness tests pass (rule + fixture each)
 
 **Tests**: unit
 **Gate**: quick
