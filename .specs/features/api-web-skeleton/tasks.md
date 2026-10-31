@@ -702,9 +702,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests with a fake `fetch`: `/api/v1/me` → `API_ORIGIN/v1/me` with the query; `/api/__test/reset`, `/api/v1/../x`, `/api/v1//x`, `%2f`, `%5c` → 404 (test `rejects hostile paths`); `Authorization`, `X-Agent-Version`, `Host`, `X-Forwarded-For`, `CF-Connecting-IP` dropped, the allow-listed headers kept (test `drops Authorization and X-Agent-Version`); `Set-Cookie` passed through; a streamed body delivered chunk by chunk
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
-- [ ] Test count: ≥ 6 new tests pass
+- [x] Tests with a fake `fetch`: `/api/v1/me` → `API_ORIGIN/v1/me` with the query; `/api/__test/reset`, `/api/v1/../x`, `/api/v1//x`, `%2f`, `%5c` → 404 (test `rejects hostile paths`); `Authorization`, `X-Agent-Version`, `Host`, `X-Forwarded-For`, `CF-Connecting-IP` dropped, the allow-listed headers kept (test `drops Authorization and X-Agent-Version`); `Set-Cookie` passed through; a streamed body delivered chunk by chunk
+- [x] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
+- [x] Test count: ≥ 6 new tests pass
 
 **Tests**: unit
 **Gate**: quick
