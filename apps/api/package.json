@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint --max-warnings 0 .",
     "test": "vitest run --passWithNoTests",
+    "test:integration": "vitest run -c vitest.integration.config.ts",
     "test:mutation": "node scripts/mutation.ts"
   },
   "devDependencies": {
@@ -18,7 +19,9 @@
     "@stryker-mutator/core": "^10.1.1",
     "@stryker-mutator/typescript-checker": "^10.1.1",
     "@stryker-mutator/vitest-runner": "^10.1.1",
+    "@testcontainers/postgresql": "^12.2.1",
     "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
     "eslint": "^9.39.0",
     "typescript": "^5.9.3",
     "vitest": "^5.0.5"
@@ -26,6 +29,8 @@
   "dependencies": {
     "@d2rmm/contracts": "workspace:*",
     "@opentelemetry/api": "~1.9.1",
-    "fastify": "^5.12.7"
+    "fastify": "^5.12.7",
+    "kysely": "^0.29.7",
+    "pg": "^8.23.1"
   }
 }

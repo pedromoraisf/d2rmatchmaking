@@ -763,10 +763,10 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `test/support/postgres.int.test.ts`: two test files' databases are distinct and `select 1` answers; the integration config includes `src/**/*.int.test.ts` and `test/**/*.int.test.ts`
+- [x] `test/support/postgres.int.test.ts`: two test files' databases are distinct and `select 1` answers; the integration config includes `src/**/*.int.test.ts` and `test/**/*.int.test.ts`
 - [ ] `pnpm --filter @d2rmm/api test` runs no `*.int.test.ts`; `pnpm --filter @d2rmm/api test:mutation` still exits 0
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 2 integration tests pass
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`
+- [x] Test count: ≥ 2 integration tests pass
 
 **Tests**: integration
 **Gate**: full
