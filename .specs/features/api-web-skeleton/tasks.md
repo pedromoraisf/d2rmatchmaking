@@ -683,9 +683,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: button hidden when staging is off; `room.assigned` shows the game name, "No password", "Awaiting host"; `room.stage_changed` to `created` shows "Created"; a newer room replaces the shown one
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
-- [ ] Test count: ≥ 4 new tests pass
+- [x] Tests: button hidden when staging is off; `room.assigned` shows the game name, "No password", "Awaiting host"; `room.stage_changed` to `created` shows "Created"; a newer room replaces the shown one
+- [x] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
+- [x] Test count: ≥ 4 new tests pass
 
 **Tests**: unit
 **Gate**: quick
