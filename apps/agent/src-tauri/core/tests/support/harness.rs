@@ -11,7 +11,7 @@ use d2rmm_agent_core::ports::PausedWallClock;
 use tokio::sync::mpsc;
 
 use super::fake_api::{Answer, FakeApi, Operation, WALL_START};
-use super::fakes::{FakeTokenStore, RecordingSink};
+use super::fakes::{FakeProcesses, FakeTokenStore, RecordingSink};
 use super::paused::{RealIo, real_io};
 
 pub const VERSION: &str = "0.0.1";
@@ -21,6 +21,7 @@ pub const START: &str = WALL_START;
 pub struct Harness {
     pub api: FakeApi,
     pub tokens: Arc<FakeTokenStore>,
+    pub processes: Arc<FakeProcesses>,
     pub sink: Arc<RecordingSink>,
     pub ctx: Arc<Context>,
     _io: RealIo,
@@ -32,6 +33,7 @@ impl Harness {
         let io = real_io().await;
         let api = FakeApi::start().await;
         let tokens = Arc::new(FakeTokenStore::with_token(token));
+        let processes = Arc::new(FakeProcesses::default());
         let sink = Arc::new(RecordingSink::default());
         let config = Config {
             version: VERSION.to_string(),
@@ -40,6 +42,7 @@ impl Harness {
         };
         let adapters = Adapters {
             tokens: Arc::clone(&tokens) as _,
+            processes: Arc::clone(&processes) as _,
             clock: Arc::new(PausedWallClock::starting_at(
                 START.parse().expect("a valid instant"),
             )),
@@ -49,6 +52,7 @@ impl Harness {
         Self {
             api,
             tokens,
+            processes,
             sink,
             ctx,
             _io: io,

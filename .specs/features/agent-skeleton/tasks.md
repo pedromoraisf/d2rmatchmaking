@@ -401,9 +401,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] `core/tests/heartbeat.rs`: beats at 15 s and 30 s, none at 14.9 s; body valid against the schema with `running: false`, then `true` when the fake snapshot contains `d2r.EXE` (test `heartbeat_every_15s_with_running_flag`); a 503 and a refused connection show `Unreachable` and the next beat is on schedule, a success shows `Connected` (test `heartbeat_failure_shows_unreachable_then_connected`)
-- [ ] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
-- [ ] Test count: ≥ 4 new tests pass
+- [x] `core/tests/heartbeat.rs`: beats at 15 s and 30 s, none at 14.9 s; body valid against the schema with `running: false`, then `true` when the fake snapshot contains `d2r.EXE` (test `heartbeat_every_15s_with_running_flag`); a 503 and a refused connection show `Unreachable` and the next beat is on schedule, a success shows `Connected` (test `heartbeat_failure_shows_unreachable_then_connected`)
+- [x] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
+- [x] Test count: ≥ 4 new tests pass
 
 **Tests**: integration
 **Gate**: quick

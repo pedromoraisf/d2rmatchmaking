@@ -172,8 +172,9 @@ async fn show_code(ctx: &Context, response: PairingCodeResponse, unused: &mut u8
         }
 
         let span = tracing::info_span!("agent.pairing.claim");
+        let started = Instant::now();
         let outcome = ctx.api.claim(&secret).instrument(span).await;
-        claim_at = Instant::now() + CLAIM_INTERVAL;
+        claim_at = started + CLAIM_INTERVAL;
         match outcome {
             Ok(token) => return store_token(ctx, &token),
             Err(ApiError::Pending) => {}

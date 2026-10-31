@@ -10,12 +10,13 @@ use tokio::time::Instant;
 use crate::api_client::ApiClient;
 use crate::config::Config;
 use crate::contracts::generated::Assignment;
-use crate::ports::{StateSink, TokenStore, WallClock};
+use crate::ports::{ProcessSource, StateSink, TokenStore, WallClock};
 use crate::view::{AgentView, Connectivity, PairingView, RoomView, UpdateView};
 
 /// The ports the app hands to the core. Each loop reaches the outside world only through these.
 pub struct Adapters {
     pub tokens: Arc<dyn TokenStore + Send + Sync>,
+    pub processes: Arc<dyn ProcessSource + Send + Sync>,
     pub clock: Arc<dyn WallClock + Send + Sync>,
     pub sink: Arc<dyn StateSink + Send + Sync>,
 }
@@ -74,6 +75,7 @@ pub struct Context {
     pub version: String,
     pub api: ApiClient,
     pub tokens: Arc<dyn TokenStore + Send + Sync>,
+    pub processes: Arc<dyn ProcessSource + Send + Sync>,
     pub clock: Arc<dyn WallClock + Send + Sync>,
     pub hub: Hub,
     /// `true` while the agent holds a token (set by pairing, cleared by a 401).
@@ -95,6 +97,7 @@ impl Context {
             version: config.version.clone(),
             api: ApiClient::new(config, http),
             tokens: adapters.tokens,
+            processes: adapters.processes,
             clock: adapters.clock,
             hub: Hub::new(adapters.sink),
             paired: watch::channel(false).0,
