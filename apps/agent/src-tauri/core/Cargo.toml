@@ -7,3 +7,8 @@ publish = false
 description = "D2R Match Making agent core: pairing, heartbeat, stream, vision and fusion. No Tauri dependency."
 
 [dependencies]
+chrono = { version = "0.4", default-features = false, features = ["serde"] }
+regress = "0.12"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1"
+zeroize = "1"

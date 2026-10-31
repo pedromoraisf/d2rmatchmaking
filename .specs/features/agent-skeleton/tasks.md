@@ -285,9 +285,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] Tests: `contracts_are_current` (regenerated == committed); `secret_fields_are_redacted` (`ClaimRequest`, `PairingCodeResponse`, `ClaimResponse` print `***` with `{:?}`); `secret_serializes_only_where_sent`
-- [ ] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p xtask -p d2rmm-agent-core`
-- [ ] Test count: ≥ 3 new tests pass
+- [x] Tests: `contracts_are_current` (regenerated == committed); `secret_fields_are_redacted` (`ClaimRequest`, `PairingCodeResponse`, `ClaimResponse` print `***` with `{:?}`); `secret_serializes_only_where_sent`
+- [x] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p xtask -p d2rmm-agent-core`
+- [x] Test count: ≥ 3 new tests pass
 
 **Tests**: unit
 **Gate**: quick
