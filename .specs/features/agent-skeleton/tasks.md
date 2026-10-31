@@ -420,9 +420,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] `core/tests/stream.rs`: on paired/start/reconnect the assignment is fetched before the stream opens with the token (test `fetches_assignment_then_streams`); reconnect delays 1, 2, 4 … 60 s, reset after 60 s open, `retry:` ignored (test `reconnect_backoff_doubles_to_60s`); latest `room.assigned` wins (test `latest_room_assigned_wins`); unknown event names, invalid payloads, a 33-char game name and a 64 KiB+1 event are ignored or close the connection, the state unchanged (test `unknown_or_invalid_events_are_ignored`); `Last-Event-ID` is sent and bounded
-- [ ] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
-- [ ] Test count: ≥ 6 new tests pass
+- [x] `core/tests/stream.rs`: on paired/start/reconnect the assignment is fetched before the stream opens with the token (test `fetches_assignment_then_streams`); reconnect delays 1, 2, 4 … 60 s, reset after 60 s open, `retry:` ignored (test `reconnect_backoff_doubles_to_60s`); latest `room.assigned` wins (test `latest_room_assigned_wins`); unknown event names, invalid payloads, a 33-char game name and a 64 KiB+1 event are ignored or close the connection, the state unchanged (test `unknown_or_invalid_events_are_ignored`); `Last-Event-ID` is sent and bounded
+- [x] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
+- [x] Test count: ≥ 6 new tests pass
 
 **Tests**: integration
 **Gate**: quick

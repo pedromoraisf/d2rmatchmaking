@@ -9,6 +9,7 @@ pub mod heartbeat;
 pub mod pairing;
 pub mod ports;
 pub mod secret;
+pub mod stream;
 pub mod telemetry;
 pub mod view;
 

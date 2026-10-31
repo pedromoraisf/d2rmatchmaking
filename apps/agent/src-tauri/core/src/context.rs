@@ -165,6 +165,18 @@ impl Context {
         }
     }
 
+    /// Resolves once `allowed` stops holding: the stream reader uses it to close a connection on a 401 or a 426.
+    pub async fn wait_until_closed(&self, allowed: fn(&Context) -> bool) {
+        let mut paired = self.paired.subscribe();
+        let mut blocked = self.update_required.subscribe();
+        while allowed(self) {
+            tokio::select! {
+                _ = paired.changed() => {}
+                _ = blocked.changed() => {}
+            }
+        }
+    }
+
     /// Sleeps until `deadline`. Returns `true` when the deadline passed while `allowed` still holds, `false` as soon as
     /// it stops holding (a 401 or a 426 interrupts the sleep).
     pub async fn sleep_while_allowed(
