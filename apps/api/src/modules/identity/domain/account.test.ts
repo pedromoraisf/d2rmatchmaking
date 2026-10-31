@@ -32,3 +32,20 @@ describe('isTestAccount', () => {
     expect(isTestAccount({ id: 'account-2', battletag: 'Someone#1234', displayName: 'Someone' })).toBe(false);
   });
 });
+
+describe('isTestAccount needs both the #test battletag and the test key', () => {
+  it('is false for a #test battletag without a test key', () => {
+    expect(isTestAccount({ id: 'account-3', battletag: 'Ghost#test', displayName: 'Ghost' })).toBe(false);
+  });
+
+  it('is false for a test key without the #test battletag', () => {
+    expect(
+      isTestAccount({
+        id: 'account-4',
+        battletag: 'Someone#1234',
+        displayName: 'Someone',
+        testKey: 'someone',
+      }),
+    ).toBe(false);
+  });
+});

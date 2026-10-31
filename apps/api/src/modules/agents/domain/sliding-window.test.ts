@@ -67,3 +67,55 @@ describe('rateLimitKey', () => {
     expect(rateLimitKey('203.0.113.7')).toBe('203.0.113.7');
   });
 });
+
+describe('SlidingWindowLimit reads the window in time order', () => {
+  it('blocks from the oldest in-window submission whatever the order the timestamps come in', () => {
+    const limit = new SlidingWindowLimit(2, 5 * MINUTE);
+    const ordered = [T0, new Date(T0.getTime() + 2 * MINUTE)];
+    const reversed = [ordered[1] as Date, ordered[0] as Date];
+    const now = new Date(T0.getTime() + 3 * MINUTE);
+
+    expect(limit.check(reversed, now)).toEqual(limit.check(ordered, now));
+    expect(limit.check(reversed, now)).toEqual({
+      outcome: 'limited',
+      retryAt: new Date(T0.getTime() + 5 * MINUTE),
+    });
+  });
+});
+
+describe('rateLimitKey for IPv6, zones and malformed addresses', () => {
+  it('keys the expanded and the compressed form of one address the same', () => {
+    expect(rateLimitKey('2001:0db8:0000:0001:0000:0000:0000:0001')).toBe('2001:db8:0:1::/64');
+    expect(rateLimitKey('2001:0db8:0000:0001:0000:0000:0000:0001')).toBe(rateLimitKey('2001:db8:0:1::1'));
+  });
+
+  it('keys the loopback address under the zero /64 prefix', () => {
+    expect(rateLimitKey('::1')).toBe('0:0:0:0::/64');
+    expect(rateLimitKey('::')).toBe('0:0:0:0::/64');
+  });
+
+  it('ignores the zone identifier of a link-local address', () => {
+    expect(rateLimitKey('fe80::1%eth0')).toBe('fe80:0:0:0::/64');
+    expect(rateLimitKey('fe80::1%eth0')).toBe(rateLimitKey('fe80::1'));
+  });
+
+  it('keys the first four groups of a trailing-:: address', () => {
+    expect(rateLimitKey('1:2:3:4:5:6:7::')).toBe('1:2:3:4::/64');
+  });
+
+  it('keys every IPv4-mapped address under one prefix, since the /64 rule applies to them too', () => {
+    expect(rateLimitKey('::ffff:203.0.113.7')).toBe(rateLimitKey('::ffff:198.51.100.9'));
+  });
+
+  it('keys an address that does not parse exactly as given', () => {
+    for (const raw of [
+      '2001:db8::zz',
+      '1:2:3::4::5',
+      '1:2:3:4:5:6:7:8:9',
+      '::ffff:300.1.1.1',
+      '::ffff:1.2.3',
+    ]) {
+      expect(rateLimitKey(raw)).toBe(raw);
+    }
+  });
+});

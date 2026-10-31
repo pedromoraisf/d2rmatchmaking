@@ -64,3 +64,25 @@ describe('SeededRandomSource', () => {
     expect(() => random.bytes(1.5)).toThrow(RangeError);
   });
 });
+
+describe('SeededRandomSource stream (mulberry32, seed 1)', () => {
+  it('int accepts the bound 2^32 and draws the full 32-bit stream', () => {
+    const random = new SeededRandomSource(1);
+
+    expect([random.int(2 ** 32), random.int(2 ** 32), random.int(2 ** 32)]).toEqual([
+      2693262067, 11749833, 2265367787,
+    ]);
+  });
+
+  it('bytes packs each 32-bit word least significant byte first', () => {
+    expect(Array.from(new SeededRandomSource(1).bytes(4))).toEqual([243, 234, 135, 160]);
+  });
+
+  it('bytes draws one word per four bytes, so two bytes(4) calls equal one bytes(8)', () => {
+    const random = new SeededRandomSource(1);
+    const joined = [...random.bytes(4), ...random.bytes(4)];
+
+    expect(joined).toEqual(Array.from(new SeededRandomSource(1).bytes(8)));
+    expect(joined).toEqual([243, 234, 135, 160, 201, 73, 179, 0]);
+  });
+});

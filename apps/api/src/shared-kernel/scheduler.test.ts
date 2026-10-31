@@ -102,3 +102,18 @@ describe('FakeScheduler', () => {
     expect(() => scheduler.every(-5, () => undefined)).toThrow(RangeError);
   });
 });
+
+describe('FakeScheduler due order', () => {
+  it('runs three due callbacks in due order whatever their registration order', () => {
+    const clock = new FakeClock(START);
+    const scheduler = new FakeScheduler(clock);
+    const order: string[] = [];
+    scheduler.at(new Date(START.getTime() + 3_000), () => order.push('c'));
+    scheduler.at(new Date(START.getTime() + 1_000), () => order.push('a'));
+    scheduler.at(new Date(START.getTime() + 2_000), () => order.push('b'));
+
+    clock.advance(3_000);
+
+    expect(order).toEqual(['a', 'b', 'c']);
+  });
+});

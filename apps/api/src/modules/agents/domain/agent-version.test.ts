@@ -38,3 +38,23 @@ describe('AgentVersion.isBelow', () => {
     expect(parsed('1.2.3').isBelow(parsed('1.2.3'))).toBe(false);
   });
 });
+
+describe('AgentVersion components', () => {
+  it('reads the patch number as a whole number, not its last digit', () => {
+    const parsedVersion = AgentVersion.parse('0.1.10');
+
+    expect(parsedVersion).toMatchObject({ ok: true, value: { major: 0, minor: 1, patch: 10 } });
+  });
+
+  it('rejects a prerelease suffix or a fourth part', () => {
+    for (const raw of ['1.2.3-beta', '1.2.3.4']) {
+      expect(AgentVersion.parse(raw)).toEqual({ ok: false, error: 'invalid-version' });
+    }
+  });
+
+  it('compares the major number first, even when the minor and patch of the other side are higher', () => {
+    expect(parsed('1.0.0').isBelow(parsed('0.5.0'))).toBe(false);
+    expect(parsed('0.5.0').isBelow(parsed('1.0.0'))).toBe(true);
+    expect(parsed('0.9.9').isBelow(parsed('1.0.0'))).toBe(true);
+  });
+});

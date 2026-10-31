@@ -881,9 +881,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `pnpm --filter @d2rmm/api test:mutation` exits 0 with the domain score ≥ 80% and the application score ≥ 70%; the scores are written in the commit body
-- [ ] No production file changes; no existing test assertion loosened
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:mutation`
+- [x] `pnpm --filter @d2rmm/api test:mutation` exits 0 with the domain score ≥ 80% and the application score ≥ 70%; the scores are written in the commit body
+- [x] No production file changes; no existing test assertion loosened
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:mutation`
 
 **Tests**: unit
 **Gate**: quick
