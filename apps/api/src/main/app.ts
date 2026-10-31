@@ -21,6 +21,14 @@ import type { Writable } from 'node:stream';
 import { z } from 'zod';
 import type { AgentsPort } from '../modules/agents/index.ts';
 import { agentsRoutes } from '../modules/agents/adapters/http/routes.ts';
+import { lobbyRoomRoutes } from '../modules/lobby-room/adapters/http/routes.ts';
+import { PostgresGameNameSequence } from '../modules/lobby-room/adapters/postgres/postgres-game-name-sequence.ts';
+import { PostgresLobbyRoomRepository } from '../modules/lobby-room/adapters/postgres/postgres-lobby-room-repository.ts';
+import { PostgresObservationRepository } from '../modules/lobby-room/adapters/postgres/postgres-observation-repository.ts';
+import type { LobbyDatabase } from '../modules/lobby-room/adapters/postgres/schema.ts';
+import { createLobbyRoomUseCases } from '../modules/lobby-room/index.ts';
+import { matchmakingRoutes } from '../modules/matchmaking/adapters/http/routes.ts';
+import { createMatchmakingUseCases } from '../modules/matchmaking/index.ts';
 import { MemoryAgentTokenCache } from '../modules/agents/adapters/memory/memory-agent-token-cache.ts';
 import { MemoryPresenceStore } from '../modules/agents/adapters/memory/memory-presence-store.ts';
 import { MemoryRateLimitStore } from '../modules/agents/adapters/memory/memory-rate-limit-store.ts';
@@ -45,7 +53,7 @@ import { StreamHub } from '../platform/stream-hub.ts';
 import type { Clock, IdGenerator, RandomSource, Scheduler } from '../shared-kernel/index.ts';
 
 /** Every table of the API. One Kysely instance serves every module; each module reads only its own schema. */
-export type AppDatabase = PlatformDatabase & IdentityDatabase & AgentsDatabase;
+export type AppDatabase = PlatformDatabase & IdentityDatabase & AgentsDatabase & LobbyDatabase;
 
 /** How often the Agents sweep runs: presence offline marks and rate-limit pruning (design.md § Agents module). */
 const SWEEP_EVERY_MS = 1_000;
@@ -173,6 +181,23 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   });
 
   bus.subscribe('AgentRevoked', agents.evictRevokedAgent);
+
+  // The Lobby Room opens one room per `MatchFormed` it consumes (AWS-19, idempotent by match id).
+  const lobby = createLobbyRoomUseCases({
+    rooms: new PostgresLobbyRoomRepository(db as unknown as Kysely<LobbyDatabase>, clock),
+    observations: new PostgresObservationRepository(db as unknown as Kysely<LobbyDatabase>, clock),
+    sequence: new PostgresGameNameSequence(db as unknown as Kysely<LobbyDatabase>),
+    agents: agentsPort,
+    ids,
+    uow,
+    outbox,
+  });
+  const matchmaking = createMatchmakingUseCases({ ids, uow, outbox });
+  bus.subscribe('MatchFormed', async (event) => {
+    if (event.event.type === 'MatchFormed') {
+      await lobby.onMatchFormed(event.event.payload);
+    }
+  });
   const hub = new StreamHub({
     db: db as unknown as Kysely<PlatformDatabase>,
     bus,
@@ -220,6 +245,8 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   }));
   identityRoutes(app, { useCases: identity, guards, stagingEndpoints: config.stagingEndpoints });
   agentsRoutes(app, { useCases: agents, guards });
+  lobbyRoomRoutes(app, { useCases: lobby, guards });
+  matchmakingRoutes(app, { useCases: matchmaking, guards, stagingEndpoints: config.stagingEndpoints });
   hub.register(app);
 
   return { app, relay, bus, stores };

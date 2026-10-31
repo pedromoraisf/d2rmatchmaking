@@ -1017,9 +1017,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `src/main/__tests__/lobby-routes.int.test.ts`: match-formed → 202 and, after the relay, `GET /v1/me/room` shows `mmbaalh-<n>`, "awaiting_host", empty password; the assignment endpoint returns the room, run, expected game name and members (test `assignment endpoint returns the room`); the host's matching observation → 202 and stage `created`; non-member → 403 and nothing stored; a 5 KB body → 413; `record-observation` runs in span `lobby.record-observation` (test `record-observation runs in its span`)
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 6 new integration tests pass
+- [x] `src/main/__tests__/lobby-routes.int.test.ts`: match-formed → 202 and, after the relay, `GET /v1/me/room` shows `mmbaalh-<n>`, "awaiting_host", empty password; the assignment endpoint returns the room, run, expected game name and members (test `assignment endpoint returns the room`); the host's matching observation → 202 and stage `created`; non-member → 403 and nothing stored; a 5 KB body → 413; `record-observation` runs in span `lobby.record-observation` (test `record-observation runs in its span`)
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
+- [x] Test count: ≥ 6 new integration tests pass
 
 **Tests**: integration
 **Gate**: full
