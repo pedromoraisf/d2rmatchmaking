@@ -264,9 +264,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] `agent-ci.test.mjs`: the steps in order, both feature sets, `--locked`, the four fixture ids, every `uses:` of the job pinned by a 40-char SHA (test `the agent job runs fmt, clippy, nextest, deny and the fixtures`)
-- [ ] Gate check passes: `pnpm test:harness`
-- [ ] Test count: ≥ 3 new harness tests pass
+- [x] `agent-ci.test.mjs`: the steps in order, both feature sets, `--locked`, the four fixture ids, every `uses:` of the job pinned by a 40-char SHA (test `the agent job runs fmt, clippy, nextest, deny and the fixtures`)
+- [x] Gate check passes: `pnpm test:harness`
+- [x] Test count: ≥ 3 new harness tests pass
 
 **Tests**: unit
 **Gate**: quick

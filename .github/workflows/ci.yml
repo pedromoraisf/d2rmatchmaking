@@ -130,7 +130,8 @@ jobs:
           retention-days: 14
 
   agent:
-    # Rust: fmt, clippy, nextest
+    # Rust on Windows: fmt, clippy and nextest with default and all features, cargo-deny, and the four read-only
+    # boundary fixtures, each of which must fail with its id (AGS-02, AGS-21, AGS-22). Every uses: is SHA-pinned.
     name: agent
     needs: detect
     if: needs.detect.outputs.agent == 'true'
@@ -140,19 +141,51 @@ jobs:
       run:
         working-directory: apps/agent/src-tauri
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install the workspace
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+      - name: Build the UI (Tauri reads frontendDist)
+        working-directory: .
+        run: pnpm --filter @d2rmm/agent build
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: apps/agent/src-tauri
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2
         with:
-          tool: cargo-nextest
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo nextest run
+          tool: cargo-nextest@0.9.150,cargo-deny@0.20.2
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy (default features)
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Clippy (all features)
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+      - name: Tests (default features)
+        run: cargo nextest run --locked
+      - name: Tests (all features)
+        run: cargo nextest run --locked --all-features
+      - name: Dependency policy
+        run: cargo deny --locked check
+      - name: Fixture banned-dep must fail with banned
+        working-directory: .
+        run: node scripts/agent/expect-failure.mjs banned -- cargo deny --config apps/agent/src-tauri/deny.toml --manifest-path apps/agent/src-tauri/boundary-fixtures/banned-dep/Cargo.toml check bans
+      - name: Fixture unsafe-ffi must fail with unsafe_code
+        working-directory: .
+        run: node scripts/agent/expect-failure.mjs unsafe_code -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/unsafe-ffi/Cargo.toml -- -D warnings
+      - name: Fixture command-new must fail with disallowed_types
+        working-directory: .
+        run: node scripts/agent/expect-failure.mjs disallowed_types -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/command-new/Cargo.toml -- -D warnings
+      - name: Fixture toolhelp-read must fail with disallowed_methods
+        working-directory: .
+        run: node scripts/agent/expect-failure.mjs disallowed_methods -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/toolhelp-read/Cargo.toml --target x86_64-pc-windows-msvc -- -D warnings
 
   secrets:
     name: secrets # gitleaks; required check in .github/rulesets/main.json
