@@ -566,9 +566,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests with Fastify `inject` and fake ports: no / `1.0` / below-min `X-Agent-Version` → 426 before auth runs, equal version passes (test `answers 426 before authentication`); bearer token → `agentId`, cookie ignored on agent routes; `Authorization` on a site route → 401; cross-origin or non-JSON cookie POST → 403
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 10 new tests pass
+- [x] Tests with Fastify `inject` and fake ports: no / `1.0` / below-min `X-Agent-Version` → 426 before auth runs, equal version passes (test `answers 426 before authentication`); bearer token → `agentId`, cookie ignored on agent routes; `Authorization` on a site route → 401; cross-origin or non-JSON cookie POST → 403
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 10 new tests pass
 
 **Tests**: unit
 **Gate**: quick
