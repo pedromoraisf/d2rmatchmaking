@@ -29,6 +29,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-045 | api-web-skeleton   | Test-control endpoints (reset, clock) only in `main/local.ts` under `D2RMM_ACCEPTANCE`               | per-scenario DBs, real waits |            |
 | AD-046 | api-web-skeleton   | F0 site without TanStack Router/Query                                                                | add them in F1               |            |
 | AD-056 | api-web-skeleton   | Presence and revoke events are transient (bus only, not the outbox)                                  | move presence to Postgres    |            |
+| AD-061 | api-web-skeleton   | Staging match-formed answers 404 `no-room` / `no-assignment`; route in Matchmaking routes            | a contract change            |            |
 
 ## Queued for F1 (from the api-web-skeleton security review)
 

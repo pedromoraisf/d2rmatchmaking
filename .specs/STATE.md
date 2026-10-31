@@ -427,6 +427,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-30
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-061 (assumed)
+
+- **Decision**: the staging `POST /v1/staging/match-formed` route answers 404 `no-room` when the room does not exist and 404 `no-assignment` when there is no assignment; it lives in the Matchmaking routes file, the design's owner, not the Lobby Room routes file T34 names.
+- **Reason**: neither response is specified in the spec or design; 404 with a stable code is the conservative answer for a staging-only route and changes nothing a player sees.
+- **Trade-off**: the codes become part of `openapi.json`; reversal is a contract change on a staging route.
+- **Scope**: api-web-skeleton / matchmaking
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: api-web-skeleton (Design)
