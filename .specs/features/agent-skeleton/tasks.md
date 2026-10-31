@@ -227,8 +227,8 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] Locally, `expect-failure.mjs` passes for `banned-dep` (`banned`), `unsafe-ffi` (`unsafe_code`) and `command-new` (`disallowed_types`); `toolhelp-read` is checked with `--target x86_64-pc-windows-msvc` (`disallowed_methods`)
-- [ ] Gate check passes: `node scripts/agent/expect-failure.mjs banned -- cargo deny --config apps/agent/src-tauri/deny.toml --manifest-path apps/agent/src-tauri/boundary-fixtures/banned-dep/Cargo.toml check bans && node scripts/agent/expect-failure.mjs unsafe_code -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/unsafe-ffi/Cargo.toml -- -D warnings && node scripts/agent/expect-failure.mjs disallowed_types -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/command-new/Cargo.toml -- -D warnings`
+- [x] Locally, `expect-failure.mjs` passes for `banned-dep` (`banned`), `unsafe-ffi` (`unsafe_code`) and `command-new` (`disallowed_types`); `toolhelp-read` is checked with `--target x86_64-pc-windows-msvc` (`disallowed_methods`)
+- [x] Gate check passes: `node scripts/agent/expect-failure.mjs banned -- cargo deny --config apps/agent/src-tauri/deny.toml --manifest-path apps/agent/src-tauri/boundary-fixtures/banned-dep/Cargo.toml check bans && node scripts/agent/expect-failure.mjs unsafe_code -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/unsafe-ffi/Cargo.toml -- -D warnings && node scripts/agent/expect-failure.mjs disallowed_types -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/command-new/Cargo.toml -- -D warnings`
 
 **Tests**: unit
 **Gate**: quick

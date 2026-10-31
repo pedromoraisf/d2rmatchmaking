@@ -1,0 +1,8 @@
+[package]
+name = "command-new"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Boundary fixture (AGS-22): starts a process with std::process::Command, so clippy must fail with `disallowed_types`.
+[workspace]

@@ -1,0 +1,12 @@
+[package]
+name = "toolhelp-read"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Boundary fixture (AGS-22, ADR 010): reads another process's memory through Toolhelp, so clippy must fail with
+# `disallowed_methods`. Checked with --target x86_64-pc-windows-msvc, where the call exists.
+[workspace]
+
+[dependencies]
+windows = { version = "0.62", features = ["Win32_System_Diagnostics_ToolHelp"] }
