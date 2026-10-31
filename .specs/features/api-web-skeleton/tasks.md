@@ -843,9 +843,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `identity-repositories.int.test.ts`: insert and find a test account by `test_key`; a second insert with the same key fails on the unique index; session found by hash; hashes of the same value in domains `session` and `agent` differ
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 4 new integration tests pass
+- [x] `identity-repositories.int.test.ts`: insert and find a test account by `test_key`; a second insert with the same key fails on the unique index; session found by hash; hashes of the same value in domains `session` and `agent` differ
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
+- [x] Test count: ≥ 4 new integration tests pass
 
 **Tests**: integration
 **Gate**: full
