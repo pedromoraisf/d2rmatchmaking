@@ -930,5 +930,5 @@ Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.to
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** the maintainer confirmed the `# not-scenario` exemptions ("Ponto 2: A", 2026-10-30)
-**Dispatched:** none — Execute waits for the api-web-skeleton merge and a Rust toolchain (escalation)
+**Dispatched:** none — api-web-skeleton is merged and in this branch (e0909b5); rustup stable, `cargo-nextest`, `cargo-deny` and the `x86_64-pc-windows-msvc` target are installed (2026-10-31). Execute waits for a Claude Code restart so `~/.cargo/bin` (sourced by `~/.zshenv`) is on the session PATH
 **Walked:** none
