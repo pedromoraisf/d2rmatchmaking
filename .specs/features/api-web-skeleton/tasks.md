@@ -124,7 +124,7 @@ T9 → T10 → T11 → T13
 ### Phase 10: Postgres adapters
 
 ```
-T16 → T21 → T26
+T16 → T21 → T51 → T26
 ```
 
 ### Phase 11: Streams, HTTP routes and composition roots
@@ -871,11 +871,31 @@ T47 → T48 → T49 → T50
 
 ---
 
+### T51: Add LobbyRoom.restore for the repository
+
+**What**: `LobbyRoom.restore(props)` in the domain: rebuilds a room from stored state (id, match id, mode, activity, difficulty, host account, stage, current run, game name of the current run, members with roles and join order) without raising events, rejecting props that break the aggregate's invariants (no host among the members, a run below 1, a stage outside `awaiting_host` / `created`). Added by the orchestrator after T26 stopped: T24's private constructor left the Postgres adapter no way to return a `LobbyRoom`.
+**Where**: `apps/api/src/modules/lobby-room/domain/lobby-room.ts`
+**Depends on**: T21
+**Reuses**: T24 aggregate
+**Requirement**: AWS-20, AWS-24
+
+**Done when**:
+
+- [ ] Tests: a restored `awaiting_host` room accepts the host's matching observation exactly as a `fromMatch` room does (test `restored room behaves like the formed room`); a restored `created` room ignores further sightings; restore raises no event; each invalid prop is refused
+- [ ] `pnpm --filter @d2rmm/api test:mutation` still exits 0 (also closes T9's last box)
+- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:mutation`
+- [ ] Test count: ≥ 4 new tests pass
+
+**Tests**: unit
+**Gate**: quick
+
+---
+
 ### T26: Implement the Lobby Room Postgres adapters
 
 **What**: Kysely `LobbyRoomRepository` (rooms, members, runs), `ObservationRepository` (primary key `(agent_id, idempotency_key)`) and `GameNameSequence` on `lobby.game_name_seq`.
 **Where**: `apps/api/src/modules/lobby-room/adapters/postgres/`
-**Depends on**: T21
+**Depends on**: T51
 **Reuses**: T9 helper, T10 migration
 **Requirement**: AWS-20, AWS-24
 
@@ -1366,5 +1386,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 
 **execute-batch-6 notes (2026-10-31, feature-worker)**: done T9 44163d3, T10 457dfab, T11 e335c4b, T13 d850026, T16 b8c5efe, T21 06376f5; API unit tests 201 → 205, integration tests 2 → 21 (6 files). T10 attempt 1 failed (Kysely 0.29 exports `Migrator` from `kysely/migration`; fixed, attempt 2 passed). T21 attempt 1 failed (the test's fake random returned identical claim secrets; fixed in the fixture, attempt 2 passed). T9's `test:mutation` box is not ticked: not run in this batch. Design choices: `migrateToLatest` lives in `platform/postgres/migrator.ts` because module and platform tests may not import `main/` (nobody-imports-main), and `main/migrate.ts` is the CLI around it; the opaque `Transaction` is cast back to Kysely by `executorOf` in platform and once in each module's adapters (modules may not import platform); `Sha256SecretHasher` sits in `identity/adapters/postgres/`; `TimerScheduler` takes no clock and uses `Date.now()`.
 **BLOCKED at T26 (plan, not the retry budget)**: `LobbyRoom`'s constructor is private and T24 has no factory that rebuilds a room from stored rows, so `LobbyRoomRepository.findById`, `findByMatchId` and `findNewestByAccount` cannot return a `LobbyRoom` without changing the domain aggregate, which is outside T26's `Where`. Options for the orchestrator: add a `LobbyRoom.restore(props)` factory to `lobby-room.ts` with unit tests (a small task or a Where change, not decided by the worker), or replay `fromMatch` and `observe` in the adapter, which fabricates observations and is not recommended. T26 was not started: no gate attempts used, no code written. T26's `ObservationRepository` and `GameNameSequence` are unblocked and can follow the same pattern as T21.
+
+**Orchestrator replan (2026-10-31, T26)**: new task T51 (`LobbyRoom.restore`, domain) runs before T26, which now depends on it; T51's gate also runs `test:mutation`, closing T9's unticked box. Batch 6 continues with T51 and T26.
 
 **Walked:** none
