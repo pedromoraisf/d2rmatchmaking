@@ -1,5 +1,5 @@
 import { withSpan, type Clock, type RandomSource } from '../../../shared-kernel/index.ts';
-import type { AgentRepository, PairingCodeRepository, SecretHasher } from './ports.ts';
+import type { AgentRepository, AgentTokenCache, PairingCodeRepository, SecretHasher } from './ports.ts';
 import { newAgentToken } from './secret-tokens.ts';
 
 export type ClaimOutcome =
@@ -13,6 +13,8 @@ export interface ClaimTokenDeps {
   readonly hasher: SecretHasher;
   readonly clock: Clock;
   readonly random: RandomSource;
+  /** Filled on a successful claim, so the agent's first heartbeat authenticates without a read (design.md § Agents). */
+  readonly cache?: AgentTokenCache;
 }
 
 /**
@@ -25,12 +27,10 @@ export function createClaimToken(deps: ClaimTokenDeps) {
       const now = deps.clock.now();
       const claimSecretHash = deps.hasher.hash('claim', input.claimSecret);
       const token = newAgentToken(deps.random);
-      const claimed = await deps.agents.claimTokenAtomically(
-        claimSecretHash,
-        deps.hasher.hash('agent', token),
-        now,
-      );
+      const tokenHash = deps.hasher.hash('agent', token);
+      const claimed = await deps.agents.claimTokenAtomically(claimSecretHash, tokenHash, now);
       if (claimed !== null) {
+        deps.cache?.set(tokenHash, { agentId: claimed.agentId, accountId: claimed.accountId });
         return { state: 'claimed', token };
       }
       const agent = await deps.agents.findByClaimSecretHash(claimSecretHash);

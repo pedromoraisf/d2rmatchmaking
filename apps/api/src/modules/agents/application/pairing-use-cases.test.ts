@@ -11,6 +11,7 @@ import { SeededRandomSource, type RandomSource } from '../../../shared-kernel/ra
 import { createPairingUseCases } from './agents-use-cases.ts';
 import { FakeSecretHasher } from './testing/fake-secret-hasher.ts';
 import { InMemoryAgentRepository } from './testing/in-memory-agent-repository.ts';
+import { InMemoryAgentTokenCache } from './testing/in-memory-agent-token-cache.ts';
 import { InMemoryPairingCodeRepository } from './testing/in-memory-pairing-code-repository.ts';
 import { InMemoryRateLimitStore } from './testing/in-memory-rate-limit-store.ts';
 import { InMemoryUnitOfWork } from './testing/in-memory-unit-of-work.ts';
@@ -57,6 +58,7 @@ function setup(scripted: number[] = []) {
   const rateLimits = new InMemoryRateLimitStore();
   const bus = new RecordingEventBus();
   const hasher = new FakeSecretHasher();
+  const cache = new InMemoryAgentTokenCache();
   const useCases = createPairingUseCases({
     agents,
     codes,
@@ -67,8 +69,9 @@ function setup(scripted: number[] = []) {
     ids: new SequentialIdGenerator('agent'),
     uow: new InMemoryUnitOfWork(),
     bus,
+    cache,
   });
-  return { clock, agents, codes, bus, hasher, useCases };
+  return { clock, agents, codes, bus, hasher, cache, useCases };
 }
 
 async function requestCode(
@@ -211,6 +214,23 @@ describe('claimToken', () => {
     expect(claimed.token).toMatch(TOKEN_SHAPE);
     expect((await agents.findById('agent-1'))?.tokenHash).toBe(hasher.hash('agent', claimed.token));
     expect(await useCases.claimToken({ claimSecret })).toEqual({ state: 'gone' });
+  });
+
+  it('fills the token cache on claim, so the first heartbeat needs no read', async () => {
+    const { useCases, cache, hasher } = setup();
+    const { code, claimSecret } = await requestCode(useCases);
+    await useCases.pairAgent({ accountId: 'account-1', code });
+
+    const claimed = await useCases.claimToken({ claimSecret });
+
+    expect(claimed.state).toBe('claimed');
+    if (claimed.state !== 'claimed') {
+      throw new Error('the first claim should hand out the token');
+    }
+    expect(cache.get(hasher.hash('agent', claimed.token))).toEqual({
+      agentId: 'agent-1',
+      accountId: 'account-1',
+    });
   });
 
   it('answers gone for a code that expired unused', async () => {

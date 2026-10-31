@@ -960,9 +960,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `src/main/__tests__/app.int.test.ts`: `/healthz` answers 200 `{"status":"ok"}` with the database stopped (test `healthz answers with the database down`); `/v1/config` reflects the flags; with `stagingEndpoints: false` the test-login and match-formed routes answer 404; a validation error lists field paths and not values; the API's dependencies contain no Redis, broker or queue client and its stores are the memory adapters (test `runs with no external broker`)
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 6 new integration tests pass
+- [x] `src/main/__tests__/app.int.test.ts`: `/healthz` answers 200 `{"status":"ok"}` with the database stopped (test `healthz answers with the database down`); `/v1/config` reflects the flags; with `stagingEndpoints: false` the test-login and match-formed routes answer 404; a validation error lists field paths and not values; the API's dependencies contain no Redis, broker or queue client and its stores are the memory adapters (test `runs with no external broker`)
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
+- [x] Test count: ≥ 6 new integration tests pass
 
 **Tests**: integration
 **Gate**: full

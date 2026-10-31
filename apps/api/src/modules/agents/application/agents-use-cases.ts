@@ -1,5 +1,6 @@
 import type { Clock, EventBus, IdGenerator, RandomSource, UnitOfWork } from '../../../shared-kernel/index.ts';
 import { createAuthenticateAgent } from './authenticate-agent.ts';
+import { createAccountOfAgent, createCurrentAgentOf } from './agent-lookups.ts';
 import { createClaimToken } from './claim-token.ts';
 import { createEvictRevokedAgent } from './evict-revoked-agent.ts';
 import { createGetMyAgent } from './get-my-agent.ts';
@@ -26,6 +27,7 @@ export interface AgentsDeps {
   readonly ids: IdGenerator;
   readonly uow: UnitOfWork;
   readonly bus: EventBus;
+  readonly cache?: AgentTokenCache;
 }
 
 /** Builds the pairing and claim use cases over their ports. */
@@ -53,6 +55,8 @@ export function createAgentsUseCases(deps: AgentsRuntimeDeps) {
     sweep: createSweep(deps),
     getMyAgent: createGetMyAgent(deps),
     evictRevokedAgent: createEvictRevokedAgent(deps),
+    accountOfAgent: createAccountOfAgent(deps),
+    currentAgentOf: createCurrentAgentOf(deps),
   };
 }
 

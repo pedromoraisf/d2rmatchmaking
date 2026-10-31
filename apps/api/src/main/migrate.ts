@@ -1,9 +1,10 @@
-// `pnpm --filter @d2rmm/api db:migrate`: applies the pending migrations to DATABASE_URL and exits. The only file outside
-// main/config.ts that reads the environment; main/ is the composition root, so this is allowed here (AGENTS.md).
+// `pnpm --filter @d2rmm/api db:migrate`: applies the pending migrations to DATABASE_URL and exits. The database URL is
+// read through main/config.ts, the only reader of the environment (AWS-31).
 import { fileURLToPath } from 'node:url';
 import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
 import { migrateToLatest } from '../platform/postgres/migrator.ts';
+import { loadConfig } from './config.ts';
 
 /** Applies the pending migrations to the database at `databaseUrl`. Returns the names this run applied. */
 export async function migrateDatabase(databaseUrl: string): Promise<string[]> {
@@ -17,7 +18,7 @@ export async function migrateDatabase(databaseUrl: string): Promise<string[]> {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const databaseUrl = process.env['DATABASE_URL'];
+  const databaseUrl = loadConfig().databaseUrl;
   if (databaseUrl === undefined || databaseUrl === '') {
     console.error('DATABASE_URL is not set.');
     process.exit(1);
