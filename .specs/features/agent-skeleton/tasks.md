@@ -185,10 +185,10 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] `agent-source-rules.test.mjs`: version path, CSP, `withGlobalTauri: false`, empty `beforeBuildCommand`, no `build.features` (test `tauri.conf.json keeps the hardened shell`); capability `main` lists exactly the three permissions (test `the window gets only listen, unlisten and get_new_code`); `d2rmm-agent-core` has no Tauri dependency (test `core has no tauri dependency`)
-- [ ] App test `version_comes_from_package_json`: the generated context's version equals `apps/agent/package.json`'s
-- [ ] Gate check passes: `pnpm --filter @d2rmm/agent build && pnpm test:harness && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent`
-- [ ] Test count: ≥ 4 new tests pass
+- [x] `agent-source-rules.test.mjs`: version path, CSP, `withGlobalTauri: false`, empty `beforeBuildCommand`, no `build.features` (test `tauri.conf.json keeps the hardened shell`); capability `main` lists exactly the three permissions (test `the window gets only listen, unlisten and get_new_code`); `d2rmm-agent-core` has no Tauri dependency (test `core has no tauri dependency`)
+- [x] App test `version_comes_from_package_json`: the generated context's version equals `apps/agent/package.json`'s
+- [x] Gate check passes: `pnpm --filter @d2rmm/agent build && pnpm test:harness && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent`
+- [x] Test count: ≥ 4 new tests pass
 
 **Tests**: unit
 **Gate**: quick

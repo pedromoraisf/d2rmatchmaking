@@ -6,3 +6,10 @@
 /.dependency-cruiser.cjs            @pedromoraisf
 /docs/adr/                          @pedromoraisf
 /apps/agent/                        @pedromoraisf
+# The agent's read-only boundary: the two adapters that may hold unsafe FFI, the boundary fixtures and the deny and
+# clippy configs (AGS-21, AGS-22).
+/apps/agent/src-tauri/src/adapters/toolhelp.rs     @pedromoraisf
+/apps/agent/src-tauri/src/adapters/windows_ocr.rs  @pedromoraisf
+/apps/agent/src-tauri/boundary-fixtures/           @pedromoraisf
+/apps/agent/src-tauri/deny.toml                    @pedromoraisf
+/apps/agent/src-tauri/clippy.toml                  @pedromoraisf

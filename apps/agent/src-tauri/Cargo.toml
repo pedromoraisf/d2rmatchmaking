@@ -12,3 +12,10 @@ publish = false
 description = "D2R Match Making desktop agent (Tauri 2 app shell)."
 
 [dependencies]
+tauri = "2"
+
+[build-dependencies]
+tauri-build = "2"
+
+[dev-dependencies]
+serde_json = "1"
