@@ -210,9 +210,7 @@ impl ApiClient {
         path: &str,
         token: &Secret,
     ) -> Result<RequestBuilder, ApiError> {
-        let mut value = HeaderValue::from_str(&format!("Bearer {}", token.expose()))
-            .map_err(|_| ApiError::Invalid)?;
-        value.set_sensitive(true);
+        let value = authorization_value(token)?;
         Ok(self.anonymous(method, path).header(AUTHORIZATION, value))
     }
 
@@ -232,6 +230,14 @@ async fn json_body<T: DeserializeOwned>(response: Response) -> Result<T, ApiErro
             ApiError::Network
         }
     })
+}
+
+/// The `Authorization` header for a token. Marked sensitive, so HTTP stacks keep it out of their own logs.
+pub fn authorization_value(token: &Secret) -> Result<HeaderValue, ApiError> {
+    let mut value = HeaderValue::from_str(&format!("Bearer {}", token.expose()))
+        .map_err(|_| ApiError::Invalid)?;
+    value.set_sensitive(true);
+    Ok(value)
 }
 
 /// Maps a status the route does not expect to its error. The body is never read: error bodies are never shown.
