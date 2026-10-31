@@ -507,9 +507,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: a second `MatchFormed` with the same `matchId` creates no room (test `creates no second room for the same match`); non-member → `forbidden`, nothing stored; `UNKNOWN` type → `accepted`, nothing stored; repeated key → `accepted`, no event; the newest of two rooms is current; span `lobby.record-observation` asserted
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 9 new tests pass
+- [x] Tests: a second `MatchFormed` with the same `matchId` creates no room (test `creates no second room for the same match`); non-member → `forbidden`, nothing stored; `UNKNOWN` type → `accepted`, nothing stored; repeated key → `accepted`, no event; the newest of two rooms is current; span `lobby.record-observation` asserted
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 9 new tests pass
 
 **Tests**: unit
 **Gate**: quick
