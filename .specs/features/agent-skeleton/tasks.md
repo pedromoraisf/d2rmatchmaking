@@ -517,9 +517,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] Tests: release-mode config refuses a missing or `http://` base (test `release_requires_https_api_base`); the client follows no redirect (a 302 from a local test server is returned as is); the version passed to core equals `package.json`'s (test `version_comes_from_package_json` extended)
-- [ ] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent`
-- [ ] Test count: ≥ 3 new tests pass
+- [x] Tests: release-mode config refuses a missing or `http://` base (test `release_requires_https_api_base`); the client follows no redirect (a 302 from a local test server is returned as is); the version passed to core equals `package.json`'s (test `version_comes_from_package_json` extended)
+- [x] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent`
+- [x] Test count: ≥ 3 new tests pass
 
 **Tests**: unit
 **Gate**: quick

@@ -249,11 +249,7 @@ impl SseParser {
                     return Err(TooLarge);
                 }
             }
-            b"id" => {
-                if !value.contains('\0') {
-                    self.last_id = Some(value);
-                }
-            }
+            b"id" if !value.contains('\0') => self.last_id = Some(value),
             _ => {}
         }
         Ok(())

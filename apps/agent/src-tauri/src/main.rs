@@ -3,6 +3,9 @@
 #![deny(unsafe_code)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod adapters;
+mod config;
+
 use tauri::{Url, WebviewWindowBuilder};
 
 /// The label of the one window declared in tauri.conf.json. It is created in `setup` so its navigation is restricted.
@@ -66,6 +69,23 @@ mod tests {
             serde_json::from_str(include_str!("../../package.json")).expect("package.json is JSON");
         assert_eq!(
             context.package_info().version.to_string(),
+            package["version"]
+                .as_str()
+                .expect("package.json has a version"),
+        );
+    }
+
+    #[test]
+    fn runtime_config_carries_the_package_version() {
+        let context = app_context();
+        let version = context.package_info().version.to_string();
+        let base =
+            config::api_base(Some("https://api.example.test"), true).expect("https is accepted");
+        let core_config = config::core_config(&version, base);
+        let package: serde_json::Value =
+            serde_json::from_str(include_str!("../../package.json")).expect("package.json is JSON");
+        assert_eq!(
+            core_config.version,
             package["version"]
                 .as_str()
                 .expect("package.json has a version"),

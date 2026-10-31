@@ -618,9 +618,13 @@ checksum = "914a755b7c2d4af2bdcff7ce1739e2db9a1b81a9b07123d8015786ae03c0980d"
 name = "d2rmm-agent"
 version = "0.0.0"
 dependencies = [
+ "d2rmm-agent-core",
+ "reqwest",
  "serde_json",
  "tauri",
  "tauri-build",
+ "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]
