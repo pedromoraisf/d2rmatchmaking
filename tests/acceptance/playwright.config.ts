@@ -14,6 +14,8 @@ const testDir = defineBddConfig({
 
 export default defineConfig({
   testDir,
+  // One Postgres container for the run (design.md § Acceptance stack); the workers start their own stacks on it.
+  globalSetup: './support/global-setup.ts',
   // Retries hide failures outside the retry budget (ADR 022): always 0 here. Focused tests fail the run.
   retries: 0,
   forbidOnly: true,

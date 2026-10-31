@@ -1094,8 +1094,8 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Scenarios tagged `@AWS-30`, `@AWS-17`, `@AWS-37`, `@AWS-38` pass
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen test --tags "@AWS-30 or @AWS-17 or @AWS-37 or @AWS-38" && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@AWS-30|@AWS-17|@AWS-37|@AWS-38"`
+- [x] Scenarios tagged `@AWS-30`, `@AWS-17`, `@AWS-37`, `@AWS-38` pass
+- [x] Gate check passes: `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen test --tags "@AWS-30 or @AWS-17 or @AWS-37 or @AWS-38" && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@AWS-30|@AWS-17|@AWS-37|@AWS-38"`
 
 **Tests**: acceptance
 **Gate**: acceptance
