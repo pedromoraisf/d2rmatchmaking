@@ -281,9 +281,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests with `@opentelemetry/sdk-trace-base` `InMemorySpanExporter` (devDependency only): span named as given (test `opens a span with the use-case name`), ended on success, on throw (status error, exception recorded, error rethrown) and on `err` Result (status error)
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 4 new tests pass (no silent deletions)
+- [x] Tests with `@opentelemetry/sdk-trace-base` `InMemorySpanExporter` (devDependency only): span named as given (test `opens a span with the use-case name`), ended on success, on throw (status error, exception recorded, error rethrown) and on `err` Result (status error)
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 4 new tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick
