@@ -311,9 +311,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: two subscribers called in order; other types not called; a throwing subscriber rejects `publish`; transient and durable events both delivered
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 4 new tests pass
+- [x] Tests: two subscribers called in order; other types not called; a throwing subscriber rejects `publish`; transient and durable events both delivered
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 4 new tests pass
 
 **Tests**: unit
 **Gate**: quick
