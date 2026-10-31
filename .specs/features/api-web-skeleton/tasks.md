@@ -410,9 +410,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: code request returns code, expiry, claim secret and stores no account; the 11th request per IP per hour → `rate-limited`; pairing binds and marks used; unknown / expired / used → `invalid-code`; the 11th submission per account in 5 min → `rate-limited`; pairing a second agent revokes the first and publishes `AgentRevoked`; claim before use → `pending`, after use → token once then `gone`, expired unused → `gone`
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 12 new tests pass
+- [x] Tests: code request returns code, expiry, claim secret and stores no account; the 11th request per IP per hour → `rate-limited`; pairing binds and marks used; unknown / expired / used → `invalid-code`; the 11th submission per account in 5 min → `rate-limited`; pairing a second agent revokes the first and publishes `AgentRevoked`; claim before use → `pending`, after use → token once then `gone`, expired unused → `gone`
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 12 new tests pass
 
 **Tests**: unit
 **Gate**: quick
