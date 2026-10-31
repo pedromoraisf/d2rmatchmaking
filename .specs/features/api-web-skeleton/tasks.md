@@ -244,8 +244,8 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Types only, no runtime code; `pnpm arch` reports no violation
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm arch`
+- [x] Types only, no runtime code; `pnpm arch` reports no violation
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm arch`
 
 **Tests**: none
 **Gate**: build
