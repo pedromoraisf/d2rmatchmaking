@@ -496,9 +496,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] `core/tests/runtime.rs`: a pair → heartbeat → 401 cycle on the fake API with capture on finds neither the token nor the claim secret in any log line, span name or field, and the token is written only through `TokenStore` (test `no_secret_in_logs_or_spans`); the six loop spans appear with their names (test `loop_spans_are_named`)
-- [ ] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
-- [ ] Test count: ≥ 2 new tests pass
+- [x] `core/tests/runtime.rs`: a pair → heartbeat → 401 cycle on the fake API with capture on finds neither the token nor the claim secret in any log line, span name or field, and the token is written only through `TokenStore` (test `no_secret_in_logs_or_spans`); the six loop spans appear with their names (test `loop_spans_are_named`)
+- [x] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
+- [x] Test count: ≥ 2 new tests pass
 
 **Tests**: integration
 **Gate**: quick

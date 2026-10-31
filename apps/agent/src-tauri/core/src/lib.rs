@@ -10,6 +10,7 @@ pub mod heartbeat;
 pub mod observations;
 pub mod pairing;
 pub mod ports;
+pub mod runtime;
 pub mod secret;
 pub mod stream;
 pub mod telemetry;

@@ -68,6 +68,30 @@ impl Harness {
         }
     }
 
+    /// The configuration a `Runtime` needs, pointing at this harness's fake API.
+    pub fn config(&self) -> Config {
+        Config {
+            version: VERSION.to_string(),
+            api_base: ApiBase::parse(&self.api.base_url(), AllowLoopbackHttp::Yes)
+                .expect("the fake's loopback base"),
+        }
+    }
+
+    /// The adapters a `Runtime` needs, over the same fakes this harness inspects.
+    pub fn adapters(&self) -> Adapters {
+        Adapters {
+            tokens: Arc::clone(&self.tokens) as _,
+            processes: Arc::clone(&self.processes) as _,
+            reader: Arc::clone(&self.reader) as _,
+            ids: Arc::new(SequentialIds::new()),
+            updater: Arc::clone(&self.updater) as _,
+            clock: Arc::new(PausedWallClock::starting_at(
+                START.parse().expect("a valid instant"),
+            )),
+            sink: Arc::clone(&self.sink) as _,
+        }
+    }
+
     /// Runs the pairing loop and returns the sender of its commands.
     pub fn spawn_pairing(&self) -> mpsc::Sender<Command> {
         let (commands, receiver) = mpsc::channel(8);
