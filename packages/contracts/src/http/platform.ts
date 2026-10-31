@@ -7,6 +7,10 @@ export const TestLoginRequest = z.object({
 });
 export type TestLoginRequest = z.infer<typeof TestLoginRequest>;
 
+// The staging match body (`POST /v1/staging/match-formed`): the empty JSON object the same-origin guard requires.
+export const MatchFormedRequest = z.object({});
+export type MatchFormedRequest = z.infer<typeof MatchFormedRequest>;
+
 export const MeResponse = z.object({
   accountId: Id,
   displayName: z.string().max(64),

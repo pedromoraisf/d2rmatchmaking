@@ -9,6 +9,12 @@ export const PairingCodeResponse = z.object({
 });
 export type PairingCodeResponse = z.infer<typeof PairingCodeResponse>;
 
+// The site's pairing body (`POST /v1/agents/pair`). Any value that matches no unused code answers 400 `invalid-code`.
+export const PairRequest = z.object({
+  code: z.string().min(1).max(16),
+});
+export type PairRequest = z.infer<typeof PairRequest>;
+
 export const ClaimRequest = z.object({
   claimSecret: z.string().min(1).max(128),
 });

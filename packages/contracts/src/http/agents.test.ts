@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { AgentView, ClaimRequest, ClaimResponse, Heartbeat, PairingCodeResponse } from './agents.ts';
+import {
+  AgentView,
+  ClaimRequest,
+  ClaimResponse,
+  Heartbeat,
+  PairingCodeResponse,
+  PairRequest,
+} from './agents.ts';
 
 const heartbeat = {
   agentVersion: '0.3.1',
@@ -85,5 +92,16 @@ describe('AgentView', () => {
 
   it('rejects an unknown status', () => {
     expect(AgentView.safeParse({ status: 'revoked' }).success).toBe(false);
+  });
+});
+
+describe('PairRequest', () => {
+  it('accepts a pairing code', () => {
+    expect(PairRequest.parse({ code: '123456' })).toStrictEqual({ code: '123456' });
+  });
+
+  it('rejects an empty code and a code longer than 16 characters', () => {
+    expect(PairRequest.safeParse({ code: '' }).success).toBe(false);
+    expect(PairRequest.safeParse({ code: 'x'.repeat(17) }).success).toBe(false);
   });
 });

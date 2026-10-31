@@ -1,9 +1,12 @@
 // The Matchmaking HTTP route (design.md § Matchmaking module): the staging-only test match (AWS-19, AD-033).
-import { ErrorResponse, Id } from '@d2rmm/contracts';
+import { ErrorResponse, Id, MatchFormedRequest } from '@d2rmm/contracts';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import type { MatchmakingUseCases } from '../../index.ts';
+
+/** The staging test match's answer: the id of the match the Matchmaking module formed. */
+const MatchFormedAccepted = z.object({ matchId: Id });
 
 type Guard = (request: FastifyRequest, reply: FastifyReply) => Promise<FastifyReply | undefined>;
 
@@ -34,8 +37,8 @@ export function matchmakingRoutes(app: FastifyInstance, deps: MatchmakingRouteDe
     {
       preHandler: [deps.guards.requireSameOrigin, deps.guards.requireSession],
       schema: {
-        body: z.object({}),
-        response: { 202: z.object({ matchId: Id }), 401: ErrorResponse },
+        body: MatchFormedRequest,
+        response: { 202: MatchFormedAccepted, 401: ErrorResponse },
       },
     },
     async (request, reply) => {

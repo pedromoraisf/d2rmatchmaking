@@ -7,6 +7,7 @@ import {
   ErrorResponse,
   Heartbeat,
   PairingCodeResponse,
+  PairRequest,
 } from '@d2rmm/contracts';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
@@ -30,9 +31,6 @@ export interface AgentsRouteDeps {
   >;
   readonly guards: AgentsRouteGuards;
 }
-
-/** The pairing code body of the site (`POST /v1/agents/pair`). Any other value is an unknown code: `invalid-code`. */
-const PairRequest = z.object({ code: z.string().min(1).max(16) });
 
 /** Retry-After for a limited pairing-code request: the one-hour window (AD-041), an upper bound. */
 const IP_CODE_RETRY_AFTER_SECONDS = 60 * 60;

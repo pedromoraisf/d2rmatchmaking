@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { ConfigResponse, ErrorResponse, MeResponse, TestLoginRequest } from './platform.ts';
+import {
+  ConfigResponse,
+  ErrorResponse,
+  MatchFormedRequest,
+  MeResponse,
+  TestLoginRequest,
+} from './platform.ts';
 
 describe('TestLoginRequest', () => {
   it('accepts a player name', () => {
@@ -33,5 +39,11 @@ describe('ErrorResponse', () => {
   it('accepts an invalid-request error that lists field paths only', () => {
     const body = { error: 'invalid-request', fields: ['code'] };
     expect(ErrorResponse.parse(body)).toStrictEqual(body);
+  });
+});
+
+describe('MatchFormedRequest', () => {
+  it('accepts the empty JSON object', () => {
+    expect(MatchFormedRequest.parse({})).toStrictEqual({});
   });
 });
