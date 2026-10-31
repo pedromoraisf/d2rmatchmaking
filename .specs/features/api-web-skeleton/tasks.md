@@ -862,9 +862,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `agents-repositories.int.test.ts`: two concurrent claims with one secret return the token once (test `two concurrent claims return the token once`); a claim for an unpaired or revoked agent updates no row; an expired unused code with the same digits is replaced; a live duplicate code is retried
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 4 new integration tests pass
+- [x] `agents-repositories.int.test.ts`: two concurrent claims with one secret return the token once (test `two concurrent claims return the token once`); a claim for an unpaired or revoked agent updates no row; an expired unused code with the same digits is replaced; a live duplicate code is retried
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
+- [x] Test count: ≥ 4 new integration tests pass
 
 **Tests**: integration
 **Gate**: full
