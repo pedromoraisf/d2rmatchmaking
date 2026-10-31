@@ -1,11 +1,13 @@
 //! In-memory ports for the core tests: a token store that can refuse writes, a state sink that records every view, and a
 //! process source and update checker with scripted answers.
 
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use d2rmm_agent_core::ports::{
-    ProcessSource, ReadError, ReadText, Region, Rgba, StateSink, StoreError, TextReader, TokenStore,
+    ProcessSource, ReadError, ReadText, Region, Rgba, StateSink, StoreError, TextReader,
+    TokenStore, UpdateChecker, UpdateOutcome,
 };
 use d2rmm_agent_core::secret::Secret;
 use d2rmm_agent_core::view::{AgentView, PairingView};
@@ -151,5 +153,30 @@ impl TextReader for FakeReader {
             text: self.text.clone(),
             confidence: 0.93,
         })
+    }
+}
+
+/// Answers each check with the next scripted outcome, then "up to date".
+#[derive(Debug, Default)]
+pub struct FakeUpdater {
+    outcomes: Mutex<VecDeque<UpdateOutcome>>,
+    calls: AtomicUsize,
+}
+
+impl FakeUpdater {
+    pub fn script(&self, outcomes: impl IntoIterator<Item = UpdateOutcome>) {
+        lock(&self.outcomes).extend(outcomes);
+    }
+
+    pub fn calls(&self) -> usize {
+        self.calls.load(Ordering::SeqCst)
+    }
+}
+
+impl UpdateChecker for FakeUpdater {
+    async fn check(&self) -> UpdateOutcome {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        let next = lock(&self.outcomes).pop_front();
+        next.unwrap_or(UpdateOutcome::UpToDate)
     }
 }

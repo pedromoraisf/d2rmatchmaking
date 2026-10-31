@@ -66,12 +66,19 @@ async fn connect_once(ctx: &Context, last_id: &mut Option<String>) -> Duration {
     let Some(token) = ctx.tokens.load() else {
         return Duration::ZERO;
     };
+    // A 426 that arrived since the loop last checked stops the requests (AGS-27).
+    if !ctx.api_allowed() {
+        return Duration::ZERO;
+    }
     match ctx.api.assignment(&token).await {
         Ok(assignment) => set_assignment(ctx, assignment),
         Err(error) => {
             on_error(ctx, error);
             return Duration::ZERO;
         }
+    }
+    if !ctx.api_allowed() {
+        return Duration::ZERO;
     }
     let resume = last_id.as_deref().filter(|id| valid_last_event_id(id));
     let mut response = match ctx.api.open_stream(&token, resume).await {

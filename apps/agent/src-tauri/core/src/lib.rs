@@ -13,6 +13,7 @@ pub mod ports;
 pub mod secret;
 pub mod stream;
 pub mod telemetry;
+pub mod updates;
 pub mod view;
 pub mod vision;
 

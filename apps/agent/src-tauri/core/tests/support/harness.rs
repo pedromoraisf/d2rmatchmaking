@@ -11,7 +11,7 @@ use d2rmm_agent_core::ports::{PausedWallClock, SequentialIds};
 use tokio::sync::mpsc;
 
 use super::fake_api::{Answer, FakeApi, Operation, WALL_START};
-use super::fakes::{FakeProcesses, FakeReader, FakeTokenStore, RecordingSink};
+use super::fakes::{FakeProcesses, FakeReader, FakeTokenStore, FakeUpdater, RecordingSink};
 use super::paused::{RealIo, real_io};
 
 pub const VERSION: &str = "0.0.1";
@@ -23,6 +23,7 @@ pub struct Harness {
     pub tokens: Arc<FakeTokenStore>,
     pub processes: Arc<FakeProcesses>,
     pub reader: Arc<FakeReader>,
+    pub updater: Arc<FakeUpdater>,
     pub sink: Arc<RecordingSink>,
     pub ctx: Arc<Context>,
     _io: RealIo,
@@ -36,6 +37,7 @@ impl Harness {
         let tokens = Arc::new(FakeTokenStore::with_token(token));
         let processes = Arc::new(FakeProcesses::default());
         let reader = Arc::new(FakeReader::reading("mmbaalh-12"));
+        let updater = Arc::new(FakeUpdater::default());
         let sink = Arc::new(RecordingSink::default());
         let config = Config {
             version: VERSION.to_string(),
@@ -47,6 +49,7 @@ impl Harness {
             processes: Arc::clone(&processes) as _,
             reader: Arc::clone(&reader) as _,
             ids: Arc::new(SequentialIds::new()),
+            updater: Arc::clone(&updater) as _,
             clock: Arc::new(PausedWallClock::starting_at(
                 START.parse().expect("a valid instant"),
             )),
@@ -58,6 +61,7 @@ impl Harness {
             tokens,
             processes,
             reader,
+            updater,
             sink,
             ctx,
             _io: io,

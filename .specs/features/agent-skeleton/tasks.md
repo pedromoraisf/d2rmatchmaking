@@ -477,9 +477,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] Tests: checks at start, 6 h, 12 h and right after a 426 (test `update_checks_at_start_every_6h_and_after_426`); signature, download and manifest failures keep the version, show `Failed`, check at the next slot (test `update_failure_keeps_version_and_retries`); after a 426 the fake API receives no heartbeat, claim, stream or observation request until `Installed` (test `upgrade_required_stops_api_loops`)
-- [ ] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
-- [ ] Test count: ≥ 3 new tests pass
+- [x] Tests: checks at start, 6 h, 12 h and right after a 426 (test `update_checks_at_start_every_6h_and_after_426`); signature, download and manifest failures keep the version, show `Failed`, check at the next slot (test `update_failure_keeps_version_and_retries`); after a 426 the fake API receives no heartbeat, claim, stream or observation request until `Installed` (test `upgrade_required_stops_api_loops`)
+- [x] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
+- [x] Test count: ≥ 3 new tests pass
 
 **Tests**: integration
 **Gate**: quick

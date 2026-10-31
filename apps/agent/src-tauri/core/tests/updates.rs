@@ -1,0 +1,100 @@
+//! AGS-24, AGS-26, AGS-27: the update check runs at start, every 6 h and after a 426; a failed check keeps the installed
+//! version and retries at the next slot; a 426 stops the API loops until an update installs.
+
+mod support;
+
+use std::sync::Arc;
+
+use d2rmm_agent_core::heartbeat;
+use d2rmm_agent_core::ports::{UpdateFailure, UpdateOutcome};
+use d2rmm_agent_core::stream;
+use d2rmm_agent_core::updates::{self, CHECK_EVERY};
+use d2rmm_agent_core::view::UpdateView;
+use support::fake_api::{Answer, Operation, TOKEN};
+use support::harness::{Harness, advance, count, settle, until};
+
+fn update_view(h: &Harness) -> Option<UpdateView> {
+    h.sink.last().map(|view| view.update)
+}
+
+#[tokio::test(start_paused = true)]
+async fn update_checks_at_start_every_6h_and_after_426() {
+    let h = Harness::start(None).await;
+    h.updater.script([UpdateOutcome::UpToDate; 3]);
+    tokio::spawn(updates::run(Arc::clone(&h.ctx)));
+
+    until("the check at start", || h.updater.calls() == 1).await;
+    advance(CHECK_EVERY - std::time::Duration::from_secs(1)).await;
+    assert_eq!(h.updater.calls(), 1, "no check before 6 h");
+    advance(std::time::Duration::from_secs(1)).await;
+    until("the check at 6 h", || h.updater.calls() == 2).await;
+
+    h.ctx.on_upgrade_required();
+    until("the check right after a 426", || h.updater.calls() == 3).await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn update_failure_keeps_version_and_retries() {
+    let h = Harness::start(None).await;
+    h.updater.script([
+        UpdateOutcome::Failed(UpdateFailure::Signature),
+        UpdateOutcome::UpToDate,
+    ]);
+    tokio::spawn(updates::run(Arc::clone(&h.ctx)));
+
+    until("the failure is shown", || {
+        update_view(&h) == Some(UpdateView::Failed)
+    })
+    .await;
+    assert!(
+        !*h.ctx.update_required.borrow(),
+        "the installed version keeps running"
+    );
+
+    advance(CHECK_EVERY).await;
+    until("the check at the next slot", || h.updater.calls() == 2).await;
+    until("the view clears", || {
+        update_view(&h) == Some(UpdateView::Idle)
+    })
+    .await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn upgrade_required_stops_api_loops() {
+    let h = Harness::start(Some(TOKEN)).await;
+    h.ctx.paired.send_replace(true);
+    h.api
+        .script(Operation::Heartbeat, [Answer::UpgradeRequired]);
+    h.updater.script([
+        UpdateOutcome::UpToDate,
+        UpdateOutcome::UpToDate,
+        UpdateOutcome::Installed,
+    ]);
+    tokio::spawn(heartbeat::run(Arc::clone(&h.ctx)));
+    tokio::spawn(stream::run(Arc::clone(&h.ctx)));
+    tokio::spawn(updates::run(Arc::clone(&h.ctx)));
+
+    until("the 426 is answered", || {
+        count(&h.api, Operation::Heartbeat) == 1
+    })
+    .await;
+    until("the check right after the 426", || h.updater.calls() == 2).await;
+    settle().await;
+    assert_eq!(update_view(&h), Some(UpdateView::Required));
+
+    let requests_before = h.api.requests().len();
+    advance(std::time::Duration::from_secs(3600)).await;
+    assert_eq!(
+        h.api.requests().len(),
+        requests_before,
+        "no API request while an update is pending"
+    );
+
+    // The scheduled check at 6 h installs the update: the API loops run again.
+    advance(CHECK_EVERY - std::time::Duration::from_secs(3600)).await;
+    until("the heartbeat resumes", || {
+        count(&h.api, Operation::Heartbeat) == 2
+    })
+    .await;
+    assert_eq!(update_view(&h), Some(UpdateView::Idle));
+}

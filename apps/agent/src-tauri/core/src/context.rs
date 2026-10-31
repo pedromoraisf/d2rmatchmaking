@@ -11,6 +11,7 @@ use crate::api_client::ApiClient;
 use crate::config::Config;
 use crate::contracts::generated::Assignment;
 use crate::ports::{IdGenerator, ProcessSource, StateSink, TextReader, TokenStore, WallClock};
+use crate::updates::Updater;
 use crate::view::{AgentView, Connectivity, PairingView, RoomView, UpdateView};
 
 /// The ports the app hands to the core. Each loop reaches the outside world only through these.
@@ -19,6 +20,7 @@ pub struct Adapters {
     pub processes: Arc<dyn ProcessSource + Send + Sync>,
     pub reader: Arc<dyn TextReader + Send + Sync>,
     pub ids: Arc<dyn IdGenerator + Send + Sync>,
+    pub updater: Arc<dyn Updater>,
     pub clock: Arc<dyn WallClock + Send + Sync>,
     pub sink: Arc<dyn StateSink + Send + Sync>,
 }
@@ -80,6 +82,7 @@ pub struct Context {
     pub processes: Arc<dyn ProcessSource + Send + Sync>,
     pub reader: Arc<dyn TextReader + Send + Sync>,
     pub ids: Arc<dyn IdGenerator + Send + Sync>,
+    pub updater: Arc<dyn Updater>,
     pub clock: Arc<dyn WallClock + Send + Sync>,
     pub hub: Hub,
     /// `true` while the agent holds a token (set by pairing, cleared by a 401).
@@ -104,6 +107,7 @@ impl Context {
             processes: adapters.processes,
             reader: adapters.reader,
             ids: adapters.ids,
+            updater: adapters.updater,
             clock: adapters.clock,
             hub: Hub::new(adapters.sink),
             paired: watch::channel(false).0,
