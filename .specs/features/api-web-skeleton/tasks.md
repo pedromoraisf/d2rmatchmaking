@@ -607,9 +607,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: POST sends the JSON content type; 401 maps to `unauthenticated`; a stream `open` triggers both re-reads; labels map `awaiting_host` → "Awaiting host", `created` → "Created", `UNKNOWN` → "Screen: Unknown", `AUTOMAP_OPEN` → "Screen: Automap open", online/offline, game open/closed
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
-- [ ] Test count: ≥ 8 new tests pass
+- [x] Tests: POST sends the JSON content type; 401 maps to `unauthenticated`; a stream `open` triggers both re-reads; labels map `awaiting_host` → "Awaiting host", `created` → "Created", `UNKNOWN` → "Screen: Unknown", `AUTOMAP_OPEN` → "Screen: Automap open", online/offline, game open/closed
+- [x] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
+- [x] Test count: ≥ 8 new tests pass
 
 **Tests**: unit
 **Gate**: quick
