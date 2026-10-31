@@ -44,8 +44,8 @@ Feature: A contributor builds every workspace and the sensors enforce the layers
   Scenario: Regenerating the contracts leaves no drift
     When the contributor runs "pnpm contracts:check"
     Then the command succeeds
-    And the OpenAPI document declares version "3.1" with no paths
-    And the AsyncAPI document declares version "3.0" with no channels
+    And the OpenAPI document declares version "3.1" and the path "/healthz"
+    And the AsyncAPI document declares version "3.0" and the channel "stream"
 
   @HF-05
   Scenario: The five API modules exist with three layers and break no rule

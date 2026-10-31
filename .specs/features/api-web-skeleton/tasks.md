@@ -1074,8 +1074,8 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] The HF-04 scenario passes against the generated documents
-- [ ] Gate check passes: `pnpm --filter @d2rmm/acceptance exec bddgen test --tags "@HF-04" && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@HF-04"`
+- [x] The HF-04 scenario passes against the generated documents
+- [x] Gate check passes: `pnpm --filter @d2rmm/acceptance exec bddgen test --tags "@HF-04" && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@HF-04"`
 
 **Tests**: acceptance
 **Gate**: acceptance
