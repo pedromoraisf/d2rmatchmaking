@@ -124,7 +124,7 @@ T9 → T10 → T11 → T13
 ### Phase 10: Postgres adapters
 
 ```
-T16 → T21 → T51 → T26
+T16 → T21 → T52 → T51 → T26
 ```
 
 ### Phase 11: Streams, HTTP routes and composition roots
@@ -871,11 +871,30 @@ T47 → T48 → T49 → T50
 
 ---
 
+### T52: Kill the surviving domain mutants of earlier tasks
+
+**What**: Add tests — never change production behaviour, thresholds or the mutation scope — until the domain layer's mutation score reaches its 80% break threshold: the survivors in `agents/domain/sliding-window.ts`, `shared-kernel/random-source.ts`, `agents/domain/agent-version.ts`, `identity/domain/account.ts`, `shared-kernel/tracing.ts` and `shared-kernel/scheduler.ts` listed in `reports/mutation/api-domain/mutation.json`. Each new test asserts a behaviour the spec or design states (a boundary, a refusal, a value), not an implementation detail. Added by the orchestrator after T51's gate showed 77.48% (T51's own mutants are all killed). Does not touch `lobby-room-*` files, which hold T51's uncommitted work.
+**Where**: `apps/api/src/` (the six files' `*.test.ts` siblings)
+**Depends on**: T21
+**Reuses**: existing domain and shared-kernel tests
+**Requirement**: AWS-09, AWS-12, AWS-35
+
+**Done when**:
+
+- [ ] `pnpm --filter @d2rmm/api test:mutation` exits 0 with the domain score ≥ 80% and the application score ≥ 70%; the scores are written in the commit body
+- [ ] No production file changes; no existing test assertion loosened
+- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:mutation`
+
+**Tests**: unit
+**Gate**: quick
+
+---
+
 ### T51: Add LobbyRoom.restore for the repository
 
 **What**: `LobbyRoom.restore(props)` in the domain: rebuilds a room from stored state (id, match id, mode, activity, difficulty, host account, stage, current run, game name of the current run, members with roles and join order) without raising events, rejecting props that break the aggregate's invariants (no host among the members, a run below 1, a stage outside `awaiting_host` / `created`). Added by the orchestrator after T26 stopped: T24's private constructor left the Postgres adapter no way to return a `LobbyRoom`.
 **Where**: `apps/api/src/modules/lobby-room/domain/lobby-room.ts`
-**Depends on**: T21
+**Depends on**: T52
 **Reuses**: T24 aggregate
 **Requirement**: AWS-20, AWS-24
 
@@ -1390,4 +1409,6 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Orchestrator replan (2026-10-31, T26)**: new task T51 (`LobbyRoom.restore`, domain) runs before T26, which now depends on it; T51's gate also runs `test:mutation`, closing T9's unticked box. Batch 6 continues with T51 and T26.
 
 **BLOCKED at T51 (mutation gate, not the restore code)**: `LobbyRoom.restore` and its tests are written (uncommitted in the worktree: `lobby-room.ts`, `lobby-room.test.ts`). The gate's typecheck and unit tests pass (219 unit tests). `pnpm --filter @d2rmm/api test:mutation` exits non-zero on attempts 1 and 2: the domain layer scores 77.48% against its 80% break threshold. The survivors that drag it down are in earlier batches' files, not T51's: `agents/domain/sliding-window.ts` (about 44%), `shared-kernel/random-source.ts` (about 59%), `agents/domain/agent-version.ts`, `identity/domain/account.ts`, `shared-kernel/tracing.ts`, `shared-kernel/scheduler.ts`. Attempt 1 had two survivors in `restore` (role check and `some`/`every`); attempt 2 added tests for both, and every `restore` mutant is now killed. The two survivors left in `lobby-room.ts` are T24's `observe` guard (line 172) and its `hostAccountId` getter, and they are not T51's. Needed from the orchestrator: a decision to lift the debt (tests for those domain files, a new task) before T51 can pass, or a mutation scope change (not made by the worker). T26 depends on T51 and was not started. Attempts used: 2 of 3 on gate:T51.
+**Orchestrator replan (2026-10-31, T51 blocked at 2/3)**: root cause is mutation debt from T14/T17/T18/T7/T8 tests, not T51's code. New task T52 adds the missing tests (no threshold, scope or production change) and runs before T51's last attempt; T51 keeps its gate unchanged. T51's code stays uncommitted in the worktree meanwhile.
+
 **Walked:** none
