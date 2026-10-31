@@ -783,9 +783,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `src/main/__tests__/migrate.int.test.ts`: the first run applies `0001_skeleton` and creates schemas `identity`, `agents`, `lobby`, `platform`; the second run applies none and exits 0 (test `second run applies none`); the partial unique index on live pairing codes rejects a second unused `123456`
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 3 new integration tests pass
+- [x] `src/main/__tests__/migrate.int.test.ts`: the first run applies `0001_skeleton` and creates schemas `identity`, `agents`, `lobby`, `platform`; the second run applies none and exits 0 (test `second run applies none`); the partial unique index on live pairing codes rejects a second unused `123456`
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
+- [x] Test count: ≥ 3 new integration tests pass
 
 **Tests**: integration
 **Gate**: full
