@@ -40,6 +40,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-057 | agent-skeleton     | Fixture read only with Cargo feature `fixture-read`; releases never read or post observations        | drop the gate in F2          |            |
 | AD-058 | agent-skeleton     | Pairing pauses after 2 unused codes; 429 waits `Retry-After` (60 min default)                        | a constant                   |            |
 | AD-059 | agent-skeleton     | Stream reconnect 1 s doubling to 60 s                                                                | a constant                   |            |
+| AD-060 | agent-skeleton     | Agent JSON Schemas emitted as draft-07 for `typify`; `claim-request.json` added                      | the target option            |            |
 
 ## Blocked
 
