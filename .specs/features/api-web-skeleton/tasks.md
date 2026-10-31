@@ -821,10 +821,10 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `outbox-relay.int.test.ts`: rows committed while no relay ran are published by `sweep()` after a new relay starts (test `publishes rows left unpublished before a restart`); rows publish in id order; a handler failing 5 times leaves `failed_at` set and `attempts = 5` while the next row is published (test `dead-letters after 5 failures and keeps going`); retry delays are 1, 2, 4, 8 s on the fake scheduler
-- [ ] `timer-scheduler.test.ts`: `every` and `at` fire on Vitest fake timers and cancel stops them
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 4 new integration tests pass
+- [x] `outbox-relay.int.test.ts`: rows committed while no relay ran are published by `sweep()` after a new relay starts (test `publishes rows left unpublished before a restart`); rows publish in id order; a handler failing 5 times leaves `failed_at` set and `attempts = 5` while the next row is published (test `dead-letters after 5 failures and keeps going`); retry delays are 1, 2, 4, 8 s on the fake scheduler
+- [x] `timer-scheduler.test.ts`: `every` and `at` fire on Vitest fake timers and cancel stops them
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`
+- [x] Test count: ≥ 4 new integration tests pass
 
 **Tests**: integration
 **Gate**: full
