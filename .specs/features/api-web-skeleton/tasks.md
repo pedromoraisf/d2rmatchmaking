@@ -920,9 +920,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `lobby-repositories.int.test.ts`: a room round-trips with members and run 1; a second room with the same `match_id` fails on the unique constraint; two sequence values differ and increase; the same idempotency key for two agents is stored twice, for one agent once
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 4 new integration tests pass
+- [x] `lobby-repositories.int.test.ts`: a room round-trips with members and run 1; a second room with the same `match_id` fails on the unique constraint; two sequence values differ and increase; the same idempotency key for two agents is stored twice, for one agent once
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
+- [x] Test count: ≥ 4 new integration tests pass
 
 **Tests**: integration
 **Gate**: full
