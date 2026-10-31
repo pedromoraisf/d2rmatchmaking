@@ -262,9 +262,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: `every(25_000)` fires at 25 s and 50 s and not at 24.999 s; cancel stops it; `at` fires once; `SeededRandomSource.int(10)` stays in `[0, 10)` and repeats for the same seed; `bytes(32)` has 32 bytes
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 8 new tests pass (no silent deletions)
+- [x] Tests: `every(25_000)` fires at 25 s and 50 s and not at 24.999 s; cancel stops it; `at` fires once; `SeededRandomSource.int(10)` stays in `[0, 10)` and repeats for the same seed; `bytes(32)` has 32 bytes
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 8 new tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick
