@@ -3,7 +3,7 @@
     "file": "apps/api/src/modules/lobby-room/domain/lobby-room.ts",
     "old": "      observation.accountId === this.hostAccountId &&\n",
     "new": "      true &&\n",
-    "proof": "pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep \"An observation that does not prove the game leaves the room waiting\"",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run src/modules/lobby-room/domain -t \"ignores a GAME_NAME_SEEN from a member who is not the host\"",
     "label": "drop host-only check on GAME_NAME_SEEN (INV-06)"
   },
   {
