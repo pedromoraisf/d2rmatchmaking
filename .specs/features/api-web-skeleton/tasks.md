@@ -372,9 +372,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: `int` 7 → code `000007`; expiry exactly 5 min; `use` before, at and after expiry; used code gives `invalid-code`; `claimState` pending / claimable / gone (expired unused); `revoke` makes `isActive` false; versions `0.0.1` vs min `0.0.0` not below, `0.0.9` vs `0.1.0` below (numeric, not lexical), `1.0`, `v1.0.0`, `` rejected (test `rejects a version that is not semantic`)
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 14 new tests pass
+- [x] Tests: `int` 7 → code `000007`; expiry exactly 5 min; `use` before, at and after expiry; used code gives `invalid-code`; `claimState` pending / claimable / gone (expired unused); `revoke` makes `isActive` false; versions `0.0.1` vs min `0.0.0` not below, `0.0.9` vs `0.1.0` below (numeric, not lexical), `1.0`, `v1.0.0`, `` rejected (test `rejects a version that is not semantic`)
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 14 new tests pass
 
 **Tests**: unit
 **Gate**: quick
