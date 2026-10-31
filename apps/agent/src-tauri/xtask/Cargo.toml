@@ -1,0 +1,9 @@
+[package]
+name = "xtask"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "Build tasks for the agent: contract generation and fixtures. Never shipped."
+
+[dependencies]

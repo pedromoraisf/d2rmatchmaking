@@ -148,8 +148,8 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] `core/src/lib.rs` has a smoke test `core_builds`; `cargo metadata` shows no `tauri*` package in `d2rmm-agent-core`'s dependency closure
-- [ ] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core -p xtask`
+- [x] `core/src/lib.rs` has a smoke test `core_builds`; `cargo metadata` shows no `tauri*` package in `d2rmm-agent-core`'s dependency closure
+- [x] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core -p xtask`
 
 **Tests**: unit
 **Gate**: quick

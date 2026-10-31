@@ -1,0 +1,9 @@
+[package]
+name = "d2rmm-agent-core"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "D2R Match Making agent core: pairing, heartbeat, stream, vision and fusion. No Tauri dependency."
+
+[dependencies]
