@@ -1,6 +1,6 @@
 // Generated contract documents (ADR 009, ADR 020). `pnpm contracts:openapi` writes asyncapi.json (AsyncAPI 3.0 for the
 // stream) and one JSON Schema per agent-facing message under json-schema/ (consumed by typify in the Rust agent).
-// openapi.json is still the placeholder until the API's routes generate it (main/openapi.ts).
+// openapi.json is not written here: the API generates it from its routes (apps/api/src/main/openapi.ts).
 import { z } from 'zod';
 import {
   AgentPresenceChangedEvent,

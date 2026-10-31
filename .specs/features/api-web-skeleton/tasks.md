@@ -1055,9 +1055,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `src/main/__tests__/openapi.int.test.ts`: every route registered by `buildApp` with staging on appears in `openapi.json` with its schemas (test `openapi.json lists every route`)
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration && pnpm contracts:check`
-- [ ] Test count: ≥ 1 new integration test passes
+- [x] `src/main/__tests__/openapi.int.test.ts`: every route registered by `buildApp` with staging on appears in `openapi.json` with its schemas (test `openapi.json lists every route`)
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration && pnpm contracts:check`
+- [x] Test count: ≥ 1 new integration test passes
 
 **Tests**: integration
 **Gate**: full
