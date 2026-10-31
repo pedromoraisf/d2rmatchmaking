@@ -332,9 +332,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests 1:1 to AWS-01/02: accepts 2 and 16 chars, digits and `-`; rejects empty, 1 char, 17 chars, ` PlayerOne`, `Player_One`, `Jogadoré` (test `rejects names outside the rules`); `testKey` of `PlayerOne` is `playerone`; session valid at 7 days − 1 ms and invalid at exactly 7 days (test `expires at exactly 7 days`)
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 10 new tests pass
+- [x] Tests 1:1 to AWS-01/02: accepts 2 and 16 chars, digits and `-`; rejects empty, 1 char, 17 chars, ` PlayerOne`, `Player_One`, `Jogadoré` (test `rejects names outside the rules`); `testKey` of `PlayerOne` is `playerone`; session valid at 7 days − 1 ms and invalid at exactly 7 days (test `expires at exactly 7 days`)
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 10 new tests pass
 
 **Tests**: unit
 **Gate**: quick
