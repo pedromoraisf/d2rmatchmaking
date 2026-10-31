@@ -391,9 +391,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: the 10th submission in 5 min allowed, the 11th limited until the oldest is 5 min old (test `limits the 11th submission until the oldest is 5 minutes old`); the IP window is 1 h; two IPv6 addresses in the same /64 share a key; presence online at 44.999 s and offline at 45 s (test `marks the agent offline after 45 s`); `differs` on each field
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
-- [ ] Test count: ≥ 10 new tests pass
+- [x] Tests: the 10th submission in 5 min allowed, the 11th limited until the oldest is 5 min old (test `limits the 11th submission until the oldest is 5 minutes old`); the IP window is 1 h; two IPv6 addresses in the same /64 share a key; presence online at 44.999 s and offline at 45 s (test `marks the agent offline after 45 s`); `differs` on each field
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`
+- [x] Test count: ≥ 10 new tests pass
 
 **Tests**: unit
 **Gate**: quick
