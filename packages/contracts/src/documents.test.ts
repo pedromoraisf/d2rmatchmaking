@@ -24,13 +24,26 @@ describe('contract documents', () => {
 
   it('writes one JSON Schema per agent message', () => {
     expect(Object.keys(buildJsonSchemaFiles()).sort()).toStrictEqual([
-      'agent-stream-event.json',
+      'agent-event-room-assigned.json',
       'assignment.json',
+      'claim-request.json',
       'claim.json',
       'heartbeat.json',
       'observation.json',
       'pairing-code.json',
     ]);
+  });
+
+  it('writes the draft-07 agent schemas', () => {
+    const files = buildJsonSchemaFiles();
+    for (const schema of Object.values(files)) {
+      expect(schema.$schema).toBe('http://json-schema.org/draft-07/schema#');
+    }
+  });
+
+  it('keeps image data out of the observation schema', () => {
+    const observation = JSON.stringify(buildJsonSchemaFiles()['observation.json']);
+    expect(observation).not.toMatch(/image|bitmap|base64|pixels|png/i);
   });
 
   it('returns equal documents on every call', () => {

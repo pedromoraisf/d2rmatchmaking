@@ -129,9 +129,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] `documents.test.ts`: every agent schema declares `http://json-schema.org/draft-07/schema#`; the file set is exactly `pairing-code`, `claim-request`, `claim`, `heartbeat`, `assignment`, `observation`, `agent-event-room-assigned` (test `writes the draft-07 agent schemas`); the observation schema has no field holding image data
-- [ ] Gate check passes: `pnpm --filter @d2rmm/contracts typecheck && pnpm --filter @d2rmm/contracts test && pnpm contracts:check`
-- [ ] Test count: no existing contracts test removed; ≥ 2 new tests
+- [x] `documents.test.ts`: every agent schema declares `http://json-schema.org/draft-07/schema#`; the file set is exactly `pairing-code`, `claim-request`, `claim`, `heartbeat`, `assignment`, `observation`, `agent-event-room-assigned` (test `writes the draft-07 agent schemas`); the observation schema has no field holding image data
+- [x] Gate check passes: `pnpm --filter @d2rmm/contracts typecheck && pnpm --filter @d2rmm/contracts test && pnpm contracts:check`
+- [x] Test count: no existing contracts test removed; ≥ 2 new tests
 
 **Tests**: unit
 **Gate**: quick
@@ -930,5 +930,5 @@ Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.to
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** the maintainer confirmed the `# not-scenario` exemptions ("Ponto 2: A", 2026-10-30)
-**Dispatched:** none — api-web-skeleton is merged and in this branch (e0909b5); rustup stable, `cargo-nextest`, `cargo-deny` and the `x86_64-pc-windows-msvc` target are installed (2026-10-31). Execute waits for a Claude Code restart so `~/.cargo/bin` (sourced by `~/.zshenv`) is on the session PATH
+**Dispatched:** execute-batch-1 (Phases 1–2, T1–T8) to feature-worker, 2026-10-31; toolchain on the session PATH
 **Walked:** none
