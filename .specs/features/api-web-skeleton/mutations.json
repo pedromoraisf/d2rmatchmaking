@@ -1,0 +1,23 @@
+[
+  {
+    "file": "apps/api/src/modules/lobby-room/domain/lobby-room.ts",
+    "old": "      observation.accountId === this.hostAccountId &&\n",
+    "new": "      true &&\n",
+    "proof": "pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep \"An observation that does not prove the game leaves the room waiting\"",
+    "label": "drop host-only check on GAME_NAME_SEEN (INV-06)"
+  },
+  {
+    "file": "apps/api/src/modules/agents/domain/presence.ts",
+    "old": "lastSeenAt.getTime() >= OFFLINE_AFTER_MS",
+    "new": "lastSeenAt.getTime() > OFFLINE_AFTER_MS",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run src/modules/agents/domain -t \"marks the agent offline after 45 s\"",
+    "label": "offline boundary 45 s shifted by one"
+  },
+  {
+    "file": "apps/api/src/modules/agents/domain/sliding-window.ts",
+    "old": "      .filter((t) => nowMs - t < this.windowMs)",
+    "new": "      .filter((t) => nowMs - t <= this.windowMs)",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run src/modules/agents/domain -t \"limits the 11th submission until the oldest is 5 minutes old\"",
+    "label": "rate window boundary inclusive"
+  }
+]
