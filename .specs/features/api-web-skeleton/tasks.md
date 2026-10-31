@@ -292,7 +292,7 @@ T47 → T48 → T49 → T50
 
 ### T9: Set up the API integration test runner
 
-**What**: `apps/api/vitest.config.ts` (unit: excludes `**/*.int.test.ts`), `apps/api/vitest.integration.config.ts` (only `**/*.int.test.ts`, one fork, 120 s hook timeout), script `test:integration`, and `apps/api/src/test-support/postgres.ts` that starts one `@testcontainers/postgresql` container per run and gives each test file a fresh database. Kysely and `pg` added to the API.
+**What**: `apps/api/vitest.config.ts` (unit: excludes `**/*.int.test.ts`), `apps/api/vitest.integration.config.ts` (only `**/*.int.test.ts`, one fork, 120 s hook timeout), script `test:integration`, and `apps/api/test/support/postgres.ts` that starts one `@testcontainers/postgresql` container per run and gives each test file a fresh database (under `test/`, so `no-dev-deps-in-runtime` exempts it, as `docs/engineering/testing.md` places integration support). Kysely and `pg` added to the API.
 **Where**: `apps/api/vitest.integration.config.ts`
 **Depends on**: T8
 **Reuses**: turbo task `test:integration`, CI `integration` job
@@ -300,7 +300,7 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `src/test-support/postgres.int.test.ts`: two test files' databases are distinct and `select 1` answers
+- [ ] `test/support/postgres.int.test.ts`: two test files' databases are distinct and `select 1` answers; the integration config includes `src/**/*.int.test.ts` and `test/**/*.int.test.ts`
 - [ ] `pnpm --filter @d2rmm/api test` runs no `*.int.test.ts`; `pnpm --filter @d2rmm/api test:mutation` still exits 0
 - [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`
 - [ ] Test count: ≥ 2 integration tests pass
@@ -312,7 +312,7 @@ T47 → T48 → T49 → T50
 
 ### T10: Write the skeleton migration and the migrate command
 
-**What**: `apps/api/migrations/0001_skeleton.ts` (Kysely) creating exactly the schemas, tables, sequence and indexes of design.md § Data Models, and `src/main/migrate.ts` (Kysely `Migrator` over `apps/api/migrations`, `DATABASE_URL` from `main/config.ts`'s reader) behind script `db:migrate`.
+**What**: `apps/api/migrations/0001_skeleton.ts` (Kysely) creating exactly the schemas, tables, sequence and indexes of design.md § Data Models, and `src/main/migrate.ts` (Kysely `Migrator` over `apps/api/migrations`; it reads `DATABASE_URL` itself, which the T5 rule allows inside `main/`, and T31 moves that read into `main/config.ts`) behind script `db:migrate`.
 **Where**: `apps/api/migrations/0001_skeleton.ts`
 **Depends on**: T9
 **Reuses**: T9 container helper
@@ -369,7 +369,7 @@ T47 → T48 → T49 → T50
 
 ### T13: Implement the outbox relay
 
-**What**: `platform/outbox-relay.ts` per design.md § Platform: `wake()`, start-up `sweep()`, `select … for update skip locked limit 100` in id order, publish each as a durable `BusEvent` with its outbox id, mark `published_at`; on a handler error increment `attempts`, retry after 1, 2, 4, 8 s through `Scheduler`, set `failed_at` after the 5th failure and continue with the next rows.
+**What**: `platform/outbox-relay.ts` per design.md § Platform: `wake()`, start-up `sweep()`, `select … for update skip locked limit 100` in id order, publish each as a durable `BusEvent` with its outbox id, mark `published_at`; on a handler error increment `attempts`, keep the row's next-attempt time in memory and schedule a wake through `Scheduler.at` after 1, 2, 4, 8 s (a row is skipped until its time; after a restart the sweep retries it at once — no schema change), set `failed_at` after the 5th failure and continue with the next rows. Also `TimerScheduler` (production `Scheduler` on `setTimeout`/`setInterval`) in `platform/timer-scheduler.ts`, unit-tested with Vitest fake timers.
 **Where**: `apps/api/src/platform/outbox-relay.ts`
 **Depends on**: T12
 **Reuses**: T7 `FakeScheduler`, T11 outbox, T12 bus
@@ -378,7 +378,8 @@ T47 → T48 → T49 → T50
 **Done when**:
 
 - [ ] `outbox-relay.int.test.ts`: rows committed while no relay ran are published by `sweep()` after a new relay starts (test `publishes rows left unpublished before a restart`); rows publish in id order; a handler failing 5 times leaves `failed_at` set and `attempts = 5` while the next row is published (test `dead-letters after 5 failures and keeps going`); retry delays are 1, 2, 4, 8 s on the fake scheduler
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
+- [ ] `timer-scheduler.test.ts`: `every` and `at` fire on Vitest fake timers and cancel stops them
+- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`
 - [ ] Test count: ≥ 4 new integration tests pass
 
 **Tests**: integration
@@ -1334,4 +1335,9 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Dispatched:** execute-batch-1 (T1–T5) at e6e13d6 → returned (T1 6d5306e, T2 4b5c0c9, T3 6ad6335, T4 0139cd7, T5 34eabbd; all gates green, T3 on retry 1); execute-batch-2 (T6–T13) at 34eabbd + this note → pending
 
 **execute-batch-1 notes (2026-10-30)** — accepted by the orchestrator: T3 replaced the placeholder AsyncAPI "no channels" unit assertion with the stream-channel assertion T3 requires (a requirement change, not a weakened test); T3 added `packages/contracts/json-schema/` to `.prettierignore` and to the turbo `contracts:openapi` outputs, like the other generated contract files; `claim.json` holds `ClaimResponse`; `room.stage_changed` members use the `Member` schema; `@d2rmm/contracts` exports its TypeScript source, which Node 26 loads through the workspace symlink (verified by the orchestrator, no build step needed). HF-04's AsyncAPI line is false until T37 (AD-044), as planned.
+**execute-batch-2 notes (2026-10-30, feature-worker)**: done and committed T6 b8845d1, T7 e1185e7, T8 4286251; all three gates green on the first attempt. T7 changed `FakeClock` (adds `onMove`, so `FakeScheduler` moves with `clock.advance`) and put `RandomSource` in `random-source.ts`; T8 pins `@opentelemetry/api` to `~1.9.1` because `@opentelemetry/sdk-trace-base` 2.12 rejects 1.10 as a peer.
+**BLOCKED at T9 (environment, not code)**: `docker pull postgres:17-alpine` hangs for about 21 minutes in `docker-credential-desktop get` (the Docker credential helper), so Testcontainers cannot start Postgres and the T9 full gate cannot run. The T9 code is written but uncommitted and unverified: `apps/api/vitest.config.ts`, `apps/api/vitest.integration.config.ts`, `apps/api/src/test-support/postgres.ts` and `postgres.int.test.ts`, the `test:integration` script, and the Kysely, pg, @types/pg and @testcontainers/postgresql dependencies. A T9 run that hung was killed by the feature-worker (exit 144); the ledger shows no T9 failure. The gate hook denies direct `pnpm arch` and direct test runs outside `attempt.mjs`, so the typecheck and the arch sensor have not run on the T9 code.
+**Open question for the orchestrator (T9 vs. the arch sensor)**: `src/test-support/postgres.ts` imports the devDependency `@testcontainers/postgresql` from `src/`. `.dependency-cruiser.cjs` rule `no-dev-deps-in-runtime` flags `npm-dev` imports from `^apps/api/src` unless the path matches TESTS, and `test-support/` does not match it. Not yet confirmed by a run. Resolution needs the maintainer or the orchestrator (the file path is fixed by T9), not a sensor change by the worker.
+**T10–T13**: not started (strictly in order after T9).
+**Orchestrator replan (2026-10-30)**: T9's helper moves to `apps/api/test/support/` (covered by the depcruise TESTS pattern and `testing.md`; no sensor change); T10's `migrate.ts` reads `DATABASE_URL` itself inside `main/`; T13 keeps retry times in memory and adds the production `TimerScheduler`. Tasks gate re-run. T9 waits for the maintainer to fix Docker Desktop's credential helper (escalation).
 **Walked:** none
