@@ -802,9 +802,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `outbox.int.test.ts`: an append in a committed transaction leaves one row and calls `wake` once; an append in a transaction that throws leaves no row and no wake (test `rolls back the outbox row with the transaction`); a commit without appends does not wake
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 3 new integration tests pass
+- [x] `outbox.int.test.ts`: an append in a committed transaction leaves one row and calls `wake` once; an append in a transaction that throws leaves no row and no wake (test `rolls back the outbox row with the transaction`); a commit without appends does not wake
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
+- [x] Test count: ≥ 3 new integration tests pass
 
 **Tests**: integration
 **Gate**: full

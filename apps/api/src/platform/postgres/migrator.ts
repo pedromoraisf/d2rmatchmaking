@@ -18,7 +18,7 @@ const provider: MigrationProvider = {
  * Applies every pending migration and returns the names this call applied: an empty list when the database is up to
  * date. A failing migration rejects with its error; Kysely rolls back that migration.
  */
-export async function migrateToLatest(db: Kysely<unknown>): Promise<string[]> {
+export async function migrateToLatest<DB>(db: Kysely<DB>): Promise<string[]> {
   const migrator = new Migrator({ db, provider });
   const { error, results } = await migrator.migrateToLatest();
   if (error !== undefined) {
