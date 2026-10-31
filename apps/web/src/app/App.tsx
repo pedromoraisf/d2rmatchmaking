@@ -1,9 +1,10 @@
 // Site root: reads the configuration and the signed-in player, then shows the loading, error or ready view.
-// The feature panels are added to the ready view by the feature tasks.
+// The feature panels join the ready view in the next tasks.
 import { useEffect, useState } from 'react';
 import type { ConfigResponse, MeResponse } from '@d2rmm/contracts';
 import { useTranslation } from 'react-i18next';
 import { type ApiClient, createApiClient } from '../shared/api-client.ts';
+import { SignInPanel } from '../features/identity/SignInPanel.tsx';
 import { Layout } from './Layout.tsx';
 
 export interface AppProps {
@@ -62,6 +63,16 @@ export function App({ client = defaultClient }: AppProps) {
       </Layout>
     );
   }
-  // The ready view gains the feature panels in the next tasks; until then it is the frame alone.
-  return <Layout>{null}</Layout>;
+  return (
+    <Layout>
+      <SignInPanel
+        client={client}
+        staging={boot.config.stagingEndpoints}
+        session={boot.session}
+        onSignedIn={(session) =>
+          setBoot((current) => (current.status === 'ready' ? { ...current, session } : current))
+        }
+      />
+    </Layout>
+  );
 }

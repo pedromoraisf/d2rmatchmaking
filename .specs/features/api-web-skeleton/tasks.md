@@ -645,9 +645,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: form hidden when staging is off; 400 shows "Use 2 to 16 letters, digits or hyphens." and stays signed out; success shows "Signed in as PlayerOne"; 401 on `/v1/me` shows the signed-out view
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
-- [ ] Test count: ≥ 4 new tests pass
+- [x] Tests: form hidden when staging is off; 400 shows "Use 2 to 16 letters, digits or hyphens." and stays signed out; success shows "Signed in as PlayerOne"; 401 on `/v1/me` shows the signed-out view
+- [x] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
+- [x] Test count: ≥ 4 new tests pass
 
 **Tests**: unit
 **Gate**: quick
