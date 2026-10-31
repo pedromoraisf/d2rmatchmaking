@@ -30,6 +30,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-046 | api-web-skeleton   | F0 site without TanStack Router/Query                                                                | add them in F1               |            |
 | AD-056 | api-web-skeleton   | Presence and revoke events are transient (bus only, not the outbox)                                  | move presence to Postgres    |            |
 | AD-061 | api-web-skeleton   | Staging match-formed answers 404 `no-room` / `no-assignment`; route in Matchmaking routes            | a contract change            |            |
+| AD-062 | api-web-skeleton   | Test control `POST /__test/redeliver-match-formed` re-publishes the newest `MatchFormed` for AWS-20  | a consumer-level proof       |            |
 
 ## Queued for F1 (from the api-web-skeleton security review)
 

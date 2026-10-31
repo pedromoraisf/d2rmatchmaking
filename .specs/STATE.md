@@ -436,6 +436,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-31
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-062 (assumed)
+
+- **Decision**: a third acceptance test control, `POST /__test/redeliver-match-formed`, publishes the newest `MatchFormed` outbox row again on the `EventBus` (same outbox id and payload) so AWS-20's scenario "the same match is delivered to the Lobby Room again" runs black-box through the real consumer. Same guards as reset (secret header, `acc_w<n>` on loopback, `local.ts` only, AD-045).
+- **Reason**: the approved scenario needs a redelivery, and no product route can cause one: each staging `match-formed` call mints a new `matchId` (AD-033). Scenarios are never edited (ADR 023), so the stack gains the control, the smallest addition that drives the at-least-once path the relay already has.
+- **Trade-off**: one more test-only endpoint; it is unreachable from `render.ts` and the Pages Function like the other two. Reversal is a consumer-level proof instead of a scenario, which needs the maintainer.
+- **Scope**: api-web-skeleton / main, tests/acceptance
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: api-web-skeleton (Design)

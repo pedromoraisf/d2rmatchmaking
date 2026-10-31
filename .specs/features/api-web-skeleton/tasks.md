@@ -136,7 +136,7 @@ T30 → T31 → T32 → T33 → T34 → T35 → T36 → T37
 ### Phase 12: Acceptance
 
 ```
-T47 → T48 → T49 → T50
+T47 → T48 → T49 → T53 → T50
 ```
 
 ---
@@ -1138,12 +1138,31 @@ T47 → T48 → T49 → T50
 
 ---
 
+### T53: Add the match-formed redelivery test control
+
+**What**: `POST /__test/redeliver-match-formed` in `main/test-controls.ts`: reads the newest `MatchFormed` row of `platform.outbox` and publishes it again on the `EventBus` with its original outbox id and payload, as the relay does on an at-least-once redelivery; answers 204, or 404 `{ error: 'no-match' }` when no `MatchFormed` exists. Same guards as reset: `X-Test-Control` secret (403 without it), database `acc_w<n>` on `localhost`/`127.0.0.1` (refused otherwise). Registered only by `local.ts` under `D2RMM_ACCEPTANCE` (AD-045, AD-062). Added by the orchestrator after T50's AWS-20 scenario found no black-box way to redeliver a match.
+**Where**: `apps/api/src/main/test-controls.ts`
+**Depends on**: T49
+**Reuses**: T35 test controls, T13 relay, T26 `onMatchFormed`
+**Requirement**: AWS-20
+
+**Done when**:
+
+- [ ] `src/main/__tests__/roots.int.test.ts` (or a sibling in `main/__tests__/`): after a staging match-formed, redeliver answers 204 and the account still has exactly one room for that `matchId`; redeliver with no `MatchFormed` → 404 `no-match`; without the secret → 403; against a database not named `acc_w<n>` → refused; the Render app has no `/__test/redeliver-match-formed` route
+- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration && pnpm arch`
+- [ ] Test count: ≥ 4 new integration tests pass
+
+**Tests**: integration
+**Gate**: full
+
+---
+
 ### T50: Write the Lobby Room and stream steps
 
 **What**: `steps/lobby-room.steps.ts` for the room, observation, stream and proxy scenarios; then the whole acceptance suite runs.
 **Where**: `tests/acceptance/steps/lobby-room.steps.ts`
-**Depends on**: T49
-**Reuses**: T47 stack and agent client
+**Depends on**: T53
+**Reuses**: T47 stack and agent client, T53 redelivery control
 **Requirement**: AWS-19, AWS-20, AWS-21, AWS-22, AWS-23, AWS-24, AWS-25, AWS-27, AWS-28, AWS-29
 
 **Done when**:
@@ -1420,5 +1439,9 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **execute-batch-8 notes (2026-10-31, feature-worker)**: done T32 dd77397, T33 bb826f6, T34 c238f84, T35 8502a8d, T36 807ada3, T37 7814259; contracts request schemas fixed in 3a68f4b (binding from batch 5, missed in T33/T34: `PairRequest` and `MatchFormedRequest` now live in `@d2rmm/contracts`, documents unchanged). Attempts: T32 1/3 (fixture uses `NodeRandomSource` per app and asserts the sign-in 200); T33 3/3 (a route must declare every status it returns; the shared test database needs a unique player name per sign-in; T33 has 2 failures, so one more blocks it); T34 1/3; T35 1/3; T36 2/3 (index-signature access); T37 1/3. Verified after the contract fix under step `integration`, a fresh budget: contracts 42, API integration 80 (14 files), `contracts:check` clean. The API unit suite was not run as a whole: the hook denied a direct `pnpm test` (denial 2/3); the related unit tests ran in the pre-commit hooks. Deviations to accept: (a) T33 heartbeat re-authenticates through `authenticateAgent` (a cache hit, so no SQL) because `requireAgent` sets only `agentId`; the pair body and the claim 202 body (`{ status: 'pending' }`) are not in the design; `Retry-After` is the window length, an upper bound. (b) T34's `POST /v1/staging/match-formed` lives in `modules/matchmaking/adapters/http/routes.ts` (the design's owner), not in the lobby-room routes file of T34's Where; no room and no assignment answer 404 `no-room` / `no-assignment` (not specified); the observation 202 body is `{ stored }`. (c) T35 touches files outside its Where, all additive: `ClockScheduler` (main/runtime.ts) fires `at` from the injected clock; `ControllableClock` and the reset/clock controls (main/test-controls.ts); `clear()` on the three memory stores; `StreamHub.closeAll()`; `BuiltApp.hub`. Reset refuses unless the database is `acc_w<n>` on loopback. Render's TLS is not exercised by a test (the test database has no TLS): the no-`/__test` test builds the app the way render.ts does, in process. (d) T36: the contracts generator no longer writes `openapi.json` (two generators would race for it); the document covers staging routes too (staging on); `contracts:check` needs `openapi.json` staged, the turbo `contracts:openapi` outputs warning is cosmetic. (e) T37 edited the HF-04 scenario and steps as AD-044 specifies; the gate hook did not prompt on the edit, so the maintainer's confirmation of AD-044 is still open. (f) Formatting-only prettier fixes landed after the T33 and T34 gates, before their commits (line breaks only, checked). (g) Commit trailers carry `Co-Authored-By: Claude Haiku 5.5`, the model that wrote the code, not the Opus line the task named.
 
 **Orchestrator on batch 8 (2026-10-31)**: T32–T37 verified (commits dd77397…7814259, 3a68f4b; gates T32 1/3, T33 3/3, T36 2/3). Deviations (a)–(e), (g) accepted; (c)'s 404 codes recorded as AD-061 (assumed). (f) T37 applied AD-044 without a gate prompt: AD-044's maintainer confirmation stays open for the phase review. (h) the worker's `Co-Authored-By` names the model that wrote the code, accepted. Next: execute-batch-9 (T47–T50).
+
+**execute-batch-9 notes (2026-10-31, feature-worker)**: done T47 49a4d71 (gate attempts 2/3: attempt 1 passed, attempt 2 re-ran the gate after a runtime-affecting fix), T48 84cdc36 (1/3), T49 ee28750 (1/3). Scenarios passing under their gates: AWS-30, 17, 37, 38 (7 runs), AWS-01 to 04 (12 runs), AWS-05 to 14, 16, 18 (21 runs). **T50 BLOCKED, not marked done, gate not run**: the Lobby Room and stream steps are written (`steps/lobby-room.steps.ts`, `support/sse.ts`, `support/world.ts` and `support/agent-client.ts` extensions) and uncommitted in the worktree; locally 15 of 16 AWS-19…29 runs pass. The one failure is **AWS-20** ("The same match never makes two rooms"): its step "the same match is delivered to the Lobby Room again" cannot run black-box, because no HTTP route delivers an existing `MatchFormed` again (every `POST /v1/staging/match-formed` mints a new `matchId`, AD-033; the only test controls are reset and clock). The step fails on purpose with that reason. Options for the orchestrator: a test control that re-delivers the last MatchFormed through the real consumer (a design change and a new task), or a maintainer decision on AWS-20's scenario (not changed here). Deviations to accept: (a) `acceptance` gained devDependencies `@testcontainers/postgresql`, `pg`, `@types/pg`, `@d2rmm/contracts` (T47 Where lists only stack.ts); (b) `support/global-setup.ts` and `support/sse.ts` and `support/world.ts` and `support/agent-client.ts` are new files under `support/` (design § Acceptance stack names agent-client only); (c) wrangler runs with `--inspector-port`, `--persist-to` (private temp dir per stack) and `--compatibility-date`, because parallel workers collided on the default inspector port and workerd SQLite state; (d) the stack fixture takes `browser` as its dependency (Playwright requires a destructured first parameter and lint forbids an empty one) and passes the browser name into start-up errors; (e) `.gitignore` gained `.wrangler/` (wrangler creates `apps/web/.wrangler`; a leftover untracked directory remains in the worktree because a recursive delete was denied by the gate, not committed); (f) AWS-01's cookie is read from all cookies and matched by host, and the `__Host-` session cookie for AWS-04 is set by `document.cookie` (Playwright's `addCookies` always sets a Domain attribute, which `__Host-` forbids); (g) `/v1/me` and the pairing and presence reads go through the page's own fetch, because a request context leaves Secure cookies out on http; (h) the site is reloaded after a match started through the API, because a page that opened before the relay wrote the room can miss the event (the fix is in the test setup, not the site); (i) playwright-bdd passes unmatched optional groups as `null`, so the steps test the type of the capture; (j) `expiresAt` is checked against the stack's estimated API clock (process start plus every advance). Not verified: the full suite including the harness-foundation scenarios was not run after the last edits (a fourth gate-hook denial came with the retry budget exhausted; the last run of the T50 scenarios was 15 of 16 with the null fix). The lobby-room step file has over-long lines that the pre-commit Prettier check will reject until they are wrapped; the T50 commit is not made. Gate attempts: `gate:api-web-skeleton/T50` 0/3 (not run).
+
+**Orchestrator replan (2026-10-31, T50 / AWS-20)**: batch 9 committed T47 49a4d71, T48 84cdc36, T49 ee28750 and stopped at T50: 15 of 16 lobby-room runs pass; AWS-20's step "the same match is delivered to the Lobby Room again" has no black-box route (each staging call mints a new `matchId`, AD-033). The scenario is not edited. New task T53 adds `POST /__test/redeliver-match-formed` (AD-062, design § Composition roots amended; architecture and security review on the amendment), and T50 now depends on it. T50's steps stay uncommitted in the worktree; batch 10 runs T53 then T50. Batch-9 deviations (a)–(j) accepted.
 
 **Walked:** none
