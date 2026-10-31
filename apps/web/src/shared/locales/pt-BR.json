@@ -1,0 +1,49 @@
+{
+  "app": {
+    "title": "D2R Match Making",
+    "loading": "Carregando…",
+    "error": "Algo deu errado. Tente novamente.",
+    "notice": "D2R Match Making é um projeto da comunidade e não é afiliado à Blizzard Entertainment.",
+    "downloadAgent": "Baixar o agente"
+  },
+  "signIn": {
+    "heading": "Entrar com uma conta de teste",
+    "playerName": "Nome do jogador",
+    "submit": "Entrar",
+    "invalidName": "Use de 2 a 16 letras, números ou hífens.",
+    "signedInAs": "Conectado como {{name}}"
+  },
+  "pairing": {
+    "codeLabel": "Código de pareamento",
+    "submit": "Parear agente",
+    "paired": "Agente pareado",
+    "invalidCode": "Este código é inválido ou expirou.",
+    "tooManyAttempts": "Muitas tentativas. Tente novamente em alguns minutos."
+  },
+  "presence": {
+    "online": "Agente online",
+    "offline": "Agente offline",
+    "gameOpen": "Jogo aberto",
+    "gameClosed": "Jogo fechado",
+    "screen": {
+      "UNKNOWN": "Tela: desconhecida",
+      "AUTOMAP_OPEN": "Tela: mapa automático aberto"
+    }
+  },
+  "room": {
+    "gameName": "Nome do jogo",
+    "noPassword": "Sem senha",
+    "stage": "Etapa",
+    "stages": {
+      "formed": "Formada",
+      "awaiting_host": "Aguardando anfitrião",
+      "created": "Criada",
+      "active": "Ativa",
+      "closed": "Fechada",
+      "expired": "Expirada"
+    }
+  },
+  "testMatch": {
+    "start": "Iniciar partida de teste"
+  }
+}

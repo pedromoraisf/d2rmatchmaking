@@ -277,22 +277,28 @@ Then('the command succeeds', ({ scenario }) => {
   expect(run.status, tail(run)).toBe(0);
 });
 
-// HF-04: regenerated contracts leave no drift.
-Then(/^the OpenAPI document declares version "(.+)" with no paths$/, ({ scenario }, version: string) => {
-  const doc = readJson<{ openapi?: unknown; paths?: unknown }>(
-    path.join(scenario.repoRoot, 'packages', 'contracts', 'openapi.json'),
-  );
-  expect(String(doc.openapi).startsWith(`${version}.`), `openapi ${String(doc.openapi)}`).toBe(true);
-  expect(doc.paths, 'OpenAPI paths').toEqual({});
-});
+// HF-04: regenerated contracts leave no drift, and the documents describe the real routes and channels (AD-044).
+Then(
+  /^the OpenAPI document declares version "(.+)" and the path "(.+)"$/,
+  ({ scenario }, version: string, route: string) => {
+    const doc = readJson<{ openapi?: unknown; paths?: Record<string, unknown> }>(
+      path.join(scenario.repoRoot, 'packages', 'contracts', 'openapi.json'),
+    );
+    expect(String(doc.openapi).startsWith(`${version}.`), `openapi ${String(doc.openapi)}`).toBe(true);
+    expect(Object.keys(doc.paths ?? {}), 'OpenAPI paths').toContain(route);
+  },
+);
 
-Then(/^the AsyncAPI document declares version "(.+)" with no channels$/, ({ scenario }, version: string) => {
-  const doc = readJson<{ asyncapi?: unknown; channels?: unknown }>(
-    path.join(scenario.repoRoot, 'packages', 'contracts', 'asyncapi.json'),
-  );
-  expect(String(doc.asyncapi).startsWith(`${version}.`), `asyncapi ${String(doc.asyncapi)}`).toBe(true);
-  expect(doc.channels, 'AsyncAPI channels').toEqual({});
-});
+Then(
+  /^the AsyncAPI document declares version "(.+)" and the channel "(.+)"$/,
+  ({ scenario }, version: string, channel: string) => {
+    const doc = readJson<{ asyncapi?: unknown; channels?: Record<string, unknown> }>(
+      path.join(scenario.repoRoot, 'packages', 'contracts', 'asyncapi.json'),
+    );
+    expect(String(doc.asyncapi).startsWith(`${version}.`), `asyncapi ${String(doc.asyncapi)}`).toBe(true);
+    expect(Object.keys(doc.channels ?? {}), 'AsyncAPI channels').toContain(channel);
+  },
+);
 
 // HF-05: the five API modules exist with their three layers and a public entry point.
 Given('the violation fixtures are present in the repository', ({ scenario }) => {

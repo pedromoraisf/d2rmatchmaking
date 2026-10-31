@@ -1,0 +1,142 @@
+// @vitest-environment node
+import { describe, expect, it } from 'vitest';
+import { proxyRequest, type ProxyContext, type Upstream } from './[[path]].ts';
+
+const env = { API_ORIGIN: 'https://api.example.test' };
+
+// Records what the upstream receives and answers with the given response.
+function recordingUpstream(answer: () => Response = () => new Response('{}', { status: 200 })) {
+  const calls: { target: URL; init: RequestInit }[] = [];
+  const upstream: Upstream = async (target, init) => {
+    calls.push({ target, init });
+    return answer();
+  };
+  return { upstream, calls };
+}
+
+function context(url: string, init?: RequestInit): ProxyContext {
+  return { request: new Request(url, init), env };
+}
+
+describe('Pages Function proxy', () => {
+  it('forwards /api/v1/me to API_ORIGIN/v1/me with the query string', async () => {
+    const { upstream, calls } = recordingUpstream();
+    await proxyRequest(context('https://site.test/api/v1/me?probe=1'), upstream);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.target.href).toBe('https://api.example.test/v1/me?probe=1');
+  });
+
+  it('rejects hostile paths with 404 and never calls the API', async () => {
+    const hostile = [
+      '/api/__test/reset',
+      '/api/__test/redeliver-match-formed',
+      '/api/v1/../x',
+      '/api/v1//x',
+      '/api/v1%2fx',
+      '/api/v1%5cx',
+      '/api/v1/%252e%252e/x',
+      '/api/v1%252fx',
+      '/api/other/me',
+    ];
+    for (const path of hostile) {
+      const { upstream, calls } = recordingUpstream();
+      const response = await proxyRequest(context(`https://site.test${path}`), upstream);
+      expect(response.status, path).toBe(404);
+      expect(calls, path).toHaveLength(0);
+    }
+  });
+
+  it('drops Authorization and X-Agent-Version and keeps the allow-listed headers', async () => {
+    const { upstream, calls } = recordingUpstream();
+    await proxyRequest(
+      context('https://site.test/api/v1/me', {
+        headers: {
+          Cookie: '__Host-d2rmm_session=d2rmm_s_x',
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: 'Bearer d2rmm_a_forged',
+          'X-Agent-Version': '9.9.9',
+          Host: 'evil.example.test',
+          'X-Forwarded-For': '203.0.113.9',
+          'CF-Connecting-IP': '203.0.113.9',
+        },
+      }),
+      upstream,
+    );
+    const sent = new Headers(calls[0]?.init.headers);
+    expect(sent.get('cookie')).toBe('__Host-d2rmm_session=d2rmm_s_x');
+    expect(sent.get('content-type')).toBe('application/json');
+    expect(sent.get('accept')).toBe('application/json');
+    for (const dropped of [
+      'authorization',
+      'x-agent-version',
+      'host',
+      'x-forwarded-for',
+      'cf-connecting-ip',
+    ]) {
+      expect(sent.has(dropped), dropped).toBe(false);
+    }
+  });
+
+  it('passes Set-Cookie from the API back to the browser', async () => {
+    const { upstream } = recordingUpstream(
+      () =>
+        new Response(null, {
+          status: 200,
+          headers: [
+            ['set-cookie', '__Host-d2rmm_session=d2rmm_s_abc; HttpOnly; Secure; SameSite=Lax; Path=/'],
+          ],
+        }),
+    );
+    const response = await proxyRequest(
+      context('https://site.test/api/v1/auth/test-login', { method: 'POST' }),
+      upstream,
+    );
+    expect(response.headers.getSetCookie()).toStrictEqual([
+      '__Host-d2rmm_session=d2rmm_s_abc; HttpOnly; Secure; SameSite=Lax; Path=/',
+    ]);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('delivers a streamed body chunk by chunk, before the upstream sends the rest', async () => {
+    const hooks: { push?: (text: string) => void; finish?: () => void } = {};
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        hooks.push = (text) => controller.enqueue(encoder.encode(text));
+        hooks.finish = () => controller.close();
+      },
+    });
+    const { upstream } = recordingUpstream(
+      () => new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } }),
+    );
+    const response = await proxyRequest(context('https://site.test/api/v1/stream'), upstream);
+    const body = response.body;
+    if (body === null) {
+      throw new Error('the proxied response has no body');
+    }
+    const reader = body.getReader();
+
+    hooks.push?.('id: 1\n\n');
+    const first = await reader.read();
+    expect(new TextDecoder().decode(first.value)).toBe('id: 1\n\n');
+
+    hooks.push?.('id: 2\n\n');
+    hooks.finish?.();
+    const second = await reader.read();
+    expect(new TextDecoder().decode(second.value)).toBe('id: 2\n\n');
+    expect((await reader.read()).done).toBe(true);
+  });
+
+  it('answers /healthz on the same origin and forwards the method of a POST', async () => {
+    const { upstream, calls } = recordingUpstream();
+    await proxyRequest(context('https://site.test/api/healthz'), upstream);
+    await proxyRequest(
+      context('https://site.test/api/v1/staging/match-formed', { method: 'POST', body: '{}' }),
+      upstream,
+    );
+    expect(calls[0]?.target.href).toBe('https://api.example.test/healthz');
+    expect(calls[1]?.init.method).toBe('POST');
+    expect(calls[1]?.target.href).toBe('https://api.example.test/v1/staging/match-formed');
+  });
+});

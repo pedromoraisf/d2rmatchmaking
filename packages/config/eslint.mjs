@@ -4,6 +4,8 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
+import i18next from 'eslint-plugin-i18next';
+import n from 'eslint-plugin-n';
 
 export default tseslint.config(
   {
@@ -40,6 +42,34 @@ export default tseslint.config(
     // Harness scripts and hooks are plain Node ESM and talk to the terminal.
     files: ['scripts/**/*.mjs', '.claude/hooks/**/*.mjs'],
     rules: { 'no-console': 'off' },
+  },
+  {
+    // Only the composition roots read the environment (main/config.ts); the rest of the API takes config through ports.
+    files: ['apps/api/src/**/*.ts'],
+    ignores: ['apps/api/src/main/**'],
+    plugins: { n },
+    rules: { 'n/no-process-env': 'error' },
+  },
+  {
+    // Weak randomness is never used in the API: RandomSource and IdGenerator are injected (design § Security controls).
+    // Placed before the domain block, whose broader list still wins for domain files.
+    files: ['apps/api/src/**/*.ts'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'Math',
+          property: 'random',
+          message: 'Inject the RandomSource port (node:crypto in main/).',
+        },
+      ],
+    },
+  },
+  {
+    // The site renders translated strings only: a literal in JSX is a missing i18n key (NFR-12, AWS-37).
+    files: ['apps/web/src/**/*.tsx'],
+    plugins: { i18next },
+    rules: { 'i18next/no-literal-string': ['error', { mode: 'jsx-only' }] },
   },
   {
     // Domain code is pure: no clocks, randomness or I/O — inject Clock / IdGenerator ports instead.

@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import js from '@eslint/js';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
+import i18next from 'eslint-plugin-i18next';
+import n from 'eslint-plugin-n';
 import tseslint from 'typescript-eslint';
 import { describe, expect, it } from 'vitest';
 import eslintConfig from '../eslint.mjs';
@@ -107,6 +109,30 @@ describe('@d2rmm/config presets', () => {
       {
         files: ['scripts/**/*.mjs', '.claude/hooks/**/*.mjs'],
         rules: { 'no-console': 'off' },
+      },
+      {
+        files: ['apps/api/src/**/*.ts'],
+        ignores: ['apps/api/src/main/**'],
+        plugins: { n },
+        rules: { 'n/no-process-env': 'error' },
+      },
+      {
+        files: ['apps/api/src/**/*.ts'],
+        rules: {
+          'no-restricted-properties': [
+            'error',
+            {
+              object: 'Math',
+              property: 'random',
+              message: 'Inject the RandomSource port (node:crypto in main/).',
+            },
+          ],
+        },
+      },
+      {
+        files: ['apps/web/src/**/*.tsx'],
+        plugins: { i18next },
+        rules: { 'i18next/no-literal-string': ['error', { mode: 'jsx-only' }] },
       },
       {
         files: ['apps/api/src/modules/*/domain/**/*.ts'],

@@ -1,0 +1,88 @@
+# Deploys the API to Render (AWS-34, design.md § Workflows). After ci.yml passes on a push to main from this repository,
+# the job migrates Neon, calls the Render deploy hook, and fails unless /healthz answers 200 within 5 minutes.
+# Secrets live in the `production` environment only. Actions are pinned by commit SHA (ADR 019).
+name: deploy-api
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+env:
+  TURBO_TELEMETRY_DISABLED: '1'
+
+jobs:
+  deploy:
+    name: deploy-api
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Check out the commit ci.yml verified
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+
+      - name: Check whether the API or the shared packages changed
+        id: changes
+        run: |
+          if git diff --name-only HEAD~1 HEAD -- apps/api packages | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up pnpm
+        if: steps.changes.outputs.changed == 'true'
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Set up Node
+        if: steps.changes.outputs.changed == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.changes.outputs.changed == 'true'
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Migrate the database
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: pnpm --filter @d2rmm/api db:migrate
+
+      - name: Trigger the Render deploy
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: curl -fsS -X POST "$RENDER_DEPLOY_HOOK"
+
+      - name: Wait for /healthz (5 minutes)
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          deadline=$(( $(date +%s) + 300 ))
+          until curl -fsS "$API_BASE_URL/healthz" > /dev/null; do
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::GET /healthz did not answer 200 within 5 minutes"
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "GET /healthz answered 200"

@@ -393,7 +393,7 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 
 ### AD-044 (assumed)
 
-- **Decision**: harness-foundation's HF-04 scenario lines "declares version 3.1 with no paths" and "3.0 with no channels" become "declares version 3.1/3.0 and matches the committed file" when api-web-skeleton adds routes and events.
+- **Decision**: harness-foundation's HF-04 scenario lines "declares version 3.1 with no paths" and "3.0 with no channels" become structural assertions — "declares version 3.1 and the path /healthz" and "declares version 3.0 and the channel stream" — when api-web-skeleton adds routes and events.
 - **Reason**: api-web-skeleton design: the empty documents were declared placeholders (`packages/contracts/src/documents.ts`); with real routes the old lines are false. The drift check that HF-04 exists for stays.
 - **Trade-off**: edits a done feature's scenario; the gate asks the maintainer to confirm it. Reversal is impossible without removing the routes.
 - **Scope**: harness-foundation, api-web-skeleton / contracts
@@ -499,6 +499,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-30
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-056 (assumed)
+
+- **Decision**: `AgentPresenceChanged` and `AgentRevoked` are transient events on the in-memory bus, not outbox rows; their stream ids are `<lastOutboxId>.<k>` and the site re-reads presence on every (re)connect.
+- **Reason**: api-web-skeleton design: ADR 008 puts events in the outbox in the same transaction as their state change, but presence is not in Postgres (ADR 006, AWS-13 forbids a Postgres write per heartbeat). A presence event lost to a restart is rebuilt from the next heartbeat.
+- **Trade-off**: presence changes are not replayed by `Last-Event-ID`; reversal is moving presence to Postgres, which NFR-07 rules out. `AgentRevoked` follows a committed revoke: if a crash loses it, the restart drops every open stream and the token read-through checks `revoked_at`. The phase review proposes amending ADR 008's wording to name transient events.
+- **Scope**: api-web-skeleton / agents, platform
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ### AD-057 (assumed)
 
 - **Decision**: In F0 the agent reads the reference image only in builds with the Cargo feature `fixture-read`, started with `--read-fixture <png>`; `release-agent.yml` never enables it, so released agents never read an image nor post an observation.
@@ -532,16 +541,33 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Reason**: agent-skeleton design: `typify` (schemars) reads draft-07; the api-web-skeleton generator emits draft 2020-12, and the agent also sends the claim request.
 - **Trade-off**: the JSON Schema files use the older dialect; OpenAPI and AsyncAPI are unchanged. Reversal is the target option once `typify` reads 2020-12.
 - **Scope**: agent-skeleton, contracts
+
+### AD-061 (assumed)
+
+- **Decision**: the staging `POST /v1/staging/match-formed` route answers 404 `no-room` when the room does not exist and 404 `no-assignment` when there is no assignment; it lives in the Matchmaking routes file, the design's owner, not the Lobby Room routes file T34 names.
+- **Reason**: neither response is specified in the spec or design; 404 with a stable code is the conservative answer for a staging-only route and changes nothing a player sees.
+- **Trade-off**: the codes become part of `openapi.json`; reversal is a contract change on a staging route.
+- **Scope**: api-web-skeleton / matchmaking
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-062 (assumed)
+
+- **Decision**: a third acceptance test control, `POST /__test/redeliver-match-formed`, publishes the newest `MatchFormed` outbox row again on the `EventBus` (same outbox id and payload) so AWS-20's scenario "the same match is delivered to the Lobby Room again" runs black-box through the real consumer. Same guards as reset (secret header, `acc_w<n>` on loopback, `local.ts` only, AD-045).
+- **Reason**: the approved scenario needs a redelivery, and no product route can cause one: each staging `match-formed` call mints a new `matchId` (AD-033). Scenarios are never edited (ADR 023), so the stack gains the control, the smallest addition that drives the at-least-once path the relay already has.
+- **Trade-off**: one more test-only endpoint; it is unreachable from `render.ts` and the Pages Function like the other two. Reversal is a consumer-level proof instead of a scenario, which needs the maintainer.
+- **Scope**: api-web-skeleton / main, tests/acceptance
+
 - **Date**: 2026-10-31
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
 ## Handoff
 
-- **Feature**: agent-skeleton (spec gate not run) and api-web-skeleton (Tasks next)
-- **Phase / Task**: F0 run. api-web-skeleton: spec approved by the maintainer (3407f61); design approved by architecture-reviewer and security-reviewer on retry 1 (d7f576e, branch `feat/F0-api-web-skeleton`, committed). agent-skeleton: `spec.md` (AGS-01…AGS-32), `acceptance.feature` and AD-047…AD-055 written and formatted in this worktree, **uncommitted**
-- **Completed**: see above; AD-029…AD-056 recorded (AD-056 and the F1 queue are on the api-web-skeleton branch)
+- **Feature**: agent-skeleton (Execute next)
+- **Phase / Task**: F0 run. harness-foundation and api-web-skeleton merged into `phase/F0`. agent-skeleton: spec, design and tasks approved (T1–T33), Execute not started
+- **Completed**: AD-029…AD-062 recorded
 - **In-progress**: none
-- **Next step**: new session, working directory = this worktree. Commit these drafts (`Feature: agent-skeleton`, `Step: spec`). Run the spec gate — each `node scripts/attempt.mjs run …` as its own Bash call with nothing before it (no `cd … &&`, no `prettier … ;`) — then `spec-reviewer`. In the api-web-skeleton worktree: Tasks
-- **Blockers**: the orchestrator session was exhausted by the gate hook (third denial of "quote the whole gate command": a `cd` or `prettier` chained before `attempt.mjs`). Execute needs Docker running and, for agent-skeleton, a Rust toolchain (not installed)
-- **Uncommitted files**: `.specs/STATE.md`, `.specs/phases/F0/decisions.md`, `.specs/features/agent-skeleton/{spec.md,acceptance.feature}` in worktree `.claude/worktrees/agent-skeleton`
+- **Next step**: agent-skeleton Execute from T1 in worktree `.claude/worktrees/agent-skeleton` (phase/F0 merged in after api-web-skeleton's integration, AD-035). Then observability-e2e and load-baseline Specify
+- **Blockers**: none. Rust lives in `~/.cargo/bin`, which is not on the default shell PATH; Docker is running
+- **Uncommitted files**: none after the merge commit
 - **Branch**: feat/F0-agent-skeleton
