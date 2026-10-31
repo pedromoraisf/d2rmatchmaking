@@ -5,6 +5,7 @@ pub mod config;
 pub mod contracts;
 pub mod ports;
 pub mod secret;
+pub mod telemetry;
 pub mod view;
 
 #[cfg(test)]

@@ -323,9 +323,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] Tests: a span opened under `init(Mode::Test)` yields a valid W3C `traceparent` (test `spans produce a traceparent`); the capture layer records span names and fields
-- [ ] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
-- [ ] Test count: ≥ 2 new tests pass
+- [x] Tests: a span opened under `init(Mode::Test)` yields a valid W3C `traceparent` (test `spans produce a traceparent`); the capture layer records span names and fields
+- [x] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
+- [x] Test count: ≥ 2 new tests pass
 
 **Tests**: unit
 **Gate**: quick
