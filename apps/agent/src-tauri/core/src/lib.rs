@@ -5,6 +5,7 @@ pub mod api_client;
 pub mod config;
 pub mod context;
 pub mod contracts;
+pub mod fusion;
 pub mod heartbeat;
 pub mod pairing;
 pub mod ports;
@@ -12,6 +13,7 @@ pub mod secret;
 pub mod stream;
 pub mod telemetry;
 pub mod view;
+pub mod vision;
 
 #[cfg(test)]
 mod tests {

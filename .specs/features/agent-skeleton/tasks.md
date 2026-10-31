@@ -439,9 +439,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] Tests: the fake reader receives the region for 1920×1080 and the first line is returned (test `reads_first_line_of_region`); `mmbaalh-12` and `MMBAALH-12 ` for expected `mmbaalh-12` yield one `GAME_NAME_SEEN` with normalised value, room, run, clamped confidence, new key, capture time (test `exact_match_yields_one_observation`); `mmbaalh-13`, `mmbaalh-1`, ` mmbaalh-12x` and no assignment yield none (test `other_names_yield_none`); the observation serialises with no image field (test `observation_carries_no_image`)
-- [ ] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
-- [ ] Test count: ≥ 5 new tests pass
+- [x] Tests: the fake reader receives the region for 1920×1080 and the first line is returned (test `reads_first_line_of_region`); `mmbaalh-12` and `MMBAALH-12 ` for expected `mmbaalh-12` yield one `GAME_NAME_SEEN` with normalised value, room, run, clamped confidence, new key, capture time (test `exact_match_yields_one_observation`); `mmbaalh-13`, `mmbaalh-1`, ` mmbaalh-12x` and no assignment yield none (test `other_names_yield_none`); the observation serialises with no image field (test `observation_carries_no_image`)
+- [x] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
+- [x] Test count: ≥ 5 new tests pass
 
 **Tests**: unit
 **Gate**: quick

@@ -4,7 +4,9 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use d2rmm_agent_core::ports::{ProcessSource, StateSink, StoreError, TokenStore};
+use d2rmm_agent_core::ports::{
+    ProcessSource, ReadError, ReadText, Region, Rgba, StateSink, StoreError, TextReader, TokenStore,
+};
 use d2rmm_agent_core::secret::Secret;
 use d2rmm_agent_core::view::{AgentView, PairingView};
 
@@ -119,5 +121,35 @@ impl FakeProcesses {
 impl ProcessSource for FakeProcesses {
     fn names(&self) -> Vec<String> {
         lock(&self.names).clone()
+    }
+}
+
+/// Reads the same text from any region and remembers the regions it was asked for.
+#[derive(Debug)]
+pub struct FakeReader {
+    text: String,
+    regions: Mutex<Vec<Region>>,
+}
+
+impl FakeReader {
+    pub fn reading(text: &str) -> Self {
+        Self {
+            text: text.to_string(),
+            regions: Mutex::new(Vec::new()),
+        }
+    }
+
+    pub fn regions(&self) -> Vec<Region> {
+        lock(&self.regions).clone()
+    }
+}
+
+impl TextReader for FakeReader {
+    fn read(&self, _image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+        lock(&self.regions).push(region);
+        Ok(ReadText {
+            text: self.text.clone(),
+            confidence: 0.93,
+        })
     }
 }
