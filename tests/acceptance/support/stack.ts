@@ -6,7 +6,7 @@
 import { randomBytes } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +40,11 @@ export interface Stack {
   reset(): Promise<void>;
   /** Moves the controllable clock of both APIs forward by `ms`. */
   advanceClock(ms: number): Promise<void>;
+  /**
+   * Redelivers the newest MatchFormed of the worker database on the staging API's bus, as an at-least-once relay
+   * would (AD-062). Resolves once the consumers have run.
+   */
+  redeliverMatchFormed(): Promise<void>;
   /** Estimated API clock in epoch ms: the start of the API processes plus every advance so far. */
   apiClockMs(): number;
   /** Stops every child process and returns when they have exited. */
@@ -233,6 +238,11 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
     await waitFor(plain, `${origins.plainApi}/healthz`, (status) => status === 200);
 
     const wrangler = path.join(repoRoot, 'apps', 'web', 'node_modules', 'wrangler', 'bin', 'wrangler.js');
+    // Wrangler keeps its bundling temp files in `.wrangler/` under its working directory, and Pages finds the functions
+    // under that same directory. The working directory is the private state directory, reached through a `functions`
+    // link, so those temp files never appear in the repository: dependency-cruiser (`pnpm arch`, HF-05) crawls the
+    // repository while the stack runs, and a temp file it lists can be gone by the time it reads it.
+    symlinkSync(path.join(repoRoot, 'apps', 'web', 'functions'), path.join(stateDir, 'functions'), 'dir');
     // Every wrangler needs its own inspector port: the default one is shared by all workers of the run.
     for (const [name, site, api, port, inspector] of [
       ['staging site', origins.stagingSite, origins.stagingApi, ports.stagingSite, await freePort()],
@@ -242,7 +252,7 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
         wrangler,
         'pages',
         'dev',
-        'dist',
+        path.join(repoRoot, 'apps', 'web', 'dist'),
         '--ip',
         '127.0.0.1',
         '--port',
@@ -260,7 +270,7 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
         '--log-level=warn',
       ];
       const server = launch(name, process.execPath, serverArgs, {
-        cwd: path.join(repoRoot, 'apps', 'web'),
+        cwd: stateDir,
         env: {
           PATH: process.env['PATH'] ?? '',
           HOME: process.env['HOME'] ?? '',
@@ -285,7 +295,7 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
         [CONTROL_HEADER]: controlSecret,
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
 
   return {
@@ -307,6 +317,12 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
         }
       }
       advanced += ms;
+    },
+    async redeliverMatchFormed() {
+      const answer = await controls(`${origins.stagingApi}/__test/redeliver-match-formed`);
+      if (answer.status !== 204) {
+        throw new Error(`redelivery of ${origins.stagingApi} answered ${answer.status}`);
+      }
     },
     apiClockMs() {
       return startedAt + advanced;

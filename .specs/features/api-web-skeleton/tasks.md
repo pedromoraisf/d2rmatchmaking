@@ -1168,8 +1168,8 @@ T47 → T48 → T49 → T53 → T50
 
 **Done when**:
 
-- [ ] Every scenario of both features' `acceptance.feature` passes (harness-foundation included)
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance test:acceptance`
+- [x] Every scenario of both features' `acceptance.feature` passes (harness-foundation included)
+- [x] Gate check passes: `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance test:acceptance`
 
 **Tests**: acceptance
 **Gate**: acceptance

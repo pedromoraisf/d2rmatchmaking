@@ -2,9 +2,10 @@
 // reset of both APIs, so nothing leaks between scenarios. Visitors are browser contexts: each one is a person with their
 // own cookies (AWS-01). The World is black-box state only: URLs, answers, sessions and browser pages.
 import { randomInt } from 'node:crypto';
-import { MeResponse } from '@d2rmm/contracts';
+import { MeResponse, RoomView } from '@d2rmm/contracts';
 import { expect, type Browser, type BrowserContext, type Cookie, type Page } from '@playwright/test';
-import { SimulatedAgent } from './agent-client.ts';
+import { observationBody, SimulatedAgent, type ObservationInput } from './agent-client.ts';
+import { EventStream } from './sse.ts';
 import type { Endpoint, Stack } from './stack.ts';
 
 /** The session cookie name of the API (identity routes, `__Host-` prefix). */
@@ -50,6 +51,19 @@ export interface Player {
   visitor?: Visitor;
   /** The agents this player paired, oldest first. */
   readonly agents: SimulatedAgent[];
+  /** The site stream of the player, while it is open. */
+  stream?: EventStream;
+  /** The id of the last event the player's stream received before it was closed (AWS-28). */
+  closedStreamLastId?: string;
+  /** The newest room of the player, as the API reads it. */
+  room?: { roomId: string; gameName: string };
+}
+
+/** The last observation an agent sent: what "the same observation again" sends once more (AWS-24). */
+export interface SentObservation {
+  readonly agent: SimulatedAgent;
+  readonly roomId: string;
+  readonly body: Record<string, unknown>;
 }
 
 /** The pairing answer of `POST /v1/agents/pair` for a session and a code: the status and the parsed body. */
@@ -120,6 +134,15 @@ export class World {
   shownCode: string | undefined;
   /** The presence the site reads for the owner, taken before a step that must not change it (AWS-18). */
   presenceSnapshot: unknown;
+  /** The name of the player who started the last test match: the host of its room. */
+  matchOwner: string | undefined;
+  /** The answer status of the last test-match request (AWS-19 and the test-match scenarios). */
+  matchStatus: number | undefined;
+  /** The last observation sent, for "the same observation again" (AWS-24). */
+  lastObservation: SentObservation | undefined;
+  /** Every EventStream the scenario opened: closed when the scenario ends. */
+  readonly #streams: EventStream[] = [];
+  readonly #agentStreams = new Map<SimulatedAgent, EventStream>();
   /** The site the scenario uses: staging unless it says test sign-in is disabled (AWS-03). */
   site: Endpoint;
   /** The browser language a visitor's context prefers (AWS-37); undefined keeps the default. */
@@ -276,8 +299,157 @@ export class World {
     return cookies.find((cookie) => cookie.name === SESSION_COOKIE && cookie.domain === host);
   }
 
-  /** Closes every visitor's browser context. Called once the scenario ends. */
+  /** The agent a player paired last: "the agent" of that player's steps. */
+  currentAgentOf(name: string): SimulatedAgent {
+    const agent = this.player(name).agents.at(-1);
+    if (agent === undefined) {
+      throw new Error(`"${name}" has no paired agent in this scenario`);
+    }
+    return agent;
+  }
+
+  /** The player's site stream: opened with the session cookie on first use, or after a close. */
+  async siteStreamOf(name: string): Promise<EventStream> {
+    const player = this.player(name);
+    if (player.stream !== undefined && !player.stream.closed) {
+      return player.stream;
+    }
+    const session = await this.sessionOf(name);
+    const stream = await this.openSiteStream(session);
+    player.stream = stream;
+    return stream;
+  }
+
+  /** Opens a site stream with the given session (after a close, with the id the stream stopped at). */
+  async openSiteStream(session: string, lastEventId?: string): Promise<EventStream> {
+    const headers: Record<string, string> = { Cookie: `${SESSION_COOKIE}=${session}` };
+    if (lastEventId !== undefined) {
+      headers['Last-Event-ID'] = lastEventId;
+    }
+    const stream = await EventStream.open(`${this.site.api}/v1/stream`, headers);
+    this.#streams.push(stream);
+    return stream;
+  }
+
+  /** The agent's stream, opened on first use with the agent's token. */
+  async agentStreamOf(agent: SimulatedAgent): Promise<EventStream> {
+    const existing = this.#agentStreams.get(agent);
+    if (existing !== undefined && !existing.closed) {
+      return existing;
+    }
+    const stream = await agent.openStream();
+    this.#streams.push(stream);
+    this.#agentStreams.set(agent, stream);
+    return stream;
+  }
+
+  /**
+   * Starts a test match for the player: opens the streams that must see the room first (the site's and the current
+   * agent's), requests the match (the button of the site or the API), and waits for the newest room to be readable.
+   */
+  async startTestMatch(name: string, viaSite: boolean): Promise<void> {
+    const session = await this.sessionOf(name);
+    await this.siteStreamOf(name);
+    const agent = this.player(name).agents.at(-1);
+    if (agent !== undefined) {
+      await this.agentStreamOf(agent);
+    }
+    const previous = this.player(name).room?.roomId;
+    this.matchOwner = name;
+    if (viaSite) {
+      const visitor = this.player(name).visitor;
+      if (visitor === undefined) {
+        throw new Error(`"${name}" has not signed in on the site in this scenario`);
+      }
+      const answered = visitor.page.waitForResponse((response) =>
+        response.url().endsWith('/api/v1/staging/match-formed'),
+      );
+      await visitor.page.getByRole('button', { name: 'Start test match', exact: true }).click();
+      this.matchStatus = (await answered).status();
+    } else {
+      const response = await fetch(`${this.site.api}/v1/staging/match-formed`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: this.site.site,
+          Cookie: `${SESSION_COOKIE}=${session}`,
+        },
+        body: '{}',
+        signal: AbortSignal.timeout(10_000),
+      });
+      this.matchStatus = response.status;
+    }
+    await this.refreshRoom(name, previous);
+    // The site learns the room from its stream or from its next read; a page that opened before the relay wrote the room
+    // can miss the event. Reloading reads the room the API now holds, so the page shows it deterministically.
+    const visitor = this.player(name).visitor;
+    if (!viaSite && visitor !== undefined) {
+      await visitor.page.reload();
+      await expect(visitor.page.getByText(LOADING_TEXT)).toHaveCount(0, { timeout: 15_000 });
+    }
+  }
+
+  /** Reads the player's newest room through `GET /v1/me/room`, once it differs from `previousRoomId`. */
+  async refreshRoom(name: string, previousRoomId?: string): Promise<void> {
+    const session = await this.sessionOf(name);
+    const deadline = Date.now() + 5_000;
+    while (Date.now() < deadline) {
+      const response = await fetch(`${this.site.api}/v1/me/room`, {
+        headers: { Cookie: `${SESSION_COOKIE}=${session}` },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (response.status === 200) {
+        const view = RoomView.parse(await response.json());
+        if (view.roomId !== previousRoomId) {
+          this.player(name).room = { roomId: view.roomId, gameName: view.expectedGameName };
+          return;
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error(`"${name}" has no new room within 5 s`);
+  }
+
+  /** The stage the API reports for the player's newest room. */
+  async stageOf(name: string): Promise<string> {
+    const session = await this.sessionOf(name);
+    const response = await fetch(`${this.site.api}/v1/me/room`, {
+      headers: { Cookie: `${SESSION_COOKIE}=${session}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    expect(response.status, `the room of "${name}"`).toBe(200);
+    return RoomView.parse(await response.json()).stage;
+  }
+
+  /** Sends one observation as the agent, to the room, and records it as the last observation. */
+  async observe(agent: SimulatedAgent, roomId: string, input: ObservationInput): Promise<void> {
+    const body = observationBody(input);
+    const answer = await agent.send(`/v1/lobby-rooms/${encodeURIComponent(roomId)}/observations`, {
+      method: 'POST',
+      body,
+    });
+    this.last = { status: answer.status, body: answer.body };
+    this.lastObservation = { agent, roomId, body };
+  }
+
+  /** Sends the last observation once more, unchanged (same idempotency key). */
+  async resendLastObservation(): Promise<void> {
+    const sent = this.lastObservation;
+    if (sent === undefined) {
+      throw new Error('no observation was sent in this scenario');
+    }
+    const answer = await sent.agent.send(`/v1/lobby-rooms/${encodeURIComponent(sent.roomId)}/observations`, {
+      method: 'POST',
+      body: sent.body,
+    });
+    this.last = { status: answer.status, body: answer.body };
+  }
+
+  /** Closes every visitor's browser context and every stream. Called once the scenario ends. */
   async dispose(): Promise<void> {
+    for (const stream of this.#streams.splice(0)) {
+      stream.close();
+    }
     for (const visitor of this.#visitors.splice(0)) {
       await visitor.context.close();
     }

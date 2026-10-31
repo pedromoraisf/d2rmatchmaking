@@ -4,6 +4,7 @@
 // `X-Forwarded-For`, which the local API trusts as its one proxy hop (AD-045).
 import { randomUUID } from 'node:crypto';
 import { Assignment, ClaimResponse, PairingCodeResponse, type Heartbeat } from '@d2rmm/contracts';
+import { EventStream } from './sse.ts';
 
 /** The agent version the simulated agent reports: above the minimum the stack sets (AGENT_MIN_VERSION 0.0.1). */
 export const AGENT_VERSION = '0.1.0';
@@ -143,7 +144,7 @@ export class SimulatedAgent {
     const response = await fetch(`${this.#api}${path}`, {
       method: options.method,
       headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
       signal: AbortSignal.timeout(10_000),
     });
     return { status: response.status, body: await parseBody(response), headers: response.headers };
@@ -207,6 +208,18 @@ export class SimulatedAgent {
       method: 'POST',
       body: observationBody(input),
     });
+  }
+
+  /** `GET /v1/stream` with the agent's bearer token: the agent stream, which carries only the room assignment (ADR 007). */
+  async openStream(): Promise<EventStream> {
+    const headers: Record<string, string> = { 'X-Forwarded-For': this.#forwardedFor };
+    if (this.#version !== null) {
+      headers['X-Agent-Version'] = this.#version;
+    }
+    if (this.#token !== undefined) {
+      headers['Authorization'] = `Bearer ${this.#token}`;
+    }
+    return EventStream.open(`${this.#api}/v1/stream`, headers);
   }
 
   /** `GET /v1/agents/me/assignment`: the room the agent is assigned to. Parses the body when answered 200. */
