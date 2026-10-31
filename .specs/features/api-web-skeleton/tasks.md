@@ -979,9 +979,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] `src/main/__tests__/identity-routes.int.test.ts`: sign-in sets `__Host-d2rmm_session` with `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, `Max-Age=604800` and no `Domain` (test `sets the session cookie`); invalid name → 400 `invalid-player-name`, no cookie; `/v1/me` with no, unknown or expired cookie → 401; cross-origin sign-in → 403
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 6 new integration tests pass
+- [x] `src/main/__tests__/identity-routes.int.test.ts`: sign-in sets `__Host-d2rmm_session` with `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, `Max-Age=604800` and no `Domain` (test `sets the session cookie`); invalid name → 400 `invalid-player-name`, no cookie; `/v1/me` with no, unknown or expired cookie → 401; cross-origin sign-in → 403
+- [x] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
+- [x] Test count: ≥ 6 new integration tests pass
 
 **Tests**: integration
 **Gate**: full

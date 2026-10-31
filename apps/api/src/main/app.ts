@@ -28,6 +28,7 @@ import { PostgresPairingCodeRepository } from '../modules/agents/adapters/postgr
 import type { AgentsDatabase } from '../modules/agents/adapters/postgres/schema.ts';
 import { createAgentsUseCases } from '../modules/agents/application/agents-use-cases.ts';
 import type { IdentityPort } from '../modules/identity/index.ts';
+import { identityRoutes } from '../modules/identity/adapters/http/routes.ts';
 import { PostgresAccountRepository } from '../modules/identity/adapters/postgres/postgres-account-repository.ts';
 import { PostgresSessionRepository } from '../modules/identity/adapters/postgres/postgres-session-repository.ts';
 import { Sha256SecretHasher } from '../modules/identity/adapters/postgres/sha256-secret-hasher.ts';
@@ -216,6 +217,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     stagingEndpoints: config.stagingEndpoints,
     minAgentVersion: config.minAgentVersion,
   }));
+  identityRoutes(app, { useCases: identity, guards, stagingEndpoints: config.stagingEndpoints });
   hub.register(app);
 
   return { app, relay, bus, stores };
