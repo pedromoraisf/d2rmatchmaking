@@ -1291,7 +1291,7 @@ Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts
 **C37** - `MMBAALH-<n>` from the host moves the room to Created (AWS-23, AC 6)
 Proof: `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "The game name matches whatever its letter case"`
 
-**C38** - A non-host, another run or another name answers 202, is stored and leaves "Awaiting host" (AWS-24, AC 7)
+**C38** - The host's agent reporting another run or another name answers 202, is stored and leaves "Awaiting host" (AWS-24, AC 7)
 Proof: `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "An observation that does not prove the game leaves the room waiting"`
 
 **C39** - A second matching sighting after Created raises no second stage change (AWS-24, AC 8)
@@ -1399,6 +1399,9 @@ Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts
 **C73** - An open stream receives `: ka` every 25 seconds (AWS-40, AC 6)
 Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform -t "sends a keep-alive comment every 25 seconds"`
 
+**C74** - A `GAME_NAME_SEEN` from a member who is not the host leaves the room "Awaiting host" (AWS-24, AC 7, INV-06; not a scenario: the test match has one member, AD-033)
+Proof: `pnpm --filter @d2rmm/api exec vitest run src/modules/lobby-room/domain -t "ignores a GAME_NAME_SEEN from a member who is not the host"`
+
 ---
 
 ## Handoff
@@ -1462,5 +1465,7 @@ Changes made between attempts (uncommitted, verified as far as the rules allow):
 **Orchestrator on batch 9 finish (2026-10-31)**: T53 7ad1511 verified (gate 1/3, integration 80 → 85). T50 BLOCKED at 3/3: the last run passed 66 of 67 scenarios, every AWS-19…29 run included; the one failure is HF-01's `pnpm typecheck` on `tests/acceptance/support/agent-client.ts:144` (`body: undefined` under `exactOptionalPropertyTypes`, committed in T49). Fix for a reset: spread `body` only when it is defined. Deviations 1–4 accepted (T53 tests in `test-controls.int.test.ts`; `apps/api/tsconfig.build.json` includes `migrations` to fix T10's build; `stack.ts` gains `redeliverMatchFormed()` and runs wrangler from the stack's private state dir so `.wrangler/` stays out of `pnpm arch`'s crawl; AWS-20 checks the room through `GET /v1/me/room`). Queued for review: acceptance-step gates (T47–T49) did not run `pnpm --filter @d2rmm/acceptance typecheck`. T50's work stays uncommitted in the worktree. Needs the maintainer's reset of `gate:api-web-skeleton/T50`.
 
 **execute-batch-9 (T50 after reset) notes (2026-10-31, feature-worker)**: T50 done, commit 1d37b9c, gate `gate:api-web-skeleton/T50` passed on attempt 1 of the reset budget. Scenarios: 67 of 67 passed, AWS-19…29 all included and harness-foundation HF-01…HF-11 all included. Fix: `support/agent-client.ts` spreads `body` only when defined (T49's code, fixed in the T50 commit, as the body of that commit says). A search of `tests/acceptance` for `x: cond ? undefined : …` in object literals found only that line; `steps/harness-foundation.steps.ts:361` and `support/sse.ts:38` assign variables and are not affected. Prettier check passed on the six touched files. Deviations: (1) the pre-gate `pnpm --filter @d2rmm/acceptance typecheck` and `pnpm typecheck` were denied by the phase-run gate hook (denial 1/3) and were not retried or routed around; the root typecheck is covered by HF-01, which runs it inside the gate and passed, and the acceptance workspace is part of the turbo run, but no separate typecheck exit code was captured; (2) a gate call with a trailing `; echo` was denied as running outside the wrapper (denial 1/3 again) and the exact command was re-run as the one attempt. Accepted deviations from batch 9 still apply: `apps/api/tsconfig.build.json`, `stack.ts` and `world.ts`. Open for the review: acceptance-step gates (T47–T49) did not run the acceptance typecheck (the reason the T49 `body` line slipped through).
+
+**Orchestrator on the Verifier (2026-10-31)**: verify → FAIL, 1 Major (C38's scenario never sends a non-host observation; mutation C38 survives it, the unit test kills it). The proposed fix (a non-host scenario) cannot run: the test match has one member (AD-033), and `acceptance.feature` already lists the non-host case as a not-scenario proved by the domain unit test. Closed in the plan, not the code: C38 now claims only the host's other-run/other-name cases its scenario proves, and new check C74 proves the non-host rule with `lobby-room.test.ts` "ignores a GAME_NAME_SEEN from a member who is not the host". `gate:api-web-skeleton/verification` is BLOCKED at 3/3 (the Verifier's three mutate runs ran under step `verification`); `validate_verification.py` and round 2 need the maintainer's reset.
 
 **Walked:** none
