@@ -228,7 +228,7 @@ T29 → T30 → T31 → T32 → T33
 **Done when**:
 
 - [ ] Locally, `expect-failure.mjs` passes for `banned-dep` (`banned`), `unsafe-ffi` (`unsafe_code`) and `command-new` (`disallowed_types`); `toolhelp-read` is checked with `--target x86_64-pc-windows-msvc` (`disallowed_methods`)
-- [ ] Gate check passes: `node scripts/agent/expect-failure.mjs banned -- cargo deny --manifest-path apps/agent/src-tauri/boundary-fixtures/banned-dep/Cargo.toml check bans --config apps/agent/src-tauri/deny.toml && node scripts/agent/expect-failure.mjs unsafe_code -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/unsafe-ffi/Cargo.toml -- -D warnings && node scripts/agent/expect-failure.mjs disallowed_types -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/command-new/Cargo.toml -- -D warnings`
+- [ ] Gate check passes: `node scripts/agent/expect-failure.mjs banned -- cargo deny --config apps/agent/src-tauri/deny.toml --manifest-path apps/agent/src-tauri/boundary-fixtures/banned-dep/Cargo.toml check bans && node scripts/agent/expect-failure.mjs unsafe_code -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/unsafe-ffi/Cargo.toml -- -D warnings && node scripts/agent/expect-failure.mjs disallowed_types -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/command-new/Cargo.toml -- -D warnings`
 
 **Tests**: unit
 **Gate**: quick
@@ -849,7 +849,7 @@ Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.to
 Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(observation_carries_no_image)'`
 
 **C31** - `cargo deny` fails when a banned crate is added (AGS-21, AC 1)
-Proof: `node scripts/agent/expect-failure.mjs banned -- cargo deny --manifest-path apps/agent/src-tauri/boundary-fixtures/banned-dep/Cargo.toml check bans --config apps/agent/src-tauri/deny.toml`
+Proof: `node scripts/agent/expect-failure.mjs banned -- cargo deny --config apps/agent/src-tauri/deny.toml --manifest-path apps/agent/src-tauri/boundary-fixtures/banned-dep/Cargo.toml check bans`
 
 **C32** - The app's `windows` features stay on the allow-list (AGS-21, AC 1)
 Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="windows features stay on the allow-list" scripts/test/agent-source-rules.test.mjs`
@@ -932,3 +932,4 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Settled mid-build:** the maintainer confirmed the `# not-scenario` exemptions ("Ponto 2: A", 2026-10-30)
 **Dispatched:** execute-batch-1 (Phases 1–2, T1–T8) to feature-worker, 2026-10-31; toolchain on the session PATH
 **Walked:** none
+**Replanned (execute-batch-1):** T6 stopped at failure 1/3 of `gate:agent-skeleton/T6`: cargo-deny 0.20.2 takes `--config` before `check`, not after (`error: unexpected argument '--config' found`). The T6 gate and the matching proof in `## Checks` now pass `--config` first (AD-063); the tasks gate re-ran. T1–T5 done (f58ecec, d250ad3, e26a081, 5eae324, 4d3123c); the four fixtures are written, uncommitted; T6–T8 go to a second dispatch of execute-batch-1

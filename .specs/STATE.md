@@ -561,6 +561,33 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-31
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-063 (assumed)
+
+- **Decision**: agent-skeleton's T6 gate and its `## Checks` proof run `cargo deny --config apps/agent/src-tauri/deny.toml --manifest-path … check bans`; `--config` comes before `check`.
+- **Reason**: cargo-deny 0.20.2 rejects `--config` after `check bans` (`error: unexpected argument '--config' found`), reported by execute-batch-1. The same command with the flag first reports `error[banned]` for `sysinfo`. design.md § Read-only boundary keeps the old order as an illustration.
+- **Trade-off**: none; argument order only, the boundary checked is the same.
+- **Scope**: agent-skeleton / T6
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-064 (assumed)
+
+- **Decision**: `apps/agent/src-tauri/deny.toml` sets `[graph] targets = ["x86_64-pc-windows-msvc"]`, so cargo-deny judges the dependency graph the agent ships on.
+- **Reason**: the agent ships for Windows only; on Linux and macOS graphs `winapi` (banned) enters through `tao`/`gtk`, which never reach the Windows build. No ban was removed.
+- **Trade-off**: a banned crate pulled in only on a non-Windows target is not reported. This scopes a new sensor; the maintainer confirms it at the phase review. Reversal is deleting the filter and handling the Linux graph.
+- **Scope**: agent-skeleton / T5
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-065 (assumed)
+
+- **Decision**: the Tauri identifier is `com.d2rmm.agent`; `icons/icon.png` and `icon.ico` are plain placeholders; the window string "Requesting a pairing code…" (en, with a pt-BR translation) is the worker's wording.
+- **Reason**: none of the three is in the spec or design; T3 and T4 needed a value to build.
+- **Trade-off**: the identifier is hard to change after the first release (it keys the install and the Credential Manager entries). The maintainer reviews all three at the phase review.
+- **Scope**: agent-skeleton / T3, T4
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
