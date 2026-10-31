@@ -65,8 +65,7 @@ Project rules for every task of this feature:
 
 ## Execution Plan
 
-Phases run in order; tasks within a phase run in order. Batches: 1 = Phase 1, 2 = Phase 2, 3 = Phases 3–4,
-4 = Phases 5–6, 5 = Phase 7, 6 = Phase 8, 7 = Phases 9–10.
+Phases run in order; tasks within a phase run in order. Reordered on 2026-10-30 at the maintainer's request ("C": advance what does not need Docker): every task that needs Docker (Testcontainers or the acceptance stack) is in Phase 9 or later. Task numbers are unchanged. Batches: 1 = Phase 1 (done), 2 = T6–T8 (done), 3 = Phases 2–4, 4 = Phases 5–6, 5 = Phases 7–8, 6 = Phases 9–10, 7 = Phase 11, 8 = Phase 12.
 
 ### Phase 1: Contracts and sensors
 
@@ -74,55 +73,67 @@ Phases run in order; tasks within a phase run in order. Batches: 1 = Phase 1, 2 
 T1 → T2 → T3 → T4 → T5
 ```
 
-### Phase 2: Shared kernel and persistence
+### Phase 2: Shared kernel
 
 ```
-T6 → T7 → T8 → T9 → T10 → T11 → T12 → T13
+T6 → T7 → T8 → T12
 ```
 
-### Phase 3: Identity
+### Phase 3: Identity core
 
 ```
-T14 → T15 → T16
+T14 → T15
 ```
 
-### Phase 4: Agents
+### Phase 4: Agents core
 
 ```
-T17 → T18 → T19 → T20 → T21 → T22
+T17 → T18 → T19 → T20 → T22
 ```
 
-### Phase 5: Lobby Room and Matchmaking
+### Phase 5: Lobby Room and Matchmaking core
 
 ```
-T23 → T24 → T25 → T26 → T27
+T23 → T24 → T25 → T27
 ```
 
-### Phase 6: Guards and streams
+### Phase 6: Pure platform
 
 ```
-T28 → T29 → T30
+T28 → T29
 ```
 
-### Phase 7: HTTP routes and composition roots
-
-```
-T31 → T32 → T33 → T34 → T35 → T36 → T37
-```
-
-### Phase 8: Web
+### Phase 7: Web
 
 ```
 T38 → T39 → T40 → T41 → T42 → T43 → T44
 ```
 
-### Phase 9: Deploy workflows
+### Phase 8: Deploy workflows
 
 ```
 T45 → T46
 ```
 
-### Phase 10: Acceptance
+### Phase 9: Persistence (needs Docker from here on)
+
+```
+T9 → T10 → T11 → T13
+```
+
+### Phase 10: Postgres adapters
+
+```
+T16 → T21 → T26
+```
+
+### Phase 11: Streams, HTTP routes and composition roots
+
+```
+T30 → T31 → T32 → T33 → T34 → T35 → T36 → T37
+```
+
+### Phase 12: Acceptance
 
 ```
 T47 → T48 → T49 → T50
@@ -232,7 +243,7 @@ T47 → T48 → T49 → T50
 
 ---
 
-#### Phase 2: Shared kernel and persistence
+#### Phase 2: Shared kernel
 
 ### T6: Declare the event and persistence ports
 
@@ -290,69 +301,11 @@ T47 → T48 → T49 → T50
 
 ---
 
-### T9: Set up the API integration test runner
-
-**What**: `apps/api/vitest.config.ts` (unit: excludes `**/*.int.test.ts`), `apps/api/vitest.integration.config.ts` (only `**/*.int.test.ts`, one fork, 120 s hook timeout), script `test:integration`, and `apps/api/test/support/postgres.ts` that starts one `@testcontainers/postgresql` container per run and gives each test file a fresh database (under `test/`, so `no-dev-deps-in-runtime` exempts it, as `docs/engineering/testing.md` places integration support). Kysely and `pg` added to the API.
-**Where**: `apps/api/vitest.integration.config.ts`
-**Depends on**: T8
-**Reuses**: turbo task `test:integration`, CI `integration` job
-**Requirement**: AWS-32
-
-**Done when**:
-
-- [ ] `test/support/postgres.int.test.ts`: two test files' databases are distinct and `select 1` answers; the integration config includes `src/**/*.int.test.ts` and `test/**/*.int.test.ts`
-- [ ] `pnpm --filter @d2rmm/api test` runs no `*.int.test.ts`; `pnpm --filter @d2rmm/api test:mutation` still exits 0
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 2 integration tests pass
-
-**Tests**: integration
-**Gate**: full
-
----
-
-### T10: Write the skeleton migration and the migrate command
-
-**What**: `apps/api/migrations/0001_skeleton.ts` (Kysely) creating exactly the schemas, tables, sequence and indexes of design.md § Data Models, and `src/main/migrate.ts` (Kysely `Migrator` over `apps/api/migrations`; it reads `DATABASE_URL` itself, which the T5 rule allows inside `main/`, and T31 moves that read into `main/config.ts`) behind script `db:migrate`.
-**Where**: `apps/api/migrations/0001_skeleton.ts`
-**Depends on**: T9
-**Reuses**: T9 container helper
-**Requirement**: AWS-32
-
-**Done when**:
-
-- [ ] `src/main/__tests__/migrate.int.test.ts`: the first run applies `0001_skeleton` and creates schemas `identity`, `agents`, `lobby`, `platform`; the second run applies none and exits 0 (test `second run applies none`); the partial unique index on live pairing codes rejects a second unused `123456`
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 3 new integration tests pass
-
-**Tests**: integration
-**Gate**: full
-
----
-
-### T11: Implement the Postgres unit of work and outbox
-
-**What**: `platform/postgres/unit-of-work.ts` (Kysely transaction behind `UnitOfWork`, calls `relay.wake()` after a commit that appended outbox rows) and `platform/postgres/outbox.ts` (`append` inserts into `platform.outbox`).
-**Where**: `apps/api/src/platform/postgres/`
-**Depends on**: T10
-**Reuses**: T6 ports, T9 helper
-**Requirement**: AWS-26
-
-**Done when**:
-
-- [ ] `outbox.int.test.ts`: an append in a committed transaction leaves one row and calls `wake` once; an append in a transaction that throws leaves no row and no wake (test `rolls back the outbox row with the transaction`); a commit without appends does not wake
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 3 new integration tests pass
-
-**Tests**: integration
-**Gate**: full
-
----
-
 ### T12: Implement the in-memory event bus
 
 **What**: `InMemoryEventBus` implementing `EventBus`: subscribers per event type, awaited in subscription order; a throwing subscriber rejects `publish`.
 **Where**: `apps/api/src/platform/event-bus.ts`
-**Depends on**: T11
+**Depends on**: T8
 **Reuses**: T6 ports
 **Requirement**: AWS-26, AWS-33
 
@@ -367,33 +320,13 @@ T47 → T48 → T49 → T50
 
 ---
 
-### T13: Implement the outbox relay
-
-**What**: `platform/outbox-relay.ts` per design.md § Platform: `wake()`, start-up `sweep()`, `select … for update skip locked limit 100` in id order, publish each as a durable `BusEvent` with its outbox id, mark `published_at`; on a handler error increment `attempts`, keep the row's next-attempt time in memory and schedule a wake through `Scheduler.at` after 1, 2, 4, 8 s (a row is skipped until its time; after a restart the sweep retries it at once — no schema change), set `failed_at` after the 5th failure and continue with the next rows. Also `TimerScheduler` (production `Scheduler` on `setTimeout`/`setInterval`) in `platform/timer-scheduler.ts`, unit-tested with Vitest fake timers.
-**Where**: `apps/api/src/platform/outbox-relay.ts`
-**Depends on**: T12
-**Reuses**: T7 `FakeScheduler`, T11 outbox, T12 bus
-**Requirement**: AWS-26
-
-**Done when**:
-
-- [ ] `outbox-relay.int.test.ts`: rows committed while no relay ran are published by `sweep()` after a new relay starts (test `publishes rows left unpublished before a restart`); rows publish in id order; a handler failing 5 times leaves `failed_at` set and `attempts = 5` while the next row is published (test `dead-letters after 5 failures and keeps going`); retry delays are 1, 2, 4, 8 s on the fake scheduler
-- [ ] `timer-scheduler.test.ts`: `every` and `at` fire on Vitest fake timers and cancel stops them
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 4 new integration tests pass
-
-**Tests**: integration
-**Gate**: full
-
----
-
-#### Phase 3: Identity
+#### Phase 3: Identity core
 
 ### T14: Write the Identity domain
 
 **What**: `player-name.ts` (`PlayerName.parse`, `^[A-Za-z0-9-]{2,16}$`, no trimming, `testKey` lower-cased), `account.ts` (test accounts' BattleTag `<display>#test`), `session.ts` (`Session.open`, expires 7 days later, `isValidAt` false from exactly 7 days) — design.md § Identity module.
 **Where**: `apps/api/src/modules/identity/domain/`
-**Depends on**: T13
+**Depends on**: T12
 **Reuses**: `Result`, `Clock`
 **Requirement**: AWS-01, AWS-02, AWS-04
 
@@ -427,32 +360,13 @@ T47 → T48 → T49 → T50
 
 ---
 
-### T16: Implement the Identity Postgres adapters
-
-**What**: Kysely `AccountRepository`, `SessionRepository` and the SHA-256 `SecretHasher` (`domain + ':' + value`) in the Identity adapters.
-**Where**: `apps/api/src/modules/identity/adapters/postgres/`
-**Depends on**: T15
-**Reuses**: T9 helper, T10 migration
-**Requirement**: AWS-01, AWS-04
-
-**Done when**:
-
-- [ ] `identity-repositories.int.test.ts`: insert and find a test account by `test_key`; a second insert with the same key fails on the unique index; session found by hash; hashes of the same value in domains `session` and `agent` differ
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 4 new integration tests pass
-
-**Tests**: integration
-**Gate**: full
-
----
-
-#### Phase 4: Agents
+#### Phase 4: Agents core
 
 ### T17: Write pairing code, agent and agent version
 
 **What**: `pairing-code.ts` (`issue`: 6 digits zero-padded, expires 5 min later; `use`; `claimState`), `agent.ts` (`pair`, `revoke`, `isActive`), `agent-version.ts` (`parse` `^\d+\.\d+\.\d+$`, `isBelow`) — design.md § Agents module.
 **Where**: `apps/api/src/modules/agents/domain/`
-**Depends on**: T16
+**Depends on**: T15
 **Reuses**: T7 `RandomSource`, `Clock`, `Result`
 **Requirement**: AWS-05, AWS-06, AWS-07, AWS-08, AWS-10, AWS-12
 
@@ -524,30 +438,11 @@ T47 → T48 → T49 → T50
 
 ---
 
-### T21: Implement the Agents Postgres repositories
-
-**What**: Kysely `AgentRepository` (including the atomic claim `update … returning` of design.md § Agents module) and `PairingCodeRepository` (issue deletes expired unused rows with the same code, retries on conflict).
-**Where**: `apps/api/src/modules/agents/adapters/postgres/`
-**Depends on**: T20
-**Reuses**: T9 helper, T10 migration
-**Requirement**: AWS-05, AWS-07, AWS-10
-
-**Done when**:
-
-- [ ] `agents-repositories.int.test.ts`: two concurrent claims with one secret return the token once (test `two concurrent claims return the token once`); a claim for an unpaired or revoked agent updates no row; an expired unused code with the same digits is replaced; a live duplicate code is retried
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 4 new integration tests pass
-
-**Tests**: integration
-**Gate**: full
-
----
-
 ### T22: Implement the Agents in-memory stores
 
 **What**: `MemoryPresenceStore`, `MemoryRateLimitStore` and `MemoryAgentTokenCache` (LRU bounded to 10 000 entries) implementing the T19/T20 ports (ADR 006).
 **Where**: `apps/api/src/modules/agents/adapters/memory/`
-**Depends on**: T21
+**Depends on**: T20
 **Reuses**: T19/T20 ports
 **Requirement**: AWS-13, AWS-33
 
@@ -562,7 +457,7 @@ T47 → T48 → T49 → T50
 
 ---
 
-#### Phase 5: Lobby Room and Matchmaking
+#### Phase 5: Lobby Room and Matchmaking core
 
 ### T23: Write game name and observation
 
@@ -621,30 +516,11 @@ T47 → T48 → T49 → T50
 
 ---
 
-### T26: Implement the Lobby Room Postgres adapters
-
-**What**: Kysely `LobbyRoomRepository` (rooms, members, runs), `ObservationRepository` (primary key `(agent_id, idempotency_key)`) and `GameNameSequence` on `lobby.game_name_seq`.
-**Where**: `apps/api/src/modules/lobby-room/adapters/postgres/`
-**Depends on**: T25
-**Reuses**: T9 helper, T10 migration
-**Requirement**: AWS-20, AWS-24
-
-**Done when**:
-
-- [ ] `lobby-repositories.int.test.ts`: a room round-trips with members and run 1; a second room with the same `match_id` fails on the unique constraint; two sequence values differ and increase; the same idempotency key for two agents is stored twice, for one agent once
-- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
-- [ ] Test count: ≥ 4 new integration tests pass
-
-**Tests**: integration
-**Gate**: full
-
----
-
 ### T27: Write the staging test match use case
 
 **What**: `formTestMatch({ accountId })` appending the fixed `MatchFormed` of design.md § Matchmaking module (AD-033) to the outbox in one transaction, in `withSpan('matchmaking.form-test-match')`.
 **Where**: `apps/api/src/modules/matchmaking/application/form-test-match.ts`
-**Depends on**: T26
+**Depends on**: T25
 **Reuses**: T6 `UnitOfWork`/`Outbox`, `IdGenerator`
 **Requirement**: AWS-19
 
@@ -659,7 +535,7 @@ T47 → T48 → T49 → T50
 
 ---
 
-#### Phase 6: Guards and streams
+#### Phase 6: Pure platform
 
 ### T28: Write the stream projection
 
@@ -699,11 +575,328 @@ T47 → T48 → T49 → T50
 
 ---
 
+#### Phase 7: Web
+
+### T38: Bootstrap the site with i18n
+
+**What**: Vite 8 + React 19 app in `apps/web` (`index.html`, `src/main.tsx`, `vite.config.ts`, Vitest with jsdom and Testing Library), `react-i18next` bootstrap in `src/app/i18n.ts`, `src/shared/language.ts` (pt-BR when the first preferred language starts with `pt`, else English) and `src/shared/locales/{en,pt-BR}.json` with every string of the spec.
+**Where**: `apps/web/src/shared/language.ts`
+**Depends on**: T29
+**Reuses**: `packages/config/tsconfig.dom.json`, T5 i18next rule
+**Requirement**: AWS-37
+
+**Done when**:
+
+- [ ] Tests: `en` and `pt-BR` hold the same keys (test `en and pt-BR hold the same keys`); `pt-BR`, `pt-PT`, `pt` → pt-BR; `fr-FR`, `en-US`, none → en
+- [ ] `pnpm --filter @d2rmm/web build` writes `apps/web/dist`
+- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test && pnpm --filter @d2rmm/web build`
+- [ ] Test count: ≥ 6 tests pass
+
+**Tests**: unit
+**Gate**: quick
+
+---
+
+### T39: Write the API client, stream and labels
+
+**What**: `shared/api-client.ts` (`/api/v1/...`, `Content-Type: application/json` on every POST, 401 → `unauthenticated`), `shared/stream.ts` (`EventSource('/api/v1/stream')`, typed events, re-read room and presence on every open), `shared/labels.ts` (contract values → translation keys).
+**Where**: `apps/web/src/shared/`
+**Depends on**: T38
+**Reuses**: `@d2rmm/contracts` schemas
+**Requirement**: AWS-14, AWS-21, AWS-23
+
+**Done when**:
+
+- [ ] Tests: POST sends the JSON content type; 401 maps to `unauthenticated`; a stream `open` triggers both re-reads; labels map `awaiting_host` → "Awaiting host", `created` → "Created", `UNKNOWN` → "Screen: Unknown", `AUTOMAP_OPEN` → "Screen: Automap open", online/offline, game open/closed
+- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
+- [ ] Test count: ≥ 8 new tests pass
+
+**Tests**: unit
+**Gate**: quick
+
+---
+
+### T40: Write the layout with the notice and the download link
+
+**What**: `app/App.tsx` and `app/Layout.tsx`: loading and error states, the non-affiliation notice and "Download the agent" linking to `https://github.com/pedromoraisf/d2rmatchmaking/releases/latest/download/D2RMatchMaking-setup.exe` on every page.
+**Where**: `apps/web/src/app/Layout.tsx`
+**Depends on**: T39
+**Reuses**: T38 i18n
+**Requirement**: AWS-17, AWS-38
+
+**Done when**:
+
+- [ ] Tests: the link's `href` equals the release URL; the notice text in en and pt-BR; "Loading…" and "Something went wrong. Try again." states
+- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
+- [ ] Test count: ≥ 4 new tests pass
+
+**Tests**: unit
+**Gate**: quick
+
+---
+
+### T41: Write the sign-in panel
+
+**What**: `features/identity/SignInPanel.tsx`: "Sign in with a test account" form (only when `/v1/config` says staging), "Signed in as <name>", the invalid-name message.
+**Where**: `apps/web/src/features/identity/SignInPanel.tsx`
+**Depends on**: T40
+**Reuses**: T39 client
+**Requirement**: AWS-01, AWS-02, AWS-03, AWS-04
+
+**Done when**:
+
+- [ ] Tests: form hidden when staging is off; 400 shows "Use 2 to 16 letters, digits or hyphens." and stays signed out; success shows "Signed in as PlayerOne"; 401 on `/v1/me` shows the signed-out view
+- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
+- [ ] Test count: ≥ 4 new tests pass
+
+**Tests**: unit
+**Gate**: quick
+
+---
+
+### T42: Write the pairing form and presence panel
+
+**What**: `features/agents/PairingForm.tsx` ("Pairing code", "Pair agent", "Agent paired", invalid-code and too-many-attempts messages) and `features/agents/PresencePanel.tsx` (online/offline, game open/closed, screen), updated from `agent.presence_changed`.
+**Where**: `apps/web/src/features/agents/`
+**Depends on**: T41
+**Reuses**: T39 client, stream and labels
+**Requirement**: AWS-06, AWS-08, AWS-09, AWS-14, AWS-16
+
+**Done when**:
+
+- [ ] Tests: no agent → form shown; 200 → "Agent paired"; 400 → "This code is invalid or has expired."; 429 → "Too many attempts. Try again in a few minutes."; a presence event switches "Agent offline" to "Agent online" and "Game open"
+- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
+- [ ] Test count: ≥ 5 new tests pass
+
+**Tests**: unit
+**Gate**: quick
+
+---
+
+### T43: Write the room panel and the test match button
+
+**What**: `features/lobby-room/RoomPanel.tsx` (game name, "No password", stage; newest room wins) and `features/lobby-room/StartTestMatchButton.tsx` (staging only).
+**Where**: `apps/web/src/features/lobby-room/`
+**Depends on**: T42
+**Reuses**: T39 client, stream and labels
+**Requirement**: AWS-19, AWS-21, AWS-23
+
+**Done when**:
+
+- [ ] Tests: button hidden when staging is off; `room.assigned` shows the game name, "No password", "Awaiting host"; `room.stage_changed` to `created` shows "Created"; a newer room replaces the shown one
+- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
+- [ ] Test count: ≥ 4 new tests pass
+
+**Tests**: unit
+**Gate**: quick
+
+---
+
+### T44: Write the Pages Function proxy
+
+**What**: `functions/api/[[path]].ts` per design.md § Web, Pages Function: path allow-list, `URL`-based target from `API_ORIGIN`, request header allow-list, `new Response(upstream.body, upstream)` with `Cache-Control: no-store`.
+**Where**: `apps/web/functions/api/[[path]].ts`
+**Depends on**: T43
+**Reuses**: none
+**Requirement**: AWS-29
+
+**Done when**:
+
+- [ ] Tests with a fake `fetch`: `/api/v1/me` → `API_ORIGIN/v1/me` with the query; `/api/__test/reset`, `/api/v1/../x`, `/api/v1//x`, `%2f`, `%5c` → 404 (test `rejects hostile paths`); `Authorization`, `X-Agent-Version`, `Host`, `X-Forwarded-For`, `CF-Connecting-IP` dropped, the allow-listed headers kept (test `drops Authorization and X-Agent-Version`); `Set-Cookie` passed through; a streamed body delivered chunk by chunk
+- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
+- [ ] Test count: ≥ 6 new tests pass
+
+**Tests**: unit
+**Gate**: quick
+
+---
+
+#### Phase 8: Deploy workflows
+
+### T45: Write the API deploy workflow
+
+**What**: `.github/workflows/deploy-api.yml` per design.md § Workflows (`workflow_run` of `ci` with its guards, path check, frozen install, migrations with `NEON_DATABASE_URL`, `RENDER_DEPLOY_HOOK`, 5-minute `/healthz` loop, environment `production`, minimal permissions, SHA-pinned actions) and `scripts/test/deploy-workflows.test.mjs` asserting it.
+**Where**: `.github/workflows/deploy-api.yml`
+**Depends on**: T44
+**Reuses**: `ci.yml` setup steps
+**Requirement**: AWS-34
+
+**Done when**:
+
+- [ ] `deploy-workflows.test.mjs`: trigger and guards; migrate step before the deploy-hook step; health loop bounded to 5 minutes (test `deploy-api runs migrations before the deploy hook and polls healthz 5 minutes`); secrets only in the deploy job; no `${{ github.event.* }}` inside `run:`; actions pinned by SHA
+- [ ] Gate check passes: `pnpm test:harness`
+- [ ] Test count: ≥ 5 new harness tests pass
+
+**Tests**: unit
+**Gate**: quick
+
+---
+
+### T46: Write the web deploy workflow and render.yaml
+
+**What**: `.github/workflows/deploy-web.yml` (secret-free `build` job, `deploy` job for `main` and same-repo previews with the URL commented on the PR) and `render.yaml` (one free web service, `/healthz`, `autoDeploy: false`, `D2RMM_ENV=staging`, `ENABLE_STAGING_ENDPOINTS=true`); `deploy-workflows.test.mjs` extended.
+**Where**: `.github/workflows/deploy-web.yml`
+**Depends on**: T45
+**Reuses**: T45 test helpers
+**Requirement**: AWS-34
+
+**Done when**:
+
+- [ ] Tests: build job has no secrets; previews only when the PR head repo equals the repository (test `deploy-web publishes previews only for same-repo PRs`); branch name passed through `env:`; `pull-requests: write` only on the comment job; `render.yaml` health path and `autoDeploy: false`
+- [ ] Gate check passes: `pnpm test:harness`
+- [ ] Test count: ≥ 4 new harness tests pass
+
+**Tests**: unit
+**Gate**: quick
+
+---
+
+#### Phase 9: Persistence (needs Docker from here on)
+
+### T9: Set up the API integration test runner
+
+**What**: `apps/api/vitest.config.ts` (unit: excludes `**/*.int.test.ts`), `apps/api/vitest.integration.config.ts` (only `**/*.int.test.ts`, one fork, 120 s hook timeout), script `test:integration`, and `apps/api/test/support/postgres.ts` that starts one `@testcontainers/postgresql` container per run and gives each test file a fresh database (under `test/`, so `no-dev-deps-in-runtime` exempts it, as `docs/engineering/testing.md` places integration support). Kysely and `pg` added to the API.
+**Where**: `apps/api/vitest.integration.config.ts`
+**Depends on**: T46
+**Reuses**: turbo task `test:integration`, CI `integration` job
+**Requirement**: AWS-32
+
+**Done when**:
+
+- [ ] `test/support/postgres.int.test.ts`: two test files' databases are distinct and `select 1` answers; the integration config includes `src/**/*.int.test.ts` and `test/**/*.int.test.ts`
+- [ ] `pnpm --filter @d2rmm/api test` runs no `*.int.test.ts`; `pnpm --filter @d2rmm/api test:mutation` still exits 0
+- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`
+- [ ] Test count: ≥ 2 integration tests pass
+
+**Tests**: integration
+**Gate**: full
+
+---
+
+### T10: Write the skeleton migration and the migrate command
+
+**What**: `apps/api/migrations/0001_skeleton.ts` (Kysely) creating exactly the schemas, tables, sequence and indexes of design.md § Data Models, and `src/main/migrate.ts` (Kysely `Migrator` over `apps/api/migrations`; it reads `DATABASE_URL` itself, which the T5 rule allows inside `main/`, and T31 moves that read into `main/config.ts`) behind script `db:migrate`.
+**Where**: `apps/api/migrations/0001_skeleton.ts`
+**Depends on**: T9
+**Reuses**: T9 container helper
+**Requirement**: AWS-32
+
+**Done when**:
+
+- [ ] `src/main/__tests__/migrate.int.test.ts`: the first run applies `0001_skeleton` and creates schemas `identity`, `agents`, `lobby`, `platform`; the second run applies none and exits 0 (test `second run applies none`); the partial unique index on live pairing codes rejects a second unused `123456`
+- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
+- [ ] Test count: ≥ 3 new integration tests pass
+
+**Tests**: integration
+**Gate**: full
+
+---
+
+### T11: Implement the Postgres unit of work and outbox
+
+**What**: `platform/postgres/unit-of-work.ts` (Kysely transaction behind `UnitOfWork`, calls `relay.wake()` after a commit that appended outbox rows) and `platform/postgres/outbox.ts` (`append` inserts into `platform.outbox`).
+**Where**: `apps/api/src/platform/postgres/`
+**Depends on**: T10
+**Reuses**: T6 ports, T9 helper
+**Requirement**: AWS-26
+
+**Done when**:
+
+- [ ] `outbox.int.test.ts`: an append in a committed transaction leaves one row and calls `wake` once; an append in a transaction that throws leaves no row and no wake (test `rolls back the outbox row with the transaction`); a commit without appends does not wake
+- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
+- [ ] Test count: ≥ 3 new integration tests pass
+
+**Tests**: integration
+**Gate**: full
+
+---
+
+### T13: Implement the outbox relay
+
+**What**: `platform/outbox-relay.ts` per design.md § Platform: `wake()`, start-up `sweep()`, `select … for update skip locked limit 100` in id order, publish each as a durable `BusEvent` with its outbox id, mark `published_at`; on a handler error increment `attempts`, keep the row's next-attempt time in memory and schedule a wake through `Scheduler.at` after 1, 2, 4, 8 s (a row is skipped until its time; after a restart the sweep retries it at once — no schema change), set `failed_at` after the 5th failure and continue with the next rows. Also `TimerScheduler` (production `Scheduler` on `setTimeout`/`setInterval`) in `platform/timer-scheduler.ts`, unit-tested with Vitest fake timers.
+**Where**: `apps/api/src/platform/outbox-relay.ts`
+**Depends on**: T11
+**Reuses**: T7 `FakeScheduler`, T11 outbox, T12 bus
+**Requirement**: AWS-26
+
+**Done when**:
+
+- [ ] `outbox-relay.int.test.ts`: rows committed while no relay ran are published by `sweep()` after a new relay starts (test `publishes rows left unpublished before a restart`); rows publish in id order; a handler failing 5 times leaves `failed_at` set and `attempts = 5` while the next row is published (test `dead-letters after 5 failures and keeps going`); retry delays are 1, 2, 4, 8 s on the fake scheduler
+- [ ] `timer-scheduler.test.ts`: `every` and `at` fire on Vitest fake timers and cancel stops them
+- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`
+- [ ] Test count: ≥ 4 new integration tests pass
+
+**Tests**: integration
+**Gate**: full
+
+---
+
+#### Phase 10: Postgres adapters
+
+### T16: Implement the Identity Postgres adapters
+
+**What**: Kysely `AccountRepository`, `SessionRepository` and the SHA-256 `SecretHasher` (`domain + ':' + value`) in the Identity adapters.
+**Where**: `apps/api/src/modules/identity/adapters/postgres/`
+**Depends on**: T13
+**Reuses**: T9 helper, T10 migration
+**Requirement**: AWS-01, AWS-04
+
+**Done when**:
+
+- [ ] `identity-repositories.int.test.ts`: insert and find a test account by `test_key`; a second insert with the same key fails on the unique index; session found by hash; hashes of the same value in domains `session` and `agent` differ
+- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
+- [ ] Test count: ≥ 4 new integration tests pass
+
+**Tests**: integration
+**Gate**: full
+
+---
+
+### T21: Implement the Agents Postgres repositories
+
+**What**: Kysely `AgentRepository` (including the atomic claim `update … returning` of design.md § Agents module) and `PairingCodeRepository` (issue deletes expired unused rows with the same code, retries on conflict).
+**Where**: `apps/api/src/modules/agents/adapters/postgres/`
+**Depends on**: T16
+**Reuses**: T9 helper, T10 migration
+**Requirement**: AWS-05, AWS-07, AWS-10
+
+**Done when**:
+
+- [ ] `agents-repositories.int.test.ts`: two concurrent claims with one secret return the token once (test `two concurrent claims return the token once`); a claim for an unpaired or revoked agent updates no row; an expired unused code with the same digits is replaced; a live duplicate code is retried
+- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
+- [ ] Test count: ≥ 4 new integration tests pass
+
+**Tests**: integration
+**Gate**: full
+
+---
+
+### T26: Implement the Lobby Room Postgres adapters
+
+**What**: Kysely `LobbyRoomRepository` (rooms, members, runs), `ObservationRepository` (primary key `(agent_id, idempotency_key)`) and `GameNameSequence` on `lobby.game_name_seq`.
+**Where**: `apps/api/src/modules/lobby-room/adapters/postgres/`
+**Depends on**: T21
+**Reuses**: T9 helper, T10 migration
+**Requirement**: AWS-20, AWS-24
+
+**Done when**:
+
+- [ ] `lobby-repositories.int.test.ts`: a room round-trips with members and run 1; a second room with the same `match_id` fails on the unique constraint; two sequence values differ and increase; the same idempotency key for two agents is stored twice, for one agent once
+- [ ] Gate check passes: `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test:integration`
+- [ ] Test count: ≥ 4 new integration tests pass
+
+**Tests**: integration
+**Gate**: full
+
+---
+
+#### Phase 11: Streams, HTTP routes and composition roots
+
 ### T30: Implement the stream hub
 
 **What**: `platform/stream-hub.ts` with `GET /v1/stream` (design.md § Platform, stream hub): credential precedence, query-string credential → 400, subscribe-buffer-replay-flush resume from `Last-Event-ID`, `: ka` every 25 s, SSE headers, closing on `AgentRevoked`, at session expiry and on a 6th stream.
 **Where**: `apps/api/src/platform/stream-hub.ts`
-**Depends on**: T29
+**Depends on**: T26
 **Reuses**: T28 projection, T13 relay, T7 `FakeScheduler`, T29 guards
 **Requirement**: AWS-27, AWS-28, AWS-39, AWS-40
 
@@ -717,8 +910,6 @@ T47 → T48 → T49 → T50
 **Gate**: full
 
 ---
-
-#### Phase 7: HTTP routes and composition roots
 
 ### T31: Build the app with config, health and the staging switch
 
@@ -852,189 +1043,13 @@ T47 → T48 → T49 → T50
 
 ---
 
-#### Phase 8: Web
-
-### T38: Bootstrap the site with i18n
-
-**What**: Vite 8 + React 19 app in `apps/web` (`index.html`, `src/main.tsx`, `vite.config.ts`, Vitest with jsdom and Testing Library), `react-i18next` bootstrap in `src/app/i18n.ts`, `src/shared/language.ts` (pt-BR when the first preferred language starts with `pt`, else English) and `src/shared/locales/{en,pt-BR}.json` with every string of the spec.
-**Where**: `apps/web/src/shared/language.ts`
-**Depends on**: T37
-**Reuses**: `packages/config/tsconfig.dom.json`, T5 i18next rule
-**Requirement**: AWS-37
-
-**Done when**:
-
-- [ ] Tests: `en` and `pt-BR` hold the same keys (test `en and pt-BR hold the same keys`); `pt-BR`, `pt-PT`, `pt` → pt-BR; `fr-FR`, `en-US`, none → en
-- [ ] `pnpm --filter @d2rmm/web build` writes `apps/web/dist`
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test && pnpm --filter @d2rmm/web build`
-- [ ] Test count: ≥ 6 tests pass
-
-**Tests**: unit
-**Gate**: quick
-
----
-
-### T39: Write the API client, stream and labels
-
-**What**: `shared/api-client.ts` (`/api/v1/...`, `Content-Type: application/json` on every POST, 401 → `unauthenticated`), `shared/stream.ts` (`EventSource('/api/v1/stream')`, typed events, re-read room and presence on every open), `shared/labels.ts` (contract values → translation keys).
-**Where**: `apps/web/src/shared/`
-**Depends on**: T38
-**Reuses**: `@d2rmm/contracts` schemas
-**Requirement**: AWS-14, AWS-21, AWS-23
-
-**Done when**:
-
-- [ ] Tests: POST sends the JSON content type; 401 maps to `unauthenticated`; a stream `open` triggers both re-reads; labels map `awaiting_host` → "Awaiting host", `created` → "Created", `UNKNOWN` → "Screen: Unknown", `AUTOMAP_OPEN` → "Screen: Automap open", online/offline, game open/closed
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
-- [ ] Test count: ≥ 8 new tests pass
-
-**Tests**: unit
-**Gate**: quick
-
----
-
-### T40: Write the layout with the notice and the download link
-
-**What**: `app/App.tsx` and `app/Layout.tsx`: loading and error states, the non-affiliation notice and "Download the agent" linking to `https://github.com/pedromoraisf/d2rmatchmaking/releases/latest/download/D2RMatchMaking-setup.exe` on every page.
-**Where**: `apps/web/src/app/Layout.tsx`
-**Depends on**: T39
-**Reuses**: T38 i18n
-**Requirement**: AWS-17, AWS-38
-
-**Done when**:
-
-- [ ] Tests: the link's `href` equals the release URL; the notice text in en and pt-BR; "Loading…" and "Something went wrong. Try again." states
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
-- [ ] Test count: ≥ 4 new tests pass
-
-**Tests**: unit
-**Gate**: quick
-
----
-
-### T41: Write the sign-in panel
-
-**What**: `features/identity/SignInPanel.tsx`: "Sign in with a test account" form (only when `/v1/config` says staging), "Signed in as <name>", the invalid-name message.
-**Where**: `apps/web/src/features/identity/SignInPanel.tsx`
-**Depends on**: T40
-**Reuses**: T39 client
-**Requirement**: AWS-01, AWS-02, AWS-03, AWS-04
-
-**Done when**:
-
-- [ ] Tests: form hidden when staging is off; 400 shows "Use 2 to 16 letters, digits or hyphens." and stays signed out; success shows "Signed in as PlayerOne"; 401 on `/v1/me` shows the signed-out view
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
-- [ ] Test count: ≥ 4 new tests pass
-
-**Tests**: unit
-**Gate**: quick
-
----
-
-### T42: Write the pairing form and presence panel
-
-**What**: `features/agents/PairingForm.tsx` ("Pairing code", "Pair agent", "Agent paired", invalid-code and too-many-attempts messages) and `features/agents/PresencePanel.tsx` (online/offline, game open/closed, screen), updated from `agent.presence_changed`.
-**Where**: `apps/web/src/features/agents/`
-**Depends on**: T41
-**Reuses**: T39 client, stream and labels
-**Requirement**: AWS-06, AWS-08, AWS-09, AWS-14, AWS-16
-
-**Done when**:
-
-- [ ] Tests: no agent → form shown; 200 → "Agent paired"; 400 → "This code is invalid or has expired."; 429 → "Too many attempts. Try again in a few minutes."; a presence event switches "Agent offline" to "Agent online" and "Game open"
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
-- [ ] Test count: ≥ 5 new tests pass
-
-**Tests**: unit
-**Gate**: quick
-
----
-
-### T43: Write the room panel and the test match button
-
-**What**: `features/lobby-room/RoomPanel.tsx` (game name, "No password", stage; newest room wins) and `features/lobby-room/StartTestMatchButton.tsx` (staging only).
-**Where**: `apps/web/src/features/lobby-room/`
-**Depends on**: T42
-**Reuses**: T39 client, stream and labels
-**Requirement**: AWS-19, AWS-21, AWS-23
-
-**Done when**:
-
-- [ ] Tests: button hidden when staging is off; `room.assigned` shows the game name, "No password", "Awaiting host"; `room.stage_changed` to `created` shows "Created"; a newer room replaces the shown one
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
-- [ ] Test count: ≥ 4 new tests pass
-
-**Tests**: unit
-**Gate**: quick
-
----
-
-### T44: Write the Pages Function proxy
-
-**What**: `functions/api/[[path]].ts` per design.md § Web, Pages Function: path allow-list, `URL`-based target from `API_ORIGIN`, request header allow-list, `new Response(upstream.body, upstream)` with `Cache-Control: no-store`.
-**Where**: `apps/web/functions/api/[[path]].ts`
-**Depends on**: T43
-**Reuses**: none
-**Requirement**: AWS-29
-
-**Done when**:
-
-- [ ] Tests with a fake `fetch`: `/api/v1/me` → `API_ORIGIN/v1/me` with the query; `/api/__test/reset`, `/api/v1/../x`, `/api/v1//x`, `%2f`, `%5c` → 404 (test `rejects hostile paths`); `Authorization`, `X-Agent-Version`, `Host`, `X-Forwarded-For`, `CF-Connecting-IP` dropped, the allow-listed headers kept (test `drops Authorization and X-Agent-Version`); `Set-Cookie` passed through; a streamed body delivered chunk by chunk
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`
-- [ ] Test count: ≥ 6 new tests pass
-
-**Tests**: unit
-**Gate**: quick
-
----
-
-#### Phase 9: Deploy workflows
-
-### T45: Write the API deploy workflow
-
-**What**: `.github/workflows/deploy-api.yml` per design.md § Workflows (`workflow_run` of `ci` with its guards, path check, frozen install, migrations with `NEON_DATABASE_URL`, `RENDER_DEPLOY_HOOK`, 5-minute `/healthz` loop, environment `production`, minimal permissions, SHA-pinned actions) and `scripts/test/deploy-workflows.test.mjs` asserting it.
-**Where**: `.github/workflows/deploy-api.yml`
-**Depends on**: T44
-**Reuses**: `ci.yml` setup steps
-**Requirement**: AWS-34
-
-**Done when**:
-
-- [ ] `deploy-workflows.test.mjs`: trigger and guards; migrate step before the deploy-hook step; health loop bounded to 5 minutes (test `deploy-api runs migrations before the deploy hook and polls healthz 5 minutes`); secrets only in the deploy job; no `${{ github.event.* }}` inside `run:`; actions pinned by SHA
-- [ ] Gate check passes: `pnpm test:harness`
-- [ ] Test count: ≥ 5 new harness tests pass
-
-**Tests**: unit
-**Gate**: quick
-
----
-
-### T46: Write the web deploy workflow and render.yaml
-
-**What**: `.github/workflows/deploy-web.yml` (secret-free `build` job, `deploy` job for `main` and same-repo previews with the URL commented on the PR) and `render.yaml` (one free web service, `/healthz`, `autoDeploy: false`, `D2RMM_ENV=staging`, `ENABLE_STAGING_ENDPOINTS=true`); `deploy-workflows.test.mjs` extended.
-**Where**: `.github/workflows/deploy-web.yml`
-**Depends on**: T45
-**Reuses**: T45 test helpers
-**Requirement**: AWS-34
-
-**Done when**:
-
-- [ ] Tests: build job has no secrets; previews only when the PR head repo equals the repository (test `deploy-web publishes previews only for same-repo PRs`); branch name passed through `env:`; `pull-requests: write` only on the comment job; `render.yaml` health path and `autoDeploy: false`
-- [ ] Gate check passes: `pnpm test:harness`
-- [ ] Test count: ≥ 4 new harness tests pass
-
-**Tests**: unit
-**Gate**: quick
-
----
-
-#### Phase 10: Acceptance
+#### Phase 12: Acceptance
 
 ### T47: Build the acceptance stack
 
 **What**: `globalSetup` in `tests/acceptance/playwright.config.ts` (one Postgres container), `support/global-setup.ts`, the worker-scoped `stack` fixture in `support/stack.ts` (database `acc_w<n>`, two API processes with staging on and off, two `wrangler pages dev apps/web/dist`, reset before each scenario), `support/agent-client.ts`, and `steps/site.steps.ts` with the site-wide and health steps (design.md § Acceptance stack). The gate hook asks the maintainer for the config edit.
 **Where**: `tests/acceptance/support/stack.ts`
-**Depends on**: T46
+**Depends on**: T37
 **Reuses**: `tests/acceptance/fixtures.ts`, T35 `local.ts` and test controls
 **Requirement**: AWS-17, AWS-30, AWS-37, AWS-38
 
@@ -1332,7 +1347,7 @@ Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** none
-**Dispatched:** execute-batch-1 (T1–T5) at e6e13d6 → returned (T1 6d5306e, T2 4b5c0c9, T3 6ad6335, T4 0139cd7, T5 34eabbd; all gates green, T3 on retry 1); execute-batch-2 (T6–T13) at 34eabbd + this note → pending
+**Dispatched:** execute-batch-3 (T12, T14, T15, T17–T20, T22) → pending; execute-batch-2 (T6–T13) → returned, stopped at T9 (T6 b8845d1, T7 e1185e7, T8 4286251); execute-batch-1 (T1–T5) at e6e13d6 → returned (T1 6d5306e, T2 4b5c0c9, T3 6ad6335, T4 0139cd7, T5 34eabbd; all gates green, T3 on retry 1); execute-batch-2 (T6–T13) at 34eabbd + this note → pending
 
 **execute-batch-1 notes (2026-10-30)** — accepted by the orchestrator: T3 replaced the placeholder AsyncAPI "no channels" unit assertion with the stream-channel assertion T3 requires (a requirement change, not a weakened test); T3 added `packages/contracts/json-schema/` to `.prettierignore` and to the turbo `contracts:openapi` outputs, like the other generated contract files; `claim.json` holds `ClaimResponse`; `room.stage_changed` members use the `Member` schema; `@d2rmm/contracts` exports its TypeScript source, which Node 26 loads through the workspace symlink (verified by the orchestrator, no build step needed). HF-04's AsyncAPI line is false until T37 (AD-044), as planned.
 **execute-batch-2 notes (2026-10-30, feature-worker)**: done and committed T6 b8845d1, T7 e1185e7, T8 4286251; all three gates green on the first attempt. T7 changed `FakeClock` (adds `onMove`, so `FakeScheduler` moves with `clock.advance`) and put `RandomSource` in `random-source.ts`; T8 pins `@opentelemetry/api` to `~1.9.1` because `@opentelemetry/sdk-trace-base` 2.12 rejects 1.10 as a peer.
@@ -1340,4 +1355,5 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Open question for the orchestrator (T9 vs. the arch sensor)**: `src/test-support/postgres.ts` imports the devDependency `@testcontainers/postgresql` from `src/`. `.dependency-cruiser.cjs` rule `no-dev-deps-in-runtime` flags `npm-dev` imports from `^apps/api/src` unless the path matches TESTS, and `test-support/` does not match it. Not yet confirmed by a run. Resolution needs the maintainer or the orchestrator (the file path is fixed by T9), not a sensor change by the worker.
 **T10–T13**: not started (strictly in order after T9).
 **Orchestrator replan (2026-10-30)**: T9's helper moves to `apps/api/test/support/` (covered by the depcruise TESTS pattern and `testing.md`; no sensor change); T10's `migrate.ts` reads `DATABASE_URL` itself inside `main/`; T13 keeps retry times in memory and adds the production `TimerScheduler`. Tasks gate re-run. T9 waits for the maintainer to fix Docker Desktop's credential helper (escalation).
+**Reordered (2026-10-30)**: the maintainer chose "C" (advance what does not need Docker). The Docker-dependent tasks (T9–T11, T13, T16, T21, T26, T30–T37, T47–T50) move to Phases 9–12; task numbers unchanged; tasks gate re-run. The unverified T9 files are set aside in stash `d2rmm-api-web-skeleton-T9-wip-2026-10-30` (f7661745) and restored with `git stash apply f7661745` when T9 runs (the helper then moves to `apps/api/test/support/`).
 **Walked:** none
