@@ -7,6 +7,7 @@ pub mod context;
 pub mod contracts;
 pub mod fusion;
 pub mod heartbeat;
+pub mod observations;
 pub mod pairing;
 pub mod ports;
 pub mod secret;

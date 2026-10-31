@@ -458,9 +458,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] `core/tests/observations.rs`: 503s retried at 1, 2, 4, 8 s with the same idempotency key, 5 attempts then dropped and counted (test `retries_with_same_key_at_1_2_4_8`); a 401 or 426 drops pending retries; an assignment change keeps them
-- [ ] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
-- [ ] Test count: ≥ 3 new tests pass
+- [x] `core/tests/observations.rs`: 503s retried at 1, 2, 4, 8 s with the same idempotency key, 5 attempts then dropped and counted (test `retries_with_same_key_at_1_2_4_8`); a 401 or 426 drops pending retries; an assignment change keeps them
+- [x] Gate check passes: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core`
+- [x] Test count: ≥ 3 new tests pass
 
 **Tests**: integration
 **Gate**: quick
