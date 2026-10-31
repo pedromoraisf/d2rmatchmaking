@@ -742,9 +742,9 @@ T47 → T48 → T49 → T50
 
 **Done when**:
 
-- [ ] Tests: build job has no secrets; previews only when the PR head repo equals the repository (test `deploy-web publishes previews only for same-repo PRs`); branch name passed through `env:`; `pull-requests: write` only on the comment job; `render.yaml` health path and `autoDeploy: false`
-- [ ] Gate check passes: `pnpm test:harness`
-- [ ] Test count: ≥ 4 new harness tests pass
+- [x] Tests: build job has no secrets; previews only when the PR head repo equals the repository (test `deploy-web publishes previews only for same-repo PRs`); branch name passed through `env:`; `pull-requests: write` only on the comment job; `render.yaml` health path and `autoDeploy: false`
+- [x] Gate check passes: `pnpm test:harness`
+- [x] Test count: ≥ 4 new harness tests pass
 
 **Tests**: unit
 **Gate**: quick
