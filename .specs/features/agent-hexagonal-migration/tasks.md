@@ -350,9 +350,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Test `api_error_debug_never_contains_a_secret_or_url` formats every variant with `Debug` and `Display` and finds no token, URL or body
-- [ ] All `core/tests` pass; preservation test passes
-- [ ] Rust core gate passes
+- [x] Test `api_error_debug_never_contains_a_secret_or_url` formats every variant with `Debug` and `Display` and finds no token, URL or body
+- [x] All `core/tests` pass; preservation test passes
+- [x] Rust core gate passes
 
 **Tests**: unit
 **Gate**: Rust core

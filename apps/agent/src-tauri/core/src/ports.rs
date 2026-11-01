@@ -11,6 +11,28 @@ use uuid::Uuid;
 use crate::secret::Secret;
 use crate::view::AgentView;
 
+/// Why an agent request did not yield its answer. The variants carry no response body, header, URL or token, so the
+/// messages and `Debug` output never leak one (AGS-09, NFR-06).
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ApiError {
+    #[error("the API rejected the token")]
+    Unauthorized,
+    #[error("the API requires a newer agent")]
+    UpgradeRequired,
+    #[error("the API asked to slow down")]
+    RateLimited { retry_after: Option<Duration> },
+    #[error("the claim code is gone")]
+    Gone,
+    #[error("the pairing is still pending")]
+    Pending,
+    #[error("the API failed")]
+    Server,
+    #[error("the API could not be reached")]
+    Network,
+    #[error("the API answered with something the contract does not allow")]
+    Invalid,
+}
+
 /// The credential store refused a write. It carries no detail, so it never leaks the token (AGS-09).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("the credential store refused the write")]
@@ -153,9 +175,34 @@ impl IdGenerator for SequentialIds {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use chrono::{DateTime, TimeDelta, Utc};
 
-    use super::{PausedWallClock, WallClock};
+    use super::{ApiError, PausedWallClock, WallClock};
+
+    #[test]
+    fn api_error_debug_never_contains_a_secret_or_url() {
+        let every_variant = [
+            ApiError::Unauthorized,
+            ApiError::UpgradeRequired,
+            ApiError::RateLimited {
+                retry_after: Some(Duration::from_secs(60)),
+            },
+            ApiError::RateLimited { retry_after: None },
+            ApiError::Gone,
+            ApiError::Pending,
+            ApiError::Server,
+            ApiError::Network,
+            ApiError::Invalid,
+        ];
+        for error in every_variant {
+            let shown = format!("{error:?} {error}");
+            for leaked in ["d2rmm_", "Bearer", "://", "claim-secret"] {
+                assert!(!shown.contains(leaked), "{shown:?} shows {leaked:?}");
+            }
+        }
+    }
 
     #[tokio::test(start_paused = true)]
     async fn wall_clock_follows_paused_time() {

@@ -18,6 +18,9 @@ use crate::contracts::generated::{
 use crate::secret::Secret;
 use crate::telemetry::traceparent_for;
 
+/// `ApiError` is defined with the ports now; this module re-exports it, so its callers keep the path.
+pub use crate::ports::ApiError;
+
 const VERSION_HEADER: &str = "x-agent-version";
 const TRACEPARENT_HEADER: &str = "traceparent";
 const LAST_EVENT_ID_HEADER: &str = "last-event-id";
@@ -27,27 +30,6 @@ const RETRY_AFTER_MAX_SECONDS: u64 = 60 * 60;
 /// The stream is open as long as the agent runs. The client's 30 s request timeout must not cut it, so this request
 /// overrides it with a value far beyond any session. The idle timeout belongs to the stream reader.
 const STREAM_REQUEST_TIMEOUT: Duration = Duration::from_secs(365 * 24 * 60 * 60);
-
-/// Why an agent request did not yield its answer.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum ApiError {
-    #[error("the API rejected the token")]
-    Unauthorized,
-    #[error("the API requires a newer agent")]
-    UpgradeRequired,
-    #[error("the API asked to slow down")]
-    RateLimited { retry_after: Option<Duration> },
-    #[error("the claim code is gone")]
-    Gone,
-    #[error("the pairing is still pending")]
-    Pending,
-    #[error("the API failed")]
-    Server,
-    #[error("the API could not be reached")]
-    Network,
-    #[error("the API answered with something the contract does not allow")]
-    Invalid,
-}
 
 /// Calls the agent routes of the API. The client is built by the app and already configured (HTTPS, timeouts).
 #[derive(Debug, Clone)]
