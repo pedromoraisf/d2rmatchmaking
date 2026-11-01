@@ -6,6 +6,6 @@ examine_globs = [
   "core/src/stream.rs",
   "core/src/updates.rs",
   "core/src/observations.rs",
-  "core/src/api_client.rs",
+  "adapters/src/http/api_client.rs",
   "core/src/heartbeat.rs",
 ]

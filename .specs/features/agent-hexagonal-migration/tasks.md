@@ -710,9 +710,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] `unsafe is allowed only in the two adapters`, `clippy.toml disallows every boundary type and method` and the other existing tests pass and still fail on their fixtures
-- [ ] `node scripts/mutation-scope-check.mjs` passes
-- [ ] Harness gate passes
+- [x] `unsafe is allowed only in the two adapters`, `clippy.toml disallows every boundary type and method` and the other existing tests pass and still fail on their fixtures
+- [x] `node scripts/mutation-scope-check.mjs` passes
+- [x] Harness gate passes
 
 **Tests**: harness unit
 **Gate**: Harness
@@ -1331,6 +1331,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 
 **Batch 5 (execute-batch-5), in progress: T26 to T32**
 
+- T31 done (commit carries `Task: T31`): `.cargo/mutants.toml` and the `mutation covers the core rule modules` test name `adapters/src/http/api_client.rs` in place of `core/src/api_client.rs`; the other six modules are unchanged, so the scope covers the same rules. `agent-mutation-scope.test.mjs`, `mutation-scope.test.mjs` and `unsafe is allowed only in the two adapters` needed no change and pass. `node scripts/mutation-scope-check.mjs` passes. Gate `Harness` passed on attempt 1 (188 tests).
 - T30 done (commit carries `Task: T30`): `apps/agent/src-tauri/Cargo.toml` drops `reqwest`; the app reaches the HTTP stack only through `d2rmm-agent-adapters`, and nothing in `src/` named reqwest. The architecture test `the app crate never depends on reqwest` is new in the harness, with fixture `app-reqwest`; all 17 architecture tests pass. Gate `Rust workspace` passed on attempt 1 (132 tests); `win-check` passed. The loopback and release-rejection tests of `src/config.rs` are unchanged.
 - T29 done (commit carries `Task: T29`): the core integration tests moved with `git mv core/tests adapters/tests` (the whole tree, `support/` included). Their `use` lines already named the adapters from T27, so no assertion or import changed. `adapters/extra-tests/gateway.rs` includes `../tests/support/mod.rs`, and `core/Cargo.toml` keeps only `serde_json` and `tokio` as dev-dependencies, so the dev-dependency cycle is gone. Gate `Rust adapters` passed on attempt 1 (81 tests in the adapters package, moved tests included). `core/tests/` no longer exists. The preservation guard first failed on `support/harness.rs`: git paired it with its baseline at 40% similarity, not at the 50% default, because it was reworked in T19 to T27. The file holds no assertion at baseline. The maintainer chose "skip assertion-free files" (AskUserQuestion), so the guard change is its own commit `d9696fc` (`test(agent): skip assertion-free files in the preservation guard`, `Step: fix`). That commit's gate `pnpm test:harness` ran as step T29 (attempt 2) and passed 187 of 187. The assertion comparison and the missing-file rule for files with assertions are unchanged; the guard tests cover both cases.
 - T28 done (commit carries `Task: T28`): `core/Cargo.toml` keeps `chrono`, `serde`, `thiserror`, `tokio`, `tracing`, `uuid`, `zeroize` as build dependencies; `reqwest`, `serde_json`, `opentelemetry*`, `tracing-*`, `regress` and `url` are dev-dependencies only, for core's tests until T29. Gate `Rust workspace` passed on attempt 1 (132 tests); `cargo tree -e normal -p d2rmm-agent-core` lists none of them. Harness: `scripts/test/agent-architecture.test.mjs` switches on the `reqwest`/`serde_json`/`opentelemetry*` manifest rule (build dependencies only, because the dev tests still use them until T29), `contract types stay out of the domain and the application`, and the new test `application reaches the API only through the gateway port` (no `reqwest::`, `ApiClient` or `HttpGateway` in core `src`), with fixture `src-core-http`. All 16 architecture tests pass. `serde_json` is a manifest rule only: the view's unit tests serialise with it.
