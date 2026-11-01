@@ -1,0 +1,5 @@
+# Fixture: the root clippy file with one ban the domain file must repeat.
+
+disallowed-types = [
+  { path = "std::process::Command", reason = "the agent starts no process (AGS-22)" },
+]

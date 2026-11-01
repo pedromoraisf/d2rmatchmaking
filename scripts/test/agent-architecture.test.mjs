@@ -1,7 +1,7 @@
 // Architecture guard of the agent's crates (ADR 027, AHM-01, AHM-02, AHM-05). Manifest rules: which crate may depend on
 // which. Each rule is checked on the repository as it is and on a fixture under
 // scripts/test/fixtures/agent-architecture/<fixture>/ that the rule must reject. A rule that is switched off on the real
-// tree (its flag in `SWITCHED_OFF`) is still applied to its fixture with the flag on, so the rule is proved before it
+// tree (its flag in `ENFORCED_NOW`) is still applied to its fixture with the flag on, so the rule is proved before it
 // is enforced.
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -14,7 +14,7 @@ const agentTauri = 'apps/agent/src-tauri';
 const fixtureBase = (name) => path.join(root, 'scripts/test/fixtures/agent-architecture', name);
 
 // Crate directories under apps/agent/src-tauri. The app crate's manifest is the root one.
-const CRATE_DIR = { domain: 'domain', core: 'core', adapters: 'adapters', app: '' };
+const CRATE_DIR = { domain: 'domain', core: 'core', adapters: 'adapters', app: '', xtask: 'xtask' };
 const CRATE_NAME = {
   domain: 'd2rmm-agent-domain',
   core: 'd2rmm-agent-core',
@@ -23,23 +23,26 @@ const CRATE_NAME = {
 };
 
 // Whether each deferred rule is enforced on the real tree today. `false` until its task switches it on: core depends on
-// the domain (T34), core does not depend on reqwest (T28), the application does not use the contract types (T28).
-const ENFORCED_NOW = { coreDomain: false, coreReqwest: false, coreContracts: false };
+// the domain (T34), core does not depend on reqwest (T28), the application does not use the contract types (T28), and a
+// struct in core holds at most five ports (T47, when `Context` is gone).
+const ENFORCED_NOW = { coreDomain: false, coreReqwest: false, coreContracts: false, corePorts: false };
 
 const DOMAIN_ALLOWED = ['thiserror', 'chrono', 'uuid'];
 const UI_AND_OS_PREFIXES = ['tauri', 'keyring', 'windows'];
 
 // Dependency names of every dependency table: [dependencies], [dev-dependencies], [build-dependencies],
-// [target.<cfg>.dependencies] and the `[dependencies.<name>]` table form.
-export const dependencyNames = (manifest) => {
+// [target.<cfg>.dependencies] and the `[dependencies.<name>]` table form. `includeDev: false` leaves out the dev tables:
+// a crate that only tests against another crate does not build it.
+export const dependencyNames = (manifest, { includeDev = true } = {}) => {
   const names = [];
   let inDependencies = false;
   for (const line of manifest.split('\n')) {
     const header = line.match(/^\s*\[(.+)\]\s*$/);
     if (header) {
-      const table = header[1].match(/^(?:target\..+\.)?(?:dev-|build-)?dependencies(?:\.(.+))?$/);
-      inDependencies = table !== null && table[1] === undefined;
-      if (table?.[1] !== undefined) names.push(table[1].replace(/"/g, ''));
+      const table = header[1].match(/^(?:target\..+\.)?((?:dev-|build-)?)dependencies(?:\.(.+))?$/);
+      const counted = table !== null && (includeDev || table[1] !== 'dev-');
+      inDependencies = counted && table[2] === undefined;
+      if (counted && table[2] !== undefined) names.push(table[2].replace(/"/g, ''));
       continue;
     }
     if (!inDependencies) continue;
@@ -124,17 +127,20 @@ const stripLineComments = (text) =>
     .map((line) => line.replace(/\/\/.*$/, ''))
     .join('\n');
 
-const sourceFiles = (base, crate) => {
-  const dir = path.join(base, agentTauri, CRATE_DIR[crate], 'src');
+// The Rust files under one of a crate's directories (`src`, `tests`), with the crate-relative path a violation names.
+const rustFiles = (base, crate, sub) => {
+  const dir = path.join(base, agentTauri, CRATE_DIR[crate], sub);
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { recursive: true })
     .map((entry) => entry.split(path.sep).join('/'))
     .filter((rel) => rel.endsWith('.rs'))
     .map((rel) => ({
-      rel: `${CRATE_DIR[crate]}/src/${rel}`,
+      rel: [CRATE_DIR[crate], sub, rel].filter(Boolean).join('/'),
       code: stripLineComments(readFileSync(path.join(dir, rel), 'utf8')),
     }));
 };
+
+const sourceFiles = (base, crate) => rustFiles(base, crate, 'src');
 
 const linesMatching = (files, pattern, message) =>
   files.flatMap(({ rel, code }) => (pattern.test(code) ? [`${rel} ${message}`] : []));
@@ -156,6 +162,103 @@ export const domainClockViolations = (base) =>
 
 export const domainAgentNameViolations = (base) =>
   linesMatching(sourceFiles(base, 'domain'), AGENT_ITEM, 'names an item Agent');
+
+// Structural rules (T8).
+
+// The domain's clippy.toml repeats every `path` of the root file and adds the clock and randomness bans (AHM-04).
+const CLOCK_BANS = [
+  'std::time::Instant',
+  'std::time::SystemTime::now',
+  'chrono::Utc::now',
+  'chrono::Local::now',
+  'uuid::Uuid::new_v4',
+];
+const clippyPaths = (text) => [...text.matchAll(/path = "([^"]+)"/g)].map((match) => match[1]);
+
+export const domainClippyViolations = (base) => {
+  const rootFile = path.join(base, agentTauri, 'clippy.toml');
+  const domainFile = path.join(base, agentTauri, 'domain', 'clippy.toml');
+  if (!existsSync(domainFile)) return ['the domain clippy.toml is missing'];
+  if (!existsSync(rootFile)) return ['the root clippy.toml is missing'];
+  const domainPaths = clippyPaths(readFileSync(domainFile, 'utf8'));
+  const required = [...clippyPaths(readFileSync(rootFile, 'utf8')), ...CLOCK_BANS];
+  return [...new Set(required)]
+    .filter((banned) => !domainPaths.includes(banned))
+    .map((banned) => `domain/clippy.toml does not disallow ${banned}`);
+};
+
+// Every agent crate that exists forbids unsafe code and starts no process (ADR 010, AGS-22). A crate with no sources yet
+// has nothing to check.
+const PROCESS_PATH = /\b(?:std|tokio)::process\b/;
+
+export const crateSafetyViolations = (base) =>
+  ['domain', 'core', 'adapters'].flatMap((name) => {
+    const files = rustFiles(base, name, 'src');
+    if (files.length === 0) return [];
+    const lib = `${CRATE_DIR[name]}/src/lib.rs`;
+    const forbids = files.some(({ rel, code }) => rel === lib && /#!\[forbid\(unsafe_code\)\]/.test(code));
+    return [
+      ...(forbids ? [] : [`${lib} does not forbid unsafe code`]),
+      ...linesMatching(files, PROCESS_PATH, 'uses std::process or tokio::process'),
+    ];
+  });
+
+// A struct in core holds at most five ports. A port field is one whose type is a trait object (AHM-17).
+const MAX_PORTS = 5;
+const STRUCT = /\bstruct\s+(\w+)[^{;]*\{([^}]*)\}/g;
+
+export const corePortViolations = (base, enabled = false) => {
+  if (!enabled) return [];
+  return rustFiles(base, 'core', 'src').flatMap(({ rel, code }) =>
+    [...code.matchAll(STRUCT)]
+      .map(([, name, body]) => ({ name, ports: (body.match(/\bdyn\b/g) ?? []).length }))
+      .filter(({ ports }) => ports > MAX_PORTS)
+      .map(({ name, ports }) => `${rel} struct ${name} holds ${ports} port fields, more than ${MAX_PORTS}`),
+  );
+};
+
+// Core's tests use in-memory fakes only: no mocking crate (AHM-19, docs/engineering/testing.md rule 2).
+const MOCKING = /\bmockall\b|\bmock!/;
+
+export const coreMockViolations = (base) =>
+  linesMatching(
+    [...rustFiles(base, 'core', 'src'), ...rustFiles(base, 'core', 'tests')],
+    MOCKING,
+    'uses a mocking crate',
+  );
+
+// Only the app crate builds the adapters and depends on tauri, keyring and windows (ADR 027, design composition root).
+// A dev-dependency does not count as building: core's tests reach the adapters through one until T29.
+export const onlyAppBuildsViolations = (base) =>
+  ['domain', 'core', 'adapters', 'xtask'].flatMap((name) => {
+    const manifest = manifestOf(base, name);
+    if (manifest === undefined) return [];
+    const where = `${CRATE_DIR[name]}/Cargo.toml`;
+    const built = dependencyNames(manifest, { includeDev: false });
+    return [
+      ...(built.includes(CRATE_NAME.adapters)
+        ? [`${where} depends on ${CRATE_NAME.adapters}, which only the app crate may build`]
+        : []),
+      ...dependencyNames(manifest)
+        .filter((dep) => startsWithAny(dep, UI_AND_OS_PREFIXES))
+        .map((dep) => `${where} depends on ${dep}, which only the app crate may depend on`),
+    ];
+  });
+
+// The app crate never mentions the test probe, so the shipped binary cannot forge agent state (design, AD-082).
+const PROBE = /\bProbe\b|\bstart_with_probe\b/;
+
+export const appProbeViolations = (base) => {
+  const manifest = path.join(base, agentTauri, 'Cargo.toml');
+  const manifestHits =
+    existsSync(manifest) && PROBE.test(readFileSync(manifest, 'utf8'))
+      ? [`${agentTauri}/Cargo.toml mentions Probe or start_with_probe`]
+      : [];
+  return [
+    ...manifestHits,
+    ...linesMatching(rustFiles(base, 'app', 'src'), PROBE, 'mentions Probe or start_with_probe'),
+  ];
+};
 
 test('domain imports no I/O or UI crate, and core no UI or OS crate', () => {
   assert.deepEqual([...domainIoViolations(root), ...coreUiOsViolations(root)], []);
@@ -199,6 +302,31 @@ test('adapters and the app crate do not depend on each other', () => {
     adaptersViolations(root).filter((v) => v.includes('the app crate')),
     [],
   );
+});
+
+test('domain clippy.toml repeats the root bans and adds the clock bans', () => {
+  assert.deepEqual(domainClippyViolations(root), []);
+});
+
+test('every agent crate forbids unsafe code and process use', () => {
+  assert.deepEqual(crateSafetyViolations(root), []);
+});
+
+test('no struct in core holds more than five ports', () => {
+  // Switched on in T47 (ENFORCED_NOW.corePorts), when `Context` is gone and no struct holds six ports.
+  assert.deepEqual(corePortViolations(root, ENFORCED_NOW.corePorts), []);
+});
+
+test('core tests use in-memory fakes only', () => {
+  assert.deepEqual(coreMockViolations(root), []);
+});
+
+test('only the app crate builds adapters and depends on tauri keyring and windows', () => {
+  assert.deepEqual(onlyAppBuildsViolations(root), []);
+});
+
+test('the app crate never mentions Probe or start_with_probe', () => {
+  assert.deepEqual(appProbeViolations(root), []);
 });
 
 // Each rule must reject its own fixture. The fixture tree mirrors apps/agent/src-tauri.
@@ -262,6 +390,41 @@ const FIXTURES = [
     name: 'src-core-tauri',
     check: () => coreUiOsViolations(fixtureBase('src-core-tauri')),
     expect: /core\/src\/lib\.rs uses a UI or OS crate/,
+  },
+  {
+    name: 'domain-clippy',
+    check: () => domainClippyViolations(fixtureBase('domain-clippy')),
+    expect: /domain\/clippy\.toml does not disallow chrono::Utc::now/,
+  },
+  {
+    name: 'src-forbid-unsafe',
+    check: () => crateSafetyViolations(fixtureBase('src-forbid-unsafe')),
+    expect: /domain\/src\/lib\.rs does not forbid unsafe code/,
+  },
+  {
+    name: 'src-process',
+    check: () => crateSafetyViolations(fixtureBase('src-process')),
+    expect: /core\/src\/lib\.rs uses std::process or tokio::process/,
+  },
+  {
+    name: 'core-ports',
+    check: () => corePortViolations(fixtureBase('core-ports'), true),
+    expect: /core\/src\/lib\.rs struct Ports holds 6 port fields, more than 5/,
+  },
+  {
+    name: 'core-mock',
+    check: () => coreMockViolations(fixtureBase('core-mock')),
+    expect: /core\/tests\/fake_api\.rs uses a mocking crate/,
+  },
+  {
+    name: 'core-adapters',
+    check: () => onlyAppBuildsViolations(fixtureBase('core-adapters')),
+    expect: /core\/Cargo\.toml depends on d2rmm-agent-adapters, which only the app crate may build/,
+  },
+  {
+    name: 'app-probe',
+    check: () => appProbeViolations(fixtureBase('app-probe')),
+    expect: /src\/app\.rs mentions Probe or start_with_probe/,
   },
 ];
 

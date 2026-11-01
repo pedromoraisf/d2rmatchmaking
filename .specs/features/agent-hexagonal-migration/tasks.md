@@ -275,8 +275,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] The six tests above exist, each with a failing fixture; rules about crates that do not exist yet (adapters) apply once they do, and the ports rule is switched on in T47 (its fixture fails now, the real tree is checked from T47)
-- [ ] Harness gate passes
+- [x] The six tests above exist, each with a failing fixture; rules about crates that do not exist yet (adapters) apply once they do, and the ports rule is switched on in T47 (its fixture fails now, the real tree is checked from T47)
+- [x] Harness gate passes
 
 **Tests**: harness unit
 **Gate**: Harness
