@@ -651,6 +651,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-31
 - **Status**: active (maintainer answered "Corrigir (Recomendado)")
 
+### AD-073 (assumed)
+
+- **Decision**: T27 splits the app entry: `src/app.rs` (compiled on every target) holds `run(adapters)` and the `get_new_code` handler over a one-method `CodeRequester` trait implemented for `core::runtime::Handle`; `src/main.rs` builds the real Windows adapters under `#[cfg(windows)]`, and under `#[cfg(not(windows))]` prints that the agent runs on Windows only and exits with code 1. T27's gate adds `node scripts/agent/win-check.mjs`.
+- **Reason**: the T27 gate runs clippy and nextest on macOS, but the adapters exist only under `#[cfg(windows)]`, and `Handle` has no seam for the fake the test names. Stub adapters on other OSes would pretend to read the game; a Windows-only exit is the conservative choice (the agent ships for Windows only).
+- **Trade-off**: the app cannot be launched on macOS or Linux for manual checks; observability-e2e drives the core and the fake API instead. Reversal is a non-Windows adapter set.
+- **Scope**: agent-skeleton / T27
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
