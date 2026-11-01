@@ -312,8 +312,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] The section exists and names `d2rmm-agent-domain`, `d2rmm-agent-core`, `d2rmm-agent-adapters`
-- [ ] Harness gate passes
+- [x] The section exists and names `d2rmm-agent-domain`, `d2rmm-agent-core`, `d2rmm-agent-adapters`
+- [x] Harness gate passes
 
 **Tests**: none (the doc test is T11's)
 **Gate**: Harness
