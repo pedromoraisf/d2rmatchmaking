@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
-use crate::api_client::ApiClient;
+use crate::api_client::{ApiClient, ApiError};
 use crate::config::Config;
 use crate::contracts::generated::Assignment;
 use crate::ports::{IdGenerator, ProcessSource, StateSink, TextReader, TokenStore, WallClock};
@@ -137,6 +137,16 @@ impl Context {
         self.update_now.notify_one();
     }
 
+    /// Applies what a failed API request means for the whole agent: a 401 is `on_unauthorized`, a 426 is
+    /// `on_upgrade_required`. Every other error changes nothing here; each loop decides what its own failure means.
+    pub fn handle_api_error(&self, error: &ApiError) {
+        match error {
+            ApiError::Unauthorized => self.on_unauthorized(),
+            ApiError::UpgradeRequired => self.on_upgrade_required(),
+            _ => {}
+        }
+    }
+
     /// The current epoch. A retry that started under an older epoch was overtaken by a 401 or 426.
     pub fn epoch(&self) -> u64 {
         self.epoch.load(Ordering::SeqCst)
@@ -214,4 +224,191 @@ impl Context {
 
 fn lock<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
     value.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    use chrono::{DateTime, Utc};
+
+    use super::{Adapters, Context};
+    use crate::api_client::ApiError;
+    use crate::config::{AllowLoopbackHttp, ApiBase, Config};
+    use crate::contracts::generated::Assignment;
+    use crate::ports::{
+        ProcessSource, ReadError, ReadText, Region, Rgba, SequentialIds, StateSink, StoreError,
+        TextReader, TokenStore, UpdateOutcome, WallClock,
+    };
+    use crate::secret::Secret;
+    use crate::stream::{StreamEffect, handle};
+    use crate::updates::Updater;
+    use crate::view::{AgentView, PairingView, RoomView};
+
+    const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
+    const ASSIGNED: &str = r#"{"roomId":"7d9f2c1e-0000-4000-8000-000000000001","run":1,"expectedGameName":"mmbaalh-12","members":[{"accountId":"account-1","characterId":null,"joinOrder":1,"role":"host"}]}"#;
+
+    /// Holds the token in memory.
+    #[derive(Default)]
+    struct MemoryTokens(Mutex<Option<Secret>>);
+
+    impl TokenStore for MemoryTokens {
+        fn load(&self) -> Option<Secret> {
+            self.0
+                .lock()
+                .expect("the token lock is not poisoned")
+                .clone()
+        }
+
+        fn save(&self, token: &Secret) -> Result<(), StoreError> {
+            *self.0.lock().expect("the token lock is not poisoned") = Some(token.clone());
+            Ok(())
+        }
+
+        fn delete(&self) {
+            *self.0.lock().expect("the token lock is not poisoned") = None;
+        }
+    }
+
+    struct NoProcesses;
+
+    impl ProcessSource for NoProcesses {
+        fn names(&self) -> Vec<String> {
+            Vec::new()
+        }
+    }
+
+    struct NoText;
+
+    impl TextReader for NoText {
+        fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
+            Err(ReadError::EngineUnavailable)
+        }
+    }
+
+    struct NoUpdates;
+
+    impl Updater for NoUpdates {
+        fn check_boxed(&self) -> Pin<Box<dyn Future<Output = UpdateOutcome> + Send + '_>> {
+            Box::pin(async { UpdateOutcome::UpToDate })
+        }
+    }
+
+    struct FixedClock;
+
+    impl WallClock for FixedClock {
+        fn now_utc(&self) -> DateTime<Utc> {
+            "2026-10-31T10:00:00Z".parse().expect("a valid instant")
+        }
+    }
+
+    struct NullSink;
+
+    impl StateSink for NullSink {
+        fn publish(&self, _view: AgentView) {}
+    }
+
+    /// A paired context holding a token and no room, with every port faked in memory.
+    fn paired_context() -> (Arc<Context>, Arc<MemoryTokens>) {
+        let tokens = Arc::new(MemoryTokens::default());
+        tokens
+            .save(&Secret::new(TOKEN))
+            .expect("the memory store accepts a write");
+        let config = Config {
+            version: "0.0.1".to_string(),
+            api_base: ApiBase::parse("https://api.example.test", AllowLoopbackHttp::No)
+                .expect("a valid API base"),
+        };
+        let adapters = Adapters {
+            tokens: tokens.clone(),
+            processes: Arc::new(NoProcesses),
+            reader: Arc::new(NoText),
+            ids: Arc::new(SequentialIds::new()),
+            updater: Arc::new(NoUpdates),
+            clock: Arc::new(FixedClock),
+            sink: Arc::new(NullSink),
+        };
+        let ctx = Context::new(&config, reqwest::Client::new(), adapters);
+        ctx.paired.send_replace(true);
+        (ctx, tokens)
+    }
+
+    fn assignment() -> Assignment {
+        match handle("room.assigned", ASSIGNED) {
+            StreamEffect::SetAssignment(assignment) => assignment,
+            StreamEffect::Ignore => panic!("the fixture is a valid room.assigned event"),
+        }
+    }
+
+    #[test]
+    fn unauthorized_deletes_token_clears_room_and_bumps_epoch() {
+        let (ctx, tokens) = paired_context();
+        ctx.assignment.send_replace(Some(assignment()));
+        ctx.hub.set_room(Some(RoomView {
+            game_name: "mmbaalh-12".to_string(),
+        }));
+        let epoch = ctx.epoch();
+
+        ctx.on_unauthorized();
+
+        assert!(tokens.load().is_none(), "the token is deleted");
+        assert!(!*ctx.paired.borrow(), "the agent is no longer paired");
+        assert!(
+            ctx.assignment.borrow().is_none(),
+            "the assignment is cleared"
+        );
+        assert_eq!(ctx.hub.snapshot().room, None, "the room is cleared");
+        assert_eq!(ctx.hub.snapshot().pairing, PairingView::Requesting);
+        assert_eq!(ctx.epoch(), epoch + 1, "pending retries are overtaken");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn upgrade_required_blocks_api_loops_and_wakes_the_update_check() {
+        let (ctx, _tokens) = paired_context();
+        assert!(
+            ctx.api_allowed(),
+            "a paired agent with no 426 may call the API"
+        );
+
+        ctx.on_upgrade_required();
+
+        assert!(!ctx.api_allowed(), "a pending 426 blocks the API loops");
+        assert!(*ctx.update_required.borrow());
+        tokio::time::timeout(Duration::from_secs(1), ctx.update_now.notified())
+            .await
+            .expect("the update check is woken at once");
+    }
+
+    #[test]
+    fn handle_api_error_routes_401_and_426_only() {
+        let other_errors = [
+            ApiError::Network,
+            ApiError::Server,
+            ApiError::Invalid,
+            ApiError::Gone,
+            ApiError::Pending,
+            ApiError::RateLimited { retry_after: None },
+        ];
+        for error in other_errors {
+            let (ctx, tokens) = paired_context();
+            ctx.handle_api_error(&error);
+            assert!(tokens.load().is_some(), "{error:?} keeps the token");
+            assert!(*ctx.paired.borrow(), "{error:?} keeps the agent paired");
+            assert!(!*ctx.update_required.borrow(), "{error:?} sets no 426");
+            assert_eq!(ctx.epoch(), 0, "{error:?} overtakes no retry");
+        }
+
+        let (ctx, tokens) = paired_context();
+        ctx.handle_api_error(&ApiError::Unauthorized);
+        assert!(tokens.load().is_none(), "a 401 deletes the token");
+        assert_eq!(ctx.epoch(), 1);
+
+        let (ctx, _tokens) = paired_context();
+        ctx.handle_api_error(&ApiError::UpgradeRequired);
+        assert!(*ctx.update_required.borrow(), "a 426 sets the flag");
+        assert_eq!(ctx.epoch(), 1);
+    }
 }

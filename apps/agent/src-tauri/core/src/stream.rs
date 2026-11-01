@@ -107,11 +107,7 @@ async fn connect_once(ctx: &Context, last_id: &mut Option<String>) -> Duration {
 
 /// A 401 or a 426 changes the agent's state; every other failure is left to the reconnect delay.
 fn on_error(ctx: &Context, error: ApiError) {
-    match error {
-        ApiError::Unauthorized => ctx.on_unauthorized(),
-        ApiError::UpgradeRequired => ctx.on_upgrade_required(),
-        _ => {}
-    }
+    ctx.handle_api_error(&error);
 }
 
 /// Reads the stream until it ends, goes silent, breaks the size bound or the agent stops being allowed to call the API.

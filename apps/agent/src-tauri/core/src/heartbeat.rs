@@ -51,8 +51,9 @@ async fn beat(ctx: &Context) {
     };
     match ctx.api.heartbeat(&token, &body).await {
         Ok(()) => ctx.hub.set_connectivity(Connectivity::Connected),
-        Err(ApiError::Unauthorized) => ctx.on_unauthorized(),
-        Err(ApiError::UpgradeRequired) => ctx.on_upgrade_required(),
+        Err(error @ (ApiError::Unauthorized | ApiError::UpgradeRequired)) => {
+            ctx.handle_api_error(&error);
+        }
         Err(_) => ctx.hub.set_connectivity(Connectivity::Unreachable),
     }
 }

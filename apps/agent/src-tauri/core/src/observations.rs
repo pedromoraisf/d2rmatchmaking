@@ -44,12 +44,8 @@ pub async fn send(ctx: &Context, room: Uuid, observation: &Observation) -> SendO
             .await;
         match outcome {
             Ok(()) => return SendOutcome::Posted,
-            Err(ApiError::Unauthorized) => {
-                ctx.on_unauthorized();
-                return drop_observation(ctx);
-            }
-            Err(ApiError::UpgradeRequired) => {
-                ctx.on_upgrade_required();
+            Err(error @ (ApiError::Unauthorized | ApiError::UpgradeRequired)) => {
+                ctx.handle_api_error(&error);
                 return drop_observation(ctx);
             }
             Err(error) if is_retryable(&error) => {}
