@@ -182,16 +182,15 @@ async fn show_code(ctx: &Context, response: PairingCodeResponse, unused: &mut u8
         let started = Instant::now();
         let outcome = ctx.api.claim(&secret).instrument(span).await;
         claim_at = started + CLAIM_INTERVAL;
+        if let Err(error) = &outcome {
+            *unused = unused_after_claim_error(*unused, error);
+        }
         match outcome {
             Ok(token) => return store_token(ctx, &token),
             Err(ApiError::Pending) => {}
-            Err(ApiError::Gone) => {
-                *unused = unused_after(*unused, Unused::Expired);
-                return Shown::Expired;
-            }
+            Err(ApiError::Gone) => return Shown::Expired,
             Err(ApiError::Unauthorized) => {
                 ctx.on_unauthorized();
-                *unused = unused_after(*unused, Unused::ClaimUnauthorized);
                 return Shown::Restart;
             }
             Err(ApiError::UpgradeRequired) => {
@@ -270,6 +269,21 @@ fn unused_after(unused: u8, why: Unused) -> u8 {
     }
 }
 
+/// The unused count after a claim fails: a 410 (the code is gone) counts as an expiry, a 401 starts the count over,
+/// and any other answer keeps the code on screen, so the count is unchanged.
+fn unused_after_claim_error(unused: u8, error: &ApiError) -> u8 {
+    match error {
+        ApiError::Gone => unused_after(unused, Unused::Expired),
+        ApiError::Unauthorized => unused_after(unused, Unused::ClaimUnauthorized),
+        ApiError::Pending
+        | ApiError::RateLimited { .. }
+        | ApiError::UpgradeRequired
+        | ApiError::Network
+        | ApiError::Server
+        | ApiError::Invalid => unused,
+    }
+}
+
 /// Whether the loop pauses once this many codes in a row have expired unused (AD-058).
 fn must_pause(unused: u8) -> bool {
     unused >= UNUSED_LIMIT
@@ -308,8 +322,9 @@ mod tests {
 
     use super::{
         CLAIM_INTERVAL, UNREACHABLE_RETRY, Unused, minutes_left, must_pause, rate_limit_wait,
-        unused_after,
+        unused_after, unused_after_claim_error,
     };
+    use crate::api_client::ApiError;
 
     #[test]
     fn minutes_left_rounds_up_at_every_offset() {
@@ -327,6 +342,21 @@ mod tests {
         assert_eq!(unused_after(1, Unused::Expired), 2);
         assert_eq!(unused_after(u8::MAX, Unused::Expired), u8::MAX);
         assert_eq!(unused_after(2, Unused::ClaimUnauthorized), 0);
+    }
+
+    #[test]
+    fn claim_errors_update_the_unused_count() {
+        assert_eq!(unused_after_claim_error(1, &ApiError::Gone), 2);
+        assert_eq!(unused_after_claim_error(1, &ApiError::Unauthorized), 0);
+        assert_eq!(unused_after_claim_error(1, &ApiError::Pending), 1);
+        assert_eq!(
+            unused_after_claim_error(1, &ApiError::RateLimited { retry_after: None }),
+            1
+        );
+        assert_eq!(unused_after_claim_error(1, &ApiError::UpgradeRequired), 1);
+        assert_eq!(unused_after_claim_error(1, &ApiError::Network), 1);
+        assert_eq!(unused_after_claim_error(1, &ApiError::Server), 1);
+        assert_eq!(unused_after_claim_error(1, &ApiError::Invalid), 1);
     }
 
     #[test]
