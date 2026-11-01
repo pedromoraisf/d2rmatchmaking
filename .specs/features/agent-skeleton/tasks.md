@@ -710,9 +710,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] Tests: `latest-json.mjs` replaces only the Windows signature and keeps the version; the `sign` job runs only when `SIGNPATH_ENABLED == 'true'` (test `SignPath signing runs only when enabled`); `--clobber` only in `sign`
-- [ ] Gate check passes: `pnpm test:harness`
-- [ ] Test count: ≥ 3 new harness tests pass
+- [x] Tests: `latest-json.mjs` replaces only the Windows signature and keeps the version; the `sign` job runs only when `SIGNPATH_ENABLED == 'true'` (test `SignPath signing runs only when enabled`); `--clobber` only in `sign`
+- [x] Gate check passes: `pnpm test:harness`
+- [x] Test count: ≥ 3 new harness tests pass
 
 **Tests**: unit
 **Gate**: quick

@@ -34,6 +34,9 @@ jobs:
     environment: release
     permissions:
       contents: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      unsigned-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
     steps:
       - name: Resolve and validate the tag
         id: tag
@@ -126,3 +129,93 @@ jobs:
           cp "$installer" D2RMatchMaking-setup.exe
           sha256sum "$versioned" D2RMatchMaking-setup.exe > SHA256SUMS
           gh release upload "$TAG" D2RMatchMaking-setup.exe SHA256SUMS
+
+      - name: Keep the unsigned installer for SignPath
+        id: unsigned
+        if: vars.SIGNPATH_ENABLED == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: unsigned-installer
+          path: apps/agent/src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 1
+
+  sign:
+    # Opt-in SignPath signing (AD-053, AGS-29). Runs only when the repository variable SIGNPATH_ENABLED is 'true' (secrets
+    # cannot be read in `if:`). SignPath signs the installer; the updater signature is redone for the signed file and
+    # latest.json takes the new Windows signature. The release assets are replaced here, the only --clobber in this file.
+    name: sign installer
+    needs: build
+    if: vars.SIGNPATH_ENABLED == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: Resolve and validate the tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ needs.build.outputs.tag }}
+        shell: bash
+        run: |
+          if ! printf '%s' "$INPUT_TAG" | grep -Eq '^agent-v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::not an agent release tag: $INPUT_TAG"
+            exit 1
+          fi
+          echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install the workspace
+        shell: bash
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Submit the installer to SignPath
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ needs.build.outputs.unsigned-artifact-id }}
+          output-artifact-directory: signed
+
+      - name: Sign the signed installer for the updater
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          installer="$(ls "$PWD"/signed/*-setup.exe)"
+          pnpm --filter @d2rmm/agent exec tauri signer sign "$installer"
+          test -s "$installer.sig"
+
+      - name: Rewrite latest.json with the new Windows signature
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        shell: bash
+        run: |
+          installer="$(ls "$PWD"/signed/*-setup.exe)"
+          gh release download "$TAG" --pattern latest.json --dir .
+          node scripts/agent/latest-json.mjs --latest latest.json --signature "$installer.sig" --out latest.json
+
+      - name: Replace the release assets with the signed ones
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        shell: bash
+        run: |
+          installer="$(ls "$PWD"/signed/*-setup.exe)"
+          cp "$installer" D2RMatchMaking-setup.exe
+          sha256sum "$(basename "$installer")" D2RMatchMaking-setup.exe > SHA256SUMS
+          gh release upload "$TAG" "$installer" "$installer.sig" D2RMatchMaking-setup.exe SHA256SUMS latest.json --clobber

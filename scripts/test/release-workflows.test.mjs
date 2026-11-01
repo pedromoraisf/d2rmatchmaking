@@ -165,10 +165,7 @@ test('the installer is published as D2RMatchMaking-setup.exe with SHA256SUMS', (
     publish.run.includes('D2RMatchMaking-setup.exe SHA256SUMS'),
     'the installer and SHA256SUMS are uploaded',
   );
-  assert.ok(
-    !readText(`.github/workflows/${RELEASE_AGENT}`).includes('--clobber'),
-    'the build job never clobbers',
-  );
+  assert.ok(!JSON.stringify(job).includes('--clobber'), 'the build job never clobbers');
 });
 
 test('secrets live only in the release environment', () => {
@@ -205,5 +202,45 @@ test('every third-party action of release-agent.yml is pinned by a 40-char SHA',
   assert.ok(external.length >= 5, 'the build job uses checkout, pnpm, node, rust and tauri-action');
   for (const uses of external) {
     assert.match(uses, SHA_PINNED, `${uses} must be pinned by SHA`);
+  }
+});
+
+test('SignPath signing runs only when enabled', () => {
+  const wf = releaseAgent();
+  const sign = wf.jobs.sign;
+  assert.equal(
+    sign.if,
+    "vars.SIGNPATH_ENABLED == 'true'",
+    'the variable gates the job; secrets cannot gate it',
+  );
+  assert.equal(sign.needs, 'build');
+  assert.equal(sign.environment, 'release');
+  assert.deepEqual(sign.permissions, { contents: 'write' });
+
+  const submit = findStep(sign, (step) =>
+    step.uses?.startsWith('signpath/github-action-submit-signing-request@'),
+  );
+  assert.ok(submit, 'the official SignPath action submits the installer');
+  assert.equal(submit.with['api-token'], '${{ secrets.SIGNPATH_API_TOKEN }}');
+
+  const upload = findStep(buildJob(), (step) => step.uses?.startsWith('actions/upload-artifact@'));
+  assert.equal(
+    upload.if,
+    "vars.SIGNPATH_ENABLED == 'true'",
+    'the unsigned installer is kept only for signing',
+  );
+
+  const text = readText(`.github/workflows/${RELEASE_AGENT}`);
+  assert.ok(
+    text.includes('scripts/agent/latest-json.mjs'),
+    'the signature is rewritten by the tested helper',
+  );
+});
+
+test('--clobber is allowed only in the sign job', () => {
+  const wf = releaseAgent();
+  for (const [name, job] of Object.entries(wf.jobs)) {
+    const clobbers = JSON.stringify(job).includes('--clobber');
+    assert.equal(clobbers, name === 'sign', `${name} ${clobbers ? 'clobbers assets' : 'does not clobber'}`);
   }
 });
