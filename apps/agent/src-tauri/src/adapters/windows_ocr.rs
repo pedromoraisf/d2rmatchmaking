@@ -83,7 +83,7 @@ mod tests {
     fn reference_image() -> Rgba {
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../fixtures/automap-game-name.png"
+            "/../fixtures/automap-game-name.png"
         );
         let bytes = std::fs::read(path).expect("the reference image is committed");
         let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes))
