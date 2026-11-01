@@ -140,9 +140,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] `domain/src/lib.rs` has `#![forbid(unsafe_code)]` and a test `domain_crate_builds` asserting `env!("CARGO_PKG_NAME") == "d2rmm-agent-domain"`
-- [ ] `cargo tree -e normal -p d2rmm-agent-domain` lists only `thiserror`, `chrono`, `uuid` and their own dependencies
-- [ ] Rust domain gate passes; test count 1
+- [x] `domain/src/lib.rs` has `#![forbid(unsafe_code)]` and a test `domain_crate_builds` asserting `env!("CARGO_PKG_NAME") == "d2rmm-agent-domain"`
+- [x] `cargo tree -e normal -p d2rmm-agent-domain` lists only `thiserror`, `chrono`, `uuid` and their own dependencies
+- [x] Rust domain gate passes; test count 1
 
 **Tests**: unit
 **Gate**: Rust domain

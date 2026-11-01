@@ -683,6 +683,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "d2rmm-agent-domain"
+version = "0.0.0"
+dependencies = [
+ "chrono",
+ "thiserror 2.0.21",
+ "uuid",
+]
+
+[[package]]
 name = "darling"
 version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
