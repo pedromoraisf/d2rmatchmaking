@@ -1,48 +1,58 @@
 # Agent skeleton verification
 
 **Verdict**: FAIL
-**Mutations**: 3 - probed 28 (pairing, heartbeat, stream, fusion, updates, api_client, context, observations, clippy.toml, deny.toml, release-agent.yml); 17 killed, 11 survived. Spec in `mutations.json`.
+**Mutations**: 3 - round 2 (ADR 026, unit tests only): 39 probed, 38 killed, 1 survived. Spec in `mutations.json`.
 **Proofs**: `proofs.md` at dee64c7
 **Verifier**: independent sub-agent (author != verifier)
 
-Mutation run: `mutate.py` twice (20 + 8 mutations; the `verification` retry budget was spent on survivors, so the
-second batch ran from a scratch spec that is merged into `mutations.json`). Tree restored byte for byte after each run.
+Round 2: every Rust mutation is proved by `cargo nextest run -p d2rmm-agent-core --lib` (`mutation-scope-check` OK); the 4 `node --test` ones are unchanged. `mutate.py` ran the 38 original-spec mutations through `attempt.mjs` (37 killed, 1 survived) and the 39th (added after the survivor) from a scratch spec (killed). Tree restored byte for byte.
 The Windows-only adapters (toolhelp, OCR, keyring) were judged by reading only (`#[cfg(windows)]`, CI `agent` job).
 
 ## Mutations injected
 
-| Mutation                                                   | Location                                 | Killed |
-| ---------------------------------------------------------- | ---------------------------------------- | ------ |
-| claim interval 2 s -> 3 s                                  | `core/src/pairing.rs:23`                 | yes    |
-| unused code limit 2 -> 3                                   | `core/src/pairing.rs:29`                 | yes    |
-| minutes left rounds down instead of up                     | `core/src/pairing.rs:266`                | no     |
-| 401 during claim no longer resets the unused count         | `core/src/pairing.rs:186`                | no     |
-| heartbeat interval 15 s -> 16 s                            | `core/src/heartbeat.rs:20`               | yes    |
-| D2R.exe match becomes case sensitive (C15 proof only)      | `core/src/heartbeat.rs:64`               | no     |
-| reconnect cap 60 s -> 120 s                                | `core/src/stream.rs:27`                  | yes    |
-| backoff reset boundary >= -> >                             | `core/src/stream.rs:51`                  | no     |
-| observation last retry 8 s -> 16 s                         | `core/src/observations.rs:20`            | yes    |
-| update check every 12 h                                    | `core/src/updates.rs:20`                 | no     |
-| Retry-After cap 60 min -> 120 min                          | `core/src/api_client.rs:25`              | yes    |
-| Retry-After floor 1 s -> 0 s                               | `core/src/api_client.rs:24`              | yes    |
-| Authorization header not marked sensitive                  | `core/src/api_client.rs:239`             | yes    |
-| 426 no longer blocks the API loops                         | `core/src/context.rs:158`                | yes    |
-| 401 keeps the stored token                                 | `core/src/context.rs:124`                | yes    |
-| installed update leaves the required flag set              | `core/src/updates.rs:58`                 | yes    |
-| SendInput dropped from the clippy ban list                 | `clippy.toml:15`                         | no     |
-| enigo dropped from the cargo-deny ban list                 | `deny.toml:45`                           | no     |
-| tag-on-main check reversed                                 | `.github/workflows/release-agent.yml:65` | no     |
-| fixture-read guard greps a misspelled feature              | `.github/workflows/release-agent.yml:90` | no     |
-| heartbeat 401 no longer drops the token                    | `core/src/heartbeat.rs:54`               | yes    |
-| stream 401 no longer drops the token                       | `core/src/stream.rs:99`                  | no     |
-| fusion no longer trims the read text                       | `core/src/fusion.rs:27`                  | yes    |
-| fusion matches a prefix instead of the whole name          | `core/src/fusion.rs:28`                  | yes    |
-| 429 without Retry-After waits 120 min (C54/C55 proof only) | `core/src/pairing.rs:27`                 | no     |
-| unreachable retry 15 s -> 30 s (C8/C11 proof only)         | `core/src/pairing.rs:25`                 | no     |
-| 426 no longer triggers an update check                     | `core/src/context.rs:137`                | yes    |
-| a 4xx observation answer is retried                        | `core/src/observations.rs:56`            | no     |
+| Mutation                                                      | Location                              | Killed |
+| ------------------------------------------------------------- | ------------------------------------- | ------ |
+| claim interval 2 s -> 3 s                                     | `core/src/pairing.rs`                 | yes    |
+| unused code limit 2 -> 3                                      | `core/src/pairing.rs`                 | yes    |
+| minutes left rounds down instead of up                        | `core/src/pairing.rs`                 | yes    |
+| 401 during claim no longer resets the unused count            | `core/src/pairing.rs`                 | no     |
+| heartbeat interval 15 s -> 16 s                               | `core/src/heartbeat.rs`               | yes    |
+| D2R.exe match becomes case sensitive (check-level proof only) | `core/src/heartbeat.rs`               | yes    |
+| reconnect cap 60 s -> 120 s                                   | `core/src/stream.rs`                  | yes    |
+| backoff reset boundary >= -> >                                | `core/src/stream.rs`                  | yes    |
+| observation last retry 8 s -> 16 s                            | `core/src/observations.rs`            | yes    |
+| update check every 12 h                                       | `core/src/updates.rs`                 | yes    |
+| Retry-After cap 60 min -> 120 min                             | `core/src/api_client.rs`              | yes    |
+| Retry-After floor 1 s -> 0 s                                  | `core/src/api_client.rs`              | yes    |
+| Authorization header not marked sensitive                     | `core/src/api_client.rs`              | yes    |
+| 426 no longer blocks the API loops                            | `core/src/context.rs`                 | yes    |
+| 401 keeps the stored token                                    | `core/src/context.rs`                 | yes    |
+| installed update leaves the required flag set                 | `core/src/updates.rs`                 | yes    |
+| fusion no longer trims the read text                          | `core/src/fusion.rs`                  | yes    |
+| fusion matches a prefix (mmbaalh-1) instead of the whole name | `core/src/fusion.rs`                  | yes    |
+| 429 without Retry-After waits 120 min                         | `core/src/pairing.rs`                 | yes    |
+| unreachable retry 15 s -> 30 s                                | `core/src/pairing.rs`                 | yes    |
+| 426 no longer triggers an update check                        | `core/src/context.rs`                 | yes    |
+| a 4xx observation answer is retried                           | `core/src/observations.rs`            | yes    |
+| handle_api_error: 401 no longer drops the token               | `core/src/context.rs`                 | yes    |
+| handle_api_error: 426 no longer blocks the loops              | `core/src/context.rs`                 | yes    |
+| handle_api_error: other errors also drop the token            | `core/src/context.rs`                 | yes    |
+| reconnect delay triples instead of doubling                   | `core/src/stream.rs`                  | yes    |
+| a stream open 60 s no longer resets the backoff               | `core/src/stream.rs`                  | yes    |
+| retry delay index shifted by one                              | `core/src/observations.rs`            | yes    |
+| an expired code no longer counts as unused                    | `core/src/pairing.rs`                 | yes    |
+| pause boundary >= -> >                                        | `core/src/pairing.rs`                 | yes    |
+| 429 ignores Retry-After                                       | `core/src/pairing.rs`                 | yes    |
+| installed update shows Required instead of Idle               | `core/src/updates.rs`                 | yes    |
+| up-to-date clears the required flag                           | `core/src/updates.rs`                 | yes    |
+| failed check shows Idle instead of Failed                     | `core/src/updates.rs`                 | yes    |
+| SendInput dropped from the clippy ban list                    | `clippy.toml`                         | yes    |
+| enigo dropped from the cargo-deny ban list                    | `deny.toml`                           | yes    |
+| tag-on-main check reversed                                    | `.github/workflows/release-agent.yml` | yes    |
+| fixture-read guard greps a misspelled feature                 | `.github/workflows/release-agent.yml` | yes    |
+| unused_after: claim 401 no longer resets the count            | `core/src/pairing.rs`                 | yes    |
 
-Round 2 (orchestrator, after execute-batch-6): `check_proofs.py --mutations` at bfdf637 killed all 28 mutations, including the 13 marked `no` above, with 71/71 proofs green (`proofs.md`).
+Round 1 findings stay closed (commits in the table). Round 2 re-proves their mutations with unit tests; all are killed except the one below.
 
 ## Findings
 
@@ -56,3 +66,8 @@ Round 2 (orchestrator, after execute-batch-6): `check_proofs.py --mutations` at 
 | AGS-28 / AGS-33: release-agent.yml static tests do not hold two rules. The "tag is on main" step can be reversed (`--is-ancestor origin/main HEAD`) and the fixture-read guard can grep a misspelled feature; the tests only check that the text `fixture-read` appears in a step                                                                                            | mutations at `release-agent.yml:65` and `:90` not killed by `scripts/test/release-workflows.test.mjs` (whole file)                                                  | assert the exact `merge-base --is-ancestor HEAD origin/main` command and the exact `grep -q 'fixture-read'` guard with its `exit 1`; test fixtures that fail on each reversal                                                                                | 344fc53          |
 | AGS-14 / stream: the reconnect-backoff reset at "open for 60 s" has no boundary test; `>=` can become `>`                                                                                                                                                                                                                                                                    | mutation `open_for >= RESET_AFTER_OPEN -> >` not killed by `reconnect_backoff_doubles_to_60s` (it never runs a connection that stays open)                          | add a test where a stream stays open exactly 60 s and the next delay is 1 s, and 59 s keeps doubling                                                                                                                                                         | 2522cbc          |
 | AGS-10 / AGS-35 / AGS-06 (check level): rules proved only by tests the checks do not name. Case-insensitive `D2R.exe` (C15 proof), the 60 min default wait on 429 without Retry-After (C54/C55), the 15 s unreachable retry (C8/C11) and the drop of a non-retryable observation answer survive their named proofs                                                           | four mutations not killed by the check's proof                                                                                                                      | name `waits_sixty_minutes_on_429_without_retry_after`, `retries_code_request_every_15s_when_unreachable` and `game_running_matches_the_executable_name_only` in C54, C11 and C15 (and a test for the 4xx observation drop in C29), then re-run the mutations | 0167d39, 8537b6e |
+| AGS-34 / AGS-08 (round 2): the call-site wiring that a 401 on a claim resets the unused count is not unit-tested. `unused_count_grows_on_expiry_and_resets_on_claim_401` tests `unused_after` only, so `*unused = unused_after(*unused, Unused::ClaimUnauthorized);` can become `*unused = *unused;` and the unit test stays green                                           | mutation `401 during claim no longer resets the unused count` (`pairing.rs:194`) survived the unit proof; the mirrored mutation inside `unused_after` is killed     | the decision lives in `show_code` (async, needs the fake API). Extract the claim-error dispatch into a pure function that returns the next unused count and unit-test it                                                                                     |                  |
+
+## Blocked
+
+The `verification` retry budget (ADR 022) is spent: `mutate.py` (invalid spec, then 1 survivor) and `validate_verification.py` used its three attempts. `validate_verification.py` exits 1 with 18 errors: `proofs.md` is at dee64c7 (HEAD is 62dc2bb) with no rows C56-C67, no mutation rows, the open round 2 finding above, and the `screens.md` / `.running.png` requirements. The orchestrator must rerun `check_proofs.py --mutations` and the screens step.

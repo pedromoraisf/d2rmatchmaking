@@ -3,113 +3,239 @@
     "file": "apps/agent/src-tauri/core/src/pairing.rs",
     "old": "pub const CLAIM_INTERVAL: Duration = Duration::from_secs(2);",
     "new": "pub const CLAIM_INTERVAL: Duration = Duration::from_secs(3);",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(claims_every_two_seconds_until_token)'",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(claim_interval_is_two_seconds)'",
     "label": "claim interval 2 s -> 3 s"
   },
   {
     "file": "apps/agent/src-tauri/core/src/pairing.rs",
     "old": "pub const UNUSED_LIMIT: u8 = 2;",
     "new": "pub const UNUSED_LIMIT: u8 = 3;",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(pauses_after_two_unused_codes)'",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(loop_pauses_after_two_unused_codes)'",
     "label": "unused code limit 2 -> 3"
   },
   {
     "file": "apps/agent/src-tauri/core/src/pairing.rs",
     "old": "remaining.as_millis().div_ceil(minute)",
     "new": "remaining.as_millis() / minute",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(minutes_left_rounds_up_at_every_offset) | test(code_with_4_min_30_s_left_shows_5) | test(code_with_1_s_left_shows_1)'",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(minutes_left_rounds_up_at_every_offset)'",
     "label": "minutes left rounds down instead of up"
   },
   {
     "file": "apps/agent/src-tauri/core/src/pairing.rs",
-    "old": "ctx.on_unauthorized();\n                *unused = 0;",
-    "new": "ctx.on_unauthorized();",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(unauthorized_on_claim_resets_the_unused_count)'",
+    "old": "*unused = unused_after(*unused, Unused::ClaimUnauthorized);",
+    "new": "*unused = *unused;",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(unused_count_grows_on_expiry_and_resets_on_claim_401)'",
     "label": "401 during claim no longer resets the unused count"
   },
   {
     "file": "apps/agent/src-tauri/core/src/heartbeat.rs",
     "old": "pub const INTERVAL: Duration = Duration::from_secs(15);",
     "new": "pub const INTERVAL: Duration = Duration::from_secs(16);",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(heartbeat_every_15s_with_running_flag)'",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(heartbeat_interval_is_fifteen_seconds)'",
     "label": "heartbeat interval 15 s -> 16 s"
   },
   {
     "file": "apps/agent/src-tauri/core/src/heartbeat.rs",
     "old": ".any(|name| name.eq_ignore_ascii_case(GAME_PROCESS))",
     "new": ".any(|name| name == GAME_PROCESS)",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(game_running_matches_the_executable_name_only)'",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(game_running_matches_the_executable_name_only)'",
     "label": "D2R.exe match becomes case sensitive (check-level proof only)"
   },
   {
     "file": "apps/agent/src-tauri/core/src/stream.rs",
     "old": "pub const RECONNECT_MAX: Duration = Duration::from_secs(60);",
     "new": "pub const RECONNECT_MAX: Duration = Duration::from_secs(120);",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(reconnect_backoff_doubles_to_60s)'",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(reconnect_delay_doubles_to_sixty_seconds)'",
     "label": "reconnect cap 60 s -> 120 s"
   },
   {
     "file": "apps/agent/src-tauri/core/src/stream.rs",
     "old": "if open_for >= RESET_AFTER_OPEN {",
     "new": "if open_for > RESET_AFTER_OPEN {",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(reconnect_backoff_resets_at_exactly_60s_open) | test(reconnect_backoff_keeps_doubling_at_59s_open)'",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(reconnect_delay_resets_at_exactly_sixty_seconds_open)'",
     "label": "backoff reset boundary >= -> >"
   },
   {
     "file": "apps/agent/src-tauri/core/src/observations.rs",
     "old": "Duration::from_secs(8),",
     "new": "Duration::from_secs(16),",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(retries_with_same_key_at_1_2_4_8)'",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(retry_delays_are_one_two_four_eight_then_stop)'",
     "label": "observation last retry 8 s -> 16 s"
   },
   {
     "file": "apps/agent/src-tauri/core/src/updates.rs",
-    "old": "Duration::from_secs(6 * 60 * 60)",
-    "new": "Duration::from_secs(12 * 60 * 60)",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(update_checks_at_start_every_6h_and_after_426)'",
+    "old": "pub const CHECK_EVERY: Duration = Duration::from_secs(6 * 60 * 60);",
+    "new": "pub const CHECK_EVERY: Duration = Duration::from_secs(12 * 60 * 60);",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(update_check_is_every_six_hours)'",
     "label": "update check every 12 h"
   },
   {
     "file": "apps/agent/src-tauri/core/src/api_client.rs",
     "old": "const RETRY_AFTER_MAX_SECONDS: u64 = 60 * 60;",
     "new": "const RETRY_AFTER_MAX_SECONDS: u64 = 2 * 60 * 60;",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(retry_after_is_clamped) | test(retry_after_is_clamped_to_the_hour)'",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(retry_after_cap_is_sixty_minutes)'",
     "label": "Retry-After cap 60 min -> 120 min"
   },
   {
     "file": "apps/agent/src-tauri/core/src/api_client.rs",
     "old": "const RETRY_AFTER_MIN_SECONDS: u64 = 1;",
     "new": "const RETRY_AFTER_MIN_SECONDS: u64 = 0;",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(retry_after_is_clamped)'",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(retry_after_floor_is_one_second)'",
     "label": "Retry-After floor 1 s -> 0 s"
   },
   {
     "file": "apps/agent/src-tauri/core/src/api_client.rs",
     "old": "value.set_sensitive(true);",
     "new": "value.set_sensitive(false);",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(authorization_is_sensitive_and_never_logged) | test(no_secret_in_logs_or_spans)'",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(authorization_header_is_marked_sensitive)'",
     "label": "Authorization header not marked sensitive"
   },
   {
     "file": "apps/agent/src-tauri/core/src/context.rs",
     "old": "        paired && !blocked",
     "new": "        paired",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(upgrade_required_stops_api_loops) | test(unauthorized_drops_pending_retries) | test(upgrade_required_drops_pending_retries)'",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(upgrade_required_blocks_api_loops_and_wakes_the_update_check)'",
     "label": "426 no longer blocks the API loops"
   },
   {
     "file": "apps/agent/src-tauri/core/src/context.rs",
     "old": "self.tokens.delete();\n",
     "new": "let _kept = ();\n",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(unauthorized_deletes_token_and_repairs)'",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(unauthorized_deletes_token_clears_room_and_bumps_epoch)'",
     "label": "401 keeps the stored token"
   },
   {
     "file": "apps/agent/src-tauri/core/src/updates.rs",
-    "old": "UpdateOutcome::Installed => {\n            ctx.update_required.send_replace(false);\n",
-    "new": "UpdateOutcome::Installed => {\n",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(update_checks_at_start_every_6h_and_after_426) | test(update_failure_keeps_version_and_retries) | test(upgrade_required_stops_api_loops)'",
+    "old": "UpdateOutcome::Installed => (UpdateView::Idle, false),",
+    "new": "UpdateOutcome::Installed => (UpdateView::Idle, required),",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(installed_update_clears_the_required_flag)'",
     "label": "installed update leaves the required flag set"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/fusion.rs",
+    "old": "let seen = read.text.trim().to_lowercase();",
+    "new": "let seen = read.text.to_lowercase();",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(exact_match_yields_one_observation) | test(other_names_yield_none)'",
+    "label": "fusion no longer trims the read text"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/fusion.rs",
+    "old": "if seen != assignment.expected_game_name.as_str().to_lowercase() {",
+    "new": "if !assignment.expected_game_name.as_str().to_lowercase().starts_with(&seen) {",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(exact_match_yields_one_observation) | test(other_names_yield_none)'",
+    "label": "fusion matches a prefix (mmbaalh-1) instead of the whole name"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/pairing.rs",
+    "old": "pub const RATE_LIMIT_DEFAULT: Duration = Duration::from_secs(60 * 60);",
+    "new": "pub const RATE_LIMIT_DEFAULT: Duration = Duration::from_secs(120 * 60);",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(rate_limit_wait_defaults_to_sixty_minutes_and_honours_retry_after)'",
+    "label": "429 without Retry-After waits 120 min"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/pairing.rs",
+    "old": "pub const UNREACHABLE_RETRY: Duration = Duration::from_secs(15);",
+    "new": "pub const UNREACHABLE_RETRY: Duration = Duration::from_secs(30);",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(unreachable_retry_is_fifteen_seconds)'",
+    "label": "unreachable retry 15 s -> 30 s"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/context.rs",
+    "old": "        self.update_now.notify_one();\n",
+    "new": "        let _kept = ();\n",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(upgrade_required_blocks_api_loops_and_wakes_the_update_check)'",
+    "label": "426 no longer triggers an update check"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/observations.rs",
+    "old": "matches!(error, ApiError::Network | ApiError::Server)",
+    "new": "matches!(error, ApiError::Network | ApiError::Server | ApiError::Invalid)",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(only_network_and_server_errors_are_retried)'",
+    "label": "a 4xx observation answer is retried"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/context.rs",
+    "old": "ApiError::Unauthorized => self.on_unauthorized(),",
+    "new": "ApiError::Unauthorized => {}",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(handle_api_error_routes_401_and_426_only)'",
+    "label": "handle_api_error: 401 no longer drops the token"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/context.rs",
+    "old": "ApiError::UpgradeRequired => self.on_upgrade_required(),",
+    "new": "ApiError::UpgradeRequired => {}",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(handle_api_error_routes_401_and_426_only)'",
+    "label": "handle_api_error: 426 no longer blocks the loops"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/context.rs",
+    "old": "            _ => {}\n        }\n    }\n\n    /// The current epoch",
+    "new": "            _ => self.on_unauthorized(),\n        }\n    }\n\n    /// The current epoch",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(handle_api_error_routes_401_and_426_only)'",
+    "label": "handle_api_error: other errors also drop the token"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/stream.rs",
+    "old": "(delay * 2).min(RECONNECT_MAX)",
+    "new": "(delay * 3).min(RECONNECT_MAX)",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(reconnect_delay_doubles_to_sixty_seconds)'",
+    "label": "reconnect delay triples instead of doubling"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/stream.rs",
+    "old": "        RECONNECT_MIN\n    } else {\n        delay",
+    "new": "        delay\n    } else {\n        delay",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(reconnect_delay_resets_at_exactly_sixty_seconds_open)'",
+    "label": "a stream open 60 s no longer resets the backoff"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/observations.rs",
+    "old": "RETRY_DELAYS.get(failures.checked_sub(1)?).copied()",
+    "new": "RETRY_DELAYS.get(failures).copied()",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(retry_delays_are_one_two_four_eight_then_stop)'",
+    "label": "retry delay index shifted by one"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/pairing.rs",
+    "old": "Unused::Expired => unused.saturating_add(1),",
+    "new": "Unused::Expired => unused,",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(unused_count_grows_on_expiry_and_resets_on_claim_401)'",
+    "label": "an expired code no longer counts as unused"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/pairing.rs",
+    "old": "unused >= UNUSED_LIMIT",
+    "new": "unused > UNUSED_LIMIT",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(loop_pauses_after_two_unused_codes)'",
+    "label": "pause boundary >= -> >"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/pairing.rs",
+    "old": "retry_after.unwrap_or(RATE_LIMIT_DEFAULT)",
+    "new": "RATE_LIMIT_DEFAULT",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(rate_limit_wait_defaults_to_sixty_minutes_and_honours_retry_after)'",
+    "label": "429 ignores Retry-After"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/updates.rs",
+    "old": "UpdateOutcome::Installed => (UpdateView::Idle, false),",
+    "new": "UpdateOutcome::Installed => (UpdateView::Required, false),",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(installed_update_clears_the_required_flag)'",
+    "label": "installed update shows Required instead of Idle"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/updates.rs",
+    "old": "            (view, required)\n        }\n        UpdateOutcome::Failed",
+    "new": "            (view, false)\n        }\n        UpdateOutcome::Failed",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(up_to_date_keeps_update_required_while_pending)'",
+    "label": "up-to-date clears the required flag"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/updates.rs",
+    "old": "UpdateView::Failed\n            };",
+    "new": "UpdateView::Idle\n            };",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(failed_check_shows_update_failed_unless_required)'",
+    "label": "failed check shows Idle instead of Failed"
   },
   {
     "file": "apps/agent/src-tauri/clippy.toml",
@@ -140,59 +266,10 @@
     "label": "fixture-read guard greps a misspelled feature"
   },
   {
-    "file": "apps/agent/src-tauri/core/src/heartbeat.rs",
-    "old": "Err(ApiError::Unauthorized) => ctx.on_unauthorized(),",
-    "new": "Err(ApiError::Unauthorized) => {}",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(unauthorized_deletes_token_and_repairs) | test(no_secret_in_logs_or_spans) | test(heartbeat_failure_shows_unreachable_then_connected)'",
-    "label": "heartbeat 401 no longer drops the token"
-  },
-  {
-    "file": "apps/agent/src-tauri/core/src/stream.rs",
-    "old": "ApiError::Unauthorized => ctx.on_unauthorized(),",
-    "new": "ApiError::Unauthorized => {}",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(unauthorized_on_assignment_returns_to_pairing) | test(unauthorized_on_stream_returns_to_pairing) | test(unauthorized_on_observation_returns_to_pairing) | test(unauthorized_on_claim_returns_to_pairing)'",
-    "label": "stream 401 no longer drops the token"
-  },
-  {
-    "file": "apps/agent/src-tauri/core/src/fusion.rs",
-    "old": "let seen = read.text.trim().to_lowercase();",
-    "new": "let seen = read.text.to_lowercase();",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(exact_match_yields_one_observation) | test(other_names_yield_none)'",
-    "label": "fusion no longer trims the read text"
-  },
-  {
-    "file": "apps/agent/src-tauri/core/src/fusion.rs",
-    "old": "if seen != assignment.expected_game_name.as_str().to_lowercase() {",
-    "new": "if !assignment.expected_game_name.as_str().to_lowercase().starts_with(&seen) {",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(exact_match_yields_one_observation) | test(other_names_yield_none)'",
-    "label": "fusion matches a prefix (mmbaalh-1) instead of the whole name"
-  },
-  {
     "file": "apps/agent/src-tauri/core/src/pairing.rs",
-    "old": "pub const RATE_LIMIT_DEFAULT: Duration = Duration::from_secs(60 * 60);",
-    "new": "pub const RATE_LIMIT_DEFAULT: Duration = Duration::from_secs(120 * 60);",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(waits_sixty_minutes_on_429_without_retry_after)'",
-    "label": "429 without Retry-After waits 120 min"
-  },
-  {
-    "file": "apps/agent/src-tauri/core/src/pairing.rs",
-    "old": "pub const UNREACHABLE_RETRY: Duration = Duration::from_secs(15);",
-    "new": "pub const UNREACHABLE_RETRY: Duration = Duration::from_secs(30);",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(retries_code_request_every_15s_when_unreachable)'",
-    "label": "unreachable retry 15 s -> 30 s"
-  },
-  {
-    "file": "apps/agent/src-tauri/core/src/context.rs",
-    "old": "        self.update_now.notify_one();\n",
-    "new": "        let _kept = ();\n",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(update_checks_at_start_every_6h_and_after_426) | test(upgrade_required_stops_api_loops)'",
-    "label": "426 no longer triggers an update check"
-  },
-  {
-    "file": "apps/agent/src-tauri/core/src/observations.rs",
-    "old": "Err(_) => return drop_observation(ctx),",
-    "new": "Err(_) => {}",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(observation_4xx_is_not_retried)'",
-    "label": "a 4xx observation answer is retried"
+    "old": "Unused::ClaimUnauthorized => 0,",
+    "new": "Unused::ClaimUnauthorized => unused,",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(unused_count_grows_on_expiry_and_resets_on_claim_401)'",
+    "label": "unused_after: claim 401 no longer resets the count"
   }
 ]
