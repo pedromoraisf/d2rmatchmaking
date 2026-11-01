@@ -1,0 +1,198 @@
+[
+  {
+    "file": "apps/agent/src-tauri/core/src/pairing.rs",
+    "old": "pub const CLAIM_INTERVAL: Duration = Duration::from_secs(2);",
+    "new": "pub const CLAIM_INTERVAL: Duration = Duration::from_secs(3);",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(claims_every_two_seconds_until_token)'",
+    "label": "claim interval 2 s -> 3 s"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/pairing.rs",
+    "old": "pub const UNUSED_LIMIT: u8 = 2;",
+    "new": "pub const UNUSED_LIMIT: u8 = 3;",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(pauses_after_two_unused_codes)'",
+    "label": "unused code limit 2 -> 3"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/pairing.rs",
+    "old": "remaining.as_millis().div_ceil(minute)",
+    "new": "remaining.as_millis() / minute",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(shows_code_with_minutes_left)'",
+    "label": "minutes left rounds down instead of up"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/pairing.rs",
+    "old": "ctx.on_unauthorized();\n                *unused = 0;",
+    "new": "ctx.on_unauthorized();",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(unauthorized_deletes_token_and_repairs) | test(pauses_after_two_unused_codes) | test(pairing_success_resets_the_unused_count)'",
+    "label": "401 during claim no longer resets the unused count"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/heartbeat.rs",
+    "old": "pub const INTERVAL: Duration = Duration::from_secs(15);",
+    "new": "pub const INTERVAL: Duration = Duration::from_secs(16);",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(heartbeat_every_15s_with_running_flag)'",
+    "label": "heartbeat interval 15 s -> 16 s"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/heartbeat.rs",
+    "old": ".any(|name| name.eq_ignore_ascii_case(GAME_PROCESS))",
+    "new": ".any(|name| name == GAME_PROCESS)",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(heartbeat_every_15s_with_running_flag)'",
+    "label": "D2R.exe match becomes case sensitive (check-level proof only)"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/stream.rs",
+    "old": "pub const RECONNECT_MAX: Duration = Duration::from_secs(60);",
+    "new": "pub const RECONNECT_MAX: Duration = Duration::from_secs(120);",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(reconnect_backoff_doubles_to_60s)'",
+    "label": "reconnect cap 60 s -> 120 s"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/stream.rs",
+    "old": "if open_for >= RESET_AFTER_OPEN {",
+    "new": "if open_for > RESET_AFTER_OPEN {",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(reconnect_backoff_doubles_to_60s)'",
+    "label": "backoff reset boundary >= -> >"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/observations.rs",
+    "old": "Duration::from_secs(8),",
+    "new": "Duration::from_secs(16),",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(retries_with_same_key_at_1_2_4_8)'",
+    "label": "observation last retry 8 s -> 16 s"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/updates.rs",
+    "old": "Duration::from_secs(6 * 60 * 60)",
+    "new": "Duration::from_secs(12 * 60 * 60)",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(update_checks_at_start_every_6h_and_after_426)'",
+    "label": "update check every 12 h"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/api_client.rs",
+    "old": "const RETRY_AFTER_MAX_SECONDS: u64 = 60 * 60;",
+    "new": "const RETRY_AFTER_MAX_SECONDS: u64 = 2 * 60 * 60;",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(retry_after_is_clamped) | test(retry_after_is_clamped_to_the_hour)'",
+    "label": "Retry-After cap 60 min -> 120 min"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/api_client.rs",
+    "old": "const RETRY_AFTER_MIN_SECONDS: u64 = 1;",
+    "new": "const RETRY_AFTER_MIN_SECONDS: u64 = 0;",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(retry_after_is_clamped)'",
+    "label": "Retry-After floor 1 s -> 0 s"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/api_client.rs",
+    "old": "value.set_sensitive(true);",
+    "new": "value.set_sensitive(false);",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(authorization_is_sensitive_and_never_logged) | test(no_secret_in_logs_or_spans)'",
+    "label": "Authorization header not marked sensitive"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/context.rs",
+    "old": "        paired && !blocked",
+    "new": "        paired",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(upgrade_required_stops_api_loops) | test(unauthorized_drops_pending_retries) | test(upgrade_required_drops_pending_retries)'",
+    "label": "426 no longer blocks the API loops"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/context.rs",
+    "old": "self.tokens.delete();\n",
+    "new": "let _kept = ();\n",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(unauthorized_deletes_token_and_repairs)'",
+    "label": "401 keeps the stored token"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/updates.rs",
+    "old": "UpdateOutcome::Installed => {\n            ctx.update_required.send_replace(false);\n",
+    "new": "UpdateOutcome::Installed => {\n",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(update_checks_at_start_every_6h_and_after_426) | test(update_failure_keeps_version_and_retries) | test(upgrade_required_stops_api_loops)'",
+    "label": "installed update leaves the required flag set"
+  },
+  {
+    "file": "apps/agent/src-tauri/clippy.toml",
+    "old": "  { path = \"windows::Win32::UI::Input::KeyboardAndMouse::SendInput\", reason = \"sends input to the game (ADR 010)\" },\n",
+    "new": "# removed\n",
+    "proof": "node scripts/agent/expect-failure.mjs disallowed_types -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/command-new/Cargo.toml -- -D warnings",
+    "label": "SendInput dropped from the clippy ban list"
+  },
+  {
+    "file": "apps/agent/src-tauri/deny.toml",
+    "old": "  { crate = \"enigo\" },\n",
+    "new": "# removed\n",
+    "proof": "node scripts/agent/expect-failure.mjs banned -- cargo deny --config apps/agent/src-tauri/deny.toml --manifest-path apps/agent/src-tauri/boundary-fixtures/banned-dep/Cargo.toml check bans",
+    "label": "enigo dropped from the cargo-deny ban list"
+  },
+  {
+    "file": ".github/workflows/release-agent.yml",
+    "old": "git merge-base --is-ancestor HEAD origin/main",
+    "new": "git merge-base --is-ancestor origin/main HEAD",
+    "proof": "node --test scripts/test/release-workflows.test.mjs",
+    "label": "tag-on-main check reversed"
+  },
+  {
+    "file": ".github/workflows/release-agent.yml",
+    "old": "if grep -q 'fixture-read' <<< \"$tree\"; then",
+    "new": "if grep -q 'fixture-reed' <<< \"$tree\"; then",
+    "proof": "node --test scripts/test/release-workflows.test.mjs",
+    "label": "fixture-read guard greps a misspelled feature"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/heartbeat.rs",
+    "old": "Err(ApiError::Unauthorized) => ctx.on_unauthorized(),",
+    "new": "Err(ApiError::Unauthorized) => {}",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(unauthorized_deletes_token_and_repairs) | test(no_secret_in_logs_or_spans) | test(heartbeat_failure_shows_unreachable_then_connected)'",
+    "label": "heartbeat 401 no longer drops the token"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/stream.rs",
+    "old": "ApiError::Unauthorized => ctx.on_unauthorized(),",
+    "new": "ApiError::Unauthorized => {}",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(unauthorized_deletes_token_and_repairs)'",
+    "label": "stream 401 no longer drops the token"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/fusion.rs",
+    "old": "let seen = read.text.trim().to_lowercase();",
+    "new": "let seen = read.text.to_lowercase();",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(exact_match_yields_one_observation) | test(other_names_yield_none)'",
+    "label": "fusion no longer trims the read text"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/fusion.rs",
+    "old": "if seen != assignment.expected_game_name.as_str().to_lowercase() {",
+    "new": "if !assignment.expected_game_name.as_str().to_lowercase().starts_with(&seen) {",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(exact_match_yields_one_observation) | test(other_names_yield_none)'",
+    "label": "fusion matches a prefix (mmbaalh-1) instead of the whole name"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/pairing.rs",
+    "old": "pub const RATE_LIMIT_DEFAULT: Duration = Duration::from_secs(60 * 60);",
+    "new": "pub const RATE_LIMIT_DEFAULT: Duration = Duration::from_secs(120 * 60);",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(waits_retry_after_on_429) | test(retry_after_is_clamped)'",
+    "label": "429 without Retry-After waits 120 min"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/pairing.rs",
+    "old": "pub const UNREACHABLE_RETRY: Duration = Duration::from_secs(15);",
+    "new": "pub const UNREACHABLE_RETRY: Duration = Duration::from_secs(30);",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(claims_every_two_seconds_until_token) | test(keeps_claiming_on_202) | test(new_code_after_410_or_expiry)'",
+    "label": "unreachable retry 15 s -> 30 s"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/context.rs",
+    "old": "        self.update_now.notify_one();\n",
+    "new": "        let _kept = ();\n",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(update_checks_at_start_every_6h_and_after_426) | test(upgrade_required_stops_api_loops)'",
+    "label": "426 no longer triggers an update check"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/observations.rs",
+    "old": "Err(_) => return drop_observation(ctx),",
+    "new": "Err(_) => {}",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(retries_with_same_key_at_1_2_4_8) | test(unauthorized_drops_pending_retries)'",
+    "label": "a 4xx observation answer is retried"
+  }
+]
