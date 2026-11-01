@@ -4,14 +4,19 @@
 mod support;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use d2rmm_agent_core::heartbeat;
 use d2rmm_agent_core::ports::{UpdateFailure, UpdateOutcome};
 use d2rmm_agent_core::stream;
-use d2rmm_agent_core::updates::{self, CHECK_EVERY};
+use d2rmm_agent_core::updates;
 use d2rmm_agent_core::view::UpdateView;
 use support::fake_api::{Answer, Operation, TOKEN};
 use support::harness::{Harness, advance, count, settle, until};
+
+/// The update cadence as the spec states it: every 6 h. Written out here, not imported, so a change to the agent's
+/// constant fails this test (AGS-24).
+const SIX_HOURS: Duration = Duration::from_secs(6 * 60 * 60);
 
 fn update_view(h: &Harness) -> Option<UpdateView> {
     h.sink.last().map(|view| view.update)
@@ -24,9 +29,9 @@ async fn update_checks_at_start_every_6h_and_after_426() {
     tokio::spawn(updates::run(Arc::clone(&h.ctx)));
 
     until("the check at start", || h.updater.calls() == 1).await;
-    advance(CHECK_EVERY - std::time::Duration::from_secs(1)).await;
+    advance(SIX_HOURS - Duration::from_secs(1)).await;
     assert_eq!(h.updater.calls(), 1, "no check before 6 h");
-    advance(std::time::Duration::from_secs(1)).await;
+    advance(Duration::from_secs(1)).await;
     until("the check at 6 h", || h.updater.calls() == 2).await;
 
     h.ctx.on_upgrade_required();
@@ -51,7 +56,7 @@ async fn update_failure_keeps_version_and_retries() {
         "the installed version keeps running"
     );
 
-    advance(CHECK_EVERY).await;
+    advance(SIX_HOURS).await;
     until("the check at the next slot", || h.updater.calls() == 2).await;
     until("the view clears", || {
         update_view(&h) == Some(UpdateView::Idle)
@@ -83,7 +88,7 @@ async fn upgrade_required_stops_api_loops() {
     assert_eq!(update_view(&h), Some(UpdateView::Required));
 
     let requests_before = h.api.requests().len();
-    advance(std::time::Duration::from_secs(3600)).await;
+    advance(Duration::from_secs(3600)).await;
     assert_eq!(
         h.api.requests().len(),
         requests_before,
@@ -91,7 +96,7 @@ async fn upgrade_required_stops_api_loops() {
     );
 
     // The scheduled check at 6 h installs the update: the API loops run again.
-    advance(CHECK_EVERY - std::time::Duration::from_secs(3600)).await;
+    advance(SIX_HOURS - Duration::from_secs(3600)).await;
     until("the heartbeat resumes", || {
         count(&h.api, Operation::Heartbeat) == 2
     })
