@@ -770,85 +770,85 @@ Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name
 Proof: walk - the maintainer pushes after the phase review; the PR checks page shows `agent` green (queued in `.specs/phases/F0/review.md`)
 
 **C4** - The committed Rust contract types equal a fresh `typify` generation (AGS-03, AC 3)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(contracts_are_current)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(contracts_are_current)'`
 
 **C5** - The installed version comes from `apps/agent/package.json` and is the `X-Agent-Version` sent (AGS-04, AC 4)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(version_comes_from_package_json)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(version_comes_from_package_json)'`
 
 **C6** - With no token the agent shows the 6 digits, the hint and "Expires in N min" rounded up (AGS-05, AC 1)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(shows_code_with_minutes_left)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(shows_code_with_minutes_left)'`
 
 **C7** - The pairing view renders the code, the hint and the minutes left (AGS-05, AC 1)
 Proof: `pnpm --filter @d2rmm/agent exec vitest run src -t "pairing view shows the code and the minutes left"`
 
 **C8** - The agent claims every 2 s and keeps going on 202 (AGS-06, AC 2)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(claims_every_two_seconds_until_token) | test(keeps_claiming_on_202)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(claims_every_two_seconds_until_token) | test(keeps_claiming_on_202)'`
 
 **C9** - A returned token is stored, claiming stops and the view shows Paired (AGS-06, AC 3)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(stores_token_and_shows_paired)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(stores_token_and_shows_paired)'`
 
 **C10** - The Credential Manager adapter saves, loads and deletes the token (AGS-06, AC 3)
 Proof: walk - the CI `agent` job log on `windows-latest` shows `keyring_round_trip` passed
 
 **C11** - A 410 claim or a passed expiry requests and shows a new code (AGS-07, AC 4)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(new_code_after_410_or_expiry)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(new_code_after_410_or_expiry)'`
 
 **C12** - Any 401 deletes the token and returns to a new pairing code (AGS-08, AC 5)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(unauthorized_deletes_token_and_repairs)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(unauthorized_deletes_token_and_repairs)'`
 
 **C13** - Neither the token nor the claim secret appears in any log or span over a pair → heartbeat → 401 cycle (AGS-09, AC 6)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(no_secret_in_logs_or_spans)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(no_secret_in_logs_or_spans)'`
 
 **C14** - Generated secret fields print `***` (AGS-09, AC 6)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(secret_fields_are_redacted)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(secret_fields_are_redacted)'`
 
 **C15** - Heartbeats every 15 s with `running` following `D2R.exe` in the process snapshot (AGS-10, AC 1, 2)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(heartbeat_every_15s_with_running_flag)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(heartbeat_every_15s_with_running_flag)'`
 
 **C16** - The toolhelp adapter lists processes without opening a handle (AGS-10, AC 2)
 Proof: walk - the CI `agent` job log shows `toolhelp_lists_the_current_process` passed and the `toolhelp-read` and `unsafe-ffi` fixtures failed with their ids
 
 **C17** - A failed heartbeat shows "Can't reach the server", the next is on schedule, a success shows "Connected" (AGS-11, AC 3)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(heartbeat_failure_shows_unreachable_then_connected)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(heartbeat_failure_shows_unreachable_then_connected)'`
 
 **C18** - Every request carries `X-Agent-Version` and a valid `traceparent` (AGS-12, AC 4)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(every_request_carries_version_and_traceparent)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(every_request_carries_version_and_traceparent)'`
 
 **C19** - The six loop spans are opened with their names (AGS-12, AC 4)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(loop_spans_are_named)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(loop_spans_are_named)'`
 
 **C20** - On pairing, start and reconnect the agent fetches its assignment, then opens the stream (AGS-13, AC 1)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(fetches_assignment_then_streams)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(fetches_assignment_then_streams)'`
 
 **C21** - Reconnects wait 1 s doubling to 60 s and reset after 60 s open (AGS-13, AC 1)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(reconnect_backoff_doubles_to_60s)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(reconnect_backoff_doubles_to_60s)'`
 
 **C22** - `room.assigned` becomes the current assignment and the latest wins (AGS-14, AC 2)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(latest_room_assigned_wins)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(latest_room_assigned_wins)'`
 
 **C23** - Unknown or invalid stream events leave the state unchanged (AGS-15, AC 3)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(unknown_or_invalid_events_are_ignored)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(unknown_or_invalid_events_are_ignored)'`
 
 **C24** - No code path can start a process or run FFI outside the two adapters (AGS-15, AC 4)
 Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="unsafe is allowed only in the two adapters" scripts/test/agent-source-rules.test.mjs`
 
 **C25** - The vision step reads the first line of the built-in region (AGS-16, AC 1)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(reads_first_line_of_region)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(reads_first_line_of_region)'`
 
 **C26** - Windows OCR reads `mmbaalh-12` from the reference image (AGS-16, AC 1)
 Proof: walk - the CI `agent` job log on `windows-latest` shows `ocr_reads_the_reference_image` passed
 
 **C27** - An exact match after trim and lower-case yields one `GAME_NAME_SEEN` with its fields (AGS-17, AC 2)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(exact_match_yields_one_observation)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(exact_match_yields_one_observation)'`
 
 **C28** - Any other name or no assignment yields no observation (AGS-18, AC 3)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(other_names_yield_none)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(other_names_yield_none)'`
 
 **C29** - Failed posts are retried at 1, 2, 4, 8 s with the same idempotency key, 5 attempts (AGS-19, AC 4)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(retries_with_same_key_at_1_2_4_8)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(retries_with_same_key_at_1_2_4_8)'`
 
 **C30** - An observation carries no image data (AGS-20, AC 5)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(observation_carries_no_image)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(observation_carries_no_image)'`
 
 **C31** - `cargo deny` fails when a banned crate is added (AGS-21, AC 1)
 Proof: `node scripts/agent/expect-failure.mjs banned -- cargo deny --config apps/agent/src-tauri/deny.toml --manifest-path apps/agent/src-tauri/boundary-fixtures/banned-dep/Cargo.toml check bans`
@@ -863,10 +863,10 @@ Proof: `node scripts/agent/expect-failure.mjs disallowed_types -- cargo clippy -
 Proof: `node scripts/agent/expect-failure.mjs unsafe_code -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/unsafe-ffi/Cargo.toml -- -D warnings`
 
 **C35** - The agent sends only the four contract request types, each valid against its schema (AGS-23, AC 3)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(sends_only_contract_request_types)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(sends_only_contract_request_types)'`
 
 **C36** - Update checks run at start, every 6 h and right after a 426 (AGS-24, AC 1)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(update_checks_at_start_every_6h_and_after_426)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(update_checks_at_start_every_6h_and_after_426)'`
 
 **C37** - The updater reads the latest release's `latest.json` with the embedded key (AGS-24, AC 1)
 Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="updater checks the latest release with the embedded key" scripts/test/agent-source-rules.test.mjs`
@@ -875,10 +875,10 @@ Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name
 Proof: walk - the maintainer's Windows check in the phase review (brief Q4): install `D2RMatchMaking-setup.exe` v0.0.1, publish v0.0.2, see the agent restart as v0.0.2
 
 **C39** - A failed update keeps the version, shows "Update failed — will retry" and checks at the next slot (AGS-26, AC 3)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(update_failure_keeps_version_and_retries)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(update_failure_keeps_version_and_retries)'`
 
 **C40** - After a 426 the agent shows "Update required" and sends no API request but the update check (AGS-27, AC 4)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(upgrade_required_stops_api_loops)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(upgrade_required_stops_api_loops)'`
 
 **C41** - release-please keeps the release PR and calls `release-agent.yml` when the agent is released (AGS-28, AC 1)
 Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="release-please calls release-agent only when the agent was released" scripts/test/release-workflows.test.mjs`
@@ -914,16 +914,16 @@ Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.to
 Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="fixture-read cannot reach a release build" scripts/test/release-workflows.test.mjs`
 
 **C52** - After two unused codes the agent pauses and "Get a new code" requests one code (AGS-34, AC 7)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(pauses_after_two_unused_codes)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(pauses_after_two_unused_codes)'`
 
 **C53** - Pairing success resets the unused-code count (AGS-34, AC 7)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(pairing_success_resets_the_unused_count)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(pairing_success_resets_the_unused_count)'`
 
 **C54** - A 429 on the code request waits `Retry-After` (60 min without it) and offers no new code meanwhile (AGS-35, AC 8)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(waits_retry_after_on_429)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(waits_retry_after_on_429)'`
 
 **C55** - `Retry-After` is clamped to [1 s, 60 min] (AGS-35, AC 8)
-Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -E 'test(retry_after_is_clamped)'`
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(retry_after_is_clamped)'`
 
 ---
 
@@ -939,3 +939,5 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Unblocked (execute-batch-4, escalated 2026-10-31):** T22, unit `gate:agent-skeleton/T22`, 2/3 failures, last retry kept. The Windows-target clippy gate cannot run on this macOS host: `reqwest` → `rustls` → `aws-lc-sys` 0.47 compiles C for `x86_64-pc-windows-msvc` and no Windows C headers (`stdlib.h`, `windows.h`) or MSVC sysroot exist here. T23–T33 depend on T22 in a chain, and observability-e2e and load-baseline depend on agent-skeleton, so the phase waits for the maintainer. T22 code (keyring token store) is written, uncommitted, never compiled for Windows; `apps/agent/fixtures/fonts/` (OFL Source Sans 3, for T24) is untracked. Maintainer chose Docker (2026-10-31): T22–T24 Windows gates replanned to `node scripts/agent/win-check.mjs` (AD-071); maintainer accepted the Microsoft SDK licence and reset `gate:agent-skeleton/T22` (2026-10-31)
 
 **T26 (2026-10-31):** committed 3f4d0c3, gate passed on attempt 2. The pubkey test is a `node:test` `todo` (pending, not passing) and its Done-when box stays open until the maintainer's updater key pair arrives (escalation "updater key pair"). T27 stopped before any edit: no non-Windows path for `main` and no seam for a fake handle; replanned (AD-073)
+
+**Proofs (2026-10-31):** `check_proofs.py` attempt 1/3: 29 pass, 30 fail. 29 nextest proofs ran 0 tests: `apps/agent/src-tauri/Cargo.toml` is both the app package and the workspace root, so without `--workspace` nextest selects only `d2rmm-agent`. `--workspace` added to the 30 nextest proofs in `## Checks` (AD-076); tasks gate re-run. C37 (updater pubkey) stays failing until the maintainer's key arrives (escalation "updater key pair")

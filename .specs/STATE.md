@@ -678,6 +678,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-31
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-076 (assumed)
+
+- **Decision**: every `cargo nextest run … -E 'test(<name>)'` proof in agent-skeleton's `## Checks` passes `--workspace`.
+- **Reason**: `apps/agent/src-tauri/Cargo.toml` is both the `d2rmm-agent` package and the workspace root (members `.`, `core`, `xtask`); without `--workspace` nextest selects only the root package, so the proofs of `core` and `xtask` tests ran 0 tests and failed (`check_proofs.py` attempt 1).
+- **Trade-off**: none; the filter still names one test per proof.
+- **Scope**: agent-skeleton / Checks
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
