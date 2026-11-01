@@ -3,7 +3,8 @@
 //! safe wrappers; this file is one of the two that may allow unsafe code (ADR 010 policy).
 #![allow(unsafe_code)]
 
-use d2rmm_agent_core::ports::{ReadError, ReadText, Region, Rgba, TextReader};
+use d2rmm_agent_core::ports::{ReadError, Rgba, TextReader};
+use d2rmm_agent_domain::vision::{ReadText, Region};
 use windows::Globalization::Language;
 use windows::Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap};
 use windows::Media::Ocr::OcrEngine;
@@ -75,7 +76,7 @@ fn crop_to_bitmap(image: &Rgba, region: Region) -> Result<SoftwareBitmap, ReadEr
 #[cfg(test)]
 mod tests {
     use d2rmm_agent_core::ports::Rgba;
-    use d2rmm_agent_core::vision::read_game_name;
+    use d2rmm_agent_core::read_frame::read_game_name;
 
     use super::WindowsOcr;
 

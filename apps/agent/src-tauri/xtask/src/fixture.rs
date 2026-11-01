@@ -6,7 +6,7 @@ use std::error::Error;
 use std::path::PathBuf;
 
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont, point};
-use d2rmm_agent_core::vision::AUTOMAP_NAME_1080P;
+use d2rmm_agent_domain::vision::AUTOMAP_NAME_1080P;
 
 use crate::repo_root;
 

@@ -3,10 +3,11 @@
 
 use chrono::{DateTime, Utc};
 use d2rmm_agent_domain::room_assignment::Assignment;
+use d2rmm_agent_domain::vision::ReadText;
 use uuid::Uuid;
 
 use crate::messages::GameNameObservation;
-use crate::ports::{IdGenerator, ReadText};
+use crate::ports::IdGenerator;
 
 /// A `GAME_NAME_SEEN` observation and the room whose endpoint receives it.
 #[derive(Debug, Clone)]
@@ -54,10 +55,11 @@ mod tests {
     use uuid::Uuid;
 
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
+    use d2rmm_agent_domain::vision::{AUTOMAP_NAME_1080P, ReadText, Region};
 
     use super::{Fusion, fuse};
-    use crate::ports::{ReadError, ReadText, Region, Rgba, SequentialIds, TextReader};
-    use crate::vision::{AUTOMAP_NAME_1080P, read_game_name};
+    use crate::ports::{ReadError, Rgba, SequentialIds, TextReader};
+    use crate::read_frame::read_game_name;
 
     const ROOM: &str = "7d9f2c1e-0000-4000-8000-000000000001";
 

@@ -301,10 +301,12 @@ mod tests {
     };
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
 
+    use d2rmm_agent_domain::vision::{ReadText, Region};
+
     use crate::fakes::FakeApiGateway;
     use crate::ports::{
-        ApiError, ProcessSource, ReadError, ReadText, Region, Rgba, SequentialIds, StateSink,
-        StoreError, TextReader, TokenStore, UpdateOutcome, WallClock,
+        ApiError, ProcessSource, ReadError, Rgba, SequentialIds, StateSink, StoreError, TextReader,
+        TokenStore, UpdateOutcome, WallClock,
     };
     use crate::secret::Secret;
     use crate::updates::Updater;

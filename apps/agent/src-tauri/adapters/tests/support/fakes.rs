@@ -6,11 +6,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use d2rmm_agent_core::ports::{
-    ProcessSource, ReadError, ReadText, Region, Rgba, StateSink, StoreError, TextReader,
-    TokenStore, UpdateChecker, UpdateOutcome,
+    ProcessSource, ReadError, Rgba, StateSink, StoreError, TextReader, TokenStore, UpdateChecker,
+    UpdateOutcome,
 };
 use d2rmm_agent_core::secret::Secret;
 use d2rmm_agent_core::view::{AgentView, PairingView};
+use d2rmm_agent_domain::vision::{ReadText, Region};
 
 fn lock<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
     value.lock().unwrap_or_else(PoisonError::into_inner)

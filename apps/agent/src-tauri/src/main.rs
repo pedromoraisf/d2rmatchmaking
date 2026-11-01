@@ -20,9 +20,9 @@ use d2rmm_agent_core::context::{
     Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
 };
 #[cfg(windows)]
-use d2rmm_agent_core::ports::{
-    ProcessSource, ReadError, ReadText, Region, Rgba, TextReader, TokenStore, WallClock,
-};
+use d2rmm_agent_core::ports::{ProcessSource, ReadError, Rgba, TextReader, TokenStore, WallClock};
+#[cfg(windows)]
+use d2rmm_agent_domain::vision::{ReadText, Region};
 #[cfg(windows)]
 use tauri::AppHandle;
 

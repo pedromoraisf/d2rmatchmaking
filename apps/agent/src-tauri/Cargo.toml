@@ -16,6 +16,7 @@ image = { version = "0.25", default-features = false, features = ["png"], option
 chrono = "0.4"
 d2rmm-agent-adapters = { path = "adapters", version = "0.0.0" }
 d2rmm-agent-core = { path = "core", version = "0.0.0" }
+d2rmm-agent-domain = { path = "domain", version = "0.0.0" }
 serde_json = "1"
 tauri = "2"
 tauri-plugin-updater = "2"

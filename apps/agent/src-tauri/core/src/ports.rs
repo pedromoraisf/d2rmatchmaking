@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use d2rmm_agent_domain::room_assignment::Assignment;
+use d2rmm_agent_domain::vision::{ReadText, Region};
 use uuid::Uuid;
 
 use crate::messages::{GameNameObservation, IssuedCode, Presence};
@@ -53,28 +54,12 @@ pub trait ProcessSource {
     fn names(&self) -> Vec<String>;
 }
 
-/// A rectangle of an image, in pixels, with its origin at the top-left corner.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Region {
-    pub x: u32,
-    pub y: u32,
-    pub width: u32,
-    pub height: u32,
-}
-
 /// An RGBA image in memory. The pixels never leave the process (AGS-20).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rgba {
     pub width: u32,
     pub height: u32,
     pub pixels: Vec<u8>,
-}
-
-/// Text read from a region, with the reader's confidence.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ReadText {
-    pub text: String,
-    pub confidence: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]

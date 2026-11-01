@@ -13,7 +13,7 @@ use crate::fusion::fuse;
 use crate::observations;
 use crate::pairing::{self, Command};
 use crate::ports::{ApiGateway, Rgba, StateSink};
-use crate::{heartbeat, stream, updates, vision};
+use crate::{heartbeat, read_frame, stream, updates};
 
 const COMMAND_BUFFER: usize = 8;
 
@@ -74,7 +74,7 @@ impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
         };
         let ctx = Arc::clone(&self.ctx);
         tokio::spawn(async move {
-            let Ok(read) = vision::read_game_name(&frame, ctx.reader.as_ref()) else {
+            let Ok(read) = read_frame::read_game_name(&frame, ctx.reader.as_ref()) else {
                 return;
             };
             let now = ctx.clock.now_utc();
@@ -148,10 +148,12 @@ mod tests {
     use crate::context::{
         Context, Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
     };
+    use d2rmm_agent_domain::vision::{ReadText, Region};
+
     use crate::fakes::FakeApiGateway;
     use crate::ports::{
-        ProcessSource, ReadError, ReadText, Region, Rgba, SequentialIds, StateSink, StoreError,
-        TextReader, TokenStore, UpdateOutcome, WallClock,
+        ProcessSource, ReadError, Rgba, SequentialIds, StateSink, StoreError, TextReader,
+        TokenStore, UpdateOutcome, WallClock,
     };
     use crate::secret::Secret;
     use crate::updates::Updater;

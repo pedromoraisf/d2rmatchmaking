@@ -645,6 +645,7 @@ dependencies = [
  "chrono",
  "d2rmm-agent-adapters",
  "d2rmm-agent-core",
+ "d2rmm-agent-domain",
  "image",
  "keyring",
  "png",
@@ -5826,6 +5827,7 @@ version = "0.0.0"
 dependencies = [
  "ab_glyph",
  "d2rmm-agent-core",
+ "d2rmm-agent-domain",
  "png",
  "prettyplease",
  "schemars 0.8.22",
