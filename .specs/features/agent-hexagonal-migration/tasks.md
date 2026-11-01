@@ -179,8 +179,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] The file is a superset of the root list with a reason on each added entry
-- [ ] Rust domain gate passes (clippy with the new file)
+- [x] The file is a superset of the root list with a reason on each added entry
+- [x] Rust domain gate passes (clippy with the new file)
 - [ ] The test that pins the superset is T8's `domain clippy.toml repeats the root bans and adds the clock bans`
 
 **Tests**: none (config; covered by T8 and T4)
