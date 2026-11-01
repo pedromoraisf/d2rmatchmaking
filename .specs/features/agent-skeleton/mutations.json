@@ -21,13 +21,6 @@
     "label": "minutes left rounds down instead of up"
   },
   {
-    "file": "apps/agent/src-tauri/core/src/pairing.rs",
-    "old": "*unused = unused_after(*unused, Unused::ClaimUnauthorized);",
-    "new": "*unused = *unused;",
-    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(unused_count_grows_on_expiry_and_resets_on_claim_401)'",
-    "label": "401 during claim no longer resets the unused count"
-  },
-  {
     "file": "apps/agent/src-tauri/core/src/heartbeat.rs",
     "old": "pub const INTERVAL: Duration = Duration::from_secs(15);",
     "new": "pub const INTERVAL: Duration = Duration::from_secs(16);",
@@ -271,5 +264,26 @@
     "new": "Unused::ClaimUnauthorized => unused,",
     "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(unused_count_grows_on_expiry_and_resets_on_claim_401)'",
     "label": "unused_after: claim 401 no longer resets the count"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/pairing.rs",
+    "old": "ApiError::Gone => unused_after(unused, Unused::Expired),",
+    "new": "ApiError::Gone => unused,",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(claim_errors_update_the_unused_count)'",
+    "label": "unused_after_claim_error: a 410 no longer counts as unused"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/pairing.rs",
+    "old": "ApiError::Unauthorized => unused_after(unused, Unused::ClaimUnauthorized),",
+    "new": "ApiError::Unauthorized => unused,",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(claim_errors_update_the_unused_count)'",
+    "label": "unused_after_claim_error: a 401 no longer resets the count"
+  },
+  {
+    "file": "apps/agent/src-tauri/core/src/pairing.rs",
+    "old": "        | ApiError::Invalid => unused,",
+    "new": "        | ApiError::Invalid => unused.saturating_add(1),",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib -E 'test(claim_errors_update_the_unused_count)'",
+    "label": "unused_after_claim_error: the keep-the-code arm wrongly counts"
   }
 ]
