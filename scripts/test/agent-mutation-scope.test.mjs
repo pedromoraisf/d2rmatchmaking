@@ -45,3 +45,30 @@ test('mutation rule modules list matches the migrated locations', () => {
     'a scope without beat.rs names it as missing',
   );
 });
+
+// AHM-23, AHM-24 (ADR 026): the nightly run mutates the domain, the core and the adapters, each against its --lib tests.
+const MUTATED_CRATES = ['domain', 'core', 'adapters'];
+
+// Whether the workflow runs cargo-mutants with --lib on every mutated crate.
+function coversCratesWithLib(yaml) {
+  const runs = yaml.split('\n').filter((line) => /cargo mutants\b/.test(line));
+  return MUTATED_CRATES.every((crate) =>
+    runs.some(
+      (line) => new RegExp(`--package d2rmm-agent-${crate}\\b`).test(line) && /\s--\s+--lib\s*$/.test(line),
+    ),
+  );
+}
+
+test('the nightly mutation run covers the domain core and adapters with --lib', () => {
+  assert.equal(coversCratesWithLib(nightly), true);
+});
+
+test('a mutation run without the domain or --lib fails', () => {
+  const withoutDomain = nightly
+    .split('\n')
+    .filter((line) => !line.includes('--package d2rmm-agent-domain'))
+    .join('\n');
+  const withoutLib = nightly.replace(/ -- --lib/g, '');
+  assert.equal(coversCratesWithLib(withoutDomain), false, 'a run without the domain fails');
+  assert.equal(coversCratesWithLib(withoutLib), false, 'a run without --lib fails');
+});

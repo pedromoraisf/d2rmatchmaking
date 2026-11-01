@@ -1145,8 +1145,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Tests `the nightly mutation run covers the domain core and adapters with --lib` and `a mutation run without the domain or --lib fails` pass in `agent-mutation-scope.test.mjs`
-- [ ] Harness gate passes
+- [x] Tests `the nightly mutation run covers the domain core and adapters with --lib` and `a mutation run without the domain or --lib fails` pass in `agent-mutation-scope.test.mjs`
+- [x] Harness gate passes
 
 **Tests**: harness unit
 **Gate**: Harness
@@ -1337,6 +1337,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - T51 done (commit carries `Task: T51`): `domain/src/fusion.rs` holds `fuse` and `GameNameObservation` (fields as the core message had them). `fuse` takes the key as `impl FnOnce() -> Uuid`, drawn only after the name and the room match. `core/src/messages.rs` re-exports `GameNameObservation` from the domain, so the adapters' translation and the fakes keep their paths. `core/src/fusion.rs` is gone (`git rm`); its two read tests (`reads_first_line_of_region`, `unsupported_resolution_reads_nothing`) moved to `core/src/read_frame.rs`, unchanged. `runtime.rs` calls the domain `fuse` with `|| ports.ids.idempotency_key()`. Gate `Rust workspace` plus the preservation guard: attempt 1 failed on two clippy `needless_borrows_for_generic_args` in my domain test (`&draw` where the closure is `Copy`), fixed to `draw`; attempt 2 passed (the gate count, all tests). `.cargo/mutants.toml` still lists `core/src/fusion.rs` until T53.
 - T52 done (commit carries `Task: T52`): `domain/src/presence.rs` holds `Presence`, `Screen`, `game_running` (`GAME_PROCESS` from the domain timings, ASCII case-insensitive) and the moved test `game_running_matches_the_executable_name_only`. `core/src/messages.rs` re-exports `Presence` and `Screen`; `core/src/beat.rs` imports `game_running` from the domain and loses its local `GAME_PROCESS` and `game_running`, and the test moved with them. Gate `Rust workspace` plus the preservation guard passed on attempt 1 (167 tests).
 - T53 done (commit carries `Task: T53`): `.cargo/mutants.toml` examines `domain/src/**/*.rs`, the five core rule modules (`pair.rs`, `follow_stream.rs`, `check_update.rs`, `post_observation.rs`, `beat.rs`) and the three adapter modules (`http/api_client.rs`, `http/translate.rs`, `http/sse.rs`). The scope only grows: every module the old list named has its migrated home in the new list. Deviation, for the orchestrator to note: the existing test `mutation covers the core rule modules` in `scripts/test/agent-source-rules.test.mjs` pinned the old exact list, so its expected array now holds the new exact list (the same exact-match strictness; its comment says the migrated modules). The new test `mutation rule modules list matches the migrated locations` lives in `scripts/test/agent-mutation-scope.test.mjs`; its fixture drops `beat.rs` inline. Gate `Harness` (`pnpm test:harness`) passed on attempt 1 (189 tests).
+- T54 done (commit carries `Task: T54`): `.github/workflows/nightly.yml` `agent-mutation` runs `cargo mutants -- --lib` once per crate (`d2rmm-agent-core`, `d2rmm-agent-domain`, `d2rmm-agent-adapters`), each to its own report directory; the artifact uploads `reports/mutation`. The core line stays first, so the existing test `the nightly cargo-mutants run targets the agent core and its unit tests only` reads the same line and passes unedited. The two new tests are in `scripts/test/agent-mutation-scope.test.mjs`. Gate `Harness` passed on attempt 1 (191 tests).
 
 **Batch 8 (execute-batch-8), complete: T42 to T47**
 
