@@ -1,6 +1,6 @@
 # agent-skeleton proofs
 
-**HEAD**: 1bb18f2
+**HEAD**: 2233c74
 **Tree**: clean
 **Result**: 71 pass, 0 fail; mutations 41 killed, 0 not
 
