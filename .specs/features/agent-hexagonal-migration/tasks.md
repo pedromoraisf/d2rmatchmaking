@@ -1031,8 +1031,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Tests `observation_retry_delays_one_two_four_eight_then_drop`, `non_retryable_failure_drops`, `epoch_moved_during_sleep_drops`
-- [ ] Rust domain gate passes
+- [x] Tests `observation_retry_delays_one_two_four_eight_then_drop`, `non_retryable_failure_drops`, `epoch_moved_during_sleep_drops`
+- [x] Rust domain gate passes
 
 **Tests**: unit
 **Gate**: Rust domain
@@ -1328,6 +1328,10 @@ Proof: `cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml -
 ## Handoff
 
 The feature's live state, written as it happens - a compaction gives no warning.
+
+**Batch 9 (execute-batch-9), in progress: T48 to T58**
+
+- T48 done (commit carries `Task: T48`): `domain/src/observation_retry.rs` holds `ObservationRetry` (`new(epoch)`, `after_failure` → `Wait::{For, Drop}`, `after_sleep` → `Retry::{Again, Drop}`), `PostFailure::{Transient, Permanent}` and the delays from `timings::OBSERVATION_RETRY_DELAYS`. `PostFailure` is the domain's own classification (the application maps network and 5xx to `Transient`), so the domain does not import the port error. Gate `Rust domain` passed on attempt 1 (26 tests, 3 new). Core's `observations.rs` keeps its copies until T49.
 
 **Batch 8 (execute-batch-8), complete: T42 to T47**
 
