@@ -7,6 +7,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use d2rmm_agent_domain::reconnect::Reconnect;
 use d2rmm_agent_domain::room_assignment::Assignment;
 use tokio::time::Instant;
 use tracing::Instrument;
@@ -16,19 +17,13 @@ use crate::groups::StreamPorts;
 use crate::ports::{ApiError, ApiGateway, EventStream, StreamItem};
 use crate::view::RoomView;
 
-/// The first reconnect delay (AD-059).
-pub const RECONNECT_MIN: Duration = Duration::from_secs(1);
-/// The longest reconnect delay (AD-059).
-pub const RECONNECT_MAX: Duration = Duration::from_secs(60);
-/// A stream open this long resets the reconnect delay (AD-059).
-pub const RESET_AFTER_OPEN: Duration = Duration::from_secs(60);
-
-/// Runs for the life of the agent, whenever it is paired and not waiting for an update.
+/// Runs for the life of the agent, whenever it is paired and not waiting for an update. The reconnect delay is the
+/// domain's `Reconnect` (AHM-11): a stream that stayed open for a minute starts the backoff again.
 pub async fn run<G: ApiGateway + Send + Sync + 'static>(
     device: Arc<DeviceState>,
     ports: StreamPorts<G>,
 ) {
-    let mut delay = RECONNECT_MIN;
+    let mut reconnect = Reconnect::new();
     let mut last_id: Option<String> = None;
     loop {
         device.wait_until_allowed(DeviceState::api_allowed).await;
@@ -36,29 +31,15 @@ pub async fn run<G: ApiGateway + Send + Sync + 'static>(
         let open_for = connect_once(&device, &ports, &mut last_id)
             .instrument(span)
             .await;
-        delay = delay_after_open(delay, open_for);
+        reconnect.opened_for(open_for);
         if !device
-            .sleep_while_allowed(Instant::now() + delay, DeviceState::api_allowed)
+            .sleep_while_allowed(Instant::now() + reconnect.delay(), DeviceState::api_allowed)
             .await
         {
             continue;
         }
-        delay = next_delay(delay);
+        reconnect.slept();
     }
-}
-
-/// The delay before the next reconnect: a stream that stayed open for `RESET_AFTER_OPEN` starts the backoff again.
-fn delay_after_open(delay: Duration, open_for: Duration) -> Duration {
-    if open_for >= RESET_AFTER_OPEN {
-        RECONNECT_MIN
-    } else {
-        delay
-    }
-}
-
-/// The delay after one more failed reconnect: doubled, and never more than `RECONNECT_MAX`.
-fn next_delay(delay: Duration) -> Duration {
-    (delay * 2).min(RECONNECT_MAX)
 }
 
 /// One attempt: fetch the assignment, open the stream and read it until it ends. Returns how long it stayed open.
@@ -143,7 +124,7 @@ mod tests {
 
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
 
-    use super::{RECONNECT_MIN, delay_after_open, next_delay, run};
+    use super::run;
     use crate::device_state::DeviceState;
     use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NullSink};
     use crate::groups::StreamPorts;
@@ -185,34 +166,6 @@ mod tests {
 
     fn calls(gateway: &FakeApiGateway) -> Vec<Call> {
         gateway.calls()
-    }
-
-    #[test]
-    fn reconnect_delay_doubles_to_sixty_seconds() {
-        let mut delay = RECONNECT_MIN;
-        let mut seen = [Duration::ZERO; 8];
-        for slot in &mut seen {
-            *slot = delay;
-            delay = next_delay(delay);
-        }
-        assert_eq!(seen, [1, 2, 4, 8, 16, 32, 60, 60].map(Duration::from_secs));
-    }
-
-    #[test]
-    fn reconnect_delay_resets_at_exactly_sixty_seconds_open() {
-        let delay = Duration::from_secs(8);
-        assert_eq!(
-            delay_after_open(delay, Duration::from_millis(59_999)),
-            delay
-        );
-        assert_eq!(
-            delay_after_open(delay, Duration::from_secs(60)),
-            RECONNECT_MIN
-        );
-        assert_eq!(
-            delay_after_open(delay, Duration::from_secs(61)),
-            RECONNECT_MIN
-        );
     }
 
     #[tokio::test(start_paused = true)]

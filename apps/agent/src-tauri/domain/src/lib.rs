@@ -5,6 +5,7 @@
 pub mod observation_retry;
 pub mod paired_device;
 pub mod pairing;
+pub mod reconnect;
 pub mod room_assignment;
 pub mod timings;
 pub mod vision;

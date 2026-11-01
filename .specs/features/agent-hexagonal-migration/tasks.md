@@ -1068,9 +1068,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Tests `reconnect_doubles_to_sixty_and_resets_at_sixty_seconds`, `interrupted_sleep_does_not_double`, `open_for_fifty_nine_point_nine_nine_nine_seconds_keeps_the_delay`
-- [ ] `adapters/tests/stream.rs` passes; preservation test passes
-- [ ] Rust workspace gate passes
+- [x] Tests `reconnect_doubles_to_sixty_and_resets_at_sixty_seconds`, `interrupted_sleep_does_not_double`, `open_for_fifty_nine_point_nine_nine_nine_seconds_keeps_the_delay`
+- [x] `adapters/tests/stream.rs` passes; preservation test passes
+- [x] Rust workspace gate passes
 
 **Tests**: unit
 **Gate**: Rust workspace
@@ -1333,6 +1333,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 
 - T48 done (commit carries `Task: T48`): `domain/src/observation_retry.rs` holds `ObservationRetry` (`new(epoch)`, `after_failure` → `Wait::{For, Drop}`, `after_sleep` → `Retry::{Again, Drop}`), `PostFailure::{Transient, Permanent}` and the delays from `timings::OBSERVATION_RETRY_DELAYS`. `PostFailure` is the domain's own classification (the application maps network and 5xx to `Transient`), so the domain does not import the port error. Gate `Rust domain` passed on attempt 1 (26 tests, 3 new). Core's `observations.rs` keeps its copies until T49.
 - T49 done (commit carries `Task: T49`): `core/src/observations.rs` is `core/src/post_observation.rs` (`git mv`). `send` runs `ObservationRetry`; `classify` maps network and 5xx to `PostFailure::Transient`, every other error to `Permanent`. The `sleep_while_allowed` gate result and the epoch check after the sleep stay in core. `SendOutcome` stays. `lib.rs` and `runtime.rs` name the new module. Three colocated `--lib` tests run on paused time against `FakeApiGateway`: `post_retries_with_the_same_key_five_attempts`, `post_drops_when_a_426_moves_the_epoch` (a 426 at 500 ms, mid-sleep; it also shuts the gate, so the drop is shared with the gate) and `post_drops_when_the_gate_closes_during_sleep` (an unpair mid-sleep moves no epoch). The retry-schedule test moved to the domain (`observation_retry_delays_one_two_four_eight_then_drop`). `adapters/tests/observations.rs` changed its `use` line and its act line (`post_observation::send`); no assertion line did. Gate `Rust workspace` plus the preservation guard passed on attempt 2 (164 tests). Attempt 1 failed on a type inference error in a test helper (`Arc::clone(&tokens)` where the field needs the trait object; `tokens.clone()` coerces), fixed. `.cargo/mutants.toml` still lists `core/src/observations.rs` until T53.
+- T50 done (commit carries `Task: T50`): `domain/src/reconnect.rs` holds `Reconnect` (`new`, `delay`, `slept` doubles to at most `RECONNECT_MAX`, `opened_for` resets at `RESET_AFTER_OPEN`) and its three tests. `follow_stream::run` keeps a `Reconnect`; an interrupted sleep does not call `slept`, as before. The core constants `RECONNECT_MIN`, `RECONNECT_MAX`, `RESET_AFTER_OPEN` and the helpers `delay_after_open` and `next_delay` are gone from core (the values are the domain timings); their two core tests moved to the domain. Gate `Rust workspace` plus the preservation guard passed on attempt 1 (165 tests).
 
 **Batch 8 (execute-batch-8), complete: T42 to T47**
 
