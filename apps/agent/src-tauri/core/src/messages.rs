@@ -1,6 +1,6 @@
 //! The plain messages the ports exchange (design.md § Migration Steps, M1a). They hold no serde and no generated contract
-//! type: the anti-corruption layer translates between them and the contract types. They stay in core until M2, M3 and M5
-//! move them to the domain.
+//! type: the anti-corruption layer translates between them and the contract types. The room assignment has moved to the
+//! domain (M2); the pairing, observation and presence messages stay here until M3 and M5 move them.
 
 use std::num::NonZeroU64;
 
@@ -38,60 +38,6 @@ pub struct IssuedCode {
     pub code: PairingCode,
     pub expires_at: DateTime<Utc>,
     pub claim_secret: Secret,
-}
-
-/// The room a player is assigned to. The value is opaque: the stream path checks it as before, and `fuse` refuses a room
-/// id that is not a UUID.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RoomId(String);
-
-impl RoomId {
-    pub fn new(value: impl Into<String>) -> Self {
-        Self(value.into())
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-/// The game name the host creates in-game. The value is opaque.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GameName(String);
-
-impl GameName {
-    pub fn new(value: impl Into<String>) -> Self {
-        Self(value.into())
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-/// A seat's role in the room.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MemberRole {
-    Host,
-    Member,
-}
-
-/// One seat of an assignment.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Member {
-    pub account_id: String,
-    pub character_id: Option<String>,
-    pub join_order: NonZeroU64,
-    pub role: MemberRole,
-}
-
-/// The room and game the agent is assigned to, as the API states it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Assignment {
-    pub room: RoomId,
-    pub run: NonZeroU64,
-    pub expected_game_name: GameName,
-    pub members: Vec<Member>,
 }
 
 /// A `GAME_NAME_SEEN` observation, before it is translated to its contract shape.

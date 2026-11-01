@@ -7,9 +7,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
+use d2rmm_agent_domain::room_assignment::Assignment;
 use uuid::Uuid;
 
-use crate::messages::{Assignment, GameNameObservation, IssuedCode, Presence};
+use crate::messages::{GameNameObservation, IssuedCode, Presence};
 use crate::secret::Secret;
 use crate::view::AgentView;
 

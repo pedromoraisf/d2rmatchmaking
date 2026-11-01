@@ -4,10 +4,10 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
+use d2rmm_agent_domain::room_assignment::{Assignment, RoomAssignment};
 use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
-use crate::messages::Assignment;
 use crate::ports::{
     ApiError, IdGenerator, ProcessSource, StateSink, TextReader, TokenStore, WallClock,
 };
@@ -125,8 +125,8 @@ pub struct Context<G> {
     pub update_required: watch::Sender<bool>,
     /// Wakes the update loop for a check right after a 426 (AD-049).
     pub update_now: Notify,
-    /// The current room assignment (AGS-14). Latest `room.assigned` wins.
-    pub assignment: watch::Sender<Option<Assignment>>,
+    /// The current room assignment (AGS-14), held by the domain aggregate. Latest `room.assigned` wins.
+    pub assignment: watch::Sender<RoomAssignment>,
     /// Bumped by a 401 or a 426: pending observation retries compare it and drop (AD-051).
     epoch: AtomicU64,
     observations_dropped: AtomicU64,
@@ -161,17 +161,28 @@ impl<G> Context<G> {
             paired: watch::channel(false).0,
             update_required: watch::channel(false).0,
             update_now: Notify::new(),
-            assignment: watch::channel(None).0,
+            assignment: watch::channel(RoomAssignment::empty()).0,
             epoch: AtomicU64::new(0),
             observations_dropped: AtomicU64::new(0),
         })
+    }
+
+    /// Stores the assignment the API states (`Some`) or forgets the current one (`None`). A newer assignment replaces the
+    /// older one.
+    pub fn replace_assignment(&self, assignment: Option<Assignment>) {
+        self.assignment.send_modify(|slot| match assignment {
+            Some(assignment) => {
+                slot.receive(assignment);
+            }
+            None => slot.clear(),
+        });
     }
 
     /// A 401 on any request: the token goes, the room goes, and the pairing loop shows a new code (AGS-08).
     pub fn on_unauthorized(&self) {
         self.tokens.delete();
         self.paired.send_replace(false);
-        self.assignment.send_replace(None);
+        self.assignment.send_modify(RoomAssignment::clear);
         self.hub.set_room(None);
         self.hub.set_pairing(PairingView::Requesting);
         self.epoch.fetch_add(1, Ordering::SeqCst);
@@ -288,8 +299,9 @@ mod tests {
     use super::{
         Context, Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
     };
+    use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
+
     use crate::fakes::FakeApiGateway;
-    use crate::messages::{Assignment, GameName, RoomId};
     use crate::ports::{
         ApiError, ProcessSource, ReadError, ReadText, Region, Rgba, SequentialIds, StateSink,
         StoreError, TextReader, TokenStore, UpdateOutcome, WallClock,
@@ -419,7 +431,7 @@ mod tests {
     #[test]
     fn unauthorized_deletes_token_clears_room_and_bumps_epoch() {
         let (ctx, tokens) = paired_context();
-        ctx.assignment.send_replace(Some(assignment()));
+        ctx.replace_assignment(Some(assignment()));
         ctx.hub.set_room(Some(RoomView {
             game_name: "mmbaalh-12".to_string(),
         }));
@@ -430,7 +442,7 @@ mod tests {
         assert!(tokens.load().is_none(), "the token is deleted");
         assert!(!*ctx.paired.borrow(), "the agent is no longer paired");
         assert!(
-            ctx.assignment.borrow().is_none(),
+            ctx.assignment.borrow().current().is_none(),
             "the assignment is cleared"
         );
         assert_eq!(ctx.hub.snapshot().room, None, "the room is cleared");

@@ -2,9 +2,10 @@
 //! through the anti-corruption layer (design.md § Adapters, `http/gateway.rs`; AHM-16). It holds no rule of its own beyond
 //! the protocol check of the resume id.
 
-use d2rmm_agent_core::messages::{Assignment, GameNameObservation, IssuedCode, Presence};
+use d2rmm_agent_core::messages::{GameNameObservation, IssuedCode, Presence};
 use d2rmm_agent_core::ports::{ApiError, ApiGateway, EventStream};
 use d2rmm_agent_core::secret::Secret;
+use d2rmm_agent_domain::room_assignment::Assignment;
 
 use crate::http::api_client::ApiClient;
 use crate::http::sse::valid_last_event_id;

@@ -7,11 +7,11 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use d2rmm_agent_domain::room_assignment::Assignment;
 use tokio::time::Instant;
 use tracing::Instrument;
 
 use crate::context::Context;
-use crate::messages;
 use crate::ports::{ApiError, ApiGateway, EventStream, StreamItem};
 use crate::view::RoomView;
 
@@ -120,11 +120,11 @@ async fn read_events<G>(
 }
 
 /// Sets or clears the current assignment and shows the room it names.
-fn set_assignment<G>(ctx: &Context<G>, assignment: Option<messages::Assignment>) {
+fn set_assignment<G>(ctx: &Context<G>, assignment: Option<Assignment>) {
     let room = assignment.as_ref().map(|assignment| RoomView {
         game_name: assignment.expected_game_name.as_str().to_string(),
     });
-    ctx.assignment.send_replace(assignment);
+    ctx.replace_assignment(assignment);
     ctx.hub.set_room(room);
 }
 

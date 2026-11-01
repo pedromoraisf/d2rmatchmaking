@@ -688,6 +688,7 @@ name = "d2rmm-agent-core"
 version = "0.0.0"
 dependencies = [
  "chrono",
+ "d2rmm-agent-domain",
  "serde",
  "serde_json",
  "thiserror 2.0.21",

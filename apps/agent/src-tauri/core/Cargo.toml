@@ -8,6 +8,7 @@ description = "D2R Match Making agent core: pairing, heartbeat, stream, vision a
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["serde"] }
+d2rmm-agent-domain = { path = "../domain", version = "0.0.0" }
 serde = { version = "1.0.229", features = ["derive"] }
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt", "sync", "time"] }

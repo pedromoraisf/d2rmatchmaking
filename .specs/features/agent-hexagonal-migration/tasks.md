@@ -767,9 +767,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] `adapters/tests/stream.rs` passes; preservation test passes
-- [ ] Test `core depends on the domain and not on reqwest tauri keyring or windows` asserts the domain dependency
-- [ ] Rust workspace gate and Harness gate pass
+- [x] `adapters/tests/stream.rs` passes; preservation test passes
+- [x] Test `core depends on the domain and not on reqwest tauri keyring or windows` asserts the domain dependency
+- [x] Rust workspace gate and Harness gate pass
 
 **Tests**: integration
 **Gate**: Rust workspace

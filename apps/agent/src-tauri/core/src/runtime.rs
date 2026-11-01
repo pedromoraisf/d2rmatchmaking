@@ -4,12 +4,12 @@
 
 use std::sync::Arc;
 
+use d2rmm_agent_domain::room_assignment::Assignment;
 use tokio::sync::{mpsc, watch};
 
 use crate::config::Config;
 use crate::context::{Context, Groups};
 use crate::fusion::fuse;
-use crate::messages::Assignment;
 use crate::observations;
 use crate::pairing::{self, Command};
 use crate::ports::{ApiGateway, Rgba, StateSink};
@@ -68,7 +68,7 @@ impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
     /// Reads the game name from one frame and posts an observation when it names the held room. Without a held assignment
     /// nothing happens. Only the app's fixture build calls this (AD-057).
     pub fn read_once(&self, frame: Rgba) {
-        let assignment = self.ctx.assignment.borrow().clone();
+        let assignment = self.ctx.assignment.borrow().current().cloned();
         let Some(assignment) = assignment else {
             return;
         };
@@ -109,7 +109,7 @@ impl<G> Probe<G> {
 
     /// The assignment the stream loop last set, if any.
     pub fn assignment(&self) -> Option<Assignment> {
-        self.ctx.assignment.borrow().clone()
+        self.ctx.assignment.borrow().current().cloned()
     }
 
     /// Sets the paired flag the pairing and API loops read.
@@ -119,7 +119,7 @@ impl<G> Probe<G> {
 
     /// Sets the assignment the observation path reads.
     pub fn set_assignment(&self, assignment: Option<Assignment>) {
-        self.ctx.assignment.send_replace(assignment);
+        self.ctx.replace_assignment(assignment);
     }
 
     /// A 401 on any request, as the API would send it.
@@ -142,12 +142,13 @@ mod tests {
 
     use chrono::{DateTime, Utc};
 
+    use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
+
     use super::Probe;
     use crate::context::{
         Context, Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
     };
     use crate::fakes::FakeApiGateway;
-    use crate::messages::{Assignment, GameName, RoomId};
     use crate::ports::{
         ProcessSource, ReadError, ReadText, Region, Rgba, SequentialIds, StateSink, StoreError,
         TextReader, TokenStore, UpdateOutcome, WallClock,

@@ -8,8 +8,9 @@ use std::time::Duration;
 use std::num::NonZeroU64;
 
 use d2rmm_agent_adapters::http::translate::assignment_from_contract;
-use d2rmm_agent_core::messages::{Assignment, GameNameObservation};
+use d2rmm_agent_core::messages::GameNameObservation;
 use d2rmm_agent_core::observations::{self, SendOutcome};
+use d2rmm_agent_domain::room_assignment::Assignment;
 use serde_json::{Value, json};
 use support::fake_api::{Answer, Operation, TOKEN};
 use support::harness::{Harness, advance, count, settle, until};

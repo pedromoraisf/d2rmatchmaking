@@ -7,7 +7,9 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Mutex;
 
-use crate::messages::{Assignment, GameNameObservation, IssuedCode, Presence};
+use d2rmm_agent_domain::room_assignment::Assignment;
+
+use crate::messages::{GameNameObservation, IssuedCode, Presence};
 use crate::ports::{ApiError, ApiGateway, EndReason, EventStream, StreamItem};
 use crate::secret::Secret;
 
@@ -190,7 +192,9 @@ mod tests {
     use std::num::NonZeroU64;
 
     use super::{Call, FakeApiGateway};
-    use crate::messages::{Assignment, GameName, Presence, RoomId, Screen};
+    use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
+
+    use crate::messages::{Presence, Screen};
     use crate::ports::{ApiError, ApiGateway, EndReason, StreamItem};
     use crate::secret::Secret;
 

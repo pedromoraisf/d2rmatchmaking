@@ -2,9 +2,10 @@
 //! § Vision and fusion; AGS-17, AGS-18, AGS-20; AD-052). Any other name, or no assignment, yields nothing.
 
 use chrono::{DateTime, Utc};
+use d2rmm_agent_domain::room_assignment::Assignment;
 use uuid::Uuid;
 
-use crate::messages::{Assignment, GameNameObservation};
+use crate::messages::GameNameObservation;
 use crate::ports::{IdGenerator, ReadText};
 
 /// A `GAME_NAME_SEEN` observation and the room whose endpoint receives it.
@@ -52,8 +53,9 @@ mod tests {
     use chrono::{DateTime, Utc};
     use uuid::Uuid;
 
+    use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
+
     use super::{Fusion, fuse};
-    use crate::messages::{Assignment, GameName, RoomId};
     use crate::ports::{ReadError, ReadText, Region, Rgba, SequentialIds, TextReader};
     use crate::vision::{AUTOMAP_NAME_1080P, read_game_name};
 

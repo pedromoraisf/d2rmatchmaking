@@ -3,9 +3,9 @@
 //! reaches the message type unchanged. The pure mapping lives here; the HTTP calls live in `gateway.rs`.
 
 use d2rmm_agent_core::messages::{
-    Assignment, GameName, GameNameObservation, InvalidPairingCode, IssuedCode, Member, MemberRole,
-    PairingCode, Presence, RoomId, Screen,
+    GameNameObservation, InvalidPairingCode, IssuedCode, PairingCode, Presence, Screen,
 };
+use d2rmm_agent_domain::room_assignment::{Assignment, GameName, Member, MemberRole, RoomId};
 use serde_json::json;
 
 use crate::contracts::generated as contract;
@@ -117,7 +117,8 @@ mod tests {
         issued_code_from_contract, observation_to_contract,
     };
     use crate::contracts::generated as contract;
-    use d2rmm_agent_core::messages::{GameNameObservation, Member, MemberRole, Presence, Screen};
+    use d2rmm_agent_core::messages::{GameNameObservation, Presence, Screen};
+    use d2rmm_agent_domain::room_assignment::{Member, MemberRole};
 
     const ROOM: &str = "7d9f2c1e-0000-4000-8000-000000000001";
     const SCHEMA_DIR: &str = concat!(
