@@ -257,8 +257,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Tests `contract types stay out of the domain and the application` (the application half is switched on in T28) and `domain reads no clock or randomness and names nothing Agent`, with a fixture per rule
-- [ ] Harness gate passes
+- [x] Tests `contract types stay out of the domain and the application` (the application half is switched on in T28) and `domain reads no clock or randomness and names nothing Agent`, with a fixture per rule
+- [x] Harness gate passes
 
 **Tests**: harness unit
 **Gate**: Harness

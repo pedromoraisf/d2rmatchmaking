@@ -4,7 +4,7 @@
 // tree (its flag in `SWITCHED_OFF`) is still applied to its fixture with the flag on, so the rule is proved before it
 // is enforced.
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -22,8 +22,9 @@ const CRATE_NAME = {
   app: 'd2rmm-agent',
 };
 
-// Rules switched on later: T34 (core depends on the domain) and T28 (core does not depend on reqwest).
-const SWITCHED_OFF = { coreDomain: false, coreReqwest: false };
+// Whether each deferred rule is enforced on the real tree today. `false` until its task switches it on: core depends on
+// the domain (T34), core does not depend on reqwest (T28), the application does not use the contract types (T28).
+const ENFORCED_NOW = { coreDomain: false, coreReqwest: false, coreContracts: false };
 
 const DOMAIN_ALLOWED = ['thiserror', 'chrono', 'uuid'];
 const UI_AND_OS_PREFIXES = ['tauri', 'keyring', 'windows'];
@@ -97,14 +98,89 @@ export const adaptersViolations = (base) => {
   ];
 };
 
+// Source rules (T7): the `use` and path names of the domain and core `src/**/*.rs`. Line comments are removed first, so a
+// doc comment that names a forbidden crate does not count.
+const IO_AND_OS_CRATES = [
+  'tokio',
+  'reqwest',
+  'tauri',
+  'keyring',
+  'windows',
+  'serde',
+  'serde_json',
+  'tracing',
+  'zeroize',
+];
+const IO_PATH = new RegExp(`\\b(?:${IO_AND_OS_CRATES.join('|')})::`);
+const UI_OR_OS_PATH = /\b(?:tauri|keyring|windows)::/;
+const CONTRACT_PATH = /\b(?:contracts|generated)::/;
+const CLOCK_OR_RANDOM =
+  /\bInstant\b|\bSystemTime\b|\bUtc::now\b|\bLocal::now\b|\bnew_v4\b|\bstd::env\b|\benv::/;
+const AGENT_ITEM = /\b(?:struct|enum|type|trait|union|mod|fn|const|static)\s+Agent\b|::Agent\b/;
+
+const stripLineComments = (text) =>
+  text
+    .split('\n')
+    .map((line) => line.replace(/\/\/.*$/, ''))
+    .join('\n');
+
+const sourceFiles = (base, crate) => {
+  const dir = path.join(base, agentTauri, CRATE_DIR[crate], 'src');
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { recursive: true })
+    .map((entry) => entry.split(path.sep).join('/'))
+    .filter((rel) => rel.endsWith('.rs'))
+    .map((rel) => ({
+      rel: `${CRATE_DIR[crate]}/src/${rel}`,
+      code: stripLineComments(readFileSync(path.join(dir, rel), 'utf8')),
+    }));
+};
+
+const linesMatching = (files, pattern, message) =>
+  files.flatMap(({ rel, code }) => (pattern.test(code) ? [`${rel} ${message}`] : []));
+
+export const domainIoViolations = (base) =>
+  linesMatching(sourceFiles(base, 'domain'), IO_PATH, 'uses an I/O, UI, OS or serialisation crate');
+
+export const coreUiOsViolations = (base) =>
+  linesMatching(sourceFiles(base, 'core'), UI_OR_OS_PATH, 'uses a UI or OS crate');
+
+export const domainContractViolations = (base) =>
+  linesMatching(sourceFiles(base, 'domain'), CONTRACT_PATH, 'uses a generated contract type');
+
+export const coreContractViolations = (base, enabled = false) =>
+  enabled ? linesMatching(sourceFiles(base, 'core'), CONTRACT_PATH, 'uses a generated contract type') : [];
+
+export const domainClockViolations = (base) =>
+  linesMatching(sourceFiles(base, 'domain'), CLOCK_OR_RANDOM, 'reads a clock or randomness');
+
+export const domainAgentNameViolations = (base) =>
+  linesMatching(sourceFiles(base, 'domain'), AGENT_ITEM, 'names an item Agent');
+
+test('domain imports no I/O or UI crate, and core no UI or OS crate', () => {
+  assert.deepEqual([...domainIoViolations(root), ...coreUiOsViolations(root)], []);
+});
+
+test('contract types stay out of the domain and the application', () => {
+  // The application half is switched on in T28 (ENFORCED_NOW.coreContracts).
+  assert.deepEqual(
+    [...domainContractViolations(root), ...coreContractViolations(root, ENFORCED_NOW.coreContracts)],
+    [],
+  );
+});
+
+test('domain reads no clock or randomness and names nothing Agent', () => {
+  assert.deepEqual([...domainClockViolations(root), ...domainAgentNameViolations(root)], []);
+});
+
 test('domain depends only on std thiserror chrono and uuid', () => {
   assert.deepEqual(domainViolations(root), []);
 });
 
 test('core depends on the domain and not on reqwest tauri keyring or windows', () => {
-  // The `depends on the domain` part is switched on in T34 and the `reqwest` part in T28 (SWITCHED_OFF).
+  // The `depends on the domain` part is switched on in T34 and the `reqwest` part in T28 (ENFORCED_NOW).
   assert.deepEqual(
-    coreViolations(root, { domain: SWITCHED_OFF.coreDomain, reqwest: SWITCHED_OFF.coreReqwest }),
+    coreViolations(root, { domain: ENFORCED_NOW.coreDomain, reqwest: ENFORCED_NOW.coreReqwest }),
     [],
   );
 });
@@ -156,6 +232,36 @@ const FIXTURES = [
     name: 'adapters-app',
     check: () => adaptersViolations(fixtureBase('adapters-app')),
     expect: /adapters depends on the app crate d2rmm-agent/,
+  },
+  {
+    name: 'src-domain-io',
+    check: () => domainIoViolations(fixtureBase('src-domain-io')),
+    expect: /domain\/src\/lib\.rs uses an I\/O, UI, OS or serialisation crate/,
+  },
+  {
+    name: 'src-domain-contracts',
+    check: () => domainContractViolations(fixtureBase('src-domain-contracts')),
+    expect: /domain\/src\/lib\.rs uses a generated contract type/,
+  },
+  {
+    name: 'src-domain-clock',
+    check: () => domainClockViolations(fixtureBase('src-domain-clock')),
+    expect: /domain\/src\/lib\.rs reads a clock or randomness/,
+  },
+  {
+    name: 'src-domain-agent',
+    check: () => domainAgentNameViolations(fixtureBase('src-domain-agent')),
+    expect: /domain\/src\/lib\.rs names an item Agent/,
+  },
+  {
+    name: 'src-core-contracts',
+    check: () => coreContractViolations(fixtureBase('src-core-contracts'), true),
+    expect: /core\/src\/lib\.rs uses a generated contract type/,
+  },
+  {
+    name: 'src-core-tauri',
+    check: () => coreUiOsViolations(fixtureBase('src-core-tauri')),
+    expect: /core\/src\/lib\.rs uses a UI or OS crate/,
   },
 ];
 
