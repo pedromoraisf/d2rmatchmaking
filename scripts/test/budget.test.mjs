@@ -10,6 +10,7 @@ import {
   recordDispatch,
   clearIfOpen,
   reset,
+  mergeLedgers,
   featureBlocked,
   lastGateAttempt,
   sessionExhausted,
@@ -81,6 +82,30 @@ test('only a reset (maintainer) clears a blocked unit, and it is audited', () =>
   assert.equal(reset(l, k, { by: 'pedro' }), true);
   assert.equal(canAttempt(l, k).ok, true);
   assert.equal(l.resets[0].by, 'pedro');
+});
+
+test('merging a ledger with itself or a shared snapshot keeps each reset once and changes no unit', () => {
+  const live = emptyLedger();
+  const blocked = unitKey('gate', 'f', 'spec');
+  const open = unitKey('gate', 'f', 'design');
+  for (let i = 0; i < 3; i += 1) recordAttempt(live, blocked, false);
+  assert.equal(reset(live, blocked, { by: 'pedro' }), true);
+  recordAttempt(live, open, false);
+  const snapshot = structuredClone(live);
+
+  const once = mergeLedgers(live, snapshot);
+  let merged = live;
+  for (let i = 0; i < 5; i += 1) merged = mergeLedgers(merged, snapshot);
+  for (let i = 0; i < 5; i += 1) merged = mergeLedgers(merged, merged);
+
+  const unique = new Set(live.resets.map((r) => `${r.key}|${r.at}|${r.by}`)).size;
+  assert.equal(unique, 1);
+  assert.equal(once.resets.length, 1, 'one merge keeps one copy of the reset');
+  assert.equal(merged.resets.length, unique, 'repeated merges do not append the resets again');
+  assert.deepEqual(merged.resets, once.resets);
+  assert.deepEqual(merged.units, once.units, 'units are the same after repeated merges');
+  assert.equal(once.units[open].attempts.length, 1);
+  assert.equal(once.units[open].attempts.filter((a) => !a.ok).length, 1, 'open failures are not lost');
 });
 
 test('helpers: session ids per subagent, last gate attempt, task ids, key validation', () => {

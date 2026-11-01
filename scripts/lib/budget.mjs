@@ -203,8 +203,21 @@ export function report(ledger) {
  * so a fresh clone or another machine never gets a fresh budget.
  */
 export function mergeLedgers(a, b) {
-  const out = { version: 1, units: {}, resets: [...(a?.resets ?? []), ...(b?.resets ?? [])] };
-  const resetAt = new Map(out.resets.map((r) => [r.key, r.at]));
+  const allResets = [...(a?.resets ?? []), ...(b?.resets ?? [])];
+  // The same reset is in the live ledger and in the snapshot, and every write merges them again: keep each reset once,
+  // first occurrence first. `resetAt` still reads every entry in order (the last one wins), as before.
+  const seen = new Set();
+  const out = {
+    version: 1,
+    units: {},
+    resets: allResets.filter((r) => {
+      const id = `${r.key}\u0000${r.at}\u0000${r.by}`;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    }),
+  };
+  const resetAt = new Map(allResets.map((r) => [r.key, r.at]));
   for (const src of [a, b]) {
     for (const [k, u] of Object.entries(src?.units ?? {})) {
       // A maintainer reset newer than every attempt in a snapshot drops that stale copy.
