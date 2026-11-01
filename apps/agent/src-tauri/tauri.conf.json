@@ -24,6 +24,13 @@
     }
   },
   "bundle": {
-    "active": true
+    "active": true,
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": ["https://github.com/pedromoraisf/d2rmatchmaking/releases/latest/download/latest.json"],
+      "pubkey": "MAINTAINER_PUBKEY_PENDING"
+    }
   }
 }

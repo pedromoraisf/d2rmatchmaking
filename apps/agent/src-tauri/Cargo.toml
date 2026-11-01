@@ -15,7 +15,9 @@ description = "D2R Match Making desktop agent (Tauri 2 app shell)."
 image = { version = "0.25", default-features = false, features = ["png"], optional = true }
 d2rmm-agent-core = { path = "core" }
 reqwest = { version = "0.13", features = ["json", "stream"] }
+serde_json = "1"
 tauri = "2"
+tauri-plugin-updater = "2"
 thiserror = "2"
 
 [target.'cfg(windows)'.dependencies]
@@ -31,5 +33,4 @@ tauri-build = "2"
 
 [dev-dependencies]
 png = "0.18"
-serde_json = "1"
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt"] }

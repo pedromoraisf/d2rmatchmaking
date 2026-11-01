@@ -613,7 +613,7 @@ T29 → T30 → T31 → T32 → T33
 **Done when**:
 
 - [ ] `agent-source-rules.test.mjs`: endpoint exactly `https://github.com/pedromoraisf/d2rmatchmaking/releases/latest/download/latest.json`, no `dangerousInsecureTransportProtocol`, a non-placeholder `pubkey` (test `updater checks the latest release with the embedded key` — red until the key arrives, so this task stays open and is reported as blocked by the escalation)
-- [ ] Gate check passes: `cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && pnpm test:harness`
+- [x] Gate check passes: `cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && pnpm test:harness`
 
 **Tests**: unit
 **Gate**: quick

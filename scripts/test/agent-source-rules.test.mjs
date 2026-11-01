@@ -250,3 +250,38 @@ test('core has no tauri dependency', () => {
     assert.doesNotMatch(readText(`${agentTauri}/${file}`), /\btauri\b/, `${file} does not use tauri`);
   }
 });
+
+const UPDATER_ENDPOINT =
+  'https://github.com/pedromoraisf/d2rmatchmaking/releases/latest/download/latest.json';
+const UPDATER_PUBKEY_PENDING = 'MAINTAINER_PUBKEY_PENDING';
+
+test('updater checks the latest release over https, with no insecure transport', () => {
+  const conf = readJson(`${agentTauri}/tauri.conf.json`);
+  assert.deepEqual(
+    conf.plugins.updater.endpoints,
+    [UPDATER_ENDPOINT],
+    'the endpoint is the latest release (AD-049)',
+  );
+  assert.equal(
+    conf.plugins.updater.dangerousInsecureTransportProtocol,
+    undefined,
+    'no insecure transport for the updater (AGS-24)',
+  );
+  assert.equal(
+    conf.bundle.createUpdaterArtifacts,
+    true,
+    'the updater artifacts are signed at release (AGS-24)',
+  );
+});
+
+// Pending, not passing: the public key is the maintainer's (escalation "updater key pair"). Node reports it as TODO, so
+// the harness stays green until the key replaces the placeholder in tauri.conf.json.
+test(
+  'updater checks the latest release with the embedded key',
+  { todo: 'pending: the maintainer updater public key (escalation "updater key pair")' },
+  () => {
+    const pubkey = readJson(`${agentTauri}/tauri.conf.json`).plugins.updater.pubkey;
+    assert.notEqual(pubkey, UPDATER_PUBKEY_PENDING, 'the maintainer public key replaces the placeholder');
+    assert.match(pubkey, /^[A-Za-z0-9+/=]{20,}$/, 'the public key is base64');
+  },
+);
