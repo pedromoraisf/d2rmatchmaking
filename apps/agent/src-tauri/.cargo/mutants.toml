@@ -1,0 +1,11 @@
+# cargo-mutants scope of the agent core (ADR 014, AGS-21; design.md § Mutation). The nightly `agent-mutation` job and the
+# Verifier run these modules: the rules a player sees. The read-only boundary is proved by clippy and cargo-deny instead.
+examine_globs = [
+  "core/src/pairing.rs",
+  "core/src/fusion.rs",
+  "core/src/stream.rs",
+  "core/src/updates.rs",
+  "core/src/observations.rs",
+  "core/src/api_client.rs",
+  "core/src/heartbeat.rs",
+]

@@ -418,6 +418,87 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-30
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-047 (assumed)
+
+- **Decision**: The FR-27 fixture is a synthetic image (`apps/agent/fixtures/automap-game-name.png`) drawn by a repository script with an openly licensed font — dark background, the game name and "Difficulty: Hell" in the automap's top-right text block — not a game screenshot.
+- **Reason**: agent-skeleton AGS-16: no screenshot with its owner's consent exists yet (Design Doc § testes) and the repository never publishes Blizzard assets (AGENTS.md "Never do"); F0 proves the pipeline, F2 adds real crops.
+- **Trade-off**: the fixture is easier than the real automap; F2's reference images replace it. Reversal is adding consented crops.
+- **Scope**: agent-skeleton / vision
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-048 (assumed)
+
+- **Decision**: The agent keeps its token only in the Windows Credential Manager, never in a file.
+- **Reason**: agent-skeleton AGS-06/AGS-09: NFR-06 asks for a revocable, restricted token and ADR 011 says nothing about storage; the OS store keeps it out of files, backups and logs.
+- **Trade-off**: none user-visible; reversal is a storage adapter.
+- **Scope**: agent-skeleton / pairing
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-049 (assumed)
+
+- **Decision**: The agent checks for updates at start, every 6 hours while running, and right after a `426`.
+- **Reason**: agent-skeleton AGS-24: ADR 015 says "at start and periodically" without a period; 6 h keeps GitHub requests low and the `426` path covers urgent minimum-version raises.
+- **Trade-off**: a release can take up to 6 h to reach a running agent unless the minimum is raised; reversal is a constant.
+- **Scope**: agent-skeleton / updater
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-050 (assumed)
+
+- **Decision**: While showing a pairing code, the agent claims every 2 seconds.
+- **Reason**: agent-skeleton AGS-06: AD-030 sets polling without a period; 2 s shows "Paired" within a few seconds and stays far below the code's 5 minutes.
+- **Trade-off**: up to 150 claims per code; reversal is a constant.
+- **Scope**: agent-skeleton / pairing
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-051 (assumed)
+
+- **Decision**: In F0 observations are retried in memory with the same idempotency key, 5 attempts in total with 1, 2, 4 and 8 s between them, then dropped and counted; no SQLite outbox.
+- **Reason**: agent-skeleton AGS-19: nothing captures live in F0, so the Design Doc's local outbox has no producer yet; it comes with F2's capture.
+- **Trade-off**: an observation can be lost if the agent quits mid-retry; reversal is adding the outbox in F2 as planned.
+- **Scope**: agent-skeleton / api_client
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-052 (assumed)
+
+- **Decision**: Fusion accepts a read only when its text, trimmed and lower-cased, equals the expected game name lower-cased, and sends that normalised text as the observation's value.
+- **Reason**: agent-skeleton AGS-17/18 (spec-reviewer finding 1): game names differ only by their number (`-12` vs `-13` is edit distance 1), so any tolerance can mark the wrong room Created (INV-06); exact match is the stricter option and agrees with the server (AD-034).
+- **Trade-off**: an OCR slip leaves the room Awaiting host; F2's fusion adds tolerance with the "same server as host" signal. Reversal is a fusion change.
+- **Scope**: agent-skeleton / fusion
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-053 (assumed)
+
+- **Decision**: `release-agent.yml` signs the installer through SignPath only when the SignPath secrets exist; otherwise it publishes it unsigned and the site shows the SmartScreen note.
+- **Reason**: agent-skeleton AGS-29/AGS-30: ADR 016 — "Until accepted, releases are unsigned and the site explains the warning."
+- **Trade-off**: players see SmartScreen until SignPath accepts the project; reversal is automatic once the secrets exist.
+- **Scope**: agent-skeleton / release
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-054 (assumed)
+
+- **Decision**: The agent window renders in pt-BR when the Windows display language starts with `pt`, in English otherwise; no switcher.
+- **Reason**: agent-skeleton AGS-32: same rule as the site (AD-040); NFR-12 and AGENTS.md rule 9.
+- **Trade-off**: none beyond AD-040's; reversal is a switcher.
+- **Scope**: agent-skeleton / ui
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-055 (assumed)
+
+- **Decision**: "Game open" means a process named `D2R.exe` is in the toolhelp snapshot (`CreateToolhelp32Snapshot`, `Process32FirstW`/`Process32NextW`); the agent never opens a handle to the game process, `OpenProcess` is a clippy error and `sysinfo` a `cargo deny` ban.
+- **Reason**: agent-skeleton AGS-10: ADR 010 allows OS signals only, and the Design Doc lists "abrir o processo do jogo" among what the agent never does; the toolhelp snapshot lists names without opening processes, while `sysinfo` opens process handles on Windows.
+- **Trade-off**: a renamed executable is not detected; reversal is adding window-title detection in F2.
+- **Scope**: agent-skeleton / sensors
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ### AD-056 (assumed)
 
 - **Decision**: `AgentPresenceChanged` and `AgentRevoked` are transient events on the in-memory bus, not outbox rows; their stream ids are `<lastOutboxId>.<k>` and the site re-reads presence on every (re)connect.
@@ -426,6 +507,40 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Scope**: api-web-skeleton / agents, platform
 - **Date**: 2026-10-30
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-057 (assumed)
+
+- **Decision**: In F0 the agent reads the reference image only in builds with the Cargo feature `fixture-read`, started with `--read-fixture <png>`; `release-agent.yml` never enables it, so released agents never read an image nor post an observation.
+- **Reason**: agent-skeleton AGS-33 (spec-reviewer finding 2): a release build posting `GAME_NAME_SEEN` from a fixture would mark real rooms Created with no game open; observability-e2e builds the agent with the feature to drive the end-to-end trace.
+- **Trade-off**: released F0 agents confirm no room; live capture is F2. Reversal is removing the feature gate when live capture lands.
+- **Scope**: agent-skeleton, observability-e2e / vision
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-058 (assumed)
+
+- **Decision**: After 2 consecutive codes expire unused the agent stops requesting codes and shows "Pairing paused" with "Get a new code"; a `429` on the code request waits `Retry-After`, or 60 minutes without it.
+- **Reason**: agent-skeleton AGS-34/35 (spec-reviewer finding 3): the API allows 10 code requests per IP per hour (AD-041); an unattended agent renewing every 5 minutes would reach 12 per hour on its own.
+- **Trade-off**: a player who leaves the agent open for more than 10 minutes clicks once to get a code. Reversal is a constant.
+- **Scope**: agent-skeleton / pairing
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-059 (assumed)
+
+- **Decision**: The agent reconnects a dropped stream after 1 s, doubling to at most 60 s, and resets the delay once a stream has stayed open 60 s.
+- **Reason**: agent-skeleton AGS-13 (spec-reviewer finding 11): ADR 007 sets no client delay; a bounded backoff keeps a down API on the free tier from being hammered.
+- **Trade-off**: up to 60 s to see a new room after a long outage; the assignment is re-fetched on reconnect. Reversal is a constant.
+- **Scope**: agent-skeleton / stream
+- **Date**: 2026-10-30
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-060 (assumed)
+
+- **Decision**: The agent-facing JSON Schemas in `packages/contracts/json-schema/` are emitted as draft-07 (`z.toJSONSchema(schema, { target: 'draft-7' })`), and a `claim-request.json` is added.
+- **Reason**: agent-skeleton design: `typify` (schemars) reads draft-07; the api-web-skeleton generator emits draft 2020-12, and the agent also sends the claim request.
+- **Trade-off**: the JSON Schema files use the older dialect; OpenAPI and AsyncAPI are unchanged. Reversal is the target option once `typify` reads 2020-12.
+- **Scope**: agent-skeleton, contracts
 
 ### AD-061 (assumed)
 
@@ -442,16 +557,152 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Reason**: the approved scenario needs a redelivery, and no product route can cause one: each staging `match-formed` call mints a new `matchId` (AD-033). Scenarios are never edited (ADR 023), so the stack gains the control, the smallest addition that drives the at-least-once path the relay already has.
 - **Trade-off**: one more test-only endpoint; it is unreachable from `render.ts` and the Pages Function like the other two. Reversal is a consumer-level proof instead of a scenario, which needs the maintainer.
 - **Scope**: api-web-skeleton / main, tests/acceptance
+
 - **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-063 (assumed)
+
+- **Decision**: agent-skeleton's T6 gate and its `## Checks` proof run `cargo deny --config apps/agent/src-tauri/deny.toml --manifest-path … check bans`; `--config` comes before `check`.
+- **Reason**: cargo-deny 0.20.2 rejects `--config` after `check bans` (`error: unexpected argument '--config' found`), reported by execute-batch-1. The same command with the flag first reports `error[banned]` for `sysinfo`. design.md § Read-only boundary keeps the old order as an illustration.
+- **Trade-off**: none; argument order only, the boundary checked is the same.
+- **Scope**: agent-skeleton / T6
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-064 (assumed)
+
+- **Decision**: `apps/agent/src-tauri/deny.toml` sets `[graph] targets = ["x86_64-pc-windows-msvc"]`, so cargo-deny judges the dependency graph the agent ships on.
+- **Reason**: the agent ships for Windows only; on Linux and macOS graphs `winapi` (banned) enters through `tao`/`gtk`, which never reach the Windows build. No ban was removed.
+- **Trade-off**: a banned crate pulled in only on a non-Windows target is not reported. This scopes a new sensor; the maintainer confirms it at the phase review. Reversal is deleting the filter and handling the Linux graph.
+- **Scope**: agent-skeleton / T5
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-065 (assumed)
+
+- **Decision**: the Tauri identifier is `com.d2rmm.agent`; `icons/icon.png` and `icon.ico` are plain placeholders; the window string "Requesting a pairing code…" (en, with a pt-BR translation) is the worker's wording.
+- **Reason**: none of the three is in the spec or design; T3 and T4 needed a value to build.
+- **Trade-off**: the identifier is hard to change after the first release (it keys the install and the Credential Manager entries). The maintainer reviews all three at the phase review.
+- **Scope**: agent-skeleton / T3, T4
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-066 (assumed)
+
+- **Decision**: the T7 test `windows features stay on the allow-list` fails when the app enables a `windows` feature outside the allow-list (subset check), not when a listed feature is missing.
+- **Reason**: the app has no `windows` dependency until T23/T24, so design.md's "exactly" fails on the repo today. The subset direction is the one that enforces the read-only boundary (ADR 010).
+- **Trade-off**: a missing allow-listed feature shows up as a build error, not a test failure. Reversal is equality once T24 lands.
+- **Scope**: agent-skeleton / T7
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-067 (assumed)
+
+- **Decision**: the agent's stream handler dispatches on the SSE `event:` name and parses the SSE `data:` as `RoomAssignedEventData` (the `data` member of `agent-event-room-assigned.json`), not the `{type, data}` envelope. The T12 fake API writes events the same way the real API does.
+- **Reason**: the merged API writes `event: <type>` and `data: <JSON of event.data>` (`apps/api/src/platform/stream-hub.ts:139`). AsyncAPI and design.md § Stream describe the envelope; the wire is the evidence.
+- **Trade-off**: the contract document and the wire differ until the docs are aligned (follow-up queued). Reversal is parsing the envelope if the API starts sending it.
+- **Scope**: agent-skeleton / T16
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-068 (assumed)
+
+- **Decision**: `core/src/stream.rs` reads SSE with its own line parser instead of `eventsource-stream` (design.md § Stream).
+- **Reason**: the 64 KiB line and event bounds (AGS-15) must be enforced before an event is assembled and dispatched; no new dependency.
+- **Trade-off**: about 100 lines of parser the crate would have provided, covered by the T16 tests. Reversal is swapping in the crate with a bounded byte stream.
+- **Scope**: agent-skeleton / T16
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-069 (assumed)
+
+- **Decision**: the F0 heartbeat body is `pcState: IDLE`, `window: ""` and no `assignment`; while a 426 is pending the window keeps "Update required" even after a failed update check; the stream checks the update gate before each request.
+- **Reason**: neither the spec nor the design fixes the F0 heartbeat values (presence detection beyond `D2R.exe` is F2); keeping "Update required" is the conservative reading of AGS-27.
+- **Trade-off**: the site shows the agent idle in F0. Reversal is filling the fields when F2 detection lands.
+- **Scope**: agent-skeleton / T15, T19
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-070 (assumed)
+
+- **Decision**: the built-in 1920×1080 automap game-name region is `{x:1380, y:40, w:520, h:80}` (`AUTOMAP_NAME_1080P` in `core/src/vision.rs`).
+- **Reason**: the design names the region but not its coordinates; the T24 synthetic fixture (AD-047) is drawn inside it.
+- **Trade-off**: a wrong region shows up only on a real game screen (F2 tuning). Reversal is a constant.
+- **Scope**: agent-skeleton / T17
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-071 (maintainer: Docker, 2026-10-31)
+
+- **Decision**: the local Windows-target check of the `#[cfg(windows)]` adapters (T22–T24) runs `cargo clippy … --target x86_64-pc-windows-msvc` inside a slim Linux container (`apps/agent/src-tauri/win-check.Dockerfile`, driven by `scripts/agent/win-check.mjs`): clang-cl, lld and llvm tools plus the Windows CRT/SDK headers splatted by `xwin`. Nothing is installed on the host. The CI `agent` job keeps compiling and testing natively on `windows-latest`; the container is only for development machines that are not Windows.
+- **Reason**: `reqwest` → `rustls` → `aws-lc-sys` compiles C for the Windows target, which needs Windows headers that macOS lacks (T22 blocked at 2/3). The maintainer chose Docker over a host install of `cargo-xwin` and over changing the TLS stack.
+- **Trade-off**: the first run builds the image and every dependency (cached afterwards on named volumes); `xwin` downloads the Microsoft CRT/SDK, which requires accepting Microsoft's licence. Accepted by the maintainer on 2026-10-31: "aceito a licença do Windows SDK".
+- **Scope**: agent-skeleton / T22–T24
+- **Date**: 2026-10-31
+- **Status**: active
+
+### AD-072 (maintainer, 2026-10-31)
+
+- **Decision**: the harness test `core has no tauri dependency` encodes AGS-01's "core declares no Cargo features" as two assertions on `core/Cargo.toml`: no `[features]` table and no dependency with `optional = true` (an optional dependency is an implicit feature). It replaces `/features\s*=/`, which also matched dependency feature selections the design requires (`reqwest` `json`/`stream`).
+- **Reason**: the old regex contradicted the approved design and turned `pnpm test:harness` red at T13; T13–T21 gates did not run the harness, so it surfaced at T22.
+- **Trade-off**: none against AGS-01; the optional-dependency check is new coverage. Each assertion gets a failing fixture under `scripts/test/fixtures/agent-rules/`.
+- **Scope**: agent-skeleton / harness
+- **Date**: 2026-10-31
+- **Status**: active (maintainer answered "Corrigir (Recomendado)")
+
+### AD-073 (assumed)
+
+- **Decision**: T27 splits the app entry: `src/app.rs` (compiled on every target) holds `run(adapters)` and the `get_new_code` handler over a one-method `CodeRequester` trait implemented for `core::runtime::Handle`; `src/main.rs` builds the real Windows adapters under `#[cfg(windows)]`, and under `#[cfg(not(windows))]` prints that the agent runs on Windows only and exits with code 1. T27's gate adds `node scripts/agent/win-check.mjs`.
+- **Reason**: the T27 gate runs clippy and nextest on macOS, but the adapters exist only under `#[cfg(windows)]`, and `Handle` has no seam for the fake the test names. Stub adapters on other OSes would pretend to read the game; a Windows-only exit is the conservative choice (the agent ships for Windows only).
+- **Trade-off**: the app cannot be launched on macOS or Linux for manual checks; observability-e2e drives the core and the fake API instead. Reversal is a non-Windows adapter set.
+- **Scope**: agent-skeleton / T27
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-074 (assumed)
+
+- **Decision**: T27 wiring details: the app crate supplies the production `Clock` and `IdGenerator` (`src/adapters/system.rs`: `SystemClock` over `chrono::Utc::now`, `RandomIds` over `uuid::Uuid::new_v4`); when `WindowsOcr::new()` fails (no en-US OCR engine) the app wires `NoOcrEngine`, whose every read returns `ReadError::EngineUnavailable`; `app.rs` compiles under `cfg(any(windows, test))` and its Tauri shell under `cfg(windows)`, so a non-Windows build has no dead code; adapters are built inside Tauri `setup` because the updater needs the `AppHandle`.
+- **Reason**: core injects clock and ids as ports (AGENTS.md rule 1) but had no production implementation; the missing-engine path is the spec'd error, and it reads nothing.
+- **Trade-off**: two more app dependencies (`chrono`, `uuid` v4). Reversal is moving the adapters.
+- **Scope**: agent-skeleton / T27
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-075 (assumed)
+
+- **Decision**: batch 5 details: the `agent-v*` tag ruleset the maintainer imports is the existing `.github/rulesets/agent-release-tags.json` (tasks.md's Execution Protocol names `agent-tags.json`; no duplicate was created); the SignPath job also reads repository variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG` and `SIGNPATH_SIGNING_POLICY_SLUG`; `@tauri-apps/api` (window events and `invoke`) and the devDependency `@tauri-apps/cli` (`tauri signer sign`, `tauri build`) are added; the T30 assertion "the build job never clobbers" is scoped to the `build` job and a new test asserts `--clobber` appears only in `sign` (design.md § Release).
+- **Reason**: each follows design.md; the ruleset with the same rules already existed.
+- **Trade-off**: the maintainer imports a file whose name differs from the plan's. Reversal is a rename.
+- **Scope**: agent-skeleton / T28–T31
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-076 (assumed)
+
+- **Decision**: every `cargo nextest run … -E 'test(<name>)'` proof in agent-skeleton's `## Checks` passes `--workspace`.
+- **Reason**: `apps/agent/src-tauri/Cargo.toml` is both the `d2rmm-agent` package and the workspace root (members `.`, `core`, `xtask`); without `--workspace` nextest selects only the root package, so the proofs of `core` and `xtask` tests ran 0 tests and failed (`check_proofs.py` attempt 1).
+- **Trade-off**: none; the filter still names one test per proof.
+- **Scope**: agent-skeleton / Checks
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-077 (assumed)
+
+- **Decision**: `game.running` is true when a snapshot process name equals `D2R.exe` ignoring ASCII case (`D2R.EXE` counts); any other name, including a prefix or suffix of it, does not.
+- **Reason**: AGS-10 says "a process named `D2R.exe`" without a case rule; Windows file names are case-insensitive, so the exact-case reading could miss the running game. Pinned by C59 after the Verifier's finding 8.
+- **Trade-off**: none for players. Reversal is a comparison change.
+- **Scope**: agent-skeleton / heartbeat
+- **Date**: 2026-11-01
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
 ## Handoff
 
-- **Feature**: api-web-skeleton (Design)
-- **Phase / Task**: F0 run; api-web-skeleton spec approved by the maintainer (3407f61); design drafted, design gate next
-- **Completed**: `spec.md` (AWS-01…AWS-40), `acceptance.feature`, AD-029…AD-043 (assumed)
+- **Feature**: agent-skeleton (Execute next)
+- **Phase / Task**: F0 run. harness-foundation and api-web-skeleton merged into `phase/F0`. agent-skeleton: spec, design and tasks approved (T1–T33), Execute not started
+- **Completed**: AD-029…AD-062 recorded
 - **In-progress**: none
-- **Next step**: re-run architecture-reviewer and security-reviewer (retry 1) on design.md revision 2; then Tasks. agent-skeleton spec drafted in its worktree, gate not run
-- **Blockers**: none. Execute needs Docker running and, for agent-skeleton, a Rust toolchain (not installed)
-- **Uncommitted files**: none after the blocker commit
-- **Branch**: feat/F0-api-web-skeleton
+- **Next step**: agent-skeleton Execute from T1 in worktree `.claude/worktrees/agent-skeleton` (phase/F0 merged in after api-web-skeleton's integration, AD-035). Then observability-e2e and load-baseline Specify
+- **Blockers**: none. Rust lives in `~/.cargo/bin`, which is not on the default shell PATH; Docker is running
+- **Uncommitted files**: none after the merge commit
+- **Branch**: feat/F0-agent-skeleton

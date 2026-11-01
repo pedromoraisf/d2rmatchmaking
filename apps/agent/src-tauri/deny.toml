@@ -1,0 +1,68 @@
+# cargo-deny policy of the agent (AGS-21, ADR 010). The read-only boundary is enforced here: a crate for memory access,
+# code injection, input synthesis, DirectX or window hooking, packet capture or process inspection fails the check,
+# and so does any wildcard version. Only the Windows graph is checked: the agent ships for Windows alone (PRD).
+
+[graph]
+targets = ["x86_64-pc-windows-msvc"]
+all-features = true
+
+[advisories]
+# RustSec advisories stop the build: a vulnerable or yanked crate is never shipped.
+yanked = "deny"
+
+[licenses]
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "Unicode-3.0",
+  "MPL-2.0",
+  "CC0-1.0",
+]
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+deny = [
+  # process inspection (sysinfo lists processes with handles; the agent uses toolhelp only, AD-055)
+  { crate = "sysinfo" },
+  { crate = "process-memory" },
+  { crate = "read-process-memory" },
+  { crate = "proc-maps" },
+  { crate = "memprocfs" },
+  { crate = "ntapi" },
+  # code injection and function hooking
+  { crate = "dll-syringe" },
+  { crate = "retour" },
+  { crate = "detour" },
+  { crate = "minhook" },
+  # input synthesis
+  { crate = "enigo" },
+  { crate = "rdev" },
+  { crate = "inputbot" },
+  { crate = "device_query" },
+  { crate = "willhook" },
+  { crate = "rustautogui" },
+  { crate = "autopilot" },
+  { crate = "mouse-rs" },
+  # packet capture
+  { crate = "pcap" },
+  { crate = "pnet" },
+  { crate = "windivert" },
+  # raw Win32 bindings (memory, hooks and input are reached through windows features the app does not enable)
+  { crate = "winapi" },
+  # Tauri plugins that would open a process, the file system or the network from the window (ADR 010, FR-29)
+  { crate = "tauri-plugin-shell" },
+  { crate = "tauri-plugin-fs" },
+  { crate = "tauri-plugin-http" },
+  { crate = "tauri-plugin-global-shortcut" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

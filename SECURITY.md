@@ -18,6 +18,14 @@ The agent is the part of this project players install, so its limits are part of
 
 Any change that weakens one of these is a security bug.
 
+## Accepted residual risk: the agent's token
+
+The agent keeps its token in the Windows Credential Manager (service `d2rmm-agent`, user `agent-token`), never in a file
+(AD-048). Any process that runs as the same Windows user can read that entry. A local program that the player runs can
+therefore take the token. The token is revocable and scoped to heartbeat, observations and push (ADR 011, NFR-06), so a
+stolen token ends when the player revokes it from the site. The agent does not defend against code that runs as the
+same user.
+
 ## Supported versions
 
 Only the latest agent release receives fixes; the API rejects agents below the minimum version with `426`.

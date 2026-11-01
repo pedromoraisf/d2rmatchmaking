@@ -1,0 +1,18 @@
+# Clippy policy of the agent (AGS-22, ADR 010). `cargo clippy -- -D warnings` fails on any use of the types and methods
+# below, so the agent never starts a process, reads or writes another process's memory, sends input or disables TLS
+# checks. The rules add to the default lints and never relax them.
+
+disallowed-types = [
+  { path = "std::process::Command", reason = "the agent starts no process; only the updater installs (AGS-22)" },
+  { path = "tokio::process::Command", reason = "the agent starts no process (AGS-22)" },
+]
+
+disallowed-methods = [
+  { path = "windows::Win32::System::Diagnostics::ToolHelp::Toolhelp32ReadProcessMemory", reason = "reads another process's memory (ADR 010)" },
+  { path = "windows::Win32::System::Threading::OpenProcess", reason = "opens process handles; the agent lists names only (AD-055)" },
+  { path = "windows::Win32::System::Diagnostics::Debug::ReadProcessMemory", reason = "reads another process's memory (ADR 010)" },
+  { path = "windows::Win32::System::Diagnostics::Debug::WriteProcessMemory", reason = "writes another process's memory (ADR 010)" },
+  { path = "windows::Win32::UI::Input::KeyboardAndMouse::SendInput", reason = "sends input to the game (ADR 010)" },
+  { path = "reqwest::ClientBuilder::danger_accept_invalid_certs", reason = "TLS certificate checks stay on (NFR-06)" },
+  { path = "reqwest::ClientBuilder::danger_accept_invalid_hostnames", reason = "TLS hostname checks stay on (NFR-06)" },
+]

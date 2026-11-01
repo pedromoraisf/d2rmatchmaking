@@ -1,0 +1,221 @@
+# Agent release build (ADR 015, AGS-28, AGS-33). Three triggers: release-please.yml calls it with the tag it created,
+# a maintainer's `agent-v*` tag push starts it, and workflow_dispatch re-runs a failed release. The tag is resolved and
+# validated once, in the first step, and reaches every later step only through `env:`. See docs/engineering/releases.md.
+name: release-agent
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'agent-vX.Y.Z tag that release-please created'
+        type: string
+        required: true
+  push:
+    tags: ['agent-v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'agent-vX.Y.Z tag to build again'
+        type: string
+        required: false
+
+concurrency:
+  group: release-agent-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build installer
+    runs-on: windows-latest
+    timeout-minutes: 45
+    environment: release
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      unsigned-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+    steps:
+      - name: Resolve and validate the tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ inputs.tag || github.ref_name }}
+        shell: bash
+        run: |
+          if ! printf '%s' "$INPUT_TAG" | grep -Eq '^agent-v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::not an agent release tag: $INPUT_TAG"
+            exit 1
+          fi
+          echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Assert the tag is on main
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        shell: bash
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::$TAG does not point at a commit on main"
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+
+      # Install scripts stay off while the signing key is in scope (design.md § Signing key).
+      - name: Install the workspace
+        shell: bash
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build the UI (Tauri reads frontendDist)
+        shell: bash
+        run: pnpm --filter @d2rmm/agent build
+
+      - name: Refuse a build that enables fixture-read (AGS-33)
+        shell: bash
+        run: |
+          tree="$(cargo tree --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent -e features)"
+          if grep -q 'fixture-read' <<< "$tree"; then
+            echo "::error::fixture-read is enabled in the release build"
+            exit 1
+          fi
+
+      - name: Build the installer with tauri-action
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          D2RMM_API_BASE: ${{ vars.API_BASE_URL }}
+        with:
+          projectPath: apps/agent
+          tagName: ${{ steps.tag.outputs.tag }}
+          releaseDraft: false
+          includeUpdaterJson: true
+          args: --ci -- --locked
+
+      - name: 'Smoke check: the release binary rejects --read-fixture (exit 2)'
+        shell: bash
+        run: |
+          set +e
+          apps/agent/src-tauri/target/release/d2rmm-agent.exe --read-fixture x
+          code=$?
+          if [ "$code" -ne 2 ]; then
+            echo "::error::the release binary answered $code to --read-fixture, expected 2"
+            exit 1
+          fi
+
+      - name: Publish the fixed-name installer and SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        shell: bash
+        run: |
+          installer="$(ls apps/agent/src-tauri/target/release/bundle/nsis/*-setup.exe)"
+          versioned="$(basename "$installer")"
+          cp "$installer" "$versioned"
+          cp "$installer" D2RMatchMaking-setup.exe
+          sha256sum "$versioned" D2RMatchMaking-setup.exe > SHA256SUMS
+          gh release upload "$TAG" D2RMatchMaking-setup.exe SHA256SUMS
+
+      - name: Keep the unsigned installer for SignPath
+        id: unsigned
+        if: vars.SIGNPATH_ENABLED == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: unsigned-installer
+          path: apps/agent/src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 1
+
+  sign:
+    # Opt-in SignPath signing (AD-053, AGS-29). Runs only when the repository variable SIGNPATH_ENABLED is 'true' (secrets
+    # cannot be read in `if:`). SignPath signs the installer; the updater signature is redone for the signed file and
+    # latest.json takes the new Windows signature. The release assets are replaced here, the only --clobber in this file.
+    name: sign installer
+    needs: build
+    if: vars.SIGNPATH_ENABLED == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: Resolve and validate the tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ needs.build.outputs.tag }}
+        shell: bash
+        run: |
+          if ! printf '%s' "$INPUT_TAG" | grep -Eq '^agent-v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::not an agent release tag: $INPUT_TAG"
+            exit 1
+          fi
+          echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install the workspace
+        shell: bash
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Submit the installer to SignPath
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ needs.build.outputs.unsigned-artifact-id }}
+          output-artifact-directory: signed
+
+      - name: Sign the signed installer for the updater
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          installer="$(ls "$PWD"/signed/*-setup.exe)"
+          pnpm --filter @d2rmm/agent exec tauri signer sign "$installer"
+          test -s "$installer.sig"
+
+      - name: Rewrite latest.json with the new Windows signature
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        shell: bash
+        run: |
+          installer="$(ls "$PWD"/signed/*-setup.exe)"
+          gh release download "$TAG" --pattern latest.json --dir .
+          node scripts/agent/latest-json.mjs --latest latest.json --signature "$installer.sig" --out latest.json
+
+      - name: Replace the release assets with the signed ones
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        shell: bash
+        run: |
+          installer="$(ls "$PWD"/signed/*-setup.exe)"
+          cp "$installer" D2RMatchMaking-setup.exe
+          sha256sum "$(basename "$installer")" D2RMatchMaking-setup.exe > SHA256SUMS
+          gh release upload "$TAG" "$installer" "$installer.sig" D2RMatchMaking-setup.exe SHA256SUMS latest.json --clobber

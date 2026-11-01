@@ -66,8 +66,9 @@ export default tseslint.config(
     },
   },
   {
-    // The site renders translated strings only: a literal in JSX is a missing i18n key (NFR-12, AWS-37).
-    files: ['apps/web/src/**/*.tsx'],
+    // The site and the agent window render translated strings only: a literal in JSX is a missing i18n key
+    // (NFR-12, AWS-37, AGS-31).
+    files: ['apps/web/src/**/*.tsx', 'apps/agent/src/**/*.tsx'],
     plugins: { i18next },
     rules: { 'i18next/no-literal-string': ['error', { mode: 'jsx-only' }] },
   },

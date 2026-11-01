@@ -12,6 +12,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <header>
         <h1>{t('app.title')}</h1>
         <a href={AGENT_DOWNLOAD_URL}>{t('app.downloadAgent')}</a>
+        <span>{t('app.smartScreenNote')}</span>
       </header>
       <main>{children}</main>
       <footer>

@@ -1,0 +1,10 @@
+[package]
+name = "d2rmm-agent-core"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+
+[features]
+fast = []

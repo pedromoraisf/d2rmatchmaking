@@ -4,7 +4,8 @@
     "loading": "Loading…",
     "error": "Something went wrong. Try again.",
     "notice": "D2R Match Making is a community project and is not affiliated with Blizzard Entertainment.",
-    "downloadAgent": "Download the agent"
+    "downloadAgent": "Download the agent",
+    "smartScreenNote": "The installer is not code-signed yet, so Windows SmartScreen may warn you before it runs."
   },
   "signIn": {
     "heading": "Sign in with a test account",

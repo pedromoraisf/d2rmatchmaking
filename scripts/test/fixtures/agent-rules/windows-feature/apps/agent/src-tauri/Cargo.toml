@@ -1,0 +1,8 @@
+# Fixture for the windows feature allow-list rule: Win32_System_Diagnostics_Debug is not on the list.
+[package]
+name = "d2rmm-agent"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Diagnostics_Debug"] }

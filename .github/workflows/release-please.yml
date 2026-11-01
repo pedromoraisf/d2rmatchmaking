@@ -1,0 +1,59 @@
+# Release Please (ADR 015, AGS-28). Keeps one release PR for apps/agent (release-please-config.json) and, when the agent
+# was released, calls release-agent.yml with the tag release-please created. A tag pushed with GITHUB_TOKEN does not start
+# a `push: tags` workflow, so the call is the release path; the maintainer's own agent-v* tags still start it.
+# Runbook and fallback: docs/engineering/releases.md.
+name: release-please
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    name: release-please
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write # dispatches ci.yml on the release PR branch
+    outputs:
+      agent_release_created: ${{ steps.release.outputs['apps/agent--release_created'] }}
+      agent_tag: ${{ steps.release.outputs['apps/agent--tag_name'] }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+      - name: Run CI on the release PR
+        # A PR opened or updated with GITHUB_TOKEN gets no pull_request run, so the required `verify` check would never
+        # appear on its head. workflow_dispatch is the one event GITHUB_TOKEN may start (ADR 015).
+        if: steps.release.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PRS: ${{ steps.release.outputs.prs }}
+        run: |
+          printf '%s' "$PRS" | jq -r '.[].headBranchName' | while read -r branch; do
+            gh workflow run ci.yml --ref "$branch"
+          done
+
+  release-agent:
+    # Runs only when release-please released the agent. The calling job holds the write permission the called workflow
+    # needs; the release environment's secrets are read only inside release-agent.yml (AGS-28, AGS-33).
+    name: release-agent
+    needs: release-please
+    if: needs.release-please.outputs.agent_release_created == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release-agent.yml
+    with:
+      tag: ${{ needs.release-please.outputs.agent_tag }}
+    secrets: inherit

@@ -1,6 +1,6 @@
 {
   "name": "@d2rmm/contracts",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Generated OpenAPI and AsyncAPI documents for the D2R Match Making API and events (ADR 020).",
   "license": "MIT",

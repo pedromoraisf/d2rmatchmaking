@@ -35,6 +35,14 @@ describe('shared ESLint preset rules', () => {
     expect(ruleIds).toStrictEqual(['i18next/no-literal-string']);
   });
 
+  it('reports a literal string in an agent component', async () => {
+    const ruleIds = await ruleIdsFor(
+      'apps/agent/src/views/x.tsx',
+      'export const View = () => <p>Hello</p>;\n',
+    );
+    expect(ruleIds).toStrictEqual(['i18next/no-literal-string']);
+  });
+
   it('bans Math.random in the API outside the domain', async () => {
     const ruleIds = await ruleIdsFor('apps/api/src/platform/x.ts', 'export const roll = Math.random();\n');
     expect(ruleIds).toStrictEqual(['no-restricted-properties']);
