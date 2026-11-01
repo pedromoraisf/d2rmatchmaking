@@ -749,8 +749,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Tests `latest_assignment_wins`, `clear_empties_the_assignment`, `receive_reports_whether_it_replaced`
-- [ ] Rust domain gate passes
+- [x] Tests `latest_assignment_wins`, `clear_empties_the_assignment`, `receive_reports_whether_it_replaced`
+- [x] Rust domain gate passes
 
 **Tests**: unit
 **Gate**: Rust domain
