@@ -230,7 +230,7 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 ### T6: Architecture test, manifest rules
 
-**What**: `scripts/test/agent-architecture.test.mjs` reads each crate's `Cargo.toml` and enforces the manifest half of the layer table, with one failing fixture per rule under `scripts/test/fixtures/agent-architecture/<rule>/`. Dependency names match by family prefix (`windows*`, `tauri*`, `opentelemetry*`). Rules that hold today: the domain depends only on `std`, `thiserror`, `chrono`, `uuid`; `core` does not depend on `tauri*`, `keyring*`, `windows*`; the adapters crate (when it exists) never depends on `tauri*`, `keyring*`, `windows*`; adapters and the app crate never depend on each other. The positive rule `core depends on the domain` is switched on in T34, when core first uses a domain type; the `reqwest` rules for core and the app crate arrive in T28 and T30. Rules are only added, never relaxed.
+**What**: `scripts/test/agent-architecture.test.mjs` reads each crate's `Cargo.toml` and enforces the manifest half of the layer table, with one failing fixture per rule under `scripts/test/fixtures/agent-architecture/<rule>/`. Dependency names match by family prefix (`windows*`, `tauri*`, `opentelemetry*`). Rules that hold today: the domain depends only on `std`, `thiserror`, `chrono`, `uuid`; `core` does not depend on `tauri*`, `keyring*`, `windows*`; the adapters crate (when it exists) never depends on `tauri*`, `keyring*`, `windows*`; the adapters crate never depends on the app crate (the app crate depends on adapters, T30). The positive rule `core depends on the domain` is switched on in T34, when core first uses a domain type; the `reqwest` rules for core and the app crate arrive in T28 and T30. Rules are only added, never relaxed.
 **Where**: `scripts/test/agent-architecture.test.mjs`
 **Depends on**: T5
 **Reuses**: `scripts/test/agent-source-rules.test.mjs` helpers, `scripts/test/arch-fixtures.test.mjs`
@@ -238,7 +238,7 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [x] Tests `domain depends only on std thiserror chrono and uuid`, `core depends on the domain and not on reqwest tauri keyring or windows` (the `depends on the domain` part is switched on in T34 and the `reqwest` part in T28), `adapters never depend on tauri keyring or windows`, `adapters and the app crate do not depend on each other`
+- [x] Tests `domain depends only on std thiserror chrono and uuid`, `core depends on the domain and not on reqwest tauri keyring or windows` (the `depends on the domain` part is switched on in T34 and the `reqwest` part in T28), `adapters never depend on tauri keyring or windows`, `adapters never depend on the app crate`
 - [x] Test `each architecture rule fails on its fixture` runs every fixture of this task and expects the named rule to fail
 - [x] Harness gate passes
 
@@ -615,7 +615,7 @@ T53 → T54 → T55 → T56 → T57 → T58
 **Done when**:
 
 - [ ] Test `adapters_crate_builds`
-- [ ] Architecture rules `adapters never depend on tauri keyring or windows` and `adapters and the app crate do not depend on each other` pass on the real crate
+- [ ] Architecture rules `adapters never depend on tauri keyring or windows` and `adapters never depend on the app crate` pass on the real crate
 - [ ] Rust workspace gate passes
 
 **Tests**: unit
@@ -1328,6 +1328,11 @@ Proof: `cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml -
 ## Handoff
 
 The feature's live state, written as it happens - a compaction gives no warning.
+
+**Batch 2 (execute-batch-2), blocked at T7 by the retry budget of the implementer session**
+
+- T6 done: commit `356d5a6` (`feat(agent): guard the crate manifests of the agent layers`), gate `pnpm test:harness` passed on attempt 1.
+- T7 code and six source fixtures exist uncommitted; resume by running the T7 gate alone through `attempt.mjs`, then commit. T8 to T11 not started. Plan note resolved: T6 and T30 now say the adapters crate never depends on the app crate (one direction), tasks gate green.
 
 **Settled mid-build:** none
 **Dispatched:** none
