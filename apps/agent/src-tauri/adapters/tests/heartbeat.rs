@@ -12,9 +12,9 @@ use support::harness::{Harness, advance, count, until};
 
 fn spawn_heartbeat(h: &Harness) {
     tokio::spawn(beat::run(
-        Arc::clone(&h.context.device),
-        h.context.heartbeat_ports(),
-        h.context.version.clone(),
+        Arc::clone(&h.device),
+        h.groups().heartbeat,
+        h.config().version,
     ));
 }
 

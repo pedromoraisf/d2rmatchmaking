@@ -24,10 +24,7 @@ fn assigned(game_name: &str, room: &str) -> Value {
 }
 
 fn spawn_stream(h: &Harness) {
-    tokio::spawn(follow_stream::run(
-        Arc::clone(&h.context.device),
-        h.context.stream_ports(),
-    ));
+    tokio::spawn(follow_stream::run(Arc::clone(&h.device), h.groups().stream));
 }
 
 /// The expected game name of the current assignment.

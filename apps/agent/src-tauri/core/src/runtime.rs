@@ -1,6 +1,6 @@
-//! The runtime (design.md § Runtime, state and telemetry; AGS-09, AGS-12). It starts the loops on the caller's tokio
-//! runtime, publishes every state change through the state sink and takes the two commands the app sends: "Get a new
-//! code", and (fixture builds only, AD-057) one read of a frame.
+//! The runtime (design.md § Runtime, state and telemetry; AGS-09, AGS-12). It builds the device state, starts the loops on
+//! the caller's tokio runtime with one port group each, publishes every state change through the state sink and takes the
+//! two commands the app sends: "Get a new code", and (fixture builds only, AD-057) one read of a frame.
 
 use std::sync::Arc;
 
@@ -8,11 +8,12 @@ use d2rmm_agent_domain::room_assignment::Assignment;
 use tokio::sync::{mpsc, watch};
 
 use crate::config::Config;
-use crate::context::{Context, Groups};
+use crate::device_state::DeviceState;
 use crate::fusion::fuse;
+use crate::groups::{Groups, ReadPorts};
 use crate::observations;
 use crate::pair::{self, Command};
-use crate::ports::{ApiGateway, Rgba, StateSink};
+use crate::ports::{ApiGateway, Rgba, StateSink, TokenStore};
 use crate::{beat, check_update, follow_stream, read_frame};
 
 const COMMAND_BUFFER: usize = 8;
@@ -21,13 +22,17 @@ const COMMAND_BUFFER: usize = 8;
 pub struct Runtime;
 
 impl Runtime {
-    /// Builds the context from the five port groups and starts pairing, heartbeat, stream and update loops.
+    /// Builds the device state and starts pairing, heartbeat, stream and update loops, each on its own port group.
     pub fn start<G: ApiGateway + Send + Sync + 'static>(
         config: &Config,
         sink: Arc<dyn StateSink + Send + Sync>,
         groups: Groups<G>,
     ) -> Handle<G> {
-        spawn(Context::from_groups(config.version.clone(), sink, groups))
+        spawn(
+            config.version.clone(),
+            Arc::new(DeviceState::new(sink)),
+            groups,
+        )
     }
 
     /// Like `start`, and also returns the probe the tests read and drive the agent with. The app never calls it: the probe
@@ -36,36 +41,42 @@ impl Runtime {
         config: &Config,
         sink: Arc<dyn StateSink + Send + Sync>,
         groups: Groups<G>,
-    ) -> (Handle<G>, Probe<G>) {
-        let ctx = Context::from_groups(config.version.clone(), sink, groups);
-        let probe = Probe::over(Arc::clone(&ctx));
-        (spawn(ctx), probe)
+    ) -> (Handle<G>, Probe) {
+        let device = Arc::new(DeviceState::new(sink));
+        let probe = Probe::over(Arc::clone(&device), Arc::clone(&groups.pairing.tokens));
+        (spawn(config.version.clone(), device, groups), probe)
     }
 }
 
-/// Starts the four loops on a built context and returns the handle that keeps their command channel.
-fn spawn<G: ApiGateway + Send + Sync + 'static>(ctx: Arc<Context<G>>) -> Handle<G> {
+/// Starts the four loops on a built device state and returns the handle that keeps their command channel.
+fn spawn<G: ApiGateway + Send + Sync + 'static>(
+    version: String,
+    device: Arc<DeviceState>,
+    groups: Groups<G>,
+) -> Handle<G> {
+    let Groups {
+        pairing,
+        heartbeat,
+        stream,
+        update,
+        read,
+    } = groups;
     let (commands, receiver) = mpsc::channel(COMMAND_BUFFER);
-    tokio::spawn(pair::run(Arc::clone(&ctx), receiver));
-    tokio::spawn(beat::run(
-        Arc::clone(&ctx.device),
-        ctx.heartbeat_ports(),
-        ctx.version.clone(),
-    ));
-    tokio::spawn(follow_stream::run(
-        Arc::clone(&ctx.device),
-        ctx.stream_ports(),
-    ));
-    tokio::spawn(check_update::run(
-        Arc::clone(&ctx.device),
-        ctx.update_ports(),
-    ));
-    Handle { ctx, commands }
+    tokio::spawn(pair::run(Arc::clone(&device), pairing, receiver));
+    tokio::spawn(beat::run(Arc::clone(&device), heartbeat, version));
+    tokio::spawn(follow_stream::run(Arc::clone(&device), stream));
+    tokio::spawn(check_update::run(Arc::clone(&device), update));
+    Handle {
+        device,
+        read: Arc::new(read),
+        commands,
+    }
 }
 
-/// What the app holds of a running agent: the commands it may send.
+/// What the app holds of a running agent: the commands it may send, and the ports one frame read needs.
 pub struct Handle<G> {
-    ctx: Arc<Context<G>>,
+    device: Arc<DeviceState>,
+    read: Arc<ReadPorts<G>>,
     commands: mpsc::Sender<Command>,
 }
 
@@ -78,18 +89,19 @@ impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
     /// Reads the game name from one frame and posts an observation when it names the held room. Without a held assignment
     /// nothing happens. Only the app's fixture build calls this (AD-057).
     pub fn read_once(&self, frame: Rgba) {
-        let assignment = self.ctx.device.assignment.borrow().current().cloned();
+        let assignment = self.device.assignment.borrow().current().cloned();
         let Some(assignment) = assignment else {
             return;
         };
-        let ctx = Arc::clone(&self.ctx);
+        let device = Arc::clone(&self.device);
+        let ports = Arc::clone(&self.read);
         tokio::spawn(async move {
-            let Ok(read) = read_frame::read_game_name(&frame, ctx.reader.as_ref()) else {
+            let Ok(text) = read_frame::read_game_name(&frame, ports.reader.as_ref()) else {
                 return;
             };
-            let now = ctx.clock.now_utc();
-            if let Some(fusion) = fuse(&read, &assignment, now, ctx.ids.as_ref()) {
-                observations::send(&ctx, &fusion.observation).await;
+            let now = ports.clock.now_utc();
+            if let Some(fusion) = fuse(&text, &assignment, now, ports.ids.as_ref()) {
+                observations::send(&device, &ports, &fusion.observation).await;
             }
         });
     }
@@ -97,115 +109,71 @@ impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
 
 /// The test probe: reads what the agent holds and drives its state directly, without a port. The loops are unchanged;
 /// the probe only moves the same signals the loops read (the paired flag, the assignment, the 401 and 426 handlers).
-pub struct Probe<G> {
+pub struct Probe {
     /// `true` while a 426 is pending (the update gate of AGS-27).
     pub update_required: watch::Receiver<bool>,
-    ctx: Arc<Context<G>>,
+    device: Arc<DeviceState>,
+    tokens: Arc<dyn TokenStore + Send + Sync>,
 }
 
-impl<G> Probe<G> {
-    /// A probe over a context. The caller starts the loops it needs on that context; `start_with_probe` starts all four.
-    pub fn over(ctx: Arc<Context<G>>) -> Self {
+impl Probe {
+    /// A probe over a device state and its token store. The caller starts the loops it needs; `start_with_probe` starts all
+    /// four.
+    pub fn over(device: Arc<DeviceState>, tokens: Arc<dyn TokenStore + Send + Sync>) -> Self {
         Self {
-            update_required: ctx.device.update_required.subscribe(),
-            ctx,
+            update_required: device.update_required.subscribe(),
+            device,
+            tokens,
         }
     }
 
     /// Observations dropped after their retries ran out or were overtaken (AD-051).
     pub fn dropped_observations(&self) -> u64 {
-        self.ctx.device.dropped_observations()
+        self.device.dropped_observations()
     }
 
     /// The assignment the stream loop last set, if any.
     pub fn assignment(&self) -> Option<Assignment> {
-        self.ctx.device.assignment.borrow().current().cloned()
+        self.device.assignment.borrow().current().cloned()
     }
 
     /// Sets the paired flag the pairing and API loops read.
     pub fn set_paired(&self, paired: bool) {
-        self.ctx.device.set_paired(paired);
+        self.device.set_paired(paired);
     }
 
     /// Sets the assignment the observation path reads.
     pub fn set_assignment(&self, assignment: Option<Assignment>) {
-        self.ctx.device.replace_assignment(assignment);
+        self.device.replace_assignment(assignment);
     }
 
     /// A 401 on any request, as the API would send it.
     pub fn on_unauthorized(&self) {
-        self.ctx.on_unauthorized();
+        self.device.on_unauthorized(self.tokens.as_ref());
     }
 
     /// A 426 on any request, as the API would send it.
     pub fn on_upgrade_required(&self) {
-        self.ctx.on_upgrade_required();
+        self.device.on_upgrade_required(self.tokens.as_ref());
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::future::Future;
     use std::num::NonZeroU64;
-    use std::pin::Pin;
     use std::sync::Arc;
-
-    use chrono::{DateTime, Utc};
 
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
 
     use super::Probe;
-    use crate::context::{
-        Context, Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
+    use crate::device_state::DeviceState;
+    use crate::fakes::{FakeApiGateway, MemoryTokens, NoProcesses, NoText, NoUpdates, NullSink};
+    use crate::groups::{
+        Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
     };
-    use d2rmm_agent_domain::vision::{ReadText, Region};
+    use crate::ports::{SequentialIds, TokenStore, WallClock};
 
-    use crate::check_update::Updater;
-    use crate::fakes::FakeApiGateway;
-    use crate::ports::{
-        ProcessSource, ReadError, Rgba, SequentialIds, StateSink, StoreError, TextReader,
-        TokenStore, UpdateOutcome, WallClock,
-    };
-    use crate::secret::Secret;
-    use crate::view::AgentView;
-
-    struct NoTokens;
-
-    impl TokenStore for NoTokens {
-        fn load(&self) -> Option<Secret> {
-            None
-        }
-
-        fn save(&self, _token: &Secret) -> Result<(), StoreError> {
-            Ok(())
-        }
-
-        fn delete(&self) {}
-    }
-
-    struct NoProcesses;
-
-    impl ProcessSource for NoProcesses {
-        fn names(&self) -> Vec<String> {
-            Vec::new()
-        }
-    }
-
-    struct NoText;
-
-    impl TextReader for NoText {
-        fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
-            Err(ReadError::EngineUnavailable)
-        }
-    }
-
-    struct NoUpdates;
-
-    impl Updater for NoUpdates {
-        fn check_boxed(&self) -> Pin<Box<dyn Future<Output = UpdateOutcome> + Send + '_>> {
-            Box::pin(async { UpdateOutcome::UpToDate })
-        }
-    }
+    use chrono::{DateTime, Utc};
 
     struct FixedClock;
 
@@ -213,12 +181,6 @@ mod tests {
         fn now_utc(&self) -> DateTime<Utc> {
             "2026-10-31T10:00:00Z".parse().expect("a valid instant")
         }
-    }
-
-    struct NullSink;
-
-    impl StateSink for NullSink {
-        fn publish(&self, _view: AgentView) {}
     }
 
     fn assignment() -> Assignment {
@@ -232,43 +194,8 @@ mod tests {
 
     #[test]
     fn probe_reads_the_agent_state_without_ports() {
-        let config = crate::config::Config {
-            version: "0.0.1".to_string(),
-        };
-        let gateway = Arc::new(FakeApiGateway::new());
-        let tokens: Arc<dyn TokenStore + Send + Sync> = Arc::new(NoTokens);
-        let clock: Arc<dyn WallClock + Send + Sync> = Arc::new(FixedClock);
-        let groups = Groups {
-            pairing: PairingPorts {
-                gateway: Arc::clone(&gateway),
-                tokens: Arc::clone(&tokens),
-                clock: Arc::clone(&clock),
-            },
-            heartbeat: HeartbeatPorts {
-                gateway: Arc::clone(&gateway),
-                tokens: Arc::clone(&tokens),
-                processes: Arc::new(NoProcesses),
-            },
-            stream: StreamPorts {
-                gateway: Arc::clone(&gateway),
-                tokens: Arc::clone(&tokens),
-            },
-            update: UpdatePorts {
-                updater: Arc::new(NoUpdates),
-            },
-            read: ReadPorts {
-                reader: Arc::new(NoText),
-                ids: Arc::new(SequentialIds::new()),
-                clock,
-                gateway,
-                tokens,
-            },
-        };
-        let probe: Probe<FakeApiGateway> = Probe::over(Context::from_groups(
-            config.version.clone(),
-            Arc::new(NullSink),
-            groups,
-        ));
+        let device = Arc::new(DeviceState::new(Arc::new(NullSink)));
+        let probe = Probe::over(device, Arc::new(MemoryTokens::default()));
 
         assert!(
             !*probe.update_required.borrow(),
@@ -286,5 +213,44 @@ mod tests {
         probe.on_unauthorized();
         assert!(probe.assignment().is_none(), "a 401 clears the assignment");
         probe.set_paired(true);
+    }
+
+    #[test]
+    fn groups_build_a_device() {
+        let gateway = Arc::new(FakeApiGateway::new());
+        let tokens = Arc::new(MemoryTokens::default());
+        let clock: Arc<dyn WallClock + Send + Sync> = Arc::new(FixedClock);
+        let _groups = Groups {
+            pairing: PairingPorts {
+                gateway: Arc::clone(&gateway),
+                tokens: tokens.clone(),
+                clock: Arc::clone(&clock),
+            },
+            heartbeat: HeartbeatPorts {
+                gateway: Arc::clone(&gateway),
+                tokens: tokens.clone(),
+                processes: Arc::new(NoProcesses),
+            },
+            stream: StreamPorts {
+                gateway: Arc::clone(&gateway),
+                tokens: tokens.clone(),
+            },
+            update: UpdatePorts {
+                updater: Arc::new(NoUpdates),
+            },
+            read: ReadPorts {
+                reader: Arc::new(NoText),
+                ids: Arc::new(SequentialIds::new()),
+                clock,
+                gateway: Arc::clone(&gateway),
+                tokens: tokens.clone(),
+            },
+        };
+        let device = DeviceState::new(Arc::new(NullSink));
+
+        assert_eq!(device.epoch(), 0);
+        assert!(!device.is_paired(), "a device starts unpaired");
+        assert!(gateway.calls().is_empty(), "the gateway port is wired");
+        assert!(tokens.load().is_none(), "the token store is shared");
     }
 }

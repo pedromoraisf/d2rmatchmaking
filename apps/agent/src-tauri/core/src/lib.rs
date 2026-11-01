@@ -4,11 +4,11 @@
 pub mod beat;
 pub mod check_update;
 pub mod config;
-pub mod context;
 pub mod device_state;
 pub mod fakes;
 pub mod follow_stream;
 pub mod fusion;
+pub mod groups;
 pub mod hub;
 pub mod messages;
 pub mod observations;

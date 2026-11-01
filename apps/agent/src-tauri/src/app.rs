@@ -51,7 +51,7 @@ mod shell {
     use d2rmm_agent_adapters::http::api_client::ApiClient;
     use d2rmm_agent_adapters::http::gateway::HttpGateway;
     use d2rmm_agent_adapters::telemetry::{self, Mode};
-    use d2rmm_agent_core::context::Groups;
+    use d2rmm_agent_core::groups::Groups;
     use d2rmm_agent_core::ports::StateSink;
     use d2rmm_agent_core::runtime::{Handle, Runtime};
     use d2rmm_agent_core::view::AgentView;

@@ -16,7 +16,7 @@ use std::sync::Arc;
 #[cfg(windows)]
 use d2rmm_agent_adapters::http::gateway::HttpGateway;
 #[cfg(windows)]
-use d2rmm_agent_core::context::{
+use d2rmm_agent_core::groups::{
     Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
 };
 #[cfg(windows)]

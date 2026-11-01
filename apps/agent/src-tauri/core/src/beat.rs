@@ -10,8 +10,8 @@ use std::time::Duration;
 use tokio::time::Instant;
 use tracing::Instrument;
 
-use crate::context::HeartbeatPorts;
 use crate::device_state::DeviceState;
+use crate::groups::HeartbeatPorts;
 use crate::messages::{Presence, Screen};
 use crate::ports::{ApiError, ApiGateway};
 use crate::view::Connectivity;
@@ -82,9 +82,9 @@ mod tests {
     use std::time::Duration;
 
     use super::{INTERVAL, game_running, run};
-    use crate::context::HeartbeatPorts;
     use crate::device_state::DeviceState;
     use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NullSink};
+    use crate::groups::HeartbeatPorts;
     use crate::messages::{Presence, Screen};
     use crate::ports::{ApiError, ProcessSource, TokenStore};
     use crate::secret::Secret;

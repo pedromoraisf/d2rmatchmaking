@@ -50,10 +50,11 @@ fn posted_bodies(h: &Harness) -> Vec<Value> {
 }
 
 fn spawn_send(h: &Harness) -> tokio::task::JoinHandle<SendOutcome> {
-    let ctx = std::sync::Arc::clone(&h.context);
+    let device = std::sync::Arc::clone(&h.device);
+    let read = h.groups().read;
     tokio::spawn(async move {
         let observation = observation();
-        observations::send(&ctx, &observation).await
+        observations::send(&device, &read, &observation).await
     })
 }
 

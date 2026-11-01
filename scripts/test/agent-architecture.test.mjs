@@ -25,7 +25,7 @@ const CRATE_NAME = {
 // Whether each deferred rule is enforced on the real tree today. `false` until its task switches it on: a struct in core
 // holds at most five ports (T47, when `Context` is gone). Core depends on the domain since T34, so that rule is on. The
 // HTTP stack and the contract types left core in T27 and T28, so their rules are on.
-const ENFORCED_NOW = { coreDomain: true, coreReqwest: true, coreContracts: true, corePorts: false };
+const ENFORCED_NOW = { coreDomain: true, coreReqwest: true, coreContracts: true, corePorts: true };
 
 const DOMAIN_ALLOWED = ['thiserror', 'chrono', 'uuid'];
 const UI_AND_OS_PREFIXES = ['tauri', 'keyring', 'windows'];

@@ -14,8 +14,8 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 use tracing::Instrument;
 
-use crate::context::Context;
 use crate::device_state::DeviceState;
+use crate::groups::PairingPorts;
 use crate::messages::IssuedCode;
 use crate::ports::{ApiError, ApiGateway, StoreError};
 use crate::secret::Secret;
@@ -50,16 +50,17 @@ enum Shown {
 
 /// Runs for the life of the agent: pairs while the agent holds no token, then waits for the next 401.
 pub async fn run<G: ApiGateway + Send + Sync + 'static>(
-    ctx: Arc<Context<G>>,
+    device: Arc<DeviceState>,
+    ports: PairingPorts<G>,
     mut commands: mpsc::Receiver<Command>,
 ) {
-    if ctx.tokens.load().is_some() {
-        ctx.device.set_paired(true);
+    if ports.tokens.load().is_some() {
+        device.set_paired(true);
     }
     loop {
-        ctx.device.wait_until_allowed(unpaired_and_allowed).await;
+        device.wait_until_allowed(unpaired_and_allowed).await;
         // An interrupted attempt starts again from a new code once the update gate opens.
-        let _finished: Finished = pair_once(&ctx, &mut commands).await;
+        let _finished: Finished = pair_once(&device, &ports, &mut commands).await;
     }
 }
 
@@ -69,20 +70,21 @@ fn unpaired_and_allowed(device: &DeviceState) -> bool {
 
 /// One pairing attempt: codes follow each other until one is claimed, the update gate closes, or the loop pauses.
 async fn pair_once<G: ApiGateway + Send + Sync>(
-    ctx: &Context<G>,
+    device: &DeviceState,
+    ports: &PairingPorts<G>,
     commands: &mut mpsc::Receiver<Command>,
 ) -> Finished {
     let mut pairing = Pairing::new();
     loop {
-        let Some(code) = obtain_code(ctx).await else {
+        let Some(code) = obtain_code(device, ports).await else {
             return Finished::Interrupted;
         };
-        match show_code(ctx, code, &mut pairing).await {
+        match show_code(device, ports, code, &mut pairing).await {
             Shown::Paired => return Finished::Paired,
             Shown::Interrupted => return Finished::Interrupted,
             Shown::Restart | Shown::Expired(CodeNext::NewCode) => {}
             Shown::Expired(CodeNext::Pause) => {
-                if !pause(ctx, commands).await {
+                if !pause(device, commands).await {
                     return Finished::Interrupted;
                 }
             }
@@ -91,19 +93,21 @@ async fn pair_once<G: ApiGateway + Send + Sync>(
 }
 
 /// Requests a code, waiting out unreachable and rate-limited answers. `None` when a 426 interrupts it.
-async fn obtain_code<G: ApiGateway + Send + Sync>(ctx: &Context<G>) -> Option<IssuedCode> {
+async fn obtain_code<G: ApiGateway + Send + Sync>(
+    device: &DeviceState,
+    ports: &PairingPorts<G>,
+) -> Option<IssuedCode> {
     loop {
-        if !ctx.device.pairing_allowed() {
+        if !device.pairing_allowed() {
             return None;
         }
-        ctx.device.hub.set_pairing(PairingView::Requesting);
-        match ctx.gateway.request_code().await {
+        device.hub.set_pairing(PairingView::Requesting);
+        match ports.gateway.request_code().await {
             Ok(code) => return Some(code),
             Err(ApiError::RateLimited { retry_after }) => {
-                ctx.device.hub.set_pairing(PairingView::RateLimited);
+                device.hub.set_pairing(PairingView::RateLimited);
                 let wait = Pairing::rate_limited(retry_after);
-                if !ctx
-                    .device
+                if !device
                     .sleep_while_allowed(Instant::now() + wait, DeviceState::pairing_allowed)
                     .await
                 {
@@ -111,13 +115,12 @@ async fn obtain_code<G: ApiGateway + Send + Sync>(ctx: &Context<G>) -> Option<Is
                 }
             }
             Err(ApiError::UpgradeRequired) => {
-                ctx.on_upgrade_required();
+                device.on_upgrade_required(ports.tokens.as_ref());
                 return None;
             }
             Err(_) => {
-                ctx.device.hub.set_pairing(PairingView::Unreachable);
-                if !ctx
-                    .device
+                device.hub.set_pairing(PairingView::Unreachable);
+                if !device
                     .sleep_while_allowed(
                         Instant::now() + UNREACHABLE_RETRY,
                         DeviceState::pairing_allowed,
@@ -133,7 +136,8 @@ async fn obtain_code<G: ApiGateway + Send + Sync>(ctx: &Context<G>) -> Option<Is
 
 /// Shows one code and claims it until it is paired, expires or the attempt must restart.
 async fn show_code<G: ApiGateway + Send + Sync>(
-    ctx: &Context<G>,
+    device: &DeviceState,
+    ports: &PairingPorts<G>,
     response: IssuedCode,
     pairing: &mut Pairing,
 ) -> Shown {
@@ -142,14 +146,14 @@ async fn show_code<G: ApiGateway + Send + Sync>(
         expires_at,
         claim_secret: secret,
     } = response;
-    let remaining = Pairing::remaining_until(expires_at, ctx.clock.now_utc());
+    let remaining = Pairing::remaining_until(expires_at, ports.clock.now_utc());
     let deadline = Instant::now() + remaining;
 
     let shown = code.as_str().to_string();
     pairing.show(code, expires_at);
 
     let mut shown_minutes = Pairing::minutes_left(remaining);
-    ctx.device.hub.set_pairing(PairingView::ShowingCode {
+    device.hub.set_pairing(PairingView::ShowingCode {
         code: shown.clone(),
         minutes_left: shown_minutes,
     });
@@ -163,15 +167,14 @@ async fn show_code<G: ApiGateway + Send + Sync>(
         let minutes = Pairing::minutes_left(deadline - now);
         if minutes != shown_minutes {
             shown_minutes = minutes;
-            ctx.device.hub.set_pairing(PairingView::ShowingCode {
+            device.hub.set_pairing(PairingView::ShowingCode {
                 code: shown.clone(),
                 minutes_left: minutes,
             });
         }
 
         let wake = claim_at.min(next_minute_change(deadline, now));
-        if !ctx
-            .device
+        if !device
             .sleep_while_allowed(wake, DeviceState::pairing_allowed)
             .await
         {
@@ -183,26 +186,25 @@ async fn show_code<G: ApiGateway + Send + Sync>(
 
         let span = tracing::info_span!("agent.pairing.claim");
         let started = Instant::now();
-        let answer = ctx.gateway.claim(&secret).instrument(span).await;
+        let answer = ports.gateway.claim(&secret).instrument(span).await;
         let Some(outcome) = claim_outcome(&answer) else {
-            ctx.on_upgrade_required();
+            device.on_upgrade_required(ports.tokens.as_ref());
             return Shown::Interrupted;
         };
         match (pairing.claim_result(outcome), answer) {
-            (ClaimNext::Paired, Ok(token)) => return store_token(ctx, &token),
+            (ClaimNext::Paired, Ok(token)) => return store_token(device, ports, &token),
             (ClaimNext::ClaimAfter(wait), _) => claim_at = started + wait,
             (ClaimNext::Expired(next), _) => return Shown::Expired(next),
             (ClaimNext::Restart, _) => {
-                ctx.on_unauthorized();
+                device.on_unauthorized(ports.tokens.as_ref());
                 return Shown::Restart;
             }
             (ClaimNext::RestartAfter(wait), _) => {
-                ctx.device.hub.set_pairing(match outcome {
+                device.hub.set_pairing(match outcome {
                     ClaimOutcome::RateLimited { .. } => PairingView::RateLimited,
                     _ => PairingView::Unreachable,
                 });
-                if !ctx
-                    .device
+                if !device
                     .sleep_while_allowed(Instant::now() + wait, DeviceState::pairing_allowed)
                     .await
                 {
@@ -234,15 +236,15 @@ fn claim_outcome(answer: &Result<Secret, ApiError>) -> Option<ClaimOutcome> {
 }
 
 /// Writes the token through the store. A refused write shows "Could not save the pairing" and asks for a new code.
-fn store_token<G>(ctx: &Context<G>, token: &Secret) -> Shown {
-    match ctx.tokens.save(token) {
+fn store_token<G>(device: &DeviceState, ports: &PairingPorts<G>, token: &Secret) -> Shown {
+    match ports.tokens.save(token) {
         Ok(()) => {
-            ctx.device.set_paired(true);
-            ctx.device.hub.set_pairing(PairingView::Paired);
+            device.set_paired(true);
+            device.hub.set_pairing(PairingView::Paired);
             Shown::Paired
         }
         Err(StoreError) => {
-            ctx.device.hub.set_pairing(PairingView::SaveFailed);
+            device.hub.set_pairing(PairingView::SaveFailed);
             Shown::Restart
         }
     }
@@ -250,12 +252,12 @@ fn store_token<G>(ctx: &Context<G>, token: &Secret) -> Shown {
 
 /// Waits for the player's "Get a new code". Stale commands from before the pause are dropped first. `false` when a
 /// 426 interrupts the pause.
-async fn pause<G: Send + Sync>(ctx: &Context<G>, commands: &mut mpsc::Receiver<Command>) -> bool {
+async fn pause(device: &DeviceState, commands: &mut mpsc::Receiver<Command>) -> bool {
     while commands.try_recv().is_ok() {}
-    ctx.device.hub.set_pairing(PairingView::Paused);
-    let mut blocked = ctx.device.update_required.subscribe();
+    device.hub.set_pairing(PairingView::Paused);
+    let mut blocked = device.update_required.subscribe();
     loop {
-        if !ctx.device.pairing_allowed() {
+        if !device.pairing_allowed() {
             return false;
         }
         tokio::select! {
@@ -289,14 +291,11 @@ mod tests {
     use tokio::sync::mpsc;
 
     use super::{Command, claim_outcome, run};
-    use crate::context::{
-        Context, Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
-    };
-    use crate::fakes::{
-        Call, FakeApiGateway, MemoryTokens, NoProcesses, NoText, NoUpdates, NullSink,
-    };
+    use crate::device_state::DeviceState;
+    use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NullSink};
+    use crate::groups::PairingPorts;
     use crate::messages::{IssuedCode, PairingCode};
-    use crate::ports::{ApiError, PausedWallClock, SequentialIds, TokenStore, WallClock};
+    use crate::ports::{ApiError, PausedWallClock, TokenStore, WallClock};
     use crate::secret::Secret;
     use crate::view::PairingView;
 
@@ -316,40 +315,19 @@ mod tests {
         }
     }
 
-    /// The five port groups over the in-memory ports. The wall clock moves with paused tokio time.
+    /// The device and the pairing port group over the in-memory ports. The wall clock moves with paused tokio time.
     fn context(
         gateway: &Arc<FakeApiGateway>,
         tokens: &Arc<MemoryTokens>,
-    ) -> Arc<Context<FakeApiGateway>> {
+    ) -> (Arc<DeviceState>, PairingPorts<FakeApiGateway>) {
         let clock: Arc<dyn WallClock + Send + Sync> =
             Arc::new(PausedWallClock::starting_at(start()));
-        let groups = Groups {
-            pairing: PairingPorts {
-                gateway: Arc::clone(gateway),
-                tokens: tokens.clone(),
-                clock: Arc::clone(&clock),
-            },
-            heartbeat: HeartbeatPorts {
-                gateway: Arc::clone(gateway),
-                tokens: tokens.clone(),
-                processes: Arc::new(NoProcesses),
-            },
-            stream: StreamPorts {
-                gateway: Arc::clone(gateway),
-                tokens: tokens.clone(),
-            },
-            update: UpdatePorts {
-                updater: Arc::new(NoUpdates),
-            },
-            read: ReadPorts {
-                reader: Arc::new(NoText),
-                ids: Arc::new(SequentialIds::new()),
-                clock,
-                gateway: Arc::clone(gateway),
-                tokens: tokens.clone(),
-            },
+        let ports = PairingPorts {
+            gateway: Arc::clone(gateway),
+            tokens: tokens.clone(),
+            clock,
         };
-        Context::from_groups("0.0.1".to_string(), Arc::new(NullSink), groups)
+        (Arc::new(DeviceState::new(Arc::new(NullSink))), ports)
     }
 
     fn requests(gateway: &FakeApiGateway) -> usize {
@@ -410,19 +388,19 @@ mod tests {
         gateway.script_request_code([Ok(issued("123456", "claim-1"))]);
         gateway.script_claim([Err(ApiError::Pending), Ok(Secret::new("token-1"))]);
         let tokens = Arc::new(MemoryTokens::default());
-        let ctx = context(&gateway, &tokens);
+        let (device, ports) = context(&gateway, &tokens);
         let (_commands, receiver) = mpsc::channel(8);
-        tokio::spawn(run(Arc::clone(&ctx), receiver));
+        tokio::spawn(run(Arc::clone(&device), ports, receiver));
 
         tokio::time::sleep(Duration::from_secs(1)).await;
-        assert_eq!(ctx.device.hub.snapshot().pairing, showing("123456", 5));
+        assert_eq!(device.hub.snapshot().pairing, showing("123456", 5));
 
         tokio::time::sleep(Duration::from_secs(4)).await;
         assert_eq!(
             tokens.load().expect("the token is stored").expose(),
             "token-1"
         );
-        assert_eq!(ctx.device.hub.snapshot().pairing, PairingView::Paired);
+        assert_eq!(device.hub.snapshot().pairing, PairingView::Paired);
         assert_eq!(claims(&gateway), 2);
     }
 
@@ -435,12 +413,12 @@ mod tests {
         ]);
         gateway.script_claim([Err(ApiError::Gone), Err(ApiError::Pending)]);
         let tokens = Arc::new(MemoryTokens::default());
-        let ctx = context(&gateway, &tokens);
+        let (device, ports) = context(&gateway, &tokens);
         let (_commands, receiver) = mpsc::channel(8);
-        tokio::spawn(run(Arc::clone(&ctx), receiver));
+        tokio::spawn(run(Arc::clone(&device), ports, receiver));
 
         tokio::time::sleep(Duration::from_secs(3)).await;
-        assert_eq!(ctx.device.hub.snapshot().pairing, showing("654321", 5));
+        assert_eq!(device.hub.snapshot().pairing, showing("654321", 5));
         assert_eq!(requests(&gateway), 2);
         assert!(tokens.load().is_none(), "a gone code stores no token");
     }
@@ -454,15 +432,15 @@ mod tests {
         ]);
         gateway.script_claim([Err(ApiError::Gone), Err(ApiError::Gone)]);
         let tokens = Arc::new(MemoryTokens::default());
-        let ctx = context(&gateway, &tokens);
+        let (device, ports) = context(&gateway, &tokens);
         let (_commands, receiver) = mpsc::channel(8);
-        tokio::spawn(run(Arc::clone(&ctx), receiver));
+        tokio::spawn(run(Arc::clone(&device), ports, receiver));
 
         tokio::time::sleep(Duration::from_secs(5)).await;
-        assert_eq!(ctx.device.hub.snapshot().pairing, PairingView::Paused);
+        assert_eq!(device.hub.snapshot().pairing, PairingView::Paused);
 
         tokio::time::sleep(Duration::from_secs(600)).await;
-        assert_eq!(ctx.device.hub.snapshot().pairing, PairingView::Paused);
+        assert_eq!(device.hub.snapshot().pairing, PairingView::Paused);
         assert_eq!(requests(&gateway), 2, "no code is requested while paused");
     }
 
@@ -480,19 +458,19 @@ mod tests {
             Err(ApiError::Pending),
         ]);
         let tokens = Arc::new(MemoryTokens::default());
-        let ctx = context(&gateway, &tokens);
+        let (device, ports) = context(&gateway, &tokens);
         let (commands, receiver) = mpsc::channel::<Command>(8);
-        tokio::spawn(run(Arc::clone(&ctx), receiver));
+        tokio::spawn(run(Arc::clone(&device), ports, receiver));
 
         tokio::time::sleep(Duration::from_secs(5)).await;
-        assert_eq!(ctx.device.hub.snapshot().pairing, PairingView::Paused);
+        assert_eq!(device.hub.snapshot().pairing, PairingView::Paused);
 
         commands
             .send(Command::GetNewCode)
             .await
             .expect("the paused loop listens for the command");
         tokio::time::sleep(Duration::from_secs(1)).await;
-        assert_eq!(ctx.device.hub.snapshot().pairing, showing("112233", 5));
+        assert_eq!(device.hub.snapshot().pairing, showing("112233", 5));
         assert_eq!(requests(&gateway), 3);
     }
 }

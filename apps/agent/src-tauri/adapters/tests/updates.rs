@@ -26,10 +26,7 @@ fn update_view(h: &Harness) -> Option<UpdateView> {
 async fn update_checks_at_start_every_6h_and_after_426() {
     let h = Harness::start(None).await;
     h.updater.script([UpdateOutcome::UpToDate; 3]);
-    tokio::spawn(check_update::run(
-        Arc::clone(&h.context.device),
-        h.context.update_ports(),
-    ));
+    tokio::spawn(check_update::run(Arc::clone(&h.device), h.groups().update));
 
     until("the check at start", || h.updater.calls() == 1).await;
     advance(SIX_HOURS - Duration::from_secs(1)).await;
@@ -48,10 +45,7 @@ async fn update_failure_keeps_version_and_retries() {
         UpdateOutcome::Failed(UpdateFailure::Signature),
         UpdateOutcome::UpToDate,
     ]);
-    tokio::spawn(check_update::run(
-        Arc::clone(&h.context.device),
-        h.context.update_ports(),
-    ));
+    tokio::spawn(check_update::run(Arc::clone(&h.device), h.groups().update));
 
     until("the failure is shown", || {
         update_view(&h) == Some(UpdateView::Failed)
@@ -82,18 +76,12 @@ async fn upgrade_required_stops_api_loops() {
         UpdateOutcome::Installed,
     ]);
     tokio::spawn(beat::run(
-        Arc::clone(&h.context.device),
-        h.context.heartbeat_ports(),
-        h.context.version.clone(),
+        Arc::clone(&h.device),
+        h.groups().heartbeat,
+        h.config().version,
     ));
-    tokio::spawn(follow_stream::run(
-        Arc::clone(&h.context.device),
-        h.context.stream_ports(),
-    ));
-    tokio::spawn(check_update::run(
-        Arc::clone(&h.context.device),
-        h.context.update_ports(),
-    ));
+    tokio::spawn(follow_stream::run(Arc::clone(&h.device), h.groups().stream));
+    tokio::spawn(check_update::run(Arc::clone(&h.device), h.groups().update));
 
     until("the 426 is answered", || {
         count(&h.api, Operation::Heartbeat) == 1

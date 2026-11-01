@@ -10,8 +10,9 @@ use d2rmm_agent_adapters::http::api_client::ApiClient;
 use d2rmm_agent_adapters::http::gateway::HttpGateway;
 use d2rmm_agent_core::check_update::Updater;
 use d2rmm_agent_core::config::Config;
-use d2rmm_agent_core::context::{
-    Context, Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
+use d2rmm_agent_core::device_state::DeviceState;
+use d2rmm_agent_core::groups::{
+    Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
 };
 use d2rmm_agent_core::pair::{self, Command};
 use d2rmm_agent_core::ports::{
@@ -36,9 +37,9 @@ pub struct Harness {
     pub updater: Arc<FakeUpdater>,
     pub sink: Arc<RecordingSink>,
     /// The probe the assertions read the agent through.
-    pub ctx: Probe<HttpGateway>,
-    /// The context the loops run on: a test starts the loops it needs on it.
-    pub context: Arc<Context<HttpGateway>>,
+    pub ctx: Probe,
+    /// The device state the loops run on: a test starts the loops it needs on it, with `groups()` for their ports.
+    pub device: Arc<DeviceState>,
     _io: RealIo,
 }
 
@@ -52,11 +53,8 @@ impl Harness {
         let reader = Arc::new(FakeReader::reading("mmbaalh-12"));
         let updater = Arc::new(FakeUpdater::default());
         let sink = Arc::new(RecordingSink::default());
-        let api_base = ApiBase::parse(&api.base_url(), AllowLoopbackHttp::Yes)
-            .expect("the fake's loopback base");
-        let groups = fake_groups(&api_base, &tokens, &processes, &reader, &updater);
-        let context = Context::from_groups(VERSION.to_string(), sink.clone(), groups);
-        let ctx = Probe::over(Arc::clone(&context));
+        let device = Arc::new(DeviceState::new(sink.clone()));
+        let ctx = Probe::over(Arc::clone(&device), tokens.clone());
         Self {
             api,
             tokens,
@@ -65,7 +63,7 @@ impl Harness {
             updater,
             sink,
             ctx,
-            context,
+            device,
             _io: io,
         }
     }
@@ -97,7 +95,11 @@ impl Harness {
     /// Runs the pairing loop and returns the sender of its commands.
     pub fn spawn_pairing(&self) -> mpsc::Sender<Command> {
         let (commands, receiver) = mpsc::channel(8);
-        tokio::spawn(pair::run(Arc::clone(&self.context), receiver));
+        tokio::spawn(pair::run(
+            Arc::clone(&self.device),
+            self.groups().pairing,
+            receiver,
+        ));
         commands
     }
 }

@@ -11,8 +11,8 @@ use d2rmm_agent_domain::room_assignment::Assignment;
 use tokio::time::Instant;
 use tracing::Instrument;
 
-use crate::context::StreamPorts;
 use crate::device_state::DeviceState;
+use crate::groups::StreamPorts;
 use crate::ports::{ApiError, ApiGateway, EventStream, StreamItem};
 use crate::view::RoomView;
 
@@ -144,9 +144,9 @@ mod tests {
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
 
     use super::{RECONNECT_MIN, delay_after_open, next_delay, run};
-    use crate::context::StreamPorts;
     use crate::device_state::DeviceState;
     use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NullSink};
+    use crate::groups::StreamPorts;
     use crate::ports::{StreamItem, TokenStore};
     use crate::secret::Secret;
     use crate::view::RoomView;

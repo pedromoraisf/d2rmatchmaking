@@ -12,8 +12,8 @@ use std::time::Duration;
 use tokio::time::Instant;
 use tracing::Instrument;
 
-use crate::context::UpdatePorts;
 use crate::device_state::DeviceState;
+use crate::groups::UpdatePorts;
 use crate::ports::{UpdateChecker, UpdateOutcome};
 use crate::view::UpdateView;
 
@@ -90,9 +90,9 @@ mod tests {
     use std::time::Duration;
 
     use super::{CHECK_EVERY, Updater, run, view_after};
-    use crate::context::UpdatePorts;
     use crate::device_state::DeviceState;
     use crate::fakes::{MemoryTokens, NullSink};
+    use crate::groups::UpdatePorts;
     use crate::ports::{UpdateFailure, UpdateOutcome};
     use crate::view::UpdateView;
 
