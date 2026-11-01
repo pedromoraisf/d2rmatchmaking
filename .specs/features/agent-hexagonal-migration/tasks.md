@@ -916,8 +916,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Tests `paired_device_401_and_426_effects_in_order`, `epoch_bumps_on_both`, `api_allowed_needs_a_token_and_no_pending_update`
-- [ ] Rust domain gate passes
+- [x] Tests `paired_device_401_and_426_effects_in_order`, `epoch_bumps_on_both`, `api_allowed_needs_a_token_and_no_pending_update`
+- [x] Rust domain gate passes
 
 **Tests**: unit
 **Gate**: Rust domain
@@ -1328,6 +1328,10 @@ Proof: `cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml -
 ## Handoff
 
 The feature's live state, written as it happens - a compaction gives no warning.
+
+**Batch 8 (execute-batch-8), in progress: T42 to T47**
+
+- T42 done (commit carries `Task: T42`): `domain/src/paired_device.rs` holds `PairedDevice` (`unpaired`, `paired`, `pairing`, `pairing_mut`, `is_paired`, `set_paired`, `update_required`, `update_installed`, `on_unauthorized`, `on_upgrade_required`, `api_allowed`, `pairing_allowed`, `retry_epoch`) and `DeviceEffect`. A `401` returns `[ForgetToken, ClearRoom, DropPendingRetries, AskNewCode]`; a `426` returns `[RequireUpdate, DropPendingRetries, CheckForUpdateNow]`. Both bump the epoch. Gate `Rust domain` passed on attempt 1 (23 tests, 3 new).
 
 **Batch 7 (execute-batch-7), complete: T38 to T41**
 
