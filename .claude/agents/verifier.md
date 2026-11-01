@@ -15,6 +15,10 @@ Project specifics:
   `node scripts/attempt.mjs run --feature <feature> --step proofs -- "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py <feature>"`.
 - Retry budget: 1 attempt + 2 retries per unit (ADR 022). If a command of yours fails three times, record it in
   `verification.md` as a finding and stop.
+- Mutations are proved by UNIT tests only (ADR 026): Rust `cargo nextest run -p <crate> --lib -E 'test(<name>)'`,
+  TypeScript `vitest run <colocated *.test.ts> -t "<name>"`. Never an integration, e2e, acceptance or load test, never
+  `--workspace`. Check your `mutations.json` with `node scripts/mutation-scope-check.mjs --feature <feature>`. A rule
+  with no unit test is a finding for the author, not a reason to prove it through the assembled service.
 - Use `python3 .claude/skills/tlc-spec-driven/scripts/mutate.py` for mutations; prefer domain rules (state machines,
   ELO math, queue filters that must never relax — FR-08, ready-check timing — FR-12/13).
 - Acceptance scenarios (ADR 023) are part of what you judge: a scenario that passes while its requirement is broken

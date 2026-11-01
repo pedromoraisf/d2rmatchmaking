@@ -34,7 +34,7 @@
     "quality:collect": "node scripts/quality-collect.mjs",
     "quality:reports": "node scripts/quality-reports.mjs",
     "quality:ratchet": "node scripts/quality-ratchet.mjs",
-    "specs:check": "node scripts/specs-check.mjs && node scripts/acceptance-check.mjs",
+    "specs:check": "node scripts/specs-check.mjs && node scripts/acceptance-check.mjs && node scripts/mutation-scope-check.mjs",
     "tlc:selftest": "python3 .claude/skills/tlc-spec-driven/scripts/selftest.py",
     "secrets:scan": "secretlint --maskSecrets \"**/*\"",
     "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run arch && pnpm run test && pnpm run specs:check && pnpm run harness:gate && pnpm run quality:gate",

@@ -25,6 +25,7 @@ Scenario steps are implemented in the task that delivers the behaviour (missing 
 
 `validate_tasks.py <feature>` exit 0 → write the delegated approval → `validate_tasks.py <feature> --execute` exit 0.
 `**Mutations**:` at least 3; at least 5 for features with domain rules (ranking, ready check, room state machine).
+Every mutation's proof is a unit test (ADR 026); `node scripts/mutation-scope-check.mjs --feature <f>` must pass.
 
 ## Per-task gate
 
@@ -35,7 +36,8 @@ The task's `Gate` command (TLC), run as `node scripts/attempt.mjs run --feature 
 
 ## Feature done
 
-`check_proofs.py` → Verifier → fixes → `check_proofs.py --mutations` → `validate_verification.py` exit 0.
+`check_proofs.py` → Verifier → fixes → `mutation-scope-check.mjs` → `check_proofs.py --mutations` → `validate_verification.py` exit 0.
+The gate refuses `--mutations` on a spec whose proofs are not unit tests (ADR 026).
 
 ## Integration gate (feature branch → `phase/<F>`)
 
