@@ -24,15 +24,13 @@ fn assigned(game_name: &str, room: &str) -> Value {
 }
 
 fn spawn_stream(h: &Harness) {
-    tokio::spawn(stream::run(Arc::clone(&h.ctx)));
+    tokio::spawn(stream::run(Arc::clone(&h.context)));
 }
 
 /// The expected game name of the current assignment.
 fn expected_name(h: &Harness) -> Option<String> {
     h.ctx
-        .assignment
-        .borrow()
-        .as_ref()
+        .assignment()
         .map(|assignment| assignment.expected_game_name.as_str().to_string())
 }
 
@@ -47,7 +45,7 @@ fn shown_room(h: &Harness) -> Option<String> {
 #[tokio::test(start_paused = true)]
 async fn fetches_assignment_then_streams() {
     let h = Harness::start(Some(TOKEN)).await;
-    h.ctx.paired.send_replace(true);
+    h.ctx.set_paired(true);
     spawn_stream(&h);
     until("the stream is open", || {
         count(&h.api, Operation::Stream) == 1
@@ -84,7 +82,7 @@ async fn fetches_assignment_then_streams() {
 #[tokio::test(start_paused = true)]
 async fn reconnect_backoff_doubles_to_60s() {
     let h = Harness::start(Some(TOKEN)).await;
-    h.ctx.paired.send_replace(true);
+    h.ctx.set_paired(true);
     h.api
         .script(Operation::Stream, vec![Answer::ServerError; 8]);
     spawn_stream(&h);
@@ -116,7 +114,7 @@ async fn reconnect_backoff_doubles_to_60s() {
 /// Returns once that close has been observed by the loop, with the clock at the moment of the close.
 async fn backoff_before_a_stream_open_for(open_for_s: u64) -> Harness {
     let h = Harness::start(Some(TOKEN)).await;
-    h.ctx.paired.send_replace(true);
+    h.ctx.set_paired(true);
     h.api.script(
         Operation::Stream,
         [
@@ -188,7 +186,7 @@ async fn reconnect_backoff_keeps_doubling_at_59s_open() {
 #[tokio::test(start_paused = true)]
 async fn latest_room_assigned_wins() {
     let h = Harness::start(Some(TOKEN)).await;
-    h.ctx.paired.send_replace(true);
+    h.ctx.set_paired(true);
     h.api
         .push_event("1", "room.assigned", assigned("mmbaalh-12", ROOM_A));
     h.api
@@ -209,7 +207,7 @@ async fn latest_room_assigned_wins() {
 #[tokio::test(start_paused = true)]
 async fn unknown_or_invalid_events_are_ignored() {
     let h = Harness::start(Some(TOKEN)).await;
-    h.ctx.paired.send_replace(true);
+    h.ctx.set_paired(true);
 
     // Each of these would change the assignment to mmbaalh-13 if it were accepted, except the last two.
     let mut extra_field = assigned("mmbaalh-13", ROOM_B);

@@ -11,7 +11,7 @@ use support::fake_api::{Answer, Operation, TOKEN};
 use support::harness::{Harness, advance, count, until};
 
 fn spawn_heartbeat(h: &Harness) {
-    tokio::spawn(heartbeat::run(Arc::clone(&h.ctx)));
+    tokio::spawn(heartbeat::run(Arc::clone(&h.context)));
 }
 
 fn connectivity(h: &Harness) -> Option<Connectivity> {
@@ -32,7 +32,7 @@ fn last_body(h: &Harness) -> serde_json::Value {
 #[tokio::test(start_paused = true)]
 async fn heartbeat_every_15s_with_running_flag() {
     let h = Harness::start(Some(TOKEN)).await;
-    h.ctx.paired.send_replace(true);
+    h.ctx.set_paired(true);
     spawn_heartbeat(&h);
 
     until("the first beat", || {
@@ -81,7 +81,7 @@ async fn heartbeat_every_15s_with_running_flag() {
 #[tokio::test(start_paused = true)]
 async fn heartbeat_failure_shows_unreachable_then_connected() {
     let h = Harness::start(Some(TOKEN)).await;
-    h.ctx.paired.send_replace(true);
+    h.ctx.set_paired(true);
     h.api.refuse_connections().await;
     spawn_heartbeat(&h);
     until("the refused beat is shown", || {

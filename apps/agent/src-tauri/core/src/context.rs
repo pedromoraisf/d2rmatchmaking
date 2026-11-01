@@ -7,24 +7,12 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
-use crate::api_client::{ApiClient, ApiError};
-use crate::config::Config;
+use crate::api_client::ApiError;
 use crate::gateway::http::HttpGateway;
 use crate::messages::Assignment;
 use crate::ports::{IdGenerator, ProcessSource, StateSink, TextReader, TokenStore, WallClock};
 use crate::updates::Updater;
 use crate::view::{AgentView, Connectivity, PairingView, RoomView, UpdateView};
-
-/// The ports the app hands to the core. Each loop reaches the outside world only through these.
-pub struct Adapters {
-    pub tokens: Arc<dyn TokenStore + Send + Sync>,
-    pub processes: Arc<dyn ProcessSource + Send + Sync>,
-    pub reader: Arc<dyn TextReader + Send + Sync>,
-    pub ids: Arc<dyn IdGenerator + Send + Sync>,
-    pub updater: Arc<dyn Updater>,
-    pub clock: Arc<dyn WallClock + Send + Sync>,
-    pub sink: Arc<dyn StateSink + Send + Sync>,
-}
 
 /// The ports the pairing loop uses (AHM-17): exactly three.
 pub struct PairingPorts<G> {
@@ -118,13 +106,11 @@ impl Hub {
     }
 }
 
-/// Everything the loops share. Built once by `Context::new` or `Context::from_groups` and kept in an `Arc`. `G` is the API
-/// gateway; the default is the HTTP gateway the app runs.
+/// Everything the loops share. Built once by `Context::from_groups` and kept in an `Arc`. `G` is the API gateway; the
+/// default is the HTTP gateway the app runs.
 pub struct Context<G = HttpGateway> {
     pub version: String,
-    /// The HTTP client the loops that have not moved to `gateway` still call. It goes when the last loop moves (T24).
-    pub api: ApiClient,
-    /// The API as the use cases see it (the gateway port). Every API call of a migrated loop goes through it.
+    /// The API as the use cases see it (the gateway port). Every API call of the loops goes through it.
     pub gateway: Arc<G>,
     pub tokens: Arc<dyn TokenStore + Send + Sync>,
     pub processes: Arc<dyn ProcessSource + Send + Sync>,
@@ -146,38 +132,13 @@ pub struct Context<G = HttpGateway> {
     observations_dropped: AtomicU64,
 }
 
-impl Context<HttpGateway> {
-    pub fn new(config: &Config, http: reqwest::Client, adapters: Adapters) -> Arc<Self> {
-        let api = ApiClient::new(config, http);
-        Arc::new(Self {
-            version: config.version.clone(),
-            gateway: Arc::new(HttpGateway::new(api.clone())),
-            api,
-            tokens: adapters.tokens,
-            processes: adapters.processes,
-            reader: adapters.reader,
-            ids: adapters.ids,
-            updater: adapters.updater,
-            clock: adapters.clock,
-            hub: Hub::new(adapters.sink),
-            paired: watch::channel(false).0,
-            update_required: watch::channel(false).0,
-            update_now: Notify::new(),
-            assignment: watch::channel(None).0,
-            epoch: AtomicU64::new(0),
-            observations_dropped: AtomicU64::new(0),
-        })
-    }
-}
-
 impl<G> Context<G> {
     /// Builds the context from the five port groups. The shared ports come from the group that names them first (the
     /// pairing group for the gateway, tokens and clock); the groups hold clones of the same `Arc`s, so every loop sees one
-    /// store. `api` is the transitional HTTP client of the loops not yet on the gateway (see the field).
+    /// store. The stream group holds the same gateway and tokens and adds nothing the context does not already hold.
     pub fn from_groups(
         version: String,
         sink: Arc<dyn StateSink + Send + Sync>,
-        api: ApiClient,
         groups: Groups<G>,
     ) -> Arc<Self> {
         let Groups {
@@ -189,7 +150,6 @@ impl<G> Context<G> {
         } = groups;
         Arc::new(Self {
             version,
-            api,
             gateway: pairing.gateway,
             tokens: pairing.tokens,
             processes: heartbeat.processes,
@@ -323,9 +283,13 @@ mod tests {
 
     use chrono::{DateTime, Utc};
 
-    use super::{Adapters, Context};
+    use super::{
+        Context, Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
+    };
+    use crate::api_client::ApiClient;
     use crate::api_client::ApiError;
     use crate::config::{AllowLoopbackHttp, ApiBase, Config};
+    use crate::gateway::http::HttpGateway;
     use crate::gateway::translate::assignment_from_contract;
     use crate::messages::Assignment;
     use crate::ports::{
@@ -400,27 +364,57 @@ mod tests {
         fn publish(&self, _view: AgentView) {}
     }
 
+    /// The five port groups over the in-memory ports and an HTTP gateway that makes no call unless a loop runs.
+    fn http_groups(tokens: Arc<MemoryTokens>) -> Groups<HttpGateway> {
+        let config = Config {
+            version: "0.0.1".to_string(),
+            api_base: ApiBase::parse("https://api.example.test", AllowLoopbackHttp::No)
+                .expect("a valid API base"),
+        };
+        let gateway = Arc::new(HttpGateway::new(ApiClient::new(
+            &config,
+            reqwest::Client::new(),
+        )));
+        let clock: Arc<dyn WallClock + Send + Sync> = Arc::new(FixedClock);
+        Groups {
+            pairing: PairingPorts {
+                gateway: Arc::clone(&gateway),
+                tokens: tokens.clone(),
+                clock: Arc::clone(&clock),
+            },
+            heartbeat: HeartbeatPorts {
+                gateway: Arc::clone(&gateway),
+                tokens: tokens.clone(),
+                processes: Arc::new(NoProcesses),
+            },
+            stream: StreamPorts {
+                gateway: Arc::clone(&gateway),
+                tokens: tokens.clone(),
+            },
+            update: UpdatePorts {
+                updater: Arc::new(NoUpdates),
+            },
+            read: ReadPorts {
+                reader: Arc::new(NoText),
+                ids: Arc::new(SequentialIds::new()),
+                clock,
+                gateway,
+                tokens,
+            },
+        }
+    }
+
     /// A paired context holding a token and no room, with every port faked in memory.
     fn paired_context() -> (Arc<Context>, Arc<MemoryTokens>) {
         let tokens = Arc::new(MemoryTokens::default());
         tokens
             .save(&Secret::new(TOKEN))
             .expect("the memory store accepts a write");
-        let config = Config {
-            version: "0.0.1".to_string(),
-            api_base: ApiBase::parse("https://api.example.test", AllowLoopbackHttp::No)
-                .expect("a valid API base"),
-        };
-        let adapters = Adapters {
-            tokens: tokens.clone(),
-            processes: Arc::new(NoProcesses),
-            reader: Arc::new(NoText),
-            ids: Arc::new(SequentialIds::new()),
-            updater: Arc::new(NoUpdates),
-            clock: Arc::new(FixedClock),
-            sink: Arc::new(NullSink),
-        };
-        let ctx = Context::new(&config, reqwest::Client::new(), adapters);
+        let ctx = Context::from_groups(
+            "0.0.1".to_string(),
+            Arc::new(NullSink),
+            http_groups(Arc::clone(&tokens)),
+        );
         ctx.paired.send_replace(true);
         (ctx, tokens)
     }
@@ -503,8 +497,6 @@ mod tests {
 
     #[test]
     fn groups_build_a_context() {
-        use super::{Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts};
-        use crate::api_client::ApiClient;
         use crate::fakes::FakeApiGateway;
 
         let gateway = Arc::new(FakeApiGateway::new());
@@ -536,14 +528,7 @@ mod tests {
                 tokens: tokens.clone(),
             },
         };
-        let config = Config {
-            version: "0.0.1".to_string(),
-            api_base: ApiBase::parse("https://api.example.test", AllowLoopbackHttp::No)
-                .expect("a valid API base"),
-        };
-        let api = ApiClient::new(&config, reqwest::Client::new());
-
-        let ctx = Context::from_groups("0.0.1".to_string(), Arc::new(NullSink), api, groups);
+        let ctx = Context::from_groups("0.0.1".to_string(), Arc::new(NullSink), groups);
 
         assert_eq!(ctx.version, "0.0.1");
         assert_eq!(ctx.epoch(), 0);

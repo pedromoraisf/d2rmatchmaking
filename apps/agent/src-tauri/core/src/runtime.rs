@@ -7,12 +7,13 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 
 use crate::config::Config;
-use crate::context::{Adapters, Context};
+use crate::context::{Context, Groups};
 use crate::fusion::fuse;
+use crate::gateway::http::HttpGateway;
 use crate::messages::Assignment;
 use crate::observations;
 use crate::pairing::{self, Command};
-use crate::ports::Rgba;
+use crate::ports::{Rgba, StateSink};
 use crate::{heartbeat, stream, updates, vision};
 
 const COMMAND_BUFFER: usize = 8;
@@ -21,20 +22,24 @@ const COMMAND_BUFFER: usize = 8;
 pub struct Runtime;
 
 impl Runtime {
-    /// Builds the context and starts pairing, heartbeat, stream and update loops.
-    pub fn start(config: &Config, http: reqwest::Client, adapters: Adapters) -> Handle {
-        spawn(Context::new(config, http, adapters))
+    /// Builds the context from the five port groups and starts pairing, heartbeat, stream and update loops.
+    pub fn start(
+        config: &Config,
+        sink: Arc<dyn StateSink + Send + Sync>,
+        groups: Groups<HttpGateway>,
+    ) -> Handle {
+        spawn(Context::from_groups(config.version.clone(), sink, groups))
     }
 
     /// Like `start`, and also returns the probe the tests read and drive the agent with. The app never calls it: the probe
     /// is the only way to set the paired state or an assignment from outside the loops (AD-082).
     pub fn start_with_probe(
         config: &Config,
-        http: reqwest::Client,
-        adapters: Adapters,
+        sink: Arc<dyn StateSink + Send + Sync>,
+        groups: Groups<HttpGateway>,
     ) -> (Handle, Probe) {
-        let ctx = Context::new(config, http, adapters);
-        let probe = Probe::new(Arc::clone(&ctx));
+        let ctx = Context::from_groups(config.version.clone(), sink, groups);
+        let probe = Probe::over(Arc::clone(&ctx));
         (spawn(ctx), probe)
     }
 }
@@ -90,7 +95,8 @@ pub struct Probe {
 }
 
 impl Probe {
-    fn new(ctx: Arc<Context>) -> Self {
+    /// A probe over a context. The caller starts the loops it needs on that context; `start_with_probe` starts all four.
+    pub fn over(ctx: Arc<Context>) -> Self {
         Self {
             update_required: ctx.update_required.subscribe(),
             ctx,
@@ -138,8 +144,12 @@ mod tests {
     use serde_json::json;
 
     use super::Probe;
+    use crate::api_client::ApiClient;
     use crate::config::{AllowLoopbackHttp, ApiBase, Config};
-    use crate::context::{Adapters, Context};
+    use crate::context::{
+        Context, Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
+    };
+    use crate::gateway::http::HttpGateway;
     use crate::gateway::translate::assignment_from_contract;
     use crate::messages::Assignment;
     use crate::ports::{
@@ -220,16 +230,43 @@ mod tests {
             api_base: ApiBase::parse("https://api.example.test", AllowLoopbackHttp::No)
                 .expect("a valid API base"),
         };
-        let adapters = Adapters {
-            tokens: Arc::new(NoTokens),
-            processes: Arc::new(NoProcesses),
-            reader: Arc::new(NoText),
-            ids: Arc::new(SequentialIds::new()),
-            updater: Arc::new(NoUpdates),
-            clock: Arc::new(FixedClock),
-            sink: Arc::new(NullSink),
+        let gateway = Arc::new(HttpGateway::new(ApiClient::new(
+            &config,
+            reqwest::Client::new(),
+        )));
+        let tokens: Arc<dyn TokenStore + Send + Sync> = Arc::new(NoTokens);
+        let clock: Arc<dyn WallClock + Send + Sync> = Arc::new(FixedClock);
+        let groups = Groups {
+            pairing: PairingPorts {
+                gateway: Arc::clone(&gateway),
+                tokens: Arc::clone(&tokens),
+                clock: Arc::clone(&clock),
+            },
+            heartbeat: HeartbeatPorts {
+                gateway: Arc::clone(&gateway),
+                tokens: Arc::clone(&tokens),
+                processes: Arc::new(NoProcesses),
+            },
+            stream: StreamPorts {
+                gateway: Arc::clone(&gateway),
+                tokens: Arc::clone(&tokens),
+            },
+            update: UpdatePorts {
+                updater: Arc::new(NoUpdates),
+            },
+            read: ReadPorts {
+                reader: Arc::new(NoText),
+                ids: Arc::new(SequentialIds::new()),
+                clock,
+                gateway,
+                tokens,
+            },
         };
-        let probe = Probe::new(Context::new(&config, reqwest::Client::new(), adapters));
+        let probe = Probe::over(Context::from_groups(
+            config.version.clone(),
+            Arc::new(NullSink),
+            groups,
+        ));
 
         assert!(
             !*probe.update_required.borrow(),

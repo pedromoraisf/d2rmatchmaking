@@ -14,7 +14,7 @@ use support::fake_api::{Answer, CLAIM_SECRET, Operation, TOKEN};
 use support::harness::{Harness, advance, count, settle, until};
 
 fn start(h: &Harness) -> Handle {
-    Runtime::start(&h.config(), reqwest::Client::new(), h.adapters())
+    Runtime::start(&h.config(), h.sink.clone(), h.groups())
 }
 
 fn showing_code(h: &Harness) -> bool {

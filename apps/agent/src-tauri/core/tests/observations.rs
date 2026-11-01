@@ -49,7 +49,7 @@ fn posted_bodies(h: &Harness) -> Vec<Value> {
 }
 
 fn spawn_send(h: &Harness) -> tokio::task::JoinHandle<SendOutcome> {
-    let ctx = std::sync::Arc::clone(&h.ctx);
+    let ctx = std::sync::Arc::clone(&h.context);
     tokio::spawn(async move {
         let observation = observation();
         observations::send(&ctx, &observation).await
@@ -59,7 +59,7 @@ fn spawn_send(h: &Harness) -> tokio::task::JoinHandle<SendOutcome> {
 #[tokio::test(start_paused = true)]
 async fn retries_with_same_key_at_1_2_4_8() {
     let h = Harness::start(Some(TOKEN)).await;
-    h.ctx.paired.send_replace(true);
+    h.ctx.set_paired(true);
     h.api
         .script(Operation::Observation, vec![Answer::ServerError; 5]);
     let send = spawn_send(&h);
@@ -111,7 +111,7 @@ async fn retries_with_same_key_at_1_2_4_8() {
 #[tokio::test(start_paused = true)]
 async fn unauthorized_drops_pending_retries() {
     let h = Harness::start(Some(TOKEN)).await;
-    h.ctx.paired.send_replace(true);
+    h.ctx.set_paired(true);
     h.api.script(
         Operation::Observation,
         [Answer::ServerError, Answer::Unauthorized],
@@ -143,7 +143,7 @@ async fn unauthorized_drops_pending_retries() {
 #[tokio::test(start_paused = true)]
 async fn upgrade_required_drops_pending_retries() {
     let h = Harness::start(Some(TOKEN)).await;
-    h.ctx.paired.send_replace(true);
+    h.ctx.set_paired(true);
     h.api.script(
         Operation::Observation,
         [Answer::ServerError, Answer::UpgradeRequired],
@@ -178,7 +178,7 @@ async fn upgrade_required_drops_pending_retries() {
 async fn observation_4xx_is_not_retried() {
     // A client error is the observation's own fault: it is dropped at once, never posted again (AD-051).
     let h = Harness::start(Some(TOKEN)).await;
-    h.ctx.paired.send_replace(true);
+    h.ctx.set_paired(true);
     h.api.script(Operation::Observation, [Answer::BadRequest]);
     let send = spawn_send(&h);
     until("the first attempt", || {
@@ -203,7 +203,7 @@ async fn observation_4xx_is_not_retried() {
 #[tokio::test(start_paused = true)]
 async fn assignment_change_keeps_pending_retries() {
     let h = Harness::start(Some(TOKEN)).await;
-    h.ctx.paired.send_replace(true);
+    h.ctx.set_paired(true);
     h.api.script(
         Operation::Observation,
         [Answer::ServerError, Answer::ServerError, Answer::Ok],
@@ -215,7 +215,7 @@ async fn assignment_change_keeps_pending_retries() {
     .await;
     settle().await;
 
-    h.ctx.assignment.send_replace(Some(assignment()));
+    h.ctx.set_assignment(Some(assignment()));
     advance(Duration::from_secs(1)).await;
     until("the retry", || count(&h.api, Operation::Observation) == 2).await;
     settle().await;

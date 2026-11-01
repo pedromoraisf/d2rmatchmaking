@@ -26,7 +26,7 @@ fn update_view(h: &Harness) -> Option<UpdateView> {
 async fn update_checks_at_start_every_6h_and_after_426() {
     let h = Harness::start(None).await;
     h.updater.script([UpdateOutcome::UpToDate; 3]);
-    tokio::spawn(updates::run(Arc::clone(&h.ctx)));
+    tokio::spawn(updates::run(Arc::clone(&h.context)));
 
     until("the check at start", || h.updater.calls() == 1).await;
     advance(SIX_HOURS - Duration::from_secs(1)).await;
@@ -45,7 +45,7 @@ async fn update_failure_keeps_version_and_retries() {
         UpdateOutcome::Failed(UpdateFailure::Signature),
         UpdateOutcome::UpToDate,
     ]);
-    tokio::spawn(updates::run(Arc::clone(&h.ctx)));
+    tokio::spawn(updates::run(Arc::clone(&h.context)));
 
     until("the failure is shown", || {
         update_view(&h) == Some(UpdateView::Failed)
@@ -67,7 +67,7 @@ async fn update_failure_keeps_version_and_retries() {
 #[tokio::test(start_paused = true)]
 async fn upgrade_required_stops_api_loops() {
     let h = Harness::start(Some(TOKEN)).await;
-    h.ctx.paired.send_replace(true);
+    h.ctx.set_paired(true);
     h.api
         .script(Operation::Heartbeat, [Answer::UpgradeRequired]);
     h.updater.script([
@@ -75,9 +75,9 @@ async fn upgrade_required_stops_api_loops() {
         UpdateOutcome::UpToDate,
         UpdateOutcome::Installed,
     ]);
-    tokio::spawn(heartbeat::run(Arc::clone(&h.ctx)));
-    tokio::spawn(stream::run(Arc::clone(&h.ctx)));
-    tokio::spawn(updates::run(Arc::clone(&h.ctx)));
+    tokio::spawn(heartbeat::run(Arc::clone(&h.context)));
+    tokio::spawn(stream::run(Arc::clone(&h.context)));
+    tokio::spawn(updates::run(Arc::clone(&h.context)));
 
     until("the 426 is answered", || {
         count(&h.api, Operation::Heartbeat) == 1

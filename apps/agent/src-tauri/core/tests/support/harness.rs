@@ -1,13 +1,22 @@
 //! A harness for the core loops: the fake API, the fake ports and the shared context, under a paused clock whose I/O is
-//! real (see `paused`). The clock starts at the fake's wall start, so a fresh code shows "5 min".
+//! real (see `paused`). The clock starts at the fake's wall start, so a fresh code shows "5 min". `ctx` is the probe the
+//! assertions read; `context` is the context the loops run on, so a test starts only the loops it needs.
 
 use std::sync::Arc;
 use std::time::Duration;
 
+use d2rmm_agent_core::api_client::ApiClient;
 use d2rmm_agent_core::config::{AllowLoopbackHttp, ApiBase, Config};
-use d2rmm_agent_core::context::{Adapters, Context};
+use d2rmm_agent_core::context::{
+    Context, Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
+};
+use d2rmm_agent_core::gateway::http::HttpGateway;
 use d2rmm_agent_core::pairing::{self, Command};
-use d2rmm_agent_core::ports::{PausedWallClock, SequentialIds};
+use d2rmm_agent_core::ports::{
+    IdGenerator, PausedWallClock, ProcessSource, SequentialIds, TextReader, TokenStore, WallClock,
+};
+use d2rmm_agent_core::runtime::Probe;
+use d2rmm_agent_core::updates::Updater;
 use tokio::sync::mpsc;
 
 use super::fake_api::{Answer, FakeApi, Operation, WALL_START};
@@ -25,7 +34,10 @@ pub struct Harness {
     pub reader: Arc<FakeReader>,
     pub updater: Arc<FakeUpdater>,
     pub sink: Arc<RecordingSink>,
-    pub ctx: Arc<Context>,
+    /// The probe the assertions read the agent through.
+    pub ctx: Probe,
+    /// The context the loops run on: a test starts the loops it needs on it.
+    pub context: Arc<Context>,
     _io: RealIo,
 }
 
@@ -44,18 +56,9 @@ impl Harness {
             api_base: ApiBase::parse(&api.base_url(), AllowLoopbackHttp::Yes)
                 .expect("the fake's loopback base"),
         };
-        let adapters = Adapters {
-            tokens: Arc::clone(&tokens) as _,
-            processes: Arc::clone(&processes) as _,
-            reader: Arc::clone(&reader) as _,
-            ids: Arc::new(SequentialIds::new()),
-            updater: Arc::clone(&updater) as _,
-            clock: Arc::new(PausedWallClock::starting_at(
-                START.parse().expect("a valid instant"),
-            )),
-            sink: Arc::clone(&sink) as _,
-        };
-        let ctx = Context::new(&config, reqwest::Client::new(), adapters);
+        let groups = fake_groups(&config, &tokens, &processes, &reader, &updater);
+        let context = Context::from_groups(VERSION.to_string(), sink.clone(), groups);
+        let ctx = Probe::over(Arc::clone(&context));
         Self {
             api,
             tokens,
@@ -64,6 +67,7 @@ impl Harness {
             updater,
             sink,
             ctx,
+            context,
             _io: io,
         }
     }
@@ -77,26 +81,71 @@ impl Harness {
         }
     }
 
-    /// The adapters a `Runtime` needs, over the same fakes this harness inspects.
-    pub fn adapters(&self) -> Adapters {
-        Adapters {
-            tokens: Arc::clone(&self.tokens) as _,
-            processes: Arc::clone(&self.processes) as _,
-            reader: Arc::clone(&self.reader) as _,
-            ids: Arc::new(SequentialIds::new()),
-            updater: Arc::clone(&self.updater) as _,
-            clock: Arc::new(PausedWallClock::starting_at(
-                START.parse().expect("a valid instant"),
-            )),
-            sink: Arc::clone(&self.sink) as _,
-        }
+    /// The five port groups a `Runtime` needs, over the same fakes this harness inspects.
+    pub fn groups(&self) -> Groups<HttpGateway> {
+        fake_groups(
+            &self.config(),
+            &self.tokens,
+            &self.processes,
+            &self.reader,
+            &self.updater,
+        )
     }
 
     /// Runs the pairing loop and returns the sender of its commands.
     pub fn spawn_pairing(&self) -> mpsc::Sender<Command> {
         let (commands, receiver) = mpsc::channel(8);
-        tokio::spawn(pairing::run(Arc::clone(&self.ctx), receiver));
+        tokio::spawn(pairing::run(Arc::clone(&self.context), receiver));
         commands
+    }
+}
+
+/// The five port groups over the fakes: an HTTP gateway to the fake API, the same stores and reader on every call, and a
+/// fresh id generator and clock that start at the fake's wall start.
+fn fake_groups(
+    config: &Config,
+    tokens: &Arc<FakeTokenStore>,
+    processes: &Arc<FakeProcesses>,
+    reader: &Arc<FakeReader>,
+    updater: &Arc<FakeUpdater>,
+) -> Groups<HttpGateway> {
+    let gateway = Arc::new(HttpGateway::new(ApiClient::new(
+        config,
+        reqwest::Client::new(),
+    )));
+    let tokens_port: Arc<dyn TokenStore + Send + Sync> = Arc::clone(tokens) as _;
+    let clock: Arc<dyn WallClock + Send + Sync> = Arc::new(PausedWallClock::starting_at(
+        START.parse().expect("a valid instant"),
+    ));
+    let processes_port: Arc<dyn ProcessSource + Send + Sync> = Arc::clone(processes) as _;
+    let reader_port: Arc<dyn TextReader + Send + Sync> = Arc::clone(reader) as _;
+    let updater_port: Arc<dyn Updater> = Arc::clone(updater) as _;
+    let ids: Arc<dyn IdGenerator + Send + Sync> = Arc::new(SequentialIds::new());
+    Groups {
+        pairing: PairingPorts {
+            gateway: Arc::clone(&gateway),
+            tokens: Arc::clone(&tokens_port),
+            clock: Arc::clone(&clock),
+        },
+        heartbeat: HeartbeatPorts {
+            gateway: Arc::clone(&gateway),
+            tokens: Arc::clone(&tokens_port),
+            processes: processes_port,
+        },
+        stream: StreamPorts {
+            gateway: Arc::clone(&gateway),
+            tokens: Arc::clone(&tokens_port),
+        },
+        update: UpdatePorts {
+            updater: updater_port,
+        },
+        read: ReadPorts {
+            reader: reader_port,
+            ids,
+            clock,
+            gateway,
+            tokens: tokens_port,
+        },
     }
 }
 

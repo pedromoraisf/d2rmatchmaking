@@ -47,7 +47,9 @@ mod shell {
 
     use tauri::{AppHandle, Emitter, Manager, State, WebviewWindowBuilder};
 
-    use d2rmm_agent_core::context::Adapters;
+    use d2rmm_agent_core::api_client::ApiClient;
+    use d2rmm_agent_core::context::Groups;
+    use d2rmm_agent_core::gateway::http::HttpGateway;
     use d2rmm_agent_core::ports::StateSink;
     use d2rmm_agent_core::runtime::{Handle, Runtime};
     use d2rmm_agent_core::telemetry::{self, Mode};
@@ -115,11 +117,12 @@ mod shell {
         }
     }
 
-    /// Starts the agent and the window. `build` supplies the ports, given the app handle (for the updater) and the state
-    /// sink. A bad build configuration or a bad fixture path ends the process with exit code 1; a rejected flag exits 2.
+    /// Starts the agent and the window. `build` supplies the port groups, given the app handle (for the updater) and the
+    /// HTTP gateway the app built. A bad build configuration or a bad fixture path ends the process with exit code 1; a
+    /// rejected flag exits 2.
     pub fn run(
         args: &[String],
-        build: impl FnOnce(AppHandle, Arc<dyn StateSink + Send + Sync>) -> Adapters + Send + 'static,
+        build: impl FnOnce(AppHandle, Arc<HttpGateway>) -> Groups<HttpGateway> + Send + 'static,
     ) {
         install_panic_hook();
         let fixture =
@@ -158,13 +161,14 @@ mod shell {
                     fixture,
                 });
                 let sink: Arc<dyn StateSink + Send + Sync> = window_sink.clone();
-                let adapters = build(app_handle, sink);
 
                 let version = app.package_info().version.to_string();
                 let core_config = config::core_config(&version, api_base.clone());
                 let client = http::client(&api_base)?;
+                let gateway = Arc::new(HttpGateway::new(ApiClient::new(&core_config, client)));
+                let groups = build(app_handle, gateway);
                 let handle = Arc::new(tauri::async_runtime::block_on(async move {
-                    Runtime::start(&core_config, client, adapters)
+                    Runtime::start(&core_config, sink, groups)
                 }));
                 window_sink.attach(handle.clone());
                 app.manage(handle);
