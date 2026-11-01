@@ -388,8 +388,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] The traits compile and are object-safe where the design says (`Box<dyn EventStream>`)
-- [ ] Rust core gate passes
+- [x] The traits compile and are object-safe where the design says (`Box<dyn EventStream>`)
+- [x] Rust core gate passes
 
 **Tests**: none (types; exercised by T15–T18)
 **Gate**: Rust core

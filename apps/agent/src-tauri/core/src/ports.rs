@@ -2,12 +2,14 @@
 //! adapters; tests supply the fakes defined here (`PausedWallClock`, `SequentialIds`) and in `core/tests/support`.
 
 use std::future::Future;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use uuid::Uuid;
 
+use crate::messages::{Assignment, GameNameObservation, IssuedCode, Presence};
 use crate::secret::Secret;
 use crate::view::AgentView;
 
@@ -105,6 +107,62 @@ pub enum UpdateOutcome {
 /// Checks the latest release and installs a newer version when its signature verifies (AGS-24, AGS-25).
 pub trait UpdateChecker {
     fn check(&self) -> impl Future<Output = UpdateOutcome> + Send;
+}
+
+/// The API as the agent's use cases see it: the calls the agent makes, in message types. The adapters translate to and
+/// from the contract (ADR 027, rule 3); no HTTP type or contract type crosses this port.
+pub trait ApiGateway {
+    fn request_code(&self) -> impl Future<Output = Result<IssuedCode, ApiError>> + Send;
+    fn claim(&self, claim_secret: &Secret)
+    -> impl Future<Output = Result<Secret, ApiError>> + Send;
+    fn heartbeat(
+        &self,
+        token: &Secret,
+        presence: &Presence,
+        version: &str,
+    ) -> impl Future<Output = Result<(), ApiError>> + Send;
+    fn assignment(
+        &self,
+        token: &Secret,
+    ) -> impl Future<Output = Result<Option<Assignment>, ApiError>> + Send;
+    fn post_observation(
+        &self,
+        token: &Secret,
+        observation: &GameNameObservation,
+    ) -> impl Future<Output = Result<(), ApiError>> + Send;
+    /// Opens the room stream, resuming after `last_event_id` when the caller has one.
+    fn open_stream(
+        &self,
+        token: &Secret,
+        last_event_id: Option<&str>,
+    ) -> impl Future<Output = Result<Box<dyn EventStream>, ApiError>> + Send;
+}
+
+/// One item of the room stream: an assignment, or the end of the stream and why it ended.
+#[derive(Debug, Clone, PartialEq)]
+pub enum StreamItem {
+    RoomAssigned(Assignment),
+    Ended(EndReason),
+}
+
+/// Why a stream ended. The loop reconnects after every end; the reason only shapes what the loop shows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EndReason {
+    /// The server closed the stream.
+    Closed,
+    /// No bytes arrived for the idle timeout.
+    Idle,
+    /// The stream failed, or broke the size bound, with this error.
+    Failed(ApiError),
+}
+
+/// The room stream, one item at a time. The trait is object safe: `next` returns a boxed future, as `Updater` does for
+/// `UpdateChecker`, so `ApiGateway::open_stream` can return `Box<dyn EventStream>`.
+pub trait EventStream: Send {
+    /// The next item. Cancel-safe: every piece of parser state lives in `self`, so a dropped future loses nothing.
+    fn next(&mut self) -> Pin<Box<dyn Future<Output = StreamItem> + Send + '_>>;
+    /// The id of the last event the stream dispatched, to resume from after a reconnect.
+    fn last_event_id(&self) -> Option<&str>;
 }
 
 /// Makes the idempotency keys of observations (AD-051).
