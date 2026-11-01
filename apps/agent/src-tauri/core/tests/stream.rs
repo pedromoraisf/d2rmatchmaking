@@ -112,6 +112,79 @@ async fn reconnect_backoff_doubles_to_60s() {
     }
 }
 
+/// Two refused streams back the delay off to 4 s. The third stream stays open for `open_for_s` seconds and then closes.
+/// Returns once that close has been observed by the loop, with the clock at the moment of the close.
+async fn backoff_before_a_stream_open_for(open_for_s: u64) -> Harness {
+    let h = Harness::start(Some(TOKEN)).await;
+    h.ctx.paired.send_replace(true);
+    h.api.script(
+        Operation::Stream,
+        [
+            Answer::ServerError,
+            Answer::ServerError,
+            Answer::EndsAfter(open_for_s),
+        ],
+    );
+    spawn_stream(&h);
+    until("the first attempt", || {
+        count(&h.api, Operation::Stream) == 1
+    })
+    .await;
+    settle().await;
+
+    // The second attempt comes 1 s after the first failure; the third 2 s after the second.
+    advance(Duration::from_secs(1)).await;
+    until("the second attempt", || {
+        count(&h.api, Operation::Stream) == 2
+    })
+    .await;
+    settle().await;
+    advance(Duration::from_secs(2)).await;
+    until("the third attempt", || {
+        count(&h.api, Operation::Stream) == 3
+    })
+    .await;
+    settle().await;
+
+    advance(Duration::from_secs(open_for_s)).await;
+    settle().await;
+    h
+}
+
+#[tokio::test(start_paused = true)]
+async fn reconnect_backoff_resets_at_exactly_60s_open() {
+    // A stream open for exactly 60 s resets the delay: the next attempt comes 1 s after it closes, not 4 s (AD-059).
+    let h = backoff_before_a_stream_open_for(60).await;
+    advance(Duration::from_millis(900)).await;
+    assert_eq!(
+        count(&h.api, Operation::Stream),
+        3,
+        "no reconnect before 1 s after the close"
+    );
+    advance(Duration::from_millis(100)).await;
+    until("the reconnect 1 s after the close", || {
+        count(&h.api, Operation::Stream) == 4
+    })
+    .await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn reconnect_backoff_keeps_doubling_at_59s_open() {
+    // A stream open for 59 s does not reset the delay: the next attempt comes 4 s after it closes (AD-059).
+    let h = backoff_before_a_stream_open_for(59).await;
+    advance(Duration::from_millis(3900)).await;
+    assert_eq!(
+        count(&h.api, Operation::Stream),
+        3,
+        "no reconnect before 4 s after the close"
+    );
+    advance(Duration::from_millis(100)).await;
+    until("the reconnect 4 s after the close", || {
+        count(&h.api, Operation::Stream) == 4
+    })
+    .await;
+}
+
 #[tokio::test(start_paused = true)]
 async fn latest_room_assigned_wins() {
     let h = Harness::start(Some(TOKEN)).await;

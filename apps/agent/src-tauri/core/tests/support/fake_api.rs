@@ -4,9 +4,12 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::convert::Infallible;
+use std::future::Future;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::task::Poll;
 use std::time::Duration;
 
 use axum::Json;
@@ -61,6 +64,8 @@ pub enum Answer {
     Lifetime(u64),
     /// 400 `{"error":"invalid-request"}`: a client error the route does not retry.
     BadRequest,
+    /// The stream answer: events flow, then the body ends this many seconds after the request (a dropped stream).
+    EndsAfter(u64),
 }
 
 /// One request as the fake saw it. Header names are lower case.
@@ -443,9 +448,11 @@ async fn stream(
     Extension(answer): Extension<Answer>,
     headers: HeaderMap,
 ) -> Response {
-    if answer != Answer::Ok {
-        return unexpected(answer);
-    }
+    let ends_after = match answer {
+        Answer::Ok => None,
+        Answer::EndsAfter(seconds) => Some(Duration::from_secs(seconds)),
+        other => return unexpected(other),
+    };
     let last_event_id = headers
         .get("last-event-id")
         .and_then(|value| value.to_str().ok())
@@ -462,13 +469,42 @@ async fn stream(
             .ok()
             .map(|event| Ok::<Event, Infallible>(to_sse(event)))
     });
-    Sse::new(replayed.chain(live))
-        .keep_alive(
-            KeepAlive::new()
-                .interval(Duration::from_secs(25))
-                .text("ka"),
-        )
-        .into_response()
+    let events = replayed.chain(live);
+    match ends_after {
+        None => Sse::new(events).keep_alive(keep_alive()).into_response(),
+        Some(after) => Sse::new(EndsAt {
+            events: Box::pin(events),
+            deadline: Box::pin(tokio::time::sleep(after)),
+        })
+        .keep_alive(keep_alive())
+        .into_response(),
+    }
+}
+
+fn keep_alive() -> KeepAlive {
+    KeepAlive::new()
+        .interval(Duration::from_secs(25))
+        .text("ka")
+}
+
+/// A stream that ends at its deadline, as a dropped connection does: the SSE body closes there.
+struct EndsAt<S> {
+    events: Pin<Box<S>>,
+    deadline: Pin<Box<tokio::time::Sleep>>,
+}
+
+impl<S: tokio_stream::Stream> tokio_stream::Stream for EndsAt<S> {
+    type Item = S::Item;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        if self.deadline.as_mut().poll(cx).is_ready() {
+            return Poll::Ready(None);
+        }
+        tokio_stream::Stream::poll_next(self.events.as_mut(), cx)
+    }
 }
 
 fn to_sse(event: StreamEvent) -> Event {
