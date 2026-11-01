@@ -198,9 +198,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] `cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/domain-clock/Cargo.toml -- -D warnings` fails naming `std::time::Instant`
-- [ ] The workspace build ignores it (`exclude` already covers `boundary-fixtures`)
-- [ ] Rust workspace gate passes
+- [x] `cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/domain-clock/Cargo.toml -- -D warnings` fails naming `std::time::Instant`
+- [x] The workspace build ignores it (`exclude` already covers `boundary-fixtures`)
+- [x] Rust workspace gate passes
 
 **Tests**: none (its test is the CI step of T5)
 **Gate**: Rust workspace
@@ -1329,6 +1329,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Settled mid-build:** none
 **Dispatched:** none
 **Walked:** none (no screen)
+**Blocked:** none
 
 ---
 

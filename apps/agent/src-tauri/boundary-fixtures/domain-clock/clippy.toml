@@ -1,0 +1,23 @@
+# Clippy policy of the domain crate (ADR 027, rule 4; AHM-04). Clippy reads only the nearest clippy.toml, so this file
+# repeats every entry of the root apps/agent/src-tauri/clippy.toml (ADR 010 bans) and adds the clock and randomness bans.
+# The domain receives time and identifiers as arguments; it never reads them.
+
+disallowed-types = [
+  { path = "std::process::Command", reason = "the agent starts no process; only the updater installs (AGS-22)" },
+  { path = "tokio::process::Command", reason = "the agent starts no process (AGS-22)" },
+  { path = "std::time::Instant", reason = "the domain takes the time as an argument; it reads no clock (ADR 027, AHM-04)" },
+]
+
+disallowed-methods = [
+  { path = "windows::Win32::System::Diagnostics::ToolHelp::Toolhelp32ReadProcessMemory", reason = "reads another process's memory (ADR 010)" },
+  { path = "windows::Win32::System::Threading::OpenProcess", reason = "opens process handles; the agent lists names only (AD-055)" },
+  { path = "windows::Win32::System::Diagnostics::Debug::ReadProcessMemory", reason = "reads another process's memory (ADR 010)" },
+  { path = "windows::Win32::System::Diagnostics::Debug::WriteProcessMemory", reason = "writes another process's memory (ADR 010)" },
+  { path = "windows::Win32::UI::Input::KeyboardAndMouse::SendInput", reason = "sends input to the game (ADR 010)" },
+  { path = "reqwest::ClientBuilder::danger_accept_invalid_certs", reason = "TLS certificate checks stay on (NFR-06)" },
+  { path = "reqwest::ClientBuilder::danger_accept_invalid_hostnames", reason = "TLS hostname checks stay on (NFR-06)" },
+  { path = "std::time::SystemTime::now", reason = "the domain takes the time as an argument; it reads no clock (ADR 027, AHM-04)" },
+  { path = "chrono::Utc::now", reason = "the domain takes the time as an argument; it reads no clock (ADR 027, AHM-04)" },
+  { path = "chrono::Local::now", reason = "the domain takes the time as an argument; it reads no clock (ADR 027, AHM-04)" },
+  { path = "uuid::Uuid::new_v4", reason = "the domain takes identifiers as arguments; it draws no randomness (ADR 027, AHM-04)" },
+]
