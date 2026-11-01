@@ -23,6 +23,24 @@ describe('Layout', () => {
     ).toBeTruthy();
   });
 
+  it('shows the SmartScreen note next to the download link in English', () => {
+    renderInLanguage(<Layout>{null}</Layout>, ['en-US']);
+    const link = screen.getByRole('link', { name: 'Download the agent' });
+    const note = screen.getByText(
+      'The installer is not code-signed yet, so Windows SmartScreen may warn you before it runs.',
+    );
+    expect(link.parentElement?.contains(note)).toBe(true);
+  });
+
+  it('shows the SmartScreen note next to the download link in pt-BR', () => {
+    renderInLanguage(<Layout>{null}</Layout>, ['pt-BR']);
+    const link = screen.getByRole('link', { name: 'Baixar o agente' });
+    const note = screen.getByText(
+      'O instalador ainda não tem assinatura de código, por isso o Windows SmartScreen pode avisar antes de executá-lo.',
+    );
+    expect(link.parentElement?.contains(note)).toBe(true);
+  });
+
   it('shows the notice and the download button in pt-BR', () => {
     renderInLanguage(<Layout>{null}</Layout>, ['pt-BR']);
     expect(

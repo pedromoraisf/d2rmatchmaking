@@ -62,3 +62,13 @@ Then(/^within 2 seconds the site shows ((?:"[^"]*"(?:, | and )?)+)$/, async ({ w
     });
   }
 });
+
+// AGS-30: a note sits next to a link, in the same container as the link (the site's header).
+Then(/^the site shows "([^"]+)" next to "([^"]+)"$/, async ({ world }, note: string, name: string) => {
+  const link = world.currentVisitor.page.getByRole('link', { name, exact: true });
+  await expect(link, `the link "${name}"`).toBeVisible();
+  await expect(
+    link.locator('xpath=..').getByText(note, { exact: true }),
+    `"${note}" next to "${name}"`,
+  ).toBeVisible();
+});

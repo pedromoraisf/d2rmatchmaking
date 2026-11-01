@@ -729,8 +729,8 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] Vitest: the note renders next to the link in en and pt-BR; both `@AGS-30` scenarios pass
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web test && pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen test --tags "@AGS-30" && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@AGS-30"`
+- [x] Vitest: the note renders next to the link in en and pt-BR; both `@AGS-30` scenarios pass
+- [x] Gate check passes: `pnpm --filter @d2rmm/web test && pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen test --tags "@AGS-30" && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@AGS-30"`
 
 **Tests**: acceptance
 **Gate**: quick
