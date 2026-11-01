@@ -896,8 +896,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Test `secret_debug_and_display_are_redacted` in core and the two moved tests pass; preservation test passes
-- [ ] Rust workspace gate passes
+- [x] Test `secret_debug_and_display_are_redacted` in core and the two moved tests pass; preservation test passes
+- [x] Rust workspace gate passes
 
 **Tests**: unit
 **Gate**: Rust workspace
@@ -1329,7 +1329,10 @@ Proof: `cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml -
 
 The feature's live state, written as it happens - a compaction gives no warning.
 
-**Batch 7 (execute-batch-7), in progress: T38 to T41**
+**Batch 7 (execute-batch-7), complete: T38 to T41**
+
+- T41 done (commit carries `Task: T41`): `core/src/secret.rs` holds `secret_debug_and_display_are_redacted` (`Debug` and `Display` print `***`, and the claim text appears in neither). The two moved proofs, `no_secret_in_logs_or_spans` (`adapters/tests/runtime.rs`) and `authorization_is_sensitive_and_never_logged` (`adapters/tests/api_client.rs`), pass in the workspace run. Gate `Rust workspace` and the preservation guard passed on attempt 1, chained in one command (150 workspace tests, 7 of 7 preservation).
+- Phase 7 open items, for the orchestrator: (a) `.cargo/mutants.toml` still lists `core/src/pairing.rs`, which T39 renamed to `core/src/pair.rs`; the examine glob matches nothing until T53 rewrites the list, and the harness test reads the list only. (b) `core/src/pair.rs` is not in any mutation scope before T53. (c) The domain `clippy.toml` warnings (`chrono::Utc::now`, `chrono::Local::now`, `tokio::process::Command`) are unchanged from earlier batches and are not failures.
 
 - T40 done (commit carries `Task: T40`): `core/src/pair.rs` has four paused-clock tests against `FakeApiGateway`: `pair_shows_code_then_stores_token` (the code shows "5 min", a Pending claim is retried, the token lands in `TokenStore`), `pair_gone_shows_a_new_code` (a 410 requests the next code), `pair_pauses_after_two_unused_codes` (two expiries pause; no request while paused) and `pair_resumes_on_get_new_code` (the command resumes with a new code). Deviation for the orchestrator: the in-memory fakes `MemoryTokens`, `NullSink`, `NoProcesses`, `NoText` and `NoUpdates` moved from the private test module of `context.rs` to `core/src/fakes.rs` (pub), so both test modules use them. Only the imports of `context.rs`'s tests changed (no assertion touched). The first attempt failed on the unused imports this move left behind; they were removed and the gate passed on attempt 2. Gate `Rust core` passed (33 tests).
 

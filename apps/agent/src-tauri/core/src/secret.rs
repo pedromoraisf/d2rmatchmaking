@@ -45,3 +45,19 @@ impl fmt::Display for Secret {
 pub fn expose<S: Serializer>(secret: &Secret, serializer: S) -> Result<S::Ok, S::Error> {
     serializer.serialize_str(secret.expose())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Secret;
+
+    const CLAIM_SECRET: &str = "claim-secret-7f3a9c1e5b2d";
+
+    #[test]
+    fn secret_debug_and_display_are_redacted() {
+        let secret = Secret::new(CLAIM_SECRET);
+
+        assert_eq!(format!("{secret:?}"), "***");
+        assert_eq!(format!("{secret}"), "***");
+        assert!(!format!("{secret:?} {secret}").contains(CLAIM_SECRET));
+    }
+}
