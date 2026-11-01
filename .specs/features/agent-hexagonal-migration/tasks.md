@@ -614,9 +614,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Test `adapters_crate_builds`
-- [ ] Architecture rules `adapters never depend on tauri keyring or windows` and `adapters never depend on the app crate` pass on the real crate
-- [ ] Rust workspace gate passes
+- [x] Test `adapters_crate_builds`
+- [x] Architecture rules `adapters never depend on tauri keyring or windows` and `adapters never depend on the app crate` pass on the real crate
+- [x] Rust workspace gate passes
 
 **Tests**: unit
 **Gate**: Rust workspace
@@ -1329,7 +1329,11 @@ Proof: `cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml -
 
 The feature's live state, written as it happens - a compaction gives no warning.
 
-**Batch 4 (execute-batch-4), in progress: T19 to T25**
+**Batch 4 (execute-batch-4), complete: T19 to T25**
+
+**Batch 5 (execute-batch-5), in progress: T26 to T32**
+
+- T26 done (commit carries `Task: T26`): `adapters/` is a workspace member (`d2rmm-agent-adapters`) with the design's dependencies and `#![forbid(unsafe_code)]`; `adapters_crate_builds` passes; `Cargo.lock` gains the member. Gate `Rust workspace` passed on attempt 1 (132 tests). Deviation to note: the architecture test for the app-crate direction is named `adapters and the app crate do not depend on each other` (T6 file), not `adapters never depend on the app crate` as T26 lists it; the rule passes under the existing name, and the name was left as it is (harness file not edited here).
 
 - T19 done (commit carries `Task: T19`): `Context` is generic over the gateway (`Context<G = HttpGateway>`) and gained `gateway: Arc<G>` beside the transitional `api: ApiClient`. The five groups (`PairingPorts`, `HeartbeatPorts`, `StreamPorts`, `UpdatePorts`, `ReadPorts`) and `Groups<G>` are in `context.rs`; `Context::from_groups(version, sink, api, groups)` builds the context. Deviation (for the orchestrator to note): `from_groups` also takes the transitional `api`, because the loops still call `ctx.api` until T21 to T24, and `api` goes with the last of them. Gate `Rust core` passed on attempt 1 (113 tests). The arch rule `no struct in core holds more than five ports` is switched off on the real tree until T47, so its pass is by the rule's own gating.
 - T20 done (commit carries `Task: T20`): `Runtime::start_with_probe(config, http, adapters) -> (Handle, Probe)` and `Probe` (`update_required` receiver, `dropped_observations`, `assignment`, `set_paired`, `set_assignment`, `on_unauthorized`, `on_upgrade_required`). `Runtime::start` returns the `Handle` alone. Both still take `Adapters`; they move to the groups in T25. Gate `Rust core` passed on attempt 1 (114 tests).

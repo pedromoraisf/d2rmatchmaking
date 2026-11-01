@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "core", "domain", "xtask"]
+members = [".", "core", "domain", "adapters", "xtask"]
 exclude = ["boundary-fixtures"]
 resolver = "3"
 
