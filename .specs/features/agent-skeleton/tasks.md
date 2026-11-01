@@ -672,9 +672,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] Tests: the guard on the calling job's `if:` with its own `contents: write` (test `release-please calls release-agent only when the agent was released`); the release-PR CI dispatch and `ci.yml` `workflow_dispatch`; SHA-pinned `uses:`; the agent is the only released package
-- [ ] Gate check passes: `pnpm test:harness`
-- [ ] Test count: ≥ 4 new harness tests pass
+- [x] Tests: the guard on the calling job's `if:` with its own `contents: write` (test `release-please calls release-agent only when the agent was released`); the release-PR CI dispatch and `ci.yml` `workflow_dispatch`; SHA-pinned `uses:`; the agent is the only released package
+- [x] Gate check passes: `pnpm test:harness`
+- [x] Test count: ≥ 4 new harness tests pass
 
 **Tests**: unit
 **Gate**: quick
