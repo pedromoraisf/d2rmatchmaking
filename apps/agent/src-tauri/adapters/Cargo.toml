@@ -33,3 +33,7 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 [[test]]
 name = "gateway"
 path = "extra-tests/gateway.rs"
+
+[[test]]
+name = "stream_limits"
+path = "extra-tests/stream_limits.rs"
