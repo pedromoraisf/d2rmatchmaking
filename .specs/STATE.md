@@ -660,6 +660,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-31
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-074 (assumed)
+
+- **Decision**: T27 wiring details: the app crate supplies the production `Clock` and `IdGenerator` (`src/adapters/system.rs`: `SystemClock` over `chrono::Utc::now`, `RandomIds` over `uuid::Uuid::new_v4`); when `WindowsOcr::new()` fails (no en-US OCR engine) the app wires `NoOcrEngine`, whose every read returns `ReadError::EngineUnavailable`; `app.rs` compiles under `cfg(any(windows, test))` and its Tauri shell under `cfg(windows)`, so a non-Windows build has no dead code; adapters are built inside Tauri `setup` because the updater needs the `AppHandle`.
+- **Reason**: core injects clock and ids as ports (AGENTS.md rule 1) but had no production implementation; the missing-engine path is the spec'd error, and it reads nothing.
+- **Trade-off**: two more app dependencies (`chrono`, `uuid` v4). Reversal is moving the adapters.
+- **Scope**: agent-skeleton / T27
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

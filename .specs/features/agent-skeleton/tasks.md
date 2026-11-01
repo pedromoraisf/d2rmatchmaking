@@ -630,7 +630,7 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] Test `get_new_code_reaches_the_runtime` (command handler with a fake `CodeRequester`); `cargo build --locked` of the app succeeds with the UI built; the Windows `main` passes the Windows-target check
+- [x] Test `get_new_code_reaches_the_runtime` (command handler with a fake `CodeRequester`); `cargo build --locked` of the app succeeds with the UI built; the Windows `main` passes the Windows-target check
 - [x] Gate check passes: `pnpm --filter @d2rmm/agent build && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets --all-features -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent && node scripts/agent/win-check.mjs`
 - [x] Test count: ≥ 1 new test passes
 
@@ -932,7 +932,7 @@ Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.to
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** the maintainer confirmed the `# not-scenario` exemptions ("Ponto 2: A", 2026-10-30)
-**Dispatched:** execute-batch-4 (T27, replanned per AD-073) to feature-worker, 2026-10-31. Batch 1 done: T1–T8 (f58ecec, d250ad3, e26a081, 5eae324, 4d3123c, bc3b06f, 69ff9ed, 661142f). Batch 2 done: T9–T13 (cdd577b, d1d17b4, 3cfe186, 846be89, 9e3a946 + 40bcf2e). Batch 3 done: T14–T20 (4d99122, e143c3c, de99709, 0ebb89a, ce9375e, 146d9f3, 7554734). Batch 4 so far: T21 e0a940a, T22 377e962, T23 63b1bfa, T24 1167762 + ed6dd2d, T25 646a772, T26 3f4d0c3 (pubkey box open: escalation "updater key pair"); fixes 3a935d5 (AD-072), 5104db2 (ledger dedupe, cherry-picked to phase/F0 as 290c1cf)
+**Dispatched:** execute-batch-5 (Phases 6–7, T28–T33) to feature-worker, 2026-10-31. Batch 1 done: T1–T8 (f58ecec, d250ad3, e26a081, 5eae324, 4d3123c, bc3b06f, 69ff9ed, 661142f). Batch 2 done: T9–T13 (cdd577b, d1d17b4, 3cfe186, 846be89, 9e3a946 + 40bcf2e). Batch 3 done: T14–T20 (4d99122, e143c3c, de99709, 0ebb89a, ce9375e, 146d9f3, 7554734). Batch 4 so far: T21 e0a940a, T22 377e962, T23 63b1bfa, T24 1167762 + ed6dd2d, T25 646a772, T26 3f4d0c3 (pubkey box open: escalation "updater key pair"), T27 e757120 (app `cargo build --locked` green, gate attempt 3); fixes 3a935d5 (AD-072), 5104db2 (ledger dedupe, cherry-picked to phase/F0 as 290c1cf)
 **Walked:** none
 **Replanned (execute-batch-1):** T6 stopped at failure 1/3 of `gate:agent-skeleton/T6`: cargo-deny 0.20.2 takes `--config` before `check`, not after (`error: unexpected argument '--config' found`). The T6 gate and the matching proof in `## Checks` now pass `--config` first (AD-063); the tasks gate re-ran. T1–T5 done (f58ecec, d250ad3, e26a081, 5eae324, 4d3123c); the four fixtures are written, uncommitted; T6–T8 then passed in a second dispatch of execute-batch-1
 
