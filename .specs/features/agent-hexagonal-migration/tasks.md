@@ -822,8 +822,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] `assignment_translation_keeps_every_field` and `non_uuid_room_is_carried_unchanged` pass
-- [ ] Rust adapters gate passes
+- [x] `assignment_translation_keeps_every_field` and `non_uuid_room_is_carried_unchanged` pass
+- [x] Rust adapters gate passes
 
 **Tests**: unit
 **Gate**: Rust adapters
@@ -1329,12 +1329,13 @@ Proof: `cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml -
 
 The feature's live state, written as it happens - a compaction gives no warning.
 
-**Batch 6 (execute-batch-6), in progress: T33 to T37**
+**Batch 6 (execute-batch-6), complete: T33 to T37**
 
 - T33 done (commit `82208c5`, `Task: T33`): `domain/src/room_assignment.rs` holds `RoomId`, `GameName`, `MemberRole`, `Member`, `Assignment` and `RoomAssignment` (`empty`, `receive` → `true` when it replaced an earlier assignment, `clear`, `current`). Gate `Rust domain` passed on attempt 1 (6 tests). Deviation, kept small: `MemberRole` moved with `Member`, since `Member` needs it; the plan named only `Member` and `Assignment`.
 - T34 done (commit `29812a8`, `Task: T34`): core and the ACL use the domain `Assignment`, `GameName`, `RoomId`, `Member`, `MemberRole`; `messages.rs` keeps the pairing, observation and presence messages. `Context.assignment` is a `watch::Sender<RoomAssignment>`, fed by `Context::replace_assignment` (used by the stream loop and the probe), so the loop feeds the watch from the aggregate. `core/Cargo.toml` gains `d2rmm-agent-domain`; `Cargo.lock` gains that one edge. The architecture test flips `ENFORCED_NOW.coreDomain` to `true` (the T34 switch-on). Gates: `Rust workspace` passed on attempt 1 (137 tests), `Harness` passed on attempt 2 (188 tests; the first gate of the step passed and this second run was the harness). The clippy note `tokio::process::Command` does not refer to a reachable type comes from the unchanged root `clippy.toml`; it is a warning, not a failure.
 - T35 done (commit carries `Task: T35`): `domain/src/vision.rs` holds `Region`, `ReadText`, `AUTOMAP_NAME_1080P` and `region_for`. The plan said the tests of `region_for` move with it, but core had none for it (the size behaviour was tested through `read_game_name` in `fusion.rs`, which stays). New domain tests pin both sides of the size boundary (1919, 1921, 1079, 1081 and 0×0 against 1920×1080) and the four `AUTOMAP_NAME_1080P` values. Core keeps its own copies until T36, as planned. Gate `Rust domain` passed on attempt 1 (9 tests).
-- T36 done (commit carries `Task: T36`): `core/src/vision.rs` is `core/src/read_frame.rs` (`git mv`); `read_game_name` uses the domain `region_for` and the `TextReader` port. `Region` and `ReadText` leave `ports.rs` (the port imports them from the domain). The app crate and xtask gain a `d2rmm-agent-domain` path dependency (the plan said they import from the domain; a crate needs the dependency to do so); `Cargo.lock` gains those two edges. The app's `main.rs`, `adapters/windows_ocr.rs` and `adapters/tests/support/fakes.rs` and the xtask fixture import from the domain; the `windows_ocr` test calls `read_frame::read_game_name`. Gates: `Rust workspace` passed on attempt 1 (140 tests); `Rust Windows` (`win-check`) passed; `Harness` passed (188, preservation guard green). The fixture-read test `fixture_read_reads_once_with_assignment` is behind `#[cfg(feature = "fixture-read")]`, so it ran as its own gate with `--features fixture-read` (1 test, passed). No assertion line changed under `adapters/tests/**`.
+- T36 done (commit carries `Task: T36`): `core/src/vision.rs` is `core/src/read_frame.rs` (`git mv`); `read_game_name` uses the domain `region_for` and the `TextReader` port. `Region` and `ReadText` leave `ports.rs` (the port imports them from the domain). The app crate and xtask gain a `d2rmm-agent-domain` path dependency (the plan said they import from the domain; a crate needs the dependency to do so); `Cargo.lock` gains those two edges. The app's `main.rs`, `adapters/windows_ocr.rs` and `adapters/tests/support/fakes.rs` and the xtask fixture import from the domain; the `windows_ocr` test calls `read_frame::read_game_name`. Gates: `Rust workspace` passed on attempt 1 (140 tests); `Rust Windows` (`win-check`) passed; `Harness` passed (188, preservation guard green).
+- T37 done (commit carries `Task: T37`): no code change needed. The ACL's assignment functions (`assignment_from_contract`, `assignment_to_contract`) and the member mapping already use the domain types since T34; `ApiClient` is untouched. The task's two tests (`assignment_translation_keeps_every_field`, `non_uuid_room_is_carried_unchanged`) pass. Gate `Rust adapters` passed on attempt 1 (83 tests). The commit carries only the tick and this note. The fixture-read test `fixture_read_reads_once_with_assignment` is behind `#[cfg(feature = "fixture-read")]`, so it ran as its own gate with `--features fixture-read` (1 test, passed). No assertion line changed under `adapters/tests/**`.
 
 **Batch 5 (execute-batch-5), complete: T26 to T32**
 
