@@ -1,7 +1,7 @@
 # ADR 027 — The desktop agent is hexagonal, like the Agents context of the backend
 
-**Status**: Proposed
-**Date**: 2026-11-01
+**Status**: Accepted
+**Date**: 2026-11-01 (accepted 2026-11-01 by the maintainer: "aprovado")
 **Deciders**: maintainer
 **Supersedes**: none (extends ADR 003 to the Rust agent; builds on ADR 010 and ADR 026)
 
@@ -95,8 +95,9 @@ Rules:
 - Revisit when F2 starts (vision and capture): they add sensors and a fusion domain service, and show whether the layer table
   holds.
 
-## Open questions for the maintainer
+## Open points after acceptance
 
-1. Domain as a separate crate (recommended, above) or as modules of `core` with a test?
-2. Where does the HTTP adapter live: the app crate, or a new `d2rmm-agent-adapters` crate?
-3. Which phase carries the migration: a feature of F0, or the start of F1?
+1. Domain as a separate crate: **settled** by the Decision section (`d2rmm-agent-domain`), as approved.
+2. Where the HTTP adapter lives (the app crate, or a new `d2rmm-agent-adapters` crate): decided in the design of the first
+   migration feature.
+3. Which phase carries the migration: decided in the brief of that phase (`/phase-kickoff`).
