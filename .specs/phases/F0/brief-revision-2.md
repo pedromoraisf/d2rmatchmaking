@@ -1,6 +1,6 @@
 # Phase F0 — Brief revision 2 (proposal)
 
-**Status**: PROPOSAL — waiting for the maintainer. Nothing here is in `brief.md` yet; the runner does not read this file.
+**Status**: APPLIED to `brief.md` on 2026-11-01. Approved by the maintainer: "aprovo a revisão 2 do brief da F0".
 **Why**: ADR 027 (Accepted 2026-11-01) makes the desktop agent hexagonal. The maintainer chose to carry the migration in
 F0, before `observability-e2e`, so the observability work instruments the agent once, on the final layout
 (decisions.md, "agent architecture (hexagonal)"; answer "opção 1").

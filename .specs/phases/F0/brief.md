@@ -24,16 +24,18 @@ From Design Doc § Walking skeleton. Every item needs a proof in the phase revie
 - [ ] Session cookie through the Pages Function proxy, SSE included (ADR 012) — proof: e2e on the preview
 - [ ] Load test of the main journey passes ≥ 100 concurrent players and publishes max players/rooms and bytes per player-hour — proof: k6 summary in `reports/load/`
 - [ ] `.quality-baseline.json` has first real values for harness, mutation (domain), CI time and load — proof: ratchet `--update` diff
+- [ ] The agent core follows ADR 027: the domain crate has no I/O dependency (an architecture test fails on a deliberate violation kept as a fixture), the generated contract types do not reach the domain, and mutation testing runs on the domain and application of the agent with unit tests only (ADR 026) — proof: `pnpm test:harness` + the cargo-mutants report
 
 ## Features
 
-| Feature            | Size    | Depends on                       | Parallel              | Covers                                                                                          | Wall-clock |
-| ------------------ | ------- | -------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
-| harness-foundation | Large   | —                                | no (first)            | NFR-10, NFR-11, ADR 001/003/004/014/019/020/021                                                 | default    |
-| api-web-skeleton   | Large   | harness-foundation               | with agent-skeleton   | FR-01 (stub), FR-03, FR-05, NFR-01, NFR-07, NFR-08, NFR-12, ADR 002/005/006/007/008/009/012/017 | default    |
-| agent-skeleton     | Complex | harness-foundation               | with api-web-skeleton | FR-03, FR-05, FR-27 (fixture), FR-29, NFR-04, NFR-06, ADR 010/011/015/016                       | 10 h       |
-| observability-e2e  | Large   | api-web-skeleton, agent-skeleton | no                    | NFR-09, ADR 013                                                                                 | default    |
-| load-baseline      | Large   | observability-e2e                | no                    | NFR-01, NFR-14                                                                                  | default    |
+| Feature                   | Size    | Depends on                                                  | Parallel              | Covers                                                                                          | Wall-clock |
+| ------------------------- | ------- | ----------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
+| harness-foundation        | Large   | —                                                           | no (first)            | NFR-10, NFR-11, ADR 001/003/004/014/019/020/021                                                 | default    |
+| api-web-skeleton          | Large   | harness-foundation                                          | with agent-skeleton   | FR-01 (stub), FR-03, FR-05, NFR-01, NFR-07, NFR-08, NFR-12, ADR 002/005/006/007/008/009/012/017 | default    |
+| agent-skeleton            | Complex | harness-foundation                                          | with api-web-skeleton | FR-03, FR-05, FR-27 (fixture), FR-29, NFR-04, NFR-06, ADR 010/011/015/016                       | 10 h       |
+| agent-hexagonal-migration | Complex | agent-skeleton                                              | no                    | NFR-06, NFR-10, ADR 010/026/027                                                                 | 10 h       |
+| observability-e2e         | Large   | api-web-skeleton, agent-skeleton, agent-hexagonal-migration | no                    | NFR-09, ADR 013                                                                                 | default    |
+| load-baseline             | Large   | observability-e2e                                           | no                    | NFR-01, NFR-14                                                                                  | default    |
 
 Retry budget is fixed for every feature: 1 attempt + 2 retries per unit (ADR 022); a brief cannot raise it.
 
@@ -68,6 +70,10 @@ configs, release-please config, first green CI on GitHub, and the first measured
 
 - In: only what the exit criteria need. The staging-only endpoint that simulates `MatchFormed` is the single fake.
 - Out: real Battle.net login beyond a stub flow if the OAuth app is not ready (see Q2), real matchmaking, ranking, UI polish.
+- Revision 2 (2026-11-01, ADR 027): `agent-hexagonal-migration` migrates the agent core to the hexagonal layout before
+  `observability-e2e`. In: a behaviour-preserving migration (domain crate, application layer, adapters, anti-corruption
+  layer, architecture test, mutation on domain and application with unit tests only). Out: new agent behaviour,
+  vision/capture, contract or API changes. Details: `.specs/phases/F0/brief-revision-2.md`.
 
 ## Open questions (answered by the maintainer on 2026-10-30)
 
@@ -99,16 +105,19 @@ scopes delegated — the maintainer reviews at the end of the phase (escalations
 
 **Approved**: 2026-10-30 - user: "aprovo specs e tasks da F0 que passarem nos gates automáticos; delego sub-agents, harness-edits e local-merge-phase-branch"
 
+**Approved**: 2026-11-01 - user: "aprovo a revisão 2 do brief da F0"
+
 ## Runner state
 
 <!-- generated by `pnpm phase:status --write` from files, git trailers and the retry ledger — do not edit -->
 
 **Phase next step**: run
 
-| Feature            | Next step | Status                       | Tasks |
-| ------------------ | --------- | ---------------------------- | ----- |
-| harness-foundation | done      | done                         | 22/22 |
-| api-web-skeleton   | done      | done                         | 53/53 |
-| agent-skeleton     | done      | done                         | 33/33 |
-| observability-e2e  | specify   | ready                        | 0/0   |
-| load-baseline      | specify   | waiting on observability-e2e | 0/0   |
+| Feature                   | Next step | Status                               | Tasks |
+| ------------------------- | --------- | ------------------------------------ | ----- |
+| harness-foundation        | done      | done                                 | 22/22 |
+| api-web-skeleton          | done      | done                                 | 53/53 |
+| agent-skeleton            | done      | done                                 | 33/33 |
+| agent-hexagonal-migration | specify   | ready                                | 0/0   |
+| observability-e2e         | specify   | waiting on agent-hexagonal-migration | 0/0   |
+| load-baseline             | specify   | waiting on observability-e2e         | 0/0   |
