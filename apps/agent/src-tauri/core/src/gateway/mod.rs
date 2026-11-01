@@ -2,4 +2,5 @@
 //! to `d2rmm-agent-adapters` in M1b.
 
 pub mod http;
+pub mod sse_stream;
 pub mod translate;

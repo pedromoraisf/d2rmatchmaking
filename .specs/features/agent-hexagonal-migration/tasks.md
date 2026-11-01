@@ -444,8 +444,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Tests `event_stream_yields_room_assigned`, `event_stream_ends_idle_after_sixty_seconds`, `event_stream_skips_unknown_and_invalid_events`, `event_stream_tracks_last_event_id`, `event_stream_next_is_cancel_safe`
-- [ ] Rust core gate passes
+- [x] Tests `event_stream_yields_room_assigned`, `event_stream_ends_idle_after_sixty_seconds`, `event_stream_skips_unknown_and_invalid_events`, `event_stream_tracks_last_event_id`, `event_stream_next_is_cancel_safe`
+- [x] Rust core gate passes
 
 **Tests**: unit
 **Gate**: Rust core
@@ -1336,7 +1336,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - T14 done: commit `003e2e1` (`feat(agent): define the gateway port and the room stream`), gate `Rust core` passed on attempt 1. Deviation: `EventStream::next` returns a boxed future, the form `Updater` uses. An `async fn` in a trait cannot sit behind `Box<dyn EventStream>`, which the Done-when requires. The rest of the signature follows the design.
 - T15 done: commit `00bddba` (`feat(agent): translate between the contract and the messages`), gate `Rust core` passed on attempt 2. Attempt 1 failed on my own test expectation (`readRate` is the float `0.0`); the mapping was right, the assertion was corrected to `as_f64() == Some(0.0)`.
 - T16 done (commit carries `Task: T16`): `HttpGateway` in `core/src/gateway/http.rs` over the unchanged `ApiClient`. The gateway test is `core/extra-tests/gateway.rs` (target `gateway` in `core/Cargo.toml`), reusing the fake API through `#[path]`; `core/tests/**` untouched. Gate `Rust core` passed on attempt 1 (104 tests). Deviation: `open_stream` on the port returns `ApiError::Invalid` until T17 supplies the SSE stream; no caller reaches it before T23.
-- T17 and T18: see the next Handoff entry once done.
+- T17 done (commit carries `Task: T17`): `SseEventStream` in `core/src/gateway/sse_stream.rs` over a `ChunkSource` (implemented for `reqwest::Response`; scripted in the tests). It feeds `SseParser`, keeps `last_event_id`, applies the 60 s idle timeout and the 64 KiB cap, and skips invalid events. `HttpGateway::open_stream` now returns it, so the T16 placeholder is gone. Gate `Rust core` passed on attempt 2 (111 tests). Attempt 1 failed on clippy `manual_async_fn`; the impls were rewritten as `async fn`.
+- T18: not started at this entry.
 
 **Batch 2 (execute-batch-2), blocked at T7 by the retry budget of the implementer session**
 

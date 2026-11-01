@@ -2,6 +2,7 @@
 //! through the anti-corruption layer (design.md § Adapters, `http/gateway.rs`; AHM-16). It holds no rule of its own.
 
 use crate::api_client::ApiClient;
+use crate::gateway::sse_stream::SseEventStream;
 use crate::gateway::translate::{
     assignment_from_contract, heartbeat_from_presence, issued_code_from_contract,
     observation_to_contract,
@@ -58,12 +59,15 @@ impl ApiGateway for HttpGateway {
             .await
     }
 
-    /// The room stream is wired in T17 (`gateway/sse_stream.rs`). Until then no caller opens a stream through the port.
     async fn open_stream(
         &self,
-        _token: &Secret,
-        _last_event_id: Option<&str>,
+        token: &Secret,
+        last_event_id: Option<&str>,
     ) -> Result<Box<dyn EventStream>, ApiError> {
-        Err(ApiError::Invalid)
+        let response = self.api.open_stream(token, last_event_id).await?;
+        Ok(Box::new(SseEventStream::new(
+            response,
+            last_event_id.map(str::to_string),
+        )))
     }
 }
