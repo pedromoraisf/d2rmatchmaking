@@ -293,9 +293,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Test `moved tests keep every assertion line` passes on the current tree and fails against a fixture where one `assert_eq!` expected value is edited
-- [ ] It finds the tests by content when files move (rename detection), and fails if a file of the baseline set is missing
-- [ ] Harness gate passes
+- [x] Test `moved tests keep every assertion line` passes on the current tree and fails against a fixture where one `assert_eq!` expected value is edited
+- [x] It finds the tests by content when files move (rename detection), and fails if a file of the baseline set is missing
+- [x] Harness gate passes
 
 **Tests**: harness unit
 **Gate**: Harness
