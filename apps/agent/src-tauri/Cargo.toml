@@ -17,6 +17,9 @@ reqwest = { version = "0.13", features = ["json", "stream"] }
 tauri = "2"
 thiserror = "2"
 
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
 [build-dependencies]
 tauri-build = "2"
 

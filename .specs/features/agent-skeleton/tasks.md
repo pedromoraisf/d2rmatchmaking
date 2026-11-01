@@ -538,8 +538,8 @@ T29 → T30 → T31 → T32 → T33
 **Done when**:
 
 - [ ] Windows test `keyring_round_trip` (save, load, delete) compiles here and runs in the CI `agent` job
-- [ ] `win-check.mjs` tests (image name, mounts, volumes, the exact clippy command, exit code passed through) pass in `pnpm test:harness`
-- [ ] Gate check passes: `node scripts/agent/win-check.mjs && pnpm test:harness`
+- [x] `win-check.mjs` tests (image name, mounts, volumes, the exact clippy command, exit code passed through) pass in `pnpm test:harness`
+- [x] Gate check passes: `node scripts/agent/win-check.mjs && pnpm test:harness`
 
 **Tests**: unit
 **Gate**: quick
