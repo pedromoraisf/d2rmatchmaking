@@ -669,6 +669,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-31
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-075 (assumed)
+
+- **Decision**: batch 5 details: the `agent-v*` tag ruleset the maintainer imports is the existing `.github/rulesets/agent-release-tags.json` (tasks.md's Execution Protocol names `agent-tags.json`; no duplicate was created); the SignPath job also reads repository variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG` and `SIGNPATH_SIGNING_POLICY_SLUG`; `@tauri-apps/api` (window events and `invoke`) and the devDependency `@tauri-apps/cli` (`tauri signer sign`, `tauri build`) are added; the T30 assertion "the build job never clobbers" is scoped to the `build` job and a new test asserts `--clobber` appears only in `sign` (design.md § Release).
+- **Reason**: each follows design.md; the ruleset with the same rules already existed.
+- **Trade-off**: the maintainer imports a file whose name differs from the plan's. Reversal is a rename.
+- **Scope**: agent-skeleton / T28–T31
+- **Date**: 2026-10-31
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
