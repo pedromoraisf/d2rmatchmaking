@@ -230,7 +230,7 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 ### T6: Architecture test, manifest rules
 
-**What**: `scripts/test/agent-architecture.test.mjs` reads each crate's `Cargo.toml` and enforces the manifest half of the layer table, with one failing fixture per rule under `scripts/test/fixtures/agent-architecture/<rule>/`. Dependency names match by family prefix (`windows*`, `tauri*`, `opentelemetry*`). Rules that hold today: the domain depends only on `std`, `thiserror`, `chrono`, `uuid`; `core` depends on the domain and not on `tauri*`, `keyring*`, `windows*`; the adapters crate (when it exists) never depends on `tauri*`, `keyring*`, `windows*`; adapters and the app crate never depend on each other. Rules for `reqwest` in core and the app crate arrive in T28 and T30 and are only added, never relaxed.
+**What**: `scripts/test/agent-architecture.test.mjs` reads each crate's `Cargo.toml` and enforces the manifest half of the layer table, with one failing fixture per rule under `scripts/test/fixtures/agent-architecture/<rule>/`. Dependency names match by family prefix (`windows*`, `tauri*`, `opentelemetry*`). Rules that hold today: the domain depends only on `std`, `thiserror`, `chrono`, `uuid`; `core` does not depend on `tauri*`, `keyring*`, `windows*`; the adapters crate (when it exists) never depends on `tauri*`, `keyring*`, `windows*`; adapters and the app crate never depend on each other. The positive rule `core depends on the domain` is switched on in T34, when core first uses a domain type; the `reqwest` rules for core and the app crate arrive in T28 and T30. Rules are only added, never relaxed.
 **Where**: `scripts/test/agent-architecture.test.mjs`
 **Depends on**: T5
 **Reuses**: `scripts/test/agent-source-rules.test.mjs` helpers, `scripts/test/arch-fixtures.test.mjs`
@@ -238,7 +238,7 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Tests `domain depends only on std thiserror chrono and uuid`, `core depends on the domain and not on reqwest tauri keyring or windows` (the `reqwest` part is switched on in T28), `adapters never depend on tauri keyring or windows`, `adapters and the app crate do not depend on each other`
+- [ ] Tests `domain depends only on std thiserror chrono and uuid`, `core depends on the domain and not on reqwest tauri keyring or windows` (the `depends on the domain` part is switched on in T34 and the `reqwest` part in T28), `adapters never depend on tauri keyring or windows`, `adapters and the app crate do not depend on each other`
 - [ ] Test `each architecture rule fails on its fixture` runs every fixture of this task and expects the named rule to fail
 - [ ] Harness gate passes
 
@@ -267,7 +267,7 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 ### T8: Architecture test, structural rules
 
-**What**: The same file adds: `domain clippy.toml repeats the root bans and adds the clock bans`; `every agent crate forbids unsafe code and process use` (`#![forbid(unsafe_code)]` in domain, core, adapters; no `std::process` or `tokio::process`); `no struct in core holds more than five ports`; `core tests use in-memory fakes only` (no `mockall`, no `mock!`); `only the app crate builds adapters and depends on tauri keyring and windows`; `the app crate never mentions Probe or start_with_probe`. Each with a fixture.
+**What**: The same file adds: `domain clippy.toml repeats the root bans and adds the clock bans`; `every agent crate forbids unsafe code and process use` (`#![forbid(unsafe_code)]` in domain, core, adapters; no `std::process` or `tokio::process`); `no struct in core holds more than five ports` (switched on in T47, when `Adapters` and `Context` are gone); `core tests use in-memory fakes only` (no `mockall`, no `mock!`); `only the app crate builds adapters and depends on tauri keyring and windows`; `the app crate never mentions Probe or start_with_probe`. Each with a fixture.
 **Where**: `scripts/test/agent-architecture.test.mjs`
 **Depends on**: T7
 **Reuses**: T6 helpers
@@ -275,7 +275,7 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] The six tests above exist, each with a failing fixture; rules about crates that do not exist yet (adapters) apply once they do
+- [ ] The six tests above exist, each with a failing fixture; rules about crates that do not exist yet (adapters) apply once they do, and the ports rule is switched on in T47 (its fixture fails now, the real tree is checked from T47)
 - [ ] Harness gate passes
 
 **Tests**: harness unit
@@ -759,8 +759,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 ### T34: Core uses the domain assignment
 
-**What**: `messages.rs` loses `RoomId`, `GameName`, `Member`, `Assignment`; core, the ACL and `Probe` use the domain types; the stream loop keeps its `watch` channel fed from `RoomAssignment`.
-**Where**: `apps/agent/src-tauri/core/src/stream.rs`
+**What**: `messages.rs` loses `RoomId`, `GameName`, `Member`, `Assignment`; core, the ACL and `Probe` use the domain types; the stream loop keeps its `watch` channel fed from `RoomAssignment`. `core/Cargo.toml` gains the `d2rmm-agent-domain` dependency and the architecture test switches on `core depends on the domain`.
+**Where**: `apps/agent/src-tauri/core/src/stream.rs`, `apps/agent/src-tauri/core/Cargo.toml`, `scripts/test/agent-architecture.test.mjs`
 **Depends on**: T33
 **Reuses**: T33
 **Requirement**: AHM-09, AHM-20
@@ -768,7 +768,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 **Done when**:
 
 - [ ] `adapters/tests/stream.rs` passes; preservation test passes
-- [ ] Rust workspace gate passes
+- [ ] Test `core depends on the domain and not on reqwest tauri keyring or windows` asserts the domain dependency
+- [ ] Rust workspace gate and Harness gate pass
 
 **Tests**: integration
 **Gate**: Rust workspace
@@ -1000,8 +1001,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 ### T47: Context is gone
 
-**What**: `context.rs` is deleted; nothing refers to `Context`; `Runtime` builds `DeviceState` and the use cases from the port groups; `Probe` wraps `DeviceState`.
-**Where**: `apps/agent/src-tauri/core/src/runtime.rs`
+**What**: `context.rs` is deleted; nothing refers to `Context`; `Runtime` builds `DeviceState` and the use cases from the port groups; `Probe` wraps `DeviceState`. The architecture test switches on `no struct in core holds more than five ports` against the real tree.
+**Where**: `apps/agent/src-tauri/core/src/runtime.rs`, `scripts/test/agent-architecture.test.mjs`
 **Depends on**: T46
 **Reuses**: T20, T43
 **Requirement**: AHM-17, AHM-20
@@ -1010,7 +1011,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 - [ ] `grep -rn "Context" apps/agent/src-tauri/core/src` finds no agent `Context` type
 - [ ] All adapters tests pass; preservation test passes
-- [ ] Rust workspace gate and Rust Windows gate pass
+- [ ] Test `no struct in core holds more than five ports` passes on the tree
+- [ ] Rust workspace gate, Rust Windows gate and Harness gate pass
 
 **Tests**: integration
 **Gate**: Rust workspace
@@ -1330,7 +1332,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Settled mid-build:** none
 **Dispatched:** none
 **Walked:** none (no screen)
-**Blocked:** none (the T5 blocker was resolved by the replan in f3fb21e; batch 1 resumed at T5)
+**Blocked:** none. T6/T8 plan defect (rules that cannot hold on the tree at 05a1639) resolved by replanning: `core depends on the domain` is switched on in T34, the ports rule in T47; tasks gate re-run green.
 
 ---
 
