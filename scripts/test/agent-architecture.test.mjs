@@ -329,6 +329,29 @@ test('the app crate never mentions Probe or start_with_probe', () => {
   assert.deepEqual(appProbeViolations(root), []);
 });
 
+// The docs state the layers: AGENTS.md and the cursor rule name the three agent crates and the direction of dependency
+// (AHM-06, ADR 027). A doc that lacks either is a violation.
+const LAYER_CRATES = [CRATE_NAME.domain, CRATE_NAME.core, CRATE_NAME.adapters];
+const LAYER_DIRECTION = 'adapters → application → domain';
+const LAYER_DOCS = ['AGENTS.md', '.cursor/rules/agent-rust.mdc'];
+
+export const layerDocViolations = (base) =>
+  LAYER_DOCS.flatMap((doc) => {
+    const file = path.join(base, doc);
+    if (!existsSync(file)) return [`${doc} is missing`];
+    const text = readFileSync(file, 'utf8');
+    return [
+      ...LAYER_CRATES.filter((name) => !text.includes(name)).map(
+        (name) => `${doc} does not name the crate ${name}`,
+      ),
+      ...(text.includes(LAYER_DIRECTION) ? [] : [`${doc} does not state the direction ${LAYER_DIRECTION}`]),
+    ];
+  });
+
+test('AGENTS.md and the cursor rule state the layer table', () => {
+  assert.deepEqual(layerDocViolations(root), []);
+});
+
 // Each rule must reject its own fixture. The fixture tree mirrors apps/agent/src-tauri.
 const FIXTURES = [
   {

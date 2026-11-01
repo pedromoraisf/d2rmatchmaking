@@ -330,8 +330,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Test `AGENTS.md and the cursor rule state the layer table` passes, and fails when either file lacks the three crate names or the direction
-- [ ] Harness gate passes
+- [x] Test `AGENTS.md and the cursor rule state the layer table` passes, and fails when either file lacks the three crate names or the direction
+- [x] Harness gate passes
 
 **Tests**: harness unit
 **Gate**: Harness

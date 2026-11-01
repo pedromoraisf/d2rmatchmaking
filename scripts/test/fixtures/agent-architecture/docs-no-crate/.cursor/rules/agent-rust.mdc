@@ -1,0 +1,3 @@
+# Fixture: the cursor rule states the direction but omits the adapters crate.
+
+- d2rmm-agent-domain, d2rmm-agent-core. adapters → application → domain.
