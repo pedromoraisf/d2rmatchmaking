@@ -137,6 +137,8 @@ export const preservationViolations = ({ baseline, current, renamed = new Map() 
   const currentPaths = new Set(current.map((file) => file.path));
   const missing = baseline
     .filter((file) => !currentPaths.has(file.path) && !currentPaths.has(renamed.get(file.path)))
+    // A baseline file without an assertion has no assertion line to keep, so its absence is not a violation.
+    .filter((file) => assertionStatements(file.source).length > 0)
     .map((file) => `${file.path} is missing: no file at its path and no rename`);
   const { removed, added } = assertionDiff(
     baseline.map((file) => file.source),
@@ -222,6 +224,25 @@ test('a baseline file with neither its path nor a rename is reported missing', (
     violations.includes(`${BASELINE_DIR}/heartbeat.rs is missing: no file at its path and no rename`),
     violations.join('\n'),
   );
+});
+
+test('a missing baseline file with assertions is still reported', () => {
+  const violations = preservationViolations({
+    baseline: [{ path: `${BASELINE_DIR}/heartbeat.rs`, source: fixture('baseline.rs') }],
+    current: [],
+  });
+  assert.ok(
+    violations.includes(`${BASELINE_DIR}/heartbeat.rs is missing: no file at its path and no rename`),
+    violations.join('\n'),
+  );
+});
+
+test('a missing baseline file without assertions is not a violation', () => {
+  const violations = preservationViolations({
+    baseline: [{ path: `${BASELINE_DIR}/helper.rs`, source: fixture('helper-without-asserts.rs') }],
+    current: [],
+  });
+  assert.deepEqual(violations, []);
 });
 
 test('a reflowed assertion is the same assertion, and a string holding assert! is not one', () => {
