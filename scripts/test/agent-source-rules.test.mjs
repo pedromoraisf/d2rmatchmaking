@@ -296,3 +296,123 @@ test('mutation covers the core rule modules', () => {
     'core/src/updates.rs',
   ]);
 });
+
+// The read-only boundary's ban lists (design.md § Read-only boundary; ADR 010; NFR-04). Every name below is required: a
+// config without it fails. The lists may grow; they may not shrink.
+const REQUIRED_BANNED_CRATES = [
+  'sysinfo',
+  'process-memory',
+  'read-process-memory',
+  'proc-maps',
+  'memprocfs',
+  'ntapi',
+  'dll-syringe',
+  'retour',
+  'detour',
+  'minhook',
+  'enigo',
+  'rdev',
+  'inputbot',
+  'device_query',
+  'willhook',
+  'rustautogui',
+  'autopilot',
+  'mouse-rs',
+  'pcap',
+  'pnet',
+  'windivert',
+  'winapi',
+  'tauri-plugin-shell',
+  'tauri-plugin-fs',
+  'tauri-plugin-http',
+  'tauri-plugin-global-shortcut',
+];
+const REQUIRED_DISALLOWED_TYPES = ['std::process::Command', 'tokio::process::Command'];
+const REQUIRED_DISALLOWED_METHODS = [
+  'windows::Win32::System::Diagnostics::ToolHelp::Toolhelp32ReadProcessMemory',
+  'windows::Win32::System::Threading::OpenProcess',
+  'windows::Win32::System::Diagnostics::Debug::ReadProcessMemory',
+  'windows::Win32::System::Diagnostics::Debug::WriteProcessMemory',
+  'windows::Win32::UI::Input::KeyboardAndMouse::SendInput',
+  'reqwest::ClientBuilder::danger_accept_invalid_certs',
+  'reqwest::ClientBuilder::danger_accept_invalid_hostnames',
+];
+
+// The body of one `key = [ … ]` list, from its header to the line that closes it.
+const listBody = (text, header) => {
+  const start = text.indexOf(header);
+  if (start < 0) return '';
+  return text.slice(start, text.indexOf('\n]', start));
+};
+
+const namesIn = (body, pattern) => new Set([...body.matchAll(pattern)].map((match) => match[1]));
+
+const DENY_CRATE = /\{\s*crate\s*=\s*"([^"]+)"/g;
+const CLIPPY_PATH = /\{\s*path\s*=\s*"([^"]+)"/g;
+
+const bannedCrateViolations = (deny) => {
+  const found = namesIn(listBody(deny, 'deny = ['), DENY_CRATE);
+  const missing = REQUIRED_BANNED_CRATES.filter((crate) => !found.has(crate));
+  const wildcards = /^wildcards\s*=\s*"deny"/m.test(deny) ? [] : ['deny.toml does not deny wildcards'];
+  return [...missing.map((crate) => `deny.toml does not ban crate ${crate}`), ...wildcards];
+};
+
+const clippyViolations = (clippy) => {
+  const types = namesIn(listBody(clippy, 'disallowed-types = ['), CLIPPY_PATH);
+  const methods = namesIn(listBody(clippy, 'disallowed-methods = ['), CLIPPY_PATH);
+  return [
+    ...REQUIRED_DISALLOWED_TYPES.filter((path) => !types.has(path)).map(
+      (path) => `clippy.toml does not disallow type ${path}`,
+    ),
+    ...REQUIRED_DISALLOWED_METHODS.filter((path) => !methods.has(path)).map(
+      (path) => `clippy.toml does not disallow method ${path}`,
+    ),
+  ];
+};
+
+// The config with every line that names `needle` removed: one entry taken out, nothing else changed.
+const without = (text, needle) =>
+  text
+    .split('\n')
+    .filter((line) => !line.includes(needle))
+    .join('\n');
+
+test('deny.toml bans every crate of the read-only boundary', () => {
+  assert.deepEqual(bannedCrateViolations(readText(`${agentTauri}/deny.toml`)), []);
+});
+
+test('removing any banned crate from deny.toml fails', () => {
+  const deny = readText(`${agentTauri}/deny.toml`);
+  for (const crate of REQUIRED_BANNED_CRATES) {
+    assert.deepEqual(
+      bannedCrateViolations(without(deny, `crate = "${crate}"`)),
+      [`deny.toml does not ban crate ${crate}`],
+      `removing ${crate} must fail`,
+    );
+  }
+  assert.deepEqual(bannedCrateViolations(deny.replace('wildcards = "deny"', 'wildcards = "allow"')), [
+    'deny.toml does not deny wildcards',
+  ]);
+});
+
+test('clippy.toml disallows every boundary type and method', () => {
+  assert.deepEqual(clippyViolations(readText(`${agentTauri}/clippy.toml`)), []);
+});
+
+test('removing any disallowed type or method from clippy.toml fails', () => {
+  const clippy = readText(`${agentTauri}/clippy.toml`);
+  for (const path of REQUIRED_DISALLOWED_TYPES) {
+    assert.deepEqual(
+      clippyViolations(without(clippy, `path = "${path}"`)),
+      [`clippy.toml does not disallow type ${path}`],
+      `removing ${path} must fail`,
+    );
+  }
+  for (const path of REQUIRED_DISALLOWED_METHODS) {
+    assert.deepEqual(
+      clippyViolations(without(clippy, `path = "${path}"`)),
+      [`clippy.toml does not disallow method ${path}`],
+      `removing ${path} must fail`,
+    );
+  }
+});
