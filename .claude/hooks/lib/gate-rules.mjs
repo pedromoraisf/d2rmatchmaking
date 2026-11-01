@@ -9,6 +9,7 @@ import { compareBaselines } from '../../../scripts/lib/ratchet.mjs';
 import { sessionId } from '../../../scripts/lib/budget.mjs';
 import { checkBudget, countDenial } from './budget-rules.mjs';
 import { countScenarios } from '../../../scripts/lib/acceptance.mjs';
+import { checkMutationSpec } from '../../../scripts/lib/mutation-scope.mjs';
 
 const deny = (reason) => ({ decision: 'deny', reason });
 const ask = (reason) => ({ decision: 'ask', reason });
@@ -73,6 +74,34 @@ function words(segment) {
   return segment.match(/"[^"]*"|'[^']*'|\S+/g)?.map((w) => w.replace(/^["']|["']$/g, '')) ?? [];
 }
 
+// ADR 026: mutations are proved by unit tests only. Whoever runs mutate.py / check_proofs.py --mutations
+// hands the gate a spec file; every proof in it must be a unit-test command.
+const MUTATION_RUN = /\b(?:mutate\.py\b[^|;&]*?--spec|check_proofs\.py\b[^|;&]*?--mutations)(?:\s+|=)(\S+)/;
+function checkMutationRun(cmd, ctx) {
+  const m = MUTATION_RUN.exec(cmd);
+  if (!m) return null;
+  const arg = m[1].replace(/^['"]|['"]$/g, '');
+  if (arg === '-') {
+    return deny(
+      'Pass the mutation spec as a file so its proofs can be checked: mutations run against unit tests only (ADR 026).',
+    );
+  }
+  const rel = arg.startsWith(`${ctx.root}/`) ? arg.slice(ctx.root.length + 1) : arg.replace(/^\.\//, '');
+  const text = ctx.readFile(rel);
+  if (text === null) return null;
+  let spec;
+  try {
+    spec = JSON.parse(text);
+  } catch {
+    return deny(`${rel} is not valid JSON, so the mutation scope cannot be checked (ADR 026).`);
+  }
+  const errors = checkMutationSpec(spec);
+  if (errors.length === 0) return null;
+  return deny(
+    `Mutations run against unit tests only (ADR 026). Fix ${rel} first (\`node scripts/mutation-scope-check.mjs --file ${rel}\`): ${errors.slice(0, 3).join('; ')}${errors.length > 3 ? `; and ${errors.length - 3} more` : ''}`,
+  );
+}
+
 export function checkBash(command, ctx) {
   const cmd = String(command ?? '');
   if (PROD_DB.test(cmd)) {
@@ -85,6 +114,8 @@ export function checkBash(command, ctx) {
       'Bypassing local sensors (--no-verify / disabling Lefthook) is not allowed. Fix what the hook reports.',
     );
   }
+  const mutationDenial = checkMutationRun(cmd, ctx);
+  if (mutationDenial) return mutationDenial;
   for (const seg of splitCommands(cmd)) {
     const w = words(seg);
     const at = w.findIndex((x) => !/^[A-Z_]+=/.test(x)); // skip env assignments

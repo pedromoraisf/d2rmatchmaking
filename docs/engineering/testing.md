@@ -20,3 +20,7 @@ Rules:
 4. Every domain invariant (`docs/domain/invariants.md`) has a test that names its ID.
 5. OCR and capture use recorded fixtures (`apps/agent/fixtures/`), never live game screens in CI.
 6. Floors live in `.quality-baseline.json` and only tighten.
+7. Mutation testing runs against unit tests only (ADR 026). Unit tests are the base of the pyramid (many, fast, fakes
+   for ports, no server/DB/browser/container); integration, e2e and acceptance are few and never run per mutation.
+   Rust: `cargo nextest run -p <crate> --lib`; TypeScript: `vitest run <colocated *.test.ts>`. `pnpm specs:check`
+   (`scripts/mutation-scope-check.mjs`) and the gate refuse a `mutations.json` that breaks this.
