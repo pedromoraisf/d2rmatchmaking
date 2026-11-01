@@ -291,7 +291,7 @@ test('updater checks the latest release with the embedded key', () => {
   assert.match(pubkey, /^[A-Za-z0-9+/=]{20,}$/, 'the public key is base64');
 });
 
-// AGS-21 / design.md § Mutation: cargo-mutants examines the seven core rule modules and nothing else.
+// AGS-21 / design.md § Mutation scope: cargo-mutants examines the domain and the migrated rule modules and nothing else.
 test('mutation covers the core rule modules', () => {
   const toml = readText(`${agentTauri}/.cargo/mutants.toml`);
   const globs = toml.match(/examine_globs\s*=\s*\[([^\]]*)\]/);
@@ -299,12 +299,14 @@ test('mutation covers the core rule modules', () => {
   const scoped = [...globs[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]).sort();
   assert.deepEqual(scoped, [
     'adapters/src/http/api_client.rs',
-    'core/src/fusion.rs',
-    'core/src/heartbeat.rs',
-    'core/src/observations.rs',
-    'core/src/pairing.rs',
-    'core/src/stream.rs',
-    'core/src/updates.rs',
+    'adapters/src/http/sse.rs',
+    'adapters/src/http/translate.rs',
+    'core/src/beat.rs',
+    'core/src/check_update.rs',
+    'core/src/follow_stream.rs',
+    'core/src/pair.rs',
+    'core/src/post_observation.rs',
+    'domain/src/**/*.rs',
   ]);
 });
 
