@@ -2,7 +2,7 @@
 //! through the port. The test lives in this extra target, not under `tests/`: the preservation guard (T9) keeps the moved
 //! tests byte-identical, and new asserting tests are kept out of its set. The fake API is the one the moved tests use.
 
-#[path = "../../core/tests/support/mod.rs"]
+#[path = "../tests/support/mod.rs"]
 mod support;
 
 use std::num::NonZeroU64;

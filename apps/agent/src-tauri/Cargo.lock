@@ -688,21 +688,12 @@ dependencies = [
 name = "d2rmm-agent-core"
 version = "0.0.0"
 dependencies = [
- "axum",
  "chrono",
- "d2rmm-agent-adapters",
- "jsonschema",
- "opentelemetry",
- "opentelemetry_sdk",
- "reqwest",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
  "tokio",
- "tokio-stream",
  "tracing",
- "tracing-opentelemetry",
- "tracing-subscriber",
  "uuid",
  "zeroize",
 ]
