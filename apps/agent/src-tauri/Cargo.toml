@@ -19,6 +19,7 @@ thiserror = "2"
 
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Diagnostics_ToolHelp"] }
 
 [build-dependencies]
 tauri-build = "2"

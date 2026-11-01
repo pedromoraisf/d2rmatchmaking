@@ -557,7 +557,7 @@ T29 → T30 → T31 → T32 → T33
 **Done when**:
 
 - [ ] Windows test `toolhelp_lists_the_current_process` (the test binary's own name is listed) compiles here and runs in CI; the T7 source rules pass on the file
-- [ ] Gate check passes: `node scripts/agent/win-check.mjs && pnpm test:harness`
+- [x] Gate check passes: `node scripts/agent/win-check.mjs && pnpm test:harness`
 
 **Tests**: unit
 **Gate**: quick

@@ -7,3 +7,7 @@ pub mod http;
 #[cfg(windows)]
 #[allow(dead_code)] // wired into main by T27
 pub mod token_store;
+
+#[cfg(windows)]
+#[allow(dead_code)] // wired into main by T27
+pub mod toolhelp;
