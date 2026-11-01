@@ -1,5 +1,8 @@
 [workspace]
 members = [".", "core", "domain", "adapters", "xtask"]
+# The root is a package, so cargo's default would check the app crate alone. Every member is a default member, so the agent
+# job and the Windows check (`cargo clippy`, `cargo nextest run` without --workspace) cover every crate (AHM-21, AHM-22).
+default-members = [".", "core", "domain", "adapters", "xtask"]
 exclude = ["boundary-fixtures"]
 resolver = "3"
 
