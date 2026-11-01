@@ -256,15 +256,56 @@ fn failure(response: &Response) -> ApiError {
 
 /// `Retry-After` in seconds, clamped to [1 s, 60 min]. A value that is not a number counts as absent.
 fn retry_after(response: &Response) -> Option<Duration> {
-    let seconds: u64 = response
-        .headers()
-        .get(RETRY_AFTER)?
-        .to_str()
-        .ok()?
-        .trim()
-        .parse()
-        .ok()?;
+    let raw = response.headers().get(RETRY_AFTER)?.to_str().ok()?;
+    clamp_retry_after(raw)
+}
+
+/// The wait a `Retry-After` value asks for: trimmed, parsed as seconds and clamped to [1 s, 60 min]. `None` when the
+/// value is not a number.
+fn clamp_retry_after(raw: &str) -> Option<Duration> {
+    let seconds: u64 = raw.trim().parse().ok()?;
     Some(Duration::from_secs(
         seconds.clamp(RETRY_AFTER_MIN_SECONDS, RETRY_AFTER_MAX_SECONDS),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::{authorization_value, clamp_retry_after};
+    use crate::secret::Secret;
+
+    const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
+
+    #[test]
+    fn retry_after_floor_is_one_second() {
+        assert_eq!(clamp_retry_after("0"), Some(Duration::from_secs(1)));
+        assert_eq!(clamp_retry_after("1"), Some(Duration::from_secs(1)));
+    }
+
+    #[test]
+    fn retry_after_cap_is_sixty_minutes() {
+        assert_eq!(clamp_retry_after("3600"), Some(Duration::from_secs(3600)));
+        assert_eq!(clamp_retry_after("3601"), Some(Duration::from_secs(3600)));
+        assert_eq!(clamp_retry_after("99999"), Some(Duration::from_secs(3600)));
+    }
+
+    #[test]
+    fn retry_after_ignores_non_numbers() {
+        assert_eq!(clamp_retry_after("abc"), None);
+        assert_eq!(clamp_retry_after(""), None);
+        assert_eq!(clamp_retry_after("-5"), None);
+        assert_eq!(clamp_retry_after(" 30 "), Some(Duration::from_secs(30)));
+    }
+
+    #[test]
+    fn authorization_header_is_marked_sensitive() {
+        let value = authorization_value(&Secret::new(TOKEN)).expect("a token makes a header value");
+        assert!(value.is_sensitive());
+        assert_eq!(
+            value.to_str().expect("the header is ASCII"),
+            format!("Bearer {TOKEN}")
+        );
+    }
 }
