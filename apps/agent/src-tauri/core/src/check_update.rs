@@ -1,4 +1,4 @@
-//! The update schedule and the 426 gate (design.md § Updates; AGS-24, AGS-26, AGS-27; AD-049).
+//! The check-update use case (design.md § Updates; AGS-24, AGS-26, AGS-27; AD-049).
 //!
 //! The check runs at start, every 6 h and right after a 426. An installed update reopens the API loops (the app restarts
 //! into the new version). A failed check keeps the installed version and shows "Update failed — will retry" until the next
@@ -12,7 +12,8 @@ use std::time::Duration;
 use tokio::time::Instant;
 use tracing::Instrument;
 
-use crate::context::Context;
+use crate::context::UpdatePorts;
+use crate::device_state::DeviceState;
 use crate::ports::{UpdateChecker, UpdateOutcome};
 use crate::view::UpdateView;
 
@@ -31,29 +32,29 @@ impl<T: UpdateChecker + Send + Sync> Updater for T {
 }
 
 /// Checks at start, every 6 h and after each 426, for the life of the agent.
-pub async fn run<G: Send + Sync + 'static>(ctx: Arc<Context<G>>) {
+pub async fn run(device: Arc<DeviceState>, ports: UpdatePorts) {
     loop {
         let started = Instant::now();
-        check_once(&ctx)
+        check_once(&device, &ports)
             .instrument(tracing::info_span!("agent.update.check"))
             .await;
         let next = started + CHECK_EVERY;
         tokio::select! {
             () = tokio::time::sleep_until(next) => {}
-            () = ctx.device.update_now.notified() => {}
+            () = device.update_now.notified() => {}
         }
     }
 }
 
 /// One check and what it shows. "Update required" takes precedence while a 426 is pending.
-async fn check_once<G: Send + Sync>(ctx: &Context<G>) {
-    let outcome = ctx.updater.check_boxed().await;
-    let required = *ctx.device.update_required.borrow();
+async fn check_once(device: &DeviceState, ports: &UpdatePorts) {
+    let outcome = ports.updater.check_boxed().await;
+    let required = *device.update_required.borrow();
     let (view, required_now) = view_after(&outcome, required);
     if required && !required_now {
-        ctx.device.update_installed();
+        device.update_installed();
     }
-    ctx.device.hub.set_update(view);
+    device.hub.set_update(view);
 }
 
 /// The view a check shows, and the value of the 426 flag after it. An installed update clears the flag (the app restarts
@@ -82,11 +83,33 @@ fn view_after(outcome: &UpdateOutcome, required: bool) -> (UpdateView, bool) {
 
 #[cfg(test)]
 mod tests {
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
 
-    use super::{CHECK_EVERY, view_after};
+    use super::{CHECK_EVERY, Updater, run, view_after};
+    use crate::context::UpdatePorts;
+    use crate::device_state::DeviceState;
+    use crate::fakes::{MemoryTokens, NullSink};
     use crate::ports::{UpdateFailure, UpdateOutcome};
     use crate::view::UpdateView;
+
+    /// An updater that counts its checks and answers "up to date".
+    #[derive(Default)]
+    struct CountingUpdater(AtomicUsize);
+
+    impl Updater for CountingUpdater {
+        fn check_boxed(&self) -> Pin<Box<dyn Future<Output = UpdateOutcome> + Send + '_>> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async { UpdateOutcome::UpToDate })
+        }
+    }
+
+    fn checks(updater: &CountingUpdater) -> usize {
+        updater.0.load(Ordering::SeqCst)
+    }
 
     #[test]
     fn installed_update_clears_the_required_flag() {
@@ -120,7 +143,48 @@ mod tests {
     }
 
     #[test]
+    fn view_after_required_wins() {
+        for outcome in [
+            UpdateOutcome::UpToDate,
+            UpdateOutcome::Failed(UpdateFailure::Download),
+        ] {
+            assert_eq!(
+                view_after(&outcome, true),
+                (UpdateView::Required, true),
+                "a pending 426 shows update required over the outcome"
+            );
+        }
+        assert_eq!(
+            view_after(&UpdateOutcome::Installed, true),
+            (UpdateView::Idle, false),
+            "an installed update clears the pending 426"
+        );
+    }
+
+    #[test]
     fn update_check_is_every_six_hours() {
         assert_eq!(CHECK_EVERY, Duration::from_secs(6 * 60 * 60));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn check_update_at_start_every_six_hours_and_after_426() {
+        let updater = Arc::new(CountingUpdater::default());
+        let device = Arc::new(DeviceState::new(Arc::new(NullSink)));
+        let tokens = MemoryTokens::default();
+        let ports = UpdatePorts {
+            updater: updater.clone(),
+        };
+        tokio::spawn(run(Arc::clone(&device), ports));
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        assert_eq!(checks(&updater), 1, "the check runs at start");
+        tokio::time::sleep(CHECK_EVERY - Duration::from_secs(2)).await;
+        assert_eq!(checks(&updater), 1, "no check before 6 h");
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        assert_eq!(checks(&updater), 2, "the next check is at 6 h");
+
+        device.on_upgrade_required(&tokens);
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        assert_eq!(checks(&updater), 3, "a 426 checks at once");
     }
 }

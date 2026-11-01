@@ -10,13 +10,13 @@ use std::sync::Mutex;
 use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::{ReadText, Region};
 
+use crate::check_update::Updater;
 use crate::messages::{GameNameObservation, IssuedCode, Presence};
 use crate::ports::{
     ApiError, ApiGateway, EndReason, EventStream, ProcessSource, ReadError, Rgba, StateSink,
     StoreError, StreamItem, TextReader, TokenStore, UpdateOutcome,
 };
 use crate::secret::Secret;
-use crate::updates::Updater;
 use crate::view::AgentView;
 
 /// One call the code under test made on the fake gateway, with the arguments the test checks.

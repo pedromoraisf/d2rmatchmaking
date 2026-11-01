@@ -3,11 +3,11 @@
 
 use std::sync::Arc;
 
+use crate::check_update::Updater;
 use crate::device_state::DeviceState;
 use crate::ports::{
     ApiError, IdGenerator, ProcessSource, StateSink, TextReader, TokenStore, WallClock,
 };
-use crate::updates::Updater;
 
 /// The ports the pairing loop uses (AHM-17): exactly three.
 pub struct PairingPorts<G> {
@@ -103,6 +103,13 @@ impl<G> Context<G> {
             gateway: Arc::clone(&self.gateway),
             tokens: Arc::clone(&self.tokens),
             processes: Arc::clone(&self.processes),
+        }
+    }
+
+    /// The port the update loop uses, cloned from the shared one (the groups hold the same `Arc`).
+    pub fn update_ports(&self) -> UpdatePorts {
+        UpdatePorts {
+            updater: Arc::clone(&self.updater),
         }
     }
 

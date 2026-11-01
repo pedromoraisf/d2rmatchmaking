@@ -7,9 +7,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use d2rmm_agent_core::beat;
+use d2rmm_agent_core::check_update;
 use d2rmm_agent_core::follow_stream;
 use d2rmm_agent_core::ports::{UpdateFailure, UpdateOutcome};
-use d2rmm_agent_core::updates;
 use d2rmm_agent_core::view::UpdateView;
 use support::fake_api::{Answer, Operation, TOKEN};
 use support::harness::{Harness, advance, count, settle, until};
@@ -26,7 +26,10 @@ fn update_view(h: &Harness) -> Option<UpdateView> {
 async fn update_checks_at_start_every_6h_and_after_426() {
     let h = Harness::start(None).await;
     h.updater.script([UpdateOutcome::UpToDate; 3]);
-    tokio::spawn(updates::run(Arc::clone(&h.context)));
+    tokio::spawn(check_update::run(
+        Arc::clone(&h.context.device),
+        h.context.update_ports(),
+    ));
 
     until("the check at start", || h.updater.calls() == 1).await;
     advance(SIX_HOURS - Duration::from_secs(1)).await;
@@ -45,7 +48,10 @@ async fn update_failure_keeps_version_and_retries() {
         UpdateOutcome::Failed(UpdateFailure::Signature),
         UpdateOutcome::UpToDate,
     ]);
-    tokio::spawn(updates::run(Arc::clone(&h.context)));
+    tokio::spawn(check_update::run(
+        Arc::clone(&h.context.device),
+        h.context.update_ports(),
+    ));
 
     until("the failure is shown", || {
         update_view(&h) == Some(UpdateView::Failed)
@@ -84,7 +90,10 @@ async fn upgrade_required_stops_api_loops() {
         Arc::clone(&h.context.device),
         h.context.stream_ports(),
     ));
-    tokio::spawn(updates::run(Arc::clone(&h.context)));
+    tokio::spawn(check_update::run(
+        Arc::clone(&h.context.device),
+        h.context.update_ports(),
+    ));
 
     until("the 426 is answered", || {
         count(&h.api, Operation::Heartbeat) == 1

@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 pub mod beat;
+pub mod check_update;
 pub mod config;
 pub mod context;
 pub mod device_state;
@@ -16,7 +17,6 @@ pub mod ports;
 pub mod read_frame;
 pub mod runtime;
 pub mod secret;
-pub mod updates;
 pub mod view;
 
 #[cfg(test)]

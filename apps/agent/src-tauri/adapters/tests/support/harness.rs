@@ -8,6 +8,7 @@ use std::time::Duration;
 use d2rmm_agent_adapters::config::{AllowLoopbackHttp, ApiBase};
 use d2rmm_agent_adapters::http::api_client::ApiClient;
 use d2rmm_agent_adapters::http::gateway::HttpGateway;
+use d2rmm_agent_core::check_update::Updater;
 use d2rmm_agent_core::config::Config;
 use d2rmm_agent_core::context::{
     Context, Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
@@ -17,7 +18,6 @@ use d2rmm_agent_core::ports::{
     IdGenerator, PausedWallClock, ProcessSource, SequentialIds, TextReader, TokenStore, WallClock,
 };
 use d2rmm_agent_core::runtime::Probe;
-use d2rmm_agent_core::updates::Updater;
 use tokio::sync::mpsc;
 
 use super::fake_api::{Answer, FakeApi, Operation, WALL_START};

@@ -13,7 +13,7 @@ use crate::fusion::fuse;
 use crate::observations;
 use crate::pair::{self, Command};
 use crate::ports::{ApiGateway, Rgba, StateSink};
-use crate::{beat, follow_stream, read_frame, updates};
+use crate::{beat, check_update, follow_stream, read_frame};
 
 const COMMAND_BUFFER: usize = 8;
 
@@ -56,7 +56,10 @@ fn spawn<G: ApiGateway + Send + Sync + 'static>(ctx: Arc<Context<G>>) -> Handle<
         Arc::clone(&ctx.device),
         ctx.stream_ports(),
     ));
-    tokio::spawn(updates::run(Arc::clone(&ctx)));
+    tokio::spawn(check_update::run(
+        Arc::clone(&ctx.device),
+        ctx.update_ports(),
+    ));
     Handle { ctx, commands }
 }
 
@@ -157,13 +160,13 @@ mod tests {
     };
     use d2rmm_agent_domain::vision::{ReadText, Region};
 
+    use crate::check_update::Updater;
     use crate::fakes::FakeApiGateway;
     use crate::ports::{
         ProcessSource, ReadError, Rgba, SequentialIds, StateSink, StoreError, TextReader,
         TokenStore, UpdateOutcome, WallClock,
     };
     use crate::secret::Secret;
-    use crate::updates::Updater;
     use crate::view::AgentView;
 
     struct NoTokens;
