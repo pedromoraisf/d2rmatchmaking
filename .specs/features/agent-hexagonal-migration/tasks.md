@@ -406,9 +406,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Tests `assignment_translation_keeps_every_field`, `heartbeat_translation_matches_the_contract`, `observation_translation_matches_the_contract` (valid against the JSON Schemas), each failing when a field is dropped
-- [ ] Test `non_uuid_room_is_carried_unchanged` pins the opaque `RoomId`
-- [ ] Rust core gate passes
+- [x] Tests `assignment_translation_keeps_every_field`, `heartbeat_translation_matches_the_contract`, `observation_translation_matches_the_contract` (valid against the JSON Schemas), each failing when a field is dropped
+- [x] Test `non_uuid_room_is_carried_unchanged` pins the opaque `RoomId`
+- [x] Rust core gate passes
 
 **Tests**: unit
 **Gate**: Rust core

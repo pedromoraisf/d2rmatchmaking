@@ -6,6 +6,7 @@ pub mod config;
 pub mod context;
 pub mod contracts;
 pub mod fusion;
+pub mod gateway;
 pub mod heartbeat;
 pub mod messages;
 pub mod observations;
