@@ -152,6 +152,49 @@ test('fixture-read cannot reach a release build', () => {
   );
 });
 
+// The tag-on-main check (AGS-28): the tag's commit must be an ancestor of origin/main. The reversed test is refused.
+const TAG_ON_MAIN_LINE = 'if ! git merge-base --is-ancestor HEAD origin/main; then';
+const tagOnMainHolds = (run) =>
+  run
+    .split('\n')
+    .map((line) => line.trim())
+    .includes(TAG_ON_MAIN_LINE);
+
+// The fixture-read guard (AGS-33): the release build greps the exact feature and exits 1 on a match.
+const FIXTURE_GUARD_LINE = `if grep -q 'fixture-read' <<< "$tree"; then`;
+const fixtureGuardHolds = (run) => {
+  const lines = run.split('\n').map((line) => line.trim());
+  const at = lines.indexOf(FIXTURE_GUARD_LINE);
+  return at >= 0 && lines[at + 2] === 'exit 1';
+};
+
+test('the tag must be an ancestor of origin/main', () => {
+  const step = findStep(buildJob(), (candidate) => candidate.name === 'Assert the tag is on main');
+  assert.ok(step, 'the tag-on-main step exists');
+  assert.ok(tagOnMainHolds(step.run), 'the exact ancestor check runs: tag commit first, origin/main second');
+  assert.ok(
+    !tagOnMainHolds(step.run.replace('HEAD origin/main', 'origin/main HEAD')),
+    'a reversed ancestor check is refused',
+  );
+});
+
+test('the fixture-read guard greps the exact feature and exits 1 on a match', () => {
+  const guard = findStep(
+    buildJob(),
+    (step) => typeof step.run === 'string' && step.run.includes('fixture-read'),
+  );
+  assert.ok(guard, 'the fixture-read guard exists');
+  assert.ok(fixtureGuardHolds(guard.run), 'the guard greps fixture-read and exits 1 on a match');
+  assert.ok(
+    !fixtureGuardHolds(guard.run.replace("grep -q 'fixture-read'", "grep -q 'fixture-reed'")),
+    'a misspelled feature in the guard is refused',
+  );
+  assert.ok(
+    !fixtureGuardHolds(guard.run.replace('exit 1\nfi', 'exit 0\nfi')),
+    'a guard that does not fail the build is refused',
+  );
+});
+
 test('the installer is published as D2RMatchMaking-setup.exe with SHA256SUMS', () => {
   const job = buildJob();
   const publish = findStep(
