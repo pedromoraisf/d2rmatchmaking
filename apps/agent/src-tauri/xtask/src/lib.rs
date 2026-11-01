@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 use syn::{Fields, Item, parse_quote};
 use typify::{TypeSpace, TypeSpaceSettings};
 
+pub mod fixture;
+
 /// Each agent schema file and the Rust type it generates. The directory must hold exactly these files.
 pub const CONTRACTS: &[(&str, &str)] = &[
     ("pairing-code.json", "PairingCodeResponse"),

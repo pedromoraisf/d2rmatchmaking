@@ -11,3 +11,7 @@ pub mod token_store;
 #[cfg(windows)]
 #[allow(dead_code)] // wired into main by T27
 pub mod toolhelp;
+
+#[cfg(windows)]
+#[allow(dead_code)] // wired into main by T27
+pub mod windows_ocr;

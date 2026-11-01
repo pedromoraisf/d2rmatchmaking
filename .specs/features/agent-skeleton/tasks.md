@@ -575,8 +575,8 @@ T29 → T30 → T31 → T32 → T33
 **Done when**:
 
 - [ ] Windows test `ocr_reads_the_reference_image` reads `mmbaalh-12` through `read_game_name`; it fails (never skips) when the engine is unavailable; it compiles here and runs in CI
-- [ ] xtask test `fixture_is_reproducible` regenerates the PNG byte for byte
-- [ ] Gate check passes: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p xtask && node scripts/agent/win-check.mjs && pnpm test:harness`
+- [x] xtask test `fixture_is_reproducible` regenerates the PNG byte for byte
+- [x] Gate check passes: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p xtask && node scripts/agent/win-check.mjs && pnpm test:harness`
 
 **Tests**: unit
 **Gate**: quick
