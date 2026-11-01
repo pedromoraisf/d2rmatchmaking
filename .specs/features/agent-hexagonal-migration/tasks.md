@@ -483,9 +483,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Test `groups_build_a_context`
-- [ ] Architecture test `no struct in core holds more than five ports` passes
-- [ ] Rust core gate passes
+- [x] Test `groups_build_a_context`
+- [x] Architecture test `no struct in core holds more than five ports` passes
+- [x] Rust core gate passes
 
 **Tests**: unit
 **Gate**: Rust core
@@ -1328,6 +1328,10 @@ Proof: `cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml -
 ## Handoff
 
 The feature's live state, written as it happens - a compaction gives no warning.
+
+**Batch 4 (execute-batch-4), in progress: T19 to T25**
+
+- T19 done (commit carries `Task: T19`): `Context` is generic over the gateway (`Context<G = HttpGateway>`) and gained `gateway: Arc<G>` beside the transitional `api: ApiClient`. The five groups (`PairingPorts`, `HeartbeatPorts`, `StreamPorts`, `UpdatePorts`, `ReadPorts`) and `Groups<G>` are in `context.rs`; `Context::from_groups(version, sink, api, groups)` builds the context. Deviation (for the orchestrator to note): `from_groups` also takes the transitional `api`, because the loops still call `ctx.api` until T21 to T24, and `api` goes with the last of them. Gate `Rust core` passed on attempt 1 (113 tests). The arch rule `no struct in core holds more than five ports` is switched off on the real tree until T47, so its pass is by the rule's own gating.
 
 **Batch 3 (execute-batch-3), stopped at T16 by a plan defect, since replanned by the orchestrator (T16 and T32 put their new asserting tests in `extra-tests/` targets; guard untouched); resume at T16, then T17, T18**
 
