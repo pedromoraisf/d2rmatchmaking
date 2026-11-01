@@ -57,6 +57,10 @@ pub enum Answer {
     ServerError,
     /// 404 `{"error":"no-assignment"}` on the assignment route.
     NoAssignment,
+    /// 201 code whose `expiresAt` is this many seconds after the moment it is issued.
+    Lifetime(u64),
+    /// 400 `{"error":"invalid-request"}`: a client error the route does not retry.
+    BadRequest,
 }
 
 /// One request as the fake saw it. Header names are lower case.
@@ -313,6 +317,7 @@ fn scripted_failure(answer: &Answer) -> Option<Response> {
         Answer::Unauthorized => Some(error(401, "unauthenticated")),
         Answer::UpgradeRequired => Some(error(426, "upgrade-required")),
         Answer::ServerError => Some(error(503, "unavailable")),
+        Answer::BadRequest => Some(error(400, "invalid-request")),
         _ => None,
     }
 }
@@ -382,22 +387,22 @@ async fn request_code(
     State(shared): State<Arc<Shared>>,
     Extension(answer): Extension<Answer>,
 ) -> Response {
-    match answer {
-        Answer::Ok => {
-            let elapsed = tokio::time::Instant::now().duration_since(shared.started);
-            let start: DateTime<Utc> = WALL_START.parse().expect("a valid instant");
-            let issued = start
-                + TimeDelta::from_std(elapsed).expect("elapsed test time fits a TimeDelta")
-                + TimeDelta::from_std(CODE_LIFETIME).expect("the lifetime fits a TimeDelta");
-            let expires_at = serde_json::to_value(issued).expect("a date-time serializes");
-            (
-                StatusCode::CREATED,
-                Json(json!({ "code": CODE, "expiresAt": expires_at, "claimSecret": CLAIM_SECRET })),
-            )
-                .into_response()
-        }
-        other => unexpected(other),
-    }
+    let lifetime = match answer {
+        Answer::Ok => CODE_LIFETIME,
+        Answer::Lifetime(seconds) => Duration::from_secs(seconds),
+        other => return unexpected(other),
+    };
+    let elapsed = tokio::time::Instant::now().duration_since(shared.started);
+    let start: DateTime<Utc> = WALL_START.parse().expect("a valid instant");
+    let issued = start
+        + TimeDelta::from_std(elapsed).expect("elapsed test time fits a TimeDelta")
+        + TimeDelta::from_std(lifetime).expect("the lifetime fits a TimeDelta");
+    let expires_at = serde_json::to_value(issued).expect("a date-time serializes");
+    (
+        StatusCode::CREATED,
+        Json(json!({ "code": CODE, "expiresAt": expires_at, "claimSecret": CLAIM_SECRET })),
+    )
+        .into_response()
 }
 
 async fn claim(Extension(answer): Extension<Answer>) -> Response {

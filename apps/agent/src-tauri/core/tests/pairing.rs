@@ -50,6 +50,39 @@ async fn shows_code_with_minutes_left() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn code_with_4_min_30_s_left_shows_5() {
+    // Four and a half minutes left is five minutes shown: the count rounds up, never down (AGS-05).
+    let h = Harness::start(None).await;
+    h.api
+        .script(Operation::RequestCode, [Answer::Lifetime(270)]);
+    h.api.script(Operation::Claim, pending(200));
+    let _commands = h.spawn_pairing();
+    wait_for_code(&h).await;
+
+    assert_eq!(
+        shown_code(h.sink.pairing()),
+        Some((CODE.to_string(), 5)),
+        "4 min 30 s left shows 5 min"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn code_with_1_s_left_shows_1() {
+    // A second left is shown as one minute, the last minute of the code (AGS-05).
+    let h = Harness::start(None).await;
+    h.api.script(Operation::RequestCode, [Answer::Lifetime(1)]);
+    h.api.script(Operation::Claim, pending(200));
+    let _commands = h.spawn_pairing();
+    wait_for_code(&h).await;
+
+    assert_eq!(
+        shown_code(h.sink.pairing()),
+        Some((CODE.to_string(), 1)),
+        "1 s left shows 1 min"
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn claims_every_two_seconds_until_token() {
     let h = Harness::start(None).await;
     h.api.script(
@@ -170,6 +203,41 @@ async fn unauthorized_deletes_token_and_repairs() {
         "the 401 deletes the stored token"
     );
     assert_eq!(count(&h.api, Operation::RequestCode), 1);
+}
+
+#[tokio::test(start_paused = true)]
+async fn unauthorized_on_claim_resets_the_unused_count() {
+    // Code one expires unused (410), code two is refused with 401, code three expires unused. Two unused codes in a row
+    // would pause, but the 401 starts the count again: code four is requested and the loop does not pause (AD-058).
+    let h = Harness::start(None).await;
+    h.api.script(
+        Operation::Claim,
+        [Answer::Gone, Answer::Unauthorized, Answer::Gone],
+    );
+    h.api.script(Operation::Claim, pending(400));
+    let _commands = h.spawn_pairing();
+    wait_for_code(&h).await;
+
+    advance(Duration::from_secs(2)).await;
+    until("the second code", || {
+        count(&h.api, Operation::RequestCode) == 2
+    })
+    .await;
+    advance(Duration::from_secs(2)).await;
+    until("the third code after the 401", || {
+        count(&h.api, Operation::RequestCode) == 3
+    })
+    .await;
+    advance(Duration::from_secs(2)).await;
+    until("the fourth code", || {
+        count(&h.api, Operation::RequestCode) == 4
+    })
+    .await;
+    wait_for_code(&h).await;
+    assert!(
+        !h.sink.pairing_history().contains(&PairingView::Paused),
+        "one unused code after the 401 does not pause the loop"
+    );
 }
 
 #[tokio::test(start_paused = true)]

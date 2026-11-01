@@ -276,3 +276,20 @@ fn next_minute_change(deadline: Instant, now: Instant) -> Instant {
         deadline - Duration::from_secs(60 * u64::from(minutes - 1))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::minutes_left;
+
+    #[test]
+    fn minutes_left_rounds_up_at_every_offset() {
+        assert_eq!(minutes_left(Duration::from_millis(1)), 1);
+        assert_eq!(minutes_left(Duration::from_millis(59_900)), 1);
+        assert_eq!(minutes_left(Duration::from_secs(60)), 1);
+        assert_eq!(minutes_left(Duration::from_millis(60_100)), 2);
+        assert_eq!(minutes_left(Duration::from_secs(270)), 5);
+        assert_eq!(minutes_left(Duration::from_secs(300)), 5);
+    }
+}
