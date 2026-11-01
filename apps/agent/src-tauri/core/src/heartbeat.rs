@@ -7,13 +7,13 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use serde_json::json;
 use tokio::time::Instant;
 use tracing::Instrument;
 
 use crate::api_client::ApiError;
 use crate::context::Context;
-use crate::contracts::generated::Heartbeat;
+use crate::messages::{Presence, Screen};
+use crate::ports::ApiGateway;
 use crate::view::Connectivity;
 
 /// The interval between heartbeats (AD-031).
@@ -43,13 +43,13 @@ async fn beat(ctx: &Context) {
     let Some(token) = ctx.tokens.load() else {
         return;
     };
-    let running = game_running(&ctx.processes.names());
-    let Ok(body) = heartbeat_body(&ctx.version, running) else {
-        // The version is not a contract version: a build error, nothing to send.
-        ctx.hub.set_connectivity(Connectivity::Unreachable);
-        return;
+    let presence = Presence {
+        game_running: game_running(&ctx.processes.names()),
+        // The screen is unknown until F2 reads it (AGS-10).
+        screen: Screen::Unknown,
     };
-    match ctx.api.heartbeat(&token, &body).await {
+    // A version the contract refuses fails in the gateway's translation, before anything is sent, and shows as unreachable.
+    match ctx.gateway.heartbeat(&token, &presence, &ctx.version).await {
         Ok(()) => ctx.hub.set_connectivity(Connectivity::Connected),
         Err(error @ (ApiError::Unauthorized | ApiError::UpgradeRequired)) => {
             ctx.handle_api_error(&error);
@@ -65,21 +65,11 @@ pub fn game_running(names: &[String]) -> bool {
         .any(|name| name.eq_ignore_ascii_case(GAME_PROCESS))
 }
 
-/// The heartbeat body of the contract: the version, the game state and the screen (`UNKNOWN` in F0).
-pub fn heartbeat_body(version: &str, running: bool) -> Result<Heartbeat, serde_json::Error> {
-    serde_json::from_value(json!({
-        "agentVersion": version,
-        "pcState": "IDLE",
-        "game": { "running": running, "window": "", "screen": "UNKNOWN" },
-        "capture": { "method": "none", "readRate": 0 },
-    }))
-}
-
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
 
-    use super::{INTERVAL, game_running, heartbeat_body};
+    use super::{INTERVAL, game_running};
 
     #[test]
     fn heartbeat_interval_is_fifteen_seconds() {
@@ -95,15 +85,5 @@ mod tests {
             "d2r-helper.exe".into()
         ]));
         assert!(!game_running(&[]));
-    }
-
-    #[test]
-    fn heartbeat_body_follows_the_contract() {
-        let body = heartbeat_body("0.0.1", true).expect("a contract body");
-        let sent = serde_json::to_value(&body).expect("the body serializes");
-        assert_eq!(sent["game"]["screen"], "UNKNOWN");
-        assert_eq!(sent["game"]["running"].as_bool(), Some(true));
-        assert_eq!(sent["agentVersion"], "0.0.1");
-        assert!(heartbeat_body("not-a-version", false).is_err());
     }
 }

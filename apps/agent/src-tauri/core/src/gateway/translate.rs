@@ -282,4 +282,18 @@ mod tests {
         );
         assert_eq!(issued.claim_secret.expose(), "claim-secret-7f3a9c1e5b2d");
     }
+
+    #[test]
+    fn heartbeat_body_follows_the_contract() {
+        let presence = Presence {
+            game_running: true,
+            screen: Screen::Unknown,
+        };
+        let body = heartbeat_from_presence(&presence, "0.0.1").expect("a contract body");
+        let sent = serde_json::to_value(&body).expect("the body serializes");
+        assert_eq!(sent["game"]["screen"], "UNKNOWN");
+        assert_eq!(sent["game"]["running"].as_bool(), Some(true));
+        assert_eq!(sent["agentVersion"], "0.0.1");
+        assert!(heartbeat_from_presence(&presence, "not-a-version").is_err());
+    }
 }
