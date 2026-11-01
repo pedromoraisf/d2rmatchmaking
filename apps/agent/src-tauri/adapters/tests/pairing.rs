@@ -4,7 +4,7 @@ mod support;
 
 use std::time::Duration;
 
-use d2rmm_agent_core::pairing::Command;
+use d2rmm_agent_core::pair::Command;
 use d2rmm_agent_core::view::PairingView;
 use support::fake_api::{Answer, CODE, Operation, TOKEN};
 use support::harness::{Harness, advance, count, pending, settle, until};

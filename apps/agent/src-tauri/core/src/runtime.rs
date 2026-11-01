@@ -11,7 +11,7 @@ use crate::config::Config;
 use crate::context::{Context, Groups};
 use crate::fusion::fuse;
 use crate::observations;
-use crate::pairing::{self, Command};
+use crate::pair::{self, Command};
 use crate::ports::{ApiGateway, Rgba, StateSink};
 use crate::{heartbeat, read_frame, stream, updates};
 
@@ -46,7 +46,7 @@ impl Runtime {
 /// Starts the four loops on a built context and returns the handle that keeps their command channel.
 fn spawn<G: ApiGateway + Send + Sync + 'static>(ctx: Arc<Context<G>>) -> Handle<G> {
     let (commands, receiver) = mpsc::channel(COMMAND_BUFFER);
-    tokio::spawn(pairing::run(Arc::clone(&ctx), receiver));
+    tokio::spawn(pair::run(Arc::clone(&ctx), receiver));
     tokio::spawn(heartbeat::run(Arc::clone(&ctx)));
     tokio::spawn(stream::run(Arc::clone(&ctx)));
     tokio::spawn(updates::run(Arc::clone(&ctx)));

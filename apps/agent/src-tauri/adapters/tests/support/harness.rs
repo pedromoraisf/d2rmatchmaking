@@ -12,7 +12,7 @@ use d2rmm_agent_core::config::Config;
 use d2rmm_agent_core::context::{
     Context, Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
 };
-use d2rmm_agent_core::pairing::{self, Command};
+use d2rmm_agent_core::pair::{self, Command};
 use d2rmm_agent_core::ports::{
     IdGenerator, PausedWallClock, ProcessSource, SequentialIds, TextReader, TokenStore, WallClock,
 };
@@ -97,7 +97,7 @@ impl Harness {
     /// Runs the pairing loop and returns the sender of its commands.
     pub fn spawn_pairing(&self) -> mpsc::Sender<Command> {
         let (commands, receiver) = mpsc::channel(8);
-        tokio::spawn(pairing::run(Arc::clone(&self.context), receiver));
+        tokio::spawn(pair::run(Arc::clone(&self.context), receiver));
         commands
     }
 }

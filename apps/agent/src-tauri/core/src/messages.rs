@@ -1,6 +1,7 @@
 //! The plain messages the ports exchange (design.md § Migration Steps, M1a). They hold no serde and no generated contract
 //! type: the anti-corruption layer translates between them and the contract types. The room assignment has moved to the
-//! domain (M2); the pairing, observation and presence messages stay here until M3 and M5 move them.
+//! domain (M2) and the pairing code has moved there too (M3); the issued code, observation and presence messages stay
+//! here until M5 moves them.
 
 use std::num::NonZeroU64;
 
@@ -9,28 +10,8 @@ use uuid::Uuid;
 
 use crate::secret::Secret;
 
-/// The text of a pairing code the player types: exactly six ASCII digits (the contract's `^\d{6}$`).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PairingCode(String);
-
-/// The value is not six ASCII digits.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-#[error("a pairing code is six ASCII digits")]
-pub struct InvalidPairingCode;
-
-impl PairingCode {
-    pub fn new(value: &str) -> Result<Self, InvalidPairingCode> {
-        if value.len() == 6 && value.bytes().all(|byte| byte.is_ascii_digit()) {
-            Ok(Self(value.to_string()))
-        } else {
-            Err(InvalidPairingCode)
-        }
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
+/// The pairing code is the domain's value object (M3): six ASCII digits, validated on construction.
+pub use d2rmm_agent_domain::pairing::{InvalidPairingCode, PairingCode};
 
 /// A code the API issued, with the claim secret that goes with it. `Debug` shows the secret as `***` (`Secret`).
 #[derive(Debug, Clone)]

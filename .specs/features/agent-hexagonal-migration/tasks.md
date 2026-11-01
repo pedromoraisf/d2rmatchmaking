@@ -860,8 +860,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] `adapters/tests/pairing.rs` passes; preservation test passes
-- [ ] Rust workspace gate passes
+- [x] `adapters/tests/pairing.rs` passes; preservation test passes
+- [x] Rust workspace gate passes
 
 **Tests**: integration
 **Gate**: Rust workspace
@@ -1331,7 +1331,9 @@ The feature's live state, written as it happens - a compaction gives no warning.
 
 **Batch 7 (execute-batch-7), in progress: T38 to T41**
 
-- T38 done (commit carries `Task: T38`): `domain/src/pairing.rs` holds `PairingCode` (six ASCII digits, `InvalidPairingCode`), `ClaimOutcome` (`Claimed`, `Pending`, `Gone`, `Unauthorized`, `RateLimited { retry_after }`, `Unreachable`), `ClaimNext`, `CodeNext` and `Pairing` (`new`, `show`, `code`, `expires_at`, `unused`, `claim_result`, `expired`). `rate_limited`, `remaining_until` and `minutes_left` are associated functions (no `self`), not methods. A `426` is not a `ClaimOutcome`: the device aggregate (T42) handles it. `Pairing::expired` resets the count when it pauses, which matches the core loop, since a pause always ends the attempt. Core is untouched; its copies go in T39. Gate `Rust domain` passed on attempt 1 (20 tests). The `clippy.toml` warnings about `chrono::Utc::now` and `chrono::Local::now` (unreachable paths, from T3) are unchanged.
+- T39 done (commit carries `Task: T39`): `core/src/pairing.rs` is `core/src/pair.rs` (`git mv`). The loop and `show_code` drive the domain `Pairing`; `Command` stays; the claim secret stays a core `Secret`; spans and view states are unchanged. Deviations for the orchestrator: (1) `core/src/messages.rs` now re-exports the domain `PairingCode` and `InvalidPairingCode` (the aggregate's `show` takes the domain type; a second copy would need a fallible conversion). The core test `pairing_code_accepts_six_digits_only` stays where it is. (2) `.cargo/mutants.toml` still lists `core/src/pairing.rs`, which no longer exists. The harness test `mutation covers the core rule modules` reads the list, not the disk, so it passes; the examine glob matches nothing until T53 rewrites the list. Not changed here: the mutants file and that test are T53 and T31's scope. (3) `claim_outcome` maps an `ApiError` to a `ClaimOutcome`; a `426` maps to nothing and goes to `on_upgrade_required`, since the device owns it. A `Paired` answer is only possible for an issued token, which is stored before the match; the error arm for `Paired` returns a new code and is unreachable in practice. (4) The core unit tests that lived in `pairing.rs` (the minute rounding, unused count, rate-limit wait and the two constants) moved to the domain under the T38 names; the timing constants are pinned by `timing_constants_are_pinned`. One unit test, `every_claim_answer_maps_to_the_aggregate_outcome`, is new in `pair.rs`. Gates: `Rust workspace` passed on attempt 1 (144 tests) and again after the new unit test (145 tests); the preservation guard `node --test scripts/test/agent-test-preservation.test.mjs` passed (7 of 7) as a second gate run on this step. The step's budget is now spent (3 of 3 attempts, all passed); T39 has no further gate runs.
+
+- T38 done (commit `c8d5135`, `Task: T38`): `domain/src/pairing.rs` holds `PairingCode` (six ASCII digits, `InvalidPairingCode`), `ClaimOutcome` (`Claimed`, `Pending`, `Gone`, `Unauthorized`, `RateLimited { retry_after }`, `Unreachable`), `ClaimNext`, `CodeNext` and `Pairing` (`new`, `show`, `code`, `expires_at`, `unused`, `claim_result`, `expired`). `rate_limited`, `remaining_until` and `minutes_left` are associated functions (no `self`), not methods. A `426` is not a `ClaimOutcome`: the device aggregate (T42) handles it. `Pairing::expired` resets the count when it pauses, which matches the core loop, since a pause always ends the attempt. Core is untouched; its copies go in T39. Gate `Rust domain` passed on attempt 1 (20 tests). The `clippy.toml` warnings about `chrono::Utc::now` and `chrono::Local::now` (unreachable paths, from T3) are unchanged.
 
 **Batch 6 (execute-batch-6), complete: T33 to T37**
 

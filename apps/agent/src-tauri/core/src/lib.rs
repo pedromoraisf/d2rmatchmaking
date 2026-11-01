@@ -8,7 +8,7 @@ pub mod fusion;
 pub mod heartbeat;
 pub mod messages;
 pub mod observations;
-pub mod pairing;
+pub mod pair;
 pub mod ports;
 pub mod read_frame;
 pub mod runtime;
