@@ -425,9 +425,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Integration test `http_gateway_forwards_each_route` against the fake API passes. It lives in a new test target outside `tests/` (`core/extra-tests/gateway.rs`, registered with `[[test]] name = "gateway"`), because the preservation guard (T9) forbids added assertions under `core/tests/**` and `adapters/tests/**`; the guard is not changed
-- [ ] `ApiClient` is untouched; its tests pass; preservation test passes
-- [ ] Rust core gate passes
+- [x] Integration test `http_gateway_forwards_each_route` against the fake API passes. It lives in a new test target outside `tests/` (`core/extra-tests/gateway.rs`, registered with `[[test]] name = "gateway"`), because the preservation guard (T9) forbids added assertions under `core/tests/**` and `adapters/tests/**`; the guard is not changed
+- [x] `ApiClient` is untouched; its tests pass; preservation test passes
+- [x] Rust core gate passes
 
 **Tests**: integration
 **Gate**: Rust core
@@ -1335,9 +1335,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - T13 done: commit `de375af` (`refactor(agent): add the plain messages the ports exchange`), gate `Rust core` passed on attempt 1.
 - T14 done: commit `003e2e1` (`feat(agent): define the gateway port and the room stream`), gate `Rust core` passed on attempt 1. Deviation: `EventStream::next` returns a boxed future, the form `Updater` uses. An `async fn` in a trait cannot sit behind `Box<dyn EventStream>`, which the Done-when requires. The rest of the signature follows the design.
 - T15 done: commit `00bddba` (`feat(agent): translate between the contract and the messages`), gate `Rust core` passed on attempt 2. Attempt 1 failed on my own test expectation (`readRate` is the float `0.0`); the mapping was right, the assertion was corrected to `as_f64() == Some(0.0)`.
-- T16 blocked (plan defect, no code written, nothing uncommitted). Its Done-when needs a new integration file `core/tests/gateway.rs` with assertions (`http_gateway_forwards_each_route`) and needs `preservation test passes`. `scripts/test/agent-test-preservation.test.mjs` (`assertionDiff`) reports every assert statement in `core/tests/**` and `adapters/tests/**` that the baseline `b1519d6` does not hold as `added assertion`. A new asserting file in `core/tests/` therefore fails the guard by design. Not worked around: no `panic!` in place of `assert!`, no moving the test into `core/src`. Decision needed from the orchestrator. Options: the guard counts only removed or edited baseline statements and allows new test files, or the new gateway test lives where the guard does not scan, with the choice recorded in `decisions.md`.
-- The same defect is foreseen at T32: `adapters/tests/stream.rs` gets two new asserting tests (`invalid_assignment_body_is_an_invalid_error`, `invalid_stream_event_is_skipped`) while its Done-when requires the preservation test to pass.
-- Batch remainder: T17 (depends on T16) and T18 not started.
+- T16 done (commit carries `Task: T16`): `HttpGateway` in `core/src/gateway/http.rs` over the unchanged `ApiClient`. The gateway test is `core/extra-tests/gateway.rs` (target `gateway` in `core/Cargo.toml`), reusing the fake API through `#[path]`; `core/tests/**` untouched. Gate `Rust core` passed on attempt 1 (104 tests). Deviation: `open_stream` on the port returns `ApiError::Invalid` until T17 supplies the SSE stream; no caller reaches it before T23.
+- T17 and T18: see the next Handoff entry once done.
 
 **Batch 2 (execute-batch-2), blocked at T7 by the retry budget of the implementer session**
 

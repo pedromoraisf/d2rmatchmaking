@@ -28,3 +28,7 @@ axum = "0.8"
 jsonschema = "0.60"
 tokio = { version = "1", features = ["macros", "net", "rt", "rt-multi-thread", "test-util", "time"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
+
+[[test]]
+name = "gateway"
+path = "extra-tests/gateway.rs"
