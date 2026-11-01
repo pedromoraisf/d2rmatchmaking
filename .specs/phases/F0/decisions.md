@@ -62,6 +62,13 @@ review. Reversals become tasks in a follow-up feature.
 | AD-079 | agent-hexagonal-migration | `OFFLINE_AFTER` (45 s) is a domain constant beside the 15 s heartbeat, pinned as three heartbeats; the agent's loops do not read it | an unused constant |                     |
 | AD-080 | agent-hexagonal-migration | Mutation scope widens to the domain crate and the core rule modules under the existing survival rule; no number is lowered | a later score target |                     |
 
+| AD-081 | agent-hexagonal-migration | Portable adapters (reqwest gateway, contracts, ACL, SSE) live in a new crate `d2rmm-agent-adapters`; Windows/Tauri adapters stay in the app crate | one more workspace member |                     |
+| AD-082 | agent-hexagonal-migration | The `core/tests` integration tests move to the adapters crate with only `use`/harness lines changed; the proof fails on any changed `assert*` line | AHM-20 wording names `core/tests/` |                     |
+
+| AD-083 | agent-hexagonal-migration | `agent.http.*` spans stay in the gateway adapter; loop and use-case spans stay in core; the domain emits none | ADR 027 rule 7 read for the agent's own spans |                     |
+
+Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
+
 ## Queued for F1 (from the api-web-skeleton security review)
 
 - Global ceiling on failed pairing-code submissions across accounts, and a rate limit on token claims (the F0 limits are the spec's, AD-032 and AD-041).

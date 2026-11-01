@@ -723,6 +723,33 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-01
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-081 (assumed)
+
+- **Decision**: the portable adapters (reqwest gateway, generated contracts, translation, SSE parser, `ApiBase`, telemetry bootstrap) live in a new crate `d2rmm-agent-adapters`; the Windows and Tauri adapters and the composition root stay in the app crate.
+- **Reason**: ADR 027 open point 2 leaves the placement to this Design and names this crate as the option when the app crate grows. It keeps the HTTP integration tests and each migration step off the Tauri build.
+- **Trade-off**: one more workspace member. Reversal is moving the modules into the app crate.
+- **Scope**: agent-hexagonal-migration / design
+- **Date**: 2026-11-01
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-082 (assumed)
+
+- **Decision**: the integration tests of `core/tests/` move with the HTTP gateway to `d2rmm-agent-adapters/tests/`; assertion lines stay byte-identical, while `use` lines, harness construction and act lines may change. The few assertions that read internals keep their text through a `Probe` (read-only state, no ports, returned only by the test entry point `Runtime::start_with_probe`, which the app crate may not mention), the port error keeping the name `ApiError`, and the contract-typed `ApiClient` staying as it is. The check runs on every commit touching those files. A task that cannot keep an assertion stops and reports it.
+- **Reason**: they drive the real gateway against a fake API, and `core` no longer holds `reqwest`. AHM-20 asks for the same assertions, not for the same directory.
+- **Trade-off**: AHM-20's wording names `core/tests/`; the proof is a harness check over `git diff -M` that fails on any added or removed assertion line in the moved files.
+- **Scope**: agent-hexagonal-migration / AHM-20
+- **Date**: 2026-11-01
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-083 (assumed)
+
+- **Decision**: the `agent.http.*` spans (they record the response status) stay in the gateway adapter; the agent's loop and use-case spans stay in the application layer; the domain emits none.
+- **Reason**: ADR 027 rule 7 puts the agent's spans in the application. The HTTP-call spans describe a transport detail core does not know (status codes), and they already live in `ApiClient` today.
+- **Trade-off**: a literal reading of rule 7 would move them to core and force core to learn HTTP statuses. Reversal is wrapping each gateway call in a core span.
+- **Scope**: agent-hexagonal-migration / AHM-18
+- **Date**: 2026-11-01
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
