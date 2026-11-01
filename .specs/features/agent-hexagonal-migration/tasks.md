@@ -1106,9 +1106,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Test `game_running_matches_the_executable_name_only` moved and passes
-- [ ] `adapters/tests/heartbeat.rs` passes; preservation test passes
-- [ ] Rust workspace gate passes
+- [x] Test `game_running_matches_the_executable_name_only` moved and passes
+- [x] `adapters/tests/heartbeat.rs` passes; preservation test passes
+- [x] Rust workspace gate passes
 
 **Tests**: unit
 **Gate**: Rust workspace
@@ -1335,6 +1335,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - T49 done (commit carries `Task: T49`): `core/src/observations.rs` is `core/src/post_observation.rs` (`git mv`). `send` runs `ObservationRetry`; `classify` maps network and 5xx to `PostFailure::Transient`, every other error to `Permanent`. The `sleep_while_allowed` gate result and the epoch check after the sleep stay in core. `SendOutcome` stays. `lib.rs` and `runtime.rs` name the new module. Three colocated `--lib` tests run on paused time against `FakeApiGateway`: `post_retries_with_the_same_key_five_attempts`, `post_drops_when_a_426_moves_the_epoch` (a 426 at 500 ms, mid-sleep; it also shuts the gate, so the drop is shared with the gate) and `post_drops_when_the_gate_closes_during_sleep` (an unpair mid-sleep moves no epoch). The retry-schedule test moved to the domain (`observation_retry_delays_one_two_four_eight_then_drop`). `adapters/tests/observations.rs` changed its `use` line and its act line (`post_observation::send`); no assertion line did. Gate `Rust workspace` plus the preservation guard passed on attempt 2 (164 tests). Attempt 1 failed on a type inference error in a test helper (`Arc::clone(&tokens)` where the field needs the trait object; `tokens.clone()` coerces), fixed. `.cargo/mutants.toml` still lists `core/src/observations.rs` until T53.
 - T50 done (commit carries `Task: T50`): `domain/src/reconnect.rs` holds `Reconnect` (`new`, `delay`, `slept` doubles to at most `RECONNECT_MAX`, `opened_for` resets at `RESET_AFTER_OPEN`) and its three tests. `follow_stream::run` keeps a `Reconnect`; an interrupted sleep does not call `slept`, as before. The core constants `RECONNECT_MIN`, `RECONNECT_MAX`, `RESET_AFTER_OPEN` and the helpers `delay_after_open` and `next_delay` are gone from core (the values are the domain timings); their two core tests moved to the domain. Gate `Rust workspace` plus the preservation guard passed on attempt 1 (165 tests).
 - T51 done (commit carries `Task: T51`): `domain/src/fusion.rs` holds `fuse` and `GameNameObservation` (fields as the core message had them). `fuse` takes the key as `impl FnOnce() -> Uuid`, drawn only after the name and the room match. `core/src/messages.rs` re-exports `GameNameObservation` from the domain, so the adapters' translation and the fakes keep their paths. `core/src/fusion.rs` is gone (`git rm`); its two read tests (`reads_first_line_of_region`, `unsupported_resolution_reads_nothing`) moved to `core/src/read_frame.rs`, unchanged. `runtime.rs` calls the domain `fuse` with `|| ports.ids.idempotency_key()`. Gate `Rust workspace` plus the preservation guard: attempt 1 failed on two clippy `needless_borrows_for_generic_args` in my domain test (`&draw` where the closure is `Copy`), fixed to `draw`; attempt 2 passed (the gate count, all tests). `.cargo/mutants.toml` still lists `core/src/fusion.rs` until T53.
+- T52 done (commit carries `Task: T52`): `domain/src/presence.rs` holds `Presence`, `Screen`, `game_running` (`GAME_PROCESS` from the domain timings, ASCII case-insensitive) and the moved test `game_running_matches_the_executable_name_only`. `core/src/messages.rs` re-exports `Presence` and `Screen`; `core/src/beat.rs` imports `game_running` from the domain and loses its local `GAME_PROCESS` and `game_running`, and the test moved with them. Gate `Rust workspace` plus the preservation guard passed on attempt 1 (167 tests).
 
 **Batch 8 (execute-batch-8), complete: T42 to T47**
 

@@ -21,19 +21,8 @@ pub struct IssuedCode {
 /// The `GAME_NAME_SEEN` observation is the domain's value object (M5): fusion builds it and the sender posts it as is.
 pub use d2rmm_agent_domain::fusion::GameNameObservation;
 
-/// The screen the game shows, as far as the agent knows it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Screen {
-    Unknown,
-    AutomapOpen,
-}
-
-/// What the agent reports on each heartbeat: whether the game runs and which screen it shows.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Presence {
-    pub game_running: bool,
-    pub screen: Screen,
-}
+/// The heartbeat's presence and screen are the domain's value objects (M5).
+pub use d2rmm_agent_domain::presence::{Presence, Screen};
 
 #[cfg(test)]
 mod tests {

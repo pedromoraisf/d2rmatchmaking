@@ -7,6 +7,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use d2rmm_agent_domain::presence::game_running;
 use tokio::time::Instant;
 use tracing::Instrument;
 
@@ -18,9 +19,6 @@ use crate::view::Connectivity;
 
 /// The interval between heartbeats (AD-031).
 pub const INTERVAL: Duration = Duration::from_secs(15);
-
-/// The executable whose presence means the game is open (AD-055).
-pub const GAME_PROCESS: &str = "D2R.exe";
 
 /// Beats for the life of the agent, whenever it is paired and not waiting for an update.
 pub async fn run<G: ApiGateway + Send + Sync + 'static>(
@@ -69,19 +67,12 @@ async fn beat<G: ApiGateway + Send + Sync>(
     }
 }
 
-/// Whether a process named `D2R.exe` is in the snapshot.
-pub fn game_running(names: &[String]) -> bool {
-    names
-        .iter()
-        .any(|name| name.eq_ignore_ascii_case(GAME_PROCESS))
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use super::{INTERVAL, game_running, run};
+    use super::{INTERVAL, run};
     use crate::device_state::DeviceState;
     use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NullSink};
     use crate::groups::HeartbeatPorts;
@@ -131,17 +122,6 @@ mod tests {
     #[test]
     fn heartbeat_interval_is_fifteen_seconds() {
         assert_eq!(INTERVAL, Duration::from_secs(15));
-    }
-
-    #[test]
-    fn game_running_matches_the_executable_name_only() {
-        assert!(game_running(&["explorer.exe".into(), "d2r.exe".into()]));
-        assert!(game_running(&["D2R.EXE".into()]));
-        assert!(!game_running(&[
-            "D2R.exe.bak".into(),
-            "d2r-helper.exe".into()
-        ]));
-        assert!(!game_running(&[]));
     }
 
     #[tokio::test(start_paused = true)]
