@@ -9,7 +9,7 @@ use std::num::NonZeroU64;
 
 use d2rmm_agent_adapters::http::translate::assignment_from_contract;
 use d2rmm_agent_core::messages::GameNameObservation;
-use d2rmm_agent_core::observations::{self, SendOutcome};
+use d2rmm_agent_core::post_observation::{self, SendOutcome};
 use d2rmm_agent_domain::room_assignment::Assignment;
 use serde_json::{Value, json};
 use support::fake_api::{Answer, Operation, TOKEN};
@@ -54,7 +54,7 @@ fn spawn_send(h: &Harness) -> tokio::task::JoinHandle<SendOutcome> {
     let read = h.groups().read;
     tokio::spawn(async move {
         let observation = observation();
-        observations::send(&device, &read, &observation).await
+        post_observation::send(&device, &read, &observation).await
     })
 }
 

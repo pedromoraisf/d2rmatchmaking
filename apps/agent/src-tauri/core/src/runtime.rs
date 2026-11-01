@@ -11,9 +11,9 @@ use crate::config::Config;
 use crate::device_state::DeviceState;
 use crate::fusion::fuse;
 use crate::groups::{Groups, ReadPorts};
-use crate::observations;
 use crate::pair::{self, Command};
 use crate::ports::{ApiGateway, Rgba, StateSink, TokenStore};
+use crate::post_observation;
 use crate::{beat, check_update, follow_stream, read_frame};
 
 const COMMAND_BUFFER: usize = 8;
@@ -101,7 +101,7 @@ impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
             };
             let now = ports.clock.now_utc();
             if let Some(fusion) = fuse(&text, &assignment, now, ports.ids.as_ref()) {
-                observations::send(&device, &ports, &fusion.observation).await;
+                post_observation::send(&device, &ports, &fusion.observation).await;
             }
         });
     }
