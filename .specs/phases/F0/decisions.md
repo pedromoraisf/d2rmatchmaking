@@ -59,6 +59,8 @@ review. Reversals become tasks in a follow-up feature.
 | AD-075 | agent-skeleton     | Tag ruleset is the existing `.github/rulesets/agent-release-tags.json` (tasks.md said `agent-tags.json`); SignPath job also needs variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_SIGNING_POLICY_SLUG`; `--clobber` test split per job | rename the file                       |                     |
 | AD-076 | agent-skeleton     | Nextest proofs in `## Checks` pass `--workspace` (src-tauri is package + workspace root)                                                                                                                                                                        | none (selection only)                 |                     |
 | AD-077 | agent-skeleton     | `D2R.exe` matches case-insensitively (Windows file names); pinned by `game_running_matches_the_executable_name_only` (C59)                                                                                                                                      | a comparison                          |                     |
+| AD-079 | agent-hexagonal-migration | `OFFLINE_AFTER` (45 s) is a domain constant beside the 15 s heartbeat, pinned as three heartbeats; the agent's loops do not read it | an unused constant |                     |
+| AD-080 | agent-hexagonal-migration | Mutation scope widens to the domain crate and the core rule modules under the existing survival rule; no number is lowered | a later score target |                     |
 
 ## Queued for F1 (from the api-web-skeleton security review)
 

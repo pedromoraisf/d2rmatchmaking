@@ -696,6 +696,33 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-01
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-078 (maintainer, 2026-11-01)
+
+- **Decision**: agent-hexagonal-migration uses `# not-scenario` exemptions for every requirement the acceptance runner cannot observe; the proofs are Rust unit tests, the unchanged `core/tests`, the architecture harness test and static checks.
+- **Reason**: the maintainer answered "Autorizo" on 2026-11-01 to the same rule as agent-skeleton ("the code tests are enough for the agent"); the migration changes nothing a player or the API sees.
+- **Trade-off**: one `@api` scenario (AHM-21) proves only the API side of the wire.
+- **Scope**: agent-hexagonal-migration / acceptance.feature
+- **Date**: 2026-11-01
+- **Status**: active
+
+### AD-079 (assumed)
+
+- **Decision**: `OFFLINE_AFTER` (45 s) is a constant of `d2rmm-agent-domain` beside `HEARTBEAT_INTERVAL` (15 s), pinned by a test that it equals three heartbeats; the agent's loops do not read it.
+- **Reason**: ADR 027 rule 4 lists the 45 s offline threshold among the domain constants; the server owns the rule (AD-031).
+- **Trade-off**: an unused constant documents an agreement; reversal is deleting it.
+- **Scope**: agent-hexagonal-migration / AHM-13
+- **Date**: 2026-11-01
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-080 (assumed)
+
+- **Decision**: mutation scope widens to every module of `d2rmm-agent-domain` and the rule modules of `d2rmm-agent-core`, under the survival rule the agent already runs; no existing number is lowered.
+- **Reason**: ADR 026 sets scope, not a score; AGENTS.md rule 4 keeps thresholds with the maintainer.
+- **Trade-off**: a later score target would be a maintainer decision.
+- **Scope**: agent-hexagonal-migration / AHM-23…AHM-25
+- **Date**: 2026-11-01
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
