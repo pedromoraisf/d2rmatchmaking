@@ -694,7 +694,6 @@ dependencies = [
  "jsonschema",
  "opentelemetry",
  "opentelemetry_sdk",
- "regress",
  "reqwest",
  "serde",
  "serde_json",
@@ -704,7 +703,6 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
- "url",
  "uuid",
  "zeroize",
 ]

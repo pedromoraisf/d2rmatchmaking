@@ -23,9 +23,9 @@ const CRATE_NAME = {
 };
 
 // Whether each deferred rule is enforced on the real tree today. `false` until its task switches it on: core depends on
-// the domain (T34), core does not depend on reqwest (T28), the application does not use the contract types (T28), and a
-// struct in core holds at most five ports (T47, when `Context` is gone).
-const ENFORCED_NOW = { coreDomain: false, coreReqwest: false, coreContracts: false, corePorts: false };
+// the domain (T34), and a struct in core holds at most five ports (T47, when `Context` is gone). The HTTP stack and the
+// contract types left core in T27 and T28, so their rules are on.
+const ENFORCED_NOW = { coreDomain: false, coreReqwest: true, coreContracts: true, corePorts: false };
 
 const DOMAIN_ALLOWED = ['thiserror', 'chrono', 'uuid'];
 const UI_AND_OS_PREFIXES = ['tauri', 'keyring', 'windows'];
@@ -69,6 +69,18 @@ export const domainViolations = (base) => {
     .map((name) => `domain depends on ${name}, which is not std, thiserror, chrono or uuid`);
 };
 
+// The HTTP stack, its JSON and its telemetry belong to the adapters (ADR 027). Core's tests still use some of them as
+// dev-dependencies until T29 moves them, so this rule reads the build dependencies only.
+const CORE_FORBIDDEN_BUILD = [
+  'reqwest',
+  'serde_json',
+  'opentelemetry',
+  'tracing-opentelemetry',
+  'tracing-subscriber',
+  'regress',
+  'url',
+];
+
 export const coreViolations = (base, enforce = { domain: false, reqwest: false }) => {
   const manifest = manifestOf(base, 'core');
   if (manifest === undefined) return ['the core manifest is missing'];
@@ -77,8 +89,11 @@ export const coreViolations = (base, enforce = { domain: false, reqwest: false }
     .filter((name) => startsWithAny(name, UI_AND_OS_PREFIXES))
     .map((name) => `core depends on ${name}, which is a UI or OS crate`);
   if (enforce.reqwest) {
+    const built = dependencyNames(manifest, { includeDev: false });
     violations.push(
-      ...names.filter((name) => startsWithAny(name, ['reqwest'])).map((name) => `core depends on ${name}`),
+      ...built
+        .filter((name) => startsWithAny(name, CORE_FORBIDDEN_BUILD))
+        .map((name) => `core depends on ${name}`),
     );
   }
   if (enforce.domain && !names.includes(CRATE_NAME.domain)) {
@@ -156,6 +171,13 @@ export const domainContractViolations = (base) =>
 
 export const coreContractViolations = (base, enabled = false) =>
   enabled ? linesMatching(sourceFiles(base, 'core'), CONTRACT_PATH, 'uses a generated contract type') : [];
+
+// The application reaches the API only through the gateway port: its code names no HTTP client and no adapter type
+// (ADR 027, rules 3 and 5). Line comments are excluded, so a doc comment may name the adapter it stands for.
+const HTTP_CLIENT = /\breqwest::|\bApiClient\b|\bHttpGateway\b/;
+
+export const coreHttpViolations = (base) =>
+  linesMatching(sourceFiles(base, 'core'), HTTP_CLIENT, 'names an HTTP client or an adapter type');
 
 export const domainClockViolations = (base) =>
   linesMatching(sourceFiles(base, 'domain'), CLOCK_OR_RANDOM, 'reads a clock or randomness');
@@ -270,6 +292,10 @@ test('contract types stay out of the domain and the application', () => {
     [...domainContractViolations(root), ...coreContractViolations(root, ENFORCED_NOW.coreContracts)],
     [],
   );
+});
+
+test('application reaches the API only through the gateway port', () => {
+  assert.deepEqual(coreHttpViolations(root), []);
 });
 
 test('domain reads no clock or randomness and names nothing Agent', () => {
@@ -408,6 +434,11 @@ const FIXTURES = [
     name: 'src-core-contracts',
     check: () => coreContractViolations(fixtureBase('src-core-contracts'), true),
     expect: /core\/src\/lib\.rs uses a generated contract type/,
+  },
+  {
+    name: 'src-core-http',
+    check: () => coreHttpViolations(fixtureBase('src-core-http')),
+    expect: /core\/src\/lib\.rs names an HTTP client or an adapter type/,
   },
   {
     name: 'src-core-tauri',
