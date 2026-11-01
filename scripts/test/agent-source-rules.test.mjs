@@ -196,6 +196,17 @@ test('the AGS-01 rule rejects an optional dependency in core', () => {
   assert.doesNotMatch(manifest, CORE_FEATURES_TABLE, 'this fixture is rejected by the optional rule alone');
 });
 
+test('the app registers the updater plugin whenever the updater adapter uses it', () => {
+  const adapter = crateFile(root, 'src/adapters/updater.rs') ?? '';
+  const app = crateFile(root, 'src/app.rs') ?? '';
+  if (!adapter.includes('UpdaterExt')) return;
+  assert.match(
+    app,
+    /tauri_plugin_updater::Builder/,
+    'the updater adapter calls app.updater(), which needs the plugin registered on the builder',
+  );
+});
+
 test('the AGS-01 rule accepts dependency feature lists', () => {
   const manifest = readText(`${agentTauri}/core/Cargo.toml`);
   assert.match(manifest, /features\s*=/, 'core lists features on its dependencies, which AGS-01 allows');

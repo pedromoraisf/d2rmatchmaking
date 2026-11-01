@@ -148,6 +148,7 @@ mod shell {
         let _ = fixture;
 
         tauri::Builder::default()
+            .plugin(tauri_plugin_updater::Builder::new().build())
             .invoke_handler(tauri::generate_handler![get_new_code])
             .setup(move |app| {
                 let app_handle = app.handle().clone();
