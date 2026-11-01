@@ -52,16 +52,16 @@ pub async fn send(ctx: &Context, room: Uuid, observation: &Observation) -> SendO
                 ctx.on_upgrade_required();
                 return drop_observation(ctx);
             }
-            Err(ApiError::Network | ApiError::Server) => {}
+            Err(error) if is_retryable(&error) => {}
             Err(_) => return drop_observation(ctx),
         }
 
         failures += 1;
-        let Some(delay) = RETRY_DELAYS.get(failures - 1) else {
+        let Some(delay) = retry_delay(failures) else {
             return drop_observation(ctx);
         };
         let still_allowed = ctx
-            .sleep_while_allowed(Instant::now() + *delay, Context::api_allowed)
+            .sleep_while_allowed(Instant::now() + delay, Context::api_allowed)
             .await;
         if !still_allowed || ctx.epoch() != epoch {
             return drop_observation(ctx);
@@ -72,4 +72,47 @@ pub async fn send(ctx: &Context, room: Uuid, observation: &Observation) -> SendO
 fn drop_observation(ctx: &Context) -> SendOutcome {
     ctx.count_dropped_observation();
     SendOutcome::Dropped
+}
+
+/// The wait before the retry that follows failure number `failures` (1 for the first), or `None` when the five attempts
+/// are spent.
+fn retry_delay(failures: usize) -> Option<Duration> {
+    RETRY_DELAYS.get(failures.checked_sub(1)?).copied()
+}
+
+/// Whether a failed post is retried with the same key: a lost network or a 5xx, nothing else (AD-051).
+fn is_retryable(error: &ApiError) -> bool {
+    matches!(error, ApiError::Network | ApiError::Server)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::{ApiError, is_retryable, retry_delay};
+
+    #[test]
+    fn retry_delays_are_one_two_four_eight_then_stop() {
+        assert_eq!(retry_delay(1), Some(Duration::from_secs(1)));
+        assert_eq!(retry_delay(2), Some(Duration::from_secs(2)));
+        assert_eq!(retry_delay(3), Some(Duration::from_secs(4)));
+        assert_eq!(retry_delay(4), Some(Duration::from_secs(8)));
+        assert_eq!(retry_delay(5), None);
+    }
+
+    #[test]
+    fn only_network_and_server_errors_are_retried() {
+        assert!(is_retryable(&ApiError::Network));
+        assert!(is_retryable(&ApiError::Server));
+        for error in [
+            ApiError::Unauthorized,
+            ApiError::UpgradeRequired,
+            ApiError::RateLimited { retry_after: None },
+            ApiError::Gone,
+            ApiError::Pending,
+            ApiError::Invalid,
+        ] {
+            assert!(!is_retryable(&error), "{error:?} must not be retried");
+        }
+    }
 }
