@@ -49,24 +49,78 @@ pub async fn run(ctx: Arc<Context>) {
 async fn check_once(ctx: &Context) {
     let outcome = ctx.updater.check_boxed().await;
     let required = *ctx.update_required.borrow();
-    let pending_view = if required {
-        UpdateView::Required
-    } else {
-        UpdateView::Idle
-    };
+    let (view, required_now) = view_after(&outcome, required);
+    if required && !required_now {
+        ctx.update_required.send_replace(false);
+    }
+    ctx.hub.set_update(view);
+}
+
+/// The view a check shows, and the value of the 426 flag after it. An installed update clears the flag (the app restarts
+/// into the new version); any other outcome keeps it. A pending 426 shows "Update required" over the outcome.
+fn view_after(outcome: &UpdateOutcome, required: bool) -> (UpdateView, bool) {
     match outcome {
-        UpdateOutcome::Installed => {
-            ctx.update_required.send_replace(false);
-            ctx.hub.set_update(UpdateView::Idle);
+        UpdateOutcome::Installed => (UpdateView::Idle, false),
+        UpdateOutcome::UpToDate => {
+            let view = if required {
+                UpdateView::Required
+            } else {
+                UpdateView::Idle
+            };
+            (view, required)
         }
-        UpdateOutcome::UpToDate => ctx.hub.set_update(pending_view),
         UpdateOutcome::Failed(_) => {
             let view = if required {
                 UpdateView::Required
             } else {
                 UpdateView::Failed
             };
-            ctx.hub.set_update(view);
+            (view, required)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::{CHECK_EVERY, view_after};
+    use crate::ports::{UpdateFailure, UpdateOutcome};
+    use crate::view::UpdateView;
+
+    #[test]
+    fn installed_update_clears_the_required_flag() {
+        assert_eq!(
+            view_after(&UpdateOutcome::Installed, true),
+            (UpdateView::Idle, false)
+        );
+        assert_eq!(
+            view_after(&UpdateOutcome::Installed, false),
+            (UpdateView::Idle, false)
+        );
+    }
+
+    #[test]
+    fn up_to_date_keeps_update_required_while_pending() {
+        assert_eq!(
+            view_after(&UpdateOutcome::UpToDate, true),
+            (UpdateView::Required, true)
+        );
+        assert_eq!(
+            view_after(&UpdateOutcome::UpToDate, false),
+            (UpdateView::Idle, false)
+        );
+    }
+
+    #[test]
+    fn failed_check_shows_update_failed_unless_required() {
+        let failed = UpdateOutcome::Failed(UpdateFailure::Download);
+        assert_eq!(view_after(&failed, false), (UpdateView::Failed, false));
+        assert_eq!(view_after(&failed, true), (UpdateView::Required, true));
+    }
+
+    #[test]
+    fn update_check_is_every_six_hours() {
+        assert_eq!(CHECK_EVERY, Duration::from_secs(6 * 60 * 60));
     }
 }
