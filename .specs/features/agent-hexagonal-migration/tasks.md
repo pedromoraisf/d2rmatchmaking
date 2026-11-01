@@ -878,8 +878,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Tests `pair_shows_code_then_stores_token`, `pair_gone_shows_a_new_code`, `pair_pauses_after_two_unused_codes`, `pair_resumes_on_get_new_code` pass under `--lib`
-- [ ] Rust core gate passes
+- [x] Tests `pair_shows_code_then_stores_token`, `pair_gone_shows_a_new_code`, `pair_pauses_after_two_unused_codes`, `pair_resumes_on_get_new_code` pass under `--lib`
+- [x] Rust core gate passes
 
 **Tests**: unit
 **Gate**: Rust core
@@ -1330,6 +1330,8 @@ Proof: `cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml -
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Batch 7 (execute-batch-7), in progress: T38 to T41**
+
+- T40 done (commit carries `Task: T40`): `core/src/pair.rs` has four paused-clock tests against `FakeApiGateway`: `pair_shows_code_then_stores_token` (the code shows "5 min", a Pending claim is retried, the token lands in `TokenStore`), `pair_gone_shows_a_new_code` (a 410 requests the next code), `pair_pauses_after_two_unused_codes` (two expiries pause; no request while paused) and `pair_resumes_on_get_new_code` (the command resumes with a new code). Deviation for the orchestrator: the in-memory fakes `MemoryTokens`, `NullSink`, `NoProcesses`, `NoText` and `NoUpdates` moved from the private test module of `context.rs` to `core/src/fakes.rs` (pub), so both test modules use them. Only the imports of `context.rs`'s tests changed (no assertion touched). The first attempt failed on the unused imports this move left behind; they were removed and the gate passed on attempt 2. Gate `Rust core` passed (33 tests).
 
 - T39 done (commit carries `Task: T39`): `core/src/pairing.rs` is `core/src/pair.rs` (`git mv`). The loop and `show_code` drive the domain `Pairing`; `Command` stays; the claim secret stays a core `Secret`; spans and view states are unchanged. Deviations for the orchestrator: (1) `core/src/messages.rs` now re-exports the domain `PairingCode` and `InvalidPairingCode` (the aggregate's `show` takes the domain type; a second copy would need a fallible conversion). The core test `pairing_code_accepts_six_digits_only` stays where it is. (2) `.cargo/mutants.toml` still lists `core/src/pairing.rs`, which no longer exists. The harness test `mutation covers the core rule modules` reads the list, not the disk, so it passes; the examine glob matches nothing until T53 rewrites the list. Not changed here: the mutants file and that test are T53 and T31's scope. (3) `claim_outcome` maps an `ApiError` to a `ClaimOutcome`; a `426` maps to nothing and goes to `on_upgrade_required`, since the device owns it. A `Paired` answer is only possible for an issued token, which is stored before the match; the error arm for `Paired` returns a new code and is unreachable in practice. (4) The core unit tests that lived in `pairing.rs` (the minute rounding, unused count, rate-limit wait and the two constants) moved to the domain under the T38 names; the timing constants are pinned by `timing_constants_are_pinned`. One unit test, `every_claim_answer_maps_to_the_aggregate_outcome`, is new in `pair.rs`. Gates: `Rust workspace` passed on attempt 1 (144 tests) and again after the new unit test (145 tests); the preservation guard `node --test scripts/test/agent-test-preservation.test.mjs` passed (7 of 7) as a second gate run on this step. The step's budget is now spent (3 of 3 attempts, all passed); T39 has no further gate runs.
 

@@ -287,9 +287,7 @@ fn lock<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
 
 #[cfg(test)]
 mod tests {
-    use std::future::Future;
-    use std::pin::Pin;
-    use std::sync::{Arc, Mutex};
+    use std::sync::Arc;
     use std::time::Duration;
 
     use chrono::{DateTime, Utc};
@@ -301,64 +299,12 @@ mod tests {
     };
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
 
-    use d2rmm_agent_domain::vision::{ReadText, Region};
-
-    use crate::fakes::FakeApiGateway;
-    use crate::ports::{
-        ApiError, ProcessSource, ReadError, Rgba, SequentialIds, StateSink, StoreError, TextReader,
-        TokenStore, UpdateOutcome, WallClock,
-    };
+    use crate::fakes::{FakeApiGateway, MemoryTokens, NoProcesses, NoText, NoUpdates, NullSink};
+    use crate::ports::{ApiError, SequentialIds, TokenStore, WallClock};
     use crate::secret::Secret;
-    use crate::updates::Updater;
-    use crate::view::{AgentView, PairingView, RoomView};
+    use crate::view::{PairingView, RoomView};
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
-
-    /// Holds the token in memory.
-    #[derive(Default)]
-    struct MemoryTokens(Mutex<Option<Secret>>);
-
-    impl TokenStore for MemoryTokens {
-        fn load(&self) -> Option<Secret> {
-            self.0
-                .lock()
-                .expect("the token lock is not poisoned")
-                .clone()
-        }
-
-        fn save(&self, token: &Secret) -> Result<(), StoreError> {
-            *self.0.lock().expect("the token lock is not poisoned") = Some(token.clone());
-            Ok(())
-        }
-
-        fn delete(&self) {
-            *self.0.lock().expect("the token lock is not poisoned") = None;
-        }
-    }
-
-    struct NoProcesses;
-
-    impl ProcessSource for NoProcesses {
-        fn names(&self) -> Vec<String> {
-            Vec::new()
-        }
-    }
-
-    struct NoText;
-
-    impl TextReader for NoText {
-        fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
-            Err(ReadError::EngineUnavailable)
-        }
-    }
-
-    struct NoUpdates;
-
-    impl Updater for NoUpdates {
-        fn check_boxed(&self) -> Pin<Box<dyn Future<Output = UpdateOutcome> + Send + '_>> {
-            Box::pin(async { UpdateOutcome::UpToDate })
-        }
-    }
 
     struct FixedClock;
 
@@ -366,12 +312,6 @@ mod tests {
         fn now_utc(&self) -> DateTime<Utc> {
             "2026-10-31T10:00:00Z".parse().expect("a valid instant")
         }
-    }
-
-    struct NullSink;
-
-    impl StateSink for NullSink {
-        fn publish(&self, _view: AgentView) {}
     }
 
     /// The five port groups over the in-memory ports and a fake gateway that makes no call unless a loop runs.

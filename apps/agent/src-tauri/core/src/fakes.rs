@@ -8,10 +8,16 @@ use std::pin::Pin;
 use std::sync::Mutex;
 
 use d2rmm_agent_domain::room_assignment::Assignment;
+use d2rmm_agent_domain::vision::{ReadText, Region};
 
 use crate::messages::{GameNameObservation, IssuedCode, Presence};
-use crate::ports::{ApiError, ApiGateway, EndReason, EventStream, StreamItem};
+use crate::ports::{
+    ApiError, ApiGateway, EndReason, EventStream, ProcessSource, ReadError, Rgba, StateSink,
+    StoreError, StreamItem, TextReader, TokenStore, UpdateOutcome,
+};
 use crate::secret::Secret;
+use crate::updates::Updater;
+use crate::view::AgentView;
 
 /// One call the code under test made on the fake gateway, with the arguments the test checks.
 #[derive(Debug, Clone, PartialEq)]
@@ -185,6 +191,62 @@ impl EventStream for ScriptedStream {
     fn last_event_id(&self) -> Option<&str> {
         self.last_id.as_deref()
     }
+}
+
+/// Holds the agent token in memory.
+#[derive(Default)]
+pub struct MemoryTokens(Mutex<Option<Secret>>);
+
+impl TokenStore for MemoryTokens {
+    fn load(&self) -> Option<Secret> {
+        self.0
+            .lock()
+            .expect("the token lock is not poisoned")
+            .clone()
+    }
+
+    fn save(&self, token: &Secret) -> Result<(), StoreError> {
+        *self.0.lock().expect("the token lock is not poisoned") = Some(token.clone());
+        Ok(())
+    }
+
+    fn delete(&self) {
+        *self.0.lock().expect("the token lock is not poisoned") = None;
+    }
+}
+
+/// A process list with no game running.
+pub struct NoProcesses;
+
+impl ProcessSource for NoProcesses {
+    fn names(&self) -> Vec<String> {
+        Vec::new()
+    }
+}
+
+/// A text reader whose engine is unavailable: it reads nothing.
+pub struct NoText;
+
+impl TextReader for NoText {
+    fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
+        Err(ReadError::EngineUnavailable)
+    }
+}
+
+/// An updater that reports the agent up to date.
+pub struct NoUpdates;
+
+impl Updater for NoUpdates {
+    fn check_boxed(&self) -> Pin<Box<dyn Future<Output = UpdateOutcome> + Send + '_>> {
+        Box::pin(async { UpdateOutcome::UpToDate })
+    }
+}
+
+/// A state sink that drops every view. Tests read the agent view from `Context::hub` instead.
+pub struct NullSink;
+
+impl StateSink for NullSink {
+    fn publish(&self, _view: AgentView) {}
 }
 
 #[cfg(test)]
