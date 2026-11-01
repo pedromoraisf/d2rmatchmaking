@@ -651,9 +651,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] Tests: `ShowingCode` shows the 6 digits under "Pairing code", "Type this code on the site" and "Expires in 3 min" (test `pairing view shows the code and the minutes left`); `Paused` shows "Pairing paused" and "Get a new code", which calls the command; `RateLimited` shows "Too many codes requested. Try again later." and no button; `Paired`, `Unreachable`, `SaveFailed`, update `Failed`/`Required` and the room line each show their text; pt-BR shows "Código de pareamento" (test `pairing view in pt-BR`)
-- [ ] Gate check passes: `pnpm --filter @d2rmm/agent typecheck && pnpm --filter @d2rmm/agent test && pnpm --filter @d2rmm/agent build`
-- [ ] Test count: ≥ 8 new tests pass
+- [x] Tests: `ShowingCode` shows the 6 digits under "Pairing code", "Type this code on the site" and "Expires in 3 min" (test `pairing view shows the code and the minutes left`); `Paused` shows "Pairing paused" and "Get a new code", which calls the command; `RateLimited` shows "Too many codes requested. Try again later." and no button; `Paired`, `Unreachable`, `SaveFailed`, update `Failed`/`Required` and the room line each show their text; pt-BR shows "Código de pareamento" (test `pairing view in pt-BR`)
+- [x] Gate check passes: `pnpm --filter @d2rmm/agent typecheck && pnpm --filter @d2rmm/agent test && pnpm --filter @d2rmm/agent build`
+- [x] Test count: ≥ 8 new tests pass
 
 **Tests**: unit
 **Gate**: quick

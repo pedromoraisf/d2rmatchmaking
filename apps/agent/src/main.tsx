@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
-import { createAgentI18n } from './shared/i18n.ts';
+import { App } from './app/App.tsx';
+import { createAgentI18n, translatorFor } from './shared/i18n.ts';
 import { agentLanguage } from './shared/language.ts';
 
 const container = document.getElementById('root');
@@ -9,4 +10,4 @@ if (container === null) {
 
 const i18n = createAgentI18n(agentLanguage(navigator.language));
 document.documentElement.lang = i18n.language;
-createRoot(container).render(<h1>{i18n.t('app.title')}</h1>);
+createRoot(container).render(<App translate={translatorFor(i18n)} />);
