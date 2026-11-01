@@ -687,6 +687,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-31
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-077 (assumed)
+
+- **Decision**: `game.running` is true when a snapshot process name equals `D2R.exe` ignoring ASCII case (`D2R.EXE` counts); any other name, including a prefix or suffix of it, does not.
+- **Reason**: AGS-10 says "a process named `D2R.exe`" without a case rule; Windows file names are case-insensitive, so the exact-case reading could miss the running game. Pinned by C59 after the Verifier's finding 8.
+- **Trade-off**: none for players. Reversal is a comparison change.
+- **Scope**: agent-skeleton / heartbeat
+- **Date**: 2026-11-01
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

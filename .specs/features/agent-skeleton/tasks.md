@@ -925,6 +925,42 @@ Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.to
 **C55** - `Retry-After` is clamped to [1 s, 60 min] (AGS-35, AC 8)
 Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(retry_after_is_clamped)'`
 
+**C56** - "Expires in N min" rounds up between whole minutes (4 min 30 s shows 5, 1 s shows 1) (AGS-05, AC 1)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(minutes_left_rounds_up_at_every_offset) | test(code_with_4_min_30_s_left_shows_5) | test(code_with_1_s_left_shows_1)'`
+
+**C57** - A 401 answered on the assignment, stream, observation or claim path deletes the token and returns to pairing (AGS-08, AC 5)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(unauthorized_on_assignment_returns_to_pairing) | test(unauthorized_on_stream_returns_to_pairing) | test(unauthorized_on_observation_returns_to_pairing) | test(unauthorized_on_claim_returns_to_pairing)'`
+
+**C58** - A 401 on a claim resets the unused-code count (AGS-34, AC 7)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(unauthorized_on_claim_resets_the_unused_count)'`
+
+**C59** - `running` follows the executable name `D2R.exe` only, whatever its case (AGS-10, AC 2)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(game_running_matches_the_executable_name_only)'`
+
+**C60** - The reconnect delay resets after exactly 60 s open and keeps doubling at 59 s (AGS-13, AC 1)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(reconnect_backoff_resets_at_exactly_60s_open) | test(reconnect_backoff_keeps_doubling_at_59s_open)'`
+
+**C61** - A 4xx answer to an observation is dropped, not retried (AGS-19, AC 4)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(observation_4xx_is_not_retried)'`
+
+**C62** - A 429 without `Retry-After` waits 60 min before the next code request (AGS-35, AC 8)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(waits_sixty_minutes_on_429_without_retry_after)'`
+
+**C63** - With the API unreachable and no token, the code request is retried every 15 s (AGS-05, AC 1)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(retries_code_request_every_15s_when_unreachable)'`
+
+**C64** - `deny.toml` bans every crate of the read-only boundary, and removing any one fails (AGS-21, AC 1)
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="deny.toml bans every crate of the read-only boundary|removing any banned crate from deny.toml fails" scripts/test/agent-source-rules.test.mjs`
+
+**C65** - `clippy.toml` disallows every boundary type and method, and removing any one fails (AGS-22, AC 2)
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="clippy.toml disallows every boundary type and method|removing any disallowed type or method from clippy.toml fails" scripts/test/agent-source-rules.test.mjs`
+
+**C66** - The release build refuses a tag that is not on `main` (AGS-28, AC 2)
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="the tag must be an ancestor of origin/main" scripts/test/release-workflows.test.mjs`
+
+**C67** - The release build fails when any build path names `fixture-read` (AGS-33, AC 6)
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="the fixture-read guard greps the exact feature and exits 1 on a match" scripts/test/release-workflows.test.mjs`
+
 ---
 
 ## Handoff
@@ -943,3 +979,5 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Proofs:** 59/59 pass at dee64c7 (`gate:agent-skeleton/proofs` attempt 3/3, 2026-11-01), after `--workspace` (AD-076) and the maintainer's updater public key (T26 dee64c7). Next: verifier
 
 **Unblocked (verification, escalated 2026-11-01):** the Verifier returned FAIL (a561bcf): 28 mutations, 17 killed, 11 survived; 8 open findings (AGS-24 cadence, AGS-05 rounding, AGS-08 real 401 paths, AGS-34 claim 401 reset, AGS-21/22 full ban lists, AGS-28/33 release-workflow guards, AGS-14 reset boundary, AGS-10/35/06/19 check names). Its mutation runs used all 3 attempts of `gate:agent-skeleton/verification` (blocked), so the gate hook refuses the fix batch (execute-batch-6). Maintainer reset `gate:agent-skeleton/verification` (2026-11-01, by pedromoraisf); next: execute-batch-6, `## Checks` update, `check_proofs.py --mutations`, verify-r2, `validate_verification.py`
+
+**Verifier fixes (2026-11-01):** execute-batch-6 closed findings 1–8 (332473c, 1aaf2c2, 2522cbc, 351b52d, 0167d39, 4c01882, 344fc53) and fixed the unversioned `d2rmm-agent-core` path dependency that failed `cargo deny` wildcards (43387c3). Checks C56–C67 name the new and previously unnamed tests (finding 8). Next: tasks gate, `check_proofs.py --mutations`, verify-r2, `validate_verification.py`

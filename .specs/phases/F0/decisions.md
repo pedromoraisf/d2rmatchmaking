@@ -58,6 +58,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-074 | agent-skeleton     | App adds `SystemClock`/`RandomIds` (`adapters/system.rs`, `chrono`, `uuid` v4); no en-US OCR engine → `NoOcrEngine` returns `EngineUnavailable`; `app.rs` is `cfg(any(windows, test))`                                                                          | adapters change                       |                     |
 | AD-075 | agent-skeleton     | Tag ruleset is the existing `.github/rulesets/agent-release-tags.json` (tasks.md said `agent-tags.json`); SignPath job also needs variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_SIGNING_POLICY_SLUG`; `--clobber` test split per job | rename the file                       |                     |
 | AD-076 | agent-skeleton     | Nextest proofs in `## Checks` pass `--workspace` (src-tauri is package + workspace root)                                                                                                                                                                        | none (selection only)                 |                     |
+| AD-077 | agent-skeleton     | `D2R.exe` matches case-insensitively (Windows file names); pinned by `game_running_matches_the_executable_name_only` (C59)                                                                                                                                      | a comparison                          |                     |
 
 ## Queued for F1 (from the api-web-skeleton security review)
 
