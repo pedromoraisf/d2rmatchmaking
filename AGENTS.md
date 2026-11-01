@@ -38,25 +38,25 @@ Bounded contexts: **Identity** (Account, Character) · **Agents** (pairing, pres
 
 ## Commands
 
-| Goal                                                  | Command                                                                                     |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Install (also installs Lefthook git hooks)            | `pnpm install`                                                                              |
-| Everything CI runs, locally                           | `pnpm check`                                                                                |
-| Unit tests (all workspaces + harness)                 | `pnpm test`                                                                                 |
-| Harness self-tests only (hooks, ratchet, specs)       | `pnpm test:harness`                                                                         |
-| Secret scan (secretlint locally; gitleaks runs in CI) | `pnpm secrets:scan`                                                                         |
-| Lint / types / architecture                           | `pnpm lint` · `pnpm typecheck` · `pnpm arch`                                                |
-| Integration (Testcontainers) / e2e (Playwright)       | `pnpm test:integration` · `pnpm test:e2e`                                                   |
-| Acceptance (Gherkin via playwright-bdd)               | `pnpm test:acceptance` · coverage check: `pnpm acceptance:check`                            |
-| Mutation (Stryker / cargo-mutants)                    | `pnpm test:mutation`                                                                        |
-| Regenerate OpenAPI + AsyncAPI                         | `pnpm contracts:openapi` (then commit the JSON)                                             |
-| Harness maturity gate (L4)                            | `pnpm harness:gate`                                                                         |
-| Quality ratchet                                       | `pnpm quality:collect && pnpm quality:ratchet --context pr`                                 |
-| Phase-delegation checks on `.specs/`                  | `pnpm specs:check`                                                                          |
-| Run a gate within the retry budget (phase runs)       | `node scripts/attempt.mjs run --feature <f> --step <T#> -- "<cmd>"`                         |
-| Where is the phase? (derived from evidence)           | `pnpm phase:status` · `--json` · `--write`                                                  |
-| Retry-budget status / report                          | `node scripts/attempt.mjs status [--feature <f>]` · `node scripts/attempt.mjs report`       |
-| Rust agent                                            | `cargo nextest run` / `cargo clippy --all-targets -- -D warnings` in `apps/agent/src-tauri` |
+| Goal                                                    | Command                                                                                     |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Install (also installs Lefthook git hooks)              | `pnpm install`                                                                              |
+| Everything CI runs, locally                             | `pnpm check`                                                                                |
+| Unit tests (all workspaces + harness)                   | `pnpm test`                                                                                 |
+| Harness self-tests only (hooks, ratchet, specs)         | `pnpm test:harness`                                                                         |
+| Secret scan (secretlint locally; gitleaks runs in CI)   | `pnpm secrets:scan`                                                                         |
+| Lint / types / architecture                             | `pnpm lint` · `pnpm typecheck` · `pnpm arch`                                                |
+| Integration (Testcontainers) / e2e (Playwright)         | `pnpm test:integration` · `pnpm test:e2e`                                                   |
+| Acceptance (Gherkin via playwright-bdd)                 | `pnpm test:acceptance` · coverage check: `pnpm acceptance:check`                            |
+| Mutation (Stryker / cargo-mutants)                      | `pnpm test:mutation`                                                                        |
+| Regenerate OpenAPI + AsyncAPI                           | `pnpm contracts:openapi` (then commit the JSON)                                             |
+| Harness maturity gate (L4)                              | `pnpm harness:gate`                                                                         |
+| Quality ratchet                                         | `pnpm quality:collect && pnpm quality:ratchet --context pr`                                 |
+| Phase-delegation checks on `.specs/` (+ mutation scope) | `pnpm specs:check` · mutation scope alone: `node scripts/mutation-scope-check.mjs`          |
+| Run a gate within the retry budget (phase runs)         | `node scripts/attempt.mjs run --feature <f> --step <T#> -- "<cmd>"`                         |
+| Where is the phase? (derived from evidence)             | `pnpm phase:status` · `--json` · `--write`                                                  |
+| Retry-budget status / report                            | `node scripts/attempt.mjs status [--feature <f>]` · `node scripts/attempt.mjs report`       |
+| Rust agent                                              | `cargo nextest run` / `cargo clippy --all-targets -- -D warnings` in `apps/agent/src-tauri` |
 
 Node 26 (`.nvmrc`), pnpm 10, Python 3.8+ (TLC gate scripts, stdlib only), Rust stable for the agent. Everything
 else (secret scanning, Playwright, Lefthook…) comes from `pnpm install`; no other system install is needed.
@@ -88,6 +88,10 @@ else (secret scanning, Playwright, Lefthook…) comes from `pnpm install`; no ot
     same sensor failing on the same file, the same denied action — may be retried at most twice. The third failure
     blocks it; record the blocker and move on or report. Never route around it. Enforced by code (ADR 022,
     `.claude/skills/d2rmm-phase-runner/references/retry-budget.md`).
+12. **Mutation testing runs against unit tests only** (ADR 026). A mutation's proof is a unit test: Rust
+    `cargo nextest run -p <crate> --lib`, TypeScript `vitest run` on a colocated `*.test.ts`. Tests that assemble the
+    service (integration, e2e, acceptance, load) never run once per mutation. A rule that only the assembled service
+    can observe is extracted into a pure function and unit-tested. Enforced by `pnpm specs:check` and the gate.
 
 The Claude Code gate hook (`.claude/hooks/gate.mjs`) enforces most of these deterministically. If it denies or asks,
 do not look for a workaround: follow the reason it gives.
@@ -125,7 +129,7 @@ resumes idempotently. `ROADMAP.md` assigns every PRD requirement to exactly one 
 - Pyramid: unit (Vitest / `cargo nextest`, snapshot with `insta`) → integration (Testcontainers Postgres) → contract
   (schema + OpenAPI drift) → **acceptance (BDD)**: the English Gherkin scenarios in each feature's
   `.specs/features/<feature>/acceptance.feature`, run as-is by playwright-bdd (ADR 023) → load (k6, NFR-14: ≥100 concurrent players). Mutation on domain and
-  application (StrykerJS) and agent core (`cargo-mutants`).
+  application (StrykerJS) and agent core (`cargo-mutants`), always against the unit tests only (rule 12).
 - Domain tests use fakes for ports (`FakeClock`, in-memory stores). No mocks of what you own.
 - Each requirement has at least one scenario tagged with its ID; its `## Checks` proof runs those scenarios
   (`playwright test --grep @<REQ-ID>`). Scenarios are never edited to make code pass, skipped or focused.
