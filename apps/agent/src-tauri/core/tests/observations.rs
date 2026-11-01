@@ -1,5 +1,5 @@
 //! AGS-19: observation posts are retried at 1, 2, 4 and 8 s with the same idempotency key, a 401 or a 426 drops the
-//! pending retries, and an assignment change keeps them.
+//! pending retries, a 4xx answer is never retried, and an assignment change keeps them.
 
 mod support;
 
@@ -169,6 +169,32 @@ async fn upgrade_required_drops_pending_retries() {
         *h.ctx.update_required.borrow(),
         "the 426 closed the API gate"
     );
+}
+
+#[tokio::test(start_paused = true)]
+async fn observation_4xx_is_not_retried() {
+    // A client error is the observation's own fault: it is dropped at once, never posted again (AD-051).
+    let h = Harness::start(Some(TOKEN)).await;
+    h.ctx.paired.send_replace(true);
+    h.api.script(Operation::Observation, [Answer::BadRequest]);
+    let send = spawn_send(&h);
+    until("the first attempt", || {
+        count(&h.api, Operation::Observation) == 1
+    })
+    .await;
+    until("the send ends", || send.is_finished()).await;
+    assert_eq!(
+        send.await.expect("the send task ends"),
+        SendOutcome::Dropped
+    );
+
+    advance(Duration::from_secs(60)).await;
+    assert_eq!(
+        count(&h.api, Operation::Observation),
+        1,
+        "a 4xx answer is not retried"
+    );
+    assert_eq!(h.ctx.dropped_observations(), 1);
 }
 
 #[tokio::test(start_paused = true)]
