@@ -3,10 +3,7 @@
 //! domain (M2) and the pairing code has moved there too (M3); the issued code, observation and presence messages stay
 //! here until M5 moves them.
 
-use std::num::NonZeroU64;
-
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
 
 use crate::secret::Secret;
 
@@ -21,16 +18,8 @@ pub struct IssuedCode {
     pub claim_secret: Secret,
 }
 
-/// A `GAME_NAME_SEEN` observation, before it is translated to its contract shape.
-#[derive(Debug, Clone, PartialEq)]
-pub struct GameNameObservation {
-    pub room: Uuid,
-    pub run: NonZeroU64,
-    pub key: Uuid,
-    pub game_name: String,
-    pub confidence: f64,
-    pub captured_at: DateTime<Utc>,
-}
+/// The `GAME_NAME_SEEN` observation is the domain's value object (M5): fusion builds it and the sender posts it as is.
+pub use d2rmm_agent_domain::fusion::GameNameObservation;
 
 /// The screen the game shows, as far as the agent knows it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

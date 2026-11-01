@@ -4,12 +4,12 @@
 
 use std::sync::Arc;
 
+use d2rmm_agent_domain::fusion::fuse;
 use d2rmm_agent_domain::room_assignment::Assignment;
 use tokio::sync::{mpsc, watch};
 
 use crate::config::Config;
 use crate::device_state::DeviceState;
-use crate::fusion::fuse;
 use crate::groups::{Groups, ReadPorts};
 use crate::pair::{self, Command};
 use crate::ports::{ApiGateway, Rgba, StateSink, TokenStore};
@@ -100,8 +100,9 @@ impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
                 return;
             };
             let now = ports.clock.now_utc();
-            if let Some(fusion) = fuse(&text, &assignment, now, ports.ids.as_ref()) {
-                post_observation::send(&device, &ports, &fusion.observation).await;
+            if let Some(observation) = fuse(&text, &assignment, now, || ports.ids.idempotency_key())
+            {
+                post_observation::send(&device, &ports, &observation).await;
             }
         });
     }
