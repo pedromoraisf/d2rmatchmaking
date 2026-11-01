@@ -4,6 +4,7 @@
 
 pub mod room_assignment;
 pub mod timings;
+pub mod vision;
 
 #[cfg(test)]
 mod tests {

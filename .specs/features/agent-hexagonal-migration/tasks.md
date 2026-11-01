@@ -786,8 +786,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] The tests of `region_for` moved with it (both sides of the size boundary) and pass
-- [ ] Rust domain gate passes
+- [x] The tests of `region_for` moved with it (both sides of the size boundary) and pass
+- [x] Rust domain gate passes
 
 **Tests**: unit
 **Gate**: Rust domain
@@ -1328,6 +1328,12 @@ Proof: `cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml -
 ## Handoff
 
 The feature's live state, written as it happens - a compaction gives no warning.
+
+**Batch 6 (execute-batch-6), in progress: T33 to T37**
+
+- T33 done (commit `82208c5`, `Task: T33`): `domain/src/room_assignment.rs` holds `RoomId`, `GameName`, `MemberRole`, `Member`, `Assignment` and `RoomAssignment` (`empty`, `receive` → `true` when it replaced an earlier assignment, `clear`, `current`). Gate `Rust domain` passed on attempt 1 (6 tests). Deviation, kept small: `MemberRole` moved with `Member`, since `Member` needs it; the plan named only `Member` and `Assignment`.
+- T34 done (commit `29812a8`, `Task: T34`): core and the ACL use the domain `Assignment`, `GameName`, `RoomId`, `Member`, `MemberRole`; `messages.rs` keeps the pairing, observation and presence messages. `Context.assignment` is a `watch::Sender<RoomAssignment>`, fed by `Context::replace_assignment` (used by the stream loop and the probe), so the loop feeds the watch from the aggregate. `core/Cargo.toml` gains `d2rmm-agent-domain`; `Cargo.lock` gains that one edge. The architecture test flips `ENFORCED_NOW.coreDomain` to `true` (the T34 switch-on). Gates: `Rust workspace` passed on attempt 1 (137 tests), `Harness` passed on attempt 2 (188 tests; the first gate of the step passed and this second run was the harness). The clippy note `tokio::process::Command` does not refer to a reachable type comes from the unchanged root `clippy.toml`; it is a warning, not a failure.
+- T35 done (commit carries `Task: T35`): `domain/src/vision.rs` holds `Region`, `ReadText`, `AUTOMAP_NAME_1080P` and `region_for`. The plan said the tests of `region_for` move with it, but core had none for it (the size behaviour was tested through `read_game_name` in `fusion.rs`, which stays). New domain tests pin both sides of the size boundary (1919, 1921, 1079, 1081 and 0×0 against 1920×1080) and the four `AUTOMAP_NAME_1080P` values. Core keeps its own copies until T36, as planned. Gate `Rust domain` passed on attempt 1 (9 tests).
 
 **Batch 5 (execute-batch-5), complete: T26 to T32**
 
