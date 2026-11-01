@@ -1,0 +1,8 @@
+[package]
+name = "d2rmm-agent-core"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+d2rmm-agent-domain = { path = "../domain" }
+reqwest = { version = "0.13", features = ["json"] }

@@ -238,9 +238,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Tests `domain depends only on std thiserror chrono and uuid`, `core depends on the domain and not on reqwest tauri keyring or windows` (the `depends on the domain` part is switched on in T34 and the `reqwest` part in T28), `adapters never depend on tauri keyring or windows`, `adapters and the app crate do not depend on each other`
-- [ ] Test `each architecture rule fails on its fixture` runs every fixture of this task and expects the named rule to fail
-- [ ] Harness gate passes
+- [x] Tests `domain depends only on std thiserror chrono and uuid`, `core depends on the domain and not on reqwest tauri keyring or windows` (the `depends on the domain` part is switched on in T34 and the `reqwest` part in T28), `adapters never depend on tauri keyring or windows`, `adapters and the app crate do not depend on each other`
+- [x] Test `each architecture rule fails on its fixture` runs every fixture of this task and expects the named rule to fail
+- [x] Harness gate passes
 
 **Tests**: harness unit
 **Gate**: Harness
