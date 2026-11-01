@@ -691,9 +691,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] Tests named `release-agent builds on tag push, call and dispatch`, `the tag is validated before use`, `fixture-read cannot reach a release build`, `the installer is published as D2RMatchMaking-setup.exe with SHA256SUMS`, `secrets live only in the release environment`
-- [ ] Gate check passes: `pnpm test:harness`
-- [ ] Test count: ≥ 5 new harness tests pass
+- [x] Tests named `release-agent builds on tag push, call and dispatch`, `the tag is validated before use`, `fixture-read cannot reach a release build`, `the installer is published as D2RMatchMaking-setup.exe with SHA256SUMS`, `secrets live only in the release environment`
+- [x] Gate check passes: `pnpm test:harness`
+- [x] Test count: ≥ 5 new harness tests pass
 
 **Tests**: unit
 **Gate**: quick
