@@ -48,17 +48,29 @@ pub async fn run(ctx: Arc<Context>) {
         ctx.wait_until_allowed(Context::api_allowed).await;
         let span = tracing::info_span!("agent.stream.connect");
         let open_for = connect_once(&ctx, &mut last_id).instrument(span).await;
-        if open_for >= RESET_AFTER_OPEN {
-            delay = RECONNECT_MIN;
-        }
+        delay = delay_after_open(delay, open_for);
         if !ctx
             .sleep_while_allowed(Instant::now() + delay, Context::api_allowed)
             .await
         {
             continue;
         }
-        delay = (delay * 2).min(RECONNECT_MAX);
+        delay = next_delay(delay);
     }
+}
+
+/// The delay before the next reconnect: a stream that stayed open for `RESET_AFTER_OPEN` starts the backoff again.
+fn delay_after_open(delay: Duration, open_for: Duration) -> Duration {
+    if open_for >= RESET_AFTER_OPEN {
+        RECONNECT_MIN
+    } else {
+        delay
+    }
+}
+
+/// The delay after one more failed reconnect: doubled, and never more than `RECONNECT_MAX`.
+fn next_delay(delay: Duration) -> Duration {
+    (delay * 2).min(RECONNECT_MAX)
 }
 
 /// One attempt: fetch the assignment, open the stream and read it until it ends. Returns how long it stayed open.
@@ -274,9 +286,40 @@ impl SseParser {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::{
-        MAX_EVENT_BYTES, SseParser, StreamEffect, handle, valid_game_name, valid_last_event_id,
+        MAX_EVENT_BYTES, RECONNECT_MIN, SseParser, StreamEffect, delay_after_open, handle,
+        next_delay, valid_game_name, valid_last_event_id,
     };
+
+    #[test]
+    fn reconnect_delay_doubles_to_sixty_seconds() {
+        let mut delay = RECONNECT_MIN;
+        let mut seen = [Duration::ZERO; 8];
+        for slot in &mut seen {
+            *slot = delay;
+            delay = next_delay(delay);
+        }
+        assert_eq!(seen, [1, 2, 4, 8, 16, 32, 60, 60].map(Duration::from_secs));
+    }
+
+    #[test]
+    fn reconnect_delay_resets_at_exactly_sixty_seconds_open() {
+        let delay = Duration::from_secs(8);
+        assert_eq!(
+            delay_after_open(delay, Duration::from_millis(59_999)),
+            delay
+        );
+        assert_eq!(
+            delay_after_open(delay, Duration::from_secs(60)),
+            RECONNECT_MIN
+        );
+        assert_eq!(
+            delay_after_open(delay, Duration::from_secs(61)),
+            RECONNECT_MIN
+        );
+    }
 
     const ASSIGNED: &str = r#"{"roomId":"7d9f2c1e-0000-4000-8000-000000000001","run":1,"expectedGameName":"mmbaalh-12","members":[{"accountId":"account-1","characterId":null,"joinOrder":1,"role":"host"}]}"#;
 
