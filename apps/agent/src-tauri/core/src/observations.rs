@@ -6,11 +6,11 @@ use std::time::Duration;
 
 use tokio::time::Instant;
 use tracing::Instrument;
-use uuid::Uuid;
 
 use crate::api_client::ApiError;
 use crate::context::Context;
-use crate::contracts::generated::Observation;
+use crate::messages::GameNameObservation;
+use crate::ports::ApiGateway;
 
 /// The waits between attempts (AD-051): five attempts in all.
 pub const RETRY_DELAYS: [Duration; 4] = [
@@ -27,8 +27,8 @@ pub enum SendOutcome {
     Dropped,
 }
 
-/// Posts `observation` to `room`, retrying as AD-051 sets out. The observation is not changed between attempts.
-pub async fn send(ctx: &Context, room: Uuid, observation: &Observation) -> SendOutcome {
+/// Posts `observation` to its room, retrying as AD-051 sets out. The observation is not changed between attempts.
+pub async fn send(ctx: &Context, observation: &GameNameObservation) -> SendOutcome {
     let epoch = ctx.epoch();
     let Some(token) = ctx.tokens.load() else {
         ctx.count_dropped_observation();
@@ -38,8 +38,8 @@ pub async fn send(ctx: &Context, room: Uuid, observation: &Observation) -> SendO
     loop {
         let span = tracing::info_span!("agent.observation.post");
         let outcome = ctx
-            .api
-            .post_observation(&token, room, observation)
+            .gateway
+            .post_observation(&token, observation)
             .instrument(span)
             .await;
         match outcome {

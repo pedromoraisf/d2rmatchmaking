@@ -5,9 +5,10 @@ mod support;
 
 use std::time::Duration;
 
-use d2rmm_agent_core::contracts::generated::Observation;
+use std::num::NonZeroU64;
+
 use d2rmm_agent_core::gateway::translate::assignment_from_contract;
-use d2rmm_agent_core::messages::Assignment;
+use d2rmm_agent_core::messages::{Assignment, GameNameObservation};
 use d2rmm_agent_core::observations::{self, SendOutcome};
 use serde_json::{Value, json};
 use support::fake_api::{Answer, Operation, TOKEN};
@@ -16,16 +17,15 @@ use support::harness::{Harness, advance, count, settle, until};
 const ROOM: &str = "7d9f2c1e-0000-4000-8000-000000000001";
 const KEY: &str = "5b1e6d2a-0000-4000-8000-00000000abcd";
 
-fn observation() -> Observation {
-    serde_json::from_value(json!({
-        "idempotencyKey": KEY,
-        "type": "GAME_NAME_SEEN",
-        "run": 1,
-        "value": "mmbaalh-12",
-        "confidence": 0.93,
-        "capturedAt": "2026-10-31T10:00:00Z",
-    }))
-    .expect("a contract observation")
+fn observation() -> GameNameObservation {
+    GameNameObservation {
+        room: ROOM.parse().expect("a UUID room"),
+        run: NonZeroU64::new(1).expect("a non-zero run"),
+        key: KEY.parse().expect("a UUID key"),
+        game_name: "mmbaalh-12".to_string(),
+        confidence: 0.93,
+        captured_at: "2026-10-31T10:00:00Z".parse().expect("a valid instant"),
+    }
 }
 
 fn assignment() -> Assignment {
@@ -52,7 +52,7 @@ fn spawn_send(h: &Harness) -> tokio::task::JoinHandle<SendOutcome> {
     let ctx = std::sync::Arc::clone(&h.ctx);
     tokio::spawn(async move {
         let observation = observation();
-        observations::send(&ctx, ROOM.parse().expect("a UUID room"), &observation).await
+        observations::send(&ctx, &observation).await
     })
 }
 

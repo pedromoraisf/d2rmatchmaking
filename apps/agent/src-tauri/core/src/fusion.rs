@@ -2,18 +2,16 @@
 //! § Vision and fusion; AGS-17, AGS-18, AGS-20; AD-052). Any other name, or no assignment, yields nothing.
 
 use chrono::{DateTime, Utc};
-use serde_json::json;
 use uuid::Uuid;
 
-use crate::contracts::generated::Observation;
-use crate::messages::Assignment;
+use crate::messages::{Assignment, GameNameObservation};
 use crate::ports::{IdGenerator, ReadText};
 
 /// A `GAME_NAME_SEEN` observation and the room whose endpoint receives it.
 #[derive(Debug, Clone)]
 pub struct Fusion {
     pub room: Uuid,
-    pub observation: Observation,
+    pub observation: GameNameObservation,
 }
 
 /// Accepts the read only when its text, trimmed and lower-cased, equals the expected game name lower-cased (AD-052). The
@@ -35,15 +33,14 @@ pub fn fuse(
     } else {
         read.confidence.clamp(0.0, 1.0)
     };
-    let observation: Observation = serde_json::from_value(json!({
-        "idempotencyKey": ids.idempotency_key().to_string(),
-        "type": "GAME_NAME_SEEN",
-        "run": assignment.run.get(),
-        "value": seen,
-        "confidence": confidence,
-        "capturedAt": now_utc,
-    }))
-    .ok()?;
+    let observation = GameNameObservation {
+        room,
+        run: assignment.run,
+        key: ids.idempotency_key(),
+        game_name: seen,
+        confidence,
+        captured_at: now_utc,
+    };
     Some(Fusion { room, observation })
 }
 
@@ -57,9 +54,8 @@ mod tests {
     use uuid::Uuid;
 
     use super::{Fusion, fuse};
-    use crate::contracts::generated::ObservationType;
-    use crate::gateway::translate::assignment_from_contract;
-    use crate::messages::Assignment;
+    use crate::gateway::translate::{assignment_from_contract, observation_to_contract};
+    use crate::messages::{Assignment, GameNameObservation};
     use crate::ports::{ReadError, ReadText, Region, Rgba, SequentialIds, TextReader};
     use crate::vision::{AUTOMAP_NAME_1080P, read_game_name};
 
@@ -103,6 +99,13 @@ mod tests {
         }))
         .expect("a contract assignment");
         assignment_from_contract(contract)
+    }
+
+    /// The observation as the wire carries it: its translation to the contract shape, as JSON.
+    fn wire(observation: &GameNameObservation) -> Value {
+        let body =
+            observation_to_contract(observation).expect("the observation has its contract shape");
+        serde_json::to_value(body).expect("the body serializes")
     }
 
     fn now() -> DateTime<Utc> {
@@ -167,12 +170,12 @@ mod tests {
             let observation = &fusion.observation;
 
             assert_eq!(fusion.room, ROOM.parse::<Uuid>().expect("a UUID room"));
-            assert_eq!(observation.type_, ObservationType::GameNameSeen);
-            assert_eq!(observation.value.as_str(), "mmbaalh-12", "normalised value");
+            assert_eq!(wire(observation)["type"], "GAME_NAME_SEEN");
+            assert_eq!(observation.game_name, "mmbaalh-12", "normalised value");
             assert_eq!(observation.run.get(), 3, "the assignment's run");
             assert!((0.0..=1.0).contains(&observation.confidence));
             assert_eq!(observation.captured_at, now(), "the capture time");
-            keys.push(observation.idempotency_key.as_str().to_string());
+            keys.push(observation.key.to_string());
         }
         assert_ne!(keys[0], keys[1], "each observation has a new key");
     }
@@ -187,7 +190,7 @@ mod tests {
     #[test]
     fn observation_carries_no_image() {
         let fusion = fused("mmbaalh-12").expect("the name matches");
-        let sent = serde_json::to_value(&fusion.observation).expect("the observation serializes");
+        let sent = wire(&fusion.observation);
 
         let keys: BTreeSet<&str> = sent
             .as_object()

@@ -75,7 +75,7 @@ impl Handle {
             };
             let now = ctx.clock.now_utc();
             if let Some(fusion) = fuse(&read, &assignment, now, ctx.ids.as_ref()) {
-                observations::send(&ctx, fusion.room, &fusion.observation).await;
+                observations::send(&ctx, &fusion.observation).await;
             }
         });
     }
