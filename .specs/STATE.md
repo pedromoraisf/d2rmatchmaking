@@ -642,6 +642,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-31
 - **Status**: active
 
+### AD-072 (maintainer, 2026-10-31)
+
+- **Decision**: the harness test `core has no tauri dependency` encodes AGS-01's "core declares no Cargo features" as two assertions on `core/Cargo.toml`: no `[features]` table and no dependency with `optional = true` (an optional dependency is an implicit feature). It replaces `/features\s*=/`, which also matched dependency feature selections the design requires (`reqwest` `json`/`stream`).
+- **Reason**: the old regex contradicted the approved design and turned `pnpm test:harness` red at T13; T13–T21 gates did not run the harness, so it surfaced at T22.
+- **Trade-off**: none against AGS-01; the optional-dependency check is new coverage. Each assertion gets a failing fixture under `scripts/test/fixtures/agent-rules/`.
+- **Scope**: agent-skeleton / harness
+- **Date**: 2026-10-31
+- **Status**: active (maintainer answered "Corrigir (Recomendado)")
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
