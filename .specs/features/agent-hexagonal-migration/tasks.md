@@ -369,9 +369,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] `PairingCode::new` accepts exactly six ASCII digits (test `pairing_code_accepts_six_digits_only`)
-- [ ] Test `issued_code_debug_never_contains_the_claim_secret`
-- [ ] Rust core gate passes
+- [x] `PairingCode::new` accepts exactly six ASCII digits (test `pairing_code_accepts_six_digits_only`)
+- [x] Test `issued_code_debug_never_contains_the_claim_secret`
+- [x] Rust core gate passes
 
 **Tests**: unit
 **Gate**: Rust core

@@ -1,0 +1,163 @@
+//! The plain messages the ports exchange (design.md § Migration Steps, M1a). They hold no serde and no generated contract
+//! type: the anti-corruption layer translates between them and the contract types. They stay in core until M2, M3 and M5
+//! move them to the domain.
+
+use std::num::NonZeroU64;
+
+use chrono::{DateTime, Utc};
+use uuid::Uuid;
+
+use crate::secret::Secret;
+
+/// The text of a pairing code the player types: exactly six ASCII digits (the contract's `^\d{6}$`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PairingCode(String);
+
+/// The value is not six ASCII digits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("a pairing code is six ASCII digits")]
+pub struct InvalidPairingCode;
+
+impl PairingCode {
+    pub fn new(value: &str) -> Result<Self, InvalidPairingCode> {
+        if value.len() == 6 && value.bytes().all(|byte| byte.is_ascii_digit()) {
+            Ok(Self(value.to_string()))
+        } else {
+            Err(InvalidPairingCode)
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// A code the API issued, with the claim secret that goes with it. `Debug` shows the secret as `***` (`Secret`).
+#[derive(Debug, Clone)]
+pub struct IssuedCode {
+    pub code: PairingCode,
+    pub expires_at: DateTime<Utc>,
+    pub claim_secret: Secret,
+}
+
+/// The room a player is assigned to. The value is opaque: the stream path checks it as before, and `fuse` refuses a room
+/// id that is not a UUID.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoomId(String);
+
+impl RoomId {
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// The game name the host creates in-game. The value is opaque.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameName(String);
+
+impl GameName {
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// A seat's role in the room.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberRole {
+    Host,
+    Member,
+}
+
+/// One seat of an assignment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Member {
+    pub account_id: String,
+    pub character_id: Option<String>,
+    pub join_order: NonZeroU64,
+    pub role: MemberRole,
+}
+
+/// The room and game the agent is assigned to, as the API states it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Assignment {
+    pub room: RoomId,
+    pub run: NonZeroU64,
+    pub expected_game_name: GameName,
+    pub members: Vec<Member>,
+}
+
+/// A `GAME_NAME_SEEN` observation, before it is translated to its contract shape.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GameNameObservation {
+    pub room: Uuid,
+    pub run: NonZeroU64,
+    pub key: Uuid,
+    pub game_name: String,
+    pub confidence: f64,
+    pub captured_at: DateTime<Utc>,
+}
+
+/// The screen the game shows, as far as the agent knows it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Screen {
+    Unknown,
+    AutomapOpen,
+}
+
+/// What the agent reports on each heartbeat: whether the game runs and which screen it shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Presence {
+    pub game_running: bool,
+    pub screen: Screen,
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::{DateTime, Utc};
+
+    use super::{IssuedCode, PairingCode};
+    use crate::secret::Secret;
+
+    const CLAIM_SECRET: &str = "claim-secret-7f3a9c1e5b2d";
+
+    #[test]
+    fn pairing_code_accepts_six_digits_only() {
+        for valid in ["000000", "123456", "907314"] {
+            assert!(PairingCode::new(valid).is_ok(), "{valid:?} is six digits");
+        }
+        for invalid in [
+            "", "12345", "1234567", "12a456", "123 56", "-23456", "123456\n",
+        ] {
+            assert!(
+                PairingCode::new(invalid).is_err(),
+                "{invalid:?} is not six digits"
+            );
+        }
+    }
+
+    #[test]
+    fn issued_code_debug_never_contains_the_claim_secret() {
+        let expires_at: DateTime<Utc> = "2026-11-01T10:05:00Z".parse().expect("a valid instant");
+        let issued = IssuedCode {
+            code: PairingCode::new("123456").expect("six digits"),
+            expires_at,
+            claim_secret: Secret::new(CLAIM_SECRET),
+        };
+
+        let shown = format!("{issued:?}");
+
+        assert!(
+            !shown.contains(CLAIM_SECRET),
+            "{shown} shows the claim secret"
+        );
+        assert!(shown.contains("123456"), "the code itself is shown");
+    }
+}
