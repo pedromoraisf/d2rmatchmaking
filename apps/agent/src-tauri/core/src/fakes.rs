@@ -242,7 +242,7 @@ impl Updater for NoUpdates {
     }
 }
 
-/// A state sink that drops every view. Tests read the agent view from `Context::hub` instead.
+/// A state sink that drops every view. Tests read the agent view from `DeviceState::hub` instead.
 pub struct NullSink;
 
 impl StateSink for NullSink {

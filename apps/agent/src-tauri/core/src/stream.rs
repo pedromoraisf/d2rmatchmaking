@@ -12,6 +12,7 @@ use tokio::time::Instant;
 use tracing::Instrument;
 
 use crate::context::Context;
+use crate::device_state::DeviceState;
 use crate::ports::{ApiError, ApiGateway, EventStream, StreamItem};
 use crate::view::RoomView;
 
@@ -27,12 +28,15 @@ pub async fn run<G: ApiGateway + Send + Sync + 'static>(ctx: Arc<Context<G>>) {
     let mut delay = RECONNECT_MIN;
     let mut last_id: Option<String> = None;
     loop {
-        ctx.wait_until_allowed(Context::api_allowed).await;
+        ctx.device
+            .wait_until_allowed(DeviceState::api_allowed)
+            .await;
         let span = tracing::info_span!("agent.stream.connect");
         let open_for = connect_once(&ctx, &mut last_id).instrument(span).await;
         delay = delay_after_open(delay, open_for);
         if !ctx
-            .sleep_while_allowed(Instant::now() + delay, Context::api_allowed)
+            .device
+            .sleep_while_allowed(Instant::now() + delay, DeviceState::api_allowed)
             .await
         {
             continue;
@@ -64,7 +68,7 @@ async fn connect_once<G: ApiGateway + Send + Sync>(
         return Duration::ZERO;
     };
     // A 426 that arrived since the loop last checked stops the requests (AGS-27).
-    if !ctx.api_allowed() {
+    if !ctx.device.api_allowed() {
         return Duration::ZERO;
     }
     match ctx.gateway.assignment(&token).await {
@@ -74,7 +78,7 @@ async fn connect_once<G: ApiGateway + Send + Sync>(
             return Duration::ZERO;
         }
     }
-    if !ctx.api_allowed() {
+    if !ctx.device.api_allowed() {
         return Duration::ZERO;
     }
     let mut stream = match ctx.gateway.open_stream(&token, last_id.as_deref()).await {
@@ -103,7 +107,7 @@ async fn read_events<G>(
 ) {
     loop {
         let next = tokio::select! {
-            () = ctx.wait_until_closed(Context::api_allowed) => None,
+            () = ctx.device.wait_until_closed(DeviceState::api_allowed) => None,
             item = stream.next() => Some(item),
         };
         match next {
@@ -124,8 +128,8 @@ fn set_assignment<G>(ctx: &Context<G>, assignment: Option<Assignment>) {
     let room = assignment.as_ref().map(|assignment| RoomView {
         game_name: assignment.expected_game_name.as_str().to_string(),
     });
-    ctx.replace_assignment(assignment);
-    ctx.hub.set_room(room);
+    ctx.device.replace_assignment(assignment);
+    ctx.device.hub.set_room(room);
 }
 
 #[cfg(test)]

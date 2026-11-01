@@ -934,8 +934,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Tests `unauthorized_applies_forget_clear_drop_ask`, `upgrade_required_applies_require_drop_check_now` (core, fake ports)
-- [ ] Rust core gate passes
+- [x] Tests `unauthorized_applies_forget_clear_drop_ask`, `upgrade_required_applies_require_drop_check_now` (core, fake ports)
+- [x] Rust core gate passes
 
 **Tests**: unit
 **Gate**: Rust core
@@ -1332,6 +1332,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Batch 8 (execute-batch-8), in progress: T42 to T47**
 
 - T42 done (commit carries `Task: T42`): `domain/src/paired_device.rs` holds `PairedDevice` (`unpaired`, `paired`, `pairing`, `pairing_mut`, `is_paired`, `set_paired`, `update_required`, `update_installed`, `on_unauthorized`, `on_upgrade_required`, `api_allowed`, `pairing_allowed`, `retry_epoch`) and `DeviceEffect`. A `401` returns `[ForgetToken, ClearRoom, DropPendingRetries, AskNewCode]`; a `426` returns `[RequireUpdate, DropPendingRetries, CheckForUpdateNow]`. Both bump the epoch. Gate `Rust domain` passed on attempt 1 (23 tests, 3 new).
+- T43 done (commit carries `Task: T43`): `core/src/device_state.rs` holds `DeviceState`: the aggregate behind a short lock, `hub`, the `paired` and `update_required` watch channels, `update_now`, `assignment` and the dropped counter. Each rule of the aggregate returns its effects, and `apply` runs them against the token store, the view and the update loop. `Hub` moved to `core/src/hub.rs`. `Context` now holds `device: Arc<DeviceState>` beside the ports; its `on_unauthorized`, `on_upgrade_required` and `handle_api_error` stay as thin wrappers that pass `tokens`. The wait functions take `fn(&DeviceState) -> bool`, so the loops call `ctx.device.*` directly. The three moved context tests keep their assertions (in `device_state.rs`; `groups_build_a_context` stays in `context.rs`). Gate `Rust core` passed on attempt 1 (34 tests). The `Context` removal itself is T47.
 
 **Batch 7 (execute-batch-7), complete: T38 to T41**
 

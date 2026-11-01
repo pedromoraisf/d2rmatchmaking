@@ -40,7 +40,7 @@ pub async fn run<G: Send + Sync + 'static>(ctx: Arc<Context<G>>) {
         let next = started + CHECK_EVERY;
         tokio::select! {
             () = tokio::time::sleep_until(next) => {}
-            () = ctx.update_now.notified() => {}
+            () = ctx.device.update_now.notified() => {}
         }
     }
 }
@@ -48,12 +48,12 @@ pub async fn run<G: Send + Sync + 'static>(ctx: Arc<Context<G>>) {
 /// One check and what it shows. "Update required" takes precedence while a 426 is pending.
 async fn check_once<G: Send + Sync>(ctx: &Context<G>) {
     let outcome = ctx.updater.check_boxed().await;
-    let required = *ctx.update_required.borrow();
+    let required = *ctx.device.update_required.borrow();
     let (view, required_now) = view_after(&outcome, required);
     if required && !required_now {
-        ctx.update_required.send_replace(false);
+        ctx.device.update_installed();
     }
-    ctx.hub.set_update(view);
+    ctx.device.hub.set_update(view);
 }
 
 /// The view a check shows, and the value of the 426 flag after it. An installed update clears the flag (the app restarts

@@ -3,9 +3,11 @@
 
 pub mod config;
 pub mod context;
+pub mod device_state;
 pub mod fakes;
 pub mod fusion;
 pub mod heartbeat;
+pub mod hub;
 pub mod messages;
 pub mod observations;
 pub mod pair;

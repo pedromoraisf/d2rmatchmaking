@@ -11,6 +11,7 @@ use tokio::time::Instant;
 use tracing::Instrument;
 
 use crate::context::Context;
+use crate::device_state::DeviceState;
 use crate::messages::{Presence, Screen};
 use crate::ports::{ApiError, ApiGateway};
 use crate::view::Connectivity;
@@ -25,8 +26,14 @@ pub const GAME_PROCESS: &str = "D2R.exe";
 pub async fn run<G: ApiGateway + Send + Sync + 'static>(ctx: Arc<Context<G>>) {
     let mut next = Instant::now();
     loop {
-        ctx.wait_until_allowed(Context::api_allowed).await;
-        if !ctx.sleep_while_allowed(next, Context::api_allowed).await {
+        ctx.device
+            .wait_until_allowed(DeviceState::api_allowed)
+            .await;
+        if !ctx
+            .device
+            .sleep_while_allowed(next, DeviceState::api_allowed)
+            .await
+        {
             continue;
         }
         // The schedule starts with the beat, so a slow answer does not move the next beat.
@@ -49,11 +56,11 @@ async fn beat<G: ApiGateway + Send + Sync>(ctx: &Context<G>) {
     };
     // A version the contract refuses fails in the gateway's translation, before anything is sent, and shows as unreachable.
     match ctx.gateway.heartbeat(&token, &presence, &ctx.version).await {
-        Ok(()) => ctx.hub.set_connectivity(Connectivity::Connected),
+        Ok(()) => ctx.device.hub.set_connectivity(Connectivity::Connected),
         Err(error @ (ApiError::Unauthorized | ApiError::UpgradeRequired)) => {
             ctx.handle_api_error(&error);
         }
-        Err(_) => ctx.hub.set_connectivity(Connectivity::Unreachable),
+        Err(_) => ctx.device.hub.set_connectivity(Connectivity::Unreachable),
     }
 }
 

@@ -68,7 +68,7 @@ impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
     /// Reads the game name from one frame and posts an observation when it names the held room. Without a held assignment
     /// nothing happens. Only the app's fixture build calls this (AD-057).
     pub fn read_once(&self, frame: Rgba) {
-        let assignment = self.ctx.assignment.borrow().current().cloned();
+        let assignment = self.ctx.device.assignment.borrow().current().cloned();
         let Some(assignment) = assignment else {
             return;
         };
@@ -97,29 +97,29 @@ impl<G> Probe<G> {
     /// A probe over a context. The caller starts the loops it needs on that context; `start_with_probe` starts all four.
     pub fn over(ctx: Arc<Context<G>>) -> Self {
         Self {
-            update_required: ctx.update_required.subscribe(),
+            update_required: ctx.device.update_required.subscribe(),
             ctx,
         }
     }
 
     /// Observations dropped after their retries ran out or were overtaken (AD-051).
     pub fn dropped_observations(&self) -> u64 {
-        self.ctx.dropped_observations()
+        self.ctx.device.dropped_observations()
     }
 
     /// The assignment the stream loop last set, if any.
     pub fn assignment(&self) -> Option<Assignment> {
-        self.ctx.assignment.borrow().current().cloned()
+        self.ctx.device.assignment.borrow().current().cloned()
     }
 
     /// Sets the paired flag the pairing and API loops read.
     pub fn set_paired(&self, paired: bool) {
-        self.ctx.paired.send_replace(paired);
+        self.ctx.device.set_paired(paired);
     }
 
     /// Sets the assignment the observation path reads.
     pub fn set_assignment(&self, assignment: Option<Assignment>) {
-        self.ctx.replace_assignment(assignment);
+        self.ctx.device.replace_assignment(assignment);
     }
 
     /// A 401 on any request, as the API would send it.

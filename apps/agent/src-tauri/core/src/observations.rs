@@ -8,6 +8,7 @@ use tokio::time::Instant;
 use tracing::Instrument;
 
 use crate::context::Context;
+use crate::device_state::DeviceState;
 use crate::messages::GameNameObservation;
 use crate::ports::{ApiError, ApiGateway};
 
@@ -31,9 +32,9 @@ pub async fn send<G: ApiGateway + Send + Sync>(
     ctx: &Context<G>,
     observation: &GameNameObservation,
 ) -> SendOutcome {
-    let epoch = ctx.epoch();
+    let epoch = ctx.device.epoch();
     let Some(token) = ctx.tokens.load() else {
-        ctx.count_dropped_observation();
+        ctx.device.count_dropped_observation();
         return SendOutcome::Dropped;
     };
     let mut failures: usize = 0;
@@ -59,16 +60,17 @@ pub async fn send<G: ApiGateway + Send + Sync>(
             return drop_observation(ctx);
         };
         let still_allowed = ctx
-            .sleep_while_allowed(Instant::now() + delay, Context::api_allowed)
+            .device
+            .sleep_while_allowed(Instant::now() + delay, DeviceState::api_allowed)
             .await;
-        if !still_allowed || ctx.epoch() != epoch {
+        if !still_allowed || ctx.device.epoch() != epoch {
             return drop_observation(ctx);
         }
     }
 }
 
 fn drop_observation<G>(ctx: &Context<G>) -> SendOutcome {
-    ctx.count_dropped_observation();
+    ctx.device.count_dropped_observation();
     SendOutcome::Dropped
 }
 
