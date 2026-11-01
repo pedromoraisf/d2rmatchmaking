@@ -1163,8 +1163,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] `node scripts/mutation-scope-check.mjs` passes; a fixture that runs `tests/` per mutant fails
-- [ ] Harness gate passes
+- [x] `node scripts/mutation-scope-check.mjs` passes; a fixture that runs `tests/` per mutant fails
+- [x] Harness gate passes
 
 **Tests**: harness unit
 **Gate**: Harness
@@ -1338,6 +1338,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - T52 done (commit carries `Task: T52`): `domain/src/presence.rs` holds `Presence`, `Screen`, `game_running` (`GAME_PROCESS` from the domain timings, ASCII case-insensitive) and the moved test `game_running_matches_the_executable_name_only`. `core/src/messages.rs` re-exports `Presence` and `Screen`; `core/src/beat.rs` imports `game_running` from the domain and loses its local `GAME_PROCESS` and `game_running`, and the test moved with them. Gate `Rust workspace` plus the preservation guard passed on attempt 1 (167 tests).
 - T53 done (commit carries `Task: T53`): `.cargo/mutants.toml` examines `domain/src/**/*.rs`, the five core rule modules (`pair.rs`, `follow_stream.rs`, `check_update.rs`, `post_observation.rs`, `beat.rs`) and the three adapter modules (`http/api_client.rs`, `http/translate.rs`, `http/sse.rs`). The scope only grows: every module the old list named has its migrated home in the new list. Deviation, for the orchestrator to note: the existing test `mutation covers the core rule modules` in `scripts/test/agent-source-rules.test.mjs` pinned the old exact list, so its expected array now holds the new exact list (the same exact-match strictness; its comment says the migrated modules). The new test `mutation rule modules list matches the migrated locations` lives in `scripts/test/agent-mutation-scope.test.mjs`; its fixture drops `beat.rs` inline. Gate `Harness` (`pnpm test:harness`) passed on attempt 1 (189 tests).
 - T54 done (commit carries `Task: T54`): `.github/workflows/nightly.yml` `agent-mutation` runs `cargo mutants -- --lib` once per crate (`d2rmm-agent-core`, `d2rmm-agent-domain`, `d2rmm-agent-adapters`), each to its own report directory; the artifact uploads `reports/mutation`. The core line stays first, so the existing test `the nightly cargo-mutants run targets the agent core and its unit tests only` reads the same line and passes unedited. The two new tests are in `scripts/test/agent-mutation-scope.test.mjs`. Gate `Harness` passed on attempt 1 (191 tests).
+- T55 done (commit carries `Task: T55`): `scripts/lib/mutation-scope.mjs` names no crate, so the three agent crates were already accepted with `-p <crate> --lib`; the scope check needed no code change. The new test `rust: the three agent crates are proved by their --lib unit tests, never their tests/ directory` in `scripts/test/mutation-scope.test.mjs` pins the accepted `--lib` proofs for `d2rmm-agent-domain`, `d2rmm-agent-core` and `d2rmm-agent-adapters`, and refuses `--tests` and `--test stream_limits` for each (the fixture that runs `tests/` per mutant). Gate `Harness` (`node scripts/mutation-scope-check.mjs && pnpm test:harness`) passed on attempt 1 (192 tests); `mutation-scope: OK`.
 
 **Batch 8 (execute-batch-8), complete: T42 to T47**
 

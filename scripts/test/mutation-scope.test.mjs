@@ -24,6 +24,19 @@ test('rust: the workspace-wide proofs agent-skeleton used before ADR 026 are ref
   );
 });
 
+test('rust: the three agent crates are proved by their --lib unit tests, never their tests/ directory', () => {
+  for (const crate of ['d2rmm-agent-domain', 'd2rmm-agent-core', 'd2rmm-agent-adapters']) {
+    ok(
+      `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p ${crate} --lib -E 'test(timing_constants_are_pinned)'`,
+    );
+    refused(
+      `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p ${crate} --tests`,
+      /--tests/,
+    );
+    refused(`cargo nextest run -p ${crate} --lib --test stream_limits`, /--test/);
+  }
+});
+
 test('rust: integration binaries, the tests/ directory and wide targets are refused', () => {
   refused('cargo nextest run -p d2rmm-agent-core --lib --test stream', /--test/);
   refused('cargo nextest run -p d2rmm-agent-core --tests', /--tests/);
