@@ -217,9 +217,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Test `domain clock fixture runs through expect-failure with its lint id` in `scripts/test/agent-ci.test.mjs` passes and fails when the step is removed
-- [ ] Test `the agent job runs the five boundary fixtures by rule id` passes with the five ids in job order and fails when any step is removed or reordered
-- [ ] Harness gate passes
+- [x] Test `domain clock fixture runs through expect-failure with its lint id` in `scripts/test/agent-ci.test.mjs` passes and fails when the step is removed
+- [x] Test `the agent job runs the five boundary fixtures by rule id` passes with the five ids in job order and fails when any step is removed or reordered
+- [x] Harness gate passes
 
 **Tests**: harness unit
 **Gate**: Harness
@@ -1330,7 +1330,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Settled mid-build:** none
 **Dispatched:** none
 **Walked:** none (no screen)
-**Blocked:** T5 (batch 1), not started, no gate run, no retry spent. T5 adds a fifth `expect-failure` step for `domain-clock` (id `disallowed_types`) to the CI `agent` job. The existing test `the agent job runs the four boundary fixtures by rule id` in `scripts/test/agent-ci.test.mjs` asserts a `deepEqual` on exactly `['banned', 'unsafe_code', 'disallowed_types', 'disallowed_methods']`, in order. The new step makes that assertion fail. Changing it would edit a test expectation to pass (AGENTS rule 3), so the implementer stops. T5 also names the test `domain clock fixture runs through expect-failure with its lint id`, which does not exist yet. Decision needed: how the five-fixture list is asserted. T6 to T11 wait on T5.
+**Blocked:** none (the T5 blocker was resolved by the replan in f3fb21e; batch 1 resumed at T5)
 
 ---
 

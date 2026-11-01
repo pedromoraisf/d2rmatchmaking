@@ -188,6 +188,9 @@ jobs:
       - name: Fixture toolhelp-read must fail with disallowed_methods
         working-directory: .
         run: node scripts/agent/expect-failure.mjs disallowed_methods -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/toolhelp-read/Cargo.toml --target x86_64-pc-windows-msvc -- -D warnings
+      - name: Fixture domain-clock must fail with disallowed_types
+        working-directory: .
+        run: node scripts/agent/expect-failure.mjs disallowed_types -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/domain-clock/Cargo.toml -- -D warnings
 
   secrets:
     name: secrets # gitleaks; required check in .github/rulesets/main.json

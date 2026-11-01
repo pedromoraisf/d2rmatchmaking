@@ -61,13 +61,13 @@ test('the agent job runs fmt, clippy, nextest, deny and the fixtures', () => {
   );
 });
 
-test('the agent job runs the four boundary fixtures by rule id', () => {
-  const ids = ['banned', 'unsafe_code', 'disallowed_types', 'disallowed_methods'];
+test('the agent job runs the five boundary fixtures by rule id', () => {
+  const ids = ['banned', 'unsafe_code', 'disallowed_types', 'disallowed_methods', 'disallowed_types'];
   const fixtures = commands.filter((line) => line.startsWith('node scripts/agent/expect-failure.mjs '));
   assert.deepEqual(
     fixtures.map((line) => line.split(' ')[2]),
     ids,
-    'the four fixture ids run in order: banned, unsafe_code, disallowed_types, disallowed_methods',
+    'the five fixture ids run in order: banned, unsafe_code, disallowed_types, disallowed_methods, disallowed_types',
   );
   assert.ok(
     fixtures.some(
@@ -75,6 +75,16 @@ test('the agent job runs the four boundary fixtures by rule id', () => {
         line.includes('boundary-fixtures/toolhelp-read/') && line.includes('--target x86_64-pc-windows-msvc'),
     ),
     'toolhelp-read is checked with the Windows target',
+  );
+});
+
+test('domain clock fixture runs through expect-failure with its lint id', () => {
+  const line = commands.find((command) => command.includes('boundary-fixtures/domain-clock/'));
+  assert.ok(line, 'the domain-clock fixture is a run step');
+  assert.equal(
+    line,
+    'node scripts/agent/expect-failure.mjs disallowed_types -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/domain-clock/Cargo.toml -- -D warnings',
+    'domain-clock fails with disallowed_types through expect-failure, with the domain clippy policy',
   );
 });
 
