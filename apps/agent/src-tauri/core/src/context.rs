@@ -7,10 +7,10 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
-use crate::api_client::ApiError;
-use crate::gateway::http::HttpGateway;
 use crate::messages::Assignment;
-use crate::ports::{IdGenerator, ProcessSource, StateSink, TextReader, TokenStore, WallClock};
+use crate::ports::{
+    ApiError, IdGenerator, ProcessSource, StateSink, TextReader, TokenStore, WallClock,
+};
 use crate::updates::Updater;
 use crate::view::{AgentView, Connectivity, PairingView, RoomView, UpdateView};
 
@@ -106,9 +106,9 @@ impl Hub {
     }
 }
 
-/// Everything the loops share. Built once by `Context::from_groups` and kept in an `Arc`. `G` is the API gateway; the
-/// default is the HTTP gateway the app runs.
-pub struct Context<G = HttpGateway> {
+/// Everything the loops share. Built once by `Context::from_groups` and kept in an `Arc`. `G` is the API gateway the
+/// composition root supplies.
+pub struct Context<G> {
     pub version: String,
     /// The API as the use cases see it (the gateway port). Every API call of the loops goes through it.
     pub gateway: Arc<G>,
@@ -283,26 +283,22 @@ mod tests {
 
     use chrono::{DateTime, Utc};
 
+    use std::num::NonZeroU64;
+
     use super::{
         Context, Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
     };
-    use crate::api_client::ApiClient;
-    use crate::api_client::ApiError;
-    use crate::config::{AllowLoopbackHttp, ApiBase, Config};
-    use crate::gateway::http::HttpGateway;
-    use crate::gateway::translate::assignment_from_contract;
-    use crate::messages::Assignment;
+    use crate::fakes::FakeApiGateway;
+    use crate::messages::{Assignment, GameName, RoomId};
     use crate::ports::{
-        ProcessSource, ReadError, ReadText, Region, Rgba, SequentialIds, StateSink, StoreError,
-        TextReader, TokenStore, UpdateOutcome, WallClock,
+        ApiError, ProcessSource, ReadError, ReadText, Region, Rgba, SequentialIds, StateSink,
+        StoreError, TextReader, TokenStore, UpdateOutcome, WallClock,
     };
     use crate::secret::Secret;
-    use crate::stream::{StreamEffect, handle};
     use crate::updates::Updater;
     use crate::view::{AgentView, PairingView, RoomView};
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
-    const ASSIGNED: &str = r#"{"roomId":"7d9f2c1e-0000-4000-8000-000000000001","run":1,"expectedGameName":"mmbaalh-12","members":[{"accountId":"account-1","characterId":null,"joinOrder":1,"role":"host"}]}"#;
 
     /// Holds the token in memory.
     #[derive(Default)]
@@ -364,17 +360,9 @@ mod tests {
         fn publish(&self, _view: AgentView) {}
     }
 
-    /// The five port groups over the in-memory ports and an HTTP gateway that makes no call unless a loop runs.
-    fn http_groups(tokens: Arc<MemoryTokens>) -> Groups<HttpGateway> {
-        let config = Config {
-            version: "0.0.1".to_string(),
-            api_base: ApiBase::parse("https://api.example.test", AllowLoopbackHttp::No)
-                .expect("a valid API base"),
-        };
-        let gateway = Arc::new(HttpGateway::new(ApiClient::new(
-            &config,
-            reqwest::Client::new(),
-        )));
+    /// The five port groups over the in-memory ports and a fake gateway that makes no call unless a loop runs.
+    fn fake_groups(tokens: Arc<MemoryTokens>) -> Groups<FakeApiGateway> {
+        let gateway = Arc::new(FakeApiGateway::new());
         let clock: Arc<dyn WallClock + Send + Sync> = Arc::new(FixedClock);
         Groups {
             pairing: PairingPorts {
@@ -405,7 +393,7 @@ mod tests {
     }
 
     /// A paired context holding a token and no room, with every port faked in memory.
-    fn paired_context() -> (Arc<Context>, Arc<MemoryTokens>) {
+    fn paired_context() -> (Arc<Context<FakeApiGateway>>, Arc<MemoryTokens>) {
         let tokens = Arc::new(MemoryTokens::default());
         tokens
             .save(&Secret::new(TOKEN))
@@ -413,16 +401,18 @@ mod tests {
         let ctx = Context::from_groups(
             "0.0.1".to_string(),
             Arc::new(NullSink),
-            http_groups(Arc::clone(&tokens)),
+            fake_groups(Arc::clone(&tokens)),
         );
         ctx.paired.send_replace(true);
         (ctx, tokens)
     }
 
     fn assignment() -> Assignment {
-        match handle("room.assigned", ASSIGNED) {
-            StreamEffect::SetAssignment(assignment) => assignment_from_contract(assignment),
-            StreamEffect::Ignore => panic!("the fixture is a valid room.assigned event"),
+        Assignment {
+            room: RoomId::new("7d9f2c1e-0000-4000-8000-000000000001"),
+            run: NonZeroU64::MIN,
+            expected_game_name: GameName::new("mmbaalh-12"),
+            members: Vec::new(),
         }
     }
 
@@ -497,8 +487,6 @@ mod tests {
 
     #[test]
     fn groups_build_a_context() {
-        use crate::fakes::FakeApiGateway;
-
         let gateway = Arc::new(FakeApiGateway::new());
         let tokens = Arc::new(MemoryTokens::default());
         let clock: Arc<dyn WallClock + Send + Sync> = Arc::new(FixedClock);

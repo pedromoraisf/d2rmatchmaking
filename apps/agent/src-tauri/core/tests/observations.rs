@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use std::num::NonZeroU64;
 
-use d2rmm_agent_core::gateway::translate::assignment_from_contract;
+use d2rmm_agent_adapters::http::translate::assignment_from_contract;
 use d2rmm_agent_core::messages::{Assignment, GameNameObservation};
 use d2rmm_agent_core::observations::{self, SendOutcome};
 use serde_json::{Value, json};
@@ -29,7 +29,7 @@ fn observation() -> GameNameObservation {
 }
 
 fn assignment() -> Assignment {
-    let contract: d2rmm_agent_core::contracts::generated::Assignment = serde_json::from_value(json!({
+    let contract: d2rmm_agent_adapters::contracts::generated::Assignment = serde_json::from_value(json!({
         "roomId": ROOM,
         "run": 1,
         "expectedGameName": "mmbaalh-12",

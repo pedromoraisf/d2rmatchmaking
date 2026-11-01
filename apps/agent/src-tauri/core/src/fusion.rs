@@ -46,24 +46,18 @@ pub fn fuse(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
+    use std::num::NonZeroU64;
     use std::sync::Mutex;
 
     use chrono::{DateTime, Utc};
-    use serde_json::{Value, json};
     use uuid::Uuid;
 
     use super::{Fusion, fuse};
-    use crate::gateway::translate::{assignment_from_contract, observation_to_contract};
-    use crate::messages::{Assignment, GameNameObservation};
+    use crate::messages::{Assignment, GameName, RoomId};
     use crate::ports::{ReadError, ReadText, Region, Rgba, SequentialIds, TextReader};
     use crate::vision::{AUTOMAP_NAME_1080P, read_game_name};
 
     const ROOM: &str = "7d9f2c1e-0000-4000-8000-000000000001";
-    const OBSERVATION_SCHEMA: &str = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../packages/contracts/json-schema/observation.json"
-    );
 
     /// Returns the same text for any region and remembers the regions it was asked to read.
     struct FixedReader {
@@ -91,21 +85,12 @@ mod tests {
     }
 
     fn assignment() -> Assignment {
-        let contract: crate::contracts::generated::Assignment = serde_json::from_value(json!({
-            "roomId": ROOM,
-            "run": 3,
-            "expectedGameName": "mmbaalh-12",
-            "members": [{ "accountId": "account-1", "characterId": null, "joinOrder": 1, "role": "host" }],
-        }))
-        .expect("a contract assignment");
-        assignment_from_contract(contract)
-    }
-
-    /// The observation as the wire carries it: its translation to the contract shape, as JSON.
-    fn wire(observation: &GameNameObservation) -> Value {
-        let body =
-            observation_to_contract(observation).expect("the observation has its contract shape");
-        serde_json::to_value(body).expect("the body serializes")
+        Assignment {
+            room: RoomId::new(ROOM),
+            run: NonZeroU64::new(3).expect("a non-zero run"),
+            expected_game_name: GameName::new("mmbaalh-12"),
+            members: Vec::new(),
+        }
     }
 
     fn now() -> DateTime<Utc> {
@@ -170,7 +155,6 @@ mod tests {
             let observation = &fusion.observation;
 
             assert_eq!(fusion.room, ROOM.parse::<Uuid>().expect("a UUID room"));
-            assert_eq!(wire(observation)["type"], "GAME_NAME_SEEN");
             assert_eq!(observation.game_name, "mmbaalh-12", "normalised value");
             assert_eq!(observation.run.get(), 3, "the assignment's run");
             assert!((0.0..=1.0).contains(&observation.confidence));
@@ -185,36 +169,6 @@ mod tests {
         for seen in ["mmbaalh-13", "mmbaalh-1", " mmbaalh-12x", ""] {
             assert!(fused(seen).is_none(), "{seen:?} must not match");
         }
-    }
-
-    #[test]
-    fn observation_carries_no_image() {
-        let fusion = fused("mmbaalh-12").expect("the name matches");
-        let sent = wire(&fusion.observation);
-
-        let keys: BTreeSet<&str> = sent
-            .as_object()
-            .expect("an object")
-            .keys()
-            .map(String::as_str)
-            .collect();
-        assert_eq!(
-            keys,
-            BTreeSet::from([
-                "capturedAt",
-                "confidence",
-                "idempotencyKey",
-                "run",
-                "type",
-                "value"
-            ])
-        );
-        let schema: Value = serde_json::from_str(
-            &std::fs::read_to_string(OBSERVATION_SCHEMA).expect("the observation schema"),
-        )
-        .expect("the schema is JSON");
-        let validator = jsonschema::validator_for(&schema).expect("the schema compiles");
-        assert!(validator.is_valid(&sent), "the body matches its schema");
     }
 
     #[test]

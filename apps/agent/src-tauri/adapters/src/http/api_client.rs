@@ -11,15 +11,16 @@ use tracing::field::Empty;
 use tracing::{Instrument, Span, info_span};
 use uuid::Uuid;
 
-use crate::config::Config;
+use d2rmm_agent_core::secret::Secret;
+
+use crate::config::ApiBase;
 use crate::contracts::generated::{
     Assignment, ClaimRequest, ClaimResponse, Heartbeat, Observation, PairingCodeResponse,
 };
-use crate::secret::Secret;
 use crate::telemetry::traceparent_for;
 
-/// `ApiError` is defined with the ports now; this module re-exports it, so its callers keep the path.
-pub use crate::ports::ApiError;
+/// `ApiError` is defined with the ports in the core; this module re-exports it, so its callers keep the path.
+pub use d2rmm_agent_core::ports::ApiError;
 
 const VERSION_HEADER: &str = "x-agent-version";
 const TRACEPARENT_HEADER: &str = "traceparent";
@@ -40,16 +41,11 @@ pub struct ApiClient {
 }
 
 impl ApiClient {
-    pub fn new(config: &Config, http: Client) -> Self {
+    pub fn new(version: &str, api_base: &ApiBase, http: Client) -> Self {
         Self {
             http,
-            base: config
-                .api_base
-                .url()
-                .as_str()
-                .trim_end_matches('/')
-                .to_string(),
-            version: config.version.clone(),
+            base: api_base.url().as_str().trim_end_matches('/').to_string(),
+            version: version.to_string(),
         }
     }
 
@@ -256,7 +252,7 @@ mod tests {
     use std::time::Duration;
 
     use super::{authorization_value, clamp_retry_after};
-    use crate::secret::Secret;
+    use d2rmm_agent_core::secret::Secret;
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
 

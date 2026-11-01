@@ -633,10 +633,10 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] `core/src` no longer contains `contracts/`, `api_client.rs`, `gateway/`, `telemetry.rs`, and `stream.rs` keeps only the loop and the reconnect rules
-- [ ] `cargo nextest run --workspace -E 'test(contracts_are_current)'` passes (AGS-03)
-- [ ] The unit tests that lived in the moved files moved with them and pass; test count before = after
-- [ ] Rust workspace gate passes (integration tests still in `core/tests`, importing from the adapters through a dev-dependency only until T29)
+- [x] `core/src` no longer contains `contracts/`, `api_client.rs`, `gateway/`, `telemetry.rs`, and `stream.rs` keeps only the loop and the reconnect rules
+- [x] `cargo nextest run --workspace -E 'test(contracts_are_current)'` passes (AGS-03)
+- [x] The unit tests that lived in the moved files moved with them and pass; test count before = after
+- [x] Rust workspace gate passes (integration tests still in `core/tests`, importing from the adapters through a dev-dependency only until T29)
 
 **Tests**: unit
 **Gate**: Rust workspace
@@ -1329,11 +1329,12 @@ Proof: `cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml -
 
 The feature's live state, written as it happens - a compaction gives no warning.
 
-**Batch 4 (execute-batch-4), complete: T19 to T25**
-
 **Batch 5 (execute-batch-5), in progress: T26 to T32**
 
+- T27 done (commit carries `Task: T27`): the HTTP stack moved into `adapters/` with `git mv` (history follows): `contracts/`, `http/api_client.rs`, `http/gateway.rs` (was `gateway/http.rs`), `http/translate.rs`, `http/sse_stream.rs`, `http/client.rs` (the app's client builder), `telemetry.rs`, `extra-tests/gateway.rs`. New in the adapters: `http/sse.rs` (the parser, `handle`, the `valid_*` checks, the limits) and `config.rs` (`ApiBase`, `AllowLoopbackHttp`, `ApiBaseError`). Core keeps `Config { version }`, the loop and the reconnect rules. Gate `Rust workspace` passed on attempt 1 (132 tests before and after); the preservation guard passed on `core/tests` (assertion lines unchanged); `win-check` passed. Deviations for the orchestrator: (1) `Context`, `Runtime`, `Handle`, `Probe` and the loops are generic over the gateway (`Context<G>`, no default), because core cannot name `HttpGateway`; the generic step T25 deferred. (2) `ApiClient::new(version, &ApiBase, Client)`: the base left core's `Config`. (3) The `Last-Event-ID` check moved from the loop into `HttpGateway::open_stream`, which applies `valid_last_event_id` before sending; the wire is unchanged. (4) Core's unit tests that needed the adapters changed their helpers only (`FakeApiGateway`, messages built directly); their assertions stay. The `secret` tests (contract bodies) moved unchanged to `adapters/src/contracts/mod.rs`. In `fusion.rs` the wire-type assertion of `exact_match_yields_one_observation` moved out, and `observation_carries_no_image` moved to `adapters/src/http/translate.rs` (built directly, the same key set and schema check, plus `type`). (5) The app's `core_config` lost its `api_base` assertion, since `Config` has no such field; the version assertion stays. (6) Core's `[dev-dependencies]` gains `d2rmm-agent-adapters` so `core/tests` can import the adapters until T29 moves them. Not done yet, for T31: `.cargo/mutants.toml` and `scripts/test/agent-source-rules.test.mjs` still name `core/src/api_client.rs`.
 - T26 done (commit carries `Task: T26`): `adapters/` is a workspace member (`d2rmm-agent-adapters`) with the design's dependencies and `#![forbid(unsafe_code)]`; `adapters_crate_builds` passes; `Cargo.lock` gains the member. Gate `Rust workspace` passed on attempt 1 (132 tests). Deviation to note: the architecture test for the app-crate direction is named `adapters and the app crate do not depend on each other` (T6 file), not `adapters never depend on the app crate` as T26 lists it; the rule passes under the existing name, and the name was left as it is (harness file not edited here).
+
+**Batch 4 (execute-batch-4), complete: T19 to T25**
 
 - T19 done (commit carries `Task: T19`): `Context` is generic over the gateway (`Context<G = HttpGateway>`) and gained `gateway: Arc<G>` beside the transitional `api: ApiClient`. The five groups (`PairingPorts`, `HeartbeatPorts`, `StreamPorts`, `UpdatePorts`, `ReadPorts`) and `Groups<G>` are in `context.rs`; `Context::from_groups(version, sink, api, groups)` builds the context. Deviation (for the orchestrator to note): `from_groups` also takes the transitional `api`, because the loops still call `ctx.api` until T21 to T24, and `api` goes with the last of them. Gate `Rust core` passed on attempt 1 (113 tests). The arch rule `no struct in core holds more than five ports` is switched off on the real tree until T47, so its pass is by the rule's own gating.
 - T20 done (commit carries `Task: T20`): `Runtime::start_with_probe(config, http, adapters) -> (Handle, Probe)` and `Probe` (`update_required` receiver, `dropped_observations`, `assignment`, `set_paired`, `set_assignment`, `on_unauthorized`, `on_upgrade_required`). `Runtime::start` returns the `Handle` alone. Both still take `Adapters`; they move to the groups in T25. Gate `Rust core` passed on attempt 1 (114 tests).

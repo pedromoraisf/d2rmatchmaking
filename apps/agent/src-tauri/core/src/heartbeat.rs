@@ -10,10 +10,9 @@ use std::time::Duration;
 use tokio::time::Instant;
 use tracing::Instrument;
 
-use crate::api_client::ApiError;
 use crate::context::Context;
 use crate::messages::{Presence, Screen};
-use crate::ports::ApiGateway;
+use crate::ports::{ApiError, ApiGateway};
 use crate::view::Connectivity;
 
 /// The interval between heartbeats (AD-031).
@@ -23,7 +22,7 @@ pub const INTERVAL: Duration = Duration::from_secs(15);
 pub const GAME_PROCESS: &str = "D2R.exe";
 
 /// Beats for the life of the agent, whenever it is paired and not waiting for an update.
-pub async fn run(ctx: Arc<Context>) {
+pub async fn run<G: ApiGateway + Send + Sync + 'static>(ctx: Arc<Context<G>>) {
     let mut next = Instant::now();
     loop {
         ctx.wait_until_allowed(Context::api_allowed).await;
@@ -39,7 +38,7 @@ pub async fn run(ctx: Arc<Context>) {
 }
 
 /// One heartbeat: builds the body from the process snapshot and sends it with the stored token.
-async fn beat(ctx: &Context) {
+async fn beat<G: ApiGateway + Send + Sync>(ctx: &Context<G>) {
     let Some(token) = ctx.tokens.load() else {
         return;
     };

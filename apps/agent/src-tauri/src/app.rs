@@ -5,6 +5,7 @@
 //! item is left dead on another target.
 #![cfg(any(windows, test))]
 
+use d2rmm_agent_adapters::http::gateway::HttpGateway;
 use d2rmm_agent_core::runtime::Handle;
 use tauri::Url;
 
@@ -13,7 +14,7 @@ pub trait CodeRequester {
     fn request_new_code(&self);
 }
 
-impl CodeRequester for Handle {
+impl CodeRequester for Handle<HttpGateway> {
     fn request_new_code(&self) {
         self.get_new_code();
     }
@@ -47,18 +48,18 @@ mod shell {
 
     use tauri::{AppHandle, Emitter, Manager, State, WebviewWindowBuilder};
 
-    use d2rmm_agent_core::api_client::ApiClient;
+    use d2rmm_agent_adapters::http::api_client::ApiClient;
+    use d2rmm_agent_adapters::http::gateway::HttpGateway;
+    use d2rmm_agent_adapters::telemetry::{self, Mode};
     use d2rmm_agent_core::context::Groups;
-    use d2rmm_agent_core::gateway::http::HttpGateway;
     use d2rmm_agent_core::ports::StateSink;
     use d2rmm_agent_core::runtime::{Handle, Runtime};
-    use d2rmm_agent_core::telemetry::{self, Mode};
     use d2rmm_agent_core::view::AgentView;
 
     use super::{app_context, handle_get_new_code, is_app_url};
-    use crate::adapters::http;
     use crate::config;
     use crate::fixture_read;
+    use d2rmm_agent_adapters::http;
 
     /// The label of the one window declared in tauri.conf.json. It is created in `setup` so its navigation is restricted.
     const MAIN_WINDOW: &str = "main";
@@ -67,7 +68,7 @@ mod shell {
 
     /// Asks the runtime for a new pairing code.
     #[tauri::command]
-    fn get_new_code(handle: State<'_, Arc<Handle>>) {
+    fn get_new_code(handle: State<'_, Arc<Handle<HttpGateway>>>) {
         handle_get_new_code(&**handle);
     }
 
@@ -90,14 +91,14 @@ mod shell {
 
     impl WindowSink {
         #[cfg(feature = "fixture-read")]
-        fn attach(&self, handle: Arc<Handle>) {
+        fn attach(&self, handle: Arc<Handle<HttpGateway>>) {
             if let Some(fixture) = &self.fixture {
                 fixture.attach(handle);
             }
         }
 
         #[cfg(not(feature = "fixture-read"))]
-        fn attach(&self, _handle: Arc<Handle>) {}
+        fn attach(&self, _handle: Arc<Handle<HttpGateway>>) {}
 
         #[cfg(feature = "fixture-read")]
         fn feed_fixture(&self, view: &AgentView) {
@@ -163,9 +164,11 @@ mod shell {
                 let sink: Arc<dyn StateSink + Send + Sync> = window_sink.clone();
 
                 let version = app.package_info().version.to_string();
-                let core_config = config::core_config(&version, api_base.clone());
-                let client = http::client(&api_base)?;
-                let gateway = Arc::new(HttpGateway::new(ApiClient::new(&core_config, client)));
+                let core_config = config::core_config(&version);
+                let client = http::client::client(&api_base)?;
+                let gateway = Arc::new(HttpGateway::new(ApiClient::new(
+                    &version, &api_base, client,
+                )));
                 let groups = build(app_handle, gateway);
                 let handle = Arc::new(tauri::async_runtime::block_on(async move {
                     Runtime::start(&core_config, sink, groups)
@@ -216,9 +219,7 @@ mod tests {
     fn runtime_config_carries_the_package_version() {
         let context = app_context();
         let version = context.package_info().version.to_string();
-        let base =
-            config::api_base(Some("https://api.example.test"), true).expect("https is accepted");
-        let core_config = config::core_config(&version, base);
+        let core_config = config::core_config(&version);
         let package: serde_json::Value =
             serde_json::from_str(include_str!("../../package.json")).expect("package.json is JSON");
         assert_eq!(

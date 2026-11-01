@@ -9,11 +9,10 @@ use tokio::sync::{mpsc, watch};
 use crate::config::Config;
 use crate::context::{Context, Groups};
 use crate::fusion::fuse;
-use crate::gateway::http::HttpGateway;
 use crate::messages::Assignment;
 use crate::observations;
 use crate::pairing::{self, Command};
-use crate::ports::{Rgba, StateSink};
+use crate::ports::{ApiGateway, Rgba, StateSink};
 use crate::{heartbeat, stream, updates, vision};
 
 const COMMAND_BUFFER: usize = 8;
@@ -23,21 +22,21 @@ pub struct Runtime;
 
 impl Runtime {
     /// Builds the context from the five port groups and starts pairing, heartbeat, stream and update loops.
-    pub fn start(
+    pub fn start<G: ApiGateway + Send + Sync + 'static>(
         config: &Config,
         sink: Arc<dyn StateSink + Send + Sync>,
-        groups: Groups<HttpGateway>,
-    ) -> Handle {
+        groups: Groups<G>,
+    ) -> Handle<G> {
         spawn(Context::from_groups(config.version.clone(), sink, groups))
     }
 
     /// Like `start`, and also returns the probe the tests read and drive the agent with. The app never calls it: the probe
     /// is the only way to set the paired state or an assignment from outside the loops (AD-082).
-    pub fn start_with_probe(
+    pub fn start_with_probe<G: ApiGateway + Send + Sync + 'static>(
         config: &Config,
         sink: Arc<dyn StateSink + Send + Sync>,
-        groups: Groups<HttpGateway>,
-    ) -> (Handle, Probe) {
+        groups: Groups<G>,
+    ) -> (Handle<G>, Probe<G>) {
         let ctx = Context::from_groups(config.version.clone(), sink, groups);
         let probe = Probe::over(Arc::clone(&ctx));
         (spawn(ctx), probe)
@@ -45,7 +44,7 @@ impl Runtime {
 }
 
 /// Starts the four loops on a built context and returns the handle that keeps their command channel.
-fn spawn(ctx: Arc<Context>) -> Handle {
+fn spawn<G: ApiGateway + Send + Sync + 'static>(ctx: Arc<Context<G>>) -> Handle<G> {
     let (commands, receiver) = mpsc::channel(COMMAND_BUFFER);
     tokio::spawn(pairing::run(Arc::clone(&ctx), receiver));
     tokio::spawn(heartbeat::run(Arc::clone(&ctx)));
@@ -55,12 +54,12 @@ fn spawn(ctx: Arc<Context>) -> Handle {
 }
 
 /// What the app holds of a running agent: the commands it may send.
-pub struct Handle {
-    ctx: Arc<Context>,
+pub struct Handle<G> {
+    ctx: Arc<Context<G>>,
     commands: mpsc::Sender<Command>,
 }
 
-impl Handle {
+impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
     /// "Get a new code": honoured only while the pairing loop is paused (AGS-34).
     pub fn get_new_code(&self) {
         let _ = self.commands.try_send(Command::GetNewCode);
@@ -88,15 +87,15 @@ impl Handle {
 
 /// The test probe: reads what the agent holds and drives its state directly, without a port. The loops are unchanged;
 /// the probe only moves the same signals the loops read (the paired flag, the assignment, the 401 and 426 handlers).
-pub struct Probe {
+pub struct Probe<G> {
     /// `true` while a 426 is pending (the update gate of AGS-27).
     pub update_required: watch::Receiver<bool>,
-    ctx: Arc<Context>,
+    ctx: Arc<Context<G>>,
 }
 
-impl Probe {
+impl<G> Probe<G> {
     /// A probe over a context. The caller starts the loops it needs on that context; `start_with_probe` starts all four.
-    pub fn over(ctx: Arc<Context>) -> Self {
+    pub fn over(ctx: Arc<Context<G>>) -> Self {
         Self {
             update_required: ctx.update_required.subscribe(),
             ctx,
@@ -137,21 +136,18 @@ impl Probe {
 #[cfg(test)]
 mod tests {
     use std::future::Future;
+    use std::num::NonZeroU64;
     use std::pin::Pin;
     use std::sync::Arc;
 
     use chrono::{DateTime, Utc};
-    use serde_json::json;
 
     use super::Probe;
-    use crate::api_client::ApiClient;
-    use crate::config::{AllowLoopbackHttp, ApiBase, Config};
     use crate::context::{
         Context, Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
     };
-    use crate::gateway::http::HttpGateway;
-    use crate::gateway::translate::assignment_from_contract;
-    use crate::messages::Assignment;
+    use crate::fakes::FakeApiGateway;
+    use crate::messages::{Assignment, GameName, RoomId};
     use crate::ports::{
         ProcessSource, ReadError, ReadText, Region, Rgba, SequentialIds, StateSink, StoreError,
         TextReader, TokenStore, UpdateOutcome, WallClock,
@@ -213,27 +209,20 @@ mod tests {
     }
 
     fn assignment() -> Assignment {
-        let contract: crate::contracts::generated::Assignment = serde_json::from_value(json!({
-            "roomId": "7d9f2c1e-0000-4000-8000-000000000001",
-            "run": 1,
-            "expectedGameName": "mmbaalh-12",
-            "members": [{ "accountId": "account-1", "characterId": null, "joinOrder": 1, "role": "host" }],
-        }))
-        .expect("a contract assignment");
-        assignment_from_contract(contract)
+        Assignment {
+            room: RoomId::new("7d9f2c1e-0000-4000-8000-000000000001"),
+            run: NonZeroU64::MIN,
+            expected_game_name: GameName::new("mmbaalh-12"),
+            members: Vec::new(),
+        }
     }
 
     #[test]
     fn probe_reads_the_agent_state_without_ports() {
-        let config = Config {
+        let config = crate::config::Config {
             version: "0.0.1".to_string(),
-            api_base: ApiBase::parse("https://api.example.test", AllowLoopbackHttp::No)
-                .expect("a valid API base"),
         };
-        let gateway = Arc::new(HttpGateway::new(ApiClient::new(
-            &config,
-            reqwest::Client::new(),
-        )));
+        let gateway = Arc::new(FakeApiGateway::new());
         let tokens: Arc<dyn TokenStore + Send + Sync> = Arc::new(NoTokens);
         let clock: Arc<dyn WallClock + Send + Sync> = Arc::new(FixedClock);
         let groups = Groups {
@@ -262,7 +251,7 @@ mod tests {
                 tokens,
             },
         };
-        let probe = Probe::over(Context::from_groups(
+        let probe: Probe<FakeApiGateway> = Probe::over(Context::from_groups(
             config.version.clone(),
             Arc::new(NullSink),
             groups,

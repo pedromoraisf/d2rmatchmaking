@@ -6,11 +6,11 @@ use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
 
+use d2rmm_agent_core::ports::{ApiError, EndReason, EventStream, StreamItem};
 use tokio::time::timeout;
 
-use crate::gateway::translate::assignment_from_contract;
-use crate::ports::{ApiError, EndReason, EventStream, StreamItem};
-use crate::stream::{IDLE_TIMEOUT, SseEvent, SseParser, StreamEffect, handle};
+use crate::http::sse::{IDLE_TIMEOUT, SseEvent, SseParser, StreamEffect, handle};
+use crate::http::translate::assignment_from_contract;
 
 /// The response body ended or broke while it was read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -96,8 +96,8 @@ mod tests {
     use std::time::Duration;
 
     use super::{ChunkSource, SseEventStream, StreamBroken};
-    use crate::ports::{ApiError, EndReason, EventStream, StreamItem};
-    use crate::stream::MAX_EVENT_BYTES;
+    use crate::http::sse::MAX_EVENT_BYTES;
+    use d2rmm_agent_core::ports::{ApiError, EndReason, EventStream, StreamItem};
 
     const ROOM: &str = "7d9f2c1e-0000-4000-8000-000000000001";
     const ASSIGNED: &str = r#"{"roomId":"7d9f2c1e-0000-4000-8000-000000000001","run":1,"expectedGameName":"mmbaalh-12","members":[{"accountId":"account-1","characterId":null,"joinOrder":1,"role":"host"}]}"#;

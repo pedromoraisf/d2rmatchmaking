@@ -1,14 +1,14 @@
 //! The anti-corruption layer between the contract types and the message types (ADR 027, rule 3; design.md § Adapters, ACL).
 //! Each function maps one shape in either direction and adds no check the code lacks today: a value the contract allows
-//! reaches the message type unchanged. The pure mapping lives here; the HTTP calls live in `gateway/http.rs`.
+//! reaches the message type unchanged. The pure mapping lives here; the HTTP calls live in `gateway.rs`.
 
-use serde_json::json;
-
-use crate::contracts::generated as contract;
-use crate::messages::{
+use d2rmm_agent_core::messages::{
     Assignment, GameName, GameNameObservation, InvalidPairingCode, IssuedCode, Member, MemberRole,
     PairingCode, Presence, RoomId, Screen,
 };
+use serde_json::json;
+
+use crate::contracts::generated as contract;
 
 /// A contract assignment as the message type carries it. The room id stays opaque (AGS-14).
 pub fn assignment_from_contract(value: contract::Assignment) -> Assignment {
@@ -105,6 +105,7 @@ pub fn observation_to_contract(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
     use std::num::NonZeroU64;
 
     use chrono::{DateTime, Utc};
@@ -116,7 +117,7 @@ mod tests {
         issued_code_from_contract, observation_to_contract,
     };
     use crate::contracts::generated as contract;
-    use crate::messages::{GameNameObservation, Member, MemberRole, Presence, Screen};
+    use d2rmm_agent_core::messages::{GameNameObservation, Member, MemberRole, Presence, Screen};
 
     const ROOM: &str = "7d9f2c1e-0000-4000-8000-000000000001";
     const SCHEMA_DIR: &str = concat!(
@@ -295,5 +296,46 @@ mod tests {
         assert_eq!(sent["game"]["running"].as_bool(), Some(true));
         assert_eq!(sent["agentVersion"], "0.0.1");
         assert!(heartbeat_from_presence(&presence, "not-a-version").is_err());
+    }
+
+    /// A fused observation carries exactly the wire keys, the `GAME_NAME_SEEN` type and a body that matches its schema
+    /// (AD-052). No image travels with it (AGS-20).
+    #[test]
+    fn observation_carries_no_image() {
+        let observation = GameNameObservation {
+            room: ROOM.parse::<Uuid>().expect("a UUID room"),
+            run: nonzero(3),
+            key: Uuid::from_u128(1),
+            game_name: "mmbaalh-12".into(),
+            confidence: 0.93,
+            captured_at: now(),
+        };
+        let sent = serde_json::to_value(
+            observation_to_contract(&observation).expect("a contract observation"),
+        )
+        .expect("the observation serializes");
+
+        let keys: BTreeSet<&str> = sent
+            .as_object()
+            .expect("an object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            keys,
+            BTreeSet::from([
+                "capturedAt",
+                "confidence",
+                "idempotencyKey",
+                "run",
+                "type",
+                "value"
+            ])
+        );
+        assert_eq!(sent["type"], "GAME_NAME_SEEN");
+        assert!(
+            schema("observation.json").is_valid(&sent),
+            "the body matches its schema"
+        );
     }
 }

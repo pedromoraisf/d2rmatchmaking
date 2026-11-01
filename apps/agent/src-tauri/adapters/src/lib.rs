@@ -2,6 +2,11 @@
 //! (ADR 027). Nothing here depends on Tauri, keyring or Windows.
 #![forbid(unsafe_code)]
 
+pub mod config;
+pub mod contracts;
+pub mod http;
+pub mod telemetry;
+
 #[cfg(test)]
 mod tests {
     #[test]

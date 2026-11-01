@@ -1,15 +1,18 @@
 //! The HTTP gateway: implements the `ApiGateway` port by calling the unchanged `ApiClient` and translating each answer
-//! through the anti-corruption layer (design.md § Adapters, `http/gateway.rs`; AHM-16). It holds no rule of its own.
+//! through the anti-corruption layer (design.md § Adapters, `http/gateway.rs`; AHM-16). It holds no rule of its own beyond
+//! the protocol check of the resume id.
 
-use crate::api_client::ApiClient;
-use crate::gateway::sse_stream::SseEventStream;
-use crate::gateway::translate::{
+use d2rmm_agent_core::messages::{Assignment, GameNameObservation, IssuedCode, Presence};
+use d2rmm_agent_core::ports::{ApiError, ApiGateway, EventStream};
+use d2rmm_agent_core::secret::Secret;
+
+use crate::http::api_client::ApiClient;
+use crate::http::sse::valid_last_event_id;
+use crate::http::sse_stream::SseEventStream;
+use crate::http::translate::{
     assignment_from_contract, heartbeat_from_presence, issued_code_from_contract,
     observation_to_contract,
 };
-use crate::messages::{Assignment, GameNameObservation, IssuedCode, Presence};
-use crate::ports::{ApiError, ApiGateway, EventStream};
-use crate::secret::Secret;
 
 /// The agent's API calls over HTTP. The client is built by the app and already configured (HTTPS, timeouts).
 #[derive(Debug, Clone)]
@@ -64,10 +67,12 @@ impl ApiGateway for HttpGateway {
         token: &Secret,
         last_event_id: Option<&str>,
     ) -> Result<Box<dyn EventStream>, ApiError> {
-        let response = self.api.open_stream(token, last_event_id).await?;
+        // A resume id the protocol limits refuse is not sent: the stream starts from the beginning instead.
+        let resume = last_event_id.filter(|id| valid_last_event_id(id));
+        let response = self.api.open_stream(token, resume).await?;
         Ok(Box::new(SseEventStream::new(
             response,
-            last_event_id.map(str::to_string),
+            resume.map(str::to_string),
         )))
     }
 }

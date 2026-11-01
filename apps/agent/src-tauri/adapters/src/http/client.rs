@@ -1,10 +1,11 @@
-//! The HTTP client the app builds for the core (design.md § API client; AGS-12, AGS-23). The core receives it already
+//! The HTTP client the app builds for the gateway (design.md § API client; AGS-12, AGS-23). The gateway receives it already
 //! configured: HTTPS only outside a debug build's loopback, no redirects, and the timeouts of design.md.
 
 use std::time::Duration;
 
-use d2rmm_agent_core::config::ApiBase;
 use reqwest::{Client, redirect::Policy};
+
+use crate::config::ApiBase;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -22,7 +23,7 @@ pub fn client(base: &ApiBase) -> reqwest::Result<Client> {
 
 #[cfg(test)]
 mod tests {
-    use d2rmm_agent_core::config::{AllowLoopbackHttp, ApiBase};
+    use crate::config::{AllowLoopbackHttp, ApiBase};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
 

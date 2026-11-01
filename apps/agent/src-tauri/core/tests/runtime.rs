@@ -6,6 +6,7 @@ mod support;
 
 use std::time::Duration;
 
+use d2rmm_agent_adapters::http::gateway::HttpGateway;
 use d2rmm_agent_core::ports::Rgba;
 use d2rmm_agent_core::runtime::{Handle, Runtime};
 use d2rmm_agent_core::view::PairingView;
@@ -13,7 +14,7 @@ use support::capture::Capture;
 use support::fake_api::{Answer, CLAIM_SECRET, Operation, TOKEN};
 use support::harness::{Harness, advance, count, settle, until};
 
-fn start(h: &Harness) -> Handle {
+fn start(h: &Harness) -> Handle<HttpGateway> {
     Runtime::start(&h.config(), h.sink.clone(), h.groups())
 }
 

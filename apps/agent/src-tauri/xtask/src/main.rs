@@ -1,4 +1,4 @@
-//! `cargo run -p xtask -- contracts` regenerates `core/src/contracts/generated.rs`;
+//! `cargo run -p xtask -- contracts` regenerates `adapters/src/contracts/generated.rs`;
 //! `cargo run -p xtask -- draw-fixture` writes the F0 reference image of the game name (AD-047).
 
 use std::error::Error;

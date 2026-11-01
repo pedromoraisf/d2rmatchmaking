@@ -2,7 +2,7 @@
 
 mod support;
 
-use d2rmm_agent_core::telemetry::{Mode, init, traceparent_for};
+use d2rmm_agent_adapters::telemetry::{Mode, init, traceparent_for};
 use support::capture::Capture;
 
 fn is_hex(text: &str) -> bool {

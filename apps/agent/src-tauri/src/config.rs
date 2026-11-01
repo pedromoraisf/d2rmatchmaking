@@ -1,8 +1,9 @@
 //! The app's build-time configuration (design.md § Config; AGS-04, AGS-12). The API base URL is fixed at compile time and
-//! the version comes from `tauri.conf.json` (`package_info`), never from `CARGO_PKG_VERSION`. Core receives a validated
-//! `ApiBase`; the provider URL lives only in this crate.
+//! the version comes from `tauri.conf.json` (`package_info`), never from `CARGO_PKG_VERSION`. The HTTP gateway receives a
+//! validated `ApiBase`; the provider URL lives only in this crate.
 
-use d2rmm_agent_core::config::{AllowLoopbackHttp, ApiBase, ApiBaseError, Config};
+use d2rmm_agent_adapters::config::{AllowLoopbackHttp, ApiBase, ApiBaseError};
+use d2rmm_agent_core::config::Config;
 
 /// Why the app refuses to start.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -31,18 +32,17 @@ pub fn api_base(raw: Option<&str>, release: bool) -> Result<ApiBase, ConfigError
     Ok(ApiBase::parse(raw, loopback)?)
 }
 
-/// What the core receives at start: the version read from the package info and the validated API base.
-pub fn core_config(version: &str, api_base: ApiBase) -> Config {
+/// What the core receives at start: the version read from the package info.
+pub fn core_config(version: &str) -> Config {
     Config {
         version: version.to_string(),
-        api_base,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{ConfigError, api_base, core_config};
-    use d2rmm_agent_core::config::ApiBaseError;
+    use d2rmm_agent_adapters::config::ApiBaseError;
 
     #[test]
     fn release_requires_https_api_base() {
@@ -85,9 +85,7 @@ mod tests {
 
     #[test]
     fn core_config_carries_the_given_version() {
-        let base = api_base(Some("https://api.example.test"), true).expect("https is accepted");
-        let config = core_config("1.2.3", base.clone());
+        let config = core_config("1.2.3");
         assert_eq!(config.version, "1.2.3");
-        assert_eq!(config.api_base, base);
     }
 }

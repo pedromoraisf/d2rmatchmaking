@@ -2,15 +2,15 @@
 //! through the port. The test lives in this extra target, not under `tests/`: the preservation guard (T9) keeps the moved
 //! tests byte-identical, and new asserting tests are kept out of its set. The fake API is the one the moved tests use.
 
-#[path = "../tests/support/mod.rs"]
+#[path = "../../core/tests/support/mod.rs"]
 mod support;
 
 use std::num::NonZeroU64;
 
 use chrono::{DateTime, Utc};
-use d2rmm_agent_core::api_client::ApiClient;
-use d2rmm_agent_core::config::{AllowLoopbackHttp, ApiBase, Config};
-use d2rmm_agent_core::gateway::http::HttpGateway;
+use d2rmm_agent_adapters::config::{AllowLoopbackHttp, ApiBase};
+use d2rmm_agent_adapters::http::api_client::ApiClient;
+use d2rmm_agent_adapters::http::gateway::HttpGateway;
 use d2rmm_agent_core::messages::{GameNameObservation, Presence, Screen};
 use d2rmm_agent_core::ports::ApiGateway;
 use d2rmm_agent_core::secret::Secret;
@@ -23,11 +23,7 @@ const ROOM: &str = "7d9f2c1e-0000-4000-8000-000000000001";
 async fn gateway_for(api: &FakeApi) -> HttpGateway {
     let api_base =
         ApiBase::parse(&api.base_url(), AllowLoopbackHttp::Yes).expect("the fake's loopback base");
-    let config = Config {
-        version: VERSION.to_string(),
-        api_base,
-    };
-    HttpGateway::new(ApiClient::new(&config, reqwest::Client::new()))
+    HttpGateway::new(ApiClient::new(VERSION, &api_base, reqwest::Client::new()))
 }
 
 fn observation() -> GameNameObservation {

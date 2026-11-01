@@ -12,10 +12,9 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 use tracing::Instrument;
 
-use crate::api_client::ApiError;
 use crate::context::Context;
 use crate::messages::IssuedCode;
-use crate::ports::{ApiGateway, StoreError};
+use crate::ports::{ApiError, ApiGateway, StoreError};
 use crate::secret::Secret;
 use crate::view::PairingView;
 
@@ -63,7 +62,10 @@ enum Unused {
 }
 
 /// Runs for the life of the agent: pairs while the agent holds no token, then waits for the next 401.
-pub async fn run(ctx: Arc<Context>, mut commands: mpsc::Receiver<Command>) {
+pub async fn run<G: ApiGateway + Send + Sync + 'static>(
+    ctx: Arc<Context<G>>,
+    mut commands: mpsc::Receiver<Command>,
+) {
     if ctx.tokens.load().is_some() {
         ctx.paired.send_replace(true);
     }
@@ -74,12 +76,15 @@ pub async fn run(ctx: Arc<Context>, mut commands: mpsc::Receiver<Command>) {
     }
 }
 
-fn unpaired_and_allowed(ctx: &Context) -> bool {
+fn unpaired_and_allowed<G>(ctx: &Context<G>) -> bool {
     !*ctx.paired.borrow() && ctx.pairing_allowed()
 }
 
 /// One pairing attempt: codes follow each other until one is claimed, the update gate closes, or the loop pauses.
-async fn pair_once(ctx: &Context, commands: &mut mpsc::Receiver<Command>) -> Finished {
+async fn pair_once<G: ApiGateway + Send + Sync>(
+    ctx: &Context<G>,
+    commands: &mut mpsc::Receiver<Command>,
+) -> Finished {
     let mut unused: u8 = 0;
     loop {
         let Some(code) = obtain_code(ctx).await else {
@@ -100,7 +105,7 @@ async fn pair_once(ctx: &Context, commands: &mut mpsc::Receiver<Command>) -> Fin
 }
 
 /// Requests a code, waiting out unreachable and rate-limited answers. `None` when a 426 interrupts it.
-async fn obtain_code(ctx: &Context) -> Option<IssuedCode> {
+async fn obtain_code<G: ApiGateway + Send + Sync>(ctx: &Context<G>) -> Option<IssuedCode> {
     loop {
         if !ctx.pairing_allowed() {
             return None;
@@ -139,7 +144,11 @@ async fn obtain_code(ctx: &Context) -> Option<IssuedCode> {
 }
 
 /// Shows one code and claims it until it is paired, expires or the attempt must restart.
-async fn show_code(ctx: &Context, response: IssuedCode, unused: &mut u8) -> Shown {
+async fn show_code<G: ApiGateway + Send + Sync>(
+    ctx: &Context<G>,
+    response: IssuedCode,
+    unused: &mut u8,
+) -> Shown {
     let code = response.code.as_str().to_string();
     let secret = response.claim_secret;
     let remaining = remaining_until(response.expires_at, ctx.clock.now_utc());
@@ -226,7 +235,7 @@ async fn show_code(ctx: &Context, response: IssuedCode, unused: &mut u8) -> Show
 }
 
 /// Writes the token through the store. A refused write shows "Could not save the pairing" and asks for a new code.
-fn store_token(ctx: &Context, token: &Secret) -> Shown {
+fn store_token<G>(ctx: &Context<G>, token: &Secret) -> Shown {
     match ctx.tokens.save(token) {
         Ok(()) => {
             ctx.paired.send_replace(true);
@@ -242,7 +251,7 @@ fn store_token(ctx: &Context, token: &Secret) -> Shown {
 
 /// Waits for the player's "Get a new code". Stale commands from before the pause are dropped first. `false` when a
 /// 426 interrupts the pause.
-async fn pause(ctx: &Context, commands: &mut mpsc::Receiver<Command>) -> bool {
+async fn pause<G: Send + Sync>(ctx: &Context<G>, commands: &mut mpsc::Receiver<Command>) -> bool {
     while commands.try_recv().is_ok() {}
     ctx.hub.set_pairing(PairingView::Paused);
     let mut blocked = ctx.update_required.subscribe();
@@ -324,7 +333,7 @@ mod tests {
         CLAIM_INTERVAL, UNREACHABLE_RETRY, Unused, minutes_left, must_pause, rate_limit_wait,
         unused_after, unused_after_claim_error,
     };
-    use crate::api_client::ApiError;
+    use crate::ports::ApiError;
 
     #[test]
     fn minutes_left_rounds_up_at_every_offset() {

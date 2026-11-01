@@ -5,12 +5,13 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use d2rmm_agent_core::api_client::ApiClient;
-use d2rmm_agent_core::config::{AllowLoopbackHttp, ApiBase, Config};
+use d2rmm_agent_adapters::config::{AllowLoopbackHttp, ApiBase};
+use d2rmm_agent_adapters::http::api_client::ApiClient;
+use d2rmm_agent_adapters::http::gateway::HttpGateway;
+use d2rmm_agent_core::config::Config;
 use d2rmm_agent_core::context::{
     Context, Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
 };
-use d2rmm_agent_core::gateway::http::HttpGateway;
 use d2rmm_agent_core::pairing::{self, Command};
 use d2rmm_agent_core::ports::{
     IdGenerator, PausedWallClock, ProcessSource, SequentialIds, TextReader, TokenStore, WallClock,
@@ -35,9 +36,9 @@ pub struct Harness {
     pub updater: Arc<FakeUpdater>,
     pub sink: Arc<RecordingSink>,
     /// The probe the assertions read the agent through.
-    pub ctx: Probe,
+    pub ctx: Probe<HttpGateway>,
     /// The context the loops run on: a test starts the loops it needs on it.
-    pub context: Arc<Context>,
+    pub context: Arc<Context<HttpGateway>>,
     _io: RealIo,
 }
 
@@ -51,12 +52,9 @@ impl Harness {
         let reader = Arc::new(FakeReader::reading("mmbaalh-12"));
         let updater = Arc::new(FakeUpdater::default());
         let sink = Arc::new(RecordingSink::default());
-        let config = Config {
-            version: VERSION.to_string(),
-            api_base: ApiBase::parse(&api.base_url(), AllowLoopbackHttp::Yes)
-                .expect("the fake's loopback base"),
-        };
-        let groups = fake_groups(&config, &tokens, &processes, &reader, &updater);
+        let api_base = ApiBase::parse(&api.base_url(), AllowLoopbackHttp::Yes)
+            .expect("the fake's loopback base");
+        let groups = fake_groups(&api_base, &tokens, &processes, &reader, &updater);
         let context = Context::from_groups(VERSION.to_string(), sink.clone(), groups);
         let ctx = Probe::over(Arc::clone(&context));
         Self {
@@ -72,19 +70,23 @@ impl Harness {
         }
     }
 
-    /// The configuration a `Runtime` needs, pointing at this harness's fake API.
+    /// The configuration a `Runtime` needs: the agent version. The API base travels with the gateway (`api_base`).
     pub fn config(&self) -> Config {
         Config {
             version: VERSION.to_string(),
-            api_base: ApiBase::parse(&self.api.base_url(), AllowLoopbackHttp::Yes)
-                .expect("the fake's loopback base"),
         }
+    }
+
+    /// The API base of this harness's fake API.
+    pub fn api_base(&self) -> ApiBase {
+        ApiBase::parse(&self.api.base_url(), AllowLoopbackHttp::Yes)
+            .expect("the fake's loopback base")
     }
 
     /// The five port groups a `Runtime` needs, over the same fakes this harness inspects.
     pub fn groups(&self) -> Groups<HttpGateway> {
         fake_groups(
-            &self.config(),
+            &self.api_base(),
             &self.tokens,
             &self.processes,
             &self.reader,
@@ -103,14 +105,15 @@ impl Harness {
 /// The five port groups over the fakes: an HTTP gateway to the fake API, the same stores and reader on every call, and a
 /// fresh id generator and clock that start at the fake's wall start.
 fn fake_groups(
-    config: &Config,
+    api_base: &ApiBase,
     tokens: &Arc<FakeTokenStore>,
     processes: &Arc<FakeProcesses>,
     reader: &Arc<FakeReader>,
     updater: &Arc<FakeUpdater>,
 ) -> Groups<HttpGateway> {
     let gateway = Arc::new(HttpGateway::new(ApiClient::new(
-        config,
+        VERSION,
+        api_base,
         reqwest::Client::new(),
     )));
     let tokens_port: Arc<dyn TokenStore + Send + Sync> = Arc::clone(tokens) as _;

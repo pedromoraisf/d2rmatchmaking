@@ -8,7 +8,7 @@ use xtask::{CONTRACTS, generate, generated_path, schema_dir, schema_file_names};
 fn contracts_are_current() {
     let generated = generate(&schema_dir()).expect("the schemas generate");
     let committed = fs::read_to_string(generated_path())
-        .expect("core/src/contracts/generated.rs is committed")
+        .expect("adapters/src/contracts/generated.rs is committed")
         .replace("\r\n", "\n");
     assert!(
         generated == committed,

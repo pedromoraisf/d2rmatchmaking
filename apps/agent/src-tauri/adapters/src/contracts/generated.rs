@@ -318,8 +318,8 @@ impl<'de> ::serde::Deserialize<'de> for AssignmentRoomId {
 #[serde(deny_unknown_fields)]
 pub struct ClaimRequest {
     #[serde(rename = "claimSecret")]
-    #[serde(serialize_with = "crate::secret::expose")]
-    pub claim_secret: crate::secret::Secret,
+    #[serde(serialize_with = "d2rmm_agent_core::secret::expose")]
+    pub claim_secret: d2rmm_agent_core::secret::Secret,
 }
 ///`ClaimRequestClaimSecret`
 #[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -382,8 +382,8 @@ impl<'de> ::serde::Deserialize<'de> for ClaimRequestClaimSecret {
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct ClaimResponse {
-    #[serde(serialize_with = "crate::secret::expose")]
-    pub token: crate::secret::Secret,
+    #[serde(serialize_with = "d2rmm_agent_core::secret::expose")]
+    pub token: d2rmm_agent_core::secret::Secret,
 }
 ///`ClaimResponseToken`
 #[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -1087,8 +1087,8 @@ impl<'de> ::serde::Deserialize<'de> for ObservationValue {
 #[serde(deny_unknown_fields)]
 pub struct PairingCodeResponse {
     #[serde(rename = "claimSecret")]
-    #[serde(serialize_with = "crate::secret::expose")]
-    pub claim_secret: crate::secret::Secret,
+    #[serde(serialize_with = "d2rmm_agent_core::secret::expose")]
+    pub claim_secret: d2rmm_agent_core::secret::Secret,
     pub code: PairingCodeResponseCode,
     #[serde(rename = "expiresAt")]
     pub expires_at: ::chrono::DateTime<::chrono::offset::Utc>,

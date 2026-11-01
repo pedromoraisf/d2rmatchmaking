@@ -7,11 +7,11 @@ use std::future::Future;
 use std::sync::Once;
 use std::time::Duration;
 
-use d2rmm_agent_core::api_client::{ApiClient, ApiError, authorization_value};
-use d2rmm_agent_core::config::{AllowLoopbackHttp, ApiBase, Config};
-use d2rmm_agent_core::contracts::generated::{ClaimRequest, Heartbeat, Observation};
+use d2rmm_agent_adapters::config::{AllowLoopbackHttp, ApiBase};
+use d2rmm_agent_adapters::contracts::generated::{ClaimRequest, Heartbeat, Observation};
+use d2rmm_agent_adapters::http::api_client::{ApiClient, ApiError, authorization_value};
+use d2rmm_agent_adapters::telemetry::{Mode, init, traceparent_for};
 use d2rmm_agent_core::secret::Secret;
-use d2rmm_agent_core::telemetry::{Mode, init, traceparent_for};
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use serde_json::{Value, json};
@@ -33,11 +33,7 @@ async fn client_for(api: &FakeApi) -> ApiClient {
     install_telemetry();
     let api_base =
         ApiBase::parse(&api.base_url(), AllowLoopbackHttp::Yes).expect("the fake's loopback base");
-    let config = Config {
-        version: VERSION.to_string(),
-        api_base,
-    };
-    ApiClient::new(&config, reqwest::Client::new())
+    ApiClient::new(VERSION, &api_base, reqwest::Client::new())
 }
 
 fn token() -> Secret {

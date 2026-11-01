@@ -31,7 +31,7 @@ impl<T: UpdateChecker + Send + Sync> Updater for T {
 }
 
 /// Checks at start, every 6 h and after each 426, for the life of the agent.
-pub async fn run(ctx: Arc<Context>) {
+pub async fn run<G: Send + Sync + 'static>(ctx: Arc<Context<G>>) {
     loop {
         let started = Instant::now();
         check_once(&ctx)
@@ -46,7 +46,7 @@ pub async fn run(ctx: Arc<Context>) {
 }
 
 /// One check and what it shows. "Update required" takes precedence while a 426 is pending.
-async fn check_once(ctx: &Context) {
+async fn check_once<G: Send + Sync>(ctx: &Context<G>) {
     let outcome = ctx.updater.check_boxed().await;
     let required = *ctx.update_required.borrow();
     let (view, required_now) = view_after(&outcome, required);

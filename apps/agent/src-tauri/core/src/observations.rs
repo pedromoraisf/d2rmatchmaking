@@ -7,10 +7,9 @@ use std::time::Duration;
 use tokio::time::Instant;
 use tracing::Instrument;
 
-use crate::api_client::ApiError;
 use crate::context::Context;
 use crate::messages::GameNameObservation;
-use crate::ports::ApiGateway;
+use crate::ports::{ApiError, ApiGateway};
 
 /// The waits between attempts (AD-051): five attempts in all.
 pub const RETRY_DELAYS: [Duration; 4] = [
@@ -28,7 +27,10 @@ pub enum SendOutcome {
 }
 
 /// Posts `observation` to its room, retrying as AD-051 sets out. The observation is not changed between attempts.
-pub async fn send(ctx: &Context, observation: &GameNameObservation) -> SendOutcome {
+pub async fn send<G: ApiGateway + Send + Sync>(
+    ctx: &Context<G>,
+    observation: &GameNameObservation,
+) -> SendOutcome {
     let epoch = ctx.epoch();
     let Some(token) = ctx.tokens.load() else {
         ctx.count_dropped_observation();
@@ -65,7 +67,7 @@ pub async fn send(ctx: &Context, observation: &GameNameObservation) -> SendOutco
     }
 }
 
-fn drop_observation(ctx: &Context) -> SendOutcome {
+fn drop_observation<G>(ctx: &Context<G>) -> SendOutcome {
     ctx.count_dropped_observation();
     SendOutcome::Dropped
 }

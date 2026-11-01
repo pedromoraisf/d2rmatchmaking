@@ -1,6 +1,6 @@
 //! Contract generator: `typify` over the agent JSON Schemas of `packages/contracts/json-schema/` (AGS-03).
 //!
-//! `generate` returns the source of `core/src/contracts/generated.rs`. The committed file must equal that output;
+//! `generate` returns the source of `adapters/src/contracts/generated.rs`. The committed file must equal that output;
 //! `tests/contracts_are_current.rs` fails when they differ. Run `cargo run -p xtask -- contracts` to regenerate.
 
 use std::error::Error;
@@ -23,7 +23,7 @@ pub const CONTRACTS: &[(&str, &str)] = &[
     ("agent-event-room-assigned.json", "RoomAssignedEvent"),
 ];
 
-/// Fields holding a claim secret or the token. The generator types them as `crate::secret::Secret` (AGS-09).
+/// Fields holding a claim secret or the token. The generator types them as `d2rmm_agent_core::secret::Secret` (AGS-09).
 pub const SECRET_FIELDS: &[(&str, &str)] = &[
     ("PairingCodeResponse", "claim_secret"),
     ("ClaimRequest", "claim_secret"),
@@ -40,9 +40,9 @@ pub fn schema_dir() -> PathBuf {
     repo_root().join("packages/contracts/json-schema")
 }
 
-/// The committed generator output in the core crate.
+/// The committed generator output in the adapters crate.
 pub fn generated_path() -> PathBuf {
-    repo_root().join("apps/agent/src-tauri/core/src/contracts/generated.rs")
+    repo_root().join("apps/agent/src-tauri/adapters/src/contracts/generated.rs")
 }
 
 /// Generates the Rust source of the contract types from the schemas in `schema_dir`.
@@ -113,10 +113,10 @@ fn retype_secret_field(
                 .is_some_and(|ident| ident == field_name)
         })
         .ok_or_else(|| format!("field {struct_name}.{field_name} not found"))?;
-    field.ty = parse_quote!(crate::secret::Secret);
+    field.ty = parse_quote!(d2rmm_agent_core::secret::Secret);
     field
         .attrs
-        .push(parse_quote!(#[serde(serialize_with = "crate::secret::expose")]));
+        .push(parse_quote!(#[serde(serialize_with = "d2rmm_agent_core::secret::expose")]));
     Ok(())
 }
 

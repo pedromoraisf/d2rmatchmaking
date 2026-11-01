@@ -643,6 +643,7 @@ name = "d2rmm-agent"
 version = "0.0.0"
 dependencies = [
  "chrono",
+ "d2rmm-agent-adapters",
  "d2rmm-agent-core",
  "image",
  "keyring",
@@ -689,6 +690,7 @@ version = "0.0.0"
 dependencies = [
  "axum",
  "chrono",
+ "d2rmm-agent-adapters",
  "jsonschema",
  "opentelemetry",
  "opentelemetry_sdk",
