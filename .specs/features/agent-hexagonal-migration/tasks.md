@@ -1199,8 +1199,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Both tests pass, assertions unchanged; preservation test passes
-- [ ] Rust adapters gate passes
+- [x] Both tests pass, assertions unchanged; preservation test passes
+- [x] Rust adapters gate passes
 
 **Tests**: integration
 **Gate**: Rust adapters
@@ -1340,6 +1340,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - T54 done (commit carries `Task: T54`): `.github/workflows/nightly.yml` `agent-mutation` runs `cargo mutants -- --lib` once per crate (`d2rmm-agent-core`, `d2rmm-agent-domain`, `d2rmm-agent-adapters`), each to its own report directory; the artifact uploads `reports/mutation`. The core line stays first, so the existing test `the nightly cargo-mutants run targets the agent core and its unit tests only` reads the same line and passes unedited. The two new tests are in `scripts/test/agent-mutation-scope.test.mjs`. Gate `Harness` passed on attempt 1 (191 tests).
 - T55 done (commit carries `Task: T55`): `scripts/lib/mutation-scope.mjs` names no crate, so the three agent crates were already accepted with `-p <crate> --lib`; the scope check needed no code change. The new test `rust: the three agent crates are proved by their --lib unit tests, never their tests/ directory` in `scripts/test/mutation-scope.test.mjs` pins the accepted `--lib` proofs for `d2rmm-agent-domain`, `d2rmm-agent-core` and `d2rmm-agent-adapters`, and refuses `--tests` and `--test stream_limits` for each (the fixture that runs `tests/` per mutant). Gate `Harness` (`node scripts/mutation-scope-check.mjs && pnpm test:harness`) passed on attempt 1 (192 tests); `mutation-scope: OK`.
 - T56 done (commit carries `Task: T56`): the root `apps/agent/src-tauri/Cargo.toml` `[workspace]` gains `default-members = [".", "core", "domain", "adapters", "xtask"]`. The root is a package, so cargo's default checked the app crate alone; `scripts/agent/win-check.mjs` (`cargo clippy` without `--workspace`) and the CI `agent` job (`cargo clippy`, `cargo nextest run` without `--workspace`) ran only the app crate. With `default-members` the same commands cover every crate, and no sensor file changed (`win-check.mjs`, `ci.yml` and their pinned harness tests are untouched). Deviation for the orchestrator, to confirm: the mechanism is the manifest, not the commands the task names; the brief forbids changing sensors. Consequence to know: the CI `agent` job (windows-latest) now also runs the core, domain and adapters tests (`cargo nextest run --locked`), which before ran only on Linux in the workspace gates. Local proof is the Windows clippy (it checks all four crates now). `cargo deny check bans` (`bans ok`) and the harness (192) pass. Gate `Rust Windows` + `cargo deny check bans` + `Harness` passed on attempt 1 (one chained command).
+- T57 done (commit carries `Task: T57`, the tick and this note only): no code changed. `loop_spans_are_named` is in `adapters/tests/runtime.rs` as the plan says; `each_operation_opens_its_child_span` is in `adapters/tests/api_client.rs` (the plan's `Where` names `runtime.rs` for both; the test's location is the only difference, and the proof selects it by name). Gate `Rust adapters` (fmt, clippy `-p d2rmm-agent-adapters --all-targets`, nextest `-p d2rmm-agent-adapters`, preservation guard) passed on attempt 1 (83 adapters tests, preservation 7 of 7).
 
 **Batch 8 (execute-batch-8), complete: T42 to T47**
 
