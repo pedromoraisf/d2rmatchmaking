@@ -631,8 +631,8 @@ T29 → T30 → T31 → T32 → T33
 **Done when**:
 
 - [ ] Test `get_new_code_reaches_the_runtime` (command handler with a fake `CodeRequester`); `cargo build --locked` of the app succeeds with the UI built; the Windows `main` passes the Windows-target check
-- [ ] Gate check passes: `pnpm --filter @d2rmm/agent build && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets --all-features -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent && node scripts/agent/win-check.mjs`
-- [ ] Test count: ≥ 1 new test passes
+- [x] Gate check passes: `pnpm --filter @d2rmm/agent build && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets --all-features -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent && node scripts/agent/win-check.mjs`
+- [x] Test count: ≥ 1 new test passes
 
 **Tests**: unit
 **Gate**: quick

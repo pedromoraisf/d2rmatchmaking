@@ -26,11 +26,8 @@ pub fn parse_args(args: &[String]) -> Result<Option<PathBuf>, i32> {
 #[cfg(feature = "fixture-read")]
 mod enabled {
     use std::path::Path;
-    use std::sync::{Mutex, OnceLock};
 
-    use d2rmm_agent_core::ports::{Rgba, StateSink};
-    use d2rmm_agent_core::runtime::Handle;
-    use d2rmm_agent_core::view::AgentView;
+    use d2rmm_agent_core::ports::Rgba;
 
     /// Fires once: on the first view that shows a held room.
     #[derive(Debug, Default)]
@@ -64,40 +61,54 @@ mod enabled {
 
     /// The state sink of a fixture build. It holds the decoded frame and the runtime handle, which the app attaches
     /// once the runtime has started; a view published before that does not use up the one read.
-    pub struct FixtureSink {
-        frame: Rgba,
-        handle: OnceLock<Handle>,
-        once: Mutex<OnceWhenHeld>,
-    }
+    #[cfg(windows)]
+    mod sink {
+        use std::sync::{Arc, Mutex, OnceLock};
 
-    impl FixtureSink {
-        pub fn new(frame: Rgba) -> Self {
-            Self {
-                frame,
-                handle: OnceLock::new(),
-                once: Mutex::new(OnceWhenHeld::default()),
+        use d2rmm_agent_core::ports::{Rgba, StateSink};
+        use d2rmm_agent_core::runtime::Handle;
+        use d2rmm_agent_core::view::AgentView;
+
+        use super::OnceWhenHeld;
+
+        pub struct FixtureSink {
+            frame: Rgba,
+            handle: OnceLock<Arc<Handle>>,
+            once: Mutex<OnceWhenHeld>,
+        }
+
+        impl FixtureSink {
+            pub fn new(frame: Rgba) -> Self {
+                Self {
+                    frame,
+                    handle: OnceLock::new(),
+                    once: Mutex::new(OnceWhenHeld::default()),
+                }
+            }
+
+            /// Gives the sink the handle of the started runtime. The first attachment wins.
+            pub fn attach(&self, handle: Arc<Handle>) {
+                let _ = self.handle.set(handle);
             }
         }
 
-        /// Gives the sink the handle of the started runtime. The first attachment wins.
-        pub fn attach(&self, handle: Handle) {
-            let _ = self.handle.set(handle);
-        }
-    }
-
-    impl StateSink for FixtureSink {
-        fn publish(&self, view: AgentView) {
-            let Some(handle) = self.handle.get() else {
-                return;
-            };
-            let held = view.room.is_some();
-            if let Ok(mut once) = self.once.lock() {
-                if once.should_read(held) {
+        impl StateSink for FixtureSink {
+            fn publish(&self, view: AgentView) {
+                let Some(handle) = self.handle.get() else {
+                    return;
+                };
+                let held = view.room.is_some();
+                if let Ok(mut once) = self.once.lock()
+                    && once.should_read(held)
+                {
                     handle.read_once(self.frame.clone());
                 }
             }
         }
     }
+
+    #[cfg(windows)]
+    pub use sink::FixtureSink;
 
     #[cfg(test)]
     mod tests {
@@ -126,7 +137,7 @@ mod enabled {
     }
 }
 
-#[cfg(feature = "fixture-read")]
+#[cfg(all(feature = "fixture-read", windows))]
 pub use enabled::{FixtureSink, decode_png};
 
 #[cfg(test)]

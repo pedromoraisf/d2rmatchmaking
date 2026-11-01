@@ -1,109 +1,75 @@
-//! App entry: the Tauri shell around the agent core. Behaviour lives in d2rmm-agent-core; this crate wires the window
-//! and, from T20 on, the runtime.
+//! App entry: the Tauri shell around the agent core (design.md § App shell). On Windows it builds the real adapters and hands
+//! them to `app::run`. Elsewhere it says the agent runs on Windows only and exits with code 1 (AD-073).
 #![deny(unsafe_code)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod adapters;
+mod app;
+#[cfg(any(windows, test))]
 mod config;
-#[allow(dead_code)] // wired into main by T27
+#[cfg(any(windows, test))]
 mod fixture_read;
 
-use tauri::{Url, WebviewWindowBuilder};
+#[cfg(windows)]
+use std::sync::Arc;
 
-/// The label of the one window declared in tauri.conf.json. It is created in `setup` so its navigation is restricted.
-const MAIN_WINDOW: &str = "main";
+#[cfg(windows)]
+use d2rmm_agent_core::context::Adapters;
+#[cfg(windows)]
+use d2rmm_agent_core::ports::{ReadError, ReadText, Region, Rgba, StateSink, TextReader};
+#[cfg(windows)]
+use tauri::AppHandle;
 
-/// The window may navigate only to the bundled app (AGS-04): the custom protocol of each platform.
-fn is_app_url(url: &Url) -> bool {
-    matches!(
-        (url.scheme(), url.host_str()),
-        ("tauri", Some("localhost")) | ("http" | "https", Some("tauri.localhost"))
-    )
-}
+#[cfg(windows)]
+use adapters::system::{RandomIds, SystemClock};
+#[cfg(windows)]
+use adapters::token_store::KeyringTokenStore;
+#[cfg(windows)]
+use adapters::toolhelp::ToolhelpProcessSource;
+#[cfg(windows)]
+use adapters::updater::TauriUpdater;
+#[cfg(windows)]
+use adapters::windows_ocr::WindowsOcr;
 
-/// Asks the runtime for a new pairing code. The runtime is wired in T27; until then the command does nothing.
-#[tauri::command]
-fn get_new_code() {}
-
-/// The generated Tauri context. `generate_context!` is expanded once: a second expansion in the same test binary
-/// defines the embedded Info.plist symbol twice on macOS.
-fn app_context() -> tauri::Context<tauri::Wry> {
-    tauri::generate_context!()
-}
-
-/// Logs the location of a panic and never its payload, which can carry secrets (AGS-09).
-fn install_panic_hook() {
-    std::panic::set_hook(Box::new(|info| match info.location() {
-        Some(location) => eprintln!("agent panicked at {}:{}", location.file(), location.line()),
-        None => eprintln!("agent panicked"),
-    }));
-}
-
+#[cfg(windows)]
 fn main() {
-    install_panic_hook();
-    tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_new_code])
-        .setup(|app| {
-            let window = app
-                .config()
-                .app
-                .windows
-                .iter()
-                .find(|window| window.label == MAIN_WINDOW)
-                .ok_or("tauri.conf.json declares no main window")?;
-            WebviewWindowBuilder::from_config(&*app, window)?
-                .on_navigation(is_app_url)
-                .build()?;
-            Ok(())
-        })
-        .run(app_context())
-        .expect("error while running the agent");
+    let args: Vec<String> = std::env::args().collect();
+    app::run(&args, ports);
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn version_comes_from_package_json() {
-        let context = app_context();
-        let package: serde_json::Value =
-            serde_json::from_str(include_str!("../../package.json")).expect("package.json is JSON");
-        assert_eq!(
-            context.package_info().version.to_string(),
-            package["version"]
-                .as_str()
-                .expect("package.json has a version"),
-        );
+/// The ports of the Windows agent: the Credential Manager token, the toolhelp process names, the en-US OCR reader, the
+/// Tauri updater and the system clock and ids.
+#[cfg(windows)]
+fn ports(app: AppHandle, sink: Arc<dyn StateSink + Send + Sync>) -> Adapters {
+    let reader: Arc<dyn TextReader + Send + Sync> = match WindowsOcr::new() {
+        Ok(ocr) => Arc::new(ocr),
+        Err(_) => Arc::new(NoOcrEngine),
+    };
+    Adapters {
+        tokens: Arc::new(KeyringTokenStore::new()),
+        processes: Arc::new(ToolhelpProcessSource),
+        reader,
+        ids: Arc::new(RandomIds),
+        updater: Arc::new(TauriUpdater::new(app)),
+        clock: Arc::new(SystemClock),
+        sink,
     }
+}
 
-    #[test]
-    fn runtime_config_carries_the_package_version() {
-        let context = app_context();
-        let version = context.package_info().version.to_string();
-        let base =
-            config::api_base(Some("https://api.example.test"), true).expect("https is accepted");
-        let core_config = config::core_config(&version, base);
-        let package: serde_json::Value =
-            serde_json::from_str(include_str!("../../package.json")).expect("package.json is JSON");
-        assert_eq!(
-            core_config.version,
-            package["version"]
-                .as_str()
-                .expect("package.json has a version"),
-        );
-    }
+/// The reader of a machine without the en-US OCR engine: every read reports `EngineUnavailable`, which the core treats as
+/// "no observation" (AGS-16). It reads nothing.
+#[cfg(windows)]
+struct NoOcrEngine;
 
-    #[test]
-    fn navigation_stays_in_the_app() {
-        assert!(is_app_url(
-            &Url::parse("tauri://localhost/index.html").expect("url")
-        ));
-        assert!(is_app_url(
-            &Url::parse("http://tauri.localhost/").expect("url")
-        ));
-        assert!(!is_app_url(
-            &Url::parse("https://example.com/").expect("url")
-        ));
+#[cfg(windows)]
+impl TextReader for NoOcrEngine {
+    fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
+        Err(ReadError::EngineUnavailable)
     }
+}
+
+#[cfg(not(windows))]
+fn main() {
+    eprintln!("The D2RMatchMaking agent runs on Windows only.");
+    std::process::exit(1);
 }

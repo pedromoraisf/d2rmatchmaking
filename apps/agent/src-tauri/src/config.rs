@@ -14,14 +14,13 @@ pub enum ConfigError {
 }
 
 /// The API base URL fixed at compile time from `D2RMM_API_BASE`.
-#[allow(dead_code)] // wired into main by T27
+#[cfg(windows)]
 pub fn build_api_base() -> Option<&'static str> {
     option_env!("D2RMM_API_BASE")
 }
 
 /// Validates the API base of a build. A release build accepts only `https://`; a debug build also accepts the loopback
 /// addresses over plain HTTP, which the local runs and observability-e2e use.
-#[allow(dead_code)] // wired into main by T27
 pub fn api_base(raw: Option<&str>, release: bool) -> Result<ApiBase, ConfigError> {
     let raw = raw.ok_or(ConfigError::MissingApiBase)?;
     let loopback = if release {
@@ -33,7 +32,6 @@ pub fn api_base(raw: Option<&str>, release: bool) -> Result<ApiBase, ConfigError
 }
 
 /// What the core receives at start: the version read from the package info and the validated API base.
-#[allow(dead_code)] // wired into main by T27
 pub fn core_config(version: &str, api_base: ApiBase) -> Config {
     Config {
         version: version.to_string(),
