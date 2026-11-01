@@ -355,6 +355,19 @@ test('the app crate never mentions Probe or start_with_probe', () => {
   assert.deepEqual(appProbeViolations(root), []);
 });
 
+// The app crate builds the HTTP client through the adapters and holds no reqwest of its own (ADR 027, AHM-22).
+export const appReqwestViolations = (base) => {
+  const manifest = manifestOf(base, 'app');
+  if (manifest === undefined) return ['the app manifest is missing'];
+  return dependencyNames(manifest)
+    .filter((name) => startsWithAny(name, ['reqwest']))
+    .map((name) => `the app crate depends on ${name}`);
+};
+
+test('the app crate never depends on reqwest', () => {
+  assert.deepEqual(appReqwestViolations(root), []);
+});
+
 // The docs state the layers: AGENTS.md and the cursor rule name the three agent crates and the direction of dependency
 // (AHM-06, ADR 027). A doc that lacks either is a violation.
 const LAYER_CRATES = [CRATE_NAME.domain, CRATE_NAME.core, CRATE_NAME.adapters];
@@ -474,6 +487,11 @@ const FIXTURES = [
     name: 'core-adapters',
     check: () => onlyAppBuildsViolations(fixtureBase('core-adapters')),
     expect: /core\/Cargo\.toml depends on d2rmm-agent-adapters, which only the app crate may build/,
+  },
+  {
+    name: 'app-reqwest',
+    check: () => appReqwestViolations(fixtureBase('app-reqwest')),
+    expect: /the app crate depends on reqwest/,
   },
   {
     name: 'app-probe',
