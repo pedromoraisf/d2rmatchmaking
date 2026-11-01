@@ -747,9 +747,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] `agent-source-rules.test.mjs`: the mutants scope lists the seven core modules (test `mutation covers the core rule modules`)
-- [ ] Gate check passes: `pnpm test:harness`
-- [ ] Test count: ≥ 1 new harness test passes
+- [x] `agent-source-rules.test.mjs`: the mutants scope lists the seven core modules (test `mutation covers the core rule modules`)
+- [x] Gate check passes: `pnpm test:harness`
+- [x] Test count: ≥ 1 new harness test passes
 
 **Tests**: unit
 **Gate**: quick
