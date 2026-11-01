@@ -1,7 +1,7 @@
 # ADR 026 — Mutation testing runs against unit tests only
 
-**Status**: Proposed
-**Date**: 2026-11-01
+**Status**: Accepted
+**Date**: 2026-11-01 (accepted 2026-11-01 by the maintainer: "Aceito")
 **Deciders**: maintainer
 **Supersedes**: none (refines ADR 014)
 
@@ -46,8 +46,8 @@ not the mutation.
   `.specs/features/*/mutations.json` and is part of `pnpm specs:check` (and therefore of `pnpm check` and CI).
 - The PreToolUse gate refuses `mutate.py --spec <file>` and `check_proofs.py --mutations <file>` when a proof in the
   file is not a unit test, or when the spec comes from stdin. The reason names the offending mutation.
-- `cargo-mutants` on the agent core is configured with `-p d2rmm-agent-core` and `--lib` for the same reason; the
-  agent crate is not on `phase/F0` yet, so that configuration is a task of the `agent-skeleton` migration.
+- `cargo-mutants` on the agent core runs with `--package d2rmm-agent-core -- --lib` (`.github/workflows/nightly.yml`,
+  job `agent-mutation`), pinned by a harness test.
 - The Verifier writes `mutations.json` under this rule; an exact-name filter (`-E 'test(name)'`) is encouraged so a
   run executes one test, not the file.
 
