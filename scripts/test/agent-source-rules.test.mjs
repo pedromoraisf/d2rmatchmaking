@@ -181,6 +181,28 @@ test('the fixture-read rule rejects a default feature', () => {
   );
 });
 
+test('the AGS-01 rule rejects a [features] table in core', () => {
+  const manifest = readText(
+    'scripts/test/fixtures/agent-rules/core-features-table/apps/agent/src-tauri/core/Cargo.toml',
+  );
+  assert.match(manifest, CORE_FEATURES_TABLE);
+});
+
+test('the AGS-01 rule rejects an optional dependency in core', () => {
+  const manifest = readText(
+    'scripts/test/fixtures/agent-rules/core-optional-dependency/apps/agent/src-tauri/core/Cargo.toml',
+  );
+  assert.match(manifest, OPTIONAL_DEPENDENCY);
+  assert.doesNotMatch(manifest, CORE_FEATURES_TABLE, 'this fixture is rejected by the optional rule alone');
+});
+
+test('the AGS-01 rule accepts dependency feature lists', () => {
+  const manifest = readText(`${agentTauri}/core/Cargo.toml`);
+  assert.match(manifest, /features\s*=/, 'core lists features on its dependencies, which AGS-01 allows');
+  assert.doesNotMatch(manifest, CORE_FEATURES_TABLE);
+  assert.doesNotMatch(manifest, OPTIONAL_DEPENDENCY);
+});
+
 test('tauri.conf.json keeps the hardened shell', () => {
   const conf = readJson(`${agentTauri}/tauri.conf.json`);
   assert.equal(
@@ -210,10 +232,20 @@ test('the window gets only listen, unlisten and get_new_code', () => {
   );
 });
 
+// AGS-01: core declares no Cargo features. A `features = [...]` list on a dependency is not a feature of core; a
+// `[features]` table or an `optional = true` dependency (an implicit feature) is.
+const CORE_FEATURES_TABLE = /^\s*\[features\]/m;
+const OPTIONAL_DEPENDENCY = /\boptional\s*=\s*true\b/;
+
 test('core has no tauri dependency', () => {
   const manifest = readText(`${agentTauri}/core/Cargo.toml`);
   assert.doesNotMatch(manifest, /^\s*tauri[\w-]*\s*[=.]/m, 'core/Cargo.toml names no tauri crate');
-  assert.doesNotMatch(manifest, /features\s*=/, 'core declares no Cargo features (AGS-01)');
+  assert.doesNotMatch(manifest, CORE_FEATURES_TABLE, 'core/Cargo.toml has no [features] table (AGS-01)');
+  assert.doesNotMatch(
+    manifest,
+    OPTIONAL_DEPENDENCY,
+    'core/Cargo.toml has no optional dependency, an implicit feature (AGS-01)',
+  );
   for (const file of ['core/src/lib.rs']) {
     assert.doesNotMatch(readText(`${agentTauri}/${file}`), /\btauri\b/, `${file} does not use tauri`);
   }
