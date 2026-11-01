@@ -12,6 +12,7 @@ publish = false
 description = "D2R Match Making desktop agent (Tauri 2 app shell)."
 
 [dependencies]
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }
 d2rmm-agent-core = { path = "core" }
 reqwest = { version = "0.13", features = ["json", "stream"] }
 tauri = "2"
@@ -20,6 +21,10 @@ thiserror = "2"
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
 windows = { version = "0.62", features = ["Foundation", "Globalization", "Graphics_Imaging", "Media_Ocr", "Storage_Streams", "Win32_Foundation", "Win32_System_Diagnostics_ToolHelp"] }
+
+[features]
+# The F0 fixture-read trigger (AGS-33, AD-057). Never a default feature; release-agent.yml never enables it.
+fixture-read = ["dep:image"]
 
 [build-dependencies]
 tauri-build = "2"

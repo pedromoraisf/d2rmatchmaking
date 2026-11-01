@@ -593,9 +593,9 @@ T29 → T30 → T31 → T32 → T33
 
 **Done when**:
 
-- [ ] Test `flag_rejected_without_feature` (`cfg(not(feature = "fixture-read"))`): parsing `--read-fixture x` returns exit code 2; test `fixture_read_reads_once_with_assignment` (`cfg(feature = "fixture-read")`) with fakes
-- [ ] Gate check passes: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent --features fixture-read && pnpm test:harness`
-- [ ] Test count: 2 new tests pass (one per feature set)
+- [x] Test `flag_rejected_without_feature` (`cfg(not(feature = "fixture-read"))`): parsing `--read-fixture x` returns exit code 2; test `fixture_read_reads_once_with_assignment` (`cfg(feature = "fixture-read")`) with fakes
+- [x] Gate check passes: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent --features fixture-read && pnpm test:harness`
+- [x] Test count: 2 new tests pass (one per feature set)
 
 **Tests**: unit
 **Gate**: quick

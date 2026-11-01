@@ -5,6 +5,8 @@
 
 mod adapters;
 mod config;
+#[allow(dead_code)] // wired into main by T27
+mod fixture_read;
 
 use tauri::{Url, WebviewWindowBuilder};
 
