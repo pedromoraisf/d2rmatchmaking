@@ -55,6 +55,13 @@ enum Shown {
     Interrupted,
 }
 
+/// Why a shown code ended without a token: it expired (or was answered 410), or its claim was refused as unauthorized.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Unused {
+    Expired,
+    ClaimUnauthorized,
+}
+
 /// Runs for the life of the agent: pairs while the agent holds no token, then waits for the next 401.
 pub async fn run(ctx: Arc<Context>, mut commands: mpsc::Receiver<Command>) {
     if ctx.tokens.load().is_some() {
@@ -83,7 +90,7 @@ async fn pair_once(ctx: &Context, commands: &mut mpsc::Receiver<Command>) -> Fin
             Shown::Interrupted => return Finished::Interrupted,
             Shown::Expired | Shown::Restart => {}
         }
-        if unused >= UNUSED_LIMIT {
+        if must_pause(unused) {
             if !pause(ctx, commands).await {
                 return Finished::Interrupted;
             }
@@ -103,7 +110,7 @@ async fn obtain_code(ctx: &Context) -> Option<PairingCodeResponse> {
             Ok(code) => return Some(code),
             Err(ApiError::RateLimited { retry_after }) => {
                 ctx.hub.set_pairing(PairingView::RateLimited);
-                let wait = retry_after.unwrap_or(RATE_LIMIT_DEFAULT);
+                let wait = rate_limit_wait(retry_after);
                 if !ctx
                     .sleep_while_allowed(Instant::now() + wait, Context::pairing_allowed)
                     .await
@@ -148,7 +155,7 @@ async fn show_code(ctx: &Context, response: PairingCodeResponse, unused: &mut u8
     loop {
         let now = Instant::now();
         if now >= deadline {
-            *unused = unused.saturating_add(1);
+            *unused = unused_after(*unused, Unused::Expired);
             return Shown::Expired;
         }
         let minutes = minutes_left(deadline - now);
@@ -179,12 +186,12 @@ async fn show_code(ctx: &Context, response: PairingCodeResponse, unused: &mut u8
             Ok(token) => return store_token(ctx, &token),
             Err(ApiError::Pending) => {}
             Err(ApiError::Gone) => {
-                *unused = unused.saturating_add(1);
+                *unused = unused_after(*unused, Unused::Expired);
                 return Shown::Expired;
             }
             Err(ApiError::Unauthorized) => {
                 ctx.on_unauthorized();
-                *unused = 0;
+                *unused = unused_after(*unused, Unused::ClaimUnauthorized);
                 return Shown::Restart;
             }
             Err(ApiError::UpgradeRequired) => {
@@ -193,7 +200,7 @@ async fn show_code(ctx: &Context, response: PairingCodeResponse, unused: &mut u8
             }
             Err(ApiError::RateLimited { retry_after }) => {
                 ctx.hub.set_pairing(PairingView::RateLimited);
-                let wait = retry_after.unwrap_or(RATE_LIMIT_DEFAULT);
+                let wait = rate_limit_wait(retry_after);
                 if !ctx
                     .sleep_while_allowed(Instant::now() + wait, Context::pairing_allowed)
                     .await
@@ -255,6 +262,24 @@ async fn pause(ctx: &Context, commands: &mut mpsc::Receiver<Command>) -> bool {
     }
 }
 
+/// The unused count after a shown code ends: an expired code adds one, a refused claim starts the count over.
+fn unused_after(unused: u8, why: Unused) -> u8 {
+    match why {
+        Unused::Expired => unused.saturating_add(1),
+        Unused::ClaimUnauthorized => 0,
+    }
+}
+
+/// Whether the loop pauses once this many codes in a row have expired unused (AD-058).
+fn must_pause(unused: u8) -> bool {
+    unused >= UNUSED_LIMIT
+}
+
+/// The wait after a 429 on a request: the API's `Retry-After`, or the default when it sent none (AD-058).
+fn rate_limit_wait(retry_after: Option<Duration>) -> Duration {
+    retry_after.unwrap_or(RATE_LIMIT_DEFAULT)
+}
+
 /// The time left until `expires_at`, from the wall clock; zero when it has passed.
 fn remaining_until(expires_at: DateTime<Utc>, now: DateTime<Utc>) -> Duration {
     (expires_at - now).to_std().unwrap_or(Duration::ZERO)
@@ -281,7 +306,10 @@ fn next_minute_change(deadline: Instant, now: Instant) -> Instant {
 mod tests {
     use std::time::Duration;
 
-    use super::minutes_left;
+    use super::{
+        CLAIM_INTERVAL, UNREACHABLE_RETRY, Unused, minutes_left, must_pause, rate_limit_wait,
+        unused_after,
+    };
 
     #[test]
     fn minutes_left_rounds_up_at_every_offset() {
@@ -291,5 +319,40 @@ mod tests {
         assert_eq!(minutes_left(Duration::from_millis(60_100)), 2);
         assert_eq!(minutes_left(Duration::from_secs(270)), 5);
         assert_eq!(minutes_left(Duration::from_secs(300)), 5);
+    }
+
+    #[test]
+    fn unused_count_grows_on_expiry_and_resets_on_claim_401() {
+        assert_eq!(unused_after(0, Unused::Expired), 1);
+        assert_eq!(unused_after(1, Unused::Expired), 2);
+        assert_eq!(unused_after(u8::MAX, Unused::Expired), u8::MAX);
+        assert_eq!(unused_after(2, Unused::ClaimUnauthorized), 0);
+    }
+
+    #[test]
+    fn loop_pauses_after_two_unused_codes() {
+        assert!(!must_pause(0));
+        assert!(!must_pause(1));
+        assert!(must_pause(2));
+        assert!(must_pause(3));
+    }
+
+    #[test]
+    fn rate_limit_wait_defaults_to_sixty_minutes_and_honours_retry_after() {
+        assert_eq!(rate_limit_wait(None), Duration::from_secs(60 * 60));
+        assert_eq!(
+            rate_limit_wait(Some(Duration::from_secs(30))),
+            Duration::from_secs(30)
+        );
+    }
+
+    #[test]
+    fn claim_interval_is_two_seconds() {
+        assert_eq!(CLAIM_INTERVAL, Duration::from_secs(2));
+    }
+
+    #[test]
+    fn unreachable_retry_is_fifteen_seconds() {
+        assert_eq!(UNREACHABLE_RETRY, Duration::from_secs(15));
     }
 }

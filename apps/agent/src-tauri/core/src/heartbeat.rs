@@ -76,7 +76,14 @@ pub fn heartbeat_body(version: &str, running: bool) -> Result<Heartbeat, serde_j
 
 #[cfg(test)]
 mod tests {
-    use super::{game_running, heartbeat_body};
+    use std::time::Duration;
+
+    use super::{INTERVAL, game_running, heartbeat_body};
+
+    #[test]
+    fn heartbeat_interval_is_fifteen_seconds() {
+        assert_eq!(INTERVAL, Duration::from_secs(15));
+    }
 
     #[test]
     fn game_running_matches_the_executable_name_only() {
