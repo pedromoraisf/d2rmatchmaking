@@ -5,7 +5,9 @@ mod support;
 
 use std::time::Duration;
 
-use d2rmm_agent_core::contracts::generated::{Assignment, Observation};
+use d2rmm_agent_core::contracts::generated::Observation;
+use d2rmm_agent_core::gateway::translate::assignment_from_contract;
+use d2rmm_agent_core::messages::Assignment;
 use d2rmm_agent_core::observations::{self, SendOutcome};
 use serde_json::{Value, json};
 use support::fake_api::{Answer, Operation, TOKEN};
@@ -27,13 +29,14 @@ fn observation() -> Observation {
 }
 
 fn assignment() -> Assignment {
-    serde_json::from_value(json!({
+    let contract: d2rmm_agent_core::contracts::generated::Assignment = serde_json::from_value(json!({
         "roomId": ROOM,
         "run": 1,
         "expectedGameName": "mmbaalh-12",
         "members": [{ "accountId": "account-1", "characterId": null, "joinOrder": 1, "role": "host" }],
     }))
-    .expect("a contract assignment")
+    .expect("a contract assignment");
+    assignment_from_contract(contract)
 }
 
 fn posted_bodies(h: &Harness) -> Vec<Value> {

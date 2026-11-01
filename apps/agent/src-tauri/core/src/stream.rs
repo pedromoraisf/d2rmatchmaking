@@ -9,7 +9,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use reqwest::Response;
 use tokio::time::Instant;
 use tracing::Instrument;
 use uuid::Uuid;
@@ -17,6 +16,8 @@ use uuid::Uuid;
 use crate::api_client::ApiError;
 use crate::context::Context;
 use crate::contracts::generated::{Assignment, RoomAssignedEventData};
+use crate::messages;
+use crate::ports::{ApiGateway, EventStream, StreamItem};
 use crate::view::RoomView;
 
 /// The one stream event the agent acts on.
@@ -82,7 +83,7 @@ async fn connect_once(ctx: &Context, last_id: &mut Option<String>) -> Duration {
     if !ctx.api_allowed() {
         return Duration::ZERO;
     }
-    match ctx.api.assignment(&token).await {
+    match ctx.gateway.assignment(&token).await {
         Ok(assignment) => set_assignment(ctx, assignment),
         Err(error) => {
             on_error(ctx, error);
@@ -93,15 +94,15 @@ async fn connect_once(ctx: &Context, last_id: &mut Option<String>) -> Duration {
         return Duration::ZERO;
     }
     let resume = last_id.as_deref().filter(|id| valid_last_event_id(id));
-    let mut response = match ctx.api.open_stream(&token, resume).await {
-        Ok(response) => response,
+    let mut stream = match ctx.gateway.open_stream(&token, resume).await {
+        Ok(stream) => stream,
         Err(error) => {
             on_error(ctx, error);
             return Duration::ZERO;
         }
     };
     let opened = Instant::now();
-    read_events(ctx, &mut response, last_id).await;
+    read_events(ctx, stream.as_mut(), last_id).await;
     opened.elapsed()
 }
 
@@ -110,35 +111,29 @@ fn on_error(ctx: &Context, error: ApiError) {
     ctx.handle_api_error(&error);
 }
 
-/// Reads the stream until it ends, goes silent, breaks the size bound or the agent stops being allowed to call the API.
-async fn read_events(ctx: &Context, response: &mut Response, last_id: &mut Option<String>) {
-    let mut parser = SseParser::new(last_id.clone());
+/// Reads the stream until it ends or the agent stops being allowed to call the API. The gateway's stream skips the events
+/// it does not act on and reports why it ended; the loop only keeps the last event id for the next connection.
+async fn read_events(ctx: &Context, stream: &mut dyn EventStream, last_id: &mut Option<String>) {
     loop {
         let next = tokio::select! {
-            () = ctx.wait_until_closed(Context::api_allowed) => return,
-            result = tokio::time::timeout(IDLE_TIMEOUT, response.chunk()) => result,
+            () = ctx.wait_until_closed(Context::api_allowed) => None,
+            item = stream.next() => Some(item),
         };
-        let chunk = match next {
-            Ok(Ok(Some(chunk))) => chunk,
+        match next {
+            // The agent stopped being allowed to call the API: stop reading.
+            None => break,
+            Some(StreamItem::RoomAssigned(assignment)) => set_assignment(ctx, Some(assignment)),
             // The stream ended, failed or went silent: the caller reconnects.
-            Ok(Ok(None)) | Ok(Err(_)) | Err(_) => return,
-        };
-        let Ok(events) = parser.push(&chunk) else {
-            return;
-        };
-        for event in events {
-            if let Some(id) = &event.id {
-                *last_id = Some(id.clone());
-            }
-            if let StreamEffect::SetAssignment(assignment) = handle(&event.name, &event.data) {
-                set_assignment(ctx, Some(assignment));
-            }
+            Some(StreamItem::Ended(_)) => break,
         }
+    }
+    if let Some(id) = stream.last_event_id() {
+        *last_id = Some(id.to_string());
     }
 }
 
 /// Sets or clears the current assignment and shows the room it names.
-fn set_assignment(ctx: &Context, assignment: Option<Assignment>) {
+fn set_assignment(ctx: &Context, assignment: Option<messages::Assignment>) {
     let room = assignment.as_ref().map(|assignment| RoomView {
         game_name: assignment.expected_game_name.as_str().to_string(),
     });

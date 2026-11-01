@@ -8,8 +8,8 @@ use tokio::sync::{mpsc, watch};
 
 use crate::config::Config;
 use crate::context::{Adapters, Context};
-use crate::contracts::generated::Assignment;
 use crate::fusion::fuse;
+use crate::messages::Assignment;
 use crate::observations;
 use crate::pairing::{self, Command};
 use crate::ports::Rgba;
@@ -140,7 +140,8 @@ mod tests {
     use super::Probe;
     use crate::config::{AllowLoopbackHttp, ApiBase, Config};
     use crate::context::{Adapters, Context};
-    use crate::contracts::generated::Assignment;
+    use crate::gateway::translate::assignment_from_contract;
+    use crate::messages::Assignment;
     use crate::ports::{
         ProcessSource, ReadError, ReadText, Region, Rgba, SequentialIds, StateSink, StoreError,
         TextReader, TokenStore, UpdateOutcome, WallClock,
@@ -202,13 +203,14 @@ mod tests {
     }
 
     fn assignment() -> Assignment {
-        serde_json::from_value(json!({
+        let contract: crate::contracts::generated::Assignment = serde_json::from_value(json!({
             "roomId": "7d9f2c1e-0000-4000-8000-000000000001",
             "run": 1,
             "expectedGameName": "mmbaalh-12",
             "members": [{ "accountId": "account-1", "characterId": null, "joinOrder": 1, "role": "host" }],
         }))
-        .expect("a contract assignment")
+        .expect("a contract assignment");
+        assignment_from_contract(contract)
     }
 
     #[test]

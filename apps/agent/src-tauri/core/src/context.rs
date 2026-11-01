@@ -9,8 +9,8 @@ use tokio::time::Instant;
 
 use crate::api_client::{ApiClient, ApiError};
 use crate::config::Config;
-use crate::contracts::generated::Assignment;
 use crate::gateway::http::HttpGateway;
+use crate::messages::Assignment;
 use crate::ports::{IdGenerator, ProcessSource, StateSink, TextReader, TokenStore, WallClock};
 use crate::updates::Updater;
 use crate::view::{AgentView, Connectivity, PairingView, RoomView, UpdateView};
@@ -326,7 +326,8 @@ mod tests {
     use super::{Adapters, Context};
     use crate::api_client::ApiError;
     use crate::config::{AllowLoopbackHttp, ApiBase, Config};
-    use crate::contracts::generated::Assignment;
+    use crate::gateway::translate::assignment_from_contract;
+    use crate::messages::Assignment;
     use crate::ports::{
         ProcessSource, ReadError, ReadText, Region, Rgba, SequentialIds, StateSink, StoreError,
         TextReader, TokenStore, UpdateOutcome, WallClock,
@@ -426,7 +427,7 @@ mod tests {
 
     fn assignment() -> Assignment {
         match handle("room.assigned", ASSIGNED) {
-            StreamEffect::SetAssignment(assignment) => assignment,
+            StreamEffect::SetAssignment(assignment) => assignment_from_contract(assignment),
             StreamEffect::Ignore => panic!("the fixture is a valid room.assigned event"),
         }
     }

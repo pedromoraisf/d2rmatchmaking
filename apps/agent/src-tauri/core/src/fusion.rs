@@ -5,7 +5,8 @@ use chrono::{DateTime, Utc};
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::contracts::generated::{Assignment, Observation};
+use crate::contracts::generated::Observation;
+use crate::messages::Assignment;
 use crate::ports::{IdGenerator, ReadText};
 
 /// A `GAME_NAME_SEEN` observation and the room whose endpoint receives it.
@@ -28,7 +29,7 @@ pub fn fuse(
     if seen != assignment.expected_game_name.as_str().to_lowercase() {
         return None;
     }
-    let room = Uuid::parse_str(assignment.room_id.as_str()).ok()?;
+    let room = Uuid::parse_str(assignment.room.as_str()).ok()?;
     let confidence = if read.confidence.is_nan() {
         0.0
     } else {
@@ -56,7 +57,9 @@ mod tests {
     use uuid::Uuid;
 
     use super::{Fusion, fuse};
-    use crate::contracts::generated::{Assignment, ObservationType};
+    use crate::contracts::generated::ObservationType;
+    use crate::gateway::translate::assignment_from_contract;
+    use crate::messages::Assignment;
     use crate::ports::{ReadError, ReadText, Region, Rgba, SequentialIds, TextReader};
     use crate::vision::{AUTOMAP_NAME_1080P, read_game_name};
 
@@ -92,13 +95,14 @@ mod tests {
     }
 
     fn assignment() -> Assignment {
-        serde_json::from_value(json!({
+        let contract: crate::contracts::generated::Assignment = serde_json::from_value(json!({
             "roomId": ROOM,
             "run": 3,
             "expectedGameName": "mmbaalh-12",
             "members": [{ "accountId": "account-1", "characterId": null, "joinOrder": 1, "role": "host" }],
         }))
-        .expect("a contract assignment")
+        .expect("a contract assignment");
+        assignment_from_contract(contract)
     }
 
     fn now() -> DateTime<Utc> {
