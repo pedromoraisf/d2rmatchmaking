@@ -6,7 +6,7 @@ mod support;
 use std::sync::Arc;
 use std::time::Duration;
 
-use d2rmm_agent_core::heartbeat;
+use d2rmm_agent_core::beat;
 use d2rmm_agent_core::ports::{UpdateFailure, UpdateOutcome};
 use d2rmm_agent_core::stream;
 use d2rmm_agent_core::updates;
@@ -75,7 +75,11 @@ async fn upgrade_required_stops_api_loops() {
         UpdateOutcome::UpToDate,
         UpdateOutcome::Installed,
     ]);
-    tokio::spawn(heartbeat::run(Arc::clone(&h.context)));
+    tokio::spawn(beat::run(
+        Arc::clone(&h.context.device),
+        h.context.heartbeat_ports(),
+        h.context.version.clone(),
+    ));
     tokio::spawn(stream::run(Arc::clone(&h.context)));
     tokio::spawn(updates::run(Arc::clone(&h.context)));
 

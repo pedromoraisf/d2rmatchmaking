@@ -5,13 +5,17 @@ mod support;
 use std::sync::Arc;
 use std::time::Duration;
 
-use d2rmm_agent_core::heartbeat;
+use d2rmm_agent_core::beat;
 use d2rmm_agent_core::view::Connectivity;
 use support::fake_api::{Answer, Operation, TOKEN};
 use support::harness::{Harness, advance, count, until};
 
 fn spawn_heartbeat(h: &Harness) {
-    tokio::spawn(heartbeat::run(Arc::clone(&h.context)));
+    tokio::spawn(beat::run(
+        Arc::clone(&h.context.device),
+        h.context.heartbeat_ports(),
+        h.context.version.clone(),
+    ));
 }
 
 fn connectivity(h: &Harness) -> Option<Connectivity> {
