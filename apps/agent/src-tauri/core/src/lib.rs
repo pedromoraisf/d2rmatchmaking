@@ -5,6 +5,7 @@ pub mod api_client;
 pub mod config;
 pub mod context;
 pub mod contracts;
+pub mod fakes;
 pub mod fusion;
 pub mod gateway;
 pub mod heartbeat;

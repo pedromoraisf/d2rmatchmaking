@@ -462,9 +462,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Test `fake_gateway_scripts_responses_and_records_calls`
-- [ ] No `mockall` or `mock!` anywhere in core (T8 rule)
-- [ ] Rust core gate passes
+- [x] Test `fake_gateway_scripts_responses_and_records_calls`
+- [x] No `mockall` or `mock!` anywhere in core (T8 rule)
+- [x] Rust core gate passes
 
 **Tests**: unit
 **Gate**: Rust core
@@ -1337,7 +1337,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - T15 done: commit `00bddba` (`feat(agent): translate between the contract and the messages`), gate `Rust core` passed on attempt 2. Attempt 1 failed on my own test expectation (`readRate` is the float `0.0`); the mapping was right, the assertion was corrected to `as_f64() == Some(0.0)`.
 - T16 done (commit carries `Task: T16`): `HttpGateway` in `core/src/gateway/http.rs` over the unchanged `ApiClient`. The gateway test is `core/extra-tests/gateway.rs` (target `gateway` in `core/Cargo.toml`), reusing the fake API through `#[path]`; `core/tests/**` untouched. Gate `Rust core` passed on attempt 1 (104 tests). Deviation: `open_stream` on the port returns `ApiError::Invalid` until T17 supplies the SSE stream; no caller reaches it before T23.
 - T17 done (commit carries `Task: T17`): `SseEventStream` in `core/src/gateway/sse_stream.rs` over a `ChunkSource` (implemented for `reqwest::Response`; scripted in the tests). It feeds `SseParser`, keeps `last_event_id`, applies the 60 s idle timeout and the 64 KiB cap, and skips invalid events. `HttpGateway::open_stream` now returns it, so the T16 placeholder is gone. Gate `Rust core` passed on attempt 2 (111 tests). Attempt 1 failed on clippy `manual_async_fn`; the impls were rewritten as `async fn`.
-- T18: not started at this entry.
+- T18 done (commit carries `Task: T18`): `FakeApiGateway` in `core/src/fakes.rs` (scripted answers per route, a recorded `Call` log, a scripted `EventStream`; an unscripted call answers `Server`). Gate `Rust core` passed on attempt 2 (112 tests); attempt 1 failed on an unused test import. No `mockall` or `mock!` in core.
+- Batch 3 complete: T12 to T18 committed. T16 gateway test is in `core/extra-tests/gateway.rs`; `core/tests/**` is untouched in this batch.
 
 **Batch 2 (execute-batch-2), blocked at T7 by the retry budget of the implementer session**
 
