@@ -274,17 +274,11 @@ test('updater checks the latest release over https, with no insecure transport',
   );
 });
 
-// Pending, not passing: the public key is the maintainer's (escalation "updater key pair"). Node reports it as TODO, so
-// the harness stays green until the key replaces the placeholder in tauri.conf.json.
-test(
-  'updater checks the latest release with the embedded key',
-  { todo: 'pending: the maintainer updater public key (escalation "updater key pair")' },
-  () => {
-    const pubkey = readJson(`${agentTauri}/tauri.conf.json`).plugins.updater.pubkey;
-    assert.notEqual(pubkey, UPDATER_PUBKEY_PENDING, 'the maintainer public key replaces the placeholder');
-    assert.match(pubkey, /^[A-Za-z0-9+/=]{20,}$/, 'the public key is base64');
-  },
-);
+test('updater checks the latest release with the embedded key', () => {
+  const pubkey = readJson(`${agentTauri}/tauri.conf.json`).plugins.updater.pubkey;
+  assert.notEqual(pubkey, UPDATER_PUBKEY_PENDING, 'the maintainer public key replaces the placeholder');
+  assert.match(pubkey, /^[A-Za-z0-9+/=]{20,}$/, 'the public key is base64');
+});
 
 // AGS-21 / design.md § Mutation: cargo-mutants examines the seven core rule modules and nothing else.
 test('mutation covers the core rule modules', () => {
