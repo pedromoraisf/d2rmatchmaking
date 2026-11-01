@@ -2,6 +2,8 @@
 //! Time and identifiers enter as arguments.
 #![forbid(unsafe_code)]
 
+pub mod timings;
+
 #[cfg(test)]
 mod tests {
     #[test]
