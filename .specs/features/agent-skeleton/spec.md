@@ -152,7 +152,7 @@ Created without me typing anything.
 
 **Acceptance Criteria**:
 
-1. WHEN the vision pipeline reads the reference image `apps/agent/fixtures/automap-game-name.png` (AD-047) with the built-in read region for its resolution THEN it SHALL return the text `mmbaalh-12`.
+1. WHEN the vision pipeline reads the reference image apps/agent/fixtures/automap-game-name.png (AD-047) with the built-in read region for its resolution THEN it SHALL return the text `mmbaalh-12`.
 2. WHEN the read text, after trimming surrounding whitespace and lower-casing, equals the assignment's expected game name lower-cased THEN fusion SHALL produce one `GAME_NAME_SEEN` observation with that normalised text as value, the assignment's room and run, a confidence between 0 and 1, a new idempotency key and the capture time (AD-052).
 3. IF the normalised read text differs from the expected game name in any character — `mmbaalh-13` for an expected `mmbaalh-12` included — or there is no assignment THEN fusion SHALL produce no observation.
 4. WHEN an observation is produced THEN the agent SHALL post it to the room's observation endpoint and, IF the post fails with a network error or a 5xx, retry it with the same idempotency key up to 5 attempts in total with 1, 2, 4 and 8 s between attempts (AD-051).
