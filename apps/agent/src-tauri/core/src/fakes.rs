@@ -38,6 +38,7 @@ struct Script {
     assignment: VecDeque<Result<Option<Assignment>, ApiError>>,
     post_observation: VecDeque<Result<(), ApiError>>,
     open_stream: VecDeque<Result<Vec<StreamItem>, ApiError>>,
+    hold_streams: bool,
     calls: Vec<Call>,
 }
 
@@ -84,6 +85,11 @@ impl FakeApiGateway {
         answers: impl IntoIterator<Item = Result<Vec<StreamItem>, ApiError>>,
     ) {
         self.with(|script| script.open_stream.extend(answers));
+    }
+
+    /// Every stream opened from now on stays open after its scripted items, until the code under test stops reading it.
+    pub fn hold_streams(&self) {
+        self.with(|script| script.hold_streams = true);
     }
 
     /// Every call so far, in the order the code made them.
@@ -166,25 +172,31 @@ impl ApiGateway for FakeApiGateway {
             let stream: Box<dyn EventStream> = Box::new(ScriptedStream {
                 items: items.into(),
                 last_id: resume,
+                hold: script.hold_streams,
             });
             Ok(stream)
         })
     }
 }
 
-/// A stream that yields its scripted items in order, then ends with `Closed`. Its last event id is the resume id it opened
-/// with, as the fake does not model event ids.
+/// A stream that yields its scripted items in order, then ends with `Closed`, or stays open when the script holds streams.
+/// Its last event id is the resume id it opened with, as the fake does not model event ids.
 struct ScriptedStream {
     items: VecDeque<StreamItem>,
     last_id: Option<String>,
+    hold: bool,
 }
 
 impl EventStream for ScriptedStream {
     fn next(&mut self) -> Pin<Box<dyn Future<Output = StreamItem> + Send + '_>> {
         Box::pin(async move {
-            self.items
-                .pop_front()
-                .unwrap_or(StreamItem::Ended(EndReason::Closed))
+            if let Some(item) = self.items.pop_front() {
+                return item;
+            }
+            if self.hold {
+                std::future::pending::<()>().await;
+            }
+            StreamItem::Ended(EndReason::Closed)
         })
     }
 

@@ -6,6 +6,7 @@ pub mod config;
 pub mod context;
 pub mod device_state;
 pub mod fakes;
+pub mod follow_stream;
 pub mod fusion;
 pub mod hub;
 pub mod messages;
@@ -15,7 +16,6 @@ pub mod ports;
 pub mod read_frame;
 pub mod runtime;
 pub mod secret;
-pub mod stream;
 pub mod updates;
 pub mod view;
 

@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use d2rmm_agent_core::beat;
+use d2rmm_agent_core::follow_stream;
 use d2rmm_agent_core::ports::{UpdateFailure, UpdateOutcome};
-use d2rmm_agent_core::stream;
 use d2rmm_agent_core::updates;
 use d2rmm_agent_core::view::UpdateView;
 use support::fake_api::{Answer, Operation, TOKEN};
@@ -80,7 +80,10 @@ async fn upgrade_required_stops_api_loops() {
         h.context.heartbeat_ports(),
         h.context.version.clone(),
     ));
-    tokio::spawn(stream::run(Arc::clone(&h.context)));
+    tokio::spawn(follow_stream::run(
+        Arc::clone(&h.context.device),
+        h.context.stream_ports(),
+    ));
     tokio::spawn(updates::run(Arc::clone(&h.context)));
 
     until("the 426 is answered", || {

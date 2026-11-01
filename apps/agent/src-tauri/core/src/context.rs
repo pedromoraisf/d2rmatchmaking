@@ -106,6 +106,14 @@ impl<G> Context<G> {
         }
     }
 
+    /// The ports the stream loop uses, cloned from the shared ones (the groups hold the same `Arc`s).
+    pub fn stream_ports(&self) -> StreamPorts<G> {
+        StreamPorts {
+            gateway: Arc::clone(&self.gateway),
+            tokens: Arc::clone(&self.tokens),
+        }
+    }
+
     /// A 401 on any request: the token goes, the room goes, and the pairing loop shows a new code (AGS-08).
     pub fn on_unauthorized(&self) {
         self.device.on_unauthorized(self.tokens.as_ref());

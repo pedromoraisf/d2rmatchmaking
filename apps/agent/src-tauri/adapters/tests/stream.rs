@@ -6,7 +6,7 @@ mod support;
 use std::sync::Arc;
 use std::time::Duration;
 
-use d2rmm_agent_core::stream;
+use d2rmm_agent_core::follow_stream;
 use serde_json::{Value, json};
 use support::fake_api::{Answer, Operation, TOKEN};
 use support::harness::{Harness, advance, count, settle, until};
@@ -24,7 +24,10 @@ fn assigned(game_name: &str, room: &str) -> Value {
 }
 
 fn spawn_stream(h: &Harness) {
-    tokio::spawn(stream::run(Arc::clone(&h.context)));
+    tokio::spawn(follow_stream::run(
+        Arc::clone(&h.context.device),
+        h.context.stream_ports(),
+    ));
 }
 
 /// The expected game name of the current assignment.

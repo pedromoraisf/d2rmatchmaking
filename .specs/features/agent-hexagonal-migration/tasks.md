@@ -971,9 +971,9 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] `adapters/tests/stream.rs` passes; preservation test passes
-- [ ] Tests `follow_fetches_assignment_then_streams`, `follow_closes_on_401_and_426` pass under `--lib`
-- [ ] Rust workspace gate passes
+- [x] `adapters/tests/stream.rs` passes; preservation test passes
+- [x] Tests `follow_fetches_assignment_then_streams`, `follow_closes_on_401_and_426` pass under `--lib`
+- [x] Rust workspace gate passes
 
 **Tests**: unit
 **Gate**: Rust workspace
@@ -1334,6 +1334,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - T42 done (commit carries `Task: T42`): `domain/src/paired_device.rs` holds `PairedDevice` (`unpaired`, `paired`, `pairing`, `pairing_mut`, `is_paired`, `set_paired`, `update_required`, `update_installed`, `on_unauthorized`, `on_upgrade_required`, `api_allowed`, `pairing_allowed`, `retry_epoch`) and `DeviceEffect`. A `401` returns `[ForgetToken, ClearRoom, DropPendingRetries, AskNewCode]`; a `426` returns `[RequireUpdate, DropPendingRetries, CheckForUpdateNow]`. Both bump the epoch. Gate `Rust domain` passed on attempt 1 (23 tests, 3 new).
 - T43 done (commit carries `Task: T43`): `core/src/device_state.rs` holds `DeviceState`: the aggregate behind a short lock, `hub`, the `paired` and `update_required` watch channels, `update_now`, `assignment` and the dropped counter. Each rule of the aggregate returns its effects, and `apply` runs them against the token store, the view and the update loop. `Hub` moved to `core/src/hub.rs`. `Context` now holds `device: Arc<DeviceState>` beside the ports; its `on_unauthorized`, `on_upgrade_required` and `handle_api_error` stay as thin wrappers that pass `tokens`. The wait functions take `fn(&DeviceState) -> bool`, so the loops call `ctx.device.*` directly. The three moved context tests keep their assertions (in `device_state.rs`; `groups_build_a_context` stays in `context.rs`). Gate `Rust core` passed on attempt 1 (34 tests). The `Context` removal itself is T47.
 - T44 done (commit carries `Task: T44`): `core/src/heartbeat.rs` is `core/src/beat.rs` (`git mv`). `beat::run(device, ports, version)` takes `Arc<DeviceState>` and `HeartbeatPorts`; `beat` reads the three ports. Deviation for the orchestrator: `run` also takes the version as a `String`, since `HeartbeatPorts` has no version and the heartbeat sends it (the design's signature names only the ports). `Context::heartbeat_ports()` clones the shared Arcs for the runtime and the two adapters tests. The `use` and spawn act lines of `adapters/tests/heartbeat.rs` and `adapters/tests/updates.rs` changed; no assertion line did. Two colocated `--lib` tests on paused time (`beat_every_fifteen_seconds_with_running_flag`, `beat_failure_shows_unreachable_then_connected`) drive the beat against `FakeApiGateway`. `.cargo/mutants.toml` still lists `core/src/heartbeat.rs`; the list is T53's, and the harness test reads the list, not the disk. Gate `Rust workspace` plus the preservation guard passed on attempt 1 (155 tests; preservation 7 of 7).
+- T45 done (commit carries `Task: T45`): `core/src/stream.rs` is `core/src/follow_stream.rs` (`git mv`). `follow_stream::run(device, ports)` takes `Arc<DeviceState>` and `StreamPorts`; the reconnect constants and `delay_after_open`/`next_delay` are unchanged and keep their tests. The 401 and 426 handling goes through `device.handle_api_error`. `Context::stream_ports()` clones the shared Arcs. Test support: `FakeApiGateway::hold_streams()` (new, off by default) keeps a scripted stream open after its items, so a 401 or a 426 can close it; the default fake stream still ends with `Closed`. The `use` and spawn act lines of `adapters/tests/stream.rs` and `adapters/tests/updates.rs` changed; no assertion line did. `.cargo/mutants.toml` still lists `core/src/stream.rs`, as in T44. Gate `Rust workspace` plus the preservation guard passed on attempt 1 (157 tests; preservation 7 of 7).
 
 **Batch 7 (execute-batch-7), complete: T38 to T41**
 

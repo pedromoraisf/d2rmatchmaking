@@ -13,7 +13,7 @@ use crate::fusion::fuse;
 use crate::observations;
 use crate::pair::{self, Command};
 use crate::ports::{ApiGateway, Rgba, StateSink};
-use crate::{beat, read_frame, stream, updates};
+use crate::{beat, follow_stream, read_frame, updates};
 
 const COMMAND_BUFFER: usize = 8;
 
@@ -52,7 +52,10 @@ fn spawn<G: ApiGateway + Send + Sync + 'static>(ctx: Arc<Context<G>>) -> Handle<
         ctx.heartbeat_ports(),
         ctx.version.clone(),
     ));
-    tokio::spawn(stream::run(Arc::clone(&ctx)));
+    tokio::spawn(follow_stream::run(
+        Arc::clone(&ctx.device),
+        ctx.stream_ports(),
+    ));
     tokio::spawn(updates::run(Arc::clone(&ctx)));
     Handle { ctx, commands }
 }
