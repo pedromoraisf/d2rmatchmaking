@@ -29,4 +29,4 @@ Format: Context · Decision · Alternatives · Consequences. Only the maintainer
 | [023](023-bdd-acceptance.md)            | BDD acceptance tests: Gherkin in the spec, executed by playwright-bdd      | Accepted |
 | [024](024-deterministic-phase-state.md) | Deterministic phase state and idempotent resume                            | Accepted |
 | [025](025-agent-roles-and-models.md)    | Agent roles and models: Opus orchestrates, Haiku implements, Sonnet judges | Accepted |
-| [026](026-mutation-unit-tests-only.md)  | Mutation testing runs against unit tests only                              | Proposed |
+| [026](026-mutation-unit-tests-only.md)  | Mutation testing runs against unit tests only                              | Accepted |
