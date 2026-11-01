@@ -2,6 +2,7 @@
 //! Time and identifiers enter as arguments.
 #![forbid(unsafe_code)]
 
+pub mod pairing;
 pub mod room_assignment;
 pub mod timings;
 pub mod vision;

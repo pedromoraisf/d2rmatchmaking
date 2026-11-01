@@ -842,8 +842,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Tests `pairing_claims_every_two_seconds_and_pauses_after_two_unused_codes`, `gone_counts_as_expiry`, `unauthorized_resets_unused_count`, `rate_limit_waits_retry_after_or_sixty_minutes`, `unused_limit_boundary_both_sides`, `minutes_left_rounds_up_at_every_offset` (moved)
-- [ ] Rust domain gate passes
+- [x] Tests `pairing_claims_every_two_seconds_and_pauses_after_two_unused_codes`, `gone_counts_as_expiry`, `unauthorized_resets_unused_count`, `rate_limit_waits_retry_after_or_sixty_minutes`, `unused_limit_boundary_both_sides`, `minutes_left_rounds_up_at_every_offset` (moved)
+- [x] Rust domain gate passes
 
 **Tests**: unit
 **Gate**: Rust domain
@@ -1328,6 +1328,10 @@ Proof: `cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml -
 ## Handoff
 
 The feature's live state, written as it happens - a compaction gives no warning.
+
+**Batch 7 (execute-batch-7), in progress: T38 to T41**
+
+- T38 done (commit carries `Task: T38`): `domain/src/pairing.rs` holds `PairingCode` (six ASCII digits, `InvalidPairingCode`), `ClaimOutcome` (`Claimed`, `Pending`, `Gone`, `Unauthorized`, `RateLimited { retry_after }`, `Unreachable`), `ClaimNext`, `CodeNext` and `Pairing` (`new`, `show`, `code`, `expires_at`, `unused`, `claim_result`, `expired`). `rate_limited`, `remaining_until` and `minutes_left` are associated functions (no `self`), not methods. A `426` is not a `ClaimOutcome`: the device aggregate (T42) handles it. `Pairing::expired` resets the count when it pauses, which matches the core loop, since a pause always ends the attempt. Core is untouched; its copies go in T39. Gate `Rust domain` passed on attempt 1 (20 tests). The `clippy.toml` warnings about `chrono::Utc::now` and `chrono::Local::now` (unreachable paths, from T3) are unchanged.
 
 **Batch 6 (execute-batch-6), complete: T33 to T37**
 
