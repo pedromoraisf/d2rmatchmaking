@@ -14,10 +14,11 @@ Project rules for every task of this feature:
 - Run each task's gate as its own Bash call, with nothing before or after it:
   `node scripts/attempt.mjs run --feature agent-skeleton --step T<n> -- "<gate command>"`.
 - `$M` in a gate stands for `--manifest-path apps/agent/src-tauri/Cargo.toml`; write it out in full.
-- Code under `#[cfg(windows)]` (toolhelp, OCR, keyring) is compiled locally with
-  `cargo clippy --locked $M --target x86_64-pc-windows-msvc --all-targets -- -D warnings` (check only, after
-  `rustup target add x86_64-pc-windows-msvc`); its tests run in the CI `agent` job on `windows-latest`, and its checks
-  cite that job.
+- Code under `#[cfg(windows)]` (toolhelp, OCR, keyring) is checked locally with `node scripts/agent/win-check.mjs`,
+  which runs `cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --all-targets --all-features -- -D warnings` inside the Linux container
+  `apps/agent/src-tauri/win-check.Dockerfile` (clang-cl, lld, llvm tools and the Windows SDK/CRT headers from `xwin`;
+  check only, nothing installed on the host — AD-071). Its tests run in the CI `agent` job on `windows-latest`, and its
+  checks cite that job.
 - Editing `.github/workflows/*`, `packages/config/eslint.mjs`, `CODEOWNERS` and the sensor configs named in a task's
   `Where` is the task itself, under the phase delegation `harness-edits`; it only adds rules.
 - The updater key pair, the `release` environment and its secrets (`TAURI_SIGNING_PRIVATE_KEY`,
@@ -59,7 +60,7 @@ Project rules for every task of this feature:
 | Gate Level   | When to Use                       | Command                                                                                                                                                                                                                                                          |
 | ------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Rust quick   | Core / xtask / portable app tasks | `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml` |
-| Rust Windows | `#[cfg(windows)]` adapter tasks   | `cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --all-targets --all-features -- -D warnings`                                                                                                              |
+| Rust Windows | `#[cfg(windows)]` adapter tasks   | `node scripts/agent/win-check.mjs` (AD-071)                                                                                                                                                                                                                      |
 | TS quick     | Contracts / UI / web tasks        | `pnpm --filter <workspace> typecheck && pnpm --filter <workspace> test`                                                                                                                                                                                          |
 | Harness      | Static tests, workflows, scripts  | `pnpm test:harness`                                                                                                                                                                                                                                              |
 | Build        | Config-only tasks and at the end  | `pnpm --filter @d2rmm/agent build && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets --all-features -- -D warnings && pnpm typecheck && pnpm lint && pnpm format:check`                                                      |
@@ -528,8 +529,8 @@ T29 → T30 → T31 → T32 → T33
 
 ### T22: Write the Credential Manager token store
 
-**What**: `src/adapters/token_store.rs`: `KeyringTokenStore` (`keyring` `windows-native`, service `d2rmm-agent`, user `agent-token`) with a `#[cfg(windows)]` round-trip test under a unique service name it removes.
-**Where**: `apps/agent/src-tauri/src/adapters/token_store.rs`
+**What**: `src/adapters/token_store.rs`: `KeyringTokenStore` (`keyring` `windows-native`, service `d2rmm-agent`, user `agent-token`) with a `#[cfg(windows)]` round-trip test under a unique service name it removes. First, the Windows check container (AD-071): `win-check.Dockerfile` — base `rust:<the host's stable version>-slim-bookworm` pinned by digest, `apt-get install --no-install-recommends` of only `clang`, `lld`, `llvm` (plus `nasm` only if `aws-lc-sys` asks for it), `clang-cl`/`lld-link`/`llvm-lib` links, the target and `clippy` via rustup, a pinned `xwin` release binary verified by SHA-256 that splats the x86_64 CRT and SDK into `/xwin` (`--accept-license`, AD-071) and is then deleted, `CC_`/`AR_`/`CFLAGS_x86_64_pc_windows_msvc` and the linker set by `ENV`; no other tools, no apt lists or caches left. `scripts/agent/win-check.mjs` builds the image (`d2rmm-win-check`, Docker's cache makes it a no-op once built) and runs the clippy command above in it: the repository mounted at `/work`, `CARGO_TARGET_DIR` and `CARGO_HOME` registry on named volumes (no Linux artefacts in the host `target/`), `--rm`, exit code passed through; its pure argument builder has `node:test` tests in `pnpm test:harness`.
+**Where**: `apps/agent/src-tauri/src/adapters/token_store.rs`, `apps/agent/src-tauri/win-check.Dockerfile`, `scripts/agent/win-check.mjs`, `scripts/test/agent-win-check.test.mjs`
 **Depends on**: T21
 **Reuses**: T9 `Secret`
 **Requirement**: AGS-06, AGS-09
@@ -537,7 +538,8 @@ T29 → T30 → T31 → T32 → T33
 **Done when**:
 
 - [ ] Windows test `keyring_round_trip` (save, load, delete) compiles here and runs in the CI `agent` job
-- [ ] Gate check passes: `cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --all-targets --all-features -- -D warnings`
+- [ ] `win-check.mjs` tests (image name, mounts, volumes, the exact clippy command, exit code passed through) pass in `pnpm test:harness`
+- [ ] Gate check passes: `node scripts/agent/win-check.mjs && pnpm test:harness`
 
 **Tests**: unit
 **Gate**: quick
@@ -555,7 +557,7 @@ T29 → T30 → T31 → T32 → T33
 **Done when**:
 
 - [ ] Windows test `toolhelp_lists_the_current_process` (the test binary's own name is listed) compiles here and runs in CI; the T7 source rules pass on the file
-- [ ] Gate check passes: `cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --all-targets --all-features -- -D warnings && pnpm test:harness`
+- [ ] Gate check passes: `node scripts/agent/win-check.mjs && pnpm test:harness`
 
 **Tests**: unit
 **Gate**: quick
@@ -574,7 +576,7 @@ T29 → T30 → T31 → T32 → T33
 
 - [ ] Windows test `ocr_reads_the_reference_image` reads `mmbaalh-12` through `read_game_name`; it fails (never skips) when the engine is unavailable; it compiles here and runs in CI
 - [ ] xtask test `fixture_is_reproducible` regenerates the PNG byte for byte
-- [ ] Gate check passes: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p xtask && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --all-targets --all-features -- -D warnings && pnpm test:harness`
+- [ ] Gate check passes: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p xtask && node scripts/agent/win-check.mjs && pnpm test:harness`
 
 **Tests**: unit
 **Gate**: quick
@@ -934,4 +936,4 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Walked:** none
 **Replanned (execute-batch-1):** T6 stopped at failure 1/3 of `gate:agent-skeleton/T6`: cargo-deny 0.20.2 takes `--config` before `check`, not after (`error: unexpected argument '--config' found`). The T6 gate and the matching proof in `## Checks` now pass `--config` first (AD-063); the tasks gate re-ran. T1–T5 done (f58ecec, d250ad3, e26a081, 5eae324, 4d3123c); the four fixtures are written, uncommitted; T6–T8 then passed in a second dispatch of execute-batch-1
 
-**Blocked (execute-batch-4, escalated 2026-10-31):** T22, unit `gate:agent-skeleton/T22`, 2/3 failures, last retry kept. The Windows-target clippy gate cannot run on this macOS host: `reqwest` → `rustls` → `aws-lc-sys` 0.47 compiles C for `x86_64-pc-windows-msvc` and no Windows C headers (`stdlib.h`, `windows.h`) or MSVC sysroot exist here. T23–T33 depend on T22 in a chain, and observability-e2e and load-baseline depend on agent-skeleton, so the phase waits for the maintainer. T22 code (keyring token store) is written, uncommitted, never compiled for Windows; `apps/agent/fixtures/fonts/` (OFL Source Sans 3, for T24) is untracked
+**Blocked (execute-batch-4, escalated 2026-10-31):** T22, unit `gate:agent-skeleton/T22`, 2/3 failures, last retry kept. The Windows-target clippy gate cannot run on this macOS host: `reqwest` → `rustls` → `aws-lc-sys` 0.47 compiles C for `x86_64-pc-windows-msvc` and no Windows C headers (`stdlib.h`, `windows.h`) or MSVC sysroot exist here. T23–T33 depend on T22 in a chain, and observability-e2e and load-baseline depend on agent-skeleton, so the phase waits for the maintainer. T22 code (keyring token store) is written, uncommitted, never compiled for Windows; `apps/agent/fixtures/fonts/` (OFL Source Sans 3, for T24) is untracked. Maintainer chose Docker (2026-10-31): T22–T24 Windows gates replanned to `node scripts/agent/win-check.mjs` (AD-071); waiting for the maintainer to confirm the Microsoft SDK licence and reset `gate:agent-skeleton/T22`

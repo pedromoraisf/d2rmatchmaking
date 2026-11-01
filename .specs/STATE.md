@@ -633,6 +633,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-10-31
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-071 (maintainer: Docker, 2026-10-31)
+
+- **Decision**: the local Windows-target check of the `#[cfg(windows)]` adapters (T22–T24) runs `cargo clippy … --target x86_64-pc-windows-msvc` inside a slim Linux container (`apps/agent/src-tauri/win-check.Dockerfile`, driven by `scripts/agent/win-check.mjs`): clang-cl, lld and llvm tools plus the Windows CRT/SDK headers splatted by `xwin`. Nothing is installed on the host. The CI `agent` job keeps compiling and testing natively on `windows-latest`; the container is only for development machines that are not Windows.
+- **Reason**: `reqwest` → `rustls` → `aws-lc-sys` compiles C for the Windows target, which needs Windows headers that macOS lacks (T22 blocked at 2/3). The maintainer chose Docker over a host install of `cargo-xwin` and over changing the TLS stack.
+- **Trade-off**: the first run builds the image and every dependency (cached afterwards on named volumes); `xwin` downloads the Microsoft CRT/SDK, which requires accepting Microsoft's licence (maintainer's acceptance pending at the time of the replan).
+- **Scope**: agent-skeleton / T22–T24
+- **Date**: 2026-10-31
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
