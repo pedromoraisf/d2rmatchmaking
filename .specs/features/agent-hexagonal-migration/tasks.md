@@ -521,8 +521,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] `core/tests/pairing.rs` and `core/tests/runtime.rs` pass unchanged in their assertions; preservation test passes
-- [ ] Rust core gate passes
+- [x] `core/tests/pairing.rs` and `core/tests/runtime.rs` pass unchanged in their assertions; preservation test passes
+- [x] Rust core gate passes
 
 **Tests**: integration
 **Gate**: Rust core
@@ -1333,6 +1333,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 
 - T19 done (commit carries `Task: T19`): `Context` is generic over the gateway (`Context<G = HttpGateway>`) and gained `gateway: Arc<G>` beside the transitional `api: ApiClient`. The five groups (`PairingPorts`, `HeartbeatPorts`, `StreamPorts`, `UpdatePorts`, `ReadPorts`) and `Groups<G>` are in `context.rs`; `Context::from_groups(version, sink, api, groups)` builds the context. Deviation (for the orchestrator to note): `from_groups` also takes the transitional `api`, because the loops still call `ctx.api` until T21 to T24, and `api` goes with the last of them. Gate `Rust core` passed on attempt 1 (113 tests). The arch rule `no struct in core holds more than five ports` is switched off on the real tree until T47, so its pass is by the rule's own gating.
 - T20 done (commit carries `Task: T20`): `Runtime::start_with_probe(config, http, adapters) -> (Handle, Probe)` and `Probe` (`update_required` receiver, `dropped_observations`, `assignment`, `set_paired`, `set_assignment`, `on_unauthorized`, `on_upgrade_required`). `Runtime::start` returns the `Handle` alone. Both still take `Adapters`; they move to the groups in T25. Gate `Rust core` passed on attempt 1 (114 tests).
+- T21 done (commit carries `Task: T21`): `pairing.rs` calls `request_code` and `claim` through `ctx.gateway` (the `ApiGateway` port over `HttpGateway`); it takes `IssuedCode` and keeps the claim secret as a core `Secret`. Spans and behaviour unchanged. Gate `Rust core` passed on attempt 1 (114 tests); preservation guard passed (5 tests).
 
 **Batch 3 (execute-batch-3), stopped at T16 by a plan defect, since replanned by the orchestrator (T16 and T32 put their new asserting tests in `extra-tests/` targets; guard untouched); resume at T16, then T17, T18**
 

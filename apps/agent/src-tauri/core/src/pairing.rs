@@ -14,8 +14,8 @@ use tracing::Instrument;
 
 use crate::api_client::ApiError;
 use crate::context::Context;
-use crate::contracts::generated::PairingCodeResponse;
-use crate::ports::StoreError;
+use crate::messages::IssuedCode;
+use crate::ports::{ApiGateway, StoreError};
 use crate::secret::Secret;
 use crate::view::PairingView;
 
@@ -100,13 +100,13 @@ async fn pair_once(ctx: &Context, commands: &mut mpsc::Receiver<Command>) -> Fin
 }
 
 /// Requests a code, waiting out unreachable and rate-limited answers. `None` when a 426 interrupts it.
-async fn obtain_code(ctx: &Context) -> Option<PairingCodeResponse> {
+async fn obtain_code(ctx: &Context) -> Option<IssuedCode> {
     loop {
         if !ctx.pairing_allowed() {
             return None;
         }
         ctx.hub.set_pairing(PairingView::Requesting);
-        match ctx.api.request_code().await {
+        match ctx.gateway.request_code().await {
             Ok(code) => return Some(code),
             Err(ApiError::RateLimited { retry_after }) => {
                 ctx.hub.set_pairing(PairingView::RateLimited);
@@ -139,8 +139,8 @@ async fn obtain_code(ctx: &Context) -> Option<PairingCodeResponse> {
 }
 
 /// Shows one code and claims it until it is paired, expires or the attempt must restart.
-async fn show_code(ctx: &Context, response: PairingCodeResponse, unused: &mut u8) -> Shown {
-    let code = String::from(response.code);
+async fn show_code(ctx: &Context, response: IssuedCode, unused: &mut u8) -> Shown {
+    let code = response.code.as_str().to_string();
     let secret = response.claim_secret;
     let remaining = remaining_until(response.expires_at, ctx.clock.now_utc());
     let deadline = Instant::now() + remaining;
@@ -180,7 +180,7 @@ async fn show_code(ctx: &Context, response: PairingCodeResponse, unused: &mut u8
 
         let span = tracing::info_span!("agent.pairing.claim");
         let started = Instant::now();
-        let outcome = ctx.api.claim(&secret).instrument(span).await;
+        let outcome = ctx.gateway.claim(&secret).instrument(span).await;
         claim_at = started + CLAIM_INTERVAL;
         if let Err(error) = &outcome {
             *unused = unused_after_claim_error(*unused, error);
