@@ -300,6 +300,9 @@ test('mutation covers the core rule modules', () => {
   assert.deepEqual(scoped, [
     'adapters/src/http/sse.rs',
     'adapters/src/http/translate.rs',
+    'adapters/src/telemetry/queue.rs',
+    'adapters/src/telemetry/relay_client.rs',
+    'adapters/src/telemetry/sanitize.rs',
     'core/src/beat.rs',
     'core/src/check_update.rs',
     'core/src/follow_stream.rs',

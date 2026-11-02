@@ -929,8 +929,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] `opentelemetry-otlp` (`http-proto`, `trace`, `reqwest-client`) and `opentelemetry-http` at the locked 0.33 line, no `native-tls`; `Cargo.lock` committed; `cargo deny check` passes without editing `deny.toml` (a failure stops the task as a maintainer decision)
-- [ ] test `domain and core manifests hold no tracing or OpenTelemetry crate and the exporter lives in adapters` passes and its fixture fails when `opentelemetry-otlp` is added to core
+- [x] `opentelemetry-otlp` (`http-proto`, `trace`, `reqwest-client`) and `opentelemetry-http` at the locked 0.33 line, no `native-tls`; `Cargo.lock` committed; `cargo deny check` passes without editing `deny.toml` (a failure stops the task as a maintainer decision)
+- [x] test `domain and core manifests hold no tracing or OpenTelemetry crate and the exporter lives in adapters` passes and its fixture fails when `opentelemetry-otlp` is added to core
 
 **Tests**: unit
 **Gate**: Harness
