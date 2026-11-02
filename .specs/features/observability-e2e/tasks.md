@@ -837,7 +837,7 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] test `release and deploy workflows leave VITE_TELEMETRY and D2RMM_TELEMETRY unset` passes and fails on a fixture workflow that sets one
+- [x] test `release and deploy workflows leave VITE_TELEMETRY and D2RMM_TELEMETRY unset` passes and fails on a fixture workflow that sets one
 - [ ] the e2e site build setting is only in the acceptance support code (T51)
 
 **Tests**: unit
