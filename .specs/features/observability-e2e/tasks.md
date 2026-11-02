@@ -14,7 +14,7 @@ Project rules for every task of this feature:
 - **T13 is a spike with a gate.** If auto-instrumentation of `pg` and Fastify does not work under `node --import` with type stripping, apply the design's fallback (a Fastify `onRequest` hook with `propagation.extract` for the server span, a Kysely `log` callback for the `pg` span, a pino destination stream for logs), record it in `## Handoff` and in `decisions.md`, and continue. The tests of T13 to T16 hold either way.
 - `.claude/hooks/**`, `.claude/settings.json`, `docs/adr/**` and `deny.toml` are not edited by any task. A task that needs one records it in `decisions.md` and reports. A missing licence in `cargo deny` stops T42 as a maintainer decision.
 - No test is weakened, skipped or focused; the existing acceptance scenarios and the whole `pnpm test:acceptance` run stay green with the site built with telemetry on (T50 onward).
-- Contract rule: T32 is the only task that changes `openapi.json`; every other task leaves `pnpm contracts:check` clean.
+- Contract rule: T31 is the only task that changes `openapi.json` (it registers the route); every other task leaves `pnpm contracts:check` clean. (Replanned 2026-11-02: registering the route changes the generated document, so the contract cannot trail the registration.)
 - Rust lives in `~/.cargo/bin`, which is not on the default shell PATH; a Rust gate runs with `PATH="$HOME/.cargo/bin:$PATH"`. Code under `#[cfg(windows)]` is checked with `node scripts/agent/win-check.mjs` (AD-071).
 - New secrets: none. `.env.example` holds placeholders only.
 
@@ -51,19 +51,20 @@ Project rules for every task of this feature:
 
 > Generated from codebase - confirm before Execute.
 
-| Gate Level     | When to Use                           | Command                                                                                                                                                                                                                                                                                                          |
-| -------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Telemetry      | Tasks in `packages/telemetry`         | `pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test`                                                                                                                                                                                         |
-| Config         | ESLint rule tasks                     | `pnpm --filter @d2rmm/config test`                                                                                                                                                                                                                                                                               |
-| API unit       | API tasks with unit tests only        | `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`                                                                                                                                                                                                                                            |
-| API full       | API tasks with integration tests      | `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`                                                                                                                                                                                               |
-| Web            | Site and Pages Function tasks         | `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`                                                                                                                                                                                                                                            |
-| Harness        | Guards, workflows, compose, dashboard | `pnpm test:harness`                                                                                                                                                                                                                                                                                              |
-| Rust adapters  | Agent adapters tasks                  | `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters` |
-| Rust workspace | Tasks that touch several crates       | the same three commands with `--workspace`                                                                                                                                                                                                                                                                       |
-| Rust Windows   | Tasks touching `#[cfg(windows)]` code | `node scripts/agent/win-check.mjs` (AD-071)                                                                                                                                                                                                                                                                      |
-| Acceptance     | Acceptance step tasks                 | `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "<scenario title>"` (T56: `pnpm test:acceptance`)                                                                                                                  |
-| Build          | End of a phase with manifest changes  | `pnpm build && pnpm typecheck && pnpm lint && pnpm arch && pnpm format:check`                                                                                                                                                                                                                                    |
+| Gate Level         | When to Use                                                       | Command                                                                                                                                                                                                                                                                                                          |
+| ------------------ | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Telemetry          | Tasks in `packages/telemetry`                                     | `pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test`                                                                                                                                                                                         |
+| Config             | ESLint rule tasks                                                 | `pnpm --filter @d2rmm/config test`                                                                                                                                                                                                                                                                               |
+| API unit           | API tasks with unit tests only                                    | `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`                                                                                                                                                                                                                                            |
+| API full           | API tasks with integration tests                                  | `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`                                                                                                                                                                                               |
+| Web                | Site and Pages Function tasks                                     | `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`                                                                                                                                                                                                                                            |
+| Harness            | Guards, workflows, compose, dashboard                             | `pnpm test:harness`                                                                                                                                                                                                                                                                                              |
+| Rust adapters      | Agent adapters tasks                                              | `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters` |
+| Rust workspace     | Tasks that touch several crates                                   | the same three commands with `--workspace`                                                                                                                                                                                                                                                                       |
+| Rust Windows       | Tasks touching `#[cfg(windows)]` code                             | `node scripts/agent/win-check.mjs` (AD-071)                                                                                                                                                                                                                                                                      |
+| Acceptance         | Acceptance step tasks                                             | `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "<scenario title>"` (T56: `pnpm test:acceptance`)                                                                                                                  |
+| Acceptance support | Tasks in `tests/acceptance/support` that cannot run scenarios yet | `pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec vitest run support`                                                                                                                                                                                                           |
+| Build              | End of a phase with manifest changes                              | `pnpm build && pnpm typecheck && pnpm lint && pnpm arch && pnpm format:check`                                                                                                                                                                                                                                    |
 
 ---
 
@@ -718,12 +719,13 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 **What**: `POST /v1/telemetry/traces` is registered with scoped parsers, the check order in `onRequest`, streamed-byte charging and the empty `202`.
 **Where**: `apps/api/src/platform/http/telemetry-relay.ts`
 **Depends on**: T30
-**Reuses**: T26 to T30; `answerError`; `buildApp` registration; the 4 KB `bodyLimit` pattern of the lobby routes
-**Requirement**: OBS-10, OBS-13, OBS-20
+**Reuses**: T26 to T30; `answerError` (moved to `platform/http/answer-error.ts` so platform tests can use it); `buildApp` registration; the 4 KB `bodyLimit` pattern of the lobby routes; `ErrorResponse`; `openapi.int.test.ts` `ROUTES`; `pnpm contracts:openapi`
+**Requirement**: OBS-10, OBS-13, OBS-20, OBS-42
 
 **Done when**:
 
 - [ ] order: credential-less address bucket (`429` when over 120, else `401`) or authentication (failures counted); request count; budgets already exhausted; content type (`application/x-protobuf`, `application/json`) and `content-encoding` absent or `identity` (`415`); declared length over 1 MiB (`413`); a `preParsing` hook charges streamed bytes and a body over 1 MiB fails with `413`; a 10 s body-read timeout; reply `202` with no content, then forward
+- [ ] the route is registered in `buildApp` (settings from the telemetry handle and config); the Zod response schemas for `202`, `401`, `403`, `413`, `415`, `429` are declared in `packages/contracts/src/http/platform.ts`; `pnpm contracts:openapi` is run through the wrapper under step T31 and the regenerated `openapi.json` is committed; `/v1/telemetry/traces` is added to `ROUTES`; `pnpm contracts:check` is clean
 - [ ] tests `a valid batch is answered 202 with no content and forwarded once`, `a body of 1 MiB plus one byte gets 413 and nothing is forwarded`, `content-encoding other than identity gets 415` in `telemetry-relay.int.test.ts` pass
 
 **Tests**: integration
@@ -731,18 +733,18 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 ---
 
-### T32: The route in the contract
+### T32: The relay's contract is pinned
 
-**What**: the Zod response schemas for the relay, `openapi.json` regenerated and the `ROUTES` list updated.
-**Where**: `packages/contracts/src/http/platform.ts`
+**What**: a test pins what `openapi.json` says about the relay: the path and method, exactly the six responses, no body on `202`, the shared error shape on the others, no request schema.
+**Where**: `apps/api/src/main/__tests__/openapi.int.test.ts`
 **Depends on**: T31
-**Reuses**: `ErrorResponse`; `openapi.int.test.ts` `ROUTES`; `pnpm contracts:openapi`
+**Reuses**: `ErrorResponse`; the committed `openapi.json` produced in T31
 **Requirement**: OBS-42
 
 **Done when**:
 
-- [ ] `202`, `401`, `403`, `413`, `415`, `429` are declared; `pnpm contracts:openapi` leaves `openapi.json` committed with `/v1/telemetry/traces`; `ROUTES` lists it
-- [ ] test `openapi documents the telemetry relay` and `pnpm contracts:check` pass
+- [ ] test `openapi documents the telemetry relay` asserts `post /v1/telemetry/traces` with the responses `202`, `401`, `403`, `413`, `415`, `429` and nothing else, an empty `202`, and no `requestBody` schema (the OTLP body is a passthrough)
+- [ ] `pnpm contracts:check` is clean
 
 **Tests**: integration
 **Gate**: API full
@@ -754,7 +756,7 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 **What**: integration tests cover every status, the check order table and the dead-backend runs.
 **Where**: `apps/api/src/platform/http/telemetry-relay-order.int.test.ts`
 **Depends on**: T32
-**Reuses**: a fake HTTP backend helper; the app factory with a Testcontainers database
+**Reuses**: `apps/api/test/support/relay-app.ts` (a bare Fastify app with the real plugin, guards, limiter, budget, forwarder and fake Identity and Agents ports) and `apps/api/test/support/fake-telemetry-backend.ts`, both from T31; the relay tests do not import `main/` (rule `nobody-imports-main`)
 **Requirement**: OBS-11, OBS-14, OBS-15, OBS-16, OBS-37
 
 **Done when**:
@@ -1070,7 +1072,7 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 ### T50: The backend helper and the Docker failure
 
 **What**: `startTelemetryBackend` starts `otel-lgtm` with Testcontainers and names Docker when it is missing.
-**Where**: `tests/acceptance/support/telemetry-backend.ts`
+**Where**: `tests/acceptance/support/telemetry-backend.ts` (and `tests/acceptance/package.json` for `vitest`)
 **Depends on**: T49
 **Reuses**: `global-setup.ts` Testcontainers use; the image line of `compose.yaml`
 **Requirement**: OBS-25
@@ -1078,10 +1080,11 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 **Done when**:
 
 - [ ] the helper parses the image line, waits for Tempo and returns its query URL and OTLP URL; with no Docker socket it throws an error whose message names Docker
+- [ ] `vitest` is added as a devDependency of `@d2rmm/acceptance` with a `test:unit` script and a minimal config that runs only `support/**/*.test.ts` (the package had none; Playwright keeps running the scenarios); the lockfile is committed
 - [ ] test `fails naming Docker when the socket is absent` passes (unit, no Docker needed)
 
 **Tests**: unit
-**Gate**: Acceptance
+**Gate**: Acceptance support
 
 ---
 
@@ -1096,10 +1099,10 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 **Done when**:
 
 - [ ] the traced stack starts a staging API with the preload, `OTEL_EXPORTER_OTLP_ENDPOINT`, sampler `1.0`, metric interval 5 s, and a Pages dev server on a site built with `VITE_TELEMETRY=on` and ratio `1`; `apiEnv` passes the new variables; `FakeTelemetryBackend` records requests and can refuse, hang or answer an error
-- [ ] the existing acceptance scenarios still pass with the site built with telemetry on (`pnpm test:acceptance` green once, recorded in `## Handoff`)
+- [ ] test `the fake telemetry backend records requests and can refuse, hang or answer an error` passes; the clause "the existing acceptance scenarios still pass with the site built with telemetry on" is proved in T54 and T56, where the steps exist and `bddgen` can run
 
-**Tests**: acceptance
-**Gate**: Acceptance
+**Tests**: unit
+**Gate**: Acceptance support
 
 ---
 
@@ -1117,7 +1120,7 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 - [ ] tests `prints both trace ids` and `the forbidden key lists of the acceptance code and the telemetry package are equal` (the latter in `packages/telemetry`) pass
 
 **Tests**: unit
-**Gate**: Acceptance
+**Gate**: Acceptance support
 
 ---
 
@@ -1132,10 +1135,10 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 **Done when**:
 
 - [ ] the steps for the scenarios "A test match leaves one trace…" and "The agent's observation leaves its own trace…" exist; the helper builds the example once, parses its stdout, writes the PNG and sidecar text and sends `read`
-- [ ] the two scenarios pass with Docker available: trace A holds the site action, the request, a `pg` span, `platform.outbox.relay` and `platform.stream.deliver`; trace B has the agent span as parent of the API spans of its heartbeat and observation
+- [ ] the helper and the steps typecheck and their support tests pass; the two scenarios run in T54's gate, once every step of the feature exists (`bddgen` cannot generate before): trace A holds the site action, the request, a `pg` span, `platform.outbox.relay` and `platform.stream.deliver`; trace B has the agent span as parent of the API spans of its heartbeat and observation
 
 **Tests**: acceptance
-**Gate**: Acceptance
+**Gate**: Acceptance support
 
 ---
 
@@ -1149,11 +1152,12 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] every step of the relay scenarios exists (`missingSteps: 'fail-on-gen'` is clean); the outline rows and the rate, flood, address and backend-failure scenarios pass as written
+- [ ] every step of the relay scenarios exists (`missingSteps: 'fail-on-gen'` is clean, which closes the `bddgen` clause left open in T14, whose box is ticked here); the outline rows and the rate, flood, address and backend-failure scenarios pass as written
+- [ ] the gate runs every scenario of the feature, trace scenarios included (`playwright test --grep "@NFR-09"`), and the existing acceptance scenarios still pass with the site built with telemetry on (`pnpm test:acceptance` green once, recorded in `## Handoff`)
 - [ ] `pnpm acceptance:check` is clean
 
 **Tests**: acceptance
-**Gate**: Acceptance
+**Gate**: Acceptance (`pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@NFR-09"`)
 
 ---
 
@@ -1394,7 +1398,7 @@ Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** none
-**Dispatched:** execute-batch-1 (T1 to T11), execute-batch-2 (T12 to T21) and execute-batch-3 (T22 to T30) returned complete; execute-batch-4 (T31 to T37, feature-worker) at HEAD bf6512d, not yet returned
+**Dispatched:** execute-batch-1 (T1 to T11), execute-batch-2 (T12 to T21) and execute-batch-3 (T22 to T30) returned complete; execute-batch-4 (T31 to T37, feature-worker) at HEAD bf6512d, returned stopped at T31 on a plan conflict (replanned); execute-batch-4 again (T31 to T37) at HEAD fd64b27, not yet returned
 **Walked:** none
 **Carried into batch 2:** T9's `startNodeTelemetry` returns `tracerProvider`, `meterProvider`, `loggerProvider` and `shutdown` and registers no globals, so T13 registers them. The T11 cruiser fixture imports the telemetry node entry by relative path; T13 wires the real `@d2rmm/telemetry/node` import and must show `pnpm arch` (through the wrapper) still fails an `application` file that imports that specifier. T16 creates its histograms on the meter named `d2rmm` (`APP_METER_NAME` in `packages/telemetry/src/sdk/views.ts`). The samplers use the Rust ratio rule (AD-102).
 
@@ -1444,6 +1448,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
   - T29: `GuardDeps` gains a required `clock` (the lookup bucket: 10 tokens a second, 3 in flight); `app.ts` and the stream hub integration factory pass it (gate attempt 1 failed on that factory, attempt 2 passed). Session lookups take bucket tokens too (no cache, design § Relay route). `requireAgent` and the hub are unchanged (401 for every failure).
   - T30: `ErrorLog` has only `error()`, so the forwarder's one warning per failed forward is `log.error('relay-forward-failed status=<n>' | 'relay-forward-failed error=<class>')` (no message, body, headers or credentials); a drop is `relay-forward-dropped reason=in-flight-cap`. Gate attempt 1 failed on a test helper that recorded each call twice; fixed in the helper, assertions unchanged.
   - Not wired yet (T31): the limiter's `watch`, the budget charge per stream chunk, the forwarder's `forward` call and the scoped parsers all wait for the relay plugin.
+    **Blocked at T31 (execute-batch-4, plan conflict, not a retry exhaustion):** T31's own text registers the relay in `buildApp`, and `openapi.int.test.ts` then fails twice: `openapi.json lists every route` (the document now has `post /v1/telemetry/traces`, `ROUTES` does not) and `the committed openapi.json is the document the routes generate` (the committed file lacks the route). The contract rule gives `openapi.json` and `ROUTES` to T32 only, and T32 runs after T31, so the API full gate of T31 cannot pass in plan order. Attempt 1 of 3 on `gate:observability-e2e/T31` (typecheck clean; 283 unit tests pass; 102 integration tests, 2 failing, both openapi). The implementation is complete and uncommitted in the worktree: `telemetry-relay.ts`, `answer-error.ts` (moved out of `main/app.ts`), `relay-app.ts`, `fake-telemetry-backend.ts`, `telemetry-relay.int.test.ts`, plus edits to `guards.ts` (exported `sessionCookieValue`, `agentAccountId`), `relay-forwarder.ts` (`dropped`), `error-log.ts` (`atMostOnePerMinute`), `app.ts`, `local.ts`, `render.ts`. Options for the orchestrator: (a) move the `ROUTES` entry and `pnpm contracts:openapi` into T31 and keep T32 for the response schemas; (b) move the `buildApp` registration into T32 with the schemas. The implementer will not hide the route from the document to pass the gate.
+
 - T9, T13, T38 to T43, T47 write here.
 
 ---

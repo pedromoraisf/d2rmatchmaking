@@ -154,6 +154,14 @@ All nine tasks are committed (T22 `500be94` to T30 `bf6512d`; API unit 283 tests
 - **T30**: `ErrorLog` has only `error()`, so the forwarder's one warning per failed forward goes through `log.error` with the prefix `relay-forward-failed` (status or error class only).
 - Not wired yet, for T31: the limiter's sweep scheduling, the budget charge per streamed chunk, the forwarder call (not awaited) and the scoped parsers.
 
+## Replan of tasks T31 to T33 and T50 to T54 (2026-11-02)
+
+Two plan defects, both the orchestrator's, found when the batch 4 worker stopped at T31 (a plan conflict, not a spent budget) and when reading the batch 2 report. `tasks.md` was edited and passed the tasks gate again (`validate_tasks.py --execute`); the delegated approval line is unchanged.
+
+- **T31/T32**: registering the relay route in `buildApp` changes the generated `openapi.json`, so the contract (response schemas, `ROUTES`, `pnpm contracts:openapi`) moved into T31, and T32 now pins the relay's contract with a test. T33 reuses the bare-app helper and the fake backend the T31 worker built (`apps/api/test/support/relay-app.ts`, `fake-telemetry-backend.ts`) because platform tests cannot import `main/`.
+- **T50 to T54**: `bddgen` fails for every feature while any step is undefined (`missingSteps: 'fail-on-gen'`), and the steps of this feature exist only after T53 and T54; `@d2rmm/acceptance` had no `vitest`. T50 adds `vitest` and a `support` unit run; T50 to T53 gate on a new gate level, Acceptance support (typecheck plus the support unit tests); T54 runs every scenario of the feature (`--grep "@NFR-09"`) and the existing ones with telemetry on, and closes the `bddgen` clause left open in T14.
+- **Worker deviations accepted at T31** (for the review): `answerError` moved to `platform/http/answer-error.ts` and a `429` from Fastify now maps to `rate-limited` (no existing route reaches it: the pairing limiter answers its own 429); the relay's tests use fake Identity and Agents ports, not Testcontainers; the one-export-error-a-minute rule is an `atMostOnePerMinute` wrapper in `buildApp`; `Forwarder.dropped(bytes)` was added for refunds; `guards.ts` exports `sessionCookieValue` and sets `request.agentAccountId` on the bearer path.
+
 ## Queued for F1 (from the api-web-skeleton security review)
 
 - Global ceiling on failed pairing-code submissions across accounts, and a rate limit on token claims (the F0 limits are the spec's, AD-032 and AD-041).
