@@ -501,8 +501,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] the batch selects `trace_context`; each row runs under `context.with(...)`; a missing or malformed value uses `ROOT_CONTEXT`; the row never fails because of it; attribute `d2r.outbox.event_type`
-- [ ] tests `continues the stored context and opens platform.outbox.relay as its child` and `publishes a row with no trace context as a root span` in `outbox-relay.int.test.ts` pass
+- [x] the batch selects `trace_context`; each row runs under `context.with(...)`; a missing or malformed value uses `ROOT_CONTEXT`; the row never fails because of it; attribute `d2r.outbox.event_type`
+- [x] tests `continues the stored context and opens platform.outbox.relay as its child` and `publishes a row with no trace context as a root span` in `outbox-relay.int.test.ts` pass
 
 **Tests**: integration
 **Gate**: API full
@@ -1429,6 +1429,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - T17 (execute-batch-2, gate `API full` passed on attempt 1, 91 integration tests). `apps/api/migrations/0002_outbox_trace_context.ts` adds `trace_context text null` (down drops it); `0001` is untouched. `OutboxTable.trace_context: string | null`. `migrator.ts` registers `0002_outbox_trace_context` and gains `migrateTo(db, name)` (step down, for the test).
 - T17 test-expectation edit, for the orchestrator to see: `apps/api/src/main/__tests__/migrate.int.test.ts`, `first run applies 0001_skeleton and creates the four schemas`, expects `firstRun` to equal `['0001_skeleton']`. With 0002 in the map a first run applies both, so the expectation is now `['0001_skeleton', '0002_outbox_trace_context']`. The test name and its schema assertions are unchanged. Nothing was loosened.
 - T18 (execute-batch-2, gate `API full` passed on attempt 1, 92 integration tests). `PostgresOutbox.append` reads `traceparentOf(context.active()) ?? null` before its first await and writes it into the same insert as every row. The test shows the active context reaches `append` inside `uow.run` (the transaction callback).
+- T19 (execute-batch-2, gate `API full` passed on attempt 1, 94 integration tests). The batch selects `trace_context`. `#publish` runs each row under `context.with(parentOf(row.trace_context))` (the stored span, or `ROOT_CONTEXT` for null or a malformed value; never throws), and `platform.outbox.relay` wraps `bus.publish` only, with `d2r.outbox.event_type`. The row's state updates stay outside the span. SDK note: `ReadableSpan` of `sdk-trace` 2.x exposes the parent as `parentSpanContext`, not `parentSpanId`; the tests read it so.
 - T9, T13, T38 to T43, T47 write here.
 
 ---

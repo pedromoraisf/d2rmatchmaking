@@ -1,3 +1,5 @@
+import { context, ROOT_CONTEXT, SpanStatusCode, trace, type Context } from '@opentelemetry/api';
+import { contextFromTraceparent, D2R_OUTBOX_EVENT_TYPE, traceparentOf } from '@d2rmm/telemetry';
 import type { Kysely, Transaction as KyselyTransaction } from 'kysely';
 import type { AnyDomainEvent, Clock, EventBus, Scheduler } from '../shared-kernel/index.ts';
 import type { ErrorLog } from './error-log.ts';
@@ -15,6 +17,23 @@ const BATCH_SIZE = 100;
 /** Wait before a drain that failed on the database itself (for example, the database is down) runs again. */
 const DATABASE_RETRY_MS = 1_000;
 
+/** The tracer of the API's own spans, as in shared-kernel/tracing.ts. */
+const TRACER_NAME = 'd2rmm-api';
+/** The span of one row's publication: a child of the span stored with the row (OBS-06). */
+const RELAY_SPAN = 'platform.outbox.relay';
+
+/**
+ * The context a row is published under: the span stored with the row, or the root context when there is none or the
+ * stored value is malformed (OBS-07). Never throws, so a bad stored value never fails the row.
+ */
+function parentOf(traceContext: string | null): Context {
+  if (traceContext === null) {
+    return ROOT_CONTEXT;
+  }
+  const stored = contextFromTraceparent(traceContext);
+  return traceparentOf(stored) === undefined ? ROOT_CONTEXT : stored;
+}
+
 export interface OutboxRelayDeps {
   readonly db: Kysely<PlatformDatabase>;
   readonly bus: EventBus;
@@ -31,6 +50,7 @@ interface OutboxRow {
   readonly event_type: string;
   readonly payload: unknown;
   readonly attempts: number;
+  readonly trace_context: string | null;
 }
 
 /** What a batch decided for one row. Applied in memory only after the batch transaction committed. */
@@ -100,7 +120,7 @@ export class OutboxRelay {
     const locked = await this.#deps.db.transaction().execute(async (trx) => {
       let query = trx
         .selectFrom('platform.outbox')
-        .select(['id', 'event_type', 'payload', 'attempts'])
+        .select(['id', 'event_type', 'payload', 'attempts', 'trace_context'])
         .where('published_at', 'is', null)
         .where('failed_at', 'is', null)
         .orderBy('id')
@@ -125,9 +145,28 @@ export class OutboxRelay {
   /** Publishes one row and records its outcome in the batch transaction. */
   async #publish(trx: KyselyTransaction<PlatformDatabase>, row: OutboxRow): Promise<Outcome> {
     const event = { type: row.event_type, payload: row.payload } as AnyDomainEvent;
-    try {
-      await this.#deps.bus.publish({ kind: 'durable', id: BigInt(row.id), event });
-    } catch {
+    // The explicit context is mandatory: the drain runs in the context of whichever request woke it (design § Trace
+    // context across the outbox), so each row sets its own parent.
+    const delivered = await context.with(parentOf(row.trace_context), () =>
+      trace
+        .getTracer(TRACER_NAME)
+        .startActiveSpan(
+          RELAY_SPAN,
+          { attributes: { [D2R_OUTBOX_EVENT_TYPE]: row.event_type } },
+          async (span) => {
+            try {
+              await this.#deps.bus.publish({ kind: 'durable', id: BigInt(row.id), event });
+              return true;
+            } catch {
+              span.setStatus({ code: SpanStatusCode.ERROR, message: 'publish failed' });
+              return false;
+            } finally {
+              span.end();
+            }
+          },
+        ),
+    );
+    if (!delivered) {
       return this.#fail(trx, row);
     }
     await trx
