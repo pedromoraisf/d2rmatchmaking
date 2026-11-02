@@ -199,6 +199,59 @@ mod tests {
     }
 
     #[test]
+    fn the_size_limit_is_64_kib() {
+        assert_eq!(MAX_EVENT_BYTES, 65_536);
+    }
+
+    #[test]
+    fn a_line_of_exactly_the_limit_is_accepted_and_one_byte_more_is_refused() {
+        // A comment is dispatched to nothing, so only the size bound decides the outcome.
+        let at_limit = format!(":{}\n", "x".repeat(MAX_EVENT_BYTES - 1));
+        let mut parser = SseParser::new(None);
+        assert!(
+            parser.push(at_limit.as_bytes()).is_ok(),
+            "a line of exactly the limit is accepted"
+        );
+
+        let one_over = format!(":{}\n", "x".repeat(MAX_EVENT_BYTES));
+        let mut parser = SseParser::new(None);
+        assert!(
+            parser.push(one_over.as_bytes()).is_err(),
+            "one byte more is refused"
+        );
+    }
+
+    #[test]
+    fn data_that_adds_up_to_the_limit_is_accepted_and_one_byte_more_is_refused() {
+        // Each line adds its value and one newline to the event: 64 lines of 1023 bytes make exactly MAX_EVENT_BYTES.
+        let line = format!("data: {}\n", "x".repeat(1023));
+        let mut parser = SseParser::new(None);
+        for _ in 0..64 {
+            assert!(
+                parser.push(line.as_bytes()).is_ok(),
+                "an event of exactly the limit is accepted"
+            );
+        }
+        assert!(parser.push(b"data:\n").is_err(), "one byte more is refused");
+    }
+
+    #[test]
+    fn an_id_with_a_nul_is_ignored_and_the_last_id_stays() {
+        let mut parser = SseParser::new(None);
+        let events = parser
+            .push(b"id: 4\ndata: a\n\nid: a\0b\ndata: b\n\n")
+            .expect("both events parse");
+
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].id.as_deref(), Some("4"));
+        assert_eq!(
+            events[1].id.as_deref(),
+            Some("4"),
+            "an id with a NUL is ignored, so Last-Event-ID is not updated"
+        );
+    }
+
+    #[test]
     fn last_event_id_and_game_name_rules_are_bounded() {
         assert!(valid_last_event_id("1.2"));
         assert!(!valid_last_event_id(""));
