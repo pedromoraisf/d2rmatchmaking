@@ -1,7 +1,7 @@
 # Observability End to End Design
 
 **Spec**: `.specs/features/observability-e2e/spec.md`
-**Status**: Draft, revision 2 (architecture-reviewer FAIL and security-reviewer FAIL on revision 1; every finding addressed below)
+**Status**: Approved (revision 3; architecture-reviewer PASS and security-reviewer PASS on the third review; the FAILs of revisions 1 and 2 are addressed below)
 
 ---
 
@@ -143,13 +143,19 @@ ids are treated as untrusted labels, never as authorization.
     (root) extracts `traceparent` and ignores `tracestate`: the API's global propagator, so `tracestate` is never
     parsed, stored or re-propagated.
   - `samplerFrom(ratioText: string | undefined, now?: () => number): Sampler` (`./node`, `./web`) - a
-    `ParentBasedSampler` (`0.1` when the ratio is undefined or invalid) whose `root` and `remoteParentNotSampled` are
-    `TraceIdRatioBased(ratio)` and whose `remoteParentSampled` is `CappedRatioSampler`: `TraceIdRatioBased(ratio)` **and** a
-    global token bucket (20 traces a second, burst 40, `now` injected for tests). A local parent is followed as the spec
+    `ParentBasedSampler` (`0.1` when the ratio is undefined or invalid) whose three branches (`root`, `remoteParentSampled`, `remoteParentNotSampled`) are
+    `CappedRatioSampler`: `TraceIdRatioBased(ratio)` **and** one shared global token bucket (20 sampled traces a second,
+    burst 40, `now` injected for tests) that is taken **only when the ratio check passes**, so a flood of requests cannot
+    export root spans above the cap either. A local parent is followed as the spec
     says. A caller's `sampled=1` flag alone cannot force an export, and a caller that grinds trace ids under the ratio
     threshold (the client chooses the trace id) still cannot export more than the bucket allows, whatever the route
     (AD-100). Because `TraceIdRatioBased` decides by trace id, the API, the site and the agent given the same ratio take
     the same decision for the same trace (the cap only trims the API under abuse).
+  - **Log volume.** The pino log export is limited to records at `warn` and above, or tied to a sampled span, with a
+    cap of 20 records a second, so a 401 flood cannot produce one exported record per request (`RedactingLogRecordExporter`
+    applies the cap; unit-tested).
+  - **Shared decision vector.** A test vector file (`trace id`, `ratio`, `expected decision`) is read by the TypeScript
+    sampler test and by the Rust sampler test, so the API, the site and the agent hash the trace id the same way.
   - `INSTRUMENT_NAMES` (root) - the metric names the code defines; creators use them; the dashboard test compares.
   - `startNodeTelemetry({ serviceName, serviceVersion, environment, endpoint, headers, samplerArg, intervalMs, onExportError })`.
 - **Dependencies**: `@opentelemetry/{api,core}` for the root; `resources, sdk-trace-base, sdk-metrics, sdk-logs,
@@ -159,7 +165,8 @@ exporter-trace-otlp-http, exporter-metrics-otlp-http, exporter-logs-otlp-http, s
   `n/no-process-env` block for `packages/telemetry/src/**` with a fixture test in `packages/config/test/rules.test.ts`.
 - **Enforcement** (`.dependency-cruiser.cjs`, tightening only): (1) `application-no-adapters` is extended from
   `@opentelemetry/sdk-` to `@opentelemetry/(sdk-|exporter-|resources|instrumentation-)` and also matches
-  `^packages/telemetry/src/(node|web|sdk)/`; the `domain` may import neither the root nor any other telemetry entry
+  `^packages/telemetry/src/(node-sdk|web-sdk|tracing-fetcher|sdk/)` (the entry files, not folders), with a cruiser fixture
+  test: an `application` file importing `@d2rmm/telemetry/node` must fail; the `domain` may import neither the root nor any other telemetry entry
   (`domain-is-pure` already forbids every import outside the domain and the shared kernel), consistent with "the domain
   emits nothing"; (2) a new rule `telemetry-root-has-no-sdk` forbids the root files (`index`, `attributes`,
   `redact-attributes`, `trace-context`, `instrument-names`) from importing
@@ -246,7 +253,7 @@ published_at is null and failed_at is null order by id limit 1` (the partial ind
   belongs to the callers AC 4 names, those without a valid credential, and never refuses a request that carries a valid
   one.
   1. **Authentication.**
-     - _No credential_ (no `Authorization` header and no session cookie): the request is counted in the address bucket on
+     - _No credential_ (no `Authorization` header and no non-empty session cookie; an empty cookie is credential-less): the request is counted in the address bucket on
        arrival; when the bucket already holds more than 120 in the minute the answer is `429` with `Retry-After`
        (AC 4, "unauthenticated address over its limit gets `429` first"); otherwise `401`.
      - _A credential_: an `Authorization` header selects the bearer path (`authenticateAgent`: a cache hit needs no
@@ -256,17 +263,23 @@ published_at is null and failed_at is null order by id limit 1` (the partial ind
        valid agent or session behind a shared address (the Pages proxy's egress address, a NAT, a VPN) is never locked
        out by strangers. A failed authentication is `401` and is counted in the address bucket.
      - _Database cost of bad credentials_ is bounded without refusing valid callers: a credential that misses the cache
-       takes one token from a relay-wide lookup bucket (50 lookups a second, counted on arrival); when it is empty the
+       takes one token from a relay-wide lookup bucket (10 lookups a second, counted on arrival, and at most 3 lookups at once); when it is empty the
        request is `429` without a lookup. A cache hit (a valid, recently used token) never takes a token. The platform
        guard cannot see the agents module's cache, so the public `authenticateAgent` use case gains an optional
        `beforeLookup: () => boolean` argument, called only on a cache miss; `false` returns the new error `throttled`,
-       which the relay maps to `429` (a unit test with a fake cache and repository, inside the module's mutation scope). Sessions have
+       which the relay maps to `429` with `Retry-After: 1` (a unit test with a fake cache and repository, inside the module's
+       mutation scope). The task updates the `AgentsPort` interface in `agents/index.ts` to
+       `authenticateAgent(token, opts?: { beforeLookup })` with the error widened to `'unauthenticated' | 'throttled'`,
+       the in-memory fake, and every caller (`guards.ts`, the stream hub), so that no caller treats `throttled` as `401`
+       except where it must. Sessions have
        no cache, so a session lookup takes one too; a flood of bad cookies can therefore delay site telemetry, which is
        accepted (site telemetry is off in production, AD-098).
      - A valid session whose `Origin` is missing or not exactly `siteOrigin` (no trailing slash, no subdomain) is `403`.
        The origin-only guard does not require JSON, and a request with `Authorization` never takes the cookie path.
-  2. **Rate per principal**, `agent:<id>` or `account:<id>`, counted on arrival and refunded when the request is refused
-     later: 60 requests a minute and 2 MiB a minute. Over either is `429` with `Retry-After`. Then the relay-wide
+  2. **Rate per principal**, keyed on the **account** (an agent maps to its `accountId`, so one account cannot multiply its share by
+     pairing several agents), counted on arrival and refunded when the request is refused later or the forward is
+     dropped by the in-flight caps: 60 requests a minute, 2 MiB a minute and 2 MiB a UTC day. Over any is `429` with
+     `Retry-After`. Then the relay-wide
      budgets of the egress allowance: 4 MiB a minute and 16 MiB a UTC day of forwarded bytes (the allowance below);
      over either is `429` with `Retry-After` until the window ends.
   3. **Content type and encoding**: `application/x-protobuf` or `application/json`; `content-encoding` absent or
@@ -278,7 +291,8 @@ published_at is null and failed_at is null order by id limit 1` (the partial ind
   500 MB a month, 16 MiB a day. The daily counter is the one fixed in step 2; the per-minute caps only bound a burst. The
   counters live in memory and reset on a restart (ADR 006). `load-baseline` reports the telemetry share of bytes per
   player-hour and fails above 10% (queued for its Specify in `decisions.md`).
-- **Order tests.** The table-driven order test has these rows: a valid agent gets `202` while the address bucket is
+- **Order tests.** The table-driven order test has these rows: a failed credential over the address limit gets `401`, not
+  `429` (AC 4 refuses credential-less callers only); an empty session cookie is credential-less; a valid agent gets `202` while the address bucket is
   full (the case a shared address produces); a credential-less caller at 121 a minute gets `429` before `401`; a bad
   token with an empty lookup bucket gets `429` without a repository call; wrong origin is `403` before rate; rate before
   type; type before size.
@@ -300,6 +314,8 @@ published_at is null and failed_at is null order by id limit 1` (the partial ind
     `rateLimitKey` would put every mapped client in one `/64`; the copy fixes that and has its own test).
   - Both maps are pruned on every check and swept every 30 s by `scheduler.every`. The limiter is platform-local because
     `SlidingWindowLimit` is internal to the agents module (`platform-uses-public-ports`).
+- **Slow bodies**: the route sets a 10 s body-read timeout (`connectionTimeout` on the request socket), so slow-body
+  connections cannot hold the in-flight caps.
 - **Instrumentation**: the route and `/healthz` are excluded from HTTP-server instrumentation
   (`ignoreIncomingRequestHook`) so the relay does not trace its own traffic.
 
@@ -335,9 +351,12 @@ published_at is null and failed_at is null order by id limit 1` (the partial ind
   - `RelayHttpClient` (`relay_client.rs`) - implements `opentelemetry_http::HttpClient` over `reqwest` built with
     `redirect::Policy::none()` (the bearer token never follows a redirect) and rustls; adds `Authorization: Bearer <token>`
     and `X-Agent-Version` from a `HeaderSource` trait object per request; `outcome_of(status, retry_after, now)` is a pure
-    function mapping `403/413/415` to "drop this batch", `401` to "drop this batch and stop exporting until the token
-    changes" (a revoked or expired agent would otherwise retry about 12 times a minute), `429` to "no export before
-    `Retry-After`" (capped at 1 h, so a server value cannot silence export for good) and others to success or drop. Data
+    function mapping `403/413/415` to "drop this batch", `401` to "drop this batch and stop exporting while the `HeaderSource` token
+    hash equals the one that was refused" (a revoked or expired agent would otherwise retry about 12 times a minute; any
+    difference, including none to some after a re-pair in the same process, resumes export; nothing is sent before a
+    token exists; the stop is logged once through `LogGate`; a probe once an hour lets a spurious `401` end; AD-101),
+    `429` to "no export before `Retry-After`" (60 s when the header is absent, capped at 1 h, so a server value cannot
+    silence export for good) and others to success or drop. Data
     only, never a command (ADR 010).
   - `sanitize.rs` - `SanitizingExporter` wraps the exporter and runs before the queue. Nothing from a Rust error text
     may leave the machine (a `reqwest` error holds the full URL; an IO error holds `C:\Users\<name>\…`): it drops **all
@@ -346,7 +365,8 @@ published_at is null and failed_at is null order by id limit 1` (the partial ind
     `http.response.status_code`) - no prefix matching, so `http.url` is out - and truncates string values to 128
     characters; the resource carries only `service.name`, `service.version`, `deployment.environment` and
     `d2r.agent.version` (no host or process detector, no `service.instance.id`). Unit-tested with a fixture holding a
-    window title, a process path, screen text, a URL, an event with a Windows path and a status description.
+    window title, a process path, screen text, a URL, an event with a Windows path and a status description. Span names must
+    start with `agent.`; anything else is dropped. `HeaderSource` and the exporter never log the token.
   - `init(mode, export: Option<ExportConfig>) -> TelemetryGuard` - builds the provider with `service.name=d2rmm-agent`,
     `service.version`, `deployment.environment`, `d2r.agent.version`, and `samplerFrom`-equivalent `ParentBased` over
     `TraceIdRatioBased(ratio)` (`remote` parents also by ratio); `TelemetryGuard::shutdown()` flushes. The Windows shell
@@ -572,7 +592,7 @@ reports the telemetry share and fails above 10%.
 | `room.stage_duration` source                      | `lobby.rooms.created_at` through `rooms.openedAt`, `Clock` in the deps                                                                                                             | The aggregate has no timestamps and `awaiting_host` begins when the room opens; no schema change                                        |
 | Backend in tests                                  | Testcontainers starts `otel-lgtm` lazily from the `@slow` step; `compose.yaml` is the single place the tag is written                                                              | No new global dependency for the non-trace scenarios; `obs:up` stays for the developer                                                  |
 
-New project-level decisions recorded in `.specs/STATE.md`: AD-094…AD-100.
+New project-level decisions recorded in `.specs/STATE.md`: AD-094…AD-101.
 
 ---
 

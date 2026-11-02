@@ -869,9 +869,9 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 
 ### AD-097 (assumed)
 
-- **Decision**: with no backend configured the relay answers `202` and drops; the relay keeps the spec's order (authentication, rate, type, size). A request with a credential is authenticated first, whatever the address bucket holds; the address bucket (120 a minute) counts only credential-less and failed-authentication requests and answers `429` for credential-less callers over the limit; a credential that misses the cache takes a token from a relay-wide lookup bucket (50 a second) and is refused with `429` when it is empty, so bad tokens stay off the database without refusing valid callers. Per principal 60 requests and 2 MiB a minute; relay-wide 4 MiB a minute and 16 MiB a UTC day (10% of the 5 GB monthly egress, NFR-14); at most 32 forwards and 8 MiB of bodies in flight; no redirects; response body cancelled. The limiter keeps principals and addresses in separate maps (addresses capped at 10 000 with an overflow bucket for credential-less callers), unwraps IPv4-mapped IPv6, and lives in `platform`.
+- **Decision**: with no backend configured the relay answers `202` and drops; the relay keeps the spec's order (authentication, rate, type, size). A request with a credential is authenticated first, whatever the address bucket holds; the address bucket (120 a minute) counts only credential-less and failed-authentication requests and answers `429` for credential-less callers over the limit; a credential that misses the cache takes a token from a relay-wide lookup bucket (10 a second, at most 3 lookups at once) and is refused with `429` when it is empty, so bad tokens stay off the database without refusing valid callers. Per account 60 requests, 2 MiB a minute and 2 MiB a UTC day; relay-wide 4 MiB a minute and 16 MiB a UTC day (10% of the 5 GB monthly egress, NFR-14); at most 32 forwards and 8 MiB of bodies in flight; no redirects; response body cancelled. The limiter keeps principals and addresses in separate maps (addresses capped at 10 000 with an overflow bucket for credential-less callers), unwraps IPv4-mapped IPv6, and lives in `platform`.
 - **Reason**: the spec fixes an immediate `202`, no retry and the order of AC 7; AC 4 limits unauthenticated callers only, so a shared address (Pages egress, NAT) must not lock valid callers out; the bounds keep a single free instance and the egress budget safe (ADR 006, NFR-14); the agents limiter is module-internal.
-- **Trade-off**: a small duplication of the sliding-window rule; spans are lost silently under a flood; the daily counter resets on a restart; a flood of bad cookies through the Pages proxy can drain the lookup bucket and delay site telemetry. Reversal is exporting a rate-limit port from the agents module.
+- **Trade-off**: a small duplication of the sliding-window rule; spans are lost silently under a flood; the daily counter resets on a restart; a flood of bad cookies through the Pages proxy can drain the lookup bucket and delay site telemetry. Behind the Pages proxy signed-out visitors share Cloudflare egress addresses, so the credential-less and overflow buckets are shared; accepted because production site telemetry is off (AD-098). One account can use the whole 2 MiB a day of its own budget but not another's. Reversal is exporting a rate-limit port from the agents module.
 - **Scope**: observability-e2e / OBS-10, OBS-14, OBS-15
 - **Date**: 2026-11-02
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
@@ -896,10 +896,19 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 
 ### AD-100 (assumed)
 
-- **Decision**: the API's sampler is `ParentBased`: local parents are followed, `root` and `remoteParentNotSampled` use `TraceIdRatioBased(ratio)`, and `remoteParentSampled` uses the ratio plus a global token bucket (20 traces a second, burst 40). A caller's sampled flag or a ground trace id cannot export more than the bucket allows. Amends the reading of AD-089 and OBS-43 for remote parents only.
+- **Decision**: the API's sampler is `ParentBased`: local parents are followed, and `root`, `remoteParentSampled` and `remoteParentNotSampled` each use `TraceIdRatioBased(ratio)` plus one shared global token bucket (20 sampled traces a second, burst 40) taken only when the ratio check passes. A caller's sampled flag, a ground trace id or a request flood cannot export more than the bucket allows; exported logs are limited to `warn` and above or to sampled spans, 20 a second. The approved spec text is unchanged; this amends the reading of AD-089 and OBS-43 for the root and remote-parent branches.
 - **Reason**: a client chooses its trace id and sampled flag on any route, authenticated or not, so a pure parent-based or ratio sampler lets it force export to the maintainer's quota.
 - **Trade-off**: under abuse the agent's sampled traces can be trimmed on the API side, leaving a partial trace; normal traffic stays far under 20 a second. Reversal is the plain `ParentBased(TraceIdRatioBased)` of AD-089.
 - **Scope**: observability-e2e / OBS-43
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-101 (assumed)
+
+- **Decision**: the agent's exporter stops exporting after a relay `401` while its `HeaderSource` token hash equals the refused one, resumes on any difference (including none to some after a re-pair in the same process), sends nothing before a token exists, logs the stop once and probes once an hour; a `429` without `Retry-After` waits 60 s.
+- **Reason**: a revoked or expired agent would retry about 12 times a minute for ever; a stop tied to the token hash cannot become a silent trap after a re-pair.
+- **Trade-off**: OBS-19 AC 11 says "drop that batch" for `401` and expects the next request to be answered; the stop is a small extension of it. Reversal is dropping only the batch.
+- **Scope**: observability-e2e / OBS-19
 - **Date**: 2026-11-02
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
