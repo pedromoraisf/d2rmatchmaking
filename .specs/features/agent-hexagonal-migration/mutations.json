@@ -1,0 +1,23 @@
+[
+  {
+    "file": "apps/agent/src-tauri/domain/src/pairing.rs",
+    "old": "remaining.as_millis().div_ceil(minute)",
+    "new": "remaining.as_millis() / minute",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --lib -E 'test(minutes_left_rounds_up_at_every_offset)'",
+    "label": "minutes left rounds down instead of up"
+  },
+  {
+    "file": "apps/agent/src-tauri/domain/src/paired_device.rs",
+    "old": "self.paired && !self.update_required",
+    "new": "self.paired || !self.update_required",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --lib -E 'test(api_allowed_needs_a_token_and_no_pending_update)'",
+    "label": "api allowed with a token OR no pending update"
+  },
+  {
+    "file": "apps/agent/src-tauri/domain/src/pairing.rs",
+    "old": "if self.unused >= UNUSED_LIMIT {",
+    "new": "if self.unused > UNUSED_LIMIT {",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --lib -E 'test(unused_limit_boundary_both_sides)'",
+    "label": "pause one unused code late"
+  }
+]
