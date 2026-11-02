@@ -782,8 +782,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] `tracestate` is on the allow-list; a value over 512 bytes is dropped; `/api/v1/telemetry/traces` still matches the path pattern
-- [ ] tests `forwards traceparent and tracestate to the API` and `drops an oversized tracestate` pass
+- [x] `tracestate` is on the allow-list; a value over 512 bytes is dropped; `/api/v1/telemetry/traces` still matches the path pattern
+- [x] tests `forwards traceparent and tracestate to the API` and `drops an oversized tracestate` pass
 
 **Tests**: unit
 **Gate**: Web
