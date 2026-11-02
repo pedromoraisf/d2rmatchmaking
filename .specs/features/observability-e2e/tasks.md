@@ -575,8 +575,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] `d2r.room.id` replaces `roomId`; `accountId` and `agentId` are gone from the lobby spans and from `form-test-match.ts`; span names unchanged (AWS-35 tests stay green)
-- [ ] test `no span of lobby or matchmaking carries an account or agent id and the room id uses the d2r constant` passes
+- [x] `d2r.room.id` replaces `roomId`; `accountId` and `agentId` are gone from the lobby spans and from `form-test-match.ts`; span names unchanged (AWS-35 tests stay green)
+- [x] test `no span of lobby or matchmaking carries an account or agent id and the room id uses the d2r constant` passes
 
 **Tests**: unit
 **Gate**: API unit

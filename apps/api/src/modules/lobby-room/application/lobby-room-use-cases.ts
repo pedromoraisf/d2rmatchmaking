@@ -1,3 +1,4 @@
+import { D2R_ROOM_ID } from '@d2rmm/telemetry';
 import type { AgentsPort } from '../../agents/index.ts';
 import {
   err,
@@ -128,7 +129,7 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
   }): Promise<Result<{ readonly stored: boolean }, RecordObservationError>> {
     return withSpan(
       'lobby.record-observation',
-      { roomId: input.roomId },
+      { [D2R_ROOM_ID]: input.roomId },
       async (): Promise<Result<{ readonly stored: boolean }, RecordObservationError>> => {
         const accountId = await deps.agents.accountOfAgent(input.agentId);
         const room = await deps.rooms.findById(input.roomId);
@@ -176,7 +177,7 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
 
   /** The newest room of the account, or null when it has none. */
   function getCurrentRoom(input: { readonly accountId: string }): Promise<RoomSnapshot | null> {
-    return withSpan('lobby.get-current-room', { accountId: input.accountId }, async () => {
+    return withSpan('lobby.get-current-room', {}, async () => {
       const room = await deps.rooms.findNewestByAccount(input.accountId);
       return room === null ? null : toRoomSnapshot(room);
     });
@@ -184,7 +185,7 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
 
   /** The assignment of the agent's account's newest room, or null when the agent is unpaired or has no room. */
   function getAssignment(input: { readonly agentId: string }): Promise<AssignmentSnapshot | null> {
-    return withSpan('lobby.get-assignment', { agentId: input.agentId }, async () => {
+    return withSpan('lobby.get-assignment', {}, async () => {
       const accountId = await deps.agents.accountOfAgent(input.agentId);
       if (accountId === null) {
         return null;

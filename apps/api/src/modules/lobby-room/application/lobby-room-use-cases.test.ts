@@ -5,7 +5,9 @@ import {
 } from '@opentelemetry/sdk-trace-base';
 import { trace } from '@opentelemetry/api';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { D2R_ROOM_ID } from '@d2rmm/telemetry';
 import { SequentialIdGenerator, type MatchFormedPayload } from '../../../shared-kernel/index.ts';
+import { createMatchmakingUseCases } from '../../matchmaking/index.ts';
 import { createLobbyRoomUseCases, type ObservationBody } from './lobby-room-use-cases.ts';
 import { FakeAgentsPort } from './testing/fake-agents-port.ts';
 import { InMemoryGameNameSequence } from './testing/in-memory-game-name-sequence.ts';
@@ -225,5 +227,38 @@ describe('lobby-room use cases', () => {
     await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
 
     expect(exporter.getFinishedSpans().map((span) => span.name)).toContain('lobby.record-observation');
+  });
+
+  it('no span of lobby or matchmaking carries an account or agent id and the room id uses the d2r constant', async () => {
+    const { useCases } = setup();
+    await useCases.onMatchFormed(match());
+    await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
+    await useCases.getCurrentRoom({ accountId: 'account-1' });
+    await useCases.getAssignment({ agentId: 'agent-2' });
+    const matchmaking = createMatchmakingUseCases({
+      ids: new SequentialIdGenerator('match'),
+      uow: new InMemoryUnitOfWork(),
+      outbox: new RecordingOutbox(),
+    });
+    await matchmaking.formTestMatch({ accountId: 'account-1' });
+
+    const spans = exporter.getFinishedSpans();
+    const names = spans.map((span) => span.name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'lobby.record-observation',
+        'lobby.get-current-room',
+        'lobby.get-assignment',
+        'matchmaking.form-test-match',
+      ]),
+    );
+    const observation = spans.find((span) => span.name === 'lobby.record-observation');
+    expect(observation?.attributes).toEqual({ [D2R_ROOM_ID]: 'room-1' });
+    expect(D2R_ROOM_ID).toBe('d2r.room.id');
+    for (const span of spans) {
+      expect(Object.keys(span.attributes)).not.toContain('accountId');
+      expect(Object.keys(span.attributes)).not.toContain('agentId');
+      expect(Object.keys(span.attributes)).not.toContain('roomId');
+    }
   });
 });
