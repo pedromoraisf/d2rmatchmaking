@@ -76,6 +76,7 @@ Feature: Traces follow a test room from the click to the stream event
       | as a paired agent with a body of exactly 1 MiB                       | 202    | that exact body once, with the backend credentials added   |
       | with no credentials                                                  | 401    | nothing                                                    |
       | as a signed-in player from another origin                            | 403    | nothing                                                    |
+      | as a signed-in player with no origin header                          | 403    | nothing                                                    |
       | as a paired agent with a text body                                   | 415    | nothing                                                    |
       | as a paired agent with a gzip-encoded JSON body                      | 415    | nothing                                                    |
       | as a paired agent with a body of 1 MiB plus one byte                 | 413    | nothing                                                    |
