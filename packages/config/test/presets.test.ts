@@ -117,6 +117,11 @@ describe('@d2rmm/config presets', () => {
         rules: { 'n/no-process-env': 'error' },
       },
       {
+        files: ['packages/telemetry/src/**/*.ts'],
+        plugins: { n },
+        rules: { 'n/no-process-env': 'error' },
+      },
+      {
         files: ['apps/api/src/**/*.ts'],
         rules: {
           'no-restricted-properties': [

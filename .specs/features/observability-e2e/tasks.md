@@ -331,8 +331,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] the new block is an error for `packages/telemetry/src/**`; the rule is only tightened
-- [ ] test `reports process.env in the telemetry package` fails without the block and passes with it; `pnpm lint` is clean
+- [x] the new block is an error for `packages/telemetry/src/**`; the rule is only tightened
+- [x] test `reports process.env in the telemetry package` fails without the block and passes with it; `pnpm lint` is clean
 
 **Tests**: unit
 **Gate**: Config
