@@ -380,9 +380,15 @@ importers:
       playwright-bdd:
         specifier: ^9.2.0
         version: 9.2.1(@playwright/test@1.61.1)
+      testcontainers:
+        specifier: ^12.2.1
+        version: 12.2.1
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@30.1.3)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(yaml@2.9.1))
 
 packages:
 
