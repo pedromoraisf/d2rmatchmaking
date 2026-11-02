@@ -649,8 +649,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] per account: 60 requests, 2 MiB a minute, 2 MiB a UTC day; relay-wide: 4 MiB a minute, 16 MiB a UTC day; an agent counts as its account; bytes are charged as they stream; a refund returns bytes of a refused request or a dropped forward; a refusal carries the `Retry-After` of its window
-- [ ] tests `refuses the sixty-first request in a minute`, `an agent and its account share one budget`, `refuses past the daily relay allowance until midnight UTC`, `refunds bytes of a dropped forward` pass with `FakeClock`
+- [x] per account: 60 requests, 2 MiB a minute, 2 MiB a UTC day; relay-wide: 4 MiB a minute, 16 MiB a UTC day; an agent counts as its account; bytes are charged as they stream; a refund returns bytes of a refused request or a dropped forward; a refusal carries the `Retry-After` of its window
+- [x] tests `refuses the sixty-first request in a minute`, `an agent and its account share one budget`, `refuses past the daily relay allowance until midnight UTC`, `refunds bytes of a dropped forward` pass with `FakeClock`
 
 **Tests**: unit
 **Gate**: API unit
