@@ -743,8 +743,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] test `openapi documents the telemetry relay` asserts `post /v1/telemetry/traces` with the responses `202`, `401`, `403`, `413`, `415`, `429` and nothing else, an empty `202`, and no `requestBody` schema (the OTLP body is a passthrough)
-- [ ] `pnpm contracts:check` is clean
+- [x] test `openapi documents the telemetry relay` asserts `post /v1/telemetry/traces` with the responses `202`, `401`, `403`, `413`, `415`, `429` and nothing else, an empty `202`, and no `requestBody` schema (the OTLP body is a passthrough)
+- [x] `pnpm contracts:check` is clean
 
 **Tests**: integration
 **Gate**: API full

@@ -90,6 +90,34 @@ describe('openapi document', () => {
     ).toStrictEqual(['200', '202', '410']);
   });
 
+  it('openapi documents the telemetry relay', async () => {
+    type Media = {
+      readonly content?: Record<string, { readonly schema?: { readonly required?: readonly string[] } }>;
+    };
+    const document = JSON.parse(await buildOpenApiText()) as Document;
+    const relay = document.paths['/v1/telemetry/traces']?.['post'];
+    expect(relay).toBeDefined();
+    expect(Object.keys(relay?.responses ?? {}).sort()).toStrictEqual([
+      '202',
+      '401',
+      '403',
+      '413',
+      '415',
+      '429',
+    ]);
+    // No request schema: the OTLP body is a passthrough, not a validated document.
+    expect(relay?.requestBody).toBeUndefined();
+
+    // The empty 202 carries no content; every other status is the shared error body.
+    const accepted = relay?.responses?.['202'] as Media;
+    expect(accepted.content).toBeUndefined();
+    for (const status of ['401', '403', '413', '415', '429']) {
+      const refusal = relay?.responses?.[status] as Media;
+      expect(Object.keys(refusal.content ?? {}), status).toStrictEqual(['application/json']);
+      expect(refusal.content?.['application/json']?.schema?.required, status).toStrictEqual(['error']);
+    }
+  });
+
   it('the committed openapi.json is the document the routes generate', async () => {
     expect(readFileSync(OPENAPI_PATH, 'utf8')).toBe(await buildOpenApiText());
   });
