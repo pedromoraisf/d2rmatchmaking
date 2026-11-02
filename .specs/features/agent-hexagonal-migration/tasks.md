@@ -1321,7 +1321,7 @@ Proof: `node scripts/mutation-scope-check.mjs`
 Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="mutation rule modules list matches the migrated locations" scripts/test/agent-mutation-scope.test.mjs`
 
 **C32** - Every mutant of a domain rule is killed by a unit test (AHM-25, AC 4)
-Proof: `cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain -- --lib`
+Proof: `cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain --cargo-arg=--locked -- --lib`
 
 ---
 
