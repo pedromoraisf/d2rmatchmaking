@@ -223,17 +223,27 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
 
   try {
     // The staging API migrates the database first; the plain API starts after it, so the two never migrate at once.
-    const staging = launch('staging api', process.execPath, ['src/main/local.ts'], {
-      cwd: path.join(repoRoot, 'apps', 'api'),
-      env: apiEnv(ports.stagingApi, true, origins.stagingSite),
-    });
+    const staging = launch(
+      'staging api',
+      process.execPath,
+      ['--import', './src/main/instrument.ts', 'src/main/local.ts'],
+      {
+        cwd: path.join(repoRoot, 'apps', 'api'),
+        env: apiEnv(ports.stagingApi, true, origins.stagingSite),
+      },
+    );
     managed.push(staging);
     await waitFor(staging, `${origins.stagingApi}/healthz`, (status) => status === 200);
 
-    const plain = launch('plain api', process.execPath, ['src/main/local.ts'], {
-      cwd: path.join(repoRoot, 'apps', 'api'),
-      env: apiEnv(ports.plainApi, false, origins.plainSite),
-    });
+    const plain = launch(
+      'plain api',
+      process.execPath,
+      ['--import', './src/main/instrument.ts', 'src/main/local.ts'],
+      {
+        cwd: path.join(repoRoot, 'apps', 'api'),
+        env: apiEnv(ports.plainApi, false, origins.plainSite),
+      },
+    );
     managed.push(plain);
     await waitFor(plain, `${origins.plainApi}/healthz`, (status) => status === 200);
 

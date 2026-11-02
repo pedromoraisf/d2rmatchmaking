@@ -58,10 +58,17 @@ async function stopChild(child: ChildProcess): Promise<void> {
   await once(child, 'exit');
 }
 
-/** Starts a composition root as a child process and resolves with its loopback address once it listens. */
-function startRoot(script: string, env: Record<string, string>): Promise<Running> {
+/**
+ * Starts a composition root as a child process and resolves with its address once it listens. `execArgv` goes before
+ * the script, for the preload (`--import ./src/main/instrument.ts`).
+ */
+function startRoot(
+  script: string,
+  env: Record<string, string>,
+  execArgv: readonly string[] = [],
+): Promise<Running> {
   return new Promise<Running>((resolve, reject) => {
-    const child = spawn(process.execPath, [path.join(API_ROOT, script)], {
+    const child = spawn(process.execPath, [...execArgv, path.join(API_ROOT, script)], {
       cwd: API_ROOT,
       env: childEnv(env),
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -74,7 +81,7 @@ function startRoot(script: string, env: Record<string, string>): Promise<Running
     }, 20_000);
     child.stdout.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
-      const url = /listening on (http:\/\/127\.0\.0\.1:\d+)/.exec(stdout)?.[1];
+      const url = /listening on (http:\/\/[^\s]+)/.exec(stdout)?.[1];
       if (url !== undefined) {
         clearTimeout(timer);
         const handle: Running = { url, stop: () => stopChild(child) };
@@ -137,6 +144,23 @@ async function createAcceptanceDatabase(): Promise<string> {
 }
 
 describe('composition roots', () => {
+  it('both roots start with no OTLP endpoint and answer a health check', async () => {
+    // The start commands of Render and the acceptance stack run both roots through the preload (OBS-02).
+    const preload = ['--import', './src/main/instrument.ts'];
+    const rootEnv = { DATABASE_URL: database.url, D2RMM_ENV: 'local', PORT: '0' };
+
+    const local = await startRoot('src/main/local.ts', rootEnv, preload);
+    const localHealth = await fetch(`${local.url}/healthz`);
+    expect(localHealth.status).toBe(200);
+    expect(await localHealth.json()).toEqual({ status: 'ok' });
+
+    // The Render root listens on 0.0.0.0; the loopback address reaches the same socket.
+    const render = await startRoot('src/main/render.ts', rootEnv, preload);
+    const renderHealth = await fetch(`${render.url.replace('0.0.0.0', '127.0.0.1')}/healthz`);
+    expect(renderHealth.status).toBe(200);
+    expect(await renderHealth.json()).toEqual({ status: 'ok' });
+  });
+
   it('local.ts started as a child process answers /healthz', async () => {
     const local = await startRoot('src/main/local.ts', {
       DATABASE_URL: database.url,

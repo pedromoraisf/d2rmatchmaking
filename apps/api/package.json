@@ -11,6 +11,7 @@
     "lint": "eslint --max-warnings 0 .",
     "test": "vitest run --passWithNoTests",
     "test:integration": "vitest run -c vitest.integration.config.ts",
+    "start": "node --import ./src/main/instrument.ts src/main/render.ts",
     "db:migrate": "node src/main/migrate.ts",
     "contracts:openapi": "node src/main/openapi.ts",
     "test:mutation": "node scripts/mutation.ts"
