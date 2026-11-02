@@ -236,9 +236,9 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] ratio from the text, `0.1` when undefined or invalid; local parents followed; all three other branches use `CappedRatioSampler` (20 sampled traces a second, burst 40, `now` injected; a token is taken only when the ratio check passes)
-- [ ] `packages/telemetry/test-vectors/sampler.json` holds trace ids, ratios and the expected decisions; the test reads it
-- [ ] tests `ratio from the variable and 0.1 when unset`, `a local child follows its parent`, `a forced sampled flag cannot exceed the cap`, `decisions match the shared vector` pass
+- [x] ratio from the text, `0.1` when undefined or invalid; local parents followed; all three other branches use `CappedRatioSampler` (20 sampled traces a second, burst 40, `now` injected; a token is taken only when the ratio check passes)
+- [x] `packages/telemetry/test-vectors/sampler.json` holds trace ids, ratios and the expected decisions; the test reads it
+- [x] tests `ratio from the variable and 0.1 when unset`, `a local child follows its parent`, `a forced sampled flag cannot exceed the cap`, `decisions match the shared vector` pass
 
 **Tests**: unit
 **Gate**: Telemetry
