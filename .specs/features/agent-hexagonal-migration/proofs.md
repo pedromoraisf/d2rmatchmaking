@@ -1,6 +1,6 @@
 # agent-hexagonal-migration proofs
 
-**HEAD**: 7e1b9d5
+**HEAD**: 1c936f0
 **Tree**: clean
 **Result**: 35 pass, 0 fail; mutations 3 killed, 0 not
 
