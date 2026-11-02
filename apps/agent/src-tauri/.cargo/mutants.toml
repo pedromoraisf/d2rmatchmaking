@@ -1,6 +1,7 @@
 # cargo-mutants scope of the agent (ADR 014, AGS-21, ADR 026; design.md § Mutation scope, AD-080). The nightly `agent-mutation`
 # job and the Verifier run these modules against their unit tests only (`-- --lib`). Every module of the domain is in scope,
-# and so are the rule modules of the application and of the adapters. The read-only boundary is proved by clippy and cargo-deny.
+# and so are the rule modules of the application and of the adapters. `adapters/src/http/api_client.rs` is out of scope by the
+# maintainer's decision (2026-11-02): its async I/O bodies cannot be proved by unit tests (ADR 026). The read-only boundary is proved by clippy and cargo-deny.
 examine_globs = [
   "domain/src/**/*.rs",
   "core/src/pair.rs",
@@ -8,7 +9,6 @@ examine_globs = [
   "core/src/check_update.rs",
   "core/src/post_observation.rs",
   "core/src/beat.rs",
-  "adapters/src/http/api_client.rs",
   "adapters/src/http/translate.rs",
   "adapters/src/http/sse.rs",
 ]

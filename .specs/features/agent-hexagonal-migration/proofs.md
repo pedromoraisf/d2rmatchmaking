@@ -1,8 +1,8 @@
 # agent-hexagonal-migration proofs
 
-**HEAD**: ad4a064
+**HEAD**: 4a302f4
 **Tree**: clean
-**Result**: 34 pass, 1 fail; mutations 3 killed, 0 not
+**Result**: 34 pass, 1 fail; mutations 0 killed, 0 not
 
 | Check | Proof                                                                                                            | Ran           | Passed | Result   |
 | ----- | ---------------------------------------------------------------------------------------------------------------- | ------------- | ------ | -------- |
@@ -37,15 +37,7 @@
 | C29   | `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="a mutation run without the d` | 1             | -      | pass     |
 | C30   | `node scripts/mutation-scope-check.mjs`                                                                          | count unknown | -      | pass     |
 | C31   | `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="mutation rule modules list m` | 1             | -      | pass     |
-| C32   | `cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain -- --lib`   | count unknown | -      | **fail** |
+| C32   | `cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain --cargo-arg=--locke` | count unknown | -      | **fail** |
 | Build | `cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings` | -             | -      | pass     |
 | Build | `pnpm typecheck`                                                                                                 | -             | -      | pass     |
 | Build | `pnpm lint`                                                                                                      | -             | -      | pass     |
-
-## Mutations
-
-| Mutation                                      | Location                                               | Killed |
-| --------------------------------------------- | ------------------------------------------------------ | ------ |
-| minutes left rounds down instead of up        | `apps/agent/src-tauri/domain/src/pairing.rs:154`       | yes    |
-| api allowed with a token OR no pending update | `apps/agent/src-tauri/domain/src/paired_device.rs:107` | yes    |
-| pause one unused code late                    | `apps/agent/src-tauri/domain/src/pairing.rs:133`       | yes    |

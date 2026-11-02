@@ -1119,7 +1119,7 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 ### T53: Mutation scope in mutants.toml
 
-**What**: `.cargo/mutants.toml` examines all of `domain/src/`, the rule modules of design § Mutation scope in core (`pair.rs`, `follow_stream.rs`, `check_update.rs`, `post_observation.rs`, `beat.rs`) and in adapters (`http/api_client.rs`, `http/translate.rs`, `http/sse.rs`).
+**What**: `.cargo/mutants.toml` examines all of `domain/src/`, the rule modules of design § Mutation scope in core (`pair.rs`, `follow_stream.rs`, `check_update.rs`, `post_observation.rs`, `beat.rs`) and in adapters (`http/translate.rs`, `http/sse.rs`). `http/api_client.rs` is out of scope by the maintainer's decision of 2026-11-02: its I/O bodies cannot be proved by unit tests (ADR 026); its status mapping stays a pure, unit-tested function.
 **Where**: `apps/agent/src-tauri/.cargo/mutants.toml`
 **Depends on**: T52
 **Reuses**: the current file

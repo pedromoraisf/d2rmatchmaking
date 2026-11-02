@@ -298,7 +298,6 @@ test('mutation covers the core rule modules', () => {
   assert.ok(globs, 'mutants.toml declares examine_globs');
   const scoped = [...globs[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]).sort();
   assert.deepEqual(scoped, [
-    'adapters/src/http/api_client.rs',
     'adapters/src/http/sse.rs',
     'adapters/src/http/translate.rs',
     'core/src/beat.rs',

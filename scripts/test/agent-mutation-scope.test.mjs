@@ -19,7 +19,6 @@ const MUTATION_SCOPE = [
   'core/src/check_update.rs',
   'core/src/post_observation.rs',
   'core/src/beat.rs',
-  'adapters/src/http/api_client.rs',
   'adapters/src/http/translate.rs',
   'adapters/src/http/sse.rs',
 ];
