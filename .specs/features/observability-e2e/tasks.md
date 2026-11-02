@@ -197,10 +197,10 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] forbidden keys (full key or last dot segment, case-insensitive: `authorization, cookie, set-cookie, token, code, secret, password, image, battletag`) are dropped; `http.response.status_code`, `db.statement`, `d2r.room.id` are kept; `pairing.code`, `http.request.header.authorization` and `x-token` are dropped
-- [ ] `url.full`, `http.url`, `http.target`, `url.query` lose `?…` and `#…`; `client.address`, `user_agent.original` and `enduser.*` are dropped
-- [ ] `scrubText` replaces `Bearer <token>`, the session cookie, `code=`/`token=` and JSON-shaped secrets (`"token":"…"`), and a `pg` DETAIL line with a `battletag` key
-- [ ] tests `strips every forbidden key and keeps the allowed ones`, `removes the query string and the fragment from url attributes and drops the client address`, `scrubs plain and json shaped secrets from text` pass
+- [x] forbidden keys (full key or last dot segment, case-insensitive: `authorization, cookie, set-cookie, token, code, secret, password, image, battletag`) are dropped; `http.response.status_code`, `db.statement`, `d2r.room.id` are kept; `pairing.code`, `http.request.header.authorization` and `x-token` are dropped
+- [x] `url.full`, `http.url`, `http.target`, `url.query` lose `?…` and `#…`; `client.address`, `user_agent.original` and `enduser.*` are dropped
+- [x] `scrubText` replaces `Bearer <token>`, the session cookie, `code=`/`token=` and JSON-shaped secrets (`"token":"…"`), and a `pg` DETAIL line with a `battletag` key
+- [x] tests `strips every forbidden key and keeps the allowed ones`, `removes the query string and the fragment from url attributes and drops the client address`, `scrubs plain and json shaped secrets from text` pass
 
 **Tests**: unit
 **Gate**: Telemetry
