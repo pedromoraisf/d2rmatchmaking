@@ -679,6 +679,7 @@ dependencies = [
  "chrono",
  "d2rmm-agent-core",
  "d2rmm-agent-domain",
+ "image",
  "jsonschema",
  "opentelemetry",
  "opentelemetry-http",

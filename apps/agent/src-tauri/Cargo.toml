@@ -32,6 +32,7 @@ windows = { version = "0.62", features = ["Foundation", "Globalization", "Graphi
 
 [features]
 # The F0 fixture-read trigger (AGS-33, AD-057). Never a default feature; release-agent.yml never enables it.
+# The adapters crate has its own `fixture-read` (the headless example, AD-096, adapters/Cargo.toml); both stay off by default.
 fixture-read = ["dep:image"]
 
 [build-dependencies]

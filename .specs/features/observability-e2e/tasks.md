@@ -967,8 +967,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] both manifests carry a comment naming the other `fixture-read`; the default-feature rule reads both manifests and a new fixture manifest with the feature in `default` makes it fail
-- [ ] tests `fixture-read is never a default feature in either manifest`, `cargo tree for the app crate holds no fixture-read`, `release-agent.yml builds no example and enables no all-features` pass; `cargo deny check` passes with `dep:image`
+- [x] both manifests carry a comment naming the other `fixture-read`; the default-feature rule reads both manifests and a new fixture manifest with the feature in `default` makes it fail
+- [x] tests `fixture-read is never a default feature in either manifest`, `cargo tree for the app crate holds no fixture-read`, `release-agent.yml builds no example and enables no all-features` pass; `cargo deny check` passes with `dep:image`
 
 **Tests**: unit
 **Gate**: Harness

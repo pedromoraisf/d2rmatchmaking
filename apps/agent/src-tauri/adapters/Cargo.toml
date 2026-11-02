@@ -11,6 +11,7 @@ async-trait = "0.1"
 chrono = { version = "0.4", default-features = false, features = ["serde"] }
 d2rmm-agent-core = { path = "../core", version = "0.0.0" }
 d2rmm-agent-domain = { path = "../domain", version = "0.0.0" }
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }
 opentelemetry = "0.33"
 opentelemetry-http = "0.33"
 opentelemetry-otlp = { version = "0.33", default-features = false, features = ["http-proto", "trace", "reqwest-client", "reqwest-rustls"] }
@@ -26,6 +27,11 @@ tracing-opentelemetry = "0.34.0"
 tracing-subscriber = "0.3"
 url = "2"
 uuid = "1"
+
+[features]
+# The headless example's fixture trigger (OBS-24, AD-096): it decodes the PNG of `--read-fixture`. Never a default feature;
+# release-agent.yml never enables it. The app crate has its own `fixture-read` (AGS-33, AD-057, apps/agent/src-tauri/Cargo.toml).
+fixture-read = ["dep:image"]
 
 [dev-dependencies]
 axum = "0.8"
