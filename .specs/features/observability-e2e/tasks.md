@@ -371,8 +371,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 **Done when**:
 
 - [x] `telemetry: { endpoint, headers, samplerArg, intervalMs }`; the endpoint must be `https:` unless the host is loopback, with no user info; the sampler argument is a number in `[0, 1]`; `OTEL_METRIC_EXPORT_INTERVAL` defaults to `60000`; the headers are never printed
-- [ ] `.env.example` at the repo root lists every `OTEL_*` variable the config reads with placeholder values; `pnpm secrets:scan` is clean
-- [ ] tests `rejects an http endpoint off loopback and an endpoint with user info`, `defaults the sampler ratio and the metric interval` in `config.test.ts` and `.env.example lists every OTEL variable the config reads` in `scripts/test/env-example.test.mjs` pass
+- [x] `.env.example` at the repo root lists every `OTEL_*` variable the config reads with placeholder values; `pnpm secrets:scan` is clean
+- [x] tests `rejects an http endpoint off loopback and an endpoint with user info`, `defaults the sampler ratio and the metric interval` in `config.test.ts` and `.env.example lists every OTEL variable the config reads` in `scripts/test/env-example.test.mjs` pass
 
 **Tests**: unit
 **Gate**: API unit

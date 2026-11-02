@@ -27,9 +27,24 @@ export interface Config {
   readonly acceptanceSet: boolean;
   /** `TEST_CONTROL_SECRET`, the header value the test controls require. */
   readonly testControlSecret: string | undefined;
+  readonly telemetry: TelemetryConfig;
+}
+
+export interface TelemetryConfig {
+  /** `OTEL_EXPORTER_OTLP_ENDPOINT`: `https`, or `http` on a loopback host, never with user info. Undefined when unset. */
+  readonly endpoint: string | undefined;
+  /** `OTEL_EXPORTER_OTLP_HEADERS`, parsed. Only the SDK exporters and the relay's forwarder receive it; never logged. */
+  readonly headers: Readonly<Record<string, string>>;
+  /** `OTEL_TRACES_SAMPLER_ARG`, the sampling ratio as text in `[0, 1]`, default `0.1`. */
+  readonly samplerArg: string;
+  /** `OTEL_METRIC_EXPORT_INTERVAL` in milliseconds, default 60000. */
+  readonly intervalMs: number;
 }
 
 type Environment = Readonly<Record<string, string | undefined>>;
+
+const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '[::1]']);
+const DEFAULT_SAMPLER_ARG = '0.1';
 
 function flag(name: string, raw: string | undefined): boolean {
   if (raw === undefined || raw === 'false') {
@@ -50,6 +65,68 @@ function integer(name: string, raw: string | undefined, fallback: number, minimu
     throw new Error(`${name} must be an integer of at least ${minimum}`);
   }
   return value;
+}
+
+/** A loopback host may use plain http; every other endpoint must be https. The refusal never echoes the endpoint. */
+function endpointOf(raw: string | undefined): string | undefined {
+  if (raw === undefined || raw === '') {
+    return undefined;
+  }
+  const refuse = (): never => {
+    throw new Error(
+      'OTEL_EXPORTER_OTLP_ENDPOINT must be https, or http on a loopback host, with no user info',
+    );
+  };
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return refuse();
+  }
+  if (url.username !== '' || url.password !== '') {
+    return refuse();
+  }
+  const loopback = LOOPBACK_HOSTS.has(url.hostname) || url.hostname.startsWith('127.');
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+    return refuse();
+  }
+  return raw;
+}
+
+/** `key=value` pairs separated by commas, values percent-decoded (the OpenTelemetry environment format). */
+function headersOf(raw: string | undefined): Record<string, string> {
+  if (raw === undefined || raw === '') {
+    return {};
+  }
+  const refuse = (): never => {
+    throw new Error('OTEL_EXPORTER_OTLP_HEADERS must be key=value pairs separated by commas');
+  };
+  const headers: Record<string, string> = {};
+  for (const pair of raw.split(',')) {
+    const separator = pair.indexOf('=');
+    const key = separator <= 0 ? '' : pair.slice(0, separator).trim();
+    if (key === '') {
+      refuse();
+    }
+    try {
+      headers[key] = decodeURIComponent(pair.slice(separator + 1).trim());
+    } catch {
+      refuse();
+    }
+  }
+  return headers;
+}
+
+/** The sampling ratio as text: a number in [0, 1], `0.1` when unset. A value outside the range is refused. */
+function samplerArgOf(raw: string | undefined): string {
+  if (raw === undefined || raw === '') {
+    return DEFAULT_SAMPLER_ARG;
+  }
+  const ratio = Number(raw);
+  if (!Number.isFinite(ratio) || ratio < 0 || ratio > 1) {
+    throw new Error('OTEL_TRACES_SAMPLER_ARG must be a number from 0 to 1');
+  }
+  return raw;
 }
 
 /** Reads the settings from the environment. Invalid values throw; absent values take their defaults. */
@@ -76,5 +153,11 @@ export function loadConfig(env: Environment = process.env): Config {
     acceptance: acceptanceRaw === 'true',
     acceptanceSet: acceptanceRaw !== undefined,
     testControlSecret: env['TEST_CONTROL_SECRET'],
+    telemetry: {
+      endpoint: endpointOf(env['OTEL_EXPORTER_OTLP_ENDPOINT']),
+      headers: headersOf(env['OTEL_EXPORTER_OTLP_HEADERS']),
+      samplerArg: samplerArgOf(env['OTEL_TRACES_SAMPLER_ARG']),
+      intervalMs: integer('OTEL_METRIC_EXPORT_INTERVAL', env['OTEL_METRIC_EXPORT_INTERVAL'], 60_000, 1),
+    },
   };
 }
