@@ -1,5 +1,7 @@
 //! Generated contract types (AGS-03). Regenerate with `cargo run -p xtask -- contracts`; never edit `generated.rs`.
 pub mod generated;
+/// The agent JSON Schemas as text, generated with the types. Never edit `schemas.rs`.
+pub mod schemas;
 
 #[cfg(test)]
 mod tests {

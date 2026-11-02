@@ -117,18 +117,20 @@ mod tests {
         issued_code_from_contract, observation_to_contract,
     };
     use crate::contracts::generated as contract;
+    use crate::contracts::schemas::SCHEMAS;
     use d2rmm_agent_core::messages::{GameNameObservation, Presence, Screen};
     use d2rmm_agent_domain::room_assignment::{Member, MemberRole};
 
     const ROOM: &str = "7d9f2c1e-0000-4000-8000-000000000001";
-    const SCHEMA_DIR: &str = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../packages/contracts/json-schema/"
-    );
 
+    /// The agent schema `name`, as the crate's own copy holds it (`contracts/schemas.rs`), so the tests run from a copy of the
+    /// crate as well.
     fn schema(name: &str) -> jsonschema::Validator {
-        let text = std::fs::read_to_string(format!("{SCHEMA_DIR}{name}")).expect("the schema file");
-        let value: Value = serde_json::from_str(&text).expect("the schema is JSON");
+        let (_, text) = SCHEMAS
+            .iter()
+            .find(|(file, _)| *file == name)
+            .expect("the crate holds every agent schema");
+        let value: Value = serde_json::from_str(text).expect("the schema is JSON");
         jsonschema::validator_for(&value).expect("the schema compiles")
     }
 
