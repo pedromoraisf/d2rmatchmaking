@@ -23,27 +23,27 @@ harness test, and extends mutation testing to the agent's domain and application
 
 ## Out of Scope
 
-| Feature                                                              | Reason                                                                                                      |
-| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Any new agent behaviour, new screen, new request                     | The migration is behaviour-preserving (brief revision 2)                                                    |
-| Vision, capture, hotkeys, the local outbox, remote configuration     | F2 (ROADMAP); ADR 027 asks to revisit the layer table when F2 starts                                        |
-| Changes to the wire contracts, the JSON Schemas or the API           | Contracts first (AGENTS.md rule 2); the agent only changes how it holds the generated types                |
-| Exporting spans and the end-to-end trace                             | `observability-e2e` (NFR-09), which runs after this feature; here spans only move to the application layer |
-| Reading timings from the contract or from remote configuration       | Rejected by the maintainer (ADR 027, rule 4): timings are domain constants                                  |
-| A shared Rust domain crate between the agent and the API             | ADR 027, alternatives considered                                                                            |
-| Renaming the backend's `Agent` aggregate                             | The device-side concept gets its own name, `PairedDevice`; the backend is untouched                         |
+| Feature                                                          | Reason                                                                                                     |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Any new agent behaviour, new screen, new request                 | The migration is behaviour-preserving (brief revision 2)                                                   |
+| Vision, capture, hotkeys, the local outbox, remote configuration | F2 (ROADMAP); ADR 027 asks to revisit the layer table when F2 starts                                       |
+| Changes to the wire contracts, the JSON Schemas or the API       | Contracts first (AGENTS.md rule 2); the agent only changes how it holds the generated types                |
+| Exporting spans and the end-to-end trace                         | `observability-e2e` (NFR-09), which runs after this feature; here spans only move to the application layer |
+| Reading timings from the contract or from remote configuration   | Rejected by the maintainer (ADR 027, rule 4): timings are domain constants                                 |
+| A shared Rust domain crate between the agent and the API         | ADR 027, alternatives considered                                                                           |
+| Renaming the backend's `Agent` aggregate                         | The device-side concept gets its own name, `PairedDevice`; the backend is untouched                        |
 
 ---
 
 ## Assumptions & Open Questions
 
-| Assumption / decision                          | Chosen default                                                                                                                                                                       | Rationale                                                                                                                                                                               | Confirmed? |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| How agent behaviour is proved                  | Rust unit tests, the existing integration tests under `core/tests` (assertions unedited), the harness test `scripts/test/agent-architecture.test.mjs` and `pnpm specs:check`; scenarios are `# not-scenario` lines | The acceptance runner cannot drive the Windows agent; same rule as agent-skeleton ("the code tests are enough for the agent"), authorised by the maintainer on 2026-11-01. AD-078       | y (AD-078) |
-| The 45 s offline threshold in the agent        | A domain constant `OFFLINE_AFTER` (45 s) next to `HEARTBEAT_INTERVAL` (15 s), pinned by a test that it is three heartbeats; the agent's loops do not use it                          | ADR 027 rule 4 lists it among the domain constants; the server owns the rule (AD-031), the constant documents the agreement. AD-079 (assumed)                                         | y (AD-079) |
-| Mutation thresholds for the new crates         | The same module-level survival rule the agent already runs (`.cargo/mutants.toml`), widened to every module of `d2rmm-agent-domain` and the rule modules of `d2rmm-agent-core`; no number is lowered | AGENTS.md rule 4 (thresholds are the maintainer's); ADR 026 sets the scope, not a score. AD-080 (assumed)                                                                               | y (AD-080) |
-| Where the HTTP adapter lives                   | Decided in Design (ADR 027, open point 2); this spec requires only that `reqwest` is outside `d2rmm-agent-core`                                                                      | A placement is a design choice, not a product behaviour                                                                                                                                 | y          |
-| Which aggregates exist                         | `Pairing`, `PairedDevice`, `RoomAssignment`, the observation retry policy; stream reconnection and fusion as domain services; Design may merge or split them if a rule has no home    | ADR 027 rule 1 lists them as candidates "to be confirmed in the design of the first migration feature"                                                                                  | y          |
+| Assumption / decision                   | Chosen default                                                                                                                                                                                                     | Rationale                                                                                                                                                                         | Confirmed? |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| How agent behaviour is proved           | Rust unit tests, the existing integration tests under `core/tests` (assertions unedited), the harness test `scripts/test/agent-architecture.test.mjs` and `pnpm specs:check`; scenarios are `# not-scenario` lines | The acceptance runner cannot drive the Windows agent; same rule as agent-skeleton ("the code tests are enough for the agent"), authorised by the maintainer on 2026-11-01. AD-078 | y (AD-078) |
+| The 45 s offline threshold in the agent | A domain constant `OFFLINE_AFTER` (45 s) next to `HEARTBEAT_INTERVAL` (15 s), pinned by a test that it is three heartbeats; the agent's loops do not use it                                                        | ADR 027 rule 4 lists it among the domain constants; the server owns the rule (AD-031), the constant documents the agreement. AD-079 (assumed)                                     | y (AD-079) |
+| Mutation thresholds for the new crates  | The same module-level survival rule the agent already runs (`.cargo/mutants.toml`), widened to every module of `d2rmm-agent-domain` and the rule modules of `d2rmm-agent-core`; no number is lowered               | AGENTS.md rule 4 (thresholds are the maintainer's); ADR 026 sets the scope, not a score. AD-080 (assumed)                                                                         | y (AD-080) |
+| Where the HTTP adapter lives            | Decided in Design (ADR 027, open point 2); this spec requires only that `reqwest` is outside `d2rmm-agent-core`                                                                                                    | A placement is a design choice, not a product behaviour                                                                                                                           | y          |
+| Which aggregates exist                  | `Pairing`, `PairedDevice`, `RoomAssignment`, the observation retry policy; stream reconnection and fusion as domain services; Design may merge or split them if a rule has no home                                 | ADR 027 rule 1 lists them as candidates "to be confirmed in the design of the first migration feature"                                                                            | y          |
 
 **Open questions:** none - all resolved or logged above.
 
@@ -164,31 +164,31 @@ proofs stay cheap and honest (ADR 026).
 
 ## Requirement Traceability
 
-| Requirement ID | Story                                                      | Phase  | Status  |
-| -------------- | ---------------------------------------------------------- | ------ | ------- |
-| AHM-01         | P1: The layers are real and enforced (AC 1)                | Design | Pending |
-| AHM-02         | P1: The layers are real and enforced (AC 2)                | Design | Pending |
-| AHM-03         | P1: The layers are real and enforced (AC 3)                | Design | Pending |
-| AHM-04         | P1: The layers are real and enforced (AC 6)                | Design | Pending |
-| AHM-05         | P1: The layers are real and enforced (AC 4-5)              | Design | Pending |
-| AHM-06         | P1: The layers are real and enforced (AC 7)                | Design | Pending |
-| AHM-07         | P1: The rules live in the domain (AC 1)                    | Design | Pending |
-| AHM-08         | P1: The rules live in the domain (AC 2)                    | Design | Pending |
-| AHM-09         | P1: The rules live in the domain (AC 3)                    | Design | Pending |
-| AHM-10         | P1: The rules live in the domain (AC 4)                    | Design | Pending |
-| AHM-11         | P1: The rules live in the domain (AC 5)                    | Design | Pending |
-| AHM-12         | P1: The rules live in the domain (AC 6)                    | Design | Pending |
-| AHM-13         | P1: The rules live in the domain (AC 7)                    | Design | Pending |
-| AHM-14         | P1: The rules live in the domain (AC 8-9)                  | Design | Pending |
-| AHM-15         | P1: The rules live in the domain (AC 10)                   | Design | Pending |
-| AHM-16         | P1: The application orchestrates through ports (AC 1-2)    | Design | Pending |
-| AHM-17         | P1: The application orchestrates through ports (AC 3)      | Design | Pending |
-| AHM-18         | P1: The application orchestrates through ports (AC 4)      | Design | Pending |
-| AHM-19         | P1: The application orchestrates through ports (AC 5-6)    | Design | Pending |
-| AHM-20         | P1: Nothing changes for the player or the server (AC 1)    | Design | Pending |
-| AHM-21         | P1: Nothing changes for the player or the server (AC 2, 6) | Design | Pending |
-| AHM-22         | P1: Nothing changes for the player or the server (AC 3-5)  | Design | Pending |
-| AHM-23         | P1: Mutation testing covers domain and application (AC 1)  | Design | Pending |
+| Requirement ID | Story                                                       | Phase  | Status  |
+| -------------- | ----------------------------------------------------------- | ------ | ------- |
+| AHM-01         | P1: The layers are real and enforced (AC 1)                 | Design | Pending |
+| AHM-02         | P1: The layers are real and enforced (AC 2)                 | Design | Pending |
+| AHM-03         | P1: The layers are real and enforced (AC 3)                 | Design | Pending |
+| AHM-04         | P1: The layers are real and enforced (AC 6)                 | Design | Pending |
+| AHM-05         | P1: The layers are real and enforced (AC 4-5)               | Design | Pending |
+| AHM-06         | P1: The layers are real and enforced (AC 7)                 | Design | Pending |
+| AHM-07         | P1: The rules live in the domain (AC 1)                     | Design | Pending |
+| AHM-08         | P1: The rules live in the domain (AC 2)                     | Design | Pending |
+| AHM-09         | P1: The rules live in the domain (AC 3)                     | Design | Pending |
+| AHM-10         | P1: The rules live in the domain (AC 4)                     | Design | Pending |
+| AHM-11         | P1: The rules live in the domain (AC 5)                     | Design | Pending |
+| AHM-12         | P1: The rules live in the domain (AC 6)                     | Design | Pending |
+| AHM-13         | P1: The rules live in the domain (AC 7)                     | Design | Pending |
+| AHM-14         | P1: The rules live in the domain (AC 8-9)                   | Design | Pending |
+| AHM-15         | P1: The rules live in the domain (AC 10)                    | Design | Pending |
+| AHM-16         | P1: The application orchestrates through ports (AC 1-2)     | Design | Pending |
+| AHM-17         | P1: The application orchestrates through ports (AC 3)       | Design | Pending |
+| AHM-18         | P1: The application orchestrates through ports (AC 4)       | Design | Pending |
+| AHM-19         | P1: The application orchestrates through ports (AC 5-6)     | Design | Pending |
+| AHM-20         | P1: Nothing changes for the player or the server (AC 1)     | Design | Pending |
+| AHM-21         | P1: Nothing changes for the player or the server (AC 2, 6)  | Design | Pending |
+| AHM-22         | P1: Nothing changes for the player or the server (AC 3-5)   | Design | Pending |
+| AHM-23         | P1: Mutation testing covers domain and application (AC 1)   | Design | Pending |
 | AHM-24         | P1: Mutation testing covers domain and application (AC 2-3) | Design | Pending |
 | AHM-25         | P1: Mutation testing covers domain and application (AC 4-5) | Design | Pending |
 
