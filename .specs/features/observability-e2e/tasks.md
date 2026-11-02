@@ -445,8 +445,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] both histograms use `http.route` (template) and `http.response.status_class` only; an id in the path never becomes an attribute; hijacked streams record nothing
-- [ ] test `records request duration and body size by route template and status class` passes with an in-memory metric reader
+- [x] both histograms use `http.route` (template) and `http.response.status_class` only; an id in the path never becomes an attribute; hijacked streams record nothing
+- [x] test `records request duration and body size by route template and status class` passes with an in-memory metric reader
 
 **Tests**: integration
 **Gate**: API full
@@ -1424,6 +1424,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - T14 open clause, for the orchestrator: `pnpm --filter @d2rmm/acceptance exec bddgen` is NOT clean and cannot be clean before T53 and T54. It reports `Missing step definitions: 42`, all from `.specs/features/observability-e2e/acceptance.feature` (the observability scenarios), whose steps are written in T53 (`observability.steps.ts`) and T54 (`telemetry-relay.steps.ts`). The T14 change touches no step. I ran bddgen through the wrapper under T14 by mistake, which counted one failure (`gate:observability-e2e/T14`, 1 of 3). The T14 box that names bddgen stays unticked for this reason. No retry was made.
 - T15 (execute-batch-2, gate `API full` passed on attempt 2 after one failure, 251 unit and 89 integration tests). `app.ts` creates the Fastify app first; `appLoggerOptions(sink)` is the logger (redaction, `mixin: traceFields`, the sink); `traceFields()` reads the active span. The three `console.error` files are converted, with one more call in the same files: the relay's drain error, its default dead-letter line (`outbox-relay.ts`), the stream replay (`stream-hub.ts`) and the agents sweep (`app.ts`). They call an `ErrorLog` port (`platform/error-log.ts`), injected as `log` (the app passes `app.log`). The relay and hub tests pass a silent `log`. `migrate.ts` keeps its `console.error`: it is the migration CLI, not a request path, and it is not one of the sites the design lists.
 - T15 finding: a span active around `app.inject` does not reach the route handler (light-my-request dispatch loses the async context, verified with `AsyncLocalStorageContextManager`; a plain `await` and `setImmediate` keep it). So `app.test.ts` proves the mixin by logging inside `context.with(span)` through the app logger. Request-scoped correlation is proven by `exports a log record with the trace id` (real HTTP server span, the log record carries the server trace id).
+- T16 (execute-batch-2, gate `API full` passed on attempt 2 after one failure, plus the Telemetry gate on the moved constant, 251 unit and 90 integration tests). `platform/http/request-metrics.ts` records `http.server.request.duration` (s) and `http.server.response.body.size` (By) on the meter from `metrics.getMeter(APP_METER_NAME)`, which `buildApp` registers. `APP_METER_NAME` moved from `sdk/views.ts` to the root `instrument-names.ts` (views re-exports it), so `main/` and the platform name the meter without the SDK. `@opentelemetry/sdk-metrics` 2.12.0 is an API dev dependency, for the in-memory reader of the test.
+- T16 finding: the design's premise (streams never reach `onResponse`) does not hold on Fastify 5: `onResponse` runs for a `reply.hijack()` stream (`reply.sent` cannot tell a hijack from a finished response, the flag is private). The hook records only the responses that went through `onSend`: a hijacked stream never does, so it records nothing (test: `/stream` has no point).
 - T9, T13, T38 to T43, T47 write here.
 
 ---

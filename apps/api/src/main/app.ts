@@ -3,6 +3,7 @@
 import cookie from '@fastify/cookie';
 import swagger from '@fastify/swagger';
 import { ConfigResponse } from '@d2rmm/contracts';
+import { APP_METER_NAME } from '@d2rmm/telemetry';
 import Fastify, {
   type FastifyError,
   type FastifyInstance,
@@ -16,7 +17,7 @@ import {
   validatorCompiler,
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
-import { isSpanContextValid, trace } from '@opentelemetry/api';
+import { isSpanContextValid, metrics, trace } from '@opentelemetry/api';
 import type { Kysely } from 'kysely';
 import type { Writable } from 'node:stream';
 import { z } from 'zod';
@@ -45,6 +46,7 @@ import { Sha256SecretHasher } from '../modules/identity/adapters/postgres/sha256
 import type { IdentityDatabase } from '../modules/identity/adapters/postgres/schema.ts';
 import { createIdentityUseCases } from '../modules/identity/application/identity-use-cases.ts';
 import { InMemoryEventBus } from '../platform/event-bus.ts';
+import { registerRequestMetrics } from '../platform/http/request-metrics.ts';
 import { createGuards } from '../platform/http/guards.ts';
 import { OutboxRelay } from '../platform/outbox-relay.ts';
 import type { PlatformDatabase } from '../platform/postgres/database.ts';
@@ -244,6 +246,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     });
   });
 
+  registerRequestMetrics(app, metrics.getMeter(APP_METER_NAME));
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.setErrorHandler(answerError);

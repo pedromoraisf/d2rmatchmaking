@@ -6,10 +6,9 @@ import {
   type IAttributesProcessor,
   type ViewOptions,
 } from '@opentelemetry/sdk-metrics';
-import { INSTRUMENT_NAMES } from '../instrument-names.ts';
+import { APP_METER_NAME, INSTRUMENT_NAMES } from '../instrument-names.ts';
 
-/** The meter of the application's own instruments (request metrics and room metrics). */
-export const APP_METER_NAME = 'd2rmm';
+export { APP_METER_NAME };
 
 /** The meter of `@opentelemetry/instrumentation-http`, whose duration histogram shares the application's name. */
 export const HTTP_INSTRUMENTATION_METER_NAME = '@opentelemetry/instrumentation-http';
