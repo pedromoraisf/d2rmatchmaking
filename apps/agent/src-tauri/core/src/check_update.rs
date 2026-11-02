@@ -91,7 +91,7 @@ mod tests {
 
     use super::{CHECK_EVERY, Updater, check_once, run, view_after};
     use crate::device_state::DeviceState;
-    use crate::fakes::{MemoryTokens, NullSink, fails_fast};
+    use crate::fakes::{CALL_LIMIT, MemoryTokens, NullSink, fails_fast, trip_bound};
     use crate::groups::UpdatePorts;
     use crate::ports::{UpdateFailure, UpdateOutcome};
     use crate::view::UpdateView;
@@ -106,13 +106,17 @@ mod tests {
         }
     }
 
-    /// An updater that counts its checks and answers "up to date".
+    /// An updater that counts its checks and answers "up to date". Past `CALL_LIMIT` checks the loop is spinning, so the
+    /// bound stops it: a spin that calls no port would otherwise run until the budget of `fails_fast`.
     #[derive(Default)]
     struct CountingUpdater(AtomicUsize);
 
     impl Updater for CountingUpdater {
         fn check_boxed(&self) -> Pin<Box<dyn Future<Output = UpdateOutcome> + Send + '_>> {
-            self.0.fetch_add(1, Ordering::SeqCst);
+            let count = self.0.fetch_add(1, Ordering::SeqCst) + 1;
+            if count > CALL_LIMIT {
+                trip_bound("the updater", CALL_LIMIT);
+            }
             Box::pin(async { UpdateOutcome::UpToDate })
         }
     }

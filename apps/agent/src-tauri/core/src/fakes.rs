@@ -2,10 +2,12 @@
 //! call from a script and records the calls. An unscripted call answers `ApiError::Server`, so a test that forgets a script
 //! fails visibly. Nothing here is a mock: the fake holds plain queues and a call log.
 
+#[cfg(test)]
+use std::cell::Cell;
 use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Mutex;
+use std::sync::{Mutex, PoisonError};
 
 use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::{ReadText, Region};
@@ -30,6 +32,26 @@ pub enum Call {
     OpenStream { last_event_id: Option<String> },
 }
 
+/// Calls a fake answers in one scenario before the loop under test counts as spinning. A legitimate scenario makes a few
+/// hundred calls at most (a five-minute code claimed every 2 s is 150), while a spinning loop reaches this bound in
+/// milliseconds.
+pub const CALL_LIMIT: usize = 10_000;
+
+#[cfg(test)]
+thread_local! {
+    /// Set on the scenario's thread when a bound trips. Tokio catches a panic inside a spawned task, so `fails_fast` reads
+    /// this mark after the scenario and fails the test even when the panic itself went nowhere.
+    static BOUND_TRIPPED: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Stops a loop that a mutation turned into a spin: marks the scenario as tripped, then panics. A panic is enough when the
+/// loop runs in the test body; the mark covers a loop spawned as a task.
+pub fn trip_bound(fake: &str, limit: usize) -> ! {
+    #[cfg(test)]
+    BOUND_TRIPPED.with(|tripped| tripped.set(true));
+    panic!("{fake} answered more than {limit} calls: a loop is spinning");
+}
+
 #[derive(Debug, Default)]
 struct Script {
     request_code: VecDeque<Result<IssuedCode, ApiError>>,
@@ -40,12 +62,25 @@ struct Script {
     open_stream: VecDeque<Result<Vec<StreamItem>, ApiError>>,
     hold_streams: bool,
     calls: Vec<Call>,
+    call_limit: usize,
 }
 
-/// The API port in memory: scripted answers per route, a recorded call log.
-#[derive(Debug, Default)]
+/// The API port in memory: scripted answers per route, a recorded call log. Past `CALL_LIMIT` calls in one scenario it
+/// trips the bound (see `trip_bound`).
+#[derive(Debug)]
 pub struct FakeApiGateway {
     script: Mutex<Script>,
+}
+
+impl Default for FakeApiGateway {
+    fn default() -> Self {
+        Self {
+            script: Mutex::new(Script {
+                call_limit: CALL_LIMIT,
+                ..Script::default()
+            }),
+        }
+    }
 }
 
 impl FakeApiGateway {
@@ -97,9 +132,15 @@ impl FakeApiGateway {
         self.with(|script| script.calls.clone())
     }
 
+    /// Runs `f` on the script and then checks the call bound: a loop that calls the gateway past `call_limit` is spinning.
+    /// A poisoned lock (a bound tripped in an earlier call) is read through, so the first failure is the one reported.
     fn with<T>(&self, f: impl FnOnce(&mut Script) -> T) -> T {
-        let mut script = self.script.lock().expect("the fake's script lock");
-        f(&mut script)
+        let mut script = self.script.lock().unwrap_or_else(PoisonError::into_inner);
+        let out = f(&mut script);
+        if script.calls.len() > script.call_limit {
+            trip_bound("the fake gateway", script.call_limit);
+        }
+        out
     }
 }
 
@@ -261,13 +302,16 @@ impl StateSink for NullSink {
     fn publish(&self, _view: AgentView) {}
 }
 
-/// Real time a paused scenario may take before it counts as spinning (see `fails_fast`).
+/// Real time a paused scenario may take before it counts as spinning (see `fails_fast`). It stays below the 20 s timeout
+/// cargo-mutants gives each mutant, so a spin is counted as a failed test, not as a timeout, and well above the time a
+/// loaded machine needs for a paused scenario.
 #[cfg(test)]
-const SPIN_BUDGET: std::time::Duration = std::time::Duration::from_secs(20);
+const SPIN_BUDGET: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// Runs `scenario` on a paused current-thread runtime, on a thread of its own, and fails the test when it does not finish
 /// within `SPIN_BUDGET` of real time. A loop that a mutation turns into a spin never lets paused time advance, so a plain
-/// `#[tokio::test]` would hang the whole test binary. This turns that hang into a failed test.
+/// `#[tokio::test]` would hang the whole test binary. A loop that calls a fake is stopped sooner by `trip_bound`; a loop
+/// that calls nothing is stopped by the budget. Either way the test fails.
 #[cfg(test)]
 pub fn fails_fast<F, Fut>(scenario: F)
 where
@@ -283,6 +327,10 @@ where
             .expect("a paused runtime");
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             runtime.block_on(scenario());
+            assert!(
+                !BOUND_TRIPPED.with(Cell::get),
+                "a fake answered past its call limit inside a spawned task: a loop is spinning"
+            );
         }));
         // The receiver is gone only after the timeout below has already failed the test.
         let _ = done.send(outcome);
