@@ -58,15 +58,15 @@ pub struct Assignment {
 }
 
 /// The agent's current room assignment. A newer assignment replaces the older one.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RoomAssignment {
     current: Option<Assignment>,
 }
 
 impl RoomAssignment {
-    /// No assignment yet.
+    /// No assignment yet. This is the only constructor: the type has no `Default`, so an empty slot is always spelled out.
     pub fn empty() -> Self {
-        Self::default()
+        Self { current: None }
     }
 
     /// Stores `assignment` as the latest one. Returns `true` when it replaced an earlier assignment and `false` when the
