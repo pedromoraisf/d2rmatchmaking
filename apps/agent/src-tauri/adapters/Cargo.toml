@@ -21,7 +21,7 @@ reqwest = { version = "0.13", features = ["json", "stream"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
-tokio = { version = "1", features = ["macros", "rt", "sync", "time"] }
+tokio = { version = "1", features = ["io-std", "io-util", "macros", "rt", "sync", "time"] }
 tracing = "0.1"
 tracing-opentelemetry = "0.34.0"
 tracing-subscriber = "0.3"
@@ -46,3 +46,11 @@ path = "extra-tests/gateway.rs"
 [[test]]
 name = "stream_limits"
 path = "extra-tests/stream_limits.rs"
+
+# The headless agent of the end-to-end run (OBS-24, AD-096). Built only with `fixture-read`; `cargo build --release` builds
+# no example, and release-agent.yml never enables the feature.
+[[example]]
+name = "headless"
+path = "examples/headless.rs"
+required-features = ["fixture-read"]
+test = true
