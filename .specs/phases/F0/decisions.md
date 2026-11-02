@@ -86,6 +86,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-100 | observability-e2e | The API sampler is `ParentBased` with the ratio plus one shared global token bucket (20 sampled traces/s) on every branch; exported logs are `warn`+ or tied to sampled spans, 20/s; the approved spec text is unchanged | plain `ParentBased(TraceIdRatioBased)` (AD-089) | |
 | AD-101 | observability-e2e | The agent's exporter stops after a relay `401` while its token hash is unchanged, resumes on a different token, probes hourly; `429` without `Retry-After` waits 60 s | drop only the batch | |
 | AD-102 | observability-e2e | The TypeScript samplers use the ratio rule of `opentelemetry_sdk` 0.33.1 (not `TraceIdRatioBased` of `sdk-trace-base`, which hashes the trace id differently) so API, site and agent decide alike; the shared vector comes from the Rust rule | use the library class and drop the parity claim | |
+| AD-103 | observability-e2e | No Fastify request-span instrumentation: the HTTP server span, its `pg` children and the use-case spans stay; the route template is on the request metrics only (a `@fastify/otel` span sat between the server span and the handler and broke OBS-03's parent-child edge) | `@fastify/otel` plus a re-parenting processor, or `http.route` on the server span | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 
@@ -127,6 +128,19 @@ OTEL_METRIC_EXPORT_INTERVAL=60000
 ```
 
 - **Deviation to confirm**: `samplerArg` is a `string` defaulting to `'0.1'` in `config.ts` (the design's data model says `string | undefined`); `samplerFrom` keeps its own `0.1` fallback.
+
+## Batch 2 notes: observability-e2e T12 to T21 (2026-11-02)
+
+All ten tasks are committed (T12 `a036f73` to T21 `6930757`; API full gate 251 unit and 97 integration tests). For the review:
+
+- **T13**: no design fallback was needed; auto-instrumentation of `pg`, HTTP and pino works under `node --import` with type stripping (AD-103 for Fastify). Pinned on the 0.223 / api 1.9.1 line: `instrumentation` 0.223.0, `instrumentation-http` 0.223.0, `instrumentation-pg` 0.76.0, `instrumentation-pino` 0.69.0, `api-logs` 0.223.0, `context-async-hooks` 2.12.0, `import-in-the-middle` 3.5.3. Rejected: pg 0.77 and pino 0.70 (they need api 1.10). Node prints `DeprecationWarning DEP0205` (`module.register`) on stderr when the endpoint is set; no functional effect. The T13 gate used 2 failures (test selectors) and is at its limit, so a re-run of T13 would block it.
+- **T14**: `render.yaml` gains `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS` as names with `sync: false`; start command `node --import ./apps/api/src/main/instrument.ts apps/api/src/main/render.ts`; the API gets a `start` script (no `dev`, to keep `turbo run dev` away from the DATABASE_URL-bound root). The clause "`bddgen` clean" cannot hold before T53 and T54 (see the plan problem below); its box stays open.
+- **T15**: four `console.error` sites (outbox relay twice, stream hub, app sweep) now go through an `ErrorLog` port (`platform/error-log.ts`); `migrate.ts` (a CLI) keeps its `console.error`.
+- **T16**: `onResponse` also runs for hijacked streams, so the hook records only responses that passed `onSend`. `APP_METER_NAME` moved to the root `instrument-names.ts` (views re-export it); `sdk-metrics` is an API devDependency (tests).
+- **T17**: `migrate.int.test.ts`, `first run applies 0001_skeleton and creates the four schemas`, now expects `['0001_skeleton', '0002_outbox_trace_context']`; its name and schema assertions are unchanged (a new migration changes the first run). Confirmed by the orchestrator: an additive expectation, not a weakening.
+- **T19**: sdk-trace 2.x exposes the parent as `parentSpanContext`.
+- **T20**: `StreamHubDeps` gains `meter`.
+- **Plan problem for batch 6 (orchestrator, before execute-batch-6)**: (1) the acceptance Playwright config uses `missingSteps: 'fail-on-gen'`, so `bddgen` fails for every feature while `observability-e2e/acceptance.feature` has 42 undefined steps (until T53 and T54); T51 to T53's Acceptance gate and T51's "`pnpm test:acceptance` green" clause cannot be met in that order. (2) `@d2rmm/acceptance` has no `vitest`, but checks C32 and C33 and tasks T50 and T52 use it. The replan, through the tasks gate, before batch 6: T50 adds `vitest` and a `test:unit` script to the acceptance package; T50 to T52 gate on `pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec vitest run support`; the "existing scenarios pass with telemetry on" clause moves to T54 and T56, where the steps exist.
 
 ## Queued for F1 (from the api-web-skeleton security review)
 

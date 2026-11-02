@@ -921,6 +921,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-02
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-103 (assumed)
+
+- **Decision**: the API instruments HTTP and `pg` (and pino) but not Fastify's own request span (`@fastify/otel` is not installed); a request leaves the HTTP server span, its `pg` children and the use-case spans. The route template is on the request metrics (AD-095), not on the server span.
+- **Reason**: with `@fastify/otel` an internal `request` span sat between the HTTP server span and the handler, so the `pg` span became a grandchild and OBS-03 ("each query a child span of it") failed; no requirement asks for the route template on a span.
+- **Trade-off**: OBS-03 names "Fastify routes" among the things to instrument; the server span carries the method and `url.path`, not `http.route`. Reversal is `@fastify/otel` with a span processor that re-parents `pg` spans, or setting `http.route` on the server span in the metrics hook.
+- **Scope**: observability-e2e / OBS-03
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
