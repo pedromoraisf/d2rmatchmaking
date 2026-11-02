@@ -3232,9 +3232,14 @@
           "at": "2026-11-01T14:57:11.212Z",
           "ok": false,
           "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        },
+        {
+          "at": "2026-11-01T16:33:03.041Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
         }
       ],
-      "status": "open"
+      "status": "blocked"
     },
     "gate:agent-skeleton/integration": {
       "attempts": [
@@ -3405,6 +3410,1351 @@
         }
       ],
       "status": "open"
+    },
+    "denial:a96998eb-d380-5123-afdb-420ab85cf9b6/fb08b46c": {
+      "attempts": [
+        {
+          "at": "2026-11-01T16:36:33.504Z",
+          "ok": false,
+          "note": "Commit refused: the latest gate of this feature since the last commit has not passed through `scripts/attempt.mjs run`. Run the task gate through the wrapper first."
+        },
+        {
+          "at": "2026-11-01T16:53:38.342Z",
+          "ok": false,
+          "note": "Commit refused: the latest gate of this feature since the last commit has not passed through `scripts/attempt.mjs run`. Run the task gate through the wrapper first."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:a96998eb-d380-5123-afdb-420ab85cf9b6/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-01T16:37:50.517Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-01T16:38:19.338Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-01T16:59:12.246Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "blocked"
+    },
+    "gate:agent-hexagonal-migration/spec": {
+      "attempts": [
+        {
+          "at": "2026-11-01T16:37:54.739Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py agent-hexagonal-migration"
+        },
+        {
+          "at": "2026-11-01T16:37:58.963Z",
+          "ok": false,
+          "note": "node scripts/acceptance-check.mjs agent-hexagonal-migration → exit 1: acceptance-check: 1 problem(s)\n  ✗ .specs/features/agent-hexagonal-migration/acceptance.feature: no scenarios."
+        },
+        {
+          "at": "2026-11-01T16:38:33.211Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs agent-hexagonal-migration"
+        },
+        {
+          "at": "2026-11-01T16:40:31.081Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py agent-hexagonal-migration"
+        },
+        {
+          "at": "2026-11-01T16:40:33.371Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs agent-hexagonal-migration"
+        },
+        {
+          "at": "2026-11-01T16:54:03.562Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py agent-hexagonal-migration"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:agent-hexagonal-migration/review-spec": {
+      "attempts": [
+        {
+          "at": "2026-11-01T16:39:06.967Z",
+          "ok": true,
+          "note": "dispatch: Review agent-hexagonal-migration spec"
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:agent-hexagonal-migration/review-architecture": {
+      "attempts": [
+        {
+          "at": "2026-11-01T16:43:01.579Z",
+          "ok": true,
+          "note": "dispatch: Architecture review of design"
+        },
+        {
+          "at": "2026-11-01T16:48:25.112Z",
+          "ok": true,
+          "note": "dispatch: Architecture re-review of design"
+        },
+        {
+          "at": "2026-11-01T16:52:30.377Z",
+          "ok": true,
+          "note": "dispatch: Final architecture re-review of design"
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:agent-hexagonal-migration/review-security": {
+      "attempts": [
+        {
+          "at": "2026-11-01T16:43:05.416Z",
+          "ok": true,
+          "note": "dispatch: Security review of design"
+        },
+        {
+          "at": "2026-11-01T16:48:29.570Z",
+          "ok": true,
+          "note": "dispatch: Security re-review of design"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:b3b06141-fe60-57ef-ae7d-e3c46915270e/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-01T17:12:54.097Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-01T17:30:34.531Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-01T17:35:08.784Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "blocked"
+    },
+    "gate:agent-hexagonal-migration/tasks": {
+      "attempts": [
+        {
+          "at": "2026-11-01T17:12:57.896Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py agent-hexagonal-migration → exit 1:   ERROR T42 declares `Depends on: T41` but the diagram has no T41 -> T42 arrow\n  ERROR T48 declares `Depends on: T47` but the diagram has no T47 -> T48 arrow\n  ERROR T6 declares `Depends on: T5` but the diagram has no T5 -> T6 arrow\n  ERROR T53 declares `Depends on: T52` but the diagram has no T52 -> T53 arrow\n\nvalidate_tasks: 9 error(s), 10 warning(s) in ./.specs/features/agent-hexagonal-migrati"
+        },
+        {
+          "at": "2026-11-01T17:13:27.833Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py agent-hexagonal-migration"
+        },
+        {
+          "at": "2026-11-01T17:13:43.467Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py agent-hexagonal-migration --execute"
+        },
+        {
+          "at": "2026-11-01T17:30:47.368Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py agent-hexagonal-migration --execute"
+        },
+        {
+          "at": "2026-11-01T18:11:00.885Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py agent-hexagonal-migration"
+        },
+        {
+          "at": "2026-11-01T18:15:41.502Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py agent-hexagonal-migration"
+        },
+        {
+          "at": "2026-11-01T19:37:27.929Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py agent-hexagonal-migration"
+        },
+        {
+          "at": "2026-11-01T21:51:15.679Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py agent-hexagonal-migration"
+        },
+        {
+          "at": "2026-11-02T02:03:02.105Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py agent-hexagonal-migration"
+        },
+        {
+          "at": "2026-11-02T03:23:33.233Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py agent-hexagonal-migration"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:agent-hexagonal-migration/execute-batch-1": {
+      "attempts": [
+        {
+          "at": "2026-11-01T17:14:03.694Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 1 (T1–T11)"
+        },
+        {
+          "at": "2026-11-01T17:21:36.452Z",
+          "ok": true,
+          "note": "dispatch: Resume batch 1 from T4 with fix"
+        },
+        {
+          "at": "2026-11-01T17:31:03.518Z",
+          "ok": true,
+          "note": "dispatch: Resume batch 1 from T5"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:agent-hexagonal-migration/T1": {
+      "attempts": [
+        {
+          "at": "2026-11-01T17:15:19.976Z",
+          "ok": true,
+          "note": "PATH=\"/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf/.nvm/versions/node/v26.13.0/bin:/Users/pedromoraisf/.local/bin:/Users/pedromoraisf/.orbstack/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin\" cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=\"/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T2": {
+      "attempts": [
+        {
+          "at": "2026-11-01T17:16:05.012Z",
+          "ok": true,
+          "note": "PATH=\"/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf/.nvm/versions/node/v26.13.0/bin:/Users/pedromoraisf/.local/bin:/Users/pedromoraisf/.orbstack/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin\" cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=\"/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T3": {
+      "attempts": [
+        {
+          "at": "2026-11-01T17:17:20.959Z",
+          "ok": true,
+          "note": "PATH=\"/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf/.nvm/versions/node/v26.13.0/bin:/Users/pedromoraisf/.local/bin:/Users/pedromoraisf/.orbstack/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin\" cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=\"/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:b3b06141-fe60-57ef-ae7d-e3c46915270e#aa76fdec2502e747d/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-01T17:17:52.265Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:agent-hexagonal-migration/T4": {
+      "attempts": [
+        {
+          "at": "2026-11-01T17:20:11.528Z",
+          "ok": false,
+          "note": "PATH=\"/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf/.nvm/versions/node/v26.13.0/bin:/Users/pedromoraisf/.local/bin:/Users/pedromoraisf/.orbstack/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin\" cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=\"/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf"
+        },
+        {
+          "at": "2026-11-01T17:23:03.515Z",
+          "ok": false,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p xtask -E 'test(fixture_is_reproducible)' → exit 101: warning: build failed, waiting for other jobs to finish...\nwarning: `d2rmm-agent-core` (test \"updates\") generated 1 warning (1 duplicate)\nwarning: `d2rmm-agent-core` (test \"runt"
+        },
+        {
+          "at": "2026-11-01T17:25:06.484Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p xtask -E 'test(fixture_is_reproducible)'"
+        },
+        {
+          "at": "2026-11-01T17:29:05.130Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace && node scripts/agent/expect-failure.mjs disallowed_types -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/domain-clock/Cargo.toml -- -D warnings"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:b3b06141-fe60-57ef-ae7d-e3c46915270e#afb3c84d4fc15cec8/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-01T17:31:44.475Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:agent-hexagonal-migration/T5": {
+      "attempts": [
+        {
+          "at": "2026-11-01T17:32:03.887Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:b3b06141-fe60-57ef-ae7d-e3c46915270e#afb3c84d4fc15cec8/2d121ea3": {
+      "attempts": [
+        {
+          "at": "2026-11-01T17:32:09.731Z",
+          "ok": false,
+          "note": "rm -r is allowed only on build/test output folders (node_modules, dist, coverage, target, reports…). Blocked: $T"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:f058df8f-358c-5879-ae71-8aa416d73e1b/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-01T18:10:56.499Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-01T19:37:24.736Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:agent-hexagonal-migration/execute-batch-2": {
+      "attempts": [
+        {
+          "at": "2026-11-01T18:11:16.935Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 2 (T6-T11)"
+        },
+        {
+          "at": "2026-11-01T18:15:54.457Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 2 retry (T7-T11)"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:f058df8f-358c-5879-ae71-8aa416d73e1b#a2e329909298543bd/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-01T18:12:46.389Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-01T18:12:54.694Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-01T18:15:01.682Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "blocked"
+    },
+    "gate:agent-hexagonal-migration/T6": {
+      "attempts": [
+        {
+          "at": "2026-11-01T18:13:13.052Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T7": {
+      "attempts": [
+        {
+          "at": "2026-11-01T18:16:21.148Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T8": {
+      "attempts": [
+        {
+          "at": "2026-11-01T18:20:01.554Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T9": {
+      "attempts": [
+        {
+          "at": "2026-11-01T18:22:25.694Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T10": {
+      "attempts": [
+        {
+          "at": "2026-11-01T18:23:46.018Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T11": {
+      "attempts": [
+        {
+          "at": "2026-11-01T19:24:10.592Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:agent-hexagonal-migration/execute-batch-3": {
+      "attempts": [
+        {
+          "at": "2026-11-01T19:24:51.953Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 3 (T12-T18)"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:agent-hexagonal-migration/T12": {
+      "attempts": [
+        {
+          "at": "2026-11-01T19:30:42.424Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T13": {
+      "attempts": [
+        {
+          "at": "2026-11-01T19:32:12.463Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T14": {
+      "attempts": [
+        {
+          "at": "2026-11-01T19:33:24.521Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T15": {
+      "attempts": [
+        {
+          "at": "2026-11-01T19:35:02.472Z",
+          "ok": false,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core → exit 100:         PASS [   0.459s] ( 24/103) d2rmm-agent-core heartbeat::tests::heartbeat_interval_is_fifteen_seconds\n────────────\n     Summary [   1.502s] 24/103 tests run: 23 passed, 1 failed, 0 skippe"
+        },
+        {
+          "at": "2026-11-01T19:35:54.911Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T16": {
+      "attempts": [
+        {
+          "at": "2026-11-01T19:39:18.975Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T17": {
+      "attempts": [
+        {
+          "at": "2026-11-01T19:40:42.659Z",
+          "ok": false,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core → exit 101: \nwarning: `d2rmm-agent-core` (lib) generated 1 warning\nerror: could not compile `d2rmm-agent-core` (lib) due to 1 previous error; 1 warning emitted\nwarning: build failed, waiting for other jobs"
+        },
+        {
+          "at": "2026-11-01T19:41:50.719Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T18": {
+      "attempts": [
+        {
+          "at": "2026-11-01T19:42:48.410Z",
+          "ok": false,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core → exit 101: warning: `d2rmm-agent-core` (test \"gateway\") generated 1 warning (1 duplicate)\nwarning: `d2rmm-agent-core` (test \"runtime\") generated 1 warning (1 duplicate)\nwarning: `d2rmm-agent-core` (test \""
+        },
+        {
+          "at": "2026-11-01T19:43:50.437Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core"
+        },
+        {
+          "at": "2026-11-02T02:44:57.941Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:agent-hexagonal-migration/execute-batch-4": {
+      "attempts": [
+        {
+          "at": "2026-11-01T19:44:17.236Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 4 (T19-T25)"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:agent-hexagonal-migration/T19": {
+      "attempts": [
+        {
+          "at": "2026-11-01T19:49:53.676Z",
+          "ok": true,
+          "note": "cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core"
+        },
+        {
+          "at": "2026-11-01T20:09:47.671Z",
+          "ok": true,
+          "note": "node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern='no struct in core holds more than five ports' scripts/test/agent-architecture.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T20": {
+      "attempts": [
+        {
+          "at": "2026-11-01T19:52:12.614Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T21": {
+      "attempts": [
+        {
+          "at": "2026-11-01T19:53:57.099Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core"
+        },
+        {
+          "at": "2026-11-01T19:54:09.546Z",
+          "ok": true,
+          "note": "node --test --test-reporter=./scripts/lib/count-reporter.mjs scripts/test/agent-test-preservation.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T22": {
+      "attempts": [
+        {
+          "at": "2026-11-01T19:56:12.165Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core"
+        },
+        {
+          "at": "2026-11-01T19:56:18.104Z",
+          "ok": true,
+          "note": "node --test --test-reporter=./scripts/lib/count-reporter.mjs scripts/test/agent-test-preservation.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T23": {
+      "attempts": [
+        {
+          "at": "2026-11-01T19:59:40.792Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core"
+        },
+        {
+          "at": "2026-11-01T19:59:47.066Z",
+          "ok": true,
+          "note": "node --test --test-reporter=./scripts/lib/count-reporter.mjs scripts/test/agent-test-preservation.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T24": {
+      "attempts": [
+        {
+          "at": "2026-11-01T20:01:36.640Z",
+          "ok": false,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core → exit 101:    = help: to override `-D warnings` add `#[allow(unused_imports)]`\n\nFor more information"
+        },
+        {
+          "at": "2026-11-01T20:03:05.895Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core"
+        },
+        {
+          "at": "2026-11-01T20:03:12.337Z",
+          "ok": true,
+          "note": "node --test --test-reporter=./scripts/lib/count-reporter.mjs scripts/test/agent-test-preservation.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T25": {
+      "attempts": [
+        {
+          "at": "2026-11-01T20:08:43.783Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        },
+        {
+          "at": "2026-11-01T20:09:05.006Z",
+          "ok": true,
+          "note": "node scripts/agent/win-check.mjs"
+        },
+        {
+          "at": "2026-11-01T20:09:10.648Z",
+          "ok": true,
+          "note": "node --test --test-reporter=./scripts/lib/count-reporter.mjs scripts/test/agent-test-preservation.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:agent-hexagonal-migration/execute-batch-5": {
+      "attempts": [
+        {
+          "at": "2026-11-01T20:10:10.255Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 5 (T26-T32)"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:agent-hexagonal-migration/T26": {
+      "attempts": [
+        {
+          "at": "2026-11-01T20:12:08.087Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:f058df8f-358c-5879-ae71-8aa416d73e1b#af0a5517f429bd70c/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-01T20:35:17.534Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:agent-hexagonal-migration/T27": {
+      "attempts": [
+        {
+          "at": "2026-11-01T20:36:51.198Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        },
+        {
+          "at": "2026-11-02T02:53:18.211Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        },
+        {
+          "at": "2026-11-02T03:02:24.372Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace && pnpm test:harness"
+        },
+        {
+          "at": "2026-11-02T03:10:12.940Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace && pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T28": {
+      "attempts": [
+        {
+          "at": "2026-11-01T20:41:41.810Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T29": {
+      "attempts": [
+        {
+          "at": "2026-11-01T20:45:30.981Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters"
+        },
+        {
+          "at": "2026-11-01T20:50:59.606Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T30": {
+      "attempts": [
+        {
+          "at": "2026-11-01T20:53:38.271Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T31": {
+      "attempts": [
+        {
+          "at": "2026-11-01T20:55:17.496Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T32": {
+      "attempts": [
+        {
+          "at": "2026-11-01T20:57:42.110Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:agent-hexagonal-migration/execute-batch-6": {
+      "attempts": [
+        {
+          "at": "2026-11-01T20:58:17.822Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 6 (T33-T37)"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:agent-hexagonal-migration/T33": {
+      "attempts": [
+        {
+          "at": "2026-11-01T20:59:19.007Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --lib"
+        },
+        {
+          "at": "2026-11-02T03:21:22.702Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        },
+        {
+          "at": "2026-11-02T03:23:04.382Z",
+          "ok": true,
+          "note": "cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain --cargo-arg=--locked -- --lib"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T34": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:03:50.969Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        },
+        {
+          "at": "2026-11-01T21:04:09.695Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T35": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:05:10.675Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --lib"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T36": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:08:21.732Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        },
+        {
+          "at": "2026-11-01T21:08:42.347Z",
+          "ok": true,
+          "note": "node scripts/agent/win-check.mjs"
+        },
+        {
+          "at": "2026-11-01T21:09:06.988Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        },
+        {
+          "at": "2026-11-01T21:11:10.380Z",
+          "ok": true,
+          "note": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent --features fixture-read -E 'test(fixture_read_reads_once_with_assignment)'"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T37": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:13:21.695Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:agent-hexagonal-migration/execute-batch-7": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:13:55.912Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 7 (T38-T41)"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:agent-hexagonal-migration/T38": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:16:18.776Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --lib"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T39": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:21:37.261Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        },
+        {
+          "at": "2026-11-01T21:21:48.169Z",
+          "ok": true,
+          "note": "node --test scripts/test/agent-test-preservation.test.mjs"
+        },
+        {
+          "at": "2026-11-01T21:23:33.422Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        },
+        {
+          "at": "2026-11-02T02:24:58.380Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        },
+        {
+          "at": "2026-11-02T04:15:24.878Z",
+          "ok": true,
+          "note": "PATH=/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf/.nvm/versions/node/v26.13.0/bin:/Users/pedromoraisf/.local/bin:/Users/pedromoraisf/.orbstack/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf/.n"
+        },
+        {
+          "at": "2026-11-02T04:19:38.368Z",
+          "ok": false,
+          "note": "PATH=/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf/.nvm/versions/node/v26.13.0/bin:/Users/pedromoraisf/.local/bin:/Users/pedromoraisf/.orbstack/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --cargo-arg=--locked --file core/src/pair.rs -- --lib → exit 2: Found 90 mutants to test\nok       Unmutated baselin"
+        },
+        {
+          "at": "2026-11-02T04:38:56.459Z",
+          "ok": true,
+          "note": "cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --list"
+        },
+        {
+          "at": "2026-11-02T04:39:03.828Z",
+          "ok": true,
+          "note": "cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --list --json"
+        },
+        {
+          "at": "2026-11-02T04:50:33.689Z",
+          "ok": true,
+          "note": "cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --cargo-arg=--locked --output /tmp/mut-core3 -- --lib"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T40": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:26:40.466Z",
+          "ok": false,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core → exit 101:   |\n  = help: add `allow-invalid = true` to the entry to suppress this warning\n\nwarning: `d2rmm-agent-core` (lib) generated 1 warning\nwarning: `d2rmm-agent-core` (lib test) generated 1 warning "
+        },
+        {
+          "at": "2026-11-01T21:27:23.440Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T41": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:29:44.609Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace && node --test scripts/test/agent-test-preservation.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:agent-hexagonal-migration/execute-batch-8": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:30:40.729Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 8 (T42-T47)"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:agent-hexagonal-migration/T42": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:34:13.591Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --lib"
+        },
+        {
+          "at": "2026-11-02T02:17:12.500Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T43": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:38:02.506Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T44": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:42:10.537Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace && node --test scripts/test/agent-test-preservation.test.mjs"
+        },
+        {
+          "at": "2026-11-02T02:30:28.799Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T45": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:46:02.843Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace && node --test scripts/test/agent-test-preservation.test.mjs"
+        },
+        {
+          "at": "2026-11-02T02:35:08.025Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T46": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:49:27.983Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace && node --test scripts/test/agent-test-preservation.test.mjs"
+        },
+        {
+          "at": "2026-11-02T02:39:35.970Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace"
+        },
+        {
+          "at": "2026-11-02T03:59:32.198Z",
+          "ok": false,
+          "note": "PATH=/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf/.nvm/versions/node/v26.13.0/bin:/Users/pedromoraisf/.local/bin:/Users/pedromoraisf/.orbstack/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf/.n"
+        },
+        {
+          "at": "2026-11-02T04:03:39.188Z",
+          "ok": true,
+          "note": "PATH=/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf/.nvm/versions/node/v26.13.0/bin:/Users/pedromoraisf/.local/bin:/Users/pedromoraisf/.orbstack/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf/.n"
+        },
+        {
+          "at": "2026-11-02T04:09:49.487Z",
+          "ok": false,
+          "note": "PATH=/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf/.nvm/versions/node/v26.13.0/bin:/Users/pedromoraisf/.local/bin:/Users/pedromoraisf/.orbstack/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --cargo-arg=--locked --file core/src/check_update.rs -- --lib → exit 3: TIMEOUT  core/src/pair.rs:183:27: replace <"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:agent-hexagonal-migration/T47": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:54:50.476Z",
+          "ok": false,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace && node --test scripts/test/agent-test-preservation.test.mjs → exit 101: warning: `d2rmm-agent-adapters` (test \"gateway\") generated 1 warning (1 duplicate)\nwarning: `d2rmm-agent-adapters` (test \"api_client\") generated 1 w"
+        },
+        {
+          "at": "2026-11-01T21:57:02.285Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace && node --test scripts/test/agent-test-preservation.test.mjs"
+        },
+        {
+          "at": "2026-11-01T21:57:47.533Z",
+          "ok": true,
+          "note": "node scripts/agent/win-check.mjs && pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:agent-hexagonal-migration/execute-batch-9": {
+      "attempts": [
+        {
+          "at": "2026-11-01T21:58:55.508Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 9 (T48-T58)"
+        },
+        {
+          "at": "2026-11-02T02:04:08.989Z",
+          "ok": true,
+          "note": "dispatch: Fix batch for surviving mutants"
+        },
+        {
+          "at": "2026-11-02T03:51:32.989Z",
+          "ok": true,
+          "note": "dispatch: Fix batch 2: core timeouts and sse bounds"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:agent-hexagonal-migration/T48": {
+      "attempts": [
+        {
+          "at": "2026-11-01T22:00:24.938Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --lib"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T49": {
+      "attempts": [
+        {
+          "at": "2026-11-01T22:02:20.192Z",
+          "ok": false,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace && node --test scripts/test/agent-test-preservation.test.mjs → exit 101: \nFor more information about this error, try `rustc --explain E0308`.\nerror: could not compile `d2rmm-agent-core` (lib test) due to 1 previous error\n"
+        },
+        {
+          "at": "2026-11-01T22:04:32.928Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace && node --test scripts/test/agent-test-preservation.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T50": {
+      "attempts": [
+        {
+          "at": "2026-11-01T22:07:50.228Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace && node --test scripts/test/agent-test-preservation.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T51": {
+      "attempts": [
+        {
+          "at": "2026-11-01T22:08:47.393Z",
+          "ok": false,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace && node --test scripts/test/agent-test-preservation.test.mjs → exit 101:   |            ^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = help: add `allow-invalid = true` to the entry to suppress this warning\n\nwarning: `d2rmm-agent-core`"
+        },
+        {
+          "at": "2026-11-01T22:11:26.371Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace && node --test scripts/test/agent-test-preservation.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T52": {
+      "attempts": [
+        {
+          "at": "2026-11-01T22:15:52.432Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace && node --test scripts/test/agent-test-preservation.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T53": {
+      "attempts": [
+        {
+          "at": "2026-11-01T22:17:27.696Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        },
+        {
+          "at": "2026-11-02T03:23:47.262Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        },
+        {
+          "at": "2026-11-02T03:50:26.558Z",
+          "ok": false,
+          "note": "cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --cargo-arg=--locked --output /tmp/mut-adapters -- --lib → exit 2: MISSED   adapters/src/http/sse.rs:105:39: replace > with >= in SseParser::push in 9s build + 2s test\nMISSED   adapters/src/http/sse.rs:137:22: replace match guard !value.contains('\\0') with true in SseParser::line in 9s build + 2s test\nMISSED   adapters/src/http/sse.rs:133:36: replace > with >= in SseParser::line in 9s build + 2s test\n51 "
+        },
+        {
+          "at": "2026-11-02T04:39:25.368Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T54": {
+      "attempts": [
+        {
+          "at": "2026-11-01T22:20:28.593Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T55": {
+      "attempts": [
+        {
+          "at": "2026-11-01T22:23:25.869Z",
+          "ok": true,
+          "note": "node scripts/mutation-scope-check.mjs && pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T56": {
+      "attempts": [
+        {
+          "at": "2026-11-01T22:28:06.313Z",
+          "ok": true,
+          "note": "node scripts/agent/win-check.mjs && cargo deny --config apps/agent/src-tauri/deny.toml --manifest-path apps/agent/src-tauri/Cargo.toml check bans && pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T57": {
+      "attempts": [
+        {
+          "at": "2026-11-01T22:32:02.176Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters && node --test scripts/test/agent-test-preservation.test.mjs"
+        },
+        {
+          "at": "2026-11-02T04:24:03.779Z",
+          "ok": true,
+          "note": "PATH=/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf/.nvm/versions/node/v26.13.0/bin:/Users/pedromoraisf/.local/bin:/Users/pedromoraisf/.orbstack/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf/.n"
+        },
+        {
+          "at": "2026-11-02T04:35:42.096Z",
+          "ok": true,
+          "note": "PATH=/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/.cargo/bin:/Users/pedromoraisf/Library/pnpm/bin:/Users/pedromoraisf/.nvm/versions/node/v26.13.0/bin:/Users/pedromoraisf/.local/bin:/Users/pedromoraisf/.orbstack/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --cargo-arg=--locked --file adapters/src/http/sse.rs -- --lib"
+        },
+        {
+          "at": "2026-11-02T05:01:26.545Z",
+          "ok": true,
+          "note": "cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --cargo-arg=--locked --output /tmp/mut-adapters3 -- --lib"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/T58": {
+      "attempts": [
+        {
+          "at": "2026-11-01T22:37:05.481Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace && pnpm typecheck && pnpm lint && node --test scripts/test/agent-test-preservation.test.mjs"
+        },
+        {
+          "at": "2026-11-01T22:40:35.283Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        },
+        {
+          "at": "2026-11-01T22:43:07.141Z",
+          "ok": true,
+          "note": "pnpm harness:gate"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:f058df8f-358c-5879-ae71-8aa416d73e1b#ad5af6f9231120b08/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-01T22:42:57.802Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:agent-hexagonal-migration/verify": {
+      "attempts": [
+        {
+          "at": "2026-11-02T01:07:39.093Z",
+          "ok": true,
+          "note": "dispatch: Verify agent-hexagonal-migration"
+        },
+        {
+          "at": "2026-11-02T03:30:10.379Z",
+          "ok": true,
+          "note": "dispatch: Verify agent-hexagonal-migration round 2"
+        },
+        {
+          "at": "2026-11-02T04:46:48.277Z",
+          "ok": true,
+          "note": "dispatch: Verify agent-hexagonal-migration round 3"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:f058df8f-358c-5879-ae71-8aa416d73e1b#a1178921d5ac3f5df/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-02T01:07:47.241Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        },
+        {
+          "at": "2026-11-02T01:07:53.565Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:f058df8f-358c-5879-ae71-8aa416d73e1b#a836a45914d252559/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-02T03:30:23.315Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:agent-hexagonal-migration/verification": {
+      "attempts": [
+        {
+          "at": "2026-11-02T03:51:00.025Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration → exit 1: ERROR agent-hexagonal-migration: `Mutations: 3` owes 3 mutation rows and proofs.md has 0 - run check_proofs.py --mutations with the Verifier's spec\n  ERROR agent-hexagonal-migration: finding 'Core rule modules still have 11 timeouts under `--' is not closed - fix it and write the commit in `Closed`\n  ERROR agent-hexagonal-migration: finding 'Adapters `sse.rs` survives under `--lib`: 5 of 5"
+        },
+        {
+          "at": "2026-11-02T05:01:41.070Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration → exit 1: ERROR agent-hexagonal-migration: proofs.md was written at 7e1b9d5 and HEAD is 773165e - run check_proofs.py again\n\nvalidate_verification: 1 error(s), 0 warning(s) across [agent-hexagonal-migration]"
+        },
+        {
+          "at": "2026-11-02T05:06:36.674Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:f058df8f-358c-5879-ae71-8aa416d73e1b/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-02T04:38:53.700Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:agent-hexagonal-migration/proofs": {
+      "attempts": [
+        {
+          "at": "2026-11-02T04:46:29.567Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py agent-hexagonal-migration --mutations .specs/features/agent-hexagonal-migration/mutations.json"
+        },
+        {
+          "at": "2026-11-02T05:06:33.527Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py agent-hexagonal-migration --mutations .specs/features/agent-hexagonal-migration/mutations.json"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:agent-hexagonal-migration/integration": {
+      "attempts": [
+        {
+          "at": "2026-11-02T05:12:21.328Z",
+          "ok": true,
+          "note": "pnpm check"
+        },
+        {
+          "at": "2026-11-02T05:13:55.271Z",
+          "ok": false,
+          "note": "pnpm check → exit 9:   error not-to-unresolvable: apps/agent/src/app/App.test.tsx → @tauri-apps/api/core\n\nx 12 dependency violations (9 errors, 3 warnings). 269 modules, 717 dependencies cruised.\n\n ELIFECYCLE  Command failed with exit code 9.\n ELIFECYCLE  Command failed with exit code 9."
+        },
+        {
+          "at": "2026-11-02T05:15:04.067Z",
+          "ok": true,
+          "note": "pnpm check"
+        }
+      ],
+      "status": "passed"
     }
   },
   "resets": [
@@ -3788,6 +5138,121 @@
             "at": "2026-11-01T14:10:04.528Z",
             "ok": false,
             "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-skeleton → exit 1:   ERROR agent-skeleton: finding 'AGS-34 / AGS-08 (round 2): the call-site wiring th' is not closed - fix it and write the commit in `Closed`\n  ERROR agent-skeleton: the feature has a screen but there is no `screens.md` with a Screens table - each picture is judged by a screens sub-agent on controls, arrangement, copy, drawing and render (verify-screens.md)\n  ERROR agent-skeleton: the feature has a sc"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "gate:agent-hexagonal-migration/proofs",
+      "by": "pedromoraisf",
+      "at": "2026-11-02T02:02:49.464Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-02T01:02:31.659Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py agent-hexagonal-migration → exit 1: **HEAD**: ad4a064\n**Tree**: clean\n**Result**: 34 pass, 1 fail; mutations 0 killed, 0 not\n  C32: **fail** - cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml --package"
+          },
+          {
+            "at": "2026-11-02T01:07:18.338Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py agent-hexagonal-migration → exit 1: **HEAD**: ad4a064\n**Tree**: clean\n**Result**: 34 pass, 1 fail; mutations 0 killed, 0 not\n  C32: **fail** - cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml --package"
+          },
+          {
+            "at": "2026-11-02T01:23:49.935Z",
+            "ok": false,
+            "note": "cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --cargo-arg=--locked --output /tmp/mut-adapters -- --lib → exit 4: error: test failed, to rerun pass `-p d2rmm-agent-adapters --lib`\n\n*** result: Failure(101)\n\n\nERROR cargo test failed in an unmutated tree, so no mutants were tested"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "gate:agent-hexagonal-migration/verification",
+      "by": "pedromoraisf",
+      "at": "2026-11-02T02:02:54.090Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-02T01:07:51.418Z",
+            "ok": false,
+            "note": "cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain -- --lib → exit 1: \n  tip: to pass '--locked' as a value, use '-- --locked'\n\nUsage: cargo mutants [OPTIONS] [-- <CARGO_TEST_ARGS>...]\n\nFor more information, try '--help'."
+          },
+          {
+            "at": "2026-11-02T01:07:56.148Z",
+            "ok": true,
+            "note": "cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain --list --cargo-arg=--locked"
+          },
+          {
+            "at": "2026-11-02T01:41:26.748Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py agent-hexagonal-migration --mutations .specs/features/agent-hexagonal-migration/mutations.json → exit 1: **HEAD**: ad4a064\n**Tree**: clean\n**Result**: 34 pass, 1 fail; mutations 3 killed, 0 not\n  C32: **fail** - cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml --package"
+          },
+          {
+            "at": "2026-11-02T01:41:48.141Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration → exit 1:   ERROR agent-hexagonal-migration: finding 'Domain mutants survive under `--lib` (4 of 82 miss' is not closed - fix it and write the commit in `Closed`\n  ERROR agent-hexagonal-migration: finding 'Core rule modules have many survivors under `--lib' is not closed - fix it and write the commit in `Closed`\n  ERROR agent-hexagonal-migration: finding 'Adapters rule modules are not mutation-testa"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "gate:agent-hexagonal-migration/proofs",
+      "by": "pedromoraisf",
+      "at": "2026-11-02T04:40:54.721Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-02T03:16:14.053Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py agent-hexagonal-migration → exit 1: **HEAD**: 4a302f4\n**Tree**: clean\n**Result**: 34 pass, 1 fail; mutations 0 killed, 0 not\n  C32: **fail** - cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-ag"
+          },
+          {
+            "at": "2026-11-02T03:30:01.309Z",
+            "ok": true,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py agent-hexagonal-migration"
+          },
+          {
+            "at": "2026-11-02T03:38:45.932Z",
+            "ok": false,
+            "note": "cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --cargo-arg=--locked --output /tmp/mut-core -- --lib → exit 3: TIMEOUT  core/src/pair.rs:183:27: replace < with <= in show_code in 1s build + 20s test\nTIMEOUT  core/src/pair.rs:280:63: replace - with + in next_minute_change in 1s build + 20s test\nTIMEOUT  core/src/pair.rs:280:63: replace - with / in next_minute_change in 1s build + 20s test\n90 mutants tested in 7m: 1 missed, 48 caught, 30 unviable, 11 timeou"
+          },
+          {
+            "at": "2026-11-02T04:39:40.615Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py agent-hexagonal-migration --mutations → exit 2: usage: check_proofs.py [-h] [--root ROOT] [--mutations MUTATIONS] feature\ncheck_proofs.py: error: argument --mutations: expected one argument"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "gate:agent-hexagonal-migration/integration",
+      "by": "pedromoraisf",
+      "at": "2026-11-02T05:10:59.957Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-02T01:10:10.219Z",
+            "ok": false,
+            "note": "cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain --cargo-arg=--locked --output /tmp/mut-domain -- --lib → exit 2: MISSED   domain/src/paired_device.rs:59:9: replace PairedDevice::pairing_mut -> &mut Pairing with Box::leak(Box::new(Default::default())) in 0s build + 0s test\nMISSED   domain/src/paired_device.rs:74:9: replace PairedDevice::update_required -> bool with true in 0s build + 0s test\nMISSED   domain/src/room_assignment.rs:69:9: replace RoomAssign"
+          },
+          {
+            "at": "2026-11-02T01:19:19.565Z",
+            "ok": false,
+            "note": "cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --cargo-arg=--locked --output /tmp/mut-core -- --lib → exit 3: MISSED   core/src/pair.rs:280:43: replace * with / in next_minute_change in 2s build + 1s test\nTIMEOUT  core/src/pair.rs:280:63: replace - with + in next_minute_change in 2s build + 20s test\nTIMEOUT  core/src/pair.rs:280:63: replace - with / in next_minute_change in 3s build + 20s test\n90 mutants tested in 9m: 19 missed, 30 caught, 30 unviable, 1"
+          },
+          {
+            "at": "2026-11-02T03:32:02.400Z",
+            "ok": true,
+            "note": "cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain --cargo-arg=--locked --output /tmp/mut-domain -- --lib"
+          },
+          {
+            "at": "2026-11-02T05:07:02.648Z",
+            "ok": false,
+            "note": "pnpm check → exit 1: Checking formatting...\n ELIFECYCLE  Command failed with exit code 1.\n ELIFECYCLE  Command failed with exit code 1.\n\n[warn] .specs/features/agent-hexagonal-migration/spec.md\n[warn] Code style issues found in the above file. Run Prettier with --write to fix."
           }
         ],
         "status": "blocked"
