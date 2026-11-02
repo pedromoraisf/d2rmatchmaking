@@ -12,3 +12,9 @@ examine_globs = [
   "adapters/src/http/translate.rs",
   "adapters/src/http/sse.rs",
 ]
+
+# Equivalent mutant, excluded by the maintainer's decision (2026-11-02): `core/src/pair.rs:87`, `delete ! in pair_once`.
+# With `!` deleted, `pause` returning true ends `pair_once` with `Interrupted` and `run` re-enters it at once with a fresh
+# `Pairing`, which equals the aggregate after the pause; with `!` kept, `pause` returning false loops once and
+# `obtain_code` returns `None`, also `Interrupted`. No unit test can tell the two apart.
+exclude_re = ["delete ! in pair_once"]
