@@ -203,7 +203,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     authenticateSession: (token) => identity.authenticateSession(token),
   };
   const agentsPort: AgentsPort = {
-    authenticateAgent: (token) => agents.authenticateAgent({ token }),
+    authenticateAgent: (token, opts) => agents.authenticateAgent({ token }, opts),
     accountOfAgent: agents.accountOfAgent,
     currentAgentOf: agents.currentAgentOf,
   };

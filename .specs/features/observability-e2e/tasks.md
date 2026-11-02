@@ -667,8 +667,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] a cache hit never calls `beforeLookup`; a miss calls it, and `false` returns the error `throttled` without reading the repository; `AgentsPort.authenticateAgent(token, opts?)` widens its error to `'unauthenticated' | 'throttled'`; the guards and the hub still answer `401` for `unauthenticated` and treat `throttled` as defined in T29
-- [ ] tests `a cache hit does not call beforeLookup`, `a miss with beforeLookup false returns throttled without a repository call`, `a miss with beforeLookup true authenticates` pass
+- [x] a cache hit never calls `beforeLookup`; a miss calls it, and `false` returns the error `throttled` without reading the repository; `AgentsPort.authenticateAgent(token, opts?)` widens its error to `'unauthenticated' | 'throttled'`; the guards and the hub still answer `401` for `unauthenticated` and treat `throttled` as defined in T29
+- [x] tests `a cache hit does not call beforeLookup`, `a miss with beforeLookup false returns throttled without a repository call`, `a miss with beforeLookup true authenticates` pass
 
 **Tests**: unit
 **Gate**: API unit
