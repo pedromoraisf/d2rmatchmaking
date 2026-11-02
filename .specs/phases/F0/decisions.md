@@ -162,6 +162,16 @@ Two plan defects, both the orchestrator's, found when the batch 4 worker stopped
 - **T50 to T54**: `bddgen` fails for every feature while any step is undefined (`missingSteps: 'fail-on-gen'`), and the steps of this feature exist only after T53 and T54; `@d2rmm/acceptance` had no `vitest`. T50 adds `vitest` and a `support` unit run; T50 to T53 gate on a new gate level, Acceptance support (typecheck plus the support unit tests); T54 runs every scenario of the feature (`--grep "@NFR-09"`) and the existing ones with telemetry on, and closes the `bddgen` clause left open in T14.
 - **Worker deviations accepted at T31** (for the review): `answerError` moved to `platform/http/answer-error.ts` and a `429` from Fastify now maps to `rate-limited` (no existing route reaches it: the pairing limiter answers its own 429); the relay's tests use fake Identity and Agents ports, not Testcontainers; the one-export-error-a-minute rule is an `atMostOnePerMinute` wrapper in `buildApp`; `Forwarder.dropped(bytes)` was added for refunds; `guards.ts` exports `sessionCookieValue` and sets `request.agentAccountId` on the bearer path.
 
+## Batch 4 notes: observability-e2e T31 to T37 (2026-11-02)
+
+All seven tasks are committed (T31 `dab1a43` to T37 `29d7e92`; API unit 283, API integration 107, Web 75, Telemetry 32, Harness 200). No expectation changed except the additive `ROUTES` entry. For the review:
+
+- **T31**: `RelayAccepted = z.undefined()` declares the empty `202`; `test/support/relay-app.ts` sets the Zod validator and serializer compilers as `buildApp` does.
+- **T35**: the Node OTLP exporter rejects a relative URL, so `startWebTelemetry` passes `new URL(relayPath, location.origin)`; the test asserts the path `/api/v1/telemetry/traces`.
+- **T36**: `apps/web` gains `@d2rmm/telemetry` as a workspace dependency (the design needs it; the task did not list it); `src/vite-env.d.ts` declares `ImportMetaEnv` locally instead of `vite/client` because the cruiser rule `no-dev-deps-in-runtime` rejects the dev-dependency import from runtime source. T36's gate budget is fully used (passed on the third attempt).
+- **T37**: the second box (the e2e build setting only in acceptance support) stays open until T51; the test covers `deploy-api`, `deploy-web`, `release-agent` and `release-please`.
+- The wrapper's displayed attempt counter counts every run under a step (including `contracts:openapi` under T31), so "attempt 4" is not four failures.
+
 ## Queued for F1 (from the api-web-skeleton security review)
 
 - Global ceiling on failed pairing-code submissions across accounts, and a rate limit on token claims (the F0 limits are the spec's, AD-032 and AD-041).
