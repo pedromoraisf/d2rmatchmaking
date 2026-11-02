@@ -912,6 +912,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-02
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-102 (assumed)
+
+- **Decision**: the TypeScript samplers of the API and the site implement the same ratio rule as `opentelemetry_sdk` 0.33.1 (`lower 8 bytes of the trace id >> 1 < floor(ratio * 2^63)`) instead of `TraceIdRatioBased` from `sdk-trace-base`; the shared vector `packages/telemetry/test-vectors/sampler.json` is generated from the Rust rule, and the Rust agent uses its built-in sampler as is.
+- **Reason**: the JS 2.12 class compares an XOR of the four 32-bit words of the trace id, so the two libraries disagree on the same trace id and the design's "the three senders take the same decision" would not hold.
+- **Trade-off**: a small custom sampler class replaces a library class; the rule must follow `opentelemetry_sdk` if its algorithm changes. Reversal is using `TraceIdRatioBased` and dropping the cross-language parity claim and the shared-vector test.
+- **Scope**: observability-e2e / OBS-43
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
