@@ -159,9 +159,9 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] `exports` is `{ ".": "./src/index.ts", "./node": "./src/node-sdk.ts", "./web": "./src/web-sdk.ts" }`; `src/node-sdk.ts` and `src/web-sdk.ts` exist as `export {};` stubs; the `build` script no longer matters to consumers
-- [ ] dependencies from the design are installed (`@opentelemetry/api`, `core`, `resources`, `sdk-trace-base`, `sdk-metrics`, `sdk-logs`, the three OTLP HTTP exporters, `semantic-conventions`, `sdk-trace-web`), versions pinned from the registry and listed in `## Handoff`; `pnpm-lock.yaml` committed
-- [ ] test `entries resolve to source files` in `src/package-exports.test.ts` imports the three specifiers and passes; the cruiser resolves `@d2rmm/telemetry` to `packages/telemetry/src` (`pnpm arch` clean)
+- [x] `exports` is `{ ".": "./src/index.ts", "./node": "./src/node-sdk.ts", "./web": "./src/web-sdk.ts" }`; `src/node-sdk.ts` and `src/web-sdk.ts` exist as `export {};` stubs; the `build` script no longer matters to consumers
+- [x] dependencies from the design are installed (`@opentelemetry/api`, `core`, `resources`, `sdk-trace-base`, `sdk-metrics`, `sdk-logs`, the three OTLP HTTP exporters, `semantic-conventions`, `sdk-trace-web`), versions pinned from the registry and listed in `## Handoff`; `pnpm-lock.yaml` committed
+- [x] test `entries resolve to source files` in `src/package-exports.test.ts` imports the three specifiers and passes; the cruiser resolves `@d2rmm/telemetry` to `packages/telemetry/src` (`pnpm arch` clean)
 
 **Tests**: unit
 **Gate**: Telemetry
@@ -1394,10 +1394,15 @@ Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** none
-**Dispatched:** none
+**Dispatched:** execute-batch-1 (T1 to T11, feature-worker) at HEAD 60f95d0, not yet returned
 **Walked:** none
 **Batch plan (this line wins over the batch line of the Execution Plan, which mislabels phases):** whole phases packed to about 7 tasks. execute-batch-1 = Phases 1 and 2 (T1 to T11), execute-batch-2 = Phases 3 and 4 (T12 to T21), execute-batch-3 = Phases 5 and 6 (T22 to T30), execute-batch-4 = Phases 7 and 8 (T31 to T37), execute-batch-5 = Phases 9 and 10 (T38 to T46), execute-batch-6 = Phases 11 and 12 (T47 to T56). Batches 7 to 9 are kept for the Verifier's findings.
-**Pinned versions and spike results:** none yet (T1, T9, T13, T38 to T43, T47 write here)
+**Pinned versions and spike results:**
+
+- T1 (registry read 2026-11-02, exact pins in `packages/telemetry/package.json`): `@opentelemetry/api` 1.9.1, `core` 2.12.0, `resources` 2.12.0, `sdk-trace-base` 2.12.0, `sdk-metrics` 2.12.0, `sdk-trace-web` 2.12.0, `sdk-logs` 0.223.0, `exporter-trace-otlp-http` 0.223.0, `exporter-metrics-otlp-http` 0.223.0, `exporter-logs-otlp-http` 0.223.0, `semantic-conventions` 1.44.0; dev `@types/node` ^26.6.6.
+- The registry latest is the 3.0.0 line (`core`, `resources`, `sdk-metrics`, `sdk-logs` 3.0.0), whose api peer is `>=1.10.0 <1.11.0`. `sdk-trace-base` and `sdk-trace-web` have no 3.x release (latest 2.12.0, api peer `<1.10`), so the 2.x line with api 1.9.1 is the only coherent set. Rejected: api 1.10.0 and the 3.x line.
+- Registry notice: `sdk-trace-base` 2.12.0 and `sdk-trace-web` 2.12.0 are marked deprecated, "Use @opentelemetry/sdk-trace package". Kept as the design names them; the replacement is a maintainer decision (recorded in the T1 report, not in `decisions.md`).
+- T9, T13, T38 to T43, T47 write here.
 
 ---
 
