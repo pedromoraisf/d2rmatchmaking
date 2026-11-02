@@ -911,8 +911,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] the provider carries `service.name=d2rmm-agent`, version, environment and `d2r.agent.version`; the sampler decisions match `packages/telemetry/test-vectors/sampler.json`; `LogGate` lets one export error a minute through; `TelemetryGuard::shutdown()` flushes
-- [ ] tests `agent resource carries the agent version`, `sampler decisions match the shared vector`, `log gate allows one error a minute` pass
+- [x] the provider carries `service.name=d2rmm-agent`, version, environment and `d2r.agent.version`; the sampler decisions match `packages/telemetry/test-vectors/sampler.json`; `LogGate` lets one export error a minute through; `TelemetryGuard::shutdown()` flushes
+- [x] tests `agent resource carries the agent version`, `sampler decisions match the shared vector`, `log gate allows one error a minute` pass
 
 **Tests**: unit
 **Gate**: Rust adapters

@@ -138,7 +138,8 @@ mod shell {
         } else {
             Mode::Release
         };
-        telemetry::init(mode).expect("the telemetry subscriber is installed once");
+        let telemetry =
+            telemetry::init(mode, None).expect("the telemetry subscriber is installed once");
 
         #[cfg(feature = "fixture-read")]
         let fixture = fixture.map(|path| {
@@ -190,6 +191,7 @@ mod shell {
             })
             .run(app_context())
             .expect("error while running the agent");
+        let _ = telemetry.shutdown();
     }
 }
 

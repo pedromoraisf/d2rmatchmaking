@@ -11,7 +11,7 @@ fn is_hex(text: &str) -> bool {
 
 #[test]
 fn spans_produce_a_traceparent() {
-    init(Mode::Test).expect("the test process installs its subscriber once");
+    init(Mode::Test, None).expect("the test process installs its subscriber once");
 
     let span = tracing::info_span!("agent.heartbeat");
     let traceparent =
