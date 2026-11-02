@@ -36,3 +36,64 @@ test('package.json defines obs:up and obs:down', () => {
   assert.match(scripts['obs:up'] ?? '', /docker compose -f infra\/observability\/compose\.yaml up/u);
   assert.match(scripts['obs:down'] ?? '', /docker compose -f infra\/observability\/compose\.yaml down/u);
 });
+
+const dashboardText = readText('infra/observability/dashboards/skeleton.json');
+const dashboard = JSON.parse(dashboardText);
+const DASHBOARD_MOUNT = '/var/lib/d2rmm/dashboards';
+const PROVIDER_MOUNT = '/otel-lgtm/grafana/conf/provisioning/dashboards/';
+
+test('the dashboard holds the listed panels', () => {
+  assert.equal(
+    dashboard.panels.length,
+    5,
+    'five panels: request rate, error rate, duration, outbox lag, streams',
+  );
+  for (const panel of dashboard.panels) {
+    assert.ok(panel.title, `panel ${panel.id} has a title`);
+    for (const target of panel.targets) {
+      assert.match(target.expr, /service_name="d2rmm-api"/u, `panel "${panel.title}" filters on the API`);
+    }
+  }
+
+  const exprs = dashboard.panels.flatMap((panel) => panel.targets.map((target) => target.expr));
+  const queries = (metric) => exprs.some((expr) => expr.includes(metric));
+  assert.ok(
+    queries('http_server_request_duration_seconds_count'),
+    'the request rate panel reads the request count',
+  );
+  assert.ok(queries('http_response_status_class="5xx"'), 'the error rate panel reads the 5xx class');
+  assert.ok(
+    queries('http_server_request_duration_seconds_bucket'),
+    'the duration panel reads the histogram buckets',
+  );
+  assert.ok(queries('outbox_lag_seconds'), 'the outbox lag panel reads outbox_lag');
+  assert.ok(queries('sse_connections'), 'the streams panel reads sse_connections');
+
+  assert.doesNotMatch(
+    dashboardText,
+    /token|secret|password|authorization|cookie/iu,
+    'the dashboard carries no secret',
+  );
+});
+
+test('compose provisions the dashboard', () => {
+  const volumes = compose.services.lgtm.volumes.map(String);
+  assert.ok(
+    volumes.includes(`./dashboards:${DASHBOARD_MOUNT}:ro`),
+    'compose mounts the dashboards read-only at the provider path',
+  );
+
+  const providerMount = volumes.find((volume) => volume.includes(PROVIDER_MOUNT));
+  assert.ok(
+    providerMount,
+    'compose mounts a provisioning provider file into the Grafana providers directory',
+  );
+  const [hostFile] = providerMount.split(':');
+  const provider = parse(readText(path.join('infra/observability', hostFile)));
+  assert.equal(
+    provider.providers[0].options.path,
+    DASHBOARD_MOUNT,
+    'the provider reads the mounted dashboards',
+  );
+  assert.equal(provider.providers[0].type, 'file', 'the provider loads dashboard files');
+});
