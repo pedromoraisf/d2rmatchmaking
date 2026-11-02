@@ -5,7 +5,13 @@
 // the browser only (rule acceptance-is-black-box). Before each scenario, both APIs are reset (support/world.ts).
 import { randomBytes } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { createServer } from 'node:net';
+import {
+  createServer as createHttpServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from 'node:http';
+import { createServer, type Socket } from 'node:net';
 import { existsSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -20,6 +26,10 @@ const repoRoot = path.resolve(fileURLToPath(new URL('../../..', import.meta.url)
 const READY_TIMEOUT_MS = 90_000;
 const READY_POLL_MS = 150;
 const CONTROL_HEADER = 'x-test-control';
+/** The metric export interval of the traced API, in milliseconds (the design's 5 s for the trace scenarios). */
+const TRACED_METRIC_INTERVAL_MS = 5_000;
+/** A site build of the traced stack may take this long. */
+const BUILD_TIMEOUT_MS = 180_000;
 /** The compatibility date of the local Pages Functions (the wrangler default of this version). */
 const WRANGLER_COMPATIBILITY_DATE = '2026-10-23';
 
@@ -166,6 +176,116 @@ async function createDatabase(adminUrl: string, name: string): Promise<string> {
   return database.toString();
 }
 
+/** The environment of one API process. `telemetry` is set only for the traced stack: the API then exports to `otlpEndpoint`. */
+interface ApiEnvInput {
+  readonly port: number;
+  readonly databaseUrl: string;
+  readonly site: string;
+  readonly staging: boolean;
+  readonly controlSecret: string;
+  readonly telemetry?: { readonly otlpEndpoint: string };
+}
+
+/** Builds the minimal environment of an API process; the telemetry variables are added only when the stack asks for them. */
+function apiEnv(input: ApiEnvInput): Record<string, string> {
+  return {
+    PATH: process.env['PATH'] ?? '',
+    HOME: process.env['HOME'] ?? '',
+    DATABASE_URL: input.databaseUrl,
+    PORT: String(input.port),
+    HOST: '127.0.0.1',
+    SITE_ORIGIN: input.site,
+    ENABLE_STAGING_ENDPOINTS: input.staging ? 'true' : 'false',
+    AGENT_MIN_VERSION: '0.0.1',
+    D2RMM_ACCEPTANCE: 'true',
+    D2RMM_ENV: 'local',
+    TEST_CONTROL_SECRET: input.controlSecret,
+    ...(input.telemetry === undefined
+      ? {}
+      : {
+          OTEL_EXPORTER_OTLP_ENDPOINT: input.telemetry.otlpEndpoint,
+          // Every request is sampled in the traced stack: the trace scenarios read one trace per action (OBS-24).
+          OTEL_TRACES_SAMPLER_ARG: '1.0',
+          OTEL_METRIC_EXPORT_INTERVAL: String(TRACED_METRIC_INTERVAL_MS),
+        }),
+  };
+}
+
+/** Launches one `wrangler pages dev` server for a built site. The caller checks its readiness. */
+function launchPages(input: {
+  readonly name: string;
+  readonly siteDir: string;
+  readonly api: string;
+  readonly port: number;
+  readonly inspector: number;
+  readonly stateDir: string;
+}): Managed {
+  const wrangler = path.join(repoRoot, 'apps', 'web', 'node_modules', 'wrangler', 'bin', 'wrangler.js');
+  const serverArgs = [
+    wrangler,
+    'pages',
+    'dev',
+    input.siteDir,
+    '--ip',
+    '127.0.0.1',
+    '--port',
+    String(input.port),
+    // Every wrangler needs its own inspector port: the default one is shared by all workers of the run.
+    '--inspector-port',
+    String(input.inspector),
+    // Local storage is private to this stack: workers share no workerd state directory.
+    '--persist-to',
+    path.join(input.stateDir, input.name.replace(' ', '-')),
+    '--compatibility-date',
+    WRANGLER_COMPATIBILITY_DATE,
+    '--binding',
+    `API_ORIGIN=${input.api}`,
+    '--show-interactive-dev-session=false',
+    '--log-level=warn',
+  ];
+  return launch(input.name, process.execPath, serverArgs, {
+    cwd: input.stateDir,
+    env: {
+      PATH: process.env['PATH'] ?? '',
+      HOME: process.env['HOME'] ?? '',
+      WRANGLER_SEND_METRICS: 'false',
+      CI: '1',
+    },
+  });
+}
+
+/**
+ * Builds the site into `outDir` with telemetry on and the sampling ratio at 1 (the traced stack's build, OBS-44). The
+ * build writes only into the stack's private directory, never into `apps/web/dist`, which the plain stack serves.
+ */
+async function buildTelemetrySite(outDir: string): Promise<void> {
+  const vite = path.join(repoRoot, 'apps', 'web', 'node_modules', 'vite', 'bin', 'vite.js');
+  const build = spawn(process.execPath, [vite, 'build', '--outDir', outDir, '--emptyOutDir'], {
+    cwd: path.join(repoRoot, 'apps', 'web'),
+    env: {
+      PATH: process.env['PATH'] ?? '',
+      HOME: process.env['HOME'] ?? '',
+      VITE_TELEMETRY: 'on',
+      VITE_TELEMETRY_RATIO: '1',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let output = '';
+  const keep = (chunk: Buffer): void => {
+    output = `${output}${chunk.toString('utf8')}`.slice(-8_000);
+  };
+  build.stdout?.on('data', keep);
+  build.stderr?.on('data', keep);
+  const timer = setTimeout(() => build.kill('SIGKILL'), BUILD_TIMEOUT_MS);
+  const code = await new Promise<number | null>((resolve, reject) => {
+    build.once('error', reject);
+    build.once('exit', (exitCode) => resolve(exitCode));
+  }).finally(() => clearTimeout(timer));
+  if (code !== 0) {
+    throw new Error(`the telemetry site did not build (exit ${code})\n${output}`);
+  }
+}
+
 /** Starts the stack for one worker. `runtime` names the browser build of the run, for start-up errors. */
 export async function startStack(workerIndex: number, runtime: string): Promise<Stack> {
   try {
@@ -207,19 +327,8 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
     plainSite: `http://127.0.0.1:${ports.plainSite}`,
   };
 
-  const apiEnv = (port: number, staging: boolean, site: string): Record<string, string> => ({
-    PATH: process.env['PATH'] ?? '',
-    HOME: process.env['HOME'] ?? '',
-    DATABASE_URL: databaseUrl,
-    PORT: String(port),
-    HOST: '127.0.0.1',
-    SITE_ORIGIN: site,
-    ENABLE_STAGING_ENDPOINTS: staging ? 'true' : 'false',
-    AGENT_MIN_VERSION: '0.0.1',
-    D2RMM_ACCEPTANCE: 'true',
-    D2RMM_ENV: 'local',
-    TEST_CONTROL_SECRET: controlSecret,
-  });
+  const envOf = (port: number, staging: boolean, site: string): Record<string, string> =>
+    apiEnv({ port, databaseUrl, site, staging, controlSecret });
 
   try {
     // The staging API migrates the database first; the plain API starts after it, so the two never migrate at once.
@@ -229,7 +338,7 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
       ['--import', './src/main/instrument.ts', 'src/main/local.ts'],
       {
         cwd: path.join(repoRoot, 'apps', 'api'),
-        env: apiEnv(ports.stagingApi, true, origins.stagingSite),
+        env: envOf(ports.stagingApi, true, origins.stagingSite),
       },
     );
     managed.push(staging);
@@ -241,52 +350,28 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
       ['--import', './src/main/instrument.ts', 'src/main/local.ts'],
       {
         cwd: path.join(repoRoot, 'apps', 'api'),
-        env: apiEnv(ports.plainApi, false, origins.plainSite),
+        env: envOf(ports.plainApi, false, origins.plainSite),
       },
     );
     managed.push(plain);
     await waitFor(plain, `${origins.plainApi}/healthz`, (status) => status === 200);
 
-    const wrangler = path.join(repoRoot, 'apps', 'web', 'node_modules', 'wrangler', 'bin', 'wrangler.js');
     // Wrangler keeps its bundling temp files in `.wrangler/` under its working directory, and Pages finds the functions
     // under that same directory. The working directory is the private state directory, reached through a `functions`
     // link, so those temp files never appear in the repository: dependency-cruiser (`pnpm arch`, HF-05) crawls the
     // repository while the stack runs, and a temp file it lists can be gone by the time it reads it.
     symlinkSync(path.join(repoRoot, 'apps', 'web', 'functions'), path.join(stateDir, 'functions'), 'dir');
-    // Every wrangler needs its own inspector port: the default one is shared by all workers of the run.
-    for (const [name, site, api, port, inspector] of [
-      ['staging site', origins.stagingSite, origins.stagingApi, ports.stagingSite, await freePort()],
-      ['plain site', origins.plainSite, origins.plainApi, ports.plainSite, await freePort()],
+    for (const [name, site, api, port] of [
+      ['staging site', origins.stagingSite, origins.stagingApi, ports.stagingSite],
+      ['plain site', origins.plainSite, origins.plainApi, ports.plainSite],
     ] as const) {
-      const serverArgs = [
-        wrangler,
-        'pages',
-        'dev',
-        path.join(repoRoot, 'apps', 'web', 'dist'),
-        '--ip',
-        '127.0.0.1',
-        '--port',
-        String(port),
-        '--inspector-port',
-        String(inspector),
-        // Local storage is private to this stack: workers share no workerd state directory.
-        '--persist-to',
-        path.join(stateDir, name.replace(' ', '-')),
-        '--compatibility-date',
-        WRANGLER_COMPATIBILITY_DATE,
-        '--binding',
-        `API_ORIGIN=${api}`,
-        '--show-interactive-dev-session=false',
-        '--log-level=warn',
-      ];
-      const server = launch(name, process.execPath, serverArgs, {
-        cwd: stateDir,
-        env: {
-          PATH: process.env['PATH'] ?? '',
-          HOME: process.env['HOME'] ?? '',
-          WRANGLER_SEND_METRICS: 'false',
-          CI: '1',
-        },
+      const server = launchPages({
+        name,
+        siteDir: path.join(repoRoot, 'apps', 'web', 'dist'),
+        api,
+        port,
+        inspector: await freePort(),
+        stateDir,
       });
       managed.push(server);
       await waitFor(server, `${site}/api/healthz`, (status) => status === 200);
@@ -342,4 +427,209 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
       rmSync(stateDir, { recursive: true, force: true });
     },
   };
+}
+
+/** The traced stack: one staging API that exports to an OTLP endpoint, and the site built with telemetry on (OBS-24). */
+export interface TracedStack {
+  /** The traced API (staging endpoints on) and its site, the browser's origin for the trace scenarios. */
+  readonly staging: Endpoint;
+  /** Truncates the traced database and clears the API's memory stores (the reset of the plain stack, for one API). */
+  reset(): Promise<void>;
+  /** Stops every child process and removes the private state directory. */
+  close(): Promise<void>;
+}
+
+export interface TracedStackOptions {
+  /** The OTLP/HTTP endpoint the traced API exports to: the local backend, or a FakeTelemetryBackend in relay scenarios. */
+  readonly otlpEndpoint: string;
+}
+
+/** Starts the traced stack. The database name is per process, so two traced stacks of one run never share a database. */
+export async function startTracedStack(options: TracedStackOptions): Promise<TracedStack> {
+  try {
+    return await startTracedProcesses(options);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`the traced acceptance stack did not start: ${message}`);
+  }
+}
+
+async function startTracedProcesses(options: TracedStackOptions): Promise<TracedStack> {
+  const adminUrl = process.env[POSTGRES_URL_ENV];
+  if (adminUrl === undefined) {
+    throw new Error(`${POSTGRES_URL_ENV} is not set: the acceptance global setup did not run`);
+  }
+  const databaseUrl = await createDatabase(adminUrl, `acc_trace_${process.pid}`);
+  const controlSecret = randomBytes(32).toString('base64url');
+  const stateDir = mkdtempSync(path.join(tmpdir(), 'd2rmm-trace-'));
+  const managed: Managed[] = [];
+
+  const apiPort = await freePort();
+  const sitePort = await freePort();
+  const origins = {
+    api: `http://127.0.0.1:${apiPort}`,
+    site: `http://127.0.0.1:${sitePort}`,
+  };
+  const siteDir = path.join(stateDir, 'site');
+
+  try {
+    await buildTelemetrySite(siteDir);
+    symlinkSync(path.join(repoRoot, 'apps', 'web', 'functions'), path.join(stateDir, 'functions'), 'dir');
+
+    const api = launch(
+      'traced api',
+      process.execPath,
+      ['--import', './src/main/instrument.ts', 'src/main/local.ts'],
+      {
+        cwd: path.join(repoRoot, 'apps', 'api'),
+        env: apiEnv({
+          port: apiPort,
+          databaseUrl,
+          site: origins.site,
+          staging: true,
+          controlSecret,
+          telemetry: { otlpEndpoint: options.otlpEndpoint },
+        }),
+      },
+    );
+    managed.push(api);
+    await waitFor(api, `${origins.api}/healthz`, (status) => status === 200);
+
+    const site = launchPages({
+      name: 'traced site',
+      siteDir,
+      api: origins.api,
+      port: sitePort,
+      inspector: await freePort(),
+      stateDir,
+    });
+    managed.push(site);
+    await waitFor(site, `${origins.site}/api/healthz`, (status) => status === 200);
+  } catch (error) {
+    await Promise.all(managed.map(stop));
+    rmSync(stateDir, { recursive: true, force: true });
+    throw error;
+  }
+
+  return {
+    staging: { api: origins.api, site: origins.site },
+    async reset() {
+      const answer = await fetch(`${origins.api}/__test/reset`, {
+        method: 'POST',
+        headers: { [CONTROL_HEADER]: controlSecret },
+      });
+      if (answer.status !== 204) {
+        throw new Error(`reset of ${origins.api} answered ${answer.status}`);
+      }
+    },
+    async close() {
+      await Promise.all(managed.map(stop));
+      rmSync(stateDir, { recursive: true, force: true });
+    },
+  };
+}
+
+/** The request the fake backend recorded: what the relay or the exporter sent, before any answer. */
+export interface RecordedRequest {
+  readonly method: string;
+  readonly path: string;
+  readonly headers: IncomingMessage['headers'];
+  readonly body: Buffer;
+}
+
+/** What the fake backend answers. `refuse` closes the port, so connections are refused. */
+export type FakeBackendMode = 'accept' | 'refuse' | 'hang' | 'error';
+
+/**
+ * A credential-free OTLP backend for the relay scenarios (OBS-10 to OBS-15). It records every request it receives, then
+ * answers by its mode: `accept` answers 200, `error` answers 500, `hang` never answers, and `refuse` stops listening.
+ */
+export class FakeTelemetryBackend {
+  readonly #requests: RecordedRequest[] = [];
+  readonly #sockets = new Set<Socket>();
+  #mode: FakeBackendMode = 'accept';
+  #port = 0;
+  #server: Server | undefined;
+
+  /** Every request received so far, in arrival order. */
+  get requests(): readonly RecordedRequest[] {
+    return this.#requests;
+  }
+
+  /** `http://127.0.0.1:<port>`, valid after `start`. */
+  get url(): string {
+    return `http://127.0.0.1:${this.#port}`;
+  }
+
+  async start(): Promise<void> {
+    await this.#listen();
+  }
+
+  async setMode(mode: FakeBackendMode): Promise<void> {
+    if (mode === 'refuse') {
+      await this.#close();
+    } else if (this.#server === undefined) {
+      await this.#listen();
+    }
+    this.#mode = mode;
+  }
+
+  async stop(): Promise<void> {
+    await this.#close();
+  }
+
+  #handle(request: IncomingMessage, response: ServerResponse): void {
+    const chunks: Buffer[] = [];
+    request.on('data', (chunk: Buffer) => chunks.push(chunk));
+    request.on('end', () => {
+      this.#requests.push({
+        method: request.method ?? '',
+        path: request.url ?? '',
+        headers: request.headers,
+        body: Buffer.concat(chunks),
+      });
+      if (this.#mode === 'hang') {
+        return;
+      }
+      response.statusCode = this.#mode === 'error' ? 500 : 200;
+      // Each answer closes its connection, so no client keeps a socket that a later refusal would reset.
+      response.setHeader('Connection', 'close');
+      response.end();
+    });
+  }
+
+  #listen(): Promise<void> {
+    const server = createHttpServer((request, response) => {
+      this.#handle(request, response);
+    });
+    server.on('connection', (socket) => {
+      this.#sockets.add(socket);
+      socket.on('close', () => this.#sockets.delete(socket));
+    });
+    return new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(this.#port, '127.0.0.1', () => {
+        const address = server.address();
+        if (address === null || typeof address === 'string') {
+          reject(new Error('the fake telemetry backend has no loopback port'));
+          return;
+        }
+        this.#port = address.port;
+        this.#server = server;
+        resolve();
+      });
+    });
+  }
+
+  #close(): Promise<void> {
+    for (const socket of this.#sockets) {
+      socket.destroy();
+    }
+    const server = this.#server;
+    this.#server = undefined;
+    if (server === undefined) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => server.close(() => resolve()));
+  }
 }
