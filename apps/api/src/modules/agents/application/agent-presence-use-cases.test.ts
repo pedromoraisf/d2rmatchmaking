@@ -275,4 +275,37 @@ describe('spans', () => {
       'agents.get-my-agent',
     ]);
   });
+
+  it('no span of identity or agents carries an account or agent id', async () => {
+    const { useCases } = setup();
+    const issued = await useCases.requestPairingCode({ ip: '203.0.113.7' });
+    if (!issued.ok) {
+      throw new Error('the pairing code request should succeed');
+    }
+    await useCases.pairAgent({ accountId: 'account-1', code: issued.value.code });
+    await useCases.recordHeartbeat({
+      agentId: 'agent-1',
+      accountId: 'account-1',
+      gameRunning: false,
+      screen: 'UNKNOWN',
+    });
+    await useCases.getMyAgent({ accountId: 'account-1' });
+    await useCases.accountOfAgent('agent-1');
+    await useCases.currentAgentOf('account-1');
+
+    const names = exporter.getFinishedSpans().map((span) => span.name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'agents.pair-agent',
+        'agents.record-heartbeat',
+        'agents.get-my-agent',
+        'agents.account-of-agent',
+        'agents.current-agent-of',
+      ]),
+    );
+    for (const span of exporter.getFinishedSpans()) {
+      expect(Object.keys(span.attributes)).not.toContain('accountId');
+      expect(Object.keys(span.attributes)).not.toContain('agentId');
+    }
+  });
 });

@@ -21,7 +21,7 @@ export interface HeartbeatInput {
  */
 export function createRecordHeartbeat(deps: RecordHeartbeatDeps) {
   return (input: HeartbeatInput): Promise<void> =>
-    withSpan('agents.record-heartbeat', { agentId: input.agentId }, async () => {
+    withSpan('agents.record-heartbeat', {}, async () => {
       const next = Presence.fromHeartbeat(
         { gameRunning: input.gameRunning, screen: input.screen },
         deps.clock.now(),

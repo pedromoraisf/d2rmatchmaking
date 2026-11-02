@@ -203,14 +203,14 @@ describe('getMe', () => {
     });
   });
 
-  it('opens its span with the use-case name and the account id', async () => {
+  it('opens its span with the use-case name and no account id', async () => {
     const { useCases } = setup();
 
     await useCases.getMe({ accountId: 'account-1' });
 
     const [span] = exporter.getFinishedSpans();
     expect(span?.name).toBe('identity.get-me');
-    expect(span?.attributes).toEqual({ accountId: 'account-1' });
+    expect(span?.attributes).toEqual({});
   });
 });
 

@@ -557,8 +557,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] `identity.get-me`, `agents.record-heartbeat`, `agents.get-my-agent`, `agents.account-of-agent`, `agents.current-agent-of` open spans without an id attribute; span names unchanged
-- [ ] test `no span of identity or agents carries an account or agent id` passes with an in-memory exporter
+- [x] `identity.get-me`, `agents.record-heartbeat`, `agents.get-my-agent`, `agents.account-of-agent`, `agents.current-agent-of` open spans without an id attribute; span names unchanged
+- [x] test `no span of identity or agents carries an account or agent id` passes with an in-memory exporter
 
 **Tests**: unit
 **Gate**: API unit
