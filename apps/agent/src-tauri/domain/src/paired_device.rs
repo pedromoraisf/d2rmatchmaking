@@ -124,7 +124,46 @@ impl PairedDevice {
 
 #[cfg(test)]
 mod tests {
+    use chrono::{TimeZone, Utc};
+
     use super::{DeviceEffect, PairedDevice};
+    use crate::pairing::PairingCode;
+
+    #[test]
+    fn pairing_accessors_read_and_write_the_device_state() {
+        let mut device = PairedDevice::unpaired();
+        assert!(
+            device.pairing().code().is_none(),
+            "nothing is shown at start"
+        );
+
+        let expires_at = Utc.timestamp_opt(300, 0).single().expect("a valid instant");
+        device
+            .pairing_mut()
+            .show(PairingCode::new("123456").expect("six digits"), expires_at);
+
+        assert_eq!(
+            device.pairing().code().map(PairingCode::as_str),
+            Some("123456"),
+            "pairing_mut writes the state that pairing reads"
+        );
+        assert_eq!(device.pairing().expires_at(), Some(expires_at));
+    }
+
+    #[test]
+    fn update_required_follows_the_426_and_the_install() {
+        let mut device = PairedDevice::paired();
+        assert!(!device.update_required(), "no 426 is pending at start");
+
+        device.on_upgrade_required();
+        assert!(device.update_required(), "a 426 raises the gate");
+
+        device.update_installed();
+        assert!(
+            !device.update_required(),
+            "an installed update clears the gate"
+        );
+    }
 
     #[test]
     fn paired_device_401_and_426_effects_in_order() {
