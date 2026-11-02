@@ -349,9 +349,9 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] `application-no-adapters` also matches `@opentelemetry/(sdk-|exporter-|resources|instrumentation-)` and `^packages/telemetry/src/(node-sdk|web-sdk|tracing-fetcher|sdk/)`; the new rule `telemetry-root-has-no-sdk` is added
-- [ ] tests `an application file importing the telemetry node entry fails`, `the telemetry root files import no sdk package` and `the telemetry root entry lists exactly its files` pass in `scripts/test/telemetry-rules.test.mjs`
-- [ ] `pnpm arch` is clean on the tree
+- [x] `application-no-adapters` also matches `@opentelemetry/(sdk-|exporter-|resources|instrumentation-)` and `^packages/telemetry/src/(node-sdk|web-sdk|tracing-fetcher|sdk/)`; the new rule `telemetry-root-has-no-sdk` is added
+- [x] tests `an application file importing the telemetry node entry fails`, `the telemetry root files import no sdk package` and `the telemetry root entry lists exactly its files` pass in `scripts/test/telemetry-rules.test.mjs`
+- [x] `pnpm arch` is clean on the tree
 
 **Tests**: unit
 **Gate**: Harness
