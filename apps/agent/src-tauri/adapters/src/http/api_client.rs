@@ -55,8 +55,8 @@ impl ApiClient {
         async {
             let request = self.anonymous(Method::POST, "/v1/agents/pairing-codes");
             let response = self.send(request).await?;
-            match response.status() {
-                StatusCode::CREATED => json_body(response).await,
+            match reading(Route::RequestCode, response.status()) {
+                Reading::Success => json_body(response).await,
                 _ => Err(failure(&response)),
             }
         }
@@ -75,12 +75,12 @@ impl ApiClient {
                 .anonymous(Method::POST, "/v1/agents/pairing-codes/claim")
                 .json(&body);
             let response = self.send(request).await?;
-            match response.status() {
-                StatusCode::OK => {
+            match reading(Route::Claim, response.status()) {
+                Reading::Success => {
                     let claimed: ClaimResponse = json_body(response).await?;
                     Ok(claimed.token)
                 }
-                StatusCode::ACCEPTED => Err(ApiError::Pending),
+                Reading::Pending => Err(ApiError::Pending),
                 _ => Err(failure(&response)),
             }
         }
@@ -96,8 +96,8 @@ impl ApiClient {
                 .authorized(Method::POST, "/v1/agents/heartbeat", token)?
                 .json(body);
             let response = self.send(request).await?;
-            match response.status() {
-                StatusCode::NO_CONTENT => Ok(()),
+            match reading(Route::Heartbeat, response.status()) {
+                Reading::Success => Ok(()),
                 _ => Err(failure(&response)),
             }
         }
@@ -111,9 +111,9 @@ impl ApiClient {
         async {
             let request = self.authorized(Method::GET, "/v1/agents/me/assignment", token)?;
             let response = self.send(request).await?;
-            match response.status() {
-                StatusCode::OK => json_body(response).await.map(Some),
-                StatusCode::NOT_FOUND => Ok(None),
+            match reading(Route::Assignment, response.status()) {
+                Reading::Success => json_body(response).await.map(Some),
+                Reading::NoRoom => Ok(None),
                 _ => Err(failure(&response)),
             }
         }
@@ -135,8 +135,8 @@ impl ApiClient {
                 .authorized(Method::POST, &path, token)?
                 .json(observation);
             let response = self.send(request).await?;
-            match response.status() {
-                StatusCode::ACCEPTED => Ok(()),
+            match reading(Route::Observation, response.status()) {
+                Reading::Success => Ok(()),
                 _ => Err(failure(&response)),
             }
         }
@@ -160,8 +160,8 @@ impl ApiClient {
                 request = request.header(LAST_EVENT_ID_HEADER, id);
             }
             let response = self.send(request).await?;
-            match response.status() {
-                StatusCode::OK => Ok(response),
+            match reading(Route::Stream, response.status()) {
+                Reading::Success => Ok(response),
                 _ => Err(failure(&response)),
             }
         }
@@ -218,14 +218,56 @@ pub fn authorization_value(token: &Secret) -> Result<HeaderValue, ApiError> {
     Ok(value)
 }
 
+/// The routes whose status the client reads. Each has its own success status (see `reading`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Route {
+    RequestCode,
+    Claim,
+    Heartbeat,
+    Assignment,
+    Observation,
+    Stream,
+}
+
+/// What a route makes of the status it answered with. Only `Success` reads a body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Reading {
+    /// The status the route succeeds with.
+    Success,
+    /// `202` on the claim route: the code is not claimed yet.
+    Pending,
+    /// `404` on the assignment route: the agent holds no room.
+    NoRoom,
+    /// Any other status: `failure_for` maps it to an error.
+    Error,
+}
+
+/// How `route` reads `status`. Pure, so the table test covers every arm without a network.
+fn reading(route: Route, status: StatusCode) -> Reading {
+    match (route, status) {
+        (Route::RequestCode, StatusCode::CREATED)
+        | (Route::Claim, StatusCode::OK)
+        | (Route::Heartbeat, StatusCode::NO_CONTENT)
+        | (Route::Assignment, StatusCode::OK)
+        | (Route::Observation, StatusCode::ACCEPTED)
+        | (Route::Stream, StatusCode::OK) => Reading::Success,
+        (Route::Claim, StatusCode::ACCEPTED) => Reading::Pending,
+        (Route::Assignment, StatusCode::NOT_FOUND) => Reading::NoRoom,
+        _ => Reading::Error,
+    }
+}
+
 /// Maps a status the route does not expect to its error. The body is never read: error bodies are never shown.
 fn failure(response: &Response) -> ApiError {
-    match response.status() {
+    failure_for(response.status(), retry_after(response))
+}
+
+/// The error a status means, given the `Retry-After` wait the response carried. Pure.
+fn failure_for(status: StatusCode, retry_after: Option<Duration>) -> ApiError {
+    match status {
         StatusCode::UNAUTHORIZED => ApiError::Unauthorized,
         StatusCode::GONE => ApiError::Gone,
-        StatusCode::TOO_MANY_REQUESTS => ApiError::RateLimited {
-            retry_after: retry_after(response),
-        },
+        StatusCode::TOO_MANY_REQUESTS => ApiError::RateLimited { retry_after },
         StatusCode::UPGRADE_REQUIRED => ApiError::UpgradeRequired,
         status if status.is_server_error() => ApiError::Server,
         _ => ApiError::Invalid,
@@ -251,7 +293,12 @@ fn clamp_retry_after(raw: &str) -> Option<Duration> {
 mod tests {
     use std::time::Duration;
 
-    use super::{authorization_value, clamp_retry_after};
+    use reqwest::StatusCode;
+
+    use super::{
+        ApiError, Reading, Route, STREAM_REQUEST_TIMEOUT, authorization_value, clamp_retry_after,
+        failure_for, reading,
+    };
     use d2rmm_agent_core::secret::Secret;
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
@@ -285,5 +332,89 @@ mod tests {
             value.to_str().expect("the header is ASCII"),
             format!("Bearer {TOKEN}")
         );
+    }
+
+    #[test]
+    fn stream_request_timeout_outlives_any_session() {
+        assert_eq!(
+            STREAM_REQUEST_TIMEOUT,
+            Duration::from_secs(365 * 24 * 60 * 60)
+        );
+    }
+
+    #[test]
+    fn every_route_reads_its_success_and_its_own_answers() {
+        let table = [
+            (Route::RequestCode, StatusCode::CREATED, Reading::Success),
+            (Route::Claim, StatusCode::OK, Reading::Success),
+            (Route::Claim, StatusCode::ACCEPTED, Reading::Pending),
+            (Route::Heartbeat, StatusCode::NO_CONTENT, Reading::Success),
+            (Route::Assignment, StatusCode::OK, Reading::Success),
+            (Route::Assignment, StatusCode::NOT_FOUND, Reading::NoRoom),
+            (Route::Observation, StatusCode::ACCEPTED, Reading::Success),
+            (Route::Stream, StatusCode::OK, Reading::Success),
+        ];
+        for (route, status, expected) in table {
+            assert_eq!(
+                reading(route, status),
+                expected,
+                "{route:?} answers {status}"
+            );
+        }
+    }
+
+    #[test]
+    fn any_other_status_on_a_route_is_an_error() {
+        let table = [
+            (Route::RequestCode, StatusCode::OK),
+            (Route::RequestCode, StatusCode::ACCEPTED),
+            (Route::Claim, StatusCode::CREATED),
+            (Route::Claim, StatusCode::NOT_FOUND),
+            (Route::Heartbeat, StatusCode::OK),
+            (Route::Heartbeat, StatusCode::ACCEPTED),
+            (Route::Assignment, StatusCode::ACCEPTED),
+            (Route::Observation, StatusCode::OK),
+            (Route::Stream, StatusCode::CREATED),
+            (Route::Stream, StatusCode::NO_CONTENT),
+        ];
+        for (route, status) in table {
+            assert_eq!(
+                reading(route, status),
+                Reading::Error,
+                "{route:?} answers {status}"
+            );
+        }
+    }
+
+    #[test]
+    fn failure_statuses_map_to_their_errors() {
+        let wait = Some(Duration::from_secs(30));
+        let table = [
+            (StatusCode::UNAUTHORIZED, None, ApiError::Unauthorized),
+            (StatusCode::GONE, None, ApiError::Gone),
+            (
+                StatusCode::TOO_MANY_REQUESTS,
+                wait,
+                ApiError::RateLimited { retry_after: wait },
+            ),
+            (
+                StatusCode::TOO_MANY_REQUESTS,
+                None,
+                ApiError::RateLimited { retry_after: None },
+            ),
+            (
+                StatusCode::UPGRADE_REQUIRED,
+                None,
+                ApiError::UpgradeRequired,
+            ),
+            (StatusCode::INTERNAL_SERVER_ERROR, None, ApiError::Server),
+            (StatusCode::SERVICE_UNAVAILABLE, None, ApiError::Server),
+            (StatusCode::BAD_REQUEST, None, ApiError::Invalid),
+            (StatusCode::NOT_FOUND, None, ApiError::Invalid),
+            (StatusCode::CONFLICT, None, ApiError::Invalid),
+        ];
+        for (status, retry_after, expected) in table {
+            assert_eq!(failure_for(status, retry_after), expected, "{status}");
+        }
     }
 }
