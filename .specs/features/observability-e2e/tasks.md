@@ -761,9 +761,9 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] table rows: a valid agent gets `202` while the address bucket is full; a credential-less caller at 121 a minute gets `429` before `401`; a failed credential over the limit gets `401`; an empty lookup bucket gets `429` without a repository call; wrong origin `403` before rate; rate before type; type before size
-- [ ] the backend answering headers and a body leaves the relay response and the logs free of them and of the credentials; the API suite run against a closed port answers every request as with a reachable backend and logs at most one export error a minute
-- [ ] tests `the relay applies its checks in order`, `a valid agent is accepted while the address bucket is full`, `returns no backend header or body and logs no credentials`, `answers identically against a closed port` pass
+- [x] table rows: a valid agent gets `202` while the address bucket is full; a credential-less caller at 121 a minute gets `429` before `401`; a failed credential over the limit gets `401`; an empty lookup bucket gets `429` without a repository call; wrong origin `403` before rate; rate before type; type before size
+- [x] the backend answering headers and a body leaves the relay response and the logs free of them and of the credentials; the API suite run against a closed port answers every request as with a reachable backend and logs at most one export error a minute
+- [x] tests `the relay applies its checks in order`, `a valid agent is accepted while the address bucket is full`, `returns no backend header or body and logs no credentials`, `answers identically against a closed port` pass
 
 **Tests**: integration
 **Gate**: API full
