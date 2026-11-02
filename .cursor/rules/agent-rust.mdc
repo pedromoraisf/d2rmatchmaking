@@ -12,3 +12,24 @@ alwaysApply: false
 - Mutation proofs are unit tests only (ADR 026): `cargo nextest run -p d2rmm-agent-core --lib`, never `--workspace`,
   `--test` or the `tests/` directory. Logic that only the assembled loops can observe goes into a pure function in `src/`.
 - CPU < 2% average (NFR-02); adaptive intervals per PC state.
+
+## Layers and crates (ADR 027)
+
+The agent is hexagonal, like the backend's Agents module. Three layers, one direction of dependency:
+`adapters → application → domain`. Nothing in a lower layer points up. The Cargo crate boundaries enforce it.
+
+| Layer       | Crate                        | Holds                                                                                                                       | May depend on                                                                                  | Must not depend on                                                                                                                                                                                                          |
+| ----------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| domain      | `d2rmm-agent-domain`         | aggregates, value objects, domain services, timing constants, pure rules and their errors                                  | `std`, `thiserror`, `chrono` and `uuid` (default features off)                                 | `tokio`, `reqwest`, `tauri`, `keyring`, `windows`, `serde`, `tracing`, `zeroize`, the generated contracts (`contracts::generated`), `d2rmm-agent-core`, `d2rmm-agent-adapters`, `d2rmm-agent`; any type named `Agent`          |
+| application | `d2rmm-agent-core`           | ports (traits), use cases (pair, beat, follow the stream, post an observation, check for an update, read a frame), loops, `Runtime`, the view model, `Secret`, the loop spans | `d2rmm-agent-domain`                                                                 | `reqwest`, `tauri`, `keyring`, `windows`, the generated contracts, `d2rmm-agent-adapters`, `d2rmm-agent`                                                                                                                    |
+| adapters    | `d2rmm-agent-adapters`       | the HTTP gateway, the generated contracts, the translation (ACL), the SSE parser and its limits, the client builder, telemetry bootstrap | `d2rmm-agent-core` (its ports), `d2rmm-agent-domain`, `reqwest`, `serde`, the generated contracts | `tauri`, `keyring`, `windows`, `d2rmm-agent`                                                                                                                                                                              |
+| root        | `d2rmm-agent` (app crate)    | the composition root and the Windows and Tauri adapters: Credential Manager, toolhelp, Windows OCR, updater, window, system clock and ids | every layer below                                                                    | `Probe` or `start_with_probe` (the test probe stays out of the shipped binary)                                                                                                                                              |
+
+- The composition root builds the adapters and hands them to the application as port groups. It holds no rule.
+- **The domain reads no clock and no randomness.** Time and identifiers come in as arguments (`WallClock`, `IdGenerator`
+  are ports, applied by the application). The domain clippy file bans `Instant::now`, `SystemTime::now`, `Utc::now`,
+  `Local::now` and `Uuid::new_v4`, and it bans `std::env` reads.
+- The domain names nothing `Agent`: the device's aggregate is `PairedDevice`, never mistaken for the backend's `Agent`.
+- The domain emits no spans. Telemetry spans live in the application layer.
+- Domain and application rules are proved by unit tests (`cargo nextest run -p d2rmm-agent-domain --lib`, and the same
+  for `d2rmm-agent-core`), with in-memory fakes for the ports. No mocking crate in core.

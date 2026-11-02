@@ -643,11 +643,12 @@ name = "d2rmm-agent"
 version = "0.0.0"
 dependencies = [
  "chrono",
+ "d2rmm-agent-adapters",
  "d2rmm-agent-core",
+ "d2rmm-agent-domain",
  "image",
  "keyring",
  "png",
- "reqwest",
  "serde_json",
  "tauri",
  "tauri-build",
@@ -659,11 +660,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "d2rmm-agent-core"
+name = "d2rmm-agent-adapters"
 version = "0.0.0"
 dependencies = [
  "axum",
  "chrono",
+ "d2rmm-agent-core",
+ "d2rmm-agent-domain",
  "jsonschema",
  "opentelemetry",
  "opentelemetry_sdk",
@@ -679,7 +682,30 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "d2rmm-agent-core"
+version = "0.0.0"
+dependencies = [
+ "chrono",
+ "d2rmm-agent-domain",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "uuid",
  "zeroize",
+]
+
+[[package]]
+name = "d2rmm-agent-domain"
+version = "0.0.0"
+dependencies = [
+ "chrono",
+ "thiserror 2.0.21",
+ "uuid",
 ]
 
 [[package]]
@@ -5801,6 +5827,7 @@ version = "0.0.0"
 dependencies = [
  "ab_glyph",
  "d2rmm-agent-core",
+ "d2rmm-agent-domain",
  "png",
  "prettyplease",
  "schemars 0.8.22",

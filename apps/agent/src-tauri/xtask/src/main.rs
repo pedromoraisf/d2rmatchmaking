@@ -1,4 +1,4 @@
-//! `cargo run -p xtask -- contracts` regenerates `core/src/contracts/generated.rs`;
+//! `cargo run -p xtask -- contracts` regenerates `adapters/src/contracts/generated.rs`;
 //! `cargo run -p xtask -- draw-fixture` writes the F0 reference image of the game name (AD-047).
 
 use std::error::Error;
@@ -6,7 +6,7 @@ use std::fs;
 use std::process::ExitCode;
 
 use xtask::fixture::{fixture_path, render_png};
-use xtask::{generate, generated_path, schema_dir};
+use xtask::{generate, generate_schema_module, generated_path, schema_dir, schema_module_path};
 
 fn contracts() -> Result<(), Box<dyn Error>> {
     let source = generate(&schema_dir())?;
@@ -16,6 +16,9 @@ fn contracts() -> Result<(), Box<dyn Error>> {
     }
     fs::write(&path, source)?;
     println!("wrote {}", path.display());
+    let module = generate_schema_module(&schema_dir())?;
+    fs::write(schema_module_path(), module)?;
+    println!("wrote {}", schema_module_path().display());
     Ok(())
 }
 

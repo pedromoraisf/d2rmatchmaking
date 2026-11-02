@@ -67,13 +67,15 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-mutants
-      # ADR 026: mutants are caught by the unit tests of the core only (--lib), never by tests/ or the app crate.
+      # ADR 026 (AHM-23): mutants are caught by the unit tests (--lib) of each crate, never by tests/ or the app crate.
       - run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --output reports/mutation/agent-core -- --lib
+      - run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain --output reports/mutation/agent-domain -- --lib
+      - run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: agent-mutation
-          path: reports/mutation/agent-core
+          path: reports/mutation
 
   backup:
     # Runs only once the production secrets exist (created by the maintainer, never by an agent).

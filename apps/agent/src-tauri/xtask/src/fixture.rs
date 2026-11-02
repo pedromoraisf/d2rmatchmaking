@@ -6,7 +6,7 @@ use std::error::Error;
 use std::path::PathBuf;
 
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont, point};
-use d2rmm_agent_core::vision::AUTOMAP_NAME_1080P;
+use d2rmm_agent_domain::vision::AUTOMAP_NAME_1080P;
 
 use crate::repo_root;
 
@@ -28,7 +28,9 @@ pub fn fixture_path() -> PathBuf {
 /// The PNG bytes of the reference image. Deterministic: the same font and encoder give the same bytes.
 pub fn render_png() -> Result<Vec<u8>, Box<dyn Error>> {
     let mut pixels = vec![0u8; (WIDTH * HEIGHT * 4) as usize];
-    for pixel in pixels.chunks_exact_mut(4) {
+    // The buffer is WIDTH * HEIGHT * 4 bytes, a multiple of 4, so the remainder is always empty.
+    let (rgba, _remainder) = pixels.as_chunks_mut::<4>();
+    for pixel in rgba {
         pixel[..3].copy_from_slice(&BACKGROUND);
         pixel[3] = 255;
     }

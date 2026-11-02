@@ -65,6 +65,7 @@ mod enabled {
     mod sink {
         use std::sync::{Arc, Mutex, OnceLock};
 
+        use d2rmm_agent_adapters::http::gateway::HttpGateway;
         use d2rmm_agent_core::ports::{Rgba, StateSink};
         use d2rmm_agent_core::runtime::Handle;
         use d2rmm_agent_core::view::AgentView;
@@ -73,7 +74,7 @@ mod enabled {
 
         pub struct FixtureSink {
             frame: Rgba,
-            handle: OnceLock<Arc<Handle>>,
+            handle: OnceLock<Arc<Handle<HttpGateway>>>,
             once: Mutex<OnceWhenHeld>,
         }
 
@@ -87,7 +88,7 @@ mod enabled {
             }
 
             /// Gives the sink the handle of the started runtime. The first attachment wins.
-            pub fn attach(&self, handle: Arc<Handle>) {
+            pub fn attach(&self, handle: Arc<Handle<HttpGateway>>) {
                 let _ = self.handle.set(handle);
             }
         }

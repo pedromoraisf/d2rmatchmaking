@@ -1,0 +1,12 @@
+# Fixture: repeats the root ban and the clock bans, but leaves out chrono::Utc::now.
+
+disallowed-types = [
+  { path = "std::process::Command", reason = "the agent starts no process (AGS-22)" },
+  { path = "std::time::Instant", reason = "the domain reads no clock (AHM-04)" },
+]
+
+disallowed-methods = [
+  { path = "std::time::SystemTime::now", reason = "the domain reads no clock (AHM-04)" },
+  { path = "chrono::Local::now", reason = "the domain reads no clock (AHM-04)" },
+  { path = "uuid::Uuid::new_v4", reason = "the domain draws no randomness (AHM-04)" },
+]

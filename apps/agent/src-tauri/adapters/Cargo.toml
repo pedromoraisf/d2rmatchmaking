@@ -1,0 +1,39 @@
+[package]
+name = "d2rmm-agent-adapters"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "D2R Match Making agent adapters: the HTTP gateway, the generated contracts, the translation and the SSE parser. No Tauri, keyring or Windows dependency (ADR 027)."
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["serde"] }
+d2rmm-agent-core = { path = "../core", version = "0.0.0" }
+d2rmm-agent-domain = { path = "../domain", version = "0.0.0" }
+opentelemetry = "0.33"
+opentelemetry_sdk = "0.33"
+regress = "0.12"
+reqwest = { version = "0.13", features = ["json", "stream"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt", "sync", "time"] }
+tracing = "0.1"
+tracing-opentelemetry = "0.34.0"
+tracing-subscriber = "0.3"
+url = "2"
+uuid = "1"
+
+[dev-dependencies]
+axum = "0.8"
+jsonschema = "0.60"
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt", "rt-multi-thread", "test-util", "time"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+
+[[test]]
+name = "gateway"
+path = "extra-tests/gateway.rs"
+
+[[test]]
+name = "stream_limits"
+path = "extra-tests/stream_limits.rs"

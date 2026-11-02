@@ -14,9 +14,15 @@ mod fixture_read;
 use std::sync::Arc;
 
 #[cfg(windows)]
-use d2rmm_agent_core::context::Adapters;
+use d2rmm_agent_adapters::http::gateway::HttpGateway;
 #[cfg(windows)]
-use d2rmm_agent_core::ports::{ReadError, ReadText, Region, Rgba, StateSink, TextReader};
+use d2rmm_agent_core::groups::{
+    Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
+};
+#[cfg(windows)]
+use d2rmm_agent_core::ports::{ProcessSource, ReadError, Rgba, TextReader, TokenStore, WallClock};
+#[cfg(windows)]
+use d2rmm_agent_domain::vision::{ReadText, Region};
 #[cfg(windows)]
 use tauri::AppHandle;
 
@@ -37,22 +43,42 @@ fn main() {
     app::run(&args, ports);
 }
 
-/// The ports of the Windows agent: the Credential Manager token, the toolhelp process names, the en-US OCR reader, the
-/// Tauri updater and the system clock and ids.
+/// The port groups of the Windows agent: the HTTP gateway the app built, the Credential Manager token, the toolhelp process
+/// names, the en-US OCR reader, the Tauri updater and the system clock and ids.
 #[cfg(windows)]
-fn ports(app: AppHandle, sink: Arc<dyn StateSink + Send + Sync>) -> Adapters {
+fn ports(app: AppHandle, gateway: Arc<HttpGateway>) -> Groups<HttpGateway> {
     let reader: Arc<dyn TextReader + Send + Sync> = match WindowsOcr::new() {
         Ok(ocr) => Arc::new(ocr),
         Err(_) => Arc::new(NoOcrEngine),
     };
-    Adapters {
-        tokens: Arc::new(KeyringTokenStore::new()),
-        processes: Arc::new(ToolhelpProcessSource),
-        reader,
-        ids: Arc::new(RandomIds),
-        updater: Arc::new(TauriUpdater::new(app)),
-        clock: Arc::new(SystemClock),
-        sink,
+    let tokens: Arc<dyn TokenStore + Send + Sync> = Arc::new(KeyringTokenStore::new());
+    let processes: Arc<dyn ProcessSource + Send + Sync> = Arc::new(ToolhelpProcessSource);
+    let clock: Arc<dyn WallClock + Send + Sync> = Arc::new(SystemClock);
+    Groups {
+        pairing: PairingPorts {
+            gateway: Arc::clone(&gateway),
+            tokens: Arc::clone(&tokens),
+            clock: Arc::clone(&clock),
+        },
+        heartbeat: HeartbeatPorts {
+            gateway: Arc::clone(&gateway),
+            tokens: Arc::clone(&tokens),
+            processes,
+        },
+        stream: StreamPorts {
+            gateway: Arc::clone(&gateway),
+            tokens: Arc::clone(&tokens),
+        },
+        update: UpdatePorts {
+            updater: Arc::new(TauriUpdater::new(app)),
+        },
+        read: ReadPorts {
+            reader,
+            ids: Arc::new(RandomIds),
+            clock,
+            gateway,
+            tokens,
+        },
     }
 }
 

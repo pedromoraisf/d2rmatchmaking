@@ -24,7 +24,8 @@ The project is open source (MIT), English-first UI with pt-BR i18n. Repo docs ar
 apps/web           React 19 + Vite SPA (Cloudflare Pages). features/<context>, shared/, app/ (composition)
 apps/api           Node.js 26, Fastify 5, modular monolith (Render). src/modules/<ctx>/{domain,application,adapters}
                    src/shared-kernel (ids, Result, Clock, events), src/main/{local,render}.ts (composition roots)
-apps/agent         Tauri 2: src-tauri (Rust core: sensors, fusion, local queue), ui (React)
+apps/agent         Tauri 2, hexagonal (ADR 027): src-tauri/domain (d2rmm-agent-domain), src-tauri/core (d2rmm-agent-core),
+                   src-tauri/adapters (d2rmm-agent-adapters), src-tauri (app crate d2rmm-agent: composition root), ui (React)
 packages/contracts Zod schemas → JSON Schema (Rust via typify) → openapi.json + asyncapi.json (generated, committed)
 packages/telemetry OpenTelemetry bootstrap for Node and browser
 packages/config    shared tsconfig / eslint / prettier presets
@@ -67,6 +68,9 @@ else (secret scanning, Playwright, Lefthook…) comes from `pnpm install`; no ot
    randomness (inject `Clock`, `IdGenerator`). `application` uses ports, never `adapters`, `main`, Fastify, Kysely or `pg`.
    Modules talk through their public `index.ts` port or events — never another module's internals. Nothing imports
    `main/`; only `main/` knows the provider (Render, Neon, Grafana). Enforced by `.dependency-cruiser.cjs`.
+   The desktop agent keeps the same direction, `adapters → application → domain` (`d2rmm-agent-adapters` →
+   `d2rmm-agent-core` → `d2rmm-agent-domain`, ADR 027). Its domain imports no I/O crate, reads no clock or randomness and
+   no generated contract type. Enforced by the Cargo crate boundaries and `scripts/test/agent-architecture.test.mjs`.
 2. **Contracts first.** Every route or schema change regenerates and commits `openapi.json` / `asyncapi.json`
    (`pnpm contracts:openapi`). CI fails on drift (ADR 020).
 3. **Tests are never weakened.** Never delete, skip, `.only`, or loosen assertions to make a gate pass. Tests derive from

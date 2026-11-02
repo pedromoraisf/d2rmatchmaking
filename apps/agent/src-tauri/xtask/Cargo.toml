@@ -9,6 +9,7 @@ description = "Build tasks for the agent: contract generation and fixtures. Neve
 [dependencies]
 ab_glyph = "0.2"
 d2rmm-agent-core = { path = "../core" }
+d2rmm-agent-domain = { path = "../domain" }
 png = "0.18"
 prettyplease = "0.2"
 schemars = "0.8"
