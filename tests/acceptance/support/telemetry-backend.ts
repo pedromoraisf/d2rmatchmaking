@@ -13,6 +13,8 @@ const COMPOSE_FILE = path.resolve(here, '..', '..', '..', 'infra', 'observabilit
 const TEMPO_PORT = 3200;
 /** The OTLP/HTTP receiver inside the image (published on 4318 by compose). */
 const OTLP_HTTP_PORT = 4318;
+/** Grafana inside the image (published on 3000 by compose); its datasource proxy serves metrics and logs to the scan. */
+const GRAFANA_PORT = 3000;
 const STARTUP_TIMEOUT_MS = 240_000;
 
 export interface TelemetryBackend {
@@ -20,6 +22,8 @@ export interface TelemetryBackend {
   readonly queryUrl: string;
   /** The OTLP/HTTP receiver the traced stack exports to. */
   readonly otlpUrl: string;
+  /** Grafana, whose proxy answers the Prometheus and Loki queries of the leak scan. */
+  readonly grafanaUrl: string;
   stop(): Promise<void>;
 }
 
@@ -51,7 +55,7 @@ export async function startTelemetryBackend(): Promise<TelemetryBackend> {
   let container: StartedTestContainer;
   try {
     container = await new GenericContainer(image)
-      .withExposedPorts(TEMPO_PORT, OTLP_HTTP_PORT)
+      .withExposedPorts(TEMPO_PORT, OTLP_HTTP_PORT, GRAFANA_PORT)
       .withWaitStrategy(Wait.forHttp('/ready', TEMPO_PORT).forStatusCode(200))
       .withStartupTimeout(STARTUP_TIMEOUT_MS)
       .start();
@@ -64,6 +68,7 @@ export async function startTelemetryBackend(): Promise<TelemetryBackend> {
   return {
     queryUrl: `http://${host}:${container.getMappedPort(TEMPO_PORT)}`,
     otlpUrl: `http://${host}:${container.getMappedPort(OTLP_HTTP_PORT)}`,
+    grafanaUrl: `http://${host}:${container.getMappedPort(GRAFANA_PORT)}`,
     stop: async () => {
       await container.stop();
     },

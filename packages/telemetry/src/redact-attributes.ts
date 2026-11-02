@@ -6,7 +6,7 @@ import type { AttributeValue, Attributes } from '@opentelemetry/api';
 // word of its last dot segment, is one of these words (case-insensitive). So `pairing.code`, `x-token` and
 // `http.request.header.authorization` go, while `http.response.status_code` (segment `status_code`) and `db.statement`
 // stay.
-const FORBIDDEN_WORDS: ReadonlySet<string> = new Set([
+export const FORBIDDEN_WORDS: ReadonlySet<string> = new Set([
   'authorization',
   'cookie',
   'set-cookie',
