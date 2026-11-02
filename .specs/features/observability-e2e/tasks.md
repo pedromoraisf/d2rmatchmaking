@@ -631,8 +631,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] sliding window per key; principals capped at 50 000 (fail closed for a new key only), addresses at 10 000 with one overflow bucket for credential-less callers; an unparseable address maps to one fixed bucket; `::ffff:a.b.c.d` keys as its IPv4 string; swept every 30 s
-- [ ] tests `counts credential-less requests per address and refuses the 121st`, `an address cap overflow never blocks a principal`, `an unparseable address uses one bucket`, `an IPv4-mapped IPv6 address keys as IPv4`, `sweeps expired keys` pass
+- [x] sliding window per key; principals capped at 50 000 (fail closed for a new key only), addresses at 10 000 with one overflow bucket for credential-less callers; an unparseable address maps to one fixed bucket; `::ffff:a.b.c.d` keys as its IPv4 string; swept every 30 s
+- [x] tests `counts credential-less requests per address and refuses the 121st`, `an address cap overflow never blocks a principal`, `an unparseable address uses one bucket`, `an IPv4-mapped IPv6 address keys as IPv4`, `sweeps expired keys` pass
 
 **Tests**: unit
 **Gate**: API unit
