@@ -178,9 +178,9 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] `attributes.ts` exports the six standardized constants plus `d2r.stream.kind`, `d2r.room.stage`, `d2r.outbox.event_type`; `instrument-names.ts` exports `INSTRUMENT_NAMES` with the five AD-087 metric names
-- [ ] test `exports the standardized d2r attribute constants` and test `lists the five skeleton instruments` pass
-- [ ] the root `index.ts` re-exports both and imports no `@opentelemetry/sdk-*`
+- [x] `attributes.ts` exports the six standardized constants plus `d2r.stream.kind`, `d2r.room.stage`, `d2r.outbox.event_type`; `instrument-names.ts` exports `INSTRUMENT_NAMES` with the five AD-087 metric names
+- [x] test `exports the standardized d2r attribute constants` and test `lists the five skeleton instruments` pass
+- [x] the root `index.ts` re-exports both and imports no `@opentelemetry/sdk-*`
 
 **Tests**: unit
 **Gate**: Telemetry
