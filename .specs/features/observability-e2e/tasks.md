@@ -294,8 +294,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] one view per instrument of `INSTRUMENT_NAMES` with `attributeKeys` from the bounded sets; a drop view for the instrumentation's own `http.server.request.duration`
-- [ ] test `metric attributes are limited to the bounded sets` records an id attribute and asserts it is absent from the collected point
+- [x] one view per instrument of `INSTRUMENT_NAMES` with `attributeKeys` from the bounded sets; a drop view for the instrumentation's own `http.server.request.duration`
+- [x] test `metric attributes are limited to the bounded sets` records an id attribute and asserts it is absent from the collected point
 
 **Tests**: unit
 **Gate**: Telemetry
