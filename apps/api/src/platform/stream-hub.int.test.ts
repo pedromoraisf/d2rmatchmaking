@@ -24,6 +24,7 @@ import { StreamHub } from './stream-hub.ts';
 const START = new Date('2026-10-31T12:00:00.000Z');
 const SITE_ORIGIN = 'https://site.example';
 const FRAME_TIMEOUT_MS = 3_000;
+const silentLog = { error: (): void => undefined };
 
 const SESSION_A = 'd2rmm_s_account_a';
 const SESSION_B = 'd2rmm_s_account_b';
@@ -214,6 +215,7 @@ async function startHarness(): Promise<Harness> {
     agents,
     guards: createGuards({ identity, agents, agentMinVersion: '0.0.1', siteOrigin: SITE_ORIGIN }),
     scheduler,
+    log: silentLog,
   });
   hub.subscribe();
   const app: FastifyInstance = Fastify();

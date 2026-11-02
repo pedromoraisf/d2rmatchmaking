@@ -25,6 +25,7 @@ afterAll(async () => {
 
 /** A relay whose wake does nothing, so rows can be committed while no relay runs. */
 const silentRelay = { wake: (): void => undefined };
+const silentLog = { error: (): void => undefined };
 
 function stageChanged(roomId: string): AnyDomainEvent {
   return { type: 'RoomStageChanged', payload: { roomId, stage: 'awaiting_host', members: [] } };
@@ -92,7 +93,13 @@ describe('OutboxRelay', () => {
     ]);
     const clock = new FakeClock(START);
     const { bus, delivered } = recordingBus();
-    const restarted = new OutboxRelay({ db: database.db, bus, scheduler: new FakeScheduler(clock), clock });
+    const restarted = new OutboxRelay({
+      db: database.db,
+      bus,
+      scheduler: new FakeScheduler(clock),
+      clock,
+      log: silentLog,
+    });
 
     await restarted.sweep();
 
@@ -113,7 +120,13 @@ describe('OutboxRelay', () => {
     const clock = new FakeClock(START);
     const { bus, delivered } = recordingBus();
 
-    await new OutboxRelay({ db: database.db, bus, scheduler: new FakeScheduler(clock), clock }).sweep();
+    await new OutboxRelay({
+      db: database.db,
+      bus,
+      scheduler: new FakeScheduler(clock),
+      clock,
+      log: silentLog,
+    }).sweep();
 
     expect(delivered).toEqual(ids);
   });
@@ -122,7 +135,13 @@ describe('OutboxRelay', () => {
     await commitRows([stageChanged(POISON)]);
     const clock = new FakeClock(START);
     const { bus, attempts } = recordingBus();
-    const relay = new OutboxRelay({ db: database.db, bus, scheduler: new FakeScheduler(clock), clock });
+    const relay = new OutboxRelay({
+      db: database.db,
+      bus,
+      scheduler: new FakeScheduler(clock),
+      clock,
+      log: silentLog,
+    });
     const elapse = async (ms: number): Promise<void> => {
       clock.advance(ms);
       await relay.settled();
@@ -156,7 +175,13 @@ describe('OutboxRelay', () => {
     await commitRows([stageChanged(POISON), stageChanged('66666666-6666-4666-8666-666666666666')]);
     const clock = new FakeClock(START);
     const { bus, delivered } = recordingBus();
-    const relay = new OutboxRelay({ db: database.db, bus, scheduler: new FakeScheduler(clock), clock });
+    const relay = new OutboxRelay({
+      db: database.db,
+      bus,
+      scheduler: new FakeScheduler(clock),
+      clock,
+      log: silentLog,
+    });
 
     await relay.sweep();
     for (const ms of [1_000, 2_000, 4_000, 8_000]) {

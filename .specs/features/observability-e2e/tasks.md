@@ -426,9 +426,9 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] a `mixin` reads the active span; a request log line inside a span carries both ids and outside carries none; the three `console.error` sites call an injected logger
-- [ ] with the endpoint set a request log record reaches a fake OTLP backend with the trace id
-- [ ] tests `log line inside a span carries trace_id and span_id and none outside` (unit) and `exports a log record with the trace id` (integration) pass
+- [x] a `mixin` reads the active span; a request log line inside a span carries both ids and outside carries none; the three `console.error` sites call an injected logger
+- [x] with the endpoint set a request log record reaches a fake OTLP backend with the trace id
+- [x] tests `log line inside a span carries trace_id and span_id and none outside` (unit) and `exports a log record with the trace id` (integration) pass
 
 **Tests**: integration
 **Gate**: API full
@@ -1422,6 +1422,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - T13 decisions.md: not written. The implementer may touch `.specs/` only for `tasks.md`; the fallback and the Fastify removal above are the entries for the orchestrator to queue in `.specs/phases/F0/decisions.md`.
 - T14 (execute-batch-2, gate `API full` passed on attempt 1, 88 integration tests). The Render `startCommand` is `node --import ./apps/api/src/main/instrument.ts apps/api/src/main/render.ts` (Render runs from the repository root). `apps/api/package.json` had no `dev` or `start` script: `start` is added (`node --import ./src/main/instrument.ts src/main/render.ts`); no `dev` is added, because the root `turbo run dev --parallel` would start the DATABASE_URL-bound local root without it. `render.yaml` adds `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS` as names with `sync: false` only. `stack.ts` spawns both `local.ts` roots with `--import ./src/main/instrument.ts`. The test `both roots start with no OTLP endpoint and answer a health check` passes (its box stays open only for the bddgen clause below); `startRoot` takes the preload as `execArgv`.
 - T14 open clause, for the orchestrator: `pnpm --filter @d2rmm/acceptance exec bddgen` is NOT clean and cannot be clean before T53 and T54. It reports `Missing step definitions: 42`, all from `.specs/features/observability-e2e/acceptance.feature` (the observability scenarios), whose steps are written in T53 (`observability.steps.ts`) and T54 (`telemetry-relay.steps.ts`). The T14 change touches no step. I ran bddgen through the wrapper under T14 by mistake, which counted one failure (`gate:observability-e2e/T14`, 1 of 3). The T14 box that names bddgen stays unticked for this reason. No retry was made.
+- T15 (execute-batch-2, gate `API full` passed on attempt 2 after one failure, 251 unit and 89 integration tests). `app.ts` creates the Fastify app first; `appLoggerOptions(sink)` is the logger (redaction, `mixin: traceFields`, the sink); `traceFields()` reads the active span. The three `console.error` files are converted, with one more call in the same files: the relay's drain error, its default dead-letter line (`outbox-relay.ts`), the stream replay (`stream-hub.ts`) and the agents sweep (`app.ts`). They call an `ErrorLog` port (`platform/error-log.ts`), injected as `log` (the app passes `app.log`). The relay and hub tests pass a silent `log`. `migrate.ts` keeps its `console.error`: it is the migration CLI, not a request path, and it is not one of the sites the design lists.
+- T15 finding: a span active around `app.inject` does not reach the route handler (light-my-request dispatch loses the async context, verified with `AsyncLocalStorageContextManager`; a plain `await` and `setImmediate` keep it). So `app.test.ts` proves the mixin by logging inside `context.with(span)` through the app logger. Request-scoped correlation is proven by `exports a log record with the trace id` (real HTTP server span, the log record carries the server trace id).
 - T9, T13, T38 to T43, T47 write here.
 
 ---

@@ -16,6 +16,7 @@ import {
   validatorCompiler,
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
+import { isSpanContextValid, trace } from '@opentelemetry/api';
 import type { Kysely } from 'kysely';
 import type { Writable } from 'node:stream';
 import { z } from 'zod';
@@ -61,6 +62,25 @@ const SWEEP_EVERY_MS = 1_000;
 /** Log fields that may carry a credential: redacted from every log line (design.md § Composition roots). */
 const REDACTED_LOG_PATHS = ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'];
 
+/** The trace fields of a log line: the active span's ids, and none outside a span (OBS-26). */
+export function traceFields(): Record<string, string> {
+  const spanContext = trace.getActiveSpan()?.spanContext();
+  if (spanContext === undefined || !isSpanContextValid(spanContext)) {
+    return {};
+  }
+  return { trace_id: spanContext.traceId, span_id: spanContext.spanId };
+}
+
+/** The Fastify logger of the app: credentials redacted, and every line carries the trace fields (OBS-26). */
+export function appLoggerOptions(sink?: Writable) {
+  return {
+    level: 'info',
+    redact: { paths: REDACTED_LOG_PATHS, censor: '[redacted]' },
+    mixin: traceFields,
+    ...(sink === undefined ? {} : { stream: sink }),
+  };
+}
+
 export interface AppConfig {
   readonly stagingEndpoints: boolean;
   readonly minAgentVersion: string;
@@ -77,7 +97,7 @@ export interface AppDeps {
   readonly ids: IdGenerator;
   /** Where log lines go. Defaults to standard output. */
   readonly logSink?: Writable;
-  /** Called once per dead-lettered outbox row. Defaults to a console error with the id and type. */
+  /** Called once per dead-lettered outbox row. Defaults to a log error with the id and type. */
   readonly onDeadLetter?: (outboxId: string, eventType: string) => void;
 }
 
@@ -128,6 +148,13 @@ function answerError(error: FastifyError, request: FastifyRequest, reply: Fastif
  */
 export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   const { db, config, clock, scheduler, random, ids } = deps;
+  // Trust the first `TRUST_PROXY_HOPS` proxies only: `request.ip` is the first address past them, so a forged left-most
+  // X-Forwarded-For never becomes the client address (AWS-09, design.md § Security controls). The app is created first:
+  // the relay and the stream hub log through its logger.
+  const app = Fastify({
+    trustProxy: (_address: string, hop: number) => hop < config.trustProxyHops,
+    logger: appLoggerOptions(deps.logSink),
+  });
   const bus = new InMemoryEventBus();
   const outbox = new PostgresOutbox(clock);
   const relay = new OutboxRelay({
@@ -135,6 +162,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     bus,
     scheduler,
     clock,
+    log: app.log,
     ...(deps.onDeadLetter === undefined ? {} : { onDeadLetter: deps.onDeadLetter }),
   });
   const uow = new PostgresUnitOfWork(db as unknown as Kysely<PlatformDatabase>, outbox, relay);
@@ -206,25 +234,16 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     agents: agentsPort,
     guards,
     scheduler,
+    log: app.log,
   });
   hub.subscribe();
 
   const stopSweep = scheduler.every(SWEEP_EVERY_MS, () => {
     void agents.sweep().catch(() => {
-      console.error('agents sweep failed; it runs again in one second');
+      app.log.error('agents sweep failed; it runs again in one second');
     });
   });
 
-  // Trust the first `TRUST_PROXY_HOPS` proxies only: `request.ip` is the first address past them, so a forged left-most
-  // X-Forwarded-For never becomes the client address (AWS-09, design.md § Security controls).
-  const app = Fastify({
-    trustProxy: (_address: string, hop: number) => hop < config.trustProxyHops,
-    logger: {
-      level: 'info',
-      redact: { paths: REDACTED_LOG_PATHS, censor: '[redacted]' },
-      ...(deps.logSink === undefined ? {} : { stream: deps.logSink }),
-    },
-  });
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.setErrorHandler(answerError);

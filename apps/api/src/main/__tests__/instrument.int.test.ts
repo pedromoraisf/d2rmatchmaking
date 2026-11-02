@@ -45,6 +45,8 @@ interface Captured {
   readonly spans: readonly OtlpSpan[];
   readonly metricNames: readonly string[];
   readonly serviceNames: readonly string[];
+  /** The trace id of every exported log record. */
+  readonly logTraceIds: readonly string[];
 }
 
 let database: TestDatabase;
@@ -167,6 +169,24 @@ function metricNamesOf(bodies: unknown[]): string[] {
   return names;
 }
 
+function logTraceIdsOf(bodies: unknown[]): string[] {
+  const ids: string[] = [];
+  for (const body of bodies as {
+    resourceLogs?: { scopeLogs?: { logRecords?: { traceId?: string }[] }[] }[];
+  }[]) {
+    for (const resource of body.resourceLogs ?? []) {
+      for (const scope of resource.scopeLogs ?? []) {
+        for (const record of scope.logRecords ?? []) {
+          if (record.traceId !== undefined && record.traceId !== '') {
+            ids.push(record.traceId);
+          }
+        }
+      }
+    }
+  }
+  return ids;
+}
+
 function serviceNamesOf(bodies: unknown[]): string[] {
   const names: string[] = [];
   for (const body of bodies as { resourceSpans?: { resource?: { attributes?: OtlpAttribute[] } }[] }[]) {
@@ -249,7 +269,8 @@ function runInstrumentedApi(): Promise<Captured> {
       return (
         server !== undefined &&
         spans.some(isStatementChildOf(server)) &&
-        metricNamesOf(receivedFor('/v1/metrics')).length > 0
+        metricNamesOf(receivedFor('/v1/metrics')).length > 0 &&
+        logTraceIdsOf(receivedFor('/v1/logs')).includes(server.traceId)
       );
     });
     const traces = receivedFor('/v1/traces');
@@ -257,6 +278,7 @@ function runInstrumentedApi(): Promise<Captured> {
       spans: spansOf(traces),
       metricNames: metricNamesOf(receivedFor('/v1/metrics')),
       serviceNames: serviceNamesOf(traces),
+      logTraceIds: logTraceIdsOf(receivedFor('/v1/logs')),
     };
   })();
   return captured;
@@ -272,6 +294,14 @@ describe('the API preload', () => {
     expect(result.spans.some(isServerSpanFor('/healthz'))).toBe(false);
     expect(result.metricNames.length).toBeGreaterThan(0);
     expect(result.serviceNames).toContain('d2rmm-api');
+  });
+
+  it('exports a log record with the trace id', async () => {
+    const result = await runInstrumentedApi();
+
+    const server = result.spans.find(isServerSpanFor(DB_ROUTE));
+    expect(server).toBeDefined();
+    expect(result.logTraceIds).toContain(server?.traceId);
   });
 
   it('pg span names the statement without parameter values and is a child of the server span', async () => {

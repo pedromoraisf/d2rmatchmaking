@@ -1,5 +1,6 @@
 import type { Kysely, Transaction as KyselyTransaction } from 'kysely';
 import type { AnyDomainEvent, Clock, EventBus, Scheduler } from '../shared-kernel/index.ts';
+import type { ErrorLog } from './error-log.ts';
 import type { PlatformDatabase } from './postgres/database.ts';
 
 /** A row is dead-lettered after this many failed publish attempts (design.md § Platform). */
@@ -19,8 +20,10 @@ export interface OutboxRelayDeps {
   readonly bus: EventBus;
   readonly scheduler: Scheduler;
   readonly clock: Clock;
-  /** Called once per dead letter, after its transaction committed. Defaults to a console error with the id and type. */
+  /** Called once per dead letter, after its transaction committed. Defaults to a log error with the id and type. */
   readonly onDeadLetter?: (outboxId: string, eventType: string) => void;
+  /** Where a failed drain and a default dead-letter line are reported (the application logger). */
+  readonly log: ErrorLog;
 }
 
 interface OutboxRow {
@@ -82,7 +85,7 @@ export class OutboxRelay {
         }
       } while (this.#again);
     } catch {
-      console.error('outbox relay: a drain failed on the database; retrying');
+      this.#deps.log.error('outbox relay: a drain failed on the database; retrying');
       this.#scheduleAt(this.#deps.clock.now().getTime() + DATABASE_RETRY_MS);
     } finally {
       this.#running = undefined;
@@ -162,7 +165,7 @@ export class OutboxRelay {
       case 'dead':
         this.#retryAt.delete(outcome.id);
         if (this.#deps.onDeadLetter === undefined) {
-          console.error(
+          this.#deps.log.error(
             `outbox event ${outcome.id} (${outcome.eventType}) is dead-lettered after ${MAX_ATTEMPTS} attempts`,
           );
         } else {

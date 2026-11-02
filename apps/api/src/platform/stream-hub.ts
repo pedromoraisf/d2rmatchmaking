@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Kysely } from 'kysely';
 import type { ServerResponse } from 'node:http';
 import type { AnyDomainEvent, BusEvent, Cancel, EventBus, Scheduler } from '../shared-kernel/index.ts';
+import type { ErrorLog } from './error-log.ts';
 import type { Guards } from './http/guards.ts';
 import type { PlatformDatabase } from './postgres/database.ts';
 import {
@@ -42,6 +43,8 @@ export interface StreamHubDeps {
   readonly agents: CurrentAgentLookup;
   readonly guards: Guards;
   readonly scheduler: Scheduler;
+  /** Where a failed replay is reported (the application logger). */
+  readonly log: ErrorLog;
 }
 
 /** Who the stream belongs to: the site of an account, or one agent. */
@@ -324,7 +327,9 @@ export class StreamHub {
       }
       connection.endReplay();
     } catch {
-      console.error('stream replay failed on the database; closing the stream so the client reconnects');
+      this.#deps.log.error(
+        'stream replay failed on the database; closing the stream so the client reconnects',
+      );
       connection.close();
     }
   }
