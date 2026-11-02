@@ -292,7 +292,7 @@ mod tests {
 
     use super::{Command, claim_outcome, run};
     use crate::device_state::DeviceState;
-    use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NullSink};
+    use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NullSink, fails_fast};
     use crate::groups::PairingPorts;
     use crate::messages::{IssuedCode, PairingCode};
     use crate::ports::{ApiError, PausedWallClock, TokenStore, WallClock};
@@ -313,6 +313,20 @@ mod tests {
             expires_at: start() + TimeDelta::seconds(CODE_LIFETIME_SECONDS),
             claim_secret: Secret::new(claim),
         }
+    }
+
+    /// A code that expires `lifetime_seconds` after the test starts.
+    fn issued_within(code: &str, claim: &str, lifetime_seconds: i64) -> IssuedCode {
+        IssuedCode {
+            code: PairingCode::new(code).expect("six digits"),
+            expires_at: start() + TimeDelta::seconds(lifetime_seconds),
+            claim_secret: Secret::new(claim),
+        }
+    }
+
+    /// Claims that answer `Pending`, for a test that makes that many claims.
+    fn pending_claims(count: usize) -> impl Iterator<Item = Result<Secret, ApiError>> {
+        (0..count).map(|_| Err(ApiError::Pending))
     }
 
     /// The device and the pairing port group over the in-memory ports. The wall clock moves with paused tokio time.
@@ -382,95 +396,327 @@ mod tests {
         assert_eq!(claim_outcome(&Err(ApiError::UpgradeRequired)), None);
     }
 
-    #[tokio::test(start_paused = true)]
-    async fn pair_shows_code_then_stores_token() {
-        let gateway = Arc::new(FakeApiGateway::new());
-        gateway.script_request_code([Ok(issued("123456", "claim-1"))]);
-        gateway.script_claim([Err(ApiError::Pending), Ok(Secret::new("token-1"))]);
-        let tokens = Arc::new(MemoryTokens::default());
-        let (device, ports) = context(&gateway, &tokens);
-        let (_commands, receiver) = mpsc::channel(8);
-        tokio::spawn(run(Arc::clone(&device), ports, receiver));
+    #[test]
+    fn pair_shows_code_then_stores_token() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_request_code([Ok(issued("123456", "claim-1"))]);
+            gateway.script_claim([Err(ApiError::Pending), Ok(Secret::new("token-1"))]);
+            let tokens = Arc::new(MemoryTokens::default());
+            let (device, ports) = context(&gateway, &tokens);
+            let (_commands, receiver) = mpsc::channel(8);
+            tokio::spawn(run(Arc::clone(&device), ports, receiver));
 
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        assert_eq!(device.hub.snapshot().pairing, showing("123456", 5));
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            assert_eq!(device.hub.snapshot().pairing, showing("123456", 5));
 
-        tokio::time::sleep(Duration::from_secs(4)).await;
-        assert_eq!(
-            tokens.load().expect("the token is stored").expose(),
-            "token-1"
-        );
-        assert_eq!(device.hub.snapshot().pairing, PairingView::Paired);
-        assert_eq!(claims(&gateway), 2);
+            tokio::time::sleep(Duration::from_secs(4)).await;
+            assert_eq!(
+                tokens.load().expect("the token is stored").expose(),
+                "token-1"
+            );
+            assert_eq!(device.hub.snapshot().pairing, PairingView::Paired);
+            assert_eq!(claims(&gateway), 2);
+        });
     }
 
-    #[tokio::test(start_paused = true)]
-    async fn pair_gone_shows_a_new_code() {
-        let gateway = Arc::new(FakeApiGateway::new());
-        gateway.script_request_code([
-            Ok(issued("123456", "claim-1")),
-            Ok(issued("654321", "claim-2")),
-        ]);
-        gateway.script_claim([Err(ApiError::Gone), Err(ApiError::Pending)]);
-        let tokens = Arc::new(MemoryTokens::default());
-        let (device, ports) = context(&gateway, &tokens);
-        let (_commands, receiver) = mpsc::channel(8);
-        tokio::spawn(run(Arc::clone(&device), ports, receiver));
+    #[test]
+    fn pair_gone_shows_a_new_code() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_request_code([
+                Ok(issued("123456", "claim-1")),
+                Ok(issued("654321", "claim-2")),
+            ]);
+            gateway.script_claim([Err(ApiError::Gone), Err(ApiError::Pending)]);
+            let tokens = Arc::new(MemoryTokens::default());
+            let (device, ports) = context(&gateway, &tokens);
+            let (_commands, receiver) = mpsc::channel(8);
+            tokio::spawn(run(Arc::clone(&device), ports, receiver));
 
-        tokio::time::sleep(Duration::from_secs(3)).await;
-        assert_eq!(device.hub.snapshot().pairing, showing("654321", 5));
-        assert_eq!(requests(&gateway), 2);
-        assert!(tokens.load().is_none(), "a gone code stores no token");
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            assert_eq!(device.hub.snapshot().pairing, showing("654321", 5));
+            assert_eq!(requests(&gateway), 2);
+            assert!(tokens.load().is_none(), "a gone code stores no token");
+        });
     }
 
-    #[tokio::test(start_paused = true)]
-    async fn pair_pauses_after_two_unused_codes() {
-        let gateway = Arc::new(FakeApiGateway::new());
-        gateway.script_request_code([
-            Ok(issued("123456", "claim-1")),
-            Ok(issued("654321", "claim-2")),
-        ]);
-        gateway.script_claim([Err(ApiError::Gone), Err(ApiError::Gone)]);
-        let tokens = Arc::new(MemoryTokens::default());
-        let (device, ports) = context(&gateway, &tokens);
-        let (_commands, receiver) = mpsc::channel(8);
-        tokio::spawn(run(Arc::clone(&device), ports, receiver));
+    #[test]
+    fn pair_pauses_after_two_unused_codes() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_request_code([
+                Ok(issued("123456", "claim-1")),
+                Ok(issued("654321", "claim-2")),
+            ]);
+            gateway.script_claim([Err(ApiError::Gone), Err(ApiError::Gone)]);
+            let tokens = Arc::new(MemoryTokens::default());
+            let (device, ports) = context(&gateway, &tokens);
+            let (_commands, receiver) = mpsc::channel(8);
+            tokio::spawn(run(Arc::clone(&device), ports, receiver));
 
-        tokio::time::sleep(Duration::from_secs(5)).await;
-        assert_eq!(device.hub.snapshot().pairing, PairingView::Paused);
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            assert_eq!(device.hub.snapshot().pairing, PairingView::Paused);
 
-        tokio::time::sleep(Duration::from_secs(600)).await;
-        assert_eq!(device.hub.snapshot().pairing, PairingView::Paused);
-        assert_eq!(requests(&gateway), 2, "no code is requested while paused");
+            tokio::time::sleep(Duration::from_secs(600)).await;
+            assert_eq!(device.hub.snapshot().pairing, PairingView::Paused);
+            assert_eq!(requests(&gateway), 2, "no code is requested while paused");
+        });
     }
 
-    #[tokio::test(start_paused = true)]
-    async fn pair_resumes_on_get_new_code() {
-        let gateway = Arc::new(FakeApiGateway::new());
-        gateway.script_request_code([
-            Ok(issued("123456", "claim-1")),
-            Ok(issued("654321", "claim-2")),
-            Ok(issued("112233", "claim-3")),
-        ]);
-        gateway.script_claim([
-            Err(ApiError::Gone),
-            Err(ApiError::Gone),
-            Err(ApiError::Pending),
-        ]);
-        let tokens = Arc::new(MemoryTokens::default());
-        let (device, ports) = context(&gateway, &tokens);
-        let (commands, receiver) = mpsc::channel::<Command>(8);
-        tokio::spawn(run(Arc::clone(&device), ports, receiver));
+    #[test]
+    fn pair_resumes_on_get_new_code() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_request_code([
+                Ok(issued("123456", "claim-1")),
+                Ok(issued("654321", "claim-2")),
+                Ok(issued("112233", "claim-3")),
+            ]);
+            gateway.script_claim([
+                Err(ApiError::Gone),
+                Err(ApiError::Gone),
+                Err(ApiError::Pending),
+            ]);
+            let tokens = Arc::new(MemoryTokens::default());
+            let (device, ports) = context(&gateway, &tokens);
+            let (commands, receiver) = mpsc::channel::<Command>(8);
+            tokio::spawn(run(Arc::clone(&device), ports, receiver));
 
-        tokio::time::sleep(Duration::from_secs(5)).await;
-        assert_eq!(device.hub.snapshot().pairing, PairingView::Paused);
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            assert_eq!(device.hub.snapshot().pairing, PairingView::Paused);
 
-        commands
-            .send(Command::GetNewCode)
-            .await
-            .expect("the paused loop listens for the command");
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        assert_eq!(device.hub.snapshot().pairing, showing("112233", 5));
-        assert_eq!(requests(&gateway), 3);
+            commands
+                .send(Command::GetNewCode)
+                .await
+                .expect("the paused loop listens for the command");
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            assert_eq!(device.hub.snapshot().pairing, showing("112233", 5));
+            assert_eq!(requests(&gateway), 3);
+        });
+    }
+
+    #[test]
+    fn rate_limited_request_waits_for_retry_after() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_request_code([
+                Err(ApiError::RateLimited {
+                    retry_after: Some(Duration::from_secs(30)),
+                }),
+                Ok(issued("123456", "claim-1")),
+            ]);
+            let tokens = Arc::new(MemoryTokens::default());
+            let (device, ports) = context(&gateway, &tokens);
+            let (_commands, receiver) = mpsc::channel(8);
+            tokio::spawn(run(Arc::clone(&device), ports, receiver));
+
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            assert_eq!(device.hub.snapshot().pairing, PairingView::RateLimited);
+            tokio::time::sleep(Duration::from_secs(28)).await;
+            assert_eq!(requests(&gateway), 1, "no request before Retry-After");
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            assert_eq!(
+                requests(&gateway),
+                2,
+                "the request is repeated at Retry-After"
+            );
+        });
+    }
+
+    #[test]
+    fn unreachable_request_waits_fifteen_seconds() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_request_code([Err(ApiError::Server), Ok(issued("123456", "claim-1"))]);
+            let tokens = Arc::new(MemoryTokens::default());
+            let (device, ports) = context(&gateway, &tokens);
+            let (_commands, receiver) = mpsc::channel(8);
+            tokio::spawn(run(Arc::clone(&device), ports, receiver));
+
+            tokio::time::sleep(Duration::from_secs(10)).await;
+            assert_eq!(device.hub.snapshot().pairing, PairingView::Unreachable);
+            assert_eq!(requests(&gateway), 1, "no request within the 15 s wait");
+            tokio::time::sleep(Duration::from_secs(6)).await;
+            assert_eq!(requests(&gateway), 2, "the request is repeated after 15 s");
+        });
+    }
+
+    #[test]
+    fn unused_codes_count_across_a_rate_limited_request() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_request_code([
+                Ok(issued("123456", "claim-1")),
+                Err(ApiError::RateLimited {
+                    retry_after: Some(Duration::from_secs(1)),
+                }),
+                Ok(issued("654321", "claim-2")),
+            ]);
+            gateway.script_claim([Err(ApiError::Gone), Err(ApiError::Gone)]);
+            let tokens = Arc::new(MemoryTokens::default());
+            let (device, ports) = context(&gateway, &tokens);
+            let (_commands, receiver) = mpsc::channel(8);
+            tokio::spawn(run(Arc::clone(&device), ports, receiver));
+
+            tokio::time::sleep(Duration::from_secs(6)).await;
+            assert_eq!(
+                device.hub.snapshot().pairing,
+                PairingView::Paused,
+                "the second unused code pauses the loop, the wait between them included"
+            );
+            assert_eq!(requests(&gateway), 3, "no code is requested while paused");
+        });
+    }
+
+    #[test]
+    fn unused_codes_count_across_an_unreachable_request() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_request_code([
+                Ok(issued("123456", "claim-1")),
+                Err(ApiError::Server),
+                Ok(issued("654321", "claim-2")),
+            ]);
+            gateway.script_claim([Err(ApiError::Gone), Err(ApiError::Gone)]);
+            let tokens = Arc::new(MemoryTokens::default());
+            let (device, ports) = context(&gateway, &tokens);
+            let (_commands, receiver) = mpsc::channel(8);
+            tokio::spawn(run(Arc::clone(&device), ports, receiver));
+
+            tokio::time::sleep(Duration::from_secs(20)).await;
+            assert_eq!(
+                device.hub.snapshot().pairing,
+                PairingView::Paused,
+                "the second unused code pauses the loop, the 15 s wait included"
+            );
+            assert_eq!(requests(&gateway), 3, "no code is requested while paused");
+        });
+    }
+
+    #[test]
+    fn unused_codes_count_across_a_rate_limited_claim() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_request_code([
+                Ok(issued("123456", "claim-1")),
+                Ok(issued("654321", "claim-2")),
+                Ok(issued("112233", "claim-3")),
+            ]);
+            gateway.script_claim([
+                Err(ApiError::Gone),
+                Err(ApiError::RateLimited {
+                    retry_after: Some(Duration::from_secs(1)),
+                }),
+                Err(ApiError::Gone),
+            ]);
+            let tokens = Arc::new(MemoryTokens::default());
+            let (device, ports) = context(&gateway, &tokens);
+            let (_commands, receiver) = mpsc::channel(8);
+            tokio::spawn(run(Arc::clone(&device), ports, receiver));
+
+            tokio::time::sleep(Duration::from_secs(8)).await;
+            assert_eq!(
+                device.hub.snapshot().pairing,
+                PairingView::Paused,
+                "the second unused code pauses the loop, the claim's wait included"
+            );
+            assert_eq!(requests(&gateway), 3, "no code is requested while paused");
+        });
+    }
+
+    #[test]
+    fn rate_limited_claim_shows_rate_limited_and_waits_retry_after() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_request_code([
+                Ok(issued("123456", "claim-1")),
+                Ok(issued("654321", "claim-2")),
+            ]);
+            gateway.script_claim([
+                Err(ApiError::RateLimited {
+                    retry_after: Some(Duration::from_secs(30)),
+                }),
+                Err(ApiError::Server),
+            ]);
+            let tokens = Arc::new(MemoryTokens::default());
+            let (device, ports) = context(&gateway, &tokens);
+            let (_commands, receiver) = mpsc::channel(8);
+            tokio::spawn(run(Arc::clone(&device), ports, receiver));
+
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            assert_eq!(
+                device.hub.snapshot().pairing,
+                PairingView::RateLimited,
+                "a 429 on the claim shows rate limited"
+            );
+            tokio::time::sleep(Duration::from_secs(7)).await;
+            assert_eq!(requests(&gateway), 1, "no request before Retry-After");
+            tokio::time::sleep(Duration::from_secs(23)).await;
+            assert_eq!(requests(&gateway), 2, "the next code is requested at 30 s");
+            assert_eq!(device.hub.snapshot().pairing, showing("654321", 5));
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            assert_eq!(
+                device.hub.snapshot().pairing,
+                PairingView::Unreachable,
+                "a failed claim shows unreachable"
+            );
+        });
+    }
+
+    #[test]
+    fn pending_claims_are_paced_two_seconds_apart() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_request_code([Ok(issued("123456", "claim-1"))]);
+            gateway.script_claim(pending_claims(20));
+            let tokens = Arc::new(MemoryTokens::default());
+            let (device, ports) = context(&gateway, &tokens);
+            let (_commands, receiver) = mpsc::channel(8);
+            tokio::spawn(run(Arc::clone(&device), ports, receiver));
+
+            tokio::time::sleep(Duration::from_secs(9)).await;
+            assert_eq!(claims(&gateway), 4, "the claims are at 2, 4, 6 and 8 s");
+        });
+    }
+
+    #[test]
+    fn countdown_moves_each_minute_and_claims_wait_for_the_minute() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            // Expires at 295 s, so the minute changes fall between the two-second claim ticks.
+            gateway.script_request_code([Ok(issued_within("123456", "claim-1", 295))]);
+            gateway.script_claim(pending_claims(130));
+            let tokens = Arc::new(MemoryTokens::default());
+            let (device, ports) = context(&gateway, &tokens);
+            let (_commands, receiver) = mpsc::channel(8);
+            tokio::spawn(run(Arc::clone(&device), ports, receiver));
+
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            assert_eq!(device.hub.snapshot().pairing, showing("123456", 5));
+
+            tokio::time::sleep(Duration::from_millis(54_500)).await;
+            assert_eq!(
+                device.hub.snapshot().pairing,
+                showing("123456", 4),
+                "the count moves to 4 at 55 s"
+            );
+            assert_eq!(
+                claims(&gateway),
+                27,
+                "no claim is made between minute changes"
+            );
+
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            assert_eq!(device.hub.snapshot().pairing, showing("123456", 3));
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            assert_eq!(device.hub.snapshot().pairing, showing("123456", 2));
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            assert_eq!(
+                device.hub.snapshot().pairing,
+                showing("123456", 1),
+                "the last minute shows 1"
+            );
+        });
     }
 }

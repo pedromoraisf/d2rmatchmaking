@@ -261,6 +261,41 @@ impl StateSink for NullSink {
     fn publish(&self, _view: AgentView) {}
 }
 
+/// Real time a paused scenario may take before it counts as spinning (see `fails_fast`).
+#[cfg(test)]
+const SPIN_BUDGET: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// Runs `scenario` on a paused current-thread runtime, on a thread of its own, and fails the test when it does not finish
+/// within `SPIN_BUDGET` of real time. A loop that a mutation turns into a spin never lets paused time advance, so a plain
+/// `#[tokio::test]` would hang the whole test binary. This turns that hang into a failed test.
+#[cfg(test)]
+pub fn fails_fast<F, Fut>(scenario: F)
+where
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: Future<Output = ()>,
+{
+    let (done, finished) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .start_paused(true)
+            .build()
+            .expect("a paused runtime");
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            runtime.block_on(scenario());
+        }));
+        // The receiver is gone only after the timeout below has already failed the test.
+        let _ = done.send(outcome);
+    });
+    match finished.recv_timeout(SPIN_BUDGET) {
+        Ok(Ok(())) => {}
+        Ok(Err(panic)) => std::panic::resume_unwind(panic),
+        Err(_) => panic!(
+            "the scenario did not finish within {SPIN_BUDGET:?} of real time: a loop is spinning"
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU64;

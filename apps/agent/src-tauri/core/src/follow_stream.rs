@@ -126,9 +126,9 @@ mod tests {
 
     use super::run;
     use crate::device_state::DeviceState;
-    use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NullSink};
+    use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NullSink, fails_fast};
     use crate::groups::StreamPorts;
-    use crate::ports::{StreamItem, TokenStore};
+    use crate::ports::{ApiError, StreamItem, TokenStore};
     use crate::secret::Secret;
     use crate::view::RoomView;
 
@@ -168,75 +168,138 @@ mod tests {
         gateway.calls()
     }
 
-    #[tokio::test(start_paused = true)]
-    async fn follow_fetches_assignment_then_streams() {
-        let gateway = Arc::new(FakeApiGateway::new());
-        gateway.script_assignment([Ok(Some(assignment("mmbaalh-12")))]);
-        gateway.script_open_stream([Ok(vec![StreamItem::RoomAssigned(assignment("mmbaalh-13"))])]);
-        let (device, _tokens, ports) = paired(&gateway);
-        tokio::spawn(run(Arc::clone(&device), ports));
+    #[test]
+    fn follow_fetches_assignment_then_streams() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_assignment([Ok(Some(assignment("mmbaalh-12")))]);
+            gateway
+                .script_open_stream([Ok(vec![StreamItem::RoomAssigned(assignment("mmbaalh-13"))])]);
+            let (device, _tokens, ports) = paired(&gateway);
+            tokio::spawn(run(Arc::clone(&device), ports));
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        assert_eq!(
-            calls(&gateway),
-            vec![
-                Call::Assignment,
-                Call::OpenStream {
-                    last_event_id: None
-                }
-            ],
-            "the assignment is fetched before the stream opens"
-        );
-        assert_eq!(
-            device.hub.snapshot().room,
-            Some(RoomView {
-                game_name: "mmbaalh-13".to_string(),
-            }),
-            "the latest room.assigned wins"
-        );
-        assert_eq!(
-            device
-                .assignment
-                .borrow()
-                .current()
-                .map(|assignment| assignment.expected_game_name.as_str().to_string()),
-            Some("mmbaalh-13".to_string())
-        );
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            assert_eq!(
+                calls(&gateway),
+                vec![
+                    Call::Assignment,
+                    Call::OpenStream {
+                        last_event_id: None
+                    }
+                ],
+                "the assignment is fetched before the stream opens"
+            );
+            assert_eq!(
+                device.hub.snapshot().room,
+                Some(RoomView {
+                    game_name: "mmbaalh-13".to_string(),
+                }),
+                "the latest room.assigned wins"
+            );
+            assert_eq!(
+                device
+                    .assignment
+                    .borrow()
+                    .current()
+                    .map(|assignment| assignment.expected_game_name.as_str().to_string()),
+                Some("mmbaalh-13".to_string())
+            );
+        });
     }
 
-    #[tokio::test(start_paused = true)]
-    async fn follow_closes_on_401_and_426() {
-        let gateway = Arc::new(FakeApiGateway::new());
-        gateway.script_assignment([Ok(None), Ok(None)]);
-        gateway.script_open_stream([Ok(Vec::new()), Ok(Vec::new())]);
-        gateway.hold_streams();
-        let (device, tokens, ports) = paired(&gateway);
-        tokio::spawn(run(Arc::clone(&device), ports));
+    #[test]
+    fn follow_closes_on_401_and_426() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_assignment([Ok(None), Ok(None)]);
+            gateway.script_open_stream([Ok(Vec::new()), Ok(Vec::new())]);
+            gateway.hold_streams();
+            let (device, tokens, ports) = paired(&gateway);
+            tokio::spawn(run(Arc::clone(&device), ports));
 
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        assert_eq!(calls(&gateway).len(), 2, "one stream is open");
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            assert_eq!(calls(&gateway).len(), 2, "one stream is open");
 
-        device.on_unauthorized(tokens.as_ref());
-        tokio::time::sleep(Duration::from_secs(60)).await;
-        assert_eq!(
-            calls(&gateway).len(),
-            2,
-            "a 401 closes the stream and stops the requests"
-        );
+            device.on_unauthorized(tokens.as_ref());
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            assert_eq!(
+                calls(&gateway).len(),
+                2,
+                "a 401 closes the stream and stops the requests"
+            );
 
-        tokens
-            .save(&Secret::new(TOKEN))
-            .expect("the memory store accepts a write");
-        device.set_paired(true);
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        assert_eq!(calls(&gateway).len(), 4, "pairing again opens a stream");
+            tokens
+                .save(&Secret::new(TOKEN))
+                .expect("the memory store accepts a write");
+            device.set_paired(true);
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            assert_eq!(calls(&gateway).len(), 4, "pairing again opens a stream");
 
-        device.on_upgrade_required(tokens.as_ref());
-        tokio::time::sleep(Duration::from_secs(60)).await;
-        assert_eq!(
-            calls(&gateway).len(),
-            4,
-            "a 426 closes the stream and stops the requests"
-        );
+            device.on_upgrade_required(tokens.as_ref());
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            assert_eq!(
+                calls(&gateway).len(),
+                4,
+                "a 426 closes the stream and stops the requests"
+            );
+        });
+    }
+
+    /// The assignment requests the gateway has seen, one per connection attempt.
+    fn assignments(gateway: &FakeApiGateway) -> usize {
+        gateway
+            .calls()
+            .iter()
+            .filter(|call| **call == Call::Assignment)
+            .count()
+    }
+
+    #[test]
+    fn a_failed_connection_doubles_the_reconnect_delay() {
+        fails_fast(|| async {
+            // Nothing is scripted, so every connection fails with `Server` and the delay runs 1 s, 2 s, 4 s.
+            let gateway = Arc::new(FakeApiGateway::new());
+            let (device, _tokens, ports) = paired(&gateway);
+            tokio::spawn(run(Arc::clone(&device), ports));
+
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            assert_eq!(assignments(&gateway), 1, "the first connection is at once");
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            assert_eq!(assignments(&gateway), 2, "the second waits 1 s");
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            assert_eq!(assignments(&gateway), 3, "the third waits 2 s");
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            assert_eq!(assignments(&gateway), 3, "the fourth waits 4 s");
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            assert_eq!(assignments(&gateway), 4, "the fourth connection is at 7 s");
+        });
+    }
+
+    #[test]
+    fn a_401_on_the_assignment_drops_the_token() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_assignment([Err(ApiError::Unauthorized)]);
+            let (device, tokens, ports) = paired(&gateway);
+            tokio::spawn(run(Arc::clone(&device), ports));
+
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            assert!(tokens.load().is_none(), "a 401 forgets the token");
+            assert!(!device.is_paired(), "the agent is no longer paired");
+        });
+    }
+
+    #[test]
+    fn a_426_on_the_assignment_raises_the_update_gate() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_assignment([Err(ApiError::UpgradeRequired)]);
+            let (device, _tokens, ports) = paired(&gateway);
+            tokio::spawn(run(Arc::clone(&device), ports));
+
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            assert!(*device.update_required.borrow(), "a 426 raises the gate");
+            assert!(!device.api_allowed(), "the API loops stop");
+        });
     }
 }

@@ -74,7 +74,7 @@ mod tests {
 
     use super::{INTERVAL, run};
     use crate::device_state::DeviceState;
-    use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NullSink};
+    use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NullSink, fails_fast};
     use crate::groups::HeartbeatPorts;
     use crate::messages::{Presence, Screen};
     use crate::ports::{ApiError, ProcessSource, TokenStore};
@@ -124,60 +124,64 @@ mod tests {
         assert_eq!(INTERVAL, Duration::from_secs(15));
     }
 
-    #[tokio::test(start_paused = true)]
-    async fn beat_every_fifteen_seconds_with_running_flag() {
-        let gateway = Arc::new(FakeApiGateway::new());
-        gateway.script_heartbeat([Ok(()), Ok(()), Ok(())]);
-        let (device, ports) = paired(&gateway, vec!["explorer.exe".into(), "D2R.exe".into()]);
-        tokio::spawn(run(Arc::clone(&device), ports, "0.0.1".to_string()));
+    #[test]
+    fn beat_every_fifteen_seconds_with_running_flag() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_heartbeat([Ok(()), Ok(()), Ok(())]);
+            let (device, ports) = paired(&gateway, vec!["explorer.exe".into(), "D2R.exe".into()]);
+            tokio::spawn(run(Arc::clone(&device), ports, "0.0.1".to_string()));
 
-        tokio::time::sleep(Duration::from_millis(14_500)).await;
-        assert_eq!(beats(&gateway).len(), 1, "the first beat is at once");
-        tokio::time::sleep(Duration::from_millis(1_000)).await;
-        assert_eq!(beats(&gateway).len(), 2, "the next beat is at 15 s");
-        tokio::time::sleep(Duration::from_secs(15)).await;
-        assert_eq!(beats(&gateway).len(), 3, "and the one after at 30 s");
+            tokio::time::sleep(Duration::from_millis(14_500)).await;
+            assert_eq!(beats(&gateway).len(), 1, "the first beat is at once");
+            tokio::time::sleep(Duration::from_millis(1_000)).await;
+            assert_eq!(beats(&gateway).len(), 2, "the next beat is at 15 s");
+            tokio::time::sleep(Duration::from_secs(15)).await;
+            assert_eq!(beats(&gateway).len(), 3, "and the one after at 30 s");
 
-        let running = Presence {
-            game_running: true,
-            screen: Screen::Unknown,
-        };
-        for call in beats(&gateway) {
-            assert_eq!(
-                call,
-                Call::Heartbeat {
-                    presence: running,
-                    version: "0.0.1".to_string(),
-                },
-                "D2R.exe in the snapshot sets game.running"
-            );
-        }
+            let running = Presence {
+                game_running: true,
+                screen: Screen::Unknown,
+            };
+            for call in beats(&gateway) {
+                assert_eq!(
+                    call,
+                    Call::Heartbeat {
+                        presence: running,
+                        version: "0.0.1".to_string(),
+                    },
+                    "D2R.exe in the snapshot sets game.running"
+                );
+            }
+        });
     }
 
-    #[tokio::test(start_paused = true)]
-    async fn beat_failure_shows_unreachable_then_connected() {
-        let gateway = Arc::new(FakeApiGateway::new());
-        gateway.script_heartbeat([Err(ApiError::Server), Ok(())]);
-        let (device, ports) = paired(&gateway, Vec::new());
-        tokio::spawn(run(Arc::clone(&device), ports, "0.0.1".to_string()));
+    #[test]
+    fn beat_failure_shows_unreachable_then_connected() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_heartbeat([Err(ApiError::Server), Ok(())]);
+            let (device, ports) = paired(&gateway, Vec::new());
+            tokio::spawn(run(Arc::clone(&device), ports, "0.0.1".to_string()));
 
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        assert_eq!(
-            device.hub.snapshot().connectivity,
-            Connectivity::Unreachable,
-            "a failed beat shows the server as unreachable"
-        );
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            assert_eq!(
+                device.hub.snapshot().connectivity,
+                Connectivity::Unreachable,
+                "a failed beat shows the server as unreachable"
+            );
 
-        tokio::time::sleep(Duration::from_secs(15)).await;
-        assert_eq!(
-            device.hub.snapshot().connectivity,
-            Connectivity::Connected,
-            "the next beat on schedule shows connected"
-        );
-        assert_eq!(
-            beats(&gateway).len(),
-            2,
-            "the failure did not move the schedule"
-        );
+            tokio::time::sleep(Duration::from_secs(15)).await;
+            assert_eq!(
+                device.hub.snapshot().connectivity,
+                Connectivity::Connected,
+                "the next beat on schedule shows connected"
+            );
+            assert_eq!(
+                beats(&gateway).len(),
+                2,
+                "the failure did not move the schedule"
+            );
+        });
     }
 }

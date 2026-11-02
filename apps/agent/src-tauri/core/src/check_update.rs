@@ -89,12 +89,22 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
 
-    use super::{CHECK_EVERY, Updater, run, view_after};
+    use super::{CHECK_EVERY, Updater, check_once, run, view_after};
     use crate::device_state::DeviceState;
-    use crate::fakes::{MemoryTokens, NullSink};
+    use crate::fakes::{MemoryTokens, NullSink, fails_fast};
     use crate::groups::UpdatePorts;
     use crate::ports::{UpdateFailure, UpdateOutcome};
     use crate::view::UpdateView;
+
+    /// An updater that answers one fixed outcome.
+    struct Answering(UpdateOutcome);
+
+    impl Updater for Answering {
+        fn check_boxed(&self) -> Pin<Box<dyn Future<Output = UpdateOutcome> + Send + '_>> {
+            let outcome = self.0;
+            Box::pin(async move { outcome })
+        }
+    }
 
     /// An updater that counts its checks and answers "up to date".
     #[derive(Default)]
@@ -166,25 +176,61 @@ mod tests {
         assert_eq!(CHECK_EVERY, Duration::from_secs(6 * 60 * 60));
     }
 
+    #[test]
+    fn check_update_at_start_every_six_hours_and_after_426() {
+        fails_fast(|| async {
+            let updater = Arc::new(CountingUpdater::default());
+            let device = Arc::new(DeviceState::new(Arc::new(NullSink)));
+            let tokens = MemoryTokens::default();
+            let ports = UpdatePorts {
+                updater: updater.clone(),
+            };
+            tokio::spawn(run(Arc::clone(&device), ports));
+
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            assert_eq!(checks(&updater), 1, "the check runs at start");
+            tokio::time::sleep(CHECK_EVERY - Duration::from_secs(2)).await;
+            assert_eq!(checks(&updater), 1, "no check before 6 h");
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            assert_eq!(checks(&updater), 2, "the next check is at 6 h");
+
+            device.on_upgrade_required(&tokens);
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            assert_eq!(checks(&updater), 3, "a 426 checks at once");
+        });
+    }
+
     #[tokio::test(start_paused = true)]
-    async fn check_update_at_start_every_six_hours_and_after_426() {
-        let updater = Arc::new(CountingUpdater::default());
-        let device = Arc::new(DeviceState::new(Arc::new(NullSink)));
-        let tokens = MemoryTokens::default();
+    async fn an_up_to_date_check_keeps_a_pending_426() {
+        let device = DeviceState::new(Arc::new(NullSink));
+        device.on_upgrade_required(&MemoryTokens::default());
         let ports = UpdatePorts {
-            updater: updater.clone(),
+            updater: Arc::new(Answering(UpdateOutcome::UpToDate)),
         };
-        tokio::spawn(run(Arc::clone(&device), ports));
 
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        assert_eq!(checks(&updater), 1, "the check runs at start");
-        tokio::time::sleep(CHECK_EVERY - Duration::from_secs(2)).await;
-        assert_eq!(checks(&updater), 1, "no check before 6 h");
-        tokio::time::sleep(Duration::from_secs(2)).await;
-        assert_eq!(checks(&updater), 2, "the next check is at 6 h");
+        check_once(&device, &ports).await;
 
-        device.on_upgrade_required(&tokens);
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        assert_eq!(checks(&updater), 3, "a 426 checks at once");
+        assert!(
+            *device.update_required.borrow(),
+            "an up-to-date answer keeps a pending 426"
+        );
+        assert!(!device.api_allowed(), "the API loops stay stopped");
+        assert_eq!(device.hub.snapshot().update, UpdateView::Required);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_check_that_leaves_the_gate_alone_does_not_signal_it() {
+        let device = DeviceState::new(Arc::new(NullSink));
+        let gate = device.update_required.subscribe();
+        let ports = UpdatePorts {
+            updater: Arc::new(Answering(UpdateOutcome::UpToDate)),
+        };
+
+        check_once(&device, &ports).await;
+
+        assert!(
+            !gate.has_changed().expect("the gate is open"),
+            "with no 426 pending, the check does not touch the gate"
+        );
     }
 }
