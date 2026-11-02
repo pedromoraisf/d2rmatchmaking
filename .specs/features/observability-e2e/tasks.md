@@ -986,7 +986,7 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 **Done when**:
 
 - [ ] the rule accepts `127.0.0.0/8`, `::1` and `localhost` over http and refuses any other host; `AllowLoopbackHttp::Yes` is constructed only in the app crate's debug path and in the example
-- [ ] test `loopback http is accepted for literal loopback hosts only` passes
+- [x] test `loopback http is accepted for literal loopback hosts only` passes
 
 **Tests**: unit
 **Gate**: Rust adapters

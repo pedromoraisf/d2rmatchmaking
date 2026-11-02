@@ -1,8 +1,9 @@
 //! The API base the adapters call (AGS-04). The core knows only its version; the base is an HTTP concern and lives here.
 
-use url::Url;
+use url::{Host, Url};
 
-/// Whether `http://127.0.0.1` and `http://localhost` are accepted. Only debug builds pass `Yes`.
+/// Whether literal loopback hosts (`127.0.0.0/8`, `::1`, `localhost`) are accepted over HTTP. Only debug builds and the
+/// headless example pass `Yes`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AllowLoopbackHttp {
     Yes,
@@ -42,8 +43,15 @@ impl ApiBase {
     }
 }
 
+/// Literal loopback hosts only (OBS-24): `127.0.0.0/8`, `::1` and `localhost`. A name that resolves to loopback, or an
+/// IPv4-mapped IPv6 address, is refused.
 fn is_loopback(url: &Url) -> bool {
-    matches!(url.host_str(), Some("127.0.0.1" | "localhost"))
+    match url.host() {
+        Some(Host::Domain(name)) => name == "localhost",
+        Some(Host::Ipv4(address)) => address.is_loopback(),
+        Some(Host::Ipv6(address)) => address.is_loopback(),
+        None => false,
+    }
 }
 
 #[cfg(test)]
@@ -80,5 +88,36 @@ mod tests {
             ApiBase::parse("not a url", AllowLoopbackHttp::No),
             Err(ApiBaseError::Malformed)
         );
+    }
+
+    #[test]
+    fn loopback_http_is_accepted_for_literal_loopback_hosts_only() {
+        for base in [
+            "http://127.0.0.1:8080",
+            "http://127.0.0.2:8080",
+            "http://127.255.255.254",
+            "http://[::1]:8080",
+            "http://localhost:8080",
+        ] {
+            assert!(
+                ApiBase::parse(base, AllowLoopbackHttp::Yes).is_ok(),
+                "{base} is a literal loopback host"
+            );
+        }
+        for base in [
+            "http://10.0.0.1:8080",
+            "http://0.0.0.0:8080",
+            "http://[::2]:8080",
+            "http://[::ffff:127.0.0.1]:8080",
+            "http://localhost.example.com:8080",
+            "http://127.0.0.1.example.com:8080",
+            "http://example.com",
+        ] {
+            assert_eq!(
+                ApiBase::parse(base, AllowLoopbackHttp::Yes),
+                Err(ApiBaseError::Insecure),
+                "{base} is not a literal loopback host"
+            );
+        }
     }
 }
