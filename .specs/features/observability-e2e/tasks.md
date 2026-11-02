@@ -275,9 +275,9 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] span events: attributes redacted, `exception.message` and `exception.stacktrace` removed, `exception.type` kept; status message cleared; link attributes redacted; resource attributes outside `service.*`, `deployment.environment`, `d2r.agent.version`, `telemetry.sdk.*` removed; ended spans are not mutated
-- [ ] log records pass the allow-list of keys (`level, time, msg, trace_id, span_id, reqId, req.method, res.statusCode, responseTime, d2r.*`), the body goes through `scrubText`, and only `warn` and above or records tied to a sampled span pass, at most 20 a second
-- [ ] tests `removes exception message and stacktrace from span events`, `drops req.url and err keys from log records`, `caps exported log records at 20 a second` pass
+- [x] span events: attributes redacted, `exception.message` and `exception.stacktrace` removed, `exception.type` kept; status message cleared; link attributes redacted; resource attributes outside `service.*`, `deployment.environment`, `d2r.agent.version`, `telemetry.sdk.*` removed; ended spans are not mutated
+- [x] log records pass the allow-list of keys (`level, time, msg, trace_id, span_id, reqId, req.method, res.statusCode, responseTime, d2r.*`), the body goes through `scrubText`, and only `warn` and above or records tied to a sampled span pass, at most 20 a second
+- [x] tests `removes exception message and stacktrace from span events`, `drops req.url and err keys from log records`, `caps exported log records at 20 a second` pass
 
 **Tests**: unit
 **Gate**: Telemetry
