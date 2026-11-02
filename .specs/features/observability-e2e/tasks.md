@@ -947,8 +947,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] `on_end` never awaits; the task exports every 5 s in batches of at most 256 through the sanitizer and the relay client; an unreachable relay never stops a loop and logs once a minute
-- [ ] tests `a slow relay never delays a caller` and `the loops keep running when the relay is unreachable` pass (paused tokio time, fake relay)
+- [x] `on_end` never awaits; the task exports every 5 s in batches of at most 256 through the sanitizer and the relay client; an unreachable relay never stops a loop and logs once a minute
+- [x] tests `a slow relay never delays a caller` and `the loops keep running when the relay is unreachable` pass (paused tokio time, fake relay)
 
 **Tests**: unit
 **Gate**: Rust adapters

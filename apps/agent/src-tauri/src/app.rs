@@ -48,15 +48,19 @@ mod shell {
 
     use tauri::{AppHandle, Emitter, Manager, State, WebviewWindowBuilder};
 
+    use d2rmm_agent_adapters::config::ApiBase;
     use d2rmm_agent_adapters::http::api_client::ApiClient;
     use d2rmm_agent_adapters::http::gateway::HttpGateway;
-    use d2rmm_agent_adapters::telemetry::{self, Mode};
+    use d2rmm_agent_adapters::telemetry::relay_client::HeaderSource;
+    use d2rmm_agent_adapters::telemetry::{self, ExportConfig, Mode};
     use d2rmm_agent_core::groups::Groups;
-    use d2rmm_agent_core::ports::StateSink;
+    use d2rmm_agent_core::ports::{StateSink, TokenStore};
     use d2rmm_agent_core::runtime::{Handle, Runtime};
+    use d2rmm_agent_core::secret::Secret;
     use d2rmm_agent_core::view::AgentView;
 
     use super::{app_context, handle_get_new_code, is_app_url};
+    use crate::adapters::token_store::KeyringTokenStore;
     use crate::config;
     use crate::fixture_read;
     use d2rmm_agent_adapters::http;
@@ -118,6 +122,49 @@ mod shell {
         }
     }
 
+    /// The sampling ratio of the agent's spans: the default of the API and the site (OBS-43).
+    const SAMPLER_RATIO: f64 = 0.1;
+
+    /// The relay's token and version, read from the token store for each request, so the token is never captured (AD-101).
+    struct TokenHeaders {
+        tokens: Arc<dyn TokenStore + Send + Sync>,
+        version: String,
+    }
+
+    impl HeaderSource for TokenHeaders {
+        fn token(&self) -> Option<Secret> {
+            self.tokens.load()
+        }
+
+        fn agent_version(&self) -> String {
+            self.version.clone()
+        }
+    }
+
+    /// The export configuration of this build. It is `Some` only when the build sets `D2RMM_TELEMETRY=on` at compile
+    /// time (AD-098): a debug profile alone exports nothing.
+    fn export_config(api_base: &ApiBase, version: &str) -> Option<ExportConfig> {
+        if option_env!("D2RMM_TELEMETRY") != Some("on") {
+            return None;
+        }
+        let base = api_base.url().as_str().trim_end_matches('/');
+        Some(ExportConfig {
+            endpoint: format!("{base}/v1/telemetry/traces"),
+            headers: Arc::new(TokenHeaders {
+                tokens: Arc::new(KeyringTokenStore::new()),
+                version: version.to_string(),
+            }),
+            ratio: SAMPLER_RATIO,
+            agent_version: version.to_string(),
+            environment: if cfg!(debug_assertions) {
+                "development"
+            } else {
+                "production"
+            }
+            .to_string(),
+        })
+    }
+
     /// Starts the agent and the window. `build` supplies the port groups, given the app handle (for the updater) and the
     /// HTTP gateway the app built. A bad build configuration or a bad fixture path ends the process with exit code 1; a
     /// rejected flag exits 2.
@@ -138,8 +185,10 @@ mod shell {
         } else {
             Mode::Release
         };
+        let version = app_context().package_info().version.to_string();
+        let export = export_config(&api_base, &version);
         let telemetry =
-            telemetry::init(mode, None).expect("the telemetry subscriber is installed once");
+            telemetry::init(mode, export).expect("the telemetry subscriber is installed once");
 
         #[cfg(feature = "fixture-read")]
         let fixture = fixture.map(|path| {
