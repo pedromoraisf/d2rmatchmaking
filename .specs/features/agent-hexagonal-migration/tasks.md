@@ -1217,8 +1217,8 @@ T53 → T54 → T55 → T56 → T57 → T58
 
 **Done when**:
 
-- [ ] Build gate passes; no `.quality-baseline.json` value is lowered
-- [ ] `core/tests` is gone and `adapters/tests` assertions equal the baseline set
+- [x] Build gate passes; no `.quality-baseline.json` value is lowered
+- [x] `core/tests` is gone and `adapters/tests` assertions equal the baseline set
 
 **Tests**: none (aggregate gate)
 **Gate**: Build
@@ -1329,7 +1329,16 @@ Proof: `cargo mutants --locked --manifest-path apps/agent/src-tauri/Cargo.toml -
 
 The feature's live state, written as it happens - a compaction gives no warning.
 
-**Batch 9 (execute-batch-9), in progress: T48 to T58**
+**Batch 9 (execute-batch-9), complete: T48 to T58**
+
+- T58 done (commit carries `Task: T58`, the ticks and this note): the Build gate (`cargo fmt --check`, `cargo clippy --workspace --all-targets -D warnings`, `cargo nextest run --workspace`, `pnpm typecheck`, `pnpm lint`, the preservation guard) passed on attempt 1 (167 Rust tests). `core/tests` is gone. `git diff phase/F0...HEAD -- .quality-baseline.json` is empty, so no value was lowered. `pnpm quality:gate` ratchet `[pr]`: OK (harness level 4, 100 percent, 0 failed checks, arch violations 0, lint warnings 0, skipped tests 0; `ci.duration_seconds` not measured yet). `pnpm harness:gate` (level 4) passed through the wrapper. Fix found on the way: the quality ratchet first reported harness 100 → 97 (CTX-04, one failed check). The two architecture-docs fixtures `scripts/test/fixtures/agent-architecture/docs-no-crate/` and `docs-no-direction/` (`.cursor/rules/agent-rust.mdc`, from T11) lacked the frontmatter the scorer requires; each now carries the rule's frontmatter, and the text the docs test searches is unchanged, so both still fail the rule they exist for. Gate `Harness` re-run on the same step (attempt 2) passed (192 tests). Denial note: one direct `pnpm harness:gate` call was denied by the gate hook (it must run through the wrapper); it then ran through the wrapper and passed.
+- Deviations for the orchestrator to review (batch 9):
+  1. T53: the pinned expectation of `mutation covers the core rule modules` (`scripts/test/agent-source-rules.test.mjs`) now holds the migrated exact list. Same strictness.
+  2. T56: the scope stays in the manifest, not in `win-check.mjs` or `ci.yml`. The root `apps/agent/src-tauri/Cargo.toml` gains `default-members` (all five members), so the Windows clippy and the CI `agent` commands cover every crate. The sensor files and their pinned harness tests are unchanged. Consequence: the CI `agent` job (windows-latest) now runs the core, domain and adapters tests as well, not only the app crate's. The Windows check proves the clippy of all crates locally; the Windows test run is first proven in CI.
+  3. T57: `each_operation_opens_its_child_span` is in `adapters/tests/api_client.rs`, not in `runtime.rs` as the plan's `Where` says.
+  4. T54: the nightly `agent-mutation` job runs three `cargo mutants` steps (core first, so the existing single-line test reads the same line); the artifact path is `reports/mutation`.
+  5. T58: the two docs fixtures gained the frontmatter (see above).
+- Mutation counts for the review: `cargo mutants` ran in no gate of this batch (nightly only, per ADR 026); the examined scope is in `apps/agent/src-tauri/.cargo/mutants.toml`.
 
 - T48 done (commit carries `Task: T48`): `domain/src/observation_retry.rs` holds `ObservationRetry` (`new(epoch)`, `after_failure` → `Wait::{For, Drop}`, `after_sleep` → `Retry::{Again, Drop}`), `PostFailure::{Transient, Permanent}` and the delays from `timings::OBSERVATION_RETRY_DELAYS`. `PostFailure` is the domain's own classification (the application maps network and 5xx to `Transient`), so the domain does not import the port error. Gate `Rust domain` passed on attempt 1 (26 tests, 3 new). Core's `observations.rs` keeps its copies until T49.
 - T49 done (commit carries `Task: T49`): `core/src/observations.rs` is `core/src/post_observation.rs` (`git mv`). `send` runs `ObservationRetry`; `classify` maps network and 5xx to `PostFailure::Transient`, every other error to `Permanent`. The `sleep_while_allowed` gate result and the epoch check after the sleep stay in core. `SendOutcome` stays. `lib.rs` and `runtime.rs` name the new module. Three colocated `--lib` tests run on paused time against `FakeApiGateway`: `post_retries_with_the_same_key_five_attempts`, `post_drops_when_a_426_moves_the_epoch` (a 426 at 500 ms, mid-sleep; it also shuts the gate, so the drop is shared with the gate) and `post_drops_when_the_gate_closes_during_sleep` (an unpair mid-sleep moves no epoch). The retry-schedule test moved to the domain (`observation_retry_delays_one_two_four_eight_then_drop`). `adapters/tests/observations.rs` changed its `use` line and its act line (`post_observation::send`); no assertion line did. Gate `Rust workspace` plus the preservation guard passed on attempt 2 (164 tests). Attempt 1 failed on a type inference error in a test helper (`Arc::clone(&tokens)` where the field needs the trait object; `tokens.clone()` coerces), fixed. `.cargo/mutants.toml` still lists `core/src/observations.rs` until T53.
