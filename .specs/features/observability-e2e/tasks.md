@@ -312,9 +312,9 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] with an endpoint it exports traces, metrics and logs over OTLP/HTTP with the given headers and metric interval; `shutdown()` flushes; export errors go to `onExportError`, limited to one a minute
-- [ ] it reads no `process.env` and `redirect` is not followed where the exporter has the option
-- [ ] tests `exports traces and metrics to the endpoint` (against a local HTTP recorder) and `reports at most one export error a minute` pass
+- [x] with an endpoint it exports traces, metrics and logs over OTLP/HTTP with the given headers and metric interval; `shutdown()` flushes; export errors go to `onExportError`, limited to one a minute
+- [x] it reads no `process.env` and `redirect` is not followed where the exporter has the option
+- [x] tests `exports traces and metrics to the endpoint` (against a local HTTP recorder) and `reports at most one export error a minute` pass
 
 **Tests**: unit
 **Gate**: Telemetry
@@ -1405,6 +1405,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - Registry notice: `sdk-trace-base` 2.12.0 and `sdk-trace-web` 2.12.0 are marked deprecated, "Use @opentelemetry/sdk-trace package". Kept as the design names them; the replacement is a maintainer decision (recorded in the T1 report, not in `decisions.md`).
 - T5 deviation: the TypeScript sampler implements the Rust rule (`lower 8 bytes >> 1 < floor(ratio * 2^63)`, as in `opentelemetry_sdk` 0.33.1 `sample_based_on_probability`), not `TraceIdRatioBased` from `sdk-trace-base` 2.12.0, which compares an XOR of the four 32-bit words of the trace id. The two rules disagree on the same trace id, so the shared vector `packages/telemetry/test-vectors/sampler.json` (generated from the Rust rule, outside the repo) cannot hold for both through the library class. T41 must use `Sampler::TraceIdRatioBased` as it is.
 - T8 deviation: `@opentelemetry/sdk-metrics` 2.12.0 has no `attributeKeys` option; the bounded keys go through `attributesProcessors` with `createAllowListAttributesProcessor`. The two HTTP histograms are scoped to `APP_METER_NAME` (`d2rmm`), so the drop view for `@opentelemetry/instrumentation-http` removes only the instrumentation's series (AD-095). T16 must create its histograms on `APP_METER_NAME`.
+- T9 (execute-batch-1, attempt 2 of the reset budget): `startNodeTelemetry` returns `tracerProvider`, `meterProvider`, `loggerProvider` and `shutdown`, and registers no global provider (T13 registers them). `sdk-trace-base` 2.12.0 is a shim over `@opentelemetry/sdk-trace` 2.12.0, and its `BatchSpanProcessor.forceFlush()` rejects with the export error (reported at most once a minute through `onExportError`); the handle's `shutdown()` does not rethrow it. The OTLP exporters of 0.223.0 have no redirect option, so the redirect clause holds by construction. The options take an optional `now` clock in addition to the design's list.
 - T9, T13, T38 to T43, T47 write here.
 
 ---
