@@ -857,8 +857,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] `telemetry.rs` becomes `telemetry/mod.rs` unchanged in behaviour; `push` drops the oldest at capacity; `drain(max)` returns oldest first
-- [ ] test `a full queue of 2048 drops the oldest span` and `drain returns the oldest first` pass; the queue is added to `.cargo/mutants.toml`
+- [x] `telemetry.rs` becomes `telemetry/mod.rs` unchanged in behaviour; `push` drops the oldest at capacity; `drain(max)` returns oldest first
+- [x] test `a full queue of 2048 drops the oldest span` and `drain returns the oldest first` pass; the queue is added to `.cargo/mutants.toml`
 
 **Tests**: unit
 **Gate**: Rust adapters

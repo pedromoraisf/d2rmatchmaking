@@ -11,6 +11,7 @@ examine_globs = [
   "core/src/beat.rs",
   "adapters/src/http/translate.rs",
   "adapters/src/http/sse.rs",
+  "adapters/src/telemetry/queue.rs",
 ]
 
 # Equivalent mutant, excluded by the maintainer's decision (2026-11-02): `core/src/pair.rs:87`, `delete ! in pair_once`.

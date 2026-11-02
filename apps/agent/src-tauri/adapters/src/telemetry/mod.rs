@@ -2,6 +2,8 @@
 //! W3C `traceparent` only. The provider has no exporter, so spans carry ids but leave the process unexported; OTLP
 //! export arrives with `observability-e2e`.
 
+pub mod queue;
+
 use std::collections::HashMap;
 
 use opentelemetry::global;
