@@ -77,6 +77,10 @@ review. Reversals become tasks in a follow-up feature.
 | AD-091 | observability-e2e | `d2r.*` attribute constants; `accountId` and `agentId` dropped from spans; use-case span names unchanged | design doc names; AWS-35 shipped names | |
 | AD-092 | observability-e2e | A room leaves two traces: the site's start of the match and the agent's observation; no span link joins them | `Created` is written in the agent's request | |
 | AD-093 | observability-e2e | Only the API exports logs; the site and the agent export no logs or metrics in F0 | NFR-09 partly deferred for them | |
+| AD-094 | observability-e2e | The API loads its SDK with a `node --import` preload; `@d2rmm/telemetry` exports source (`.`, `./node`, `./web`) with no build step | dynamic imports in both roots; unverified for ESM-as-TypeScript, task 1 is a spike with a fallback | |
+| AD-095 | observability-e2e | Request duration and body size come from one Fastify `onResponse` hook by route template; the HTTP instrumentation's duration histogram is dropped (differs from AD-087's wording, names unchanged) | keep the instrumentation's histogram and add the route in a view | |
+| AD-096 | observability-e2e | The agent half of the trace scenario is `examples/headless.rs` in the adapters crate, not the Windows-only `fixture-read` feature; the agent has its own drop-oldest span processor | run the Windows agent with the feature in a Windows job | |
+| AD-097 | observability-e2e | The relay drops with `202` when no backend is set, caps forwards in flight at 32, and keeps its limiter in `platform` | export a rate-limit port from the agents module | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 

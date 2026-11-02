@@ -840,6 +840,42 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-02
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-094 (assumed)
+
+- **Decision**: the API loads its OpenTelemetry SDK with a `node --import ./src/main/instrument.ts` preload (start commands of `render.yaml` and the acceptance stack change), and `@d2rmm/telemetry` exports source through `.`, `./node` and `./web` like `@d2rmm/contracts`, with no build step.
+- **Reason**: the composition roots import `pg` and `kysely` statically, so instrumentation must patch the modules first; Render installs without a build.
+- **Trade-off**: auto-instrumentation of ESM run as TypeScript is unverified here; task 1 is a spike with a fallback (a Fastify hook for the server span and a Kysely log callback for the `pg` span).
+- **Scope**: observability-e2e / OBS-01, OBS-03
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-095 (assumed)
+
+- **Decision**: `http.server.request.duration` and `http.server.response.body.size` are recorded by one Fastify `onResponse` hook by route template and status class; the HTTP instrumentation's own duration histogram is dropped by a view. Streams (`hijack`) are covered by `sse.connections` only.
+- **Reason**: the HTTP instrumentation has no route template, and one source avoids duplicate series.
+- **Trade-off**: AD-087 said the duration comes from the HTTP instrumentation; names and instruments are unchanged, only the source differs. Reversal is keeping the instrumentation's histogram and adding the route in a view.
+- **Scope**: observability-e2e / OBS-33
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-096 (assumed)
+
+- **Decision**: the agent half of the trace scenario runs `examples/headless.rs` in the adapters crate (real core, real `HttpGateway`, the OTLP exporter, an in-memory token store, a text-file `TextReader`), driven over stdin/stdout, not the Tauri `fixture-read` feature; the agent exports through its own drop-oldest span processor over `opentelemetry-otlp`.
+- **Reason**: the `fixture-read` path is Windows-only (OCR, keyring) and CI's acceptance job is Linux; OBS-18 asks for the oldest span to be dropped and the SDK batch processor drops the newest.
+- **Trade-off**: OBS-24's wording names the `fixture-read` feature; the intent (the agent itself emits the `agent.http.*` spans) is met. The example is never built by the release workflow. Reversal is running the Windows agent with the feature in a Windows job.
+- **Scope**: observability-e2e / OBS-18, OBS-24
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-097 (assumed)
+
+- **Decision**: with no backend configured the relay answers `202` and drops; at most 32 forwards are in flight and a further one is dropped with a warning; the relay's limiter lives in `platform` and does not import the agents module.
+- **Reason**: the spec fixes an immediate `202` and no retry; the bound keeps a single free instance safe (ADR 006); the agents limiter is module-internal.
+- **Trade-off**: a small duplication of the sliding-window rule; spans are lost silently under a flood. Reversal is exporting a rate-limit port from the agents module.
+- **Scope**: observability-e2e / OBS-10, OBS-14, OBS-15
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
