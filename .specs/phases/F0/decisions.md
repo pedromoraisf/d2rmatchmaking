@@ -142,6 +142,18 @@ All ten tasks are committed (T12 `a036f73` to T21 `6930757`; API full gate 251 u
 - **T20**: `StreamHubDeps` gains `meter`.
 - **Plan problem for batch 6 (orchestrator, before execute-batch-6)**: (1) the acceptance Playwright config uses `missingSteps: 'fail-on-gen'`, so `bddgen` fails for every feature while `observability-e2e/acceptance.feature` has 42 undefined steps (until T53 and T54); T51 to T53's Acceptance gate and T51's "`pnpm test:acceptance` green" clause cannot be met in that order. (2) `@d2rmm/acceptance` has no `vitest`, but checks C32 and C33 and tasks T50 and T52 use it. The replan, through the tasks gate, before batch 6: T50 adds `vitest` and a `test:unit` script to the acceptance package; T50 to T52 gate on `pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec vitest run support`; the "existing scenarios pass with telemetry on" clause moves to T54 and T56, where the steps exist.
 
+## Batch 3 notes: observability-e2e T22 to T30 (2026-11-02)
+
+All nine tasks are committed (T22 `500be94` to T30 `bf6512d`; API unit 283 tests, API integration 98 at T24). The worker was interrupted once by the API usage limit at T26 and resumed; no budget unit was spent by it. For the review:
+
+- **Expectation changed (one)**: `identity-use-cases.test.ts`, `opens its span with the use-case name and the account id` became `... and no account id` and expects attributes `{}` (was `{ accountId: 'account-1' }`). T22 and AD-091 forbid the account id on spans, so the old expectation contradicted the spec; no other assertion was touched.
+- **T22**: `agents.pair-agent` also dropped `accountId` (not on the task's list, covered by AD-091).
+- **T24/T25**: `InMemoryLobbyRoomRepository` takes the clock in its constructor; `stageLeft` is called after the observation's transaction commits, so a rolled-back write records nothing.
+- **T26**: `RelayLimiter` counts refused arrivals too; its address key unwraps `::ffff:` and tightens the IPv4 parse; the agents `rateLimitKey` is untouched.
+- **T28/T29**: `authenticateAgent` takes `(input, opts?)`; `GuardDeps` gains a required `clock` for the lookup bucket; session lookups also take bucket tokens (no cache); `requireAgent` and the stream hub never pass `beforeLookup`, so they are unchanged.
+- **T30**: `ErrorLog` has only `error()`, so the forwarder's one warning per failed forward goes through `log.error` with the prefix `relay-forward-failed` (status or error class only).
+- Not wired yet, for T31: the limiter's sweep scheduling, the budget charge per streamed chunk, the forwarder call (not awaited) and the scoped parsers.
+
 ## Queued for F1 (from the api-web-skeleton security review)
 
 - Global ceiling on failed pairing-code submissions across accounts, and a rate limit on token claims (the F0 limits are the spec's, AD-032 and AD-041).

@@ -1394,7 +1394,7 @@ Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** none
-**Dispatched:** execute-batch-1 (T1 to T11) and execute-batch-2 (T12 to T21) returned complete; execute-batch-3 (T22 to T30, feature-worker) at HEAD 6930757, not yet returned
+**Dispatched:** execute-batch-1 (T1 to T11), execute-batch-2 (T12 to T21) and execute-batch-3 (T22 to T30) returned complete; execute-batch-4 (T31 to T37, feature-worker) at HEAD bf6512d, not yet returned
 **Walked:** none
 **Carried into batch 2:** T9's `startNodeTelemetry` returns `tracerProvider`, `meterProvider`, `loggerProvider` and `shutdown` and registers no globals, so T13 registers them. The T11 cruiser fixture imports the telemetry node entry by relative path; T13 wires the real `@d2rmm/telemetry/node` import and must show `pnpm arch` (through the wrapper) still fails an `application` file that imports that specifier. T16 creates its histograms on the meter named `d2rmm` (`APP_METER_NAME` in `packages/telemetry/src/sdk/views.ts`). The samplers use the Rust ratio rule (AD-102).
 
