@@ -47,6 +47,7 @@ import type { IdentityDatabase } from '../modules/identity/adapters/postgres/sch
 import { createIdentityUseCases } from '../modules/identity/application/identity-use-cases.ts';
 import { InMemoryEventBus } from '../platform/event-bus.ts';
 import { registerRequestMetrics } from '../platform/http/request-metrics.ts';
+import { registerOutboxLag } from '../platform/outbox-lag.ts';
 import { createGuards } from '../platform/http/guards.ts';
 import { OutboxRelay } from '../platform/outbox-relay.ts';
 import type { PlatformDatabase } from '../platform/postgres/database.ts';
@@ -248,6 +249,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   });
 
   registerRequestMetrics(app, metrics.getMeter(APP_METER_NAME));
+  registerOutboxLag(metrics.getMeter(APP_METER_NAME), db as unknown as Kysely<PlatformDatabase>, clock);
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.setErrorHandler(answerError);

@@ -537,8 +537,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] the gauge reads `created_at` of the first row `where published_at is null and failed_at is null order by id limit 1`, in seconds, `0` when none, computed with the `Clock`; registered once from `buildApp`
-- [ ] test `outbox.lag is the age of the oldest unpublished row and 0 when none` passes
+- [x] the gauge reads `created_at` of the first row `where published_at is null and failed_at is null order by id limit 1`, in seconds, `0` when none, computed with the `Clock`; registered once from `buildApp`
+- [x] test `outbox.lag is the age of the oldest unpublished row and 0 when none` passes
 
 **Tests**: integration
 **Gate**: API full
@@ -1431,6 +1431,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - T18 (execute-batch-2, gate `API full` passed on attempt 1, 92 integration tests). `PostgresOutbox.append` reads `traceparentOf(context.active()) ?? null` before its first await and writes it into the same insert as every row. The test shows the active context reaches `append` inside `uow.run` (the transaction callback).
 - T19 (execute-batch-2, gate `API full` passed on attempt 1, 94 integration tests). The batch selects `trace_context`. `#publish` runs each row under `context.with(parentOf(row.trace_context))` (the stored span, or `ROOT_CONTEXT` for null or a malformed value; never throws), and `platform.outbox.relay` wraps `bus.publish` only, with `d2r.outbox.event_type`. The row's state updates stay outside the span. SDK note: `ReadableSpan` of `sdk-trace` 2.x exposes the parent as `parentSpanContext`, not `parentSpanId`; the tests read it so.
 - T20 (execute-batch-2, gate `API full` passed on attempt 2 after one failure, 96 integration tests). `StreamHubDeps` gains `meter` (`app.ts` passes the application meter). `sse.connections` is an up-down counter: +1 where a connection joins the set, -1 in its `onClose` only when it was in the set, attribute `d2r.stream.kind`. `platform.stream.deliver` opens per connection that accepts the event (`Connection.accepts`), with `connection.offer` inside it, so it is a child of the span that published the event. Failure 1 was the test's reader, which took the first export of the in-memory reader (stale), not the latest; the fix reads the latest export, and the assertions are unchanged.
+- T21 (execute-batch-2, gate `API full` passed on attempt 1, 97 integration tests). `platform/outbox-lag.ts` registers `outbox.lag` (s) as an observable gauge on the application meter; its async callback reads the oldest row with `published_at is null and failed_at is null order by id limit 1`, and the age uses the injected Clock; 0 when none. `sdk-metrics` 2.12 awaits an async observable callback before it records (`ObservableRegistry`), so the query runs once per collection. `buildApp` registers it once.
+- Batch 2 (T12 to T21) is complete at this point. The open clause of T14 (bddgen) is the only unticked box of the batch; see the T14 note above.
 - T9, T13, T38 to T43, T47 write here.
 
 ---
