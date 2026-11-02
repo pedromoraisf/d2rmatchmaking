@@ -302,11 +302,12 @@ impl StateSink for NullSink {
     fn publish(&self, _view: AgentView) {}
 }
 
-/// Real time a paused scenario may take before it counts as spinning (see `fails_fast`). It stays below the 20 s timeout
-/// cargo-mutants gives each mutant, so a spin is counted as a failed test, not as a timeout, and well above the time a
-/// loaded machine needs for a paused scenario.
+/// Real time a paused scenario may take before it counts as spinning (see `fails_fast`). A spinning scenario holds its
+/// libtest worker for the whole budget, and a mutant that spins one use case makes every test of it spin, so the rounds
+/// of spinning tests on a small machine must still end inside cargo-mutants' 20 s timeout. A paused scenario takes
+/// milliseconds of CPU, so 2 s is far above what a legitimate scenario needs.
 #[cfg(test)]
-const SPIN_BUDGET: std::time::Duration = std::time::Duration::from_secs(10);
+const SPIN_BUDGET: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// Runs `scenario` on a paused current-thread runtime, on a thread of its own, and fails the test when it does not finish
 /// within `SPIN_BUDGET` of real time. A loop that a mutation turns into a spin never lets paused time advance, so a plain
