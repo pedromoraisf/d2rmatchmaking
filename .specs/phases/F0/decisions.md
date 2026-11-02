@@ -172,6 +172,16 @@ All seven tasks are committed (T31 `dab1a43` to T37 `29d7e92`; API unit 283, API
 - **T37**: the second box (the e2e build setting only in acceptance support) stays open until T51; the test covers `deploy-api`, `deploy-web`, `release-agent` and `release-please`.
 - The wrapper's displayed attempt counter counts every run under a step (including `contracts:openapi` under T31), so "attempt 4" is not four failures.
 
+## Batch 5 notes: observability-e2e T38 to T45 (2026-11-02)
+
+T38 `1439ef5` to T45 `ff115fb` are committed (adapters 111 tests, harness 204). T46 is held by a plan conflict, resolved below. For the review:
+
+- **Pins**: `opentelemetry-otlp` and `opentelemetry-http` 0.33.1, `async-trait` 0.1.92, `image` 0.25.10; the signatures of `SpanExporter`, `SpanProcessor`, `HttpClient` and the ratio rule were read from the registry sources, and the shared sampler vector agrees with the SDK ratio rule on all 17 cases.
+- **Expectation changed (tightening)**: `scripts/test/agent-source-rules.test.mjs`, `mutation covers the core rule modules`, gains the three telemetry modules (`queue`, `relay_client`, `sanitize`); the scope only grows.
+- **T39** pulled `opentelemetry-http` and `async-trait` in earlier than T42; **T41** also updated `tests/telemetry.rs` and `tests/api_client.rs` to `init(Mode::Test, None)`; its Windows check needs `pnpm --filter @d2rmm/agent build` first (the gitignored `apps/agent/dist` that `generate_context!` reads).
+- **T43 known gap**: the processor's `shutdown` cannot await the export, so up to one 5 s interval of spans can be lost at exit. No requirement asks for a flush; accepted.
+- **T46 conflict**: `apps/agent/src-tauri/clippy.toml` disallows `std::process::Command` and `tokio::process::Command` for the agent (AGS-22, the agent starts no process), so a test that spawns the example as a child process fails the feature clippy. Resolved without a sensor exception: the example's composition is an in-process `async fn run(...)` over injected input and output, and its test lives in the example file's own `#[cfg(test)]` module (the `[[example]]` entry sets `test = true`). Spawning the example is the acceptance helper's job (T53, Node), which the agent's clippy does not govern.
+
 ## Queued for F1 (from the api-web-skeleton security review)
 
 - Global ceiling on failed pairing-code submissions across accounts, and a rate limit on token claims (the F0 limits are the spec's, AD-032 and AD-041).
