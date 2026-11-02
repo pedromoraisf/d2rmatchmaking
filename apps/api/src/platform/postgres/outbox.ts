@@ -1,3 +1,5 @@
+import { context } from '@opentelemetry/api';
+import { traceparentOf } from '@d2rmm/telemetry';
 import type { Kysely } from 'kysely';
 import type { AnyDomainEvent, Clock, Outbox, Transaction } from '../../shared-kernel/index.ts';
 import type { PlatformDatabase } from './database.ts';
@@ -35,6 +37,8 @@ export class PostgresOutbox implements Outbox {
       }
     }
     const createdAt = this.#clock.now();
+    // Read before any await: the span of the caller is the active one here. Null when no valid span is active.
+    const traceContext = traceparentOf(context.active()) ?? null;
     await executorOf<PlatformDatabase>(tx)
       .insertInto('platform.outbox')
       .values(
@@ -42,6 +46,7 @@ export class PostgresOutbox implements Outbox {
           event_type: event.type,
           payload: JSON.stringify(event.payload),
           created_at: createdAt,
+          trace_context: traceContext,
         })),
       )
       .execute();

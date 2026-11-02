@@ -483,8 +483,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] every row of one `append` carries the traceparent of the active span, `null` when there is none, written in the transaction and rolled back with it
-- [ ] test `append stores the traceparent of the active span in the transaction` in `outbox.int.test.ts` passes
+- [x] every row of one `append` carries the traceparent of the active span, `null` when there is none, written in the transaction and rolled back with it
+- [x] test `append stores the traceparent of the active span in the transaction` in `outbox.int.test.ts` passes
 
 **Tests**: integration
 **Gate**: API full
@@ -1428,6 +1428,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - T16 finding: the design's premise (streams never reach `onResponse`) does not hold on Fastify 5: `onResponse` runs for a `reply.hijack()` stream (`reply.sent` cannot tell a hijack from a finished response, the flag is private). The hook records only the responses that went through `onSend`: a hijacked stream never does, so it records nothing (test: `/stream` has no point).
 - T17 (execute-batch-2, gate `API full` passed on attempt 1, 91 integration tests). `apps/api/migrations/0002_outbox_trace_context.ts` adds `trace_context text null` (down drops it); `0001` is untouched. `OutboxTable.trace_context: string | null`. `migrator.ts` registers `0002_outbox_trace_context` and gains `migrateTo(db, name)` (step down, for the test).
 - T17 test-expectation edit, for the orchestrator to see: `apps/api/src/main/__tests__/migrate.int.test.ts`, `first run applies 0001_skeleton and creates the four schemas`, expects `firstRun` to equal `['0001_skeleton']`. With 0002 in the map a first run applies both, so the expectation is now `['0001_skeleton', '0002_outbox_trace_context']`. The test name and its schema assertions are unchanged. Nothing was loosened.
+- T18 (execute-batch-2, gate `API full` passed on attempt 1, 92 integration tests). `PostgresOutbox.append` reads `traceparentOf(context.active()) ?? null` before its first await and writes it into the same insert as every row. The test shows the active context reaches `append` inside `uow.run` (the transaction callback).
 - T9, T13, T38 to T43, T47 write here.
 
 ---

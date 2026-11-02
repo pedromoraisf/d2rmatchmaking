@@ -1,3 +1,6 @@
+import { context, trace } from '@opentelemetry/api';
+import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
+import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   createMigratedTestDatabase,
@@ -88,5 +91,28 @@ describe('PostgresOutbox and PostgresUnitOfWork', () => {
     await expect(transient).rejects.toThrow('AgentRevoked is transient');
     expect(await outboxRows()).toEqual([]);
     expect(relay.wakes).toBe(0);
+  });
+});
+
+describe('the trace context of an append', () => {
+  it('append stores the traceparent of the active span in the transaction', async () => {
+    context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
+    try {
+      const span = new BasicTracerProvider().getTracer('test').startSpan('test.append');
+      const traceparent = `00-${span.spanContext().traceId}-${span.spanContext().spanId}-01`;
+
+      await context.with(trace.setSpan(context.active(), span), () =>
+        uow.run((tx) => outbox.append(tx, [roomStageChanged, roomStageChanged])),
+      );
+      span.end();
+      await uow.run((tx) => outbox.append(tx, [roomStageChanged]));
+
+      const result = await database.pool.query<{ trace_context: string | null }>(
+        'select trace_context from platform.outbox order by id',
+      );
+      expect(result.rows.map((row) => row.trace_context)).toEqual([traceparent, traceparent, null]);
+    } finally {
+      context.disable();
+    }
   });
 });
