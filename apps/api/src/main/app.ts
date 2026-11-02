@@ -224,6 +224,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     ids,
     uow,
     outbox,
+    clock,
   });
   const matchmaking = createMatchmakingUseCases({ ids, uow, outbox });
   bus.subscribe('MatchFormed', async (event) => {

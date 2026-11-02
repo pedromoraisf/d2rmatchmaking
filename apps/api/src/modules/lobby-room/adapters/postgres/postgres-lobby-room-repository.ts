@@ -97,6 +97,15 @@ export class PostgresLobbyRoomRepository implements LobbyRoomRepository {
     return row === undefined ? null : this.findById(row.id);
   }
 
+  async openedAt(roomId: string): Promise<Date | undefined> {
+    const row = await this.#db
+      .selectFrom('lobby.rooms')
+      .select('created_at')
+      .where('id', '=', roomId)
+      .executeTakeFirst();
+    return row?.created_at;
+  }
+
   async #insertRun(tx: Transaction, room: LobbyRoom, openedAt: Date): Promise<void> {
     await executorOf(tx)
       .insertInto('lobby.runs')

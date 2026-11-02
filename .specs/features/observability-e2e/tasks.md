@@ -593,8 +593,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] `openedAt` is on the port, the Postgres repository and the in-memory fake; `buildApp` and every test factory pass `clock`; the domain still holds no timestamp
-- [ ] test `openedAt returns the instant the room opened` (unit, fake) and its integration counterpart pass
+- [x] `openedAt` is on the port, the Postgres repository and the in-memory fake; `buildApp` and every test factory pass `clock`; the domain still holds no timestamp
+- [x] test `openedAt returns the instant the room opened` (unit, fake) and its integration counterpart pass
 
 **Tests**: integration
 **Gate**: API full

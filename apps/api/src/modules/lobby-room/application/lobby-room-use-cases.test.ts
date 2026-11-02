@@ -6,7 +6,7 @@ import {
 import { trace } from '@opentelemetry/api';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { D2R_ROOM_ID } from '@d2rmm/telemetry';
-import { SequentialIdGenerator, type MatchFormedPayload } from '../../../shared-kernel/index.ts';
+import { FakeClock, SequentialIdGenerator, type MatchFormedPayload } from '../../../shared-kernel/index.ts';
 import { createMatchmakingUseCases } from '../../matchmaking/index.ts';
 import { createLobbyRoomUseCases, type ObservationBody } from './lobby-room-use-cases.ts';
 import { FakeAgentsPort } from './testing/fake-agents-port.ts';
@@ -17,6 +17,7 @@ import { InMemoryUnitOfWork } from './testing/in-memory-unit-of-work.ts';
 import { RecordingOutbox } from './testing/recording-outbox.ts';
 
 const CAPTURED_AT = new Date('2026-10-31T10:00:00.000Z');
+const OPENED_AT = new Date('2026-10-31T09:55:00.000Z');
 
 const exporter = new InMemorySpanExporter();
 
@@ -31,7 +32,8 @@ beforeEach(() => {
 });
 
 function setup() {
-  const rooms = new InMemoryLobbyRoomRepository();
+  const clock = new FakeClock(OPENED_AT);
+  const rooms = new InMemoryLobbyRoomRepository(clock);
   const observations = new InMemoryObservationRepository();
   const agents = new FakeAgentsPort();
   const outbox = new RecordingOutbox();
@@ -43,10 +45,11 @@ function setup() {
     ids: new SequentialIdGenerator('room'),
     uow: new InMemoryUnitOfWork(),
     outbox,
+    clock,
   });
   agents.pair('agent-1', 'account-1');
   agents.pair('agent-2', 'account-2');
-  return { useCases, observations, outbox, agents };
+  return { useCases, rooms, observations, outbox, agents, clock };
 }
 
 function match(matchId = 'match-1'): MatchFormedPayload {
@@ -218,6 +221,14 @@ describe('lobby-room use cases', () => {
     await useCases.onMatchFormed(match());
 
     expect(await useCases.getAssignment({ agentId: 'agent-unpaired' })).toBeNull();
+  });
+
+  it('openedAt returns the instant the room opened', async () => {
+    const { useCases, rooms } = setup();
+    await useCases.onMatchFormed(match());
+
+    expect(await rooms.openedAt('room-1')).toEqual(OPENED_AT);
+    expect(await rooms.openedAt('room-404')).toBeUndefined();
   });
 
   it('opens the span lobby.record-observation', async () => {

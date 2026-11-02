@@ -94,6 +94,14 @@ function observation(agentId: string, idempotencyKey: string): Observation {
 }
 
 describe('Lobby Room Postgres adapters', () => {
+  it('openedAt returns the instant the room opened', async () => {
+    const room = formed(match(), 13);
+    await inTransaction((tx) => rooms.insert(tx, room));
+
+    expect(await rooms.openedAt(room.id)).toEqual(NOW);
+    expect(await rooms.openedAt(randomUUID())).toBeUndefined();
+  });
+
   it('a room round-trips with members and run 1', async () => {
     const room = formed(match(), 12);
     await inTransaction((tx) => rooms.insert(tx, room));

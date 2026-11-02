@@ -4,6 +4,7 @@ import {
   err,
   ok,
   withSpan,
+  type Clock,
   type IdGenerator,
   type MatchFormedPayload,
   type MatchMember,
@@ -24,6 +25,7 @@ export interface LobbyRoomDeps {
   readonly ids: IdGenerator;
   readonly uow: UnitOfWork;
   readonly outbox: Outbox;
+  readonly clock: Clock;
 }
 
 /** A room as a site member sees it (contract `RoomView`). */

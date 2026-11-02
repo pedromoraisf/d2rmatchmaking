@@ -9,6 +9,8 @@ export interface LobbyRoomRepository {
   findByMatchId(matchId: string): Promise<LobbyRoom | null>;
   /** The room of the account with the highest game name number: the newest one (AWS-25, design.md § Lobby Room). */
   findNewestByAccount(accountId: string): Promise<LobbyRoom | null>;
+  /** The instant the room opened in `awaiting_host` (`lobby.rooms.created_at`), or undefined for an unknown room. */
+  openedAt(roomId: string): Promise<Date | undefined>;
 }
 
 export interface ObservationRepository {
