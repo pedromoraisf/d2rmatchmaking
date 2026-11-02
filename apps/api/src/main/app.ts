@@ -237,6 +237,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     guards,
     scheduler,
     log: app.log,
+    meter: metrics.getMeter(APP_METER_NAME),
   });
   hub.subscribe();
 

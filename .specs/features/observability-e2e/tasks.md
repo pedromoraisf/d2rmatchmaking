@@ -519,8 +519,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] `platform.stream.deliver` is a child of the active relay span for each connection that accepts the event, attribute `d2r.stream.kind`; `sse.connections` goes up when a connection joins and down in its `onClose`
-- [ ] tests `delivers inside a span that is a child of the outbox relay` and `sse.connections goes up and down with the connection` in `stream-hub.int.test.ts` pass
+- [x] `platform.stream.deliver` is a child of the active relay span for each connection that accepts the event, attribute `d2r.stream.kind`; `sse.connections` goes up when a connection joins and down in its `onClose`
+- [x] tests `delivers inside a span that is a child of the outbox relay` and `sse.connections goes up and down with the connection` in `stream-hub.int.test.ts` pass
 
 **Tests**: integration
 **Gate**: API full
@@ -1430,6 +1430,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - T17 test-expectation edit, for the orchestrator to see: `apps/api/src/main/__tests__/migrate.int.test.ts`, `first run applies 0001_skeleton and creates the four schemas`, expects `firstRun` to equal `['0001_skeleton']`. With 0002 in the map a first run applies both, so the expectation is now `['0001_skeleton', '0002_outbox_trace_context']`. The test name and its schema assertions are unchanged. Nothing was loosened.
 - T18 (execute-batch-2, gate `API full` passed on attempt 1, 92 integration tests). `PostgresOutbox.append` reads `traceparentOf(context.active()) ?? null` before its first await and writes it into the same insert as every row. The test shows the active context reaches `append` inside `uow.run` (the transaction callback).
 - T19 (execute-batch-2, gate `API full` passed on attempt 1, 94 integration tests). The batch selects `trace_context`. `#publish` runs each row under `context.with(parentOf(row.trace_context))` (the stored span, or `ROOT_CONTEXT` for null or a malformed value; never throws), and `platform.outbox.relay` wraps `bus.publish` only, with `d2r.outbox.event_type`. The row's state updates stay outside the span. SDK note: `ReadableSpan` of `sdk-trace` 2.x exposes the parent as `parentSpanContext`, not `parentSpanId`; the tests read it so.
+- T20 (execute-batch-2, gate `API full` passed on attempt 2 after one failure, 96 integration tests). `StreamHubDeps` gains `meter` (`app.ts` passes the application meter). `sse.connections` is an up-down counter: +1 where a connection joins the set, -1 in its `onClose` only when it was in the set, attribute `d2r.stream.kind`. `platform.stream.deliver` opens per connection that accepts the event (`Connection.accepts`), with `connection.offer` inside it, so it is a child of the span that published the event. Failure 1 was the test's reader, which took the first export of the in-memory reader (stale), not the latest; the fix reads the latest export, and the assertions are unchanged.
 - T9, T13, T38 to T43, T47 write here.
 
 ---

@@ -1,5 +1,20 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AddressInfo } from 'node:net';
+import { context, trace } from '@opentelemetry/api';
+import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
+import {
+  AggregationTemporality,
+  InMemoryMetricExporter,
+  MeterProvider,
+  PeriodicExportingMetricReader,
+  type DataPoint,
+} from '@opentelemetry/sdk-metrics';
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base';
+import { APP_METER_NAME, D2R_STREAM_KIND, INSTRUMENT_NAMES } from '@d2rmm/telemetry';
 import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it } from 'vitest';
 import type { AgentsPort } from '../modules/agents/index.ts';
 import type { IdentityPort } from '../modules/identity/index.ts';
@@ -25,6 +40,15 @@ const START = new Date('2026-10-31T12:00:00.000Z');
 const SITE_ORIGIN = 'https://site.example';
 const FRAME_TIMEOUT_MS = 3_000;
 const silentLog = { error: (): void => undefined };
+
+/** The telemetry the hub writes: its spans in memory, and its `sse.connections` through an in-memory reader. */
+const spanExporter = new InMemorySpanExporter();
+const metricExporter = new InMemoryMetricExporter(AggregationTemporality.CUMULATIVE);
+const metricReader = new PeriodicExportingMetricReader({
+  exporter: metricExporter,
+  exportIntervalMillis: 60_000,
+});
+const sseMeter = new MeterProvider({ readers: [metricReader] }).getMeter(APP_METER_NAME);
 
 const SESSION_A = 'd2rmm_s_account_a';
 const SESSION_B = 'd2rmm_s_account_b';
@@ -216,6 +240,7 @@ async function startHarness(): Promise<Harness> {
     guards: createGuards({ identity, agents, agentMinVersion: '0.0.1', siteOrigin: SITE_ORIGIN }),
     scheduler,
     log: silentLog,
+    meter: sseMeter,
   });
   hub.subscribe();
   const app: FastifyInstance = Fastify();
@@ -453,5 +478,77 @@ describe('GET /v1/stream', () => {
     await h.publishDurable(1, stageChanged('room-1', ['account-a']));
 
     expect(await a.reader?.ids(1)).toEqual(['1']);
+  });
+});
+
+/** The sum of `sse.connections` for one stream kind, read through the in-memory reader. */
+async function sseConnections(kind: 'site' | 'agent'): Promise<number> {
+  await metricReader.forceFlush();
+  // The exporter keeps every export: the latest one holds the current sums of a cumulative instrument.
+  const latest = metricExporter.getMetrics().at(-1);
+  const metric = latest?.scopeMetrics
+    .flatMap((scope) => scope.metrics)
+    .find((candidate) => candidate.descriptor.name === INSTRUMENT_NAMES.sseConnections);
+  const points = metric?.dataPoints as DataPoint<number>[] | undefined;
+  return points?.find((point) => point.attributes[D2R_STREAM_KIND] === kind)?.value ?? 0;
+}
+
+/** Polls `read` until it returns `expected`, for up to three seconds; returns the last value read. */
+async function eventually(read: () => Promise<number>, expected: number): Promise<number> {
+  const deadline = Date.now() + 3_000;
+  let value = await read();
+  while (value !== expected && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    value = await read();
+  }
+  return value;
+}
+
+describe('the telemetry of the stream hub', () => {
+  beforeAll(() => {
+    context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
+    trace.setGlobalTracerProvider(
+      new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(spanExporter)] }),
+    );
+  });
+
+  afterAll(() => {
+    context.disable();
+  });
+
+  beforeEach(() => {
+    spanExporter.reset();
+  });
+
+  it('delivers inside a span that is a child of the outbox relay', async () => {
+    const h = running();
+    const a = await h.stream('/v1/stream', SITE_A);
+    const relay = trace.getTracer('test').startSpan('platform.outbox.relay');
+    const relayContext = relay.spanContext();
+
+    await context.with(trace.setSpan(context.active(), relay), () =>
+      h.publishDurable(1, stageChanged('room-1', ['account-a'])),
+    );
+    relay.end();
+
+    expect(await a.reader?.ids(1)).toEqual(['1']);
+    const deliveries = spanExporter
+      .getFinishedSpans()
+      .filter((span) => span.name === 'platform.stream.deliver');
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]?.parentSpanContext?.spanId).toBe(relayContext.spanId);
+    expect(deliveries[0]?.spanContext().traceId).toBe(relayContext.traceId);
+    expect(deliveries[0]?.attributes[D2R_STREAM_KIND]).toBe('site');
+  });
+
+  it('sse.connections goes up and down with the connection', async () => {
+    const h = running();
+    const before = await sseConnections('site');
+
+    const a = await h.stream('/v1/stream', SITE_A);
+    expect(await sseConnections('site')).toBe(before + 1);
+
+    await a.reader?.cancel();
+    expect(await eventually(() => sseConnections('site'), before)).toBe(before);
   });
 });
