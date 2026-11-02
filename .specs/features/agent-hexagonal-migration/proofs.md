@@ -1,8 +1,8 @@
 # agent-hexagonal-migration proofs
 
-**HEAD**: dfad98d
+**HEAD**: 7e1b9d5
 **Tree**: clean
-**Result**: 35 pass, 0 fail; mutations 0 killed, 0 not
+**Result**: 35 pass, 0 fail; mutations 3 killed, 0 not
 
 | Check | Proof                                                                                                            | Ran           | Passed | Result |
 | ----- | ---------------------------------------------------------------------------------------------------------------- | ------------- | ------ | ------ |
@@ -41,3 +41,11 @@
 | Build | `cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace --all-targets -- -D warnings` | -             | -      | pass   |
 | Build | `pnpm typecheck`                                                                                                 | -             | -      | pass   |
 | Build | `pnpm lint`                                                                                                      | -             | -      | pass   |
+
+## Mutations
+
+| Mutation                                      | Location                                               | Killed |
+| --------------------------------------------- | ------------------------------------------------------ | ------ |
+| minutes left rounds down instead of up        | `apps/agent/src-tauri/domain/src/pairing.rs:154`       | yes    |
+| api allowed with a token OR no pending update | `apps/agent/src-tauri/domain/src/paired_device.rs:107` | yes    |
+| pause one unused code late                    | `apps/agent/src-tauri/domain/src/pairing.rs:133`       | yes    |
