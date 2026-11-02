@@ -1,0 +1,9 @@
+{
+  "name": "@d2rmm/telemetry",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node-sdk.ts"
+  }
+}

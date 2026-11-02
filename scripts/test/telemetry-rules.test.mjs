@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -65,6 +65,24 @@ test('an application file importing the telemetry node entry fails', () => {
     'packages',
   ]);
   assert.notEqual(status, 0, 'the application file must fail the architecture check');
+  assert.deepEqual(errorRules(report), ['application-no-adapters']);
+});
+
+// The workspace link the real tree has: node_modules/@d2rmm/telemetry points at packages/telemetry, so the bare
+// specifier resolves (through the package exports) to the source file the rule names.
+function linkTelemetryPackage(caseDir) {
+  const scope = path.join(caseDir, 'node_modules', '@d2rmm');
+  mkdirSync(scope, { recursive: true });
+  const link = path.join(scope, 'telemetry');
+  rmSync(link, { force: true, recursive: true });
+  symlinkSync(path.join('..', '..', 'packages', 'telemetry'), link, 'dir');
+}
+
+test('an application file importing the @d2rmm/telemetry/node specifier fails', () => {
+  const caseDir = path.join(fixtures, 'application-imports-telemetry-specifier');
+  linkTelemetryPackage(caseDir);
+  const { status, report } = cruise(caseDir, ['apps', 'packages']);
+  assert.notEqual(status, 0, 'an application file importing the telemetry node specifier must fail');
   assert.deepEqual(errorRules(report), ['application-no-adapters']);
 });
 

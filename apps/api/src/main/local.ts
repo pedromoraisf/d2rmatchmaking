@@ -8,6 +8,7 @@ import { migrateToLatest } from '../platform/postgres/migrator.ts';
 import { buildApp, type AppDatabase } from './app.ts';
 import { loadConfig, type Config } from './config.ts';
 import { ClockScheduler, NodeRandomSource, RandomUuidGenerator, SystemClock } from './runtime.ts';
+import { shutdownTelemetry } from './telemetry-lifecycle.ts';
 import { ControllableClock, registerTestControls } from './test-controls.ts';
 import type { Clock } from '../shared-kernel/index.ts';
 
@@ -78,7 +79,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const server = await startLocal(loadConfig());
   process.stdout.write(`d2rmm local api listening on ${server.url}\n`);
   const stop = (): void => {
-    void server.close().then(() => process.exit(0));
+    void server
+      .close()
+      .then(() => shutdownTelemetry())
+      .then(() => process.exit(0));
   };
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
