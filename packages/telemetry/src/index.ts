@@ -2,3 +2,4 @@
 export * from './attributes.ts';
 export * from './instrument-names.ts';
 export * from './redact-attributes.ts';
+export * from './trace-context.ts';

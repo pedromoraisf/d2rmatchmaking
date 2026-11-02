@@ -217,9 +217,9 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] a round trip `traceparentOf(contextFromTraceparent(text))` returns the same value; a malformed value yields a context with no span; with no active span `traceparentOf` returns `undefined`
-- [ ] `TraceparentOnlyPropagator` extracts `traceparent` and ignores `tracestate` and baggage on extract and on inject
-- [ ] tests `round trips a traceparent`, `a malformed traceparent yields no context`, `ignores tracestate on extract` pass
+- [x] a round trip `traceparentOf(contextFromTraceparent(text))` returns the same value; a malformed value yields a context with no span; with no active span `traceparentOf` returns `undefined`
+- [x] `TraceparentOnlyPropagator` extracts `traceparent` and ignores `tracestate` and baggage on extract and on inject
+- [x] tests `round trips a traceparent`, `a malformed traceparent yields no context`, `ignores tracestate on extract` pass
 
 **Tests**: unit
 **Gate**: Telemetry
