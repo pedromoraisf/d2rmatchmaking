@@ -4,6 +4,7 @@
 
 pub mod queue;
 pub mod relay_client;
+pub mod sanitize;
 
 use std::collections::HashMap;
 

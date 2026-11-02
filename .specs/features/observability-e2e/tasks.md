@@ -893,8 +893,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] only the exact keys of the design survive; strings are cut at 128 characters; span names must start with `agent.`; the resource holds only `service.*`, `deployment.environment`, `d2r.agent.version`
-- [ ] test `drops window title, process path, screen text, urls, events with paths and status text` passes; the module is added to `.cargo/mutants.toml`
+- [x] only the exact keys of the design survive; strings are cut at 128 characters; span names must start with `agent.`; the resource holds only `service.*`, `deployment.environment`, `d2r.agent.version`
+- [x] test `drops window title, process path, screen text, urls, events with paths and status text` passes; the module is added to `.cargo/mutants.toml`
 
 **Tests**: unit
 **Gate**: Rust adapters
