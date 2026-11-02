@@ -67,6 +67,11 @@ review. Reversals become tasks in a follow-up feature.
 
 | AD-083 | agent-hexagonal-migration | `agent.http.*` spans stay in the gateway adapter; loop and use-case spans stay in core; the domain emits none | ADR 027 rule 7 read for the agent's own spans | |
 
+| AD-084 | observability-e2e | The telemetry relay `POST /v1/telemetry/traces` takes OTLP/HTTP from an agent token or a site session, 1 MiB and 60 requests a minute per principal, forwards unchanged, always answers an empty `202` | ADR 013, ADR 006; the numbers are guesses | |
+| AD-085 | observability-e2e | The trace crosses the outbox in a nullable `trace_context` column written in the event's transaction | a new migration; old rows become root spans | |
+| AD-086 | observability-e2e | The browser does not report SSE receipt; the stream hop is the server-side `platform.stream.deliver` span | a payload trace field is a contract change | |
+| AD-087 | observability-e2e | F0 metrics: `http.server.response.body.size`, `sse.connections`, `outbox.lag`, `room.stage_duration` | others arrive with their use case | |
+
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 
 ## Blocked: agent-hexagonal-migration, proofs and verification (2026-11-01)

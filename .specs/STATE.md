@@ -750,6 +750,51 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-01
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-084 (assumed)
+
+- **Decision**: the relay `POST /v1/telemetry/traces` accepts OTLP/HTTP (protobuf or JSON) from an agent token or a site session, at most 1 MiB and 60 requests a minute per principal, forwards the body unchanged with the backend credentials, and always answers an empty `202` once the request is valid.
+- **Reason**: The site and the agent must not hold backend credentials (ADR 013, design doc); forwarding bytes avoids a second schema; the limits bound a public write path on a single free instance (ADR 006).
+- **Trade-off**: Fixed numbers are guesses; the relay is a new authenticated write path that the security reviewer must pass. Reversal is changing the limits in one config object.
+- **Scope**: observability-e2e / OBS-08…OBS-13
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-085 (assumed)
+
+- **Decision**: the trace crosses the outbox through a nullable `trace_context` column on `platform.outbox`, written in the transaction that writes the event; the relay continues it with `platform.outbox.relay` and `platform.stream.deliver`.
+- **Reason**: The outbox is the only asynchronous hop and has no carrier today; a column is the smallest durable carrier.
+- **Trade-off**: A migration adds a column (a new migration file, never an edit of an applied one). Rows written before it have no context and become root spans (OBS-07).
+- **Scope**: observability-e2e / OBS-04, OBS-05, OBS-07
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-086 (assumed)
+
+- **Decision**: the browser does not report SSE receipt: the stream hop in the trace is the server-side delivery span.
+- **Reason**: `EventSource` cannot read a trace id without adding a field to the event payload, which is a contract change (AGENTS.md rule 2).
+- **Trade-off**: The trace ends at the server for the stream hop. Reversal is a payload field and a site span in F1.
+- **Scope**: observability-e2e / OBS-05
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-087 (assumed)
+
+- **Decision**: the metrics created in F0 are `http.server.response.body.size`, `sse.connections`, `outbox.lag` and `room.stage_duration`; the others of the design doc arrive with their use case.
+- **Reason**: Only these have a subject in the skeleton; empty instruments would be noise.
+- **Trade-off**: The dashboard is small. Reversal is adding instruments with their features.
+- **Scope**: observability-e2e / OBS-25, OBS-26
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-088
+
+- **Decision**: the F0 proof runs against a local `grafana/otel-lgtm` in Docker; no Grafana Cloud endpoint or secret is created or used.
+- **Reason**: Confirmed by the maintainer on 2026-11-02 ("Sim e sim" to local-only backend and to Docker).
+- **Trade-off**: Production export is configuration only (`OTEL_EXPORTER_OTLP_*` in `main/`); the maintainer enables it when the account exists.
+- **Scope**: observability-e2e / OBS-18, OBS-19
+- **Date**: 2026-11-02
+- **Status**: confirmed by the maintainer
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
