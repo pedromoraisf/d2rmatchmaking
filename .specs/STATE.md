@@ -860,19 +860,28 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 
 ### AD-096 (assumed)
 
-- **Decision**: the agent half of the trace scenario runs `examples/headless.rs` in the adapters crate (real core, real `HttpGateway`, the OTLP exporter, an in-memory token store, a text-file `TextReader`), driven over stdin/stdout, not the Tauri `fixture-read` feature; the agent exports through its own drop-oldest span processor over `opentelemetry-otlp`.
-- **Reason**: the `fixture-read` path is Windows-only (OCR, keyring) and CI's acceptance job is Linux; OBS-18 asks for the oldest span to be dropped and the SDK batch processor drops the newest.
-- **Trade-off**: OBS-24's wording names the `fixture-read` feature; the intent (the agent itself emits the `agent.http.*` spans) is met. The example is never built by the release workflow. Reversal is running the Windows agent with the feature in a Windows job.
+- **Decision**: the agent half of the trace scenario runs `examples/headless.rs` in the adapters crate behind that crate's own Cargo feature `fixture-read` (never default, off in every release graph), started with `--read-fixture <png>`, with the real core, the real `HttpGateway`, the OTLP exporter, an in-memory token store and a `TextReader` that returns the text of the sidecar file `<png>.txt` (Linux has no OCR); the agent exports through its own drop-oldest span processor over `opentelemetry-otlp`.
+- **Reason**: the app crate's `fixture-read` path is Windows-only (OCR, keyring, Tauri) and CI's acceptance job is Linux; OBS-24 and AGS-33 require a build with the feature `fixture-read` and `--read-fixture`, which this keeps; OBS-18 asks for the oldest span to be dropped and the SDK batch processor drops the newest.
+- **Trade-off**: AGS-33 places the feature in the app crate; a second gated place exists in the adapters crate, so the default-feature rule and the release guard cover both manifests. The sidecar text stands in for OCR. Reversal is running the Windows agent with the app crate's feature in a Windows job.
 - **Scope**: observability-e2e / OBS-18, OBS-24
 - **Date**: 2026-11-02
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
 ### AD-097 (assumed)
 
-- **Decision**: with no backend configured the relay answers `202` and drops; at most 32 forwards are in flight and a further one is dropped with a warning; the relay's limiter lives in `platform` and does not import the agents module.
-- **Reason**: the spec fixes an immediate `202` and no retry; the bound keeps a single free instance safe (ADR 006); the agents limiter is module-internal.
-- **Trade-off**: a small duplication of the sliding-window rule; spans are lost silently under a flood. Reversal is exporting a rate-limit port from the agents module.
+- **Decision**: with no backend configured the relay answers `202` and drops; at most 32 forwards and 8 MiB of bodies are in flight and a further one is dropped with a warning; each principal has 60 requests and 8 MiB a minute and all callers 32 MiB a minute; an address gate of 120 a minute counts only credential-less and failed-authentication requests and answers `429` before any credential lookup; the forwarder does not follow redirects; the relay's limiter lives in `platform`, sweeps every 30 s and fails closed at 10 000 keys.
+- **Reason**: the spec fixes an immediate `202` and no retry; the bounds keep a single free instance and the egress budget safe (ADR 006, NFR-14); the address gate keeps a flood of bad tokens off the database; the agents limiter is module-internal.
+- **Trade-off**: a small duplication of the sliding-window rule; spans are lost silently under a flood; a flood of invalid cookies through the Pages proxy shares one egress address and can delay site telemetry. Reversal is exporting a rate-limit port from the agents module.
 - **Scope**: observability-e2e / OBS-10, OBS-14, OBS-15
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-098 (assumed)
+
+- **Decision**: production builds of the site and the agent export no telemetry until the maintainer decides on a notice: the site needs `VITE_TELEMETRY=on`, the agent `D2RMM_TELEMETRY=on` at compile time; debug builds, the headless example and the e2e site build export. The API's sampler ignores a caller's sampled flag (`ParentBased` with the ratio sampler for remote parents) and ignores `tracestate`.
+- **Reason**: sending players' browser and desktop telemetry to a third party is a privacy decision that is not taken (NFR-04, NFR-05); a caller must not force the maintainer's quota.
+- **Trade-off**: OBS-18 and OBS-21 describe capabilities, which exist, but nothing in production is traced until the flags are set. Reversal is setting the flags in the release workflow and the web deploy.
+- **Scope**: observability-e2e / OBS-18, OBS-21, OBS-43, OBS-44
 - **Date**: 2026-11-02
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
