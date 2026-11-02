@@ -465,8 +465,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] a new file, never an edit of `0001`; `up` adds `trace_context text null`, `down` drops it; `OutboxTable.trace_context: string | null`; the map has the `0002` entry
-- [ ] test `migrates to 0002 and back` in `platform/postgres/migrator.int.test.ts` passes on a Testcontainers database
+- [x] a new file, never an edit of `0001`; `up` adds `trace_context text null`, `down` drops it; `OutboxTable.trace_context: string | null`; the map has the `0002` entry
+- [x] test `migrates to 0002 and back` in `platform/postgres/migrator.int.test.ts` passes on a Testcontainers database
 
 **Tests**: integration
 **Gate**: API full
@@ -1426,6 +1426,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - T15 finding: a span active around `app.inject` does not reach the route handler (light-my-request dispatch loses the async context, verified with `AsyncLocalStorageContextManager`; a plain `await` and `setImmediate` keep it). So `app.test.ts` proves the mixin by logging inside `context.with(span)` through the app logger. Request-scoped correlation is proven by `exports a log record with the trace id` (real HTTP server span, the log record carries the server trace id).
 - T16 (execute-batch-2, gate `API full` passed on attempt 2 after one failure, plus the Telemetry gate on the moved constant, 251 unit and 90 integration tests). `platform/http/request-metrics.ts` records `http.server.request.duration` (s) and `http.server.response.body.size` (By) on the meter from `metrics.getMeter(APP_METER_NAME)`, which `buildApp` registers. `APP_METER_NAME` moved from `sdk/views.ts` to the root `instrument-names.ts` (views re-exports it), so `main/` and the platform name the meter without the SDK. `@opentelemetry/sdk-metrics` 2.12.0 is an API dev dependency, for the in-memory reader of the test.
 - T16 finding: the design's premise (streams never reach `onResponse`) does not hold on Fastify 5: `onResponse` runs for a `reply.hijack()` stream (`reply.sent` cannot tell a hijack from a finished response, the flag is private). The hook records only the responses that went through `onSend`: a hijacked stream never does, so it records nothing (test: `/stream` has no point).
+- T17 (execute-batch-2, gate `API full` passed on attempt 1, 91 integration tests). `apps/api/migrations/0002_outbox_trace_context.ts` adds `trace_context text null` (down drops it); `0001` is untouched. `OutboxTable.trace_context: string | null`. `migrator.ts` registers `0002_outbox_trace_context` and gains `migrateTo(db, name)` (step down, for the test).
+- T17 test-expectation edit, for the orchestrator to see: `apps/api/src/main/__tests__/migrate.int.test.ts`, `first run applies 0001_skeleton and creates the four schemas`, expects `firstRun` to equal `['0001_skeleton']`. With 0002 in the map a first run applies both, so the expectation is now `['0001_skeleton', '0002_outbox_trace_context']`. The test name and its schema assertions are unchanged. Nothing was loosened.
 - T9, T13, T38 to T43, T47 write here.
 
 ---
