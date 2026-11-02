@@ -800,9 +800,9 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] `startWebTelemetry({ enabled, ratio, relayPath, serviceVersion, environment })` creates the provider and a batch processor (5 s, 100 spans a batch, queue 256) only when `enabled`; disabled installs nothing; the exporter targets `/api/v1/telemetry/traces`
-- [ ] `tracingFetcher(base)` opens a client span, sets `url.path` without the query and injects `traceparent`; `tracedAction` and `navigationSpan` exist
-- [ ] tests `no exporter is created unless enabled`, `exporter targets the relay path`, `tracing fetcher sends traceparent and records the path without the query` pass
+- [x] `startWebTelemetry({ enabled, ratio, relayPath, serviceVersion, environment })` creates the provider and a batch processor (5 s, 100 spans a batch, queue 256) only when `enabled`; disabled installs nothing; the exporter targets `/api/v1/telemetry/traces`
+- [x] `tracingFetcher(base)` opens a client span, sets `url.path` without the query and injects `traceparent`; `tracedAction` and `navigationSpan` exist
+- [x] tests `no exporter is created unless enabled`, `exporter targets the relay path`, `tracing fetcher sends traceparent and records the path without the query` pass
 
 **Tests**: unit
 **Gate**: Telemetry
