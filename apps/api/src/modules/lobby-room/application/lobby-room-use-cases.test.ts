@@ -11,6 +11,7 @@ import { createMatchmakingUseCases } from '../../matchmaking/index.ts';
 import { createLobbyRoomUseCases, type ObservationBody } from './lobby-room-use-cases.ts';
 import { FakeAgentsPort } from './testing/fake-agents-port.ts';
 import { InMemoryGameNameSequence } from './testing/in-memory-game-name-sequence.ts';
+import { FakeRoomMetrics } from './testing/fake-room-metrics.ts';
 import { InMemoryLobbyRoomRepository } from './testing/in-memory-lobby-room-repository.ts';
 import { InMemoryObservationRepository } from './testing/in-memory-observation-repository.ts';
 import { InMemoryUnitOfWork } from './testing/in-memory-unit-of-work.ts';
@@ -37,6 +38,7 @@ function setup() {
   const observations = new InMemoryObservationRepository();
   const agents = new FakeAgentsPort();
   const outbox = new RecordingOutbox();
+  const roomMetrics = new FakeRoomMetrics();
   const useCases = createLobbyRoomUseCases({
     rooms,
     observations,
@@ -46,10 +48,11 @@ function setup() {
     uow: new InMemoryUnitOfWork(),
     outbox,
     clock,
+    roomMetrics,
   });
   agents.pair('agent-1', 'account-1');
   agents.pair('agent-2', 'account-2');
-  return { useCases, rooms, observations, outbox, agents, clock };
+  return { useCases, rooms, observations, outbox, agents, clock, roomMetrics };
 }
 
 function match(matchId = 'match-1'): MatchFormedPayload {
@@ -221,6 +224,23 @@ describe('lobby-room use cases', () => {
     await useCases.onMatchFormed(match());
 
     expect(await useCases.getAssignment({ agentId: 'agent-unpaired' })).toBeNull();
+  });
+
+  it('records room.stage_duration once with the seconds since the room opened', async () => {
+    const { useCases, clock, roomMetrics } = setup();
+    await useCases.onMatchFormed(match());
+    clock.advance(90 * 1000);
+
+    await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
+    await useCases.recordObservation({
+      agentId: 'agent-1',
+      roomId: 'room-1',
+      body: body({ idempotencyKey: 'key-2' }),
+    });
+
+    expect(roomMetrics.calls).toEqual([
+      { stage: 'awaiting_host', difficulty: 'hell', mode: 'leveling', seconds: 90 },
+    ]);
   });
 
   it('openedAt returns the instant the room opened', async () => {

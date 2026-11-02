@@ -1,4 +1,5 @@
-import type { Transaction } from '../../../shared-kernel/index.ts';
+import type { RoomStage, Transaction } from '../../../shared-kernel/index.ts';
+import type { GameDifficulty } from '../domain/game-name.ts';
 import type { LobbyRoom } from '../domain/lobby-room.ts';
 import type { Observation } from '../domain/observation.ts';
 
@@ -22,4 +23,10 @@ export interface ObservationRepository {
 /** Hands out the next game name number (Postgres `lobby.game_name_seq` in production). */
 export interface GameNameSequence {
   next(): Promise<number>;
+}
+
+/** Room metrics the use cases report (OBS-34). The OpenTelemetry adapter lives in `adapters/telemetry`. */
+export interface RoomMetrics {
+  /** The seconds a room spent in `stage` before it left it, with the bounded attributes of the room (`room.stage_duration`). */
+  stageLeft(stage: RoomStage, difficulty: GameDifficulty, mode: 'pvp' | 'leveling', seconds: number): void;
 }

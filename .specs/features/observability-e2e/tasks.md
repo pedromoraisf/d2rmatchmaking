@@ -611,8 +611,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] the use case calls `stageLeft('awaiting_host', difficulty, mode, seconds)` once, in the `created` branch, with `clock.now() - openedAt`; a repeated sighting records nothing
-- [ ] tests `records room.stage_duration once with the seconds since the room opened` (application, `FakeClock`) and `the adapter records the histogram with bounded attributes` pass
+- [x] the use case calls `stageLeft('awaiting_host', difficulty, mode, seconds)` once, in the `created` branch, with `clock.now() - openedAt`; a repeated sighting records nothing
+- [x] tests `records room.stage_duration once with the seconds since the room opened` (application, `FakeClock`) and `the adapter records the histogram with bounded attributes` pass
 
 **Tests**: unit
 **Gate**: API unit

@@ -28,6 +28,7 @@ import { PostgresGameNameSequence } from '../modules/lobby-room/adapters/postgre
 import { PostgresLobbyRoomRepository } from '../modules/lobby-room/adapters/postgres/postgres-lobby-room-repository.ts';
 import { PostgresObservationRepository } from '../modules/lobby-room/adapters/postgres/postgres-observation-repository.ts';
 import type { LobbyDatabase } from '../modules/lobby-room/adapters/postgres/schema.ts';
+import { OtelRoomMetrics } from '../modules/lobby-room/adapters/telemetry/otel-room-metrics.ts';
 import { createLobbyRoomUseCases } from '../modules/lobby-room/index.ts';
 import { matchmakingRoutes } from '../modules/matchmaking/adapters/http/routes.ts';
 import { createMatchmakingUseCases } from '../modules/matchmaking/index.ts';
@@ -225,6 +226,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     uow,
     outbox,
     clock,
+    roomMetrics: new OtelRoomMetrics(metrics.getMeter(APP_METER_NAME)),
   });
   const matchmaking = createMatchmakingUseCases({ ids, uow, outbox });
   bus.subscribe('MatchFormed', async (event) => {

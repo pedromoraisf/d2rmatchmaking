@@ -15,7 +15,7 @@ import {
 } from '../../../shared-kernel/index.ts';
 import { LobbyRoom } from '../domain/lobby-room.ts';
 import { Observation, type ObservationType } from '../domain/observation.ts';
-import type { GameNameSequence, LobbyRoomRepository, ObservationRepository } from './ports.ts';
+import type { GameNameSequence, LobbyRoomRepository, ObservationRepository, RoomMetrics } from './ports.ts';
 
 export interface LobbyRoomDeps {
   readonly rooms: LobbyRoomRepository;
@@ -26,6 +26,7 @@ export interface LobbyRoomDeps {
   readonly uow: UnitOfWork;
   readonly outbox: Outbox;
   readonly clock: Clock;
+  readonly roomMetrics: RoomMetrics;
 }
 
 /** A room as a site member sees it (contract `RoomView`). */
@@ -172,6 +173,13 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
             await deps.outbox.append(tx, transition.events);
           }
         });
+        if (transition.outcome === 'created') {
+          const openedAt = await deps.rooms.openedAt(room.id);
+          if (openedAt !== undefined) {
+            const seconds = (deps.clock.now().getTime() - openedAt.getTime()) / 1000;
+            deps.roomMetrics.stageLeft('awaiting_host', room.difficulty, room.mode, seconds);
+          }
+        }
         return ok({ stored: true });
       },
     );
