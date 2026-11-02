@@ -148,6 +148,62 @@ export async function readTrace(
   throw new Error(`trace ${traceId} did not reach the expected shape within 30 s: ${last}${names}`);
 }
 
+/** The trace ids a TraceQL search returns for the window that starts at `sinceMs` (epoch milliseconds). */
+export async function searchTraceIds(queryUrl: string, traceql: string, sinceMs: number): Promise<string[]> {
+  const url = new URL('/api/search', queryUrl);
+  url.searchParams.set('q', traceql);
+  url.searchParams.set('start', String(Math.floor(sinceMs / 1000)));
+  url.searchParams.set('end', String(Math.ceil((Date.now() + 60_000) / 1000)));
+  url.searchParams.set('limit', '50');
+  const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  if (!response.ok) {
+    throw new Error(`the trace search answered ${response.status}`);
+  }
+  const answer = (await response.json()) as { traces?: { traceID?: string }[] };
+  return (answer.traces ?? []).flatMap((item) => (item.traceID === undefined ? [] : [item.traceID]));
+}
+
+/** One trace as the backend holds it now, or undefined when it is not there yet. */
+export async function fetchTrace(queryUrl: string, traceId: string): Promise<Trace | undefined> {
+  const response = await fetch(`${queryUrl}/api/traces/${traceId}`, {
+    headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    return undefined;
+  }
+  const spans = spansOfTempo(await response.json()).filter((span) => span.traceId === traceId);
+  return spans.length === 0 ? undefined : { traceId, spans };
+}
+
+/**
+ * Polls the search until a trace of the window satisfies `matches`, or 30 s pass. The search finds the trace of an action
+ * the scenario cannot name: the agent's own trace ids are not printed by the example.
+ */
+export async function pollTraces(
+  queryUrl: string,
+  traceql: string,
+  sinceMs: number,
+  matches: (trace: Trace) => boolean,
+): Promise<Trace> {
+  const deadline = Date.now() + POLL_TIMEOUT_MS;
+  let candidates = 0;
+  while (Date.now() < deadline) {
+    const ids = await searchTraceIds(queryUrl, traceql, sinceMs).catch((): string[] => []);
+    candidates = ids.length;
+    for (const id of ids) {
+      const trace = await fetchTrace(queryUrl, id).catch((): undefined => undefined);
+      if (trace !== undefined && matches(trace)) {
+        return trace;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+  }
+  throw new Error(
+    `no trace of ${traceql} satisfied the expected edges within 30 s (${candidates} candidates)`,
+  );
+}
+
 /** The edges of a trace as `parent -> child` names, for a failure message and for the scenario's log. */
 export function parentEdges(trace: Trace): string[] {
   const byId = new Map(trace.spans.map((span) => [span.spanId, span]));
