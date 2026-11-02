@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AgentsPort } from '../../modules/agents/index.ts';
 import type { IdentityPort } from '../../modules/identity/index.ts';
-import { err, ok } from '../../shared-kernel/index.ts';
+import { err, FakeClock, ok } from '../../shared-kernel/index.ts';
 import { createGuards } from './guards.ts';
 
 const SITE_ORIGIN = 'https://site.example';
@@ -49,6 +49,7 @@ beforeEach(async () => {
     agents,
     agentMinVersion: '0.0.1',
     siteOrigin: SITE_ORIGIN,
+    clock: new FakeClock(new Date('2026-11-02T12:00:00.000Z')),
   });
   app = Fastify();
   app.get('/agent', { preHandler: [guards.requireAgentVersion, guards.requireAgent] }, async (request) => ({
@@ -218,5 +219,159 @@ describe('requireSameOrigin', () => {
     });
 
     expect(response.statusCode).toBe(403);
+  });
+});
+
+/**
+ * Fake Agents port that behaves like the use case: a miss asks `beforeLookup` first and a refused miss reads nothing.
+ * `repositoryReads` counts the reads the repository would have served.
+ */
+class MeteredAgents implements AgentsPort {
+  repositoryReads = 0;
+
+  async authenticateAgent(token: string, opts?: { beforeLookup?: () => boolean }) {
+    if (opts?.beforeLookup !== undefined && !opts.beforeLookup()) {
+      return err('throttled' as const);
+    }
+    this.repositoryReads += 1;
+    return token === GOOD_AGENT_TOKEN
+      ? ok({ agentId: 'agent-1', accountId: 'account-1' })
+      : err('unauthenticated' as const);
+  }
+
+  async accountOfAgent(): Promise<string | null> {
+    return null;
+  }
+
+  async currentAgentOf(): Promise<string | null> {
+    return null;
+  }
+}
+
+describe('requireAgentOrSite', () => {
+  let clock: FakeClock;
+  let metered: MeteredAgents;
+  let relay: FastifyInstance;
+  let identityCalls: number;
+
+  beforeEach(async () => {
+    clock = new FakeClock(new Date('2026-11-02T12:00:00.000Z'));
+    metered = new MeteredAgents();
+    identityCalls = 0;
+    const guards = createGuards({
+      identity: {
+        async authenticateSession(token) {
+          identityCalls += 1;
+          return token === GOOD_SESSION
+            ? ok({ accountId: 'account-1', expiresAt: new Date('2026-11-07T10:00:00.000Z') })
+            : err('unauthenticated');
+        },
+      },
+      agents: metered,
+      agentMinVersion: '0.0.1',
+      siteOrigin: SITE_ORIGIN,
+      clock,
+    });
+    relay = Fastify();
+    relay.post('/relay', { preHandler: [guards.requireAgentOrSite] }, async (request) => ({
+      agentId: request.agentId ?? null,
+      accountId: request.accountId ?? null,
+    }));
+    await relay.ready();
+  });
+
+  afterEach(async () => {
+    await relay.close();
+  });
+
+  it('no credential gets 401', async () => {
+    const response = await relay.inject({ method: 'POST', url: '/relay' });
+
+    expect(response.statusCode).toBe(401);
+    expect(metered.repositoryReads).toBe(0);
+    expect(identityCalls).toBe(0);
+  });
+
+  it('an empty session cookie is credential-less', async () => {
+    const response = await relay.inject({
+      method: 'POST',
+      url: '/relay',
+      headers: { cookie: '__Host-d2rmm_session=', origin: SITE_ORIGIN },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(identityCalls).toBe(0);
+  });
+
+  it('a missing, wrong, slash-suffixed or subdomain origin gets 403', async () => {
+    for (const origin of [undefined, 'https://evil.example', `${SITE_ORIGIN}/`, 'https://x.site.example']) {
+      const response = await relay.inject({
+        method: 'POST',
+        url: '/relay',
+        headers: origin === undefined ? { cookie: SESSION_COOKIE } : { cookie: SESSION_COOKIE, origin },
+      });
+
+      expect(response.statusCode, `origin ${String(origin)}`).toBe(403);
+    }
+
+    const exact = await relay.inject({
+      method: 'POST',
+      url: '/relay',
+      headers: { cookie: SESSION_COOKIE, origin: SITE_ORIGIN },
+    });
+    expect(exact.json()).toEqual({ agentId: null, accountId: 'account-1' });
+  });
+
+  it('an empty lookup bucket gets 429 without a repository call', async () => {
+    // The bucket starts with 10 tokens: ten misses take them all in the same instant.
+    for (let i = 0; i < 10; i += 1) {
+      const response = await relay.inject({
+        method: 'POST',
+        url: '/relay',
+        headers: { authorization: `Bearer d2rmm_a_bad_${i}` },
+      });
+      expect(response.statusCode).toBe(401);
+    }
+    expect(metered.repositoryReads).toBe(10);
+
+    const throttled = await relay.inject({
+      method: 'POST',
+      url: '/relay',
+      headers: { authorization: 'Bearer d2rmm_a_bad_10' },
+    });
+
+    expect(throttled.statusCode).toBe(429);
+    expect(throttled.headers['retry-after']).toBe('1');
+    expect(metered.repositoryReads).toBe(10);
+  });
+
+  it('a credential that takes the agent path never takes the cookie path', async () => {
+    const response = await relay.inject({
+      method: 'POST',
+      url: '/relay',
+      headers: { authorization: `Bearer ${GOOD_AGENT_TOKEN}`, cookie: SESSION_COOKIE, origin: SITE_ORIGIN },
+    });
+
+    expect(response.json()).toEqual({ agentId: 'agent-1', accountId: null });
+    expect(identityCalls).toBe(0);
+  });
+
+  it('the lookup bucket refills at 10 tokens a second', async () => {
+    for (let i = 0; i < 10; i += 1) {
+      await relay.inject({
+        method: 'POST',
+        url: '/relay',
+        headers: { authorization: `Bearer d2rmm_a_bad_${i}` },
+      });
+    }
+    clock.advance(1000);
+
+    const response = await relay.inject({
+      method: 'POST',
+      url: '/relay',
+      headers: { authorization: 'Bearer d2rmm_a_bad_refill' },
+    });
+
+    expect(response.statusCode).toBe(401);
   });
 });

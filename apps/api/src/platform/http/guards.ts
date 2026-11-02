@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AgentVersion, type AgentsPort } from '../../modules/agents/index.ts';
 import type { IdentityPort } from '../../modules/identity/index.ts';
+import type { Clock } from '../../shared-kernel/index.ts';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -23,6 +24,8 @@ export interface GuardDeps {
   readonly agentMinVersion: string;
   /** `SITE_ORIGIN`, the exact origin of the site. */
   readonly siteOrigin: string;
+  /** The clock of the relay's lookup bucket. */
+  readonly clock: Clock;
 }
 
 export type Guard = (request: FastifyRequest, reply: FastifyReply) => Promise<FastifyReply | undefined>;
@@ -32,6 +35,48 @@ export interface Guards {
   readonly requireAgent: Guard;
   readonly requireSession: Guard;
   readonly requireSameOrigin: Guard;
+  readonly requireAgentOrSite: Guard;
+}
+
+const LOOKUPS_PER_SECOND = 10;
+const LOOKUPS_IN_FLIGHT = 3;
+
+/**
+ * The relay's lookup bucket (design § Relay route, AD-097): a credential that misses the cache, and every session lookup
+ * (sessions have no cache), takes one token of 10 a second and one of 3 lookups in flight. An empty bucket answers 429.
+ */
+class LookupBucket {
+  readonly #clock: Clock;
+  #tokens = LOOKUPS_PER_SECOND;
+  #refilledAt: number;
+  #inFlight = 0;
+
+  constructor(clock: Clock) {
+    this.#clock = clock;
+    this.#refilledAt = clock.now().getTime();
+  }
+
+  /** Takes a token and a slot, or answers false with nothing taken. Release the slot when the lookup settles. */
+  take(): boolean {
+    this.#refill();
+    if (this.#tokens < 1 || this.#inFlight >= LOOKUPS_IN_FLIGHT) {
+      return false;
+    }
+    this.#tokens -= 1;
+    this.#inFlight += 1;
+    return true;
+  }
+
+  release(): void {
+    this.#inFlight -= 1;
+  }
+
+  #refill(): void {
+    const now = this.#clock.now().getTime();
+    const earned = ((now - this.#refilledAt) * LOOKUPS_PER_SECOND) / 1000;
+    this.#tokens = Math.min(LOOKUPS_PER_SECOND, this.#tokens + earned);
+    this.#refilledAt = now;
+  }
 }
 
 /** The value of the session cookie in a `Cookie` header, or undefined when absent or empty. */
@@ -68,6 +113,39 @@ export function createGuards(deps: GuardDeps): Guards {
     throw new Error('AGENT_MIN_VERSION must be a semantic version');
   }
   const minimum = minimumVersion.value;
+  const lookups = new LookupBucket(deps.clock);
+
+  /** One agent lookup through the bucket: a miss asks the gate first. `throttled` when the gate refused. */
+  async function lookupAgent(
+    token: string,
+  ): Promise<Awaited<ReturnType<AgentsPort['authenticateAgent']>> | 'throttled'> {
+    let slot = false;
+    try {
+      const result = await deps.agents.authenticateAgent(token, {
+        beforeLookup: () => {
+          slot = lookups.take();
+          return slot;
+        },
+      });
+      return result.ok === false && result.error === 'throttled' ? 'throttled' : result;
+    } finally {
+      if (slot) {
+        lookups.release();
+      }
+    }
+  }
+
+  /** One session lookup through the bucket (no cache, so every session lookup takes a token). */
+  async function lookupSession(token: string) {
+    if (!lookups.take()) {
+      return 'throttled' as const;
+    }
+    try {
+      return await deps.identity.authenticateSession(token);
+    } finally {
+      lookups.release();
+    }
+  }
 
   return {
     /** Every agent route: no header, a value that is not a semantic version, or one below the minimum → 426 (AWS-12). */
@@ -117,6 +195,47 @@ export function createGuards(deps: GuardDeps): Guards {
       if (request.headers.origin !== deps.siteOrigin || !isJsonMediaType(request.headers['content-type'])) {
         return reply.code(403).send({ error: 'forbidden' });
       }
+      return undefined;
+    },
+
+    /**
+     * The relay route's guard (design § Relay route, AD-099). An `Authorization` header selects the bearer path and the
+     * cookie is never read on it; otherwise the session cookie. No credential, or an empty cookie, is `401`. A lookup the
+     * bucket refuses is `429` with `Retry-After: 1`. A valid session whose `Origin` is not exactly the site origin is
+     * `403`. The minimum agent version is not applied here, so old agents' spans are still accepted.
+     */
+    async requireAgentOrSite(request, reply) {
+      if (request.headers.authorization !== undefined) {
+        const token = bearerToken(request.headers.authorization);
+        if (token === undefined) {
+          return reply.code(401).send({ error: 'unauthenticated' });
+        }
+        const identity = await lookupAgent(token);
+        if (identity === 'throttled') {
+          return reply.code(429).header('retry-after', '1').send({ error: 'rate-limited' });
+        }
+        if (!identity.ok) {
+          return reply.code(401).send({ error: 'unauthenticated' });
+        }
+        request.agentId = identity.value.agentId;
+        return undefined;
+      }
+      const token = sessionCookieValue(request.headers.cookie);
+      if (token === undefined) {
+        return reply.code(401).send({ error: 'unauthenticated' });
+      }
+      const session = await lookupSession(token);
+      if (session === 'throttled') {
+        return reply.code(429).header('retry-after', '1').send({ error: 'rate-limited' });
+      }
+      if (!session.ok) {
+        return reply.code(401).send({ error: 'unauthenticated' });
+      }
+      if (request.headers.origin !== deps.siteOrigin) {
+        return reply.code(403).send({ error: 'forbidden' });
+      }
+      request.accountId = session.value.accountId;
+      request.sessionExpiresAt = session.value.expiresAt;
       return undefined;
     },
   };

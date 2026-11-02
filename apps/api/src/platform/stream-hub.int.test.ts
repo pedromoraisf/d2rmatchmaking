@@ -237,7 +237,7 @@ async function startHarness(): Promise<Harness> {
     db: database.db,
     bus,
     agents,
-    guards: createGuards({ identity, agents, agentMinVersion: '0.0.1', siteOrigin: SITE_ORIGIN }),
+    guards: createGuards({ identity, agents, agentMinVersion: '0.0.1', siteOrigin: SITE_ORIGIN, clock }),
     scheduler,
     log: silentLog,
     meter: sseMeter,

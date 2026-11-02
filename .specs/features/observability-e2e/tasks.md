@@ -685,8 +685,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] `Authorization` present selects the bearer path and never the cookie; an empty cookie is credential-less; a credential that misses the cache takes a token of the lookup bucket (10 a second, 3 at once) and `429` with `Retry-After: 1` when empty; a valid session whose `Origin` is missing or not exactly the site origin is `403`; `requireAgentVersion` is not applied (AD-099)
-- [ ] tests `no credential gets 401`, `an empty session cookie is credential-less`, `a missing, wrong, slash-suffixed or subdomain origin gets 403`, `an empty lookup bucket gets 429 without a repository call` pass
+- [x] `Authorization` present selects the bearer path and never the cookie; an empty cookie is credential-less; a credential that misses the cache takes a token of the lookup bucket (10 a second, 3 at once) and `429` with `Retry-After: 1` when empty; a valid session whose `Origin` is missing or not exactly the site origin is `403`; `requireAgentVersion` is not applied (AD-099)
+- [x] tests `no credential gets 401`, `an empty session cookie is credential-less`, `a missing, wrong, slash-suffixed or subdomain origin gets 403`, `an empty lookup bucket gets 429 without a repository call` pass
 
 **Tests**: unit
 **Gate**: API unit

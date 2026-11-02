@@ -212,6 +212,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     agents: agentsPort,
     agentMinVersion: config.minAgentVersion,
     siteOrigin: config.siteOrigin,
+    clock,
   });
 
   bus.subscribe('AgentRevoked', agents.evictRevokedAgent);
