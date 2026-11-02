@@ -84,6 +84,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
+name = "async-trait"
+version = "0.1.92"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82f6aeea286b8eb4dd3431a1be1b59d290ace00f5bfd8e2a159bc2a05e2c1667"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+]
+
+[[package]]
 name = "atk"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -663,12 +674,14 @@ dependencies = [
 name = "d2rmm-agent-adapters"
 version = "0.0.0"
 dependencies = [
+ "async-trait",
  "axum",
  "chrono",
  "d2rmm-agent-core",
  "d2rmm-agent-domain",
  "jsonschema",
  "opentelemetry",
+ "opentelemetry-http",
  "opentelemetry_sdk",
  "regress",
  "reqwest",
@@ -2783,6 +2796,18 @@ dependencies = [
  "pin-project-lite",
  "thiserror 2.0.21",
  "tracing",
+]
+
+[[package]]
+name = "opentelemetry-http"
+version = "0.33.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "302249bd8ee804789faaa7b5b2cbf79bc61cb864714079c644e3828af5b7e811"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "http",
+ "opentelemetry",
 ]
 
 [[package]]

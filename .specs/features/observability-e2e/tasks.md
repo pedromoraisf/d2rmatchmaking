@@ -875,8 +875,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] `outcome_of(status, retry_after, now)` maps `403/413/415` to drop, `401` to drop and stop while the token hash equals the refused one, `429` to wait `Retry-After` (60 s absent, 1 h cap); the client is built with `redirect::Policy::none()` and rustls, adds `Authorization` and `X-Agent-Version` from the `HeaderSource` per request and never logs the token
-- [ ] tests `401 403 413 415 drop the batch`, `401 stops export until the token changes`, `429 waits for retry-after capped at one hour`, `429 without retry-after waits sixty seconds` pass; the module is added to `.cargo/mutants.toml`
+- [x] `outcome_of(status, retry_after, now)` maps `403/413/415` to drop, `401` to drop and stop while the token hash equals the refused one, `429` to wait `Retry-After` (60 s absent, 1 h cap); the client is built with `redirect::Policy::none()` and rustls, adds `Authorization` and `X-Agent-Version` from the `HeaderSource` per request and never logs the token
+- [x] tests `401 403 413 415 drop the batch`, `401 stops export until the token changes`, `429 waits for retry-after capped at one hour`, `429 without retry-after waits sixty seconds` pass; the module is added to `.cargo/mutants.toml`
 
 **Tests**: unit
 **Gate**: Rust adapters

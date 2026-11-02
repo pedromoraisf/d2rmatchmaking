@@ -3,6 +3,7 @@
 //! export arrives with `observability-e2e`.
 
 pub mod queue;
+pub mod relay_client;
 
 use std::collections::HashMap;
 
