@@ -67,10 +67,16 @@ review. Reversals become tasks in a follow-up feature.
 
 | AD-083 | agent-hexagonal-migration | `agent.http.*` spans stay in the gateway adapter; loop and use-case spans stay in core; the domain emits none | ADR 027 rule 7 read for the agent's own spans | |
 
-| AD-084 | observability-e2e | The telemetry relay `POST /v1/telemetry/traces` takes OTLP/HTTP from an agent token or a site session, 1 MiB and 60 requests a minute per principal, forwards unchanged, always answers an empty `202` | ADR 013, ADR 006; the numbers are guesses | |
+| AD-084 | observability-e2e | The telemetry relay is a guarded pass-through: OTLP/HTTP from an agent token or a site session, 1 MiB, 60 a minute per principal, fixed check order, empty `202`, background forward | redaction is the sender's guarantee; the numbers are guesses | |
 | AD-085 | observability-e2e | The trace crosses the outbox in a nullable `trace_context` column written in the event's transaction | a new migration; old rows become root spans | |
 | AD-086 | observability-e2e | The browser does not report SSE receipt; the stream hop is the server-side `platform.stream.deliver` span | a payload trace field is a contract change | |
-| AD-087 | observability-e2e | F0 metrics: `http.server.response.body.size`, `sse.connections`, `outbox.lag`, `room.stage_duration` | others arrive with their use case | |
+| AD-087 | observability-e2e | F0 metrics: `http.server.response.body.size`, `http.server.request.duration`, `sse.connections`, `outbox.lag`, `room.stage_duration` | others arrive with their use case | |
+| AD-088 | observability-e2e | The F0 trace proof runs against a local `grafana/otel-lgtm` in Docker; no Grafana Cloud account or secret | confirmed by the maintainer 2026-11-02 | |
+| AD-089 | observability-e2e | Parent-based sampler, ratio `OTEL_TRACES_SAMPLER_ARG`, default `0.1` | ADR 013 free-tier quotas | |
+| AD-090 | observability-e2e | The site exports spans only when `VITE_TELEMETRY=on`; the production build leaves it off | privacy decision not taken (NFR-04/05) | |
+| AD-091 | observability-e2e | `d2r.*` attribute constants; `accountId` and `agentId` dropped from spans; use-case span names unchanged | design doc names; AWS-35 shipped names | |
+| AD-092 | observability-e2e | A room leaves two traces: the site's start of the match and the agent's observation; no span link joins them | `Created` is written in the agent's request | |
+| AD-093 | observability-e2e | Only the API exports logs; the site and the agent export no logs or metrics in F0 | NFR-09 partly deferred for them | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 

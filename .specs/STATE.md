@@ -752,10 +752,10 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 
 ### AD-084 (assumed)
 
-- **Decision**: the relay `POST /v1/telemetry/traces` accepts OTLP/HTTP (protobuf or JSON) from an agent token or a site session, at most 1 MiB and 60 requests a minute per principal, forwards the body unchanged with the backend credentials, and always answers an empty `202` once the request is valid.
-- **Reason**: The site and the agent must not hold backend credentials (ADR 013, design doc); forwarding bytes avoids a second schema; the limits bound a public write path on a single free instance (ADR 006).
-- **Trade-off**: Fixed numbers are guesses; the relay is a new authenticated write path that the security reviewer must pass. Reversal is changing the limits in one config object.
-- **Scope**: observability-e2e / OBS-08…OBS-13
+- **Decision**: the relay `POST /v1/telemetry/traces` accepts OTLP/HTTP (protobuf or JSON, no content encoding) from an agent token or a site session whose `Origin` is the site origin, at most 1 MiB and 60 requests a minute per principal (120 a minute per address when unauthenticated); it checks in the order authentication, rate, content type and encoding, size; answers an empty `202` at once and forwards the body unchanged in the background with a 5 s timeout. It does not decode the body.
+- **Reason**: the site and the agent must not hold backend credentials (ADR 013, design doc); forwarding bytes avoids a second schema and a protobuf dependency; the limits bound a public write path on a single free instance (ADR 006).
+- **Trade-off**: redaction is the sender's guarantee, so a hostile or buggy client can put forged spans or a forged `service.name` in the maintainer's backend; accepted and bounded by authentication, size and rate, and the backend treats the data as untrusted. The numbers are guesses. Reversal is decoding and filtering in the relay.
+- **Scope**: observability-e2e / OBS-10…OBS-20
 - **Date**: 2026-11-02
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
@@ -779,7 +779,7 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 
 ### AD-087 (assumed)
 
-- **Decision**: the metrics created in F0 are `http.server.response.body.size`, `sse.connections`, `outbox.lag` and `room.stage_duration`; the others of the design doc arrive with their use case.
+- **Decision**: the metrics created in F0 are `http.server.response.body.size`, `http.server.request.duration` (from the HTTP instrumentation), `sse.connections`, `outbox.lag` and `room.stage_duration`; the others of the design doc arrive with their use case.
 - **Reason**: Only these have a subject in the skeleton; empty instruments would be noise.
 - **Trade-off**: The dashboard is small. Reversal is adding instruments with their features.
 - **Scope**: observability-e2e / OBS-25, OBS-26
@@ -794,6 +794,51 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Scope**: observability-e2e / OBS-18, OBS-19
 - **Date**: 2026-11-02
 - **Status**: confirmed by the maintainer
+
+### AD-089 (assumed)
+
+- **Decision**: the API samples with a parent-based sampler whose ratio is `OTEL_TRACES_SAMPLER_ARG`, `0.1` when unset; the acceptance stack sets `1.0`.
+- **Reason**: ADR 013 warns that free-tier quotas limit sampling; keeping every trace is not the conservative default.
+- **Trade-off**: a lower default hides rare traces in production until the ratio is raised. Reversal is changing the default.
+- **Scope**: observability-e2e / OBS-43
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-090 (assumed)
+
+- **Decision**: the web build exports spans only when `VITE_TELEMETRY=on`; local and staging builds set it, the production build does not.
+- **Reason**: Sending players' browser telemetry to a third party is a privacy decision (NFR-04, NFR-05) the maintainer has not taken.
+- **Trade-off**: the production site is not traced until the maintainer decides on a notice. Reversal is setting the flag in the production build.
+- **Scope**: observability-e2e / OBS-44
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-091 (assumed)
+
+- **Decision**: the `d2r.*` attribute constants replace today's `roomId`; `accountId` and `agentId` are dropped from spans; the use-case span names stay (`lobby.record-observation`, `matchmaking.form-test-match`), not the design doc's draft `lobby.observe` and `matchmaking.match`.
+- **Reason**: The design doc fixes attribute names and forbids account identity in telemetry; the span names are shipped and tested (AWS-35).
+- **Trade-off**: a lost id makes some debugging harder; the trace id and the room id remain. Reversal is adding the attribute back behind a flag.
+- **Scope**: observability-e2e / OBS-30
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-092 (assumed)
+
+- **Decision**: a room leaves two complete traces: trace A starts at the site's "Start test match" and reaches the `awaiting_host` delivery; trace B starts at the agent's observation and reaches the `created` delivery; the agent's spans parent the API's spans in trace B; no span link joins A and B.
+- **Reason**: `Created` is written in the agent's request, so its outbox row carries the agent's trace; joining them needs the room to store the match trace, a lobby change outside this feature.
+- **Trade-off**: the brief's "one trace" is read as one trace per originator; if the maintainer wants a single trace, the room must carry the context (F1). Reversal is a span link.
+- **Scope**: observability-e2e / OBS-08, OBS-12
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-093 (assumed)
+
+- **Decision**: only the API exports logs over OTLP; the site and the agent export no logs or metrics in F0.
+- **Reason**: Only the API has log and metric subjects in the skeleton; NFR-09's wording ("three apps") is met for traces in all three and for logs and metrics where a subject exists.
+- **Trade-off**: NFR-09 is partly deferred for the site and the agent; the maintainer confirms at the phase review. Reversal is adding the signals to the relay.
+- **Scope**: observability-e2e / OBS-27, OBS-33
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
 ## Handoff
 
