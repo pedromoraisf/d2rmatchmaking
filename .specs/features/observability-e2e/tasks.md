@@ -255,8 +255,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] `createResource({ serviceName, serviceVersion, environment, agentVersion? })` carries `service.name`, `service.version`, `deployment.environment` and, when given, `d2r.agent.version`; no host or process attribute
-- [ ] tests `carries service name, version and environment` and `carries the agent version only for the agent` pass
+- [x] `createResource({ serviceName, serviceVersion, environment, agentVersion? })` carries `service.name`, `service.version`, `deployment.environment` and, when given, `d2r.agent.version`; no host or process attribute
+- [x] tests `carries service name, version and environment` and `carries the agent version only for the agent` pass
 
 **Tests**: unit
 **Gate**: Telemetry
