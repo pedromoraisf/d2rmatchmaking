@@ -869,19 +869,37 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 
 ### AD-097 (assumed)
 
-- **Decision**: with no backend configured the relay answers `202` and drops; at most 32 forwards and 8 MiB of bodies are in flight and a further one is dropped with a warning; each principal has 60 requests and 8 MiB a minute and all callers 32 MiB a minute; an address gate of 120 a minute counts only credential-less and failed-authentication requests and answers `429` before any credential lookup; the forwarder does not follow redirects; the relay's limiter lives in `platform`, sweeps every 30 s and fails closed at 10 000 keys.
-- **Reason**: the spec fixes an immediate `202` and no retry; the bounds keep a single free instance and the egress budget safe (ADR 006, NFR-14); the address gate keeps a flood of bad tokens off the database; the agents limiter is module-internal.
-- **Trade-off**: a small duplication of the sliding-window rule; spans are lost silently under a flood; a flood of invalid cookies through the Pages proxy shares one egress address and can delay site telemetry. Reversal is exporting a rate-limit port from the agents module.
+- **Decision**: with no backend configured the relay answers `202` and drops; the relay keeps the spec's order (authentication, rate, type, size). A request with a credential is authenticated first, whatever the address bucket holds; the address bucket (120 a minute) counts only credential-less and failed-authentication requests and answers `429` for credential-less callers over the limit; a credential that misses the cache takes a token from a relay-wide lookup bucket (50 a second) and is refused with `429` when it is empty, so bad tokens stay off the database without refusing valid callers. Per principal 60 requests and 2 MiB a minute; relay-wide 4 MiB a minute and 16 MiB a UTC day (10% of the 5 GB monthly egress, NFR-14); at most 32 forwards and 8 MiB of bodies in flight; no redirects; response body cancelled. The limiter keeps principals and addresses in separate maps (addresses capped at 10 000 with an overflow bucket for credential-less callers), unwraps IPv4-mapped IPv6, and lives in `platform`.
+- **Reason**: the spec fixes an immediate `202`, no retry and the order of AC 7; AC 4 limits unauthenticated callers only, so a shared address (Pages egress, NAT) must not lock valid callers out; the bounds keep a single free instance and the egress budget safe (ADR 006, NFR-14); the agents limiter is module-internal.
+- **Trade-off**: a small duplication of the sliding-window rule; spans are lost silently under a flood; the daily counter resets on a restart; a flood of bad cookies through the Pages proxy can drain the lookup bucket and delay site telemetry. Reversal is exporting a rate-limit port from the agents module.
 - **Scope**: observability-e2e / OBS-10, OBS-14, OBS-15
 - **Date**: 2026-11-02
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
 ### AD-098 (assumed)
 
-- **Decision**: production builds of the site and the agent export no telemetry until the maintainer decides on a notice: the site needs `VITE_TELEMETRY=on`, the agent `D2RMM_TELEMETRY=on` at compile time; debug builds, the headless example and the e2e site build export. The API's sampler ignores a caller's sampled flag (`ParentBased` with the ratio sampler for remote parents) and ignores `tracestate`.
-- **Reason**: sending players' browser and desktop telemetry to a third party is a privacy decision that is not taken (NFR-04, NFR-05); a caller must not force the maintainer's quota.
+- **Decision**: production builds of the site and the agent export no telemetry until the maintainer decides on a notice: the site needs `VITE_TELEMETRY=on`, the agent `D2RMM_TELEMETRY=on` at compile time (a debug profile alone is not a decision); the headless example and the e2e site build export. `release-agent.yml` and the Pages production build never set the flags (a harness test asserts it).
+- **Reason**: sending players' browser and desktop telemetry to a third party is a privacy decision that is not taken (NFR-04, NFR-05).
 - **Trade-off**: OBS-18 and OBS-21 describe capabilities, which exist, but nothing in production is traced until the flags are set. Reversal is setting the flags in the release workflow and the web deploy.
-- **Scope**: observability-e2e / OBS-18, OBS-21, OBS-43, OBS-44
+- **Scope**: observability-e2e / OBS-18, OBS-21, OBS-44
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-099 (assumed)
+
+- **Decision**: the relay does not apply `requireAgentVersion` (ADR 011's 426 below the minimum version); it authenticates the agent token only.
+- **Reason**: telemetry from an old agent is exactly what shows why it misbehaves; a 426 would hide it. The relay carries data only and changes no state.
+- **Trade-off**: a deviation from "every agent route answers 426 below the minimum"; the relay is not a product route. Reversal is composing `requireAgentVersion` into the relay guard and mapping `426` to "drop this batch" in the agent.
+- **Scope**: observability-e2e / OBS-10, OBS-11
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-100 (assumed)
+
+- **Decision**: the API's sampler is `ParentBased`: local parents are followed, `root` and `remoteParentNotSampled` use `TraceIdRatioBased(ratio)`, and `remoteParentSampled` uses the ratio plus a global token bucket (20 traces a second, burst 40). A caller's sampled flag or a ground trace id cannot export more than the bucket allows. Amends the reading of AD-089 and OBS-43 for remote parents only.
+- **Reason**: a client chooses its trace id and sampled flag on any route, authenticated or not, so a pure parent-based or ratio sampler lets it force export to the maintainer's quota.
+- **Trade-off**: under abuse the agent's sampled traces can be trimmed on the API side, leaving a partial trace; normal traffic stays far under 20 a second. Reversal is the plain `ParentBased(TraceIdRatioBased)` of AD-089.
+- **Scope**: observability-e2e / OBS-43
 - **Date**: 2026-11-02
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
