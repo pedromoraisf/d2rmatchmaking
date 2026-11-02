@@ -4,6 +4,9 @@ Feature: Traces follow a test room from the click to the stream event
   spans through the API without any secret of their own.
 
   # not-scenario: OBS-02 — the unset branch has nothing to observe; proved by an API integration test that starts both composition roots with no OTLP endpoint and answers a health check
+  # not-scenario: OBS-01 (metrics export only) — the trace scenario reads traces; proved by an API integration test that starts the API against a fake OTLP backend and asserts it receives a metrics export
+  # not-scenario: OBS-03 (statement without parameter values only) — proved by an API integration test with an in-memory span exporter that runs a query with a bound value and asserts the `pg` span's statement text has no value
+  # not-scenario: OBS-04 (navigation span and query-string removal only) — proved by a web unit test that navigates to a path with a query string and asserts the navigation span holds the path alone
   # not-scenario: OBS-07 — a missing outbox trace context is internal; proved by a Testcontainers integration test that inserts an outbox row with no trace context, runs the relay and receives the event
   # not-scenario: OBS-09 — the proxy header list is internal; proved by a Pages Function test that forwards `traceparent` and `tracestate` to a fake API and by the trace scenario below
   # not-scenario: OBS-16 — the relay never forwarding backend headers is invisible to a player; proved by an API integration test against a fake backend that answers with headers and a body, asserting the relay's response has neither and that no log or span holds the credentials
@@ -36,20 +39,22 @@ Feature: Traces follow a test room from the click to the stream event
   @OBS-01 @OBS-03 @OBS-04 @OBS-05 @OBS-06 @OBS-08 @OBS-24 @NFR-09 @slow @web
   Scenario: A test match leaves one trace through the site, the API, the database, the outbox and the stream
     Given the telemetry backend is running locally
-    And "Player One" is signed in on the site
-    And "Player One" has a paired agent that is online
-    When "Player One" starts a test match on the site
+    And "PlayerOne" is signed in on the site
+    And "PlayerOne" has a paired agent that is online
+    When "PlayerOne" starts a test match on the site
     Then the site shows the room as "Awaiting host"
-    And the telemetry backend holds, within 30 seconds, one trace that contains the site action, the API request and a database query as its child, the outbox relay as a child of the stored context, and the stream delivery as a child of the outbox relay
+    And the API request carried a traceparent sent by the site
+    And the telemetry backend holds, within 30 seconds, one trace that contains the site action as the root, the API request as its child, a database query as a child of the request, the outbox relay as a child of the stored context, and the stream delivery as a child of the outbox relay
     And no span of that trace carries a query string, a cookie, a token or a player name
 
   @OBS-12 @OBS-24 @NFR-09 @slow @web
   Scenario: The agent's observation leaves its own trace and the room becomes Created
     Given the telemetry backend is running locally
-    And "Player One" is signed in on the site
-    And "Player One" has a paired agent that is online
-    And a test match is formed with "Player One" as host
+    And "PlayerOne" is signed in on the site
+    And "PlayerOne" has a paired agent that is online
+    And a test match is formed with "PlayerOne" as host
     And the site shows the room as "Awaiting host"
+    And the headless agent core is running with a fixture screen
     When the agent reports the game name of the room
     Then the site shows the room as "Created" within 2 seconds
     And the telemetry backend holds, within 30 seconds, one trace whose root is the agent's observation span, with the API span of that request as its child, the outbox relay and the stream delivery of the "Created" event below it
@@ -58,8 +63,8 @@ Feature: Traces follow a test room from the click to the stream event
   @OBS-10 @OBS-11 @OBS-13 @OBS-17 @OBS-20 @NFR-09 @api
   Scenario Outline: The relay accepts only what it should
     Given a fake telemetry backend is listening
-    And "Player One" is signed in on the site
-    And "Player One" has a paired agent that is online
+    And "PlayerOne" is signed in on the site
+    And "PlayerOne" has a paired agent that is online
     When a client sends spans to the relay <how>
     Then the API answers <status>
     And the fake telemetry backend received <forwarded>
@@ -75,6 +80,35 @@ Feature: Traces follow a test room from the click to the stream event
       | as a paired agent with a gzip-encoded JSON body                      | 415    | nothing                                                    |
       | as a paired agent with a body of 1 MiB plus one byte                 | 413    | nothing                                                    |
       | with no credentials and a text body                                  | 401    | nothing                                                    |
+
+  @OBS-10 @NFR-09 @api
+  Scenario: A valid batch is accepted at once with no content
+    Given a fake telemetry backend is listening
+    And "PlayerOne" has a paired agent that is online
+    When a paired agent sends a small span batch to the relay
+    Then the API answers 202 with no content
+
+  @OBS-14 @NFR-09 @api
+  Scenario: The sixtieth batch in a minute is still accepted
+    Given a fake telemetry backend is listening
+    And "PlayerOne" has a paired agent that is online
+    And the agent has sent 59 span batches to the relay in the last minute
+    When the agent sends one more batch
+    Then the API answers 202 with no content
+
+  @OBS-20 @NFR-09 @api
+  Scenario Outline: The relay checks the rate before the content type, and the content type before the size
+    Given a fake telemetry backend is listening
+    And "PlayerOne" has a paired agent that is online
+    And the agent has sent <before> span batches to the relay in the last minute
+    When the agent sends a text body of <size>
+    Then the API answers <status>
+    And the fake telemetry backend received nothing
+
+    Examples:
+      | before | size                 | status |
+      | 60     | 1 KiB                | 429    |
+      | 0      | 2 MiB                | 415    |
 
   @OBS-14 @NFR-09 @api
   Scenario Outline: The relay slows down a flood
@@ -95,10 +129,11 @@ Feature: Traces follow a test room from the click to the stream event
     And a client with no credentials has sent 120 span batches to the relay in the last minute
     When that client sends one more batch
     Then the API answers 429 and says when to try again
+    And the fake telemetry backend does not receive that batch
 
   @OBS-15 @NFR-09 @api
   Scenario Outline: The relay does not break the sender when the backend fails
-    Given "Player One" has a paired agent that is online
+    Given "PlayerOne" has a paired agent that is online
     And the telemetry backend <failure>
     When a paired agent sends a small span batch to the relay
     Then the API answers 202 with no content

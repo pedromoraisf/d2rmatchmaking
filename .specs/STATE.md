@@ -764,7 +764,7 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Decision**: the trace crosses the outbox through a nullable `trace_context` column on `platform.outbox`, written in the transaction that writes the event; the relay continues it with `platform.outbox.relay` and `platform.stream.deliver`.
 - **Reason**: The outbox is the only asynchronous hop and has no carrier today; a column is the smallest durable carrier.
 - **Trade-off**: A migration adds a column (a new migration file, never an edit of an applied one). Rows written before it have no context and become root spans (OBS-07).
-- **Scope**: observability-e2e / OBS-04, OBS-05, OBS-07
+- **Scope**: observability-e2e / OBS-05, OBS-06, OBS-07
 - **Date**: 2026-11-02
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
@@ -773,7 +773,7 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Decision**: the browser does not report SSE receipt: the stream hop in the trace is the server-side delivery span.
 - **Reason**: `EventSource` cannot read a trace id without adding a field to the event payload, which is a contract change (AGENTS.md rule 2).
 - **Trade-off**: The trace ends at the server for the stream hop. Reversal is a payload field and a site span in F1.
-- **Scope**: observability-e2e / OBS-05
+- **Scope**: observability-e2e / OBS-06
 - **Date**: 2026-11-02
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
@@ -782,7 +782,7 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Decision**: the metrics created in F0 are `http.server.response.body.size`, `http.server.request.duration` (from the HTTP instrumentation), `sse.connections`, `outbox.lag` and `room.stage_duration`; the others of the design doc arrive with their use case.
 - **Reason**: Only these have a subject in the skeleton; empty instruments would be noise.
 - **Trade-off**: The dashboard is small. Reversal is adding instruments with their features.
-- **Scope**: observability-e2e / OBS-25, OBS-26
+- **Scope**: observability-e2e / OBS-33
 - **Date**: 2026-11-02
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
@@ -791,7 +791,7 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Decision**: the F0 proof runs against a local `grafana/otel-lgtm` in Docker; no Grafana Cloud endpoint or secret is created or used.
 - **Reason**: Confirmed by the maintainer on 2026-11-02 ("Sim e sim" to local-only backend and to Docker).
 - **Trade-off**: Production export is configuration only (`OTEL_EXPORTER_OTLP_*` in `main/`); the maintainer enables it when the account exists.
-- **Scope**: observability-e2e / OBS-18, OBS-19
+- **Scope**: observability-e2e / OBS-23, OBS-24
 - **Date**: 2026-11-02
 - **Status**: confirmed by the maintainer
 
@@ -836,7 +836,7 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Decision**: only the API exports logs over OTLP; the site and the agent export no logs or metrics in F0.
 - **Reason**: Only the API has log and metric subjects in the skeleton; NFR-09's wording ("three apps") is met for traces in all three and for logs and metrics where a subject exists.
 - **Trade-off**: NFR-09 is partly deferred for the site and the agent; the maintainer confirms at the phase review. Reversal is adding the signals to the relay.
-- **Scope**: observability-e2e / OBS-27, OBS-33
+- **Scope**: observability-e2e / OBS-26, OBS-27, OBS-33
 - **Date**: 2026-11-02
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 

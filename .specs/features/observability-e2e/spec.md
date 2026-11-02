@@ -132,7 +132,7 @@ that "the trace exists" is checked by code, not by eye.
 **Acceptance Criteria**:
 
 1. The repository SHALL contain `infra/observability/compose.yaml` that starts `grafana/otel-lgtm` pinned to an image tag, and `pnpm obs:up` and `pnpm obs:down` SHALL start and stop it.
-2. WHEN the trace scenario runs THEN it SHALL start the API with its OTLP endpoint pointing at that backend, sampling ratio `1.0` and staging endpoints enabled, drive the site flow and the agent over its HTTP contract, and poll Tempo for the traces for at most 30 s.
+2. WHEN the trace scenario runs THEN it SHALL start the API with its OTLP endpoint pointing at that backend, sampling ratio `1.0` and staging endpoints enabled, drive the site in a browser, run the agent as a headless process of the real agent core with the real HTTP gateway, the telemetry exporter and the `fixture-read` feature (AGS-33), so that the agent itself emits the `agent.http.*` spans, and poll Tempo for the traces for at most 30 s.
 3. WHEN the traces are found THEN the scenario SHALL assert the span names and the parent-child edges of OBS-08 and OBS-12 and SHALL print both trace ids.
 4. IF Docker is unavailable THEN the scenario SHALL fail with a message that names Docker as the missing prerequisite, and SHALL NOT pass without having read a trace; the scenario carries the tag `@slow`.
 
@@ -171,7 +171,7 @@ telemetry has a reader from day 0.
 **Acceptance Criteria**:
 
 1. The API SHALL record `http.server.response.body.size` (histogram, by route template and status class), `http.server.request.duration` (histogram, by route template and status class), `sse.connections` (up-down counter, by stream kind) and `outbox.lag` (gauge in seconds, the age of the oldest unpublished row, 0 when none).
-2. WHEN a room reaches `created` THEN the API SHALL record `room.stage_duration` (histogram in seconds, by stage) for the stage it left.
+2. WHEN a room reaches `created` THEN the API SHALL record `room.stage_duration` (histogram in seconds, by stage) once, for the stage it left immediately before (`awaiting_host`), as the seconds since that stage began.
 3. `infra/observability/dashboards/skeleton.json` SHALL hold a Grafana dashboard with request rate, error rate and duration per route, `outbox.lag` and `sse.connections`, and the compose file SHALL provision it.
 4. A test SHALL fail if a panel of the dashboard queries a metric that the code does not define.
 
