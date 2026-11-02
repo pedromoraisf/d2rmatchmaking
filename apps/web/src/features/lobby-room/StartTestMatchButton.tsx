@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ApiClient } from '../../shared/api-client.ts';
+import { tracedAction } from '../../shared/telemetry.ts';
 
 export interface StartTestMatchButtonProps {
   client: ApiClient;
@@ -13,7 +14,7 @@ export function StartTestMatchButton({ client, onStarted }: StartTestMatchButton
   const [failed, setFailed] = useState(false);
 
   async function start() {
-    const result = await client.matchFormed();
+    const result = await tracedAction('web.action.start-test-match', () => client.matchFormed());
     if (result.ok) {
       setFailed(false);
       onStarted();

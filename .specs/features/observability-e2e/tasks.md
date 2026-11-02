@@ -819,8 +819,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] `VITE_TELEMETRY` and `VITE_TELEMETRY_RATIO` are typed in `src/vite-env.d.ts`; telemetry starts before render only when `VITE_TELEMETRY === 'on'`; the button runs `client.matchFormed()` inside `tracedAction('web.action.start-test-match', …)`; one `web.navigation` span at start and on `popstate`
-- [ ] tests `the navigation span holds the path alone` and `the start test match click sends a traceparent` pass; the locale parity test and `no-literal-string` stay green
+- [x] `VITE_TELEMETRY` and `VITE_TELEMETRY_RATIO` are typed in `src/vite-env.d.ts`; telemetry starts before render only when `VITE_TELEMETRY === 'on'`; the button runs `client.matchFormed()` inside `tracedAction('web.action.start-test-match', …)`; one `web.navigation` span at start and on `popstate`
+- [x] tests `the navigation span holds the path alone` and `the start test match click sends a traceparent` pass; the locale parity test and `no-literal-string` stay green
 
 **Tests**: unit
 **Gate**: Web

@@ -196,6 +196,9 @@ importers:
       '@d2rmm/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@d2rmm/telemetry':
+        specifier: workspace:*
+        version: link:../../packages/telemetry
       i18next:
         specifier: ^26.5.12
         version: 26.5.12(typescript@5.9.3)

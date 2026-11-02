@@ -9,6 +9,7 @@ import { SignInPanel } from '../features/identity/SignInPanel.tsx';
 import { type RoomShown, RoomPanel } from '../features/lobby-room/RoomPanel.tsx';
 import { StartTestMatchButton } from '../features/lobby-room/StartTestMatchButton.tsx';
 import { type ApiClient, createApiClient } from '../shared/api-client.ts';
+import { tracingFetcher } from '../shared/telemetry.ts';
 import { openSiteStream, type StreamOpener } from '../shared/stream.ts';
 import { Layout } from './Layout.tsx';
 import { applyStreamEvent } from './site-state.ts';
@@ -29,7 +30,7 @@ interface Ready {
 
 type Boot = { status: 'loading' } | { status: 'failed' } | Ready;
 
-const defaultClient = createApiClient();
+const defaultClient = createApiClient(tracingFetcher((url, init) => fetch(url, init)));
 const defaultOpenStream: StreamOpener = (handlers) => openSiteStream(handlers);
 
 function shownRoom(view: RoomView): RoomShown {
