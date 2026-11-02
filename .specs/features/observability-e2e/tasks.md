@@ -1059,8 +1059,8 @@ T50 → T51 → T52 → T53 → T54 → T55 → T56
 
 **Done when**:
 
-- [ ] every metric name in a panel query maps to an entry of `INSTRUMENT_NAMES` (with the Prometheus name mapping documented in the test); a fixture dashboard with an undefined metric fails
-- [ ] test `every dashboard metric is defined by the code` passes
+- [x] every metric name in a panel query maps to an entry of `INSTRUMENT_NAMES` (with the Prometheus name mapping documented in the test); a fixture dashboard with an undefined metric fails
+- [x] test `every dashboard metric is defined by the code` passes
 
 **Tests**: unit
 **Gate**: Telemetry
