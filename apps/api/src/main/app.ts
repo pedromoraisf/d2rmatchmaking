@@ -4,14 +4,8 @@ import cookie from '@fastify/cookie';
 import swagger from '@fastify/swagger';
 import { ConfigResponse } from '@d2rmm/contracts';
 import { APP_METER_NAME } from '@d2rmm/telemetry';
-import Fastify, {
-  type FastifyError,
-  type FastifyInstance,
-  type FastifyReply,
-  type FastifyRequest,
-} from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
 import {
-  hasZodFastifySchemaValidationErrors,
   jsonSchemaTransform,
   serializerCompiler,
   validatorCompiler,
@@ -46,10 +40,16 @@ import { PostgresSessionRepository } from '../modules/identity/adapters/postgres
 import { Sha256SecretHasher } from '../modules/identity/adapters/postgres/sha256-secret-hasher.ts';
 import type { IdentityDatabase } from '../modules/identity/adapters/postgres/schema.ts';
 import { createIdentityUseCases } from '../modules/identity/application/identity-use-cases.ts';
+import { atMostOnePerMinute } from '../platform/error-log.ts';
 import { InMemoryEventBus } from '../platform/event-bus.ts';
+import { answerError } from '../platform/http/answer-error.ts';
 import { registerRequestMetrics } from '../platform/http/request-metrics.ts';
 import { registerOutboxLag } from '../platform/outbox-lag.ts';
 import { createGuards } from '../platform/http/guards.ts';
+import { Forwarder } from '../platform/http/relay-forwarder.ts';
+import { RelayBudget } from '../platform/http/relay-budget.ts';
+import { RelayLimiter } from '../platform/http/relay-limiter.ts';
+import { telemetryRelayPlugin } from '../platform/http/telemetry-relay.ts';
 import { OutboxRelay } from '../platform/outbox-relay.ts';
 import type { PlatformDatabase } from '../platform/postgres/database.ts';
 import { PostgresOutbox } from '../platform/postgres/outbox.ts';
@@ -103,6 +103,16 @@ export interface AppDeps {
   readonly logSink?: Writable;
   /** Called once per dead-lettered outbox row. Defaults to a log error with the id and type. */
   readonly onDeadLetter?: (outboxId: string, eventType: string) => void;
+  /** Where the telemetry relay forwards (OBS-15). Defaults to no endpoint: every forward is dropped. */
+  readonly telemetryBackend?: TelemetryBackend;
+}
+
+/** The OTLP backend the relay forwards to, from the `OTEL_EXPORTER_OTLP_*` settings (main/config.ts). */
+export interface TelemetryBackend {
+  /** `OTEL_EXPORTER_OTLP_ENDPOINT`, or undefined: then every forward is dropped. */
+  readonly endpoint: string | undefined;
+  /** `OTEL_EXPORTER_OTLP_HEADERS`: the backend credentials, sent on forwards only. */
+  readonly headers: Readonly<Record<string, string>>;
 }
 
 export interface BuiltApp {
@@ -118,32 +128,6 @@ export interface BuiltApp {
     readonly rateLimits: MemoryRateLimitStore;
     readonly tokenCache: MemoryAgentTokenCache;
   };
-}
-
-/** A database failure answers 503 `unavailable` (design.md § Error Handling). Driver errors carry a code or a pool message. */
-function isDatabaseFailure(error: FastifyError): boolean {
-  const code: unknown = error.code;
-  const driverCode = typeof code === 'string' && !code.startsWith('FST_');
-  return driverCode || /pool|connect/i.test(error.message);
-}
-
-/** Maps every error to the contract's `{ error }` body. Messages are never sent: they can echo values (codes, names). */
-function answerError(error: FastifyError, request: FastifyRequest, reply: FastifyReply): FastifyReply {
-  if (hasZodFastifySchemaValidationErrors(error)) {
-    const fields = [...new Set((error.validation ?? []).map((issue) => issue.instancePath.slice(1)))];
-    return reply.code(400).send({ error: 'invalid-request', fields });
-  }
-  const status = error.statusCode ?? 500;
-  if (status < 500) {
-    const code =
-      status === 413 ? 'payload-too-large' : status === 415 ? 'unsupported-media-type' : 'invalid-request';
-    return reply.code(status).send({ error: code });
-  }
-  request.log.warn({ errorName: error.name, errorCode: error.code }, 'request failed');
-  if (isDatabaseFailure(error)) {
-    return reply.code(503).send({ error: 'unavailable' });
-  }
-  return reply.code(500).send({ error: 'internal' });
 }
 
 /**
@@ -264,6 +248,21 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   await app.register(swagger, {
     openapi: { openapi: '3.1.0', info: { title: 'D2R Match Making API', version: '0.0.0' } },
     transform: jsonSchemaTransform,
+  });
+  // The relay's forwarder logs at most one line a minute when the backend is down (OBS-37).
+  const backend = deps.telemetryBackend ?? { endpoint: undefined, headers: {} };
+  await app.register(telemetryRelayPlugin, {
+    guards,
+    limiter: new RelayLimiter(clock),
+    budget: new RelayBudget(clock),
+    forwarder: new Forwarder({
+      endpoint: backend.endpoint,
+      credentials: backend.headers,
+      fetch: (url, init) => fetch(url, init),
+      log: atMostOnePerMinute(app.log, clock),
+    }),
+    clock,
+    scheduler,
   });
 
   const typed = app.withTypeProvider<ZodTypeProvider>();

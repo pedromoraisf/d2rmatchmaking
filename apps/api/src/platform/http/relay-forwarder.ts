@@ -43,10 +43,7 @@ export class Forwarder {
     if (endpoint === undefined) {
       return Promise.resolve();
     }
-    if (
-      this.#inFlight >= MAX_FORWARDS_IN_FLIGHT ||
-      this.#bytesInFlight + body.byteLength > MAX_BYTES_IN_FLIGHT
-    ) {
+    if (this.#capsFull(body.byteLength)) {
       this.#deps.log.error('relay-forward-dropped reason=in-flight-cap');
       return Promise.resolve();
     }
@@ -56,6 +53,18 @@ export class Forwarder {
       this.#inFlight -= 1;
       this.#bytesInFlight -= body.byteLength;
     });
+  }
+
+  /**
+   * Whether `forward` would drop a body of this size now: no endpoint, or the in-flight caps are full. Synchronous, so the
+   * relay can refund the bytes of a dropped forward before it answers (design § Relay route).
+   */
+  dropped(bytes: number): boolean {
+    return this.#deps.endpoint === undefined || this.#capsFull(bytes);
+  }
+
+  #capsFull(bytes: number): boolean {
+    return this.#inFlight >= MAX_FORWARDS_IN_FLIGHT || this.#bytesInFlight + bytes > MAX_BYTES_IN_FLIGHT;
   }
 
   async #send(endpoint: string, body: Uint8Array, contentType: string): Promise<void> {

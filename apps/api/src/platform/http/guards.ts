@@ -7,6 +7,8 @@ declare module 'fastify' {
   interface FastifyRequest {
     /** Set by `requireAgent`: the agent that presented a valid bearer token. */
     agentId?: string;
+    /** Set by `requireAgentOrSite` on the bearer path: the account the agent belongs to (the relay's budget key). */
+    agentAccountId?: string;
     /** Set by `requireSession`: the account of a valid session cookie. */
     accountId?: string;
     /** Set by `requireSession`: when the session cookie stops being valid (the stream hub closes at this instant). */
@@ -80,7 +82,7 @@ class LookupBucket {
 }
 
 /** The value of the session cookie in a `Cookie` header, or undefined when absent or empty. */
-function sessionCookieValue(cookieHeader: string | undefined): string | undefined {
+export function sessionCookieValue(cookieHeader: string | undefined): string | undefined {
   if (cookieHeader === undefined) {
     return undefined;
   }
@@ -218,6 +220,7 @@ export function createGuards(deps: GuardDeps): Guards {
           return reply.code(401).send({ error: 'unauthenticated' });
         }
         request.agentId = identity.value.agentId;
+        request.agentAccountId = identity.value.accountId;
         return undefined;
       }
       const token = sessionCookieValue(request.headers.cookie);

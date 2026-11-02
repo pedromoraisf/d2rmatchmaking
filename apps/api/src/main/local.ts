@@ -47,6 +47,7 @@ export async function startLocal(config: Config): Promise<LocalServer> {
       scheduler: new ClockScheduler(clock),
       random: new NodeRandomSource(),
       ids: new RandomUuidGenerator(),
+      telemetryBackend: { endpoint: config.telemetry.endpoint, headers: config.telemetry.headers },
     });
     if (controllable !== undefined && config.testControlSecret !== undefined) {
       registerTestControls(built.app, {
