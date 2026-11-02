@@ -111,6 +111,23 @@ execute-batch-1 committed T1 to T7 on `feat/F0-observability-e2e` (every gate pa
 - **Needs the maintainer**: `node scripts/attempt.mjs reset --unit gate:observability-e2e/T8 --by <maintainer>`. After the reset the runner dispatches execute-batch-1 again for T8 to T11 with the diagnosis above.
 - Also to confirm at the review: `sdk-trace-base` and `sdk-trace-web` 2.12.0 are deprecated on the registry ("Use @opentelemetry/sdk-trace package") and kept as the design names them; the replacement is a maintainer decision. The registry latest of `core`, `resources`, `sdk-metrics`, `sdk-logs` is the 3.0.0 line, which needs `api` 1.10; the 2.x set is the only coherent one (T1). The worker signed its commits `Co-Authored-By: Claude Haiku 5.5`, its own model, not the Sonnet line the task text named.
 
+## Blocked: observability-e2e, T12 `.env.example` (2026-11-02)
+
+execute-batch-2 stopped at T12 on a permission, not on the retry budget. The T12 config code, `apps/api/src/main/config.ts` with its tests and `scripts/test/env-example.test.mjs`, is uncommitted in the worktree; the API unit gate passed on attempt 1 (250 tests). The harness test `.env.example lists every OTEL variable the config reads` fails until the file exists.
+
+- **Cause**: `.claude/settings.json` `permissions.deny` has `Read(./.env.*)`, which matches `.env.example` and so refuses the Write tool on it. AGENTS.md rule 6 and `.gitleaks.toml` allow `.env.example`; the spec (OBS-40) names that file. The runner does not edit `.claude/settings.json` and does not write the file through Bash around the rule.
+- **Options for the maintainer**: (a) create `.env.example` at the repo root with the four lines below, then the runner finishes T12 (harness test, `pnpm secrets:scan`, commit); (b) add `Write(./.env.example)` (and `Edit`) to the allow list of `.claude/settings.json`, which is maintainer-owned.
+- **Suggested content** (placeholders only; the header value is deliberately not shaped like a credential, so the secret scanners stay quiet):
+
+```
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
+OTEL_EXPORTER_OTLP_HEADERS=x-example-header=replace-me
+OTEL_TRACES_SAMPLER_ARG=0.1
+OTEL_METRIC_EXPORT_INTERVAL=60000
+```
+
+- **Deviation to confirm**: `samplerArg` is a `string` defaulting to `'0.1'` in `config.ts` (the design's data model says `string | undefined`); `samplerFrom` keeps its own `0.1` fallback.
+
 ## Queued for F1 (from the api-web-skeleton security review)
 
 - Global ceiling on failed pairing-code submissions across accounts, and a rate limit on token claims (the F0 limits are the spec's, AD-032 and AD-041).
@@ -153,6 +170,7 @@ execute-batch-1 committed T1 to T7 on `feat/F0-observability-e2e` (every gate pa
 | 2026-11-01 | agent-skeleton blocked by the retry budget on `gate:agent-skeleton/verification` (the Verifier's mutation runs used the step's three attempts; verdict FAIL, 8 findings); observability-e2e and load-baseline wait on it (`phaseBlocked`)                                                                                                                                                                               | maintainer reset `gate:agent-skeleton/verification` (2026-11-01, by pedromoraisf); runner dispatches execute-batch-6 with the findings                                                                                            |
 | 2026-11-01 | ADR 026 (mutation testing runs against unit tests only) makes the agent-skeleton mutations unit-only. One residual risk: the one-line wiring `*unused = unused_after_claim_error(*unused, error)` in the async `show_code` (pairing.rs) is not mutation-proved; it is covered by the integration tests `unauthorized_on_claim_resets_the_unused_count` and `unauthorized_on_claim_returns_to_pairing`, not mutation-run | maintainer (2026-11-01): "Sobre o residual, aceitar o risco" — accepted; the architecture review of the agent (cohesion, boundaries) is the maintainer's, queued below                                                            |
 | 2026-11-02 | observability-e2e blocked by the retry budget on `gate:observability-e2e/T8` (the views test collects the metric twice); T9 to T56 chain on it and `load-baseline` waits on the feature (`phaseBlocked`)                                                                                                                                                                                                                | maintainer reset `gate:observability-e2e/T8` (2026-11-02, by pedromoraisf); the runner redispatches execute-batch-1 for T8 to T11 with the diagnosis                                                                              |
+| 2026-11-02 | observability-e2e T12 needs `.env.example` (OBS-40, AGENTS.md rule 6 allows it), but `.claude/settings.json` `permissions.deny` holds `Read(./.env.*)`, which also refuses the Write tool on `.env.example`, and a Bash call naming it is denied. The Config half of T12 passed its gate (attempt 1) and is uncommitted; T13 to T56 chain on T12 (`phaseBlocked`)                                                       | pending: the maintainer creates `.env.example` at the repo root (content below), or adds an allow for `Write(./.env.example)` in `.claude/settings.json` (maintainer-owned)                                                       |
 
 ## Follow-ups queued
 
