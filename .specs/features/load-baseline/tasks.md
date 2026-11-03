@@ -748,7 +748,7 @@ T32 → T33
 - [ ] `images.mjs` pins `alpine/openssl` by `@sha256:` digest (look it up with `docker buildx imagetools inspect`, never guess) and the certificate builder takes its image from that constant (a test fails on a literal); the static test enumerates the exported image constants rather than a fixed list; the image reference appears in the summary's `versions`
 - [ ] The certificate builder returns the argument array of a labelled, run-named container with `--entrypoint sh`, `--network none`, `--cap-drop ALL`, `--cap-add CHOWN`, `--security-opt no-new-privileges` and `--read-only`, whose only mount is the named volume at `/tls` (no `--publish`, no `--env`, no env-file, no bind mount); its command creates the CA and the server certificate for the Postgres container's name, signs it, deletes the CA key, sets the key to uid 70 and mode 0600 and the directory to mode 0755; the container is not `--rm` because the CA is copied out of it first
 - [ ] **Only Postgres mounts the volume**, read-only at `/tls` (it no longer runs `openssl`); no other builder has the volume in a `--volume` or `--mount` argument (a test asserts it); the API and the migration mount the public CA file copied into the 0700 work directory
-- [ ] `orchestrate.mjs` runs `docker volume inspect` first and fails if the volume exists (the name carries the run id and is never reused), creates the volume, runs the certificate container before Postgres, copies exactly `/tls/ca.crt` out of the stopped container into a fixed file name and checks it is a regular file holding a single `BEGIN CERTIFICATE` block, then removes the certificate container
+- [ ] `orchestrate.mjs` creates the volume with `docker volume create` and treats an "already exists" answer as a failure (the name carries the run id and is never reused), runs the certificate container before Postgres, copies exactly `/tls/ca.crt` out of the stopped container into a fixed file name and checks it is a regular file holding a single `BEGIN CERTIFICATE` block, sets the copy to mode 0644 inside the 0700 work directory so the container users can read it, then removes the certificate container
 - [ ] `cleanupPlan` lists the certificate container in `containers` and the volume in a new `volumes` list, removed **after** the containers; `sweepPlan` gets the kind `volume` with the container rule (the label value equals the run id in the volume's name) and the orchestrator's `docker.list` includes `docker volume ls --filter label=d2rmm-load`; unit tests cover the volume sweep, the removal order and the fake `Docker` port of the sequence tests records them
 - [ ] The existing tests of T16, T18 and T26 keep their names and claims; the "Postgres with TLS" test now asserts the certificate container, its flags and the read-only volume (the claim of C33 is unchanged); the new test "certificate container and volume" (C50) holds the flag, mount, constant and cleanup assertions
 - [ ] Gate passes: the Quick gate
@@ -769,7 +769,7 @@ T32 → T33
 **Done when**:
 
 - [ ] `onCreated` already returns `timed-out` with exactly one error and no latency sample at 5 000 ms or later (a frame at 4 999 ms stays a latency; tests at 4 999, 5 000 and 5 001 ms); the **new** work: `onClose(state, nowMs)` returns `timed-out` with one error when an observation is pending and `nowMs` is 5 000 ms or more after it, and the same state with no error when it is younger or no observation was sent; every settled state carries `observedAt`, the time of its observation, so the caller tallies the error at that time and not at the time the error is found
-- [ ] A stale `observed` state is settled before a new frame is handled: `onAssigned` (and `onCreated`) first apply `onTick`, so an iteration whose `created` frame never came is closed with one error and the new assignment starts a fresh iteration (a unit test: "timed out, then a second assigned frame"); an error is never lost because a later frame arrived
+- [ ] A stale `observed` state is settled before a new frame is handled, with this handler-level contract (tested as "timed out, then a second assigned frame"): the caller applies `onTick`, tallies the settled iteration's error at its `observedAt`, then calls `start()` and `onAssigned` for the new frame; `onAssigned` and `onCreated` themselves also return the settled `timed-out` state (with its one error) when the state they receive is stale, never dropping or double-counting it
 - [ ] The module still has no Node import and no optional chaining or object spread
 - [ ] Tests named as in `## Checks` pass: the Quick gate
 
@@ -788,9 +788,10 @@ T32 → T33
 
 **Done when**:
 
-- [ ] No `setTimeout`, `setInterval` or `clearInterval` is created inside an `sse.open` handler; the `site` and `agent` scenarios open their stream with the `timeout` argument set to the remaining time of the step; a `match` scenario posts the test match of player `iteration mod players` with the player's cookie and `Origin`, as `constant-arrival-rate` with `rate` = the number of players and `timeUnit: '60s'` (an integer rate, one match per player per 60 s), `startTime` at the end of the ramp, `duration` = the step's end minus the ramp, and `preAllocatedVUs` and `maxVUs` named; it records `matchesPosted` in the window
-- [ ] The site handler calls `start()` on each `room.assigned` that finds no iteration or a settled one, then `onAssigned`; it calls `onClose` when the stream ends and tallies every settled iteration's error with the window of its `observedAt` (not of the close); `step.json` also carries `matchesPosted`. A match whose assignment never arrives is not an iteration; T37 counts it
-- [ ] If the `timeout` argument does not end a stream on the real run (the contingency, T32 finds out), the scenario's `gracefulStop` ends it and the pending observations are settled by the next frame only; the worker records the finding in `## Handoff` and the orchestrator decides (it is not worked around silently)
+- [ ] No `setTimeout`, `setInterval` or `clearInterval` is created inside an `sse.open` handler; the `site` and `agent` scenarios open their stream with the `timeout` argument set to the remaining time of the step; a `match` scenario posts the test match of player `iteration mod players` with the player's cookie and `Origin`, as `constant-arrival-rate` with `rate` = the number of players and `timeUnit: '60s'` (an integer rate, one match per player per 60 s), `startTime` at the end of the ramp, `duration` = the window end minus the ramp (it stops at the window end), and `preAllocatedVUs` and `maxVUs` named; it counts `matchesPosted` over the whole step, **2xx posts only** (a failed post is already an error and is not a match)
+- [ ] The streams' `timeout` is the window end plus `tailSeconds` (10 s, from the plan) minus the stream's start, so every observation made in the window is settled at the close; on each `room.assigned` the site handler applies `onTick`, tallies the settled iteration's error with the window of its `observedAt`, then calls `start()` and `onAssigned`; it calls `onClose` when the stream ends and tallies likewise; it counts `iterationsStarted` over the whole step; `step.json` also carries `matchesPosted` and `iterationsStarted`. A match whose assignment never arrives is not an iteration; T37 counts it
+- [ ] The T36 Gate is static, so the behavioural proof of these tallies is the smoke check of T32 (see there)
+- [ ] If the `timeout` argument does not end a stream on the real run (the contingency, T32 finds out), the scenario's `gracefulStop` ends it and the pending observations are settled by the next frame only, so observations pending at the end are not counted and the error count is **under**-reported (not over-reported); the worker records the finding and this effect in `## Handoff` and the orchestrator decides (it is not worked around silently)
 - [ ] The static test names the rules: "journey uses no timers while a stream is open" (no timer call inside an `sse.open` callback, a `match` scenario with `timeUnit: '60s'`, the `timeout` argument, `onClose` and `matchesPosted` present); `node --check scripts/load/k6/journey.mjs` passes
 - [ ] Gate passes: the Static gate
 
@@ -799,18 +800,18 @@ T32 → T33
 
 ---
 
-### T37: Matches whose assignment never arrived
+### T37: Matches whose assignment never arrived, and the tail of a step
 
-**What**: Count a posted match that produced no iteration as an error, in the orchestrator's step result.
-**Where**: `scripts/load/lib/error-ratio.mjs` (modify; tests in `scripts/test/load/error-ratio.test.mjs`; `orchestrate.mjs` reads `matchesPosted` from `step.json`)
+**What**: Count a posted match that produced no iteration as an error, in the orchestrator's step result, and give every step a tail after its window.
+**Where**: `scripts/load/lib/error-ratio.mjs` (modify; tests in `scripts/test/load/error-ratio.test.mjs`; `profile.mjs` gains `tailSeconds`, `orchestrate.mjs` reads `matchesPosted` and `iterationsStarted` from `step.json` and writes `tailSeconds` into the plan)
 **Depends on**: T36
 **Reuses**: T3 and T26; the `matchesPosted` field T36 writes
 **Requirement**: LB-05, LB-08
 
 **Done when**:
 
-- [ ] `lostAssignments({ matchesPosted, iterations })` returns the positive difference (0 when there are no more matches than iterations); the step's error count the orchestrator uses is the k6 errors plus the lost assignments, and the error ratio formula is unchanged (errors over requests plus iterations)
-- [ ] `orchestrate.mjs` reads `matchesPosted` and applies it; a step result with 5 matches posted and 3 iterations counts 2 more errors (a unit test with the fake ports)
+- [ ] `lostAssignments({ matchesPosted, iterationsStarted })` returns the positive difference, both counts over the whole step (0 when there are no more matches than iterations); the step's error count the orchestrator uses is the k6 errors plus the lost assignments (conservative: whole-step losses added to the window's errors), and the error ratio formula is unchanged (errors over requests plus iterations)
+- [ ] `profileFor` exposes `tailSeconds` (10 s for both profiles: the 5 s rule plus 5 s of slack) and the step's k6 duration is the window end plus the tail; `orchestrate.mjs` writes `tailSeconds` into the plan, reads `matchesPosted` and `iterationsStarted` and applies them; a step result with 5 matches posted and 3 iterations started counts 2 more errors, and 5 posted with 5 started counts none, including when matches fall near the window edges (unit tests with the fake ports)
 - [ ] Tests named as in `## Checks` pass: the Quick gate
 
 **Tests**: unit
@@ -832,7 +833,8 @@ T32 → T33
 
 - [ ] `pnpm test:load:smoke` exits 0 against real containers; if it fails, the worker finds the cause by reading the printed error and the container logs of the run, fixes the code (never the check), and the gate runs again within the retry budget
 - [ ] The check reads `reports/load/smoke-summary.json` and asserts `profile: "smoke"`, `passed: true`, `error: null`, `steps.length: 1` with 5 players, latency samples above 0, `agentAssignedFrames` above 0, `meterBytes` above 0, `sinkBytes` above 0, the CPU and memory limits equal to the defaults, versions present, no cookie, token or password text, and that `summary.json` was not written
-- [ ] After the run no container, network or `d2rmm-load-*` temp directory is left (`docker ps -a`, `docker network ls` filtered by the label, and `os.tmpdir()` listing in the check)
+- [ ] The check also asserts the accounting of the step: `matchesPosted` at least `iterationsStarted`, at least one iteration with a latency sample, and the step's error count equal to the k6 errors plus `matchesPosted − iterationsStarted`
+- [ ] After the run no container, network, volume or `d2rmm-load-*` temp directory is left (`docker ps -a`, `docker network ls` filtered by the label, and `os.tmpdir()` listing in the check)
 - [ ] Gate passes: `pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.check.mjs`
 
 **Tests**: integration
@@ -1011,7 +1013,7 @@ Proof: `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`
 **C49** - A `created` frame at or after 5 000 ms from its observation is one error and no latency sample; an observation still pending 5 000 ms or more when the stream ends is one error, tallied at the time of its observation, and a younger one is none; a stale iteration is settled when the next assignment arrives (LB-05, AC 5; LB-08 edge case)
 Proof: `node --test "--test-name-pattern=pending observation at the end of a stream" scripts/test/load/journey-state.test.mjs`
 
-**C52** - A match posted whose assignment never arrived is counted as one error per missing iteration (LB-05, AC 5; LB-08, AC 8)
+**C52** - A match posted (2xx) whose assignment never arrived is counted as one error per missing iteration, over the whole step, and none when every posted match started an iteration (LB-05, AC 5; LB-08, AC 8)
 Proof: `node --test "--test-name-pattern=lost assignments count as errors" scripts/test/load/error-ratio.test.mjs`
 
 **C50** - The throwaway TLS material is made in a pinned `alpine/openssl` container (flags, constant, a single mount) into a per-run volume that only Postgres mounts, and the cleanup and the sweep remove the container and then the volume (LB-01, AC 1; LB-19, AC 3)
