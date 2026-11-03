@@ -175,8 +175,8 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `errorRatio({ errors, requests, iterations })` returns errors over requests plus iterations, and 0 when the divisor is 0; negative or non-integer input throws
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `errorRatio({ errors, requests, iterations })` returns errors over requests plus iterations, and 0 when the divisor is 0; negative or non-integer input throws
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
