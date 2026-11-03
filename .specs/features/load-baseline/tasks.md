@@ -604,8 +604,8 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `provision({ players, base, origin, version, fetch })` signs in, requests a pairing code, pairs and claims (polling `202 pending` until `200`) for at most 20 players at a time, returns each player's `cookie` and `token`, and throws (redacted) on any non-success; it never logs a cookie or a token
-- [ ] Tests named as in `## Checks` pass with a fake `fetch`: quick gate
+- [x] `provision({ players, base, origin, version, fetch })` signs in, requests a pairing code, pairs and claims (polling `202 pending` until `200`) for at most 20 players at a time, returns each player's `cookie` and `token`, and throws (redacted) on any non-success; it never logs a cookie or a token
+- [x] Tests named as in `## Checks` pass with a fake `fetch`: quick gate
 
 **Tests**: unit
 **Gate**: Quick
