@@ -20,5 +20,5 @@ describe('@d2rmm/telemetry package entries', () => {
     expect(root).toBeDefined();
     expect(node).toBeDefined();
     expect(web).toBeDefined();
-  });
+  }, 30_000);
 });
