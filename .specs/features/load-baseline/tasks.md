@@ -544,8 +544,8 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `startSink({ listen, control, token })` answers `POST /v1/traces`, `/v1/metrics`, `/v1/logs` with `200 {}`, counts the bytes it reads on the wire (request line, headers and body) inside a window, discards the body and logs nothing; control endpoints as the meter's (bearer and `Host` checks)
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `startSink({ listen, control, token })` answers `POST /v1/traces`, `/v1/metrics`, `/v1/logs` with `200 {}`, counts the bytes it reads on the wire (request line, headers and body) inside a window, discards the body and logs nothing; control endpoints as the meter's (bearer and `Host` checks)
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
