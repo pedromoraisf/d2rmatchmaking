@@ -719,8 +719,8 @@ T32 → T33
 
 **Done when**:
 
-- [ ] The load row names `scripts/load` instead of `tests/load`, the three commands, that the run needs Docker, is on demand and at the end of a phase, and is never part of `pnpm check` or a pull-request workflow; `pnpm format:check` passes
-- [ ] Gate passes: `pnpm exec prettier --check docs/engineering/testing.md && node --test scripts/test/load-scripts.test.mjs`
+- [x] The load row names `scripts/load` instead of `tests/load`, the three commands, that the run needs Docker, is on demand and at the end of a phase, and is never part of `pnpm check` or a pull-request workflow; `pnpm format:check` passes
+- [x] Gate passes: `pnpm exec prettier --check docs/engineering/testing.md && node --test scripts/test/load-scripts.test.mjs`
 
 **Tests**: none
 **Gate**: Static
@@ -962,6 +962,11 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - An iteration still waiting for its assignment when the next match starts counts one error (status 0) in the k6 script, not in `journey-state.mjs`: a judgement to review.
 - Not proved before T32: `openssl` in `postgres:17-alpine` (the TLS command), `k6 version` printing `k6/x/sse` (the spike says it does), and the 0600 files read by the meter and the sink (uid node) over the bind mount.
 - Checks: T24 static gate 81 tests; T25 84; T26 98; T27 99; the entry refuses `LOAD_TARGET` and a missing `LOAD_PROFILE` with exit 2 before any Docker call.
+
+**Batch 6 (execute-batch-6, T28 to T31, implementer):** T28 `31b26c8`, T29 `5efab0f`, T30 `9ef8d1f`, T31 (this commit).
+
+- Notes for T32 and T33: `publish.mjs` writes `docs/engineering/load-baseline.md` through a `.<pid>.tmp` file and a rename, and a refusal writes nothing. The acceptance steps give the child its own `TMPDIR`, so the run's lock and sweep never touch the real tmp. The `docker` shim is never asked for `run` or `create` in these scenarios.
+- Gate hook: a direct `pnpm --filter @d2rmm/acceptance typecheck` was denied (denial 1 of 3, not retried). It passed through `attempt.mjs` under T30. The T30 gate's `--grep "@LB-16\|@LB-17\|@LB-18"` was denied as an unquoted pipe; the same pattern in single quotes passed (9 scenario examples).
 
 ---
 
