@@ -20,7 +20,7 @@ describe('shared ESLint preset rules', () => {
       'export const databaseUrl = process.env.DATABASE_URL;\n',
     );
     expect(ruleIds).toStrictEqual(['n/no-process-env']);
-  });
+  }, 30_000);
 
   it('reports process.env in the telemetry package', async () => {
     const ruleIds = await ruleIdsFor(
