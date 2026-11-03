@@ -12,6 +12,10 @@ WORKDIR /app
 
 COPY . .
 
+# Node 25 and later ship no corepack, and Render's runtime has one: the pinned corepack is installed here so that the
+# render.yaml command below runs unchanged and pnpm comes from the packageManager field of package.json.
+RUN npm install -g corepack@0.36.0
+
 RUN corepack enable && pnpm install --frozen-lockfile --ignore-scripts
 
 USER node

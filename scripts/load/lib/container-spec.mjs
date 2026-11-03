@@ -56,7 +56,7 @@ const MIGRATE_ENTRY = ['node', 'apps/api/src/main/migrate.ts'];
 const POSTGRES_TLS_SCRIPT = [
   'set -eu',
   'umask 077',
-  'mkdir -p /tls && cd /tls',
+  'mkdir -p /tls && chmod 755 /tls && cd /tls',
   'openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 1 -subj /CN=d2rmm-load-ca -keyout ca.key -out ca.crt',
   'openssl req -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -subj "/CN=$1" -keyout server.key -out server.csr',
   'printf "subjectAltName=DNS:%s\\n" "$1" > san.cnf',

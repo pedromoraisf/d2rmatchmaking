@@ -150,7 +150,7 @@ function heartbeatBody() {
 
 /** One site stream for one player: matches on open and every matchEverySeconds, observations and latency. */
 export function site() {
-  const index = exec.scenario.iterationInScenario;
+  const index = exec.scenario.iterationInInstance;
   const player = PLAYERS[index];
   waitUntil((RAMP_MS * index) / COUNT);
 
@@ -262,7 +262,7 @@ export function site() {
 
 /** One agent stream for one player: held for the step, its `room.assigned` frames counted. */
 export function agent() {
-  const index = exec.scenario.iterationInScenario;
+  const index = exec.scenario.iterationInInstance;
   const player = PLAYERS[index];
   waitUntil((RAMP_MS * index) / COUNT);
 
@@ -295,7 +295,7 @@ export function agent() {
 
 /** One heartbeat, the next player in turn: the scenario's iterations go round the players. */
 export function heartbeat() {
-  const player = PLAYERS[exec.scenario.iterationInScenario % COUNT];
+  const player = PLAYERS[exec.scenario.iterationInInstance % COUNT];
   const at = nowMs();
   const res = http.post(BASE + '/v1/agents/heartbeat', JSON.stringify(heartbeatBody()), {
     headers: agentHeaders(player),
