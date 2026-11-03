@@ -61,7 +61,7 @@ Project rules for every task of this feature:
 
 ## Execution Plan
 
-Phases run in order; tasks within a phase run in order. Batches (whole phases): 1 = Phase 1 (the spike alone, so an escalation comes before any other work), 2 = Phase 2, 3 = Phases 3 and 4, 4 = Phases 5 and 6, 5 = Phases 7 and 8 (run as batches 5 and 6), 7 = the first smoke attempt (T32, which found the three points of design.md Revision 1), 8 = Phase 9 (the fixes T34 to T36, replanned 2026-11-03), 9 = Phase 10 (the Docker runs T32 and T33).
+Phases run in order; tasks within a phase run in order. Batches (whole phases): 1 = Phase 1 (the spike alone, so an escalation comes before any other work), 2 = Phase 2, 3 = Phases 3 and 4, 4 = Phases 5 and 6, 5 = Phases 7 and 8 (run as batches 5 and 6), 7 = the first smoke attempt (T32, which found the three points of design.md Revision 1), 8 = Phase 9 (the fixes T34 to T37, replanned 2026-11-03), 9 = Phase 10 (the Docker runs T32 and T33).
 
 ### Phase 1: Spike
 
@@ -114,7 +114,7 @@ T28 → T29 → T30 → T31
 ### Phase 9: Findings of the first real run
 
 ```
-T34 → T35 → T36
+T34 → T35 → T36 → T37
 ```
 
 ### Phase 10: Runs
@@ -745,9 +745,12 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `images.mjs` pins `alpine/openssl` by `@sha256:` digest (look it up with `docker buildx imagetools inspect`, never guess); a builder returns the argument array of the certificate container (labelled, named, the volume mounted at `/tls`, no published port, no network needed) whose command creates the CA and the server certificate for the Postgres container's name, signs it, deletes the CA key, sets the key to uid 70 and mode 0600 and the directory to mode 0755; the Postgres builder mounts the volume read-only at `/tls` and no longer runs `openssl`; no password or key appears in an argument
-- [ ] `cleanupPlan` lists the volume; `orchestrate.mjs` creates the volume, runs the certificate container before Postgres, copies only the public CA out of the stopped certificate container with `docker cp`, and removes the volume on every exit path (the fake `Docker` port of the sequence tests records it)
-- [ ] The existing tests of T16, T18 and T26 keep their names and claims; the "Postgres with TLS" test now asserts the certificate container and the read-only volume (the claim of C33 is unchanged)
+- [ ] `images.mjs` pins `alpine/openssl` by `@sha256:` digest (look it up with `docker buildx imagetools inspect`, never guess) and the certificate builder takes its image from that constant (a test fails on a literal); the static test enumerates the exported image constants rather than a fixed list; the image reference appears in the summary's `versions`
+- [ ] The certificate builder returns the argument array of a labelled, run-named container with `--entrypoint sh`, `--network none`, `--cap-drop ALL`, `--cap-add CHOWN`, `--security-opt no-new-privileges` and `--read-only`, whose only mount is the named volume at `/tls` (no `--publish`, no `--env`, no env-file, no bind mount); its command creates the CA and the server certificate for the Postgres container's name, signs it, deletes the CA key, sets the key to uid 70 and mode 0600 and the directory to mode 0755; the container is not `--rm` because the CA is copied out of it first
+- [ ] **Only Postgres mounts the volume**, read-only at `/tls` (it no longer runs `openssl`); no other builder has the volume in a `--volume` or `--mount` argument (a test asserts it); the API and the migration mount the public CA file copied into the 0700 work directory
+- [ ] `orchestrate.mjs` runs `docker volume inspect` first and fails if the volume exists (the name carries the run id and is never reused), creates the volume, runs the certificate container before Postgres, copies exactly `/tls/ca.crt` out of the stopped container into a fixed file name and checks it is a regular file holding a single `BEGIN CERTIFICATE` block, then removes the certificate container
+- [ ] `cleanupPlan` lists the certificate container in `containers` and the volume in a new `volumes` list, removed **after** the containers; `sweepPlan` gets the kind `volume` with the container rule (the label value equals the run id in the volume's name) and the orchestrator's `docker.list` includes `docker volume ls --filter label=d2rmm-load`; unit tests cover the volume sweep, the removal order and the fake `Docker` port of the sequence tests records them
+- [ ] The existing tests of T16, T18 and T26 keep their names and claims; the "Postgres with TLS" test now asserts the certificate container, its flags and the read-only volume (the claim of C33 is unchanged); the new test "certificate container and volume" (C50) holds the flag, mount, constant and cleanup assertions
 - [ ] Gate passes: the Quick gate
 
 **Tests**: unit
@@ -765,7 +768,9 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `onCreated` with a latency above 5 000 ms returns `timed-out` with exactly one error and no latency sample (a frame at 4 999 ms stays a latency, at 5 001 ms an error); `onClose(state, nowMs)` returns `timed-out` with one error when an observation is pending and `nowMs` is 5 000 ms or more after it, and the same state with no error when it is younger or no observation was sent; `onTick` keeps its behaviour; the module still has no Node import and no optional chaining or object spread
+- [ ] `onCreated` already returns `timed-out` with exactly one error and no latency sample at 5 000 ms or later (a frame at 4 999 ms stays a latency; tests at 4 999, 5 000 and 5 001 ms); the **new** work: `onClose(state, nowMs)` returns `timed-out` with one error when an observation is pending and `nowMs` is 5 000 ms or more after it, and the same state with no error when it is younger or no observation was sent; every settled state carries `observedAt`, the time of its observation, so the caller tallies the error at that time and not at the time the error is found
+- [ ] A stale `observed` state is settled before a new frame is handled: `onAssigned` (and `onCreated`) first apply `onTick`, so an iteration whose `created` frame never came is closed with one error and the new assignment starts a fresh iteration (a unit test: "timed out, then a second assigned frame"); an error is never lost because a later frame arrived
+- [ ] The module still has no Node import and no optional chaining or object spread
 - [ ] Tests named as in `## Checks` pass: the Quick gate
 
 **Tests**: unit
@@ -783,12 +788,33 @@ T32 → T33
 
 **Done when**:
 
-- [ ] No `setTimeout`, `setInterval` or `clearInterval` is created inside an `sse.open` handler; the `site` and `agent` scenarios open their stream with the `timeout` argument set to the remaining time of the step; a `match` scenario (`constant-arrival-rate`, players ÷ 60 per second, `startTime` at the end of the ramp) posts the test match of player `iteration mod players` with the player's cookie and `Origin`; the site handler calls `onClose` when the stream ends and counts its error; `heartbeat` and `control` stay as they are
-- [ ] The static test names the rules: "journey uses no timers while a stream is open" (no timer call inside an `sse.open` callback, a `match` scenario, the `timeout` argument); `node --check scripts/load/k6/journey.mjs` passes
+- [ ] No `setTimeout`, `setInterval` or `clearInterval` is created inside an `sse.open` handler; the `site` and `agent` scenarios open their stream with the `timeout` argument set to the remaining time of the step; a `match` scenario posts the test match of player `iteration mod players` with the player's cookie and `Origin`, as `constant-arrival-rate` with `rate` = the number of players and `timeUnit: '60s'` (an integer rate, one match per player per 60 s), `startTime` at the end of the ramp, `duration` = the step's end minus the ramp, and `preAllocatedVUs` and `maxVUs` named; it records `matchesPosted` in the window
+- [ ] The site handler calls `start()` on each `room.assigned` that finds no iteration or a settled one, then `onAssigned`; it calls `onClose` when the stream ends and tallies every settled iteration's error with the window of its `observedAt` (not of the close); `step.json` also carries `matchesPosted`. A match whose assignment never arrives is not an iteration; T37 counts it
+- [ ] If the `timeout` argument does not end a stream on the real run (the contingency, T32 finds out), the scenario's `gracefulStop` ends it and the pending observations are settled by the next frame only; the worker records the finding in `## Handoff` and the orchestrator decides (it is not worked around silently)
+- [ ] The static test names the rules: "journey uses no timers while a stream is open" (no timer call inside an `sse.open` callback, a `match` scenario with `timeUnit: '60s'`, the `timeout` argument, `onClose` and `matchesPosted` present); `node --check scripts/load/k6/journey.mjs` passes
 - [ ] Gate passes: the Static gate
 
 **Tests**: unit (static)
 **Gate**: Static
+
+---
+
+### T37: Matches whose assignment never arrived
+
+**What**: Count a posted match that produced no iteration as an error, in the orchestrator's step result.
+**Where**: `scripts/load/lib/error-ratio.mjs` (modify; tests in `scripts/test/load/error-ratio.test.mjs`; `orchestrate.mjs` reads `matchesPosted` from `step.json`)
+**Depends on**: T36
+**Reuses**: T3 and T26; the `matchesPosted` field T36 writes
+**Requirement**: LB-05, LB-08
+
+**Done when**:
+
+- [ ] `lostAssignments({ matchesPosted, iterations })` returns the positive difference (0 when there are no more matches than iterations); the step's error count the orchestrator uses is the k6 errors plus the lost assignments, and the error ratio formula is unchanged (errors over requests plus iterations)
+- [ ] `orchestrate.mjs` reads `matchesPosted` and applies it; a step result with 5 matches posted and 3 iterations counts 2 more errors (a unit test with the fake ports)
+- [ ] Tests named as in `## Checks` pass: the Quick gate
+
+**Tests**: unit
+**Gate**: Quick
 
 ---
 
@@ -798,7 +824,7 @@ T32 → T33
 
 **What**: Run the smoke profile for real and check its summary.
 **Where**: `scripts/load/check/smoke-summary.check.mjs`
-**Depends on**: T36
+**Depends on**: T37
 **Reuses**: `reports/load/smoke-summary.json`
 **Requirement**: LB-01, LB-02, LB-03, LB-05, LB-09, LB-19
 
@@ -982,10 +1008,13 @@ Proof: `pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.che
 **C48** - The full run passes: 100 players or more inside 2 s p95 with fewer than 1% errors, the numbers published in `reports/load/summary.json`, the telemetry share at most 0.10 (LB-10, LB-11, LB-13, LB-14, LB-15, LB-21, LB-22; Success Criteria)
 Proof: `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`
 
-**C49** - A `created` frame later than 5 000 ms after its observation is one error and no latency sample, an observation still pending 5 000 ms or more when the stream ends is one error, and a younger one is none (LB-05, AC 5; LB-08 edge case)
+**C49** - A `created` frame at or after 5 000 ms from its observation is one error and no latency sample; an observation still pending 5 000 ms or more when the stream ends is one error, tallied at the time of its observation, and a younger one is none; a stale iteration is settled when the next assignment arrives (LB-05, AC 5; LB-08 edge case)
 Proof: `node --test "--test-name-pattern=pending observation at the end of a stream" scripts/test/load/journey-state.test.mjs`
 
-**C50** - The throwaway TLS material is made in a pinned `alpine/openssl` container into a per-run volume, which the cleanup plan removes (LB-01, AC 1; LB-19, AC 3)
+**C52** - A match posted whose assignment never arrived is counted as one error per missing iteration (LB-05, AC 5; LB-08, AC 8)
+Proof: `node --test "--test-name-pattern=lost assignments count as errors" scripts/test/load/error-ratio.test.mjs`
+
+**C50** - The throwaway TLS material is made in a pinned `alpine/openssl` container (flags, constant, a single mount) into a per-run volume that only Postgres mounts, and the cleanup and the sweep remove the container and then the volume (LB-01, AC 1; LB-19, AC 3)
 Proof: `node --test "--test-name-pattern=certificate container and volume" scripts/test/load/container-spec.test.mjs`
 
 **C51** - The journey creates no JavaScript timer inside a stream handler, posts the matches from its own scenario and ends streams with the `timeout` argument (LB-03, AC 3; LB-05, AC 5)
@@ -1066,7 +1095,7 @@ Phase 5:  T18 -----→ T19 -----→ T20
 Phase 6:  T21 -----→ T22 -----→ T23
 Phase 7:  T24 -----→ T25 -----→ T26 -----→ T27
 Phase 8:  T28 -----→ T29 -----→ T30 -----→ T31
-Phase 9:  T34 -----→ T35 -----→ T36
+Phase 9:  T34 -----→ T35 -----→ T36 -----→ T37
 Phase 10: T32 -----→ T33
 ```
 

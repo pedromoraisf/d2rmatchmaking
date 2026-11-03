@@ -230,6 +230,15 @@ Resolved: the maintainer reset the dispatch and the gate; T54 (3457c73, `@NFR-09
 - **Needs the maintainer**: `node scripts/attempt.mjs reset --unit gate:observability-e2e/verification --by pedromoraisf`. Then the runner formats the two Verifier files, commits fix 2, fills `Closed`, re-runs `check_proofs.py` and `--mutations`, and runs `validate_verification.py` once.
 - **Phase effect**: `load-baseline` depends on `observability-e2e`, so the phase is blocked (an escalation).
 
+## Blocked: load-baseline, review of design Revision 1 (2026-11-03)
+
+The first real smoke attempt (T32, never run as a gate) found three design points: no `openssl` in `postgres:17-alpine`, no JavaScript timer firing while an `xk6-sse` stream is open, and a smoke window with no match. Design Revision 1 (AD-120 to AD-122) changes the mechanism, not the intent. Both reviewers returned FAIL on the revision at their **third and last** dispatch (`dispatch:load-baseline/review-architecture` and `dispatch:load-baseline/review-security`, 3 of 3), so the budget forbids a fourth review and the revision has no PASS.
+
+- **Findings, all addressed in text after the verdicts** (design.md Revision 1, tasks T34 to T37, C49 to C52, AD-121): errors found at the end of a stream are tallied in the window of their observation time; a stale iteration is settled when the next frame arrives; the site handler owns `start()`; a match whose assignment never arrives is counted by the orchestrator (T37); an integer `rate` per `timeUnit: '60s'` for the `match` scenario; the boundary is "at or after 5 000 ms"; the certificate container is run with `--network none --cap-drop ALL --cap-add CHOWN --security-opt no-new-privileges --read-only --entrypoint sh`, tracked for removal, its volume swept by label after the containers, mounted only by Postgres, the public CA copied out and validated, and the image taken from a pinned constant.
+- **State**: code of T1 to T31 is committed (last 67138a4) plus three defect fixes (5cfbfa2); T34 to T37 are not started; T32 and T33 wait on them. The tasks gate passed again for the replan; the approval line is unchanged.
+- **Needs the maintainer**: either reset the two review units so the runner can re-review the revision, `node scripts/attempt.mjs reset --unit dispatch:load-baseline/review-architecture --by <maintainer>` and `node scripts/attempt.mjs reset --unit dispatch:load-baseline/review-security --by <maintainer>`, or say in their own words that the revision may proceed without a fresh review (it is then listed in the phase review). The runner does not execute T34 to T37 before one of the two.
+- **Phase effect**: `load-baseline` is the last feature of F0 and nothing else is runnable, so the phase is blocked until then (an escalation).
+
 ## Queued for F1 (from the api-web-skeleton security review)
 
 - Global ceiling on failed pairing-code submissions across accounts, and a rate limit on token claims (the F0 limits are the spec's, AD-032 and AD-041).
