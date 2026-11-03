@@ -525,9 +525,9 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `startMeter({ listen, upstream, control, token })` pipes TCP between players and the API, counts bytes sent **from the API to the players** inside a window, discards them after counting and writes nothing to a log or disk; the control endpoints `POST /window/start`, `POST /window/stop` (returns `{ bytes, seconds }`) and `GET /stats` need the per-run bearer and a `Host` header of `127.0.0.1:<port>`, else 401 or 421
-- [ ] The container entry reads its settings from arguments and the token from a file, never from a command-line value
-- [ ] Tests named as in `## Checks` pass, using in-process servers on port 0: quick gate
+- [x] `startMeter({ listen, upstream, control, token })` pipes TCP between players and the API, counts bytes sent **from the API to the players** inside a window, discards them after counting and writes nothing to a log or disk; the control endpoints `POST /window/start`, `POST /window/stop` (returns `{ bytes, seconds }`) and `GET /stats` need the per-run bearer and a `Host` header of `127.0.0.1:<port>`, else 401 or 421
+- [x] The container entry reads its settings from arguments and the token from a file, never from a command-line value
+- [x] Tests named as in `## Checks` pass, using in-process servers on port 0: quick gate
 
 **Tests**: unit
 **Gate**: Quick
