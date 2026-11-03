@@ -1,6 +1,6 @@
 # observability-e2e proofs
 
-**HEAD**: 92a5eea
+**HEAD**: ee4feef
 **Tree**: clean
 **Result**: 68 pass, 0 fail; mutations 0 killed, 0 not
 
