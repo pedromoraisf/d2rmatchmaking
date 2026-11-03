@@ -5,7 +5,8 @@ import { isDroppedKey } from './forbidden-keys.ts';
 
 const POLL_TIMEOUT_MS = 30_000;
 const POLL_INTERVAL_MS = 1_000;
-const REQUEST_TIMEOUT_MS = 5_000;
+/** The longest one request may take. Every request also ends at the poll's deadline, so one slow answer cannot eat the window. */
+const REQUEST_TIMEOUT_MS = 15_000;
 
 /** The span names of the trace edges (apps/api, apps/web and apps/agent). */
 export const NAMES = {
@@ -13,6 +14,7 @@ export const NAMES = {
   siteRequestPrefix: 'HTTP POST ',
   apiRequest: 'POST',
   agentObservation: 'agent.observation.post',
+  agentHttpObservation: 'agent.http.observation',
   relay: 'platform.outbox.relay',
   deliver: 'platform.stream.deliver',
 } as const;
@@ -113,8 +115,28 @@ export function spansOfTempo(body: unknown): SpanRecord[] {
 }
 
 /**
- * Polls Tempo for the trace until `ready` holds or 30 s pass. The default is any span of the trace. The scenario passes its
- * edge check, because the spans of a trace reach the backend in batches.
+ * The signal of one request made at `deadline`: it ends after REQUEST_TIMEOUT_MS, or at the deadline when that comes first.
+ */
+export function boundedSignal(deadline: number): AbortSignal {
+  return AbortSignal.timeout(Math.max(1, Math.min(REQUEST_TIMEOUT_MS, deadline - Date.now())));
+}
+
+/**
+ * The error text a failure message shows: the error's message, and the code and message of its cause when it has one
+ * (a `fetch failed` names its cause, such as `ECONNREFUSED`, only there).
+ */
+export function describeError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const cause = error.cause instanceof Error ? error.cause : undefined;
+  if (cause === undefined) return error.message;
+  const code = (cause as { code?: unknown }).code;
+  return `${error.message} (${cause.message}${typeof code === 'string' ? `, ${code}` : ''})`;
+}
+
+/**
+ * Polls Tempo for the trace of `traceId` until `ready` holds or 30 s pass, one request at a time. The default is any span
+ * of the trace. The scenario passes its edge check, because the spans of a trace reach the backend in batches. The trace is
+ * read by its id, which the backend answers as soon as the spans are ingested; its search index lags behind the ingest.
  */
 export async function readTrace(
   queryUrl: string,
@@ -128,7 +150,7 @@ export async function readTrace(
     try {
       const response = await fetch(`${queryUrl}/api/traces/${traceId}`, {
         headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: boundedSignal(deadline),
       });
       if (response.ok) {
         const spans = spansOfTempo(await response.json()).filter((span) => span.traceId === traceId);
@@ -139,69 +161,30 @@ export async function readTrace(
         last = `status ${response.status}`;
       }
     } catch (error) {
-      last = error instanceof Error ? error.message : String(error);
+      last = describeError(error);
     }
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    const left = deadline - Date.now();
+    if (left <= 0) break;
+    await new Promise((resolve) => setTimeout(resolve, Math.min(POLL_INTERVAL_MS, left)));
   }
-  const names =
-    partial === undefined ? '' : ` (the trace holds: ${partial.spans.map((span) => span.name).join(', ')})`;
-  throw new Error(`trace ${traceId} did not reach the expected shape within 30 s: ${last}${names}`);
-}
-
-/** The trace ids a TraceQL search returns for the window that starts at `sinceMs` (epoch milliseconds). */
-export async function searchTraceIds(queryUrl: string, traceql: string, sinceMs: number): Promise<string[]> {
-  const url = new URL('/api/search', queryUrl);
-  url.searchParams.set('q', traceql);
-  url.searchParams.set('start', String(Math.floor(sinceMs / 1000)));
-  url.searchParams.set('end', String(Math.ceil((Date.now() + 60_000) / 1000)));
-  url.searchParams.set('limit', '50');
-  const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-  if (!response.ok) {
-    throw new Error(`the trace search answered ${response.status}`);
-  }
-  const answer = (await response.json()) as { traces?: { traceID?: string }[] };
-  return (answer.traces ?? []).flatMap((item) => (item.traceID === undefined ? [] : [item.traceID]));
-}
-
-/** One trace as the backend holds it now, or undefined when it is not there yet. */
-export async function fetchTrace(queryUrl: string, traceId: string): Promise<Trace | undefined> {
-  const response = await fetch(`${queryUrl}/api/traces/${traceId}`, {
-    headers: { Accept: 'application/json' },
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    return undefined;
-  }
-  const spans = spansOfTempo(await response.json()).filter((span) => span.traceId === traceId);
-  return spans.length === 0 ? undefined : { traceId, spans };
-}
-
-/**
- * Polls the search until a trace of the window satisfies `matches`, or 30 s pass. The search finds the trace of an action
- * the scenario cannot name: the agent's own trace ids are not printed by the example.
- */
-export async function pollTraces(
-  queryUrl: string,
-  traceql: string,
-  sinceMs: number,
-  matches: (trace: Trace) => boolean,
-): Promise<Trace> {
-  const deadline = Date.now() + POLL_TIMEOUT_MS;
-  let candidates = 0;
-  while (Date.now() < deadline) {
-    const ids = await searchTraceIds(queryUrl, traceql, sinceMs).catch((): string[] => []);
-    candidates = ids.length;
-    for (const id of ids) {
-      const trace = await fetchTrace(queryUrl, id).catch((): undefined => undefined);
-      if (trace !== undefined && matches(trace)) {
-        return trace;
-      }
-    }
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-  }
+  const shape =
+    partial === undefined
+      ? 'none fetched'
+      : `${partial.spans.length} spans, span<parent: ${outlineOf(partial)}`;
   throw new Error(
-    `no trace of ${traceql} satisfied the expected edges within 30 s (${candidates} candidates)`,
+    `trace ${traceId} did not reach the expected shape within 30 s: last ${last}; the trace holds ${shape}`,
   );
+}
+
+/** The spans of a trace as `name<parent name` pairs, for a failure message: a missing edge shows as `missing`. */
+function outlineOf(trace: Trace): string {
+  const byId = new Map(trace.spans.map((span) => [span.spanId, span]));
+  return trace.spans
+    .map((span) => {
+      const parent = span.parentSpanId === '' ? 'root' : (byId.get(span.parentSpanId)?.name ?? 'missing');
+      return `${span.name}<${parent}`;
+    })
+    .join('; ');
 }
 
 /** The edges of a trace as `parent -> child` names, for a failure message and for the scenario's log. */
@@ -238,6 +221,20 @@ function requireOne(trace: Trace, what: string, matches: (span: SpanRecord) => b
   return found;
 }
 
+/**
+ * The outbox relay below the request, and the stream delivery as the child of one of those relays. A request can publish
+ * several events, each through its own relay span: the delivery is checked under any of them, not only the first.
+ */
+function requireDelivery(trace: Trace, request: SpanRecord): void {
+  const relays = trace.spans.filter((span) => span.name === NAMES.relay && isBelow(trace, span, request));
+  requireOne(trace, `${NAMES.relay} below the API request`, () => relays.length > 0);
+  requireOne(
+    trace,
+    `${NAMES.deliver} as a child of a relay below the API request`,
+    (span) => span.name === NAMES.deliver && relays.some((relay) => relay.spanId === span.parentSpanId),
+  );
+}
+
 function isDbQuery(span: SpanRecord): boolean {
   const system = span.attributes['db.system.name'] ?? span.attributes['db.system'];
   return system === 'postgresql' && ('db.query.text' in span.attributes || 'db.statement' in span.attributes);
@@ -268,16 +265,7 @@ export function assertTraceA(trace: Trace): void {
     'database query below the API request',
     (span) => isDbQuery(span) && isBelow(trace, span, request),
   );
-  const relay = requireOne(
-    trace,
-    `${NAMES.relay} below the API request`,
-    (span) => span.name === NAMES.relay && isBelow(trace, span, request),
-  );
-  requireOne(
-    trace,
-    `${NAMES.deliver} as a child of the relay`,
-    (span) => span.name === NAMES.deliver && span.parentSpanId === relay.spanId,
-  );
+  requireDelivery(trace, request);
 }
 
 /**
@@ -290,21 +278,18 @@ export function assertTraceB(trace: Trace): void {
     `root span ${NAMES.agentObservation}`,
     (span) => span.name === NAMES.agentObservation && isTop(trace, span),
   );
+  // The agent's HTTP span of the observation call sits between the observation and the API request.
+  const call = requireOne(
+    trace,
+    `${NAMES.agentHttpObservation} as the child of ${NAMES.agentObservation}`,
+    (span) => span.parentSpanId === observation.spanId && span.name === NAMES.agentHttpObservation,
+  );
   const request = requireOne(
     trace,
-    `API request span as the child of ${NAMES.agentObservation}`,
-    (span) => span.parentSpanId === observation.spanId && span.name === NAMES.apiRequest,
+    `API request span as the child of ${NAMES.agentHttpObservation}`,
+    (span) => span.parentSpanId === call.spanId && span.name === NAMES.apiRequest,
   );
-  const relay = requireOne(
-    trace,
-    `${NAMES.relay} below the API request`,
-    (span) => span.name === NAMES.relay && isBelow(trace, span, request),
-  );
-  requireOne(
-    trace,
-    `${NAMES.deliver} as a child of the relay`,
-    (span) => span.name === NAMES.deliver && span.parentSpanId === relay.spanId,
-  );
+  requireDelivery(trace, request);
 }
 
 const QUERY_OR_FRAGMENT = /[?#]/u;
@@ -372,7 +357,9 @@ const LOG_QUERY = '{service_name="d2rmm-api"}';
 export async function readMetricRecords(grafanaUrl: string): Promise<MetricRecord[]> {
   const url = new URL('/api/datasources/proxy/uid/prometheus/api/v1/query', grafanaUrl);
   url.searchParams.set('query', METRIC_QUERY);
-  const answer = (await (await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })).json()) as {
+  const answer = (await (
+    await fetch(url, { signal: boundedSignal(Date.now() + REQUEST_TIMEOUT_MS) })
+  ).json()) as {
     data?: { result?: { metric?: Record<string, string> }[] };
   };
   return (answer.data?.result ?? []).map((series): MetricRecord => {
@@ -386,7 +373,9 @@ export async function readLogRecords(grafanaUrl: string): Promise<LogRecord[]> {
   const url = new URL('/api/datasources/proxy/uid/loki/loki/api/v1/query_range', grafanaUrl);
   url.searchParams.set('query', LOG_QUERY);
   url.searchParams.set('limit', '5000');
-  const answer = (await (await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })).json()) as {
+  const answer = (await (
+    await fetch(url, { signal: boundedSignal(Date.now() + REQUEST_TIMEOUT_MS) })
+  ).json()) as {
     data?: { result?: { values?: [string, string][] }[] };
   };
   return (answer.data?.result ?? []).flatMap((stream) =>

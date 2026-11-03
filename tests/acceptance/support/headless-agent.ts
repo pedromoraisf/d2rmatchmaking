@@ -14,6 +14,18 @@ const AGENT_MANIFEST = path.join(repoRoot, 'apps', 'agent', 'src-tauri', 'Cargo.
 /** The fixture screen: a 1920x1080 frame (the only size the example reads, AD-096), with the game name as its sidecar. */
 export const FIXTURE_SCREEN = path.join(repoRoot, 'apps', 'agent', 'fixtures', 'automap-game-name.png');
 
+/** The example's cargo target: the same arguments for `cargo build` and `cargo run`, so the run reuses the build. */
+const EXAMPLE_TARGET = [
+  '--manifest-path',
+  AGENT_MANIFEST,
+  '-p',
+  'd2rmm-agent-adapters',
+  '--example',
+  'headless',
+  '--features',
+  'fixture-read',
+];
+
 const WAIT_POLL_MS = 100;
 const STOP_TIMEOUT_MS = 20_000;
 
@@ -87,6 +99,28 @@ export class HeadlessAgent {
     });
   }
 
+  /**
+   * Builds the example, so that a later `start` only checks that the build is fresh. A cold build takes minutes; the
+   * pairing code is valid for five minutes from the API's clock, so the build must not run between the code's issue and
+   * its use. Resolves when the build exits 0; rejects with the tail of its stderr otherwise.
+   */
+  static async build(): Promise<void> {
+    const child = spawn('cargo', ['build', '--quiet', '--locked', ...EXAMPLE_TARGET], {
+      cwd: repoRoot,
+      env: cargoEnv(),
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+    let stderr = '';
+    child.stderr?.setEncoding('utf8');
+    child.stderr?.on('data', (chunk: string) => {
+      stderr = `${stderr}${chunk}`.slice(-8_000);
+    });
+    const code = await new Promise<number | null>((resolve) => child.once('exit', resolve));
+    if (code !== 0) {
+      throw new Error(`the headless example did not build (exit ${code})\n${stderr}`);
+    }
+  }
+
   /** Starts the example against `apiBase` with the fixture screen at `fixture`. Its events are read from then on. */
   static start(options: { apiBase: string; fixture: string }): HeadlessAgent {
     const child = spawn(
@@ -95,14 +129,7 @@ export class HeadlessAgent {
         'run',
         '--quiet',
         '--locked',
-        '--manifest-path',
-        AGENT_MANIFEST,
-        '-p',
-        'd2rmm-agent-adapters',
-        '--example',
-        'headless',
-        '--features',
-        'fixture-read',
+        ...EXAMPLE_TARGET,
         '--',
         '--api-base',
         options.apiBase,
@@ -117,6 +144,12 @@ export class HeadlessAgent {
   /** Every event printed so far, in order. */
   get events(): readonly AgentEvent[] {
     return this.#events;
+  }
+
+  /** The last `lines` lines the example wrote to stderr, for a failure message. */
+  stderrTail(lines = 20): string {
+    const all = this.#stderr.split('\n');
+    return all.slice(Math.max(0, all.length - lines)).join('\n');
   }
 
   /** Waits until an event named `event` (that `matches`, when given) is printed, or fails after `timeoutMs`. */
@@ -136,7 +169,10 @@ export class HeadlessAgent {
       }
       await new Promise((resolve) => setTimeout(resolve, WAIT_POLL_MS));
     }
-    throw new Error(`the headless agent printed no "${event}" event within ${timeoutMs} ms\n${this.#stderr}`);
+    const seen = this.#events.map((item) => JSON.stringify(item)).join(', ');
+    throw new Error(
+      `the headless agent printed no "${event}" event within ${timeoutMs} ms; seen: [${seen}]\n${this.#stderr}`,
+    );
   }
 
   /** Sends one `read` line: the example reads the fixture screen once and posts what it sees. */

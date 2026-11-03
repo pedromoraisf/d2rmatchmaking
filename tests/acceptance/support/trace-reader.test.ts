@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertTraceA,
   assertTraceB,
+  describeError,
   leaksIn,
   NAMES,
   printTraceIds,
@@ -44,13 +45,23 @@ const traceB = (): Trace => ({
   traceId: TRACE,
   spans: [
     span('0000000000000011', '', NAMES.agentObservation),
-    span('0000000000000012', '0000000000000011', NAMES.apiRequest),
+    span('0000000000000015', '0000000000000011', NAMES.agentHttpObservation),
+    span('0000000000000012', '0000000000000015', NAMES.apiRequest),
     span('0000000000000013', '0000000000000012', NAMES.relay),
     span('0000000000000014', '0000000000000013', NAMES.deliver),
   ],
 });
 
 describe('trace reader', () => {
+  it('names the cause of a failed request, so a fetch failure says why it failed', () => {
+    const cause = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:3000'), { code: 'ECONNREFUSED' });
+    expect(describeError(new TypeError('fetch failed', { cause }))).toBe(
+      'fetch failed (connect ECONNREFUSED 127.0.0.1:3000, ECONNREFUSED)',
+    );
+    expect(describeError(new Error('plain'))).toBe('plain');
+    expect(describeError('text')).toBe('text');
+  });
+
   it('prints both trace ids', () => {
     const lines: string[] = [];
     printTraceIds({ traceA: 'a'.repeat(32), traceB: 'b'.repeat(32) }, (line) => lines.push(line));

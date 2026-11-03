@@ -30,6 +30,10 @@ const CONTROL_HEADER = 'x-test-control';
 const TRACED_METRIC_INTERVAL_MS = 5_000;
 /** A site build of the traced stack may take this long. */
 const BUILD_TIMEOUT_MS = 180_000;
+/** How often the traced API's clock follows the wall clock while a scenario runs (`followWallClock`). */
+const WALL_CLOCK_TICK_MS = 500;
+/** The header the traced API sends to its OTLP endpoint (a test value; the local backend ignores it). */
+export const TRACED_BACKEND_HEADER = 'x-acceptance-backend=present';
 /** The compatibility date of the local Pages Functions (the wrangler default of this version). */
 const WRANGLER_COMPATIBILITY_DATE = '2026-10-23';
 
@@ -196,7 +200,9 @@ function apiEnv(input: ApiEnvInput): Record<string, string> {
     HOST: '127.0.0.1',
     SITE_ORIGIN: input.site,
     ENABLE_STAGING_ENDPOINTS: input.staging ? 'true' : 'false',
-    AGENT_MIN_VERSION: '0.0.1',
+    // The traced stack runs the real headless example, which reports its crate version (0.0.0, the placeholder of
+    // apps/agent): the minimum is lowered for that stack only, so the example can pair. The plain stack keeps 0.0.1.
+    AGENT_MIN_VERSION: input.telemetry === undefined ? '0.0.1' : '0.0.0',
     D2RMM_ACCEPTANCE: 'true',
     D2RMM_ENV: 'local',
     TEST_CONTROL_SECRET: input.controlSecret,
@@ -204,6 +210,8 @@ function apiEnv(input: ApiEnvInput): Record<string, string> {
       ? {}
       : {
           OTEL_EXPORTER_OTLP_ENDPOINT: input.telemetry.otlpEndpoint,
+          // A header the relay forwards with the backend credentials. The fake backend records it (the relay scenarios).
+          OTEL_EXPORTER_OTLP_HEADERS: TRACED_BACKEND_HEADER,
           // Every request is sampled in the traced stack: the trace scenarios read one trace per action (OBS-24).
           OTEL_TRACES_SAMPLER_ARG: '1.0',
           OTEL_METRIC_EXPORT_INTERVAL: String(TRACED_METRIC_INTERVAL_MS),
@@ -435,6 +443,17 @@ export interface TracedStack {
   readonly staging: Endpoint;
   /** Truncates the traced database and clears the API's memory stores (the reset of the plain stack, for one API). */
   reset(): Promise<void>;
+  /** Moves the traced API's controllable clock forward by `ms` (its clock does not move on its own). */
+  advanceClock(ms: number): Promise<void>;
+  /** Estimated traced API clock in epoch ms: the start of the traced API process plus every advance so far. */
+  apiClockMs(): number;
+  /**
+   * Moves the traced API's clock with the wall clock every half second, until the returned function is called. The API's
+   * sliding windows (the relay's 60 requests a minute per account, its byte budgets) and its lookup bucket refill on that
+   * clock: a frozen clock keeps every window full for the rest of the scenario, and the relay answers `429` for the agent's
+   * batches. Production windows move with the wall clock; this keeps the scenario's clock the same.
+   */
+  followWallClock(): () => void;
   /** Stops every child process and removes the private state directory. */
   close(): Promise<void>;
 }
@@ -454,6 +473,21 @@ export async function startTracedStack(options: TracedStackOptions): Promise<Tra
   }
 }
 
+/**
+ * The telemetry-on site, built once per process: the traced stacks of one worker serve the same build, so a scenario that
+ * starts its own stack does not wait for a new build. The build lives in the temporary directory, outside every stack.
+ */
+let telemetrySiteBuild: Promise<string> | undefined;
+
+function telemetrySite(): Promise<string> {
+  telemetrySiteBuild ??= (async () => {
+    const outDir = mkdtempSync(path.join(tmpdir(), 'd2rmm-telemetry-site-'));
+    await buildTelemetrySite(outDir);
+    return outDir;
+  })();
+  return telemetrySiteBuild;
+}
+
 async function startTracedProcesses(options: TracedStackOptions): Promise<TracedStack> {
   const adminUrl = process.env[POSTGRES_URL_ENV];
   if (adminUrl === undefined) {
@@ -463,6 +497,8 @@ async function startTracedProcesses(options: TracedStackOptions): Promise<Traced
   const controlSecret = randomBytes(32).toString('base64url');
   const stateDir = mkdtempSync(path.join(tmpdir(), 'd2rmm-trace-'));
   const managed: Managed[] = [];
+  let apiStart = Date.now();
+  let advanced = 0;
 
   const apiPort = await freePort();
   const sitePort = await freePort();
@@ -470,12 +506,25 @@ async function startTracedProcesses(options: TracedStackOptions): Promise<Traced
     api: `http://127.0.0.1:${apiPort}`,
     site: `http://127.0.0.1:${sitePort}`,
   };
-  const siteDir = path.join(stateDir, 'site');
-
+  const followers = new Set<() => void>();
+  const advance = async (ms: number): Promise<void> => {
+    const answer = await fetch(`${origins.api}/__test/clock`, {
+      method: 'POST',
+      headers: { [CONTROL_HEADER]: controlSecret, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ advanceMs: ms }),
+    });
+    if (answer.status !== 204) {
+      throw new Error(`clock advance of ${origins.api} answered ${answer.status}`);
+    }
+    advanced += ms;
+  };
   try {
-    await buildTelemetrySite(siteDir);
+    const siteDir = await telemetrySite();
     symlinkSync(path.join(repoRoot, 'apps', 'web', 'functions'), path.join(stateDir, 'functions'), 'dir');
 
+    // The API clock is anchored when its process starts (`new Date()` in `startLocal`) and moves only by advances. The
+    // estimate starts before the launch, so it never runs ahead of the anchor.
+    apiStart = Date.now();
     const api = launch(
       'traced api',
       process.execPath,
@@ -522,7 +571,31 @@ async function startTracedProcesses(options: TracedStackOptions): Promise<Traced
         throw new Error(`reset of ${origins.api} answered ${answer.status}`);
       }
     },
+    advanceClock: advance,
+    apiClockMs() {
+      return apiStart + advanced;
+    },
+    followWallClock() {
+      let busy = false;
+      const timer = setInterval(() => {
+        const behind = Date.now() - (apiStart + advanced);
+        if (busy || behind <= 0) return;
+        busy = true;
+        void advance(behind)
+          .catch(() => undefined)
+          .finally(() => {
+            busy = false;
+          });
+      }, WALL_CLOCK_TICK_MS);
+      const halt = (): void => {
+        clearInterval(timer);
+        followers.delete(halt);
+      };
+      followers.add(halt);
+      return halt;
+    },
     async close() {
+      for (const stopFollowing of followers) stopFollowing();
       await Promise.all(managed.map(stop));
       rmSync(stateDir, { recursive: true, force: true });
     },
