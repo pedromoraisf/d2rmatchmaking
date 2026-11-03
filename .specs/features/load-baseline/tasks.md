@@ -642,9 +642,9 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `run.mjs` reads `LOAD_PROFILE` (`full` or `smoke`), builds the `Docker` port over `spawn` with an **argument array and `shell: false`**, a `mkdtemp` work directory (mode 0700) under `os.tmpdir()`, takes a lock directory with the pid, registers handlers for `uncaughtException`, `unhandledRejection`, `SIGINT`, `SIGTERM` and `SIGHUP` that call the same cleanup, and exits with the summary's exit code (2 for a refusal)
-- [ ] A refusal (a target or Docker variable, Docker missing or down) prints the message and exits 2 before any container exists; `node scripts/load/run.mjs` with `LOAD_TARGET` set exits 2 naming `LOAD_TARGET`
-- [ ] Gate passes: `node --test "scripts/test/load/*.test.mjs" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts`
+- [x] `run.mjs` reads `LOAD_PROFILE` (`full` or `smoke`), builds the `Docker` port over `spawn` with an **argument array and `shell: false`**, a `mkdtemp` work directory (mode 0700) under `os.tmpdir()`, takes a lock directory with the pid, registers handlers for `uncaughtException`, `unhandledRejection`, `SIGINT`, `SIGTERM` and `SIGHUP` that call the same cleanup, and exits with the summary's exit code (2 for a refusal)
+- [x] A refusal (a target or Docker variable, Docker missing or down) prints the message and exits 2 before any container exists; `node scripts/load/run.mjs` with `LOAD_TARGET` set exits 2 naming `LOAD_TARGET`
+- [x] Gate passes: `node --test "scripts/test/load/*.test.mjs" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts`
 
 **Tests**: unit (static)
 **Gate**: Static
@@ -950,6 +950,18 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - Lint: ESLint runs inside the quoted gate command (a direct `pnpm exec eslint` is denied by the hook); `pnpm exec prettier --write` is a direct call.
   **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03, `returned` (T1 committed 8cfe8e3); execute-batch-2 (T2 to T8) at HEAD 8cfe8e3, 2026-11-03, `returned` (T2 to T8 committed, last 3652068); execute-batch-3 (T9 to T17) at HEAD 3652068, 2026-11-03, `returned` (T9 to T17 committed, last c5975ec); execute-batch-4 (T18 to T23) at HEAD 6580fd8, 2026-11-03, `returned` (T18 to T23 committed, last 35feb02); execute-batch-5 (T24 to T27, Phase 7) at HEAD 35feb02, 2026-11-03
   **Walked:** none
+
+**Batch 5 (execute-batch-5, T24 to T27, implementer):** contracts for T28 to T33 and the mismatches with design.md.
+
+- Latency samples: `handleSummary` cannot see per-VU values, so each windowed sample is printed by the k6 VU as `console.warn('LB_SAMPLE <ms>')` (k6 logs `level=warning msg="LB_SAMPLE <ms>"`), and the orchestrator reads them from the k6 container's output (`samplesOf`) into `latencySamplesMs`. `step.json` carries `latencySamplesMs: []`. Design § k6 journey says the samples are in `step.json`: this is the mismatch to review.
+- `plan.json` is `{ base, origin, version, players[{name,cookie,token,address}], offsets{rampSeconds,windowStartSeconds,windowEndSeconds,holdSeconds}, matchEverySeconds, control{bearer, meter{url,host}, sink{url,host}} }`. The control calls set `Host: 127.0.0.1:<port>` explicitly; k6 must send it as given (T32 proves it).
+- Timers: `setInterval`, `setTimeout` and `clearInterval` are k6 2.3.0 globals (probed read-only on the spike image with `--rm`). The stream of each VU closes from a timer at the step's end.
+- Sequence order differs from the T26 text: the migration runs after Postgres answers `pg_isready` and the CA is copied with `docker cp`, and before the sink and the API start, so the API never boots on an unmigrated schema.
+- Work directory: `control-token`, `postgres.env`, `api.env` (0600) and `ca.crt` (the public CA only) at its root; `in/` (0700) holds `plan.json`, `journey.mjs` and `journey-state.mjs` (0600); `out/` is 0777 inside the 0700 work directory so the k6 user can write `step.json`. T32 verifies the write.
+- The API answers `GET http://127.0.0.1:8080/healthz` through the meter before the first step; it listens on port 3000 inside the sink's namespace, `SITE_ORIGIN` is `http://127.0.0.1:8080`. `docker stats --no-stream` is sampled every 5 s during each k6 run (the peaks come from those samples).
+- An iteration still waiting for its assignment when the next match starts counts one error (status 0) in the k6 script, not in `journey-state.mjs`: a judgement to review.
+- Not proved before T32: `openssl` in `postgres:17-alpine` (the TLS command), `k6 version` printing `k6/x/sse` (the spike says it does), and the 0600 files read by the meter and the sink (uid node) over the bind mount.
+- Checks: T24 static gate 81 tests; T25 84; T26 98; T27 99; the entry refuses `LOAD_TARGET` and a missing `LOAD_PROFILE` with exit 2 before any Docker call.
 
 ---
 
