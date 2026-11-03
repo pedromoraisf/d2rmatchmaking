@@ -87,6 +87,16 @@ review. Reversals become tasks in a follow-up feature.
 | AD-101 | observability-e2e | The agent's exporter stops after a relay `401` while its token hash is unchanged, resumes on a different token, probes hourly; `429` without `Retry-After` waits 60 s | drop only the batch | |
 | AD-102 | observability-e2e | The TypeScript samplers use the ratio rule of `opentelemetry_sdk` 0.33.1 (not `TraceIdRatioBased` of `sdk-trace-base`, which hashes the trace id differently) so API, site and agent decide alike; the shared vector comes from the Rust rule | use the library class and drop the parity claim | |
 | AD-103 | observability-e2e | No Fastify request-span instrumentation: the HTTP server span, its `pg` children and the use-case spans stay; the route template is on the request metrics only (a `@fastify/otel` span sat between the server span and the handler and broke OBS-03's parent-child edge) | `@fastify/otel` plus a re-parenting processor, or `http.route` on the server span | |
+| AD-108 | load-baseline | One k6 container per step; the Node orchestrator provisions players and decides every verdict; the observation is triggered by `room.assigned` on the site stream (assumed deviation from LB-05), the agent stream is held and counted | a single k6 run with thresholds (rejected: no isolated window); T1 spike may escalate | |
+| AD-109 | load-baseline | Bytes per player-hour come from a TCP meter in front of the API (headers and SSE framing included, window only), not from k6 counters | count with k6's `data_received` if T1 shows it covers SSE | |
+| AD-110 | load-baseline | Load code in `scripts/load/`, unit tests in `scripts/test/load/`, not `tests/load`; `testing.md` updated | move to `tests/load` and exclude it from depcruise (a sensor loosening) | |
+| AD-111 | load-baseline | A failed step reports the first of `container`, `errors`, `latency` | a different order in `step-verdict.mjs` | |
+| AD-112 | load-baseline | The API under load runs from an image mirroring Render's build and start commands on `node:26-bookworm-slim` | run the repo mounted in a node image | |
+| AD-113 | load-baseline | Postgres serves TLS with a throwaway CA made inside its container; only the public CA leaves it | change `render.ts` to accept a non-TLS database (not allowed here) | |
+| AD-114 | load-baseline | k6 built with the `phymbert/xk6-sse` extension into a pinned image; no runtime auto-provisioning | auto-provisioning (a runtime network call) | |
+| AD-115 | load-baseline | A tool failure is written to `error`, not to the four `failure` rules | fold it into `failure` | |
+| AD-116 | load-baseline | Telemetry bytes are counted on the wire at the sink, headers included, in the meter's window | count bodies only | |
+| AD-117 | load-baseline | The run also refuses a remote `DOCKER_HOST`, a non-default `DOCKER_CONTEXT` and inherited `OTEL_*`; the API environment is an allow-list | LB-17 limited to the two named variables | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 

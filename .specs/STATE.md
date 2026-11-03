@@ -966,6 +966,96 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-03
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-108 (assumed)
+
+- **Decision**: the load run is one k6 container per step, started by a Node orchestrator that provisions each step's new players over HTTP (sign in, pair, claim) outside any window; k6 plays only the steady journey and returns latency, errors, requests and iterations for the window; the orchestrator decides every verdict in pure, unit-tested functions.
+- **Reason**: the k6 SSE extension blocks one connection per VU and has no cross-VU channel, so a single long ramp with k6 thresholds cannot isolate the 100-player window or read container state between steps.
+- **Trade-off**: more moving parts than one k6 script; a spike (T1) must prove the stream-holding model, with an escalation if k6 cannot hold the streams. Assumed deviation from LB-05: the observation is triggered by `room.assigned` on the site stream (same data), because k6 has no proven channel between the two VUs; the agent stream is held and its `room.assigned` frames are counted.
+- **Scope**: load-baseline / LB-01, LB-03, LB-07, LB-08
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-109 (assumed)
+
+- **Decision**: bytes per player-hour come from a TCP meter in front of the API that counts bytes sent from the API to the players, headers and SSE framing included, inside the measuring window; k6's own byte counters are not used.
+- **Reason**: the 70 KB budget is about what Render bills (service output); k6 does not reliably count SSE bytes with the extension.
+- **Trade-off**: one more container in the path; its CPU is not limited.
+- **Scope**: load-baseline / LB-14, LB-15
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-110 (assumed)
+
+- **Decision**: the load code lives in `scripts/load/`, its unit tests in `scripts/test/load/` and its static test in `scripts/test/load-scripts.test.mjs`, not `tests/load`; `docs/engineering/testing.md` is updated to say so.
+- **Reason**: `pnpm arch` scans `tests/` and rejects `k6/*` imports as unresolvable; excluding the path would loosen a sensor (rule 4). `scripts/` is not scanned, its tests under `scripts/test/` already run in `pnpm test:harness`, and `classifyProof` accepts `node --test` mutation proofs only under `scripts/test/`.
+- **Trade-off**: the Design Doc and `testing.md` named `tests/load`.
+- **Scope**: load-baseline / LB-01, LB-20
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-111 (assumed)
+
+- **Decision**: when a step fails more than one rule, `failure.rule` is the first of `container`, `errors`, `latency`.
+- **Reason**: the spec names the rule without an order; a dead container explains the other two.
+- **Trade-off**: none known.
+- **Scope**: load-baseline / LB-08, LB-11
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-112 (assumed)
+
+- **Decision**: the API under load runs from an image that mirrors Render's build (`corepack enable && pnpm install --frozen-lockfile --ignore-scripts`) and start command (`node --import ./apps/api/src/main/instrument.ts apps/api/src/main/render.ts`), on `node:26-bookworm-slim`.
+- **Reason**: the run should measure what ships; Render's service is not a Docker service, so the image is the closest equivalent.
+- **Trade-off**: image build time on the first run.
+- **Scope**: load-baseline / LB-01, LB-02
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-113 (assumed)
+
+- **Decision**: the run's Postgres serves TLS with a throwaway CA and a server certificate made inside the Postgres container (the CA key is deleted there and no private key reaches the host); only the public CA certificate is copied out, into a 0700 temporary directory removed with the containers, and the API and the migration trust it through `NODE_EXTRA_CA_CERTS` and `sslmode=verify-full`.
+- **Reason**: `main/render.ts` verifies the certificate and may not change here.
+- **Trade-off**: certificate generation adds a step; nothing is stored in the repository.
+- **Scope**: load-baseline / LB-01
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-114 (assumed)
+
+- **Decision**: k6 runs from an image that compiles k6 with the `phymbert/xk6-sse` extension at pinned versions; the run never relies on k6's runtime auto-provisioning of extensions.
+- **Reason**: reproducible, no network call at run time, supply chain pinned.
+- **Trade-off**: a Go build on the first run; exact versions are recorded by T1.
+- **Scope**: load-baseline / LB-01, LB-18
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-115 (assumed)
+
+- **Decision**: a tool failure (Docker, a build, k6 crashing) is written to a separate `error` field with `passed: false` and a non-zero exit; `failure` keeps the spec's four rules about the system under test.
+- **Reason**: an OOM of the generator is not a finding about the API.
+- **Trade-off**: one extra summary field the ratchet ignores.
+- **Scope**: load-baseline / LB-11, LB-12
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-116 (assumed)
+
+- **Decision**: telemetry bytes are counted at the sink on the wire (request line, headers and body), in the same window as the byte meter.
+- **Reason**: one definition of "bytes" across the summary.
+- **Trade-off**: the API's exports are JSON over HTTP, so the figure is larger than a protobuf exporter would give; it is the figure the API really sends.
+- **Scope**: load-baseline / LB-21, LB-22
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-117 (assumed)
+
+- **Decision**: besides `LOAD_TARGET` and `DATABASE_URL` (LB-17), the run refuses a `DOCKER_HOST` that is not a local unix socket, a `DOCKER_CONTEXT` other than the default, and any inherited `OTEL_*` variable; the API container's environment is built from an allow-list, never from `process.env`.
+- **Reason**: LB-17's intent is that the run touches only what it started; a remote Docker daemon or an inherited collector endpoint are the other ways to reach something else (security review of the design).
+- **Trade-off**: a maintainer with a non-default Docker context must switch it for the run.
+- **Scope**: load-baseline / LB-17
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
