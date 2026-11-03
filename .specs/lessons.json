@@ -3,6 +3,35 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 1,
-  "lessons": []
+  "next_id": 3,
+  "lessons": [
+    {
+      "id": "L-001",
+      "key": "ac_gap::when a privacy rule drops personal data list every attribute key a library can carry it under and test each one not only the key the spec names",
+      "text": "When a privacy rule drops personal data, list every attribute key a library can carry it under and test each one, not only the key the spec names",
+      "signal": "ac_gap",
+      "scope": "telemetry",
+      "status": "candidate",
+      "features": ["observability-e2e"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["verification.md finding 1; C38 (telemetry)"],
+      "created": "2026-11-03T19:09:32Z",
+      "last_seen": "2026-11-03T19:09:32Z"
+    },
+    {
+      "id": "L-002",
+      "key": "spec_precision_gap::extract a request validation decision into a pure function and unit test its boundaries so a boundary mutation is killed without the assembled service",
+      "text": "Extract a request-validation decision into a pure function and unit-test its boundaries, so a boundary mutation is killed without the assembled service",
+      "signal": "spec_precision_gap",
+      "scope": "api-platform",
+      "status": "candidate",
+      "features": ["observability-e2e"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["verification.md finding 2; telemetry-relay admit (api-platform)"],
+      "created": "2026-11-03T19:09:32Z",
+      "last_seen": "2026-11-03T19:09:32Z"
+    }
+  ]
 }
