@@ -930,6 +930,33 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-02
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-104
+
+- **Decision**: the acceptance scenario `@HF-01` (which runs `pnpm build`, `pnpm typecheck` and `pnpm test` from the repository root) runs in its own Playwright project that depends on the main project, so it starts after the other scenarios have finished; the scenarios and their steps are unchanged.
+- **Reason**: T56's full `pnpm test:acceptance` failed twice under that CPU load: trace A's room took 5.7 s to form against a 5 s window, and `@d2rmm/telemetry`'s `package-exports.test.ts` timed out at 5 s while 13 workers cold-imported OpenTelemetry. Longer windows would hide the load; separating the two removes it.
+- **Trade-off**: the full run is longer by the HF-01 time, serialised. `playwright.config.ts` is a harness file (extend only).
+- **Scope**: observability-e2e / T56
+- **Date**: 2026-11-03
+- **Status**: confirmed by the maintainer in chat ("A e B", 2026-11-03)
+
+### AD-105
+
+- **Decision**: `packages/telemetry/src/package-exports.test.ts` gives its dynamic-import test an explicit timeout of 30 s (`it(name, fn, 30_000)`); no assertion changes.
+- **Reason**: the test cold-imports the whole OpenTelemetry set (`/`, `/node`, `/web`) and takes about 3 to 5 s on a loaded machine against vitest's 5 s default (it measured 5.2 s once).
+- **Trade-off**: a slow import regression would show up later; the assertions still pin the entry points.
+- **Scope**: observability-e2e / T56
+- **Date**: 2026-11-03
+- **Status**: confirmed by the maintainer in chat ("A e B", 2026-11-03)
+
+### AD-106
+
+- **Decision**: `packages/config/test/rules.test.ts` gives `n/no-process-env reports a process.env read in a module file` (the first `ESLint.lintText` call of the file) an explicit timeout of 30 s (`it(name, fn, 30_000)`); no assertion changes.
+- **Reason**: after AD-104 the `@HF-01` run still failed once: that test timed out at 5000 ms while the root `pnpm test` ran every workspace in parallel; the first call loads ESLint and the TypeScript parser cold. Same class as AD-105.
+- **Trade-off**: as AD-105; a slow cold load shows later.
+- **Scope**: observability-e2e / T56
+- **Date**: 2026-11-03
+- **Status**: confirmed by the maintainer in chat ("C", 2026-11-03)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
