@@ -133,11 +133,11 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `k6.Dockerfile` is a multi-stage build (golang builder, k6 base) with `FROM` lines pinned by `@sha256:` digest, `xk6` and `xk6-sse` pinned to commit SHAs, `GOFLAGS=-mod=readonly`; it never uses runtime auto-provisioning
-- [ ] The spike script builds the image, starts the fixture server (SSE endpoint with `id/event/data` frames and `: ka` comments, a POST endpoint, `Set-Cookie` with a `Secure` `__Host-` cookie) on a throwaway network, and runs one short k6 script that: holds a site stream and an agent stream in two scenarios, posts a request inside an `event` handler, sends heartbeats from a third `constant-arrival-rate` scenario, sends an explicit `Cookie` header, and tags metrics by elapsed time since its own start
-- [ ] The spike reports, in its output and in `## Handoff`: the pinned versions and commits, whether `data_received` counts SSE bytes, whether a stream can be held for the whole step, whether `.mjs` imports (`journey-state.mjs`) work, and the fallback used if any
-- [ ] The spike cleans up its containers and network on every exit path
-- [ ] Gate passes: `node scripts/load/spike.mjs`
+- [x] `k6.Dockerfile` is a multi-stage build (golang builder, k6 base) with `FROM` lines pinned by `@sha256:` digest, `xk6` and `xk6-sse` pinned to commit SHAs, `GOFLAGS=-mod=readonly`; it never uses runtime auto-provisioning
+- [x] The spike script builds the image, starts the fixture server (SSE endpoint with `id/event/data` frames and `: ka` comments, a POST endpoint, `Set-Cookie` with a `Secure` `__Host-` cookie) on a throwaway network, and runs one short k6 script that: holds a site stream and an agent stream in two scenarios, posts a request inside an `event` handler, sends heartbeats from a third `constant-arrival-rate` scenario, sends an explicit `Cookie` header, and tags metrics by elapsed time since its own start
+- [x] The spike reports, in its output and in `## Handoff`: the pinned versions and commits, whether `data_received` counts SSE bytes, whether a stream can be held for the whole step, whether `.mjs` imports (`journey-state.mjs`) work, and the fallback used if any
+- [x] The spike cleans up its containers and network on every exit path
+- [x] Gate passes: `node scripts/load/spike.mjs`
 
 **Tests**: integration
 **Gate**: Docker
@@ -923,9 +923,23 @@ Proof: `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`
 
 The feature's live state, written as it happens - a compaction gives no warning.
 
-**Settled mid-build:** none
-**Dispatched:** none
-**Walked:** none
+**Settled mid-build:** T1 spike (execute-batch-1, 2026-11-03). `node scripts/load/spike.mjs` passed on attempt 6 of the T1 unit. One counted failure: k6 rejected the `count` aggregation on a Trend threshold; fixed with `avg>=0`. The primary design holds, so no fallback was used.
+
+- Pins: `golang:1.27.1-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414` (builder; the upstream k6 v2.3.0 Dockerfile pins the same tag at `sha256:4cb7ac97…`, so the tag has moved and the current digest is used); `grafana/k6:2.3.0@sha256:2dd4756ec6e14e62778916e1eb850108e4b499304c02df56760fa0bdb0fba0b8` (base; its binary is replaced); `node:26-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9` (fixture server, in spike.mjs).
+- Versions: k6 v2.3.0 (go1.27.1); xk6 v1.4.15 at commit `971105042f8d3aaedd9a6b3e6b46561f92910eb3`; xk6-sse v0.2.0 at commit `6f12f6a6cd8cd7e0f6d1797dc31880ad89561284` (tag object `8db3dee5…`). `k6 version` reports `k6/x/sse`.
+- `data_received` counts SSE bytes: yes, framing and response headers included. Stream-only run: k6 reported 380 bytes against 114 SSE bytes the server wrote on that agent stream. The primary run total (8835) also holds the POST replies, so it does not answer the question alone.
+- Stream held for the whole step: yes at 20 s. Site 20002 ms and agent 20003 ms on the server; about 20.0 s in k6. The 120 s hold of the real step was not tried.
+- `.mjs` imports: yes. `spike-journey.mjs` imports `./spike-state.mjs` and the run passed.
+- POST inside an `event` handler: yes. The observation POST from the `room.assigned` handler got 202, and the `created` frame came back on the same stream.
+- Heartbeats from a third `constant-arrival-rate` scenario while two streams are held: yes. 41 of 41 heartbeats arrived with both streams open, and k6 saw 41 OK.
+- Explicit `Cookie` header: accepted. A request without it got 401, so k6's jar does not resend the `Secure` `__Host-` cookie.
+- The 0600 work files are readable by the k6 container (uid 12345) over the Docker Desktop bind mount. No 0644 fallback was needed.
+- Metric tags: `window` tags from `exec.instance.currentTestRunDuration` populate. A sub-metric appears in the summary only with a threshold on it. The spike uses always-true expressions (`count>=0` on Counters, `avg>=0` on Trends, since `count` is rejected on a Trend). It did not test the design's empty arrays.
+- Build notes: an `ARG K6_VERSION` is exported to RUN and collides with xk6's own flag, so the build ARG is `K6_RELEASE` and xk6 gets `--k6-version`. xk6 needs `git` in the builder.
+- Cleanup: no containers, network or work directory was left after any attempt. The failure path and the success path were both exercised. The signal path was not. The image `d2rmm-load-k6:spike` stays in the local cache and was not pushed.
+- Tooling: the gate hook denied a direct `pnpm exec eslint` once (denial 1 of 3). I did not retry it. ESLint on `scripts/load` ran through `attempt.mjs` under T1 and passed.
+  **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03
+  **Walked:** none
 
 ---
 
