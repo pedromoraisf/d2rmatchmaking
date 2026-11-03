@@ -504,9 +504,9 @@ T32 → T33
 
 **Done when**:
 
-- [ ] A pure ES module with no Node import: `start()`, `onAssigned(state, frame, nowMs)`, `onObservationSent(state, nowMs)`, `onCreated(state, nowMs)`, `onTick(state, nowMs)` returning the next state, the latency (created minus observation) and the error count of the iteration; an iteration without a `created` frame 5 000 ms after the observation is `timed-out` with exactly one error; a `created` frame at 4 999 ms is a latency, at 5 001 ms a timeout
-- [ ] `isError(status)` is true for every non-2xx status, a `429` included, and false for 200, 202 and 204
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] A pure ES module with no Node import: `start()`, `onAssigned(state, frame, nowMs)`, `onObservationSent(state, nowMs)`, `onCreated(state, nowMs)`, `onTick(state, nowMs)` returning the next state, the latency (created minus observation) and the error count of the iteration; an iteration without a `created` frame 5 000 ms after the observation is `timed-out` with exactly one error; a `created` frame at 4 999 ms is a latency, at 5 001 ms a timeout
+- [x] `isError(status)` is true for every non-2xx status, a `429` included, and false for 200, 202 and 204
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
