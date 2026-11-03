@@ -367,9 +367,9 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `classifyDockerFailure(error)` returns `{ kind: 'docker-missing' | 'docker-down' | 'image', message }`; the message of the first two names "Docker", the third names "the image" and the image reference
-- [ ] An unknown error is classified `docker-down` with the original text included (redacted)
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `classifyDockerFailure(error)` returns `{ kind: 'docker-missing' | 'docker-down' | 'image', message }`; the message of the first two names "Docker", the third names "the image" and the image reference
+- [x] An unknown error is classified `docker-down` with the original text included (redacted)
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
