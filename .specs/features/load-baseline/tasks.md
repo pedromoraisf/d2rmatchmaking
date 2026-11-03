@@ -211,9 +211,9 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `containerOk(before, after)` is false when the container is not running, was OOM-killed, has a higher restart count or a different start time; true otherwise
-- [ ] `peakOf(samples)` returns the highest CPU percent and memory bytes from `docker stats` samples (the `--format json` shape), 0 for no samples
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `containerOk(before, after)` is false when the container is not running, was OOM-killed, has a higher restart count or a different start time; true otherwise
+- [x] `peakOf(samples)` returns the highest CPU percent and memory bytes from `docker stats` samples (the `--format json` shape), 0 for no samples
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
