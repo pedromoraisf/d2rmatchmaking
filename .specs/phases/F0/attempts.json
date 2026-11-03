@@ -4755,6 +4755,1561 @@
         }
       ],
       "status": "passed"
+    },
+    "gate:observability-e2e/spec": {
+      "attempts": [
+        {
+          "at": "2026-11-02T05:22:33.230Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py observability-e2e"
+        },
+        {
+          "at": "2026-11-02T05:22:35.516Z",
+          "ok": false,
+          "note": "node scripts/acceptance-check.mjs observability-e2e → exit 1: acceptance-check: 1 problem(s)\n  ✗ .specs/features/observability-e2e/acceptance.feature:29 \"A test room becomes Created and one trace holds every hop\": unknown tag @obs."
+        },
+        {
+          "at": "2026-11-02T05:23:03.516Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs observability-e2e"
+        },
+        {
+          "at": "2026-11-02T05:23:17.159Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py observability-e2e"
+        },
+        {
+          "at": "2026-11-02T05:52:22.877Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py observability-e2e"
+        },
+        {
+          "at": "2026-11-02T05:52:25.767Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs observability-e2e"
+        },
+        {
+          "at": "2026-11-02T05:53:48.768Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py observability-e2e"
+        },
+        {
+          "at": "2026-11-02T05:53:54.335Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs observability-e2e"
+        },
+        {
+          "at": "2026-11-02T05:54:58.685Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py observability-e2e"
+        },
+        {
+          "at": "2026-11-02T05:55:00.991Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs observability-e2e"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:observability-e2e/review-spec": {
+      "attempts": [
+        {
+          "at": "2026-11-02T05:23:31.438Z",
+          "ok": true,
+          "note": "dispatch: Review observability-e2e spec"
+        },
+        {
+          "at": "2026-11-02T05:52:34.030Z",
+          "ok": true,
+          "note": "dispatch: Re-review observability-e2e spec"
+        },
+        {
+          "at": "2026-11-02T05:54:02.211Z",
+          "ok": true,
+          "note": "dispatch: Third review of observability-e2e spec"
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:observability-e2e/review-architecture": {
+      "attempts": [
+        {
+          "at": "2026-11-02T06:11:50.434Z",
+          "ok": true,
+          "note": "dispatch: Architecture review of design"
+        },
+        {
+          "at": "2026-11-02T06:17:43.411Z",
+          "ok": true,
+          "note": "dispatch: Re-review design (architecture)"
+        },
+        {
+          "at": "2026-11-02T12:25:06.690Z",
+          "ok": true,
+          "note": "dispatch: Final architecture review of design"
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:observability-e2e/review-security": {
+      "attempts": [
+        {
+          "at": "2026-11-02T06:11:55.824Z",
+          "ok": true,
+          "note": "dispatch: Security review of design"
+        },
+        {
+          "at": "2026-11-02T06:17:48.127Z",
+          "ok": true,
+          "note": "dispatch: Re-review design (security)"
+        },
+        {
+          "at": "2026-11-02T12:25:13.585Z",
+          "ok": true,
+          "note": "dispatch: Final security review of design"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:51a9366c-75b5-5381-a4fe-5b6ba00229e3/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-02T12:28:05.389Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/tasks": {
+      "attempts": [
+        {
+          "at": "2026-11-02T12:33:44.983Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py observability-e2e"
+        },
+        {
+          "at": "2026-11-02T12:34:11.397Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py observability-e2e --execute"
+        },
+        {
+          "at": "2026-11-02T17:47:13.031Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py observability-e2e --execute"
+        },
+        {
+          "at": "2026-11-03T09:44:58.053Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py observability-e2e"
+        },
+        {
+          "at": "2026-11-03T17:30:36.837Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py observability-e2e"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:observability-e2e/execute-batch-1": {
+      "attempts": [
+        {
+          "at": "2026-11-02T12:35:07.410Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 1 (T1 to T11)"
+        },
+        {
+          "at": "2026-11-02T14:02:22.909Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 1 again (T8 to T11)"
+        },
+        {
+          "at": "2026-11-02T14:12:21.559Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 1 again (T10 and T11)"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/T1": {
+      "attempts": [
+        {
+          "at": "2026-11-02T12:37:56.123Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test → exit 2: src/package-exports.test.ts(2,31): error TS2307: Cannot find module 'node:url' or its corresponding type declarations.\nsrc/package-exports.test.ts(6,43): error TS2304: Cannot find name 'URL'.\nsrc/package-exports.test.ts(6,78): error TS2339: Property 'url' does not exist on type 'ImportMeta'.\n/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/observability-e2e/pac"
+        },
+        {
+          "at": "2026-11-02T12:38:14.899Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+        },
+        {
+          "at": "2026-11-02T12:38:21.085Z",
+          "ok": true,
+          "note": "pnpm arch"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T2": {
+      "attempts": [
+        {
+          "at": "2026-11-02T12:39:48.973Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T3": {
+      "attempts": [
+        {
+          "at": "2026-11-02T12:41:01.320Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+        },
+        {
+          "at": "2026-11-02T12:41:21.418Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:51a9366c-75b5-5381-a4fe-5b6ba00229e3#a71393c6d02f4523c/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-02T12:41:05.819Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/T4": {
+      "attempts": [
+        {
+          "at": "2026-11-02T12:42:18.190Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test → exit 2: \nsrc/trace-context.test.ts(4,3): error TS1484: 'TraceState' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.\nsrc/trace-context.test.ts(68,25): error TS2693: 'TraceState' only refers to a type, but is being used as a value here.\n/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/observability-e2e/packages/telemetry:\n "
+        },
+        {
+          "at": "2026-11-02T12:42:34.565Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T5": {
+      "attempts": [
+        {
+          "at": "2026-11-02T12:45:28.322Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test → exit 1: \n✖ 4 problems (4 errors, 0 warnings)\n\n/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/observability-e2e/packages/telemetry:\n ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @d2rmm/telemetry@0.0.0 lint: `eslint --max-warnings 0 .`\nExit status 1"
+        },
+        {
+          "at": "2026-11-02T12:45:45.748Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T6": {
+      "attempts": [
+        {
+          "at": "2026-11-02T12:46:32.048Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T7": {
+      "attempts": [
+        {
+          "at": "2026-11-02T12:49:12.608Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test → exit 1: \n✖ 1 problem (1 error, 0 warnings)\n\n/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/observability-e2e/packages/telemetry:\n ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @d2rmm/telemetry@0.0.0 lint: `eslint --max-warnings 0 .`\nExit status 1"
+        },
+        {
+          "at": "2026-11-02T12:49:27.832Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:51a9366c-75b5-5381-a4fe-5b6ba00229e3#af26a4d6b5472b232/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-02T14:03:01.813Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/T8": {
+      "attempts": [
+        {
+          "at": "2026-11-02T14:05:03.860Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T9": {
+      "attempts": [
+        {
+          "at": "2026-11-02T14:08:26.821Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test → exit 1: \n FAIL  src/node-sdk.test.ts > startNodeTelemetry > reports at most one export error a minute\nOTLPExporterError: Bad Request\n ❯ IncomingMessage.<anonymous> ../../node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.223.0_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/otlp-exporter-base/src/transport/http-transport-utils.ts:99:25\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯"
+        },
+        {
+          "at": "2026-11-02T14:09:13.323Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T10": {
+      "attempts": [
+        {
+          "at": "2026-11-02T14:10:29.929Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/config test → exit 1:      80|     expect(repositoryBlocks).toStrictEqual([\n       |                              ^\n     81|       {\n     82|         ignores: [\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯"
+        },
+        {
+          "at": "2026-11-02T14:12:47.001Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/config test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T11": {
+      "attempts": [
+        {
+          "at": "2026-11-02T14:15:31.007Z",
+          "ok": false,
+          "note": "pnpm test:harness → exit 1:       at Test.run (node:internal/test_runner/test:1402:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)\n      at Test.postRun (node:internal/test_runner/test:1542:19)\n      at Test.run (node:internal/test_runner/test:1467:12)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)\n ELIFECYCLE  Command failed with exit code 1."
+        },
+        {
+          "at": "2026-11-02T14:16:05.813Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        },
+        {
+          "at": "2026-11-02T14:16:44.943Z",
+          "ok": true,
+          "note": "pnpm arch"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:51a9366c-75b5-5381-a4fe-5b6ba00229e3#a42d0e34fcd3dc847/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-02T14:15:46.985Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:51a9366c-75b5-5381-a4fe-5b6ba00229e3#a42d0e34fcd3dc847/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-02T14:16:37.663Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:observability-e2e/execute-batch-2": {
+      "attempts": [
+        {
+          "at": "2026-11-02T14:17:31.815Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 2 (T12 to T21)"
+        },
+        {
+          "at": "2026-11-02T14:30:02.715Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 2 again (T12 to T21)"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/T12": {
+      "attempts": [
+        {
+          "at": "2026-11-02T14:20:36.290Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test"
+        },
+        {
+          "at": "2026-11-02T14:30:30.836Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test"
+        },
+        {
+          "at": "2026-11-02T14:30:33.988Z",
+          "ok": true,
+          "note": "node --test scripts/test/env-example.test.mjs"
+        },
+        {
+          "at": "2026-11-02T14:30:39.778Z",
+          "ok": true,
+          "note": "pnpm secrets:scan"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T13": {
+      "attempts": [
+        {
+          "at": "2026-11-02T14:44:05.903Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration → exit 1:     193|     }\n    194|     await new Promise((resolve) => setTimeout(resolve, 200));\n ❯ src/main/__tests__/instrument.int.test.ts:211:5\n ❯ src/main/__tests__/instrument.int.test.ts:228:20\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯"
+        },
+        {
+          "at": "2026-11-02T14:45:11.322Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration → exit 1:     262|     expect(statement).toContain('$1');\n       |                       ^\n    263|     expect(statement).not.toContain('MatchFormed');\n    264|     expect(dbSpan.traceId).toBe(server?.traceId);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯"
+        },
+        {
+          "at": "2026-11-02T14:46:48.693Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration"
+        },
+        {
+          "at": "2026-11-02T14:46:59.384Z",
+          "ok": true,
+          "note": "pnpm arch"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T14": {
+      "attempts": [
+        {
+          "at": "2026-11-02T14:49:44.160Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration"
+        },
+        {
+          "at": "2026-11-02T14:49:50.965Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/acceptance exec bddgen → exit 1:   // From: ../../.specs/features/observability-e2e/acceptance.feature:60:5\n});\n\n...and 32 more.\n\nUse snippets above to create missing steps."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/T15": {
+      "attempts": [
+        {
+          "at": "2026-11-02T14:52:54.776Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration → exit 1:      60|     expect(inside?.['trace_id']).toBe(span.spanContext().traceId);\n       |                                  ^\n     61|     expect(inside?.['span_id']).toBe(span.spanContext().spanId);\n     62|   });\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯"
+        },
+        {
+          "at": "2026-11-02T14:54:36.810Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T16": {
+      "attempts": [
+        {
+          "at": "2026-11-02T14:57:29.571Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration → exit 1:      61|     expect(duration.some((point) => point.attributes['http.route'] ===…\n       |                                                                                    ^\n     62|     expect(bodySize.some((point) => point.attributes['http.route'] ===…\n     63|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯"
+        },
+        {
+          "at": "2026-11-02T14:58:46.171Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration"
+        },
+        {
+          "at": "2026-11-02T14:58:57.786Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T17": {
+      "attempts": [
+        {
+          "at": "2026-11-02T15:00:56.218Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T18": {
+      "attempts": [
+        {
+          "at": "2026-11-02T15:02:34.192Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T19": {
+      "attempts": [
+        {
+          "at": "2026-11-02T15:04:50.697Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T20": {
+      "attempts": [
+        {
+          "at": "2026-11-02T15:07:28.294Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration → exit 1:     549|     expect(await sseConnections('site')).toBe(before + 1);\n       |                                          ^\n    550|\n    551|     await a.reader?.cancel();\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯"
+        },
+        {
+          "at": "2026-11-02T15:08:44.100Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T21": {
+      "attempts": [
+        {
+          "at": "2026-11-02T15:10:37.834Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration"
+        },
+        {
+          "at": "2026-11-02T15:11:21.961Z",
+          "ok": true,
+          "note": "pnpm contracts:check"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:observability-e2e/execute-batch-3": {
+      "attempts": [
+        {
+          "at": "2026-11-02T15:13:27.586Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 3 (T22 to T30)"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/T22": {
+      "attempts": [
+        {
+          "at": "2026-11-02T15:15:44.303Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T23": {
+      "attempts": [
+        {
+          "at": "2026-11-02T15:17:04.599Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T24": {
+      "attempts": [
+        {
+          "at": "2026-11-02T15:19:21.241Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T25": {
+      "attempts": [
+        {
+          "at": "2026-11-02T15:21:08.081Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test → exit 1:      29|     expect(scopes.map((scope) => scope.scope.name)).toEqual([APP_METER…\n       |                                                     ^\n     30|     const metric = scopes\n     31|       .flatMap((scope) => scope.metrics)\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯"
+        },
+        {
+          "at": "2026-11-02T15:21:31.335Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T26": {
+      "attempts": [
+        {
+          "at": "2026-11-02T17:22:35.271Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T27": {
+      "attempts": [
+        {
+          "at": "2026-11-02T17:24:32.647Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T28": {
+      "attempts": [
+        {
+          "at": "2026-11-02T17:26:41.472Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T29": {
+      "attempts": [
+        {
+          "at": "2026-11-02T17:28:48.173Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test → exit 2: \nsrc/platform/stream-hub.int.test.ts(240,26): error TS2345: Argument of type '{ identity: IdentityPort; agents: AgentsPort; agentMinVersion: string; siteOrigin: string; }' is not assignable to parameter of type 'GuardDeps'.\n  Property 'clock' is missing in type '{ identity: IdentityPort; agents: AgentsPort; agentMinVersion: string; siteOrigin: string; }' but required in type 'GuardDeps'.\n/Users/pedromoraisf/www/d2rmatc"
+        },
+        {
+          "at": "2026-11-02T17:29:17.134Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T30": {
+      "attempts": [
+        {
+          "at": "2026-11-02T17:30:48.656Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test → exit 1:      46|     expect(calls).toHaveLength(1);\n       |                   ^\n     47|     const [call] = calls;\n     48|     expect(call?.url).toBe(`${ENDPOINT}/v1/traces`);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯"
+        },
+        {
+          "at": "2026-11-02T17:31:10.241Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:observability-e2e/execute-batch-4": {
+      "attempts": [
+        {
+          "at": "2026-11-02T17:32:59.441Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 4 (T31 to T37)"
+        },
+        {
+          "at": "2026-11-02T17:47:54.292Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 4 again (T31 to T37)"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/T31": {
+      "attempts": [
+        {
+          "at": "2026-11-02T17:44:39.348Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration → exit 1:      93|     expect(readFileSync(OPENAPI_PATH, 'utf8')).toBe(await buildOpenApi…\n       |                                                ^\n     94|   });\n     95| });\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯"
+        },
+        {
+          "at": "2026-11-02T17:49:01.090Z",
+          "ok": true,
+          "note": "pnpm contracts:openapi"
+        },
+        {
+          "at": "2026-11-02T17:50:05.371Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration"
+        },
+        {
+          "at": "2026-11-02T17:50:24.088Z",
+          "ok": true,
+          "note": "pnpm contracts:check"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:51a9366c-75b5-5381-a4fe-5b6ba00229e3#a2a89d5640b6e8b14/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-02T17:50:12.938Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/T32": {
+      "attempts": [
+        {
+          "at": "2026-11-02T17:52:02.751Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration"
+        },
+        {
+          "at": "2026-11-02T17:52:08.268Z",
+          "ok": true,
+          "note": "pnpm contracts:check"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T33": {
+      "attempts": [
+        {
+          "at": "2026-11-02T17:54:56.170Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T34": {
+      "attempts": [
+        {
+          "at": "2026-11-02T17:55:33.226Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T35": {
+      "attempts": [
+        {
+          "at": "2026-11-02T17:57:39.497Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test → exit 1:      20|       created.push({ url: config?.url });\n     21|     }\n ❯ Module.startWebTelemetry src/web-sdk.ts:73:20\n ❯ src/web-sdk.test.ts:61:14\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯"
+        },
+        {
+          "at": "2026-11-02T17:57:58.431Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T36": {
+      "attempts": [
+        {
+          "at": "2026-11-02T17:59:49.921Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test → exit 2:   Types of property 'ratio' are incompatible.\n    Type 'string | undefined' is not assignable to type 'string'.\n      Type 'undefined' is not assignable to type 'string'.\n/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/observability-e2e/apps/web:\n ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @d2rmm/web@0.0.0 typecheck: `tsc --noEmit`\nExit status 2"
+        },
+        {
+          "at": "2026-11-02T18:00:08.273Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test"
+        },
+        {
+          "at": "2026-11-02T18:00:55.551Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:51a9366c-75b5-5381-a4fe-5b6ba00229e3#a2a89d5640b6e8b14/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-02T18:00:12.458Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/T37": {
+      "attempts": [
+        {
+          "at": "2026-11-02T18:01:43.954Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:observability-e2e/execute-batch-5": {
+      "attempts": [
+        {
+          "at": "2026-11-02T18:03:35.937Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 5 (T38 to T46)"
+        },
+        {
+          "at": "2026-11-02T23:06:29.439Z",
+          "ok": true,
+          "note": "dispatch: Finish T46 headless example"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:51a9366c-75b5-5381-a4fe-5b6ba00229e3#ae4a907717b3b1e83/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-02T18:04:25.027Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:51a9366c-75b5-5381-a4fe-5b6ba00229e3#ae4a907717b3b1e83/2d121ea3": {
+      "attempts": [
+        {
+          "at": "2026-11-02T18:05:01.543Z",
+          "ok": false,
+          "note": "rm -r is allowed only on build/test output folders (node_modules, dist, coverage, target, reports…). Blocked: $d"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/T38": {
+      "attempts": [
+        {
+          "at": "2026-11-02T18:10:19.744Z",
+          "ok": true,
+          "note": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=\"$HOME/.cargo/bin:$PATH\" cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && PATH=\"$HOME/.cargo/bin:$PATH\" cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:51a9366c-75b5-5381-a4fe-5b6ba00229e3#ae4a907717b3b1e83/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-02T18:35:27.423Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/T39": {
+      "attempts": [
+        {
+          "at": "2026-11-02T18:35:39.866Z",
+          "ok": false,
+          "note": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo metadata --format-version 1 --manifest-path apps/agent/src-tauri/Cargo.toml → exit null:      Locking 2 packages to highest Rust 1.99.1 compatible versions\n      Adding async-trait v0.1.92\n      Adding opentelemetry-http v0.33.1\n Downloading crates ...\n  Downloaded async-trait v0.1.92\n  Downloaded opentelemetry-http v0.33.1"
+        },
+        {
+          "at": "2026-11-02T18:39:22.174Z",
+          "ok": true,
+          "note": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=\"$HOME/.cargo/bin:$PATH\" cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && PATH=\"$HOME/.cargo/bin:$PATH\" cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --no-fail-fast"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T40": {
+      "attempts": [
+        {
+          "at": "2026-11-02T18:40:03.695Z",
+          "ok": false,
+          "note": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=\"$HOME/.cargo/bin:$PATH\" cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && PATH=\"$HOME/.cargo/bin:$PATH\" cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters → exit 101: warning: `d2rmm-agent-adapters` (test \"stream\") generated 1 warning (1 duplicate)\nSome errors h"
+        },
+        {
+          "at": "2026-11-02T18:41:47.956Z",
+          "ok": true,
+          "note": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=\"$HOME/.cargo/bin:$PATH\" cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && PATH=\"$HOME/.cargo/bin:$PATH\" cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T41": {
+      "attempts": [
+        {
+          "at": "2026-11-02T18:44:19.055Z",
+          "ok": true,
+          "note": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=\"$HOME/.cargo/bin:$PATH\" cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && PATH=\"$HOME/.cargo/bin:$PATH\" cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters"
+        },
+        {
+          "at": "2026-11-02T18:46:57.651Z",
+          "ok": false,
+          "note": "node scripts/agent/win-check.mjs → exit 101:    |\n   = help: message: The `frontendDist` configuration is set to `\"../dist\"` but this path doesn't exist\n\nerror: could not compile `d2rmm-agent` (bin \"d2rmm-agent\" test) due to 1 previous error\nwarning: build failed, waiting for other jobs to finish...\nerror: could not compile `d2rmm-agent` (bin \"d2rmm-agent\") due to 1 previous error"
+        },
+        {
+          "at": "2026-11-02T18:47:34.177Z",
+          "ok": true,
+          "note": "node scripts/agent/win-check.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T42": {
+      "attempts": [
+        {
+          "at": "2026-11-02T18:48:34.667Z",
+          "ok": true,
+          "note": "cd /Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/observability-e2e/apps/agent/src-tauri && PATH=\"$HOME/.cargo/bin:$PATH\" cargo deny check"
+        },
+        {
+          "at": "2026-11-02T18:49:09.176Z",
+          "ok": false,
+          "note": "pnpm test:harness → exit 1:     actual: [ 'adapters/src/http/sse.rs', 'adapters/src/http/translate.rs', 'adapters/src/telemetry/queue.rs', 'adapters/src/telemetry/relay_client.rs', 'adapters/src/telemetry/sanitize.rs', 'core/src/beat.rs', 'core/src/check_update.rs', 'core/src/follow_stream.rs', 'core/src/pair.rs', 'core/src/post_observation.rs', 'domain/src/**/*.rs' ],\n    expected: [ 'adapters/src/http/sse.rs', 'adapters/src/http/translate.rs', 'core/src/beat.rs', 'core/src/check_update.rs', 'c"
+        },
+        {
+          "at": "2026-11-02T18:49:57.866Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T43": {
+      "attempts": [
+        {
+          "at": "2026-11-02T18:52:46.762Z",
+          "ok": false,
+          "note": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=\"$HOME/.cargo/bin:$PATH\" cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && PATH=\"$HOME/.cargo/bin:$PATH\" cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters → exit 101: \nwarning: `d2rmm-agent-adapters` (lib) generated 1 warning (1 duplicate)\nerror: could not compi"
+        },
+        {
+          "at": "2026-11-02T18:54:24.690Z",
+          "ok": false,
+          "note": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=\"$HOME/.cargo/bin:$PATH\" cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && PATH=\"$HOME/.cargo/bin:$PATH\" cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters → exit 100:         PASS [   0.752s] ( 45/110) d2rmm-agent-adapters telemetry::relay_client::tests::a_redir"
+        },
+        {
+          "at": "2026-11-02T18:56:00.757Z",
+          "ok": true,
+          "note": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=\"$HOME/.cargo/bin:$PATH\" cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && PATH=\"$HOME/.cargo/bin:$PATH\" cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters"
+        },
+        {
+          "at": "2026-11-02T18:57:00.817Z",
+          "ok": true,
+          "note": "node scripts/agent/win-check.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T44": {
+      "attempts": [
+        {
+          "at": "2026-11-02T18:57:52.741Z",
+          "ok": true,
+          "note": "cd /Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/observability-e2e/apps/agent/src-tauri && PATH=\"$HOME/.cargo/bin:$PATH\" cargo deny check"
+        },
+        {
+          "at": "2026-11-02T18:58:46.027Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T45": {
+      "attempts": [
+        {
+          "at": "2026-11-02T19:00:50.821Z",
+          "ok": true,
+          "note": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=\"$HOME/.cargo/bin:$PATH\" cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && PATH=\"$HOME/.cargo/bin:$PATH\" cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#aecfa8935893c3703/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-02T23:07:17.758Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#aecfa8935893c3703/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-02T23:07:56.202Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/T46": {
+      "attempts": [
+        {
+          "at": "2026-11-02T23:08:45.644Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets --features fixture-read -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --features fixture-read"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T47": {
+      "attempts": [
+        {
+          "at": "2026-11-02T23:13:48.433Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#afff2a246da5efb41/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-02T23:16:42.770Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-03T00:12:11.332Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-03T00:12:27.156Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "blocked"
+    },
+    "gate:observability-e2e/T48": {
+      "attempts": [
+        {
+          "at": "2026-11-02T23:17:16.961Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#afff2a246da5efb41/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-02T23:19:59.263Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/T49": {
+      "attempts": [
+        {
+          "at": "2026-11-02T23:20:48.389Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T50": {
+      "attempts": [
+        {
+          "at": "2026-11-02T23:23:16.088Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec vitest run support"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T51": {
+      "attempts": [
+        {
+          "at": "2026-11-02T23:25:52.420Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec vitest run support → exit 1:      37|     await expect(post()).rejects.toMatchObject({ cause: { code: 'ECONN…\n       |                         ^\n     38|     expect(backend.requests).toHaveLength(2);\n     39|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯"
+        },
+        {
+          "at": "2026-11-02T23:26:17.009Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec vitest run support"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T52": {
+      "attempts": [
+        {
+          "at": "2026-11-02T23:31:06.797Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec vitest run support && pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+        },
+        {
+          "at": "2026-11-02T23:32:04.736Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec vitest run support && pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/T53": {
+      "attempts": [
+        {
+          "at": "2026-11-02T23:37:48.914Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec vitest run support → exit 2: \nsteps/observability.steps.ts(106,7): error TS2412: Type 'string | undefined' is not assignable to type 'string' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the type of the target.\n  Type 'undefined' is not assignable to type 'string'.\n/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/observability-e2e/tests/acceptance:\n ERR_PNPM_RECURSIVE_RUN_FIRST_FA"
+        },
+        {
+          "at": "2026-11-02T23:38:04.065Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec vitest run support"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#acd390a20e9ccd1a4/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-03T00:13:16.720Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#acd390a20e9ccd1a4/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-03T00:13:28.709Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#a0476790869a92b84/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-03T00:56:26.319Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#a0476790869a92b84/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-03T00:56:32.167Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619/5d8c802f": {
+      "attempts": [
+        {
+          "at": "2026-11-03T01:17:28.695Z",
+          "ok": false,
+          "note": "BLOCKED — dispatch:observability-e2e/execute-batch-6 used its 3 attempts (1 + 2 retries). Do not try again by any other route. Record it as blocked (feature tasks.md \"## Handoff\" and the phase decisions.md \"Blocked\" table) and return to the orchestrator / maintainer."
+        },
+        {
+          "at": "2026-11-03T03:36:45.914Z",
+          "ok": false,
+          "note": "BLOCKED — dispatch:observability-e2e/execute-batch-6 used its 3 attempts (1 + 2 retries). Do not try again by any other route. Record it as blocked (feature tasks.md \"## Handoff\" and the phase decisions.md \"Blocked\" table) and return to the orchestrator / maintainer."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#a04edefde177ca6ba/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-03T02:11:09.834Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#aabd73282c48e1bc1/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-03T02:46:31.153Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        },
+        {
+          "at": "2026-11-03T02:46:35.797Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/T54": {
+      "attempts": [
+        {
+          "at": "2026-11-03T02:46:55.085Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep '@NFR-09' → exit 2: > tsc --noEmit\n\nsupport/agent-proxy.test.ts(29,40): error TS4111: Property 'traceparent' comes from an index signature, so it must be accessed with ['traceparent'].\n/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/observability-e2e/tests/acceptance:\n ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  "
+        },
+        {
+          "at": "2026-11-03T02:53:57.489Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep '@NFR-09' → exit 1:   1 failed\n    [chromium] › .features-gen/observability-e2e/acceptance.feature.spec.js:17:3 › Traces follow a test room from the click to the stream event › The agent's observation leaves its own trace and the room becomes Created @OBS-12 @OBS-24 @NFR-09 @slow @web \n  21 passed (6.7m)\nundefine"
+        },
+        {
+          "at": "2026-11-03T03:04:20.743Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep '@NFR-09'"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#aabd73282c48e1bc1/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-03T03:19:01.284Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/T55": {
+      "attempts": [
+        {
+          "at": "2026-11-03T03:19:20.410Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#ab8d6a5ee855abf60/f63fcc16": {
+      "attempts": [
+        {
+          "at": "2026-11-03T03:30:04.938Z",
+          "ok": false,
+          "note": "The retry ledger is maintained by the hooks and scripts/attempt.mjs only."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#ab8d6a5ee855abf60/2d121ea3": {
+      "attempts": [
+        {
+          "at": "2026-11-03T03:34:01.919Z",
+          "ok": false,
+          "note": "rm -r is allowed only on build/test output folders (node_modules, dist, coverage, target, reports…). Blocked: 2>/dev/null"
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:observability-e2e/execute-batch-6": {
+      "attempts": [
+        {
+          "at": "2026-11-03T03:37:32.290Z",
+          "ok": true,
+          "note": "dispatch: Apply AD-104/105 and run T56 gate"
+        },
+        {
+          "at": "2026-11-03T09:32:01.026Z",
+          "ok": true,
+          "note": "dispatch: Apply AD-106 and run T56 gate"
+        },
+        {
+          "at": "2026-11-03T17:30:47.633Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 6: close T56"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#a6948109c84e6077f/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-03T03:38:08.188Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#a28b68531358080cb/f63fcc16": {
+      "attempts": [
+        {
+          "at": "2026-11-03T09:41:48.503Z",
+          "ok": false,
+          "note": "The retry ledger is maintained by the hooks and scripts/attempt.mjs only."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-03T09:44:50.740Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/T56": {
+      "attempts": [
+        {
+          "at": "2026-11-03T09:56:25.518Z",
+          "ok": false,
+          "note": "pnpm build && pnpm typecheck && pnpm lint && pnpm arch && pnpm format:check && pnpm test:acceptance && pnpm contracts:check && pnpm harness:gate && pnpm quality:gate → exit 1: Failed:    @d2rmm/acceptance#test:acceptance\n\n ELIFECYCLE  Command failed with exit code 1.\n\n@d2rmm/acceptance#test:acceptance:  ERROR  command (/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/observability-e2e/tests/acceptance) /Users/pedromoraisf/Library/pnpm/bin/pnpm run test:acceptance exited (1)\n ERROR  run f"
+        },
+        {
+          "at": "2026-11-03T17:31:46.448Z",
+          "ok": false,
+          "note": "pnpm build && pnpm typecheck && pnpm lint && pnpm arch && pnpm format:check && pnpm test:acceptance && pnpm contracts:check && pnpm harness:gate && pnpm quality:gate → exit 1: Failed:    @d2rmm/acceptance#test:acceptance\n\n ELIFECYCLE  Command failed with exit code 1.\n\n@d2rmm/acceptance#test:acceptance:  ERROR  command (/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/observability-e2e/tests/acceptance) /Users/pedromoraisf/Library/pnpm/bin/pnpm run test:acceptance exited (1)\n ERROR  run f"
+        },
+        {
+          "at": "2026-11-03T17:58:02.616Z",
+          "ok": true,
+          "note": "pnpm build && pnpm typecheck && pnpm lint && pnpm arch && pnpm format:check && pnpm test:acceptance && pnpm contracts:check && pnpm harness:gate && pnpm quality:gate"
+        }
+      ],
+      "status": "passed"
+    },
+    "feedback:df02b227-33e8-4adb-b93a-881d47c062af/.claude/hooks/test/shell-indirection.test.mjs:harness-tests": {
+      "attempts": [
+        {
+          "at": "2026-11-03T15:38:09.548Z",
+          "ok": false,
+          "note": "…\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 157.083089\n\n✖ failing tests:\n\ntest at .claude/hooks/test/shell-indirection.test.mjs:1:1\n✖ .claude/hooks/test/shell-indirection.test.mjs (138.594221ms)\n  'test failed'"
+        }
+      ],
+      "status": "open"
+    },
+    "feedback:df02b227-33e8-4adb-b93a-881d47c062af/.claude/hooks/test/gate-rules.test.mjs:harness-tests": {
+      "attempts": [
+        {
+          "at": "2026-11-03T15:41:48.890Z",
+          "ok": false,
+          "note": "…\n      at Test.postRun (node:internal/test_runner/test:1542:19)\n      at Test.run (node:internal/test_runner/test:1467:12)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: 'allow',\n    expected: '"
+        }
+      ],
+      "status": "open"
+    },
+    "feedback:df02b227-33e8-4adb-b93a-881d47c062af/.claude/hooks/lib/shell-indirection.mjs:harness-tests": {
+      "attempts": [
+        {
+          "at": "2026-11-03T15:43:05.451Z",
+          "ok": false,
+          "note": "…\n      at Test.postRun (node:internal/test_runner/test:1542:19)\n      at Test.run (node:internal/test_runner/test:1467:12)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: 'allow',\n    expected: '"
+        },
+        {
+          "at": "2026-11-03T15:43:37.958Z",
+          "ok": false,
+          "note": "…\n      at Test.postRun (node:internal/test_runner/test:1542:19)\n      at Test.run (node:internal/test_runner/test:1467:12)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: 'allow',\n    expected: '"
+        }
+      ],
+      "status": "open"
+    },
+    "feedback:df02b227-33e8-4adb-b93a-881d47c062af/.claude/hooks/lib/gate-rules.mjs:harness-tests": {
+      "attempts": [
+        {
+          "at": "2026-11-03T15:47:03.549Z",
+          "ok": false,
+          "note": "…\n      at Test.postRun (node:internal/test_runner/test:1542:19)\n      at Test.run (node:internal/test_runner/test:1467:12)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: 'allow',\n    expected: '"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:df02b227-33e8-4adb-b93a-881d47c062af/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-03T15:48:43.611Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:df02b227-33e8-4adb-b93a-881d47c062af/9edfbfb6": {
+      "attempts": [
+        {
+          "at": "2026-11-03T15:49:35.761Z",
+          "ok": false,
+          "note": ".env files hold secrets and are off-limits to the agent, from inline code too. Use .env.example."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:df02b227-33e8-4adb-b93a-881d47c062af/2d121ea3": {
+      "attempts": [
+        {
+          "at": "2026-11-03T15:55:37.663Z",
+          "ok": false,
+          "note": "rm -r is allowed only on build/test output folders (node_modules, dist, coverage, target, reports…). Blocked: $SP"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:2ea976c0-e758-509a-9b71-75c917bddb74/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-03T17:30:32.510Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-03T18:51:26.987Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:2ea976c0-e758-509a-9b71-75c917bddb74#aa6c9c58e5471c67e/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-03T17:31:03.952Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/proofs": {
+      "attempts": [
+        {
+          "at": "2026-11-03T18:20:11.836Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py observability-e2e"
+        },
+        {
+          "at": "2026-11-03T18:51:14.712Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py observability-e2e"
+        },
+        {
+          "at": "2026-11-03T18:59:11.645Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py observability-e2e --mutations .specs/features/observability-e2e/mutations.json"
+        },
+        {
+          "at": "2026-11-03T19:09:08.505Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py observability-e2e --mutations .specs/features/observability-e2e/mutations.json"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:observability-e2e/verify": {
+      "attempts": [
+        {
+          "at": "2026-11-03T18:20:41.266Z",
+          "ok": true,
+          "note": "dispatch: Verify observability-e2e feature"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:2ea976c0-e758-509a-9b71-75c917bddb74#af35df2f002bffe90/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-03T18:22:55.172Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:2ea976c0-e758-509a-9b71-75c917bddb74#af35df2f002bffe90/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-03T18:23:11.541Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-03T18:28:01.828Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:observability-e2e/execute-batch-7": {
+      "attempts": [
+        {
+          "at": "2026-11-03T18:29:16.756Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 7: verifier fixes"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:2ea976c0-e758-509a-9b71-75c917bddb74#a5fe568a779403a0e/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-03T18:30:05.105Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-03T18:30:08.311Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:observability-e2e/verification": {
+      "attempts": [
+        {
+          "at": "2026-11-03T18:59:42.778Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py observability-e2e → exit 1: ERROR observability-e2e: proofs.md was written at 6af82a9 and HEAD is 65d4481 - run check_proofs.py again\n\nvalidate_verification: 1 error(s), 0 warning(s) across [observability-e2e]"
+        },
+        {
+          "at": "2026-11-03T19:09:17.801Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py observability-e2e"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:observability-e2e/integration": {
+      "attempts": [
+        {
+          "at": "2026-11-03T19:12:01.367Z",
+          "ok": true,
+          "note": "pnpm check && pnpm contracts:check && pnpm harness:gate"
+        },
+        {
+          "at": "2026-11-03T19:12:42.694Z",
+          "ok": false,
+          "note": "pnpm check → exit 70:   error not-to-unresolvable: apps/api/src/main/app.test.ts → @opentelemetry/context-async-hooks\n\nx 72 dependency violations (70 errors, 2 warnings). 355 modules, 998 dependencies cruised.\n\n ELIFECYCLE  Command failed with exit code 70.\n ELIFECYCLE  Command failed with exit code 70."
+        },
+        {
+          "at": "2026-11-03T19:14:14.787Z",
+          "ok": true,
+          "note": "pnpm check"
+        }
+      ],
+      "status": "passed"
     }
   },
   "resets": [
@@ -5253,6 +6808,291 @@
             "at": "2026-11-02T05:07:02.648Z",
             "ok": false,
             "note": "pnpm check → exit 1: Checking formatting...\n ELIFECYCLE  Command failed with exit code 1.\n ELIFECYCLE  Command failed with exit code 1.\n\n[warn] .specs/features/agent-hexagonal-migration/spec.md\n[warn] Code style issues found in the above file. Run Prettier with --write to fix."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "gate:observability-e2e/T8",
+      "by": "pedromoraisf",
+      "at": "2026-11-02T14:01:30.069Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-02T12:50:50.991Z",
+            "ok": false,
+            "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test → exit 2:   Types of property 'attributesProcessors' are incompatible.\n    Type 'IAttributesProcessor[] | undefined' is not assignable to type 'IAttributesProcessor[]'.\n      Type 'undefined' is not assignable to type 'IAttributesProcessor[]'.\n/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/observability-e2e/packages/telemetry:\n ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @d2rmm"
+          },
+          {
+            "at": "2026-11-02T12:51:07.196Z",
+            "ok": false,
+            "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test → exit 1:      62|     expect(metrics).toHaveLength(1);\n       |                     ^\n     63|     expect(metrics[0]?.dataPoints.map((point) => point.attributes)).to…\n     64|       { 'http.route': '/v1/lobby/:roomId', 'http.response.status_class…\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯"
+          },
+          {
+            "at": "2026-11-02T12:51:47.514Z",
+            "ok": false,
+            "note": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test → exit 1:      64|     expect(metrics).toHaveLength(1);\n       |                     ^\n     65|     expect(metrics[0]?.dataPoints.map((point) => point.attributes)).to…\n     66|       { 'http.route': '/v1/lobby/:roomId', 'http.response.status_class…\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "gate:observability-e2e/T46",
+      "by": "pedromoraisf",
+      "at": "2026-11-02T23:06:17.639Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-02T19:03:38.351Z",
+            "ok": true,
+            "note": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=\"$HOME/.cargo/bin:$PATH\" cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && PATH=\"$HOME/.cargo/bin:$PATH\" cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters"
+          },
+          {
+            "at": "2026-11-02T19:03:58.770Z",
+            "ok": false,
+            "note": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets --features fixture-read -- -D warnings && PATH=\"$HOME/.cargo/bin:$PATH\" cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --features fixture-read -E 'test(the_example_prints_its_lines_and_reads_the_sidecar_text_once)' → exit 101: warning: `d2rmm-agent-adapters` (test \"heartbeat\") generated 1 warning (1 duplicate"
+          },
+          {
+            "at": "2026-11-02T19:04:18.811Z",
+            "ok": false,
+            "note": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets --features fixture-read -- -D warnings && PATH=\"$HOME/.cargo/bin:$PATH\" cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --features fixture-read -E 'test(the_example_prints_its_lines_and_reads_the_sidecar_text_once)' → exit 101: error: could not compile `d2rmm-agent-adapters` (test \"headless\") due to 2 previous"
+          },
+          {
+            "at": "2026-11-02T19:11:32.297Z",
+            "ok": false,
+            "note": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && PATH=\"$HOME/.cargo/bin:$PATH\" cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets --features fixture-read -- -D warnings && PATH=\"$HOME/.cargo/bin:$PATH\" cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --features fixture-read → exit 100: \n  Cancelling due to test failure\n────────────\n"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "gate:observability-e2e/T54",
+      "by": "pedromoraisf",
+      "at": "2026-11-02T23:56:08.628Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-02T23:42:10.205Z",
+            "ok": false,
+            "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep \"@NFR-09\" → exit 2:   Overload 2 of 2, '(input: URL | RequestInfo, init?: RequestInit | undefined): Promise<Response>', gave the following error.\n    Type 'Buffer<ArrayBufferLike>' is not assignable to type 'BodyInit | null | undefined'.\n      Type 'Buffer<ArrayBufferLike>' is missing the following properties fro"
+          },
+          {
+            "at": "2026-11-02T23:49:18.537Z",
+            "ok": false,
+            "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep \"@NFR-09\" → exit 1:     [chromium] › .features-gen/observability-e2e/acceptance.feature.spec.js:163:5 › Traces follow a test room from the click to the stream event › The relay slows down a flood › Example #1 @OBS-14 @NFR-09 @api \n    [chromium] › .features-gen/observability-e2e/acceptance.feature.spec.js:171:5 ›"
+          }
+        ],
+        "status": "open"
+      }
+    },
+    {
+      "key": "gate:observability-e2e/T54",
+      "by": "pedromoraisf",
+      "at": "2026-11-03T00:51:49.801Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-03T00:13:43.402Z",
+            "ok": true,
+            "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec vitest run support"
+          },
+          {
+            "at": "2026-11-03T00:14:00.914Z",
+            "ok": false,
+            "note": "pnpm exec eslint tests/acceptance packages/telemetry/src && pnpm exec prettier --check tests/acceptance .specs/features/observability-e2e/tasks.md → exit 1: /Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/observability-e2e/tests/acceptance/steps/observability.steps.ts\n  27:34  error  'World' is defined but never used  @typescript-eslint/no-unused-vars\n\n✖ 1 problem (1 error, 0 warnings)"
+          },
+          {
+            "at": "2026-11-03T00:14:17.137Z",
+            "ok": true,
+            "note": "pnpm exec eslint tests/acceptance packages/telemetry/src && pnpm exec prettier --check tests/acceptance packages/telemetry/src"
+          },
+          {
+            "at": "2026-11-03T00:23:07.166Z",
+            "ok": false,
+            "note": "pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep \"@NFR-09\" → exit 1:     [chromium] › .features-gen/observability-e2e/acceptance.feature.spec.js:17:3 › Traces follow a test room from the click to the stream event › The agent's observation leaves its own trace and the room becomes Created @OBS-12 @OBS-24 @NFR-09 @slow @web \n    [chromium] › .features-gen/observability-e2e/acceptance.feature.spec.js:171:5 ›"
+          },
+          {
+            "at": "2026-11-03T00:27:10.261Z",
+            "ok": true,
+            "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm exec eslint tests/acceptance && pnpm exec prettier --check tests/acceptance && pnpm --filter @d2rmm/acceptance exec vitest run support"
+          },
+          {
+            "at": "2026-11-03T00:35:45.142Z",
+            "ok": false,
+            "note": "pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep \"@NFR-09\" → exit 1:   1 failed\n    [chromium] › .features-gen/observability-e2e/acceptance.feature.spec.js:17:3 › Traces follow a test room from the click to the stream event › The agent's observation leaves its own trace and the room becomes Created @OBS-12 @OBS-24 @NFR-09 @slow @web \n  21 passed (8.4m)\nundefined\n/Users/pedromoraisf/www/d2rmatchmaking/.cla"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "dispatch:observability-e2e/execute-batch-6",
+      "by": "pedromoraisf",
+      "at": "2026-11-03T01:31:55.389Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-02T23:09:49.352Z",
+            "ok": true,
+            "note": "dispatch: Execute batch 6 (T47-T56)"
+          },
+          {
+            "at": "2026-11-03T00:13:02.545Z",
+            "ok": true,
+            "note": "dispatch: Run T54 gate, then T55 and T56"
+          },
+          {
+            "at": "2026-11-03T00:52:00.783Z",
+            "ok": true,
+            "note": "dispatch: Diagnose trace B paired, then T54-T56"
+          },
+          {
+            "at": "2026-11-03T01:17:28.694Z",
+            "ok": false,
+            "note": "refused dispatch #4: Fix trace B race, spend last T54 attempt"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "gate:observability-e2e/T54",
+      "by": "pedromoraisf",
+      "at": "2026-11-03T02:40:26.777Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-03T00:56:47.125Z",
+            "ok": true,
+            "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/telemetry typecheck && pnpm exec prettier --check tests/acceptance packages/telemetry && pnpm exec eslint tests/acceptance packages/telemetry"
+          },
+          {
+            "at": "2026-11-03T01:02:26.285Z",
+            "ok": false,
+            "note": "pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep \"@NFR-09\" → exit 1:   1 failed\n    [chromium] › .features-gen/observability-e2e/acceptance.feature.spec.js:17:3 › Traces follow a test room from the click to the stream event › The agent's observation leaves its own trace and the room becomes Created @OBS-12 @OBS-24 @NFR-09 @slow @web \n  21 passed (5.5m)\nundefined\n/Users/pedromoraisf/www/d2rmatchmaking/.cla"
+          },
+          {
+            "at": "2026-11-03T01:05:57.893Z",
+            "ok": true,
+            "note": "pnpm exec prettier --write tests/acceptance/support/trace-reader.ts && pnpm --filter @d2rmm/acceptance typecheck && pnpm exec eslint tests/acceptance/support/trace-reader.ts tests/acceptance/support/headless-agent.ts tests/acceptance/support/stack.ts tests/acceptance/steps/observability.steps.ts"
+          },
+          {
+            "at": "2026-11-03T01:14:24.646Z",
+            "ok": false,
+            "note": "pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep \"@NFR-09\" → exit 1:   1 failed\n    [chromium] › .features-gen/observability-e2e/acceptance.feature.spec.js:17:3 › Traces follow a test room from the click to the stream event › The agent's observation leaves its own trace and the room becomes Created @OBS-12 @OBS-24 @NFR-09 @slow @web \n  21 passed (8.2m)\nundefined\n/Users/pedromoraisf/www/d2rmatchmaking/.cla"
+          },
+          {
+            "at": "2026-11-03T02:18:17.952Z",
+            "ok": false,
+            "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep '@NFR-09' → exit 1:   1 failed\n    [chromium] › .features-gen/observability-e2e/acceptance.feature.spec.js:17:3 › Traces follow a test room from the click to the stream event › The agent's observation leaves its own trace and the room becomes Created @OBS-12 @OBS-24 @NFR-09 @slow @web \n  21 passed (6.3m)\nundefine"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "dispatch:observability-e2e/execute-batch-6",
+      "by": "pedromoraisf",
+      "at": "2026-11-03T03:37:24.435Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-03T01:32:06.254Z",
+            "ok": true,
+            "note": "dispatch: Fix trace B race, spend last T54 attempt"
+          },
+          {
+            "at": "2026-11-03T02:40:39.870Z",
+            "ok": true,
+            "note": "dispatch: Fix Tempo search timeout, last T54 attempt"
+          },
+          {
+            "at": "2026-11-03T03:29:56.669Z",
+            "ok": true,
+            "note": "dispatch: Fix T56 gate failures and close"
+          },
+          {
+            "at": "2026-11-03T03:36:45.913Z",
+            "ok": false,
+            "note": "refused dispatch #4: Apply AD-104/105 and run T56 gate"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "gate:observability-e2e/T56",
+      "by": "pedromoraisf",
+      "at": "2026-11-03T09:48:23.344Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-03T03:27:44.519Z",
+            "ok": false,
+            "note": "pnpm build && pnpm typecheck && pnpm lint && pnpm arch && pnpm format:check && pnpm test:acceptance && pnpm contracts:check && pnpm harness:gate && pnpm quality:collect && pnpm quality:ratchet --context pr → exit 1: Failed:    @d2rmm/acceptance#test:acceptance\n\n ELIFECYCLE  Command failed with exit code 1.\n\n@d2rmm/acceptance#test:acceptance:  ERROR  command (/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/observability-e2e/tests/acceptance) /Users/pedromoraisf/Library/pnpm/bin/pnpm run "
+          },
+          {
+            "at": "2026-11-03T03:45:55.281Z",
+            "ok": false,
+            "note": "pnpm build && pnpm typecheck && pnpm lint && pnpm arch && pnpm format:check && pnpm test:acceptance && pnpm contracts:check && pnpm harness:gate && pnpm quality:collect && pnpm quality:ratchet --context pr → exit 1: Failed:    @d2rmm/acceptance#test:acceptance\n\n ELIFECYCLE  Command failed with exit code 1.\n\n@d2rmm/acceptance#test:acceptance:  ERROR  command (/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/observability-e2e/tests/acceptance) /Users/pedromoraisf/Library/pnpm/bin/pnpm run "
+          },
+          {
+            "at": "2026-11-03T09:41:35.157Z",
+            "ok": false,
+            "note": "pnpm build && pnpm typecheck && pnpm lint && pnpm arch && pnpm format:check && pnpm test:acceptance && pnpm contracts:check && pnpm harness:gate && pnpm quality:collect && pnpm quality:ratchet --context pr → exit 1:   ✗ harness.percent: was measured (100) but is missing now — a sensor stopped reporting\n  ✗ harness.failed_checks: was measured (0) but is missing now — a sensor stopped reporting\n  ✗ arch.violations: was measured (0) but is missing now — a sensor stopped reporting\n  ✗ lint.warnings:"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "gate:observability-e2e/verification",
+      "by": "pedromoraisf",
+      "at": "2026-11-03T18:36:57.279Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-03T18:23:23.786Z",
+            "ok": true,
+            "note": "pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform/http/zz-probe.int.test.ts"
+          },
+          {
+            "at": "2026-11-03T18:28:08.554Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py observability-e2e → exit 1: ERROR observability-e2e: no verification.md - the feature is not done until a fresh Verifier (author != verifier) writes its findings over <feature base>..HEAD\n\nvalidate_verification: 1 error(s), 0 warning(s) across [observability-e2e]"
+          },
+          {
+            "at": "2026-11-03T18:28:22.962Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py observability-e2e → exit 1: ERROR observability-e2e: proofs.md was written at 92a5eea and HEAD is 95b65f4 - run check_proofs.py again\n  ERROR observability-e2e: `Mutations: 3` owes 3 mutation rows and proofs.md has 0 - run check_proofs.py --mutations with the Verifier's spec\n  ERROR observability-e2e: finding 'The server span exports the caller's socket addres' is not closed - fix it and write the commit in `Closed`\n  ERROR "
+          },
+          {
+            "at": "2026-11-03T18:30:30.307Z",
+            "ok": true,
+            "note": "pnpm --filter @d2rmm/telemetry exec vitest run"
+          },
+          {
+            "at": "2026-11-03T18:30:38.777Z",
+            "ok": true,
+            "note": "pnpm --filter @d2rmm/acceptance exec vitest run support"
+          },
+          {
+            "at": "2026-11-03T18:31:41.292Z",
+            "ok": true,
+            "note": "pnpm --filter @d2rmm/api exec vitest run src/platform/http/telemetry-relay.test.ts"
+          },
+          {
+            "at": "2026-11-03T18:32:11.068Z",
+            "ok": true,
+            "note": "pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform/http/telemetry-relay.int.test.ts src/platform/http/telemetry-relay-order.int.test.ts"
+          },
+          {
+            "at": "2026-11-03T18:33:26.664Z",
+            "ok": false,
+            "note": "pnpm typecheck && pnpm lint && pnpm arch && pnpm format:check → exit 1: Checking formatting...\n ELIFECYCLE  Command failed with exit code 1.\n\n[warn] .specs/features/observability-e2e/mutations.json\n[warn] .specs/features/observability-e2e/verification.md\n[warn] Code style issues found in 2 files. Run Prettier with --write to fix."
           }
         ],
         "status": "blocked"

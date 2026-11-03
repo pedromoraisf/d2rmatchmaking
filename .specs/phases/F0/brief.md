@@ -113,11 +113,11 @@ scopes delegated — the maintainer reviews at the end of the phase (escalations
 
 **Phase next step**: run
 
-| Feature                   | Next step | Status                       | Tasks |
-| ------------------------- | --------- | ---------------------------- | ----- |
-| harness-foundation        | done      | done                         | 22/22 |
-| api-web-skeleton          | done      | done                         | 53/53 |
-| agent-skeleton            | done      | done                         | 33/33 |
-| agent-hexagonal-migration | done      | done                         | 58/58 |
-| observability-e2e         | specify   | ready                        | 0/0   |
-| load-baseline             | specify   | waiting on observability-e2e | 0/0   |
+| Feature                   | Next step | Status | Tasks |
+| ------------------------- | --------- | ------ | ----- |
+| harness-foundation        | done      | done   | 22/22 |
+| api-web-skeleton          | done      | done   | 53/53 |
+| agent-skeleton            | done      | done   | 33/33 |
+| agent-hexagonal-migration | done      | done   | 58/58 |
+| observability-e2e         | done      | done   | 56/56 |
+| load-baseline             | specify   | ready  | 0/0   |
