@@ -348,9 +348,9 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `guardTarget(env)` returns a refusal naming `LOAD_TARGET` or `DATABASE_URL` when either is non-empty (a loopback value too) and `null` when both are unset or empty
-- [ ] `guardDocker(env)` refuses a `DOCKER_HOST` that is not a local unix socket, a `DOCKER_CONTEXT` other than empty or `default`, and any set `OTEL_*` variable, naming the variable
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `guardTarget(env)` returns a refusal naming `LOAD_TARGET` or `DATABASE_URL` when either is non-empty (a loopback value too) and `null` when both are unset or empty
+- [x] `guardDocker(env)` refuses a `DOCKER_HOST` that is not a local unix socket, a `DOCKER_CONTEXT` other than empty or `default`, and any set `OTEL_*` variable, naming the variable
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
