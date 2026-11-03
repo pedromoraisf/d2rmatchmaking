@@ -18,6 +18,14 @@ export const NODE_ALPINE_IMAGE =
 export const NODE_SLIM_IMAGE =
   'node:26-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9';
 
+/**
+ * The image of the certificate container (AD-120): it makes the throwaway CA and server certificate into the run's TLS
+ * volume. The index digest of `alpine/openssl:latest` (no version tag exists for the image on 2026-11-03), looked up with
+ * `docker buildx imagetools inspect`. The builder takes this constant and no other image.
+ */
+export const OPENSSL_IMAGE =
+  'alpine/openssl:latest@sha256:96e53bf9b9041fdc8a33ea61356688506bbddc368c70d6e8a9acdd28475e8537';
+
 /** The builder stage of the k6 image (`k6.Dockerfile`): xk6 and xk6-sse are compiled here. */
 export const GOLANG_BUILDER_IMAGE =
   'golang:1.27.1-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414';

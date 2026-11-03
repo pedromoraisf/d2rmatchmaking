@@ -33,18 +33,17 @@ function linesOf(text) {
 }
 
 test('images, shell and journey rules', () => {
-  const pulled = [
-    images.POSTGRES_IMAGE,
-    images.NODE_ALPINE_IMAGE,
-    images.NODE_SLIM_IMAGE,
-    images.GOLANG_BUILDER_IMAGE,
-    images.K6_BASE_IMAGE,
-  ];
-  for (const reference of pulled) {
-    assert.match(reference, TAG_AND_DIGEST, `${reference} carries a tag and a sha256 digest`);
+  // Every constant lib/images.mjs exports: a `_IMAGE` is pulled and must be pinned, a `_TAG` is a local build tag.
+  const exported = Object.entries(images);
+  const pulled = exported.filter(([name]) => name.endsWith('_IMAGE'));
+  assert.ok(pulled.length > 0, 'lib/images.mjs exports the pulled images');
+  for (const [name, reference] of pulled) {
+    assert.match(reference, TAG_AND_DIGEST, `${name} carries a tag and a sha256 digest`);
   }
-  for (const tag of [images.API_IMAGE_TAG, images.K6_IMAGE_TAG]) {
-    assert.match(tag, /^d2rmm-load-(api|k6):[a-z0-9.-]+$/u, `${tag} is a local build tag, never latest`);
+  const localTags = exported.filter(([name]) => name.endsWith('_TAG'));
+  assert.ok(localTags.length > 0, 'lib/images.mjs exports the local build tags');
+  for (const [name, tag] of localTags) {
+    assert.match(tag, /^d2rmm-load-(api|k6):[a-z0-9.-]+$/u, `${name} is a local build tag, never latest`);
   }
 
   const pins = new Set([images.NODE_SLIM_IMAGE, images.GOLANG_BUILDER_IMAGE, images.K6_BASE_IMAGE]);
@@ -125,7 +124,7 @@ test('images, shell and journey rules', () => {
   // Nothing under scripts/load pushes an image, logs in to a registry or runs a command through a shell. An image
   // literal is a name with a version tag (`node:26`) or a digest; `node:path` is a module specifier, not an image.
   const IMAGE_LITERAL =
-    /(['"`])((?:docker\.io\/|ghcr\.io\/)?(?:library\/)?(?:postgres|node|golang|alpine|grafana\/k6)(?::\d[^'"`\s]*|@[^'"`\s]*))\1/gu;
+    /(['"`])((?:docker\.io\/|ghcr\.io\/)?(?:library\/)?(?:postgres|node|golang|alpine(?:\/openssl)?|grafana\/k6)(?::\d[^'"`\s]*|@[^'"`\s]*))\1/gu;
   const SHELL_INTERPOLATION = /(?:'sh',\s*'-c',\s*|sh -c\s+)(['"`])[^'"`]*\$\{/u;
   for (const file of loadModules()) {
     const text = read(file);

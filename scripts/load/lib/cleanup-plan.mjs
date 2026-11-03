@@ -8,14 +8,16 @@ const LABEL = 'd2rmm-load';
 const OWNER_MODE = 0o700;
 
 /**
- * @typedef {{ containers?: string[], network?: string | null, workDir?: string | null }} Created
- *   `containers` in start order; `workDir` is the absolute path of the run's work directory.
- * @typedef {{ containers: string[], networks: string[], directories: string[] }} Plan
+ * @typedef {{ containers?: string[], network?: string | null, volume?: string | null, workDir?: string | null }} Created
+ *   `containers` in start order; `volume` is the run's TLS volume; `workDir` is the absolute path of the run's work
+ *   directory.
+ * @typedef {{ containers: string[], networks: string[], volumes: string[], directories: string[] }} Plan
  */
 
 /**
- * The removals of one run, in the order the orchestrator must run them: containers in reverse start order, then the
- * network, then the work directory. A name that does not carry the run prefix is dropped.
+ * The removals of one run, in the order the orchestrator must run them: containers in reverse start order (the certificate
+ * container and Postgres mount the volume, so they go first), then the network, then the volume, then the work directory.
+ * A name that does not carry the run prefix is dropped.
  * @param {Created} [created]
  * @returns {Plan}
  */
@@ -24,26 +26,27 @@ export function cleanupPlan(created = {}) {
   return {
     containers: containers.filter(hasRunPrefix).reverse(),
     networks: hasRunPrefix(created.network) ? [created.network] : [],
+    volumes: hasRunPrefix(created.volume) ? [created.volume] : [],
     directories: isRunDirectory(created.workDir) ? [created.workDir] : [],
   };
 }
 
 /**
- * @typedef {{ kind: 'container' | 'network' | 'directory', name: string, labels?: Record<string, string>,
+ * @typedef {{ kind: 'container' | 'network' | 'volume' | 'directory', name: string, labels?: Record<string, string>,
  *   uid?: number, mode?: number, symlink?: boolean }} Found
- *   A directory's `name` is its absolute path; a container or a network is named by its name.
+ *   A directory's `name` is its absolute path; a container, a network or a volume is named by its name.
  */
 
 /**
  * The resources of earlier runs that a start removes. Names must match `^d2rmm-load-<8 chars>$` or
- * `^d2rmm-load-<8 chars>-`. A container or a network is kept only when it carries the label `d2rmm-load` with the run id of
- * its own name. A directory is kept only when it is not a symbolic link, belongs to the current uid and has mode 0700.
+ * `^d2rmm-load-<8 chars>-`. A container, a network or a volume is kept only when it carries the label `d2rmm-load` with the
+ * run id of its own name. A directory is kept only when it is not a symbolic link, belongs to the current uid and has mode 0700.
  * @param {Found[]} found
  * @param {{ uid: number }} current the uid of the running process
  * @returns {Plan}
  */
 export function sweepPlan(found, { uid }) {
-  const plan = { containers: [], networks: [], directories: [] };
+  const plan = { containers: [], networks: [], volumes: [], directories: [] };
   for (const item of Array.isArray(found) ? found : []) {
     const match = item && typeof item.name === 'string' ? RUN_NAME.exec(leafOf(item.name)) : null;
     if (!match) continue;
@@ -51,6 +54,8 @@ export function sweepPlan(found, { uid }) {
       plan.containers.push(item.name);
     } else if (item.kind === 'network' && item.labels?.[LABEL] === match[1]) {
       plan.networks.push(item.name);
+    } else if (item.kind === 'volume' && item.labels?.[LABEL] === match[1]) {
+      plan.volumes.push(item.name);
     } else if (item.kind === 'directory' && isOwnedDirectory(item, uid)) {
       plan.directories.push(item.name);
     }

@@ -10,6 +10,7 @@ const versions = {
   sseExtension: '0.2.0',
   node: '26.0.0',
   postgres: '17',
+  openssl: 'alpine/openssl:latest',
   apiImage: 'd2rmm-load-api',
 };
 const times = { startedAt: '2026-11-03T10:00:00.000Z', endedAt: '2026-11-03T10:20:00.000Z' };

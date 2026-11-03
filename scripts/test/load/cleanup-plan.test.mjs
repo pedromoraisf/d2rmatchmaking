@@ -23,10 +23,38 @@ test('cleanup and sweep plans: removes every created container in reverse start 
 });
 
 test('cleanup and sweep plans: nothing created is an empty plan', () => {
-  const empty = { containers: [], networks: [], directories: [] };
+  const empty = { containers: [], networks: [], volumes: [], directories: [] };
   assert.deepEqual(cleanupPlan({}), empty);
-  assert.deepEqual(cleanupPlan({ containers: [], network: null, workDir: null }), empty);
+  assert.deepEqual(cleanupPlan({ containers: [], network: null, volume: null, workDir: null }), empty);
   assert.deepEqual(cleanupPlan(), empty);
+});
+
+test('cleanup and sweep plans: the TLS volume goes after the containers, and the sweep keeps only labelled volumes', () => {
+  const volume = `d2rmm-load-${RUN}-tls`;
+  const plan = cleanupPlan({
+    containers: [`d2rmm-load-${RUN}-cert`, `d2rmm-load-${RUN}-postgres`],
+    network: `d2rmm-load-${RUN}-net`,
+    volume,
+    workDir: WORK,
+  });
+  assert.deepEqual(plan.containers, [`d2rmm-load-${RUN}-postgres`, `d2rmm-load-${RUN}-cert`]);
+  assert.deepEqual(plan.volumes, [volume]);
+  assert.deepEqual(
+    cleanupPlan({ volume: 'postgres-data' }).volumes,
+    [],
+    'a volume outside the prefix is not removed',
+  );
+
+  const swept = sweepPlan(
+    [
+      { kind: 'volume', name: volume, labels: { 'd2rmm-load': RUN } },
+      { kind: 'volume', name: volume },
+      { kind: 'volume', name: `d2rmm-load-${RUN}-tls`, labels: { 'd2rmm-load': OTHER } },
+      { kind: 'volume', name: 'pgdata', labels: { 'd2rmm-load': RUN } },
+    ],
+    { uid: UID },
+  );
+  assert.deepEqual(swept, { containers: [], networks: [], volumes: [volume], directories: [] });
 });
 
 test('cleanup and sweep plans: a name outside the run prefix is never removed', () => {
@@ -79,5 +107,10 @@ test('cleanup and sweep plans: the sweep keeps only labelled, well-named, curren
 test('cleanup and sweep plans: the sweep reads the permission bits of a directory and ignores its type bits', () => {
   const plan = sweepPlan([{ kind: 'directory', name: WORK, uid: UID, mode: 0o40700 }], { uid: UID });
   assert.deepEqual(plan.directories, [WORK], 'an lstat mode with the directory bit is 0700 for the owner');
-  assert.deepEqual(sweepPlan([], { uid: UID }), { containers: [], networks: [], directories: [] });
+  assert.deepEqual(sweepPlan([], { uid: UID }), {
+    containers: [],
+    networks: [],
+    volumes: [],
+    directories: [],
+  });
 });

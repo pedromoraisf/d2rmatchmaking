@@ -3,11 +3,16 @@
 // environment of the process. Secrets never reach an argument: the Postgres password and the API's `DATABASE_URL` travel
 // in an env-file whose path is the argument, and the orchestrator writes that file at mode 0600. Every builder passes its
 // result through `assertSafe`, the publish guard: only the meter and the sink publish, and only on loopback.
+//
+// The TLS material (design.md Revision 1, AD-120): a short-lived `alpine/openssl` container makes the CA and the server
+// certificate into a per-run named volume; only Postgres mounts that volume, read-only. The orchestrator copies the public
+// CA out of the stopped certificate container; the private key never leaves the volume.
 
 import { isAbsolute } from 'node:path';
+import { OPENSSL_IMAGE } from './images.mjs';
 
 const PREFIX = 'd2rmm-load';
-const ROLES = ['postgres', 'sink', 'api', 'meter', 'migrate', 'k6'];
+const ROLES = ['postgres', 'sink', 'api', 'meter', 'migrate', 'k6', 'cert'];
 
 /** The limits of the containers when the environment sets none (spec Assumptions "Container limits"). */
 export const DEFAULT_LIMITS = Object.freeze({ cpus: '0.5', memory: '512m', k6Memory: '1500m' });
@@ -27,6 +32,7 @@ export const METER_PORT = 8080;
 export const METER_CONTROL_PORT = 9100;
 
 const TOKEN_IN_CONTAINER = '/run/d2rmm/token';
+const TLS_IN_CONTAINER = '/tls';
 const CA_IN_CONTAINER = '/run/d2rmm-ca/ca.crt';
 const LOAD_IN_CONTAINER = '/load';
 const WORK_IN_CONTAINER = '/work';
@@ -49,24 +55,27 @@ const API_ENTRY = ['node', '--import', './apps/api/src/main/instrument.ts', 'app
 const MIGRATE_ENTRY = ['node', 'apps/api/src/main/migrate.ts'];
 
 /**
- * The Postgres start command: a throwaway CA and a server certificate made inside the container for the container's name
- * (`$1`, passed as an argument, never interpolated), the CA key deleted, the server key owned by `postgres` at mode 0600,
- * then the stock entrypoint with TLS on. The script is a constant.
+ * The certificate container's script: a throwaway CA and a server certificate for the Postgres container's name (`$1`,
+ * passed as an argument, never interpolated), signed by that CA. The CA key is deleted; the server key belongs to uid 70,
+ * the `postgres` user of the Postgres image, at mode 0600; the directory is mode 0755 so Postgres can read it. The script
+ * is a constant.
  */
-const POSTGRES_TLS_SCRIPT = [
+const CERT_SCRIPT = [
   'set -eu',
   'umask 077',
-  'mkdir -p /tls && chmod 755 /tls && cd /tls',
+  `chmod 755 ${TLS_IN_CONTAINER} && cd ${TLS_IN_CONTAINER}`,
   'openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 1 -subj /CN=d2rmm-load-ca -keyout ca.key -out ca.crt',
   'openssl req -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -subj "/CN=$1" -keyout server.key -out server.csr',
   'printf "subjectAltName=DNS:%s\\n" "$1" > san.cnf',
   'openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 1 -extfile san.cnf -out server.crt',
   'rm -f ca.key ca.srl server.csr san.cnf',
-  'chown postgres:postgres server.key',
+  'chown 70:70 server.key',
   'chmod 600 server.key',
   'chmod 644 server.crt ca.crt',
-  'exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/tls/server.crt -c ssl_key_file=/tls/server.key',
 ].join('\n');
+
+const CA_BEGIN = '-----BEGIN CERTIFICATE-----';
+const CA_END = '-----END CERTIFICATE-----';
 
 /** The only host ports the run publishes: the meter's two and the sink's one, each on 127.0.0.1 (LB-01, LB-02). */
 const PUBLISH_PATTERN = /^127\.0\.0\.1:(\d*):(\d+)$/;
@@ -94,6 +103,10 @@ const VALUE_FLAGS = new Set([
   '--label',
   '--cpus',
   '--memory',
+  '--entrypoint',
+  '--cap-add',
+  '--cap-drop',
+  '--security-opt',
 ]);
 
 function roleOf(role) {
@@ -174,6 +187,11 @@ export function networkNameOf(runId) {
 /** The label every resource of a run carries: `d2rmm-load=<runId>`. */
 export function labelOf(runId) {
   return `${PREFIX}=${checkRunId(runId)}`;
+}
+
+/** The per-run named volume that holds the TLS material: `d2rmm-load-<runId>-tls` (AD-120). */
+export function volumeNameOf(runId) {
+  return `${PREFIX}-${checkRunId(runId)}-tls`;
 }
 
 function common(runId, role) {
@@ -280,6 +298,26 @@ export function networkArgs(runId) {
   return assertSafe(['network', 'create', '--label', labelOf(runId), networkNameOf(runId)]);
 }
 
+/** `docker volume create` for the run's TLS volume. The name carries the run id, so an existing volume is a failure. */
+export function volumeArgs(runId) {
+  return assertSafe(['volume', 'create', '--label', labelOf(runId), volumeNameOf(runId)]);
+}
+
+/**
+ * The fixed check of a copied public CA (design.md § Images and TLS): exactly one certificate block and no key. Returns
+ * null when the text is that, or the reason it is not.
+ * @param {string} text
+ * @returns {string | null}
+ */
+export function publicCaProblemOf(text) {
+  const body = String(text);
+  if (body.split(CA_BEGIN).length - 1 !== 1 || body.split(CA_END).length - 1 !== 1) {
+    return 'the public CA is not a single certificate block';
+  }
+  if (body.includes('PRIVATE KEY')) return 'the public CA carries a private key';
+  return null;
+}
+
 /**
  * The env-file text of the given entries: one `KEY=value` line each. The orchestrator writes it at mode 0600.
  * @param {Record<string, string>} entries
@@ -335,8 +373,42 @@ export function apiEnvironment({ siteOrigin, port, databaseUrl }) {
 }
 
 /**
+ * `docker run` of the certificate container: a pinned `alpine/openssl` image (`OPENSSL_IMAGE`, the only image this builder
+ * takes) that makes the CA and the server certificate into the run's TLS volume. It runs with no network, no published
+ * port, no environment, the capabilities it needs only (CHOWN), a read-only root and one mount, the volume at /tls. It is
+ * not `--rm`: the orchestrator copies the public CA out of it, then removes it.
+ * @param {{ runId: string }} input
+ * @returns {string[]}
+ */
+export function certificateArgs({ runId }) {
+  return assertSafe([
+    'run',
+    ...common(runId, 'cert'),
+    '--entrypoint',
+    'sh',
+    '--network',
+    'none',
+    '--cap-drop',
+    'ALL',
+    '--cap-add',
+    'CHOWN',
+    '--security-opt',
+    'no-new-privileges',
+    '--read-only',
+    '-v',
+    `${volumeNameOf(runId)}:${TLS_IN_CONTAINER}`,
+    OPENSSL_IMAGE,
+    '-c',
+    CERT_SCRIPT,
+    'certificate-tls',
+    containerNameOf(runId, 'postgres'),
+  ]);
+}
+
+/**
  * `docker run` of the Postgres 17 container with TLS. The password arrives through `envFile`; the server certificate is
- * made inside the container. The container publishes nothing.
+ * read from the run's TLS volume, mounted read-only, which only this container mounts. The stock entrypoint starts with
+ * TLS on. The container publishes nothing.
  * @param {{ runId: string, image: string, envFile: string }} input
  * @returns {string[]}
  */
@@ -349,12 +421,16 @@ export function postgresArgs({ runId, image, envFile }) {
     networkNameOf(runId),
     '--env-file',
     absoluteOf('envFile', envFile),
+    '-v',
+    `${volumeNameOf(runId)}:${TLS_IN_CONTAINER}:ro`,
     image,
-    'sh',
+    'postgres',
     '-c',
-    POSTGRES_TLS_SCRIPT,
-    'postgres-tls',
-    containerNameOf(runId, 'postgres'),
+    'ssl=on',
+    '-c',
+    `ssl_cert_file=${TLS_IN_CONTAINER}/server.crt`,
+    '-c',
+    `ssl_key_file=${TLS_IN_CONTAINER}/server.key`,
   ]);
 }
 

@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { cleanupPlan } from '../../load/lib/cleanup-plan.mjs';
 import {
   DEFAULT_LIMITS,
   assertSafe,
   apiArgs,
   apiEnvironment,
+  certificateArgs,
   containerNameOf,
   databaseUrlOf,
   envFileText,
@@ -14,8 +16,12 @@ import {
   migrateArgs,
   networkArgs,
   postgresArgs,
+  publicCaProblemOf,
   sinkArgs,
+  volumeArgs,
+  volumeNameOf,
 } from '../../load/lib/container-spec.mjs';
+import { OPENSSL_IMAGE } from '../../load/lib/images.mjs';
 
 const RUN = 'k7q2mz9a';
 const WORK = '/var/folders/ab/T/d2rmm-load-k7q2mz9a';
@@ -30,6 +36,7 @@ const DATABASE_URL = databaseUrlOf({ runId: RUN, password: PASSWORD });
 const SITE_ORIGIN = 'http://localhost:8788';
 const ENVIRONMENT = apiEnvironment({ siteOrigin: SITE_ORIGIN, port: 8787, databaseUrl: DATABASE_URL });
 const SINK = containerNameOf(RUN, 'sink');
+const VOLUME = volumeNameOf(RUN);
 
 const api = () =>
   apiArgs({
@@ -43,6 +50,7 @@ const api = () =>
 /** Every builder of a run, with the image names the orchestrator passes. */
 const builders = () => ({
   network: networkArgs(RUN),
+  cert: certificateArgs({ runId: RUN }),
   postgres: postgresArgs({ runId: RUN, image: 'postgres:17-alpine', envFile: ENV_FILE }),
   sink: sinkArgs({ runId: RUN, image: 'node:26', loadDir: LOAD_DIR, tokenFile: TOKEN_FILE }),
   api: api(),
@@ -245,27 +253,44 @@ test('Postgres with TLS', () => {
     false,
   );
 
-  const shell = args.indexOf('sh');
-  assert.equal(args[shell + 1], '-c', 'the wrapper runs under sh -c');
-  const script = args[shell + 2];
-  for (const required of [
-    'openssl req -x509',
-    'rm -f ca.key',
-    'chown postgres:postgres server.key',
-    'chmod 600 server.key',
-    '-c ssl=on',
-    '-c ssl_key_file=/tls/server.key',
-    'exec docker-entrypoint.sh postgres',
-  ]) {
-    assert.ok(script.includes(required), `the script makes the TLS server: ${required}`);
-  }
-  assert.equal(args[shell + 3], 'postgres-tls', 'the script takes no value from the run');
-  assert.equal(
-    args[shell + 4],
-    containerNameOf(RUN, 'postgres'),
-    'the certificate names the container, as $1',
+  const mounts = args.flatMap((arg, index) => (arg === '-v' ? [args[index + 1]] : []));
+  assert.deepEqual(
+    mounts,
+    [`${VOLUME}:/tls:ro`],
+    'Postgres mounts the TLS volume read-only, and nothing else',
   );
-  assert.equal(script.includes(RUN), false, 'the script is a constant, with no run value in it');
+  assert.equal(
+    args.includes('openssl') || args.includes('sh'),
+    false,
+    'Postgres makes no certificate itself',
+  );
+  const image = args.indexOf('postgres:17-alpine');
+  assert.deepEqual(
+    args.slice(image + 1),
+    ['postgres', '-c', 'ssl=on', '-c', 'ssl_cert_file=/tls/server.crt', '-c', 'ssl_key_file=/tls/server.key'],
+    'the stock entrypoint starts with TLS on and the certificate files of the volume',
+  );
+
+  const cert = builders().cert;
+  for (const [flag, value] of [
+    ['--entrypoint', 'sh'],
+    ['--network', 'none'],
+    ['--cap-drop', 'ALL'],
+    ['--cap-add', 'CHOWN'],
+    ['--security-opt', 'no-new-privileges'],
+  ]) {
+    assert.equal(valueAfter(cert, flag), value, `the certificate container runs with ${flag} ${value}`);
+  }
+  assert.ok(cert.includes('--read-only'), 'the certificate container has a read-only root');
+  assert.equal(cert.includes('--rm'), false, 'the certificate container is kept until the CA is copied out');
+  assert.deepEqual(
+    cert.flatMap((arg, index) => (arg === '-v' ? [cert[index + 1]] : [])),
+    [`${VOLUME}:/tls`],
+    'its only mount is the volume at /tls',
+  );
+  for (const flag of ['-p', '--publish', '-e', '--env', '--env-file', '--mount']) {
+    assert.equal(cert.includes(flag), false, `the certificate container has no ${flag}`);
+  }
 
   assert.throws(
     () => postgresArgs({ runId: RUN, image: 'postgres:17-alpine', envFile: 'relative.env' }),
@@ -281,6 +306,78 @@ test('Postgres with TLS', () => {
     `postgres://postgres:${PASSWORD}@${containerNameOf(RUN, 'postgres')}:5432/postgres?sslmode=verify-full`,
     'the URL verifies the certificate by the container name',
   );
+});
+
+test('certificate container and volume', () => {
+  // The image is the pinned constant, and the builder takes it from there (AD-120).
+  assert.match(OPENSSL_IMAGE, /^alpine\/openssl:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}$/u, 'a tag and a digest');
+  const cert = builders().cert;
+  const at = cert.indexOf(OPENSSL_IMAGE);
+  assert.ok(at > 0, 'the certificate container runs the pinned image');
+  assert.deepEqual(
+    cert.slice(at + 1, at + 4),
+    ['-c', cert[at + 2], 'certificate-tls'],
+    'the script is one argument',
+  );
+  assert.equal(
+    cert[at + 4],
+    containerNameOf(RUN, 'postgres'),
+    'the certificate names the Postgres container, as $1',
+  );
+
+  const script = cert[at + 2];
+  for (const required of [
+    'set -eu',
+    'openssl req -x509',
+    'openssl x509 -req',
+    'rm -f ca.key',
+    'chown 70:70 server.key',
+    'chmod 600 server.key',
+    'chmod 755 /tls',
+  ]) {
+    assert.ok(script.includes(required), `the script makes the TLS material: ${required}`);
+  }
+  assert.equal(script.includes(RUN), false, 'the script is a constant, with no run value in it');
+  assert.equal(
+    script.includes('postgres:postgres'),
+    false,
+    'the key belongs to uid 70, not to a user the image lacks',
+  );
+
+  // The volume: created with the run id in its name, and mounted only by the two TLS containers.
+  assert.equal(VOLUME, `d2rmm-load-${RUN}-tls`);
+  assert.deepEqual(volumeArgs(RUN), ['volume', 'create', '--label', `d2rmm-load=${RUN}`, VOLUME]);
+  assert.throws(() => volumeArgs('UPPER'), TypeError, 'a run id is lower-case');
+  for (const [role, args] of Object.entries(builders())) {
+    const mountsIt = args.some((arg) => arg.startsWith(`${VOLUME}:`));
+    assert.equal(
+      mountsIt,
+      role === 'postgres' || role === 'cert',
+      `${role} mounts the TLS volume only when it is TLS`,
+    );
+  }
+
+  // The cleanup removes the containers (the certificate container started first, so it goes last) and then the volume.
+  const plan = cleanupPlan({
+    containers: [containerNameOf(RUN, 'cert'), containerNameOf(RUN, 'postgres')],
+    network: `d2rmm-load-${RUN}-net`,
+    volume: VOLUME,
+    workDir: `/var/folders/ab/T/d2rmm-load-${RUN}-AbC123`,
+  });
+  assert.deepEqual(plan.containers, [containerNameOf(RUN, 'postgres'), containerNameOf(RUN, 'cert')]);
+  assert.deepEqual(plan.volumes, [VOLUME], 'the volume is removed after the containers');
+});
+
+/** A private-key block, assembled from pieces so that no scanner reads a key header in the source (a fake, never a key). */
+const KEY_BLOCK =
+  '-----' + 'BEGIN ' + 'PRIVATE KEY' + '-----\nMIIB\n-----' + 'END ' + 'PRIVATE KEY' + '-----\n';
+
+test('the public CA is one certificate block and no key', () => {
+  const block = '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n';
+  assert.equal(publicCaProblemOf(block), null);
+  assert.notEqual(publicCaProblemOf(block + block), null, 'two blocks are refused');
+  assert.notEqual(publicCaProblemOf(''), null, 'no block is refused');
+  assert.notEqual(publicCaProblemOf(`${block}${KEY_BLOCK}`), null, 'a key is refused');
 });
 
 test('the sink, meter, migration and k6 take no staging variable and no secret', () => {
@@ -328,7 +425,7 @@ test('publish guard', () => {
     ['127.0.0.1:8080:8080', '127.0.0.1:9100:9100'],
     'the meter publishes its proxy and control ports on loopback',
   );
-  for (const role of ['postgres', 'api', 'migrate', 'k6', 'network']) {
+  for (const role of ['postgres', 'api', 'migrate', 'k6', 'network', 'cert']) {
     assert.deepEqual(published(all[role]), [], `${role} publishes nothing`);
   }
   for (const [role, args] of Object.entries(all)) {

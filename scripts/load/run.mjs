@@ -60,7 +60,7 @@ function labelsOf(text) {
   return labels;
 }
 
-/** The labelled containers and networks of every run, for the sweep (design.md § Orchestrator). */
+/** The labelled containers, networks and volumes of every run, for the sweep (design.md § Orchestrator). */
 async function listLabelled() {
   const containers = await runDocker([
     'ps',
@@ -78,7 +78,15 @@ async function listLabelled() {
     '--format',
     '{{.Name}}\t{{.Labels}}',
   ]);
-  if (containers.code !== 0 || networks.code !== 0) {
+  const volumes = await runDocker([
+    'volume',
+    'ls',
+    '--filter',
+    `label=${LABEL_KEY}`,
+    '--format',
+    '{{.Name}}\t{{.Labels}}',
+  ]);
+  if (containers.code !== 0 || networks.code !== 0 || volumes.code !== 0) {
     throw new Error('docker could not list the labelled resources');
   }
   const found = [];
@@ -89,6 +97,10 @@ async function listLabelled() {
   for (const line of linesOf(networks.stdout)) {
     const [name, labels = ''] = line.split('\t');
     found.push({ kind: 'network', name, labels: labelsOf(labels) });
+  }
+  for (const line of linesOf(volumes.stdout)) {
+    const [name, labels = ''] = line.split('\t');
+    found.push({ kind: 'volume', name, labels: labelsOf(labels) });
   }
   return found;
 }
@@ -114,6 +126,7 @@ export const dockerPort = {
   list: () => listLabelled(),
   rm: (name) => runDocker(['rm', '-f', name]),
   networkRm: (name) => runDocker(['network', 'rm', name]),
+  volumeRm: (name) => runDocker(['volume', 'rm', name]),
   cp: (from, to) => runDocker(['cp', from, to]),
 };
 

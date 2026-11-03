@@ -16,6 +16,7 @@ import { containerOk, peakOf } from './lib/container-health.mjs';
 import {
   apiArgs,
   apiEnvironment,
+  certificateArgs,
   containerNameOf,
   DATABASE_NAME,
   databaseUrlOf,
@@ -30,11 +31,20 @@ import {
   networkArgs,
   networkNameOf,
   postgresArgs,
+  publicCaProblemOf,
   sinkArgs,
   SINK_CONTROL_PORT,
+  volumeArgs,
+  volumeNameOf,
 } from './lib/container-spec.mjs';
 import { errorRatio } from './lib/error-ratio.mjs';
-import { API_IMAGE_TAG, K6_IMAGE_TAG, NODE_ALPINE_IMAGE, POSTGRES_IMAGE } from './lib/images.mjs';
+import {
+  API_IMAGE_TAG,
+  K6_IMAGE_TAG,
+  NODE_ALPINE_IMAGE,
+  OPENSSL_IMAGE,
+  POSTGRES_IMAGE,
+} from './lib/images.mjs';
 import { classifyDockerFailure } from './lib/preflight.mjs';
 import { nextStep, profileFor } from './lib/profile.mjs';
 import { p95 } from './lib/percentile.mjs';
@@ -161,7 +171,7 @@ export async function runLoad(input) {
     runId,
     limits,
     names: namesOf(runId),
-    created: { containers: [], network: null, workDir: null },
+    created: { containers: [], network: null, volume: null, workDir: null },
     state: { stopping: false },
     rows: [],
     dirs: null,
@@ -233,6 +243,8 @@ function messageOf(error) {
 function namesOf(runId) {
   return {
     network: networkNameOf(runId),
+    volume: volumeNameOf(runId),
+    cert: containerNameOf(runId, 'cert'),
     postgres: containerNameOf(runId, 'postgres'),
     migrate: containerNameOf(runId, 'migrate'),
     sink: containerNameOf(runId, 'sink'),
@@ -248,6 +260,7 @@ function unmeasuredVersions() {
     sseExtension: SSE_EXTENSION,
     node: NODE_ALPINE_IMAGE.split('@')[0],
     postgres: POSTGRES_IMAGE.split('@')[0],
+    openssl: OPENSSL_IMAGE.split('@')[0],
     apiImage: API_IMAGE_TAG,
   };
 }
@@ -288,6 +301,13 @@ function makeCleanup(ctx) {
         log(`left behind, remove by name: ${name}`);
       }
     }
+    for (const name of plan.volumes) {
+      const result = await settle(() => docker.volumeRm(name));
+      if (!gone(result)) {
+        leftBehind.push(name);
+        log(`left behind, remove by name: ${name}`);
+      }
+    }
     for (const directory of plan.directories) {
       try {
         await fs.rm(directory, { recursive: true, force: true });
@@ -315,7 +335,7 @@ async function settle(action) {
 }
 
 function gone(result) {
-  return result?.code === 0 || /No such (container|network)/iu.test(String(result?.stderr ?? ''));
+  return result?.code === 0 || /No such (container|network|volume)/iu.test(String(result?.stderr ?? ''));
 }
 
 function ensureRunning(ctx) {
@@ -351,6 +371,10 @@ async function sweep(ctx) {
   for (const name of plan.networks) {
     const result = await settle(() => docker.networkRm(name));
     log(gone(result) ? `swept a stale network: ${name}` : `could not sweep the network: ${name}`);
+  }
+  for (const name of plan.volumes) {
+    const result = await settle(() => docker.volumeRm(name));
+    log(gone(result) ? `swept a stale volume: ${name}` : `could not sweep the volume: ${name}`);
   }
   for (const directory of plan.directories) {
     try {
@@ -489,10 +513,43 @@ async function dropContainer(ctx, name) {
   }
 }
 
+/** The run's TLS volume. Its name carries the run id, so a volume that already exists is a failure, never reused. */
+async function createVolume(ctx) {
+  ensureRunning(ctx);
+  const result = await ctx.docker.run(volumeArgs(ctx.runId));
+  if (result.code !== 0 && /already exists/iu.test(String(result.stderr ?? ''))) {
+    throw new ToolError(
+      `the TLS volume ${ctx.names.volume} already exists: the run id names it and it is never reused`,
+    );
+  }
+  checked(result, 'creating the TLS volume');
+  ctx.created.volume = ctx.names.volume;
+}
+
+/**
+ * The throwaway TLS material (AD-120): the certificate container makes the CA and the server certificate into the volume.
+ * The public CA is copied out of the stopped container, checked to be one certificate block, made readable (0644 inside
+ * the 0700 work directory), and the container is removed. The private key never leaves the volume.
+ */
+async function makeCertificate(ctx) {
+  const { docker, names, dirs, fs } = ctx;
+  pushContainer(ctx, names.cert);
+  await dockerRun(ctx, certificateArgs({ runId: ctx.runId }), 'making the TLS certificate', OPENSSL_IMAGE);
+  checked(await docker.cp(`${names.cert}:/tls/ca.crt`, dirs.ca), 'copying the public CA');
+  const info = await fs.lstat(dirs.ca);
+  if (!info.isFile()) throw new ToolError('the copied public CA is not a regular file');
+  const problem = publicCaProblemOf(await fs.readFile(dirs.ca, 'utf8'));
+  if (problem !== null) throw new ToolError(problem);
+  await fs.chmod(dirs.ca, 0o644);
+  await dropContainer(ctx, names.cert);
+}
+
 async function startServices(ctx) {
   const { docker, runId, names, dirs, limits, paths, created } = ctx;
   created.network = names.network;
   await dockerRun(ctx, networkArgs(runId), 'creating the network');
+  await createVolume(ctx);
+  await makeCertificate(ctx);
 
   pushContainer(ctx, names.postgres);
   await dockerRun(
@@ -507,7 +564,6 @@ async function startServices(ctx) {
       (await docker.exec(names.postgres, ['pg_isready', '-h', '127.0.0.1', '-U', 'postgres'])).code === 0
     );
   });
-  checked(await docker.cp(`${names.postgres}:/tls/ca.crt`, dirs.ca), 'copying the public CA');
 
   pushContainer(ctx, names.migrate);
   await dockerRun(
@@ -574,6 +630,7 @@ async function probeVersions(ctx) {
     sseExtension: SSE_EXTENSION,
     node: NODE_ALPINE_IMAGE.split('@')[0],
     postgres: POSTGRES_IMAGE.split('@')[0],
+    openssl: OPENSSL_IMAGE.split('@')[0],
     apiImage: API_IMAGE_TAG,
   };
 }

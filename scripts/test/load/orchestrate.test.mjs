@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { playerFor } from '../../load/lib/players.mjs';
-import { API_IMAGE_TAG, K6_IMAGE_TAG } from '../../load/lib/images.mjs';
+import { API_IMAGE_TAG, K6_IMAGE_TAG, OPENSSL_IMAGE } from '../../load/lib/images.mjs';
 import { runLoad, samplesOf, secretOf } from '../../load/orchestrate.mjs';
 
 const UID = 501;
@@ -15,6 +15,11 @@ const ROOT = '/fake/repo';
 const LOAD_DIR = '/fake/repo/scripts/load';
 const RUN_ID = 'dddddddd';
 const NAME = (role) => `d2rmm-load-${RUN_ID}-${role}`;
+const VOLUME = `d2rmm-load-${RUN_ID}-tls`;
+const PUBLIC_CA = '-----BEGIN CERTIFICATE-----\nMIIBPUBLICCA\n-----END CERTIFICATE-----\n';
+/** A private-key block, assembled from pieces so that no scanner reads a key header in the source (a fake, never a key). */
+const KEY_FAKE =
+  '-----' + 'BEGIN ' + 'PRIVATE KEY' + '-----\nMIIB\n-----' + 'END ' + 'PRIVATE KEY' + '-----\n';
 const SLOW_TEST_MS = 60_000;
 const ALL_PLAYERS = Array.from({ length: 400 }, (_, index) => playerFor(RUN_ID, index));
 
@@ -99,7 +104,12 @@ function fakeFs() {
     async lstat(path) {
       const entry = dirs.get(path) ?? files.get(path);
       if (entry === undefined) throw notFound(path);
-      return { uid: UID, mode: entry.mode | 0o040000, isSymbolicLink: () => false };
+      return {
+        uid: UID,
+        mode: entry.mode | 0o040000,
+        isSymbolicLink: () => false,
+        isFile: () => files.has(path),
+      };
     },
   };
 }
@@ -125,6 +135,7 @@ function fakeDocker(fs, options) {
   const state = {
     containers: new Set(options.staleContainers ?? []),
     networks: new Set(),
+    volumes: new Set(options.existingVolumes ?? []),
     calls: [],
     k6Runs: 0,
     planModes: [],
@@ -143,6 +154,12 @@ function fakeDocker(fs, options) {
       if (args[0] === 'network' && args[1] === 'create') {
         state.networks.add(args.at(-1));
         return ok();
+      }
+      if (args[0] === 'volume' && args[1] === 'create') {
+        const name = args.at(-1);
+        if (state.volumes.has(name)) return fail(`Error response from daemon: volume ${name} already exists`);
+        state.volumes.add(name);
+        return ok(name);
       }
       if (args.includes('version') && args.includes('--rm')) {
         return ok('k6 v2.3.0 (go1.27.1, linux/amd64) with k6/x/sse');
@@ -219,9 +236,17 @@ function fakeDocker(fs, options) {
       }
       return fail(`Error response from daemon: No such network: ${name}`);
     },
+    async volumeRm(name) {
+      state.calls.push(['volumeRm', name]);
+      if (state.volumes.has(name)) {
+        state.volumes.delete(name);
+        return ok();
+      }
+      return fail(`Error response from daemon: No such volume: ${name}`);
+    },
     async cp(from, to) {
       state.calls.push(['cp', from, to]);
-      fs.files.set(to, { text: 'PUBLIC CA', mode: 0o644 });
+      fs.files.set(to, { text: options.caText ?? PUBLIC_CA, mode: 0o644 });
       return ok();
     },
   };
@@ -295,6 +320,8 @@ function scenario(options = {}) {
     failBuild: options.failBuild,
     sweepFound: options.sweepFound,
     staleContainers: options.staleContainers,
+    existingVolumes: options.existingVolumes,
+    caText: options.caText,
     version: options.version,
     rooms: options.rooms,
     restartAfterK6: options.restartAfterK6,
@@ -326,6 +353,7 @@ function leftoversOf(scn) {
   return {
     containers: [...scn.docker.state.containers],
     networks: [...scn.docker.state.networks],
+    volumes: [...scn.docker.state.volumes],
     directories,
   };
 }
@@ -334,7 +362,7 @@ function assertClean(scn) {
   const leftovers = leftoversOf(scn);
   assert.deepEqual(
     leftovers,
-    { containers: [], networks: [], directories: [] },
+    { containers: [], networks: [], volumes: [], directories: [] },
     'nothing of the run is left behind',
   );
 }
@@ -371,13 +399,21 @@ test('sequence and cleanup on every exit path', { timeout: SLOW_TEST_MS }, async
         .map((call) => nameOf(call));
       assert.deepEqual(
         started,
-        [NAME('postgres'), NAME('migrate'), NAME('sink'), NAME('api'), NAME('meter'), NAME('k6')],
-        'Postgres, the migration, the sink, the API, the meter, then k6',
+        [
+          NAME('cert'),
+          NAME('postgres'),
+          NAME('migrate'),
+          NAME('sink'),
+          NAME('api'),
+          NAME('meter'),
+          NAME('k6'),
+        ],
+        'the certificate container, Postgres, the migration, the sink, the API, the meter, then k6',
       );
       assert.deepEqual(
         scn.docker.state.calls.filter((call) => call[0] === 'cp').map((call) => call[1]),
-        [`${NAME('postgres')}:/tls/ca.crt`],
-        'only the public CA leaves the Postgres container',
+        [`${NAME('cert')}:/tls/ca.crt`],
+        'only the public CA leaves the certificate container',
       );
     },
   );
@@ -533,6 +569,79 @@ test('no secret in arguments or logs', { timeout: SLOW_TEST_MS }, async () => {
     assert.equal(summaryText.includes(secret), false, 'no secret in the summary');
   }
   assert.ok(logText.length > 0, 'the run logs its progress');
+});
+
+test('the TLS volume and the certificate container of a run', { timeout: SLOW_TEST_MS }, async (t) => {
+  await t.test(
+    'the volume is made first, the certificate container runs before Postgres, and the volume goes last',
+    async () => {
+      const scn = scenario({ profile: 'smoke' });
+      const result = await runLoad(scn.input);
+      assert.equal(result.exitCode, 0);
+
+      const calls = scn.docker.state.calls;
+      const at = (predicate) => calls.findIndex(predicate);
+      const volumeMade = at((call) => call[0] === 'volume' && call[1] === 'create');
+      const certStarted = at((call) => call[0] === 'run' && nameOf(call) === NAME('cert'));
+      const copied = at((call) => call[0] === 'cp');
+      const postgresStarted = at((call) => call[0] === 'run' && nameOf(call) === NAME('postgres'));
+      const lastContainerRemoval = Math.max(
+        ...calls.flatMap((call, index) => (call[0] === 'rm' ? [index] : [])),
+      );
+      const volumeRemoved = at((call) => call[0] === 'volumeRm');
+      assert.ok(volumeMade < certStarted, 'the volume exists before the certificate container');
+      assert.ok(
+        certStarted < copied && copied < postgresStarted,
+        'the CA is copied out before Postgres starts',
+      );
+      assert.ok(lastContainerRemoval < volumeRemoved, 'the volume is removed after the containers');
+      assert.deepEqual(calls[volumeMade], ['volume', 'create', '--label', `d2rmm-load=${RUN_ID}`, VOLUME]);
+
+      const cert = calls[certStarted];
+      assert.ok(cert.includes(OPENSSL_IMAGE), 'the certificate container runs the pinned image');
+      assert.equal(cert.includes('--rm'), false, 'the certificate container is kept until its CA is copied');
+      assert.equal(
+        calls.filter((call) => call[0] === 'run' && call.includes(OPENSSL_IMAGE)).length,
+        1,
+        'one certificate container per run',
+      );
+    },
+  );
+
+  await t.test('a TLS volume that already exists fails the run and nothing of it is removed', async () => {
+    const scn = scenario({ profile: 'smoke', existingVolumes: [VOLUME] });
+    const result = await runLoad(scn.input);
+
+    assert.equal(result.exitCode, 1);
+    assert.match(result.summary.error, /already exists/u);
+    assert.equal(scn.docker.state.volumes.has(VOLUME), true, 'the existing volume is not removed');
+    assert.equal(
+      scn.docker.state.calls.some((call) => call[0] === 'volumeRm'),
+      false,
+      'no removal of a volume the run did not create',
+    );
+    assert.equal(
+      scn.docker.state.calls.some((call) => call[0] === 'run' && nameOf(call) === NAME('cert')),
+      false,
+      'no certificate container starts',
+    );
+  });
+
+  await t.test(
+    'a copied CA that is not one certificate block fails the run and removes the certificate container',
+    async () => {
+      const scn = scenario({
+        profile: 'smoke',
+        caText: PUBLIC_CA + KEY_FAKE,
+      });
+      const result = await runLoad(scn.input);
+
+      assert.equal(result.exitCode, 1);
+      assert.match(result.summary.error, /carries a private key/u);
+      assert.equal(scn.docker.state.k6Runs, 0, 'no step runs');
+      assertClean(scn);
+    },
+  );
 });
 
 test('LB_SAMPLE lines are the latency samples of a step', () => {
