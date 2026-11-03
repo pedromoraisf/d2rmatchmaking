@@ -1065,6 +1065,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-03
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-119 (assumed)
+
+- **Decision**: the windowed latency samples leave k6 as log lines (`LB_SAMPLE <ms>`, one `console.warn` per sample) that the orchestrator reads from the k6 container output; `step.json` carries the other window totals. An iteration still waiting for its assignment when the next match starts counts one error (status 0) and one iteration.
+- **Reason**: `handleSummary` cannot see per-VU values, and the p95 that decides the verdict must come from raw samples computed in Node (architecture review of the design), not from k6's interpolated Trend.
+- **Trade-off**: at most about 600 short log lines per step; they carry no secret.
+- **Scope**: load-baseline / LB-05, LB-06, LB-08
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
