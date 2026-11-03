@@ -386,9 +386,9 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `playerFor(runId, index)` returns a name of 2 to 16 letters and digits that is unique per run id and index (case-insensitively), and an address in `10.0.0.0/8` that is distinct per index up to 400
-- [ ] `runIdFrom(random)` returns 8 characters from `a-z0-9`
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `playerFor(runId, index)` returns a name of 2 to 16 letters and digits that is unique per run id and index (case-insensitively), and an address in `10.0.0.0/8` that is distinct per index up to 400
+- [x] `runIdFrom(random)` returns 8 characters from `a-z0-9`
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
