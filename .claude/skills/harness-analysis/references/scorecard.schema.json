@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "harness-analysis/scorecard.schema.json",
+  "title": "Harness Analysis Framework scorecard",
+  "type": "object",
+  "required": ["framework", "repo", "date", "criteria", "inventory", "coverage"],
+  "additionalProperties": false,
+  "properties": {
+    "framework": {
+      "const": "HAF-1"
+    },
+    "repo": {
+      "type": "string",
+      "description": "owner/name or folder name"
+    },
+    "commit": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "agent tools the repo configures, e.g. claude-code, cursor, codex, copilot"
+    },
+    "criteria": {
+      "type": "object",
+      "description": "criterion ID → score and evidence; every one of the 40 IDs must be present",
+      "propertyNames": {
+        "pattern": "^(CTX|MET|ORQ|GRD|SEN|VER|REM|EST|GOV|EVO)-[1-4]$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["score", "evidence"],
+        "additionalProperties": false,
+        "properties": {
+          "score": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4
+              },
+              {
+                "const": "N/A"
+              }
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "note": {
+            "type": "string"
+          },
+          "next_step": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "inventory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "component",
+          "kind",
+          "trigger",
+          "responsibility",
+          "actions",
+          "enforcement",
+          "pillars",
+          "evidence"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "component": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["guide", "sensor", "gate", "state", "orchestration", "governance", "measurement"]
+          },
+          "trigger": {
+            "enum": [
+              "session-start",
+              "plan",
+              "pre-tool",
+              "on-edit",
+              "turn-end",
+              "pre-commit",
+              "pre-push",
+              "ci-pr",
+              "merge",
+              "release",
+              "scheduled",
+              "review",
+              "on-demand"
+            ]
+          },
+          "responsibility": {
+            "type": "string"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "enum": ["inform", "fix", "warn", "block", "deny", "ask", "record", "report"]
+            }
+          },
+          "enforcement": {
+            "enum": ["soft", "hard"]
+          },
+          "pillars": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "description": "control point → component names acting there (empty array = gap)",
+      "propertyNames": {
+        "enum": [
+          "session-start",
+          "plan",
+          "pre-tool",
+          "on-edit",
+          "turn-end",
+          "pre-commit",
+          "pre-push",
+          "ci-pr",
+          "merge",
+          "release",
+          "scheduled",
+          "review"
+        ]
+      },
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "lang": {
+      "type": "string",
+      "description": "report language, e.g. en or pt-BR"
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "verdict": {
+          "type": "string",
+          "description": "3-5 sentence verdict shown at the top of the page"
+        },
+        "walkthrough": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "one unit of work from start to merge, one step per item"
+        },
+        "strengths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
