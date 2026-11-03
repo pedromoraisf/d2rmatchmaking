@@ -328,8 +328,8 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `publishPlan(summary)` refuses (with a reason) a missing summary, a smoke profile and `passed: false`; for a full, passed summary it returns the text of `docs/engineering/load-baseline.md`: the numbers, the limits, the date and the commit, built only from whitelisted fields (no run id, host path, token or error text)
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `publishPlan(summary)` refuses (with a reason) a missing summary, a smoke profile and `passed: false`; for a full, passed summary it returns the text of `docs/engineering/load-baseline.md`: the numbers, the limits, the date and the commit, built only from whitelisted fields (no run id, host path, token or error text)
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
