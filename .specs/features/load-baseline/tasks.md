@@ -289,10 +289,10 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `buildSummary(...)` returns every field of design.md's `Summary` under exactly those names: `maxConcurrentPlayers` is the highest passing step with every earlier step passing (0 when the first fails), `p95StateLatencyMs`, `bytesPerPlayerHour` and the telemetry fields come from the 100-player step and are `null` when it never ran, `maxConcurrentRooms` is the rooms of the highest passing step, `ceilingReached` is true when the 400 step passes, `passed`, `failure` (`{ step, rule }`, `telemetry` after a pass when the share fails), `error` for a tool failure (AD-115)
-- [ ] `exitCodeOf(summary)` is non-zero when the 100-player step did not pass, when `failure.rule` is `telemetry`, or when `error` is set; zero when a later step fails after the 100 step passed
-- [ ] The output and the `StepResult` shape contain no `cookie`, `token`, `Bearer` or password text, pinned by a test over a fixture with such strings in the inputs
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `buildSummary(...)` returns every field of design.md's `Summary` under exactly those names: `maxConcurrentPlayers` is the highest passing step with every earlier step passing (0 when the first fails), `p95StateLatencyMs`, `bytesPerPlayerHour` and the telemetry fields come from the 100-player step and are `null` when it never ran, `maxConcurrentRooms` is the rooms of the highest passing step, `ceilingReached` is true when the 400 step passes, `passed`, `failure` (`{ step, rule }`, `telemetry` after a pass when the share fails), `error` for a tool failure (AD-115)
+- [x] `exitCodeOf(summary)` is non-zero when the 100-player step did not pass, when `failure.rule` is `telemetry`, or when `error` is set; zero when a later step fails after the 100 step passed
+- [x] The output and the `StepResult` shape contain no `cookie`, `token`, `Bearer` or password text, pinned by a test over a fixture with such strings in the inputs
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
@@ -938,7 +938,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - Build notes: an `ARG K6_VERSION` is exported to RUN and collides with xk6's own flag, so the build ARG is `K6_RELEASE` and xk6 gets `--k6-version`. xk6 needs `git` in the builder.
 - Cleanup: no containers, network or work directory was left after any attempt. The failure path and the success path were both exercised. The signal path was not. The image `d2rmm-load-k6:spike` stays in the local cache and was not pushed.
 - Tooling: the gate hook denied a direct `pnpm exec eslint` once (denial 1 of 3). I did not retry it. ESLint on `scripts/load` ran through `attempt.mjs` under T1 and passed.
-  **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03, `returned` (T1 committed 8cfe8e3); execute-batch-2 (T2 to T8) at HEAD 8cfe8e3, 2026-11-03
+  **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03, `returned` (T1 committed 8cfe8e3); execute-batch-2 (T2 to T8) at HEAD 8cfe8e3, 2026-11-03, `returned` (T2 to T8 committed, last 3652068); execute-batch-3 (T9 to T17) at HEAD 3652068, 2026-11-03
   **Walked:** none
 
 ---
