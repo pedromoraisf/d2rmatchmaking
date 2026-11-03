@@ -1056,6 +1056,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-03
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-118 (assumed)
+
+- **Decision**: the measuring window of a step is an offset pair on k6's own clock (full profile: start 50 s, end 140 s, i.e. 20 s ramp, then 30 s into the hold, 90 s long); the smoke profile's 30 s hold cannot hold a 90 s window, so its window is the whole hold (20 s to 50 s).
+- **Reason**: the spec says the same rules for smoke and a non-empty window is the only reading that keeps them; a host clock is never compared with the meters (design § k6 journey).
+- **Trade-off**: smoke numbers cover a window three times shorter than the full run's.
+- **Scope**: load-baseline / LB-07, LB-09
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

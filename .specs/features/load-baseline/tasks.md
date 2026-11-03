@@ -774,133 +774,133 @@ T32 → T33
 ## Checks
 
 **C1** - The full profile has the steps 25, 50, 100, 150, 200, 300 and 400, each ramping 20 s, holding 120 s with the last 90 s as its window (LB-07, AC 7)
-Proof: `node --test scripts/test/load/profile.test.mjs --test-name-pattern "full profile steps"`
+Proof: `node --test "--test-name-pattern=full profile steps" scripts/test/load/profile.test.mjs`
 
 **C2** - After a failed step, and after the 400-player step, there is no next step (LB-07, AC 7)
-Proof: `node --test scripts/test/load/profile.test.mjs --test-name-pattern "no next step after a failure or the last step"`
+Proof: `node --test "--test-name-pattern=no next step after a failure or the last step" scripts/test/load/profile.test.mjs`
 
 **C3** - The smoke profile is one step of 5 players holding 30 s, marked `smoke` (LB-09, AC 9)
-Proof: `node --test scripts/test/load/profile.test.mjs --test-name-pattern "smoke profile"`
+Proof: `node --test "--test-name-pattern=smoke profile" scripts/test/load/profile.test.mjs`
 
 **C4** - The error ratio is errors over journey requests plus iterations, and 0 when the divisor is 0 (LB-08, AC 8)
-Proof: `node --test scripts/test/load/error-ratio.test.mjs --test-name-pattern "error ratio is errors over requests plus iterations"`
+Proof: `node --test "--test-name-pattern=error ratio is errors over requests plus iterations" scripts/test/load/error-ratio.test.mjs`
 
 **C5** - The p95 is the nearest-rank value at rank ceil(0.95 n), and null for no samples (LB-06, AC 6)
-Proof: `node --test scripts/test/load/percentile.test.mjs --test-name-pattern "nearest-rank p95"`
+Proof: `node --test "--test-name-pattern=nearest-rank p95" scripts/test/load/percentile.test.mjs`
 
 **C6** - A step fails `container` when the API container is not running, was OOM-killed, restarted or started again (LB-08, AC 8)
-Proof: `node --test scripts/test/load/container-health.test.mjs --test-name-pattern "container is not ok after a restart, an OOM kill or a stop"`
+Proof: `node --test "--test-name-pattern=container is not ok after a restart, an OOM kill or a stop" scripts/test/load/container-health.test.mjs`
 
 **C7** - A p95 of 2000 ms passes and 2001 ms fails `latency` (LB-08, AC 8)
-Proof: `node --test scripts/test/load/step-verdict.test.mjs --test-name-pattern "p95 boundary at 2000 ms"`
+Proof: `node --test "--test-name-pattern=p95 boundary at 2000 ms" scripts/test/load/step-verdict.test.mjs`
 
 **C8** - An error ratio of 0.0099 passes and 0.01 fails `errors` (LB-08, AC 8)
-Proof: `node --test scripts/test/load/step-verdict.test.mjs --test-name-pattern "error ratio boundary at 1%"`
+Proof: `node --test "--test-name-pattern=error ratio boundary at 1%" scripts/test/load/step-verdict.test.mjs`
 
 **C9** - When several rules fail, the first of `container`, `errors`, `latency` is named (LB-11, AC 2)
-Proof: `node --test scripts/test/load/step-verdict.test.mjs --test-name-pattern "first failed rule order"`
+Proof: `node --test "--test-name-pattern=first failed rule order" scripts/test/load/step-verdict.test.mjs`
 
 **C10** - Bytes per player-hour is bytes over 100 players and the window in hours, and 70 000 is within the budget while 70 001 is not (LB-14, AC 4; LB-15, AC 5)
-Proof: `node --test scripts/test/load/bytes.test.mjs --test-name-pattern "bytes per player-hour"`
+Proof: `node --test "--test-name-pattern=bytes per player-hour" scripts/test/load/bytes.test.mjs`
 
 **C11** - The window counter ignores bytes outside its window (LB-14, AC 4; edge: setup requests outside the window)
-Proof: `node --test scripts/test/load/window-counter.test.mjs --test-name-pattern "bytes outside the window are ignored"`
+Proof: `node --test "--test-name-pattern=bytes outside the window are ignored" scripts/test/load/window-counter.test.mjs`
 
 **C12** - The telemetry numbers are the per-player-hour bytes, the monthly bytes at 100 players for 720 hours, the relay allowance of 16 MiB times 30, and the share of 5 GiB (LB-21, AC 1)
-Proof: `node --test scripts/test/load/telemetry-share.test.mjs --test-name-pattern "telemetry numbers"`
+Proof: `node --test "--test-name-pattern=telemetry numbers" scripts/test/load/telemetry-share.test.mjs`
 
 **C13** - A telemetry share of exactly 0.10 passes and just above it fails (LB-22, AC 2)
-Proof: `node --test scripts/test/load/telemetry-share.test.mjs --test-name-pattern "share boundary at 0.10"`
+Proof: `node --test "--test-name-pattern=share boundary at 0.10" scripts/test/load/telemetry-share.test.mjs`
 
 **C14** - `maxConcurrentPlayers` is the highest passing step with every earlier step passing, and 0 when the first step fails (LB-10, AC 1)
-Proof: `node --test scripts/test/load/summary.test.mjs --test-name-pattern "maxConcurrentPlayers"`
+Proof: `node --test "--test-name-pattern=maxConcurrentPlayers" scripts/test/load/summary.test.mjs`
 
 **C15** - A failed 100-player step writes `passed: false`, a `failure` naming the step and the rule, and a non-zero exit code; a telemetry failure after a pass does the same (LB-11, AC 2; LB-22, AC 2)
-Proof: `node --test scripts/test/load/summary.test.mjs --test-name-pattern "failure names the step and the rule"`
+Proof: `node --test "--test-name-pattern=failure names the step and the rule" scripts/test/load/summary.test.mjs`
 
 **C16** - The summary carries `maxConcurrentPlayers`, `maxConcurrentRooms`, `bytesPerPlayerHour` and `p95StateLatencyMs` under exactly those names, the last two read at the 100-player step and the rooms at the end of the highest passing step (LB-13, AC 4)
-Proof: `node --test scripts/test/load/summary.test.mjs --test-name-pattern "top-level numbers"`
+Proof: `node --test "--test-name-pattern=top-level numbers" scripts/test/load/summary.test.mjs`
 
 **C17** - The summary also holds `passed`, `profile`, the limits, the versions, the commit, the times, `withinEgressBudget` and one row per step with its peaks (LB-15, AC 5)
-Proof: `node --test scripts/test/load/summary.test.mjs --test-name-pattern "summary fields"`
+Proof: `node --test "--test-name-pattern=summary fields" scripts/test/load/summary.test.mjs`
 
 **C18** - A 100-player step that never ran leaves its numbers `null`; the 400-player pass says `ceilingReached: true` with exit 0; a later failure after a passing 100 step exits 0 with the last passing step (LB-10, AC 1; LB-11 edge cases)
-Proof: `node --test scripts/test/load/summary.test.mjs --test-name-pattern "unmeasured numbers, ceiling and a later failure"`
+Proof: `node --test "--test-name-pattern=unmeasured numbers, ceiling and a later failure" scripts/test/load/summary.test.mjs`
 
 **C19** - No cookie, token, `Bearer` or password text reaches the summary (LB-15, AC 5; AGENTS.md rule 6)
-Proof: `node --test scripts/test/load/summary.test.mjs --test-name-pattern "no secret text in the summary"`
+Proof: `node --test "--test-name-pattern=no secret text in the summary" scripts/test/load/summary.test.mjs`
 
 **C20** - The summary file is whole or absent, also for a failed run, and the smoke run never writes `summary.json` (LB-12, AC 3)
-Proof: `node --test scripts/test/load/write-summary.test.mjs --test-name-pattern "whole or absent"`
+Proof: `node --test "--test-name-pattern=whole or absent" scripts/test/load/write-summary.test.mjs`
 
 **C21** - A summary that is missing, from the smoke profile or not passed is refused and nothing is written (LB-16, AC 6)
-Proof: `node --test scripts/test/load/publish.test.mjs --test-name-pattern "refuses a missing, smoke or failed summary"`
+Proof: `node --test "--test-name-pattern=refuses a missing, smoke or failed summary" scripts/test/load/publish.test.mjs`
 
 **C22** - A full, passed summary publishes the numbers, the limits, the date and the commit from a whitelist of fields (LB-16, AC 6)
-Proof: `node --test scripts/test/load/publish.test.mjs --test-name-pattern "publishes a passed full summary"`
+Proof: `node --test "--test-name-pattern=publishes a passed full summary" scripts/test/load/publish.test.mjs`
 
 **C23** - A non-empty `LOAD_TARGET` or `DATABASE_URL`, a loopback value included, is refused naming the variable (LB-17, AC 1)
-Proof: `node --test scripts/test/load/target-guard.test.mjs --test-name-pattern "refuses a non-empty target"`
+Proof: `node --test "--test-name-pattern=refuses a non-empty target" scripts/test/load/target-guard.test.mjs`
 
 **C24** - An unset or empty `LOAD_TARGET` or `DATABASE_URL` is ignored (LB-17, AC 1)
-Proof: `node --test scripts/test/load/target-guard.test.mjs --test-name-pattern "ignores unset and empty"`
+Proof: `node --test "--test-name-pattern=ignores unset and empty" scripts/test/load/target-guard.test.mjs`
 
 **C25** - A remote `DOCKER_HOST`, a non-default `DOCKER_CONTEXT` and an inherited `OTEL_*` variable are refused (LB-17, AC 1; AD-117)
-Proof: `node --test scripts/test/load/target-guard.test.mjs --test-name-pattern "refuses a remote Docker host"`
+Proof: `node --test "--test-name-pattern=refuses a remote Docker host" scripts/test/load/target-guard.test.mjs`
 
 **C26** - Docker not installed, the daemon down and an image failure are classified so the message names Docker or the image (LB-18, AC 2)
-Proof: `node --test scripts/test/load/preflight.test.mjs --test-name-pattern "classifies Docker failures"`
+Proof: `node --test "--test-name-pattern=classifies Docker failures" scripts/test/load/preflight.test.mjs`
 
 **C27** - Player names are unique, 2 to 16 letters and digits, and each player has its own client address (LB-03, AC 3; LB-04, AC 4)
-Proof: `node --test scripts/test/load/players.test.mjs --test-name-pattern "unique names and distinct addresses"`
+Proof: `node --test "--test-name-pattern=unique names and distinct addresses" scripts/test/load/players.test.mjs`
 
 **C28** - Every non-2xx answer of a journey request, a `429` included, is an error (LB-04, AC 4)
-Proof: `node --test scripts/test/load/journey-state.test.mjs --test-name-pattern "a 429 is an error"`
+Proof: `node --test "--test-name-pattern=a 429 is an error" scripts/test/load/journey-state.test.mjs`
 
 **C29** - The provisioning requests carry the headers each route needs and only target `127.0.0.1` (LB-03, AC 3)
-Proof: `node --test scripts/test/load/provision-requests.test.mjs --test-name-pattern "provisioning requests"`
+Proof: `node --test "--test-name-pattern=provisioning requests" scripts/test/load/provision-requests.test.mjs`
 
 **C30** - The provisioner signs in, pairs and claims for each player and never logs a cookie or a token (LB-03, AC 3)
-Proof: `node --test scripts/test/load/provision.test.mjs --test-name-pattern "provisions players without logging secrets"`
+Proof: `node --test "--test-name-pattern=provisions players without logging secrets" scripts/test/load/provision.test.mjs`
 
 **C31** - The containers get the default limits (0.5 CPU, 512m) from `LOAD_CPUS` and `LOAD_MEMORY`, and a value with extra arguments is refused (LB-01, AC 1)
-Proof: `node --test scripts/test/load/container-spec.test.mjs --test-name-pattern "limits and strict values"`
+Proof: `node --test "--test-name-pattern=limits and strict values" scripts/test/load/container-spec.test.mjs`
 
 **C32** - The API environment is an allow-list with the real clock, the staging endpoints, no acceptance controls, the loopback exporter and the CA path, and the staging variables are on no other container (LB-02, AC 2)
-Proof: `node --test scripts/test/load/container-spec.test.mjs --test-name-pattern "API environment allow-list"`
+Proof: `node --test "--test-name-pattern=API environment allow-list" scripts/test/load/container-spec.test.mjs`
 
 **C33** - Postgres starts with TLS from a certificate made inside the container and a password from an env-file (LB-01, AC 1)
-Proof: `node --test scripts/test/load/container-spec.test.mjs --test-name-pattern "Postgres with TLS"`
+Proof: `node --test "--test-name-pattern=Postgres with TLS" scripts/test/load/container-spec.test.mjs`
 
 **C34** - Only `127.0.0.1` ports are published, never for the API, Postgres or k6; no host network, privileged mode or socket mount (LB-01, AC 1; LB-02, AC 2)
-Proof: `node --test scripts/test/load/container-spec.test.mjs --test-name-pattern "publish guard"`
+Proof: `node --test "--test-name-pattern=publish guard" scripts/test/load/container-spec.test.mjs`
 
 **C35** - The cleanup plan removes every container, the network and the work directory, is safe with nothing created, and the sweep only touches labelled, well-named, current-user resources (LB-19, AC 3)
-Proof: `node --test scripts/test/load/cleanup-plan.test.mjs --test-name-pattern "cleanup and sweep plans"`
+Proof: `node --test "--test-name-pattern=cleanup and sweep plans" scripts/test/load/cleanup-plan.test.mjs`
 
 **C36** - An iteration without a `created` frame 5 000 ms after its observation is one error, and a frame at 4 999 ms is a latency (LB-05, AC 5; LB-08 edge case)
-Proof: `node --test scripts/test/load/journey-state.test.mjs --test-name-pattern "five second timeout"`
+Proof: `node --test "--test-name-pattern=five second timeout" scripts/test/load/journey-state.test.mjs`
 
 **C37** - The meter counts bytes from the API to the players only inside its window, discards them, and its control endpoints need the bearer and a loopback `Host` (LB-14, AC 4)
-Proof: `node --test scripts/test/load/meter.test.mjs --test-name-pattern "meter counts API bytes inside the window"`
+Proof: `node --test "--test-name-pattern=meter counts API bytes inside the window" scripts/test/load/meter.test.mjs`
 
 **C38** - The sink answers the OTLP paths with `200 {}`, counts the wire bytes inside its window and discards them, with the same control checks (LB-21, AC 1)
-Proof: `node --test scripts/test/load/sink.test.mjs --test-name-pattern "sink counts wire bytes inside the window"`
+Proof: `node --test "--test-name-pattern=sink counts wire bytes inside the window" scripts/test/load/sink.test.mjs`
 
 **C39** - The sequence stops at the first failed step, writes the summary, and cleans up on a pass, a failed step, a signal, an uncaught error and a failing removal (LB-07, AC 7; LB-19, AC 3)
-Proof: `node --test scripts/test/load/orchestrate.test.mjs --test-name-pattern "sequence and cleanup on every exit path"`
+Proof: `node --test "--test-name-pattern=sequence and cleanup on every exit path" scripts/test/load/orchestrate.test.mjs`
 
 **C40** - No secret appears in a docker argument or a log line of the sequence (LB-03; AGENTS.md rule 6)
-Proof: `node --test scripts/test/load/orchestrate.test.mjs --test-name-pattern "no secret in arguments or logs"`
+Proof: `node --test "--test-name-pattern=no secret in arguments or logs" scripts/test/load/orchestrate.test.mjs`
 
 **C41** - The pairing limiter's constants are unchanged: 10 code requests an hour per address and 10 submissions per 5 minutes per account (LB-04, AC 4)
-Proof: `node --test scripts/test/load-scripts.test.mjs --test-name-pattern "pairing limiter constants"`
+Proof: `node --test "--test-name-pattern=pairing limiter constants" scripts/test/load-scripts.test.mjs`
 
 **C42** - The load scripts are named by no `check`, `test` or workflow, and exist as `pnpm test:load`, `pnpm test:load:smoke` and `pnpm load:publish` (LB-20, AC 4)
-Proof: `node --test scripts/test/load-scripts.test.mjs --test-name-pattern "load scripts are on demand only"`
+Proof: `node --test "--test-name-pattern=load scripts are on demand only" scripts/test/load-scripts.test.mjs`
 
 **C43** - Every image reference is pinned by digest, nothing is pushed, no shell is used, `.dockerignore` is deny-by-default, the API image mirrors Render, and `journey.mjs` imports `journey-state.mjs` (LB-01, LB-05; security review)
-Proof: `node --test scripts/test/load-scripts.test.mjs --test-name-pattern "images, shell and journey rules"`
+Proof: `node --test "--test-name-pattern=images, shell and journey rules" scripts/test/load-scripts.test.mjs`
 
 **C44** - A target that is not the run's own container is refused before any container starts: `LOAD_TARGET` and `DATABASE_URL` (LB-17, AC 1)
 Proof: `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@LB-17"`
@@ -938,6 +938,15 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - Build notes: an `ARG K6_VERSION` is exported to RUN and collides with xk6's own flag, so the build ARG is `K6_RELEASE` and xk6 gets `--k6-version`. xk6 needs `git` in the builder.
 - Cleanup: no containers, network or work directory was left after any attempt. The failure path and the success path were both exercised. The signal path was not. The image `d2rmm-load-k6:spike` stays in the local cache and was not pushed.
 - Tooling: the gate hook denied a direct `pnpm exec eslint` once (denial 1 of 3). I did not retry it. ESLint on `scripts/load` ran through `attempt.mjs` under T1 and passed.
+
+**Settled by the orchestrator after batches 2 and 3 (2026-11-03):**
+
+- Replan (tasks gate run again, approval line unchanged): every proof in `## Checks` now puts the name filter before the file, `node --test "--test-name-pattern=<name>" <file>`, because on Node 26 a filter after the file selects nothing and runs the whole file. No claim, test name or gate changed.
+- Windows (assumed, AD-118): `profileFor` gives `windowOffsets` on the k6 clock (full: start 50 s, end 140 s = 20 s ramp + 30 s into the hold + 90 s) and `windowInHold`; the smoke profile's 30 s hold cannot hold a 90 s window, so its window is the whole hold (20 s to 50 s).
+- Added beyond the plan: `scripts/load/lib/redact.mjs` (+ test), shared by the summary, the preflight and the orchestrator's log redactor (T26).
+- Contracts the later tasks build on (from T14 to T17): names are `lb<runId><index>` (index 0 to 399), addresses `10.0.x.y`; `Origin` is sent by the provisioning requests on `test-login` and `pair` only, `match-formed` is T24's; builders take **image references as parameters** (no digest inside the pure builders): T23 creates `scripts/load/lib/images.mjs` exporting the pinned references of `postgres:17-alpine`, `node:26-alpine` (meter and sink), the API image tag and the k6 image tag, each with a `@sha256:` digest looked up with docker, and T28's static test checks them; `DATABASE_URL` and the Postgres password never appear in an argument (`envFileText` writes 0600 env-files, T26 passes them with `--env-file`); fixed container paths: token file `/run/d2rmm/token` (ro, sink and meter), CA `/run/d2rmm-ca/ca.crt` (ro, API and migrate; T26 copies only the public CA out of Postgres with `docker cp`), `scripts/load` at `/load` (ro), k6 plan at `/work/in` (ro, the script at `/work/in/journey.mjs`), output at `/work/out` (rw, `step.json`); the sink publishes `127.0.0.1:9101`, the meter `127.0.0.1:8080` and `127.0.0.1:9100`, nothing else publishes; the meter's upstream is `<sink container>:<PORT>`; the API runs `--network container:<sink>`; `assertSafe` also refuses any argument carrying `PASSWORD=`, `TOKEN=`, `SECRET=`, `COOKIE=`, `AUTHORIZATION=` or `Bearer` text.
+- `publishPlan(summary)` returns `{ allowed, text | reason }`; `writeSummary(fs, dir, summary)` is async and returns the target path; `runIdFrom(randomInt)` takes a `crypto.randomInt`-shaped function; `buildSummary` takes `times: { startedAt, endedAt }`; `failure.step` is the player count.
+- Lint: ESLint runs inside the quoted gate command (a direct `pnpm exec eslint` is denied by the hook); `pnpm exec prettier --write` is a direct call.
   **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03, `returned` (T1 committed 8cfe8e3); execute-batch-2 (T2 to T8) at HEAD 8cfe8e3, 2026-11-03, `returned` (T2 to T8 committed, last 3652068); execute-batch-3 (T9 to T17) at HEAD 3652068, 2026-11-03
   **Walked:** none
 
