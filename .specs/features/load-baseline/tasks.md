@@ -446,9 +446,9 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `assertSafe(args)` throws on any `-p`/`--publish` not of the form `127.0.0.1:<port or empty>:<port>`, on `--network host`, `--privileged`, a mount of the Docker socket and a writable bind mount of `scripts/load`; it is applied inside every builder
-- [ ] The API, Postgres and k6 builders publish nothing; the meter publishes `8080` and `9100`, the sink `9101`, on `127.0.0.1` only
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `assertSafe(args)` throws on any `-p`/`--publish` not of the form `127.0.0.1:<port or empty>:<port>`, on `--network host`, `--privileged`, a mount of the Docker socket and a writable bind mount of `scripts/load`; it is applied inside every builder
+- [x] The API, Postgres and k6 builders publish nothing; the meter publishes `8080` and `9100`, the sink `9101`, on `127.0.0.1` only
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick

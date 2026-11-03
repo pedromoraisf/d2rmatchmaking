@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   DEFAULT_LIMITS,
+  assertSafe,
   apiArgs,
   apiEnvironment,
   containerNameOf,
@@ -311,4 +312,119 @@ test('the sink, meter, migration and k6 take no staging variable and no secret',
   );
   assert.equal(valueAfter(k6, '--network'), `d2rmm-load-${RUN}-net`);
   assert.equal(k6.at(-1), '/work/in/journey.mjs', 'k6 runs the journey from the mounted plan');
+});
+
+test('publish guard', () => {
+  const published = (args) => args.flatMap((arg, index) => (arg === '-p' ? [args[index + 1]] : []));
+  const all = builders();
+
+  assert.deepEqual(
+    published(all.sink),
+    ['127.0.0.1:9101:9101'],
+    'the sink publishes its control port on loopback',
+  );
+  assert.deepEqual(
+    published(all.meter),
+    ['127.0.0.1:8080:8080', '127.0.0.1:9100:9100'],
+    'the meter publishes its proxy and control ports on loopback',
+  );
+  for (const role of ['postgres', 'api', 'migrate', 'k6', 'network']) {
+    assert.deepEqual(published(all[role]), [], `${role} publishes nothing`);
+  }
+  for (const [role, args] of Object.entries(all)) {
+    assert.equal(args.includes('--privileged'), false, `${role} is not privileged`);
+    assert.equal(args.includes('host'), false, `${role} shares no host namespace`);
+    assert.equal(
+      args.some((arg) => arg.includes('docker.sock')),
+      false,
+      `${role} mounts no Docker socket`,
+    );
+    assert.equal(assertSafe(args), args, `${role} passes the guard`);
+  }
+
+  for (const publish of [
+    '0.0.0.0:8080:8080',
+    '8080:8080',
+    '127.0.0.1:8080',
+    '[::1]:8080:8080',
+    '192.168.1.5:8080:8080',
+  ]) {
+    assert.throws(() => assertSafe(['run', '-p', publish, 'image']), TypeError, `${publish} is refused`);
+  }
+  assert.throws(
+    () => assertSafe(['run', '--publish=0.0.0.0:9101:9101', 'image']),
+    TypeError,
+    'the inline form too',
+  );
+  assert.throws(() => assertSafe(['run', '-P', 'image']), TypeError, 'publish-all is refused');
+  assert.throws(
+    () => assertSafe(['run', '--network', 'host', 'image']),
+    TypeError,
+    'host networking is refused',
+  );
+  assert.throws(() => assertSafe(['run', '--network=host', 'image']), TypeError, 'host networking, inline');
+  assert.throws(
+    () => assertSafe(['run', '--pid', 'host', 'image']),
+    TypeError,
+    'the host PID namespace is refused',
+  );
+  assert.throws(() => assertSafe(['run', '--privileged', 'image']), TypeError, 'privileged mode is refused');
+  assert.throws(
+    () => assertSafe(['run', '-v', '/var/run/docker.sock:/var/run/docker.sock', 'image']),
+    TypeError,
+    'the Docker socket is never mounted',
+  );
+  assert.throws(
+    () => assertSafe(['run', '-v', `${LOAD_DIR}:/load`, 'image']),
+    TypeError,
+    'a writable mount of scripts/load is refused',
+  );
+  assert.throws(
+    () => assertSafe(['run', '--mount', `type=bind,source=${LOAD_DIR},target=/load`, 'image']),
+    TypeError,
+    'a writable --mount of scripts/load is refused',
+  );
+  assert.throws(
+    () => assertSafe(['run', '--volume', `${LOAD_DIR}/k6:/k6`, 'image']),
+    TypeError,
+    'a writable mount of a subdirectory of scripts/load is refused',
+  );
+  assert.throws(
+    () => assertSafe(['run', '-e', 'DATABASE_URL=postgres://u:p@h/db', 'image']),
+    TypeError,
+    'a database URL is never an argument',
+  );
+  assert.throws(() => assertSafe(['run', '-e', 'POSTGRES_PASSWORD=x', 'image']), TypeError);
+  assert.throws(
+    () => assertSafe(['run', '-e', 'X=Bearer abc', 'image']),
+    TypeError,
+    'a bearer is never an argument',
+  );
+
+  assert.equal(
+    assertSafe(['run', '-p', '127.0.0.1:8080:8080', 'image']).length,
+    4,
+    'loopback publish is allowed',
+  );
+  assert.equal(
+    assertSafe(['run', '-p', '127.0.0.1::8080', 'image']).length,
+    4,
+    'an empty host port is allowed',
+  );
+  assert.equal(
+    assertSafe(['run', '-v', `${LOAD_DIR}:/load:ro`, 'image']).length,
+    4,
+    'a read-only mount of scripts/load is allowed',
+  );
+  assert.throws(
+    () => assertSafe('run -p 127.0.0.1:1:1'),
+    TypeError,
+    'a shell string is not an argument list',
+  );
+
+  assert.throws(
+    () => k6Args({ runId: RUN, image: 'd2rmm-load-k6:test', inDir: IN_DIR, outDir: LOAD_DIR }),
+    TypeError,
+    'the guard runs inside each builder: a writable scripts/load output is refused',
+  );
 });

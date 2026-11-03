@@ -1,7 +1,8 @@
-// The `docker` argument arrays of the run (design.md § Pure rules, § Images and TLS; LB-01, LB-02). Pure: every builder
-// returns an array of arguments for the `docker` CLI, never a shell string, and nothing here reads the environment of the
-// process. Secrets never reach an argument: the Postgres password and the API's `DATABASE_URL` travel in an env-file whose
-// path is the argument, and the orchestrator writes that file at mode 0600.
+// The `docker` argument arrays of the run (design.md § Pure rules, § Images and TLS, § Byte meter and sink; LB-01, LB-02).
+// Pure: every builder returns an array of arguments for the `docker` CLI, never a shell string, and nothing here reads the
+// environment of the process. Secrets never reach an argument: the Postgres password and the API's `DATABASE_URL` travel
+// in an env-file whose path is the argument, and the orchestrator writes that file at mode 0600. Every builder passes its
+// result through `assertSafe`, the publish guard: only the meter and the sink publish, and only on loopback.
 
 import { isAbsolute } from 'node:path';
 
@@ -66,6 +67,34 @@ const POSTGRES_TLS_SCRIPT = [
   'chmod 644 server.crt ca.crt',
   'exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/tls/server.crt -c ssl_key_file=/tls/server.key',
 ].join('\n');
+
+/** The only host ports the run publishes: the meter's two and the sink's one, each on 127.0.0.1 (LB-01, LB-02). */
+const PUBLISH_PATTERN = /^127\.0\.0\.1:(\d*):(\d+)$/;
+const SECRET_TEXT =
+  /(DATABASE_URL|POSTGRES_PASSWORD|PASSWORD|TOKEN|SECRET|COOKIE|AUTHORIZATION)=|\bBearer\s|postgres:\/\/[^\s@]+:[^\s@]+@/i;
+const DOCKER_SOCKET = /docker\.sock/;
+const LOAD_DIR_PATTERN = /(^|\/)scripts\/load(\/|$)/;
+/** Docker flags that take their value as the next argument (the rest are switches or positional). */
+const VALUE_FLAGS = new Set([
+  '-p',
+  '--publish',
+  '-P',
+  '--network',
+  '--net',
+  '--pid',
+  '--ipc',
+  '--userns',
+  '-v',
+  '--volume',
+  '--mount',
+  '-e',
+  '--env',
+  '--env-file',
+  '--name',
+  '--label',
+  '--cpus',
+  '--memory',
+]);
 
 function roleOf(role) {
   if (!ROLES.includes(role)) {
@@ -151,9 +180,104 @@ function common(runId, role) {
   return ['--name', containerNameOf(runId, role), '--label', labelOf(runId)];
 }
 
+function publishOk(value) {
+  if (typeof value !== 'string' || !PUBLISH_PATTERN.test(value)) {
+    throw new TypeError(`a published port is 127.0.0.1:<port or empty>:<port>, got ${String(value)}`);
+  }
+}
+
+function mountOk(value) {
+  const [source = '', , mode = ''] = String(value).split(':');
+  if (LOAD_DIR_PATTERN.test(source) && !mode.split(',').includes('ro')) {
+    throw new TypeError('the scripts/load directory is mounted read-only, never writable');
+  }
+}
+
+/** A `--mount` value is comma-separated `key=value` pairs: the source is `source=` or `src=`. */
+function mountFlagOk(value) {
+  const text = String(value);
+  const source = /(?:^|,)(?:source|src)=([^,]*)/.exec(text)?.[1] ?? '';
+  const readOnly = /(?:^|,)(?:readonly|ro)(?:,|$)/.test(text);
+  if (LOAD_DIR_PATTERN.test(source) && !readOnly) {
+    throw new TypeError('the scripts/load directory is mounted read-only, never writable');
+  }
+}
+
+/** One flag and the value it carries: `--flag=value` inline, or the next argument for the flags that take one. */
+function flagOf(args, index) {
+  const arg = args[index];
+  const equals = arg.indexOf('=');
+  if (arg.startsWith('-') && equals > 0) {
+    return { flag: arg.slice(0, equals), value: arg.slice(equals + 1), consumed: 0 };
+  }
+  if (VALUE_FLAGS.has(arg)) {
+    return { flag: arg, value: args[index + 1], consumed: 1 };
+  }
+  return { flag: arg, value: undefined, consumed: 0 };
+}
+
+function checkFlag(flag, value) {
+  switch (flag) {
+    case '-p':
+    case '--publish':
+      publishOk(value);
+      return;
+    case '-P':
+    case '--publish-all':
+      throw new TypeError('--publish-all would publish every port');
+    case '--network':
+    case '--net':
+    case '--pid':
+    case '--ipc':
+    case '--userns':
+      if (value === 'host') {
+        throw new TypeError(`${flag} host shares the host's namespace`);
+      }
+      return;
+    case '--privileged':
+      throw new TypeError('--privileged is never used');
+    case '-v':
+    case '--volume':
+      mountOk(value);
+      return;
+    case '--mount':
+      mountFlagOk(value);
+      return;
+    default:
+      return;
+  }
+}
+
+/**
+ * The publish guard (LB-01, LB-02; design.md § Byte meter and sink). Throws when an argument list would expose more than
+ * loopback: a publish that is not `127.0.0.1:<port or empty>:<port>`, `--network host`, `--privileged`, a mount of the
+ * Docker socket, a writable mount of `scripts/load`, or secret text in an argument. Returns the list when it is safe.
+ * @param {string[]} args
+ * @returns {string[]}
+ */
+export function assertSafe(args) {
+  if (!Array.isArray(args) || args.some((arg) => typeof arg !== 'string')) {
+    throw new TypeError('a docker argument list is an array of strings');
+  }
+  for (const arg of args) {
+    if (DOCKER_SOCKET.test(arg)) {
+      throw new TypeError('the Docker socket is never mounted into a container of the run');
+    }
+    if (SECRET_TEXT.test(arg)) {
+      throw new TypeError('secret text is never passed in a docker argument');
+    }
+  }
+  for (let index = 0; index < args.length; index += 1) {
+    const { flag, value, consumed } = flagOf(args, index);
+    checkFlag(flag, value);
+    index += consumed;
+  }
+  return args;
+}
+
 /** `docker network create` for the run's network. */
 export function networkArgs(runId) {
-  return ['network', 'create', '--label', labelOf(runId), networkNameOf(runId)];
+  return assertSafe(['network', 'create', '--label', labelOf(runId), networkNameOf(runId)]);
 }
 
 /**
@@ -217,7 +341,7 @@ export function apiEnvironment({ siteOrigin, port, databaseUrl }) {
  * @returns {string[]}
  */
 export function postgresArgs({ runId, image, envFile }) {
-  return [
+  return assertSafe([
     'run',
     '-d',
     ...common(runId, 'postgres'),
@@ -231,7 +355,7 @@ export function postgresArgs({ runId, image, envFile }) {
     POSTGRES_TLS_SCRIPT,
     'postgres-tls',
     containerNameOf(runId, 'postgres'),
-  ];
+  ]);
 }
 
 /**
@@ -241,12 +365,14 @@ export function postgresArgs({ runId, image, envFile }) {
  * @returns {string[]}
  */
 export function sinkArgs({ runId, image, loadDir, tokenFile }) {
-  return [
+  return assertSafe([
     'run',
     '-d',
     ...common(runId, 'sink'),
     '--network',
     networkNameOf(runId),
+    '-p',
+    `127.0.0.1:${SINK_CONTROL_PORT}:${SINK_CONTROL_PORT}`,
     '-v',
     mountOf(loadDir, LOAD_IN_CONTAINER, 'ro'),
     '-v',
@@ -260,12 +386,13 @@ export function sinkArgs({ runId, image, loadDir, tokenFile }) {
     `0.0.0.0:${SINK_CONTROL_PORT}`,
     '--token-file',
     TOKEN_IN_CONTAINER,
-  ];
+  ]);
 }
 
 /**
  * `docker run` of the API under test. It joins the sink's network namespace, so it exports to loopback, and it has the
- * CPU and memory limits. Its secrets come from the env-file; every other allow-listed variable is an `-e` pair.
+ * CPU and memory limits. Its secrets come from the env-file; every other allow-listed variable is an `-e` pair. The
+ * container publishes nothing.
  * @param {{
  *   runId: string,
  *   image: string,
@@ -294,7 +421,7 @@ export function apiArgs({ runId, image, environment, envFile, caFile, limits = D
   const variables = API_ENVIRONMENT_KEYS.filter((key) => !API_ENVIRONMENT_FILE_KEYS.includes(key)).flatMap(
     (key) => ['-e', `${key}=${environment[key]}`],
   );
-  return [
+  return assertSafe([
     'run',
     '-d',
     ...common(runId, 'api'),
@@ -311,7 +438,7 @@ export function apiArgs({ runId, image, environment, envFile, caFile, limits = D
     ...variables,
     image,
     ...API_ENTRY,
-  ];
+  ]);
 }
 
 /**
@@ -321,12 +448,16 @@ export function apiArgs({ runId, image, environment, envFile, caFile, limits = D
  * @returns {string[]}
  */
 export function meterArgs({ runId, image, loadDir, tokenFile, apiPort }) {
-  return [
+  return assertSafe([
     'run',
     '-d',
     ...common(runId, 'meter'),
     '--network',
     networkNameOf(runId),
+    '-p',
+    `127.0.0.1:${METER_PORT}:${METER_PORT}`,
+    '-p',
+    `127.0.0.1:${METER_CONTROL_PORT}:${METER_CONTROL_PORT}`,
     '-v',
     mountOf(loadDir, LOAD_IN_CONTAINER, 'ro'),
     '-v',
@@ -342,7 +473,7 @@ export function meterArgs({ runId, image, loadDir, tokenFile, apiPort }) {
     `0.0.0.0:${METER_CONTROL_PORT}`,
     '--token-file',
     TOKEN_IN_CONTAINER,
-  ];
+  ]);
 }
 
 /**
@@ -352,7 +483,7 @@ export function meterArgs({ runId, image, loadDir, tokenFile, apiPort }) {
  * @returns {string[]}
  */
 export function migrateArgs({ runId, image, envFile, caFile }) {
-  return [
+  return assertSafe([
     'run',
     ...common(runId, 'migrate'),
     '--network',
@@ -365,7 +496,7 @@ export function migrateArgs({ runId, image, envFile, caFile }) {
     `NODE_EXTRA_CA_CERTS=${CA_IN_CONTAINER}`,
     image,
     ...MIGRATE_ENTRY,
-  ];
+  ]);
 }
 
 /**
@@ -382,7 +513,7 @@ export function migrateArgs({ runId, image, envFile, caFile }) {
  */
 export function k6Args({ runId, image, inDir, outDir, limits = DEFAULT_LIMITS }) {
   const { k6Memory } = limitsOf(limits);
-  return [
+  return assertSafe([
     'run',
     ...common(runId, 'k6'),
     '--network',
@@ -397,5 +528,5 @@ export function k6Args({ runId, image, inDir, outDir, limits = DEFAULT_LIMITS })
     'run',
     '--no-color',
     `${WORK_IN_CONTAINER}/in/journey.mjs`,
-  ];
+  ]);
 }
