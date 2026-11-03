@@ -622,10 +622,10 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `runLoad({ profile, env, docker, http, clock, fs })` runs the guards and the preflight, sweeps stale resources, builds images, starts the network, Postgres (TLS), the sink, the API, the meter, migrates, then runs each step (provision the new players, write `in/plan.json` at mode 0600, run k6, read `out/step.json`, read the meters' totals, `docker inspect` and stats, the constant `psql` query for rooms), applies `verdictOf`, stops after the first failed step or the last, builds and writes the summary, and returns `{ summary, exitCode }`
-- [ ] `cleanup()` is idempotent, runs from `finally`, ignores a repeated call while running, tries every removal even if one throws, and leaves the exit code non-zero if anything stayed; a tool failure yields `error` in the summary and still cleans up
-- [ ] The redactor masks cookies, tokens, `Bearer` values, passwords and URL user-info in every log line and in every `inspect` and `stats` text; no secret appears in any docker argument (checked against the fake `docker` port)
-- [ ] Tests named as in `## Checks` pass with fake ports: quick gate
+- [x] `runLoad({ profile, env, docker, http, clock, fs })` runs the guards and the preflight, sweeps stale resources, builds images, starts the network, Postgres (TLS), the sink, the API, the meter, migrates, then runs each step (provision the new players, write `in/plan.json` at mode 0600, run k6, read `out/step.json`, read the meters' totals, `docker inspect` and stats, the constant `psql` query for rooms), applies `verdictOf`, stops after the first failed step or the last, builds and writes the summary, and returns `{ summary, exitCode }`
+- [x] `cleanup()` is idempotent, runs from `finally`, ignores a repeated call while running, tries every removal even if one throws, and leaves the exit code non-zero if anything stayed; a tool failure yields `error` in the summary and still cleans up
+- [x] The redactor masks cookies, tokens, `Bearer` values, passwords and URL user-info in every log line and in every `inspect` and `stats` text; no secret appears in any docker argument (checked against the fake `docker` port)
+- [x] Tests named as in `## Checks` pass with fake ports: quick gate
 
 **Tests**: unit
 **Gate**: Quick
