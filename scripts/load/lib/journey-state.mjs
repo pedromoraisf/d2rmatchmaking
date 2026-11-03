@@ -4,11 +4,14 @@
 // k6 module. It holds no clock; every transition takes the time from the caller, in milliseconds on the caller's clock.
 // It avoids optional chaining and object spread so the k6 bundler needs nothing beyond ES2015.
 //
-// An iteration: `start()` (the test match is requested) -> `onAssigned` (the site stream's `room.assigned`) ->
+// An iteration: `start()` (a new iteration waits for its match) -> `onAssigned` (the site stream's `room.assigned`) ->
 // `onObservationSent` (the observation is posted) -> `onCreated` (the `created` frame of that room). Without that frame
-// TIMEOUT_MS after the observation the iteration is `timed-out` with one error (`onTick`). A non-2xx answer to a journey
-// request is an error of the iteration (`onStatus`). Every transition returns the next state; the state carries the
-// latency of the iteration (created minus observation) and its error count.
+// TIMEOUT_MS after the observation the iteration is `timed-out` with one error. A timer cannot run while a stream is open
+// (design.md Revision 1, AD-121), so the rule is evaluated where a frame or the end of the stream arrives: `onCreated` and
+// `onAssigned` settle a stale observation they receive, `onTick` and `onClose` settle it on the caller's clock, and the
+// caller tallies each new error at `observedAt`, the time of its observation. A non-2xx answer to a journey request is an
+// error of the iteration (`onStatus`). Every transition returns the next state; a settled state carries its `observedAt`,
+// the latency of the iteration (created minus observation) and its error count.
 
 export const TIMEOUT_MS = 5000;
 
@@ -28,13 +31,15 @@ export function start() {
 }
 
 /**
- * The `room.assigned` frame of the iteration's match. The first frame with a room id counts; others change nothing.
+ * The `room.assigned` frame of the iteration's match. The first frame with a room id counts; others change nothing. A
+ * stale observation that this frame finds is settled first: the `timed-out` state comes back with its one error.
  * @param {object} state
  * @param {{ roomId?: unknown }} frame
  * @param {number} nowMs
  */
 export function onAssigned(state, frame, nowMs) {
   checkTime(nowMs);
+  if (isStale(state, nowMs)) return timedOut(state);
   if (state.phase !== 'waiting-assigned' || state.assignedAt !== null) return state;
   if (!frame || typeof frame.roomId !== 'string' || frame.roomId === '') return state;
   return withFields(state, { roomId: frame.roomId, assignedAt: nowMs });
@@ -72,8 +77,18 @@ export function onCreated(state, nowMs) {
  */
 export function onTick(state, nowMs) {
   checkTime(nowMs);
-  if (state.phase === 'observed' && nowMs - state.observedAt >= TIMEOUT_MS) return timedOut(state);
-  return state;
+  return isStale(state, nowMs) ? timedOut(state) : state;
+}
+
+/**
+ * The stream closed at `nowMs`: an observation still pending TIMEOUT_MS or more after its observation times out (one error,
+ * tallied by the caller at `observedAt`). A younger observation, no observation, or a settled state is returned unchanged.
+ * @param {object} state
+ * @param {number} nowMs
+ */
+export function onClose(state, nowMs) {
+  checkTime(nowMs);
+  return isStale(state, nowMs) ? timedOut(state) : state;
 }
 
 /**
@@ -93,6 +108,11 @@ export function onStatus(state, status) {
  */
 export function isError(status) {
   return !(typeof status === 'number' && status >= 200 && status <= 299);
+}
+
+/** An observed iteration whose `created` frame is TIMEOUT_MS or more after its observation: the 5 s rule. */
+function isStale(state, nowMs) {
+  return state.phase === 'observed' && nowMs - state.observedAt >= TIMEOUT_MS;
 }
 
 function timedOut(state) {

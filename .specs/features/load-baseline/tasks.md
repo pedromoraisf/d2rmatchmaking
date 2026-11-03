@@ -768,10 +768,10 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `onCreated` already returns `timed-out` with exactly one error and no latency sample at 5 000 ms or later (a frame at 4 999 ms stays a latency; tests at 4 999, 5 000 and 5 001 ms); the **new** work: `onClose(state, nowMs)` returns `timed-out` with one error when an observation is pending and `nowMs` is 5 000 ms or more after it, and the same state with no error when it is younger or no observation was sent; every settled state carries `observedAt`, the time of its observation, so the caller tallies the error at that time and not at the time the error is found
-- [ ] A stale `observed` state is settled before a new frame is handled, with this handler-level contract (tested as "timed out, then a second assigned frame"): the caller applies `onTick`, tallies the settled iteration's error at its `observedAt`, then calls `start()` and `onAssigned` for the new frame; `onAssigned` and `onCreated` themselves also return the settled `timed-out` state (with its one error) when the state they receive is stale, never dropping or double-counting it
-- [ ] The module still has no Node import and no optional chaining or object spread
-- [ ] Tests named as in `## Checks` pass: the Quick gate
+- [x] `onCreated` already returns `timed-out` with exactly one error and no latency sample at 5 000 ms or later (a frame at 4 999 ms stays a latency; tests at 4 999, 5 000 and 5 001 ms); the **new** work: `onClose(state, nowMs)` returns `timed-out` with one error when an observation is pending and `nowMs` is 5 000 ms or more after it, and the same state with no error when it is younger or no observation was sent; every settled state carries `observedAt`, the time of its observation, so the caller tallies the error at that time and not at the time the error is found
+- [x] A stale `observed` state is settled before a new frame is handled, with this handler-level contract (tested as "timed out, then a second assigned frame"): the caller applies `onTick`, tallies the settled iteration's error at its `observedAt`, then calls `start()` and `onAssigned` for the new frame; `onAssigned` and `onCreated` themselves also return the settled `timed-out` state (with its one error) when the state they receive is stale, never dropping or double-counting it
+- [x] The module still has no Node import and no optional chaining or object spread
+- [x] Tests named as in `## Checks` pass: the Quick gate
 
 **Tests**: unit
 **Gate**: Quick

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   isError,
   onAssigned,
+  onClose,
   onCreated,
   onObservationSent,
   onStatus,
@@ -46,10 +47,74 @@ test('five second timeout: a created frame at 4 999 ms is a latency, at 5 001 ms
   assert.equal(inTime.latencyMs, 4999, 'the latency is created minus observation');
   assert.equal(inTime.errors, 0);
 
+  const atLimit = onCreated(observedAt(1000), 6000);
+  assert.equal(atLimit.phase, 'timed-out', 'a frame 5 000 ms after the observation is too late');
+  assert.equal(atLimit.errors, 1, 'and it is one error');
+  assert.equal(atLimit.latencyMs, null, 'with no latency sample');
+
   const late = onCreated(observedAt(1000), 6001);
   assert.equal(late.phase, 'timed-out');
   assert.equal(late.errors, 1, 'a frame 5 001 ms after the observation is one error');
   assert.equal(late.latencyMs, null);
+});
+
+test('pending observation at the end of a stream', () => {
+  // A stream that closes 5 000 ms or more after the observation settles it: one error, tallied at the observation.
+  const pending = observedAt(1000);
+  const young = onClose(pending, 5999);
+  assert.equal(young.phase, 'observed', 'an observation 4 999 ms old is still pending, with no error');
+  assert.equal(young.errors, 0);
+
+  const old = onClose(pending, 6000);
+  assert.equal(old.phase, 'timed-out');
+  assert.equal(old.errors, 1, 'an observation 5 000 ms old at the close is one error');
+  assert.equal(old.observedAt, 1000, 'the error is tallied at the observation, not at the close');
+  assert.equal(old.latencyMs, null);
+  assert.equal(onClose(old, 9000).errors, 1, 'a second close adds nothing');
+
+  const waiting = onAssigned(start(), ROOM, 500);
+  assert.equal(onClose(waiting, 99999), waiting, 'no observation sent is no error');
+  assert.equal(onClose(start(), 99999).errors, 0, 'a new iteration is no error either');
+
+  const created = onCreated(observedAt(1000), 1500);
+  assert.equal(onClose(created, 99999), created, 'a created iteration is not pending');
+  assert.equal(created.observedAt, 1000, 'a settled state carries the time of its observation');
+});
+
+test('timed out, then a second assigned frame', () => {
+  // The site handler's order (design.md Revision 1, (d)): settle the stale observation first, tally its error at its
+  // observation, then start the new iteration and take the assignment of the second frame.
+  const tallied = [];
+  const settle = (previous, next) => {
+    for (let count = previous.errors; count < next.errors; count += 1) tallied.push(next.observedAt);
+    return next;
+  };
+  let iteration = observedAt(1000);
+  iteration = settle(iteration, onTick(iteration, 7000));
+  assert.equal(iteration.phase, 'timed-out', 'the observation is 6 s old when the second frame arrives');
+
+  iteration = onAssigned(start(), { roomId: 'room-2' }, 7000);
+  assert.equal(iteration.roomId, 'room-2', 'the second frame starts a new iteration');
+  assert.equal(iteration.phase, 'waiting-assigned');
+  assert.deepEqual(tallied, [1000], 'one error, tallied once, at the stale observation');
+});
+
+test('a stale observation is settled by a late assignment, once', () => {
+  const stale = observedAt(1000);
+  const settled = onAssigned(stale, { roomId: 'room-2' }, 6000);
+  assert.equal(settled.phase, 'timed-out', 'the frame settles the stale iteration instead of being dropped');
+  assert.equal(settled.errors, 1);
+  assert.equal(settled.observedAt, 1000);
+  assert.equal(
+    onAssigned(settled, { roomId: 'room-3' }, 6200),
+    settled,
+    'a settled state is not settled twice',
+  );
+  assert.equal(onCreated(settled, 6300), settled);
+
+  const younger = onAssigned(observedAt(1000), { roomId: 'room-2' }, 5999);
+  assert.equal(younger.phase, 'observed', 'an observation 4 999 ms old is not settled by an assignment');
+  assert.equal(younger.errors, 0);
 });
 
 test('a 429 is an error: every non-2xx status counts, 200, 202 and 204 do not', () => {
@@ -95,4 +160,6 @@ test('the journey module is an ES module with no import', () => {
   const source = readFileSync(path.join(here, '..', '..', 'load', 'lib', 'journey-state.mjs'), 'utf8');
   assert.equal(/^\s*import\b/m.test(source), false, 'journey-state.mjs has no import, so k6 can load it');
   assert.equal(/\bconsole\./.test(source), false);
+  assert.equal(/\?\./.test(source), false, 'no optional chaining, for the k6 bundler');
+  assert.equal(/\{\s*\.\.\./.test(source), false, 'no object spread, for the k6 bundler');
 });
