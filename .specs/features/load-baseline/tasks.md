@@ -467,9 +467,9 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `cleanupPlan(created)` lists every created container (in reverse start order), the network and the work directory; with nothing created it returns an empty plan; names not matching `^d2rmm-load-[a-z0-9]{8}-` are dropped
-- [ ] `sweepPlan(found)` keeps only resources labelled `d2rmm-load` whose names match `^d2rmm-load-[a-z0-9]{8}$` or `^d2rmm-load-[a-z0-9]{8}-`, and refuses symlinks, a different uid or a mode other than 0700 for directories
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `cleanupPlan(created)` lists every created container (in reverse start order), the network and the work directory; with nothing created it returns an empty plan; names not matching `^d2rmm-load-[a-z0-9]{8}-` are dropped
+- [x] `sweepPlan(found)` keeps only resources labelled `d2rmm-load` whose names match `^d2rmm-load-[a-z0-9]{8}$` or `^d2rmm-load-[a-z0-9]{8}-`, and refuses symlinks, a different uid or a mode other than 0700 for directories
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
@@ -947,7 +947,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - Contracts the later tasks build on (from T14 to T17): names are `lb<runId><index>` (index 0 to 399), addresses `10.0.x.y`; `Origin` is sent by the provisioning requests on `test-login` and `pair` only, `match-formed` is T24's; builders take **image references as parameters** (no digest inside the pure builders): T23 creates `scripts/load/lib/images.mjs` exporting the pinned references of `postgres:17-alpine`, `node:26-alpine` (meter and sink), the API image tag and the k6 image tag, each with a `@sha256:` digest looked up with docker, and T28's static test checks them; `DATABASE_URL` and the Postgres password never appear in an argument (`envFileText` writes 0600 env-files, T26 passes them with `--env-file`); fixed container paths: token file `/run/d2rmm/token` (ro, sink and meter), CA `/run/d2rmm-ca/ca.crt` (ro, API and migrate; T26 copies only the public CA out of Postgres with `docker cp`), `scripts/load` at `/load` (ro), k6 plan at `/work/in` (ro, the script at `/work/in/journey.mjs`), output at `/work/out` (rw, `step.json`); the sink publishes `127.0.0.1:9101`, the meter `127.0.0.1:8080` and `127.0.0.1:9100`, nothing else publishes; the meter's upstream is `<sink container>:<PORT>`; the API runs `--network container:<sink>`; `assertSafe` also refuses any argument carrying `PASSWORD=`, `TOKEN=`, `SECRET=`, `COOKIE=`, `AUTHORIZATION=` or `Bearer` text.
 - `publishPlan(summary)` returns `{ allowed, text | reason }`; `writeSummary(fs, dir, summary)` is async and returns the target path; `runIdFrom(randomInt)` takes a `crypto.randomInt`-shaped function; `buildSummary` takes `times: { startedAt, endedAt }`; `failure.step` is the player count.
 - Lint: ESLint runs inside the quoted gate command (a direct `pnpm exec eslint` is denied by the hook); `pnpm exec prettier --write` is a direct call.
-  **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03, `returned` (T1 committed 8cfe8e3); execute-batch-2 (T2 to T8) at HEAD 8cfe8e3, 2026-11-03, `returned` (T2 to T8 committed, last 3652068); execute-batch-3 (T9 to T17) at HEAD 3652068, 2026-11-03
+  **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03, `returned` (T1 committed 8cfe8e3); execute-batch-2 (T2 to T8) at HEAD 8cfe8e3, 2026-11-03, `returned` (T2 to T8 committed, last 3652068); execute-batch-3 (T9 to T17) at HEAD 3652068, 2026-11-03, `returned` (T9 to T17 committed, last c5975ec); execute-batch-4 (T18 to T23) at HEAD 6580fd8, 2026-11-03
   **Walked:** none
 
 ---
