@@ -138,6 +138,34 @@ test('images, shell and journey rules', () => {
   }
 });
 
+test('journey uses no timers while a stream is open', () => {
+  // k6 2.3 with xk6-sse 0.2.0 stops a timer created in a stream handler before it fires (design.md Revision 1, AD-121).
+  const journey = read('scripts', 'load', 'k6', 'journey.mjs');
+  assert.doesNotMatch(
+    journey,
+    /\b(?:setTimeout|setInterval|clearInterval|clearTimeout)\b/u,
+    'no JavaScript timer: the streams end by their timeout argument, the 5 s rule runs on frames and at the close',
+  );
+  assert.equal([...journey.matchAll(/sse\.open\(/gu)].length, 2, 'the site and the agent streams');
+  assert.equal(
+    [...journey.matchAll(/timeout: streamTimeout\(openedAt\)/gu)].length,
+    2,
+    'each stream ends by its timeout argument, at the close of the step',
+  );
+  assert.match(
+    journey,
+    /onClose\(pending, closedAt\)/u,
+    'the close of a stream settles a pending observation',
+  );
+  assert.match(journey, /matchesPosted\.add\(1\)/u, 'a 2xx match is counted as posted');
+  assert.match(
+    journey,
+    /match: \{\s*executor: 'constant-arrival-rate',\s*rate: MATCH_RATE,\s*timeUnit: '60s',/u,
+    'the match scenario posts one match per player per 60 s, as a constant arrival rate',
+  );
+  assert.match(journey, /exec: 'match'/u, 'the match scenario runs its own function');
+});
+
 test('pairing limiter constants', () => {
   // The pairing limiter the run must not change (LB-04): read from the API's own source, never copied.
   const source = read('apps', 'api', 'src', 'modules', 'agents', 'domain', 'sliding-window.ts');
