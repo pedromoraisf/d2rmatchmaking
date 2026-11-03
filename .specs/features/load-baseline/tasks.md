@@ -405,10 +405,10 @@ T32 → T33
 
 **Done when**:
 
-- [ ] Builders for `POST /v1/auth/test-login`, `/v1/agents/pairing-codes`, `/v1/agents/pair` and `/v1/agents/pairing-codes/claim` return `{ url, init }` with the headers each route needs (`Origin` and `Content-Type` on the three same-origin routes, `X-Agent-Version` on the agent routes, `X-Forwarded-For` per player, the cookie on `pair`, no `Authorization` on site calls)
-- [ ] Every URL built has the host `127.0.0.1`; a base with another host throws
-- [ ] `cookieFrom(setCookie)` returns the `__Host-d2rmm_session` pair; `tokenFrom(body)` the `d2rmm_a_` token
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] Builders for `POST /v1/auth/test-login`, `/v1/agents/pairing-codes`, `/v1/agents/pair` and `/v1/agents/pairing-codes/claim` return `{ url, init }` with the headers each route needs (`Origin` and `Content-Type` on the three same-origin routes, `X-Agent-Version` on the agent routes, `X-Forwarded-For` per player, the cookie on `pair`, no `Authorization` on site calls)
+- [x] Every URL built has the host `127.0.0.1`; a base with another host throws
+- [x] `cookieFrom(setCookie)` returns the `__Host-d2rmm_session` pair; `tokenFrom(body)` the `d2rmm_a_` token
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
