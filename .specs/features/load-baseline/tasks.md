@@ -230,9 +230,9 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `verdictOf({ containerOk, errorRatio, p95Ms })` returns `{ passed, failedRule }`; p95 2000 passes and 2001 fails; ratio 0.0099 passes and 0.01 fails; a `null` p95 (no samples) fails `latency`
-- [ ] When several rules fail the first of `container`, `errors`, `latency` is named (AD-111)
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `verdictOf({ containerOk, errorRatio, p95Ms })` returns `{ passed, failedRule }`; p95 2000 passes and 2001 fails; ratio 0.0099 passes and 0.01 fails; a `null` p95 (no samples) fails `latency`
+- [x] When several rules fail the first of `container`, `errors`, `latency` is named (AD-111)
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
