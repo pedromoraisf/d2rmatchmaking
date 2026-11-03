@@ -425,11 +425,11 @@ T32 → T33
 
 **Done when**:
 
-- [ ] Builders return argument arrays (never strings) for the network, Postgres, the sink (owner of the API's network namespace), the API (`--network container:<sink>`, `--cpus` default 0.5, `--memory` default 512m, from `LOAD_CPUS` and `LOAD_MEMORY`), the meter, the migration and k6 (`--memory` from `LOAD_K6_MEMORY`, default `1500m`), each labelled `d2rmm-load=<runId>` and named `d2rmm-load-<runId>-<role>`
-- [ ] The API environment is built from an allow-list only: `D2RMM_ENV=staging`, `ENABLE_STAGING_ENDPOINTS=true`, `SITE_ORIGIN`, `PORT`, `DATABASE_URL` (`sslmode=verify-full`), `NODE_EXTRA_CA_CERTS`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318`; never `D2RMM_ACCEPTANCE`, never a spread of the process environment; the staging variables appear on no other container
-- [ ] The Postgres command makes a throwaway CA and server certificate inside the container, deletes the CA key, sets the key to `postgres` ownership and mode 0600, and starts `-c ssl=on`; the password comes from an env-file path, never `-e` with a value
-- [ ] `LOAD_CPUS`, `LOAD_MEMORY` and `LOAD_K6_MEMORY` pass `^\d+(\.\d+)?$` and `^\d+[mg]$`; `1500m --privileged` throws
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] Builders return argument arrays (never strings) for the network, Postgres, the sink (owner of the API's network namespace), the API (`--network container:<sink>`, `--cpus` default 0.5, `--memory` default 512m, from `LOAD_CPUS` and `LOAD_MEMORY`), the meter, the migration and k6 (`--memory` from `LOAD_K6_MEMORY`, default `1500m`), each labelled `d2rmm-load=<runId>` and named `d2rmm-load-<runId>-<role>`
+- [x] The API environment is built from an allow-list only: `D2RMM_ENV=staging`, `ENABLE_STAGING_ENDPOINTS=true`, `SITE_ORIGIN`, `PORT`, `DATABASE_URL` (`sslmode=verify-full`), `NODE_EXTRA_CA_CERTS`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318`; never `D2RMM_ACCEPTANCE`, never a spread of the process environment; the staging variables appear on no other container
+- [x] The Postgres command makes a throwaway CA and server certificate inside the container, deletes the CA key, sets the key to `postgres` ownership and mode 0600, and starts `-c ssl=on`; the password comes from an env-file path, never `-e` with a value
+- [x] `LOAD_CPUS`, `LOAD_MEMORY` and `LOAD_K6_MEMORY` pass `^\d+(\.\d+)?$` and `^\d+[mg]$`; `1500m --privileged` throws
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
