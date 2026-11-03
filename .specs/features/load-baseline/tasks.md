@@ -193,8 +193,8 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `p95(samples)` returns the nearest-rank 95th percentile (the value at rank `ceil(0.95 × n)` of the sorted samples), `null` for no samples; the input is not mutated
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `p95(samples)` returns the nearest-rank 95th percentile (the value at rank `ceil(0.95 × n)` of the sorted samples), `null` for no samples; the input is not mutated
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
