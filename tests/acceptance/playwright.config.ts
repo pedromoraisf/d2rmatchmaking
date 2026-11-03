@@ -31,5 +31,14 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    // @HF-01 runs the root build, typecheck and tests (CPU-heavy): it starts after the other scenarios (AD-104).
+    { name: 'chromium', grepInvert: /@HF-01/, use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'harness-root',
+      grep: /@HF-01/,
+      dependencies: ['chromium'],
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ],
 });
