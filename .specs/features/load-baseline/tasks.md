@@ -268,9 +268,9 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `telemetryNumbers(bytesInWindow, players, windowSeconds)` returns `telemetryBytesPerPlayerHour`, `telemetryMonthlyBytes` (that figure × 100 players × 720 hours), `relayAllowanceMonthlyBytes` (16 MiB × 30) and `telemetryShareOfBudget` (monthly bytes over 5 GiB)
-- [ ] `telemetryFails(share)` is false at exactly 0.10 and true above it
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `telemetryNumbers(bytesInWindow, players, windowSeconds)` returns `telemetryBytesPerPlayerHour`, `telemetryMonthlyBytes` (that figure × 100 players × 720 hours), `relayAllowanceMonthlyBytes` (16 MiB × 30) and `telemetryShareOfBudget` (monthly bytes over 5 GiB)
+- [x] `telemetryFails(share)` is false at exactly 0.10 and true above it
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
