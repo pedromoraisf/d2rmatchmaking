@@ -1,0 +1,21 @@
+# Deny by default (design.md § Images and TLS; AD-112): an image gets only what the Render install and the API need. A new
+# top-level entry stays out of every build context until it is named below.
+*
+
+# The workspace: the root manifests and the lockfile, the API with every package it imports, and the manifests of the other
+# workspace packages, which the frozen install reads.
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!apps/api
+!apps/web/package.json
+!apps/agent/package.json
+!packages
+!tests/acceptance/package.json
+
+# Excluded again, after every re-inclusion: environment files, key material and installed dependencies.
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/node_modules

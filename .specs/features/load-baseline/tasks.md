@@ -562,10 +562,10 @@ T32 → T33
 
 **Done when**:
 
-- [ ] The Dockerfile uses `node:26-bookworm-slim` pinned by digest, runs `corepack enable && pnpm install --frozen-lockfile --ignore-scripts`, and starts `node --import ./apps/api/src/main/instrument.ts apps/api/src/main/render.ts`; no `COPY` of a certificate or key, no build argument, no `ENV` with a secret
-- [ ] `.dockerignore` starts with `*`, re-includes only what the install and the API need (`apps/api`, `packages`, the root manifests, the lockfile and workspace file), and excludes the environment-file patterns, `**/*.pem`, `**/*.key` and `**/node_modules` again
-- [ ] A static check in the static test of T28 reads both files; here: `docker build` is not run (T32 builds it); the gate checks the files with the static test
-- [ ] Gate passes: `node --test scripts/test/load-scripts.test.mjs`
+- [x] The Dockerfile uses `node:26-bookworm-slim` pinned by digest, runs `corepack enable && pnpm install --frozen-lockfile --ignore-scripts`, and starts `node --import ./apps/api/src/main/instrument.ts apps/api/src/main/render.ts`; no `COPY` of a certificate or key, no build argument, no `ENV` with a secret
+- [x] `.dockerignore` starts with `*`, re-includes only what the install and the API need (`apps/api`, `packages`, the root manifests, the lockfile and workspace file), and excludes the environment-file patterns, `**/*.pem`, `**/*.key` and `**/node_modules` again
+- [x] A static check in the static test of T28 reads both files; here: `docker build` is not run (T32 builds it); the gate checks the files with the static test
+- [x] Gate passes: `node --test scripts/test/load-scripts.test.mjs`
 
 **Tests**: unit (static)
 **Gate**: Static
