@@ -682,8 +682,8 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `node scripts/load/publish.mjs [--root <dir>]` reads `<root>/reports/load/summary.json` (default root: the repository), applies `publishPlan`, writes `<root>/docs/engineering/load-baseline.md` only when allowed, and exits 1 with the reason and no file written when the summary is missing, smoke or not passed
-- [ ] Gate passes: `node --test "scripts/test/load/*.test.mjs" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts`
+- [x] `node scripts/load/publish.mjs [--root <dir>]` reads `<root>/reports/load/summary.json` (default root: the repository), applies `publishPlan`, writes `<root>/docs/engineering/load-baseline.md` only when allowed, and exits 1 with the reason and no file written when the summary is missing, smoke or not passed
+- [x] Gate passes: `node --test "scripts/test/load/*.test.mjs" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts`
 
 **Tests**: unit (static)
 **Gate**: Static
