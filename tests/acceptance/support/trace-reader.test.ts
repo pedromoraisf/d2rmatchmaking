@@ -143,6 +143,8 @@ describe('trace reader', () => {
 
     const leaking: ExportedRecord[] = [
       span('0000000000000022', '', 'POST', { 'client.address': '10.0.0.1' }),
+      span('0000000000000025', '', 'POST', { 'network.peer.address': '10.0.0.2' }),
+      span('0000000000000026', '', 'POST', { 'network.peer.port': 51234 }),
       span('0000000000000023', '', 'GET', { 'http.url': 'http://127.0.0.1/x?code=1' }),
       span('0000000000000024', '', 'POST', { 'd2r.room.id': `room of ${PLAYER}` }),
       { kind: 'log', line: `{"msg":"joined","req":{"headers":{"cookie":"s"}}}` },
@@ -151,6 +153,8 @@ describe('trace reader', () => {
     expect(leaks).toEqual(
       expect.arrayContaining([
         expect.stringContaining('client.address'),
+        expect.stringContaining('network.peer.address'),
+        expect.stringContaining('network.peer.port'),
         expect.stringContaining('query string or fragment in http.url'),
         expect.stringContaining('player name in d2r.room.id'),
         expect.stringContaining('cookie'),

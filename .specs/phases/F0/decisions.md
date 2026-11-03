@@ -202,6 +202,11 @@ Resolved: the maintainer reset the dispatch and the gate; T54 (3457c73, `@NFR-09
 - **Candidate causes of the trace B failure (not confirmed)**: (1) export race: the agent exports every 5 s and its shutdown does not await the export, so spans of the observation are lost if the headless agent is stopped before the next tick; (2) the relay's per-account budget (60 a minute) exhausted by the flood scenarios on a frozen API clock; (3) relay forwarding or Tempo ingestion lag.
 - **Needs the maintainer**: `node scripts/attempt.mjs reset --unit dispatch:observability-e2e/execute-batch-6 --by pedromoraisf`. Then the runner dispatches one worker to confirm the cause by reading, fix the step (keep the agent alive while polling, a window of 60 s, a failure message that lists spans, stderr and batch counts), spend the last T54 attempt, and finish T55 and T56.
 
+## Assumed: observability-e2e Verifier fix pass (2026-11-03)
+
+- AD-107 (assumed): `network.peer.address` and `network.peer.port` are dropped from exported spans under OBS-29's "client address is dropped"; no new requirement ID was appended to the approved spec. Confirm at the review, or ask for an OBS ID.
+- Verifier finding 2 (minor, ADR 026): the relay's `admit` decision moves into a pure function with a unit test at 1 MiB and 1 MiB + 1; behaviour unchanged.
+
 ## Queued for F1 (from the api-web-skeleton security review)
 
 - Global ceiling on failed pairing-code submissions across accounts, and a rate limit on token claims (the F0 limits are the spec's, AD-032 and AD-041).

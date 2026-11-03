@@ -957,6 +957,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-03
 - **Status**: confirmed by the maintainer in chat ("C", 2026-11-03)
 
+### AD-107
+
+- **Decision**: the telemetry package also drops `network.peer.address` and `network.peer.port` from every span (the Verifier's finding 1). This is read as part of OBS-29's "the client address is dropped" and NFR-04, not as a new requirement: on a server span these two keys carry the caller's socket address, the same datum `client.address` names. The approved spec text is not edited; C38 and the acceptance forbidden-key scan gain the two keys.
+- **Reason**: `instrumentation-http` 0.223 sets both on every server span; `isDroppedKey` listed only `client.address`, `user_agent.original` and `enduser.*`, so a player's IP could reach the third-party backend while every test stayed green.
+- **Trade-off**: OBS-29 names `client.address` literally, so strict traceability would add a requirement ID; the conservative reading closes the leak now and the maintainer can ask for the ID at the phase review.
+- **Scope**: observability-e2e / Verifier fix pass
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

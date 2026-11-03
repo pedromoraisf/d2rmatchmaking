@@ -37,6 +37,8 @@ describe('redactAttributes', () => {
       'http.target': '/api/v1/lobby?room=mm1-2',
       'url.query': 'room=mm1-2#frag',
       'client.address': '203.0.113.7',
+      'network.peer.address': '203.0.113.7',
+      'network.peer.port': 51234,
       'user_agent.original': 'Mozilla/5.0',
       'enduser.id': 'account-1',
       'enduser.name': 'Player',

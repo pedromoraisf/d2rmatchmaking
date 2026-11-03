@@ -28,11 +28,18 @@ function isForbiddenKey(key: string): boolean {
   return lastSegment.split('-').some((word) => FORBIDDEN_WORDS.has(word));
 }
 
+// The socket address of the caller: `instrumentation-http` sets `network.peer.*` on every server span (AD-107).
+const PEER_KEYS: ReadonlySet<string> = new Set([
+  'client.address',
+  'network.peer.address',
+  'network.peer.port',
+]);
+
 function isDroppedKey(key: string): boolean {
   const lower = key.toLowerCase();
   return (
     isForbiddenKey(key) ||
-    lower === 'client.address' ||
+    PEER_KEYS.has(lower) ||
     lower === 'user_agent.original' ||
     lower.startsWith('enduser.')
   );
