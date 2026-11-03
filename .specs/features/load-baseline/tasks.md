@@ -486,8 +486,8 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `createWindowCounter(now)` returns `start()`, `add(n)` and `stop()`; `stop()` returns `{ bytes, seconds }`; bytes added before `start` or after `stop` are ignored; a second `start` restarts the window; `stop` without `start` returns `{ bytes: 0, seconds: 0 }`
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `createWindowCounter(now)` returns `start()`, `add(n)` and `stop()`; `stop()` returns `{ bytes, seconds }`; bytes added before `start` or after `stop` are ignored; a second `start` restarts the window; `stop` without `start` returns `{ bytes: 0, seconds: 0 }`
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
