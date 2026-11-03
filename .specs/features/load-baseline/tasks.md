@@ -249,9 +249,9 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `bytesPerPlayerHour(bytes, players, windowSeconds)` returns `bytes / players / (windowSeconds / 3600)`; a zero player or window count throws
-- [ ] `withinEgressBudget(bytesPerHour)` is true at 70 000 and false at 70 001 (`EGRESS_BYTES_PER_PLAYER_HOUR` exported)
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `bytesPerPlayerHour(bytes, players, windowSeconds)` returns `bytes / players / (windowSeconds / 3600)`; a zero player or window count throws
+- [x] `withinEgressBudget(bytesPerHour)` is true at 70 000 and false at 70 001 (`EGRESS_BYTES_PER_PLAYER_HOUR` exported)
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
