@@ -700,9 +700,9 @@ T32 → T33
 
 **Done when**:
 
-- [ ] Steps for every line of the `@LB-16`, `@LB-17` and `@LB-18` scenarios exactly as written (the `.feature` is not edited), black-box: they spawn `node scripts/load/run.mjs` and `node scripts/load/publish.mjs` with a temporary root and a `docker` shim on `PATH` (not installed, daemon down, pull fails), and assert exit codes, messages and that no file or container was created; no import from `apps/*`
-- [ ] `bddgen` is clean for the whole suite and the three scenarios pass
-- [ ] Gate passes: `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@LB-16\|@LB-17\|@LB-18"`
+- [x] Steps for every line of the `@LB-16`, `@LB-17` and `@LB-18` scenarios exactly as written (the `.feature` is not edited), black-box: they spawn `node scripts/load/run.mjs` and `node scripts/load/publish.mjs` with a temporary root and a `docker` shim on `PATH` (not installed, daemon down, pull fails), and assert exit codes, messages and that no file or container was created; no import from `apps/*`
+- [x] `bddgen` is clean for the whole suite and the three scenarios pass
+- [x] Gate passes: `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@LB-16\|@LB-17\|@LB-18"`
 
 **Tests**: acceptance
 **Gate**: Acceptance
