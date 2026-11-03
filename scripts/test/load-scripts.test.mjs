@@ -105,4 +105,13 @@ test('images, shell and journey rules', () => {
       `.dockerignore excludes ${entry} after every re-inclusion`,
     );
   }
+
+  const journey = read('scripts', 'load', 'k6', 'journey.mjs');
+  assert.match(
+    journey,
+    /import\s*\{[^}]*\}\s*from\s*'\.\/journey-state\.mjs'/u,
+    'journey.mjs imports the state machine it is tested with',
+  );
+  assert.doesNotMatch(journey, /console\.log/u, 'journey.mjs prints nothing with console.log');
+  assert.doesNotMatch(journey, /traceparent/iu, 'journey.mjs sends no traceparent');
 });
