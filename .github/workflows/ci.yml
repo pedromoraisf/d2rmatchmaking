@@ -118,6 +118,14 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The end-to-end run starts the headless agent example with cargo (OBS-24): the toolchain and the target cache come
+      # first, and the example is built once here so the acceptance step does not compile it.
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: apps/agent/src-tauri
+      - name: Build the headless agent example
+        run: cargo build --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --example headless --features fixture-read
       - run: pnpm run test:integration
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm run test:e2e
