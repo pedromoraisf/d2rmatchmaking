@@ -309,9 +309,9 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `writeSummary(fs, dir, summary)` writes a temp file in `dir` then renames it onto `summary.json` (`smoke-summary.json` when `summary.profile` is `smoke`, and never `summary.json` for smoke), with a fake `fs` that can fail on write or rename; on failure no partial target exists
-- [ ] A summary of a failed run is written the same way
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `writeSummary(fs, dir, summary)` writes a temp file in `dir` then renames it onto `summary.json` (`smoke-summary.json` when `summary.profile` is `smoke`, and never `summary.json` for smoke), with a fake `fs` that can fail on write or rename; on failure no partial target exists
+- [x] A summary of a failed run is written the same way
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
