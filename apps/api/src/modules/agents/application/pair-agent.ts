@@ -30,7 +30,7 @@ export function createPairAgent(deps: PairAgentDeps) {
   }): Promise<Result<{ readonly agentId: string }, 'invalid-code' | 'rate-limited'>> =>
     withSpan(
       'agents.pair-agent',
-      { accountId: input.accountId },
+      {},
       async (): Promise<Result<{ readonly agentId: string }, 'invalid-code' | 'rate-limited'>> => {
         const now = deps.clock.now();
         const key = `account:${input.accountId}`;

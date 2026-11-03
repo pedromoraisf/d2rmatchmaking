@@ -1,6 +1,7 @@
 import type { Kysely } from 'kysely';
 import { Migrator, type Migration, type MigrationProvider } from 'kysely/migration';
 import * as skeleton from '../../../migrations/0001_skeleton.ts';
+import * as outboxTraceContext from '../../../migrations/0002_outbox_trace_context.ts';
 
 /**
  * Every migration of the API, by name. Kysely applies them in name order. The list lives here, not in `main/`, so the
@@ -8,11 +9,27 @@ import * as skeleton from '../../../migrations/0001_skeleton.ts';
  */
 const MIGRATIONS: Readonly<Record<string, Migration>> = {
   '0001_skeleton': skeleton,
+  '0002_outbox_trace_context': outboxTraceContext,
 };
 
 const provider: MigrationProvider = {
   getMigrations: () => Promise.resolve(MIGRATIONS),
 };
+
+/**
+ * Moves the database to `migration`, up or down, and returns the names this call applied or reverted. Used by the
+ * migration tests to step back; the application only ever migrates to the latest.
+ */
+export async function migrateTo<DB>(db: Kysely<DB>, migration: string): Promise<string[]> {
+  const migrator = new Migrator({ db, provider });
+  const { error, results } = await migrator.migrateTo(migration);
+  if (error !== undefined) {
+    throw error;
+  }
+  return (results ?? [])
+    .filter((result) => result.status === 'Success')
+    .map((result) => result.migrationName);
+}
 
 /**
  * Applies every pending migration and returns the names this call applied: an empty list when the database is up to

@@ -21,9 +21,17 @@ const ALLOWED_REQUEST_HEADERS = [
   'last-event-id',
   'origin',
   'traceparent',
+  'tracestate',
 ] as const;
 const PATH_PATTERN = /^\/v1(\/[A-Za-z0-9_-]+)*$/;
 const HEALTH_PATH = '/healthz';
+/** A `tracestate` longer than this is dropped, not truncated: a partial vendor list would be a different list (OBS-09). */
+const MAX_TRACESTATE_BYTES = 512;
+
+/** Whether a request header is forwarded: on the allow-list, and a `tracestate` within its size bound. */
+function forwardable(name: (typeof ALLOWED_REQUEST_HEADERS)[number], value: string): boolean {
+  return name !== 'tracestate' || new TextEncoder().encode(value).byteLength <= MAX_TRACESTATE_BYTES;
+}
 
 // The API path behind an /api/* pathname, or null when the request must be refused. Encoded separators are refused
 // before decoding, and decoded paths must match the allow-list, so a double-encoded separator never gets through.
@@ -61,7 +69,7 @@ export async function proxyRequest(context: ProxyContext, upstream: Upstream): P
   const headers = new Headers();
   for (const name of ALLOWED_REQUEST_HEADERS) {
     const value = context.request.headers.get(name);
-    if (value !== null) {
+    if (value !== null && forwardable(name, value)) {
       headers.set(name, value);
     }
   }

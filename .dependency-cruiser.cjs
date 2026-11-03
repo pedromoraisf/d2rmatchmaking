@@ -20,7 +20,25 @@ module.exports = {
       comment: 'Application talks to the world through ports only.',
       severity: 'error',
       from: { path: `${API}/modules/[^/]+/application`, pathNot: TESTS },
-      to: { path: ['/adapters/', `${API}/main`, 'node_modules/(fastify|kysely|pg|@opentelemetry/sdk-)'] },
+      to: {
+        path: [
+          '/adapters/',
+          `${API}/main`,
+          'node_modules/(fastify|kysely|pg|@opentelemetry/(sdk-|exporter-|resources|instrumentation-))',
+          // The telemetry entries that carry the SDK (OBS-41); the root entry stays importable (the rule below polices it).
+          '^packages/telemetry/src/(node-sdk|web-sdk|tracing-fetcher|sdk/)',
+        ],
+      },
+    },
+    {
+      name: 'telemetry-root-has-no-sdk',
+      comment:
+        'The telemetry root entry (index, attributes, redact-attributes, trace-context, instrument-names) imports no SDK package, so a consumer of @d2rmm/telemetry stays free of the SDK (OBS-22).',
+      severity: 'error',
+      from: {
+        path: '^packages/telemetry/src/(index|attributes|redact-attributes|trace-context|instrument-names)\\.ts$',
+      },
+      to: { path: 'node_modules/@opentelemetry/(sdk-|exporter-|resources)' },
     },
     {
       name: 'no-cross-module-internals',

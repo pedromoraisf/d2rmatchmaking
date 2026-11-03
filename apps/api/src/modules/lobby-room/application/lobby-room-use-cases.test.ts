@@ -5,16 +5,20 @@ import {
 } from '@opentelemetry/sdk-trace-base';
 import { trace } from '@opentelemetry/api';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { SequentialIdGenerator, type MatchFormedPayload } from '../../../shared-kernel/index.ts';
+import { D2R_ROOM_ID } from '@d2rmm/telemetry';
+import { FakeClock, SequentialIdGenerator, type MatchFormedPayload } from '../../../shared-kernel/index.ts';
+import { createMatchmakingUseCases } from '../../matchmaking/index.ts';
 import { createLobbyRoomUseCases, type ObservationBody } from './lobby-room-use-cases.ts';
 import { FakeAgentsPort } from './testing/fake-agents-port.ts';
 import { InMemoryGameNameSequence } from './testing/in-memory-game-name-sequence.ts';
+import { FakeRoomMetrics } from './testing/fake-room-metrics.ts';
 import { InMemoryLobbyRoomRepository } from './testing/in-memory-lobby-room-repository.ts';
 import { InMemoryObservationRepository } from './testing/in-memory-observation-repository.ts';
 import { InMemoryUnitOfWork } from './testing/in-memory-unit-of-work.ts';
 import { RecordingOutbox } from './testing/recording-outbox.ts';
 
 const CAPTURED_AT = new Date('2026-10-31T10:00:00.000Z');
+const OPENED_AT = new Date('2026-10-31T09:55:00.000Z');
 
 const exporter = new InMemorySpanExporter();
 
@@ -29,10 +33,12 @@ beforeEach(() => {
 });
 
 function setup() {
-  const rooms = new InMemoryLobbyRoomRepository();
+  const clock = new FakeClock(OPENED_AT);
+  const rooms = new InMemoryLobbyRoomRepository(clock);
   const observations = new InMemoryObservationRepository();
   const agents = new FakeAgentsPort();
   const outbox = new RecordingOutbox();
+  const roomMetrics = new FakeRoomMetrics();
   const useCases = createLobbyRoomUseCases({
     rooms,
     observations,
@@ -41,10 +47,12 @@ function setup() {
     ids: new SequentialIdGenerator('room'),
     uow: new InMemoryUnitOfWork(),
     outbox,
+    clock,
+    roomMetrics,
   });
   agents.pair('agent-1', 'account-1');
   agents.pair('agent-2', 'account-2');
-  return { useCases, observations, outbox, agents };
+  return { useCases, rooms, observations, outbox, agents, clock, roomMetrics };
 }
 
 function match(matchId = 'match-1'): MatchFormedPayload {
@@ -218,6 +226,31 @@ describe('lobby-room use cases', () => {
     expect(await useCases.getAssignment({ agentId: 'agent-unpaired' })).toBeNull();
   });
 
+  it('records room.stage_duration once with the seconds since the room opened', async () => {
+    const { useCases, clock, roomMetrics } = setup();
+    await useCases.onMatchFormed(match());
+    clock.advance(90 * 1000);
+
+    await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
+    await useCases.recordObservation({
+      agentId: 'agent-1',
+      roomId: 'room-1',
+      body: body({ idempotencyKey: 'key-2' }),
+    });
+
+    expect(roomMetrics.calls).toEqual([
+      { stage: 'awaiting_host', difficulty: 'hell', mode: 'leveling', seconds: 90 },
+    ]);
+  });
+
+  it('openedAt returns the instant the room opened', async () => {
+    const { useCases, rooms } = setup();
+    await useCases.onMatchFormed(match());
+
+    expect(await rooms.openedAt('room-1')).toEqual(OPENED_AT);
+    expect(await rooms.openedAt('room-404')).toBeUndefined();
+  });
+
   it('opens the span lobby.record-observation', async () => {
     const { useCases } = setup();
     await useCases.onMatchFormed(match());
@@ -225,5 +258,38 @@ describe('lobby-room use cases', () => {
     await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
 
     expect(exporter.getFinishedSpans().map((span) => span.name)).toContain('lobby.record-observation');
+  });
+
+  it('no span of lobby or matchmaking carries an account or agent id and the room id uses the d2r constant', async () => {
+    const { useCases } = setup();
+    await useCases.onMatchFormed(match());
+    await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
+    await useCases.getCurrentRoom({ accountId: 'account-1' });
+    await useCases.getAssignment({ agentId: 'agent-2' });
+    const matchmaking = createMatchmakingUseCases({
+      ids: new SequentialIdGenerator('match'),
+      uow: new InMemoryUnitOfWork(),
+      outbox: new RecordingOutbox(),
+    });
+    await matchmaking.formTestMatch({ accountId: 'account-1' });
+
+    const spans = exporter.getFinishedSpans();
+    const names = spans.map((span) => span.name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'lobby.record-observation',
+        'lobby.get-current-room',
+        'lobby.get-assignment',
+        'matchmaking.form-test-match',
+      ]),
+    );
+    const observation = spans.find((span) => span.name === 'lobby.record-observation');
+    expect(observation?.attributes).toEqual({ [D2R_ROOM_ID]: 'room-1' });
+    expect(D2R_ROOM_ID).toBe('d2r.room.id');
+    for (const span of spans) {
+      expect(Object.keys(span.attributes)).not.toContain('accountId');
+      expect(Object.keys(span.attributes)).not.toContain('agentId');
+      expect(Object.keys(span.attributes)).not.toContain('roomId');
+    }
   });
 });

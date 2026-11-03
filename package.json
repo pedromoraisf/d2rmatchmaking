@@ -42,6 +42,8 @@
     "attempt:report": "node scripts/attempt.mjs report",
     "test:acceptance": "turbo run test:acceptance",
     "acceptance:check": "node scripts/acceptance-check.mjs",
+    "obs:up": "docker compose -f infra/observability/compose.yaml up -d",
+    "obs:down": "docker compose -f infra/observability/compose.yaml down",
     "phase:status": "node scripts/phase-status.mjs",
     "quality:gate": "pnpm run harness:json && pnpm run quality:reports && node scripts/quality-collect.mjs && node scripts/quality-ratchet.mjs --context pr --current reports/quality.json"
   },

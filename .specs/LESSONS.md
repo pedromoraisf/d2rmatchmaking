@@ -14,7 +14,19 @@ _none_
 
 Seen once or not yet corroborated. Tracked, not trusted.
 
-_none_
+### L-001 - When a privacy rule drops personal data, list every attribute key a library can carry it under and test each one, not only the key the spec names
+
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `telemetry` · harmful: 0
+- features: observability-e2e
+- evidence: verification.md finding 1; C38 (telemetry)
+- last seen: 2026-11-03T19:09:32Z
+
+### L-002 - Extract a request-validation decision into a pure function and unit-test its boundaries, so a boundary mutation is killed without the assembled service
+
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `api-platform` · harmful: 0
+- features: observability-e2e
+- evidence: verification.md finding 2; telemetry-relay admit (api-platform)
+- last seen: 2026-11-03T19:09:32Z
 
 ## Quarantined (failed when applied - ignore)
 

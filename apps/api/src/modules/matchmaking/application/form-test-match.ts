@@ -18,7 +18,7 @@ export interface FormTestMatchDeps {
  */
 export function createFormTestMatch(deps: FormTestMatchDeps) {
   return (input: { readonly accountId: string }): Promise<{ readonly matchId: string }> =>
-    withSpan('matchmaking.form-test-match', { accountId: input.accountId }, async () => {
+    withSpan('matchmaking.form-test-match', {}, async () => {
       const matchId = deps.ids.next();
       const event: MatchFormedEvent = {
         type: 'MatchFormed',

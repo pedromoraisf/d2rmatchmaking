@@ -13,15 +13,11 @@ export interface MeView {
 /** The signed-in account. An account that no longer exists is `unauthenticated`. */
 export function createGetMe(deps: GetMeDeps) {
   return (input: { readonly accountId: string }): Promise<Result<MeView, 'unauthenticated'>> =>
-    withSpan(
-      'identity.get-me',
-      { accountId: input.accountId },
-      async (): Promise<Result<MeView, 'unauthenticated'>> => {
-        const account = await deps.accounts.findById(input.accountId);
-        if (account === null) {
-          return err('unauthenticated');
-        }
-        return ok({ accountId: account.id, displayName: account.displayName });
-      },
-    );
+    withSpan('identity.get-me', {}, async (): Promise<Result<MeView, 'unauthenticated'>> => {
+      const account = await deps.accounts.findById(input.accountId);
+      if (account === null) {
+        return err('unauthenticated');
+      }
+      return ok({ accountId: account.id, displayName: account.displayName });
+    });
 }

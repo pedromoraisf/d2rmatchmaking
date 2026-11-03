@@ -22,7 +22,7 @@ export interface GetMyAgentDeps {
 /** The account's current agent and its presence, or `none`. Offline is read from the clock, not only from the sweep. */
 export function createGetMyAgent(deps: GetMyAgentDeps) {
   return (input: { readonly accountId: string }): Promise<MyAgentView> =>
-    withSpan('agents.get-my-agent', { accountId: input.accountId }, async (): Promise<MyAgentView> => {
+    withSpan('agents.get-my-agent', {}, async (): Promise<MyAgentView> => {
       const agent = await deps.agents.findCurrentByAccount(input.accountId);
       if (agent === null) {
         return { status: 'none' };

@@ -1,0 +1,14 @@
+# A fixture for scripts/test/telemetry-flags.test.mjs: a deploy job that builds the site with telemetry on. The check must
+# report it, because production builds leave the telemetry switches unset (AD-098).
+name: fixture-deploy
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build the site with telemetry on
+        env:
+          VITE_TELEMETRY: 'on'
+        run: pnpm --filter @d2rmm/web build

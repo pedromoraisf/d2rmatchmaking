@@ -750,6 +750,222 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-01
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-084 (assumed)
+
+- **Decision**: the relay `POST /v1/telemetry/traces` accepts OTLP/HTTP (protobuf or JSON, no content encoding) from an agent token or a site session whose `Origin` is the site origin, at most 1 MiB and 60 requests a minute per principal (120 a minute per address when unauthenticated); it checks in the order authentication, rate, content type and encoding, size; answers an empty `202` at once and forwards the body unchanged in the background with a 5 s timeout. It does not decode the body.
+- **Reason**: the site and the agent must not hold backend credentials (ADR 013, design doc); forwarding bytes avoids a second schema and a protobuf dependency; the limits bound a public write path on a single free instance (ADR 006).
+- **Trade-off**: redaction is the sender's guarantee, so a hostile or buggy client can put forged spans or a forged `service.name` in the maintainer's backend; accepted and bounded by authentication, size and rate, and the backend treats the data as untrusted. The numbers are guesses. Reversal is decoding and filtering in the relay.
+- **Scope**: observability-e2e / OBS-10…OBS-20
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-085 (assumed)
+
+- **Decision**: the trace crosses the outbox through a nullable `trace_context` column on `platform.outbox`, written in the transaction that writes the event; the relay continues it with `platform.outbox.relay` and `platform.stream.deliver`.
+- **Reason**: The outbox is the only asynchronous hop and has no carrier today; a column is the smallest durable carrier.
+- **Trade-off**: A migration adds a column (a new migration file, never an edit of an applied one). Rows written before it have no context and become root spans (OBS-07).
+- **Scope**: observability-e2e / OBS-05, OBS-06, OBS-07
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-086 (assumed)
+
+- **Decision**: the browser does not report SSE receipt: the stream hop in the trace is the server-side delivery span.
+- **Reason**: `EventSource` cannot read a trace id without adding a field to the event payload, which is a contract change (AGENTS.md rule 2).
+- **Trade-off**: The trace ends at the server for the stream hop. Reversal is a payload field and a site span in F1.
+- **Scope**: observability-e2e / OBS-06
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-087 (assumed)
+
+- **Decision**: the metrics created in F0 are `http.server.response.body.size`, `http.server.request.duration` (from the HTTP instrumentation), `sse.connections`, `outbox.lag` and `room.stage_duration`; the others of the design doc arrive with their use case.
+- **Reason**: Only these have a subject in the skeleton; empty instruments would be noise.
+- **Trade-off**: The dashboard is small. Reversal is adding instruments with their features.
+- **Scope**: observability-e2e / OBS-33
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-088
+
+- **Decision**: the F0 proof runs against a local `grafana/otel-lgtm` in Docker; no Grafana Cloud endpoint or secret is created or used.
+- **Reason**: Confirmed by the maintainer on 2026-11-02 ("Sim e sim" to local-only backend and to Docker).
+- **Trade-off**: Production export is configuration only (`OTEL_EXPORTER_OTLP_*` in `main/`); the maintainer enables it when the account exists.
+- **Scope**: observability-e2e / OBS-23, OBS-24
+- **Date**: 2026-11-02
+- **Status**: confirmed by the maintainer
+
+### AD-089 (assumed)
+
+- **Decision**: the API samples with a parent-based sampler whose ratio is `OTEL_TRACES_SAMPLER_ARG`, `0.1` when unset; the acceptance stack sets `1.0`.
+- **Reason**: ADR 013 warns that free-tier quotas limit sampling; keeping every trace is not the conservative default.
+- **Trade-off**: a lower default hides rare traces in production until the ratio is raised. Reversal is changing the default.
+- **Scope**: observability-e2e / OBS-43
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-090 (assumed)
+
+- **Decision**: the web build exports spans only when `VITE_TELEMETRY=on`; local and staging builds set it, the production build does not.
+- **Reason**: Sending players' browser telemetry to a third party is a privacy decision (NFR-04, NFR-05) the maintainer has not taken.
+- **Trade-off**: the production site is not traced until the maintainer decides on a notice. Reversal is setting the flag in the production build.
+- **Scope**: observability-e2e / OBS-44
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-091 (assumed)
+
+- **Decision**: the `d2r.*` attribute constants replace today's `roomId`; `accountId` and `agentId` are dropped from spans; the use-case span names stay (`lobby.record-observation`, `matchmaking.form-test-match`), not the design doc's draft `lobby.observe` and `matchmaking.match`.
+- **Reason**: The design doc fixes attribute names and forbids account identity in telemetry; the span names are shipped and tested (AWS-35).
+- **Trade-off**: a lost id makes some debugging harder; the trace id and the room id remain. Reversal is adding the attribute back behind a flag.
+- **Scope**: observability-e2e / OBS-30
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-092 (assumed)
+
+- **Decision**: a room leaves two complete traces: trace A starts at the site's "Start test match" and reaches the `awaiting_host` delivery; trace B starts at the agent's observation and reaches the `created` delivery; the agent's spans parent the API's spans in trace B; no span link joins A and B.
+- **Reason**: `Created` is written in the agent's request, so its outbox row carries the agent's trace; joining them needs the room to store the match trace, a lobby change outside this feature.
+- **Trade-off**: the brief's "one trace" is read as one trace per originator; if the maintainer wants a single trace, the room must carry the context (F1). Reversal is a span link.
+- **Scope**: observability-e2e / OBS-08, OBS-12
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-093 (assumed)
+
+- **Decision**: only the API exports logs over OTLP; the site and the agent export no logs or metrics in F0.
+- **Reason**: Only the API has log and metric subjects in the skeleton; NFR-09's wording ("three apps") is met for traces in all three and for logs and metrics where a subject exists.
+- **Trade-off**: NFR-09 is partly deferred for the site and the agent; the maintainer confirms at the phase review. Reversal is adding the signals to the relay.
+- **Scope**: observability-e2e / OBS-26, OBS-27, OBS-33
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-094 (assumed)
+
+- **Decision**: the API loads its OpenTelemetry SDK with a `node --import ./src/main/instrument.ts` preload (start commands of `render.yaml` and the acceptance stack change), and `@d2rmm/telemetry` exports source through `.`, `./node` and `./web` like `@d2rmm/contracts`, with no build step.
+- **Reason**: the composition roots import `pg` and `kysely` statically, so instrumentation must patch the modules first; Render installs without a build.
+- **Trade-off**: auto-instrumentation of ESM run as TypeScript is unverified here; task 1 is a spike with a fallback (a Fastify hook for the server span and a Kysely log callback for the `pg` span).
+- **Scope**: observability-e2e / OBS-01, OBS-03
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-095 (assumed)
+
+- **Decision**: `http.server.request.duration` and `http.server.response.body.size` are recorded by one Fastify `onResponse` hook by route template and status class; the HTTP instrumentation's own duration histogram is dropped by a view. Streams (`hijack`) are covered by `sse.connections` only.
+- **Reason**: the HTTP instrumentation has no route template, and one source avoids duplicate series.
+- **Trade-off**: AD-087 said the duration comes from the HTTP instrumentation; names and instruments are unchanged, only the source differs. Reversal is keeping the instrumentation's histogram and adding the route in a view.
+- **Scope**: observability-e2e / OBS-33
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-096 (assumed)
+
+- **Decision**: the agent half of the trace scenario runs `examples/headless.rs` in the adapters crate behind that crate's own Cargo feature `fixture-read` (never default, off in every release graph), started with `--read-fixture <png>`, with the real core, the real `HttpGateway`, the OTLP exporter, an in-memory token store and a `TextReader` that returns the text of the sidecar file `<png>.txt` (Linux has no OCR); the agent exports through its own drop-oldest span processor over `opentelemetry-otlp`.
+- **Reason**: the app crate's `fixture-read` path is Windows-only (OCR, keyring, Tauri) and CI's acceptance job is Linux; OBS-24 and AGS-33 require a build with the feature `fixture-read` and `--read-fixture`, which this keeps; OBS-18 asks for the oldest span to be dropped and the SDK batch processor drops the newest.
+- **Trade-off**: AGS-33 places the feature in the app crate; a second gated place exists in the adapters crate, so the default-feature rule and the release guard cover both manifests. The sidecar text stands in for OCR. Reversal is running the Windows agent with the app crate's feature in a Windows job.
+- **Scope**: observability-e2e / OBS-18, OBS-24
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-097 (assumed)
+
+- **Decision**: with no backend configured the relay answers `202` and drops; the relay keeps the spec's order (authentication, rate, type, size). A request with a credential is authenticated first, whatever the address bucket holds; the address bucket (120 a minute) counts only credential-less and failed-authentication requests and answers `429` for credential-less callers over the limit; a credential that misses the cache takes a token from a relay-wide lookup bucket (10 a second, at most 3 lookups at once) and is refused with `429` when it is empty, so bad tokens stay off the database without refusing valid callers. Per account 60 requests, 2 MiB a minute and 2 MiB a UTC day; relay-wide 4 MiB a minute and 16 MiB a UTC day (10% of the 5 GB monthly egress, NFR-14); at most 32 forwards and 8 MiB of bodies in flight; no redirects; response body cancelled. The limiter keeps principals and addresses in separate maps (addresses capped at 10 000 with an overflow bucket for credential-less callers), unwraps IPv4-mapped IPv6, and lives in `platform`.
+- **Reason**: the spec fixes an immediate `202`, no retry and the order of AC 7; AC 4 limits unauthenticated callers only, so a shared address (Pages egress, NAT) must not lock valid callers out; the bounds keep a single free instance and the egress budget safe (ADR 006, NFR-14); the agents limiter is module-internal.
+- **Trade-off**: a small duplication of the sliding-window rule; spans are lost silently under a flood; the daily counter resets on a restart; a flood of bad cookies through the Pages proxy can drain the lookup bucket and delay site telemetry. Behind the Pages proxy signed-out visitors share Cloudflare egress addresses, so the credential-less and overflow buckets are shared; accepted because production site telemetry is off (AD-098). One account can use the whole 2 MiB a day of its own budget but not another's. Reversal is exporting a rate-limit port from the agents module.
+- **Scope**: observability-e2e / OBS-10, OBS-14, OBS-15
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-098 (assumed)
+
+- **Decision**: production builds of the site and the agent export no telemetry until the maintainer decides on a notice: the site needs `VITE_TELEMETRY=on`, the agent `D2RMM_TELEMETRY=on` at compile time (a debug profile alone is not a decision); the headless example and the e2e site build export. `release-agent.yml` and the Pages production build never set the flags (a harness test asserts it).
+- **Reason**: sending players' browser and desktop telemetry to a third party is a privacy decision that is not taken (NFR-04, NFR-05).
+- **Trade-off**: OBS-18 and OBS-21 describe capabilities, which exist, but nothing in production is traced until the flags are set. Reversal is setting the flags in the release workflow and the web deploy.
+- **Scope**: observability-e2e / OBS-18, OBS-21, OBS-44
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-099 (assumed)
+
+- **Decision**: the relay does not apply `requireAgentVersion` (ADR 011's 426 below the minimum version); it authenticates the agent token only.
+- **Reason**: telemetry from an old agent is exactly what shows why it misbehaves; a 426 would hide it. The relay carries data only and changes no state.
+- **Trade-off**: a deviation from "every agent route answers 426 below the minimum"; the relay is not a product route. Reversal is composing `requireAgentVersion` into the relay guard and mapping `426` to "drop this batch" in the agent.
+- **Scope**: observability-e2e / OBS-10, OBS-11
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-100 (assumed)
+
+- **Decision**: the API's sampler is `ParentBased`: local parents are followed, and `root`, `remoteParentSampled` and `remoteParentNotSampled` each use `TraceIdRatioBased(ratio)` plus one shared global token bucket (20 sampled traces a second, burst 40) taken only when the ratio check passes. A caller's sampled flag, a ground trace id or a request flood cannot export more than the bucket allows; exported logs are limited to `warn` and above or to sampled spans, 20 a second. The approved spec text is unchanged; this amends the reading of AD-089 and OBS-43 for the root and remote-parent branches.
+- **Reason**: a client chooses its trace id and sampled flag on any route, authenticated or not, so a pure parent-based or ratio sampler lets it force export to the maintainer's quota.
+- **Trade-off**: under abuse the agent's sampled traces can be trimmed on the API side, leaving a partial trace; normal traffic stays far under 20 a second. Reversal is the plain `ParentBased(TraceIdRatioBased)` of AD-089.
+- **Scope**: observability-e2e / OBS-43
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-101 (assumed)
+
+- **Decision**: the agent's exporter stops exporting after a relay `401` while its `HeaderSource` token hash equals the refused one, resumes on any difference (including none to some after a re-pair in the same process), sends nothing before a token exists, logs the stop once and probes once an hour; a `429` without `Retry-After` waits 60 s.
+- **Reason**: a revoked or expired agent would retry about 12 times a minute for ever; a stop tied to the token hash cannot become a silent trap after a re-pair.
+- **Trade-off**: OBS-19 AC 11 says "drop that batch" for `401` and expects the next request to be answered; the stop is a small extension of it. Reversal is dropping only the batch.
+- **Scope**: observability-e2e / OBS-19
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-102 (assumed)
+
+- **Decision**: the TypeScript samplers of the API and the site implement the same ratio rule as `opentelemetry_sdk` 0.33.1 (`lower 8 bytes of the trace id >> 1 < floor(ratio * 2^63)`) instead of `TraceIdRatioBased` from `sdk-trace-base`; the shared vector `packages/telemetry/test-vectors/sampler.json` is generated from the Rust rule, and the Rust agent uses its built-in sampler as is.
+- **Reason**: the JS 2.12 class compares an XOR of the four 32-bit words of the trace id, so the two libraries disagree on the same trace id and the design's "the three senders take the same decision" would not hold.
+- **Trade-off**: a small custom sampler class replaces a library class; the rule must follow `opentelemetry_sdk` if its algorithm changes. Reversal is using `TraceIdRatioBased` and dropping the cross-language parity claim and the shared-vector test.
+- **Scope**: observability-e2e / OBS-43
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-103 (assumed)
+
+- **Decision**: the API instruments HTTP and `pg` (and pino) but not Fastify's own request span (`@fastify/otel` is not installed); a request leaves the HTTP server span, its `pg` children and the use-case spans. The route template is on the request metrics (AD-095), not on the server span.
+- **Reason**: with `@fastify/otel` an internal `request` span sat between the HTTP server span and the handler, so the `pg` span became a grandchild and OBS-03 ("each query a child span of it") failed; no requirement asks for the route template on a span.
+- **Trade-off**: OBS-03 names "Fastify routes" among the things to instrument; the server span carries the method and `url.path`, not `http.route`. Reversal is `@fastify/otel` with a span processor that re-parents `pg` spans, or setting `http.route` on the server span in the metrics hook.
+- **Scope**: observability-e2e / OBS-03
+- **Date**: 2026-11-02
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-104
+
+- **Decision**: the acceptance scenario `@HF-01` (which runs `pnpm build`, `pnpm typecheck` and `pnpm test` from the repository root) runs in its own Playwright project that depends on the main project, so it starts after the other scenarios have finished; the scenarios and their steps are unchanged.
+- **Reason**: T56's full `pnpm test:acceptance` failed twice under that CPU load: trace A's room took 5.7 s to form against a 5 s window, and `@d2rmm/telemetry`'s `package-exports.test.ts` timed out at 5 s while 13 workers cold-imported OpenTelemetry. Longer windows would hide the load; separating the two removes it.
+- **Trade-off**: the full run is longer by the HF-01 time, serialised. `playwright.config.ts` is a harness file (extend only).
+- **Scope**: observability-e2e / T56
+- **Date**: 2026-11-03
+- **Status**: confirmed by the maintainer in chat ("A e B", 2026-11-03)
+
+### AD-105
+
+- **Decision**: `packages/telemetry/src/package-exports.test.ts` gives its dynamic-import test an explicit timeout of 30 s (`it(name, fn, 30_000)`); no assertion changes.
+- **Reason**: the test cold-imports the whole OpenTelemetry set (`/`, `/node`, `/web`) and takes about 3 to 5 s on a loaded machine against vitest's 5 s default (it measured 5.2 s once).
+- **Trade-off**: a slow import regression would show up later; the assertions still pin the entry points.
+- **Scope**: observability-e2e / T56
+- **Date**: 2026-11-03
+- **Status**: confirmed by the maintainer in chat ("A e B", 2026-11-03)
+
+### AD-106
+
+- **Decision**: `packages/config/test/rules.test.ts` gives `n/no-process-env reports a process.env read in a module file` (the first `ESLint.lintText` call of the file) an explicit timeout of 30 s (`it(name, fn, 30_000)`); no assertion changes.
+- **Reason**: after AD-104 the `@HF-01` run still failed once: that test timed out at 5000 ms while the root `pnpm test` ran every workspace in parallel; the first call loads ESLint and the TypeScript parser cold. Same class as AD-105.
+- **Trade-off**: as AD-105; a slow cold load shows later.
+- **Scope**: observability-e2e / T56
+- **Date**: 2026-11-03
+- **Status**: confirmed by the maintainer in chat ("C", 2026-11-03)
+
+### AD-107
+
+- **Decision**: the telemetry package also drops `network.peer.address` and `network.peer.port` from every span (the Verifier's finding 1). This is read as part of OBS-29's "the client address is dropped" and NFR-04, not as a new requirement: on a server span these two keys carry the caller's socket address, the same datum `client.address` names. The approved spec text is not edited; C38 and the acceptance forbidden-key scan gain the two keys.
+- **Reason**: `instrumentation-http` 0.223 sets both on every server span; `isDroppedKey` listed only `client.address`, `user_agent.original` and `enduser.*`, so a player's IP could reach the third-party backend while every test stayed green.
+- **Trade-off**: OBS-29 names `client.address` literally, so strict traceability would add a requirement ID; the conservative reading closes the leak now and the maintainer can ask for the ID at the phase review.
+- **Scope**: observability-e2e / Verifier fix pass
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

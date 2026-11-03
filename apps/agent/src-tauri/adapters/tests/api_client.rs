@@ -26,7 +26,9 @@ const ROOM: &str = "7d9f2c1e-0000-4000-8000-000000000001";
 
 fn install_telemetry() {
     static INIT: Once = Once::new();
-    INIT.call_once(|| init(Mode::Test).expect("the test subscriber installs once"));
+    INIT.call_once(|| {
+        init(Mode::Test, None).expect("the test subscriber installs once");
+    });
 }
 
 async fn client_for(api: &FakeApi) -> ApiClient {

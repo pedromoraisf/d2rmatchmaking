@@ -51,6 +51,12 @@ export default tseslint.config(
     rules: { 'n/no-process-env': 'error' },
   },
   {
+    // The telemetry package takes every setting as an argument (OBS-39): the composition roots read the environment.
+    files: ['packages/telemetry/src/**/*.ts'],
+    plugins: { n },
+    rules: { 'n/no-process-env': 'error' },
+  },
+  {
     // Weak randomness is never used in the API: RandomSource and IdGenerator are injected (design § Security controls).
     // Placed before the domain block, whose broader list still wins for domain files.
     files: ['apps/api/src/**/*.ts'],

@@ -17,7 +17,7 @@ afterAll(async () => {
 
 describe('migrate', () => {
   it('first run applies 0001_skeleton and creates the four schemas', async () => {
-    expect(firstRun).toEqual(['0001_skeleton']);
+    expect(firstRun).toEqual(['0001_skeleton', '0002_outbox_trace_context']);
 
     const result = await database.pool.query<{ schema_name: string }>(
       `select schema_name from information_schema.schemata

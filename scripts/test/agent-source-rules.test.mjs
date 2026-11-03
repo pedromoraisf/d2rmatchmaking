@@ -1,7 +1,9 @@
 // Static rules of the agent's Rust and Tauri sources (AGS-01, AGS-04, AGS-15, AGS-21, AGS-22, AGS-33). Each rule is checked
 // on the repository as it is, and on a fixture under scripts/test/fixtures/agent-rules/ that the rule must reject.
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -118,11 +120,15 @@ const instrumentViolations = (base) =>
       .map(() => `${rel} has #[instrument] without skip_all`),
   );
 
-const fixtureReadViolations = (base) => {
-  const manifest = crateFile(base, 'Cargo.toml') ?? '';
-  const defaults = manifest.match(/^default\s*=\s*\[([^\]]*)\]/m)?.[1] ?? '';
-  return /"fixture-read"/.test(defaults) ? ['Cargo.toml enables fixture-read by default'] : [];
-};
+// The app crate and the adapters crate each have a `fixture-read` feature (AGS-33, AD-096). Neither may be a default feature.
+const FIXTURE_READ_MANIFESTS = ['Cargo.toml', 'adapters/Cargo.toml'];
+
+const fixtureReadViolations = (base) =>
+  FIXTURE_READ_MANIFESTS.flatMap((rel) => {
+    const manifest = crateFile(base, rel) ?? '';
+    const defaults = manifest.match(/^default\s*=\s*\[([^\]]*)\]/m)?.[1] ?? '';
+    return /"fixture-read"/.test(defaults) ? [`${rel} enables fixture-read by default`] : [];
+  });
 
 const fixtureBase = (name) => path.join(root, 'scripts/test/fixtures/agent-rules', name);
 
@@ -142,8 +148,36 @@ test('instrument always skips arguments', () => {
   assert.deepEqual(instrumentViolations(root), []);
 });
 
-test('fixture-read is never a default feature', () => {
+test('fixture-read is never a default feature in either manifest', () => {
   assert.deepEqual(fixtureReadViolations(root), []);
+});
+
+test('cargo tree for the app crate holds no fixture-read', () => {
+  const bundled = path.join(homedir(), '.cargo', 'bin', 'cargo');
+  const cargo = existsSync(bundled) ? bundled : 'cargo';
+  const tree = spawnSync(
+    cargo,
+    [
+      'tree',
+      '--locked',
+      '--manifest-path',
+      path.join(root, agentTauri, 'Cargo.toml'),
+      '-p',
+      'd2rmm-agent',
+      '-e',
+      'features',
+    ],
+    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
+  );
+  assert.equal(tree.status, 0, `cargo tree failed: ${tree.stderr}`);
+  assert.doesNotMatch(tree.stdout, /fixture-read/);
+});
+
+test('release-agent.yml builds no example and enables no all-features', () => {
+  const workflow = readText('.github/workflows/release-agent.yml');
+  for (const flag of ['--examples', '--all-targets', '--all-features']) {
+    assert.ok(!workflow.includes(flag), `release-agent.yml must not pass ${flag}`);
+  }
 });
 
 test('the windows feature rule rejects a feature off the list', () => {
@@ -178,6 +212,13 @@ test('the fixture-read rule rejects a default feature', () => {
   assert.match(
     fixtureReadViolations(fixtureBase('fixture-read-default')).join('\n'),
     /Cargo\.toml enables fixture-read by default/,
+  );
+});
+
+test('the fixture-read rule rejects a default feature in the adapters manifest', () => {
+  assert.match(
+    fixtureReadViolations(fixtureBase('fixture-read-default-adapters')).join('\n'),
+    /adapters\/Cargo\.toml enables fixture-read by default/,
   );
 });
 
@@ -300,6 +341,9 @@ test('mutation covers the core rule modules', () => {
   assert.deepEqual(scoped, [
     'adapters/src/http/sse.rs',
     'adapters/src/http/translate.rs',
+    'adapters/src/telemetry/queue.rs',
+    'adapters/src/telemetry/relay_client.rs',
+    'adapters/src/telemetry/sanitize.rs',
     'core/src/beat.rs',
     'core/src/check_update.rs',
     'core/src/follow_stream.rs',

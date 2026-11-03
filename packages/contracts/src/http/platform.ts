@@ -28,3 +28,8 @@ export const ErrorResponse = z.object({
   fields: z.array(z.string()).optional(),
 });
 export type ErrorResponse = z.infer<typeof ErrorResponse>;
+
+// The telemetry relay's answers (`POST /v1/telemetry/traces`, OBS-42). `202` has no content: the relay never returns what the
+// backend answered. Every other status is the shared error body, with `429` for the rate and budget refusals.
+export const RelayAccepted = z.undefined();
+export type RelayAccepted = z.infer<typeof RelayAccepted>;

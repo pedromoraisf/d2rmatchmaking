@@ -1,8 +1,10 @@
+import { D2R_ROOM_ID } from '@d2rmm/telemetry';
 import type { AgentsPort } from '../../agents/index.ts';
 import {
   err,
   ok,
   withSpan,
+  type Clock,
   type IdGenerator,
   type MatchFormedPayload,
   type MatchMember,
@@ -13,7 +15,7 @@ import {
 } from '../../../shared-kernel/index.ts';
 import { LobbyRoom } from '../domain/lobby-room.ts';
 import { Observation, type ObservationType } from '../domain/observation.ts';
-import type { GameNameSequence, LobbyRoomRepository, ObservationRepository } from './ports.ts';
+import type { GameNameSequence, LobbyRoomRepository, ObservationRepository, RoomMetrics } from './ports.ts';
 
 export interface LobbyRoomDeps {
   readonly rooms: LobbyRoomRepository;
@@ -23,6 +25,8 @@ export interface LobbyRoomDeps {
   readonly ids: IdGenerator;
   readonly uow: UnitOfWork;
   readonly outbox: Outbox;
+  readonly clock: Clock;
+  readonly roomMetrics: RoomMetrics;
 }
 
 /** A room as a site member sees it (contract `RoomView`). */
@@ -128,7 +132,7 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
   }): Promise<Result<{ readonly stored: boolean }, RecordObservationError>> {
     return withSpan(
       'lobby.record-observation',
-      { roomId: input.roomId },
+      { [D2R_ROOM_ID]: input.roomId },
       async (): Promise<Result<{ readonly stored: boolean }, RecordObservationError>> => {
         const accountId = await deps.agents.accountOfAgent(input.agentId);
         const room = await deps.rooms.findById(input.roomId);
@@ -169,6 +173,13 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
             await deps.outbox.append(tx, transition.events);
           }
         });
+        if (transition.outcome === 'created') {
+          const openedAt = await deps.rooms.openedAt(room.id);
+          if (openedAt !== undefined) {
+            const seconds = (deps.clock.now().getTime() - openedAt.getTime()) / 1000;
+            deps.roomMetrics.stageLeft('awaiting_host', room.difficulty, room.mode, seconds);
+          }
+        }
         return ok({ stored: true });
       },
     );
@@ -176,7 +187,7 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
 
   /** The newest room of the account, or null when it has none. */
   function getCurrentRoom(input: { readonly accountId: string }): Promise<RoomSnapshot | null> {
-    return withSpan('lobby.get-current-room', { accountId: input.accountId }, async () => {
+    return withSpan('lobby.get-current-room', {}, async () => {
       const room = await deps.rooms.findNewestByAccount(input.accountId);
       return room === null ? null : toRoomSnapshot(room);
     });
@@ -184,7 +195,7 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
 
   /** The assignment of the agent's account's newest room, or null when the agent is unpaired or has no room. */
   function getAssignment(input: { readonly agentId: string }): Promise<AssignmentSnapshot | null> {
-    return withSpan('lobby.get-assignment', { agentId: input.agentId }, async () => {
+    return withSpan('lobby.get-assignment', {}, async () => {
       const accountId = await deps.agents.accountOfAgent(input.agentId);
       if (accountId === null) {
         return null;

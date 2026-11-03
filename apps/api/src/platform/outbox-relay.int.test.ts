@@ -1,3 +1,11 @@
+import { context, trace } from '@opentelemetry/api';
+import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base';
+import { D2R_OUTBOX_EVENT_TYPE } from '@d2rmm/telemetry';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   createMigratedTestDatabase,
@@ -25,6 +33,7 @@ afterAll(async () => {
 
 /** A relay whose wake does nothing, so rows can be committed while no relay runs. */
 const silentRelay = { wake: (): void => undefined };
+const silentLog = { error: (): void => undefined };
 
 function stageChanged(roomId: string): AnyDomainEvent {
   return { type: 'RoomStageChanged', payload: { roomId, stage: 'awaiting_host', members: [] } };
@@ -92,7 +101,13 @@ describe('OutboxRelay', () => {
     ]);
     const clock = new FakeClock(START);
     const { bus, delivered } = recordingBus();
-    const restarted = new OutboxRelay({ db: database.db, bus, scheduler: new FakeScheduler(clock), clock });
+    const restarted = new OutboxRelay({
+      db: database.db,
+      bus,
+      scheduler: new FakeScheduler(clock),
+      clock,
+      log: silentLog,
+    });
 
     await restarted.sweep();
 
@@ -113,7 +128,13 @@ describe('OutboxRelay', () => {
     const clock = new FakeClock(START);
     const { bus, delivered } = recordingBus();
 
-    await new OutboxRelay({ db: database.db, bus, scheduler: new FakeScheduler(clock), clock }).sweep();
+    await new OutboxRelay({
+      db: database.db,
+      bus,
+      scheduler: new FakeScheduler(clock),
+      clock,
+      log: silentLog,
+    }).sweep();
 
     expect(delivered).toEqual(ids);
   });
@@ -122,7 +143,13 @@ describe('OutboxRelay', () => {
     await commitRows([stageChanged(POISON)]);
     const clock = new FakeClock(START);
     const { bus, attempts } = recordingBus();
-    const relay = new OutboxRelay({ db: database.db, bus, scheduler: new FakeScheduler(clock), clock });
+    const relay = new OutboxRelay({
+      db: database.db,
+      bus,
+      scheduler: new FakeScheduler(clock),
+      clock,
+      log: silentLog,
+    });
     const elapse = async (ms: number): Promise<void> => {
       clock.advance(ms);
       await relay.settled();
@@ -156,7 +183,13 @@ describe('OutboxRelay', () => {
     await commitRows([stageChanged(POISON), stageChanged('66666666-6666-4666-8666-666666666666')]);
     const clock = new FakeClock(START);
     const { bus, delivered } = recordingBus();
-    const relay = new OutboxRelay({ db: database.db, bus, scheduler: new FakeScheduler(clock), clock });
+    const relay = new OutboxRelay({
+      db: database.db,
+      bus,
+      scheduler: new FakeScheduler(clock),
+      clock,
+      log: silentLog,
+    });
 
     await relay.sweep();
     for (const ms of [1_000, 2_000, 4_000, 8_000]) {
@@ -175,5 +208,78 @@ describe('OutboxRelay', () => {
       '66666666-6666-4666-8666-666666666666',
       '77777777-7777-4777-8777-777777777777',
     ]);
+  });
+});
+
+describe('the trace of a relayed row', () => {
+  const exporter = new InMemorySpanExporter();
+
+  beforeAll(() => {
+    context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
+    trace.setGlobalTracerProvider(
+      new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] }),
+    );
+  });
+
+  afterAll(() => {
+    context.disable();
+  });
+
+  beforeEach(async () => {
+    exporter.reset();
+    await database.pool.query('truncate platform.outbox restart identity');
+  });
+
+  /** Commits one unpublished row whose stored trace context is `traceContext` (null for none). */
+  async function insertRow(traceContext: string | null): Promise<void> {
+    await database.pool.query(
+      `insert into platform.outbox (event_type, payload, created_at, trace_context) values ('RoomStageChanged', $1, $2, $3)`,
+      [
+        JSON.stringify({
+          roomId: '11111111-1111-4111-8111-111111111111',
+          stage: 'awaiting_host',
+          members: [],
+        }),
+        START,
+        traceContext,
+      ],
+    );
+  }
+
+  function relayOn(bus: InMemoryEventBus): OutboxRelay {
+    return new OutboxRelay({
+      db: database.db,
+      bus,
+      scheduler: new FakeScheduler(new FakeClock(START)),
+      clock: new FakeClock(START),
+      log: silentLog,
+    });
+  }
+
+  it('continues the stored context and opens platform.outbox.relay as its child', async () => {
+    const parent = trace.getTracer('test').startSpan('site.request');
+    const parentContext = parent.spanContext();
+    parent.end();
+    await insertRow(`00-${parentContext.traceId}-${parentContext.spanId}-01`);
+
+    await relayOn(recordingBus().bus).sweep();
+
+    const relaySpans = exporter.getFinishedSpans().filter((span) => span.name === 'platform.outbox.relay');
+    expect(relaySpans).toHaveLength(1);
+    expect(relaySpans[0]?.spanContext().traceId).toBe(parentContext.traceId);
+    expect(relaySpans[0]?.parentSpanContext?.spanId).toBe(parentContext.spanId);
+    expect(relaySpans[0]?.attributes[D2R_OUTBOX_EVENT_TYPE]).toBe('RoomStageChanged');
+  });
+
+  it('publishes a row with no trace context as a root span', async () => {
+    await insertRow(null);
+
+    await relayOn(recordingBus().bus).sweep();
+
+    const relaySpans = exporter.getFinishedSpans().filter((span) => span.name === 'platform.outbox.relay');
+    expect(relaySpans).toHaveLength(1);
+    expect(relaySpans[0]?.parentSpanContext).toBeUndefined();
+    expect(relaySpans[0]?.attributes[D2R_OUTBOX_EVENT_TYPE]).toBe('RoomStageChanged');
+    expect((await rows()).every((row) => row.published)).toBe(true);
   });
 });

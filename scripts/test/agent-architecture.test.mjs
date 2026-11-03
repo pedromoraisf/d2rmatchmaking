@@ -368,6 +368,42 @@ test('the app crate never depends on reqwest', () => {
   assert.deepEqual(appReqwestViolations(root), []);
 });
 
+// The tracing and OpenTelemetry stack lives in the adapters (ADR 027, OBS-22). The domain and the core keep no OpenTelemetry
+// API or SDK, no OTLP exporter, no tracing subscriber and no protobuf or gRPC stack; the core keeps `tracing` alone.
+const TELEMETRY_CRATE_PREFIXES = [
+  'opentelemetry',
+  'tracing-opentelemetry',
+  'tracing-subscriber',
+  'prost',
+  'tonic',
+];
+
+export const telemetryExporterViolations = (base) =>
+  ['domain', 'core'].flatMap((crate) => {
+    const manifest = manifestOf(base, crate);
+    if (manifest === undefined) return [`the ${crate} manifest is missing`];
+    return dependencyNames(manifest)
+      .filter((name) => startsWithAny(name, TELEMETRY_CRATE_PREFIXES))
+      .map((name) => `${crate} depends on ${name}, a tracing or OpenTelemetry crate`);
+  });
+
+export const exporterInAdaptersViolations = (base) => {
+  const manifest = manifestOf(base, 'adapters');
+  if (manifest === undefined) return ['the adapters manifest is missing'];
+  return dependencyNames(manifest).includes('opentelemetry-otlp')
+    ? []
+    : ['adapters does not depend on opentelemetry-otlp'];
+};
+
+test('domain and core manifests hold no tracing or OpenTelemetry crate and the exporter lives in adapters', () => {
+  assert.deepEqual(telemetryExporterViolations(root), []);
+  assert.deepEqual(exporterInAdaptersViolations(root), []);
+  assert.match(
+    telemetryExporterViolations(fixtureBase('core-otlp')).join('\n'),
+    /core depends on opentelemetry-otlp, a tracing or OpenTelemetry crate/,
+  );
+});
+
 // The docs state the layers: AGENTS.md and the cursor rule name the three agent crates and the direction of dependency
 // (AHM-06, ADR 027). A doc that lacks either is a violation.
 const LAYER_CRATES = [CRATE_NAME.domain, CRATE_NAME.core, CRATE_NAME.adapters];

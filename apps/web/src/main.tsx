@@ -3,11 +3,15 @@ import { createRoot } from 'react-dom/client';
 import { I18nextProvider } from 'react-i18next';
 import { App } from './app/App.tsx';
 import { createI18n } from './app/i18n.ts';
+import { startSiteTelemetry } from './shared/telemetry.ts';
 
 const container = document.getElementById('root');
 if (container === null) {
   throw new Error('index.html has no #root element');
 }
+
+// Telemetry starts before the first render, and only in the builds that turn it on (OBS-44).
+startSiteTelemetry(import.meta.env, window);
 
 const i18n = createI18n(navigator.languages);
 document.documentElement.lang = i18n.language;

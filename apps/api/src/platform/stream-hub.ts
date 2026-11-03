@@ -1,8 +1,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Kysely } from 'kysely';
 import type { ServerResponse } from 'node:http';
+import { trace, type Meter, type UpDownCounter } from '@opentelemetry/api';
+import { D2R_STREAM_KIND, INSTRUMENT_NAMES } from '@d2rmm/telemetry';
 import type { AnyDomainEvent, BusEvent, Cancel, EventBus, Scheduler } from '../shared-kernel/index.ts';
 import type { Guards } from './http/guards.ts';
+import type { ErrorLog } from './error-log.ts';
 import type { PlatformDatabase } from './postgres/database.ts';
 import {
   parseStreamId,
@@ -42,7 +45,16 @@ export interface StreamHubDeps {
   readonly agents: CurrentAgentLookup;
   readonly guards: Guards;
   readonly scheduler: Scheduler;
+  /** Where a failed replay is reported (the application logger). */
+  readonly log: ErrorLog;
+  /** The meter of `sse.connections` (the application meter). */
+  readonly meter: Meter;
 }
+
+/** The tracer of the API's own spans, as in shared-kernel/tracing.ts. */
+const TRACER_NAME = 'd2rmm-api';
+/** One delivery to one accepting stream, a child of the span that published the event (OBS-06). */
+const DELIVER_SPAN = 'platform.stream.deliver';
 
 /** Who the stream belongs to: the site of an account, or one agent. */
 type Principal =
@@ -105,6 +117,11 @@ class Connection {
 
   track(cancel: Cancel): void {
     this.#cancels.push(cancel);
+  }
+
+  /** True when this stream takes at least one of the deliveries of an event. */
+  accepts(deliveries: readonly Delivery[]): boolean {
+    return deliveries.some((delivery) => this.#accepts(delivery));
   }
 
   /** Hands a live dispatch to the connection: buffered while it replays, written otherwise. */
@@ -189,9 +206,13 @@ class Connection {
 export class StreamHub {
   readonly #deps: StreamHubDeps;
   readonly #connections = new Set<Connection>();
+  readonly #sseConnections: UpDownCounter;
 
   constructor(deps: StreamHubDeps) {
     this.#deps = deps;
+    this.#sseConnections = deps.meter.createUpDownCounter(INSTRUMENT_NAMES.sseConnections, {
+      description: 'Open event streams, by stream kind.',
+    });
   }
 
   /** Subscribes to the events a stream carries. Call once, at start-up, before the route receives requests. */
@@ -246,10 +267,13 @@ export class StreamHub {
       cursor: afterId ?? 0n,
       replaying: afterId !== undefined,
       onClose: (closing) => {
-        this.#connections.delete(closing);
+        if (this.#connections.delete(closing)) {
+          this.#sseConnections.add(-1, { [D2R_STREAM_KIND]: closing.principal.kind });
+        }
       },
     });
     this.#connections.add(connection);
+    this.#sseConnections.add(1, { [D2R_STREAM_KIND]: principal.kind });
     raw.on('close', () => {
       connection.close();
     });
@@ -324,7 +348,9 @@ export class StreamHub {
       }
       connection.endReplay();
     } catch {
-      console.error('stream replay failed on the database; closing the stream so the client reconnects');
+      this.#deps.log.error(
+        'stream replay failed on the database; closing the stream so the client reconnects',
+      );
       connection.close();
     }
   }
@@ -348,7 +374,26 @@ export class StreamHub {
     const deliveries = await projectStreamEvent(domain, this.#deps.agents);
     const outboxId = event.kind === 'durable' ? event.id : undefined;
     for (const connection of [...this.#connections]) {
-      connection.offer(outboxId, deliveries);
+      if (connection.accepts(deliveries)) {
+        this.#deliver(connection, outboxId, deliveries);
+      }
     }
+  }
+
+  /** Hands the event to one accepting stream inside its delivery span, a child of the span that published it. */
+  #deliver(connection: Connection, outboxId: bigint | undefined, deliveries: readonly Delivery[]): void {
+    trace
+      .getTracer(TRACER_NAME)
+      .startActiveSpan(
+        DELIVER_SPAN,
+        { attributes: { [D2R_STREAM_KIND]: connection.principal.kind } },
+        (span) => {
+          try {
+            connection.offer(outboxId, deliveries);
+          } finally {
+            span.end();
+          }
+        },
+      );
   }
 }

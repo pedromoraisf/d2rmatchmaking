@@ -1,0 +1,11 @@
+[package]
+name = "d2rmm-agent-adapters"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }
+
+[features]
+default = ["fixture-read"]
+fixture-read = ["dep:image"]

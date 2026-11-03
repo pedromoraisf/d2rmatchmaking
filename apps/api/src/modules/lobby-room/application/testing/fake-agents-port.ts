@@ -12,7 +12,9 @@ export class FakeAgentsPort implements AgentsPort {
     this.#accountByAgent.set(agentId, accountId);
   }
 
-  async authenticateAgent(): Promise<Result<{ agentId: string; accountId: string }, 'unauthenticated'>> {
+  async authenticateAgent(): Promise<
+    Result<{ agentId: string; accountId: string }, 'unauthenticated' | 'throttled'>
+  > {
     return err('unauthenticated');
   }
 

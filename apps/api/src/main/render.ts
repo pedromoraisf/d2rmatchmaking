@@ -7,6 +7,7 @@ import pg from 'pg';
 import { buildApp, type AppDatabase } from './app.ts';
 import { loadConfig, type Config } from './config.ts';
 import { ClockScheduler, NodeRandomSource, RandomUuidGenerator, SystemClock } from './runtime.ts';
+import { shutdownTelemetry } from './telemetry-lifecycle.ts';
 
 /** Every reason this process must not start, or undefined when the configuration is acceptable. */
 export function refusalOf(config: Config): string | undefined {
@@ -50,6 +51,7 @@ async function main(): Promise<void> {
     scheduler: new ClockScheduler(clock),
     random: new NodeRandomSource(),
     ids: new RandomUuidGenerator(),
+    telemetryBackend: { endpoint: config.telemetry.endpoint, headers: config.telemetry.headers },
   });
   const address = await built.app.listen({ host: '0.0.0.0', port: config.port });
   await built.relay.sweep();
@@ -58,6 +60,7 @@ async function main(): Promise<void> {
     void built.app
       .close()
       .then(() => db.destroy())
+      .then(() => shutdownTelemetry())
       .then(() => process.exit(0));
   };
   process.on('SIGINT', stop);

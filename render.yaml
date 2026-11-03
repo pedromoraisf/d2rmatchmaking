@@ -6,7 +6,7 @@ services:
     runtime: node
     plan: free
     buildCommand: corepack enable && pnpm install --frozen-lockfile --ignore-scripts
-    startCommand: node apps/api/src/main/render.ts
+    startCommand: node --import ./apps/api/src/main/instrument.ts apps/api/src/main/render.ts
     healthCheckPath: /healthz
     autoDeploy: false
     envVars:
@@ -15,4 +15,8 @@ services:
       - key: ENABLE_STAGING_ENDPOINTS
         value: 'true'
       - key: DATABASE_URL
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_HEADERS
         sync: false

@@ -78,6 +78,42 @@ describe('Pages Function proxy', () => {
     }
   });
 
+  it('forwards traceparent and tracestate to the API', async () => {
+    const { upstream, calls } = recordingUpstream();
+    const traceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+    const tracestate = 'd2r=sampled:1';
+    await proxyRequest(
+      context('https://site.test/api/v1/telemetry/traces', {
+        method: 'POST',
+        headers: { traceparent, tracestate, 'Content-Type': 'application/x-protobuf' },
+        body: 'span-bytes',
+      }),
+      upstream,
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.target.href).toBe('https://api.example.test/v1/telemetry/traces');
+    const sent = new Headers(calls[0]?.init.headers);
+    expect(sent.get('traceparent')).toBe(traceparent);
+    expect(sent.get('tracestate')).toBe(tracestate);
+  });
+
+  it('drops an oversized tracestate', async () => {
+    const { upstream, calls } = recordingUpstream();
+    const traceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+    const oversized = `d2r=${'x'.repeat(512)}`;
+    await proxyRequest(
+      context('https://site.test/api/v1/telemetry/traces', {
+        method: 'POST',
+        headers: { traceparent, tracestate: oversized },
+        body: 'span-bytes',
+      }),
+      upstream,
+    );
+    const sent = new Headers(calls[0]?.init.headers);
+    expect(sent.has('tracestate')).toBe(false);
+    expect(sent.get('traceparent')).toBe(traceparent);
+  });
+
   it('passes Set-Cookie from the API back to the browser', async () => {
     const { upstream } = recordingUpstream(
       () =>

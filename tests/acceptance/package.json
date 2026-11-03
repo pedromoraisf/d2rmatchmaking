@@ -7,6 +7,7 @@
   "scripts": {
     "acceptance:gen": "bddgen",
     "test:acceptance": "bddgen && playwright test",
+    "test:unit": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
@@ -17,6 +18,8 @@
     "@types/pg": "^8.23.1",
     "pg": "^8.23.1",
     "playwright-bdd": "^9.2.0",
-    "typescript": "^5.9.3"
+    "testcontainers": "^12.2.1",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
   }
 }

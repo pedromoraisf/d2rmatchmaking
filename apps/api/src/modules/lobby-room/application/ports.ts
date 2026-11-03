@@ -1,4 +1,5 @@
-import type { Transaction } from '../../../shared-kernel/index.ts';
+import type { RoomStage, Transaction } from '../../../shared-kernel/index.ts';
+import type { GameDifficulty } from '../domain/game-name.ts';
 import type { LobbyRoom } from '../domain/lobby-room.ts';
 import type { Observation } from '../domain/observation.ts';
 
@@ -9,6 +10,8 @@ export interface LobbyRoomRepository {
   findByMatchId(matchId: string): Promise<LobbyRoom | null>;
   /** The room of the account with the highest game name number: the newest one (AWS-25, design.md § Lobby Room). */
   findNewestByAccount(accountId: string): Promise<LobbyRoom | null>;
+  /** The instant the room opened in `awaiting_host` (`lobby.rooms.created_at`), or undefined for an unknown room. */
+  openedAt(roomId: string): Promise<Date | undefined>;
 }
 
 export interface ObservationRepository {
@@ -20,4 +23,10 @@ export interface ObservationRepository {
 /** Hands out the next game name number (Postgres `lobby.game_name_seq` in production). */
 export interface GameNameSequence {
   next(): Promise<number>;
+}
+
+/** Room metrics the use cases report (OBS-34). The OpenTelemetry adapter lives in `adapters/telemetry`. */
+export interface RoomMetrics {
+  /** The seconds a room spent in `stage` before it left it, with the bounded attributes of the room (`room.stage_duration`). */
+  stageLeft(stage: RoomStage, difficulty: GameDifficulty, mode: 'pvp' | 'leveling', seconds: number): void;
 }

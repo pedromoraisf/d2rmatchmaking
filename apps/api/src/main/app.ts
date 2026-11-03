@@ -3,19 +3,15 @@
 import cookie from '@fastify/cookie';
 import swagger from '@fastify/swagger';
 import { ConfigResponse } from '@d2rmm/contracts';
-import Fastify, {
-  type FastifyError,
-  type FastifyInstance,
-  type FastifyReply,
-  type FastifyRequest,
-} from 'fastify';
+import { APP_METER_NAME } from '@d2rmm/telemetry';
+import Fastify, { type FastifyInstance } from 'fastify';
 import {
-  hasZodFastifySchemaValidationErrors,
   jsonSchemaTransform,
   serializerCompiler,
   validatorCompiler,
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
+import { isSpanContextValid, metrics, trace } from '@opentelemetry/api';
 import type { Kysely } from 'kysely';
 import type { Writable } from 'node:stream';
 import { z } from 'zod';
@@ -26,6 +22,7 @@ import { PostgresGameNameSequence } from '../modules/lobby-room/adapters/postgre
 import { PostgresLobbyRoomRepository } from '../modules/lobby-room/adapters/postgres/postgres-lobby-room-repository.ts';
 import { PostgresObservationRepository } from '../modules/lobby-room/adapters/postgres/postgres-observation-repository.ts';
 import type { LobbyDatabase } from '../modules/lobby-room/adapters/postgres/schema.ts';
+import { OtelRoomMetrics } from '../modules/lobby-room/adapters/telemetry/otel-room-metrics.ts';
 import { createLobbyRoomUseCases } from '../modules/lobby-room/index.ts';
 import { matchmakingRoutes } from '../modules/matchmaking/adapters/http/routes.ts';
 import { createMatchmakingUseCases } from '../modules/matchmaking/index.ts';
@@ -43,8 +40,16 @@ import { PostgresSessionRepository } from '../modules/identity/adapters/postgres
 import { Sha256SecretHasher } from '../modules/identity/adapters/postgres/sha256-secret-hasher.ts';
 import type { IdentityDatabase } from '../modules/identity/adapters/postgres/schema.ts';
 import { createIdentityUseCases } from '../modules/identity/application/identity-use-cases.ts';
+import { atMostOnePerMinute } from '../platform/error-log.ts';
 import { InMemoryEventBus } from '../platform/event-bus.ts';
+import { answerError } from '../platform/http/answer-error.ts';
+import { registerRequestMetrics } from '../platform/http/request-metrics.ts';
+import { registerOutboxLag } from '../platform/outbox-lag.ts';
 import { createGuards } from '../platform/http/guards.ts';
+import { Forwarder } from '../platform/http/relay-forwarder.ts';
+import { RelayBudget } from '../platform/http/relay-budget.ts';
+import { RelayLimiter } from '../platform/http/relay-limiter.ts';
+import { telemetryRelayPlugin } from '../platform/http/telemetry-relay.ts';
 import { OutboxRelay } from '../platform/outbox-relay.ts';
 import type { PlatformDatabase } from '../platform/postgres/database.ts';
 import { PostgresOutbox } from '../platform/postgres/outbox.ts';
@@ -60,6 +65,25 @@ const SWEEP_EVERY_MS = 1_000;
 
 /** Log fields that may carry a credential: redacted from every log line (design.md § Composition roots). */
 const REDACTED_LOG_PATHS = ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'];
+
+/** The trace fields of a log line: the active span's ids, and none outside a span (OBS-26). */
+export function traceFields(): Record<string, string> {
+  const spanContext = trace.getActiveSpan()?.spanContext();
+  if (spanContext === undefined || !isSpanContextValid(spanContext)) {
+    return {};
+  }
+  return { trace_id: spanContext.traceId, span_id: spanContext.spanId };
+}
+
+/** The Fastify logger of the app: credentials redacted, and every line carries the trace fields (OBS-26). */
+export function appLoggerOptions(sink?: Writable) {
+  return {
+    level: 'info',
+    redact: { paths: REDACTED_LOG_PATHS, censor: '[redacted]' },
+    mixin: traceFields,
+    ...(sink === undefined ? {} : { stream: sink }),
+  };
+}
 
 export interface AppConfig {
   readonly stagingEndpoints: boolean;
@@ -77,8 +101,18 @@ export interface AppDeps {
   readonly ids: IdGenerator;
   /** Where log lines go. Defaults to standard output. */
   readonly logSink?: Writable;
-  /** Called once per dead-lettered outbox row. Defaults to a console error with the id and type. */
+  /** Called once per dead-lettered outbox row. Defaults to a log error with the id and type. */
   readonly onDeadLetter?: (outboxId: string, eventType: string) => void;
+  /** Where the telemetry relay forwards (OBS-15). Defaults to no endpoint: every forward is dropped. */
+  readonly telemetryBackend?: TelemetryBackend;
+}
+
+/** The OTLP backend the relay forwards to, from the `OTEL_EXPORTER_OTLP_*` settings (main/config.ts). */
+export interface TelemetryBackend {
+  /** `OTEL_EXPORTER_OTLP_ENDPOINT`, or undefined: then every forward is dropped. */
+  readonly endpoint: string | undefined;
+  /** `OTEL_EXPORTER_OTLP_HEADERS`: the backend credentials, sent on forwards only. */
+  readonly headers: Readonly<Record<string, string>>;
 }
 
 export interface BuiltApp {
@@ -96,38 +130,19 @@ export interface BuiltApp {
   };
 }
 
-/** A database failure answers 503 `unavailable` (design.md § Error Handling). Driver errors carry a code or a pool message. */
-function isDatabaseFailure(error: FastifyError): boolean {
-  const code: unknown = error.code;
-  const driverCode = typeof code === 'string' && !code.startsWith('FST_');
-  return driverCode || /pool|connect/i.test(error.message);
-}
-
-/** Maps every error to the contract's `{ error }` body. Messages are never sent: they can echo values (codes, names). */
-function answerError(error: FastifyError, request: FastifyRequest, reply: FastifyReply): FastifyReply {
-  if (hasZodFastifySchemaValidationErrors(error)) {
-    const fields = [...new Set((error.validation ?? []).map((issue) => issue.instancePath.slice(1)))];
-    return reply.code(400).send({ error: 'invalid-request', fields });
-  }
-  const status = error.statusCode ?? 500;
-  if (status < 500) {
-    const code =
-      status === 413 ? 'payload-too-large' : status === 415 ? 'unsupported-media-type' : 'invalid-request';
-    return reply.code(status).send({ error: code });
-  }
-  request.log.warn({ errorName: error.name, errorCode: error.code }, 'request failed');
-  if (isDatabaseFailure(error)) {
-    return reply.code(503).send({ error: 'unavailable' });
-  }
-  return reply.code(500).send({ error: 'internal' });
-}
-
 /**
  * Builds the HTTP app: Zod validation and serialization, cookies, the OpenAPI document, the guards, every module and
  * the platform. Starts nothing: the relay's start-up sweep and the listening socket belong to the composition root.
  */
 export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   const { db, config, clock, scheduler, random, ids } = deps;
+  // Trust the first `TRUST_PROXY_HOPS` proxies only: `request.ip` is the first address past them, so a forged left-most
+  // X-Forwarded-For never becomes the client address (AWS-09, design.md § Security controls). The app is created first:
+  // the relay and the stream hub log through its logger.
+  const app = Fastify({
+    trustProxy: (_address: string, hop: number) => hop < config.trustProxyHops,
+    logger: appLoggerOptions(deps.logSink),
+  });
   const bus = new InMemoryEventBus();
   const outbox = new PostgresOutbox(clock);
   const relay = new OutboxRelay({
@@ -135,6 +150,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     bus,
     scheduler,
     clock,
+    log: app.log,
     ...(deps.onDeadLetter === undefined ? {} : { onDeadLetter: deps.onDeadLetter }),
   });
   const uow = new PostgresUnitOfWork(db as unknown as Kysely<PlatformDatabase>, outbox, relay);
@@ -171,7 +187,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     authenticateSession: (token) => identity.authenticateSession(token),
   };
   const agentsPort: AgentsPort = {
-    authenticateAgent: (token) => agents.authenticateAgent({ token }),
+    authenticateAgent: (token, opts) => agents.authenticateAgent({ token }, opts),
     accountOfAgent: agents.accountOfAgent,
     currentAgentOf: agents.currentAgentOf,
   };
@@ -180,6 +196,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     agents: agentsPort,
     agentMinVersion: config.minAgentVersion,
     siteOrigin: config.siteOrigin,
+    clock,
   });
 
   bus.subscribe('AgentRevoked', agents.evictRevokedAgent);
@@ -193,6 +210,8 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     ids,
     uow,
     outbox,
+    clock,
+    roomMetrics: new OtelRoomMetrics(metrics.getMeter(APP_METER_NAME)),
   });
   const matchmaking = createMatchmakingUseCases({ ids, uow, outbox });
   bus.subscribe('MatchFormed', async (event) => {
@@ -206,25 +225,19 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     agents: agentsPort,
     guards,
     scheduler,
+    log: app.log,
+    meter: metrics.getMeter(APP_METER_NAME),
   });
   hub.subscribe();
 
   const stopSweep = scheduler.every(SWEEP_EVERY_MS, () => {
     void agents.sweep().catch(() => {
-      console.error('agents sweep failed; it runs again in one second');
+      app.log.error('agents sweep failed; it runs again in one second');
     });
   });
 
-  // Trust the first `TRUST_PROXY_HOPS` proxies only: `request.ip` is the first address past them, so a forged left-most
-  // X-Forwarded-For never becomes the client address (AWS-09, design.md § Security controls).
-  const app = Fastify({
-    trustProxy: (_address: string, hop: number) => hop < config.trustProxyHops,
-    logger: {
-      level: 'info',
-      redact: { paths: REDACTED_LOG_PATHS, censor: '[redacted]' },
-      ...(deps.logSink === undefined ? {} : { stream: deps.logSink }),
-    },
-  });
+  registerRequestMetrics(app, metrics.getMeter(APP_METER_NAME));
+  registerOutboxLag(metrics.getMeter(APP_METER_NAME), db as unknown as Kysely<PlatformDatabase>, clock);
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.setErrorHandler(answerError);
@@ -235,6 +248,21 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   await app.register(swagger, {
     openapi: { openapi: '3.1.0', info: { title: 'D2R Match Making API', version: '0.0.0' } },
     transform: jsonSchemaTransform,
+  });
+  // The relay's forwarder logs at most one line a minute when the backend is down (OBS-37).
+  const backend = deps.telemetryBackend ?? { endpoint: undefined, headers: {} };
+  await app.register(telemetryRelayPlugin, {
+    guards,
+    limiter: new RelayLimiter(clock),
+    budget: new RelayBudget(clock),
+    forwarder: new Forwarder({
+      endpoint: backend.endpoint,
+      credentials: backend.headers,
+      fetch: (url, init) => fetch(url, init),
+      log: atMostOnePerMinute(app.log, clock),
+    }),
+    clock,
+    scheduler,
   });
 
   const typed = app.withTypeProvider<ZodTypeProvider>();

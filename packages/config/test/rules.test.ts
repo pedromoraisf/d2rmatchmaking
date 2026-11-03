@@ -20,6 +20,14 @@ describe('shared ESLint preset rules', () => {
       'export const databaseUrl = process.env.DATABASE_URL;\n',
     );
     expect(ruleIds).toStrictEqual(['n/no-process-env']);
+  }, 30_000);
+
+  it('reports process.env in the telemetry package', async () => {
+    const ruleIds = await ruleIdsFor(
+      'packages/telemetry/src/node-sdk.ts',
+      'export const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;\n',
+    );
+    expect(ruleIds).toStrictEqual(['n/no-process-env']);
   });
 
   it('n/no-process-env allows process.env in the composition root', async () => {

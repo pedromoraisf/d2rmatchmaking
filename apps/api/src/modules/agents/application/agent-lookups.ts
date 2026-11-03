@@ -11,7 +11,7 @@ export interface AgentLookupDeps {
  */
 export function createAccountOfAgent(deps: AgentLookupDeps) {
   return (agentId: string): Promise<string | null> =>
-    withSpan('agents.account-of-agent', { agentId }, async (): Promise<string | null> => {
+    withSpan('agents.account-of-agent', {}, async (): Promise<string | null> => {
       const agent = await deps.agents.findById(agentId);
       if (agent === null || agent.revokedAt !== undefined || agent.accountId === undefined) {
         return null;
@@ -23,7 +23,7 @@ export function createAccountOfAgent(deps: AgentLookupDeps) {
 /** The account's current agent (not revoked), or null when it has none. Stream recipients are resolved with it. */
 export function createCurrentAgentOf(deps: AgentLookupDeps) {
   return (accountId: string): Promise<string | null> =>
-    withSpan('agents.current-agent-of', { accountId }, async (): Promise<string | null> => {
+    withSpan('agents.current-agent-of', {}, async (): Promise<string | null> => {
       const agent = await deps.agents.findCurrentByAccount(accountId);
       return agent === null ? null : agent.id;
     });
