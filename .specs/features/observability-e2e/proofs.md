@@ -1,8 +1,8 @@
 # observability-e2e proofs
 
-**HEAD**: ee4feef
+**HEAD**: 6af82a9
 **Tree**: clean
-**Result**: 68 pass, 0 fail; mutations 0 killed, 0 not
+**Result**: 68 pass, 0 fail; mutations 10 killed, 0 not
 
 | Check | Proof                                                                                                            | Ran | Passed | Result |
 | ----- | ---------------------------------------------------------------------------------------------------------------- | --- | ------ | ------ |
@@ -74,3 +74,18 @@
 | Build | `pnpm typecheck`                                                                                                 | -   | -      | pass   |
 | Build | `pnpm lint`                                                                                                      | -   | -      | pass   |
 | Build | `pnpm arch`                                                                                                      | -   | -      | pass   |
+
+## Mutations
+
+| Mutation                           | Location                                                                  | Killed |
+| ---------------------------------- | ------------------------------------------------------------------------- | ------ |
+| per-account relay limit 60 -> 61   | `apps/api/src/platform/http/relay-budget.ts:10`                           | yes    |
+| address relay limit 120 -> 121     | `apps/api/src/platform/http/relay-limiter.ts:12`                          | yes    |
+| URL fragment no longer removed     | `packages/telemetry/src/redact-attributes.ts:49`                          | yes    |
+| enduser.* attributes kept          | `packages/telemetry/src/redact-attributes.ts:44`                          | yes    |
+| user_agent.original kept           | `packages/telemetry/src/redact-attributes.ts:43`                          | yes    |
+| relay session origin check removed | `apps/api/src/platform/http/guards.ts:237`                                | yes    |
+| stage duration unit                | `apps/api/src/modules/lobby-room/application/lobby-room-use-cases.ts:179` | yes    |
+| agent span queue 2048 -> 2049      | `apps/agent/src-tauri/adapters/src/telemetry/queue.rs:7`                  | yes    |
+| Retry-After cap removed            | `apps/agent/src-tauri/adapters/src/telemetry/relay_client.rs:48`          | yes    |
+| agent sanitizer keeps http.url     | `apps/agent/src-tauri/adapters/src/telemetry/sanitize.rs:44`              | yes    |
