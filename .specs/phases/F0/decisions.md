@@ -230,7 +230,9 @@ Resolved: the maintainer reset the dispatch and the gate; T54 (3457c73, `@NFR-09
 - **Needs the maintainer**: `node scripts/attempt.mjs reset --unit gate:observability-e2e/verification --by pedromoraisf`. Then the runner formats the two Verifier files, commits fix 2, fills `Closed`, re-runs `check_proofs.py` and `--mutations`, and runs `validate_verification.py` once.
 - **Phase effect**: `load-baseline` depends on `observability-e2e`, so the phase is blocked (an escalation).
 
-## Blocked: load-baseline, review of design Revision 1 (2026-11-03)
+## Blocked: load-baseline, review of design Revision 1 (2026-11-03) — resolved 2026-11-03
+
+Resolved: the maintainer reset both review units (`pedromoraisf`); the revision was revised again (tail after the window, whole-step lost-assignment accounting, handler-level stale settling, `dropped_iterations` as errors) and both reviewers returned PASS (security at its first dispatch after the reset, architecture at its second). T34 to T37 run next. The text below is the history.
 
 The first real smoke attempt (T32, never run as a gate) found three design points: no `openssl` in `postgres:17-alpine`, no JavaScript timer firing while an `xk6-sse` stream is open, and a smoke window with no match. Design Revision 1 (AD-120 to AD-122) changes the mechanism, not the intent. Both reviewers returned FAIL on the revision at their **third and last** dispatch (`dispatch:load-baseline/review-architecture` and `dispatch:load-baseline/review-security`, 3 of 3), so the budget forbids a fourth review and the revision has no PASS.
 
