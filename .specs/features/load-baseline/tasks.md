@@ -156,9 +156,9 @@ T32 → T33
 
 **Done when**:
 
-- [ ] `profileFor('full')` returns steps 25, 50, 100, 150, 200, 300, 400, each with ramp 20 s, hold 120 s, a measuring window of the last 90 s and `windowOffsets` (start 30 s into the hold, end 120 s) in seconds from the start of k6; `profileFor('smoke')` returns one step of 5 players holding 30 s and `profile: 'smoke'`
-- [ ] `nextStep(profile, results)` returns the next step, or `null` after a failed step or after the last one
-- [ ] Tests named as in `## Checks` pass: quick gate
+- [x] `profileFor('full')` returns steps 25, 50, 100, 150, 200, 300, 400, each with ramp 20 s, hold 120 s, a measuring window of the last 90 s and `windowOffsets` (start 30 s into the hold, end 120 s) in seconds from the start of k6; `profileFor('smoke')` returns one step of 5 players holding 30 s and `profile: 'smoke'`
+- [x] `nextStep(profile, results)` returns the next step, or `null` after a failed step or after the last one
+- [x] Tests named as in `## Checks` pass: quick gate
 
 **Tests**: unit
 **Gate**: Quick
@@ -938,7 +938,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - Build notes: an `ARG K6_VERSION` is exported to RUN and collides with xk6's own flag, so the build ARG is `K6_RELEASE` and xk6 gets `--k6-version`. xk6 needs `git` in the builder.
 - Cleanup: no containers, network or work directory was left after any attempt. The failure path and the success path were both exercised. The signal path was not. The image `d2rmm-load-k6:spike` stays in the local cache and was not pushed.
 - Tooling: the gate hook denied a direct `pnpm exec eslint` once (denial 1 of 3). I did not retry it. ESLint on `scripts/load` ran through `attempt.mjs` under T1 and passed.
-  **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03
+  **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03, `returned` (T1 committed 8cfe8e3); execute-batch-2 (T2 to T8) at HEAD 8cfe8e3, 2026-11-03
   **Walked:** none
 
 ---
