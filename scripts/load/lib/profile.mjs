@@ -8,16 +8,21 @@ const FULL_HOLD_SECONDS = 120;
 const FULL_WINDOW_SECONDS = 90;
 const SMOKE_PLAYERS = 5;
 const SMOKE_HOLD_SECONDS = 30;
+/** The tail after a window: the 5 s `created` rule plus 5 s of slack, so every observation in the window settles (Revision 1). */
+const TAIL_SECONDS = 10;
 
 function stepOf(players, holdSeconds, windowSeconds) {
   const windowStartInHold = holdSeconds - windowSeconds;
+  const windowEnd = RAMP_SECONDS + holdSeconds;
   return {
     players,
     rampSeconds: RAMP_SECONDS,
     holdSeconds,
     windowSeconds,
     windowInHold: { start: windowStartInHold, end: holdSeconds },
-    windowOffsets: { start: RAMP_SECONDS + windowStartInHold, end: RAMP_SECONDS + holdSeconds },
+    windowOffsets: { start: RAMP_SECONDS + windowStartInHold, end: windowEnd },
+    tailSeconds: TAIL_SECONDS,
+    k6DurationSeconds: windowEnd + TAIL_SECONDS,
   };
 }
 

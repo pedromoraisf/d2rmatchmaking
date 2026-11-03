@@ -39,6 +39,9 @@ const PASSING_K6 = () => ({
   requests: 1000,
   iterations: 100,
   agentAssignedFrames: 100,
+  matchesPosted: 100,
+  iterationsStarted: 100,
+  droppedIterations: 0,
   meterBytes: 50_000_000,
   sinkBytes: 1000,
   windowSeconds: 90,
@@ -139,6 +142,7 @@ function fakeDocker(fs, options) {
     calls: [],
     k6Runs: 0,
     planModes: [],
+    plans: [],
   };
   const ok = (stdout = '') => ({ code: 0, stdout, stderr: '' });
   const fail = (stderr, code = 1) => ({ code, stdout: '', stderr });
@@ -170,6 +174,7 @@ function fakeDocker(fs, options) {
         state.containers.add(name);
         const inDir = mountOf(args, '/work/in', 'ro');
         state.planModes.push(fs.files.get(`${inDir}/plan.json`)?.mode);
+        state.plans.push(fs.files.get(`${inDir}/plan.json`)?.text);
         const answer = options.k6(state.k6Runs);
         if (answer.writeStep !== false) {
           const outDir = mountOf(args, '/work/out', 'rw');
@@ -180,6 +185,9 @@ function fakeDocker(fs, options) {
               requests: answer.requests,
               iterations: answer.iterations,
               agentAssignedFrames: answer.agentAssignedFrames,
+              matchesPosted: answer.matchesPosted,
+              iterationsStarted: answer.iterationsStarted,
+              droppedIterations: answer.droppedIterations,
               meterBytes: answer.meterBytes,
               sinkBytes: answer.sinkBytes,
               windowSeconds: answer.windowSeconds,
@@ -643,6 +651,53 @@ test('the TLS volume and the certificate container of a run', { timeout: SLOW_TE
     },
   );
 });
+
+test(
+  'a lost assignment and a dropped arrival count as errors of the step, and the plan carries the tail',
+  { timeout: SLOW_TEST_MS },
+  async (t) => {
+    await t.test(
+      'five matches posted, three iterations started and one dropped arrival are three errors',
+      async () => {
+        const scn = scenario({
+          profile: 'smoke',
+          k6: () => ({ ...PASSING_K6(), matchesPosted: 5, iterationsStarted: 3, droppedIterations: 1 }),
+        });
+        const result = await runLoad(scn.input);
+
+        assert.equal(result.exitCode, 0, 'three errors in about a thousand requests still pass');
+        assert.equal(result.summary.steps[0].errors, 3, 'two lost assignments and one dropped arrival');
+        assert.equal(
+          result.summary.steps[0].errorRatio,
+          3 / (1000 + 100),
+          'the ratio is the formula over the counted errors',
+        );
+        assert.equal(
+          JSON.parse(scn.docker.state.plans[0]).offsets.tailSeconds,
+          10,
+          'the plan carries the 10 s tail',
+        );
+        assertClean(scn);
+      },
+    );
+
+    await t.test('matches that all started an iteration add no error', async () => {
+      const scn = scenario({
+        profile: 'smoke',
+        k6: () => ({
+          ...PASSING_K6(),
+          errors: 2,
+          matchesPosted: 5,
+          iterationsStarted: 5,
+          droppedIterations: 0,
+        }),
+      });
+      const result = await runLoad(scn.input);
+
+      assert.equal(result.summary.steps[0].errors, 2, 'only the window errors of k6');
+    });
+  },
+);
 
 test('LB_SAMPLE lines are the latency samples of a step', () => {
   assert.deepEqual(

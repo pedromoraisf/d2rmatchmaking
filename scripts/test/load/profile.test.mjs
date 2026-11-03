@@ -53,6 +53,22 @@ test('smoke profile', () => {
   assert.equal(nextStep('smoke', [{ passed: true }]), null, 'the smoke profile has no step after its one');
 });
 
+test('the tail follows the window of every step', () => {
+  // 10 s after the window: the 5 s rule plus 5 s of slack, so every observation made in the window settles before the close.
+  for (const name of ['full', 'smoke']) {
+    for (const step of profileFor(name).steps) {
+      assert.equal(step.tailSeconds, 10, `${name}: the tail is 10 s`);
+      assert.equal(
+        step.k6DurationSeconds,
+        step.windowOffsets.end + 10,
+        `${name}: k6 runs to the window end plus the tail`,
+      );
+    }
+  }
+  assert.equal(profileFor('full').steps.at(-1).k6DurationSeconds, 150, 'the 400-player step closes at 150 s');
+  assert.equal(profileFor('smoke').steps[0].k6DurationSeconds, 60, 'the smoke step closes at 60 s');
+});
+
 test('an unknown profile is refused', () => {
   assert.throws(() => profileFor('stress'), TypeError);
 });

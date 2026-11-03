@@ -37,7 +37,7 @@ import {
   volumeArgs,
   volumeNameOf,
 } from './lib/container-spec.mjs';
-import { errorRatio } from './lib/error-ratio.mjs';
+import { errorRatio, errorsOfStep } from './lib/error-ratio.mjs';
 import {
   API_IMAGE_TAG,
   K6_IMAGE_TAG,
@@ -84,6 +84,9 @@ const STEP_COUNTERS = [
   'meterBytes',
   'sinkBytes',
   'windowSeconds',
+  'matchesPosted',
+  'iterationsStarted',
+  'droppedIterations',
 ];
 const SAMPLE_LINE = /msg="LB_SAMPLE ([0-9][0-9.eE+-]*)"/gu;
 
@@ -658,6 +661,7 @@ async function writePlan(ctx, step, players) {
       windowStartSeconds: step.windowOffsets.start,
       windowEndSeconds: step.windowOffsets.end,
       holdSeconds: step.holdSeconds,
+      tailSeconds: step.tailSeconds,
     },
     matchEverySeconds: MATCH_EVERY_SECONDS,
     control: {
@@ -765,8 +769,16 @@ async function runStep(ctx, step, provisioned) {
   const rooms = await roomsCreated(ctx);
 
   const healthy = containerOk(before, after);
-  const ratio = errorRatio({
+  // The step's errors: the window's k6 errors, plus the whole step's lost assignments and dropped arrivals (design.md
+  // Revision 1, (d)).
+  const stepErrors = errorsOfStep({
     errors: measured.errors,
+    matchesPosted: measured.matchesPosted,
+    iterationsStarted: measured.iterationsStarted,
+    droppedIterations: measured.droppedIterations,
+  });
+  const ratio = errorRatio({
+    errors: stepErrors,
     requests: measured.requests,
     iterations: measured.iterations,
   });
@@ -777,7 +789,7 @@ async function runStep(ctx, step, provisioned) {
     players: step.players,
     latencyP95Ms: latency,
     latencyCount: latencySamplesMs.length,
-    errors: measured.errors,
+    errors: stepErrors,
     requests: measured.requests,
     iterations: measured.iterations,
     errorRatio: ratio,
