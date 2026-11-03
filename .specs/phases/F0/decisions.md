@@ -207,6 +207,14 @@ Resolved: the maintainer reset the dispatch and the gate; T54 (3457c73, `@NFR-09
 - AD-107 (assumed): `network.peer.address` and `network.peer.port` are dropped from exported spans under OBS-29's "client address is dropped"; no new requirement ID was appended to the approved spec. Confirm at the review, or ask for an OBS ID.
 - Verifier finding 2 (minor, ADR 026): the relay's `admit` decision moves into a pure function with a unit test at 1 MiB and 1 MiB + 1; behaviour unchanged.
 
+## Blocked: observability-e2e, verification gate (2026-11-03)
+
+`gate:observability-e2e/verification` is at 3 of 3 failures; the fix pass (execute-batch-7) spent it on `pnpm format:check`, which failed on the Verifier's untracked `verification.md` and `mutations.json` (not Prettier-formatted). No code defect: the worker ran the closing format check before formatting them. The wrong step name (`verification`, since `fix` is not in the closed list) put those runs on the verification unit.
+
+- **State**: fix 1 (AD-107, network peer address and port) is committed (f8dce34). Fix 2 (the relay's `bodyRefusal` pure function and `telemetry-relay.test.ts`, 9 tests, green) is written and uncommitted, because the commit gate refuses commits while the feature has a blocked unit. The Closed cells of the two findings are empty; the Verifier's verdict is FAIL until they are filled.
+- **Needs the maintainer**: `node scripts/attempt.mjs reset --unit gate:observability-e2e/verification --by pedromoraisf`. Then the runner formats the two Verifier files, commits fix 2, fills `Closed`, re-runs `check_proofs.py` and `--mutations`, and runs `validate_verification.py` once.
+- **Phase effect**: `load-baseline` depends on `observability-e2e`, so the phase is blocked (an escalation).
+
 ## Queued for F1 (from the api-web-skeleton security review)
 
 - Global ceiling on failed pairing-code submissions across accounts, and a rate limit on token claims (the F0 limits are the spec's, AD-032 and AD-041).

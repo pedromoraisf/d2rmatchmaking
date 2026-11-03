@@ -1,0 +1,72 @@
+[
+  {
+    "file": "apps/api/src/platform/http/relay-budget.ts",
+    "old": "ACCOUNT_REQUESTS_PER_MINUTE = 60;",
+    "new": "ACCOUNT_REQUESTS_PER_MINUTE = 61;",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run src/platform/http/relay-budget.test.ts -t \"refuses the sixty-first request in a minute\"",
+    "label": "per-account relay limit 60 -> 61"
+  },
+  {
+    "file": "apps/api/src/platform/http/relay-limiter.ts",
+    "old": "ADDRESS_LIMIT = 120;",
+    "new": "ADDRESS_LIMIT = 121;",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run src/platform/http/relay-limiter.test.ts -t \"counts credential-less requests per address and refuses the 121st\"",
+    "label": "address relay limit 120 -> 121"
+  },
+  {
+    "file": "packages/telemetry/src/redact-attributes.ts",
+    "old": "value.split(/[?#]/, 1)",
+    "new": "value.split(/[?]/, 1)",
+    "proof": "pnpm --filter @d2rmm/telemetry exec vitest run src/redact-attributes.test.ts -t \"removes the query string and the fragment from url attributes and drops the client address\"",
+    "label": "URL fragment no longer removed"
+  },
+  {
+    "file": "packages/telemetry/src/redact-attributes.ts",
+    "old": "lower.startsWith('enduser.')",
+    "new": "lower.startsWith('enduser_')",
+    "proof": "pnpm --filter @d2rmm/telemetry exec vitest run src/redact-attributes.test.ts -t \"removes the query string and the fragment from url attributes and drops the client address\"",
+    "label": "enduser.* attributes kept"
+  },
+  {
+    "file": "packages/telemetry/src/redact-attributes.ts",
+    "old": "lower === 'user_agent.original' ||",
+    "new": "false ||",
+    "proof": "pnpm --filter @d2rmm/telemetry exec vitest run src/redact-attributes.test.ts -t \"removes the query string and the fragment from url attributes and drops the client address\"",
+    "label": "user_agent.original kept"
+  },
+  {
+    "file": "apps/api/src/platform/http/guards.ts",
+    "old": "if (request.headers.origin !== deps.siteOrigin) {\n        return reply.code(403).send({ error: 'forbidden' });\n      }\n      request.accountId",
+    "new": "if (false) {\n        return reply.code(403).send({ error: 'forbidden' });\n      }\n      request.accountId",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run src/platform/http/guards.test.ts -t \"a missing, wrong, slash-suffixed or subdomain origin gets 403\"",
+    "label": "relay session origin check removed"
+  },
+  {
+    "file": "apps/api/src/modules/lobby-room/application/lobby-room-use-cases.ts",
+    "old": "openedAt.getTime()) / 1000;",
+    "new": "openedAt.getTime()) / 100;",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run src/modules/lobby-room/application/lobby-room-use-cases.test.ts -t \"records room.stage_duration once with the seconds since the room opened\"",
+    "label": "stage duration unit"
+  },
+  {
+    "file": "apps/agent/src-tauri/adapters/src/telemetry/queue.rs",
+    "old": "SPAN_QUEUE_CAPACITY: usize = 2048;",
+    "new": "SPAN_QUEUE_CAPACITY: usize = 2049;",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib -E 'test(a_full_queue_of_2048_drops_the_oldest_span)'",
+    "label": "agent span queue 2048 -> 2049"
+  },
+  {
+    "file": "apps/agent/src-tauri/adapters/src/telemetry/relay_client.rs",
+    "old": "            let wait = retry_after\n                .unwrap_or(DEFAULT_RETRY_AFTER)\n                .min(MAX_RETRY_AFTER);",
+    "new": "            let wait = retry_after\n                .unwrap_or(DEFAULT_RETRY_AFTER);",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib -E 'test(status_429_waits_for_retry_after_capped_at_one_hour)'",
+    "label": "Retry-After cap removed"
+  },
+  {
+    "file": "apps/agent/src-tauri/adapters/src/telemetry/sanitize.rs",
+    "old": ".filter(|attribute| ALLOWED_ATTRIBUTE_KEYS.contains(&attribute.key.as_str()))",
+    "new": ".filter(|attribute| ALLOWED_ATTRIBUTE_KEYS.contains(&attribute.key.as_str()) || attribute.key.as_str() == \"http.url\")",
+    "proof": "cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib -E 'test(drops_window_title_process_path_screen_text_urls_events_with_paths_and_status_text)'",
+    "label": "agent sanitizer keeps http.url"
+  }
+]
