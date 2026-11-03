@@ -50,6 +50,32 @@ function isIdentityEncoding(value: string | undefined): boolean {
   return value === undefined || value.trim().toLowerCase() === 'identity';
 }
 
+/** The body headers the relay decides on before the body is read. */
+export interface BodyHeaders {
+  readonly contentType: string | undefined;
+  readonly contentEncoding: string | undefined;
+  readonly contentLength: string | undefined;
+}
+
+/**
+ * The refusal the body headers earn, or `undefined` when the body may be read. The media type and the encoding are checked
+ * first (415), then the declared length (413), so a bad type with an oversized body answers 415. Pure: no request, no reply.
+ */
+export function bodyRefusal(headers: BodyHeaders): 413 | 415 | undefined {
+  const contentType = mediaTypeOf(headers.contentType);
+  if (
+    contentType === undefined ||
+    !CONTENT_TYPES.has(contentType) ||
+    !isIdentityEncoding(headers.contentEncoding)
+  ) {
+    return 415;
+  }
+  if (Number(headers.contentLength ?? 0) > RELAY_BODY_LIMIT_BYTES) {
+    return 413;
+  }
+  return undefined;
+}
+
 function secondsUntil(clock: Clock, at: Date): number {
   return Math.max(1, Math.ceil((at.getTime() - clock.now().getTime()) / 1000));
 }
@@ -117,15 +143,15 @@ export async function telemetryRelayPlugin(app: FastifyInstance, deps: Telemetry
       return tooManyRequests(reply, verdict.retryAfterSeconds);
     }
 
-    const contentType = mediaTypeOf(request.headers['content-type']);
-    if (
-      contentType === undefined ||
-      !CONTENT_TYPES.has(contentType) ||
-      !isIdentityEncoding(request.headers['content-encoding'])
-    ) {
+    const refusal = bodyRefusal({
+      contentType: request.headers['content-type'],
+      contentEncoding: request.headers['content-encoding'],
+      contentLength: request.headers['content-length'],
+    });
+    if (refusal === 415) {
       return reply.code(415).send({ error: 'unsupported-media-type' });
     }
-    if (Number(request.headers['content-length'] ?? 0) > RELAY_BODY_LIMIT_BYTES) {
+    if (refusal === 413) {
       return reply.code(413).send({ error: 'payload-too-large' });
     }
     return undefined;
