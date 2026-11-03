@@ -61,7 +61,7 @@ Project rules for every task of this feature:
 
 ## Execution Plan
 
-Phases run in order; tasks within a phase run in order. Batches (whole phases): 1 = Phase 1 (the spike alone, so an escalation comes before any other work), 2 = Phase 2, 3 = Phases 3 and 4, 4 = Phases 5 and 6, 5 = Phases 7 and 8, 6 = Phase 9 (the Docker runs).
+Phases run in order; tasks within a phase run in order. Batches (whole phases): 1 = Phase 1 (the spike alone, so an escalation comes before any other work), 2 = Phase 2, 3 = Phases 3 and 4, 4 = Phases 5 and 6, 5 = Phases 7 and 8 (run as batches 5 and 6), 7 = the first smoke attempt (T32, which found the three points of design.md Revision 1), 8 = Phase 9 (the fixes T34 to T36, replanned 2026-11-03), 9 = Phase 10 (the Docker runs T32 and T33).
 
 ### Phase 1: Spike
 
@@ -111,7 +111,13 @@ T24 → T25 → T26 → T27
 T28 → T29 → T30 → T31
 ```
 
-### Phase 9: Runs
+### Phase 9: Findings of the first real run
+
+```
+T34 → T35 → T36
+```
+
+### Phase 10: Runs
 
 ```
 T32 → T33
@@ -727,13 +733,72 @@ T32 → T33
 
 ---
 
-### Phase 9: Runs
+### Phase 9: Findings of the first real run
+
+### T34: Certificate container and volume
+
+**What**: Make the throwaway TLS material in a pinned `alpine/openssl` container, into a per-run named volume (design.md Revision 1, point 1).
+**Where**: `scripts/load/lib/container-spec.mjs` (modify; tests in `scripts/test/load/container-spec.test.mjs`; `images.mjs`, `cleanup-plan.mjs` and `orchestrate.mjs` change with it)
+**Depends on**: T31
+**Reuses**: the Postgres TLS builder of T16 and the CA copy of T26; `images.mjs`
+**Requirement**: LB-01, LB-19
+
+**Done when**:
+
+- [ ] `images.mjs` pins `alpine/openssl` by `@sha256:` digest (look it up with `docker buildx imagetools inspect`, never guess); a builder returns the argument array of the certificate container (labelled, named, the volume mounted at `/tls`, no published port, no network needed) whose command creates the CA and the server certificate for the Postgres container's name, signs it, deletes the CA key, sets the key to uid 70 and mode 0600 and the directory to mode 0755; the Postgres builder mounts the volume read-only at `/tls` and no longer runs `openssl`; no password or key appears in an argument
+- [ ] `cleanupPlan` lists the volume; `orchestrate.mjs` creates the volume, runs the certificate container before Postgres, copies only the public CA out of the stopped certificate container with `docker cp`, and removes the volume on every exit path (the fake `Docker` port of the sequence tests records it)
+- [ ] The existing tests of T16, T18 and T26 keep their names and claims; the "Postgres with TLS" test now asserts the certificate container and the read-only volume (the claim of C33 is unchanged)
+- [ ] Gate passes: the Quick gate
+
+**Tests**: unit
+**Gate**: Quick
+
+---
+
+### T35: Pending observation at the end of a stream
+
+**What**: Evaluate the 5 s `created` rule where the frame or the end arrives, without a timer.
+**Where**: `scripts/load/lib/journey-state.mjs` (modify; tests in `scripts/test/load/journey-state.test.mjs`)
+**Depends on**: T34
+**Reuses**: T20's state machine
+**Requirement**: LB-05, LB-08
+
+**Done when**:
+
+- [ ] `onCreated` with a latency above 5 000 ms returns `timed-out` with exactly one error and no latency sample (a frame at 4 999 ms stays a latency, at 5 001 ms an error); `onClose(state, nowMs)` returns `timed-out` with one error when an observation is pending and `nowMs` is 5 000 ms or more after it, and the same state with no error when it is younger or no observation was sent; `onTick` keeps its behaviour; the module still has no Node import and no optional chaining or object spread
+- [ ] Tests named as in `## Checks` pass: the Quick gate
+
+**Tests**: unit
+**Gate**: Quick
+
+---
+
+### T36: A journey without timers inside a stream
+
+**What**: Move the match to its own scenario, end streams by the `timeout` argument and use `onClose`.
+**Where**: `scripts/load/k6/journey.mjs` (modify; the static test extends `scripts/test/load-scripts.test.mjs`)
+**Depends on**: T35
+**Reuses**: T24, design.md Revision 1; the three fixes already in the worktree (`iterationInInstance`)
+**Requirement**: LB-03, LB-05, LB-09
+
+**Done when**:
+
+- [ ] No `setTimeout`, `setInterval` or `clearInterval` is created inside an `sse.open` handler; the `site` and `agent` scenarios open their stream with the `timeout` argument set to the remaining time of the step; a `match` scenario (`constant-arrival-rate`, players ÷ 60 per second, `startTime` at the end of the ramp) posts the test match of player `iteration mod players` with the player's cookie and `Origin`; the site handler calls `onClose` when the stream ends and counts its error; `heartbeat` and `control` stay as they are
+- [ ] The static test names the rules: "journey uses no timers while a stream is open" (no timer call inside an `sse.open` callback, a `match` scenario, the `timeout` argument); `node --check scripts/load/k6/journey.mjs` passes
+- [ ] Gate passes: the Static gate
+
+**Tests**: unit (static)
+**Gate**: Static
+
+---
+
+### Phase 10: Runs
 
 ### T32: Smoke run
 
 **What**: Run the smoke profile for real and check its summary.
 **Where**: `scripts/load/check/smoke-summary.check.mjs`
-**Depends on**: T31
+**Depends on**: T36
 **Reuses**: `reports/load/smoke-summary.json`
 **Requirement**: LB-01, LB-02, LB-03, LB-05, LB-09, LB-19
 
@@ -869,7 +934,7 @@ Proof: `node --test "--test-name-pattern=limits and strict values" scripts/test/
 **C32** - The API environment is an allow-list with the real clock, the staging endpoints, no acceptance controls, the loopback exporter and the CA path, and the staging variables are on no other container (LB-02, AC 2)
 Proof: `node --test "--test-name-pattern=API environment allow-list" scripts/test/load/container-spec.test.mjs`
 
-**C33** - Postgres starts with TLS from a certificate made inside the container and a password from an env-file (LB-01, AC 1)
+**C33** - Postgres starts with TLS from a certificate made inside a container and never on the host, mounted read-only from a per-run volume, and a password from an env-file (LB-01, AC 1)
 Proof: `node --test "--test-name-pattern=Postgres with TLS" scripts/test/load/container-spec.test.mjs`
 
 **C34** - Only `127.0.0.1` ports are published, never for the API, Postgres or k6; no host network, privileged mode or socket mount (LB-01, AC 1; LB-02, AC 2)
@@ -917,6 +982,15 @@ Proof: `pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.che
 **C48** - The full run passes: 100 players or more inside 2 s p95 with fewer than 1% errors, the numbers published in `reports/load/summary.json`, the telemetry share at most 0.10 (LB-10, LB-11, LB-13, LB-14, LB-15, LB-21, LB-22; Success Criteria)
 Proof: `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`
 
+**C49** - A `created` frame later than 5 000 ms after its observation is one error and no latency sample, an observation still pending 5 000 ms or more when the stream ends is one error, and a younger one is none (LB-05, AC 5; LB-08 edge case)
+Proof: `node --test "--test-name-pattern=pending observation at the end of a stream" scripts/test/load/journey-state.test.mjs`
+
+**C50** - The throwaway TLS material is made in a pinned `alpine/openssl` container into a per-run volume, which the cleanup plan removes (LB-01, AC 1; LB-19, AC 3)
+Proof: `node --test "--test-name-pattern=certificate container and volume" scripts/test/load/container-spec.test.mjs`
+
+**C51** - The journey creates no JavaScript timer inside a stream handler, posts the matches from its own scenario and ends streams with the `timeout` argument (LB-03, AC 3; LB-05, AC 5)
+Proof: `node --test "--test-name-pattern=journey uses no timers while a stream is open" scripts/test/load-scripts.test.mjs`
+
 ---
 
 ## Handoff
@@ -948,7 +1022,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - `publishPlan(summary)` returns `{ allowed, text | reason }`; `writeSummary(fs, dir, summary)` is async and returns the target path; `runIdFrom(randomInt)` takes a `crypto.randomInt`-shaped function; `buildSummary` takes `times: { startedAt, endedAt }`; `failure.step` is the player count.
 - After batch 4 (accepted by the orchestrator): the images the run builds itself are local tags `d2rmm-load-api:f0` and `d2rmm-load-k6:f0` without a digest (an image id changes with every build); their pins are the `FROM` digests, and T28's static test checks the `FROM` lines and every pulled image reference, not these two tags. `images.mjs` holds `postgres:17-alpine@sha256:266d3c25…`, `node:26-alpine@sha256:c6ad9e9c…`, `node:26-bookworm-slim@sha256:bc0a2afd…`, `golang:1.27.1-alpine@sha256:8a5910f3…`, `grafana/k6:2.3.0@sha256:2dd4756e…`. The API image runs as `USER node`. `.dockerignore` re-includes `apps/web/package.json`, `apps/agent/package.json` and `tests/acceptance/package.json` for the frozen install (T32 confirms the build). `journey-state.mjs`: `start()` returns `waiting-assigned` (no `idle` phase), each transition returns the next state with `latencyMs` and `errors` in it, `onStatus(state, status)` counts a non-2xx. `cleanupPlan` returns `{ containers, networks, directories }`; `sweepPlan(found, { uid })`. `scripts/load/containers/control.mjs` holds the shared control endpoints (bearer, `Host`, routes), `flagsOf` and `readToken`; the meter and sink take `--listen`, `--upstream`, `--control`, `--token-file`. `attempt.mjs` runs gates with no timeout: a test that can hang needs its own timeout.
 - Lint: ESLint runs inside the quoted gate command (a direct `pnpm exec eslint` is denied by the hook); `pnpm exec prettier --write` is a direct call.
-  **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03, `returned` (T1 committed 8cfe8e3); execute-batch-2 (T2 to T8) at HEAD 8cfe8e3, 2026-11-03, `returned` (T2 to T8 committed, last 3652068); execute-batch-3 (T9 to T17) at HEAD 3652068, 2026-11-03, `returned` (T9 to T17 committed, last c5975ec); execute-batch-4 (T18 to T23) at HEAD 6580fd8, 2026-11-03, `returned` (T18 to T23 committed, last 35feb02); execute-batch-5 (T24 to T27, Phase 7) at HEAD 35feb02, 2026-11-03, `returned` (T24 to T27 committed, last 7a5c8b3); execute-batch-6 (T28 to T31, Phase 8) at HEAD 7a5c8b3, 2026-11-03
+  **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03, `returned` (T1 committed 8cfe8e3); execute-batch-2 (T2 to T8) at HEAD 8cfe8e3, 2026-11-03, `returned` (T2 to T8 committed, last 3652068); execute-batch-3 (T9 to T17) at HEAD 3652068, 2026-11-03, `returned` (T9 to T17 committed, last c5975ec); execute-batch-4 (T18 to T23) at HEAD 6580fd8, 2026-11-03, `returned` (T18 to T23 committed, last 35feb02); execute-batch-5 (T24 to T27, Phase 7) at HEAD 35feb02, 2026-11-03, `returned` (T24 to T27 committed, last 7a5c8b3); execute-batch-6 (T28 to T31, Phase 8) at HEAD 7a5c8b3, 2026-11-03, `returned` (T28 to T31 committed, last 67138a4); execute-batch-7 (T32, the smoke run) at HEAD f61cf3e, 2026-11-03
   **Walked:** none
 
 **Batch 5 (execute-batch-5, T24 to T27, implementer):** contracts for T28 to T33 and the mismatches with design.md.
@@ -968,12 +1042,21 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - Notes for T32 and T33: `publish.mjs` writes `docs/engineering/load-baseline.md` through a `.<pid>.tmp` file and a rename, and a refusal writes nothing. The acceptance steps give the child its own `TMPDIR`, so the run's lock and sweep never touch the real tmp. The `docker` shim is never asked for `run` or `create` in these scenarios.
 - Gate hook: a direct `pnpm --filter @d2rmm/acceptance typecheck` was denied (denial 1 of 3, not retried). It passed through `attempt.mjs` under T30. The T30 gate's `--grep "@LB-16\|@LB-17\|@LB-18"` was denied as an unquoted pipe; the same pattern in single quotes passed (9 scenario examples).
 
+**Batch 7 (execute-batch-7, T32, implementer): BLOCKED, nothing committed.** The T32 gate has not run; the smoke runs were exploratory (`LOAD_PROFILE=smoke node scripts/load/run.mjs`, the same command as `pnpm test:load:smoke`, because the gate hook denied `pnpm test:load:smoke` by name, denial 1 of 3, not retried).
+
+- Fixed in the worktree, uncommitted (real defects, no design change): `api.Dockerfile` installs `corepack@0.36.0` before the unchanged `RUN corepack enable && pnpm install ...` line (`node:26-bookworm-slim` has npm but no corepack, so the image did not build); `container-spec.mjs` `chmod 755 /tls` (the directory made under `umask 077` was 0700 root, so postgres logged `could not load server certificate file: Permission denied`); `journey.mjs` reads `exec.scenario.iterationInInstance` (k6 2.3 has no `iterationInScenario`: every player index was undefined).
+- Proved in the exploratory runs: the API image builds; the API starts from `main/render.ts` and migrates over `verify-full` with `NODE_EXTRA_CA_CERTS`; the API exports to the sink (sink bytes 15220); the meter counts API bytes in its window (3358); control calls with the explicit `Host` header get 200; the provisioning, pairing and claim calls work for 5 players; `match-formed` and the observations get 202; 5 rooms reach `created` in psql; `docker stats` parses; the 0600 token file is readable by the meter and the sink; the `docker ps`/`network ls` filters and the SIGTERM path leave no container, network or directory.
+- **Blocker 1, openssl (design fallback needed):** `openssl` is absent from `postgres:17-alpine` (exit 127). A runtime `apk add --no-cache openssl` works (OpenSSL 3.5.9) and was used only in a diagnostic run, reverted. The design fallback (an `alpine/openssl` container feeding a volume) moves the certificate out of the Postgres command, and C33's test pins `openssl req -x509` inside that command, so it needs a decision on the test.
+- **Blocker 2, SSE timers (design mechanism does not hold):** k6 2.3 with xk6-sse 0.2.0 runs the stream handlers in its Go control loop, and `setTimeout`/`setInterval` created in an `sse.open` callback never fire while the stream is open. The k6 log shows `setTimeout 2 was stopped because the VU iteration was interrupted` and `setInterval 1 ...`, and the streams run to the scenario's 1m50s instead of 50 s. Affected: the stream close at the step's end, the match every 60 s (`setInterval`), and the 5 s `created` timeout. The extension's `sse.open` has a `timeout` argument (Go `http.Client.Timeout`, `xk6-sse` `sse.go`), which could end a stream on time without a JS timer; it is not yet proved (the isolated probe was denied by the auto-mode classifier and not retried). The matches could come from a separate sleep-based scenario; the 5 s rule cannot be enforced inside a held stream without a decision (evaluate at stream end, or reopen the stream per iteration, the design's risk fallback).
+- **Blocker 3, smoke window geometry:** a match is posted when a stream opens, during the ramp (0 to 16 s), and the smoke window is 20 to 50 s (AD-118), so no measured iteration or `room.assigned` frame exists (`iterations: 0`, `latencyCount: 0`, `failedRule: latency`). The next match would be at 60 s. T32 requires latency samples and `agentAssignedFrames` above 0, so the window or the first-match timing needs a decision.
+- Not proved: the `LB_SAMPLE` capture (no sample in the window), the 5 s timeout, the `timeout` argument of `sse.open`.
+
 ---
 
 ## Phase Execution Map
 
 ```
-Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 → Phase 8 → Phase 9
+Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 → Phase 8 → Phase 9 → Phase 10
 
 Phase 1:  T1
 Phase 2:  T2 ------→ T3 ------→ T4 ------→ T5 ------→ T6 ------→ T7 ------→ T8
@@ -983,7 +1066,8 @@ Phase 5:  T18 -----→ T19 -----→ T20
 Phase 6:  T21 -----→ T22 -----→ T23
 Phase 7:  T24 -----→ T25 -----→ T26 -----→ T27
 Phase 8:  T28 -----→ T29 -----→ T30 -----→ T31
-Phase 9:  T32 -----→ T33
+Phase 9:  T34 -----→ T35 -----→ T36
+Phase 10: T32 -----→ T33
 ```
 
 Execution is strictly sequential - there is no intra-phase parallelism.

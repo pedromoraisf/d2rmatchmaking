@@ -96,6 +96,9 @@ review. Reversals become tasks in a follow-up feature.
 | AD-114 | load-baseline | k6 built with the `phymbert/xk6-sse` extension into a pinned image; no runtime auto-provisioning | auto-provisioning (a runtime network call) | |
 | AD-115 | load-baseline | A tool failure is written to `error`, not to the four `failure` rules | fold it into `failure` | |
 | AD-116 | load-baseline | Telemetry bytes are counted on the wire at the sink, headers included, in the meter's window | count bodies only | |
+| AD-122 | load-baseline | Matches start when the ramp ends so every window contains matches (completes AD-118) | a different smoke hold | |
+| AD-121 | load-baseline | No JavaScript timer runs while a stream is open: the match comes from an arrival-rate scenario, streams end by `sse.open`'s `timeout`, the 5 s `created` rule is evaluated at the frame or at the end of the stream | a k6 or extension version whose timers fire | |
+| AD-120 | load-baseline | The throwaway TLS material is made in a pinned `alpine/openssl` container into a per-run volume (postgres:17-alpine has no openssl) | `apk add openssl` at run time (unpinned) | |
 | AD-119 | load-baseline | Latency samples leave k6 as `LB_SAMPLE <ms>` log lines read by the orchestrator (not through `handleSummary`); an iteration still waiting for its assignment when the next match starts counts one error | samples through a k6 output file | |
 | AD-118 | load-baseline | The measuring window is an offset pair on k6's clock (full: 50 s to 140 s); the smoke window is its whole 30 s hold | a shorter or longer smoke hold | |
 | AD-117 | load-baseline | The run also refuses a remote `DOCKER_HOST`, a non-default `DOCKER_CONTEXT` and inherited `OTEL_*`; the API environment is an allow-list | LB-17 limited to the two named variables | |

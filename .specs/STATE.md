@@ -1074,6 +1074,33 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-03
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-120 (assumed)
+
+- **Decision**: the throwaway TLS CA and server certificate are made by a short-lived container of a pinned `alpine/openssl` image into a per-run named volume (labelled, removed by the cleanup), which Postgres mounts read-only; only the public CA is copied out.
+- **Reason**: the first real run showed `postgres:17-alpine` has no `openssl`; the design's named fallback applies. `apk add` at run time would fetch unpinned code.
+- **Trade-off**: one more image and one more step before Postgres.
+- **Scope**: load-baseline / LB-01
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-121 (assumed)
+
+- **Decision**: no JavaScript timer runs while an SSE stream is open (k6 2.3 with xk6-sse 0.2.0 stops them): the test match comes from a `match` arrival-rate scenario (players ÷ 60 per second from the end of the ramp), streams end through the `timeout` argument of `sse.open`, and the 5 s `created` rule is evaluated where the frame or the end of the stream arrives (a late frame, or an observation still pending 5 s or more at the end, is one error).
+- **Reason**: the run showed `setTimeout`/`setInterval` created in an `open` callback never fire; the iteration outcome stays the spec's, only the moment an error is counted moves.
+- **Trade-off**: an iteration that never gets its frame is counted when its stream ends, not 5 s after its observation.
+- **Scope**: load-baseline / LB-03, LB-05, LB-08
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-122 (assumed)
+
+- **Decision**: matches start when the ramp ends, so every measuring window contains matches (full: each player's first match between 20 s and 80 s, window 50 s to 140 s; smoke: one match every 12 s from 20 s, window 20 s to 50 s); this completes AD-118.
+- **Reason**: with the match posted when a stream opens (during the ramp) the smoke window had no iteration (T32).
+- **Trade-off**: the first minute of a full step has no matches in flight.
+- **Scope**: load-baseline / LB-05, LB-07, LB-09
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
