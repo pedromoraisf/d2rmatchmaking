@@ -74,7 +74,9 @@ export function classifyDockerFailure(error) {
       message: `${named} could not be built or pulled: check the image and the network, then run the load again`,
     };
   }
-  const original = redact(text.slice(0, UNRECOGNISED_TEXT_LIMIT));
+  // Redacted first, then cut: a secret that straddles the cut is never written partly. The end of a CLI text holds the
+  // reason (its pull or build progress comes first), so the end is kept.
+  const original = redact(text).slice(-UNRECOGNISED_TEXT_LIMIT);
   return {
     kind: 'docker-down',
     message: `Docker failed with an error the run does not recognise: ${original}`,

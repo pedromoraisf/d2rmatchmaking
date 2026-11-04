@@ -40,6 +40,10 @@ const STEP_KEYS = [
   'peakCpuPercent',
   'peakMemoryBytes',
   'roomsCreated',
+  'agentAssignedFrames',
+  'matchesPosted',
+  'iterationsStarted',
+  'droppedIterations',
   'containerOk',
   'passed',
   'failedRule',
@@ -59,6 +63,10 @@ const passing = (players, overrides = {}) => ({
   peakCpuPercent: 40,
   peakMemoryBytes: 300 * 2 ** 20,
   roomsCreated: players,
+  agentAssignedFrames: 400,
+  matchesPosted: 400,
+  iterationsStarted: 400,
+  droppedIterations: 0,
   containerOk: true,
   passed: true,
   failedRule: null,
@@ -208,6 +216,26 @@ test('no secret text in the summary', () => {
   assert.doesNotMatch(JSON.stringify(failed), /Bearer|d2rmm_a_|token|cookie|password/i);
   assert.equal(failed.passed, false);
   assert.equal(exitCodeOf(failed), 1);
+});
+
+test('step rows carry the accounting counts', () => {
+  const summary = run([
+    passing(25, { agentAssignedFrames: 90, matchesPosted: 25, iterationsStarted: 22, droppedIterations: 1 }),
+  ]);
+  const [row] = summary.steps;
+  assert.equal(row.agentAssignedFrames, 90, 'the agent stream frames of the step');
+  assert.equal(row.matchesPosted, 25, 'the matches posted (2xx) over the whole step');
+  assert.equal(row.iterationsStarted, 22, 'the iterations started over the whole step');
+  assert.equal(row.droppedIterations, 1, 'the arrivals k6 dropped');
+
+  for (const field of ['agentAssignedFrames', 'matchesPosted', 'iterationsStarted', 'droppedIterations']) {
+    assert.throws(
+      () => run([passing(25, { [field]: 'd2rmm_a_leak' })]),
+      TypeError,
+      `${field} is a count: secret text is refused, never written`,
+    );
+    assert.throws(() => run([passing(25, { [field]: -1 })]), TypeError, `${field} is not negative`);
+  }
 });
 
 test('a tool error is recorded and fails the run', () => {

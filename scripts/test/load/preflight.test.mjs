@@ -40,3 +40,19 @@ test('an unknown error is classified docker-down with the original text included
   assert.match(odd.message, /something odd happened/, 'the original text is included');
   assert.doesNotMatch(odd.message, /d2rmm_a_leaked/, 'the secret in the original text is redacted');
 });
+
+test('an unknown long error keeps its end, where the reason is, and redacts before it cuts', () => {
+  // A `docker run` prints its pull progress first and the reason last, so the end of the text is the part to keep.
+  const progress = 'Pulling fs layer\n'.repeat(60);
+  const long = classifyDockerFailure(`${progress}Error response from daemon: the mount is denied`);
+  assert.equal(long.kind, 'docker-down');
+  assert.match(long.message, /the mount is denied/, 'the reason at the end of the text is in the message');
+  assert.ok(long.message.length < 700, 'the message stays short');
+
+  const straddling = classifyDockerFailure(`${'a'.repeat(600)} Bearer d2rmm_a_leaked_secret_value`);
+  assert.doesNotMatch(
+    straddling.message,
+    /leaked|secret_value/,
+    'a secret at the cut is never partly written',
+  );
+});

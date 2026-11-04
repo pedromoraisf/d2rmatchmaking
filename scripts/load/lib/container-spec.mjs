@@ -57,8 +57,9 @@ const MIGRATE_ENTRY = ['node', 'apps/api/src/main/migrate.ts'];
 /**
  * The certificate container's script: a throwaway CA and a server certificate for the Postgres container's name (`$1`,
  * passed as an argument, never interpolated), signed by that CA. The CA key is deleted; the server key belongs to uid 70,
- * the `postgres` user of the Postgres image, at mode 0600; the directory is mode 0755 so Postgres can read it. The script
- * is a constant.
+ * the `postgres` user of the Postgres image, at mode 0600; the directory is mode 0755 so Postgres can read it. The mode is
+ * set before the owner: the container keeps only CHOWN, so root cannot change the mode of a key that uid 70 owns. The
+ * script is a constant.
  */
 const CERT_SCRIPT = [
   'set -eu',
@@ -69,8 +70,8 @@ const CERT_SCRIPT = [
   'printf "subjectAltName=DNS:%s\\n" "$1" > san.cnf',
   'openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 1 -extfile san.cnf -out server.crt',
   'rm -f ca.key ca.srl server.csr san.cnf',
-  'chown 70:70 server.key',
   'chmod 600 server.key',
+  'chown 70:70 server.key',
   'chmod 644 server.crt ca.crt',
 ].join('\n');
 

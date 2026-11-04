@@ -368,6 +368,17 @@ test('certificate container and volume', () => {
   assert.deepEqual(plan.volumes, [VOLUME], 'the volume is removed after the containers');
 });
 
+test('the server key is private before its owner changes', () => {
+  // The certificate container keeps only CHOWN (no FOWNER): once the key belongs to uid 70, root cannot change its mode,
+  // so the mode is set first and the owner second (a run of the smoke profile proved the failure).
+  const cert = builders().cert;
+  const script = cert[cert.indexOf(OPENSSL_IMAGE) + 2];
+  const mode = script.indexOf('chmod 600 server.key');
+  const owner = script.indexOf('chown 70:70 server.key');
+  assert.ok(mode > 0 && owner > 0, 'the key is set to mode 0600 and to uid 70');
+  assert.ok(mode < owner, 'the mode is set while root still owns the key');
+});
+
 /** A private-key block, assembled from pieces so that no scanner reads a key header in the source (a fake, never a key). */
 const KEY_BLOCK =
   '-----' + 'BEGIN ' + 'PRIVATE KEY' + '-----\nMIIB\n-----' + 'END ' + 'PRIVATE KEY' + '-----\n';
