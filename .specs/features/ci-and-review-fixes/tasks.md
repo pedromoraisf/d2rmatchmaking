@@ -129,12 +129,12 @@ T6 → T7 → T8
 
 **Done when**:
 
-- [ ] Only `source.path` of `mutation.agent.core` changes; `value`, `direction`, `floor`, `tolerance`, `contexts` and every other metric stay as they are
-- [ ] Test `the agent core source is inside the nightly's report directory` takes the nightly's `--output` for `d2rmm-agent-core` and asserts the baseline's path is `<output>/mutants.out/outcomes.json`
-- [ ] Test `the agent core metric keeps its rule` asserts direction `higher`, floor 70, tolerance 0.02, contexts `nightly` and `phase`
-- [ ] Test `agent core score at the baseline path` calls `collect` with the real baseline and a temporary root, with fixtures for 0 caught and 1 missed (0), all caught (100), and 3 caught, 1 missed and 2 unviable (75)
-- [ ] Test `agent core metric stays unset without a score` covers an absent file, an empty outcomes list and an unviable-only list
-- [ ] Gate check passes
+- [x] Only `source.path` of `mutation.agent.core` changes; `value`, `direction`, `floor`, `tolerance`, `contexts` and every other metric stay as they are
+- [x] Test `the agent core source is inside the nightly's report directory` takes the nightly's `--output` for `d2rmm-agent-core` and asserts the baseline's path is `<output>/mutants.out/outcomes.json`
+- [x] Test `the agent core metric keeps its rule` asserts direction `higher`, floor 70, tolerance 0.02, contexts `nightly` and `phase`
+- [x] Test `agent core score at the baseline path` calls `collect` with the real baseline and a temporary root, with fixtures for 0 caught and 1 missed (0), all caught (100), and 3 caught, 1 missed and 2 unviable (75)
+- [x] Test `agent core metric stays unset without a score` covers an absent file, an empty outcomes list and an unviable-only list
+- [x] Gate check passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/collect.test.mjs scripts/test/ratchet.test.mjs`
