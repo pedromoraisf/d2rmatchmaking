@@ -62,7 +62,7 @@ T1
 ### Phase 2: Acceptance and metric fixes
 
 ```
-T2 → T3 → T9 → T10 → T4 → T5
+T2 → T3 → T9 → T11 → T12 → T13 → T10 → T4 → T5
 ```
 
 ### Phase 3: Review instructions
@@ -162,13 +162,77 @@ T6 → T7 → T8
 
 ---
 
+### T11: Pin the queue's emptiness
+
+**What**: A unit test that a queue holding an item is not empty.
+**Where**: `apps/agent/src-tauri/adapters/src/telemetry/queue.rs`
+**Depends on**: T9
+**Reuses**: The file's existing test module
+**Requirement**: CRF-29
+
+**Done when**:
+
+- [ ] Test `is_empty_is_false_once_a_span_is_queued` asserts `is_empty()` is true for a new queue and false after a push (kills `BoundedQueue::is_empty -> true`, `queue.rs:51`)
+- [ ] No production line changes
+- [ ] Gate check passes
+
+**Tests**: unit
+**Gate**: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib -E 'test(telemetry::queue)'`
+**Commit**: `test(agent): pin the telemetry queue's emptiness`
+
+---
+
+### T12: Pin the relay client's waits and its Debug output
+
+**What**: Unit tests for the two one-hour constants, the probe's next time, and the client's `Debug` text.
+**Where**: `apps/agent/src-tauri/adapters/src/telemetry/relay_client.rs`
+**Depends on**: T11
+**Reuses**: The file's existing test module and its `ExportState` helpers
+**Requirement**: CRF-29
+
+**Done when**:
+
+- [ ] Test `the_longest_retry_wait_is_one_hour` asserts `MAX_RETRY_AFTER` is 3600 s (kills `*` to `+`, `relay_client.rs:20`)
+- [ ] Test `a_refused_token_is_probed_once_an_hour` asserts `PROBE_INTERVAL` is 3600 s (kills `*` to `+`, `relay_client.rs:22`)
+- [ ] Test `the_next_probe_comes_one_interval_later` asserts that after a probe, `admit` holds just before `now + PROBE_INTERVAL` and sends at it (kills `+` to `-`, `relay_client.rs:93`)
+- [ ] Test `debug_output_names_the_client_and_nothing_else` asserts the text is exactly `RelayHttpClient`, so no header or token can reach a log (kills the `fmt` mutant, `relay_client.rs:148`)
+- [ ] No production line changes
+- [ ] Gate check passes
+
+**Tests**: unit
+**Gate**: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib -E 'test(telemetry::relay_client)'`
+**Commit**: `test(agent): pin the relay client's waits and its Debug output`
+
+---
+
+### T13: Pin the sanitizer's dropped count and resource keys
+
+**What**: Unit tests that a sanitized span reports no dropped attributes and that only the four allowed resource keys pass.
+**Where**: `apps/agent/src-tauri/adapters/src/telemetry/sanitize.rs`
+**Depends on**: T12
+**Reuses**: The file's existing test module and its span fixture
+**Requirement**: CRF-29
+
+**Done when**:
+
+- [ ] Test `a_sanitized_span_reports_no_dropped_attributes` starts from a span with a non-zero `dropped_attributes_count` and asserts 0 (kills the deleted field, `sanitize.rs:49`)
+- [ ] Test `only_the_allowed_resource_keys_pass` asserts true for each of `ALLOWED_RESOURCE_KEYS` and false for a key outside them, such as `host.name` (kills `sanitize_resource_key -> true`, `sanitize.rs:59`)
+- [ ] No production line changes
+- [ ] Gate check passes
+
+**Tests**: unit
+**Gate**: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib -E 'test(telemetry::sanitize)'`
+**Commit**: `test(agent): pin the sanitizer's dropped count and resource keys`
+
+---
+
 ### T10: Move the shared sampler vector into the adapters crate
 
 **What**: `git mv` the vector to `apps/agent/src-tauri/adapters/test-vectors/sampler.json`, and change the two paths that read it and the comment in `sampler.ts`.
 **Where**: `apps/agent/src-tauri/adapters/src/telemetry/mod.rs`
-**Depends on**: T9
+**Depends on**: T13
 **Reuses**: The existing tests `sampler_decisions_match_the_shared_vector` and the shared-vector test of `packages/telemetry/src/sdk/sampler.test.ts`, with their assertions untouched; `scripts/test/agent-mutation-scope.test.mjs`, where the new test goes
-**Requirement**: CRF-27, CRF-28
+**Requirement**: CRF-27, CRF-28, CRF-29
 
 **Done when**:
 
@@ -413,6 +477,9 @@ Proof: `pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acce
 **C39** - The agent job's upload keeps `if: always()`, so a missed mutant's score reaches the ratchet (AD-130)
 Proof: `node --test "--test-name-pattern=the agent job uploads its reports even when a command fails" scripts/test/nightly-workflow.test.mjs`
 
+**C40** - cargo-mutants reports no missed mutant on the adapters with `-- --lib` (CRF-29, AC 5)
+Proof: `mkdir -p reports/mutation && cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib`
+
 ---
 
 ## Handoff
@@ -420,10 +487,11 @@ Proof: `node --test "--test-name-pattern=the agent job uploads its reports even 
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** none
-**Dispatched:** `execute-batch-1` (T1 to T8) to `feature-worker`, returned at T4; `execute-batch-2` (T9, T10, T4 to T8) to `feature-worker`
+**Dispatched:** `execute-batch-1` (T1 to T8) to `feature-worker`, returned at T4; `execute-batch-2` (T9, T10, T4 to T8) to `feature-worker`, returned at T10; `execute-batch-3` (T11, T12, T13, T10, T4 to T8) to `feature-worker`
 **Walked:** none - no screen; the scenarios read the repository's files
 **Blocked:** `gate:ci-and-review-fixes/T4` (2 of 3 failures; the third would block it). The task as written cannot pass. Last error: `cargo test failed in an unmutated tree` for `d2rmm-agent-adapters`: `telemetry::tests::sampler_decisions_match_the_shared_vector` panics `the shared sampler vector: NotFound`. The test reads `CARGO_MANIFEST_DIR/../../../../packages/telemetry/test-vectors/sampler.json`, and cargo-mutants copies only `apps/agent/src-tauri` into its tree, so the file is outside the copy (exit 4). Attempt 1 failed because cargo-mutants does not create the `reports/mutation` parent of `--output` on a fresh checkout; attempt 2 added `mkdir -p reports/mutation &&` as the first segment of the script, and then ran domain (82 mutants: 62 caught, 20 unviable) and core (89 mutants: 59 caught, 30 unviable) with no missed mutant, before the adapters baseline failed. `pnpm quality:collect` on the written report gives `mutation.agent.core = 100`. Nothing committed for T4; `package.json` and `scripts/test/agent-mutation-scope.test.mjs` are uncommitted in the worktree. A fix needs a maintainer decision: move the vector into the crate, or let cargo-mutants see `packages/`; a skip or a weaker assertion is out of bounds. T5 (not started) also needs a replan: its `agent-mutation` job has the same missing-directory and adapters-baseline problems on a fresh runner, and its upload step has no `if: always()`, so a non-zero cargo-mutants exit (a missed mutant) skips the upload and the score never reaches the ratchet, which spec assumption AD-130 requires. T5 says `agent-mutation` unchanged, so the orchestrator must replan it. T6 to T8 not started.
 **Replanned (orchestrator, 2026-11-04):** the unit is not blocked: it stands at 2 of 3 with its last attempt kept for T4. Correction to the note above: the agent job's upload step does have `if: always()` (`nightly.yml`), so a missed mutant's score does reach the artifact; T5 now pins it. The vector moves into the adapters crate (AD-131, CRF-25 to CRF-28), through new tasks T9 and T10, which run before T4 so T10's gate proves the adapters' baseline without spending T4's last attempt. The uncommitted T4 work stays in the worktree.
+**Replanned again (orchestrator, 2026-11-04):** T10's gate failed once (1 of 3): the adapters' baseline passes, and cargo-mutants reports 114 mutants: 80 caught, 7 missed, 27 unviable. T11, T12 and T13 kill the 7 with unit tests (AD-132, CRF-29) before T10's gate runs again. The uncommitted T10 and T4 work stays in the worktree.
 
 ---
 
@@ -433,8 +501,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 Phase 1 → Phase 2 → Phase 3
 
 Phase 1:  T1
-Phase 2:  T2 → T3 → T9 → T10 → T4 → T5
+Phase 2:  T2 → T3 → T9 → T11 → T12 → T13 → T10 → T4 → T5
 Phase 3:  T6 → T7 → T8
 ```
 
-Execution is strictly sequential. Under ADR 025, `feature-worker` runs the tasks: `execute-batch-1` stopped at T4, and `execute-batch-2` runs T9, T10, T4 and the rest.
+Execution is strictly sequential. Under ADR 025, `feature-worker` runs the tasks: `execute-batch-1` stopped at T4, and `execute-batch-2` stopped at T10, and `execute-batch-3` runs T11, T12, T13, T10, T4 and the rest.

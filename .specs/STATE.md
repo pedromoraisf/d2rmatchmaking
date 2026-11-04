@@ -1182,6 +1182,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-04
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-132 (assumed)
+
+- **Decision**: the 7 mutants the adapters' run reports as missed are killed with unit tests in `queue.rs`, `relay_client.rs` and `sanitize.rs`, with no production change and no scope exclusion.
+- **Reason**: the mutants were hidden because the adapters' baseline had failed since `observability-e2e` added the vector test, so no run reached them. cargo-mutants exits non-zero on a missed mutant, so the nightly's job would stay red. Among them is `sanitize_resource_key -> true`, a privacy rule no `--lib` test pinned. The maintainer chose unit tests over a narrower scope for the same situation on 2026-11-02 (`agent-hexagonal-migration`, decisions.md). Tests only add a sensor and are reversible.
+- **Trade-off**: more scope than brief revision 3's sketch, and CRF-29 has no fresh `spec-reviewer` verdict because its dispatches are used up. Reversal: delete the tests, and the nightly's adapters step goes red.
+- **Scope**: ci-and-review-fixes / CRF-29
+- **Date**: 2026-11-04
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

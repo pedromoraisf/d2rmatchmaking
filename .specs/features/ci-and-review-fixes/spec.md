@@ -4,6 +4,8 @@
 
 **Amended by the runner** (assumed, AD-131; to confirm at the phase review): 2026-11-04, Execute found that the agent's mutation commands fail on a fresh runner and in the adapters' baseline, so the nightly's commands could not run as written. CRF-25 to CRF-28 are appended and no approved criterion is edited. They move one test vector into the adapters crate and change two test paths. This is the one exception to "harness files only" in Out of Scope; no product behaviour changes.
 
+**Amended again by the runner** (assumed, AD-132; to confirm at the phase review): 2026-11-04, once the adapters' baseline passed, cargo-mutants reported 7 missed mutants of 114 that no run had ever shown. CRF-29 is appended. It adds unit tests in the adapters' telemetry modules and no production change. `dispatch:ci-and-review-fixes/review-spec` has used its three dispatches, so CRF-29 has no fresh `spec-reviewer` verdict.
+
 ## Problem Statement
 
 The F0 review found three harness defects. The CI `integration` job runs the acceptance suite with no site build, so its first run should fail with `the site is not built`. The quality baseline reads `reports/mutation/agent-core/outcomes.json` while cargo-mutants writes `reports/mutation/agent-core/mutants.out/outcomes.json`, and the nightly ratchet job never receives the report, so the agent's mutation score is never compared. The review step runs `validate_verification.py` on the phase branch, where it cannot pass after a merge and spends retry budget each time. These must be fixed before `phase/F0` is pushed. Source: `.specs/phases/F0/brief-revision-3.md`, approved by the maintainer on 2026-11-04.
@@ -163,6 +165,7 @@ Every ambiguity is resolved or recorded here - nothing is left silently unclear.
 2. CRF-26: `pnpm test:mutation:agent` SHALL create `reports/mutation` before its first cargo-mutants command
 3. CRF-27: The shared sampler vector SHALL live in `apps/agent/src-tauri/adapters/test-vectors/sampler.json`, and the adapters' unit test SHALL read it from there
 4. CRF-28: The TypeScript sampler test SHALL read that same file, so the parity between the senders (AD-102) stays proved by one vector
+5. CRF-29: WHEN cargo-mutants runs on `d2rmm-agent-adapters` with `-- --lib` THEN the system SHALL report no missed mutant, with no test weakened and no scope narrowed
 
 **Independent Test**: run cargo-mutants on `d2rmm-agent-adapters` with `-- --lib` and see the unmutated baseline pass; run the TypeScript sampler test.
 
@@ -208,12 +211,13 @@ Every ambiguity is resolved or recorded here - nothing is left silently unclear.
 | CRF-26         | P1: Mutation commands from a fresh checkout   | Tasks | Pending |
 | CRF-27         | P1: Mutation commands from a fresh checkout   | Tasks | Pending |
 | CRF-28         | P1: Mutation commands from a fresh checkout   | Tasks | Pending |
+| CRF-29         | P1: Mutation commands from a fresh checkout   | Tasks | Pending |
 
 **ID format:** `[CATEGORY]-[NUMBER]`
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
 
-**Coverage:** 28 total, 28 mapped to tasks, 0 unmapped
+**Coverage:** 29 total, 29 mapped to tasks, 0 unmapped
 
 ---
 

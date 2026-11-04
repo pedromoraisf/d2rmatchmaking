@@ -8,6 +8,7 @@ Feature: The harness reads what the repository really produces
   # not-scenario: CRF-02 — a scenario cannot start the acceptance run from inside it; proved by a task gate that removes `apps/web/dist` and runs `pnpm test:acceptance` with one scenario, and by CRF-01's plan
   # not-scenario: CRF-05 — the score is a pure rule over a fixture; proved by a unit test in `scripts/test/collect.test.mjs` that writes outcomes at the baseline's source path in a temporary root and calls `collect`
   # not-scenario: CRF-08 — the same rule on an absent and an empty report; proved by unit tests in `scripts/test/collect.test.mjs`
+  # not-scenario: CRF-29 — a mutation run takes minutes, beyond a scenario, and rule 12 keeps mutation against unit tests; proved by the gate of T10, which runs cargo-mutants on the adapters
 
   Background:
     Given a contributor has a clean checkout with dependencies installed
