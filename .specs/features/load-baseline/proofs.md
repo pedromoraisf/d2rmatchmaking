@@ -1,6 +1,6 @@
 # load-baseline proofs
 
-**HEAD**: 878398c
+**HEAD**: 0b5c654
 **Tree**: clean
 **Result**: 64 pass, 0 fail; mutations 3 killed, 0 not
 
