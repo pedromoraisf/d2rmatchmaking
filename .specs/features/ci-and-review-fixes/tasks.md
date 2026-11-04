@@ -306,11 +306,11 @@ T6 → T7 → T8
 
 **Done when**:
 
-- [ ] REVIEW step 1 reads: `pnpm check`; `pnpm phase:status`; for each feature `node scripts/attempt.mjs status --feature <f>`; `pnpm harness:json`; `pnpm test:mutation:agent`; `pnpm quality:collect`; `pnpm quality:ratchet --context phase`; `node scripts/attempt.mjs report`
-- [ ] The step says why in one sentence: the verification gate ran at each feature's head before its merge, and it requires the proofs at HEAD, so it does not run on the phase branch. The sentence does not name the script (CRF-18)
-- [ ] The RUN section's Verify step is unchanged
-- [ ] One named test per criterion: `the review does not run the verification validator`, `the review reads the phase status and each feature's budget`, `the verify step still runs the validator`, `the review produces the agent reports before the phase ratchet`
-- [ ] Gate check passes
+- [x] REVIEW step 1 reads: `pnpm check`; `pnpm phase:status`; for each feature `node scripts/attempt.mjs status --feature <f>`; `pnpm harness:json`; `pnpm test:mutation:agent`; `pnpm quality:collect`; `pnpm quality:ratchet --context phase`; `node scripts/attempt.mjs report`
+- [x] The step says why in one sentence: the verification gate ran at each feature's head before its merge, and it requires the proofs at HEAD, so it does not run on the phase branch. The sentence does not name the script (CRF-18)
+- [x] The RUN section's Verify step is unchanged
+- [x] One named test per criterion: `the review does not run the verification validator`, `the review reads the phase status and each feature's budget`, `the verify step still runs the validator`, `the review produces the agent reports before the phase ratchet`
+- [x] Gate check passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/phase-runner-skill.test.mjs`

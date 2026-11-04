@@ -199,8 +199,9 @@ phase. Everything else is decided, recorded and shown in the review.
 
 Precondition: `phase-status` reports `review` (every feature done or blocked).
 
-1. On `phase/<F>`: `pnpm check`; `pnpm harness:json`; `pnpm quality:collect`;
-   `pnpm quality:ratchet --context phase`; for each feature `validate_verification.py`; `node scripts/attempt.mjs report`.
+1. On `phase/<F>`: `pnpm check`; `pnpm phase:status`; for each feature `node scripts/attempt.mjs status --feature <f>`;
+   `pnpm harness:json`; `pnpm test:mutation:agent`; `pnpm quality:collect`; `pnpm quality:ratchet --context phase`;
+   `node scripts/attempt.mjs report`. Each feature's verification gate ran at its head before its merge and needs the proofs at that head, so it cannot pass on the phase branch after the merges; the retry-budget status and the phase status above are its evidence here.
 2. Generate `.specs/phases/F<n>/review.md` from `references/templates/review.md` with **real numbers** from those runs
    (never estimates): exit criteria ✓/✗ with proof links, features and commits, assumed decisions to confirm, blocked
    items with the retry-budget report (units, attempts, last error, resets), harness score and ratchet deltas, mutation scores, CI time, what changed in the harness, risks for the next
