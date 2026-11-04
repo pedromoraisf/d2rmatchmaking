@@ -1101,6 +1101,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-03
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-123 (assumed)
+
+- **Decision**: the stream-close tally runs at the stream's `error` event, once per stream; the code after `sse.open` returns shares the same helper and does nothing if it already ran.
+- **Reason**: the real run showed `xk6-sse` 0.2.0 reads the `timeout` cut as a read error ("context deadline exceeded") and `sse.open` returns only when k6 interrupts the VU (up to `maxDuration` plus `gracefulStop` later); the code after it would otherwise run late or never, and pending observations would go uncounted.
+- **Trade-off**: the handler does a little more work at the cut; a stream that dies with a read error before the tail ends is tallied as an early end.
+- **Scope**: load-baseline / LB-05, LB-08
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

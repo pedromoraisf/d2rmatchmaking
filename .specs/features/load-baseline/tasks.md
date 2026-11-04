@@ -120,7 +120,7 @@ T34 → T35 → T36 → T37
 ### Phase 10: Runs
 
 ```
-T32 → T33
+T32 → T38 → T33
 ```
 
 ---
@@ -844,11 +844,30 @@ T32 → T33
 
 ---
 
+### T38: Close handling at the stream's error event
+
+**What**: Run the stream-close tally when `xk6-sse` reports the timeout, not when `sse.open` returns (T32 found `sse.open` returns only when k6 interrupts the VU).
+**Where**: `scripts/load/k6/journey.mjs` (modify; the static test extends `scripts/test/load-scripts.test.mjs`)
+**Depends on**: T32
+**Reuses**: T36, T32's finding in `## Handoff` (the `timeout` cuts each stream at the window end plus tail with "context deadline exceeded" while reading the body, the `error` event reaches the handler, `sse.open` returns up to `maxDuration` plus `gracefulStop` later with status 200)
+**Requirement**: LB-05, LB-08
+
+**Done when**:
+
+- [ ] The `site` handler registers `client.on('error', …)` and runs the same close handling there at the event time: `onClose` for a pending observation, tallied in the window of its `observedAt`, once per stream (a second call after `sse.open` returns does nothing); a read error before the tail ends is a stream that died early and is counted as an error in the window of the time it happened, as the end-of-stream check already does; the `agent` handler closes its counters at the same event
+- [ ] The static test "journey closes its tally at the stream error event" pins the `error` handler, the once-only guard and that the tally helper is shared with the code after `sse.open`; `node --check scripts/load/k6/journey.mjs` passes
+- [ ] The smoke profile still passes with the change (the smoke check does not weaken): `pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.check.mjs scripts/test/load-scripts.test.mjs`
+
+**Tests**: unit (static)
+**Gate**: Smoke
+
+---
+
 ### T33: Full run, publish and baseline
 
 **What**: The full run of the F0 exit criterion, its published document and the first baseline values.
 **Where**: `scripts/load/check/full-summary.check.mjs`
-**Depends on**: T32
+**Depends on**: T38
 **Reuses**: `reports/load/summary.json`, `pnpm load:publish`, `pnpm quality:collect`, `pnpm quality:ratchet`
 **Requirement**: LB-10, LB-11, LB-12, LB-13, LB-14, LB-15, LB-21, LB-22
 
@@ -1015,6 +1034,9 @@ Proof: `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`
 **C49** - A `created` frame at or after 5 000 ms from its observation is one error and no latency sample; an observation still pending 5 000 ms or more when the stream ends is one error, tallied at the time of its observation, and a younger one is none; a stale iteration is settled when the next assignment arrives (LB-05, AC 5; LB-08 edge case)
 Proof: `node --test "--test-name-pattern=pending observation at the end of a stream" scripts/test/load/journey-state.test.mjs`
 
+**C53** - The journey runs its stream-close tally at the stream's `error` event, once per stream, so an observation pending at the cut is counted when the cut happens (LB-05, AC 5; LB-08 edge case)
+Proof: `node --test "--test-name-pattern=journey closes its tally at the stream error event" scripts/test/load-scripts.test.mjs`
+
 **C52** - A match posted (2xx) whose assignment never arrived is counted as one error per missing iteration, over the whole step, and none when every posted match started an iteration (LB-05, AC 5; LB-08, AC 8)
 Proof: `node --test "--test-name-pattern=lost assignments count as errors" scripts/test/load/error-ratio.test.mjs`
 
@@ -1055,7 +1077,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - `publishPlan(summary)` returns `{ allowed, text | reason }`; `writeSummary(fs, dir, summary)` is async and returns the target path; `runIdFrom(randomInt)` takes a `crypto.randomInt`-shaped function; `buildSummary` takes `times: { startedAt, endedAt }`; `failure.step` is the player count.
 - After batch 4 (accepted by the orchestrator): the images the run builds itself are local tags `d2rmm-load-api:f0` and `d2rmm-load-k6:f0` without a digest (an image id changes with every build); their pins are the `FROM` digests, and T28's static test checks the `FROM` lines and every pulled image reference, not these two tags. `images.mjs` holds `postgres:17-alpine@sha256:266d3c25…`, `node:26-alpine@sha256:c6ad9e9c…`, `node:26-bookworm-slim@sha256:bc0a2afd…`, `golang:1.27.1-alpine@sha256:8a5910f3…`, `grafana/k6:2.3.0@sha256:2dd4756e…`. The API image runs as `USER node`. `.dockerignore` re-includes `apps/web/package.json`, `apps/agent/package.json` and `tests/acceptance/package.json` for the frozen install (T32 confirms the build). `journey-state.mjs`: `start()` returns `waiting-assigned` (no `idle` phase), each transition returns the next state with `latencyMs` and `errors` in it, `onStatus(state, status)` counts a non-2xx. `cleanupPlan` returns `{ containers, networks, directories }`; `sweepPlan(found, { uid })`. `scripts/load/containers/control.mjs` holds the shared control endpoints (bearer, `Host`, routes), `flagsOf` and `readToken`; the meter and sink take `--listen`, `--upstream`, `--control`, `--token-file`. `attempt.mjs` runs gates with no timeout: a test that can hang needs its own timeout.
 - Lint: ESLint runs inside the quoted gate command (a direct `pnpm exec eslint` is denied by the hook); `pnpm exec prettier --write` is a direct call.
-  **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03, `returned` (T1 committed 8cfe8e3); execute-batch-2 (T2 to T8) at HEAD 8cfe8e3, 2026-11-03, `returned` (T2 to T8 committed, last 3652068); execute-batch-3 (T9 to T17) at HEAD 3652068, 2026-11-03, `returned` (T9 to T17 committed, last c5975ec); execute-batch-4 (T18 to T23) at HEAD 6580fd8, 2026-11-03, `returned` (T18 to T23 committed, last 35feb02); execute-batch-5 (T24 to T27, Phase 7) at HEAD 35feb02, 2026-11-03, `returned` (T24 to T27 committed, last 7a5c8b3); execute-batch-6 (T28 to T31, Phase 8) at HEAD 7a5c8b3, 2026-11-03, `returned` (T28 to T31 committed, last 67138a4); execute-batch-7 (T32, the smoke run) at HEAD f61cf3e, 2026-11-03, `returned` (blocked on three design points, no commit); execute-batch-8 (T34 to T37, Phase 9) at HEAD bebf379, 2026-11-03, `returned` (T34 to T37 committed, last 77cac8c); execute-batch-9 (T32, the smoke run, second attempt) at HEAD 77cac8c, 2026-11-03
+  **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03, `returned` (T1 committed 8cfe8e3); execute-batch-2 (T2 to T8) at HEAD 8cfe8e3, 2026-11-03, `returned` (T2 to T8 committed, last 3652068); execute-batch-3 (T9 to T17) at HEAD 3652068, 2026-11-03, `returned` (T9 to T17 committed, last c5975ec); execute-batch-4 (T18 to T23) at HEAD 6580fd8, 2026-11-03, `returned` (T18 to T23 committed, last 35feb02); execute-batch-5 (T24 to T27, Phase 7) at HEAD 35feb02, 2026-11-03, `returned` (T24 to T27 committed, last 7a5c8b3); execute-batch-6 (T28 to T31, Phase 8) at HEAD 7a5c8b3, 2026-11-03, `returned` (T28 to T31 committed, last 67138a4); execute-batch-7 (T32, the smoke run) at HEAD f61cf3e, 2026-11-03, `returned` (blocked on three design points, no commit); execute-batch-8 (T34 to T37, Phase 9) at HEAD bebf379, 2026-11-03, `returned` (T34 to T37 committed, last 77cac8c); execute-batch-9 (T32, the smoke run, second attempt) at HEAD 77cac8c, 2026-11-03, `returned` (T32 committed 0583dc6); execute-batch-10 (T38, close handling at the error event) at HEAD 0583dc6, 2026-11-03
   **Walked:** none
 
 **Batch 5 (execute-batch-5, T24 to T27, implementer):** contracts for T28 to T33 and the mismatches with design.md.
@@ -1137,7 +1159,7 @@ Phase 6:  T21 -----→ T22 -----→ T23
 Phase 7:  T24 -----→ T25 -----→ T26 -----→ T27
 Phase 8:  T28 -----→ T29 -----→ T30 -----→ T31
 Phase 9:  T34 -----→ T35 -----→ T36 -----→ T37
-Phase 10: T32 -----→ T33
+Phase 10: T32 -----→ T38 -----→ T33
 ```
 
 Execution is strictly sequential - there is no intra-phase parallelism.
