@@ -54,8 +54,10 @@ export function createPairAgent(deps: PairAgentDeps) {
           return err('invalid-code');
         }
 
+        // Read outside the transaction: the read goes through the pool, and a request that holds its transaction's
+        // connection would wait for a second one (the pool's connections all held this way deadlock; T41, AD-127).
+        const previous = await deps.agents.findCurrentByAccount(input.accountId);
         const revokedAgentId = await deps.uow.run(async (tx): Promise<string | undefined> => {
-          const previous = await deps.agents.findCurrentByAccount(input.accountId);
           let revokedId: string | undefined;
           if (previous !== null && previous.id !== agent.id) {
             await deps.agents.save(tx, previous.revoke(now));

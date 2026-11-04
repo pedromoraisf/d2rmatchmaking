@@ -914,9 +914,9 @@ T32 → T38 → T39 → T40 → T41 → T33
 
 **Done when**:
 
-- [ ] The integration test is written first and fails on the unchanged `pair-agent.ts` by not finishing in time; that red is recorded in `## Handoff`. If it passes on the unchanged code, the deadlock is not proved: the task stops and returns to the orchestrator without changing `pair-agent.ts`
-- [ ] `findCurrentByAccount` runs before `uow.run`, and every write stays in the transaction. No other behaviour changes: the same results, the same revocation of the previous agent, the same `AgentRevoked` event. No port, route, contract, pool setting or existing expectation changes
-- [ ] Tests named as in `## Checks` pass: the API gate
+- [x] The integration test is written first and fails on the unchanged `pair-agent.ts` by not finishing in time; that red is recorded in `## Handoff`. If it passes on the unchanged code, the deadlock is not proved: the task stops and returns to the orchestrator without changing `pair-agent.ts`
+- [x] `findCurrentByAccount` runs before `uow.run`, and every write stays in the transaction. No other behaviour changes: the same results, the same revocation of the previous agent, the same `AgentRevoked` event. No port, route, contract, pool setting or existing expectation changes
+- [x] Tests named as in `## Checks` pass: the API gate
 
 **Tests**: unit, integration
 **Gate**: API
@@ -1274,6 +1274,17 @@ Deviations and notes:
 - Deviation, check file: `STEP_FIELDS` now includes `provisionMsByRoute` as the task said. It still omits `errorsByKind` and `errorsByPlayerRange`, which the rows carry. The check uses `field in row`, so the omission does not fail it, and `errorsByKind` is checked by its own test. I did not add them, since the instruction limited the change to one field.
 - Left behind: none. No `d2rmm-load` container, network or volume, no `d2rmm-load-*` directory and no lock (checked after the run).
 - Decision for the orchestrator and the maintainer: keep the finding and report, or add a diagnostic that keeps the API log and the k6 stderr of a failing step (a change to the scripts, not made here). Either way the 10 s limit, the step profile and the API are unchanged.
+
+**Batch 15 (execute-batch-4, T41, the pair pool deadlock): done.** The deadlock is proved by the red run on the unchanged `pair-agent.ts`. Attempts: 1 (red, a failure counted, 1 of 3 failures), 2 (the API gate, passed); no retry was needed.
+
+- Red, attempt 1, `node scripts/attempt.mjs run --feature load-baseline --step T41 -- "pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/modules/agents/adapters/postgres/pair-agent-concurrency.int.test.ts -t \"concurrent pairs finish on a small pool\""`. Exact failure line: `Error: not finished within 10000 ms: the pairs are waiting for a pool connection`, test `concurrent pairs finish on a small pool` in 10073 ms. The run ended by itself (vitest duration 26.20 s, exit 1). Setup (container, migrations, the 8 codes) ran before the timer started, so the stall is in the concurrent pairs.
+- The integration test is `apps/api/src/modules/agents/adapters/postgres/pair-agent-concurrency.int.test.ts`: `pg.Pool` with `max: 2`, 8 accounts and 8 codes, `createPairingUseCases` on the Postgres repositories, a bounded `finishWithin` of 10 s, and a bounded teardown (5 s per close) so a deadlocked pool cannot hang the run.
+- Fix, attempt 2 (`pair-agent.ts`): `findCurrentByAccount` moved to just before `deps.uow.run`, with a comment. Writes, revocation and the `AgentRevoked` publish are unchanged. Unit test `pair reads the current agent before its transaction opens` added in `pairing-use-cases.test.ts` with an `OpenTrackingUnitOfWork` and a `UnitOfWorkAwareAgentRepository` subclass; the fakes are not changed.
+- API gate on attempt 2, all steps passed: typecheck; unit tests 37 files and 293 tests; integration 22 files and 108 tests (the new one included); eslint on `apps/api/src/modules/agents`; `pnpm arch` with 0 errors and 2 existing orphan warnings (`ranking/index.ts`, `agent/src/index.ts`).
+- Deviation, import: `PostgresUnitOfWork` and `migrateToLatest` are not imported in the new test, because `.dependency-cruiser.cjs` rule `platform-is-adapter` forbids module code (tests included) from importing `platform/`. The test uses `createMigratedTestDatabase` from `test/support/migrated-database.ts` for the schema, and an in-test unit of work that does `db.transaction().execute`, as `agents-repositories.int.test.ts` does. The pair path publishes no outbox row, so the transaction behaviour is the same.
+- Not checked: the unit test was not run against the unchanged code. A direct run is denied, and the gate ran it only on the fixed code. By reading, it reads `open` at the `findCurrentByAccount` call, which was inside `uow.run` before the fix.
+- Semantic note for the review: the current agent is now read before the transaction. Two pairs of the same account that overlap can both read the same previous agent and both revoke it in their own transactions, so the revocation is not serialised by the read. The old read in the transaction (READ COMMITTED) had the same race, with a narrower window. No test covers this race; closing it needs a conditional revoke in the transaction, which would change a port and is not in T41.
+- No push, no merge, no load run, and `scripts/load/check/full-summary.check.mjs` stays untracked and out of the commit.
 
 ---
 
