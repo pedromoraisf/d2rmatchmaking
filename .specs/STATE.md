@@ -966,6 +966,204 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-03
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-108 (assumed)
+
+- **Decision**: the load run is one k6 container per step, started by a Node orchestrator that provisions each step's new players over HTTP (sign in, pair, claim) outside any window; k6 plays only the steady journey and returns latency, errors, requests and iterations for the window; the orchestrator decides every verdict in pure, unit-tested functions.
+- **Reason**: the k6 SSE extension blocks one connection per VU and has no cross-VU channel, so a single long ramp with k6 thresholds cannot isolate the 100-player window or read container state between steps.
+- **Trade-off**: more moving parts than one k6 script; a spike (T1) must prove the stream-holding model, with an escalation if k6 cannot hold the streams. Assumed deviation from LB-05: the observation is triggered by `room.assigned` on the site stream (same data), because k6 has no proven channel between the two VUs; the agent stream is held and its `room.assigned` frames are counted.
+- **Scope**: load-baseline / LB-01, LB-03, LB-07, LB-08
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-109 (assumed)
+
+- **Decision**: bytes per player-hour come from a TCP meter in front of the API that counts bytes sent from the API to the players, headers and SSE framing included, inside the measuring window; k6's own byte counters are not used.
+- **Reason**: the 70 KB budget is about what Render bills (service output); k6 does not reliably count SSE bytes with the extension.
+- **Trade-off**: one more container in the path; its CPU is not limited.
+- **Scope**: load-baseline / LB-14, LB-15
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-110 (assumed)
+
+- **Decision**: the load code lives in `scripts/load/`, its unit tests in `scripts/test/load/` and its static test in `scripts/test/load-scripts.test.mjs`, not `tests/load`; `docs/engineering/testing.md` is updated to say so.
+- **Reason**: `pnpm arch` scans `tests/` and rejects `k6/*` imports as unresolvable; excluding the path would loosen a sensor (rule 4). `scripts/` is not scanned, its tests under `scripts/test/` already run in `pnpm test:harness`, and `classifyProof` accepts `node --test` mutation proofs only under `scripts/test/`.
+- **Trade-off**: the Design Doc and `testing.md` named `tests/load`.
+- **Scope**: load-baseline / LB-01, LB-20
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-111 (assumed)
+
+- **Decision**: when a step fails more than one rule, `failure.rule` is the first of `container`, `errors`, `latency`.
+- **Reason**: the spec names the rule without an order; a dead container explains the other two.
+- **Trade-off**: none known.
+- **Scope**: load-baseline / LB-08, LB-11
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-112 (assumed)
+
+- **Decision**: the API under load runs from an image that mirrors Render's build (`corepack enable && pnpm install --frozen-lockfile --ignore-scripts`) and start command (`node --import ./apps/api/src/main/instrument.ts apps/api/src/main/render.ts`), on `node:26-bookworm-slim`.
+- **Reason**: the run should measure what ships; Render's service is not a Docker service, so the image is the closest equivalent.
+- **Trade-off**: image build time on the first run.
+- **Scope**: load-baseline / LB-01, LB-02
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-113 (assumed)
+
+- **Decision**: the run's Postgres serves TLS with a throwaway CA and a server certificate made inside the Postgres container (the CA key is deleted there and no private key reaches the host); only the public CA certificate is copied out, into a 0700 temporary directory removed with the containers, and the API and the migration trust it through `NODE_EXTRA_CA_CERTS` and `sslmode=verify-full`.
+- **Reason**: `main/render.ts` verifies the certificate and may not change here.
+- **Trade-off**: certificate generation adds a step; nothing is stored in the repository.
+- **Scope**: load-baseline / LB-01
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-114 (assumed)
+
+- **Decision**: k6 runs from an image that compiles k6 with the `phymbert/xk6-sse` extension at pinned versions; the run never relies on k6's runtime auto-provisioning of extensions.
+- **Reason**: reproducible, no network call at run time, supply chain pinned.
+- **Trade-off**: a Go build on the first run; exact versions are recorded by T1.
+- **Scope**: load-baseline / LB-01, LB-18
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-115 (assumed)
+
+- **Decision**: a tool failure (Docker, a build, k6 crashing) is written to a separate `error` field with `passed: false` and a non-zero exit; `failure` keeps the spec's four rules about the system under test.
+- **Reason**: an OOM of the generator is not a finding about the API.
+- **Trade-off**: one extra summary field the ratchet ignores.
+- **Scope**: load-baseline / LB-11, LB-12
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-116 (assumed)
+
+- **Decision**: telemetry bytes are counted at the sink on the wire (request line, headers and body), in the same window as the byte meter.
+- **Reason**: one definition of "bytes" across the summary.
+- **Trade-off**: the API's exports are JSON over HTTP, so the figure is larger than a protobuf exporter would give; it is the figure the API really sends.
+- **Scope**: load-baseline / LB-21, LB-22
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-117 (assumed)
+
+- **Decision**: besides `LOAD_TARGET` and `DATABASE_URL` (LB-17), the run refuses a `DOCKER_HOST` that is not a local unix socket, a `DOCKER_CONTEXT` other than the default, and any inherited `OTEL_*` variable; the API container's environment is built from an allow-list, never from `process.env`.
+- **Reason**: LB-17's intent is that the run touches only what it started; a remote Docker daemon or an inherited collector endpoint are the other ways to reach something else (security review of the design).
+- **Trade-off**: a maintainer with a non-default Docker context must switch it for the run.
+- **Scope**: load-baseline / LB-17
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-118 (assumed)
+
+- **Decision**: the measuring window of a step is an offset pair on k6's own clock (full profile: start 50 s, end 140 s, i.e. 20 s ramp, then 30 s into the hold, 90 s long); the smoke profile's 30 s hold cannot hold a 90 s window, so its window is the whole hold (20 s to 50 s).
+- **Reason**: the spec says the same rules for smoke and a non-empty window is the only reading that keeps them; a host clock is never compared with the meters (design § k6 journey).
+- **Trade-off**: smoke numbers cover a window three times shorter than the full run's.
+- **Scope**: load-baseline / LB-07, LB-09
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-119 (assumed)
+
+- **Decision**: the windowed latency samples leave k6 as log lines (`LB_SAMPLE <ms>`, one `console.warn` per sample) that the orchestrator reads from the k6 container output; `step.json` carries the other window totals. An iteration still waiting for its assignment when the next match starts counts one error (status 0) and one iteration.
+- **Reason**: `handleSummary` cannot see per-VU values, and the p95 that decides the verdict must come from raw samples computed in Node (architecture review of the design), not from k6's interpolated Trend.
+- **Trade-off**: at most about 600 short log lines per step; they carry no secret.
+- **Scope**: load-baseline / LB-05, LB-06, LB-08
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-120 (assumed)
+
+- **Decision**: the throwaway TLS CA and server certificate are made by a short-lived container of a pinned `alpine/openssl` image into a per-run named volume (labelled, removed by the cleanup), which Postgres mounts read-only; only the public CA is copied out.
+- **Reason**: the first real run showed `postgres:17-alpine` has no `openssl`; the design's named fallback applies. `apk add` at run time would fetch unpinned code.
+- **Trade-off**: one more image and one more step before Postgres.
+- **Scope**: load-baseline / LB-01
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-121 (assumed)
+
+- **Decision**: no JavaScript timer runs while an SSE stream is open (k6 2.3 with xk6-sse 0.2.0 stops them): the test match comes from a `match` arrival-rate scenario (players ÷ 60 per second from the end of the ramp), streams end through the `timeout` argument of `sse.open`, and the 5 s `created` rule is evaluated where a frame or the end of the stream arrives (a frame at or after 5 000 ms, a stale iteration settled before the next frame, or an observation still pending 5 s or more at the end, is one error, tallied in the window of its observation time); a match whose assignment never arrives is counted as an error by the orchestrator (2xx `matchesPosted` minus `iterationsStarted`, both over the whole step, conservative); the `match` scenario stops at the window end and streams stay open for a 10 s tail so every observation made in the window is settled at the close.
+- **Reason**: the run showed `setTimeout`/`setInterval` created in an `open` callback never fire; the iteration outcome stays the spec's, only the moment an error is counted moves.
+- **Trade-off**: an iteration that never gets its frame is counted when its stream ends, not 5 s after its observation.
+- **Scope**: load-baseline / LB-03, LB-05, LB-08
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-122 (assumed)
+
+- **Decision**: matches start when the ramp ends, so every measuring window contains matches (full: each player's first match between 20 s and 80 s, window 50 s to 140 s; smoke: one match every 12 s from 20 s, window 20 s to 50 s); this completes AD-118.
+- **Reason**: with the match posted when a stream opens (during the ramp) the smoke window had no iteration (T32).
+- **Trade-off**: the first minute of a full step has no matches in flight.
+- **Scope**: load-baseline / LB-05, LB-07, LB-09
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-123 (assumed)
+
+- **Decision**: the stream-close tally runs at the stream's `error` event, once per stream; the code after `sse.open` returns shares the same helper and does nothing if it already ran.
+- **Reason**: the real run showed `xk6-sse` 0.2.0 reads the `timeout` cut as a read error ("context deadline exceeded") and `sse.open` returns only when k6 interrupts the VU (up to `maxDuration` plus `gracefulStop` later); the code after it would otherwise run late or never, and pending observations would go uncounted.
+- **Trade-off**: the handler does a little more work at the cut; a stream that dies with a read error before the tail ends is tallied as an early end.
+- **Scope**: load-baseline / LB-05, LB-08
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-124 (assumed)
+
+- **Decision**: a step's errors are broken down by kind (`status:<code>`, route, `created-late`, `pending-at-close`, `stream-early`, `lost-assignment`, `dropped`) and, for a failing step, by quarter of its players; the breakdown carries counts only, never a body, header, cookie or token.
+- **Reason**: the first full run failed step 50 on `errors` (25 of 75 iterations) with latency and resource peaks low, and the summary could not say which request failed; without the breakdown a capacity finding and a defect cannot be told apart.
+- **Trade-off**: two more fields in the summary rows.
+- **Scope**: load-baseline / LB-08, LB-11, LB-15
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-125 (assumed)
+
+- **Decision**: a failing provisioning request is reported with its route (`test-login`, `pairing-codes`, `pair`, `claim`), the player's index, its kind (`timeout`, `status:<code>`, `network`) and its elapsed time in milliseconds, never a name, cookie or token; the slowest time per route is kept per step. The 10 s limit per request is unchanged.
+- **Reason**: the third full run stopped with "The operation was aborted due to timeout" before step 100 started and the summary could not say which request or why.
+- **Trade-off**: one more field in the step row.
+- **Scope**: load-baseline / LB-03, LB-12
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-126 (assumed)
+
+- **Decision**: a step that fails while provisioning has no row, so its `provisionMsByRoute` goes in the summary's `error` text, as a lower bound (requests of the chunk still in flight are not counted); every failure inside a step now starts `step <n> stopped:`.
+- **Reason**: T40 asks for the numbers in the step row also for a step that fails to start, and such a step has no row; a made-up row would count as an executed step.
+- **Trade-off**: the numbers of a failed step are text inside `error`, not a field.
+- **Scope**: load-baseline / LB-03, LB-12
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-127 (assumed)
+
+- **Decision**: `pair` reads the account's current agent before `uow.run`, not with `tx` inside it. It is the one API change of load-baseline, authorised by the maintainer on 2026-11-03 ("A, pode descartar").
+- **Reason**: the read was already outside the transaction, so moving it keeps behaviour the same with no port change, and removes the second connection a transaction asks for.
+- **Trade-off**: the read is still not protected by the transaction, as today; reading with `tx` under a row lock would be a port change.
+- **Scope**: load-baseline / LB-03
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-128 (assumed)
+
+- **Decision**: the telemetry limit of AD-097 is report-only in F0 by the maintainer's decision ("A", 2026-11-04): `withinTelemetryBudget` is reported and published and does not fail the run. Setting `OTEL_EXPORTER_OTLP_ENDPOINT` in production waits for the share to be at or under 0.10, or for another limit from the maintainer.
+- **Reason**: the full run held 400 players with 0 errors, and the share was 6.73. The brief's exit criterion names no telemetry limit, and the API exports nothing until the endpoint is set.
+- **Trade-off**: F0 closes with telemetry 67 times over its limit, shown in the baseline and queued as a condition.
+- **Scope**: load-baseline / LB-21, LB-22
+- **Date**: 2026-11-04
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-129 (assumed)
+
+- **Decision**: a step's error count stays the window's errors plus the whole step's lost assignments and dropped arrivals, and the spec's text now says so. No new requirement ID.
+- **Reason**: the Verifier found the spec narrower than the behaviour. The behaviour is the stricter one, design Revision 1 (d) chose it on purpose, and C52's unit test pins it.
+- **Trade-off**: a step can fail `errors` on events outside its window; no passing run is affected, since every step had 0 errors.
+- **Scope**: load-baseline / LB-08
+- **Date**: 2026-11-04
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

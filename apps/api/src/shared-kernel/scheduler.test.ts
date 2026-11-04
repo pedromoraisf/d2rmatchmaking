@@ -101,6 +101,12 @@ describe('FakeScheduler', () => {
     expect(() => scheduler.every(0, () => undefined)).toThrow(RangeError);
     expect(() => scheduler.every(-5, () => undefined)).toThrow(RangeError);
   });
+
+  it('names the interval it needs when every refuses one', () => {
+    const scheduler = new FakeScheduler(new FakeClock(START));
+
+    expect(() => scheduler.every(0, () => undefined)).toThrow('every needs a positive interval');
+  });
 });
 
 describe('FakeScheduler due order', () => {
@@ -115,5 +121,17 @@ describe('FakeScheduler due order', () => {
     clock.advance(3_000);
 
     expect(order).toEqual(['a', 'b', 'c']);
+  });
+
+  it('runs two callbacks due at the same instant in the order they were scheduled', () => {
+    const clock = new FakeClock(START);
+    const scheduler = new FakeScheduler(clock);
+    const order: string[] = [];
+    scheduler.at(new Date(START.getTime() + 1_000), () => order.push('first'));
+    scheduler.at(new Date(START.getTime() + 1_000), () => order.push('second'));
+
+    clock.advance(1_000);
+
+    expect(order).toEqual(['first', 'second']);
   });
 });

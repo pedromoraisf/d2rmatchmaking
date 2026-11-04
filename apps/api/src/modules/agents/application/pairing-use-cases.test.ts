@@ -8,6 +8,8 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { FakeClock } from '../../../shared-kernel/clock.ts';
 import { SequentialIdGenerator } from '../../../shared-kernel/id-generator.ts';
 import { SeededRandomSource, type RandomSource } from '../../../shared-kernel/random-source.ts';
+import type { Transaction } from '../../../shared-kernel/index.ts';
+import type { Agent } from '../domain/agent.ts';
 import { createPairingUseCases } from './agents-use-cases.ts';
 import { FakeSecretHasher } from './testing/fake-secret-hasher.ts';
 import { InMemoryAgentRepository } from './testing/in-memory-agent-repository.ts';
@@ -83,6 +85,36 @@ async function requestCode(
     throw new Error('the pairing code request should succeed');
   }
   return { code: issued.value.code, claimSecret: issued.value.claimSecret };
+}
+
+/** The in-memory unit of work, plus a flag that says whether a transaction is open while its work runs. */
+class OpenTrackingUnitOfWork extends InMemoryUnitOfWork {
+  isOpen = false;
+
+  override async run<T>(work: (tx: Transaction) => Promise<T>): Promise<T> {
+    this.isOpen = true;
+    try {
+      return await super.run(work);
+    } finally {
+      this.isOpen = false;
+    }
+  }
+}
+
+/** The in-memory agent repository, plus the transaction state at each current-agent read. */
+class UnitOfWorkAwareAgentRepository extends InMemoryAgentRepository {
+  readonly #uow: OpenTrackingUnitOfWork;
+  readonly currentReadsInOpenTransaction: boolean[] = [];
+
+  constructor(uow: OpenTrackingUnitOfWork) {
+    super();
+    this.#uow = uow;
+  }
+
+  override async findCurrentByAccount(accountId: string): Promise<Agent | null> {
+    this.currentReadsInOpenTransaction.push(this.#uow.isOpen);
+    return super.findCurrentByAccount(accountId);
+  }
 }
 
 describe('requestPairingCode', () => {
@@ -181,6 +213,32 @@ describe('pairAgent', () => {
         event: { type: 'AgentRevoked', payload: { agentId: 'agent-1', accountId: 'account-1' } },
       },
     ]);
+  });
+
+  it('pair reads the current agent before its transaction opens', async () => {
+    const clock = new FakeClock(START);
+    const uow = new OpenTrackingUnitOfWork();
+    const agents = new UnitOfWorkAwareAgentRepository(uow);
+    const useCases = createPairingUseCases({
+      agents,
+      codes: new InMemoryPairingCodeRepository(),
+      rateLimits: new InMemoryRateLimitStore(),
+      hasher: new FakeSecretHasher(),
+      clock,
+      random: new ScriptedRandom([]),
+      ids: new SequentialIdGenerator('agent'),
+      uow,
+      bus: new RecordingEventBus(),
+    });
+    const first = await requestCode(useCases);
+    await useCases.pairAgent({ accountId: 'account-1', code: first.code });
+    const second = await requestCode(useCases, '203.0.113.9');
+    agents.currentReadsInOpenTransaction.length = 0;
+
+    const paired = await useCases.pairAgent({ accountId: 'account-1', code: second.code });
+
+    expect(paired).toEqual({ ok: true, value: { agentId: 'agent-2' } });
+    expect(agents.currentReadsInOpenTransaction).toEqual([false]);
   });
 
   it('opens its span with the use-case name', async () => {

@@ -1,7 +1,7 @@
 {
   "$comment": "Quality ratchet (ADR 021). Values only tighten: `pnpm quality:ratchet --update` raises them after a green run; loosening anything needs the maintainer (the PreToolUse gate denies it). value=null means not measured yet — the first measurement sets it. contexts = where the metric is enforced (pr: every PR CI run; nightly: nightly.yml; phase: phase review).",
   "version": 1,
-  "updated": "2026-10-30",
+  "updated": "2026-11-04",
   "metrics": {
     "harness.level": {
       "value": 4,
@@ -59,7 +59,7 @@
       }
     },
     "mutation.api.application": {
-      "value": null,
+      "value": 78.67,
       "direction": "higher",
       "floor": 70,
       "tolerance": 0.02,
@@ -142,7 +142,7 @@
       }
     },
     "load.max_concurrent_players": {
-      "value": null,
+      "value": 400,
       "direction": "higher",
       "floor": 100,
       "tolerance": 0.1,
@@ -156,9 +156,9 @@
       }
     },
     "load.bytes_per_player_hour": {
-      "value": null,
+      "value": 113826.85880341382,
       "direction": "lower",
-      "ceiling": 70000,
+      "ceiling": 125000,
       "tolerance": 0.1,
       "contexts": [
         "phase"
@@ -170,7 +170,7 @@
       }
     },
     "load.p95_state_latency_ms": {
-      "value": null,
+      "value": 1.376178999998956,
       "direction": "lower",
       "ceiling": 2000,
       "tolerance": 0.15,
@@ -184,7 +184,7 @@
       }
     },
     "acceptance.failed": {
-      "value": null,
+      "value": 0,
       "direction": "lower",
       "ceiling": 0,
       "contexts": [
@@ -197,7 +197,7 @@
       }
     },
     "acceptance.flaky": {
-      "value": null,
+      "value": 0,
       "direction": "lower",
       "ceiling": 0,
       "contexts": [
