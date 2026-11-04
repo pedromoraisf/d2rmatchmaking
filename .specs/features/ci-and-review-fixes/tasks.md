@@ -192,12 +192,12 @@ T6 → T7 → T8
 
 **Done when**:
 
-- [ ] Test `the_longest_retry_wait_is_one_hour` asserts `MAX_RETRY_AFTER` is 3600 s (kills `*` to `+`, `relay_client.rs:20`)
-- [ ] Test `a_refused_token_is_probed_once_an_hour` asserts `PROBE_INTERVAL` is 3600 s (kills `*` to `+`, `relay_client.rs:22`)
-- [ ] Test `the_next_probe_comes_one_interval_later` asserts that after a probe, `admit` holds just before `now + PROBE_INTERVAL` and sends at it (kills `+` to `-`, `relay_client.rs:93`)
-- [ ] Test `debug_output_names_the_client_and_nothing_else` asserts the text is exactly `RelayHttpClient`, so no header or token can reach a log (kills the `fmt` mutant, `relay_client.rs:148`)
-- [ ] No production line changes
-- [ ] Gate check passes
+- [x] Test `the_longest_retry_wait_is_one_hour` asserts `MAX_RETRY_AFTER` is 3600 s (kills `*` to `+`, `relay_client.rs:20`)
+- [x] Test `a_refused_token_is_probed_once_an_hour` asserts `PROBE_INTERVAL` is 3600 s (kills `*` to `+`, `relay_client.rs:22`)
+- [x] Test `the_next_probe_comes_one_interval_later` asserts that after a probe, `admit` holds just before `now + PROBE_INTERVAL` and sends at it (kills `+` to `-`, `relay_client.rs:93`)
+- [x] Test `debug_output_names_the_client_and_nothing_else` asserts the text is exactly `RelayHttpClient`, so no header or token can reach a log (kills the `fmt` mutant, `relay_client.rs:148`)
+- [x] No production line changes
+- [x] Gate check passes
 
 **Tests**: unit
 **Gate**: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib -E 'test(telemetry::relay_client)'`
