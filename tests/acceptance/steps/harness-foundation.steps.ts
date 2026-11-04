@@ -664,3 +664,68 @@ Then(/^both name "(.+)"$/, ({ scenario }, command: string) => {
   expect(documents.length, 'documents read').toBe(2);
   for (const document of documents) expect(document).toContain(command);
 });
+
+// ci-and-review-fixes (CRF-25 to CRF-28): the agent's mutation run starts from a clean machine, and one sampler vector
+// serves both senders.
+const mutationReportsDir = 'mkdir -p reports/mutation';
+const sampleVector = 'apps/agent/src-tauri/adapters/test-vectors/sampler.json';
+const retiredSampleVector = 'packages/telemetry/test-vectors/sampler.json';
+const telemetrySamplerTest = 'packages/telemetry/src/sdk/sampler.test.ts';
+const telemetryRustTest = 'apps/agent/src-tauri/adapters/src/telemetry/mod.rs';
+
+// The commands of a script or of a job, in order: one per line, and one per `&&` segment of a line.
+function commandSegments(text: string): string[] {
+  return text
+    .split(/\n|&&/u)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+}
+
+// The report directory is created before the first cargo-mutants command, so a fresh machine has its parent.
+function assertDirectoryFirst(segments: string[], source: string): void {
+  const directory = segments.indexOf(mutationReportsDir);
+  const mutants = segments.findIndex((segment) => segment.startsWith('cargo mutants'));
+  expect(directory, `${source} creates reports/mutation`).toBeGreaterThanOrEqual(0);
+  expect(mutants, `${source} runs cargo mutants`).toBeGreaterThanOrEqual(0);
+  expect(directory, `${source}: the directory comes before the first cargo mutants`).toBeLessThan(mutants);
+}
+
+When('the contributor reads the agent mutation command and the nightly workflow', ({ scenario }) => {
+  const world = harness(scenario);
+  const pkg = readJson<{ scripts?: Record<string, string> }>(path.join(scenario.repoRoot, 'package.json'));
+  world.agentCommands = commandSegments(pkg.scripts?.['test:mutation:agent'] ?? '');
+  world.workflow = readWorkflow(scenario.repoRoot, nightlyWorkflow);
+});
+
+Then('both create the mutation reports directory before their first mutation run', ({ scenario }) => {
+  const world = harness(scenario);
+  assertDirectoryFirst(agentCommands(world), 'test:mutation:agent');
+  const steps = jobOf(requireWorkflow(world), 'agent-mutation').steps ?? [];
+  assertDirectoryFirst(
+    steps.flatMap((step) => commandSegments(step.run ?? '')),
+    'the nightly agent-mutation job',
+  );
+});
+
+When('the contributor looks for the shared sampler vector', ({ scenario }) => {
+  harness(scenario).documents = [telemetryRustTest, telemetrySamplerTest].map((file) =>
+    readText(scenario.repoRoot, file),
+  );
+});
+
+Then("it is inside the agent's adapters crate", ({ scenario }) => {
+  expect(existsSync(path.join(scenario.repoRoot, sampleVector)), sampleVector).toBe(true);
+});
+
+Then('no copy of it remains in the telemetry package', ({ scenario }) => {
+  expect(existsSync(path.join(scenario.repoRoot, retiredSampleVector)), retiredSampleVector).toBe(false);
+});
+
+Then("the agent's test and the telemetry package's test read that same file", ({ scenario }) => {
+  const [rust, telemetry] = harness(scenario).documents;
+  expect(rust, 'the Rust test reads the vector from its crate').toMatch(
+    /CARGO_MANIFEST_DIR"\),\s*"\/test-vectors\/sampler\.json"/u,
+  );
+  expect(telemetry, 'the TypeScript test reads the vector through new URL').toMatch(/new URL\(/u);
+  expect(telemetry, 'the TypeScript test names the crate vector').toContain(sampleVector);
+});

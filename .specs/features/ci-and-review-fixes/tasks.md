@@ -152,9 +152,9 @@ T6 → T7 → T8
 
 **Done when**:
 
-- [ ] The directory step asserts, in the script and in the `agent-mutation` job, that a command creating `reports/mutation` comes before the first `cargo mutants`
-- [ ] The vector steps assert that the file exists under `apps/agent/src-tauri/adapters/test-vectors/`, that `packages/telemetry/test-vectors/sampler.json` does not exist, and that the Rust test and `packages/telemetry/src/sdk/sampler.test.ts` both name the new location
-- [ ] Gate check passes: `pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec bddgen`
+- [x] The directory step asserts, in the script and in the `agent-mutation` job, that a command creating `reports/mutation` comes before the first `cargo mutants`
+- [x] The vector steps assert that the file exists under `apps/agent/src-tauri/adapters/test-vectors/`, that `packages/telemetry/test-vectors/sampler.json` does not exist, and that the Rust test and `packages/telemetry/src/sdk/sampler.test.ts` both name the new location
+- [x] Gate check passes: `pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec bddgen`
 
 **Tests**: acceptance
 **Gate**: `pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec bddgen`
