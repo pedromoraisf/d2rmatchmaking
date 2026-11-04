@@ -215,10 +215,10 @@ T6 → T7 → T8
 
 **Done when**:
 
-- [ ] Test `a_sanitized_span_reports_no_dropped_attributes` starts from a span with a non-zero `dropped_attributes_count` and asserts 0 (kills the deleted field, `sanitize.rs:49`)
-- [ ] Test `only_the_allowed_resource_keys_pass` asserts true for each of `ALLOWED_RESOURCE_KEYS` and false for a key outside them, such as `host.name` (kills `sanitize_resource_key -> true`, `sanitize.rs:59`)
-- [ ] No production line changes
-- [ ] Gate check passes
+- [x] Test `a_sanitized_span_reports_no_dropped_attributes` starts from a span with a non-zero `dropped_attributes_count` and asserts 0 (kills the deleted field, `sanitize.rs:49`)
+- [x] Test `only_the_allowed_resource_keys_pass` asserts true for each of `ALLOWED_RESOURCE_KEYS` and false for a key outside them, such as `host.name` (kills `sanitize_resource_key -> true`, `sanitize.rs:59`)
+- [x] No production line changes
+- [x] Gate check passes
 
 **Tests**: unit
 **Gate**: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib -E 'test(telemetry::sanitize)'`

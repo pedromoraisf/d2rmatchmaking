@@ -123,7 +123,10 @@ mod tests {
     use opentelemetry_sdk::error::OTelSdkResult;
     use opentelemetry_sdk::trace::{SpanData, SpanEvents, SpanExporter, SpanLinks};
 
-    use super::{MAX_STRING_CHARS, SanitizingExporter, sanitize_span};
+    use super::{
+        ALLOWED_RESOURCE_KEYS, MAX_STRING_CHARS, SanitizingExporter, sanitize_resource_key,
+        sanitize_span,
+    };
 
     /// Keeps what it is given, so a test reads the batch the wrapped exporter received.
     #[derive(Debug, Clone, Default)]
@@ -249,6 +252,37 @@ mod tests {
             Value::String(text) => assert_eq!(text.as_str().chars().count(), MAX_STRING_CHARS),
             other => panic!("a string value stays a string: {other:?}"),
         }
+    }
+
+    #[test]
+    fn a_sanitized_span_reports_no_dropped_attributes() {
+        let mut fixture = span(
+            "agent.heartbeat",
+            vec![KeyValue::new("d2r.window.title", "secret window")],
+            Status::Unset,
+        );
+        fixture.dropped_attributes_count = 3;
+
+        let clean = sanitize_span(fixture).expect("an agent span is kept");
+
+        assert_eq!(
+            clean.dropped_attributes_count, 0,
+            "the sanitized span reports no dropped attributes"
+        );
+    }
+
+    #[test]
+    fn only_the_allowed_resource_keys_pass() {
+        for key in ALLOWED_RESOURCE_KEYS {
+            assert!(
+                sanitize_resource_key(key),
+                "{key} is an allowed resource key"
+            );
+        }
+        assert!(
+            !sanitize_resource_key("host.name"),
+            "host.name is not an allowed resource key"
+        );
     }
 
     #[tokio::test]
