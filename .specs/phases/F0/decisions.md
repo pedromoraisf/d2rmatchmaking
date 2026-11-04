@@ -247,7 +247,9 @@ The first real smoke attempt (T32, never run as a gate) found three design point
 - **Needs the maintainer**: either reset the two review units so the runner can re-review the revision, `node scripts/attempt.mjs reset --unit dispatch:load-baseline/review-architecture --by <maintainer>` and `node scripts/attempt.mjs reset --unit dispatch:load-baseline/review-security --by <maintainer>`, or say in their own words that the revision may proceed without a fresh review (it is then listed in the phase review). The runner does not execute T34 to T37 before one of the two.
 - **Phase effect**: `load-baseline` is the last feature of F0 and nothing else is runnable, so the phase is blocked until then (an escalation).
 
-## Finding: load-baseline, T33 passed, phase ratchet refused (2026-11-04) - waiting for the maintainer on the egress ceiling
+## Finding: load-baseline, T33 passed, phase ratchet refused (2026-11-04) - maintainer chose to raise the egress ceiling
+
+**Maintainer's answer (2026-11-04, in chat)**: "A", answering option (a) below: the ceiling of `load.bytes_per_player_hour` goes to 125 000, and the reduction stays queued before real players. The gate denies this edit to the runner, so the maintainer makes it by hand. T41 and T43 are done (domain mutation 98.06); the dry ratchet reports only this ceiling. Next, once the line is changed: `pnpm quality:collect`, `pnpm quality:ratchet --context phase --update`, the diff check, and T33's commit.
 
 `gate:load-baseline/T33` passed on its last attempt at 07da672: `passed: true`, 400 players, 0 errors at every step, p95 1.38 ms at 100 players, check 9 of 9 (Handoff, Batch 18; checked against the summary). Telemetry share 10.12 and `withinTelemetryBudget` false, report-only; between the last two runs it moved from 6.73 to 10.12, so the figure is noisy. `docs/engineering/load-baseline.md` is written. T33 is not ticked or committed, because `pnpm quality:ratchet --context phase --update` refuses to write. Seven sensors were only missing in this worktree (reports now generated under step `integration`); two refusals are real:
 
