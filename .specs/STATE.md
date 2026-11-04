@@ -1155,6 +1155,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-04
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-129 (assumed)
+
+- **Decision**: a step's error count stays the window's errors plus the whole step's lost assignments and dropped arrivals, and the spec's text now says so. No new requirement ID.
+- **Reason**: the Verifier found the spec narrower than the behaviour. The behaviour is the stricter one, design Revision 1 (d) chose it on purpose, and C52's unit test pins it.
+- **Trade-off**: a step can fail `errors` on events outside its window; no passing run is affected, since every step had 0 errors.
+- **Scope**: load-baseline / LB-08
+- **Date**: 2026-11-04
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
