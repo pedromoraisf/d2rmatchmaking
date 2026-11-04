@@ -26,6 +26,7 @@ import { Counter } from 'k6/metrics';
 import {
   isError,
   kindOf,
+  observationKeyOf,
   onAssigned,
   onClose,
   onCreated,
@@ -232,7 +233,6 @@ export function site() {
   waitUntil((RAMP_MS * index) / COUNT);
 
   let iteration = null;
-  let sequence = 0;
 
   /**
    * Tallies what a transition added to the iteration: each new error, under the kind the state names, and the iteration once
@@ -246,9 +246,8 @@ export function site() {
   }
 
   function observe(frame) {
-    sequence += 1;
     const body = JSON.stringify({
-      idempotencyKey: player.name + '-' + sequence,
+      idempotencyKey: observationKeyOf(player.name, iteration.roomId),
       type: 'GAME_NAME_SEEN',
       run: frame.run,
       value: frame.expectedGameName,

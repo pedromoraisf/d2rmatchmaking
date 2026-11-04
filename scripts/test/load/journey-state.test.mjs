@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   isError,
   kindOf,
+  observationKeyOf,
   onAssigned,
   onClose,
   onCreated,
@@ -198,4 +199,25 @@ test('a kind is a status with its route, an alphabet value, or other; a quarter 
   assert.equal(quarterOf(24, 25), 3);
   assert.throws(() => quarterOf(25, 25), TypeError, 'an index past the players is refused');
   assert.throws(() => quarterOf(-1, 25), TypeError, 'a negative index is refused');
+});
+
+test('an observation key is per room, so a player reused by a later step never repeats a key the API already holds', () => {
+  // The API keeps the first observation of a repeated (agent, idempotencyKey) and stores nothing for a later one, so a key
+  // counted from a per-step sequence ("name-1", "name-2") left the reused players' rooms without a created frame.
+  const first = observationKeyOf('Alpha', 'a1b2c3d4-0000-4000-8000-000000000001');
+  const later = observationKeyOf('Alpha', 'a1b2c3d4-0000-4000-8000-000000000002');
+  assert.notEqual(first, later, 'two rooms of one player have two keys');
+  assert.equal(
+    observationKeyOf('Alpha', 'a1b2c3d4-0000-4000-8000-000000000001'),
+    first,
+    'the same room gives the same key, so a repeated post of it is still one observation',
+  );
+  assert.notEqual(
+    observationKeyOf('Beta', 'a1b2c3d4-0000-4000-8000-000000000001'),
+    first,
+    'two players, two keys',
+  );
+  const longest = observationKeyOf('Abcdefghijklmnop', 'a1b2c3d4-0000-4000-8000-00000000000f');
+  assert.ok(longest.length <= 64, 'a 16-character name and a UUID room fit the 64-character key limit');
+  assert.match(longest, /^[A-Za-z0-9-]+$/u, 'the key holds only the name, a dash and the room id');
 });

@@ -38,6 +38,19 @@ export function kindOf(name) {
 }
 
 /**
+ * The idempotency key of one observation: the player's name and the room of the assignment, so the key is unique per room.
+ * The API keeps the first observation of a repeated (agent, key) and stores nothing for a later one; a key counted per step
+ * would repeat for a player that a later step reuses, and that room would never get its created frame. A room is new for
+ * every match, so its key is new too. Plain ES2015, as the rest of this module.
+ * @param {string} playerName
+ * @param {string} roomId
+ * @returns {string} at most 64 characters for a name of 16 and a room id of 36
+ */
+export function observationKeyOf(playerName, roomId) {
+  return String(playerName) + '-' + String(roomId);
+}
+
+/**
  * The quarter of the step's players that a player index belongs to: 0 for the first quarter, 3 for the last (AD-124).
  * @param {number} index an index from 0 to count - 1
  * @param {number} count the players of the step
