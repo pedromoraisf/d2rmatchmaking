@@ -935,10 +935,10 @@ T32 → T38 → T39 → T40 → T41 → T42 → T33
 
 **Done when**:
 
-- [ ] `buildSummary` writes `withinTelemetryBudget` (`!telemetryFails(share)`, `null` when the 100-player step never ran); a share above 0.10 no longer sets `failure` or `passed: false`; `exitCodeOf` is zero only when `passed` is true and `error` is null. `telemetry-share.mjs`, `TELEMETRY_SHARE_LIMIT` and the test of its boundary are unchanged
-- [ ] The test `failure names the step and the rule` loses only its telemetry block (the maintainer's decision), and the new test named in `## Checks` proves the opposite: over the limit, the run is passed, `failure` is null, the exit code is 0 and `withinTelemetryBudget` is false. No other expectation changes
-- [ ] The published document shows `withinTelemetryBudget` as report-only in F0 and states that the reduction is a condition of setting `OTEL_EXPORTER_OTLP_ENDPOINT` in production. A summary with a false value is still published; every refusal of `publishPlan` is unchanged
-- [ ] Tests named as in `## Checks` pass: the Quick gate
+- [x] `buildSummary` writes `withinTelemetryBudget` (`!telemetryFails(share)`, `null` when the 100-player step never ran); a share above 0.10 no longer sets `failure` or `passed: false`; `exitCodeOf` is zero only when `passed` is true and `error` is null. `telemetry-share.mjs`, `TELEMETRY_SHARE_LIMIT` and the test of its boundary are unchanged
+- [x] The test `failure names the step and the rule` loses only its telemetry block (the maintainer's decision), and the new test named in `## Checks` proves the opposite: over the limit, the run is passed, `failure` is null, the exit code is 0 and `withinTelemetryBudget` is false. No other expectation changes
+- [x] The published document shows `withinTelemetryBudget` as report-only in F0 and states that the reduction is a condition of setting `OTEL_EXPORTER_OTLP_ENDPOINT` in production. A summary with a false value is still published; every refusal of `publishPlan` is unchanged
+- [x] Tests named as in `## Checks` pass: the Quick gate
 
 **Tests**: unit
 **Gate**: Quick
@@ -1332,6 +1332,8 @@ Deviations and notes:
 - Defect check: none found. The sink and the meter count wire bytes inside the window, and the step rows are internally consistent (the step 100 telemetry figures give 501 890 B per player-hour). No `scripts/load` defect is shown, so there is no retry.
 - Question for the orchestrator: the top-level `failure` names step 100 and the telemetry rule, yet the run went on and passed steps 150 to 400 and reached the ceiling, with exit 1. Whether a telemetry failure should stop the sequence at step 100 is a rule question (C15 and C18), not changed here.
 - Left behind: none (no `d2rmm-load` container, network or volume, no `d2rmm-load-*` directory in the temp directory, no load lock file). The worktree's only change is the untracked `scripts/load/check/full-summary.check.mjs`.
+
+**Batch 17 (execute-batch-2, T42, implementer): done.** The telemetry limit is report-only in F0 (AD-128). `buildSummary` writes `withinTelemetryBudget` (`!telemetryFails(share)`, `null` without the 100-player step) and no longer sets `failure` or `passed: false` for the telemetry share. `exitCodeOf` is zero only when `passed` is true and `error` is null. `telemetry-share.mjs`, `TELEMETRY_SHARE_LIMIT` and its boundary test are unchanged. The published document has the row `withinTelemetryBudget` as report-only and one sentence that reducing telemetry is a condition of setting `OTEL_EXPORTER_OTLP_ENDPOINT` in production; the `publishPlan` refusals are unchanged. Removed from `failure names the step and the rule`: only its telemetry block (the `const telemetry = run(...)` line and its three assertions). Added: `a telemetry share over the limit is reported and does not fail the run` (C58) and `the baseline shows the telemetry limit as report-only` (C59). `withinTelemetryBudget` added to `SUMMARY_KEYS`. Gate Quick `gate:load-baseline/T42` passed on attempt 1 of 3: 129 load unit and static tests, eslint with `--max-warnings 0`, prettier check. No load run, no Docker. `scripts/load/check/full-summary.check.mjs` (T33's) is untouched and not committed. Deviation for the review: `design.md` § Data Models (line 208) still lists `'telemetry'` in the `failure.rule` union; `.specs/` beyond the marks and Handoff is not edited here.
 
 ---
 

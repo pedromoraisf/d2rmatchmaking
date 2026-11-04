@@ -109,6 +109,31 @@ test('publishes a passed full summary', () => {
   assert.match(text, /\| 100 \| 300 \|/, 'a step row carries its p95');
 });
 
+test('the baseline shows the telemetry limit as report-only', () => {
+  const overLimit = buildSummary({
+    profile: 'full',
+    steps: [step(25), step(50), step(100, { telemetryBytes: 30000 })],
+    limits,
+    versions,
+    commit: 'abc1234',
+    times,
+  });
+  assert.equal(overLimit.withinTelemetryBudget, false);
+  const plan = publishPlan(overLimit);
+  assert.equal(plan.allowed, true, 'a passed summary over the telemetry limit is still published');
+  assert.match(
+    plan.text,
+    /Within the telemetry limit of 0\.10, report-only in F0 \(`withinTelemetryBudget`\) \| no \|/,
+    'the row names the field and shows no',
+  );
+  assert.match(plan.text, /report-only/);
+  assert.match(
+    plan.text,
+    /OTEL_EXPORTER_OTLP_ENDPOINT/,
+    'the condition on the production endpoint is stated',
+  );
+});
+
 test('the document is built only from whitelisted fields', () => {
   const noisy = {
     ...fullSummary(),

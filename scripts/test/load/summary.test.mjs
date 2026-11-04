@@ -20,6 +20,7 @@ const SUMMARY_KEYS = [
   'startedAt',
   'endedAt',
   'withinEgressBudget',
+  'withinTelemetryBudget',
   'telemetryBytesPerPlayerHour',
   'telemetryMonthlyBytes',
   'relayAllowanceMonthlyBytes',
@@ -115,11 +116,21 @@ test('failure names the step and the rule', () => {
   const early = run([failing(25, 'container')]);
   assert.deepEqual(early.failure, { step: 25, rule: 'container' });
   assert.equal(exitCodeOf(early), 1);
+});
 
-  const telemetry = run([passing(25), passing(50), passing(100, { telemetryBytes: 30000 })]);
-  assert.deepEqual(telemetry.failure, { step: 100, rule: 'telemetry' }, 'a telemetry failure after a pass');
-  assert.equal(telemetry.passed, false);
-  assert.equal(exitCodeOf(telemetry), 1, 'a telemetry failure exits non-zero');
+test('a telemetry share over the limit is reported and does not fail the run', () => {
+  const over = run([passing(25), passing(50), passing(100, { telemetryBytes: 30000 })]);
+  assert.equal(over.withinTelemetryBudget, false, 'a share above 0.10 is reported as outside the limit');
+  assert.equal(over.passed, true, 'the run still passes (AD-128, report-only in F0)');
+  assert.equal(over.failure, null, 'no failure is named for telemetry');
+  assert.equal(exitCodeOf(over), 0, 'the exit code is zero');
+
+  const within = run([passing(25), passing(50), passing(100, { telemetryBytes: 17500 })]);
+  assert.equal(within.withinTelemetryBudget, true, 'a share below 0.10 is within the limit');
+  assert.equal(within.passed, true);
+
+  const noHundred = run([passing(25), passing(50)]);
+  assert.equal(noHundred.withinTelemetryBudget, null, 'no 100-player step, nothing measured');
 });
 
 test('top-level numbers', () => {

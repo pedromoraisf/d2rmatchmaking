@@ -180,8 +180,9 @@ function referenceNumbersOf(reference) {
 
 /**
  * The summary of a run. `maxConcurrentPlayers` is the highest passing step with every earlier step passing. The minimum
- * is the 100-player step passing (the smoke profile: its one step passing). A telemetry share above 10% fails the run
- * after a 100-player pass. A later failure after that pass leaves the run passed, and the failure names the later step.
+ * is the 100-player step passing (the smoke profile: its one step passing). The telemetry share is reported as
+ * `withinTelemetryBudget` and does not change `passed` or `failure` (AD-128, report-only in F0). A later failure after
+ * the 100-player pass leaves the run passed, and the failure names the later step.
  * @param {{
  *   profile: 'full' | 'smoke',
  *   steps: object[],
@@ -208,16 +209,8 @@ export function buildSummary({ profile, steps, limits, versions, commit, times, 
   const numbers = reference === null ? null : referenceNumbersOf(reference);
   const hundredPassed = reference !== null && reference.passed;
   const minimumMet = profile === 'smoke' ? rows.length > 0 && rows.every((row) => row.passed) : hundredPassed;
-  const telemetryFailed =
-    hundredPassed && numbers !== null && telemetryFails(numbers.telemetry.telemetryShareOfBudget);
-
   const firstFailed = rows.find((row) => !row.passed) ?? null;
-  let failure = null;
-  if (telemetryFailed) {
-    failure = { step: REFERENCE_PLAYERS, rule: 'telemetry' };
-  } else if (firstFailed !== null) {
-    failure = { step: firstFailed.players, rule: firstFailed.failedRule };
-  }
+  const failure = firstFailed === null ? null : { step: firstFailed.players, rule: firstFailed.failedRule };
 
   const errorText = error === null ? null : safeText('error', error);
   const maxConcurrentPlayers = highest?.players ?? 0;
@@ -228,7 +221,7 @@ export function buildSummary({ profile, steps, limits, versions, commit, times, 
     maxConcurrentRooms: highest?.roomsCreated ?? 0,
     bytesPerPlayerHour: bph,
     p95StateLatencyMs: numbers?.p95StateLatencyMs ?? null,
-    passed: errorText === null && minimumMet && !telemetryFailed,
+    passed: errorText === null && minimumMet,
     failure,
     error: errorText,
     ceilingReached: maxConcurrentPlayers === CEILING_PLAYERS,
@@ -250,6 +243,8 @@ export function buildSummary({ profile, steps, limits, versions, commit, times, 
     startedAt: safeText('times.startedAt', times.startedAt),
     endedAt: safeText('times.endedAt', times.endedAt),
     withinEgressBudget: bph === null ? null : withinEgressBudget(bph),
+    withinTelemetryBudget:
+      numbers === null ? null : !telemetryFails(numbers.telemetry.telemetryShareOfBudget),
     telemetryBytesPerPlayerHour: numbers?.telemetry.telemetryBytesPerPlayerHour ?? null,
     telemetryMonthlyBytes: numbers?.telemetry.telemetryMonthlyBytes ?? null,
     relayAllowanceMonthlyBytes: RELAY_ALLOWANCE_MONTHLY_BYTES,
@@ -259,11 +254,11 @@ export function buildSummary({ profile, steps, limits, versions, commit, times, 
 }
 
 /**
- * The exit code of a run: zero only when the summary passed with no tool error and no telemetry failure.
- * @param {{ passed: boolean, error: string | null, failure: { rule: string } | null }} summary
+ * The exit code of a run: zero only when the summary passed with no tool error. The telemetry share does not enter it
+ * (AD-128, report-only in F0).
+ * @param {{ passed: boolean, error: string | null }} summary
  * @returns {0 | 1}
  */
 export function exitCodeOf(summary) {
-  const telemetry = summary.failure?.rule === 'telemetry';
-  return summary.passed === true && summary.error === null && !telemetry ? 0 : 1;
+  return summary.passed === true && summary.error === null ? 0 : 1;
 }
