@@ -109,6 +109,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-119 | load-baseline | Latency samples leave k6 as `LB_SAMPLE <ms>` log lines read by the orchestrator (not through `handleSummary`); an iteration still waiting for its assignment when the next match starts counts one error | samples through a k6 output file | |
 | AD-118 | load-baseline | The measuring window is an offset pair on k6's clock (full: 50 s to 140 s); the smoke window is its whole 30 s hold | a shorter or longer smoke hold | |
 | AD-117 | load-baseline | The run also refuses a remote `DOCKER_HOST`, a non-default `DOCKER_CONTEXT` and inherited `OTEL_*`; the API environment is an allow-list | LB-17 limited to the two named variables | |
+| AD-130 | ci-and-review-fixes | The nightly `quality` job needs `agent-mutation`, runs unless cancelled, downloads the agent's reports unless the job was skipped, and a download with no artifact does not fail it | one workflow file | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 

@@ -1164,6 +1164,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-04
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-130 (assumed)
+
+- **Decision**: the nightly `quality` job needs `agent-mutation` and runs with `if: ${{ !cancelled() }}`, so it still runs when that job fails or is skipped; it downloads the agent's reports unless the job was skipped, and a download with no artifact does not fail the job (`continue-on-error`), so the ratchet step still runs and gives its own verdict.
+- **Reason**: brief revision 3 left the skipped case to this feature (CRF-13, CRF-15). `detect` sets `agent=true` whenever `apps/agent/src-tauri/Cargo.toml` exists, so the job runs every night in practice. A real score must reach the ratchet even when cargo-mutants exits non-zero on a missed mutant. The rule adds no user-visible commitment and is reversible in one workflow file.
+- **Trade-off**: `quality` now waits up to 90 minutes for the Windows job. If the agent job produces no report once a value is measured, the ratchet fails with "a sensor stopped reporting", which is the wanted signal.
+- **Scope**: ci-and-review-fixes / CRF-12 to CRF-17
+- **Date**: 2026-11-04
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
