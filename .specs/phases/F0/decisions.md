@@ -304,6 +304,11 @@ The maintainer reset `gate:load-baseline/T33` (`pedromoraisf`). The reset had to
 - Do not set `OTEL_EXPORTER_OTLP_ENDPOINT` in production until the telemetry share is at or under 0.10 (measured 6.73 at 100 players, default sampler 0.1), or the maintainer decides another limit. First split the sink's count by traces, metrics and logs, and then bring the limit back as a failing rule.
 - `bytesPerPlayerHour` is 113 827 against the 70 000 budget (`withinEgressBudget` false, about 7.6 GiB a month for 100 players over 720 hours against 5 GiB, without telemetry): reduce it or revise the budget before real players.
 
+## Queued for F1 (from load-baseline T43)
+
+- `rateLimitKey` throws `RangeError: Invalid array length` on `1:2:3:4:5:6:7:8:9::` (confirmed by a direct call), against its contract that anything that does not parse is keyed as given: `expandIPv6` builds an array with a negative length. By reading, not by a run: with `TRUST_PROXY_HOPS=1`, `request.ip` is the last `X-Forwarded-For` entry, which the proxy writes, so a client should not reach it unless the hop count is wrong (see the Render check below). The effect is an error on that one unauthenticated `POST /v1/agents/pairing-codes` request, handled by the error handler. No test pins the throw. Fix: return `null` when the head and tail already hold 8 groups or more.
+- `LobbyRoom.fromMatch` accepts a match with no members, so a room can exist with no host, while `restore` refuses an empty list. T43's test asserts the `hostAccountId` throw for that room, the only way to reach that line. If `fromMatch` starts refusing it, that test changes with it.
+
 ## Queued for F1 (from the api-web-skeleton security review)
 
 - Global ceiling on failed pairing-code submissions across accounts, and a rate limit on token claims (the F0 limits are the spec's, AD-032 and AD-041).
