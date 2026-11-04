@@ -1119,6 +1119,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-03
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-125 (assumed)
+
+- **Decision**: a failing provisioning request is reported with its route (`test-login`, `pairing-codes`, `pair`, `claim`), the player's index, its kind (`timeout`, `status:<code>`, `network`) and its elapsed time in milliseconds, never a name, cookie or token; the slowest time per route is kept per step. The 10 s limit per request is unchanged.
+- **Reason**: the third full run stopped with "The operation was aborted due to timeout" before step 100 started and the summary could not say which request or why.
+- **Trade-off**: one more field in the step row.
+- **Scope**: load-baseline / LB-03, LB-12
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

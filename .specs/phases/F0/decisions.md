@@ -96,6 +96,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-114 | load-baseline | k6 built with the `phymbert/xk6-sse` extension into a pinned image; no runtime auto-provisioning | auto-provisioning (a runtime network call) | |
 | AD-115 | load-baseline | A tool failure is written to `error`, not to the four `failure` rules | fold it into `failure` | |
 | AD-116 | load-baseline | Telemetry bytes are counted on the wire at the sink, headers included, in the meter's window | count bodies only | |
+| AD-125 | load-baseline | A failing provisioning request is reported with its route, the player's index, its kind and elapsed time (never a name or secret), and the slowest time per route is kept per step; the 10 s limit stays | a longer provisioning limit | |
 | AD-124 | load-baseline | A step's errors are broken down by kind and, for a failing step, by quarter of its players (counts only) | a log file of the failing step | |
 | AD-123 | load-baseline | The stream-close tally runs at the stream's `error` event, once per stream (xk6-sse 0.2.0 returns from `sse.open` only when k6 interrupts the VU after a `timeout` cut) | wait for a fixed extension version | |
 | AD-122 | load-baseline | Matches start when the ramp ends so every window contains matches (completes AD-118) | a different smoke hold | |
@@ -243,7 +244,15 @@ The first real smoke attempt (T32, never run as a gate) found three design point
 - **Needs the maintainer**: either reset the two review units so the runner can re-review the revision, `node scripts/attempt.mjs reset --unit dispatch:load-baseline/review-architecture --by <maintainer>` and `node scripts/attempt.mjs reset --unit dispatch:load-baseline/review-security --by <maintainer>`, or say in their own words that the revision may proceed without a fresh review (it is then listed in the phase review). The runner does not execute T34 to T37 before one of the two.
 - **Phase effect**: `load-baseline` is the last feature of F0 and nothing else is runnable, so the phase is blocked until then (an escalation).
 
-## Finding: load-baseline, first full run (2026-11-03) — open
+## Blocked: load-baseline, T33 (2026-11-03)
+
+`gate:load-baseline/T33` is at 3 of 3 and only the maintainer can reset it (ADR 022). The three full runs: attempt 1 failed step 50 on `errors`; attempt 2 failed the same way with `errorsByKind { "pending-at-close": 25 }` (13 and 12 in the first two quarters of the players); **diagnosis: a defect in `scripts/load`, not capacity** — the observation idempotency key was `<name>-<per-VU sequence>`, so a player a later step reuses repeated keys the API already held (`stored:false`, the room never became `created`). Fixed and committed (`330c3d8`, regression test first). Attempt 3 (with the fix): steps 25 and 50 passed with 0 errors (p95 1.71 ms and 1.05 ms), then the run stopped with `error: "The operation was aborted due to timeout"` while step 100's 50 new players were being provisioned (the 10 s per-request limit of `provision.mjs`); the summary names neither the route nor the player, and no API or k6 log is kept.
+
+- **State**: the 100-player step has never run, so there is no reading of p95, bytes or telemetry at 100 players. `.quality-baseline.json` is untouched. Committed: T1 to T32 and T34 to T39 and the key fix; the uncommitted `scripts/load/check/full-summary.check.mjs` waits for T33.
+- **Next**: T40 (provisioning errors named by route and player, AD-125) is planned and runs first; then T33 needs a reset: `node scripts/attempt.mjs reset --unit gate:load-baseline/T33 --by <maintainer>`.
+- **Findings so far, from steps 25 and 50 (not verdicts)**: bytes per player-hour about 117 000 at 25 and 50 players against the 70 000 budget; the sink counts about 610 000 to 620 000 bytes per 90 s window at both steps (nearly constant, so per player it falls as players grow), which, if it holds at 100 players, gives a telemetry share of the 5 GiB budget of about 3.3, far above the 10 % limit (the API exports JSON at the default 0.1 sampler plus metrics and logs; the cause is not analysed yet). `maxConcurrentRooms` is the rooms in `created` in the database at the end of the step (cumulative in F0, as the spec says). If the 100-player step confirms these, they are findings for the phase review, not defects of the run.
+
+## Finding: load-baseline, first full run (2026-11-03) — superseded by the block above
 
 `pnpm test:load` (T33, attempt 1 of 3) finished with `error: null`, `passed: false`, `failure: { step: 50, rule: errors }`; `maxConcurrentPlayers` 25, `maxConcurrentRooms` 51, steps 100 to 400 did not run, so there is no p95, bytes or telemetry reading yet; `.quality-baseline.json` is untouched (the three `load.*` values stay `null`). Step 25: 37 samples, p95 1.71 ms, 0 errors, API peak 6.5 % CPU and 121 MB. Step 50: 50 samples, p95 1.36 ms, **25 errors in 75 iterations** (ratio 0.0427), 101 matches posted and started, 0 dropped, 0 lost, API peak 18 % CPU and 114 MB.
 

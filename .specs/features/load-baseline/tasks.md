@@ -120,7 +120,7 @@ T34 → T35 → T36 → T37
 ### Phase 10: Runs
 
 ```
-T32 → T38 → T39 → T33
+T32 → T38 → T39 → T40 → T33
 ```
 
 ---
@@ -883,11 +883,30 @@ T32 → T38 → T39 → T33
 
 ---
 
+### T40: Provisioning errors named by route and player
+
+**What**: Say which provisioning request failed, for which player, and how, so a timeout while a step's new players are provisioned is diagnosable (the third full run stopped with "The operation was aborted due to timeout" before step 100 started and the summary named neither the route nor the player).
+**Where**: `scripts/load/provision.mjs` (modify; tests in `scripts/test/load/provision.test.mjs`; `orchestrate.mjs` carries the error text into the summary)
+**Depends on**: T39
+**Reuses**: T25, the redactor, T39's alphabet rule
+**Requirement**: LB-03, LB-12
+
+**Done when**:
+
+- [ ] A failing provisioning request throws an error that names the route (`test-login`, `pairing-codes`, `pair`, `claim`), the player's index (never the name, cookie or token) and the kind (`timeout`, `status:<code>`, `network`) plus the elapsed time in milliseconds; the summary's `error` carries that text redacted; the 10 s limit per request is unchanged
+- [ ] The provisioner records per route the slowest request time of the step's provisioning and the orchestrator carries those four numbers into the step row (`provisionMsByRoute`, counts and milliseconds only), also for a step that then fails to start, so slowness shows before it becomes a timeout
+- [ ] Tests named as in `## Checks` pass: the Quick gate
+
+**Tests**: unit
+**Gate**: Quick
+
+---
+
 ### T33: Full run, publish and baseline
 
 **What**: The full run of the F0 exit criterion, its published document and the first baseline values.
 **Where**: `scripts/load/check/full-summary.check.mjs`
-**Depends on**: T39
+**Depends on**: T40
 **Reuses**: `reports/load/summary.json`, `pnpm load:publish`, `pnpm quality:collect`, `pnpm quality:ratchet`
 **Requirement**: LB-10, LB-11, LB-12, LB-13, LB-14, LB-15, LB-21, LB-22
 
@@ -1057,6 +1076,9 @@ Proof: `node --test "--test-name-pattern=pending observation at the end of a str
 **C54** - A step's errors are broken down by kind and by quarter of its players, the kinds add up to the errors, and no secret text can be in them (LB-08, AC 8; LB-11, AC 2; LB-15, AC 5)
 Proof: `node --test "--test-name-pattern=step rows carry the error breakdown" scripts/test/load/summary.test.mjs`
 
+**C55** - A failing provisioning request is reported with its route, the player's index, its kind and its elapsed time, without any name, cookie or token, and the slowest time per route is kept (LB-03, AC 3; LB-12, AC 3)
+Proof: `node --test "--test-name-pattern=provisioning failures name the route and the player" scripts/test/load/provision.test.mjs`
+
 **C53** - The journey runs its stream-close tally at the stream's `error` event, once per stream, so an observation pending at the cut is counted when the cut happens (LB-05, AC 5; LB-08 edge case)
 Proof: `node --test "--test-name-pattern=journey closes its tally at the stream error event" scripts/test/load-scripts.test.mjs`
 
@@ -1100,7 +1122,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - `publishPlan(summary)` returns `{ allowed, text | reason }`; `writeSummary(fs, dir, summary)` is async and returns the target path; `runIdFrom(randomInt)` takes a `crypto.randomInt`-shaped function; `buildSummary` takes `times: { startedAt, endedAt }`; `failure.step` is the player count.
 - After batch 4 (accepted by the orchestrator): the images the run builds itself are local tags `d2rmm-load-api:f0` and `d2rmm-load-k6:f0` without a digest (an image id changes with every build); their pins are the `FROM` digests, and T28's static test checks the `FROM` lines and every pulled image reference, not these two tags. `images.mjs` holds `postgres:17-alpine@sha256:266d3c25…`, `node:26-alpine@sha256:c6ad9e9c…`, `node:26-bookworm-slim@sha256:bc0a2afd…`, `golang:1.27.1-alpine@sha256:8a5910f3…`, `grafana/k6:2.3.0@sha256:2dd4756e…`. The API image runs as `USER node`. `.dockerignore` re-includes `apps/web/package.json`, `apps/agent/package.json` and `tests/acceptance/package.json` for the frozen install (T32 confirms the build). `journey-state.mjs`: `start()` returns `waiting-assigned` (no `idle` phase), each transition returns the next state with `latencyMs` and `errors` in it, `onStatus(state, status)` counts a non-2xx. `cleanupPlan` returns `{ containers, networks, directories }`; `sweepPlan(found, { uid })`. `scripts/load/containers/control.mjs` holds the shared control endpoints (bearer, `Host`, routes), `flagsOf` and `readToken`; the meter and sink take `--listen`, `--upstream`, `--control`, `--token-file`. `attempt.mjs` runs gates with no timeout: a test that can hang needs its own timeout.
 - Lint: ESLint runs inside the quoted gate command (a direct `pnpm exec eslint` is denied by the hook); `pnpm exec prettier --write` is a direct call.
-  **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03, `returned` (T1 committed 8cfe8e3); execute-batch-2 (T2 to T8) at HEAD 8cfe8e3, 2026-11-03, `returned` (T2 to T8 committed, last 3652068); execute-batch-3 (T9 to T17) at HEAD 3652068, 2026-11-03, `returned` (T9 to T17 committed, last c5975ec); execute-batch-4 (T18 to T23) at HEAD 6580fd8, 2026-11-03, `returned` (T18 to T23 committed, last 35feb02); execute-batch-5 (T24 to T27, Phase 7) at HEAD 35feb02, 2026-11-03, `returned` (T24 to T27 committed, last 7a5c8b3); execute-batch-6 (T28 to T31, Phase 8) at HEAD 7a5c8b3, 2026-11-03, `returned` (T28 to T31 committed, last 67138a4); execute-batch-7 (T32, the smoke run) at HEAD f61cf3e, 2026-11-03, `returned` (blocked on three design points, no commit); execute-batch-8 (T34 to T37, Phase 9) at HEAD bebf379, 2026-11-03, `returned` (T34 to T37 committed, last 77cac8c); execute-batch-9 (T32, the smoke run, second attempt) at HEAD 77cac8c, 2026-11-03, `returned` (T32 committed 0583dc6); execute-batch-9 again (T38, close handling at the error event; the closed list of dispatch steps ends at execute-batch-9) at HEAD d515f0c, 2026-11-03, `returned` (T38 committed 6ec0123); execute-batch-8 again (T33, the full run, publish and baseline) at HEAD 6ec0123, 2026-11-03, `returned` (a finding: step 50 failed on `errors`, no commit, attempt 1 of 3); execute-batch-7 again (T39, error breakdown) at HEAD d515f0c plus this commit, 2026-11-03, `returned` (T39 committed 89b8ae6); execute-batch-6 again (T33, the full run, attempt 2) at HEAD 89b8ae6, 2026-11-03
+  **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03, `returned` (T1 committed 8cfe8e3); execute-batch-2 (T2 to T8) at HEAD 8cfe8e3, 2026-11-03, `returned` (T2 to T8 committed, last 3652068); execute-batch-3 (T9 to T17) at HEAD 3652068, 2026-11-03, `returned` (T9 to T17 committed, last c5975ec); execute-batch-4 (T18 to T23) at HEAD 6580fd8, 2026-11-03, `returned` (T18 to T23 committed, last 35feb02); execute-batch-5 (T24 to T27, Phase 7) at HEAD 35feb02, 2026-11-03, `returned` (T24 to T27 committed, last 7a5c8b3); execute-batch-6 (T28 to T31, Phase 8) at HEAD 7a5c8b3, 2026-11-03, `returned` (T28 to T31 committed, last 67138a4); execute-batch-7 (T32, the smoke run) at HEAD f61cf3e, 2026-11-03, `returned` (blocked on three design points, no commit); execute-batch-8 (T34 to T37, Phase 9) at HEAD bebf379, 2026-11-03, `returned` (T34 to T37 committed, last 77cac8c); execute-batch-9 (T32, the smoke run, second attempt) at HEAD 77cac8c, 2026-11-03, `returned` (T32 committed 0583dc6); execute-batch-9 again (T38, close handling at the error event; the closed list of dispatch steps ends at execute-batch-9) at HEAD d515f0c, 2026-11-03, `returned` (T38 committed 6ec0123); execute-batch-8 again (T33, the full run, publish and baseline) at HEAD 6ec0123, 2026-11-03, `returned` (a finding: step 50 failed on `errors`, no commit, attempt 1 of 3); execute-batch-7 again (T39, error breakdown) at HEAD d515f0c plus this commit, 2026-11-03, `returned` (T39 committed 89b8ae6); execute-batch-6 again (T33, the full run, attempts 2 and 3) at HEAD 89b8ae6, 2026-11-03, `returned` (T33 blocked at 3 of 3; the key defect fixed in 330c3d8); execute-batch-5 again (T40, provisioning errors) at HEAD 330c3d8 plus this commit, 2026-11-03
   **Walked:** none
 
 **Batch 5 (execute-batch-5, T24 to T27, implementer):** contracts for T28 to T33 and the mismatches with design.md.
@@ -1220,7 +1242,7 @@ Phase 6:  T21 -----→ T22 -----→ T23
 Phase 7:  T24 -----→ T25 -----→ T26 -----→ T27
 Phase 8:  T28 -----→ T29 -----→ T30 -----→ T31
 Phase 9:  T34 -----→ T35 -----→ T36 -----→ T37
-Phase 10: T32 -----→ T38 -----→ T39 -----→ T33
+Phase 10: T32 -----→ T38 -----→ T39 -----→ T40 -----→ T33
 ```
 
 Execution is strictly sequential - there is no intra-phase parallelism.
