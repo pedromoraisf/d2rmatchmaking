@@ -1128,6 +1128,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-03
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-126 (assumed)
+
+- **Decision**: a step that fails while provisioning has no row, so its `provisionMsByRoute` goes in the summary's `error` text, as a lower bound (requests of the chunk still in flight are not counted); every failure inside a step now starts `step <n> stopped:`.
+- **Reason**: T40 asks for the numbers in the step row also for a step that fails to start, and such a step has no row; a made-up row would count as an executed step.
+- **Trade-off**: the numbers of a failed step are text inside `error`, not a field.
+- **Scope**: load-baseline / LB-03, LB-12
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
