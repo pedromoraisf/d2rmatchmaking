@@ -36,6 +36,7 @@ From Design Doc § Walking skeleton. Every item needs a proof in the phase revie
 | agent-hexagonal-migration | Complex | agent-skeleton                                              | no                    | NFR-06, NFR-10, ADR 010/026/027                                                                 | 10 h       |
 | observability-e2e         | Large   | api-web-skeleton, agent-skeleton, agent-hexagonal-migration | no                    | NFR-09, ADR 013                                                                                 | default    |
 | load-baseline             | Large   | observability-e2e                                           | no                    | NFR-01, NFR-14                                                                                  | default    |
+| ci-and-review-fixes       | Small   | load-baseline                                               | no                    | NFR-10, NFR-11, ADR 020/021/023/026                                                             | default    |
 
 Retry budget is fixed for every feature: 1 attempt + 2 retries per unit (ADR 022); a brief cannot raise it.
 
@@ -74,6 +75,10 @@ configs, release-please config, first green CI on GitHub, and the first measured
   `observability-e2e`. In: a behaviour-preserving migration (domain crate, application layer, adapters, anti-corruption
   layer, architecture test, mutation on domain and application with unit tests only). Out: new agent behaviour,
   vision/capture, contract or API changes. Details: `.specs/phases/F0/brief-revision-2.md`.
+- Revision 3 (2026-11-04, from the F0 review): `ci-and-review-fixes` fixes three harness defects before `phase/F0` is
+  pushed. In: acceptance builds the site it needs, `mutation.agent.core` becomes measurable locally and in the nightly,
+  and the review stops re-running `validate_verification.py` on the phase branch. Out: product behaviour, and the other
+  risks listed in `review.md`. Details: `.specs/phases/F0/brief-revision-3.md`.
 
 ## Open questions (answered by the maintainer on 2026-10-30)
 
@@ -106,6 +111,8 @@ scopes delegated — the maintainer reviews at the end of the phase (escalations
 **Approved**: 2026-10-30 - user: "aprovo specs e tasks da F0 que passarem nos gates automáticos; delego sub-agents, harness-edits e local-merge-phase-branch"
 
 **Approved**: 2026-11-01 - user: "aprovo a revisão 2 do brief da F0"
+
+**Approved**: 2026-11-04 - user: "aprovo a revisão 3 do brief da F0"
 
 ## Runner state
 
