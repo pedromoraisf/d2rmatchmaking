@@ -182,6 +182,8 @@ function fakeDocker(fs, options) {
             text: JSON.stringify({
               latencySamplesMs: [],
               errors: answer.errors,
+              errorsByKind: answer.errors > 0 ? { 'created-late': answer.errors } : {},
+              errorsByPlayerRange: [0, 0, 0, 0],
               requests: answer.requests,
               iterations: answer.iterations,
               agentAssignedFrames: answer.agentAssignedFrames,

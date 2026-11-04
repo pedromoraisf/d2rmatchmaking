@@ -44,6 +44,8 @@ const STEP_KEYS = [
   'matchesPosted',
   'iterationsStarted',
   'droppedIterations',
+  'errorsByKind',
+  'errorsByPlayerRange',
   'containerOk',
   'passed',
   'failedRule',
@@ -67,6 +69,8 @@ const passing = (players, overrides = {}) => ({
   matchesPosted: 400,
   iterationsStarted: 400,
   droppedIterations: 0,
+  errorsByKind: {},
+  errorsByPlayerRange: [0, 0, 0, 0],
   containerOk: true,
   passed: true,
   failedRule: null,
@@ -235,6 +239,95 @@ test('step rows carry the accounting counts', () => {
       `${field} is a count: secret text is refused, never written`,
     );
     assert.throws(() => run([passing(25, { [field]: -1 })]), TypeError, `${field} is not negative`);
+  }
+});
+
+test('step rows carry the error breakdown', () => {
+  // C54: the kinds of a step add up to its errors, every kind is in the alphabet or folded into `other`, no secret text
+  // reaches a kind, and a failing step carries its four player quarters (counts only).
+  const kinds = { 'status:500:route:observation': 20, 'created-late': 3, 'lost-assignment': 2 };
+  const failed = failing(25, 'errors', {
+    errors: 25,
+    matchesPosted: 402,
+    iterationsStarted: 400,
+    errorsByKind: kinds,
+    errorsByPlayerRange: [6, 6, 6, 5],
+  });
+  const [row] = run([failed]).steps;
+  assert.deepEqual(row.errorsByKind, kinds, 'the kinds of the step, as counted');
+  assert.equal(
+    Object.values(row.errorsByKind).reduce((sum, count) => sum + count, 0),
+    row.errors,
+    'the kinds add up to the step errors',
+  );
+  assert.deepEqual(row.errorsByPlayerRange, [6, 6, 6, 5], 'a failing step keeps its four quarters');
+
+  const folded = run([
+    failing(25, 'errors', {
+      errors: 5,
+      errorsByKind: {
+        'status:500:route:observation': 1,
+        d2rmm_a_leak: 1,
+        'Bearer abc': 1,
+        'token:abc123': 1,
+        'Cookie:x1': 1,
+      },
+      errorsByPlayerRange: [1, 1, 1, 1],
+    }),
+  ]).steps[0];
+  assert.deepEqual(
+    folded.errorsByKind,
+    { 'status:500:route:observation': 1, other: 4 },
+    'outside the alphabet, or carrying secret text, a kind is folded into other; the count still adds up',
+  );
+
+  const named = run([
+    failing(1, 'errors', { errors: 1, errorsByKind: { constructor: 1 }, errorsByPlayerRange: [1, 0, 0, 0] }),
+  ]).steps[0];
+  assert.deepEqual(
+    named.errorsByKind,
+    { constructor: 1 },
+    'a kind named like an object property is a plain count',
+  );
+
+  const passed = run([passing(25, { errorsByPlayerRange: [1, 0, 0, 0] })]).steps[0];
+  assert.equal(passed.errorsByPlayerRange, null, 'a passing step has no player quarters');
+
+  assert.throws(
+    () =>
+      run([
+        failing(25, 'errors', {
+          errors: 4,
+          errorsByKind: { 'created-late': 3 },
+          errorsByPlayerRange: [1, 1, 1, 0],
+        }),
+      ]),
+    TypeError,
+    'kinds that do not add up to the errors are refused',
+  );
+  assert.throws(
+    () => run([failing(25, 'errors', { errors: 4, errorsByKind: { 'created-late': -1, other: 5 } })]),
+    TypeError,
+    'a negative count is refused',
+  );
+  assert.throws(
+    () => run([failing(25, 'errors', { errors: 4, errorsByKind: { 'created-late': 1.5, other: 2.5 } })]),
+    TypeError,
+    'a count is an integer',
+  );
+  for (const quarters of [[1, 1, 1], [1, -1, 2, 2], [1.5, 0, 0, 0], [4, 4, 4, 4], null]) {
+    assert.throws(
+      () =>
+        run([
+          failing(25, 'errors', {
+            errors: 4,
+            errorsByKind: { 'created-late': 4 },
+            errorsByPlayerRange: quarters,
+          }),
+        ]),
+      TypeError,
+      `the quarters ${JSON.stringify(quarters)} are four counts that add up to at most the errors`,
+    );
   }
 });
 

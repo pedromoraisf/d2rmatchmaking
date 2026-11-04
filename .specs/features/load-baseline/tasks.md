@@ -873,10 +873,10 @@ T32 → T38 → T39 → T33
 
 **Done when**:
 
-- [ ] `journey.mjs` tags every error by kind and `step.json` carries `errorsByKind`, a map from a kind to a count: `status:<code>` for a non-2xx answer (the route name, never a body or a header: `route:<name>` alongside, e.g. `match-formed`, `observation`, `heartbeat`, `stream-site`, `stream-agent`), `created-late`, `pending-at-close`, `stream-early`; the orchestrator adds `lost-assignment` and `dropped` from its own counts; kinds are drawn from a fixed alphabet (letters, digits, `:`, `-`), a value outside it is folded into `other`
-- [ ] `StepResult` and the summary's step rows carry `errorsByKind` (non-negative integers that add up to the step's errors) and, for a failing step only, the player indexes' cohort summary `errorsByPlayerRange` (errors per quarter of the step's players by index, four numbers) so a fault limited to the players a step adds is visible; none of it can carry a cookie, a token, a password or a response body; the unit tests assert the sum, the alphabet and the absence of secrets
-- [ ] The smoke check still passes and now also asserts `errorsByKind` adds up to the step's errors; `pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.check.mjs` passes
-- [ ] Tests named as in `## Checks` pass; Gate: the Smoke gate
+- [x] `journey.mjs` tags every error by kind and `step.json` carries `errorsByKind`, a map from a kind to a count: `status:<code>` for a non-2xx answer (the route name, never a body or a header: `route:<name>` alongside, e.g. `match-formed`, `observation`, `heartbeat`, `stream-site`, `stream-agent`), `created-late`, `pending-at-close`, `stream-early`; the orchestrator adds `lost-assignment` and `dropped` from its own counts; kinds are drawn from a fixed alphabet (letters, digits, `:`, `-`), a value outside it is folded into `other`
+- [x] `StepResult` and the summary's step rows carry `errorsByKind` (non-negative integers that add up to the step's errors) and, for a failing step only, the player indexes' cohort summary `errorsByPlayerRange` (errors per quarter of the step's players by index, four numbers) so a fault limited to the players a step adds is visible; none of it can carry a cookie, a token, a password or a response body; the unit tests assert the sum, the alphabet and the absence of secrets
+- [x] The smoke check still passes and now also asserts `errorsByKind` adds up to the step's errors; `pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.check.mjs` passes
+- [x] Tests named as in `## Checks` pass; Gate: the Smoke gate
 
 **Tests**: unit
 **Gate**: Smoke
@@ -1182,6 +1182,14 @@ Deviations and notes:
 - First suspects for the orchestrator: the 25 failed iterations have no latency sample, so their requests failed or hung rather than queued (the successful ones stay near 1.4 ms, which argues against the pool queueing). Candidates to read first: the status of the observation and `match-formed` answers, and the Postgres pool of 10 (`render.ts`, no `max`). The run keeps no k6 output or API log, so a diagnostic needs the stderr of the k6 container, which is not kept.
 - Not run: the 100-player step. The row carries API peaks only; the k6 and meter peaks are not in the summary.
 - Retry: not retried. The gate's failure is a finding, and the same run would repeat it; the budget shows failure 1 of 3. The decision for the maintainer or the orchestrator: keep the finding and report, or add a diagnostic that keeps the k6 and API logs of a failing step (a change of the scripts, not made here).
+
+**Batch 11 (execute-batch-7 again, T39, error breakdown): done.** Gate `pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.check.mjs` passed on attempt 1 (smoke `passed: true`, 5 players, 3 iterations, 0 errors, so `errorsByKind` is `{}` and `errorsByPlayerRange` is `null`; the smoke check 8 tests). Direct checks: load unit and static tests 128 of 128; `node --check` on `journey.mjs`; `prettier --write scripts`. Nothing left behind (no container, network, volume or `d2rmm-load-*` directory).
+
+- Kinds: one kind per error, so the kinds add up to the errors. A non-2xx answer is `status:<code>:route:<name>` (the status and the route in one kind); `created-late` covers a late `created` frame and a stale observation settled by a later frame; `pending-at-close`; `stream-early`; the orchestrator adds `lost-assignment` and `dropped`. The state machine carries the kind of its last error (`lastErrorKind`), so `settle` reads it.
+- Mechanism: k6 metric sub-tags must be declared at init, which cannot name the kinds, so each window error is also a k6 check named `kind:<kind>` and `quarter:<n>` (a fail each). `handleSummary` reads `root_group.checks` (probed on the k6 image with a plain VU: the fails come back by name). A check inside a stream handler is not proved by this gate (no error in the smoke run); the full run is the first proof.
+- Quarters: `quarterOf(index, count)`, the player index of each error. `errorsByPlayerRange` is `null` for a passing step; the four quarters count only the players' errors, so they add up to the window errors (lost assignments and dropped arrivals have no player index).
+- Folding: `summary.mjs` `errorsByKindOf` folds any kind outside the alphabet or carrying secret text into `other`, sums duplicates and refuses a count that is not a whole number; `buildSummary` refuses a step whose kinds do not add up to its errors (the run then records a tool error).
+- Fixtures: `publish.test.mjs`, `publish-command.test.mjs` and the fake k6 of `orchestrate.test.mjs` gained the two fields; no expectation changed. `STEP_KEYS` in `summary.test.mjs` names the two new fields.
 
 ---
 

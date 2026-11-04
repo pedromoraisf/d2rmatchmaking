@@ -15,9 +15,45 @@
 
 export const TIMEOUT_MS = 5000;
 
+/** The alphabet of an error kind: letters, digits, `:` and `-`. Any other kind is folded into `other` (AD-124). */
+const KIND_PATTERN = /^[A-Za-z0-9:-]+$/u;
+
 /**
- * A new iteration, waiting for the `room.assigned` frame of its match.
- * @returns {{ phase: string, roomId: string | null, assignedAt: number | null, observedAt: number | null, latencyMs: number | null, errors: number }}
+ * The kind of an error that a non-2xx answer of a journey route gives: its status and its route (AD-124).
+ * @param {number} status
+ * @param {string} route
+ * @returns {string}
+ */
+export function statusKind(status, route) {
+  return 'status:' + String(status) + ':route:' + route;
+}
+
+/**
+ * A kind inside the alphabet, or `other` for anything else (a space, an underscore, an empty name).
+ * @param {string} name
+ * @returns {string}
+ */
+export function kindOf(name) {
+  return KIND_PATTERN.test(String(name)) ? String(name) : 'other';
+}
+
+/**
+ * The quarter of the step's players that a player index belongs to: 0 for the first quarter, 3 for the last (AD-124).
+ * @param {number} index an index from 0 to count - 1
+ * @param {number} count the players of the step
+ * @returns {0 | 1 | 2 | 3}
+ */
+export function quarterOf(index, count) {
+  if (!Number.isInteger(index) || index < 0 || index >= count) {
+    throw new TypeError(`a player index is an integer from 0 to ${count - 1}, got ${String(index)}`);
+  }
+  return Math.floor((index * 4) / count);
+}
+
+/**
+ * A new iteration, waiting for the `room.assigned` frame of its match. `lastErrorKind` names the kind of the error that the
+ * last transition added (null while there is none).
+ * @returns {{ phase: string, roomId: string | null, assignedAt: number | null, observedAt: number | null, latencyMs: number | null, errors: number, lastErrorKind: string | null }}
  */
 export function start() {
   return {
@@ -27,6 +63,7 @@ export function start() {
     observedAt: null,
     latencyMs: null,
     errors: 0,
+    lastErrorKind: null,
   };
 }
 
@@ -39,7 +76,7 @@ export function start() {
  */
 export function onAssigned(state, frame, nowMs) {
   checkTime(nowMs);
-  if (isStale(state, nowMs)) return timedOut(state);
+  if (isStale(state, nowMs)) return timedOut(state, 'created-late');
   if (state.phase !== 'waiting-assigned' || state.assignedAt !== null) return state;
   if (!frame || typeof frame.roomId !== 'string' || frame.roomId === '') return state;
   return withFields(state, { roomId: frame.roomId, assignedAt: nowMs });
@@ -66,7 +103,7 @@ export function onCreated(state, nowMs) {
   checkTime(nowMs);
   if (state.phase !== 'observed') return state;
   const elapsed = nowMs - state.observedAt;
-  if (elapsed >= TIMEOUT_MS) return timedOut(state);
+  if (elapsed >= TIMEOUT_MS) return timedOut(state, 'created-late');
   return withFields(state, { phase: 'created', latencyMs: elapsed });
 }
 
@@ -77,7 +114,7 @@ export function onCreated(state, nowMs) {
  */
 export function onTick(state, nowMs) {
   checkTime(nowMs);
-  return isStale(state, nowMs) ? timedOut(state) : state;
+  return isStale(state, nowMs) ? timedOut(state, 'created-late') : state;
 }
 
 /**
@@ -88,17 +125,18 @@ export function onTick(state, nowMs) {
  */
 export function onClose(state, nowMs) {
   checkTime(nowMs);
-  return isStale(state, nowMs) ? timedOut(state) : state;
+  return isStale(state, nowMs) ? timedOut(state, 'pending-at-close') : state;
 }
 
 /**
- * A journey request of the iteration was answered. A non-2xx status is one error.
+ * A journey request of the iteration was answered. A non-2xx status is one error, of the kind of its status and its route.
  * @param {object} state
  * @param {number} status
+ * @param {string} route the journey route that answered (`observation`, ...)
  */
-export function onStatus(state, status) {
+export function onStatus(state, status, route) {
   if (!isError(status)) return state;
-  return withFields(state, { errors: state.errors + 1 });
+  return withFields(state, { errors: state.errors + 1, lastErrorKind: statusKind(status, route) });
 }
 
 /**
@@ -115,8 +153,8 @@ function isStale(state, nowMs) {
   return state.phase === 'observed' && nowMs - state.observedAt >= TIMEOUT_MS;
 }
 
-function timedOut(state) {
-  return withFields(state, { phase: 'timed-out', errors: state.errors + 1 });
+function timedOut(state, kind) {
+  return withFields(state, { phase: 'timed-out', errors: state.errors + 1, lastErrorKind: kind });
 }
 
 function withFields(state, changes) {

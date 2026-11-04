@@ -83,6 +83,19 @@ test('the accounting of the step holds', () => {
   );
 });
 
+test('the errors of the step add up by kind', () => {
+  // AD-124: the kinds are counts of the step's errors, lost assignments and dropped arrivals included.
+  const kinds = step.errorsByKind;
+  assert.ok(kinds !== null && typeof kinds === 'object' && !Array.isArray(kinds), 'errorsByKind is a map');
+  for (const [kind, count] of Object.entries(kinds)) {
+    assert.match(kind, /^[A-Za-z0-9:-]+$/u, `the kind ${kind} is in the alphabet`);
+    assert.ok(Number.isInteger(count) && count > 0, `the count of ${kind} is a positive whole number`);
+  }
+  const total = Object.values(kinds).reduce((sum, count) => sum + count, 0);
+  assert.equal(total, step.errors, 'the kinds add up to the step errors');
+  assert.equal(step.errorsByPlayerRange, null, 'a passing step carries no player quarters');
+});
+
 test('no cookie, token or password text reaches the summary', () => {
   assert.doesNotMatch(text, SECRET_TEXT);
 });

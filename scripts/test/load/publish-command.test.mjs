@@ -43,6 +43,8 @@ const step = (players, overrides = {}) => ({
   matchesPosted: 400,
   iterationsStarted: 400,
   droppedIterations: 0,
+  errorsByKind: {},
+  errorsByPlayerRange: [0, 0, 0, 0],
   containerOk: true,
   passed: true,
   failedRule: null,

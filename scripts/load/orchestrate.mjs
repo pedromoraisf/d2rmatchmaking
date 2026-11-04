@@ -37,7 +37,7 @@ import {
   volumeArgs,
   volumeNameOf,
 } from './lib/container-spec.mjs';
-import { errorRatio, errorsOfStep } from './lib/error-ratio.mjs';
+import { errorRatio, errorsOfStep, lostAssignments } from './lib/error-ratio.mjs';
 import {
   API_IMAGE_TAG,
   K6_IMAGE_TAG,
@@ -50,7 +50,7 @@ import { nextStep, profileFor } from './lib/profile.mjs';
 import { p95 } from './lib/percentile.mjs';
 import { playerFor, runIdFrom } from './lib/players.mjs';
 import { redact } from './lib/redact.mjs';
-import { buildSummary, exitCodeOf } from './lib/summary.mjs';
+import { buildSummary, errorsByKindOf, exitCodeOf } from './lib/summary.mjs';
 import { verdictOf } from './lib/step-verdict.mjs';
 import { guardDocker, guardTarget } from './lib/target-guard.mjs';
 import { writeSummary } from './lib/write-summary.mjs';
@@ -790,6 +790,14 @@ async function runStep(ctx, step, provisioned) {
     latencyP95Ms: latency,
     latencyCount: latencySamplesMs.length,
     errors: stepErrors,
+    errorsByKind: errorsByKindOf(measured.errorsByKind, {
+      'lost-assignment': lostAssignments({
+        matchesPosted: measured.matchesPosted,
+        iterationsStarted: measured.iterationsStarted,
+      }),
+      dropped: measured.droppedIterations,
+    }),
+    errorsByPlayerRange: measured.errorsByPlayerRange,
     requests: measured.requests,
     iterations: measured.iterations,
     errorRatio: ratio,

@@ -3,6 +3,7 @@
 // caller passes in cannot reach the file (LB-15; AGENTS.md rule 6).
 
 import { bytesPerPlayerHour, withinEgressBudget } from './bytes.mjs';
+import { kindOf } from './journey-state.mjs';
 import { containsSecret } from './redact.mjs';
 import { telemetryFails, telemetryNumbers } from './telemetry-share.mjs';
 
@@ -11,12 +12,62 @@ const CEILING_PLAYERS = 400;
 const RULES = ['container', 'errors', 'latency'];
 const WITHHELD = 'details withheld (secret text)';
 const RELAY_ALLOWANCE_MONTHLY_BYTES = telemetryNumbers(0, 1, 1).relayAllowanceMonthlyBytes;
+const PLAYER_QUARTERS = 4;
 
 function numberOf(name, value, minimum) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < minimum) {
     throw new TypeError(`${name} must be a number of at least ${minimum}, got ${String(value)}`);
   }
   return value;
+}
+
+function integerOf(name, value) {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new TypeError(`${name} must be a whole number of at least 0, got ${String(value)}`);
+  }
+  return value;
+}
+
+/** A kind of the breakdown: inside the alphabet, and never carrying secret text (anything else is `other`, AD-124). */
+function kindKeyOf(name) {
+  const kind = kindOf(name);
+  return containsSecret(kind) ? 'other' : kind;
+}
+
+/**
+ * The errors of one or more maps of kind to count, folded into one map: a kind outside the alphabet or carrying secret text
+ * becomes `other`, counts of one kind add up, and a kind with no error is left out. Keys are sorted, so the output is stable.
+ * @param {...Record<string, number>} maps
+ * @returns {Record<string, number>}
+ */
+export function errorsByKindOf(...maps) {
+  const totals = new Map();
+  for (const map of maps) {
+    if (map === null || typeof map !== 'object' || Array.isArray(map)) {
+      throw new TypeError('errors by kind must be a map of kind to count');
+    }
+    for (const [name, count] of Object.entries(map)) {
+      const key = kindKeyOf(name);
+      totals.set(key, (totals.get(key) ?? 0) + integerOf(`errorsByKind.${key}`, count));
+    }
+  }
+  const kept = [...totals].filter(([, count]) => count > 0).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return Object.fromEntries(kept);
+}
+
+/** The four counts of a failing step's players by quarter of their index; they add up to at most the step's errors. */
+function quartersOf(value, errors) {
+  if (!Array.isArray(value) || value.length !== PLAYER_QUARTERS) {
+    throw new TypeError('errorsByPlayerRange is four counts, one per quarter of the players');
+  }
+  const quarters = value.map((count) => integerOf('errorsByPlayerRange', count));
+  const total = quarters.reduce((sum, count) => sum + count, 0);
+  if (total > errors) {
+    throw new TypeError(
+      `errorsByPlayerRange adds up to ${total}, more than the ${errors} errors of the step`,
+    );
+  }
+  return quarters;
 }
 
 function nullableNumberOf(name, value) {
@@ -53,11 +104,19 @@ function stepOf(step) {
   if (!passed && !RULES.includes(failedRule)) {
     throw new TypeError('a failed step names one of container, errors or latency');
   }
+  const errors = numberOf('errors', step.errors, 0);
+  const errorsByKind = errorsByKindOf(step.errorsByKind);
+  const kindTotal = Object.values(errorsByKind).reduce((sum, count) => sum + count, 0);
+  if (kindTotal !== errors) {
+    throw new TypeError(`errorsByKind adds up to ${kindTotal}, the step has ${errors} errors`);
+  }
   return {
     players: numberOf('players', step.players, 1),
     latencyP95Ms: nullableNumberOf('latencyP95Ms', step.latencyP95Ms),
     latencyCount: numberOf('latencyCount', step.latencyCount, 0),
-    errors: numberOf('errors', step.errors, 0),
+    errors,
+    errorsByKind,
+    errorsByPlayerRange: passed ? null : quartersOf(step.errorsByPlayerRange, errors),
     requests: numberOf('requests', step.requests, 0),
     iterations: numberOf('iterations', step.iterations, 0),
     errorRatio: numberOf('errorRatio', step.errorRatio, 0),

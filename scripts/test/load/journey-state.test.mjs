@@ -5,13 +5,16 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   isError,
+  kindOf,
   onAssigned,
   onClose,
   onCreated,
   onObservationSent,
   onStatus,
   onTick,
+  quarterOf,
   start,
+  statusKind,
   TIMEOUT_MS,
 } from '../../load/lib/journey-state.mjs';
 
@@ -162,4 +165,37 @@ test('the journey module is an ES module with no import', () => {
   assert.equal(/\bconsole\./.test(source), false);
   assert.equal(/\?\./.test(source), false, 'no optional chaining, for the k6 bundler');
   assert.equal(/\{\s*\.\.\./.test(source), false, 'no object spread, for the k6 bundler');
+});
+
+test('an error names its kind: a status with its route, a late created frame, a pending observation at the close', () => {
+  const state = observedAt(1000);
+  assert.equal(onStatus(state, 500, 'observation').lastErrorKind, 'status:500:route:observation');
+  assert.equal(onStatus(state, 204, 'observation').lastErrorKind, null, 'a 2xx answer names no kind');
+  assert.equal(onCreated(state, 6000).lastErrorKind, 'created-late', 'a created frame at 5 000 ms is late');
+  assert.equal(
+    onTick(state, 6000).lastErrorKind,
+    'created-late',
+    'a stale observation found on the clock is late',
+  );
+  assert.equal(onClose(state, 6000).lastErrorKind, 'pending-at-close', 'a pending observation at the close');
+  assert.equal(start().lastErrorKind, null, 'a new iteration has no error');
+});
+
+test('a kind is a status with its route, an alphabet value, or other; a quarter is the cohort of a player index', () => {
+  assert.equal(statusKind(503, 'match-formed'), 'status:503:route:match-formed');
+  assert.equal(kindOf('status:503:route:match-formed'), 'status:503:route:match-formed');
+  assert.equal(kindOf('created-late'), 'created-late');
+  assert.equal(kindOf('d2rmm_a_leak'), 'other', 'an underscore is outside the alphabet');
+  assert.equal(kindOf('Bearer abc'), 'other', 'a space is outside the alphabet');
+  assert.equal(kindOf(''), 'other', 'an empty kind is other');
+
+  assert.equal(quarterOf(0, 25), 0);
+  assert.equal(quarterOf(6, 25), 0);
+  assert.equal(quarterOf(7, 25), 1);
+  assert.equal(quarterOf(12, 25), 1);
+  assert.equal(quarterOf(13, 25), 2);
+  assert.equal(quarterOf(19, 25), 3);
+  assert.equal(quarterOf(24, 25), 3);
+  assert.throws(() => quarterOf(25, 25), TypeError, 'an index past the players is refused');
+  assert.throws(() => quarterOf(-1, 25), TypeError, 'a negative index is refused');
 });

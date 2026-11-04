@@ -21,17 +21,20 @@
 import http from 'k6/http';
 import sse from 'k6/x/sse';
 import exec from 'k6/execution';
-import { sleep } from 'k6';
+import { check, sleep } from 'k6';
 import { Counter } from 'k6/metrics';
 import {
   isError,
+  kindOf,
   onAssigned,
   onClose,
   onCreated,
   onObservationSent,
   onStatus,
   onTick,
+  quarterOf,
   start,
+  statusKind,
 } from './journey-state.mjs';
 
 const PLAN = JSON.parse(open('/work/in/plan.json'));
@@ -180,15 +183,28 @@ function finished(state) {
   return state.phase === 'created' || state.phase === 'timed-out';
 }
 
+/** A check that always fails: each call of it is one fail of the check's name. */
+function failed() {
+  return false;
+}
+
 /**
- * Tallies what a transition added to an iteration: each new error, and the iteration once it has finished, in the window
- * of its observation. The window of an error is the window it belongs to, never the moment it is found.
+ * One error, tallied in the window of its time (the window it belongs to, never the moment it is found) and, inside the
+ * measuring window, by its kind and by the quarter of its player. The kind and the quarter are checks: a check's fails count
+ * is read back by handleSummary under its name, and a name needs no declaration at init.
  */
-function settle(previous, next) {
-  const at = next.observedAt;
-  for (let count = previous.errors; count < next.errors; count += 1) tally(errors, at);
-  if (!finished(previous) && finished(next)) tally(iterations, at);
-  return next;
+function fail(kind, index, ms) {
+  tally(errors, ms);
+  if (windowOf(ms) !== 'measure') return;
+  const sets = {};
+  sets['kind:' + kindOf(kind)] = failed;
+  sets['quarter:' + quarterOf(index, COUNT)] = failed;
+  check(null, sets);
+}
+
+/** The kind of a stream that closed with an error: a status other than 200 at the open, else it ended early. */
+function streamKind(status, route) {
+  return status !== undefined && status !== 200 ? statusKind(status, route) : 'stream-early';
 }
 
 function agentHeaders(player) {
@@ -218,6 +234,17 @@ export function site() {
   let iteration = null;
   let sequence = 0;
 
+  /**
+   * Tallies what a transition added to the iteration: each new error, under the kind the state names, and the iteration once
+   * it has finished, in the window of its observation.
+   */
+  function settle(previous, next) {
+    const at = next.observedAt;
+    for (let count = previous.errors; count < next.errors; count += 1) fail(next.lastErrorKind, index, at);
+    if (!finished(previous) && finished(next)) tally(iterations, at);
+    return next;
+  }
+
   function observe(frame) {
     sequence += 1;
     const body = JSON.stringify({
@@ -236,7 +263,7 @@ export function site() {
     const sent = nowMs();
     tally(requests, sent);
     const before = iteration;
-    iteration = settle(before, onStatus(onObservationSent(before, sent), res.status));
+    iteration = settle(before, onStatus(onObservationSent(before, sent), res.status, 'observation'));
   }
 
   /** A `room.assigned` frame: a stale observation is settled first, then the frame starts an iteration and is observed. */
@@ -279,7 +306,7 @@ export function site() {
       const pending = iteration;
       iteration = settle(pending, onClose(pending, closedAt));
     }
-    if (streamFailed(status, closedAt)) tally(errors, closedAt);
+    if (streamFailed(status, closedAt)) fail(streamKind(status, 'stream-site'), index, closedAt);
   });
 
   const openedAt = nowMs();
@@ -307,7 +334,7 @@ export function agent() {
   waitUntil((RAMP_MS * index) / COUNT);
 
   const closeStream = once(function (closedAt, status) {
-    if (streamFailed(status, closedAt)) tally(errors, closedAt);
+    if (streamFailed(status, closedAt)) fail(streamKind(status, 'stream-agent'), index, closedAt);
   });
 
   const openedAt = nowMs();
@@ -336,13 +363,14 @@ export function agent() {
 
 /** One heartbeat, the next player in turn: the scenario's iterations go round the players. */
 export function heartbeat() {
-  const player = PLAYERS[exec.scenario.iterationInInstance % COUNT];
+  const index = exec.scenario.iterationInInstance % COUNT;
+  const player = PLAYERS[index];
   const at = nowMs();
   const res = http.post(BASE + '/v1/agents/heartbeat', JSON.stringify(heartbeatBody()), {
     headers: agentHeaders(player),
   });
   tally(requests, at);
-  if (isError(res.status)) tally(errors, at);
+  if (isError(res.status)) fail(statusKind(res.status, 'heartbeat'), index, at);
 }
 
 /**
@@ -350,7 +378,8 @@ export function heartbeat() {
  * error and no match, so a match that never gets an assignment is counted from matchesPosted against iterationsStarted.
  */
 export function match() {
-  const player = PLAYERS[exec.scenario.iterationInInstance % COUNT];
+  const index = exec.scenario.iterationInInstance % COUNT;
+  const player = PLAYERS[index];
   const at = nowMs();
   const res = http.post(BASE + '/v1/staging/match-formed', '{}', {
     headers: {
@@ -362,7 +391,7 @@ export function match() {
   });
   tally(requests, at);
   if (isError(res.status)) {
-    tally(errors, at);
+    fail(statusKind(res.status, 'match-formed'), index, at);
     return;
   }
   matchesPosted.add(1);
@@ -409,10 +438,33 @@ function totalOf(data, name) {
  * which handleSummary cannot see; the orchestrator fills the field from them. `matchesPosted`, `iterationsStarted` and
  * `droppedIterations` cover the whole step; the orchestrator counts their difference as errors.
  */
+/**
+ * The fails of the root group's checks whose names start with a prefix, keyed by the rest of the name: one entry per kind
+ * (`kind:`) or per quarter (`quarter:`) of a window error. A check with no fail is not in the summary, so it is absent.
+ */
+function failsOf(data, prefix) {
+  const found = {};
+  const groupChecks = data.root_group && Array.isArray(data.root_group.checks) ? data.root_group.checks : [];
+  for (const entry of groupChecks) {
+    if (entry.name.indexOf(prefix) === 0) found[entry.name.slice(prefix.length)] = entry.fails;
+  }
+  return found;
+}
+
+/**
+ * The step file the orchestrator reads. `latencySamplesMs` is empty here: the samples come from the `LB_SAMPLE` lines,
+ * which handleSummary cannot see; the orchestrator fills the field from them. `matchesPosted`, `iterationsStarted` and
+ * `droppedIterations` cover the whole step; the orchestrator counts their difference as errors. `errorsByKind` counts the
+ * window's errors by kind, and `errorsByPlayerRange` by quarter of the player index (AD-124); the orchestrator adds the
+ * lost assignments and the dropped arrivals, which have no player.
+ */
 export function handleSummary(data) {
+  const quarters = failsOf(data, 'quarter:');
   const step = {
     latencySamplesMs: [],
     errors: measuredOf(data, 'journey_errors'),
+    errorsByKind: failsOf(data, 'kind:'),
+    errorsByPlayerRange: [0, 1, 2, 3].map((quarter) => quarters[String(quarter)] || 0),
     requests: measuredOf(data, 'journey_requests'),
     iterations: measuredOf(data, 'journey_iterations'),
     agentAssignedFrames: measuredOf(data, 'journey_agent_assigned'),
