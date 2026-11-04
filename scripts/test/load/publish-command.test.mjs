@@ -45,6 +45,7 @@ const step = (players, overrides = {}) => ({
   droppedIterations: 0,
   errorsByKind: {},
   errorsByPlayerRange: [0, 0, 0, 0],
+  provisionMsByRoute: { 'test-login': 0, 'pairing-codes': 0, pair: 0, claim: 0 },
   containerOk: true,
   passed: true,
   failedRule: null,

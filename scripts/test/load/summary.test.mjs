@@ -46,6 +46,7 @@ const STEP_KEYS = [
   'droppedIterations',
   'errorsByKind',
   'errorsByPlayerRange',
+  'provisionMsByRoute',
   'containerOk',
   'passed',
   'failedRule',
@@ -71,6 +72,7 @@ const passing = (players, overrides = {}) => ({
   droppedIterations: 0,
   errorsByKind: {},
   errorsByPlayerRange: [0, 0, 0, 0],
+  provisionMsByRoute: { 'test-login': 0, 'pairing-codes': 0, pair: 0, claim: 0 },
   containerOk: true,
   passed: true,
   failedRule: null,
@@ -336,6 +338,26 @@ test('a tool error is recorded and fails the run', () => {
   assert.equal(summary.error, 'docker stats stopped');
   assert.equal(summary.passed, false, 'a tool failure is not a pass');
   assert.equal(exitCodeOf(summary), 1);
+});
+
+test('provisionMsByRoute is the four routes in whole milliseconds', () => {
+  const timings = { 'test-login': 3, 'pairing-codes': 7, pair: 11, claim: 250 };
+  assert.deepEqual(run([passing(25, { provisionMsByRoute: timings })]).steps[0].provisionMsByRoute, timings);
+  assert.throws(
+    () => run([passing(25, { provisionMsByRoute: { 'test-login': 3, pair: 11, claim: 250 } })]),
+    TypeError,
+    'a route is missing',
+  );
+  assert.throws(
+    () => run([passing(25, { provisionMsByRoute: { ...timings, cookie: 1 } })]),
+    TypeError,
+    'no other key is kept',
+  );
+  assert.throws(
+    () => run([passing(25, { provisionMsByRoute: { ...timings, claim: 2.5 } })]),
+    TypeError,
+    'the milliseconds are whole',
+  );
 });
 
 test('malformed step input is refused', () => {

@@ -54,7 +54,7 @@ import { buildSummary, errorsByKindOf, exitCodeOf } from './lib/summary.mjs';
 import { verdictOf } from './lib/step-verdict.mjs';
 import { guardDocker, guardTarget } from './lib/target-guard.mjs';
 import { writeSummary } from './lib/write-summary.mjs';
-import { provision } from './provision.mjs';
+import { emptyTimings, provision } from './provision.mjs';
 
 /** The agent version the provisioner and the journey report (at least the minimum the API sets, AD-045). */
 export const AGENT_VERSION = '0.1.0';
@@ -726,8 +726,23 @@ async function roomsCreated(ctx) {
   return count;
 }
 
-/** One step: provision, plan, run k6, read, verdict. Returns the StepResult row and the players that now exist. */
+/**
+ * One step: provision, plan, run k6, read, verdict. Returns the StepResult row and the players that now exist. A failure
+ * before the row exists is a tool error that also carries the step's provisioning times (LB-12): a step that never starts
+ * has no row, so its slowest request per route is written into the summary's error text, in milliseconds only.
+ */
 async function runStep(ctx, step, provisioned) {
+  const timings = emptyTimings();
+  try {
+    return await runStepBody(ctx, step, provisioned, timings);
+  } catch (error) {
+    throw new ToolError(
+      `step ${step.players} stopped: ${messageOf(error)}; provisionMsByRoute ${JSON.stringify(timings)}`,
+    );
+  }
+}
+
+async function runStepBody(ctx, step, provisioned, timings) {
   const { docker, names, dirs, limits, runId, log, fs } = ctx;
   ensureRunning(ctx);
   const wanted = Array.from({ length: step.players }, (_, index) => playerFor(runId, index));
@@ -737,6 +752,7 @@ async function runStep(ctx, step, provisioned) {
     origin: SITE_ORIGIN,
     version: AGENT_VERSION,
     fetch: ctx.http,
+    timings,
   });
   const players = [...provisioned, ...fresh];
   log(`step ${step.players}: ${fresh.length} players provisioned, ${players.length} in the step`);
@@ -798,6 +814,7 @@ async function runStep(ctx, step, provisioned) {
       dropped: measured.droppedIterations,
     }),
     errorsByPlayerRange: measured.errorsByPlayerRange,
+    provisionMsByRoute: { ...timings },
     requests: measured.requests,
     iterations: measured.iterations,
     errorRatio: ratio,

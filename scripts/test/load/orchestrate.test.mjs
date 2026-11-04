@@ -713,3 +713,29 @@ test('LB_SAMPLE lines are the latency samples of a step', () => {
     [412.5, 2001],
   );
 });
+
+test(
+  'a provisioning failure names the route and the player, and the summary keeps the timings',
+  { timeout: SLOW_TEST_MS },
+  async () => {
+    const failed = scenario({ profile: 'smoke', throwOn: '/v1/agents/pairing-codes' });
+    const result = await runLoad(failed.input);
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.summary.passed, false);
+    assert.deepEqual(result.summary.steps, [], 'a step that never starts has no row');
+    assert.match(
+      result.summary.error,
+      /step 5 stopped: pairing-codes of player \d+ did not answer \(kind network, \d+ ms\): socket hang up; provisionMsByRoute \{"test-login":\d+,"pairing-codes":\d+,"pair":0,"claim":0\}/u,
+    );
+    assertClean(failed);
+
+    const passed = scenario({ profile: 'smoke' });
+    const ran = await runLoad(passed.input);
+    assert.equal(ran.exitCode, 0);
+    const timings = ran.summary.steps[0].provisionMsByRoute;
+    assert.deepEqual(Object.keys(timings), ['test-login', 'pairing-codes', 'pair', 'claim']);
+    for (const ms of Object.values(timings)) {
+      assert.ok(Number.isInteger(ms) && ms >= 0, 'each route carries whole milliseconds');
+    }
+  },
+);

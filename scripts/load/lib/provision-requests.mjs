@@ -11,6 +11,9 @@ const NAME_PATTERN = /^[A-Za-z0-9]{2,16}$/;
 const TOKEN_PATTERN = /^d2rmm_a_[^\s"',;]+$/;
 const JSON_TYPE = 'application/json';
 
+/** The four routes of the provisioner, in the order a player meets them. The step row keys its timings by these names (LB-12). */
+export const PROVISION_ROUTES = Object.freeze(['test-login', 'pairing-codes', 'pair', 'claim']);
+
 /** The origin of the meter's published port, which must be `http://127.0.0.1:<port>`. */
 function originOf(base) {
   let url;

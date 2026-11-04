@@ -893,9 +893,9 @@ T32 → T38 → T39 → T40 → T33
 
 **Done when**:
 
-- [ ] A failing provisioning request throws an error that names the route (`test-login`, `pairing-codes`, `pair`, `claim`), the player's index (never the name, cookie or token) and the kind (`timeout`, `status:<code>`, `network`) plus the elapsed time in milliseconds; the summary's `error` carries that text redacted; the 10 s limit per request is unchanged
-- [ ] The provisioner records per route the slowest request time of the step's provisioning and the orchestrator carries those four numbers into the step row (`provisionMsByRoute`, counts and milliseconds only), also for a step that then fails to start, so slowness shows before it becomes a timeout
-- [ ] Tests named as in `## Checks` pass: the Quick gate
+- [x] A failing provisioning request throws an error that names the route (`test-login`, `pairing-codes`, `pair`, `claim`), the player's index (never the name, cookie or token) and the kind (`timeout`, `status:<code>`, `network`) plus the elapsed time in milliseconds; the summary's `error` carries that text redacted; the 10 s limit per request is unchanged
+- [x] The provisioner records per route the slowest request time of the step's provisioning and the orchestrator carries those four numbers into the step row (`provisionMsByRoute`, counts and milliseconds only), also for a step that then fails to start, so slowness shows before it becomes a timeout
+- [x] Tests named as in `## Checks` pass: the Quick gate
 
 **Tests**: unit
 **Gate**: Quick
@@ -1225,6 +1225,12 @@ Deviations and notes:
 - Left in the worktree (not committed, the task is not done): `scripts/load/k6/journey.mjs`, `scripts/load/lib/journey-state.mjs`, `scripts/test/load/journey-state.test.mjs`, `scripts/load/check/full-summary.check.mjs` (untracked, now asserts the `errorsByKind` sums). The Handoff text is the only `.specs` change of this batch. `decisions.md` "Blocked" was not written (the gate asks for it, but the dispatch limits `.specs` to Handoff and marks): the orchestrator records it.
 - Decision for the maintainer or the orchestrator: (a) a maintainer reset of `gate:load-baseline/T33` with the timeout diagnosed (provision errors named by route and player index, redacted; a decision on the 10 s limit, which is a threshold and not changed here), then a new run; or (b) accept T33 as blocked and keep the finding. The fix above is a scripts-side defect fix and can be committed under the orchestrator's decision (one commit, `fix(load-baseline): key each observation by its room`).
 - Nothing left behind after attempt 3: no container, network, volume, `d2rmm-load-*` directory or lock (checked after the run).
+
+**Batch 13 (execute-batch-5 again, T40, provisioning errors named by route and player): done.** A failed provisioning request names its route, its player's index, its kind and its elapsed milliseconds, and nothing else of the player. A status answer reads `<route> of player <n> answered <status> (kind status:<code>, <ms> ms)`; a request that gets no answer reads `<route> of player <n> did not answer (kind timeout|network, <ms> ms): <the raw message>`. `ProvisionError` redacts the text, so no name, address, cookie or token is in it. `REQUEST_TIMEOUT_MS` is unchanged. Every request is timed on an injectable `now` (default `performance.now`), and `provision` keeps the slowest time per route in its `timings` object (`emptyTimings()`; the four names are `PROVISION_ROUTES` in `lib/provision-requests.mjs`). The step row carries `provisionMsByRoute` with those four whole-millisecond numbers. A step that stops before its row (provisioning or later) throws `step <n> stopped: <error>; provisionMsByRoute {...}`, so the summary's `error` carries the numbers. Deviation: a step that never starts has no row, so its numbers are in the error text, not in a row; the summary's top-level keys are unchanged.
+
+- Gate `node --test "scripts/test/load/*.test.mjs" && eslint --max-warnings 0 scripts/load scripts/test/load && prettier --check scripts/load scripts/test/load` passed on attempt 1: 127 load unit and static tests, the check `provisioning failures name the route and the player` among them. The test was written first and failed on the missing export.
+- Added beyond `## Checks`: a summary test (`provisionMsByRoute is the four routes in whole milliseconds`) and an orchestrator test (`a provisioning failure names the route and the player, and the summary keeps the timings`). Fixtures gained the field: `STEP_KEYS` and the passing row in `summary.test.mjs`, the step rows of `publish.test.mjs` and `publish-command.test.mjs`. No existing expectation changed; the `socket hang up` and `pair of player 0 answered 400` matches still hold, because the raw message is kept after the route text.
+- Not run: `pnpm test:load` and any Docker run (not in this task). `scripts/load/check/full-summary.check.mjs` is untracked, belongs to T33, and is not in this commit.
 
 ---
 

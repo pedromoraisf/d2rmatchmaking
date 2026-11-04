@@ -4,6 +4,7 @@
 
 import { bytesPerPlayerHour, withinEgressBudget } from './bytes.mjs';
 import { kindOf } from './journey-state.mjs';
+import { PROVISION_ROUTES } from './provision-requests.mjs';
 import { containsSecret } from './redact.mjs';
 import { telemetryFails, telemetryNumbers } from './telemetry-share.mjs';
 
@@ -70,6 +71,20 @@ function quartersOf(value, errors) {
   return quarters;
 }
 
+/** The slowest provisioning request of each route, in whole milliseconds: exactly the four routes, no other key (LB-12). */
+function provisionMsByRouteOf(value) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError('provisionMsByRoute is a map of route to milliseconds');
+  }
+  const names = Object.keys(value).sort().join(' ');
+  if (names !== [...PROVISION_ROUTES].sort().join(' ')) {
+    throw new TypeError('provisionMsByRoute names exactly the four provisioning routes');
+  }
+  return Object.fromEntries(
+    PROVISION_ROUTES.map((route) => [route, integerOf(`provisionMsByRoute.${route}`, value[route])]),
+  );
+}
+
 function nullableNumberOf(name, value) {
   return value === null ? null : numberOf(name, value, 0);
 }
@@ -117,6 +132,7 @@ function stepOf(step) {
     errors,
     errorsByKind,
     errorsByPlayerRange: passed ? null : quartersOf(step.errorsByPlayerRange, errors),
+    provisionMsByRoute: provisionMsByRouteOf(step.provisionMsByRoute),
     requests: numberOf('requests', step.requests, 0),
     iterations: numberOf('iterations', step.iterations, 0),
     errorRatio: numberOf('errorRatio', step.errorRatio, 0),
