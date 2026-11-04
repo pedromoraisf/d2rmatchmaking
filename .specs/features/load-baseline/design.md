@@ -205,7 +205,7 @@ interface Summary {
   bytesPerPlayerHour: number | null;
   p95StateLatencyMs: number | null;
   passed: boolean;
-  failure: { step: number; rule: 'latency' | 'errors' | 'container' | 'telemetry' } | null;
+  failure: { step: number; rule: 'latency' | 'errors' | 'container' } | null; // telemetry is report-only in F0 (AD-128): `withinTelemetryBudget`
   error: string | null; // a tool failure (Docker, k6, a build), not a finding
   ceilingReached: boolean;
   profile: 'full' | 'smoke';
