@@ -63,6 +63,18 @@ Feature: The harness reads what the repository really produces
     When the contributor reads the review template and the agent guide
     Then both name "pnpm test:mutation:agent"
 
+  @CRF-25 @CRF-26 @NFR-10
+  Scenario: The agent's mutation run creates its report directory on a clean machine
+    When the contributor reads the agent mutation command and the nightly workflow
+    Then both create the mutation reports directory before their first mutation run
+
+  @CRF-27 @CRF-28 @NFR-10
+  Scenario: The shared sampler vector lives where the agent's mutation run can read it
+    When the contributor looks for the shared sampler vector
+    Then it is inside the agent's adapters crate
+    And no copy of it remains in the telemetry package
+    And the agent's test and the telemetry package's test read that same file
+
   @CRF-24
   Scenario: The contracts do not change
     When the contributor runs "pnpm contracts:check"

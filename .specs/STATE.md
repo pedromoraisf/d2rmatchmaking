@@ -1173,6 +1173,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-04
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-131 (assumed)
+
+- **Decision**: the shared sampler vector moves from `packages/telemetry/test-vectors/sampler.json` to `apps/agent/src-tauri/adapters/test-vectors/sampler.json`, both its readers follow it, and the agent's mutation commands create `reports/mutation` first.
+- **Reason**: cargo-mutants copies only `apps/agent/src-tauri`, so the adapters' `--lib` baseline fails with the vector outside it, and it does not create the parent of `--output`. The nightly job would fail the same way. Skipping the test or dropping the adapters would weaken a sensor. AD-102 says the vector comes from the Rust rule, so the crate is its natural home. No product code changes: both paths are in test code. This goes past brief revision 3's sketch, so it is listed for the maintainer.
+- **Trade-off**: the telemetry package's test reads a file under `apps/`, and turbo's cache for that test no longer sees the vector as an input. Reversal: move the file back and drop the adapters from the mutation commands.
+- **Scope**: ci-and-review-fixes / CRF-25 to CRF-28
+- **Date**: 2026-11-04
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

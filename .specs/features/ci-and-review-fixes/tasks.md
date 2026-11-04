@@ -8,9 +8,9 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 
 Rules of this feature:
 
-- Only harness files change: no file under `apps/`, `packages/` or `.claude/hooks/`, and nothing under `.claude/skills/tlc-spec-driven/`.
+- Only harness files change, with one exception: T10 moves the test vector and changes the two test paths that read it (AD-131). No other file under `apps/` or `packages/`, no file under `.claude/hooks/`, and nothing under `.claude/skills/tlc-spec-driven/`.
 - `.quality-baseline.json`: T3 changes `mutation.agent.core`'s `source.path` and nothing else, with the Edit tool. If the gate refuses that edit, stop and report; do not route around it.
-- No test, scenario or sensor is weakened, skipped or focused. `acceptance.feature` does not change.
+- No test, scenario or sensor is weakened, skipped or focused. `acceptance.feature` does not change during Execute.
 - Every gate runs through `node scripts/attempt.mjs run --feature ci-and-review-fixes --step T<n> -- "<gate>"`, with nothing outside the quotes.
 - `@CRF-*` scenarios read files the later tasks change, so they stay red until T8, whose gate runs them all.
 
@@ -62,7 +62,7 @@ T1
 ### Phase 2: Acceptance and metric fixes
 
 ```
-T2 → T3 → T4 → T5
+T2 → T3 → T9 → T10 → T4 → T5
 ```
 
 ### Phase 3: Review instructions
@@ -142,15 +142,59 @@ T6 → T7 → T8
 
 ---
 
-### T4: Add the agent mutation command
+### T9: Write the steps of the amended scenarios
 
-**What**: Add the root script `test:mutation:agent` with the nightly's three commands, and run it for real.
-**Where**: `package.json`
+**What**: Add the steps of the two scenarios tagged `@CRF-25 @CRF-26` and `@CRF-27 @CRF-28`.
+**Where**: `tests/acceptance/steps/harness-foundation.steps.ts`
 **Depends on**: T3
-**Reuses**: The commands in `.github/workflows/nightly.yml`, and `scripts/test/agent-mutation-scope.test.mjs`, where the new tests go
-**Requirement**: CRF-09, CRF-10, CRF-11
+**Reuses**: The steps T1 added and their way of reading `package.json` and `nightly.yml`
+**Requirement**: CRF-25, CRF-26, CRF-27, CRF-28
 
 **Done when**:
+
+- [ ] The directory step asserts, in the script and in the `agent-mutation` job, that a command creating `reports/mutation` comes before the first `cargo mutants`
+- [ ] The vector steps assert that the file exists under `apps/agent/src-tauri/adapters/test-vectors/`, that `packages/telemetry/test-vectors/sampler.json` does not exist, and that the Rust test and `packages/telemetry/src/sdk/sampler.test.ts` both name the new location
+- [ ] Gate check passes: `pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec bddgen`
+
+**Tests**: acceptance
+**Gate**: `pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec bddgen`
+**Commit**: `test(acceptance): add the steps of the mutation run scenarios`
+
+---
+
+### T10: Move the shared sampler vector into the adapters crate
+
+**What**: `git mv` the vector to `apps/agent/src-tauri/adapters/test-vectors/sampler.json`, and change the two paths that read it and the comment in `sampler.ts`.
+**Where**: `apps/agent/src-tauri/adapters/src/telemetry/mod.rs`
+**Depends on**: T9
+**Reuses**: The existing tests `sampler_decisions_match_the_shared_vector` and the shared-vector test of `packages/telemetry/src/sdk/sampler.test.ts`, with their assertions untouched; `scripts/test/agent-mutation-scope.test.mjs`, where the new test goes
+**Requirement**: CRF-27, CRF-28
+
+**Done when**:
+
+- [ ] `SAMPLER_VECTOR` in the `#[cfg(test)]` module reads `concat!(env!("CARGO_MANIFEST_DIR"), "/test-vectors/sampler.json")`, and no non-test code changes
+- [ ] `sampler.test.ts` reads the new path through `new URL(...)`; the comment in `sampler.ts` names it; no assertion changes
+- [ ] The vector's content is unchanged (`git mv`), and `packages/telemetry/test-vectors/` no longer exists
+- [ ] Test `the shared sampler vector lives in the adapters crate` asserts the file exists in the crate and is gone from the telemetry package
+- [ ] Gate check passes. It runs cargo-mutants on the adapters for real. If it reports a missed mutant, do not change the test or the scope: report the mutants, because the orchestrator decides
+
+**Tests**: unit
+**Gate**: `node --test scripts/test/agent-mutation-scope.test.mjs && pnpm --filter @d2rmm/telemetry exec vitest run src/sdk/sampler.test.ts && mkdir -p reports/mutation && cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib`
+**Commit**: `fix(agent): keep the shared sampler vector inside the adapters crate`
+
+---
+
+### T4: Add the agent mutation command
+
+**What**: Add the root script `test:mutation:agent`: it creates `reports/mutation`, then runs the nightly's three commands, and it is run for real.
+**Where**: `package.json`
+**Depends on**: T10
+**Reuses**: The commands in `.github/workflows/nightly.yml`, and `scripts/test/agent-mutation-scope.test.mjs`, where the new tests go
+**Requirement**: CRF-09, CRF-10, CRF-11, CRF-26
+
+**Done when**:
+
+- [ ] Test `the agent mutation command creates the reports directory first` asserts `mkdir -p reports/mutation` comes before the first `cargo mutants`
 
 - [ ] The script chains, with `&&`, `cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package <crate> --output reports/mutation/agent-<name> -- --lib` for `d2rmm-agent-domain`, `d2rmm-agent-core` and `d2rmm-agent-adapters`
 - [ ] Test `the agent mutation command covers the three crates` reads `package.json`
@@ -176,7 +220,9 @@ T6 → T7 → T8
 
 - [ ] `quality` has `needs: agent-mutation` and `if: ${{ !cancelled() }}`
 - [ ] A step named `Download the agent's mutation reports`, placed before `Quality ratchet (nightly)`, uses `actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4`, with `name: agent-mutation`, `path: reports/mutation`, `if: needs.agent-mutation.result != 'skipped'` and `continue-on-error: true`
-- [ ] `agent-mutation` and `backup` are unchanged
+- [ ] `agent-mutation` gains one step before its first `cargo mutants`: `run: mkdir -p reports/mutation` with `shell: bash`, because the job's default shell on Windows is PowerShell. Nothing else in that job changes, and `backup` is unchanged
+- [ ] Test `the agent job creates the reports directory first` asserts that order (CRF-25)
+- [ ] Test `the agent job uploads its reports even when a command fails` pins the upload's existing `if: always()`, which is how a missed mutant's score reaches the ratchet (AD-130)
 - [ ] One named test per criterion: `quality waits for the agent mutation job`, `quality runs unless cancelled`, `the agent reports are downloaded before the ratchet`, `the download is skipped with the agent job`, `the download action is pinned by its full commit`, `a failed download does not fail quality`
 - [ ] Gate check passes
 
@@ -343,6 +389,30 @@ Proof: `pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acce
 **C31** - `pnpm contracts:check` reports no drift (CRF-24, AC 1)
 Proof: `pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep @CRF-24`
 
+**C32** - The `agent-mutation` job creates `reports/mutation` before its first `cargo mutants` (CRF-25, AC 1)
+Proof: `node --test "--test-name-pattern=the agent job creates the reports directory first" scripts/test/nightly-workflow.test.mjs`
+
+**C33** - `test:mutation:agent` creates `reports/mutation` before its first `cargo mutants` (CRF-26, AC 2)
+Proof: `node --test "--test-name-pattern=the agent mutation command creates the reports directory first" scripts/test/agent-mutation-scope.test.mjs`
+
+**C34** - The scenario reads both orders (CRF-25, CRF-26)
+Proof: `pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep @CRF-25`
+
+**C35** - The vector lives in the adapters crate and is gone from the telemetry package (CRF-27, AC 3)
+Proof: `node --test "--test-name-pattern=the shared sampler vector lives in the adapters crate" scripts/test/agent-mutation-scope.test.mjs`
+
+**C36** - The adapters' unit test reads the vector inside the crate and its decisions match (CRF-27, AC 3)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib -E 'test(sampler_decisions_match_the_shared_vector)'`
+
+**C37** - The TypeScript sampler test reads the same file and its decisions match (CRF-28, AC 4)
+Proof: `pnpm --filter @d2rmm/telemetry exec vitest run src/sdk/sampler.test.ts`
+
+**C38** - The scenario reads the location from the repository (CRF-27, CRF-28)
+Proof: `pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep @CRF-27`
+
+**C39** - The agent job's upload keeps `if: always()`, so a missed mutant's score reaches the ratchet (AD-130)
+Proof: `node --test "--test-name-pattern=the agent job uploads its reports even when a command fails" scripts/test/nightly-workflow.test.mjs`
+
 ---
 
 ## Handoff
@@ -350,8 +420,10 @@ Proof: `pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acce
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** none
-**Dispatched:** `execute-batch-1` (T1 to T8) to `feature-worker`
+**Dispatched:** `execute-batch-1` (T1 to T8) to `feature-worker`, returned at T4; `execute-batch-2` (T9, T10, T4 to T8) to `feature-worker`
 **Walked:** none - no screen; the scenarios read the repository's files
+**Blocked:** `gate:ci-and-review-fixes/T4` (2 of 3 failures; the third would block it). The task as written cannot pass. Last error: `cargo test failed in an unmutated tree` for `d2rmm-agent-adapters`: `telemetry::tests::sampler_decisions_match_the_shared_vector` panics `the shared sampler vector: NotFound`. The test reads `CARGO_MANIFEST_DIR/../../../../packages/telemetry/test-vectors/sampler.json`, and cargo-mutants copies only `apps/agent/src-tauri` into its tree, so the file is outside the copy (exit 4). Attempt 1 failed because cargo-mutants does not create the `reports/mutation` parent of `--output` on a fresh checkout; attempt 2 added `mkdir -p reports/mutation &&` as the first segment of the script, and then ran domain (82 mutants: 62 caught, 20 unviable) and core (89 mutants: 59 caught, 30 unviable) with no missed mutant, before the adapters baseline failed. `pnpm quality:collect` on the written report gives `mutation.agent.core = 100`. Nothing committed for T4; `package.json` and `scripts/test/agent-mutation-scope.test.mjs` are uncommitted in the worktree. A fix needs a maintainer decision: move the vector into the crate, or let cargo-mutants see `packages/`; a skip or a weaker assertion is out of bounds. T5 (not started) also needs a replan: its `agent-mutation` job has the same missing-directory and adapters-baseline problems on a fresh runner, and its upload step has no `if: always()`, so a non-zero cargo-mutants exit (a missed mutant) skips the upload and the score never reaches the ratchet, which spec assumption AD-130 requires. T5 says `agent-mutation` unchanged, so the orchestrator must replan it. T6 to T8 not started.
+**Replanned (orchestrator, 2026-11-04):** the unit is not blocked: it stands at 2 of 3 with its last attempt kept for T4. Correction to the note above: the agent job's upload step does have `if: always()` (`nightly.yml`), so a missed mutant's score does reach the artifact; T5 now pins it. The vector moves into the adapters crate (AD-131, CRF-25 to CRF-28), through new tasks T9 and T10, which run before T4 so T10's gate proves the adapters' baseline without spending T4's last attempt. The uncommitted T4 work stays in the worktree.
 
 ---
 
@@ -361,8 +433,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 Phase 1 → Phase 2 → Phase 3
 
 Phase 1:  T1
-Phase 2:  T2 → T3 → T4 → T5
+Phase 2:  T2 → T3 → T9 → T10 → T4 → T5
 Phase 3:  T6 → T7 → T8
 ```
 
-Execution is strictly sequential. Under ADR 025, one `feature-worker` runs all eight tasks as `execute-batch-1`.
+Execution is strictly sequential. Under ADR 025, `feature-worker` runs the tasks: `execute-batch-1` stopped at T4, and `execute-batch-2` runs T9, T10, T4 and the rest.

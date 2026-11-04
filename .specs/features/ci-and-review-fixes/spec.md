@@ -2,6 +2,8 @@
 
 **Approved**: 2026-11-04 - user: "aprovo specs e tasks da F0 que passarem nos gates automáticos; delego sub-agents, harness-edits e local-merge-phase-branch" (delegated via .specs/phases/F0/brief.md)
 
+**Amended by the runner** (assumed, AD-131; to confirm at the phase review): 2026-11-04, Execute found that the agent's mutation commands fail on a fresh runner and in the adapters' baseline, so the nightly's commands could not run as written. CRF-25 to CRF-28 are appended and no approved criterion is edited. They move one test vector into the adapters crate and change two test paths. This is the one exception to "harness files only" in Out of Scope; no product behaviour changes.
+
 ## Problem Statement
 
 The F0 review found three harness defects. The CI `integration` job runs the acceptance suite with no site build, so its first run should fail with `the site is not built`. The quality baseline reads `reports/mutation/agent-core/outcomes.json` while cargo-mutants writes `reports/mutation/agent-core/mutants.out/outcomes.json`, and the nightly ratchet job never receives the report, so the agent's mutation score is never compared. The review step runs `validate_verification.py` on the phase branch, where it cannot pass after a merge and spends retry budget each time. These must be fixed before `phase/F0` is pushed. Source: `.specs/phases/F0/brief-revision-3.md`, approved by the maintainer on 2026-11-04.
@@ -14,17 +16,17 @@ The F0 review found three harness defects. The CI `integration` job runs the acc
 
 ## Out of Scope
 
-| Feature                                                                                      | Reason                                                                                      |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Any product behaviour: API, site, agent or contract changes                                  | The feature changes harness files only (CRF-24)                                             |
-| Editing `validate_verification.py` or anything in `.claude/skills/tlc-spec-driven/`          | Vendored (AGENTS.md, "Never do")                                                            |
-| Setting `mutation.agent.core`'s value, floor, tolerance or contexts                          | The first value comes from `pnpm quality:ratchet --context phase --update`, after the merge |
-| `test:e2e` having no task in any workspace                                                   | Risk 5 of `review.md`, out by brief revision 3                                              |
-| The API domain mutation margin                                                               | Risk 6 of `review.md`, out by brief revision 3                                              |
-| The nightly's `Harness report` failure on `main`, the `backup` reviewer and its waiting runs | Risk 7 of `review.md`, out by brief revision 3                                              |
-| Telemetry and egress reduction                                                               | Risk 8 of `review.md`, out by brief revision 3                                              |
-| Building the headless example in a fresh local checkout, and the rejection at `world.ts:259` | Risk 9 of `review.md`, out by brief revision 3                                              |
-| Whether read-only steps should spend retry budget                                            | Risk 10 of `review.md`, out by brief revision 3                                             |
+| Feature                                                                                      | Reason                                                                                         |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Any product behaviour: API, site, agent or contract changes                                  | The feature changes harness files and one test vector with its two test paths (CRF-24, AD-131) |
+| Editing `validate_verification.py` or anything in `.claude/skills/tlc-spec-driven/`          | Vendored (AGENTS.md, "Never do")                                                               |
+| Setting `mutation.agent.core`'s value, floor, tolerance or contexts                          | The first value comes from `pnpm quality:ratchet --context phase --update`, after the merge    |
+| `test:e2e` having no task in any workspace                                                   | Risk 5 of `review.md`, out by brief revision 3                                                 |
+| The API domain mutation margin                                                               | Risk 6 of `review.md`, out by brief revision 3                                                 |
+| The nightly's `Harness report` failure on `main`, the `backup` reviewer and its waiting runs | Risk 7 of `review.md`, out by brief revision 3                                                 |
+| Telemetry and egress reduction                                                               | Risk 8 of `review.md`, out by brief revision 3                                                 |
+| Building the headless example in a fresh local checkout, and the rejection at `world.ts:259` | Risk 9 of `review.md`, out by brief revision 3                                                 |
+| Whether read-only steps should spend retry budget                                            | Risk 10 of `review.md`, out by brief revision 3                                                |
 
 ---
 
@@ -149,6 +151,23 @@ Every ambiguity is resolved or recorded here - nothing is left silently unclear.
 
 ---
 
+### P1: The agent's mutation commands run from a fresh checkout ⭐ MVP
+
+**User Story**: As the nightly or a contributor, I want the agent's mutation commands to work on a clean machine so that the reports this feature reads actually exist.
+
+**Why P1**: cargo-mutants does not create the parent of `--output`, and it copies only `apps/agent/src-tauri`, where `telemetry::tests::sampler_decisions_match_the_shared_vector` cannot find the vector in `packages/telemetry/test-vectors/`. Both stop the run before any adapters mutant.
+
+**Acceptance Criteria**:
+
+1. CRF-25: The nightly `agent-mutation` job SHALL create `reports/mutation` before its first cargo-mutants command
+2. CRF-26: `pnpm test:mutation:agent` SHALL create `reports/mutation` before its first cargo-mutants command
+3. CRF-27: The shared sampler vector SHALL live in `apps/agent/src-tauri/adapters/test-vectors/sampler.json`, and the adapters' unit test SHALL read it from there
+4. CRF-28: The TypeScript sampler test SHALL read that same file, so the parity between the senders (AD-102) stays proved by one vector
+
+**Independent Test**: run cargo-mutants on `d2rmm-agent-adapters` with `-- --lib` and see the unmutated baseline pass; run the TypeScript sampler test.
+
+---
+
 ## Edge Cases
 
 - CRF-08 covers the absent and the empty outcomes file.
@@ -185,12 +204,16 @@ Every ambiguity is resolved or recorded here - nothing is left silently unclear.
 | CRF-22         | P1: The review reads evidence                 | Tasks | Pending |
 | CRF-23         | P1: The review reads evidence                 | Tasks | Pending |
 | CRF-24         | P1: No contract changes                       | Tasks | Pending |
+| CRF-25         | P1: Mutation commands from a fresh checkout   | Tasks | Pending |
+| CRF-26         | P1: Mutation commands from a fresh checkout   | Tasks | Pending |
+| CRF-27         | P1: Mutation commands from a fresh checkout   | Tasks | Pending |
+| CRF-28         | P1: Mutation commands from a fresh checkout   | Tasks | Pending |
 
 **ID format:** `[CATEGORY]-[NUMBER]`
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
 
-**Coverage:** 24 total, 24 mapped to tasks, 0 unmapped
+**Coverage:** 28 total, 28 mapped to tasks, 0 unmapped
 
 ---
 
@@ -198,7 +221,8 @@ Every ambiguity is resolved or recorded here - nothing is left silently unclear.
 
 - `.specs/phases/F0/brief-revision-3.md` - the three fixes, approved by the maintainer ("aprovo a revisão 3 do brief da F0"). It says to "list" the command "in the review step"; CRF-22 and CRF-23 extend that to the review template and to `AGENTS.md`, whose commands table is the canonical list
 - `.specs/phases/F0/review.md` - risks 1, 3 and 4, and the out-of-scope risks
-- `docs/product/prd.md#NFR-10` - mutation testing on domain and application (CRF-04 to CRF-17)
+- `docs/product/prd.md#NFR-10` - mutation testing on domain and application (CRF-04 to CRF-17, CRF-25 to CRF-28)
+- AD-102 and AD-131 in `.specs/STATE.md` - the shared vector comes from the Rust rule, and where it lives (CRF-27, CRF-28)
 - `docs/product/prd.md#NFR-11` - harness verified in CI (CRF-01 to CRF-03; the review's numbers depend on it)
 - ADR 020 - contract drift (CRF-24)
 - ADR 021 - the phase review flow (CRF-18 to CRF-23)
