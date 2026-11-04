@@ -1110,6 +1110,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-03
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-124 (assumed)
+
+- **Decision**: a step's errors are broken down by kind (`status:<code>`, route, `created-late`, `pending-at-close`, `stream-early`, `lost-assignment`, `dropped`) and, for a failing step, by quarter of its players; the breakdown carries counts only, never a body, header, cookie or token.
+- **Reason**: the first full run failed step 50 on `errors` (25 of 75 iterations) with latency and resource peaks low, and the summary could not say which request failed; without the breakdown a capacity finding and a defect cannot be told apart.
+- **Trade-off**: two more fields in the summary rows.
+- **Scope**: load-baseline / LB-08, LB-11, LB-15
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

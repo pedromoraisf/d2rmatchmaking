@@ -120,7 +120,7 @@ T34 → T35 → T36 → T37
 ### Phase 10: Runs
 
 ```
-T32 → T38 → T33
+T32 → T38 → T39 → T33
 ```
 
 ---
@@ -863,11 +863,31 @@ T32 → T38 → T33
 
 ---
 
+### T39: Error breakdown of a step
+
+**What**: Say what kind of error a failing step had, so the run can tell a capacity finding from a defect (the first full run failed step 50 on `errors` with 25 errors in 75 iterations while latency and resource peaks stayed low, and the summary could not say which request failed).
+**Where**: `scripts/load/lib/summary.mjs` (modify; tests in `scripts/test/load/summary.test.mjs`; `journey.mjs`, `orchestrate.mjs` and the check files change with it)
+**Depends on**: T38
+**Reuses**: T36's tallies, the `status` of every journey request, T37's lost and dropped counts
+**Requirement**: LB-08, LB-11, LB-15
+
+**Done when**:
+
+- [ ] `journey.mjs` tags every error by kind and `step.json` carries `errorsByKind`, a map from a kind to a count: `status:<code>` for a non-2xx answer (the route name, never a body or a header: `route:<name>` alongside, e.g. `match-formed`, `observation`, `heartbeat`, `stream-site`, `stream-agent`), `created-late`, `pending-at-close`, `stream-early`; the orchestrator adds `lost-assignment` and `dropped` from its own counts; kinds are drawn from a fixed alphabet (letters, digits, `:`, `-`), a value outside it is folded into `other`
+- [ ] `StepResult` and the summary's step rows carry `errorsByKind` (non-negative integers that add up to the step's errors) and, for a failing step only, the player indexes' cohort summary `errorsByPlayerRange` (errors per quarter of the step's players by index, four numbers) so a fault limited to the players a step adds is visible; none of it can carry a cookie, a token, a password or a response body; the unit tests assert the sum, the alphabet and the absence of secrets
+- [ ] The smoke check still passes and now also asserts `errorsByKind` adds up to the step's errors; `pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.check.mjs` passes
+- [ ] Tests named as in `## Checks` pass; Gate: the Smoke gate
+
+**Tests**: unit
+**Gate**: Smoke
+
+---
+
 ### T33: Full run, publish and baseline
 
 **What**: The full run of the F0 exit criterion, its published document and the first baseline values.
 **Where**: `scripts/load/check/full-summary.check.mjs`
-**Depends on**: T38
+**Depends on**: T39
 **Reuses**: `reports/load/summary.json`, `pnpm load:publish`, `pnpm quality:collect`, `pnpm quality:ratchet`
 **Requirement**: LB-10, LB-11, LB-12, LB-13, LB-14, LB-15, LB-21, LB-22
 
@@ -1034,6 +1054,9 @@ Proof: `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`
 **C49** - A `created` frame at or after 5 000 ms from its observation is one error and no latency sample; an observation still pending 5 000 ms or more when the stream ends is one error, tallied at the time of its observation, and a younger one is none; a stale iteration is settled when the next assignment arrives (LB-05, AC 5; LB-08 edge case)
 Proof: `node --test "--test-name-pattern=pending observation at the end of a stream" scripts/test/load/journey-state.test.mjs`
 
+**C54** - A step's errors are broken down by kind and by quarter of its players, the kinds add up to the errors, and no secret text can be in them (LB-08, AC 8; LB-11, AC 2; LB-15, AC 5)
+Proof: `node --test "--test-name-pattern=step rows carry the error breakdown" scripts/test/load/summary.test.mjs`
+
 **C53** - The journey runs its stream-close tally at the stream's `error` event, once per stream, so an observation pending at the cut is counted when the cut happens (LB-05, AC 5; LB-08 edge case)
 Proof: `node --test "--test-name-pattern=journey closes its tally at the stream error event" scripts/test/load-scripts.test.mjs`
 
@@ -1077,7 +1100,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 - `publishPlan(summary)` returns `{ allowed, text | reason }`; `writeSummary(fs, dir, summary)` is async and returns the target path; `runIdFrom(randomInt)` takes a `crypto.randomInt`-shaped function; `buildSummary` takes `times: { startedAt, endedAt }`; `failure.step` is the player count.
 - After batch 4 (accepted by the orchestrator): the images the run builds itself are local tags `d2rmm-load-api:f0` and `d2rmm-load-k6:f0` without a digest (an image id changes with every build); their pins are the `FROM` digests, and T28's static test checks the `FROM` lines and every pulled image reference, not these two tags. `images.mjs` holds `postgres:17-alpine@sha256:266d3c25…`, `node:26-alpine@sha256:c6ad9e9c…`, `node:26-bookworm-slim@sha256:bc0a2afd…`, `golang:1.27.1-alpine@sha256:8a5910f3…`, `grafana/k6:2.3.0@sha256:2dd4756e…`. The API image runs as `USER node`. `.dockerignore` re-includes `apps/web/package.json`, `apps/agent/package.json` and `tests/acceptance/package.json` for the frozen install (T32 confirms the build). `journey-state.mjs`: `start()` returns `waiting-assigned` (no `idle` phase), each transition returns the next state with `latencyMs` and `errors` in it, `onStatus(state, status)` counts a non-2xx. `cleanupPlan` returns `{ containers, networks, directories }`; `sweepPlan(found, { uid })`. `scripts/load/containers/control.mjs` holds the shared control endpoints (bearer, `Host`, routes), `flagsOf` and `readToken`; the meter and sink take `--listen`, `--upstream`, `--control`, `--token-file`. `attempt.mjs` runs gates with no timeout: a test that can hang needs its own timeout.
 - Lint: ESLint runs inside the quoted gate command (a direct `pnpm exec eslint` is denied by the hook); `pnpm exec prettier --write` is a direct call.
-  **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03, `returned` (T1 committed 8cfe8e3); execute-batch-2 (T2 to T8) at HEAD 8cfe8e3, 2026-11-03, `returned` (T2 to T8 committed, last 3652068); execute-batch-3 (T9 to T17) at HEAD 3652068, 2026-11-03, `returned` (T9 to T17 committed, last c5975ec); execute-batch-4 (T18 to T23) at HEAD 6580fd8, 2026-11-03, `returned` (T18 to T23 committed, last 35feb02); execute-batch-5 (T24 to T27, Phase 7) at HEAD 35feb02, 2026-11-03, `returned` (T24 to T27 committed, last 7a5c8b3); execute-batch-6 (T28 to T31, Phase 8) at HEAD 7a5c8b3, 2026-11-03, `returned` (T28 to T31 committed, last 67138a4); execute-batch-7 (T32, the smoke run) at HEAD f61cf3e, 2026-11-03, `returned` (blocked on three design points, no commit); execute-batch-8 (T34 to T37, Phase 9) at HEAD bebf379, 2026-11-03, `returned` (T34 to T37 committed, last 77cac8c); execute-batch-9 (T32, the smoke run, second attempt) at HEAD 77cac8c, 2026-11-03, `returned` (T32 committed 0583dc6); execute-batch-9 again (T38, close handling at the error event; the closed list of dispatch steps ends at execute-batch-9) at HEAD d515f0c, 2026-11-03
+  **Dispatched:** execute-batch-1 (T1, the spike) at HEAD 556a765, 2026-11-03, `returned` (T1 committed 8cfe8e3); execute-batch-2 (T2 to T8) at HEAD 8cfe8e3, 2026-11-03, `returned` (T2 to T8 committed, last 3652068); execute-batch-3 (T9 to T17) at HEAD 3652068, 2026-11-03, `returned` (T9 to T17 committed, last c5975ec); execute-batch-4 (T18 to T23) at HEAD 6580fd8, 2026-11-03, `returned` (T18 to T23 committed, last 35feb02); execute-batch-5 (T24 to T27, Phase 7) at HEAD 35feb02, 2026-11-03, `returned` (T24 to T27 committed, last 7a5c8b3); execute-batch-6 (T28 to T31, Phase 8) at HEAD 7a5c8b3, 2026-11-03, `returned` (T28 to T31 committed, last 67138a4); execute-batch-7 (T32, the smoke run) at HEAD f61cf3e, 2026-11-03, `returned` (blocked on three design points, no commit); execute-batch-8 (T34 to T37, Phase 9) at HEAD bebf379, 2026-11-03, `returned` (T34 to T37 committed, last 77cac8c); execute-batch-9 (T32, the smoke run, second attempt) at HEAD 77cac8c, 2026-11-03, `returned` (T32 committed 0583dc6); execute-batch-9 again (T38, close handling at the error event; the closed list of dispatch steps ends at execute-batch-9) at HEAD d515f0c, 2026-11-03, `returned` (T38 committed 6ec0123); execute-batch-8 again (T33, the full run, publish and baseline) at HEAD 6ec0123, 2026-11-03, `returned` (a finding: step 50 failed on `errors`, no commit, attempt 1 of 3); execute-batch-7 again (T39, error breakdown) at HEAD d515f0c plus this commit, 2026-11-03
   **Walked:** none
 
 **Batch 5 (execute-batch-5, T24 to T27, implementer):** contracts for T28 to T33 and the mismatches with design.md.
@@ -1150,6 +1173,16 @@ Deviations and notes:
 - Direct checks: `node --check` passed; the load unit and static tests 125 of 125 (`node --test "scripts/test/load/*.test.mjs" scripts/test/load-scripts.test.mjs`); `pnpm exec prettier --write scripts` reformatted only the new test (line breaks).
 - Open for the review: an early read error that the cut does not explain is still tallied only at the time it happens (as designed); a stream that dies early and then returns from `sse.open` late is counted once, at the error event.
 
+**Batch 10 (execute-batch-8 again, T33, the full run): finding, not passed.** `pnpm test:load` ran once (attempt 1 of 3, HEAD 6ec0123) and ended with `error: null`, `passed: false`, `failure: { step: 50, rule: errors }`, `maxConcurrentPlayers: 25`. No baseline value was recorded and `pnpm load:publish`, `quality:collect` and `quality:ratchet` were not run. `reports/load/summary.json` is kept as the run wrote it. The check `scripts/load/check/full-summary.check.mjs` is written and formatted; it is not committed, and T33 is not ticked.
+
+- Versions: k6 v2.3.0 (go1.27.1), xk6-sse v0.2.0, `alpine/openssl:latest`, `postgres:17-alpine`, `node:26-alpine`. Limits 0.5 CPU, 512m, k6 1500m. The Docker VM has 4.1 GB (about 3.8 GiB).
+- Step 25: passed. 37 latency samples, p95 1.71 ms, 0 errors, 254 requests, 37 iterations, 51 matches posted and started, 51 rooms, 72 760 API bytes to players in 90 s. Peaks: API CPU 6.51 %, memory 121.5 MB.
+- Step 50: failed `errors`. p95 1.36 ms over 50 samples, errors 25 of 75 iterations (error ratio 0.0427), 510 requests, 101 matches posted and started, 0 dropped, 0 lost, 101 rooms, 141 435 API bytes in 90 s. Peaks: API CPU 17.96 %, memory 113.9 MB. The 25 iterations without a latency sample are the errors: a request answered non-2xx, or no `created` within 5 s. The summary does not say which request.
+- Not the cause, checked: the 429 lookup bucket (`apps/api/src/platform/http/guards.ts`, 10 lookups a second) sits only in `requireAgentOrSite`, the relay guard. The journey's site and agent routes use `requireSession` and `requireAgent`, which take no token. The pairing limiters are not on the journey path.
+- First suspects for the orchestrator: the 25 failed iterations have no latency sample, so their requests failed or hung rather than queued (the successful ones stay near 1.4 ms, which argues against the pool queueing). Candidates to read first: the status of the observation and `match-formed` answers, and the Postgres pool of 10 (`render.ts`, no `max`). The run keeps no k6 output or API log, so a diagnostic needs the stderr of the k6 container, which is not kept.
+- Not run: the 100-player step. The row carries API peaks only; the k6 and meter peaks are not in the summary.
+- Retry: not retried. The gate's failure is a finding, and the same run would repeat it; the budget shows failure 1 of 3. The decision for the maintainer or the orchestrator: keep the finding and report, or add a diagnostic that keeps the k6 and API logs of a failing step (a change of the scripts, not made here).
+
 ---
 
 ## Phase Execution Map
@@ -1166,7 +1199,7 @@ Phase 6:  T21 -----→ T22 -----→ T23
 Phase 7:  T24 -----→ T25 -----→ T26 -----→ T27
 Phase 8:  T28 -----→ T29 -----→ T30 -----→ T31
 Phase 9:  T34 -----→ T35 -----→ T36 -----→ T37
-Phase 10: T32 -----→ T38 -----→ T33
+Phase 10: T32 -----→ T38 -----→ T39 -----→ T33
 ```
 
 Execution is strictly sequential - there is no intra-phase parallelism.

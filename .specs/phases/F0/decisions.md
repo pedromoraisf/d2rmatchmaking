@@ -96,6 +96,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-114 | load-baseline | k6 built with the `phymbert/xk6-sse` extension into a pinned image; no runtime auto-provisioning | auto-provisioning (a runtime network call) | |
 | AD-115 | load-baseline | A tool failure is written to `error`, not to the four `failure` rules | fold it into `failure` | |
 | AD-116 | load-baseline | Telemetry bytes are counted on the wire at the sink, headers included, in the meter's window | count bodies only | |
+| AD-124 | load-baseline | A step's errors are broken down by kind and, for a failing step, by quarter of its players (counts only) | a log file of the failing step | |
 | AD-123 | load-baseline | The stream-close tally runs at the stream's `error` event, once per stream (xk6-sse 0.2.0 returns from `sse.open` only when k6 interrupts the VU after a `timeout` cut) | wait for a fixed extension version | |
 | AD-122 | load-baseline | Matches start when the ramp ends so every window contains matches (completes AD-118) | a different smoke hold | |
 | AD-121 | load-baseline | No JavaScript timer runs while a stream is open: the match comes from an arrival-rate scenario, streams end by `sse.open`'s `timeout`, the 5 s `created` rule is evaluated at the frame or at the end of the stream | a k6 or extension version whose timers fire | |
@@ -241,6 +242,13 @@ The first real smoke attempt (T32, never run as a gate) found three design point
 - **State**: code of T1 to T31 is committed (last 67138a4) plus three defect fixes (5cfbfa2); T34 to T37 are not started; T32 and T33 wait on them. The tasks gate passed again for the replan; the approval line is unchanged.
 - **Needs the maintainer**: either reset the two review units so the runner can re-review the revision, `node scripts/attempt.mjs reset --unit dispatch:load-baseline/review-architecture --by <maintainer>` and `node scripts/attempt.mjs reset --unit dispatch:load-baseline/review-security --by <maintainer>`, or say in their own words that the revision may proceed without a fresh review (it is then listed in the phase review). The runner does not execute T34 to T37 before one of the two.
 - **Phase effect**: `load-baseline` is the last feature of F0 and nothing else is runnable, so the phase is blocked until then (an escalation).
+
+## Finding: load-baseline, first full run (2026-11-03) — open
+
+`pnpm test:load` (T33, attempt 1 of 3) finished with `error: null`, `passed: false`, `failure: { step: 50, rule: errors }`; `maxConcurrentPlayers` 25, `maxConcurrentRooms` 51, steps 100 to 400 did not run, so there is no p95, bytes or telemetry reading yet; `.quality-baseline.json` is untouched (the three `load.*` values stay `null`). Step 25: 37 samples, p95 1.71 ms, 0 errors, API peak 6.5 % CPU and 121 MB. Step 50: 50 samples, p95 1.36 ms, **25 errors in 75 iterations** (ratio 0.0427), 101 matches posted and started, 0 dropped, 0 lost, API peak 18 % CPU and 114 MB.
+
+- **Reading**: latency and resource use stay far from any limit, and the number of errors is exactly half the step's players, so the failure looks like a fault limited to part of the step (for example the 25 players this step adds) and not a capacity limit. It is not yet a finding about the API: the summary cannot say which request failed. T39 adds the error breakdown (AD-124); T33 then runs again (attempt 2 of 3). The first suspects after that: the pairing/provisioning of the players a step adds, the per-account state of the players kept from the earlier step, the API pool of 10 connections and the per-request session lookup.
+- **Not a bottleneck claim**: nothing here shows the instance's limit yet.
 
 ## Queued for F1 (from the api-web-skeleton security review)
 
