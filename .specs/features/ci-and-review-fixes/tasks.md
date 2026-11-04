@@ -282,13 +282,13 @@ T6 → T7 → T8
 
 **Done when**:
 
-- [ ] `quality` has `needs: agent-mutation` and `if: ${{ !cancelled() }}`
-- [ ] A step named `Download the agent's mutation reports`, placed before `Quality ratchet (nightly)`, uses `actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4`, with `name: agent-mutation`, `path: reports/mutation`, `if: needs.agent-mutation.result != 'skipped'` and `continue-on-error: true`
-- [ ] `agent-mutation` gains one step before its first `cargo mutants`: `run: mkdir -p reports/mutation` with `shell: bash`, because the job's default shell on Windows is PowerShell. Nothing else in that job changes, and `backup` is unchanged
-- [ ] Test `the agent job creates the reports directory first` asserts that order (CRF-25)
-- [ ] Test `the agent job uploads its reports even when a command fails` pins the upload's existing `if: always()`, which is how a missed mutant's score reaches the ratchet (AD-130)
-- [ ] One named test per criterion: `quality waits for the agent mutation job`, `quality runs unless cancelled`, `the agent reports are downloaded before the ratchet`, `the download is skipped with the agent job`, `the download action is pinned by its full commit`, `a failed download does not fail quality`
-- [ ] Gate check passes
+- [x] `quality` has `needs: agent-mutation` and `if: ${{ !cancelled() }}`
+- [x] A step named `Download the agent's mutation reports`, placed before `Quality ratchet (nightly)`, uses `actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4`, with `name: agent-mutation`, `path: reports/mutation`, `if: needs.agent-mutation.result != 'skipped'` and `continue-on-error: true`
+- [x] `agent-mutation` gains one step before its first `cargo mutants`: `run: mkdir -p reports/mutation` with `shell: bash`, because the job's default shell on Windows is PowerShell. Nothing else in that job changes, and `backup` is unchanged
+- [x] Test `the agent job creates the reports directory first` asserts that order (CRF-25)
+- [x] Test `the agent job uploads its reports even when a command fails` pins the upload's existing `if: always()`, which is how a missed mutant's score reaches the ratchet (AD-130)
+- [x] One named test per criterion: `quality waits for the agent mutation job`, `quality runs unless cancelled`, `the agent reports are downloaded before the ratchet`, `the download is skipped with the agent job`, `the download action is pinned by its full commit`, `a failed download does not fail quality`
+- [x] Gate check passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/nightly-workflow.test.mjs scripts/test/agent-mutation-scope.test.mjs`
