@@ -87,4 +87,14 @@ mod tests {
             "an empty queue drains nothing"
         );
     }
+
+    #[test]
+    fn is_empty_is_false_once_a_span_is_queued() {
+        let mut queue = BoundedQueue::new(4);
+        assert!(queue.is_empty(), "a new queue is empty");
+
+        queue.push(1);
+
+        assert!(!queue.is_empty(), "a queue holding a span is not empty");
+    }
 }

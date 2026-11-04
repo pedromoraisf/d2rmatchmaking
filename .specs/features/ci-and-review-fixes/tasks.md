@@ -172,9 +172,9 @@ T6 → T7 → T8
 
 **Done when**:
 
-- [ ] Test `is_empty_is_false_once_a_span_is_queued` asserts `is_empty()` is true for a new queue and false after a push (kills `BoundedQueue::is_empty -> true`, `queue.rs:51`)
-- [ ] No production line changes
-- [ ] Gate check passes
+- [x] Test `is_empty_is_false_once_a_span_is_queued` asserts `is_empty()` is true for a new queue and false after a push (kills `BoundedQueue::is_empty -> true`, `queue.rs:51`)
+- [x] No production line changes
+- [x] Gate check passes
 
 **Tests**: unit
 **Gate**: `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib -E 'test(telemetry::queue)'`
