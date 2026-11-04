@@ -38,7 +38,7 @@
       "outputs": ["openapi.json", "asyncapi.json", "json-schema/**"]
     },
     "test:acceptance": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "@d2rmm/web#build"],
       "cache": false,
       "outputs": []
     }

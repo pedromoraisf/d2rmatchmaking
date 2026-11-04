@@ -108,10 +108,10 @@ T6 → T7 → T8
 
 **Done when**:
 
-- [ ] `test:acceptance`'s `dependsOn` is `["^build", "@d2rmm/web#build"]`; `cache` and `outputs` are unchanged
-- [ ] Test `the acceptance task depends on the site build` reads `turbo.json` and asserts both entries
-- [ ] Test `the integration job runs acceptance through the command` asserts the step `pnpm run test:acceptance`
-- [ ] Gate check passes, with every earlier test in the file still passing
+- [x] `test:acceptance`'s `dependsOn` is `["^build", "@d2rmm/web#build"]`; `cache` and `outputs` are unchanged
+- [x] Test `the acceptance task depends on the site build` reads `turbo.json` and asserts both entries
+- [x] Test `the integration job runs acceptance through the command` asserts the step `pnpm run test:acceptance`
+- [x] Gate check passes, with every earlier test in the file still passing
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/ci-workflow.test.mjs`
