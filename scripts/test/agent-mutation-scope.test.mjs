@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const nightly = readFileSync('.github/workflows/nightly.yml', 'utf8');
 const runLine = nightly.split('\n').find((line) => /cargo mutants\b/.test(line)) ?? '';
@@ -70,4 +70,11 @@ test('a mutation run without the domain or --lib fails', () => {
   const withoutLib = nightly.replace(/ -- --lib/g, '');
   assert.equal(coversCratesWithLib(withoutDomain), false, 'a run without the domain fails');
   assert.equal(coversCratesWithLib(withoutLib), false, 'a run without --lib fails');
+});
+
+// CRF-27 (ci-and-review-fixes): the shared sampler vector lives in the adapters crate, so cargo-mutants copies it with
+// the crate, and the telemetry package keeps no copy.
+test('the shared sampler vector lives in the adapters crate', () => {
+  assert.equal(existsSync('apps/agent/src-tauri/adapters/test-vectors/sampler.json'), true);
+  assert.equal(existsSync('packages/telemetry/test-vectors'), false);
 });

@@ -236,11 +236,11 @@ T6 → T7 → T8
 
 **Done when**:
 
-- [ ] `SAMPLER_VECTOR` in the `#[cfg(test)]` module reads `concat!(env!("CARGO_MANIFEST_DIR"), "/test-vectors/sampler.json")`, and no non-test code changes
-- [ ] `sampler.test.ts` reads the new path through `new URL(...)`; the comment in `sampler.ts` names it; no assertion changes
-- [ ] The vector's content is unchanged (`git mv`), and `packages/telemetry/test-vectors/` no longer exists
-- [ ] Test `the shared sampler vector lives in the adapters crate` asserts the file exists in the crate and is gone from the telemetry package
-- [ ] Gate check passes. It runs cargo-mutants on the adapters for real. If it reports a missed mutant, do not change the test or the scope: report the mutants, because the orchestrator decides
+- [x] `SAMPLER_VECTOR` in the `#[cfg(test)]` module reads `concat!(env!("CARGO_MANIFEST_DIR"), "/test-vectors/sampler.json")`, and no non-test code changes
+- [x] `sampler.test.ts` reads the new path through `new URL(...)`; the comment in `sampler.ts` names it; no assertion changes
+- [x] The vector's content is unchanged (`git mv`), and `packages/telemetry/test-vectors/` no longer exists
+- [x] Test `the shared sampler vector lives in the adapters crate` asserts the file exists in the crate and is gone from the telemetry package
+- [x] Gate check passes. It runs cargo-mutants on the adapters for real. If it reports a missed mutant, do not change the test or the scope: report the mutants, because the orchestrator decides
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/agent-mutation-scope.test.mjs && pnpm --filter @d2rmm/telemetry exec vitest run src/sdk/sampler.test.ts && mkdir -p reports/mutation && cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib`
