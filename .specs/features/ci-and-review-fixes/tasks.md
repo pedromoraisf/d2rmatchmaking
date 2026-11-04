@@ -328,9 +328,9 @@ T6 → T7 → T8
 
 **Done when**:
 
-- [ ] The row `mutation api domain / application / agent core` names both commands
-- [ ] Test `the review template names the agent mutation command` reads the row
-- [ ] Gate check passes
+- [x] The row `mutation api domain / application / agent core` names both commands
+- [x] Test `the review template names the agent mutation command` reads the row
+- [x] Gate check passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/phase-runner-skill.test.mjs`

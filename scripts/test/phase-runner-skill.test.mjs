@@ -56,3 +56,17 @@ test('the review produces the agent reports before the phase ratchet', () => {
   assert.ok(ratchet >= 0, 'the review runs the phase ratchet');
   assert.ok(mutation < ratchet, 'the mutation run comes before the ratchet');
 });
+
+// CRF-22: the review template's mutation row names the agent's mutation command beside the API one.
+test('the review template names the agent mutation command', () => {
+  const template = readFileSync(
+    path.join(root, '.claude', 'skills', 'd2rmm-phase-runner', 'references', 'templates', 'review.md'),
+    'utf8',
+  );
+  const row = template
+    .split('\n')
+    .find((line) => line.startsWith('| mutation api domain / application / agent core'));
+  assert.ok(row, 'the template has the mutation row');
+  assert.ok(row.includes('`pnpm test:mutation`'), 'the row names the API mutation command');
+  assert.ok(row.includes('`pnpm test:mutation:agent`'), 'the row names the agent mutation command');
+});
