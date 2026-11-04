@@ -258,13 +258,13 @@ T6 → T7 → T8
 
 **Done when**:
 
-- [ ] Test `the agent mutation command creates the reports directory first` asserts `mkdir -p reports/mutation` comes before the first `cargo mutants`
+- [x] Test `the agent mutation command creates the reports directory first` asserts `mkdir -p reports/mutation` comes before the first `cargo mutants`
 
-- [ ] The script chains, with `&&`, `cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package <crate> --output reports/mutation/agent-<name> -- --lib` for `d2rmm-agent-domain`, `d2rmm-agent-core` and `d2rmm-agent-adapters`
-- [ ] Test `the agent mutation command covers the three crates` reads `package.json`
-- [ ] Test `each agent mutation command uses unit tests only` asserts every command ends with `-- --lib`
-- [ ] Test `each agent mutation command writes where the nightly writes` compares each `--output` with the nightly's, crate by crate
-- [ ] Gate check passes and its output shows a number on the line `mutation.agent.core =`
+- [x] The script chains, with `&&`, `cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package <crate> --output reports/mutation/agent-<name> -- --lib` for `d2rmm-agent-domain`, `d2rmm-agent-core` and `d2rmm-agent-adapters`
+- [x] Test `the agent mutation command covers the three crates` reads `package.json`
+- [x] Test `each agent mutation command uses unit tests only` asserts every command ends with `-- --lib`
+- [x] Test `each agent mutation command writes where the nightly writes` compares each `--output` with the nightly's, crate by crate
+- [x] Gate check passes and its output shows a number on the line `mutation.agent.core =`
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/agent-mutation-scope.test.mjs && pnpm test:mutation:agent && pnpm quality:collect`
