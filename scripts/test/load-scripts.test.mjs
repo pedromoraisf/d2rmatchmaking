@@ -166,6 +166,42 @@ test('journey uses no timers while a stream is open', () => {
   assert.match(journey, /exec: 'match'/u, 'the match scenario runs its own function');
 });
 
+test('journey closes its tally at the stream error event', () => {
+  // AD-123: xk6-sse reports the timeout cut as a read error, and sse.open returns only when k6 interrupts the VU.
+  const journey = read('scripts', 'load', 'k6', 'journey.mjs');
+  assert.equal(
+    [...journey.matchAll(/client\.on\('error', function \(\) \{\s*closeStream\(nowMs\(\)\);\s*\}\);/gu)]
+      .length,
+    2,
+    'the site and the agent streams run their close at the error event',
+  );
+  assert.match(
+    journey,
+    /function once\(run\) \{\s*let done = false;\s*return function \(closedAt, status\) \{\s*if \(done\) return;/u,
+    'the close runs once: a second call does nothing',
+  );
+  assert.equal(
+    [...journey.matchAll(/const closeStream = once\(function \(closedAt, status\) \{/gu)].length,
+    2,
+    'each stream has its close wrapped by the once-only helper',
+  );
+  assert.equal(
+    [...journey.matchAll(/^\s*closeStream\(nowMs\(\), res\.status\);$/gmu)].length,
+    2,
+    'the code after sse.open calls the same helper, so an earlier error event makes it a no-op',
+  );
+  assert.match(
+    journey,
+    /iteration = settle\(pending, onClose\(pending, closedAt\)\);/u,
+    'the site close settles a pending observation at the close time, in the window of its observation',
+  );
+  assert.match(
+    journey,
+    /function streamFailed\(status, closedAt\) \{\s*return \(status !== undefined && status !== 200\) \|\| closedAt < CLOSE_MS - STREAM_SLACK_MS;/u,
+    'a read error at the expected cut is not a failure; an early end or a status other than 200 is',
+  );
+});
+
 test('pairing limiter constants', () => {
   // The pairing limiter the run must not change (LB-04): read from the API's own source, never copied.
   const source = read('apps', 'api', 'src', 'modules', 'agents', 'domain', 'sliding-window.ts');

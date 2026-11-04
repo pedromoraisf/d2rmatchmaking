@@ -155,6 +155,27 @@ function streamTimeout(openedAt) {
   return Math.max(1, Math.ceil(CLOSE_MS - openedAt)) + 'ms';
 }
 
+/**
+ * The close of a stream runs once (AD-123): the `error` event and the code after `sse.open` both call the returned function,
+ * and the second call does nothing.
+ */
+function once(run) {
+  let done = false;
+  return function (closedAt, status) {
+    if (done) return;
+    done = true;
+    run(closedAt, status);
+  };
+}
+
+/**
+ * A stream failed when it answered other than 200 (`status` is left out at the `error` event) or ended before the tail. The
+ * cut of the `timeout` is the expected end, at or after the close, so a read error there is not a failure.
+ */
+function streamFailed(status, closedAt) {
+  return (status !== undefined && status !== 200) || closedAt < CLOSE_MS - STREAM_SLACK_MS;
+}
+
 function finished(state) {
   return state.phase === 'created' || state.phase === 'timed-out';
 }
@@ -252,6 +273,15 @@ export function site() {
     else if (event.name === 'room.stage_changed') created(JSON.parse(event.data));
   }
 
+  // The close runs at the `error` event (the `timeout` cut, AD-123), or after sse.open returns when no error comes first.
+  const closeStream = once(function (closedAt, status) {
+    if (iteration !== null) {
+      const pending = iteration;
+      iteration = settle(pending, onClose(pending, closedAt));
+    }
+    if (streamFailed(status, closedAt)) tally(errors, closedAt);
+  });
+
   const openedAt = nowMs();
   tally(requests, openedAt);
   const res = sse.open(
@@ -262,14 +292,12 @@ export function site() {
     },
     function (client) {
       client.on('event', onEvent);
+      client.on('error', function () {
+        closeStream(nowMs());
+      });
     },
   );
-  const closedAt = nowMs();
-  if (iteration !== null) {
-    const pending = iteration;
-    iteration = settle(pending, onClose(pending, closedAt));
-  }
-  if (res.status !== 200 || closedAt < CLOSE_MS - STREAM_SLACK_MS) tally(errors, closedAt);
+  closeStream(nowMs(), res.status);
 }
 
 /** One agent stream for one player: held to the close of the step, its `room.assigned` frames counted. */
@@ -277,6 +305,10 @@ export function agent() {
   const index = exec.scenario.iterationInInstance;
   const player = PLAYERS[index];
   waitUntil((RAMP_MS * index) / COUNT);
+
+  const closeStream = once(function (closedAt, status) {
+    if (streamFailed(status, closedAt)) tally(errors, closedAt);
+  });
 
   const openedAt = nowMs();
   tally(requests, openedAt);
@@ -294,10 +326,12 @@ export function agent() {
       client.on('event', function (event) {
         if (event.name === 'room.assigned') tally(agentAssigned, nowMs());
       });
+      client.on('error', function () {
+        closeStream(nowMs());
+      });
     },
   );
-  const closedAt = nowMs();
-  if (res.status !== 200 || closedAt < CLOSE_MS - STREAM_SLACK_MS) tally(errors, closedAt);
+  closeStream(nowMs(), res.status);
 }
 
 /** One heartbeat, the next player in turn: the scenario's iterations go round the players. */
