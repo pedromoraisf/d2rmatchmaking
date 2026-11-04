@@ -13,7 +13,7 @@ Project rules for every task of this feature:
 - Tests are named exactly as written in `## Checks`; the checks select them with `--test-name-pattern`. A test named otherwise leaves its check with `no test ran`.
 - All code of this feature lives in `scripts/load/` (modules in `scripts/load/lib/`, containers in `scripts/load/containers/`, k6 in `scripts/load/k6/`, images in `scripts/load/docker/`), unit tests in `scripts/test/load/<module>.test.mjs`, the static test in `scripts/test/load-scripts.test.mjs`, smoke and full-run checks in `scripts/load/check/*.check.mjs` (not `*.test.mjs`, so `pnpm test:harness` never runs them). Zero dependencies: only `node:*` modules and global `fetch`. ESM, `.mjs`, no `any`-style shortcuts, `no-console` is off for these scripts.
 - Pure rules take plain data and return plain data (no `Date.now()`, no `process.env`, no `fs`, no `child_process`); the impure edge is `run.mjs` and the container scripts. A rule that only the assembled run can observe is extracted into a pure function and unit-tested (ADR 026).
-- `.claude/hooks/**`, `.claude/settings.json`, `docs/adr/**`, `apps/**` and every harness file (`scripts/lib/**`, `.dependency-cruiser.cjs`, `eslint.config.mjs`, `*.config.*`, `.github/workflows/**`) are **not edited** by any task, except the one `apps/api` defect of T41 (the maintainer's decision, 2026-11-03). A task that needs one records it in `decisions.md` and reports. `.quality-baseline.json` is edited only by `pnpm quality:ratchet --context phase --update` (T33).
+- `.claude/hooks/**`, `.claude/settings.json`, `docs/adr/**`, `apps/**` and every harness file (`scripts/lib/**`, `.dependency-cruiser.cjs`, `eslint.config.mjs`, `*.config.*`, `.github/workflows/**`) are **not edited** by any task, except the one `apps/api` defect of T41 (the maintainer's decision, 2026-11-03) and the unit tests of T43 (no production file). A task that needs one records it in `decisions.md` and reports. `.quality-baseline.json` is edited only by `pnpm quality:ratchet --context phase --update` (T33).
 - No test, scenario or sensor is weakened, skipped or focused. The existing `# not-scenario` lines of `acceptance.feature` are not changed; `pnpm test:acceptance` is red for this feature from the spec commit until T30 defines the steps (`missingSteps: 'fail-on-gen'`), as in observability-e2e; no earlier task runs it.
 - Docker tasks (T1, T32, T33) need the Docker daemon. Images and builds are pinned by digest and commit as design.md says; T1 records the versions it pins in `## Handoff`. **T1 is a spike with a gate.** If k6 with the SSE extension cannot hold two streams, send heartbeats from another scenario and post inside an event handler, T1 applies the design's fallback (reopen the stream each iteration) and records it; if that also fails, T1 stops and the orchestrator escalates (Node generator = a spec and tooling decision for the maintainer). Never switch tools on your own.
 - Secrets: none. No cookie, token, password or key is written to a log, the summary, a command line or the repository; the redactor and the tests of T9, T26 and T27 pin it. Nothing is pushed, and no `docker push` or `docker login` appears anywhere.
@@ -56,6 +56,7 @@ Project rules for every task of this feature:
 | Acceptance | T30 and the closing runs                   | `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@LB-16\|@LB-17\|@LB-18"`                          |
 | Smoke      | T32                                        | `pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.check.mjs`                                                                                                                 |
 | API        | T41                                        | `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration && pnpm exec eslint --max-warnings 0 apps/api/src/modules/agents && pnpm arch` |
+| Mutation   | T43                                        | `pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:mutation && pnpm exec eslint --max-warnings 0 apps/api/src/modules apps/api/src/shared-kernel`                                   |
 | Full run   | T33                                        | `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`                                                                                                                        |
 | Build      | End of a phase                             | `pnpm build && pnpm typecheck && pnpm lint && pnpm arch && pnpm format:check && pnpm test:harness`                                                                                               |
 
@@ -122,7 +123,7 @@ T34 → T35 → T36 → T37
 ### Phase 10: Runs
 
 ```
-T32 → T38 → T39 → T40 → T41 → T42 → T33
+T32 → T38 → T39 → T40 → T41 → T42 → T43 → T33
 ```
 
 ---
@@ -947,11 +948,31 @@ T32 → T38 → T39 → T40 → T41 → T42 → T33
 
 ---
 
+### T43: Domain mutation score back to its baseline
+
+**What**: The first ratchet in the `phase` context (needed by T33) found `mutation.api.domain` at 91.04 against its baseline of 100, with a tolerance of 2%. The baseline was measured on 2026-10-30, before the domain grew, and the `pr` context the features ran does not read mutation. Of the 37 surviving mutants, 22 are the address parsing in `sliding-window.ts`. Add unit tests until the score is at least 98. The baseline, the tolerance and the mutation scope stay. This changes no production behaviour.
+**Where**: `apps/api/src/modules/agents/domain/sliding-window.test.ts` (modify; other colocated `*.test.ts` of `modules/*/domain` and `shared-kernel` as the survivors need)
+**Depends on**: T42
+**Reuses**: `reports/mutation/api-domain/mutation.json` for the survivors
+**Requirement**: LB-11
+
+**Done when**:
+
+- [ ] `pnpm --filter @d2rmm/api test:mutation` reports the domain layer with a score of at least 98, with new assertions in colocated unit tests only (ADR 026). No existing assertion is loosened, and no production file changes. A mutant no unit test can kill is listed in `## Handoff` as equivalent with its reason; it is not excluded from the scope
+- [ ] Tests named as in `## Checks` pass: the Mutation gate
+
+**Tests**: unit
+**Gate**: Mutation
+
+**Commit**: `test(api): cover the surviving domain mutants`
+
+---
+
 ### T33: Full run, publish and baseline
 
 **What**: The full run of the F0 exit criterion, its published document and the first baseline values.
 **Where**: `scripts/load/check/full-summary.check.mjs`
-**Depends on**: T42
+**Depends on**: T43
 **Reuses**: `reports/load/summary.json`, `pnpm load:publish`, `pnpm quality:collect`, `pnpm quality:ratchet`
 **Requirement**: LB-10, LB-11, LB-12, LB-13, LB-14, LB-15, LB-21, LB-22
 
@@ -959,7 +980,7 @@ T32 → T38 → T39 → T40 → T41 → T42 → T33
 
 - [ ] `pnpm test:load` ends with `passed: true`; `maxConcurrentPlayers` is at least 100, `p95StateLatencyMs` at most 2000, the 100-player error ratio below 1%; `telemetryShareOfBudget` and `withinTelemetryBudget` are reported, report-only in F0 (AD-128). If the run misses the minimum, that is a **finding**: the task stops, the summary is kept, and `## Handoff` and `decisions.md` name the step, the failed rule and the bottleneck (the API pool of 10 connections and the per-request session lookup are the first suspects); no API code is changed here
 - [ ] The check reads `reports/load/summary.json` and asserts the thresholds above, the four top-level names, `maxConcurrentRooms` above 0, `bytesPerPlayerHour` and the telemetry fields present, a row per executed step, and no secret text
-- [ ] `pnpm load:publish` writes `docs/engineering/load-baseline.md` from that summary; `pnpm quality:collect` reads the three load metrics; `pnpm quality:ratchet --context phase --update` records them as the first baseline values and the diff of `.quality-baseline.json` shows only the three `null` values becoming numbers
+- [ ] `pnpm load:publish` writes `docs/engineering/load-baseline.md` from that summary; `pnpm quality:collect` reads the three load metrics; `pnpm quality:ratchet --context phase --update` records them as the first baseline values and the diff of `.quality-baseline.json` shows only `null` values becoming numbers (the three load metrics, and the sensors first measured in this context: `mutation.api.application`, `acceptance.*`) and no number loosened
 - [ ] Gate passes: `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`
 
 **Tests**: integration
@@ -1117,6 +1138,9 @@ Proof: `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`
 
 **C49** - A `created` frame at or after 5 000 ms from its observation is one error and no latency sample; an observation still pending 5 000 ms or more when the stream ends is one error, tallied at the time of its observation, and a younger one is none; a stale iteration is settled when the next assignment arrives (LB-05, AC 5; LB-08 edge case)
 Proof: `node --test "--test-name-pattern=pending observation at the end of a stream" scripts/test/load/journey-state.test.mjs`
+
+**C60** - The domain mutation score is back within its baseline's tolerance, at 98 or more, proved by unit tests only (ADR 026; the phase ratchet of T33 reads it)
+Proof: `pnpm --filter @d2rmm/api test:mutation`
 
 **C58** - A telemetry share above 0.10 is reported as `withinTelemetryBudget: false` and leaves the run passed, with no `failure` and exit code 0; at 0.10 it is true, and with no 100-player step it is `null` (LB-22, AC 2)
 Proof: `node --test "--test-name-pattern=a telemetry share over the limit is reported and does not fail the run" scripts/test/load/summary.test.mjs`
@@ -1335,6 +1359,10 @@ Deviations and notes:
 
 **Batch 17 (execute-batch-2, T42, implementer): done.** The telemetry limit is report-only in F0 (AD-128). `buildSummary` writes `withinTelemetryBudget` (`!telemetryFails(share)`, `null` without the 100-player step) and no longer sets `failure` or `passed: false` for the telemetry share. `exitCodeOf` is zero only when `passed` is true and `error` is null. `telemetry-share.mjs`, `TELEMETRY_SHARE_LIMIT` and its boundary test are unchanged. The published document has the row `withinTelemetryBudget` as report-only and one sentence that reducing telemetry is a condition of setting `OTEL_EXPORTER_OTLP_ENDPOINT` in production; the `publishPlan` refusals are unchanged. Removed from `failure names the step and the rule`: only its telemetry block (the `const telemetry = run(...)` line and its three assertions). Added: `a telemetry share over the limit is reported and does not fail the run` (C58) and `the baseline shows the telemetry limit as report-only` (C59). `withinTelemetryBudget` added to `SUMMARY_KEYS`. Gate Quick `gate:load-baseline/T42` passed on attempt 1 of 3: 129 load unit and static tests, eslint with `--max-warnings 0`, prettier check. No load run, no Docker. `scripts/load/check/full-summary.check.mjs` (T33's) is untouched and not committed. Deviation for the review: `design.md` § Data Models (line 208) still lists `'telemetry'` in the `failure.rule` union; `.specs/` beyond the marks and Handoff is not edited here.
 
+**Batch 18 (execute-batch-1, T33, the last attempt of 3): gate passed, post-gate ratchet blocked, T33 not ticked, nothing committed.** Gate `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs` ran once through `attempt.mjs` on attempt 3 of 3 and exited 0. Before it, the check file was updated: `the telemetry share is within its budget` became `the telemetry share and its report-only verdict are written` (`withinTelemetryBudget` equals the share against 0.10). Nothing else in the check changed. The check is 9 of 9 passing. The summary: `passed: true`, `failure: null`, `error: null`, `maxConcurrentPlayers: 400`, `maxConcurrentRooms: 2455`, `bytesPerPlayerHour: 113826.86`, `p95StateLatencyMs: 1.376`, `telemetryShareOfBudget: 10.124`, `withinTelemetryBudget: false` (report-only, AD-128), `withinEgressBudget: false`, `ceilingReached: true`. Steps 25 to 400 all passed with 0 errors. `pnpm load:publish` wrote `docs/engineering/load-baseline.md`; it shows `withinTelemetryBudget` and the `OTEL_EXPORTER_OTLP_ENDPOINT` sentence.
+
+Blocked: `pnpm quality:ratchet --context phase --update` exited 1 with 8 regressions and wrote nothing (`.quality-baseline.json` has no diff, the three `load.*` values stay `null`). (1) `load.bytes_per_player_hour` 113826.86 is above its ceiling of 70000. That is the egress budget miss the run already reports, so the ratchet is now a second place that says no. (2) Seven sensors read as "missing now": `harness.level`, `harness.percent`, `harness.failed_checks`, `mutation.api.domain`, `arch.violations`, `lint.warnings`, `tests.skipped`. `quality:collect` reported 5 metrics (3 load, 2 acceptance), because this worktree has no reports for those sensors (`reports/` holds `acceptance`, `load` and `quality.json`). That is the likely cause; I did not run the sensors that produce them. Not done here: lowering or raising a ceiling, a baseline edit by hand, and a commit. Decision for the orchestrator and the maintainer: the egress ceiling against the measured 113 827 (ADR 021 says lowering is a maintainer decision), and the sensor reports for the phase context. Once both are settled, `ratchet --update`, the diff check, and the commit of the check file, the document, `.quality-baseline.json` and the tick remain to do. The check file is still untracked.
+
 ---
 
 ## Phase Execution Map
@@ -1351,7 +1379,7 @@ Phase 6:  T21 -----→ T22 -----→ T23
 Phase 7:  T24 -----→ T25 -----→ T26 -----→ T27
 Phase 8:  T28 -----→ T29 -----→ T30 -----→ T31
 Phase 9:  T34 -----→ T35 -----→ T36 -----→ T37
-Phase 10: T32 -----→ T38 -----→ T39 -----→ T40 -----→ T41 -----→ T42 -----→ T33
+Phase 10: T32 -----→ T38 -----→ T39 -----→ T40 -----→ T41 -----→ T42 -----→ T43 -----→ T33
 ```
 
 Execution is strictly sequential - there is no intra-phase parallelism.
