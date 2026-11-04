@@ -287,3 +287,20 @@ describe('LobbyRoom.restore', () => {
     expect(LobbyRoom.restore(restoredProps(overrides))).toEqual({ ok: false, error: 'invalid-room' });
   });
 });
+
+describe('LobbyRoom.observe for another room', () => {
+  it('ignores a GAME_NAME_SEEN that names another room', () => {
+    expect(open().observe(observation({ roomId: 'room-2' }))).toEqual({ outcome: 'ignored' });
+  });
+});
+
+describe('LobbyRoom.hostAccountId without members', () => {
+  it('refuses to name a host when the room has no member', () => {
+    const result = LobbyRoom.fromMatch(match({ members: [] }), 12, new SequentialIdGenerator('room'));
+    if (!result.ok) {
+      throw new Error('expected the room to open');
+    }
+
+    expect(() => result.value.room.hostAccountId).toThrow('a lobby room always has a member');
+  });
+});

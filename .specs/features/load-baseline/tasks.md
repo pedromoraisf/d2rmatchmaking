@@ -958,8 +958,8 @@ T32 → T38 → T39 → T40 → T41 → T42 → T43 → T33
 
 **Done when**:
 
-- [ ] `pnpm --filter @d2rmm/api test:mutation` reports the domain layer with a score of at least 98, with new assertions in colocated unit tests only (ADR 026). No existing assertion is loosened, and no production file changes. A mutant no unit test can kill is listed in `## Handoff` as equivalent with its reason; it is not excluded from the scope
-- [ ] Tests named as in `## Checks` pass: the Mutation gate
+- [x] `pnpm --filter @d2rmm/api test:mutation` reports the domain layer with a score of at least 98, with new assertions in colocated unit tests only (ADR 026). No existing assertion is loosened, and no production file changes. A mutant no unit test can kill is listed in `## Handoff` as equivalent with its reason; it is not excluded from the scope
+- [x] Tests named as in `## Checks` pass: the Mutation gate
 
 **Tests**: unit
 **Gate**: Mutation
@@ -1362,6 +1362,22 @@ Deviations and notes:
 **Batch 18 (execute-batch-1, T33, the last attempt of 3): gate passed, post-gate ratchet blocked, T33 not ticked, nothing committed.** Gate `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs` ran once through `attempt.mjs` on attempt 3 of 3 and exited 0. Before it, the check file was updated: `the telemetry share is within its budget` became `the telemetry share and its report-only verdict are written` (`withinTelemetryBudget` equals the share against 0.10). Nothing else in the check changed. The check is 9 of 9 passing. The summary: `passed: true`, `failure: null`, `error: null`, `maxConcurrentPlayers: 400`, `maxConcurrentRooms: 2455`, `bytesPerPlayerHour: 113826.86`, `p95StateLatencyMs: 1.376`, `telemetryShareOfBudget: 10.124`, `withinTelemetryBudget: false` (report-only, AD-128), `withinEgressBudget: false`, `ceilingReached: true`. Steps 25 to 400 all passed with 0 errors. `pnpm load:publish` wrote `docs/engineering/load-baseline.md`; it shows `withinTelemetryBudget` and the `OTEL_EXPORTER_OTLP_ENDPOINT` sentence.
 
 Blocked: `pnpm quality:ratchet --context phase --update` exited 1 with 8 regressions and wrote nothing (`.quality-baseline.json` has no diff, the three `load.*` values stay `null`). (1) `load.bytes_per_player_hour` 113826.86 is above its ceiling of 70000. That is the egress budget miss the run already reports, so the ratchet is now a second place that says no. (2) Seven sensors read as "missing now": `harness.level`, `harness.percent`, `harness.failed_checks`, `mutation.api.domain`, `arch.violations`, `lint.warnings`, `tests.skipped`. `quality:collect` reported 5 metrics (3 load, 2 acceptance), because this worktree has no reports for those sensors (`reports/` holds `acceptance`, `load` and `quality.json`). That is the likely cause; I did not run the sensors that produce them. Not done here: lowering or raising a ceiling, a baseline edit by hand, and a commit. Decision for the orchestrator and the maintainer: the egress ceiling against the measured 113 827 (ADR 021 says lowering is a maintainer decision), and the sensor reports for the phase context. Once both are settled, `ratchet --update`, the diff check, and the commit of the check file, the document, `.quality-baseline.json` and the tick remain to do. The check file is still untracked.
+
+**Batch 19 (execute-batch-1, T43, implementer): done, gate passed on attempt 1 of 3.** Domain mutation score 98.06 (killed 383, timeout 22, survived 7, no coverage 1; 405 of 413). Application layer 78.67 (killed 225, survived 49, no coverage 12; above its break threshold of 70, not a T43 target). Unit tests 311 of 311 in 37 files; 18 new assertions, all in colocated `*.test.ts`, additions only (106 lines, nothing loosened, no production file changed).
+
+Remaining domain survivors, all equivalent (not killable by a unit test):
+
+- `agents/domain/sliding-window.ts:74` (no coverage): the `?? ''` fallback for `halves[0]`. `String.split` always returns at least one element, so it never runs.
+- `agents/domain/sliding-window.ts:75`: the `?? ''` fallback for `halves[1]` feeds `tail`, which is read only when there are two halves; with one half the mutant changes nothing.
+- `agents/domain/sliding-window.ts:92` (three mutants: the `includes(':')` test negated, `':'` replaced by `""`, the block emptied): an input without `:` never reaches eight groups, so `expandIPv6` returns null and the input is keyed as given either way.
+- `lobby-room/domain/game-name.ts:10`: the `return undefined` after `default:` is removed. The switch then falls off its end and returns `undefined`, the same value.
+- `agents/domain/agent-version.ts:27` and `:30`: `<` becomes `<=` inside a branch that already requires the two numbers to differ, so the result is the same.
+
+Finding for the orchestrator (not fixed, not pinned by a test):
+
+- `rateLimitKey` throws `RangeError: Invalid array length` on `1:2:3:4:5:6:7:8:9::` (nine groups before `::`). `expandIPv6` builds `new Array(8 - head - tail - tailGroups)` with a negative length. The module's own contract says anything that does not parse is keyed as given. The IP reaches it through `agents/application/request-pairing-code.ts:44`. I did not check whether a client can set that address through the proxy hops (`TRUST_PROXY_HOPS`).
+
+Decision for the orchestrator (test added, production unchanged): `lobby-room.ts` `fromMatch` accepts a match with no members, so a room can exist with no host. The `hostAccountId` throw of line 81 is reachable only that way. The new test asserts the throw; `restore` already refuses an empty member list. Whether `fromMatch` should refuse it is a production decision for a later task.
 
 ---
 

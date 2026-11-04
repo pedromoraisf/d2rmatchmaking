@@ -119,3 +119,47 @@ describe('rateLimitKey for IPv6, zones and malformed addresses', () => {
     }
   });
 });
+
+describe('rateLimitKey requires every hex group to be exactly hex', () => {
+  it('keys an address with a non-hex letter before a hex run as given', () => {
+    expect(rateLimitKey('2001:db8:zz1:2::1')).toBe('2001:db8:zz1:2::1');
+  });
+
+  it('keys an address with a non-hex letter after a hex run as given', () => {
+    expect(rateLimitKey('2001:db8:1zz:2::1')).toBe('2001:db8:1zz:2::1');
+  });
+});
+
+describe('rateLimitKey checks each IPv4 octet of a mapped address', () => {
+  it('keys an address whose octet is above 255 as given', () => {
+    expect(rateLimitKey('::ffff:1.256.2.3')).toBe('::ffff:1.256.2.3');
+  });
+
+  it('keys an address whose octet is not a number as given', () => {
+    expect(rateLimitKey('::ffff:x.1.2.3')).toBe('::ffff:x.1.2.3');
+  });
+
+  it('keys an address whose octet is negative as given', () => {
+    expect(rateLimitKey('::ffff:-16777215.1.0.0')).toBe('::ffff:-16777215.1.0.0');
+  });
+
+  it('accepts 255 as an octet', () => {
+    expect(rateLimitKey('::ffff:255.255.0.1')).toBe('0:0:0:0::/64');
+  });
+});
+
+describe('rateLimitKey reads the dotted tail of an IPv6 address', () => {
+  it('keys an IPv4-mapped address by the /64 of its leading groups', () => {
+    expect(rateLimitKey('::ffff:203.0.113.7')).toBe('0:0:0:0::/64');
+  });
+
+  it('keeps the groups in front of a dotted tail and keys the address by them', () => {
+    expect(rateLimitKey('1:2:3:4:5:6:1.2.3.4')).toBe('1:2:3:4::/64');
+  });
+});
+
+describe('rateLimitKey refuses an address with two ::', () => {
+  it('keys an address with eight groups and a second :: as given', () => {
+    expect(rateLimitKey('1:2:3:4:5:6:7:8::9::')).toBe('1:2:3:4:5:6:7:8::9::');
+  });
+});

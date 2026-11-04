@@ -92,4 +92,18 @@ describe('withSpan', () => {
 
     expect(exporter.getFinishedSpans()[0]?.status.code).toBe(SpanStatusCode.UNSET);
   });
+
+  it('names the span scope d2rmm-api', async () => {
+    await withSpan('agents.pair', {}, () => 'done');
+
+    expect(exporter.getFinishedSpans()[0]?.instrumentationScope.name).toBe('d2rmm-api');
+  });
+
+  it('sets the status message to err result for an err Result', async () => {
+    const outcome: Result<string, 'invalid-code'> = err('invalid-code');
+
+    await withSpan('agents.pair', {}, () => outcome);
+
+    expect(exporter.getFinishedSpans()[0]?.status.message).toBe('err result');
+  });
 });

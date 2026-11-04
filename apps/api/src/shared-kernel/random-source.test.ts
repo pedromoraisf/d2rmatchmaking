@@ -63,6 +63,19 @@ describe('SeededRandomSource', () => {
     expect(() => random.bytes(-1)).toThrow(RangeError);
     expect(() => random.bytes(1.5)).toThrow(RangeError);
   });
+
+  it('int names the bound it needs when it refuses one', () => {
+    expect(() => new SeededRandomSource(3).int(0)).toThrow('int needs an integer bound between 1 and 2^32');
+  });
+
+  it('bytes names the length it needs when it refuses a negative one', () => {
+    expect(() => new SeededRandomSource(4).bytes(-1)).toThrow('bytes needs a non-negative integer length');
+  });
+
+  it('int skips a draw that lands on the largest multiple of the bound', () => {
+    // The bound equals the first draw of seed 1. The accepted range ends at that draw, so it is rejected.
+    expect(new SeededRandomSource(1).int(2_693_262_067)).toBe(11_749_833);
+  });
 });
 
 describe('SeededRandomSource stream (mulberry32, seed 1)', () => {
