@@ -70,3 +70,12 @@ test('the review template names the agent mutation command', () => {
   assert.ok(row.includes('`pnpm test:mutation`'), 'the row names the API mutation command');
   assert.ok(row.includes('`pnpm test:mutation:agent`'), 'the row names the agent mutation command');
 });
+
+// CRF-23: the commands table in AGENTS.md names the agent mutation command, where contributors look for commands.
+test('the agent guide names the agent mutation command', () => {
+  const agents = readFileSync(path.join(root, 'AGENTS.md'), 'utf8');
+  const row = agents.split('\n').find((line) => line.startsWith('| Mutation (Stryker / cargo-mutants)'));
+  assert.ok(row, 'AGENTS.md has the mutation row of the commands table');
+  assert.ok(row.includes('`pnpm test:mutation`'), 'the row names the API mutation command');
+  assert.ok(row.includes('`pnpm test:mutation:agent`'), 'the row names the agent mutation command');
+});

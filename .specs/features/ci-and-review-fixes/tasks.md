@@ -348,9 +348,9 @@ T6 → T7 → T8
 
 **Done when**:
 
-- [ ] The row `Mutation (Stryker / cargo-mutants)` names both commands
-- [ ] Test `the agent guide names the agent mutation command` reads the row
-- [ ] Gate check passes: every `@CRF-*` scenario passes after `apps/web/dist` is removed, and the output has no `the site is not built`
+- [x] The row `Mutation (Stryker / cargo-mutants)` names both commands
+- [x] Test `the agent guide names the agent mutation command` reads the row
+- [x] Gate check passes: every `@CRF-*` scenario passes after `apps/web/dist` is removed, and the output has no `the site is not built`
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/phase-runner-skill.test.mjs && rm -rf apps/web/dist && pnpm exec turbo run test:acceptance -- --grep @CRF-`
