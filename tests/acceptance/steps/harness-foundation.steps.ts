@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { expect } from '@playwright/test';
+import { parse } from 'yaml';
 import { Given, When, Then, test, type Scenario } from '../fixtures.ts';
 
 const commandTimeoutMs = 300_000;
@@ -48,6 +49,33 @@ interface Release {
   manifest: Record<string, string>;
 }
 
+interface TurboTask {
+  taskId: string;
+  dependencies?: string[];
+}
+
+interface Metric {
+  value: number | null;
+  direction: string;
+  floor: number;
+  tolerance: number;
+  contexts: string[];
+  source: { type: string; path: string };
+}
+
+interface WorkflowStep {
+  name?: string;
+  uses?: string;
+  run?: string;
+  if?: string;
+  with?: Record<string, string>;
+  'continue-on-error'?: boolean;
+}
+
+interface Workflow {
+  jobs: Record<string, { needs?: string | string[]; if?: string; steps?: WorkflowStep[] }>;
+}
+
 // The state this feature's steps share within one scenario, stored in the scenario fixture.
 interface HarnessWorld {
   runs: CommandRun[];
@@ -57,6 +85,12 @@ interface HarnessWorld {
   check: ArchitectureCheck | undefined;
   baseline: Baseline | undefined;
   release: Release | undefined;
+  plan: TurboTask[] | undefined;
+  workflow: Workflow | undefined;
+  metric: Metric | undefined;
+  agentCommands: string[] | undefined;
+  skill: string | undefined;
+  documents: string[];
 }
 
 function harness(scenario: Scenario): HarnessWorld {
@@ -71,6 +105,12 @@ function harness(scenario: Scenario): HarnessWorld {
     check: undefined,
     baseline: undefined,
     release: undefined,
+    plan: undefined,
+    workflow: undefined,
+    metric: undefined,
+    agentCommands: undefined,
+    skill: undefined,
+    documents: [],
   };
   scenario.values.set(key, created);
   return created;
@@ -363,4 +403,264 @@ Then(/^its release tags read "(.+)" followed by the version$/, ({ scenario }, pr
   expect(entry['include-component-in-tag'], 'tags include the component').toBe(true);
   const tagPrefix = `${entry.component}${entry['tag-separator']}${entry['include-v-in-tag'] ? 'v' : ''}`;
   expect(tagPrefix, 'tag prefix').toBe(prefix);
+});
+
+// ci-and-review-fixes (CRF-01 to CRF-24): the harness reads what the repository really produces.
+const ciWorkflow = '.github/workflows/ci.yml';
+const nightlyWorkflow = '.github/workflows/nightly.yml';
+const qualityBaseline = '.quality-baseline.json';
+const phaseSkill = '.claude/skills/d2rmm-phase-runner/SKILL.md';
+const reviewTemplate = '.claude/skills/d2rmm-phase-runner/references/templates/review.md';
+const agentCrates = ['domain', 'core', 'adapters'];
+
+function readText(root: string, file: string): string {
+  return readFileSync(path.join(root, file), 'utf8');
+}
+
+function readWorkflow(root: string, file: string): Workflow {
+  return parse(readText(root, file)) as Workflow;
+}
+
+function requireWorkflow(world: HarnessWorld): Workflow {
+  if (!world.workflow) throw new Error('no workflow has been read in this scenario');
+  return world.workflow;
+}
+
+function requireMetric(world: HarnessWorld): Metric {
+  if (!world.metric) throw new Error('the agent core metric has not been read in this scenario');
+  return world.metric;
+}
+
+function requireSkill(world: HarnessWorld): string {
+  if (world.skill === undefined)
+    throw new Error('the phase runner instructions have not been read in this scenario');
+  return world.skill;
+}
+
+// The value of a command's flag, as in `cargo mutants --package d2rmm-agent-core --output reports/x -- --lib`.
+function flagValue(command: string, flag: string): string | undefined {
+  return new RegExp(`(?:^|\\s)${flag}\\s+(\\S+)`).exec(command)?.[1];
+}
+
+// The cargo-mutants command of one crate among the commands of a source (the package script or the nightly job).
+function mutantsFor(commands: string[], crate: string, source: string): string {
+  const found = commands.find(
+    (command) =>
+      command.startsWith('cargo mutants') && flagValue(command, '--package') === `d2rmm-agent-${crate}`,
+  );
+  if (found === undefined) throw new Error(`${source} has no cargo-mutants command for d2rmm-agent-${crate}`);
+  return found;
+}
+
+function nightlyMutants(workflow: Workflow, crate: string): string {
+  const runs = (workflow.jobs['agent-mutation']?.steps ?? []).map((step) => step.run ?? '');
+  return mutantsFor(runs, crate, 'the nightly');
+}
+
+// GitHub expressions are written `${{ ... }}`; compare the inside, with its spaces collapsed.
+function expression(text: string | undefined): string {
+  return (text ?? '')
+    .replace(/^\$\{\{\s*/u, '')
+    .replace(/\s*\}\}$/u, '')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
+function jobOf(workflow: Workflow, name: string): Workflow['jobs'][string] {
+  const job = workflow.jobs[name];
+  if (job === undefined) throw new Error(`the workflow has no job "${name}"`);
+  return job;
+}
+
+function downloadStep(workflow: Workflow): WorkflowStep {
+  const steps = jobOf(workflow, 'quality').steps ?? [];
+  const found = steps.find((step) => String(step.uses ?? '').startsWith('actions/download-artifact@'));
+  if (found === undefined) throw new Error('the quality job has no download-artifact step');
+  return found;
+}
+
+// The text of a section, from its heading line up to the next line that starts with `stop`.
+function between(text: string, start: string, stop: string): string {
+  const from = text.indexOf(start);
+  if (from < 0) throw new Error(`no text starts with "${start}"`);
+  const to = text.indexOf(stop, from + start.length);
+  return text.slice(from, to < 0 ? undefined : to);
+}
+
+When('the contributor asks turbo for the plan of the acceptance run', ({ scenario }) => {
+  const world = harness(scenario);
+  const run = shell(scenario.repoRoot, 'pnpm exec turbo run test:acceptance --dry=json');
+  world.runs.push(run);
+  expect(run.status, tail(run)).toBe(0);
+  world.plan = (JSON.parse(run.stdout) as { tasks: TurboTask[] }).tasks;
+});
+
+Then('the plan runs the site build before the acceptance run', ({ scenario }) => {
+  const tasks = harness(scenario).plan;
+  if (tasks === undefined) throw new Error('the turbo plan has not been read in this scenario');
+  const acceptance = tasks.find((task) => task.taskId === '@d2rmm/acceptance#test:acceptance');
+  expect(acceptance, 'the acceptance task in the plan').toBeDefined();
+  expect(acceptance?.dependencies ?? [], 'dependencies of the acceptance task').toContain('@d2rmm/web#build');
+});
+
+When('the contributor reads the CI workflow', ({ scenario }) => {
+  harness(scenario).workflow = readWorkflow(scenario.repoRoot, ciWorkflow);
+});
+
+Then(/^the integration job runs "(.+)"$/, ({ scenario }, command: string) => {
+  const job = jobOf(requireWorkflow(harness(scenario)), 'integration');
+  const runs = (job.steps ?? []).map((step) => step.run);
+  expect(runs, 'run steps of the integration job').toContain(command);
+});
+
+When("the contributor reads the source of the agent core's mutation metric", ({ scenario }) => {
+  const baseline = readJson<{ metrics: Record<string, Metric> }>(
+    path.join(scenario.repoRoot, qualityBaseline),
+  );
+  harness(scenario).metric = baseline.metrics['mutation.agent.core'];
+});
+
+Then('it is the outcomes file inside the directory the nightly writes for the agent core', ({ scenario }) => {
+  const metric = requireMetric(harness(scenario));
+  const output = flagValue(
+    nightlyMutants(readWorkflow(scenario.repoRoot, nightlyWorkflow), 'core'),
+    '--output',
+  );
+  if (output === undefined) throw new Error('the nightly core run has no --output');
+  expect(metric.source.path).toBe(path.posix.join(output, 'mutants.out', 'outcomes.json'));
+});
+
+Then(
+  /^the metric still has direction (\w+), floor (\d+) and tolerance (\d+(?:\.\d+)?)$/,
+  ({ scenario }, direction: string, floor: string, tolerance: string) => {
+    const metric = requireMetric(harness(scenario));
+    expect(metric.direction, 'direction').toBe(direction);
+    expect(metric.floor, 'floor').toBe(Number(floor));
+    expect(metric.tolerance, 'tolerance').toBe(Number(tolerance));
+  },
+);
+
+Then('the metric is still enforced in the nightly and phase contexts', ({ scenario }) => {
+  expect(requireMetric(harness(scenario)).contexts, 'contexts').toEqual(['nightly', 'phase']);
+});
+
+When('the contributor reads the agent mutation command', ({ scenario }) => {
+  const pkg = readJson<{ scripts?: Record<string, string> }>(path.join(scenario.repoRoot, 'package.json'));
+  const script = pkg.scripts?.['test:mutation:agent'] ?? '';
+  harness(scenario).agentCommands = script
+    .split('&&')
+    .map((command) => command.trim())
+    .filter((command) => command.length > 0);
+});
+
+function agentCommands(world: HarnessWorld): string[] {
+  if (world.agentCommands === undefined) throw new Error('the agent mutation command has not been read');
+  return world.agentCommands;
+}
+
+Then('it runs the domain, the core and the adapters', ({ scenario }) => {
+  const commands = agentCommands(harness(scenario));
+  for (const crate of agentCrates) mutantsFor(commands, crate, 'test:mutation:agent');
+});
+
+Then('each of them uses unit tests only', ({ scenario }) => {
+  const commands = agentCommands(harness(scenario));
+  for (const crate of agentCrates) {
+    expect(mutantsFor(commands, crate, 'test:mutation:agent'), `${crate} command`).toMatch(/\s--\s+--lib$/u);
+  }
+});
+
+Then('each of them writes to the report path the nightly uses', ({ scenario }) => {
+  const commands = agentCommands(harness(scenario));
+  const workflow = readWorkflow(scenario.repoRoot, nightlyWorkflow);
+  for (const crate of agentCrates) {
+    const ours = flagValue(mutantsFor(commands, crate, 'test:mutation:agent'), '--output');
+    const nightly = flagValue(nightlyMutants(workflow, crate), '--output');
+    expect(ours, `${crate} --output`).toBe(nightly);
+    expect(ours, `${crate} --output`).toBeDefined();
+  }
+});
+
+When('the contributor reads the nightly workflow', ({ scenario }) => {
+  harness(scenario).workflow = readWorkflow(scenario.repoRoot, nightlyWorkflow);
+});
+
+Then('the quality job needs the agent mutation job', ({ scenario }) => {
+  const needs = jobOf(requireWorkflow(harness(scenario)), 'quality').needs;
+  expect(typeof needs === 'string' ? [needs] : (needs ?? []), 'needs of quality').toContain('agent-mutation');
+});
+
+Then('the quality job runs unless the workflow was cancelled', ({ scenario }) => {
+  const condition = expression(jobOf(requireWorkflow(harness(scenario)), 'quality').if);
+  expect(condition, 'if of quality').toBe('!cancelled()');
+});
+
+Then(
+  "the quality job downloads the agent's reports into the mutation reports directory before the ratchet",
+  ({ scenario }) => {
+    const steps = jobOf(requireWorkflow(harness(scenario)), 'quality').steps ?? [];
+    const download = steps.findIndex((step) =>
+      String(step.uses ?? '').startsWith('actions/download-artifact@'),
+    );
+    const ratchet = steps.findIndex((step) => step.name === 'Quality ratchet (nightly)');
+    expect(download, 'download step in quality').toBeGreaterThanOrEqual(0);
+    expect(ratchet, 'ratchet step in quality').toBeGreaterThanOrEqual(0);
+    expect(download, 'download comes before the ratchet').toBeLessThan(ratchet);
+    expect(steps[download]?.with?.['name'], 'artifact name').toBe('agent-mutation');
+    expect(steps[download]?.with?.['path'], 'artifact path').toBe('reports/mutation');
+  },
+);
+
+Then('the download is skipped when the agent mutation job was skipped', ({ scenario }) => {
+  const condition = expression(downloadStep(requireWorkflow(harness(scenario))).if);
+  expect(condition).toBe("needs.agent-mutation.result != 'skipped'");
+});
+
+Then('the download action is pinned by its full commit', ({ scenario }) => {
+  const uses = downloadStep(requireWorkflow(harness(scenario))).uses ?? '';
+  expect(uses, 'download action').toMatch(/^actions\/download-artifact@[0-9a-f]{40}$/u);
+});
+
+Then('a failed download does not fail the quality job', ({ scenario }) => {
+  expect(downloadStep(requireWorkflow(harness(scenario)))['continue-on-error']).toBe(true);
+});
+
+When('the contributor reads the phase runner instructions', ({ scenario }) => {
+  harness(scenario).skill = readText(scenario.repoRoot, phaseSkill);
+});
+
+Then('the review reads the phase status and the retry budget of each feature', ({ scenario }) => {
+  const review = between(requireSkill(harness(scenario)), '## REVIEW', '\n## ');
+  expect(review, 'REVIEW section').toContain('pnpm phase:status');
+  expect(review, 'REVIEW section').toContain('node scripts/attempt.mjs status --feature');
+});
+
+Then('the review does not run the verification validator', ({ scenario }) => {
+  const review = between(requireSkill(harness(scenario)), '## REVIEW', '\n## ');
+  expect(review, 'REVIEW section').not.toContain('validate_verification.py');
+});
+
+Then('a feature still runs the verification validator before its merge', ({ scenario }) => {
+  const verify = between(requireSkill(harness(scenario)), '### 6. Verify', '### 7. Integrate');
+  expect(verify, 'Verify step of RUN').toContain('validate_verification.py');
+});
+
+Then("the review produces the agent's mutation reports before the phase ratchet", ({ scenario }) => {
+  const review = between(requireSkill(harness(scenario)), '## REVIEW', '\n## ');
+  const mutation = review.indexOf('pnpm test:mutation:agent');
+  const ratchet = review.indexOf('pnpm quality:ratchet --context phase');
+  expect(mutation, 'agent mutation command in REVIEW').toBeGreaterThanOrEqual(0);
+  expect(ratchet, 'phase ratchet in REVIEW').toBeGreaterThan(mutation);
+});
+
+When('the contributor reads the review template and the agent guide', ({ scenario }) => {
+  harness(scenario).documents = [reviewTemplate, 'AGENTS.md'].map((file) =>
+    readText(scenario.repoRoot, file),
+  );
+});
+
+Then(/^both name "(.+)"$/, ({ scenario }, command: string) => {
+  const documents = harness(scenario).documents;
+  expect(documents.length, 'documents read').toBe(2);
+  for (const document of documents) expect(document).toContain(command);
 });

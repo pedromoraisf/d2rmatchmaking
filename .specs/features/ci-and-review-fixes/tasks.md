@@ -85,12 +85,12 @@ T6 → T7 → T8
 
 **Done when**:
 
-- [ ] The plan step runs `pnpm exec turbo run test:acceptance --dry=json` and asserts that the `@d2rmm/acceptance#test:acceptance` task lists `@d2rmm/web#build` in its dependencies
-- [ ] The workflow steps parse `.github/workflows/ci.yml` and `nightly.yml`; the baseline step reads `.quality-baseline.json`; the command steps read `package.json`; the instruction steps read `SKILL.md`, the review template and `AGENTS.md`
-- [ ] The source-path step derives the expected path from the nightly's `--output` for `d2rmm-agent-core`, plus `mutants.out/outcomes.json`, and never hard-codes the answer alone
-- [ ] No step pins the metric's value: `pnpm quality:ratchet --update` sets it after the merge
-- [ ] Steps import nothing from `apps/*` (ADR 023)
-- [ ] Gate check passes: `pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec bddgen`
+- [x] The plan step runs `pnpm exec turbo run test:acceptance --dry=json` and asserts that the `@d2rmm/acceptance#test:acceptance` task lists `@d2rmm/web#build` in its dependencies
+- [x] The workflow steps parse `.github/workflows/ci.yml` and `nightly.yml`; the baseline step reads `.quality-baseline.json`; the command steps read `package.json`; the instruction steps read `SKILL.md`, the review template and `AGENTS.md`
+- [x] The source-path step derives the expected path from the nightly's `--output` for `d2rmm-agent-core`, plus `mutants.out/outcomes.json`, and never hard-codes the answer alone
+- [x] No step pins the metric's value: `pnpm quality:ratchet --update` sets it after the merge
+- [x] Steps import nothing from `apps/*` (ADR 023)
+- [x] Gate check passes: `pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec bddgen`
 
 **Tests**: acceptance
 **Gate**: `pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec bddgen`
