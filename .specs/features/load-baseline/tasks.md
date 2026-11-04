@@ -122,7 +122,7 @@ T34 → T35 → T36 → T37
 ### Phase 10: Runs
 
 ```
-T32 → T38 → T39 → T40 → T41 → T33
+T32 → T38 → T39 → T40 → T41 → T42 → T33
 ```
 
 ---
@@ -925,17 +925,39 @@ T32 → T38 → T39 → T40 → T41 → T33
 
 ---
 
+### T42: Telemetry limit reported, not failing, in F0
+
+**What**: The maintainer's decision of 2026-11-04 (AD-128): the full run held 400 players with 0 errors, and the telemetry share was 6.73 against 0.10. In F0 the limit is reported and does not fail the run, and the published baseline says so with the condition on the production endpoint. This supersedes the telemetry clauses of T9's summary rule; `telemetryFails` and its boundary stay as they are.
+**Where**: `scripts/load/lib/summary.mjs` (modify; `lib/publish.mjs` for the document; tests in `scripts/test/load/summary.test.mjs`, `publish.test.mjs`, and the fixtures that list the summary's fields)
+**Depends on**: T41
+**Reuses**: `telemetryFails`, the shape of `withinEgressBudget`
+**Requirement**: LB-22
+
+**Done when**:
+
+- [ ] `buildSummary` writes `withinTelemetryBudget` (`!telemetryFails(share)`, `null` when the 100-player step never ran); a share above 0.10 no longer sets `failure` or `passed: false`; `exitCodeOf` is zero only when `passed` is true and `error` is null. `telemetry-share.mjs`, `TELEMETRY_SHARE_LIMIT` and the test of its boundary are unchanged
+- [ ] The test `failure names the step and the rule` loses only its telemetry block (the maintainer's decision), and the new test named in `## Checks` proves the opposite: over the limit, the run is passed, `failure` is null, the exit code is 0 and `withinTelemetryBudget` is false. No other expectation changes
+- [ ] The published document shows `withinTelemetryBudget` as report-only in F0 and states that the reduction is a condition of setting `OTEL_EXPORTER_OTLP_ENDPOINT` in production. A summary with a false value is still published; every refusal of `publishPlan` is unchanged
+- [ ] Tests named as in `## Checks` pass: the Quick gate
+
+**Tests**: unit
+**Gate**: Quick
+
+**Commit**: `feat(load-baseline): report the telemetry limit without failing the run`
+
+---
+
 ### T33: Full run, publish and baseline
 
 **What**: The full run of the F0 exit criterion, its published document and the first baseline values.
 **Where**: `scripts/load/check/full-summary.check.mjs`
-**Depends on**: T41
+**Depends on**: T42
 **Reuses**: `reports/load/summary.json`, `pnpm load:publish`, `pnpm quality:collect`, `pnpm quality:ratchet`
 **Requirement**: LB-10, LB-11, LB-12, LB-13, LB-14, LB-15, LB-21, LB-22
 
 **Done when**:
 
-- [ ] `pnpm test:load` ends with `passed: true`; `maxConcurrentPlayers` is at least 100, `p95StateLatencyMs` at most 2000, the 100-player error ratio below 1%, `telemetryShareOfBudget` at most 0.10. If the run misses the minimum, that is a **finding**: the task stops, the summary is kept, and `## Handoff` and `decisions.md` name the step, the failed rule and the bottleneck (the API pool of 10 connections and the per-request session lookup are the first suspects); no API code is changed here
+- [ ] `pnpm test:load` ends with `passed: true`; `maxConcurrentPlayers` is at least 100, `p95StateLatencyMs` at most 2000, the 100-player error ratio below 1%; `telemetryShareOfBudget` and `withinTelemetryBudget` are reported, report-only in F0 (AD-128). If the run misses the minimum, that is a **finding**: the task stops, the summary is kept, and `## Handoff` and `decisions.md` name the step, the failed rule and the bottleneck (the API pool of 10 connections and the per-request session lookup are the first suspects); no API code is changed here
 - [ ] The check reads `reports/load/summary.json` and asserts the thresholds above, the four top-level names, `maxConcurrentRooms` above 0, `bytesPerPlayerHour` and the telemetry fields present, a row per executed step, and no secret text
 - [ ] `pnpm load:publish` writes `docs/engineering/load-baseline.md` from that summary; `pnpm quality:collect` reads the three load metrics; `pnpm quality:ratchet --context phase --update` records them as the first baseline values and the diff of `.quality-baseline.json` shows only the three `null` values becoming numbers
 - [ ] Gate passes: `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`
@@ -991,7 +1013,7 @@ Proof: `node --test "--test-name-pattern=share boundary at 0.10" scripts/test/lo
 **C14** - `maxConcurrentPlayers` is the highest passing step with every earlier step passing, and 0 when the first step fails (LB-10, AC 1)
 Proof: `node --test "--test-name-pattern=maxConcurrentPlayers" scripts/test/load/summary.test.mjs`
 
-**C15** - A failed 100-player step writes `passed: false`, a `failure` naming the step and the rule, and a non-zero exit code; a telemetry failure after a pass does the same (LB-11, AC 2; LB-22, AC 2)
+**C15** - A failed 100-player step writes `passed: false`, a `failure` naming the step and the rule, and a non-zero exit code (LB-11, AC 2)
 Proof: `node --test "--test-name-pattern=failure names the step and the rule" scripts/test/load/summary.test.mjs`
 
 **C16** - The summary carries `maxConcurrentPlayers`, `maxConcurrentRooms`, `bytesPerPlayerHour` and `p95StateLatencyMs` under exactly those names, the last two read at the 100-player step and the rooms at the end of the highest passing step (LB-13, AC 4)
@@ -1090,11 +1112,17 @@ Proof: `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec b
 **C47** - The smoke run starts Postgres with TLS and the limited API, plays the journey for 5 players (both streams, heartbeats, a match, the observation, `created`), records bytes at the meter and the sink, writes `smoke-summary.json` only, and leaves no container behind (LB-01, LB-02, LB-03, LB-05, LB-09, LB-19)
 Proof: `pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.check.mjs`
 
-**C48** - The full run passes: 100 players or more inside 2 s p95 with fewer than 1% errors, the numbers published in `reports/load/summary.json`, the telemetry share at most 0.10 (LB-10, LB-11, LB-13, LB-14, LB-15, LB-21, LB-22; Success Criteria)
+**C48** - The full run passes: 100 players or more inside 2 s p95 with fewer than 1% errors, the numbers published in `reports/load/summary.json`, the telemetry share and `withinTelemetryBudget` reported (LB-10, LB-11, LB-13, LB-14, LB-15, LB-21, LB-22; Success Criteria)
 Proof: `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`
 
 **C49** - A `created` frame at or after 5 000 ms from its observation is one error and no latency sample; an observation still pending 5 000 ms or more when the stream ends is one error, tallied at the time of its observation, and a younger one is none; a stale iteration is settled when the next assignment arrives (LB-05, AC 5; LB-08 edge case)
 Proof: `node --test "--test-name-pattern=pending observation at the end of a stream" scripts/test/load/journey-state.test.mjs`
+
+**C58** - A telemetry share above 0.10 is reported as `withinTelemetryBudget: false` and leaves the run passed, with no `failure` and exit code 0; at 0.10 it is true, and with no 100-player step it is `null` (LB-22, AC 2)
+Proof: `node --test "--test-name-pattern=a telemetry share over the limit is reported and does not fail the run" scripts/test/load/summary.test.mjs`
+
+**C59** - The published baseline shows the telemetry limit as report-only with the condition on the production endpoint, and a summary over the limit is still published (LB-22, AC 2)
+Proof: `node --test "--test-name-pattern=the baseline shows the telemetry limit as report-only" scripts/test/load/publish.test.mjs`
 
 **C56** - `pair` reads the account's current agent before its transaction opens, so it never holds a connection while asking the pool for another (LB-03, AC 3)
 Proof: `pnpm --filter @d2rmm/api exec vitest run src/modules/agents/application/pairing-use-cases.test.ts -t "pair reads the current agent before its transaction opens"`
@@ -1321,7 +1349,7 @@ Phase 6:  T21 -----→ T22 -----→ T23
 Phase 7:  T24 -----→ T25 -----→ T26 -----→ T27
 Phase 8:  T28 -----→ T29 -----→ T30 -----→ T31
 Phase 9:  T34 -----→ T35 -----→ T36 -----→ T37
-Phase 10: T32 -----→ T38 -----→ T39 -----→ T40 -----→ T41 -----→ T33
+Phase 10: T32 -----→ T38 -----→ T39 -----→ T40 -----→ T41 -----→ T42 -----→ T33
 ```
 
 Execution is strictly sequential - there is no intra-phase parallelism.

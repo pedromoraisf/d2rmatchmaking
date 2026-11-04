@@ -96,6 +96,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-114 | load-baseline | k6 built with the `phymbert/xk6-sse` extension into a pinned image; no runtime auto-provisioning | auto-provisioning (a runtime network call) | |
 | AD-115 | load-baseline | A tool failure is written to `error`, not to the four `failure` rules | fold it into `failure` | |
 | AD-116 | load-baseline | Telemetry bytes are counted on the wire at the sink, headers included, in the meter's window | count bodies only | |
+| AD-128 | load-baseline | The telemetry limit (AD-097) is report-only in F0 by the maintainer's decision: `withinTelemetryBudget` is reported and published, and does not fail the run; `telemetryFails` and its boundary stay | restore `failure` and the exit code in `buildSummary` | |
 | AD-127 | load-baseline | `pair` reads the current agent before `uow.run`, not with `tx` inside it: the read was already outside the transaction, so behaviour stays the same with no port change; authorised by the maintainer as the one API change of this feature | read with `tx` under a row lock, a port change | |
 | AD-126 | load-baseline | A step that fails while provisioning has no row, so its `provisionMsByRoute` goes in the summary's `error` text, a lower bound (requests of the chunk still in flight are not counted); every failure inside a step now starts `step <n> stopped:` | a row for a step that never started | |
 | AD-125 | load-baseline | A failing provisioning request is reported with its route, the player's index, its kind and elapsed time (never a name or secret), and the slowest time per route is kept per step; the 10 s limit stays | a longer provisioning limit | |
@@ -246,7 +247,9 @@ The first real smoke attempt (T32, never run as a gate) found three design point
 - **Needs the maintainer**: either reset the two review units so the runner can re-review the revision, `node scripts/attempt.mjs reset --unit dispatch:load-baseline/review-architecture --by <maintainer>` and `node scripts/attempt.mjs reset --unit dispatch:load-baseline/review-security --by <maintainer>`, or say in their own words that the revision may proceed without a fresh review (it is then listed in the phase review). The runner does not execute T34 to T37 before one of the two.
 - **Phase effect**: `load-baseline` is the last feature of F0 and nothing else is runnable, so the phase is blocked until then (an escalation).
 
-## Finding: load-baseline, T33 full run (2026-11-03) - capacity holds, telemetry over its limit, waiting for the maintainer
+## Finding: load-baseline, T33 full run (2026-11-03) - capacity holds, telemetry over its limit, maintainer chose report-only
+
+**Maintainer's answer (2026-11-04, in chat)**: "A", answering option (a) below: the telemetry limit is report-only in F0, and the reduction is a condition of setting the endpoint in production. The replan is T42 (AD-128). The spec carries the amendment at its top; its approval line is unchanged. `dispatch:load-baseline/review-spec` has used its three dispatches, so the amended text has no fresh `spec-reviewer` verdict: confirm it at the review. T33 has one attempt left.
 
 T41 proved and fixed the deadlock (`5810e8c`; red: `not finished within 10000 ms` with 8 pairs on a pool of 2). T33 then ran to the ceiling at that commit (attempt 2 of 3, the unit stands at 2/3; the image was built after the commit and holds the fix). Nothing is committed for T33, publish and the ratchet did not run, and `reports/load/summary.json` is kept. Numbers: `tasks.md` Handoff, Batch 16; checked by the orchestrator against the summary.
 
@@ -287,6 +290,11 @@ The maintainer reset `gate:load-baseline/T33` (`pedromoraisf`). The reset had to
 
 - **Reading**: latency and resource use stay far from any limit, and the number of errors is exactly half the step's players, so the failure looks like a fault limited to part of the step (for example the 25 players this step adds) and not a capacity limit. It is not yet a finding about the API: the summary cannot say which request failed. T39 adds the error breakdown (AD-124); T33 then runs again (attempt 2 of 3). The first suspects after that: the pairing/provisioning of the players a step adds, the per-account state of the players kept from the earlier step, the API pool of 10 connections and the per-request session lookup.
 - **Not a bottleneck claim**: nothing here shows the instance's limit yet.
+
+## Condition before production telemetry (from load-baseline, AD-128)
+
+- Do not set `OTEL_EXPORTER_OTLP_ENDPOINT` in production until the telemetry share is at or under 0.10 (measured 6.73 at 100 players, default sampler 0.1), or the maintainer decides another limit. First split the sink's count by traces, metrics and logs, and then bring the limit back as a failing rule.
+- `bytesPerPlayerHour` is 113 827 against the 70 000 budget (`withinEgressBudget` false, about 7.6 GiB a month for 100 players over 720 hours against 5 GiB, without telemetry): reduce it or revise the budget before real players.
 
 ## Queued for F1 (from the api-web-skeleton security review)
 

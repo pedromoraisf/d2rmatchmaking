@@ -1146,6 +1146,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-03
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-128 (assumed)
+
+- **Decision**: the telemetry limit of AD-097 is report-only in F0 by the maintainer's decision ("A", 2026-11-04): `withinTelemetryBudget` is reported and published and does not fail the run. Setting `OTEL_EXPORTER_OTLP_ENDPOINT` in production waits for the share to be at or under 0.10, or for another limit from the maintainer.
+- **Reason**: the full run held 400 players with 0 errors, and the share was 6.73. The brief's exit criterion names no telemetry limit, and the API exports nothing until the endpoint is set.
+- **Trade-off**: F0 closes with telemetry 67 times over its limit, shown in the baseline and queued as a condition.
+- **Scope**: load-baseline / LB-21, LB-22
+- **Date**: 2026-11-04
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

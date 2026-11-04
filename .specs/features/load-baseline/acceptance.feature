@@ -27,7 +27,7 @@ Feature: The load run measures the main journey and refuses to touch anything it
   # not-scenario: LB-19 — proved by a unit test of the cleanup plan (containers and network removed after a pass, a failed step and an interrupt) and by the smoke run leaving no container behind
   # not-scenario: LB-20 — proved by a static test that no workflow and neither `pnpm check` nor `pnpm test` names the load scripts
   # not-scenario: LB-21 — proved by unit tests of the telemetry arithmetic and by the four fields in the full run's summary
-  # not-scenario: LB-22 — proved by unit tests of the share at 0.10 and just above it, with `failure` naming `telemetry`
+  # not-scenario: LB-22 — proved by unit tests of the share at 0.10 and just above it, reported in `withinTelemetryBudget` without failing the run (AD-128)
 
   Background:
     Given a maintainer's machine with the repository checked out
