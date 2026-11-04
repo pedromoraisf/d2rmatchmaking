@@ -1137,6 +1137,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-03
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-127 (assumed)
+
+- **Decision**: `pair` reads the account's current agent before `uow.run`, not with `tx` inside it. It is the one API change of load-baseline, authorised by the maintainer on 2026-11-03 ("A, pode descartar").
+- **Reason**: the read was already outside the transaction, so moving it keeps behaviour the same with no port change, and removes the second connection a transaction asks for.
+- **Trade-off**: the read is still not protected by the transaction, as today; reading with `tx` under a row lock would be a port change.
+- **Scope**: load-baseline / LB-03
+- **Date**: 2026-11-03
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

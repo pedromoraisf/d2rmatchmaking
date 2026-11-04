@@ -13,7 +13,7 @@ Project rules for every task of this feature:
 - Tests are named exactly as written in `## Checks`; the checks select them with `--test-name-pattern`. A test named otherwise leaves its check with `no test ran`.
 - All code of this feature lives in `scripts/load/` (modules in `scripts/load/lib/`, containers in `scripts/load/containers/`, k6 in `scripts/load/k6/`, images in `scripts/load/docker/`), unit tests in `scripts/test/load/<module>.test.mjs`, the static test in `scripts/test/load-scripts.test.mjs`, smoke and full-run checks in `scripts/load/check/*.check.mjs` (not `*.test.mjs`, so `pnpm test:harness` never runs them). Zero dependencies: only `node:*` modules and global `fetch`. ESM, `.mjs`, no `any`-style shortcuts, `no-console` is off for these scripts.
 - Pure rules take plain data and return plain data (no `Date.now()`, no `process.env`, no `fs`, no `child_process`); the impure edge is `run.mjs` and the container scripts. A rule that only the assembled run can observe is extracted into a pure function and unit-tested (ADR 026).
-- `.claude/hooks/**`, `.claude/settings.json`, `docs/adr/**`, `apps/**` and every harness file (`scripts/lib/**`, `.dependency-cruiser.cjs`, `eslint.config.mjs`, `*.config.*`, `.github/workflows/**`) are **not edited** by any task. A task that needs one records it in `decisions.md` and reports. `.quality-baseline.json` is edited only by `pnpm quality:ratchet --context phase --update` (T33).
+- `.claude/hooks/**`, `.claude/settings.json`, `docs/adr/**`, `apps/**` and every harness file (`scripts/lib/**`, `.dependency-cruiser.cjs`, `eslint.config.mjs`, `*.config.*`, `.github/workflows/**`) are **not edited** by any task, except the one `apps/api` defect of T41 (the maintainer's decision, 2026-11-03). A task that needs one records it in `decisions.md` and reports. `.quality-baseline.json` is edited only by `pnpm quality:ratchet --context phase --update` (T33).
 - No test, scenario or sensor is weakened, skipped or focused. The existing `# not-scenario` lines of `acceptance.feature` are not changed; `pnpm test:acceptance` is red for this feature from the spec commit until T30 defines the steps (`missingSteps: 'fail-on-gen'`), as in observability-e2e; no earlier task runs it.
 - Docker tasks (T1, T32, T33) need the Docker daemon. Images and builds are pinned by digest and commit as design.md says; T1 records the versions it pins in `## Handoff`. **T1 is a spike with a gate.** If k6 with the SSE extension cannot hold two streams, send heartbeats from another scenario and post inside an event handler, T1 applies the design's fallback (reopen the stream each iteration) and records it; if that also fails, T1 stops and the orchestrator escalates (Node generator = a spec and tooling decision for the maintainer). Never switch tools on your own.
 - Secrets: none. No cookie, token, password or key is written to a log, the summary, a command line or the repository; the redactor and the tests of T9, T26 and T27 pin it. Nothing is pushed, and no `docker push` or `docker login` appears anywhere.
@@ -33,29 +33,31 @@ Project rules for every task of this feature:
 
 > Generated from codebase, project guidelines, and spec - confirm before Execute. Guidelines found: `AGENTS.md` (How to test, rules 1 to 4, 6, 7, 10 and 12), `docs/engineering/testing.md`, `docs/adr/026-mutation-unit-tests-only.md`, `docs/adr/023-bdd-acceptance.md`, `scripts/test/*.test.mjs` (style), `package.json` scripts.
 
-| Code Layer                                         | Required Test Type                  | Coverage Expectation                                                                                   | Location Pattern                                               | Run Command                                      |
-| -------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- | ------------------------------------------------ |
-| Pure rules (`scripts/load/lib/*.mjs`)              | unit (`node:test`)                  | All branches; every boundary the spec names (2000/2001 ms, 0.01, 0.10, 70 000); 1:1 to the checks      | `scripts/test/load/<module>.test.mjs`                          | `node --test "scripts/test/load/*.test.mjs"`     |
-| Container scripts (`meter.mjs`, `sink.mjs`)        | unit (in-process servers on port 0) | Window counting, discarding bodies, bearer and `Host` checks, no logging of secrets                    | `scripts/test/load/meter.test.mjs`, `sink.test.mjs`            | same                                             |
-| Orchestration (`orchestrate.mjs`, `provision.mjs`) | unit with fake ports                | Sequence, stop rule, cleanup on each exit path, summary writer, redaction                              | `scripts/test/load/orchestrate.test.mjs`, `provision.test.mjs` | same                                             |
-| k6 script and images (`journey.mjs`, Dockerfiles)  | static test + Docker run            | Imports `journey-state.mjs`, no `console.log`, digest pins; behaviour proved by T1 and the smoke run   | `scripts/test/load-scripts.test.mjs`, `scripts/load/check/`    | `node --test scripts/test/load-scripts.test.mjs` |
-| Entry points (`run.mjs`, `publish.mjs`)            | acceptance (playwright-bdd)         | `@LB-16`, `@LB-17`, `@LB-18` scenarios as written, black-box with a `docker` shim and a temporary root | `tests/acceptance/steps/load-baseline.steps.ts`                | `bddgen` and `playwright test --grep`            |
-| Root `package.json` scripts, docs, `.dockerignore` | static test                         | The three scripts exist; none in `check`, `test` or a workflow; entries of `.dockerignore`             | `scripts/test/load-scripts.test.mjs`                           | `node --test scripts/test/load-scripts.test.mjs` |
-| The assembled run (Docker)                         | smoke and full run                  | Smoke: LB-01, 02, 03, 05, 09, 19; full: LB-10 to LB-15, LB-21, LB-22 and the success criteria          | `scripts/load/check/*.check.mjs`                               | `pnpm test:load:smoke`, `pnpm test:load`         |
+| Code Layer                                         | Required Test Type                  | Coverage Expectation                                                                                   | Location Pattern                                                  | Run Command                                      |
+| -------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------ |
+| Pure rules (`scripts/load/lib/*.mjs`)              | unit (`node:test`)                  | All branches; every boundary the spec names (2000/2001 ms, 0.01, 0.10, 70 000); 1:1 to the checks      | `scripts/test/load/<module>.test.mjs`                             | `node --test "scripts/test/load/*.test.mjs"`     |
+| Container scripts (`meter.mjs`, `sink.mjs`)        | unit (in-process servers on port 0) | Window counting, discarding bodies, bearer and `Host` checks, no logging of secrets                    | `scripts/test/load/meter.test.mjs`, `sink.test.mjs`               | same                                             |
+| Orchestration (`orchestrate.mjs`, `provision.mjs`) | unit with fake ports                | Sequence, stop rule, cleanup on each exit path, summary writer, redaction                              | `scripts/test/load/orchestrate.test.mjs`, `provision.test.mjs`    | same                                             |
+| k6 script and images (`journey.mjs`, Dockerfiles)  | static test + Docker run            | Imports `journey-state.mjs`, no `console.log`, digest pins; behaviour proved by T1 and the smoke run   | `scripts/test/load-scripts.test.mjs`, `scripts/load/check/`       | `node --test scripts/test/load-scripts.test.mjs` |
+| Entry points (`run.mjs`, `publish.mjs`)            | acceptance (playwright-bdd)         | `@LB-16`, `@LB-17`, `@LB-18` scenarios as written, black-box with a `docker` shim and a temporary root | `tests/acceptance/steps/load-baseline.steps.ts`                   | `bddgen` and `playwright test --grep`            |
+| Root `package.json` scripts, docs, `.dockerignore` | static test                         | The three scripts exist; none in `check`, `test` or a workflow; entries of `.dockerignore`             | `scripts/test/load-scripts.test.mjs`                              | `node --test scripts/test/load-scripts.test.mjs` |
+| The pair use case (`apps/api`, T41 only)           | unit with fakes + integration       | The current agent is read before the transaction; concurrent pairs finish on a small pool              | `pairing-use-cases.test.ts`, `pair-agent-concurrency.int.test.ts` |
+| The assembled run (Docker)                         | smoke and full run                  | Smoke: LB-01, 02, 03, 05, 09, 19; full: LB-10 to LB-15, LB-21, LB-22 and the success criteria          | `scripts/load/check/*.check.mjs`                                  | `pnpm test:load:smoke`, `pnpm test:load`         |
 
 ## Gate Check Commands
 
 > Generated from codebase - confirm before Execute.
 
-| Gate Level | When to Use                                | Command                                                                                                                                                                         |
-| ---------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Quick      | Pure rule and orchestration tasks          | `node --test "scripts/test/load/*.test.mjs" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load`   |
-| Static     | Tasks with images, scripts or root scripts | `node --test "scripts/test/load/*.test.mjs" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts package.json` |
-| Docker     | T1 (the spike)                             | `node scripts/load/spike.mjs`                                                                                                                                                   |
-| Acceptance | T30 and the closing runs                   | `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@LB-16\|@LB-17\|@LB-18"`         |
-| Smoke      | T32                                        | `pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.check.mjs`                                                                                                |
-| Full run   | T33                                        | `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`                                                                                                       |
-| Build      | End of a phase                             | `pnpm build && pnpm typecheck && pnpm lint && pnpm arch && pnpm format:check && pnpm test:harness`                                                                              |
+| Gate Level | When to Use                                | Command                                                                                                                                                                                          |
+| ---------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Quick      | Pure rule and orchestration tasks          | `node --test "scripts/test/load/*.test.mjs" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load`                    |
+| Static     | Tasks with images, scripts or root scripts | `node --test "scripts/test/load/*.test.mjs" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts package.json`                  |
+| Docker     | T1 (the spike)                             | `node scripts/load/spike.mjs`                                                                                                                                                                    |
+| Acceptance | T30 and the closing runs                   | `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@LB-16\|@LB-17\|@LB-18"`                          |
+| Smoke      | T32                                        | `pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.check.mjs`                                                                                                                 |
+| API        | T41                                        | `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration && pnpm exec eslint --max-warnings 0 apps/api/src/modules/agents && pnpm arch` |
+| Full run   | T33                                        | `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`                                                                                                                        |
+| Build      | End of a phase                             | `pnpm build && pnpm typecheck && pnpm lint && pnpm arch && pnpm format:check && pnpm test:harness`                                                                                               |
 
 ---
 
@@ -120,7 +122,7 @@ T34 → T35 → T36 → T37
 ### Phase 10: Runs
 
 ```
-T32 → T38 → T39 → T40 → T33
+T32 → T38 → T39 → T40 → T41 → T33
 ```
 
 ---
@@ -902,11 +904,32 @@ T32 → T38 → T39 → T40 → T33
 
 ---
 
+### T41: Pair reads the current agent before its transaction
+
+**What**: Stop `pair` asking the pool for a second connection while its transaction holds one. Today `findCurrentByAccount` runs inside `uow.run` without `tx`; ten pairs in that window at once would hold all ten connections while each waits for another, with no timeout. Authorised by the maintainer on 2026-11-03 as the one exception to "no API code changes here" (AD-127).
+**Where**: `apps/api/src/modules/agents/application/pair-agent.ts` (modify; tests in `pairing-use-cases.test.ts` beside it and a new `apps/api/src/modules/agents/adapters/postgres/pair-agent-concurrency.int.test.ts`)
+**Depends on**: T40
+**Reuses**: `InMemoryUnitOfWork`, the Postgres repositories, `PostgresUnitOfWork`, the existing Testcontainers setup of `agents-repositories.int.test.ts`
+**Requirement**: LB-03
+
+**Done when**:
+
+- [ ] The integration test is written first and fails on the unchanged `pair-agent.ts` by not finishing in time; that red is recorded in `## Handoff`. If it passes on the unchanged code, the deadlock is not proved: the task stops and returns to the orchestrator without changing `pair-agent.ts`
+- [ ] `findCurrentByAccount` runs before `uow.run`, and every write stays in the transaction. No other behaviour changes: the same results, the same revocation of the previous agent, the same `AgentRevoked` event. No port, route, contract, pool setting or existing expectation changes
+- [ ] Tests named as in `## Checks` pass: the API gate
+
+**Tests**: unit, integration
+**Gate**: API
+
+**Commit**: `fix(agents): read the current agent before the pair transaction`
+
+---
+
 ### T33: Full run, publish and baseline
 
 **What**: The full run of the F0 exit criterion, its published document and the first baseline values.
 **Where**: `scripts/load/check/full-summary.check.mjs`
-**Depends on**: T40
+**Depends on**: T41
 **Reuses**: `reports/load/summary.json`, `pnpm load:publish`, `pnpm quality:collect`, `pnpm quality:ratchet`
 **Requirement**: LB-10, LB-11, LB-12, LB-13, LB-14, LB-15, LB-21, LB-22
 
@@ -1072,6 +1095,12 @@ Proof: `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`
 
 **C49** - A `created` frame at or after 5 000 ms from its observation is one error and no latency sample; an observation still pending 5 000 ms or more when the stream ends is one error, tallied at the time of its observation, and a younger one is none; a stale iteration is settled when the next assignment arrives (LB-05, AC 5; LB-08 edge case)
 Proof: `node --test "--test-name-pattern=pending observation at the end of a stream" scripts/test/load/journey-state.test.mjs`
+
+**C56** - `pair` reads the account's current agent before its transaction opens, so it never holds a connection while asking the pool for another (LB-03, AC 3)
+Proof: `pnpm --filter @d2rmm/api exec vitest run src/modules/agents/application/pairing-use-cases.test.ts -t "pair reads the current agent before its transaction opens"`
+
+**C57** - Concurrent pairs on a Postgres pool smaller than their number all finish in time (LB-03, AC 3)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/modules/agents/adapters/postgres/pair-agent-concurrency.int.test.ts -t "concurrent pairs finish on a small pool"`
 
 **C54** - A step's errors are broken down by kind and by quarter of its players, the kinds add up to the errors, and no secret text can be in them (LB-08, AC 8; LB-11, AC 2; LB-15, AC 5)
 Proof: `node --test "--test-name-pattern=step rows carry the error breakdown" scripts/test/load/summary.test.mjs`
@@ -1262,7 +1291,7 @@ Phase 6:  T21 -----→ T22 -----→ T23
 Phase 7:  T24 -----→ T25 -----→ T26 -----→ T27
 Phase 8:  T28 -----→ T29 -----→ T30 -----→ T31
 Phase 9:  T34 -----→ T35 -----→ T36 -----→ T37
-Phase 10: T32 -----→ T38 -----→ T39 -----→ T40 -----→ T33
+Phase 10: T32 -----→ T38 -----→ T39 -----→ T40 -----→ T41 -----→ T33
 ```
 
 Execution is strictly sequential - there is no intra-phase parallelism.

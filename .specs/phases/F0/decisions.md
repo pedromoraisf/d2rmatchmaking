@@ -96,6 +96,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-114 | load-baseline | k6 built with the `phymbert/xk6-sse` extension into a pinned image; no runtime auto-provisioning | auto-provisioning (a runtime network call) | |
 | AD-115 | load-baseline | A tool failure is written to `error`, not to the four `failure` rules | fold it into `failure` | |
 | AD-116 | load-baseline | Telemetry bytes are counted on the wire at the sink, headers included, in the meter's window | count bodies only | |
+| AD-127 | load-baseline | `pair` reads the current agent before `uow.run`, not with `tx` inside it: the read was already outside the transaction, so behaviour stays the same with no port change; authorised by the maintainer as the one API change of this feature | read with `tx` under a row lock, a port change | |
 | AD-126 | load-baseline | A step that fails while provisioning has no row, so its `provisionMsByRoute` goes in the summary's `error` text, a lower bound (requests of the chunk still in flight are not counted); every failure inside a step now starts `step <n> stopped:` | a row for a step that never started | |
 | AD-125 | load-baseline | A failing provisioning request is reported with its route, the player's index, its kind and elapsed time (never a name or secret), and the slowest time per route is kept per step; the 10 s limit stays | a longer provisioning limit | |
 | AD-124 | load-baseline | A step's errors are broken down by kind and, for a failing step, by quarter of its players (counts only) | a log file of the failing step | |
@@ -245,7 +246,9 @@ The first real smoke attempt (T32, never run as a gate) found three design point
 - **Needs the maintainer**: either reset the two review units so the runner can re-review the revision, `node scripts/attempt.mjs reset --unit dispatch:load-baseline/review-architecture --by <maintainer>` and `node scripts/attempt.mjs reset --unit dispatch:load-baseline/review-security --by <maintainer>`, or say in their own words that the revision may proceed without a fresh review (it is then listed in the phase review). The runner does not execute T34 to T37 before one of the two.
 - **Phase effect**: `load-baseline` is the last feature of F0 and nothing else is runnable, so the phase is blocked until then (an escalation).
 
-## Finding: load-baseline, T33 after the reset (2026-11-03) - API pool deadlock on pair, waiting for the maintainer
+## Finding: load-baseline, T33 after the reset (2026-11-03) - API pool deadlock on pair, maintainer chose the fix
+
+**Maintainer's answer (2026-11-03, in chat)**: "A, pode descartar", answering option A below, "autorizo a correção" (a task with a regression test, then T33 again), and allowing the stale uncommitted Specify note in the main checkout to be discarded (done). The replan is T41 (AD-127). `spec.md` is approved and stays as written, so its "No API code changes here" still reads as before: confirm the exception at the review. The telemetry point below is still open.
 
 The maintainer reset `gate:load-baseline/T33` (`pedromoraisf`). The reset had to come first: the gate refuses any dispatch for a blocked feature, so "T40 runs first" in the block below could not happen in that order. T40 passed (`26310f5`). T33 then ran once (1 of 3) and stopped again while provisioning step 100: `pair of player 20 did not answer (kind timeout, 10005 ms)`, `provisionMsByRoute {"test-login":401,"pairing-codes":296,"pair":10005,"claim":487}`. Steps 25 and 50 passed with 0 errors. No 100-player reading exists yet; `.quality-baseline.json` is untouched. Numbers: `tasks.md` Handoff, Batch 14.
 
