@@ -28,6 +28,13 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: verification.md finding 2; telemetry-relay admit (api-platform)
 - last seen: 2026-11-03T19:09:32Z
 
+### L-003 - When a design revision changes what a spec rule counts, change the spec's text in the same commit, so the rule the tests pin is the rule the spec states
+
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `spec` · harmful: 0
+- features: load-baseline
+- evidence: scripts/load/lib/error-ratio.mjs:43 (spec)
+- last seen: 2026-11-04T13:16:22Z
+
 ## Quarantined (failed when applied - ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.

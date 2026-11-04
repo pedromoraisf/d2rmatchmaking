@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 3,
+  "next_id": 4,
   "lessons": [
     {
       "id": "L-001",
@@ -32,6 +32,20 @@
       "evidence": ["verification.md finding 2; telemetry-relay admit (api-platform)"],
       "created": "2026-11-03T19:09:32Z",
       "last_seen": "2026-11-03T19:09:32Z"
+    },
+    {
+      "id": "L-003",
+      "key": "spec_precision_gap::when a design revision changes what a spec rule counts change the spec s text in the same commit so the rule the tests pin is the rule the spec states",
+      "text": "When a design revision changes what a spec rule counts, change the spec's text in the same commit, so the rule the tests pin is the rule the spec states",
+      "signal": "spec_precision_gap",
+      "scope": "spec",
+      "status": "candidate",
+      "features": ["load-baseline"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["scripts/load/lib/error-ratio.mjs:43 (spec)"],
+      "created": "2026-11-04T13:16:22Z",
+      "last_seen": "2026-11-04T13:16:22Z"
     }
   ]
 }
