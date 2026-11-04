@@ -1,0 +1,23 @@
+[
+  {
+    "file": "scripts/load/lib/step-verdict.mjs",
+    "old": "if (errorRatio >= ERROR_RATIO_LIMIT) {",
+    "new": "if (errorRatio > ERROR_RATIO_LIMIT) {",
+    "proof": "node --test \"--test-name-pattern=error ratio boundary at 1%\" scripts/test/load/step-verdict.test.mjs",
+    "label": "error ratio of exactly 1% passes (>= -> >)"
+  },
+  {
+    "file": "scripts/load/lib/percentile.mjs",
+    "old": "const rank = Math.ceil((95 * sorted.length) / 100);",
+    "new": "const rank = Math.floor((95 * sorted.length) / 100);",
+    "proof": "node --test \"--test-name-pattern=nearest-rank p95\" scripts/test/load/percentile.test.mjs",
+    "label": "p95 rank ceil -> floor"
+  },
+  {
+    "file": "scripts/load/lib/telemetry-share.mjs",
+    "old": "return share > TELEMETRY_SHARE_LIMIT;",
+    "new": "return share >= TELEMETRY_SHARE_LIMIT;",
+    "proof": "node --test \"--test-name-pattern=share boundary at 0.10\" scripts/test/load/telemetry-share.test.mjs",
+    "label": "telemetry share of exactly 0.10 fails (> -> >=)"
+  }
+]
