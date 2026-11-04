@@ -6177,9 +6177,14 @@
           "at": "2026-11-03T18:51:26.987Z",
           "ok": false,
           "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-03T19:22:33.082Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
         }
       ],
-      "status": "open"
+      "status": "blocked"
     },
     "denial:2ea976c0-e758-509a-9b71-75c917bddb74#aa6c9c58e5471c67e/73e92d1b": {
       "attempts": [
@@ -6307,6 +6312,1096 @@
           "at": "2026-11-03T19:14:14.787Z",
           "ok": true,
           "note": "pnpm check"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/spec": {
+      "attempts": [
+        {
+          "at": "2026-11-03T19:26:54.725Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py load-baseline"
+        },
+        {
+          "at": "2026-11-03T19:26:57.500Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs load-baseline"
+        },
+        {
+          "at": "2026-11-03T19:29:14.424Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py load-baseline"
+        },
+        {
+          "at": "2026-11-03T19:29:16.677Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs load-baseline"
+        },
+        {
+          "at": "2026-11-03T19:30:21.149Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py load-baseline"
+        },
+        {
+          "at": "2026-11-03T19:30:23.457Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs load-baseline"
+        },
+        {
+          "at": "2026-11-04T10:16:40.930Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py load-baseline"
+        },
+        {
+          "at": "2026-11-04T10:16:41.831Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs load-baseline"
+        },
+        {
+          "at": "2026-11-04T12:40:25.679Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py load-baseline"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:load-baseline/review-spec": {
+      "attempts": [
+        {
+          "at": "2026-11-03T19:27:04.535Z",
+          "ok": true,
+          "note": "dispatch: Review load-baseline spec"
+        },
+        {
+          "at": "2026-11-03T19:29:23.113Z",
+          "ok": true,
+          "note": "dispatch: Re-review load-baseline spec"
+        },
+        {
+          "at": "2026-11-03T19:30:32.116Z",
+          "ok": true,
+          "note": "dispatch: Third review of load-baseline spec"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:fe266438-f8bf-5ec6-a810-0769dff7fed6/9edfbfb6": {
+      "attempts": [
+        {
+          "at": "2026-11-03T19:46:47.185Z",
+          "ok": false,
+          "note": ".env files hold secrets and are off-limits to the agent, from inline code too. Use .env.example."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/tasks": {
+      "attempts": [
+        {
+          "at": "2026-11-03T19:51:00.720Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline → exit 1:   ERROR T24 declares `Depends on: T23` but the diagram has no T23 -> T24 arrow\n  ERROR T28 declares `Depends on: T27` but the diagram has no T27 -> T28 arrow\n  ERROR T32 declares `Depends on: T31` but the diagram has no T31 -> T32 arrow\n  ERROR T9 declares `Depends on: T8` but the diagram has no T8 -> T9 arrow\n\nvalidate_tasks: 8 error(s), 26 warning(s) in ./.specs/features/load-baseline/tasks.md"
+        },
+        {
+          "at": "2026-11-03T19:51:45.336Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline"
+        },
+        {
+          "at": "2026-11-03T19:51:52.977Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline --execute"
+        },
+        {
+          "at": "2026-11-03T20:48:52.330Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline --execute"
+        },
+        {
+          "at": "2026-11-03T22:03:53.422Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline --execute"
+        },
+        {
+          "at": "2026-11-03T22:15:46.227Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline --execute"
+        },
+        {
+          "at": "2026-11-03T23:07:34.123Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline --execute"
+        },
+        {
+          "at": "2026-11-03T23:09:18.967Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline --execute"
+        },
+        {
+          "at": "2026-11-04T00:09:56.396Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline --execute"
+        },
+        {
+          "at": "2026-11-04T00:27:53.939Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline --execute"
+        },
+        {
+          "at": "2026-11-04T01:00:36.646Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline --execute"
+        },
+        {
+          "at": "2026-11-04T02:32:47.635Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline"
+        },
+        {
+          "at": "2026-11-04T02:32:50.737Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline --execute"
+        },
+        {
+          "at": "2026-11-04T10:16:45.864Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline --execute"
+        },
+        {
+          "at": "2026-11-04T10:52:50.467Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline --execute"
+        },
+        {
+          "at": "2026-11-04T10:53:02.161Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline --execute --quiet → exit 2: usage: validate_tasks.py [-h] [--root ROOT] [--strict] [--execute] [target]\nvalidate_tasks.py: error: unrecognized arguments: --quiet"
+        },
+        {
+          "at": "2026-11-04T10:53:05.997Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py load-baseline --execute"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:fe266438-f8bf-5ec6-a810-0769dff7fed6/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-03T19:51:37.862Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:load-baseline/execute-batch-1": {
+      "attempts": [
+        {
+          "at": "2026-11-03T19:52:19.692Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 1 (spike T1)"
+        },
+        {
+          "at": "2026-11-04T10:19:52.807Z",
+          "ok": true,
+          "note": "dispatch: Run T33 last attempt and baseline"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:fe266438-f8bf-5ec6-a810-0769dff7fed6#a999cb626ecd6b38f/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:00:13.316Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T1": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:00:45.580Z",
+          "ok": true,
+          "note": "pnpm exec eslint --max-warnings 0 scripts/load"
+        },
+        {
+          "at": "2026-11-03T20:09:27.115Z",
+          "ok": true,
+          "note": "pnpm exec eslint --max-warnings 0 scripts/load"
+        },
+        {
+          "at": "2026-11-03T20:10:08.799Z",
+          "ok": false,
+          "note": "node scripts/load/spike.mjs → exit 1: {\"finding\":\"k6-version\",\"ok\":true,\"output\":\"k6 v2.3.0 (go1.27.1, linux/amd64)\\nExtensions:\\n  github.com/phymbert/xk6-sse v0.2.0, k6/x/sse [js]\"}\n{\"finding\":\"in-files-readable-by-k6-at-0600\",\"ok\":true,\"fallback\":null}\n{\"finding\":\"k6-exit\",\"ok\":false,\"code\":104,\"stderrTail\":\"time=\\\"2026-11-03T20:10:04Z\\\" level=error msg=\\\"invalid threshold \\\\\\\"count>=0\\\\\\\" applied on metric spike_created_latency_ms{window:hold}; reason: unsupported aggregation method count on"
+        },
+        {
+          "at": "2026-11-03T20:11:11.056Z",
+          "ok": true,
+          "note": "node scripts/load/spike.mjs"
+        },
+        {
+          "at": "2026-11-03T20:12:34.758Z",
+          "ok": true,
+          "note": "pnpm exec eslint --max-warnings 0 scripts/load"
+        },
+        {
+          "at": "2026-11-03T20:13:30.140Z",
+          "ok": true,
+          "note": "node scripts/load/spike.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:load-baseline/execute-batch-2": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:16:51.684Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 2 (T2-T8)"
+        },
+        {
+          "at": "2026-11-04T10:17:11.784Z",
+          "ok": true,
+          "note": "dispatch: Make telemetry limit report-only T42"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T2": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:18:20.741Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T3": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:19:38.811Z",
+          "ok": false,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load → exit 1:     code: 'ERR_ASSERTION',\n    actual: 0.25,\n    expected: 0.2,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }"
+        },
+        {
+          "at": "2026-11-03T20:19:55.690Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T4": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:20:57.073Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T5": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:21:56.504Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T6": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:22:35.931Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T7": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:23:34.449Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T8": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:24:43.101Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:load-baseline/execute-batch-3": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:26:01.318Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 3 (T9-T17)"
+        },
+        {
+          "at": "2026-11-04T02:38:36.369Z",
+          "ok": true,
+          "note": "dispatch: Rerun T33 full load baseline"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T9": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:32:03.812Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:fe266438-f8bf-5ec6-a810-0769dff7fed6#ae5167945183ca1b8/f2ef373b": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:32:18.789Z",
+          "ok": false,
+          "note": "Edits outside the repository are not allowed."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T10": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:33:40.544Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:fe266438-f8bf-5ec6-a810-0769dff7fed6#ae5167945183ca1b8/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:35:20.355Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T11": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:35:28.293Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T12": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:36:47.939Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T13": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:38:11.553Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T14": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:39:40.071Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T15": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:41:04.469Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T16": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:43:33.859Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T17": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:46:38.750Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:load-baseline/execute-batch-4": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:49:41.578Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 4 (T18-T23)"
+        },
+        {
+          "at": "2026-11-04T02:33:15.956Z",
+          "ok": true,
+          "note": "dispatch: Fix pair pool deadlock T41"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T18": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:53:49.993Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T19": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:54:46.682Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T20": {
+      "attempts": [
+        {
+          "at": "2026-11-03T20:56:04.542Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T21": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:01:03.819Z",
+          "ok": false,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load → exit 1:     base: '127.0.0.1'\n  }\n\ntest at scripts/test/load/meter.test.mjs:1:1\n✖ scripts/test/load/meter.test.mjs (193040.541316ms)\n  'Promise resolution is still pending but the event loop has already resolved'"
+        },
+        {
+          "at": "2026-11-03T21:01:59.190Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T22": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:03:47.171Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T23": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:06:17.616Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts package.json"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:load-baseline/execute-batch-5": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:08:17.077Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 5 (T24-T27)"
+        },
+        {
+          "at": "2026-11-04T02:00:57.181Z",
+          "ok": true,
+          "note": "dispatch: Implement T40 provisioning errors"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T24": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:17:08.896Z",
+          "ok": false,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts package.json → exit 1:     code: 'ERR_ASSERTION',\n    actual: \"// The k6 journey of one step (design.md § k6 journey; LB-03, LB-04, LB-05, LB-06, LB-14, LB-21). Plain k6 JavaScript,\\n// run by the k6 container of the step: the orchestrator copies it into the work directory's in/ next to plan.json and\\n// journey-state.mjs, and the contai"
+        },
+        {
+          "at": "2026-11-03T21:17:44.284Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts package.json"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:fe266438-f8bf-5ec6-a810-0769dff7fed6#a5e1af577b65cf43d/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:17:33.066Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T25": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:19:48.569Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T26": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:25:52.738Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T27": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:27:54.941Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts package.json"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:load-baseline/execute-batch-6": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:31:13.508Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 6 (T28-T31)"
+        },
+        {
+          "at": "2026-11-04T00:40:39.023Z",
+          "ok": true,
+          "note": "dispatch: Execute T33 full run, attempt 2"
+        },
+        {
+          "at": "2026-11-04T10:53:29.434Z",
+          "ok": true,
+          "note": "dispatch: Cover surviving domain mutants T43"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T28": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:36:43.699Z",
+          "ok": false,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts package.json → exit 1:     code: 'ERR_ASSERTION',\n    actual: 'node:path',\n    expected: /@sha256:[0-9a-f]{64}$/u,\n    operator: 'match',\n    diff: 'simple'\n  }"
+        },
+        {
+          "at": "2026-11-03T21:37:22.840Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts package.json"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T29": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:39:23.566Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts package.json"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:fe266438-f8bf-5ec6-a810-0769dff7fed6#ace8622389a30f4bd/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:41:50.475Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T30": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:42:01.585Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/acceptance typecheck"
+        },
+        {
+          "at": "2026-11-03T21:43:10.729Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep '@LB-16|@LB-17|@LB-18'"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:fe266438-f8bf-5ec6-a810-0769dff7fed6#ace8622389a30f4bd/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:42:05.414Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T31": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:44:15.376Z",
+          "ok": true,
+          "note": "pnpm exec prettier --check docs/engineering/testing.md && node --test scripts/test/load-scripts.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:load-baseline/execute-batch-7": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:45:42.839Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 7 (T32 smoke run)"
+        },
+        {
+          "at": "2026-11-04T00:28:18.605Z",
+          "ok": true,
+          "note": "dispatch: Execute T39 error breakdown"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:fe266438-f8bf-5ec6-a810-0769dff7fed6#a01df50d3624c95f7/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-03T21:48:25.850Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:load-baseline/review-architecture": {
+      "attempts": [
+        {
+          "at": "2026-11-03T23:05:09.440Z",
+          "ok": true,
+          "note": "dispatch: Re-review design revision 1 (architecture)"
+        },
+        {
+          "at": "2026-11-03T23:07:46.795Z",
+          "ok": true,
+          "note": "dispatch: Re-review design revision 1 (architecture, 2)"
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:load-baseline/review-security": {
+      "attempts": [
+        {
+          "at": "2026-11-03T23:05:13.888Z",
+          "ok": true,
+          "note": "dispatch: Re-review design revision 1 (security)"
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:load-baseline/execute-batch-8": {
+      "attempts": [
+        {
+          "at": "2026-11-03T23:10:07.118Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 8 (T34-T37)"
+        },
+        {
+          "at": "2026-11-04T00:17:55.807Z",
+          "ok": true,
+          "note": "dispatch: Execute T33 (full run) "
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T34": {
+      "attempts": [
+        {
+          "at": "2026-11-03T23:21:58.816Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts package.json"
+        },
+        {
+          "at": "2026-11-03T23:23:27.143Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts package.json"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T35": {
+      "attempts": [
+        {
+          "at": "2026-11-03T23:25:08.056Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T36": {
+      "attempts": [
+        {
+          "at": "2026-11-03T23:27:03.393Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts package.json"
+        },
+        {
+          "at": "2026-11-03T23:27:52.564Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" scripts/test/load-scripts.test.mjs && pnpm exec eslint --max-warnings 0 scripts && pnpm exec prettier --check scripts package.json"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T37": {
+      "attempts": [
+        {
+          "at": "2026-11-03T23:30:30.370Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        },
+        {
+          "at": "2026-11-03T23:32:15.919Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:load-baseline/execute-batch-9": {
+      "attempts": [
+        {
+          "at": "2026-11-03T23:33:21.089Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 9 (T32 smoke run, second)"
+        },
+        {
+          "at": "2026-11-04T00:10:34.009Z",
+          "ok": true,
+          "note": "dispatch: Execute batch 9 again (T38)"
+        },
+        {
+          "at": "2026-11-04T02:07:59.846Z",
+          "ok": true,
+          "note": "dispatch: Run T33 full load baseline"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:fe266438-f8bf-5ec6-a810-0769dff7fed6#afb20fd266bcf32f1/2d121ea3": {
+      "attempts": [
+        {
+          "at": "2026-11-03T23:57:42.771Z",
+          "ok": false,
+          "note": "rm -r is allowed only on build/test output folders (node_modules, dist, coverage, target, reports…). Blocked: $S/load-copy"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T32": {
+      "attempts": [
+        {
+          "at": "2026-11-04T00:07:38.268Z",
+          "ok": true,
+          "note": "pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.check.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:fe266438-f8bf-5ec6-a810-0769dff7fed6/1c840b10": {
+      "attempts": [
+        {
+          "at": "2026-11-04T00:10:18.016Z",
+          "ok": false,
+          "note": "Unknown dispatch step \"execute-batch-10\". Allowed: execute-batch-[1-9], verify, verify-r2, screens, review-spec, review-architecture, review-security, review-diff."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T38": {
+      "attempts": [
+        {
+          "at": "2026-11-04T00:13:50.353Z",
+          "ok": true,
+          "note": "pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.check.mjs scripts/test/load-scripts.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:fe266438-f8bf-5ec6-a810-0769dff7fed6#a6406eb5c304da15c/f2ef373b": {
+      "attempts": [
+        {
+          "at": "2026-11-04T00:36:57.311Z",
+          "ok": false,
+          "note": "Edits outside the repository are not allowed."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T39": {
+      "attempts": [
+        {
+          "at": "2026-11-04T00:38:59.321Z",
+          "ok": true,
+          "note": "pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.check.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:fe266438-f8bf-5ec6-a810-0769dff7fed6#a1f16f539b57326d4/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-04T00:49:53.269Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:fe266438-f8bf-5ec6-a810-0769dff7fed6/b2cf51a8": {
+      "attempts": [
+        {
+          "at": "2026-11-04T01:01:07.697Z",
+          "ok": false,
+          "note": "Feature load-baseline is blocked; do not dispatch more work for it."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:7d3f52f7-2336-555e-8940-4637ce4ab453/f63fcc16": {
+      "attempts": [
+        {
+          "at": "2026-11-04T01:58:57.024Z",
+          "ok": false,
+          "note": "The retry ledger is maintained by the hooks and scripts/attempt.mjs only."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T40": {
+      "attempts": [
+        {
+          "at": "2026-11-04T02:06:00.742Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T33": {
+      "attempts": [
+        {
+          "at": "2026-11-04T02:14:50.232Z",
+          "ok": false,
+          "note": "pnpm test:load && node --test scripts/load/check/full-summary.check.mjs → exit 1: building the k6 image d2rmm-load-k6:f0\nstep 25: 25 players provisioned, 25 in the step\nstep 25: passed\nstep 50: 25 players provisioned, 50 in the step\nstep 50: passed\nsummary written to /Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/load-baseline/reports/load/summary.json"
+        },
+        {
+          "at": "2026-11-04T02:59:01.737Z",
+          "ok": false,
+          "note": "pnpm test:load && node --test scripts/load/check/full-summary.check.mjs → exit 1: step 200: passed\nstep 300: 100 players provisioned, 300 in the step\nstep 300: passed\nstep 400: 100 players provisioned, 400 in the step\nstep 400: passed\nsummary written to /Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/load-baseline/reports/load/summary.json"
+        },
+        {
+          "at": "2026-11-04T10:40:14.350Z",
+          "ok": true,
+          "note": "pnpm test:load && node --test scripts/load/check/full-summary.check.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:7d3f52f7-2336-555e-8940-4637ce4ab453#aa897fd547544d907/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-04T02:34:46.399Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:7d3f52f7-2336-555e-8940-4637ce4ab453#aa897fd547544d907/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-04T02:34:52.544Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T41": {
+      "attempts": [
+        {
+          "at": "2026-11-04T02:35:24.940Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/modules/agents/adapters/postgres/pair-agent-concurrency.int.test.ts -t \"concurrent pairs finish on a small pool\" → exit 1:      50|       reject(new Error(`not finished within ${ms} ms: the pairs are wa…\n       |              ^\n     51|     }, ms);\n     52|   });\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯"
+        },
+        {
+          "at": "2026-11-04T02:37:28.019Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration && pnpm exec eslint --max-warnings 0 apps/api/src/modules/agents && pnpm arch"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:7d3f52f7-2336-555e-8940-4637ce4ab453/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-04T10:16:42.220Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/T42": {
+      "attempts": [
+        {
+          "at": "2026-11-04T10:18:24.018Z",
+          "ok": true,
+          "note": "node --test \"scripts/test/load/*.test.mjs\" && pnpm exec eslint --max-warnings 0 scripts/load scripts/test/load && pnpm exec prettier --check scripts/load scripts/test/load"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/integration": {
+      "attempts": [
+        {
+          "at": "2026-11-04T10:51:12.738Z",
+          "ok": true,
+          "note": "pnpm harness:json && pnpm quality:reports && pnpm --filter @d2rmm/api test:mutation"
+        },
+        {
+          "at": "2026-11-04T13:14:24.674Z",
+          "ok": true,
+          "note": "pnpm check && pnpm contracts:check && pnpm quality:collect && pnpm quality:ratchet --context pr"
+        },
+        {
+          "at": "2026-11-04T13:15:57.299Z",
+          "ok": true,
+          "note": "pnpm install --frozen-lockfile && pnpm check"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/T43": {
+      "attempts": [
+        {
+          "at": "2026-11-04T11:13:25.108Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:mutation && pnpm exec eslint --max-warnings 0 apps/api/src/modules apps/api/src/shared-kernel"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:load-baseline/proofs": {
+      "attempts": [
+        {
+          "at": "2026-11-04T12:04:34.138Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py load-baseline"
+        },
+        {
+          "at": "2026-11-04T12:38:04.440Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py load-baseline --mutations .specs/features/load-baseline/mutations.json"
+        },
+        {
+          "at": "2026-11-04T13:12:37.618Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py load-baseline --mutations .specs/features/load-baseline/mutations.json"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:load-baseline/verify": {
+      "attempts": [
+        {
+          "at": "2026-11-04T12:04:59.542Z",
+          "ok": true,
+          "note": "dispatch: Verify load-baseline independently"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:7d3f52f7-2336-555e-8940-4637ce4ab453#a84241e35cb571011/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-04T12:38:56.155Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:load-baseline/verification": {
+      "attempts": [
+        {
+          "at": "2026-11-04T13:12:44.404Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py load-baseline"
         }
       ],
       "status": "passed"
@@ -7093,6 +8188,81 @@
             "at": "2026-11-03T18:33:26.664Z",
             "ok": false,
             "note": "pnpm typecheck && pnpm lint && pnpm arch && pnpm format:check → exit 1: Checking formatting...\n ELIFECYCLE  Command failed with exit code 1.\n\n[warn] .specs/features/observability-e2e/mutations.json\n[warn] .specs/features/observability-e2e/verification.md\n[warn] Code style issues found in 2 files. Run Prettier with --write to fix."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "dispatch:load-baseline/review-architecture",
+      "by": "pedromoraisf",
+      "at": "2026-11-03T23:04:51.897Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-03T19:41:43.006Z",
+            "ok": true,
+            "note": "dispatch: Architecture review of load design"
+          },
+          {
+            "at": "2026-11-03T19:45:09.970Z",
+            "ok": true,
+            "note": "dispatch: Re-review load design architecture"
+          },
+          {
+            "at": "2026-11-03T22:04:28.510Z",
+            "ok": true,
+            "note": "dispatch: Review design revision 1 (architecture)"
+          }
+        ],
+        "status": "open"
+      }
+    },
+    {
+      "key": "dispatch:load-baseline/review-security",
+      "by": "pedromoraisf",
+      "at": "2026-11-03T23:04:56.608Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-03T19:41:47.575Z",
+            "ok": true,
+            "note": "dispatch: Security review of load design"
+          },
+          {
+            "at": "2026-11-03T19:45:14.460Z",
+            "ok": true,
+            "note": "dispatch: Re-review load design security"
+          },
+          {
+            "at": "2026-11-03T22:04:33.790Z",
+            "ok": true,
+            "note": "dispatch: Review design revision 1 (security)"
+          }
+        ],
+        "status": "open"
+      }
+    },
+    {
+      "key": "gate:load-baseline/T33",
+      "by": "pedromoraisf",
+      "at": "2026-11-04T02:00:21.826Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-04T00:25:38.827Z",
+            "ok": false,
+            "note": "pnpm test:load && node --test scripts/load/check/full-summary.check.mjs → exit 1: building the k6 image d2rmm-load-k6:f0\nstep 25: 25 players provisioned, 25 in the step\nstep 25: passed\nstep 50: 25 players provisioned, 50 in the step\nstep 50: failed the errors rule\nsummary written to /Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/load-baseline/reports/load/summary.json"
+          },
+          {
+            "at": "2026-11-04T00:47:23.627Z",
+            "ok": false,
+            "note": "pnpm test:load && node --test scripts/load/check/full-summary.check.mjs → exit 1: building the k6 image d2rmm-load-k6:f0\nstep 25: 25 players provisioned, 25 in the step\nstep 25: passed\nstep 50: 25 players provisioned, 50 in the step\nstep 50: failed the errors rule\nsummary written to /Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/load-baseline/reports/load/summary.json"
+          },
+          {
+            "at": "2026-11-04T00:57:53.959Z",
+            "ok": false,
+            "note": "pnpm test:load && node --test scripts/load/check/full-summary.check.mjs → exit 1: building the k6 image d2rmm-load-k6:f0\nstep 25: 25 players provisioned, 25 in the step\nstep 25: passed\nstep 50: 25 players provisioned, 50 in the step\nstep 50: passed\nsummary written to /Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/load-baseline/reports/load/summary.json"
           }
         ],
         "status": "blocked"
