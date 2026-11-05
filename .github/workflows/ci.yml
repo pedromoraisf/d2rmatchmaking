@@ -127,7 +127,8 @@ jobs:
       - name: Build the headless agent example
         run: cargo build --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --example headless --features fixture-read
       - run: pnpm run test:integration
-      - run: pnpm exec playwright install --with-deps chromium
+      # Playwright is a dependency of tests/acceptance only: `pnpm exec` at the root cannot find its binary.
+      - run: pnpm --filter @d2rmm/acceptance exec playwright install --with-deps chromium
       - run: pnpm run test:e2e
       - name: Acceptance (BDD scenarios from .specs)
         if: hashFiles('.specs/features/*/acceptance.feature') != ''
