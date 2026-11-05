@@ -1,8 +1,8 @@
 # ci-and-review-fixes proofs
 
-**HEAD**: de2c13c
+**HEAD**: b073493
 **Tree**: clean
-**Result**: 44 pass, 0 fail; mutations 0 killed, 0 not
+**Result**: 44 pass, 0 fail; mutations 4 killed, 0 not
 
 | Check | Proof                                                                                                            | Ran           | Passed | Result |
 | ----- | ---------------------------------------------------------------------------------------------------------------- | ------------- | ------ | ------ |
@@ -50,3 +50,12 @@
 | Build | `pnpm typecheck`                                                                                                 | -             | -      | pass   |
 | Build | `pnpm lint`                                                                                                      | -             | -      | pass   |
 | Build | `pnpm arch`                                                                                                      | -             | -      | pass   |
+
+## Mutations
+
+| Mutation                                              | Location                           | Killed |
+| ----------------------------------------------------- | ---------------------------------- | ------ |
+| the download runs only when the agent job was skipped | `.github/workflows/nightly.yml:53` | yes    |
+| the adapters mutation run drops --lib                 | `package.json:28`                  | yes    |
+| the agent core metric reads the old path              | `.quality-baseline.json:86`        | yes    |
+| acceptance no longer builds the site                  | `turbo.json:41`                    | yes    |
