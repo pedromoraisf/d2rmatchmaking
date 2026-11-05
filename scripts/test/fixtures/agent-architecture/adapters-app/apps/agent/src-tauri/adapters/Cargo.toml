@@ -1,0 +1,8 @@
+[package]
+name = "d2rmm-agent-adapters"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+d2rmm-agent = { path = "../.." }
+d2rmm-agent-core = { path = "../core" }

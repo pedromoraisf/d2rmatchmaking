@@ -30,14 +30,15 @@
     },
     "test:mutation": {
       "dependsOn": ["^build"],
+      "cache": false,
       "outputs": ["reports/mutation/**"]
     },
     "contracts:openapi": {
       "dependsOn": ["^build"],
-      "outputs": ["openapi.json", "asyncapi.json"]
+      "outputs": ["openapi.json", "asyncapi.json", "json-schema/**"]
     },
     "test:acceptance": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "@d2rmm/web#build"],
       "cache": false,
       "outputs": []
     }

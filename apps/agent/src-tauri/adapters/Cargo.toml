@@ -1,0 +1,56 @@
+[package]
+name = "d2rmm-agent-adapters"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "D2R Match Making agent adapters: the HTTP gateway, the generated contracts, the translation and the SSE parser. No Tauri, keyring or Windows dependency (ADR 027)."
+
+[dependencies]
+async-trait = "0.1"
+chrono = { version = "0.4", default-features = false, features = ["serde"] }
+d2rmm-agent-core = { path = "../core", version = "0.0.0" }
+d2rmm-agent-domain = { path = "../domain", version = "0.0.0" }
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }
+opentelemetry = "0.33"
+opentelemetry-http = "0.33"
+opentelemetry-otlp = { version = "0.33", default-features = false, features = ["http-proto", "trace", "reqwest-client", "reqwest-rustls"] }
+opentelemetry_sdk = "0.33"
+regress = "0.12"
+reqwest = { version = "0.13", features = ["json", "stream"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["io-std", "io-util", "macros", "rt", "sync", "time"] }
+tracing = "0.1"
+tracing-opentelemetry = "0.34.0"
+tracing-subscriber = "0.3"
+url = "2"
+uuid = "1"
+
+[features]
+# The headless example's fixture trigger (OBS-24, AD-096): it decodes the PNG of `--read-fixture`. Never a default feature;
+# release-agent.yml never enables it. The app crate has its own `fixture-read` (AGS-33, AD-057, apps/agent/src-tauri/Cargo.toml).
+fixture-read = ["dep:image"]
+
+[dev-dependencies]
+axum = "0.8"
+jsonschema = "0.60"
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt", "rt-multi-thread", "test-util", "time"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+
+[[test]]
+name = "gateway"
+path = "extra-tests/gateway.rs"
+
+[[test]]
+name = "stream_limits"
+path = "extra-tests/stream_limits.rs"
+
+# The headless agent of the end-to-end run (OBS-24, AD-096). Built only with `fixture-read`; `cargo build --release` builds
+# no example, and release-agent.yml never enables the feature.
+[[example]]
+name = "headless"
+path = "examples/headless.rs"
+required-features = ["fixture-read"]
+test = true

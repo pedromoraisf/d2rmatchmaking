@@ -1,0 +1,30 @@
+[
+  {
+    "file": ".github/workflows/nightly.yml",
+    "old": "if: needs.agent-mutation.result != 'skipped'",
+    "new": "if: needs.agent-mutation.result == 'skipped'",
+    "proof": "node --test \"--test-name-pattern=the download is skipped with the agent job\" scripts/test/nightly-workflow.test.mjs",
+    "label": "the download runs only when the agent job was skipped"
+  },
+  {
+    "file": "package.json",
+    "old": "--output reports/mutation/agent-adapters -- --lib\"",
+    "new": "--output reports/mutation/agent-adapters\"",
+    "proof": "node --test \"--test-name-pattern=each agent mutation command uses unit tests only\" scripts/test/agent-mutation-scope.test.mjs",
+    "label": "the adapters mutation run drops --lib"
+  },
+  {
+    "file": ".quality-baseline.json",
+    "old": "reports/mutation/agent-core/mutants.out/outcomes.json",
+    "new": "reports/mutation/agent-core/outcomes.json",
+    "proof": "node --test \"--test-name-pattern=the agent core source is inside the nightly's report directory\" scripts/test/collect.test.mjs",
+    "label": "the agent core metric reads the old path"
+  },
+  {
+    "file": "turbo.json",
+    "old": "\"dependsOn\": [\"^build\", \"@d2rmm/web#build\"]",
+    "new": "\"dependsOn\": [\"^build\"]",
+    "proof": "node --test \"--test-name-pattern=the acceptance task depends on the site build\" scripts/test/ci-workflow.test.mjs",
+    "label": "acceptance no longer builds the site"
+  }
+]

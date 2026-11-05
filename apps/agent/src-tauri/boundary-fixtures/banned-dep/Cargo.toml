@@ -1,0 +1,11 @@
+[package]
+name = "banned-dep"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Boundary fixture (AGS-21): depends on a banned crate, so `cargo deny check bans` must fail with `banned`.
+[workspace]
+
+[dependencies]
+sysinfo = "0.37"

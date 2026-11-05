@@ -1,0 +1,752 @@
+{
+  "framework": "HAF-1",
+  "repo": "D2RMM",
+  "commit": "a32aa62",
+  "date": "2026-11-03",
+  "lang": "pt-BR",
+  "tools": ["claude-code", "cursor", "codex (AGENTS.md)"],
+  "summary": {
+    "verdict": "O harness é um sistema de controle fechado: cada chamada de ferramenta passa por um gate em código, cada edição volta com feedback de sensores, o turno não termina com sensor vermelho e toda falha tem orçamento (1 tentativa + 2 retries). O humano aparece só no kickoff, na review e nas escalações. O ponto mais forte são os sensores (SEN 4.0), todos testados e com fixtures que provam que falham. O furo de indireção do gate (bash -c, eval, python -c) foi fechado em 2026-11-03; os gaps que mais importam agora são a falta de orçamento de custo/tempo e guardrails que só existem para o Claude Code.",
+    "walkthrough": [
+      "Kickoff (humano): /phase-kickoff gera o brief; o mantenedor aprova com as próprias palavras e marca os escopos delegados.",
+      "Onde estamos? Toda etapa começa com phase-status, que deriva o próximo passo de arquivos, aprovações, trailers e ledger.",
+      "Planejar (Opus): spec, design e tasks pelo método TLC, validados por scripts e julgados por revisores Sonnet.",
+      "Executar (Haiku): feature-workers em worktrees paralelas; cada task roda seu gate via attempt.mjs e vira um commit.",
+      "Cada chamada passa pelo gate (deny/ask), cada edição pelo feedback, cada fim de turno pela barreira de testes.",
+      "Falhou três vezes? A unidade é bloqueada por código; o agente registra e segue para o que não depende dela.",
+      "Verificar: um verifier Sonnet com contexto limpo roda provas e mutações contra testes unitários.",
+      "Integrar e revisar: pnpm check, ratchet e harness-score verdes; merge local; review.md com números reais. Push e main são do mantenedor."
+    ],
+    "strengths": [
+      "Gate como funções puras + testes: toda decisão é f(tool_call, repo_ctx), testável sem rodar o agente.",
+      "Retry budget com ledger fora do alcance do agente, e uma tabela que lista cada bypass e o que o fecha.",
+      "Estado derivado de evidência: sessão nova ou compactada retoma sem memória.",
+      "Sensores que provam que falham: fixtures vermelhas para cada regra de arquitetura.",
+      "Aprovação delegada literal: o humano aprova uma vez; o agente só pode citar, nunca parafrasear.",
+      "Ratchet que só aperta: afrouxar a baseline é negado pelo gate."
+    ]
+  },
+  "criteria": {
+    "CTX-1": {
+      "score": 4,
+      "evidence": ["AGENTS.md", "CLAUDE.md", ".harness-score.report.json (CTX-01, CTX-02)"],
+      "note": "AGENTS.md is canonical (132 lines, map, commands, 12 inviolable rules); CLAUDE.md imports it; harness-score checks it is substantive."
+    },
+    "CTX-2": {
+      "score": 3,
+      "evidence": [
+        ".cursor/rules/*.mdc (globs)",
+        ".claude/skills/*/references/",
+        ".claude/hooks/lib/feedback-plan.mjs (reminders)"
+      ],
+      "note": "Path-scoped Cursor rules, skills with on-demand references, and path-triggered reminders after edits. Nothing measures that the scoped rules are loaded or stay in sync with AGENTS.md beyond a few doc assertions.",
+      "next_step": "Add a check that every .cursor/rules glob matches at least one tracked path and that each rule's hard rules appear in AGENTS.md."
+    },
+    "CTX-3": {
+      "score": 4,
+      "evidence": [
+        "docs/adr/ (27 ADRs)",
+        "docs/domain/{glossary,invariants,events,contexts}.md",
+        ".claude/hooks/lib/gate-rules.mjs (ADR numbers in denial reasons)"
+      ],
+      "note": "Decisions and domain are versioned and cited back to the agent in every gate message; accepted ADRs are edit-protected."
+    },
+    "CTX-4": {
+      "score": 2,
+      "evidence": [".cursor/rules/", "AGENTS.md", ".claude/settings.json"],
+      "note": "Cursor and Codex get the guides, but the PreToolUse gate, PostToolUse feedback, Stop barrier, retry budget and model policy exist only for Claude Code. Other tools are caught later by Lefthook and CI.",
+      "next_step": "Port the gate rules (pure functions in gate-rules.mjs) to Cursor hooks (.cursor/hooks.json) and Codex config, or document that only Claude Code may run phases and enforce it in phase-status."
+    },
+    "MET-1": {
+      "score": 4,
+      "evidence": [
+        ".claude/skills/tlc-spec-driven/",
+        ".claude/skills/d2rmm-phase-runner/SKILL.md",
+        "validate_spec.py, validate_tasks.py, selftest.py"
+      ],
+      "note": "TLC spec-driven method wrapped by the phase runner; artifacts validated by deterministic scripts that have their own self-test in CI."
+    },
+    "MET-2": {
+      "score": 4,
+      "evidence": [
+        ".specs/phases/ROADMAP.md",
+        "scripts/specs-check.mjs",
+        "scripts/acceptance-check.mjs",
+        "acceptance.feature @REQ tags"
+      ],
+      "note": "PRD FR/NFR → roadmap phase → brief → spec REQ → tagged Gherkin scenario → proof command; specs:check fails on any gap."
+    },
+    "MET-3": {
+      "score": 4,
+      "evidence": [
+        "scripts/attempt.mjs",
+        "scripts/commit-trailers.mjs",
+        "check_commit.py",
+        ".claude/hooks/lib/budget-rules.mjs"
+      ],
+      "note": "One task = one gate through attempt.mjs = one commit with Feature/Task trailers; the gate refuses a commit without a passing gate attempt after the last commit."
+    },
+    "MET-4": {
+      "score": 3,
+      "evidence": [
+        ".specs/STATE.md (AD-NNN)",
+        ".specs/phases/F0/decisions.md",
+        ".claude/agents/spec-reviewer.md"
+      ],
+      "note": "Assumed decisions get a conservative default and are queued for the phase review; the spec-reviewer fails hidden decisions. Recording is judged by a model, not checked by code."
+    },
+    "ORQ-1": {
+      "score": 3,
+      "evidence": [".claude/agents/*.md (tools frontmatter)"],
+      "note": "Reviewers have no Edit/Write, but they do have Bash, and 'read-only Bash' is an instruction, not a rule the gate checks per agent.",
+      "next_step": "Make the gate deny non-read-only Bash for judge subagents (agent_type is in the hook input), as it already does for exhausted sessions."
+    },
+    "ORQ-2": {
+      "score": 4,
+      "evidence": [
+        "scripts/lib/model-policy.mjs",
+        ".claude/settings.json (model, effortLevel)",
+        ".claude/agents/*.md (model)"
+      ],
+      "note": "Opus orchestrator / Haiku implementers / Sonnet judges pinned in config; the gate refuses model or effort overrides and wrong subagent per step (ADR 025)."
+    },
+    "ORQ-3": {
+      "score": 4,
+      "evidence": [
+        ".claude/worktrees/<feature>",
+        "budget-rules.mjs (session_id#agent_id)",
+        "gate-rules.mjs worktreeView()"
+      ],
+      "note": "One worktree and branch per feature; budgets keyed per subagent session; edits inside worktrees judged by the same rules."
+    },
+    "ORQ-4": {
+      "score": 4,
+      "evidence": [".claude/agents/verifier.md", "scripts/lib/model-policy.mjs STEP_AGENTS"],
+      "note": "Verifier is a fresh Sonnet context distinct from the Haiku author; dispatch steps are tied to fixed subagent types."
+    },
+    "GRD-1": {
+      "score": 4,
+      "evidence": [
+        ".claude/hooks/lib/gate-rules.mjs checkBash()",
+        ".claude/hooks/test/gate-rules.test.mjs",
+        ".claude/settings.json permissions"
+      ],
+      "note": "push → ask, force push/remote delete → deny, reset --hard → deny, rm -r outside build output → deny, deploy/release/secrets/tags → ask; all unit-tested."
+    },
+    "GRD-2": {
+      "score": 4,
+      "evidence": [
+        "gate-rules.mjs ENV_FILE",
+        ".claude/settings.json deny Read(.env*)",
+        "lefthook.yml secrets",
+        ".github/workflows/ci.yml secrets (gitleaks)"
+      ],
+      "note": ".env reads/prints/edits denied at two layers, production DB strings denied, secretlint pre-commit and gitleaks as a required CI check."
+    },
+    "GRD-3": {
+      "score": 4,
+      "evidence": ["gate-rules.mjs VENDORED, MIGRATION, ADR, BASELINE, SELF_PROTECTED, HARNESS_FILES"],
+      "note": "Vendored skill, applied migrations, accepted ADRs, the ratchet baseline, attempts.json and the gate itself are protected; harness edits need a delegated scope or the maintainer."
+    },
+    "GRD-4": {
+      "score": 3,
+      "evidence": [
+        "gate.mjs (exception → ask)",
+        ".claude/hooks/lib/shell-indirection.mjs",
+        "gate-rules.mjs checkIndirections()",
+        ".claude/hooks/test/gate-rules.test.mjs",
+        ".claude/hooks/test/shell-indirection.test.mjs"
+      ],
+      "note": "Fail-closed on its own bugs. Since 2026-11-03 the gate judges what a command hides: bash/sh -c, eval, sudo/env/timeout, xargs, find -exec, git global options, inline python/node/perl code (process spawns and protected-file writes ask, secret files deny), untracked scripts by content, outside scripts and piped shells ask; the phase budget sees sensors and commits inside nested shells. Detection is still heuristic (regex over code, no npx/pnpm-exec peeling, prose naming a secret file in inline code is denied too).",
+      "next_step": "Peel npx/pnpm exec/uv run before the indirection analysis and add a replay suite of known evasions to keep this at 4."
+    },
+    "SEN-1": {
+      "score": 4,
+      "evidence": [
+        ".claude/hooks/feedback.mjs",
+        ".claude/hooks/lib/feedback-plan.mjs",
+        ".claude/hooks/test/feedback-plan.test.mjs"
+      ],
+      "note": "prettier (fix), eslint, dependency-cruiser, vitest related, rustfmt, TLC validators and specs checks on the edited file; errors return with exit 2; plan unit-tested."
+    },
+    "SEN-2": {
+      "score": 4,
+      "evidence": [".claude/hooks/stop.mjs", "budget-rules.mjs onStop()"],
+      "note": "Stop and SubagentStop run affected typecheck/tests/drift/cargo check; termination guaranteed by the stop counter (2 forced continuations), not stop_hook_active."
+    },
+    "SEN-3": {
+      "score": 4,
+      "evidence": ["lefthook.yml", "gate-rules.mjs (--no-verify, LEFTHOOK=0 denied)"],
+      "note": "pre-commit (format, lint, arch, related tests, secrets, harness tests, specs), commit-msg (Conventional + trailers), pre-push (typecheck, tests, clippy, harness gate, ratchet). Bypass flags denied."
+    },
+    "SEN-4": {
+      "score": 4,
+      "evidence": [
+        ".dependency-cruiser.cjs",
+        "scripts/test/arch-fixtures.test.mjs",
+        "scripts/test/agent-architecture.test.mjs",
+        "ci.yml expect-failure boundary fixtures"
+      ],
+      "note": "Layer rules for TS and Rust crates, with fixtures that prove each sensor fails on a violation (expect-failure.mjs)."
+    },
+    "VER-1": {
+      "score": 3,
+      "evidence": [
+        "docs/engineering/testing.md",
+        "ci.yml integration job",
+        ".quality-baseline.json load.* (null)"
+      ],
+      "note": "Unit, integration (Testcontainers), e2e and BDD acceptance run in CI; the load level (k6, NFR-14) is planned in F0 load-baseline but not measured yet."
+    },
+    "VER-2": {
+      "score": 4,
+      "evidence": [
+        "gate-rules.mjs checkEdit() (.only, skip, test count, scenario count)",
+        "scripts/test/agent-test-preservation.test.mjs"
+      ],
+      "note": "Focus is denied; skip, test removal, scenario removal and new not-scenario exemptions are escalated; the detectors are tested. Detection counts tests by regex."
+    },
+    "VER-3": {
+      "score": 3,
+      "evidence": [
+        "nightly.yml (Stryker, cargo-mutants)",
+        "scripts/lib/mutation-scope.mjs",
+        ".quality-baseline.json mutation.*"
+      ],
+      "note": "Mutation testing with unit-test-only scope (ADR 026) and a ratchet; mutation.api.domain = 100, but api.application and agent.core are still null."
+    },
+    "VER-4": {
+      "score": 4,
+      "evidence": ["check_proofs.py", "validate_verification.py", "tasks.md ## Checks"],
+      "note": "Every criterion has a proof command; check_proofs.py runs them and the Verifier adds mutations."
+    },
+    "REM-1": {
+      "score": 4,
+      "evidence": ["package.json check", ".github/workflows/ci.yml verify"],
+      "note": "`pnpm check` is the same suite locally and in CI; contracts drift fails CI."
+    },
+    "REM-2": {
+      "score": 3,
+      "evidence": [".github/rulesets/*.json", ".github/rulesets/README.md"],
+      "note": "Rulesets versioned, but imported by hand with no drift check against GitHub; main requires only verify + secrets (integration and agent are pending per the README); 0 approvals (single maintainer).",
+      "next_step": "Add a scheduled job that exports the live rulesets with `gh api` and diffs them against .github/rulesets/; add integration and agent to main.json required checks."
+    },
+    "REM-3": {
+      "score": 4,
+      "evidence": [
+        "deploy-api.yml (environment: production)",
+        "release-agent.yml (environment: release)",
+        "scripts/test/deploy-workflows.test.mjs",
+        "scripts/test/release-workflows.test.mjs"
+      ],
+      "note": "Deploys and releases behind protected environments and immutable agent-v* tags; the workflows themselves are tested."
+    },
+    "REM-4": {
+      "score": 3,
+      "evidence": [".github/dependabot.yml", "ci.yml cargo deny", "gitleaks"],
+      "note": "npm and GitHub Actions updates, cargo deny bans/licenses, gitleaks. Dependabot still lacks the cargo ecosystem even though the agent crates exist (its own comment says to add it after agent-skeleton, which is done).",
+      "next_step": "Add the cargo ecosystem for apps/agent/src-tauri to dependabot.yml."
+    },
+    "EST-1": {
+      "score": 4,
+      "evidence": [
+        "scripts/phase-status.mjs",
+        "scripts/lib/phase-state.mjs",
+        "scripts/test/phase-state.test.mjs"
+      ],
+      "note": "Next step derived from files, approval lines, commit trailers and the ledger (ADR 024)."
+    },
+    "EST-2": {
+      "score": 4,
+      "evidence": [
+        "d2rmm-phase-runner SKILL.md (Idempotency contract, Read first)",
+        "attempts.json snapshot"
+      ],
+      "note": "Read-first list after compaction, idempotent steps, generated runner state committed so any machine resumes."
+    },
+    "EST-3": {
+      "score": 2,
+      "evidence": [".specs/LESSONS.md", ".specs/lessons.json", "lessons.py"],
+      "note": "The mechanism is good (candidate → confirmed → quarantined), but after four finished features LESSONS.md has no candidate, no confirmed and no quarantined lesson: the loop is not being fed.",
+      "next_step": "Make 'lessons.py add' (or an explicit 'no lesson') part of the integration gate and show the lesson count in the phase review."
+    },
+    "EST-4": {
+      "score": 4,
+      "evidence": [
+        ".git/d2rmm/ledger.json",
+        "scripts/lib/ledger-store.mjs",
+        "attempt.mjs report",
+        "ledger.resets"
+      ],
+      "note": "Attempts, failures and resets recorded outside the agent's reach (edits under .git denied), corrupt ledger treated as blocked, reported in the phase review."
+    },
+    "GOV-1": {
+      "score": 4,
+      "evidence": [
+        ".specs/phases/F0/brief.md",
+        ".claude/hooks/lib/delegation.mjs",
+        "gate-rules.mjs newApprovalLines()"
+      ],
+      "note": "Two human touchpoints per phase (kickoff, review); delegation scopes are checkboxes parsed by code; approval lines must quote the kickoff words verbatim."
+    },
+    "GOV-2": {
+      "score": 4,
+      "evidence": [
+        ".claude/skills/d2rmm-phase-runner/references/escalation.md",
+        "gate-rules.mjs ask() paths"
+      ],
+      "note": "Escalations (push, merge to main, deploy, secrets, ADR change, test weakening, sensor loosening) reach the maintainer as permission prompts mid-run."
+    },
+    "GOV-3": {
+      "score": 4,
+      "evidence": [
+        "scripts/lib/budget.mjs MAX_RETRIES",
+        "docs/adr/022-retry-budget.md",
+        "retry-budget.md (No open drains)",
+        "scripts/test/budget.test.mjs"
+      ],
+      "note": "1 attempt + 2 retries for gates, dispatches, stops, feedback and denials; known bypasses listed and closed; exhaustion blocks by code."
+    },
+    "GOV-4": {
+      "score": 1,
+      "evidence": [
+        "scripts/lib/model-policy.mjs (model tiering)",
+        ".quality-baseline.json ci.duration_seconds (null)"
+      ],
+      "note": "Cost is shaped only indirectly by the cheap-implementer model tiering. No token, cost or wall-clock budget per task, feature or phase; the brief's budgets are text.",
+      "next_step": "Record tokens and duration per dispatch in the ledger (SubagentStop input), add per-phase budgets to the brief and an ask when a phase exceeds them."
+    },
+    "EVO-1": {
+      "score": 4,
+      "evidence": ["package.json test:harness", "scripts/test/*.test.mjs", ".claude/hooks/test/*.test.mjs"],
+      "note": "25 harness test files, 192 tests passing (2026-11-03), run on edit, in pre-commit and in CI."
+    },
+    "EVO-2": {
+      "score": 3,
+      "evidence": [
+        ".harness-score.report.json (L4, 105/105)",
+        ".quality-baseline.json",
+        "scripts/lib/ratchet.mjs"
+      ],
+      "note": "harness-score L4 gated in CI and a ratchet that only tightens (edits that loosen it are denied). 8 of 15 ratchet metrics are still null, so half the ratchet guards nothing yet.",
+      "next_step": "Fill the null metrics (ci.duration_seconds first: it is cheap) and fail the phase review while any metric for a closed phase is null."
+    },
+    "EVO-3": {
+      "score": 2,
+      "evidence": ["attempt.mjs report", "review.md template"],
+      "note": "Retries and blocks per unit are reported per phase, but there is no trend across phases and no harness eval (replayed tasks that measure success rate, retries and cost per task).",
+      "next_step": "Persist attempt.mjs report per phase and chart first-pass rate, retries per task and blocked units across phases; add a small replay eval for the gate (known-bad tool calls)."
+    },
+    "EVO-4": {
+      "score": 4,
+      "evidence": ["docs/adr/019-harness-l4.md", "gate-rules.mjs SELF_PROTECTED, HARNESS_FILES"],
+      "note": "Harness changes are ADR-backed; hooks and settings always ask the maintainer; sensor configs need the harness-edits scope and may only tighten."
+    }
+  },
+  "inventory": [
+    {
+      "component": "AGENTS.md",
+      "kind": "guide",
+      "trigger": "session-start",
+      "responsibility": "Canonical map, commands and 12 inviolable rules for every agent and human.",
+      "actions": ["inform"],
+      "enforcement": "soft",
+      "pillars": ["CTX-1", "CTX-4"],
+      "evidence": "AGENTS.md"
+    },
+    {
+      "component": "CLAUDE.md",
+      "kind": "guide",
+      "trigger": "session-start",
+      "responsibility": "Imports AGENTS.md and adds Claude Code specifics (hooks, roles, retry budget).",
+      "actions": ["inform"],
+      "enforcement": "soft",
+      "pillars": ["CTX-1"],
+      "evidence": "CLAUDE.md"
+    },
+    {
+      "component": "Cursor scoped rules",
+      "kind": "guide",
+      "trigger": "session-start",
+      "responsibility": "Per-layer rules loaded by path glob (domain, application, adapters, main, web, contracts, agent, specs).",
+      "actions": ["inform"],
+      "enforcement": "soft",
+      "pillars": ["CTX-2", "CTX-4"],
+      "evidence": ".cursor/rules/*.mdc"
+    },
+    {
+      "component": "ADRs + domain docs",
+      "kind": "guide",
+      "trigger": "plan",
+      "responsibility": "Versioned decisions, glossary, invariants and events the specs and gates cite.",
+      "actions": ["inform"],
+      "enforcement": "soft",
+      "pillars": ["CTX-3", "MET-4"],
+      "evidence": "docs/adr/, docs/domain/"
+    },
+    {
+      "component": "tlc-spec-driven skill",
+      "kind": "orchestration",
+      "trigger": "plan",
+      "responsibility": "The method: Specify → Design → Tasks → Execute, EARS criteria, one gate and one commit per task.",
+      "actions": ["inform"],
+      "enforcement": "soft",
+      "pillars": ["MET-1", "VER-4"],
+      "evidence": ".claude/skills/tlc-spec-driven/SKILL.md"
+    },
+    {
+      "component": "TLC validators",
+      "kind": "sensor",
+      "trigger": "on-edit",
+      "responsibility": "validate_spec / validate_tasks / check_proofs / validate_verification / check_commit enforce the method's artifacts.",
+      "actions": ["block", "report"],
+      "enforcement": "hard",
+      "pillars": ["MET-1", "MET-3", "VER-4"],
+      "evidence": ".claude/skills/tlc-spec-driven/scripts/"
+    },
+    {
+      "component": "d2rmm-phase-runner skill",
+      "kind": "orchestration",
+      "trigger": "plan",
+      "responsibility": "Runs a whole phase: kickoff, per-feature TLC with automatic gates, parallel worktrees, review.",
+      "actions": ["inform"],
+      "enforcement": "soft",
+      "pillars": ["MET-1", "ORQ-3", "GOV-1", "EST-2"],
+      "evidence": ".claude/skills/d2rmm-phase-runner/SKILL.md"
+    },
+    {
+      "component": "Slash commands",
+      "kind": "orchestration",
+      "trigger": "on-demand",
+      "responsibility": "/phase-kickoff, /phase-run, /phase-review, /check, /adr as fixed entry points.",
+      "actions": ["inform"],
+      "enforcement": "soft",
+      "pillars": ["MET-1", "GOV-1"],
+      "evidence": ".claude/commands/"
+    },
+    {
+      "component": "feature-worker (Haiku)",
+      "kind": "orchestration",
+      "trigger": "on-demand",
+      "responsibility": "Implements one task batch in its feature worktree, one gated commit per task.",
+      "actions": ["record"],
+      "enforcement": "hard",
+      "pillars": ["ORQ-1", "ORQ-2", "ORQ-3"],
+      "evidence": ".claude/agents/feature-worker.md"
+    },
+    {
+      "component": "Judges (Sonnet)",
+      "kind": "orchestration",
+      "trigger": "plan",
+      "responsibility": "spec-, architecture- and security-reviewer return PASS/FAIL on specs, designs and diffs.",
+      "actions": ["block", "report"],
+      "enforcement": "hard",
+      "pillars": ["ORQ-1", "ORQ-4", "MET-4"],
+      "evidence": ".claude/agents/*-reviewer.md"
+    },
+    {
+      "component": "verifier (Sonnet)",
+      "kind": "orchestration",
+      "trigger": "review",
+      "responsibility": "Independent verification: mutations, unnamed examples, loosened assertions; writes verification.md.",
+      "actions": ["block", "report"],
+      "enforcement": "hard",
+      "pillars": ["ORQ-4", "VER-3", "VER-4"],
+      "evidence": ".claude/agents/verifier.md"
+    },
+    {
+      "component": "Model policy",
+      "kind": "governance",
+      "trigger": "pre-tool",
+      "responsibility": "Which subagent for which step, pinned models, no model/effort overrides.",
+      "actions": ["deny"],
+      "enforcement": "hard",
+      "pillars": ["ORQ-2", "ORQ-4"],
+      "evidence": "scripts/lib/model-policy.mjs"
+    },
+    {
+      "component": "PreToolUse gate",
+      "kind": "gate",
+      "trigger": "pre-tool",
+      "responsibility": "Pure rules over every Bash/Edit/Write/Read/Agent call: destructive ops, secrets, protected files, test weakening, approvals, harness self-protection.",
+      "actions": ["deny", "ask", "record"],
+      "enforcement": "hard",
+      "pillars": ["GRD-1", "GRD-2", "GRD-3", "GRD-4", "VER-2", "GOV-2", "EVO-4"],
+      "evidence": ".claude/hooks/gate.mjs, lib/gate-rules.mjs"
+    },
+    {
+      "component": "Claude Code permissions",
+      "kind": "gate",
+      "trigger": "pre-tool",
+      "responsibility": "Allow-list of routine commands; deny .env reads, force push, reset --hard; ask for push, merge, secrets, release.",
+      "actions": ["deny", "ask"],
+      "enforcement": "hard",
+      "pillars": ["GRD-1", "GRD-2"],
+      "evidence": ".claude/settings.json permissions"
+    },
+    {
+      "component": "Delegation parser",
+      "kind": "governance",
+      "trigger": "pre-tool",
+      "responsibility": "Reads the active brief's approval and ticked scopes; approval lines must quote the kickoff words verbatim.",
+      "actions": ["deny", "ask"],
+      "enforcement": "hard",
+      "pillars": ["GOV-1"],
+      "evidence": ".claude/hooks/lib/delegation.mjs"
+    },
+    {
+      "component": "Retry budget",
+      "kind": "governance",
+      "trigger": "pre-tool",
+      "responsibility": "1 attempt + 2 retries for gates, dispatches, stops, feedback, denials; exhausted sessions become read-only.",
+      "actions": ["deny", "block", "record"],
+      "enforcement": "hard",
+      "pillars": ["GOV-3", "EST-4"],
+      "evidence": "scripts/lib/budget.mjs, .claude/hooks/lib/budget-rules.mjs"
+    },
+    {
+      "component": "attempt.mjs wrapper",
+      "kind": "gate",
+      "trigger": "on-demand",
+      "responsibility": "Runs a gate command inside the budget; the 4th attempt never executes (exit 3).",
+      "actions": ["block", "record"],
+      "enforcement": "hard",
+      "pillars": ["MET-3", "GOV-3"],
+      "evidence": "scripts/attempt.mjs"
+    },
+    {
+      "component": "PostToolUse feedback",
+      "kind": "sensor",
+      "trigger": "on-edit",
+      "responsibility": "Formats, lints, checks architecture, runs related tests and validators on the edited file; errors go back to the agent.",
+      "actions": ["fix", "block", "warn"],
+      "enforcement": "hard",
+      "pillars": ["SEN-1"],
+      "evidence": ".claude/hooks/feedback.mjs, lib/feedback-plan.mjs"
+    },
+    {
+      "component": "Stop / SubagentStop barrier",
+      "kind": "sensor",
+      "trigger": "turn-end",
+      "responsibility": "Affected typecheck, unit tests, OpenAPI drift, harness tests, specs and cargo check before a turn ends.",
+      "actions": ["block"],
+      "enforcement": "hard",
+      "pillars": ["SEN-2", "GOV-3"],
+      "evidence": ".claude/hooks/stop.mjs"
+    },
+    {
+      "component": "dependency-cruiser + crate boundaries",
+      "kind": "sensor",
+      "trigger": "on-edit",
+      "responsibility": "Encodes DDD layers and module boundaries for TS and Rust, with failing fixtures.",
+      "actions": ["block"],
+      "enforcement": "hard",
+      "pillars": ["SEN-4"],
+      "evidence": ".dependency-cruiser.cjs, scripts/test/agent-architecture.test.mjs"
+    },
+    {
+      "component": "Lefthook",
+      "kind": "sensor",
+      "trigger": "pre-commit",
+      "responsibility": "pre-commit format/lint/arch/tests/secrets/specs; commit-msg Conventional + trailers; pre-push typecheck/tests/clippy/harness/ratchet.",
+      "actions": ["block"],
+      "enforcement": "hard",
+      "pillars": ["SEN-3", "MET-3", "GRD-2"],
+      "evidence": "lefthook.yml"
+    },
+    {
+      "component": "Acceptance check",
+      "kind": "sensor",
+      "trigger": "on-edit",
+      "responsibility": "Every requirement has a tagged English Gherkin scenario; no skips.",
+      "actions": ["block"],
+      "enforcement": "hard",
+      "pillars": ["MET-2", "VER-2"],
+      "evidence": "scripts/acceptance-check.mjs"
+    },
+    {
+      "component": "specs:check",
+      "kind": "sensor",
+      "trigger": "on-edit",
+      "responsibility": "Roadmap coverage, delegated approvals, mutation scope across .specs/.",
+      "actions": ["block"],
+      "enforcement": "hard",
+      "pillars": ["MET-2", "GOV-1", "VER-3"],
+      "evidence": "scripts/specs-check.mjs"
+    },
+    {
+      "component": "CI verify",
+      "kind": "sensor",
+      "trigger": "ci-pr",
+      "responsibility": "pnpm check equivalent: format, lint, types, arch, tests, TLC self-test, specs, contracts drift, affected mutation, harness gate, ratchet.",
+      "actions": ["block", "report"],
+      "enforcement": "hard",
+      "pillars": ["REM-1", "EVO-2"],
+      "evidence": ".github/workflows/ci.yml verify"
+    },
+    {
+      "component": "CI integration + agent + secrets",
+      "kind": "sensor",
+      "trigger": "ci-pr",
+      "responsibility": "Testcontainers, e2e, acceptance; Rust fmt/clippy/nextest/cargo deny + boundary fixtures; gitleaks.",
+      "actions": ["block"],
+      "enforcement": "hard",
+      "pillars": ["VER-1", "SEN-4", "REM-4", "GRD-2"],
+      "evidence": ".github/workflows/ci.yml"
+    },
+    {
+      "component": "Rulesets",
+      "kind": "gate",
+      "trigger": "merge",
+      "responsibility": "main: PR, merge commits only, required verify + secrets, no force push; phase/** and agent-v* tags protected.",
+      "actions": ["deny"],
+      "enforcement": "hard",
+      "pillars": ["REM-2"],
+      "evidence": ".github/rulesets/"
+    },
+    {
+      "component": "Deploy & release workflows",
+      "kind": "gate",
+      "trigger": "release",
+      "responsibility": "Deploy API/web and release the agent behind protected environments and immutable tags.",
+      "actions": ["block"],
+      "enforcement": "hard",
+      "pillars": ["REM-3"],
+      "evidence": ".github/workflows/deploy-*.yml, release-agent.yml"
+    },
+    {
+      "component": "Nightly",
+      "kind": "measurement",
+      "trigger": "scheduled",
+      "responsibility": "Full Stryker and cargo-mutants runs, nightly ratchet context, backup.",
+      "actions": ["report", "block"],
+      "enforcement": "hard",
+      "pillars": ["VER-3", "EVO-2"],
+      "evidence": ".github/workflows/nightly.yml"
+    },
+    {
+      "component": "Dependabot",
+      "kind": "sensor",
+      "trigger": "scheduled",
+      "responsibility": "Weekly npm and GitHub Actions updates (cargo missing).",
+      "actions": ["report"],
+      "enforcement": "hard",
+      "pillars": ["REM-4"],
+      "evidence": ".github/dependabot.yml"
+    },
+    {
+      "component": "phase-status",
+      "kind": "state",
+      "trigger": "plan",
+      "responsibility": "Derives the phase's and each feature's next step from evidence; writes the runner state.",
+      "actions": ["report"],
+      "enforcement": "hard",
+      "pillars": ["EST-1", "EST-2"],
+      "evidence": "scripts/phase-status.mjs"
+    },
+    {
+      "component": "Retry ledger",
+      "kind": "state",
+      "trigger": "pre-tool",
+      "responsibility": "Tamper-resistant record of attempts, failures and resets, shared by all worktrees.",
+      "actions": ["record", "report"],
+      "enforcement": "hard",
+      "pillars": ["EST-4"],
+      "evidence": ".git/d2rmm/ledger.json, scripts/lib/ledger-store.mjs"
+    },
+    {
+      "component": "STATE.md + decisions.md",
+      "kind": "state",
+      "trigger": "plan",
+      "responsibility": "Project decisions (AD-NNN) and assumed decisions queued for review.",
+      "actions": ["record"],
+      "enforcement": "soft",
+      "pillars": ["MET-4"],
+      "evidence": ".specs/STATE.md, .specs/phases/F0/decisions.md"
+    },
+    {
+      "component": "Lessons",
+      "kind": "state",
+      "trigger": "review",
+      "responsibility": "Candidate → confirmed → quarantined lessons across features (empty so far).",
+      "actions": ["record"],
+      "enforcement": "soft",
+      "pillars": ["EST-3"],
+      "evidence": ".specs/LESSONS.md, lessons.py"
+    },
+    {
+      "component": "Quality ratchet",
+      "kind": "measurement",
+      "trigger": "pre-push",
+      "responsibility": "15 metrics that may only tighten, enforced per context (pr, nightly, phase).",
+      "actions": ["block", "deny"],
+      "enforcement": "hard",
+      "pillars": ["EVO-2", "VER-3"],
+      "evidence": ".quality-baseline.json, scripts/quality-ratchet.mjs"
+    },
+    {
+      "component": "harness-score",
+      "kind": "measurement",
+      "trigger": "ci-pr",
+      "responsibility": "External maturity score; CI requires L4.",
+      "actions": ["block", "report"],
+      "enforcement": "hard",
+      "pillars": ["EVO-2"],
+      "evidence": ".harness-score.json, .harness-score.report.json"
+    },
+    {
+      "component": "Harness test suite",
+      "kind": "measurement",
+      "trigger": "pre-commit",
+      "responsibility": "192 tests for gate rules, feedback plan, budget, ratchet, specs, phase state, workflows.",
+      "actions": ["block"],
+      "enforcement": "hard",
+      "pillars": ["EVO-1"],
+      "evidence": "scripts/test/, .claude/hooks/test/"
+    },
+    {
+      "component": "Phase review",
+      "kind": "governance",
+      "trigger": "review",
+      "responsibility": "Generated review.md with real numbers; the maintainer approves or sends back.",
+      "actions": ["report"],
+      "enforcement": "soft",
+      "pillars": ["GOV-1", "EVO-3"],
+      "evidence": ".claude/skills/d2rmm-phase-runner/references/templates/review.md"
+    }
+  ],
+  "coverage": {
+    "session-start": ["AGENTS.md", "CLAUDE.md", "Cursor scoped rules"],
+    "plan": [
+      "ADRs + domain docs",
+      "tlc-spec-driven skill",
+      "d2rmm-phase-runner skill",
+      "Judges (Sonnet)",
+      "phase-status",
+      "STATE.md + decisions.md"
+    ],
+    "pre-tool": [
+      "PreToolUse gate",
+      "Claude Code permissions",
+      "Model policy",
+      "Delegation parser",
+      "Retry budget",
+      "Retry ledger"
+    ],
+    "on-edit": [
+      "PostToolUse feedback",
+      "TLC validators",
+      "dependency-cruiser + crate boundaries",
+      "Acceptance check",
+      "specs:check"
+    ],
+    "turn-end": ["Stop / SubagentStop barrier"],
+    "pre-commit": ["Lefthook", "Harness test suite"],
+    "pre-push": ["Lefthook", "Quality ratchet"],
+    "ci-pr": ["CI verify", "CI integration + agent + secrets", "harness-score"],
+    "merge": ["Rulesets"],
+    "release": ["Deploy & release workflows"],
+    "scheduled": ["Nightly", "Dependabot"],
+    "review": ["verifier (Sonnet)", "Phase review", "Lessons"]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "app": {
+    "title": "D2R Match Making agent"
+  },
+  "pairing": {
+    "requesting": "Requesting a pairing code…",
+    "codeLabel": "Pairing code",
+    "codeHint": "Type this code on the site",
+    "expiresIn": "Expires in {{minutes}} min",
+    "paused": "Pairing paused",
+    "newCode": "Get a new code",
+    "rateLimited": "Too many codes requested. Try again later.",
+    "paired": "Paired",
+    "saveFailed": "Could not save the pairing. Try again."
+  },
+  "connectivity": {
+    "unreachable": "Can't reach the server",
+    "connected": "Connected"
+  },
+  "room": {
+    "waiting": "Room {{gameName}} — waiting for the game"
+  },
+  "update": {
+    "failed": "Update failed — will retry",
+    "required": "Update required"
+  }
+}

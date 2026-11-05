@@ -1,14 +1,14 @@
 # Testing
 
-| Level                | Tool                                                                            | Where                             | Runs                                        |
-| -------------------- | ------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------- |
-| Unit                 | Vitest; `cargo nextest` + `insta`                                               | next to code                      | on edit (related), pre-commit (related), CI |
-| Integration          | Vitest + Testcontainers (Postgres)                                              | `apps/api/test/integration`       | CI                                          |
-| Contract             | Zod → JSON Schema snapshot; OpenAPI/AsyncAPI drift                              | `packages/contracts`              | Stop hook, CI                               |
-| Acceptance (BDD)     | playwright-bdd running `.specs/features/*/acceptance.feature` (English Gherkin) | steps in `tests/acceptance/steps` | proofs, CI integration job (ADR 023)        |
-| End to end (non-BDD) | Playwright                                                                      | `apps/web/e2e`                    | CI                                          |
-| Load                 | k6 (+ SSE extension)                                                            | `tests/load`                      | phase review, on demand (NFR-14)            |
-| Mutation             | StrykerJS (domain ≥ 80%, application ≥ 70%); cargo-mutants (agent core ≥ 70%)   | per workspace                     | incremental on PR, full nightly             |
+| Level                | Tool                                                                            | Where                             | Runs                                         |
+| -------------------- | ------------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------- |
+| Unit                 | Vitest; `cargo nextest` + `insta`                                               | next to code                      | on edit (related), pre-commit (related), CI  |
+| Integration          | Vitest + Testcontainers (Postgres)                                              | `apps/api/test/integration`       | CI                                           |
+| Contract             | Zod → JSON Schema snapshot; OpenAPI/AsyncAPI drift                              | `packages/contracts`              | Stop hook, CI                                |
+| Acceptance (BDD)     | playwright-bdd running `.specs/features/*/acceptance.feature` (English Gherkin) | steps in `tests/acceptance/steps` | proofs, CI integration job (ADR 023)         |
+| End to end (non-BDD) | Playwright                                                                      | `apps/web/e2e`                    | CI                                           |
+| Load                 | k6 (+ SSE extension) in Docker                                                  | `scripts/load`                    | on demand and at the end of a phase (NFR-14) |
+| Mutation             | StrykerJS (domain ≥ 80%, application ≥ 70%); cargo-mutants (agent core ≥ 70%)   | per workspace                     | incremental on PR, full nightly              |
 
 Rules:
 
@@ -20,3 +20,13 @@ Rules:
 4. Every domain invariant (`docs/domain/invariants.md`) has a test that names its ID.
 5. OCR and capture use recorded fixtures (`apps/agent/fixtures/`), never live game screens in CI.
 6. Floors live in `.quality-baseline.json` and only tighten.
+7. Mutation testing runs against unit tests only (ADR 026). Unit tests are the base of the pyramid (many, fast, fakes
+   for ports, no server/DB/browser/container); integration, e2e and acceptance are few and never run per mutation.
+   Rust: `cargo nextest run -p <crate> --lib`; TypeScript: `vitest run <colocated *.test.ts>`. `pnpm specs:check`
+   (`scripts/mutation-scope-check.mjs`) and the gate refuse a `mutations.json` that breaks this.
+8. The load run (NFR-14, AD-110) is on demand and runs at the end of a phase. It is never part of `pnpm check` or a
+   pull-request workflow. Three commands: `pnpm test:load` (the full ramp), `pnpm test:load:smoke` (5 players for
+   30 s, writes `smoke-summary.json` only) and `pnpm load:publish` (writes `docs/engineering/load-baseline.md` from a
+   passed full summary, and refuses anything else). The run needs Docker: it starts its own Postgres, API and k6
+   containers, and it refuses any target it did not start (`LOAD_TARGET`, a non-empty `DATABASE_URL`, a remote Docker
+   host). Its code lives in `scripts/load`; its unit tests live in `scripts/test/load`.

@@ -1,0 +1,53 @@
+{
+  "name": "@d2rmm/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Modular monolith API for D2R Match Making (Node 26, Fastify 5): five modules with domain, application and adapters layers.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint --max-warnings 0 .",
+    "test": "vitest run --passWithNoTests",
+    "test:integration": "vitest run -c vitest.integration.config.ts",
+    "start": "node --import ./src/main/instrument.ts src/main/render.ts",
+    "db:migrate": "node src/main/migrate.ts",
+    "contracts:openapi": "node src/main/openapi.ts",
+    "test:mutation": "node scripts/mutation.ts"
+  },
+  "devDependencies": {
+    "@d2rmm/config": "workspace:*",
+    "@opentelemetry/sdk-metrics": "2.12.0",
+    "@opentelemetry/sdk-trace-base": "^2.12.0",
+    "@stryker-mutator/core": "^10.1.1",
+    "@stryker-mutator/typescript-checker": "^10.1.1",
+    "@stryker-mutator/vitest-runner": "^10.1.1",
+    "@testcontainers/postgresql": "^12.2.1",
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "eslint": "^9.39.0",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@d2rmm/contracts": "workspace:*",
+    "@d2rmm/telemetry": "workspace:*",
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/swagger": "^9.9.2",
+    "@opentelemetry/api": "~1.9.1",
+    "@opentelemetry/api-logs": "0.223.0",
+    "@opentelemetry/context-async-hooks": "2.12.0",
+    "@opentelemetry/instrumentation": "0.223.0",
+    "@opentelemetry/instrumentation-http": "0.223.0",
+    "@opentelemetry/instrumentation-pg": "0.76.0",
+    "@opentelemetry/instrumentation-pino": "0.69.0",
+    "fastify": "^5.12.7",
+    "fastify-type-provider-zod": "^6.1.0",
+    "import-in-the-middle": "3.5.3",
+    "kysely": "^0.29.7",
+    "openapi-types": "^12.1.3",
+    "pg": "^8.23.1",
+    "zod": "^4.6.7"
+  }
+}

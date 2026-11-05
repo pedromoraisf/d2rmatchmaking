@@ -20,7 +20,25 @@ module.exports = {
       comment: 'Application talks to the world through ports only.',
       severity: 'error',
       from: { path: `${API}/modules/[^/]+/application`, pathNot: TESTS },
-      to: { path: ['/adapters/', `${API}/main`, 'node_modules/(fastify|kysely|pg|@opentelemetry/sdk-)'] },
+      to: {
+        path: [
+          '/adapters/',
+          `${API}/main`,
+          'node_modules/(fastify|kysely|pg|@opentelemetry/(sdk-|exporter-|resources|instrumentation-))',
+          // The telemetry entries that carry the SDK (OBS-41); the root entry stays importable (the rule below polices it).
+          '^packages/telemetry/src/(node-sdk|web-sdk|tracing-fetcher|sdk/)',
+        ],
+      },
+    },
+    {
+      name: 'telemetry-root-has-no-sdk',
+      comment:
+        'The telemetry root entry (index, attributes, redact-attributes, trace-context, instrument-names) imports no SDK package, so a consumer of @d2rmm/telemetry stays free of the SDK (OBS-22).',
+      severity: 'error',
+      from: {
+        path: '^packages/telemetry/src/(index|attributes|redact-attributes|trace-context|instrument-names)\\.ts$',
+      },
+      to: { path: 'node_modules/@opentelemetry/(sdk-|exporter-|resources)' },
     },
     {
       name: 'no-cross-module-internals',
@@ -37,7 +55,29 @@ module.exports = {
       comment: 'The shared kernel never depends on modules or composition.',
       severity: 'error',
       from: { path: `${API}/shared-kernel`, pathNot: TESTS },
-      to: { path: [`${API}/modules`, `${API}/main`] },
+      to: { path: [`${API}/modules`, `${API}/main`, `${API}/platform`] },
+    },
+    {
+      name: 'platform-is-adapter',
+      comment:
+        'Modules never import the platform. Platform adapters are reached through module ports or events.',
+      severity: 'error',
+      from: { path: `${API}/modules/` },
+      to: { path: `${API}/platform/` },
+    },
+    {
+      name: 'platform-uses-public-ports',
+      comment: 'Platform reaches a module only through its public index.ts port, never its internal layers.',
+      severity: 'error',
+      from: { path: `${API}/platform/` },
+      to: { path: `${API}/modules/[^/]+/(domain|application|adapters)/` },
+    },
+    {
+      name: 'render-no-test-controls',
+      comment: 'The Render composition root never imports the test controls (AD-045).',
+      severity: 'error',
+      from: { path: `${API}/main/render\\.ts$` },
+      to: { path: `${API}/main/test-controls\\.ts$` },
     },
     {
       name: 'nobody-imports-main',

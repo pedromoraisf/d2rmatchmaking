@@ -9,9 +9,12 @@ import { compareBaselines } from '../../../scripts/lib/ratchet.mjs';
 import { sessionId } from '../../../scripts/lib/budget.mjs';
 import { checkBudget, countDenial } from './budget-rules.mjs';
 import { countScenarios } from '../../../scripts/lib/acceptance.mjs';
+import { checkMutationSpec } from '../../../scripts/lib/mutation-scope.mjs';
+import { indirections, MAX_DEPTH, SHELL } from './shell-indirection.mjs';
 
 const deny = (reason) => ({ decision: 'deny', reason });
 const ask = (reason) => ({ decision: 'ask', reason });
+const strongest = (a, b) => (a?.decision === 'deny' ? a : b?.decision === 'deny' ? b : (a ?? b));
 
 // ---------------------------------------------------------------- paths
 const ENV_FILE = /(^|\/)\.env($|\.(?!example$)[^/]*$)/;
@@ -63,6 +66,7 @@ const PROD_DB = /neon\.tech|NEON_DATABASE_URL|DATABASE_URL_PROD|PROD(UCTION)?_DA
 
 function splitCommands(cmd) {
   // Good enough for gating: split on ; && || | and newlines (quotes are rare in risky commands).
+  // Commands hidden inside quotes (`bash -c "…"`) are judged separately, see checkIndirections().
   return cmd
     .split(/\n|;|&&|\|\||\|/)
     .map((s) => s.trim())
@@ -73,8 +77,148 @@ function words(segment) {
   return segment.match(/"[^"]*"|'[^']*'|\S+/g)?.map((w) => w.replace(/^["']|["']$/g, '')) ?? [];
 }
 
-export function checkBash(command, ctx) {
+// Global options come before the subcommand: `git -C dir push` is a push.
+const GIT_VALUED = new Set([
+  '-C',
+  '-c',
+  '--git-dir',
+  '--work-tree',
+  '--namespace',
+  '--exec-path',
+  '--config-env',
+]);
+function gitArgs(args) {
+  let i = 0;
+  while (i < args.length && args[i].startsWith('-')) i += GIT_VALUED.has(args[i]) ? 2 : 1;
+  return args.slice(i);
+}
+
+// ADR 026: mutations are proved by unit tests only. Whoever runs mutate.py / check_proofs.py --mutations
+// hands the gate a spec file; every proof in it must be a unit-test command.
+const MUTATION_RUN = /\b(?:mutate\.py\b[^|;&]*?--spec|check_proofs\.py\b[^|;&]*?--mutations)(?:\s+|=)(\S+)/;
+function checkMutationRun(cmd, ctx) {
+  const m = MUTATION_RUN.exec(cmd);
+  if (!m) return null;
+  const arg = m[1].replace(/^['"]|['"]$/g, '');
+  if (arg === '-') {
+    return deny(
+      'Pass the mutation spec as a file so its proofs can be checked: mutations run against unit tests only (ADR 026).',
+    );
+  }
+  const rel = arg.startsWith(`${ctx.root}/`) ? arg.slice(ctx.root.length + 1) : arg.replace(/^\.\//, '');
+  const text = ctx.readFile(rel);
+  if (text === null) return null;
+  let spec;
+  try {
+    spec = JSON.parse(text);
+  } catch {
+    return deny(`${rel} is not valid JSON, so the mutation scope cannot be checked (ADR 026).`);
+  }
+  const errors = checkMutationSpec(spec);
+  if (errors.length === 0) return null;
+  return deny(
+    `Mutations run against unit tests only (ADR 026). Fix ${rel} first (\`node scripts/mutation-scope-check.mjs --file ${rel}\`): ${errors.slice(0, 3).join('; ')}${errors.length > 3 ? `; and ${errors.length - 3} more` : ''}`,
+  );
+}
+
+// ---------------------------------------------------------------- indirection
+// A command can hide the one that really runs: `bash -c "…"`, `eval`, `sudo`/`env`/`timeout`, `xargs`, `find -exec`,
+// inline interpreter code, a script, a shell reading a pipe. Each is judged by what it hides (shell-indirection.mjs).
+const INLINE_ENV = /(^|[^\w.])\.env(\.(?!example\b)[\w-]+)?(?![\w./-])/;
+const INLINE_SPAWN =
+  /\bchild_process\b|\b(execSync|execFileSync|spawnSync|execFile|spawn)\s*\(|\bsubprocess\b|\bos\.(system|popen|exec\w*|spawn\w*)\b|\bpty\.spawn\b|\bDeno\.(run|Command)\b|\bBun\.(spawn|\$)|(?<![.\w])(system|exec)\s*\(|%x[({]|\bqx[({/]|\bIO\.popen\b|\bOpen3\b/;
+const INLINE_WRITE =
+  /\b(writeFile|writeFileSync|appendFile|appendFileSync|createWriteStream|unlink|unlinkSync|rm|rmSync|rmdir|rmdirSync|rename|renameSync|truncate|truncateSync|copyFile|copyFileSync|cpSync|write_text|write_bytes|remove|rmtree|move|copyfile|copy2)\s*\(|\bopen\s*\([^)]*['"][^'"]*[wax+]|\.write\s*\(|\bunlink\b|\bFile\.(write|delete|open)\b/;
+const SHELL_SCRIPT = /\.(sh|bash|zsh)$/;
+
+function isGuardedPath(token, root) {
+  let rel = token.startsWith(`${root}/`) ? token.slice(root.length + 1) : token;
+  rel = rel.replace(/^\.\//, '').replace(/^\.claude\/worktrees\/[^/]+\//, '');
+  return (
+    rel === BASELINE ||
+    VENDORED.test(rel) ||
+    MIGRATION.test(rel) ||
+    ADR.test(rel) ||
+    TEST_FILE.test(rel) ||
+    SPEC_DOC.test(rel) ||
+    BRIEF.test(rel) ||
+    /^\.git(\/|$)/.test(rel) ||
+    /^\.specs\/phases\/F\d+\/attempts\.json$/.test(rel) ||
+    isHarnessFile(rel) ||
+    isSelfProtected(rel)
+  );
+}
+
+/** Inline interpreter code (`python -c`, `node -e`, a heredoc, an untracked script): what the shell rules can't see. */
+function checkInlineCode(code, ctx) {
+  const text = String(code ?? '');
+  if (INLINE_ENV.test(text)) {
+    return deny(
+      '.env files hold secrets and are off-limits to the agent, from inline code too. Use .env.example.',
+    );
+  }
+  if (INLINE_SPAWN.test(text)) {
+    return ask(
+      'This code starts other processes, which hides those commands from the gate. Run them as shell commands instead.',
+    );
+  }
+  if (INLINE_WRITE.test(text)) {
+    const hit = (text.match(/[\w@.\-/]+/g) ?? []).find((t) => /[./]/.test(t) && isGuardedPath(t, ctx.root));
+    if (hit) {
+      return ask(
+        `This code writes and names ${hit}, a protected file. Use the Edit tool so the gate can check it.`,
+      );
+    }
+  }
+  return null;
+}
+
+function checkScript(x, ctx, depth) {
+  const rel = x.path.startsWith(`${ctx.root}/`)
+    ? x.path.slice(ctx.root.length + 1)
+    : x.path.replace(/^\.\//, '');
+  if (/^(\/|~|\.\.)/.test(rel) || rel.includes('$')) {
+    return ask(
+      `${x.path} is a script outside the repository, so the gate cannot read it. Run its commands directly or add it to the repo.`,
+    );
+  }
+  if (ctx.isTracked?.(rel)) return null; // committed through the same sensors
+  const text = ctx.readFile(rel);
+  if (text === null) return null;
+  const shell =
+    (x.via && SHELL.test(x.via)) || SHELL_SCRIPT.test(rel) || /^#!.*\b(ba|z|da|k)?sh\b/.test(text);
+  return shell ? checkBash(text, ctx, depth + 1) : checkInlineCode(text, ctx);
+}
+
+function checkIndirections(cmd, ctx, depth) {
+  let found = null;
+  for (const x of indirections(cmd)) {
+    let r = null;
+    if (x.kind === 'shell') r = checkBash(x.text, ctx, depth + 1);
+    else if (x.kind === 'code') r = checkInlineCode(x.text, ctx);
+    else if (x.kind === 'script') r = checkScript(x, ctx, depth);
+    else if (!/<</.test(cmd)) {
+      r = ask(
+        `${x.lang} is reading commands from a pipe, which hides them from the gate. Run them directly.`,
+      );
+    } else if (!SHELL.test(x.lang)) {
+      r = checkInlineCode(cmd, ctx); // a heredoc: its body is part of this command line
+    } // a shell heredoc: its lines are already judged as segments of this command
+    found = strongest(found, r);
+    if (found?.decision === 'deny') return found;
+  }
+  return found;
+}
+
+export function checkBash(command, ctx, depth = 0) {
   const cmd = String(command ?? '');
+  if (depth > MAX_DEPTH) {
+    return ask('This command nests shells too deep to check what runs. Run the inner command directly.');
+  }
+  return strongest(checkSegments(cmd, ctx), checkIndirections(cmd, ctx, depth));
+}
+
+function checkSegments(cmd, ctx) {
   if (PROD_DB.test(cmd)) {
     return deny(
       'Production database access is an escalation: never run commands with the production connection string. Ask the maintainer.',
@@ -85,6 +229,8 @@ export function checkBash(command, ctx) {
       'Bypassing local sensors (--no-verify / disabling Lefthook) is not allowed. Fix what the hook reports.',
     );
   }
+  const mutationDenial = checkMutationRun(cmd, ctx);
+  if (mutationDenial) return mutationDenial;
   for (const seg of splitCommands(cmd)) {
     const w = words(seg);
     const at = w.findIndex((x) => !/^[A-Z_]+=/.test(x)); // skip env assignments
@@ -92,25 +238,30 @@ export function checkBash(command, ctx) {
     const [c0, c1] = head;
 
     if (c0 === 'git') {
-      const rest = head.slice(1).join(' ');
-      if (c1 === 'push' && /(^|\s)(-f|--force|--force-with-lease|--mirror|--delete|-d)\b|\s\+\S/.test(rest)) {
+      const g = gitArgs(head.slice(1));
+      const [sub] = g;
+      const rest = g.join(' ');
+      if (
+        sub === 'push' &&
+        /(^|\s)(-f|--force|--force-with-lease|--mirror|--delete|-d)\b|\s\+\S/.test(rest)
+      ) {
         return deny('Force push / remote deletion is never allowed.');
       }
-      if (c1 === 'push')
+      if (sub === 'push')
         return ask('git push needs the maintainer’s explicit go-ahead (escalation: remote operation).');
-      if (c1 === 'reset' && /--hard/.test(rest))
+      if (sub === 'reset' && /--hard/.test(rest))
         return deny('git reset --hard discards work. Use git stash or a new commit.');
-      if (c1 === 'clean' && /-[a-z]*f/.test(rest)) return ask('git clean -f deletes untracked files.');
-      if ((c1 === 'checkout' || c1 === 'restore') && /(^|\s)(--\s+)?\.(\s|$)/.test(rest)) {
+      if (sub === 'clean' && /-[a-z]*f/.test(rest)) return ask('git clean -f deletes untracked files.');
+      if ((sub === 'checkout' || sub === 'restore') && /(^|\s)(--\s+)?\.(\s|$)/.test(rest)) {
         return ask('Discarding all working-tree changes.');
       }
-      if (c1 === 'merge' && (ctx.currentBranch?.() === 'main' || /\bmain\b/.test(rest))) {
+      if (sub === 'merge' && (ctx.currentBranch?.() === 'main' || /\bmain\b/.test(rest))) {
         return ask('Merging into main is an escalation (phase review).');
       }
-      if (c1 === 'rm' && head.slice(2).some((p) => TEST_FILE.test(p))) {
+      if (sub === 'rm' && g.slice(1).some((p) => TEST_FILE.test(p))) {
         return ask('Deleting tests is an escalation: tests are never removed to make a gate pass.');
       }
-      if (c1 === 'tag' && !/(^|\s)(-l|--list)\b/.test(rest) && head.length > 2) {
+      if (sub === 'tag' && !/(^|\s)(-l|--list)\b/.test(rest) && g.length > 1) {
         return ask('Tags trigger releases (agent-v*). Ask first.');
       }
     }

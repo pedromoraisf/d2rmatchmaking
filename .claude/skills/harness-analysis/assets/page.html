@@ -1,0 +1,1050 @@
+<title>Harness Scorecard</title>
+<meta name="claude:viewport-fit-sides" content="cover" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+/>
+<style>
+  /* Layout: a control-room readout. Verdict strip → lifecycle rail (C1–C12) → pillar gauges → criteria → inventory → gaps. */
+  :root {
+    --bg: #f4f6f6;
+    --panel: #ffffff;
+    --ink: #172024;
+    --muted: #5a676c;
+    --line: #d8dfe1;
+    --soft: #e9eef0;
+    --accent: #0f6f78;
+    --s0: #c9d1d4;
+    --s1: #e0a458;
+    --s2: #d9c35b;
+    --s3: #6fae8c;
+    --s4: #1f7f6a;
+    --deny: #b8323a;
+    --ask: #c27a12;
+    --block: #b5541c;
+    --fix: #2f8a57;
+    --warn: #a08a1c;
+    --record: #5b6fa6;
+    --report: #4e7f99;
+    --inform: #7d8a8f;
+    --display: 'Archivo', 'Arial Narrow', system-ui, sans-serif;
+    --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --bg: #0f1517;
+      --panel: #161e21;
+      --ink: #e3eaec;
+      --muted: #93a3a8;
+      --line: #2a3539;
+      --soft: #1d272a;
+      --accent: #4fc0c9;
+      --s0: #36444a;
+      --s1: #c98a3c;
+      --s2: #bfa944;
+      --s3: #4f9c76;
+      --s4: #3fbf98;
+      --deny: #f06a70;
+      --ask: #f0a640;
+      --block: #e8834a;
+      --fix: #5cc489;
+      --warn: #d4bd4a;
+      --record: #8ea2dc;
+      --report: #74b2cf;
+      --inform: #9aa7ab;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme='dark'] {
+    --bg: #0f1517;
+    --panel: #161e21;
+    --ink: #e3eaec;
+    --muted: #93a3a8;
+    --line: #2a3539;
+    --soft: #1d272a;
+    --accent: #4fc0c9;
+    --s0: #36444a;
+    --s1: #c98a3c;
+    --s2: #bfa944;
+    --s3: #4f9c76;
+    --s4: #3fbf98;
+    --deny: #f06a70;
+    --ask: #f0a640;
+    --block: #e8834a;
+    --fix: #5cc489;
+    --warn: #d4bd4a;
+    --record: #8ea2dc;
+    --report: #74b2cf;
+    --inform: #9aa7ab;
+    color-scheme: dark;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.55 var(--body);
+    margin: 0;
+  }
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding-block: 28px 64px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid;
+    gap: 40px;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--display);
+    font-stretch: 85%;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    margin: 0;
+  }
+  h1 {
+    font-size: clamp(28px, 4.5vw, 44px);
+    font-weight: 800;
+    line-height: 1.05;
+  }
+  h2 {
+    font-size: 22px;
+    font-weight: 700;
+  }
+  h3 {
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .eyebrow {
+    font: 500 11px/1 var(--mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .mono {
+    font-family: var(--mono);
+    font-size: 12.5px;
+  }
+  .muted {
+    color: var(--muted);
+  }
+  section {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+  .sec-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 16px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 10px;
+  }
+  .sec-head p {
+    margin: 0;
+    color: var(--muted);
+    max-width: 70ch;
+  }
+
+  /* header */
+  header {
+    display: grid;
+    gap: 18px;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+  }
+  .verdict {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 24px;
+    align-items: start;
+  }
+  .verdict p {
+    margin: 0;
+    max-width: 72ch;
+    font-size: 16px;
+  }
+  .dial {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 16px 20px;
+    display: grid;
+    gap: 10px;
+    min-width: 260px;
+  }
+  .dial .big {
+    font: 800 52px/1 var(--display);
+    font-stretch: 80%;
+    font-variant-numeric: tabular-nums;
+  }
+  .dial .big small {
+    font-size: 20px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .dial dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 14px;
+    margin: 0;
+    font-size: 13px;
+  }
+  .dial dt {
+    color: var(--muted);
+  }
+  .dial dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  .lvl {
+    display: inline-block;
+    font: 600 12px/1 var(--mono);
+    padding: 5px 8px;
+    border-radius: 3px;
+    background: var(--soft);
+    border: 1px solid var(--line);
+  }
+  @media (max-width: 760px) {
+    .verdict {
+      grid-template-columns: 1fr;
+    }
+    .dial {
+      min-width: 0;
+    }
+  }
+
+  /* lifecycle rail */
+  .rail {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 10px;
+  }
+  .cp {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-top: 3px solid var(--cp, var(--s0));
+    border-radius: 4px;
+    padding: 10px 12px 12px;
+    display: grid;
+    gap: 6px;
+    align-content: start;
+    min-width: 0;
+  }
+  .cp.gap {
+    border-style: dashed;
+    border-top-style: solid;
+  }
+  .cp .id {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+  }
+  .cp .id b {
+    font: 600 12px/1 var(--mono);
+    color: var(--muted);
+  }
+  .cp h3 {
+    font-size: 15px;
+  }
+  .cp .when {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.35;
+  }
+  .cp ul {
+    list-style: none;
+    margin: 2px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 2px;
+    font-size: 12.5px;
+  }
+  .cp li {
+    overflow-wrap: anywhere;
+  }
+  .cp .none {
+    color: var(--deny);
+    font-weight: 600;
+    font-size: 12.5px;
+  }
+  .zone {
+    font: 500 11px/1 var(--mono);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    grid-column: 1 / -1;
+    margin-top: 6px;
+  }
+  .act {
+    display: inline-block;
+    font: 600 10.5px/1 var(--mono);
+    padding: 3px 6px;
+    border-radius: 3px;
+    color: var(--panel);
+    background: var(--c, var(--inform));
+    white-space: nowrap;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    font-size: 12.5px;
+    color: var(--muted);
+    align-items: center;
+  }
+
+  /* walkthrough */
+  ol.walk {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: s;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 10px;
+  }
+  ol.walk li {
+    counter-increment: s;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 12px 14px 12px 44px;
+    position: relative;
+    font-size: 14px;
+  }
+  ol.walk li::before {
+    content: counter(s);
+    position: absolute;
+    left: 12px;
+    top: 10px;
+    font: 700 20px/1 var(--display);
+    color: var(--accent);
+  }
+
+  /* pillars */
+  .pillars {
+    display: grid;
+    gap: 4px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px 16px;
+  }
+  .prow {
+    display: grid;
+    grid-template-columns: minmax(150px, 230px) minmax(0, 1fr) 74px;
+    gap: 14px;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--soft);
+    cursor: pointer;
+  }
+  .prow:last-child {
+    border-bottom: 0;
+  }
+  .prow:hover .pname {
+    color: var(--accent);
+  }
+  .prow:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .pname {
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .pname .mono {
+    color: var(--muted);
+    margin-right: 6px;
+  }
+  .track {
+    position: relative;
+    height: 22px;
+  }
+  .track .grid {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .track .grid span {
+    border-left: 1px solid var(--line);
+  }
+  .track .grid span:last-child {
+    border-right: 1px solid var(--line);
+  }
+  .bar {
+    position: absolute;
+    left: 0;
+    height: 12px;
+    top: 5px;
+    border-radius: 0 2px 2px 0;
+    background: var(--accent);
+  }
+  .bar.b {
+    height: 6px;
+    top: 16px;
+    background: var(--muted);
+  }
+  .track.two .bar.a {
+    height: 9px;
+    top: 3px;
+  }
+  .track.two .bar.b {
+    height: 7px;
+    top: 13px;
+  }
+  .pval {
+    text-align: right;
+    font: 600 15px/1 var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .pval small {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+  .scale {
+    display: grid;
+    grid-template-columns: minmax(150px, 230px) minmax(0, 1fr) 74px;
+    gap: 14px;
+  }
+  .scale .ticks {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    font: 500 10.5px/1 var(--mono);
+    color: var(--muted);
+  }
+  .scale .ticks span {
+    text-align: right;
+  }
+  @media (max-width: 620px) {
+    .prow,
+    .scale {
+      grid-template-columns: minmax(0, 1fr) 64px;
+    }
+    .prow .track,
+    .scale .ticks {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+    .scale > :first-child,
+    .scale > :last-child {
+      display: none;
+    }
+  }
+
+  /* tables */
+  .tscroll {
+    overflow-x: auto;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  th {
+    text-align: left;
+    font: 600 11px/1.2 var(--mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    background: var(--soft);
+    position: sticky;
+    top: 0;
+  }
+  td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--soft);
+    vertical-align: top;
+  }
+  tr:last-child td {
+    border-bottom: 0;
+  }
+  tr.pillar-row td {
+    background: var(--soft);
+    font-weight: 700;
+    font-family: var(--display);
+    font-stretch: 85%;
+    font-size: 14px;
+  }
+  td.ev {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 220px;
+    overflow-wrap: anywhere;
+  }
+  td.note {
+    min-width: 260px;
+  }
+  .chip {
+    display: inline-grid;
+    place-items: center;
+    min-width: 26px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 3px;
+    font: 600 12.5px/1 var(--mono);
+    background: var(--sc, var(--s0));
+    color: #10181a;
+  }
+  .chip.na {
+    background: var(--soft);
+    color: var(--muted);
+  }
+  .delta {
+    font: 600 12.5px/1 var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .delta.up {
+    color: var(--fix);
+  }
+  .delta.down {
+    color: var(--deny);
+  }
+  .tag {
+    display: inline-block;
+    font: 500 11px/1 var(--mono);
+    padding: 3px 6px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .tag.hard {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .acts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .filters button {
+    font: 500 12.5px/1 var(--body);
+    padding: 7px 10px;
+    border-radius: 3px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .filters button[aria-pressed='true'] {
+    background: var(--ink);
+    color: var(--panel);
+    border-color: var(--ink);
+  }
+  .filters button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* gaps */
+  .gaps {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 10px;
+  }
+  .gapc {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--sc);
+    border-radius: 4px;
+    padding: 12px 14px;
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+  .gapc .top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .gapc p {
+    margin: 0;
+    font-size: 13.5px;
+  }
+  .gapc .next {
+    color: var(--ink);
+  }
+  .gapc .next b {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-right: 4px;
+  }
+  ul.strengths {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 6px;
+    max-width: 80ch;
+  }
+  footer {
+    color: var(--muted);
+    font-size: 12.5px;
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .bar {
+      transition: width 0.5s ease;
+    }
+  }
+</style>
+
+<div class="wrap" id="app"></div>
+
+<script>
+  const CARD_A = /*SCORECARD_A*/ null;
+  const CARD_B = /*SCORECARD_B*/ null;
+  const LANG = /*LANG*/ 'en';
+
+  const T = {
+    en: {
+      title: 'Harness scorecard',
+      fw: 'Harness Analysis Framework · HAF-1',
+      overall: 'Overall',
+      points: 'Points',
+      comps: 'Components',
+      hard: 'Hard-enforced',
+      profile: 'Profile',
+      tools: 'Tools',
+      commit: 'Commit',
+      rail: 'How it works: control points',
+      railNote:
+        'Where, in the life of one unit of agent work, each component acts. Colour = the strongest action at that point; a dashed card is an uncovered point.',
+      agent: 'Agent loop',
+      repo: 'Git & remote',
+      human: 'Scheduled & human',
+      none: 'No component — gap',
+      walk: 'One unit of work, start to merge',
+      pillars: 'Pillars',
+      pillarsNote: 'Mean of four criteria each, 0–4. Click a pillar to jump to its criteria.',
+      criteria: 'Criteria',
+      criteriaNote: 'Every score cites evidence. Lowest level that covers the whole scope.',
+      inv: 'Component inventory',
+      invNote: 'Every component that steers, checks, stops or measures the agent.',
+      all: 'All',
+      gaps: 'Gaps and next steps',
+      gapsNote: 'Every criterion below 3, lowest first.',
+      strengths: 'Strengths worth porting',
+      cols: {
+        id: 'ID',
+        crit: 'Criterion',
+        score: 'Score',
+        ev: 'Evidence',
+        note: 'Note',
+        comp: 'Component',
+        kind: 'Kind',
+        trig: 'Trigger',
+        resp: 'Responsibility',
+        acts: 'Actions',
+        enf: 'Enf.',
+        pil: 'Pillars',
+      },
+      vs: 'vs',
+      delta: 'Δ',
+      noGaps: 'No criterion below 3.',
+    },
+    'pt-BR': {
+      title: 'Scorecard do harness',
+      fw: 'Harness Analysis Framework · HAF-1',
+      overall: 'Geral',
+      points: 'Pontos',
+      comps: 'Componentes',
+      hard: 'Enforced por código',
+      profile: 'Perfil',
+      tools: 'Ferramentas',
+      commit: 'Commit',
+      rail: 'Como funciona: pontos de controle',
+      railNote:
+        'Onde, na vida de uma unidade de trabalho do agente, cada componente age. Cor = a ação mais forte naquele ponto; card tracejado = ponto sem cobertura.',
+      agent: 'Loop do agente',
+      repo: 'Git e remoto',
+      human: 'Agendado e humano',
+      none: 'Nenhum componente — gap',
+      walk: 'Uma unidade de trabalho, do início ao merge',
+      pillars: 'Pilares',
+      pillarsNote: 'Média de quatro critérios cada, 0–4. Clique num pilar para ir aos critérios.',
+      criteria: 'Critérios',
+      criteriaNote: 'Toda nota cita evidência. Vale o menor nível que cobre todo o escopo.',
+      inv: 'Inventário de componentes',
+      invNote: 'Todo componente que orienta, checa, para ou mede o agente.',
+      all: 'Todos',
+      gaps: 'Gaps e próximos passos',
+      gapsNote: 'Todo critério abaixo de 3, do menor para o maior.',
+      strengths: 'Pontos fortes para portar',
+      cols: {
+        id: 'ID',
+        crit: 'Critério',
+        score: 'Nota',
+        ev: 'Evidência',
+        note: 'Nota do analista',
+        comp: 'Componente',
+        kind: 'Tipo',
+        trig: 'Gatilho',
+        resp: 'Responsabilidade',
+        acts: 'Ações',
+        enf: 'Enf.',
+        pil: 'Pilares',
+      },
+      vs: 'vs',
+      delta: 'Δ',
+      noGaps: 'Nenhum critério abaixo de 3.',
+    },
+  };
+  const L = T[LANG] || T.en;
+  const PT = LANG === 'pt-BR';
+
+  const PILLARS = [
+    ['CTX', 'Context & Guides', 'Contexto & Guias'],
+    ['MET', 'Method & Traceability', 'Método & Rastreabilidade'],
+    ['ORQ', 'Orchestration & Roles', 'Orquestração & Papéis'],
+    ['GRD', 'Action Guardrails', 'Guardrails de ação'],
+    ['SEN', 'Sensors & Feedback', 'Sensores & Feedback'],
+    ['VER', 'Test Integrity & Verification', 'Integridade de testes'],
+    ['REM', 'Remote Barriers', 'Barreiras remotas'],
+    ['EST', 'State, Memory & Resumption', 'Estado, memória & retomada'],
+    ['GOV', 'Autonomy Governance', 'Governança de autonomia'],
+    ['EVO', 'Measurement & Evolution', 'Medição & evolução'],
+  ];
+  const CRIT = {
+    'CTX-1': ['Canonical instruction file', 'Arquivo canônico de instruções'],
+    'CTX-2': ['Scoped & progressive context', 'Contexto escopado e progressivo'],
+    'CTX-3': ['Versioned domain & decisions', 'Domínio e decisões versionados'],
+    'CTX-4': ['Multi-tool parity', 'Paridade entre ferramentas'],
+    'MET-1': ['Defined delivery method', 'Método de entrega definido'],
+    'MET-2': ['Requirement → test traceability', 'Rastreabilidade requisito → teste'],
+    'MET-3': ['Atomic units with per-unit gate', 'Unidades atômicas com gate'],
+    'MET-4': ['Decision log for gray areas', 'Registro de decisões'],
+    'ORQ-1': ['Roles with least privilege', 'Papéis com menor privilégio'],
+    'ORQ-2': ['Model & effort policy', 'Política de modelo e esforço'],
+    'ORQ-3': ['Isolation of parallel work', 'Isolamento do trabalho paralelo'],
+    'ORQ-4': ['Independent verification', 'Verificação independente'],
+    'GRD-1': ['Destructive & remote operations', 'Operações destrutivas e remotas'],
+    'GRD-2': ['Secrets', 'Segredos'],
+    'GRD-3': ['Protected artifacts & self-protection', 'Artefatos protegidos e autoproteção'],
+    'GRD-4': ['Robustness & fail-closed', 'Robustez e fail-closed'],
+    'SEN-1': ['Per-edit feedback', 'Feedback por edição'],
+    'SEN-2': ['End-of-turn barrier', 'Barreira de fim de turno'],
+    'SEN-3': ['Local git hooks', 'Git hooks locais'],
+    'SEN-4': ['Architecture & boundary sensors', 'Sensores de arquitetura'],
+    'VER-1': ['Test pyramid coverage', 'Cobertura da pirâmide'],
+    'VER-2': ['Anti-weakening', 'Anti-enfraquecimento de testes'],
+    'VER-3': ['Mutation / test strength', 'Mutação / força dos testes'],
+    'VER-4': ['Proof per acceptance criterion', 'Prova por critério de aceite'],
+    'REM-1': ['CI mirrors local sensors', 'CI espelha os sensores locais'],
+    'REM-2': ['Branch & tag protection as code', 'Proteção de branch/tag como código'],
+    'REM-3': ['Controlled release & deploy', 'Release e deploy controlados'],
+    'REM-4': ['Supply chain', 'Cadeia de suprimentos'],
+    'EST-1': ['Evidence-derived state', 'Estado derivado de evidência'],
+    'EST-2': ['Compaction / new-session resilience', 'Resiliência a compactação'],
+    'EST-3': ['Cross-cycle learning', 'Aprendizado entre ciclos'],
+    'EST-4': ['Auditable work ledger', 'Ledger auditável'],
+    'GOV-1': ['Human touchpoints & delegation', 'Touchpoints humanos e delegação'],
+    'GOV-2': ['Escalation routing', 'Roteamento de escalações'],
+    'GOV-3': ['Loop termination & retry budget', 'Término de loop e retry budget'],
+    'GOV-4': ['Cost & time budgets', 'Orçamento de custo e tempo'],
+    'EVO-1': ['Harness as tested code', 'Harness como código testado'],
+    'EVO-2': ['Maturity score & quality ratchet', 'Score de maturidade e ratchet'],
+    'EVO-3': ['Agent effectiveness telemetry', 'Telemetria de eficácia do agente'],
+    'EVO-4': ['Harness change control', 'Controle de mudança do harness'],
+  };
+  const LEVELS = PT
+    ? ['Ausente', 'Ad hoc', 'Documentado', 'Enforced', 'Auto-corretivo']
+    : ['Absent', 'Ad hoc', 'Documented', 'Enforced', 'Self-correcting'];
+  const CPS = [
+    ['C1', 'session-start', 'agent', 'the agent loads context', 'o agente carrega o contexto'],
+    ['C2', 'plan', 'agent', 'the work is shaped', 'o trabalho é planejado'],
+    ['C3', 'pre-tool', 'agent', 'before a tool call runs', 'antes de uma ferramenta rodar'],
+    ['C4', 'on-edit', 'agent', 'right after a file changes', 'logo após editar um arquivo'],
+    ['C5', 'turn-end', 'agent', 'the agent tries to stop', 'o agente tenta encerrar'],
+    ['C6', 'pre-commit', 'repo', 'git pre-commit / commit-msg', 'git pre-commit / commit-msg'],
+    ['C7', 'pre-push', 'repo', 'git pre-push', 'git pre-push'],
+    ['C8', 'ci-pr', 'repo', 'CI on PR / push', 'CI no PR / push'],
+    ['C9', 'merge', 'repo', 'protected branches', 'branches protegidas'],
+    ['C10', 'release', 'repo', 'deploy, tag, publish', 'deploy, tag, publicação'],
+    ['C11', 'scheduled', 'human', 'nightly / periodic', 'nightly / periódico'],
+    ['C12', 'review', 'human', 'the human checkpoint', 'o checkpoint humano'],
+  ];
+  const RANK = ['deny', 'ask', 'block', 'fix', 'warn', 'record', 'report', 'inform'];
+
+  const esc = (s) =>
+    String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const mean = (xs) => {
+    const v = xs.filter((x) => x !== 'N/A' && x != null);
+    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+  };
+  const r1 = (x) => (x == null ? null : Math.round(x * 10) / 10);
+  const sc = (s) => (s === 'N/A' ? '' : `--sc: var(--s${s})`);
+
+  function scores(card) {
+    const pillar = {};
+    for (const [p] of PILLARS)
+      pillar[p] = r1(mean([1, 2, 3, 4].map((i) => card.criteria[`${p}-${i}`]?.score)));
+    const vals = Object.values(pillar).filter((v) => v != null);
+    const overall = r1(mean(vals)) ?? 0;
+    const crit = Object.values(card.criteria);
+    const earned = crit.reduce((a, c) => a + (c.score === 'N/A' ? 0 : c.score), 0);
+    const max = 4 * crit.filter((c) => c.score !== 'N/A').length;
+    const level = Math.min(Math.floor(overall), Math.floor(Math.min(...vals)) + 1);
+    const inv = card.inventory || [];
+    const hard = inv.length
+      ? Math.round((100 * inv.filter((x) => x.enforcement === 'hard').length) / inv.length)
+      : 0;
+    return { pillar, overall, earned, max, level, hard, comps: inv.length };
+  }
+
+  function strongest(card, cp) {
+    const names = new Set(card.coverage?.[cp] || []);
+    const acts = (card.inventory || []).filter((x) => names.has(x.component)).flatMap((x) => x.actions);
+    return RANK.find((a) => acts.includes(a)) || (names.size ? 'inform' : null);
+  }
+
+  function header(A, SA, B, SB) {
+    const dial = (card, s, label) => `
+    <div class="dial">
+      <span class="eyebrow">${esc(label || L.overall)}</span>
+      <div class="big">${s.overall.toFixed(1)} <small>/ 4</small></div>
+      <span class="lvl">${esc(LEVELS[s.level])} · L${s.level}</span>
+      <dl>
+        <dt>${L.points}</dt><dd>${s.earned}/${s.max}</dd>
+        <dt>${L.comps}</dt><dd>${s.comps}</dd>
+        <dt>${L.hard}</dt><dd>${s.hard}%</dd>
+      </dl>
+    </div>`;
+    return `
+  <header>
+    <span class="eyebrow">${L.fw}</span>
+    <h1>${esc(A.repo)}${B ? ` <span class="muted">${L.vs}</span> ${esc(B.repo)}` : ''}</h1>
+    <div class="meta mono muted">
+      <span>${esc(A.date)}</span>${A.commit ? `<span>${L.commit} ${esc(A.commit)}</span>` : ''}
+      ${A.tools?.length ? `<span>${L.tools}: ${esc(A.tools.join(', '))}</span>` : ''}
+    </div>
+    <div class="verdict">
+      <p>${esc(A.summary?.verdict || '')}</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">${dial(A, SA, B ? A.repo : null)}${B ? dial(B, SB, B.repo) : ''}</div>
+    </div>
+  </header>`;
+  }
+
+  function rail(card) {
+    const zones = { agent: L.agent, repo: L.repo, human: L.human };
+    let html = '',
+      zone = null;
+    for (const [id, cp, z, en, pt] of CPS) {
+      if (z !== zone) {
+        html += `<div class="zone">${zones[z]}</div>`;
+        zone = z;
+      }
+      const comps = card.coverage?.[cp] || [];
+      const act = strongest(card, cp);
+      html += `<div class="cp${comps.length ? '' : ' gap'}" style="${act ? `--cp: var(--${act})` : ''}">
+      <div class="id"><b>${id}</b>${act ? `<span class="act" style="--c: var(--${act})">${act}</span>` : ''}</div>
+      <h3>${cp}</h3><div class="when">${PT ? pt : en}</div>
+      ${comps.length ? `<ul>${comps.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>` : `<div class="none">${L.none}</div>`}
+    </div>`;
+    }
+    const legend = RANK.map(
+      (a) => `<span><span class="act" style="--c: var(--${a})">${a}</span></span>`,
+    ).join('');
+    return `<section>
+    <div class="sec-head"><h2>${L.rail}</h2><p>${L.railNote}</p></div>
+    <div class="legend">${legend}</div>
+    <div class="rail">${html}</div>
+  </section>`;
+  }
+
+  function walkthrough(card) {
+    const w = card.summary?.walkthrough;
+    if (!w?.length) return '';
+    return `<section><div class="sec-head"><h2>${L.walk}</h2></div><ol class="walk">${w.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></section>`;
+  }
+
+  function pillars(SA, SB) {
+    const rows = PILLARS.map(([p, en, pt]) => {
+      const a = SA.pillar[p],
+        b = SB?.pillar[p];
+      const d = b != null && a != null ? r1(b - a) : null;
+      return `<div class="prow" tabindex="0" role="link" data-jump="p-${p}">
+      <div class="pname"><span class="mono">${p}</span>${PT ? pt : en}</div>
+      <div class="track${SB ? ' two' : ''}"><div class="grid"><span></span><span></span><span></span><span></span></div>
+        <div class="bar a" style="width:${((a ?? 0) / 4) * 100}%"></div>
+        ${SB ? `<div class="bar b" style="width:${((b ?? 0) / 4) * 100}%"></div>` : ''}
+      </div>
+      <div class="pval">${a == null ? 'N/A' : a.toFixed(1)}${SB ? `<small>${b == null ? 'N/A' : b.toFixed(1)} · <span class="delta ${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '+' : ''}${d ?? ''}</span></small>` : ''}</div>
+    </div>`;
+    }).join('');
+    const legend = SB
+      ? `<div class="legend"><span><span class="act" style="--c: var(--accent)">${esc(CARD_A.repo)}</span></span><span><span class="act" style="--c: var(--muted)">${esc(CARD_B.repo)}</span></span></div>`
+      : '';
+    return `<section>
+    <div class="sec-head"><h2>${L.pillars}</h2><p>${L.pillarsNote}</p></div>${legend}
+    <div class="pillars">
+      <div class="scale"><span></span><div class="ticks"><span>1</span><span>2</span><span>3</span><span>4</span></div><span></span></div>
+      ${rows}
+    </div>
+  </section>`;
+  }
+
+  function criteria(A, B) {
+    const c = L.cols;
+    let body = '';
+    for (const [p, en, pt] of PILLARS) {
+      body += `<tr class="pillar-row" id="p-${p}"><td colspan="${B ? 6 : 5}">${p} · ${PT ? pt : en}</td></tr>`;
+      for (let i = 1; i <= 4; i++) {
+        const id = `${p}-${i}`,
+          x = A.criteria[id] || { score: 0, evidence: [] },
+          y = B?.criteria[id];
+        const chip = (s) =>
+          s === 'N/A'
+            ? `<span class="chip na">N/A</span>`
+            : `<span class="chip" style="${sc(s)}">${s}</span>`;
+        const d = y && x.score !== 'N/A' && y.score !== 'N/A' ? y.score - x.score : null;
+        body += `<tr>
+        <td class="mono">${id}</td>
+        <td>${esc(CRIT[id][PT ? 1 : 0])}</td>
+        <td>${chip(x.score)}</td>
+        ${B ? `<td>${y ? chip(y.score) : ''} <span class="delta ${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d ? (d > 0 ? '+' : '') + d : ''}</span></td>` : ''}
+        <td class="note">${esc(x.note || '')}</td>
+        <td class="ev">${(x.evidence || []).map(esc).join('<br>')}</td>
+      </tr>`;
+      }
+    }
+    return `<section>
+    <div class="sec-head"><h2>${L.criteria}</h2><p>${L.criteriaNote}</p></div>
+    <div class="tscroll"><table>
+      <thead><tr><th>${c.id}</th><th>${c.crit}</th><th>${B ? esc(A.repo) : c.score}</th>${B ? `<th>${esc(B.repo)} ${L.delta}</th>` : ''}<th>${c.note}</th><th>${c.ev}</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table></div>
+  </section>`;
+  }
+
+  function inventory(card) {
+    const c = L.cols;
+    const kinds = [...new Set((card.inventory || []).map((x) => x.kind))];
+    const rows = (card.inventory || [])
+      .map(
+        (x) => `<tr data-kind="${esc(x.kind)}">
+    <td><b>${esc(x.component)}</b></td>
+    <td><span class="tag">${esc(x.kind)}</span></td>
+    <td class="mono">${esc(x.trigger)}</td>
+    <td style="min-width:260px">${esc(x.responsibility)}</td>
+    <td><div class="acts">${x.actions.map((a) => `<span class="act" style="--c: var(--${a})">${a}</span>`).join('')}</div></td>
+    <td><span class="tag ${x.enforcement}">${esc(x.enforcement)}</span></td>
+    <td class="mono">${esc(x.pillars.join(', '))}</td>
+    <td class="ev">${esc(x.evidence)}</td>
+  </tr>`,
+      )
+      .join('');
+    return `<section>
+    <div class="sec-head"><h2>${L.inv}${CARD_B ? ` · ${esc(card.repo)}` : ''}</h2><p>${L.invNote}</p></div>
+    <div class="filters" role="group">
+      <button type="button" id="kind-all" data-kind="" aria-pressed="true">${L.all} (${card.inventory?.length || 0})</button>
+      ${kinds.map((k) => `<button type="button" id="kind-${k}" data-kind="${k}" aria-pressed="false">${k} (${card.inventory.filter((x) => x.kind === k).length})</button>`).join('')}
+    </div>
+    <div class="tscroll"><table id="inv">
+      <thead><tr><th>${c.comp}</th><th>${c.kind}</th><th>${c.trig}</th><th>${c.resp}</th><th>${c.acts}</th><th>${c.enf}</th><th>${c.pil}</th><th>${c.ev}</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </section>`;
+  }
+
+  function gaps(card) {
+    const order = Object.fromEntries(PILLARS.map(([p], i) => [p, i]));
+    const g = Object.entries(card.criteria)
+      .filter(([, c]) => c.score !== 'N/A' && c.score < 3)
+      .sort((a, b) => a[1].score - b[1].score || order[a[0].slice(0, 3)] - order[b[0].slice(0, 3)]);
+    const cards = g
+      .map(
+        ([id, c]) => `<div class="gapc" style="${sc(c.score)}">
+      <div class="top"><span class="chip" style="${sc(c.score)}">${c.score}</span><b class="mono">${id}</b><span>${esc(CRIT[id][PT ? 1 : 0])}</span></div>
+      <p class="muted">${esc(c.note || '')}</p>
+      <p class="next"><b>${PT ? 'próximo' : 'next'}</b>${esc(c.next_step || '')}</p>
+    </div>`,
+      )
+      .join('');
+    return `<section>
+    <div class="sec-head"><h2>${L.gaps}</h2><p>${L.gapsNote}</p></div>
+    ${g.length ? `<div class="gaps">${cards}</div>` : `<p class="muted">${L.noGaps}</p>`}
+  </section>`;
+  }
+
+  function strengths(card) {
+    const s = card.summary?.strengths;
+    if (!s?.length) return '';
+    return `<section><div class="sec-head"><h2>${L.strengths}</h2></div><ul class="strengths">${s.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></section>`;
+  }
+
+  function render() {
+    const app = document.getElementById('app');
+    if (!CARD_A) {
+      app.innerHTML = `<p class="muted">No scorecard embedded.</p>`;
+      return;
+    }
+    document.title = `${CARD_A.repo} · ${L.title}`;
+    const SA = scores(CARD_A),
+      SB = CARD_B ? scores(CARD_B) : null;
+    app.innerHTML =
+      header(CARD_A, SA, CARD_B, SB) +
+      rail(CARD_A) +
+      walkthrough(CARD_A) +
+      pillars(SA, SB) +
+      gaps(CARD_A) +
+      criteria(CARD_A, CARD_B) +
+      inventory(CARD_A) +
+      strengths(CARD_A) +
+      `<footer>HAF-1 · ${esc(CARD_A.repo)} ${esc(CARD_A.commit || '')} · ${esc(CARD_A.date)}</footer>`;
+    app.querySelectorAll('.prow').forEach((r) => {
+      const go = () =>
+        document.getElementById(r.dataset.jump)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      r.addEventListener('click', go);
+      r.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          go();
+        }
+      });
+    });
+    app.querySelectorAll('.filters button').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        app
+          .querySelectorAll('.filters button')
+          .forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+        const k = btn.dataset.kind;
+        app.querySelectorAll('#inv tbody tr').forEach((tr) => {
+          tr.hidden = !!k && tr.dataset.kind !== k;
+        });
+      }),
+    );
+  }
+  render();
+</script>

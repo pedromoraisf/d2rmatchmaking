@@ -26,6 +26,10 @@ jobs:
           if compgen -G ".specs/features/*/acceptance.feature" > /dev/null; then echo "acceptance=true"; else echo "acceptance=false"; fi >> "$GITHUB_OUTPUT"
 
   quality:
+    # The ratchet reads the agent's mutation score, so it waits for that job (CRF-12). It still runs when that job fails
+    # or is skipped, because the ratchet gives its own verdict on a missing metric (CRF-13, AD-130).
+    needs: agent-mutation
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -43,6 +47,15 @@ jobs:
         run: |
           pnpm run harness:json
           pnpm exec harness-score . --config .harness-score.json --md reports/harness-score.md --quiet
+      # The agent's reports come from the agent-mutation job (CRF-14, CRF-15). Without an artifact the download fails, and
+      # continue-on-error lets the ratchet step give its own verdict (CRF-17).
+      - name: Download the agent's mutation reports
+        if: needs.agent-mutation.result != 'skipped'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        continue-on-error: true
+        with:
+          name: agent-mutation
+          path: reports/mutation
       - name: Quality ratchet (nightly)
         run: |
           pnpm run quality:collect
@@ -67,12 +80,18 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-mutants
-      - run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --output reports/mutation/agent-core
+      # The job's default shell on Windows is PowerShell, so the directory is created with bash on every runner (CRF-25).
+      - shell: bash
+        run: mkdir -p reports/mutation
+      # ADR 026 (AHM-23): mutants are caught by the unit tests (--lib) of each crate, never by tests/ or the app crate.
+      - run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --output reports/mutation/agent-core -- --lib
+      - run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain --output reports/mutation/agent-domain -- --lib
+      - run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: agent-mutation
-          path: reports/mutation/agent-core
+          path: reports/mutation
 
   backup:
     # Runs only once the production secrets exist (created by the maintainer, never by an agent).

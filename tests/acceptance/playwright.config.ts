@@ -14,6 +14,8 @@ const testDir = defineBddConfig({
 
 export default defineConfig({
   testDir,
+  // One Postgres container for the run (design.md § Acceptance stack); the workers start their own stacks on it.
+  globalSetup: './support/global-setup.ts',
   // Retries hide failures outside the retry budget (ADR 022): always 0 here. Focused tests fail the run.
   retries: 0,
   forbidOnly: true,
@@ -29,5 +31,14 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    // @HF-01 runs the root build, typecheck and tests (CPU-heavy): it starts after the other scenarios (AD-104).
+    { name: 'chromium', grepInvert: /@HF-01/, use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'harness-root',
+      grep: /@HF-01/,
+      dependencies: ['chromium'],
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ],
 });

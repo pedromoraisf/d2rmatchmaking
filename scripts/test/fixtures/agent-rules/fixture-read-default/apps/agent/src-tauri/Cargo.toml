@@ -1,0 +1,9 @@
+# Fixture for the fixture-read rule: the feature must never be a default feature.
+[package]
+name = "d2rmm-agent"
+version = "0.0.0"
+edition = "2024"
+
+[features]
+default = ["fixture-read"]
+fixture-read = []

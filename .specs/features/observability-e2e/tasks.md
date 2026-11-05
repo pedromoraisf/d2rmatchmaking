@@ -1,0 +1,1562 @@
+# Observability End to End Tasks
+
+## Execution Protocol (MANDATORY -- do not skip)
+
+Implement these tasks with the `tlc-spec-driven` skill: **activate it by name and follow its Execute flow and Critical Rules.** Do not search for skill files by filesystem path. The skill is the source of truth for the full flow (per-task cycle, sub-agent delegation, the walk, check_proofs, the Verifier and the screens sub-agent).
+
+**If the skill cannot be activated, STOP and tell the user - do not proceed without it.**
+
+Project rules for every task of this feature:
+
+- Run each task's gate as its own Bash call, with nothing before or after it:
+  `node scripts/attempt.mjs run --feature observability-e2e --step T<n> -- "<gate command>"`.
+- Tests are named as written below; the checks select them by name. A task whose gate needs a package or an API shape the design marks as unverified (T9, T13, T38 to T43) reads the registry or the locked sources first and records the pinned versions in `## Handoff`.
+- **T13 is a spike with a gate.** If auto-instrumentation of `pg` and Fastify does not work under `node --import` with type stripping, apply the design's fallback (a Fastify `onRequest` hook with `propagation.extract` for the server span, a Kysely `log` callback for the `pg` span, a pino destination stream for logs), record it in `## Handoff` and in `decisions.md`, and continue. The tests of T13 to T16 hold either way.
+- `.claude/hooks/**`, `.claude/settings.json`, `docs/adr/**` and `deny.toml` are not edited by any task. A task that needs one records it in `decisions.md` and reports. A missing licence in `cargo deny` stops T42 as a maintainer decision.
+- No test is weakened, skipped or focused; the existing acceptance scenarios and the whole `pnpm test:acceptance` run stay green with the site built with telemetry on (T50 onward).
+- Contract rule: T31 is the only task that changes `openapi.json` (it registers the route); every other task leaves `pnpm contracts:check` clean. (Replanned 2026-11-02: registering the route changes the generated document, so the contract cannot trail the registration.)
+- Rust lives in `~/.cargo/bin`, which is not on the default shell PATH; a Rust gate runs with `PATH="$HOME/.cargo/bin:$PATH"`. Code under `#[cfg(windows)]` is checked with `node scripts/agent/win-check.mjs` (AD-071).
+- New secrets: none. `.env.example` holds placeholders only.
+
+---
+
+**Design**: `.specs/features/observability-e2e/design.md`
+**Status**: Approved
+**Approved**: 2026-11-02 - user: "aprovo specs e tasks da F0 que passarem nos gates automáticos; delego sub-agents, harness-edits e local-merge-phase-branch" (delegated via .specs/phases/F0/brief.md)
+**Mutations**: 3
+**Build**: `pnpm build; pnpm typecheck; pnpm lint; pnpm arch`
+
+---
+
+## Test Coverage Matrix
+
+> Generated from codebase, project guidelines, and spec - confirm before Execute. Guidelines found: `AGENTS.md` (How to test, rules 1 to 4, 10 and 12), `docs/engineering/testing.md`, `docs/engineering/telemetry.md`, `docs/adr/026-mutation-unit-tests-only.md`, `.dependency-cruiser.cjs`, `vitest.config.ts` and `vitest.integration.config.ts` of the API, `.cargo/mutants.toml`.
+
+| Code Layer                                         | Required Test Type                           | Coverage Expectation                                                                             | Location Pattern                                                  | Run Command                      |
+| -------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | -------------------------------- |
+| Telemetry package (pure helpers, SDK wrappers)     | unit (Vitest)                                | All branches; every forbidden key, URL form, ratio and cap case; shared sampler vector           | `packages/telemetry/src/**/*.test.ts` (colocated)                 | Telemetry gate                   |
+| API application (use cases, ports)                 | unit (Vitest, fakes)                         | All branches; `beforeLookup`, `throttled`, `RoomMetrics` with `FakeClock`; no SDK import         | `apps/api/src/modules/**/application/*.test.ts`                   | API unit gate                    |
+| API platform (outbox, relay, hub, relay route)     | integration (Testcontainers) and unit        | Round trips with and without `trace_context`; every relay status; order table; closed-port run   | `apps/api/src/platform/**/*.test.ts`, `*.int.test.ts`             | API full gate                    |
+| API composition (`main/`)                          | integration                                  | Both roots start with the endpoint unset; the preload exports spans, metrics and logs            | `apps/api/src/main/__tests__/*.int.test.ts`                       | API full gate                    |
+| Site (`apps/web`, Pages Function)                  | unit (Vitest, jsdom/node)                    | Tracing fetcher, navigation span, switch off, proxy headers                                      | `apps/web/src/**/*.test.ts(x)`, `apps/web/functions/**/*.test.ts` | Web gate                         |
+| Agent adapters (queue, client, sanitize, exporter) | unit (`cargo nextest --lib`) + mutation      | Every branch of the pure functions; unreachable relay; slow relay                                | `apps/agent/src-tauri/adapters/src/telemetry/**` (colocated)      | Rust adapters gate               |
+| Agent example and guards                           | unit and harness (`node:test`)               | The example prints its lines; the feature is never default; the release workflow never builds it | `adapters/examples/headless.rs`, `scripts/test/agent-*.test.mjs`  | Rust adapters gate, Harness gate |
+| Agent app crate (Windows shell)                    | unit, `#[cfg(windows)]` in CI                | Export config is `None` unless the explicit flag is set                                          | `apps/agent/src-tauri/src/**`                                     | Rust Windows gate                |
+| Harness (compose, dashboard, scripts, workflows)   | harness unit (`node:test`)                   | Each rule fails on its own fixture; clean tree passes                                            | `scripts/test/*.test.mjs`                                         | Harness gate                     |
+| ESLint and cruiser rules                           | unit (Vitest in `@d2rmm/config`) and harness | A fixture breaks each new rule                                                                   | `packages/config/test/rules.test.ts`, `scripts/test/`             | Config gate, Harness gate        |
+| Acceptance support code and steps                  | acceptance (playwright-bdd) and unit         | Every scenario of `acceptance.feature` as written; helper unit tests                             | `tests/acceptance/**`                                             | Acceptance gate                  |
+| Manifests, `render.yaml`, `compose.yaml`, JSON     | none                                         | - (covered by the harness tests above)                                                           | -                                                                 | build gate only                  |
+
+## Gate Check Commands
+
+> Generated from codebase - confirm before Execute.
+
+| Gate Level         | When to Use                                                       | Command                                                                                                                                                                                                                                                                                                          |
+| ------------------ | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Telemetry          | Tasks in `packages/telemetry`                                     | `pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test`                                                                                                                                                                                         |
+| Config             | ESLint rule tasks                                                 | `pnpm --filter @d2rmm/config test`                                                                                                                                                                                                                                                                               |
+| API unit           | API tasks with unit tests only                                    | `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test`                                                                                                                                                                                                                                            |
+| API full           | API tasks with integration tests                                  | `pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`                                                                                                                                                                                               |
+| Web                | Site and Pages Function tasks                                     | `pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web test`                                                                                                                                                                                                                                            |
+| Harness            | Guards, workflows, compose, dashboard                             | `pnpm test:harness`                                                                                                                                                                                                                                                                                              |
+| Rust adapters      | Agent adapters tasks                                              | `cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo clippy --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --all-targets -- -D warnings && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters` |
+| Rust workspace     | Tasks that touch several crates                                   | the same three commands with `--workspace`                                                                                                                                                                                                                                                                       |
+| Rust Windows       | Tasks touching `#[cfg(windows)]` code                             | `node scripts/agent/win-check.mjs` (AD-071)                                                                                                                                                                                                                                                                      |
+| Acceptance         | Acceptance step tasks                                             | `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "<scenario title>"` (T56: `pnpm test:acceptance`)                                                                                                                  |
+| Acceptance support | Tasks in `tests/acceptance/support` that cannot run scenarios yet | `pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec vitest run support`                                                                                                                                                                                                           |
+| Build              | End of a phase with manifest changes                              | `pnpm build && pnpm typecheck && pnpm lint && pnpm arch && pnpm format:check`                                                                                                                                                                                                                                    |
+
+---
+
+## Execution Plan
+
+Phases run in order; tasks within a phase run in order. Batches (whole phases): 1 = Phases 1 to 2, 2 = Phases 3 to 4, 3 = Phase 5 to 6, 4 = Phase 7 (relay, T26 to T33), 5 = Phases 8 to 9 (site and agent, first half), 6 = Phase 10, 7 = Phases 11 to 12. Batches 8 and 9 are kept for the Verifier's findings.
+
+### Phase 1: Telemetry vocabulary
+
+```
+T1 → T2 → T3 → T4 → T5 → T6
+```
+
+### Phase 2: Telemetry SDK wrappers and rules
+
+```
+T7 → T8 → T9 → T10 → T11
+```
+
+### Phase 3: API bootstrap
+
+```
+T12 → T13 → T14 → T15 → T16
+```
+
+### Phase 4: The outbox carries the trace
+
+```
+T17 → T18 → T19 → T20 → T21
+```
+
+### Phase 5: Span attributes and the room metric
+
+```
+T22 → T23 → T24 → T25
+```
+
+### Phase 6: The relay building blocks
+
+```
+T26 → T27 → T28 → T29 → T30
+```
+
+### Phase 7: The relay route
+
+```
+T31 → T32 → T33
+```
+
+### Phase 8: The site
+
+```
+T34 → T35 → T36 → T37
+```
+
+### Phase 9: The agent exporter
+
+```
+T38 → T39 → T40 → T41 → T42 → T43
+```
+
+### Phase 10: The agent example and its guards
+
+```
+T44 → T45 → T46
+```
+
+### Phase 11: Local backend and dashboard
+
+```
+T47 → T48 → T49
+```
+
+### Phase 12: Acceptance and close
+
+```
+T50 → T51 → T52 → T53 → T54 → T55 → T56
+```
+
+---
+
+## Task Breakdown
+
+#### Phase 1: Telemetry vocabulary
+
+### T1: Point the telemetry package at its source and add the entries
+
+**What**: `@d2rmm/telemetry` exports `.`, `./node` and `./web` from source files, with its dependencies installed and the lockfile committed.
+**Where**: `packages/telemetry/package.json`
+**Depends on**: None
+**Reuses**: `packages/contracts/package.json` (source exports); `packages/telemetry/tsconfig.json`
+**Requirement**: OBS-39
+
+**Done when**:
+
+- [x] `exports` is `{ ".": "./src/index.ts", "./node": "./src/node-sdk.ts", "./web": "./src/web-sdk.ts" }`; `src/node-sdk.ts` and `src/web-sdk.ts` exist as `export {};` stubs; the `build` script no longer matters to consumers
+- [x] dependencies from the design are installed (`@opentelemetry/api`, `core`, `resources`, `sdk-trace-base`, `sdk-metrics`, `sdk-logs`, the three OTLP HTTP exporters, `semantic-conventions`, `sdk-trace-web`), versions pinned from the registry and listed in `## Handoff`; `pnpm-lock.yaml` committed
+- [x] test `entries resolve to source files` in `src/package-exports.test.ts` imports the three specifiers and passes; the cruiser resolves `@d2rmm/telemetry` to `packages/telemetry/src` (`pnpm arch` clean)
+
+**Tests**: unit
+**Gate**: Telemetry
+
+---
+
+### T2: The attribute constants and the instrument names
+
+**What**: `attributes.ts` holds the `d2r.*` constants and `instrument-names.ts` the metric names; both are exported from the root.
+**Where**: `packages/telemetry/src/attributes.ts`
+**Depends on**: T1
+**Reuses**: design doc names (`d2r.room.id`, `d2r.queue.mode`, `d2r.difficulty`, `d2r.ladder`, `d2r.era`, `d2r.agent.version`)
+**Requirement**: OBS-30, OBS-36
+
+**Done when**:
+
+- [x] `attributes.ts` exports the six standardized constants plus `d2r.stream.kind`, `d2r.room.stage`, `d2r.outbox.event_type`; `instrument-names.ts` exports `INSTRUMENT_NAMES` with the five AD-087 metric names
+- [x] test `exports the standardized d2r attribute constants` and test `lists the five skeleton instruments` pass
+- [x] the root `index.ts` re-exports both and imports no `@opentelemetry/sdk-*`
+
+**Tests**: unit
+**Gate**: Telemetry
+
+---
+
+### T3: Attribute redaction and text scrubbing
+
+**What**: `redactAttributes` and `scrubText` are pure functions in the root entry.
+**Where**: `packages/telemetry/src/redact-attributes.ts`
+**Depends on**: T2
+**Reuses**: design § Telemetry package (key list, URL keys)
+**Requirement**: OBS-28, OBS-29
+
+**Done when**:
+
+- [x] forbidden keys (full key or last dot segment, case-insensitive: `authorization, cookie, set-cookie, token, code, secret, password, image, battletag`) are dropped; `http.response.status_code`, `db.statement`, `d2r.room.id` are kept; `pairing.code`, `http.request.header.authorization` and `x-token` are dropped
+- [x] `url.full`, `http.url`, `http.target`, `url.query` lose `?…` and `#…`; `client.address`, `user_agent.original` and `enduser.*` are dropped
+- [x] `scrubText` replaces `Bearer <token>`, the session cookie, `code=`/`token=` and JSON-shaped secrets (`"token":"…"`), and a `pg` DETAIL line with a `battletag` key
+- [x] tests `strips every forbidden key and keeps the allowed ones`, `removes the query string and the fragment from url attributes and drops the client address`, `scrubs plain and json shaped secrets from text` pass
+
+**Tests**: unit
+**Gate**: Telemetry
+
+---
+
+### T4: Trace context helpers and the traceparent-only propagator
+
+**What**: `traceparentOf`, `contextFromTraceparent` and `TraceparentOnlyPropagator`.
+**Where**: `packages/telemetry/src/trace-context.ts`
+**Depends on**: T3
+**Reuses**: `@opentelemetry/core` `W3CTraceContextPropagator`
+**Requirement**: OBS-05, OBS-07
+
+**Done when**:
+
+- [x] a round trip `traceparentOf(contextFromTraceparent(text))` returns the same value; a malformed value yields a context with no span; with no active span `traceparentOf` returns `undefined`
+- [x] `TraceparentOnlyPropagator` extracts `traceparent` and ignores `tracestate` and baggage on extract and on inject
+- [x] tests `round trips a traceparent`, `a malformed traceparent yields no context`, `ignores tracestate on extract` pass
+
+**Tests**: unit
+**Gate**: Telemetry
+
+---
+
+### T5: The sampler and its shared decision vector
+
+**What**: `samplerFrom` with `CappedRatioSampler` (ratio plus one shared token bucket) and a vector file read by TypeScript now and by Rust in T41.
+**Where**: `packages/telemetry/src/sdk/sampler.ts`
+**Depends on**: T4
+**Reuses**: `@opentelemetry/sdk-trace-base` `ParentBasedSampler`, `TraceIdRatioBased`
+**Requirement**: OBS-43
+
+**Done when**:
+
+- [x] ratio from the text, `0.1` when undefined or invalid; local parents followed; all three other branches use `CappedRatioSampler` (20 sampled traces a second, burst 40, `now` injected; a token is taken only when the ratio check passes)
+- [x] `packages/telemetry/test-vectors/sampler.json` holds trace ids, ratios and the expected decisions; the test reads it
+- [x] tests `ratio from the variable and 0.1 when unset`, `a local child follows its parent`, `a forced sampled flag cannot exceed the cap`, `decisions match the shared vector` pass
+
+**Tests**: unit
+**Gate**: Telemetry
+
+---
+
+### T6: Resource attributes
+
+**What**: `resource.ts` builds the resource every bootstrap uses and filters foreign resource attributes.
+**Where**: `packages/telemetry/src/sdk/resource.ts`
+**Depends on**: T5
+**Reuses**: `@opentelemetry/resources`
+**Requirement**: OBS-32
+
+**Done when**:
+
+- [x] `createResource({ serviceName, serviceVersion, environment, agentVersion? })` carries `service.name`, `service.version`, `deployment.environment` and, when given, `d2r.agent.version`; no host or process attribute
+- [x] tests `carries service name, version and environment` and `carries the agent version only for the agent` pass
+
+**Tests**: unit
+**Gate**: Telemetry
+
+---
+
+#### Phase 2: Telemetry SDK wrappers and rules
+
+### T7: Redacting exporters and the log cap
+
+**What**: `RedactingSpanExporter` and `RedactingLogRecordExporter` copy each record, redact it and cap log volume.
+**Where**: `packages/telemetry/src/sdk/redacting-exporters.ts`
+**Depends on**: T6
+**Reuses**: T3 `redactAttributes`, `scrubText`
+**Requirement**: OBS-28, OBS-27, OBS-26
+
+**Done when**:
+
+- [x] span events: attributes redacted, `exception.message` and `exception.stacktrace` removed, `exception.type` kept; status message cleared; link attributes redacted; resource attributes outside `service.*`, `deployment.environment`, `d2r.agent.version`, `telemetry.sdk.*` removed; ended spans are not mutated
+- [x] log records pass the allow-list of keys (`level, time, msg, trace_id, span_id, reqId, req.method, res.statusCode, responseTime, d2r.*`), the body goes through `scrubText`, and only `warn` and above or records tied to a sampled span pass, at most 20 a second
+- [x] tests `removes exception message and stacktrace from span events`, `drops req.url and err keys from log records`, `caps exported log records at 20 a second` pass
+
+**Tests**: unit
+**Gate**: Telemetry
+
+---
+
+### T8: Bounded metric views
+
+**What**: `boundedMetricViews` limits metric attributes to the bounded sets and drops the HTTP instrumentation's duration histogram.
+**Where**: `packages/telemetry/src/sdk/views.ts`
+**Depends on**: T7
+**Reuses**: `@opentelemetry/sdk-metrics` `ViewOptions`
+**Requirement**: OBS-31
+
+**Done when**:
+
+- [x] one view per instrument of `INSTRUMENT_NAMES` with `attributeKeys` from the bounded sets; a drop view for the instrumentation's own `http.server.request.duration`
+- [x] test `metric attributes are limited to the bounded sets` records an id attribute and asserts it is absent from the collected point
+
+**Tests**: unit
+**Gate**: Telemetry
+
+---
+
+### T9: The Node SDK bootstrap
+
+**What**: `startNodeTelemetry` wires the resource, sampler, redacting exporters, views, metric reader and log provider, and returns a handle.
+**Where**: `packages/telemetry/src/node-sdk.ts`
+**Depends on**: T8
+**Reuses**: T5 to T8; OTLP HTTP exporters
+**Requirement**: OBS-01
+
+**Done when**:
+
+- [x] with an endpoint it exports traces, metrics and logs over OTLP/HTTP with the given headers and metric interval; `shutdown()` flushes; export errors go to `onExportError`, limited to one a minute
+- [x] it reads no `process.env` and `redirect` is not followed where the exporter has the option
+- [x] tests `exports traces and metrics to the endpoint` (against a local HTTP recorder) and `reports at most one export error a minute` pass
+
+**Tests**: unit
+**Gate**: Telemetry
+
+---
+
+### T10: Forbid `process.env` in the telemetry package
+
+**What**: an ESLint `n/no-process-env` block for `packages/telemetry/src/**` with a fixture test.
+**Where**: `packages/config/eslint.mjs`
+**Depends on**: T9
+**Reuses**: the existing block for `apps/api/src/**`; `packages/config/test/rules.test.ts`
+**Requirement**: OBS-39
+
+**Done when**:
+
+- [x] the new block is an error for `packages/telemetry/src/**`; the rule is only tightened
+- [x] test `reports process.env in the telemetry package` fails without the block and passes with it; `pnpm lint` is clean
+
+**Tests**: unit
+**Gate**: Config
+
+---
+
+### T11: Cruiser rules for the telemetry entries
+
+**What**: dependency-cruiser keeps SDK code out of `application` and `domain` and the root entry free of SDK packages.
+**Where**: `.dependency-cruiser.cjs`
+**Depends on**: T10
+**Reuses**: `application-no-adapters`, `scripts/test/` fixture pattern
+**Requirement**: OBS-41, OBS-22
+
+**Done when**:
+
+- [x] `application-no-adapters` also matches `@opentelemetry/(sdk-|exporter-|resources|instrumentation-)` and `^packages/telemetry/src/(node-sdk|web-sdk|tracing-fetcher|sdk/)`; the new rule `telemetry-root-has-no-sdk` is added
+- [x] tests `an application file importing the telemetry node entry fails`, `the telemetry root files import no sdk package` and `the telemetry root entry lists exactly its files` pass in `scripts/test/telemetry-rules.test.mjs`
+- [x] `pnpm arch` is clean on the tree
+
+**Tests**: unit
+**Gate**: Harness
+
+---
+
+#### Phase 3: API bootstrap
+
+### T12: Telemetry settings in the API config and `.env.example`
+
+**What**: `loadConfig` reads and validates the `OTEL_*` settings; `.env.example` lists them with placeholders.
+**Where**: `apps/api/src/main/config.ts`
+**Depends on**: T11
+**Reuses**: `flag()` and `integer()` helpers; `.gitleaks.toml` allowlist for `.env.example`
+**Requirement**: OBS-40, OBS-43
+
+**Done when**:
+
+- [x] `telemetry: { endpoint, headers, samplerArg, intervalMs }`; the endpoint must be `https:` unless the host is loopback, with no user info; the sampler argument is a number in `[0, 1]`; `OTEL_METRIC_EXPORT_INTERVAL` defaults to `60000`; the headers are never printed
+- [x] `.env.example` at the repo root lists every `OTEL_*` variable the config reads with placeholder values; `pnpm secrets:scan` is clean
+- [x] tests `rejects an http endpoint off loopback and an endpoint with user info`, `defaults the sampler ratio and the metric interval` in `config.test.ts` and `.env.example lists every OTEL variable the config reads` in `scripts/test/env-example.test.mjs` pass
+
+**Tests**: unit
+**Gate**: API unit
+
+---
+
+### T13: The preload and the instrumentation (spike with a gate)
+
+**What**: `main/instrument.ts` installs the SDK before the application imports and instruments HTTP, Fastify and `pg`.
+**Where**: `apps/api/src/main/instrument.ts`
+**Depends on**: T12
+**Reuses**: T9 `startNodeTelemetry`; design § API bootstrap and its fallback
+**Requirement**: OBS-01, OBS-03
+
+**Done when**:
+
+- [x] with `OTEL_EXPORTER_OTLP_ENDPOINT` set, booting `local.ts` with `--import` produces a server span, a `pg` child span naming the statement with placeholders and no bound value, and exports traces and metrics to a fake OTLP backend; unset, the preload does nothing; a load error is caught and logged once; `/healthz` and the relay route are excluded from server spans; header capture options stay unset
+- [x] the versions of the instrumentation packages are pinned and listed in `## Handoff`; if the spike used the design's fallback, that is recorded
+- [x] tests `exports traces and metrics to the configured endpoint` and `pg span names the statement without parameter values and is a child of the server span` in `apps/api/src/main/__tests__/instrument.int.test.ts` pass
+
+**Tests**: integration
+**Gate**: API full
+
+---
+
+### T14: Start both roots through the preload
+
+**What**: `render.yaml`, the acceptance stack and the package scripts start the roots with `--import`; both roots run with the endpoint unset.
+**Where**: `render.yaml`
+**Depends on**: T13
+**Reuses**: `tests/acceptance/support/stack.ts` spawn arguments; `apps/api/package.json` scripts
+**Requirement**: OBS-02
+
+**Done when**:
+
+- [x] the Render start command, the `dev`/`start` scripts of the API and the two `node src/main/local.ts` spawns in `stack.ts` carry `--import ./src/main/instrument.ts`; `render.yaml` adds only variable names, no value
+- [ ] test `both roots start with no OTLP endpoint and answer a health check` in `roots.int.test.ts` passes; the existing acceptance stack still boots (`pnpm --filter @d2rmm/acceptance exec bddgen` clean)
+
+**Tests**: integration
+**Gate**: API full
+
+---
+
+### T15: Log correlation and log export
+
+**What**: the Fastify logger carries `trace_id` and `span_id` and exports logs through the redacting exporter; `console.error` calls use the logger.
+**Where**: `apps/api/src/main/app.ts`
+**Depends on**: T14
+**Reuses**: `REDACTED_LOG_PATHS`, `logSink`; `outbox-relay.ts:85,165`, `stream-hub.ts:327`, `app.ts:214` call sites
+**Requirement**: OBS-26, OBS-27
+
+**Done when**:
+
+- [x] a `mixin` reads the active span; a request log line inside a span carries both ids and outside carries none; the three `console.error` sites call an injected logger
+- [x] with the endpoint set a request log record reaches a fake OTLP backend with the trace id
+- [x] tests `log line inside a span carries trace_id and span_id and none outside` (unit) and `exports a log record with the trace id` (integration) pass
+
+**Tests**: integration
+**Gate**: API full
+
+---
+
+### T16: Request duration and body size metrics
+
+**What**: a Fastify `onResponse` hook records `http.server.request.duration` and `http.server.response.body.size` by route template and status class.
+**Where**: `apps/api/src/platform/http/request-metrics.ts`
+**Depends on**: T15
+**Reuses**: T2 `INSTRUMENT_NAMES`; T8 views; `buildApp` hook registration
+**Requirement**: OBS-33
+
+**Done when**:
+
+- [x] both histograms use `http.route` (template) and `http.response.status_class` only; an id in the path never becomes an attribute; hijacked streams record nothing
+- [x] test `records request duration and body size by route template and status class` passes with an in-memory metric reader
+
+**Tests**: integration
+**Gate**: API full
+
+---
+
+#### Phase 4: The outbox carries the trace
+
+### T17: The `trace_context` column
+
+**What**: migration `0002_outbox_trace_context` adds a nullable text column; the Kysely type and the migrator map know it.
+**Where**: `apps/api/migrations/0002_outbox_trace_context.ts`
+**Depends on**: T16
+**Reuses**: `0001_skeleton.ts` migration shape; `platform/postgres/migrator.ts` map; `platform/postgres/database.ts` `OutboxTable`
+**Requirement**: OBS-05
+
+**Done when**:
+
+- [x] a new file, never an edit of `0001`; `up` adds `trace_context text null`, `down` drops it; `OutboxTable.trace_context: string | null`; the map has the `0002` entry
+- [x] test `migrates to 0002 and back` in `platform/postgres/migrator.int.test.ts` passes on a Testcontainers database
+
+**Tests**: integration
+**Gate**: API full
+
+---
+
+### T18: Write the trace context with the event
+
+**What**: `PostgresOutbox.append` stores the active span's `traceparent` in the same insert.
+**Where**: `apps/api/src/platform/postgres/outbox.ts`
+**Depends on**: T17
+**Reuses**: T4 `traceparentOf`; `withSpan`
+**Requirement**: OBS-05
+
+**Done when**:
+
+- [x] every row of one `append` carries the traceparent of the active span, `null` when there is none, written in the transaction and rolled back with it
+- [x] test `append stores the traceparent of the active span in the transaction` in `outbox.int.test.ts` passes
+
+**Tests**: integration
+**Gate**: API full
+
+---
+
+### T19: The relay continues the stored trace
+
+**What**: `OutboxRelay` publishes each row inside `platform.outbox.relay` as a child of the stored context, or a root span when there is none.
+**Where**: `apps/api/src/platform/outbox-relay.ts`
+**Depends on**: T18
+**Reuses**: T4 `contextFromTraceparent`; `ROOT_CONTEXT`; the batch select
+**Requirement**: OBS-06, OBS-07
+
+**Done when**:
+
+- [x] the batch selects `trace_context`; each row runs under `context.with(...)`; a missing or malformed value uses `ROOT_CONTEXT`; the row never fails because of it; attribute `d2r.outbox.event_type`
+- [x] tests `continues the stored context and opens platform.outbox.relay as its child` and `publishes a row with no trace context as a root span` in `outbox-relay.int.test.ts` pass
+
+**Tests**: integration
+**Gate**: API full
+
+---
+
+### T20: Stream delivery span and the connections counter
+
+**What**: `StreamHub` opens `platform.stream.deliver` per accepted delivery and counts connections.
+**Where**: `apps/api/src/platform/stream-hub.ts`
+**Depends on**: T19
+**Reuses**: `Connection.#accepts`, `#dispatch`; `INSTRUMENT_NAMES`
+**Requirement**: OBS-06, OBS-33
+
+**Done when**:
+
+- [x] `platform.stream.deliver` is a child of the active relay span for each connection that accepts the event, attribute `d2r.stream.kind`; `sse.connections` goes up when a connection joins and down in its `onClose`
+- [x] tests `delivers inside a span that is a child of the outbox relay` and `sse.connections goes up and down with the connection` in `stream-hub.int.test.ts` pass
+
+**Tests**: integration
+**Gate**: API full
+
+---
+
+### T21: The outbox lag gauge
+
+**What**: `outbox.lag` observes the age of the oldest unpublished row.
+**Where**: `apps/api/src/platform/outbox-lag.ts`
+**Depends on**: T20
+**Reuses**: the partial index on `(id)`; the injected `Clock`
+**Requirement**: OBS-33
+
+**Done when**:
+
+- [x] the gauge reads `created_at` of the first row `where published_at is null and failed_at is null order by id limit 1`, in seconds, `0` when none, computed with the `Clock`; registered once from `buildApp`
+- [x] test `outbox.lag is the age of the oldest unpublished row and 0 when none` passes
+
+**Tests**: integration
+**Gate**: API full
+
+---
+
+#### Phase 5: Span attributes and the room metric
+
+### T22: Drop account and agent ids from identity and agents spans
+
+**What**: the use-case spans of `identity` and `agents` stop carrying `accountId`/`agentId`.
+**Where**: `apps/api/src/modules/agents/application/record-heartbeat.ts`
+**Depends on**: T21
+**Reuses**: the span list of the recon (AD-091); `withSpan`
+**Requirement**: OBS-30
+
+**Done when**:
+
+- [x] `identity.get-me`, `agents.record-heartbeat`, `agents.get-my-agent`, `agents.account-of-agent`, `agents.current-agent-of` open spans without an id attribute; span names unchanged
+- [x] test `no span of identity or agents carries an account or agent id` passes with an in-memory exporter
+
+**Tests**: unit
+**Gate**: API unit
+
+---
+
+### T23: Rename and drop in the lobby and matchmaking spans
+
+**What**: `lobby.record-observation` uses `d2r.room.id`; `matchmaking.form-test-match`, `lobby.get-current-room` and `lobby.get-assignment` drop their ids.
+**Where**: `apps/api/src/modules/lobby-room/application/lobby-room-use-cases.ts`
+**Depends on**: T22
+**Reuses**: T2 constants
+**Requirement**: OBS-30
+
+**Done when**:
+
+- [x] `d2r.room.id` replaces `roomId`; `accountId` and `agentId` are gone from the lobby spans and from `form-test-match.ts`; span names unchanged (AWS-35 tests stay green)
+- [x] test `no span of lobby or matchmaking carries an account or agent id and the room id uses the d2r constant` passes
+
+**Tests**: unit
+**Gate**: API unit
+
+---
+
+### T24: The clock and the opening instant in the lobby
+
+**What**: `LobbyRoomDeps` gains `clock` and the repository port gains `openedAt(roomId)`.
+**Where**: `apps/api/src/modules/lobby-room/application/ports.ts`
+**Depends on**: T23
+**Reuses**: `lobby.rooms.created_at`; `InMemoryLobbyRoomRepository`; `buildApp` wiring; test factories
+**Requirement**: OBS-34
+
+**Done when**:
+
+- [x] `openedAt` is on the port, the Postgres repository and the in-memory fake; `buildApp` and every test factory pass `clock`; the domain still holds no timestamp
+- [x] test `openedAt returns the instant the room opened` (unit, fake) and its integration counterpart pass
+
+**Tests**: integration
+**Gate**: API full
+
+---
+
+### T25: The `room.stage_duration` metric
+
+**What**: `RoomMetrics` port, its OpenTelemetry adapter and its fake; `lobby.record-observation` records it once when a room becomes `created`.
+**Where**: `apps/api/src/modules/lobby-room/adapters/telemetry/otel-room-metrics.ts`
+**Depends on**: T24
+**Reuses**: T2 `INSTRUMENT_NAMES`; T8 views; the application-port pattern
+**Requirement**: OBS-34
+
+**Done when**:
+
+- [x] the use case calls `stageLeft('awaiting_host', difficulty, mode, seconds)` once, in the `created` branch, with `clock.now() - openedAt`; a repeated sighting records nothing
+- [x] tests `records room.stage_duration once with the seconds since the room opened` (application, `FakeClock`) and `the adapter records the histogram with bounded attributes` pass
+
+**Tests**: unit
+**Gate**: API unit
+
+---
+
+#### Phase 6: The relay building blocks
+
+### T26: The relay limiter
+
+**What**: `RelayLimiter` with separate principal and address maps, caps, overflow bucket, sweep and mapped-IPv4 handling.
+**Where**: `apps/api/src/platform/http/relay-limiter.ts`
+**Depends on**: T25
+**Reuses**: `rateLimitKey` logic (copied), `scheduler.every`
+**Requirement**: OBS-14
+
+**Done when**:
+
+- [x] sliding window per key; principals capped at 50 000 (fail closed for a new key only), addresses at 10 000 with one overflow bucket for credential-less callers; an unparseable address maps to one fixed bucket; `::ffff:a.b.c.d` keys as its IPv4 string; swept every 30 s
+- [x] tests `counts credential-less requests per address and refuses the 121st`, `an address cap overflow never blocks a principal`, `an unparseable address uses one bucket`, `an IPv4-mapped IPv6 address keys as IPv4`, `sweeps expired keys` pass
+
+**Tests**: unit
+**Gate**: API unit
+
+---
+
+### T27: The egress budgets
+
+**What**: per-account and relay-wide byte and request counters (minute and UTC day), with refunds.
+**Where**: `apps/api/src/platform/http/relay-budget.ts`
+**Depends on**: T26
+**Reuses**: the injected `Clock`; T26 window helper
+**Requirement**: OBS-14
+
+**Done when**:
+
+- [x] per account: 60 requests, 2 MiB a minute, 2 MiB a UTC day; relay-wide: 4 MiB a minute, 16 MiB a UTC day; an agent counts as its account; bytes are charged as they stream; a refund returns bytes of a refused request or a dropped forward; a refusal carries the `Retry-After` of its window
+- [x] tests `refuses the sixty-first request in a minute`, `an agent and its account share one budget`, `refuses past the daily relay allowance until midnight UTC`, `refunds bytes of a dropped forward` pass with `FakeClock`
+
+**Tests**: unit
+**Gate**: API unit
+
+---
+
+### T28: `beforeLookup` and `throttled` on `authenticateAgent`
+
+**What**: the use case takes an optional `beforeLookup` called only on a cache miss; the public port and its callers know `throttled`.
+**Where**: `apps/api/src/modules/agents/application/authenticate-agent.ts`
+**Depends on**: T27
+**Reuses**: `agents/index.ts` `AgentsPort`; the in-memory fake; `guards.ts` and `stream-hub.ts` callers
+**Requirement**: OBS-14
+
+**Done when**:
+
+- [x] a cache hit never calls `beforeLookup`; a miss calls it, and `false` returns the error `throttled` without reading the repository; `AgentsPort.authenticateAgent(token, opts?)` widens its error to `'unauthenticated' | 'throttled'`; the guards and the hub still answer `401` for `unauthenticated` and treat `throttled` as defined in T29
+- [x] tests `a cache hit does not call beforeLookup`, `a miss with beforeLookup false returns throttled without a repository call`, `a miss with beforeLookup true authenticates` pass
+
+**Tests**: unit
+**Gate**: API unit
+
+---
+
+### T29: The relay guard and the origin-only check
+
+**What**: `requireAgentOrSite` selects the bearer or cookie path, takes a lookup token on a miss and checks the origin exactly.
+**Where**: `apps/api/src/platform/http/guards.ts`
+**Depends on**: T28
+**Reuses**: `bearerToken`, `sessionCookieValue`, `requireSameOrigin` (not reused: it needs JSON); the lookup bucket from T26
+**Requirement**: OBS-11, OBS-17
+
+**Done when**:
+
+- [x] `Authorization` present selects the bearer path and never the cookie; an empty cookie is credential-less; a credential that misses the cache takes a token of the lookup bucket (10 a second, 3 at once) and `429` with `Retry-After: 1` when empty; a valid session whose `Origin` is missing or not exactly the site origin is `403`; `requireAgentVersion` is not applied (AD-099)
+- [x] tests `no credential gets 401`, `an empty session cookie is credential-less`, `a missing, wrong, slash-suffixed or subdomain origin gets 403`, `an empty lookup bucket gets 429 without a repository call` pass
+
+**Tests**: unit
+**Gate**: API unit
+
+---
+
+### T30: The forwarder
+
+**What**: `Forwarder` posts the body unchanged to the backend in the background with a timeout, no redirect, bounded and with no leak.
+**Where**: `apps/api/src/platform/http/relay-forwarder.ts`
+**Depends on**: T29
+**Reuses**: `fetch`; the injected logger
+**Requirement**: OBS-15, OBS-16
+
+**Done when**:
+
+- [x] `fetch(endpoint + '/v1/traces', { redirect: 'manual', signal: AbortSignal.timeout(5000), headers: content-type + credentials })`; a failure or redirect logs one warning without body, headers or credentials and never retries; the response body is cancelled; at most 32 forwards and 8 MiB in flight, a further one dropped with a warning; no endpoint means drop
+- [x] tests `forwards the body unchanged with the backend credentials`, `a redirect is refused and a failure is logged once without credentials`, `drops the 33rd concurrent forward`, `cancels the backend response body` pass with a fake `fetch`
+
+**Tests**: unit
+**Gate**: API unit
+
+---
+
+#### Phase 7: The relay route
+
+### T31: The relay plugin
+
+**What**: `POST /v1/telemetry/traces` is registered with scoped parsers, the check order in `onRequest`, streamed-byte charging and the empty `202`.
+**Where**: `apps/api/src/platform/http/telemetry-relay.ts`
+**Depends on**: T30
+**Reuses**: T26 to T30; `answerError` (moved to `platform/http/answer-error.ts` so platform tests can use it); `buildApp` registration; the 4 KB `bodyLimit` pattern of the lobby routes; `ErrorResponse`; `openapi.int.test.ts` `ROUTES`; `pnpm contracts:openapi`
+**Requirement**: OBS-10, OBS-13, OBS-20, OBS-42
+
+**Done when**:
+
+- [x] order: credential-less address bucket (`429` when over 120, else `401`) or authentication (failures counted); request count; budgets already exhausted; content type (`application/x-protobuf`, `application/json`) and `content-encoding` absent or `identity` (`415`); declared length over 1 MiB (`413`); a `preParsing` hook charges streamed bytes and a body over 1 MiB fails with `413`; a 10 s body-read timeout; reply `202` with no content, then forward
+- [x] the route is registered in `buildApp` (settings from the telemetry handle and config); the Zod response schemas for `202`, `401`, `403`, `413`, `415`, `429` are declared in `packages/contracts/src/http/platform.ts`; `pnpm contracts:openapi` is run through the wrapper under step T31 and the regenerated `openapi.json` is committed; `/v1/telemetry/traces` is added to `ROUTES`; `pnpm contracts:check` is clean
+- [x] tests `a valid batch is answered 202 with no content and forwarded once`, `a body of 1 MiB plus one byte gets 413 and nothing is forwarded`, `content-encoding other than identity gets 415` in `telemetry-relay.int.test.ts` pass
+
+**Tests**: integration
+**Gate**: API full
+
+---
+
+### T32: The relay's contract is pinned
+
+**What**: a test pins what `openapi.json` says about the relay: the path and method, exactly the six responses, no body on `202`, the shared error shape on the others, no request schema.
+**Where**: `apps/api/src/main/__tests__/openapi.int.test.ts`
+**Depends on**: T31
+**Reuses**: `ErrorResponse`; the committed `openapi.json` produced in T31
+**Requirement**: OBS-42
+
+**Done when**:
+
+- [x] test `openapi documents the telemetry relay` asserts `post /v1/telemetry/traces` with the responses `202`, `401`, `403`, `413`, `415`, `429` and nothing else, an empty `202`, and no `requestBody` schema (the OTLP body is a passthrough)
+- [x] `pnpm contracts:check` is clean
+
+**Tests**: integration
+**Gate**: API full
+
+---
+
+### T33: The relay against a fake backend
+
+**What**: integration tests cover every status, the check order table and the dead-backend runs.
+**Where**: `apps/api/src/platform/http/telemetry-relay-order.int.test.ts`
+**Depends on**: T32
+**Reuses**: `apps/api/test/support/relay-app.ts` (a bare Fastify app with the real plugin, guards, limiter, budget, forwarder and fake Identity and Agents ports) and `apps/api/test/support/fake-telemetry-backend.ts`, both from T31; the relay tests do not import `main/` (rule `nobody-imports-main`)
+**Requirement**: OBS-11, OBS-14, OBS-15, OBS-16, OBS-37
+
+**Done when**:
+
+- [x] table rows: a valid agent gets `202` while the address bucket is full; a credential-less caller at 121 a minute gets `429` before `401`; a failed credential over the limit gets `401`; an empty lookup bucket gets `429` without a repository call; wrong origin `403` before rate; rate before type; type before size
+- [x] the backend answering headers and a body leaves the relay response and the logs free of them and of the credentials; the API suite run against a closed port answers every request as with a reachable backend and logs at most one export error a minute
+- [x] tests `the relay applies its checks in order`, `a valid agent is accepted while the address bucket is full`, `returns no backend header or body and logs no credentials`, `answers identically against a closed port` pass
+
+**Tests**: integration
+**Gate**: API full
+
+---
+
+#### Phase 8: The site
+
+### T34: `tracestate` through the Pages proxy
+
+**What**: the proxy forwards `tracestate` (dropped when over 512 bytes) with `traceparent`.
+**Where**: `apps/web/functions/api/[[path]].ts`
+**Depends on**: T33
+**Reuses**: `ALLOWED_REQUEST_HEADERS`; `api-proxy.test.ts` `recordingUpstream`
+**Requirement**: OBS-09
+
+**Done when**:
+
+- [x] `tracestate` is on the allow-list; a value over 512 bytes is dropped; `/api/v1/telemetry/traces` still matches the path pattern
+- [x] tests `forwards traceparent and tracestate to the API` and `drops an oversized tracestate` pass
+
+**Tests**: unit
+**Gate**: Web
+
+---
+
+### T35: The web SDK and the tracing fetcher
+
+**What**: `startWebTelemetry` and `tracingFetcher` in the telemetry package's web entry.
+**Where**: `packages/telemetry/src/web-sdk.ts`
+**Depends on**: T34
+**Reuses**: T5 sampler; T7 redacting exporter; `sdk-trace-web`, OTLP JSON exporter
+**Requirement**: OBS-04, OBS-21, OBS-44
+
+**Done when**:
+
+- [x] `startWebTelemetry({ enabled, ratio, relayPath, serviceVersion, environment })` creates the provider and a batch processor (5 s, 100 spans a batch, queue 256) only when `enabled`; disabled installs nothing; the exporter targets `/api/v1/telemetry/traces`
+- [x] `tracingFetcher(base)` opens a client span, sets `url.path` without the query and injects `traceparent`; `tracedAction` and `navigationSpan` exist
+- [x] tests `no exporter is created unless enabled`, `exporter targets the relay path`, `tracing fetcher sends traceparent and records the path without the query` pass
+
+**Tests**: unit
+**Gate**: Telemetry
+
+---
+
+### T36: Wire the site
+
+**What**: the site starts telemetry, builds its client with the tracing fetcher and wraps "Start test match" in an action span.
+**Where**: `apps/web/src/main.tsx`
+**Depends on**: T35
+**Reuses**: `apps/web/src/shared/telemetry.ts` (new), `app/App.tsx` `defaultClient`, `StartTestMatchButton.tsx`, new `vite-env.d.ts`
+**Requirement**: OBS-04, OBS-44
+
+**Done when**:
+
+- [x] `VITE_TELEMETRY` and `VITE_TELEMETRY_RATIO` are typed in `src/vite-env.d.ts`; telemetry starts before render only when `VITE_TELEMETRY === 'on'`; the button runs `client.matchFormed()` inside `tracedAction('web.action.start-test-match', …)`; one `web.navigation` span at start and on `popstate`
+- [x] tests `the navigation span holds the path alone` and `the start test match click sends a traceparent` pass; the locale parity test and `no-literal-string` stay green
+
+**Tests**: unit
+**Gate**: Web
+
+---
+
+### T37: The flags stay off in production
+
+**What**: a harness test asserts the release and deploy workflows never set the telemetry flags.
+**Where**: `scripts/test/telemetry-flags.test.mjs`
+**Depends on**: T36
+**Reuses**: `deploy-web.yml`, `release-agent.yml`, the `scripts/test/deploy-workflows.test.mjs` pattern
+**Requirement**: OBS-44
+
+**Done when**:
+
+- [x] test `release and deploy workflows leave VITE_TELEMETRY and D2RMM_TELEMETRY unset` passes and fails on a fixture workflow that sets one
+- [ ] the e2e site build setting is only in the acceptance support code (T51)
+
+**Tests**: unit
+**Gate**: Harness
+
+---
+
+#### Phase 9: The agent exporter
+
+### T38: The bounded queue
+
+**What**: `BoundedQueue<T>` of capacity 2048 that drops the oldest.
+**Where**: `apps/agent/src-tauri/adapters/src/telemetry/queue.rs`
+**Depends on**: T37
+**Reuses**: `telemetry.rs` renamed to `telemetry/mod.rs`
+**Requirement**: OBS-18
+
+**Done when**:
+
+- [x] `telemetry.rs` becomes `telemetry/mod.rs` unchanged in behaviour; `push` drops the oldest at capacity; `drain(max)` returns oldest first
+- [x] test `a full queue of 2048 drops the oldest span` and `drain returns the oldest first` pass; the queue is added to `.cargo/mutants.toml`
+
+**Tests**: unit
+**Gate**: Rust adapters
+
+---
+
+### T39: The relay client and its outcomes
+
+**What**: `outcome_of`, `HeaderSource` and `RelayHttpClient` over `reqwest` without redirects.
+**Where**: `apps/agent/src-tauri/adapters/src/telemetry/relay_client.rs`
+**Depends on**: T38
+**Reuses**: `http/client.rs` builder style; `opentelemetry_http::HttpClient`
+**Requirement**: OBS-19
+
+**Done when**:
+
+- [x] `outcome_of(status, retry_after, now)` maps `403/413/415` to drop, `401` to drop and stop while the token hash equals the refused one, `429` to wait `Retry-After` (60 s absent, 1 h cap); the client is built with `redirect::Policy::none()` and rustls, adds `Authorization` and `X-Agent-Version` from the `HeaderSource` per request and never logs the token
+- [x] tests `401 403 413 415 drop the batch`, `401 stops export until the token changes`, `429 waits for retry-after capped at one hour`, `429 without retry-after waits sixty seconds` pass; the module is added to `.cargo/mutants.toml`
+
+**Tests**: unit
+**Gate**: Rust adapters
+
+---
+
+### T40: Sanitize the agent's spans
+
+**What**: `SanitizingExporter` drops events, links and status text, keeps exact attribute keys and truncates strings.
+**Where**: `apps/agent/src-tauri/adapters/src/telemetry/sanitize.rs`
+**Depends on**: T39
+**Reuses**: design § Agent exporter
+**Requirement**: OBS-28, OBS-30
+
+**Done when**:
+
+- [x] only the exact keys of the design survive; strings are cut at 128 characters; span names must start with `agent.`; the resource holds only `service.*`, `deployment.environment`, `d2r.agent.version`
+- [x] test `drops window title, process path, screen text, urls, events with paths and status text` passes; the module is added to `.cargo/mutants.toml`
+
+**Tests**: unit
+**Gate**: Rust adapters
+
+---
+
+### T41: Init, resource, sampler and the log gate
+
+**What**: `init(mode, export)` returns a guard, builds the resource and the parent-based ratio sampler, and `LogGate` limits export errors.
+**Where**: `apps/agent/src-tauri/adapters/src/telemetry/mod.rs`
+**Depends on**: T40
+**Reuses**: T5 vector file; existing `Mode`, `level_filter`, `traceparent_for`
+**Requirement**: OBS-32, OBS-43
+
+**Done when**:
+
+- [x] the provider carries `service.name=d2rmm-agent`, version, environment and `d2r.agent.version`; the sampler decisions match `packages/telemetry/test-vectors/sampler.json`; `LogGate` lets one export error a minute through; `TelemetryGuard::shutdown()` flushes
+- [x] tests `agent resource carries the agent version`, `sampler decisions match the shared vector`, `log gate allows one error a minute` pass
+
+**Tests**: unit
+**Gate**: Rust adapters
+
+---
+
+### T42: The OTLP crates and the architecture rules
+
+**What**: the adapters manifest gains the OTLP crates on rustls; the architecture test forbids them outside adapters.
+**Where**: `apps/agent/src-tauri/adapters/Cargo.toml`
+**Depends on**: T41
+**Reuses**: `scripts/test/agent-architecture.test.mjs` (core and domain deny lists); `deny.toml` (read only)
+**Requirement**: OBS-22
+
+**Done when**:
+
+- [x] `opentelemetry-otlp` (`http-proto`, `trace`, `reqwest-client`) and `opentelemetry-http` at the locked 0.33 line, no `native-tls`; `Cargo.lock` committed; `cargo deny check` passes without editing `deny.toml` (a failure stops the task as a maintainer decision)
+- [x] test `domain and core manifests hold no tracing or OpenTelemetry crate and the exporter lives in adapters` passes and its fixture fails when `opentelemetry-otlp` is added to core
+
+**Tests**: unit
+**Gate**: Harness
+
+---
+
+### T43: The drop-oldest processor and the export task
+
+**What**: `DropOldestProcessor` over the queue and a spawned export task that never blocks a caller.
+**Where**: `apps/agent/src-tauri/adapters/src/telemetry/export.rs`
+**Depends on**: T42
+**Reuses**: T38 to T41; `tokio::spawn` as in the core runtime
+**Requirement**: OBS-18, OBS-19, OBS-38
+
+**Done when**:
+
+- [x] `on_end` never awaits; the task exports every 5 s in batches of at most 256 through the sanitizer and the relay client; an unreachable relay never stops a loop and logs once a minute
+- [x] tests `a slow relay never delays a caller` and `the loops keep running when the relay is unreachable` pass (paused tokio time, fake relay)
+
+**Tests**: unit
+**Gate**: Rust adapters
+
+---
+
+#### Phase 10: The agent example and its guards
+
+### T44: The `fixture-read` feature on the adapters crate and its guards
+
+**What**: the adapters crate gets a `fixture-read` feature (`dep:image`, never default) and the source rules cover it.
+**Where**: `apps/agent/src-tauri/adapters/Cargo.toml`
+**Depends on**: T43
+**Reuses**: `scripts/test/agent-source-rules.test.mjs` `fixtureReadViolations`; `release-agent.yml` guard
+**Requirement**: OBS-24
+
+**Done when**:
+
+- [x] both manifests carry a comment naming the other `fixture-read`; the default-feature rule reads both manifests and a new fixture manifest with the feature in `default` makes it fail
+- [x] tests `fixture-read is never a default feature in either manifest`, `cargo tree for the app crate holds no fixture-read`, `release-agent.yml builds no example and enables no all-features` pass; `cargo deny check` passes with `dep:image`
+
+**Tests**: unit
+**Gate**: Harness
+
+---
+
+### T45: The loopback rule and `HeaderSource` for the example
+
+**What**: a Rust test pins that `AllowLoopbackHttp::Yes` accepts literal loopback hosts only.
+**Where**: `apps/agent/src-tauri/adapters/src/config.rs`
+**Depends on**: T44
+**Reuses**: `ApiBase`, `AllowLoopbackHttp`
+**Requirement**: OBS-24
+
+**Done when**:
+
+- [x] the rule accepts `127.0.0.0/8`, `::1` and `localhost` over http and refuses any other host; `AllowLoopbackHttp::Yes` is constructed only in the app crate's debug path and in the example
+- [x] test `loopback http is accepted for literal loopback hosts only` passes
+
+**Tests**: unit
+**Gate**: Rust adapters
+
+---
+
+### T46: The headless example
+
+**What**: `examples/headless.rs` drives the real core, gateway and exporter with a sidecar-text reader, over stdin and stdout.
+**Where**: `apps/agent/src-tauri/adapters/examples/headless.rs`
+**Depends on**: T45
+**Reuses**: `Runtime::start`, `Handle::read_once`, `HttpGateway`, the adapters test fakes for ports the example fakes; design § Agent exporter
+**Requirement**: OBS-24
+
+**Done when**:
+
+- [x] `required-features = ["fixture-read"]`; arguments `--api-base`, `--read-fixture <png>`; an in-memory token store, a process source that reports the game open, a `TextReader` returning the sidecar `<png>.txt`; export config always on with ratio 1; stdout lines `code`, `paired`, `assignment`, `observed`; one `read` line on stdin calls `read_once` once for the held room
+- [x] test `the example prints its lines and reads the sidecar text once` runs the example against a fake API in `adapters/tests/headless.rs` (feature `fixture-read`) and passes; `cargo build --release -p d2rmm-agent-adapters` builds no example (the test lives in `adapters/examples/headless.rs` under the orchestrator's ruling; `[[example]] required-features` keeps `cargo build` from building it)
+
+**Tests**: integration
+**Gate**: Rust adapters
+
+---
+
+#### Phase 11: Local backend and dashboard
+
+### T47: The compose file and the scripts
+
+**What**: `infra/observability/compose.yaml` and the `obs:up`/`obs:down` scripts.
+**Where**: `infra/observability/compose.yaml`
+**Depends on**: T46
+**Reuses**: design § Local backend
+**Requirement**: OBS-23
+
+**Done when**:
+
+- [x] the image `grafana/otel-lgtm` pinned by tag and digest (read from `docker pull`, recorded in `## Handoff`); ports bound to `127.0.0.1` (3000, 4317, 4318, 3200); the dashboards mount and a provisioning provider file; `package.json` defines `obs:up` and `obs:down`
+- [x] tests `compose pins the image tag and digest and binds loopback` and `package.json defines obs:up and obs:down` in `scripts/test/observability-infra.test.mjs` pass
+
+**Tests**: unit
+**Gate**: Harness
+
+---
+
+### T48: The skeleton dashboard
+
+**What**: `skeleton.json` with the request-rate, error-rate, duration, `outbox_lag` and `sse_connections` panels, provisioned by compose.
+**Where**: `infra/observability/dashboards/skeleton.json`
+**Depends on**: T47
+**Reuses**: the Prometheus metric names of `INSTRUMENT_NAMES`
+**Requirement**: OBS-35
+
+**Done when**:
+
+- [x] the five panels exist, filter on `service_name="d2rmm-api"` and carry no secret
+- [x] tests `the dashboard holds the listed panels` and `compose provisions the dashboard` pass
+
+**Tests**: unit
+**Gate**: Harness
+
+---
+
+### T49: Dashboard and code agree
+
+**What**: a test compares the metrics every panel queries with the instruments the code defines.
+**Where**: `packages/telemetry/src/dashboard-metrics.test.ts`
+**Depends on**: T48
+**Reuses**: `INSTRUMENT_NAMES`; the dashboard JSON read as text
+**Requirement**: OBS-36
+
+**Done when**:
+
+- [x] every metric name in a panel query maps to an entry of `INSTRUMENT_NAMES` (with the Prometheus name mapping documented in the test); a fixture dashboard with an undefined metric fails
+- [x] test `every dashboard metric is defined by the code` passes
+
+**Tests**: unit
+**Gate**: Telemetry
+
+---
+
+#### Phase 12: Acceptance and close
+
+### T50: The backend helper and the Docker failure
+
+**What**: `startTelemetryBackend` starts `otel-lgtm` with Testcontainers and names Docker when it is missing.
+**Where**: `tests/acceptance/support/telemetry-backend.ts` (and `tests/acceptance/package.json` for `vitest`)
+**Depends on**: T49
+**Reuses**: `global-setup.ts` Testcontainers use; the image line of `compose.yaml`
+**Requirement**: OBS-25
+
+**Done when**:
+
+- [x] the helper parses the image line, waits for Tempo and returns its query URL and OTLP URL; with no Docker socket it throws an error whose message names Docker
+- [x] `vitest` is added as a devDependency of `@d2rmm/acceptance` with a `test:unit` script and a minimal config that runs only `support/**/*.test.ts` (the package had none; Playwright keeps running the scenarios); the lockfile is committed
+- [x] test `fails naming Docker when the socket is absent` passes (unit, no Docker needed)
+
+**Tests**: unit
+**Gate**: Acceptance support
+
+---
+
+### T51: The traced stack and the fake backend
+
+**What**: `Stack.startTracedStack({ otlpEndpoint })` and `FakeTelemetryBackend`, with the site built for telemetry.
+**Where**: `tests/acceptance/support/stack.ts`
+**Depends on**: T50
+**Reuses**: `launch`, `freePort`, `waitFor`, `apiEnv`; the Pages dev server spawn
+**Requirement**: OBS-24
+
+**Done when**:
+
+- [x] the traced stack starts a staging API with the preload, `OTEL_EXPORTER_OTLP_ENDPOINT`, sampler `1.0`, metric interval 5 s, and a Pages dev server on a site built with `VITE_TELEMETRY=on` and ratio `1`; `apiEnv` passes the new variables; `FakeTelemetryBackend` records requests and can refuse, hang or answer an error
+- [x] test `the fake telemetry backend records requests and can refuse, hang or answer an error` passes; the clause "the existing acceptance scenarios still pass with the site built with telemetry on" is proved in T54 and T56, where the steps exist and `bddgen` can run
+
+**Tests**: unit
+**Gate**: Acceptance support
+
+---
+
+### T52: Read traces back and scan for leaks
+
+**What**: `trace-reader.ts` polls Tempo and checks edges; the scan walks everything exported for forbidden content.
+**Where**: `tests/acceptance/support/trace-reader.ts`
+**Depends on**: T51
+**Reuses**: `forbidden-keys.ts` (copy of the package list); Tempo HTTP API
+**Requirement**: OBS-24, OBS-28
+
+**Done when**:
+
+- [x] `readTrace(traceId)` polls for 30 s and returns names and parent edges; `assertTraceA` and `assertTraceB` check the edges of OBS-08 and OBS-12; both trace ids are printed; the scan covers spans, metrics and logs for forbidden keys, query strings and the player name
+- [x] tests `prints both trace ids` and `the forbidden key lists of the acceptance code and the telemetry package are equal` (the latter in `packages/telemetry`) pass
+
+**Tests**: unit
+**Gate**: Acceptance support
+
+---
+
+### T53: The headless agent helper and the trace steps
+
+**What**: `headless-agent.ts` and `observability.steps.ts` run the two `@slow` trace scenarios.
+**Where**: `tests/acceptance/steps/observability.steps.ts`
+**Depends on**: T52
+**Reuses**: `World`, the sign-in and test-match steps; `cargo run --example headless --features fixture-read`
+**Requirement**: OBS-08, OBS-12, OBS-24
+
+**Done when**:
+
+- [x] the steps for the scenarios "A test match leaves one trace…" and "The agent's observation leaves its own trace…" exist; the helper builds the example once, parses its stdout, writes the PNG and sidecar text and sends `read`
+- [x] the helper and the steps typecheck and their support tests pass; the two scenarios run in T54's gate, once every step of the feature exists (`bddgen` cannot generate before): trace A holds the site action, the request, a `pg` span, `platform.outbox.relay` and `platform.stream.deliver`; trace B has the agent span as parent of the API spans of its heartbeat and observation
+
+**Tests**: acceptance
+**Gate**: Acceptance support
+
+---
+
+### T54: The relay steps
+
+**What**: steps for the relay scenarios of `acceptance.feature`.
+**Where**: `tests/acceptance/steps/telemetry-relay.steps.ts`
+**Depends on**: T53
+**Reuses**: `SimulatedAgent`, `World`, `FakeTelemetryBackend`
+**Requirement**: OBS-10, OBS-11, OBS-13, OBS-14, OBS-15, OBS-17, OBS-20
+
+**Done when**:
+
+- [x] every step of the relay scenarios exists (`missingSteps: 'fail-on-gen'` is clean, which closes the `bddgen` clause left open in T14, whose box is ticked here); the outline rows and the rate, flood, address and backend-failure scenarios pass as written
+- [ ] the gate runs every scenario of the feature, trace scenarios included (`playwright test --grep "@NFR-09"`), and the existing acceptance scenarios still pass with the site built with telemetry on (`pnpm test:acceptance` green once, recorded in `## Handoff`)
+- [ ] `pnpm acceptance:check` is clean
+
+**Tests**: acceptance
+**Gate**: Acceptance (`pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@NFR-09"`)
+
+---
+
+### T55: CI builds the example and the telemetry site
+
+**What**: the `integration` job installs a Rust toolchain, builds the headless example once and builds the site for the telemetry scenarios.
+**Where**: `.github/workflows/ci.yml`
+**Depends on**: T54
+**Reuses**: the `agent` job's toolchain setup; Docker on `ubuntu-latest`
+**Requirement**: OBS-24
+
+**Done when**:
+
+- [x] the job adds a pinned toolchain step with a `target` cache and the example build; no step is removed or loosened; every `uses:` added is SHA-pinned
+- [x] test `the integration job builds the headless example` in `scripts/test/ci-workflow.test.mjs` passes
+
+**Tests**: unit
+**Gate**: Harness
+
+---
+
+### T56: The close
+
+**What**: the whole suite, the ratchet and the contract check pass together.
+**Where**: `.specs/features/observability-e2e/tasks.md`
+**Depends on**: T55
+**Reuses**: every gate; `.quality-baseline.json` (read only)
+**Requirement**: OBS-24
+
+**Done when**:
+
+- [x] Build gate, `pnpm test:acceptance`, `pnpm contracts:check`, `pnpm harness:gate` and `pnpm quality:gate` (which runs `harness:json`, `quality:reports`, `quality:collect` and `quality:ratchet --context pr --current reports/quality.json`, so the ratchet sees every metric) pass; `git diff phase/F0...HEAD -- .quality-baseline.json` is empty. (Replanned 2026-11-03: the bare `quality:collect && quality:ratchet` leaves the harness, arch, lint and skipped-test metrics without a source, and the ratchet reads an absent baseline metric as a regression.)
+- [x] the numbers are recorded in `## Handoff`
+
+**Tests**: none
+**Gate**: Build
+
+---
+
+## Checks
+
+**C1** - With an OTLP endpoint set, the API exports traces and metrics to it over OTLP/HTTP (OBS-01, AC 1)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/instrument.int.test.ts -t "exports traces and metrics to the configured endpoint"`
+
+**C2** - Both composition roots start and answer a health check with no OTLP endpoint (OBS-02, AC 2)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/roots.int.test.ts -t "both roots start with no OTLP endpoint and answer a health check"`
+
+**C3** - A `pg` span names the statement without parameter values and is a child of the server span (OBS-03, AC 3)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/instrument.int.test.ts -t "pg span names the statement without parameter values and is a child of the server span"`
+
+**C4** - The site sends `traceparent` on an API call and records the path without the query (OBS-04, AC 4)
+Proof: `pnpm --filter @d2rmm/telemetry exec vitest run src/web-sdk.test.ts -t "tracing fetcher sends traceparent and records the path without the query"`
+
+**C5** - The navigation span holds the path alone (OBS-04, AC 4)
+Proof: `pnpm --filter @d2rmm/web exec vitest run src -t "the navigation span holds the path alone"`
+
+**C6** - `append` stores the traceparent of the active span in the transaction (OBS-05, AC 5)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform/postgres/outbox.int.test.ts -t "append stores the traceparent of the active span in the transaction"`
+
+**C7** - The relay continues the stored context and the delivery is its child (OBS-06, AC 6)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform/outbox-relay.int.test.ts -t "continues the stored context and opens platform.outbox.relay as its child"`
+
+**C8** - The stream delivery span is a child of the outbox relay (OBS-06, AC 6)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform/stream-hub.int.test.ts -t "delivers inside a span that is a child of the outbox relay"`
+
+**C9** - A row with no trace context is published as a root span (OBS-07, AC 7)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform/outbox-relay.int.test.ts -t "publishes a row with no trace context as a root span"`
+
+**C10** - One trace holds the site action, the request, a `pg` span, the outbox relay and the stream delivery (OBS-08, AC 8)
+Proof: `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "A test match leaves one trace through the site"`
+
+**C11** - The proxy forwards `traceparent` and `tracestate` and drops an oversized `tracestate` (OBS-09, AC 9)
+Proof: `pnpm --filter @d2rmm/web exec vitest run functions -t "forwards traceparent and tracestate to the API"`
+
+**C12** - A valid batch is answered `202` with no content and forwarded unchanged with the backend credentials (OBS-10, AC 1)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform/http/telemetry-relay.int.test.ts -t "a valid batch is answered 202 with no content and forwarded once"`
+
+**C13** - A request with no credential gets `401` and nothing is forwarded (OBS-11, AC 2)
+Proof: `pnpm --filter @d2rmm/api exec vitest run src/platform/http/guards.test.ts -t "no credential gets 401"`
+
+**C14** - The agent's observation leaves its own trace, with the heartbeat and stream API spans as children of the agent's spans (OBS-12, AC 12)
+Proof: `pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "The agent's observation leaves its own trace"`
+
+**C15** - A body of 1 MiB plus one byte gets `413` and nothing is forwarded (OBS-13, AC 6)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform/http/telemetry-relay.int.test.ts -t "a body of 1 MiB plus one byte gets 413 and nothing is forwarded"`
+
+**C16** - The sixty-first request in a minute gets `429` and the sixtieth is accepted (OBS-14, AC 4)
+Proof: `pnpm --filter @d2rmm/api exec vitest run src/platform/http/relay-budget.test.ts -t "refuses the sixty-first request in a minute"`
+
+**C17** - The 121st credential-less request from one address in a minute gets `429` (OBS-14, AC 4)
+Proof: `pnpm --filter @d2rmm/api exec vitest run src/platform/http/relay-limiter.test.ts -t "counts credential-less requests per address and refuses the 121st"`
+
+**C18** - A valid agent is accepted while the address bucket is full (OBS-14, AC 4)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform/http/telemetry-relay-order.int.test.ts -t "a valid agent is accepted while the address bucket is full"`
+
+**C19** - A backend failure never changes the relay's `202` and logs one warning without the body (OBS-15, AC 8)
+Proof: `pnpm --filter @d2rmm/api exec vitest run src/platform/http/relay-forwarder.test.ts -t "a redirect is refused and a failure is logged once without credentials"`
+
+**C20** - The relay returns no backend header or body and no log or span holds the credentials (OBS-16, AC 9)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform/http/telemetry-relay-order.int.test.ts -t "returns no backend header or body and logs no credentials"`
+
+**C21** - A session whose origin is missing, wrong, slash-suffixed or a subdomain gets `403` (OBS-17, AC 3)
+Proof: `pnpm --filter @d2rmm/api exec vitest run src/platform/http/guards.test.ts -t "a missing, wrong, slash-suffixed or subdomain origin gets 403"`
+
+**C22** - A full queue of 2048 spans drops the oldest (OBS-18, AC 10)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(a_full_queue_of_2048_drops_the_oldest_span)'`
+
+**C23** - `401`, `403`, `413` and `415` drop the batch (OBS-19, AC 11)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(status_401_403_413_415_drop_the_batch)'`
+
+**C24** - `429` waits for `Retry-After`, capped at one hour (OBS-19, AC 11)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(status_429_waits_for_retry_after_capped_at_one_hour)'`
+
+**C25** - A slow relay never delays a caller (OBS-19, AC 11)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(a_slow_relay_never_delays_a_caller)'`
+
+**C26** - The relay checks the rate before the content type and the content type before the size (OBS-20, AC 5 and 7)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform/http/telemetry-relay-order.int.test.ts -t "the relay applies its checks in order"`
+
+**C27** - A content encoding other than `identity` gets `415` (OBS-20, AC 5)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform/http/telemetry-relay.int.test.ts -t "content-encoding other than identity gets 415"`
+
+**C28** - The site exporter targets the relay path and sends nothing unless enabled (OBS-21, AC 13)
+Proof: `pnpm --filter @d2rmm/telemetry exec vitest run src/web-sdk.test.ts -t "exporter targets the relay path"`
+
+**C29** - The domain and core manifests hold no OpenTelemetry crate and the exporter lives in adapters (OBS-22, AC 14)
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="domain and core manifests hold no tracing or OpenTelemetry crate and the exporter lives in adapters" scripts/test/agent-architecture.test.mjs`
+
+**C30** - The compose file pins the image tag and digest and `package.json` defines `obs:up` and `obs:down` (OBS-23, AC 1)
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="compose pins the image tag and digest and binds loopback" scripts/test/observability-infra.test.mjs`
+
+**C31** - The scripts `obs:up` and `obs:down` exist (OBS-23, AC 1)
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="package.json defines obs:up and obs:down" scripts/test/observability-infra.test.mjs`
+
+**C32** - The trace scenarios read both traces back from the backend and print their ids (OBS-24, AC 2 and 3)
+Proof: `pnpm --filter @d2rmm/acceptance exec vitest run support/trace-reader.test.ts -t "prints both trace ids"`
+
+**C33** - Without Docker the backend step fails naming Docker (OBS-25, AC 4)
+Proof: `pnpm --filter @d2rmm/acceptance exec vitest run support/telemetry-backend.test.ts -t "fails naming Docker when the socket is absent"`
+
+**C34** - A log line inside a span carries `trace_id` and `span_id`, none outside (OBS-26, AC 1)
+Proof: `pnpm --filter @d2rmm/api exec vitest run src/main/app.test.ts -t "log line inside a span carries trace_id and span_id and none outside"`
+
+**C35** - The API exports a log record with the trace id over OTLP (OBS-27, AC 2)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/instrument.int.test.ts -t "exports a log record with the trace id"`
+
+**C36** - Every forbidden key is stripped and the allowed keys stay (OBS-28, AC 3)
+Proof: `pnpm --filter @d2rmm/telemetry exec vitest run src/redact-attributes.test.ts -t "strips every forbidden key and keeps the allowed ones"`
+
+**C37** - Exception message and stacktrace are removed from span events (OBS-28, AC 3)
+Proof: `pnpm --filter @d2rmm/telemetry exec vitest run src/sdk/redacting-exporters.test.ts -t "removes exception message and stacktrace from span events"`
+
+**C38** - The query string and fragment are removed from URL attributes and the client address is dropped (OBS-29, AC 4)
+Proof: `pnpm --filter @d2rmm/telemetry exec vitest run src/redact-attributes.test.ts -t "removes the query string and the fragment from url attributes and drops the client address"`
+
+**C39** - The standardized `d2r.*` constants are exported (OBS-30, AC 5)
+Proof: `pnpm --filter @d2rmm/telemetry exec vitest run src/attributes.test.ts -t "exports the standardized d2r attribute constants"`
+
+**C40** - No lobby or matchmaking span carries an account or agent id (OBS-30, AC 5)
+Proof: `pnpm --filter @d2rmm/api exec vitest run src/modules/lobby-room/application/lobby-room-use-cases.test.ts -t "no span of lobby or matchmaking carries an account or agent id and the room id uses the d2r constant"`
+
+**C41** - Metric attributes are limited to the bounded sets (OBS-31, AC 6)
+Proof: `pnpm --filter @d2rmm/telemetry exec vitest run src/sdk/views.test.ts -t "metric attributes are limited to the bounded sets"`
+
+**C42** - Every exported resource carries service name, version and environment (OBS-32, AC 7)
+Proof: `pnpm --filter @d2rmm/telemetry exec vitest run src/sdk/resource.test.ts -t "carries service name, version and environment"`
+
+**C43** - The agent's resource carries `d2r.agent.version` (OBS-32, AC 7)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(agent_resource_carries_the_agent_version)'`
+
+**C44** - Request duration and body size are recorded by route template and status class (OBS-33, AC 1)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform/http/request-metrics.int.test.ts -t "records request duration and body size by route template and status class"`
+
+**C45** - `sse.connections` goes up and down with the connection (OBS-33, AC 1)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform/stream-hub.int.test.ts -t "sse.connections goes up and down with the connection"`
+
+**C46** - `outbox.lag` is the age of the oldest unpublished row and 0 when none (OBS-33, AC 1)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform/outbox-lag.int.test.ts -t "outbox.lag is the age of the oldest unpublished row and 0 when none"`
+
+**C47** - `room.stage_duration` is recorded once with the seconds since the room opened (OBS-34, AC 2)
+Proof: `pnpm --filter @d2rmm/api exec vitest run src/modules/lobby-room/application/lobby-room-use-cases.test.ts -t "records room.stage_duration once with the seconds since the room opened"`
+
+**C48** - The dashboard holds the listed panels (OBS-35, AC 3)
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="the dashboard holds the listed panels" scripts/test/observability-infra.test.mjs`
+
+**C49** - Compose provisions the dashboard (OBS-35, AC 3)
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="compose provisions the dashboard" scripts/test/observability-infra.test.mjs`
+
+**C50** - Every metric a dashboard panel queries is defined by the code (OBS-36, AC 4)
+Proof: `pnpm --filter @d2rmm/telemetry exec vitest run src/dashboard-metrics.test.ts -t "every dashboard metric is defined by the code"`
+
+**C51** - Against a closed port every request is answered as with a reachable backend and at most one export error a minute is logged (OBS-37, AC 1)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/platform/http/telemetry-relay-order.int.test.ts -t "answers identically against a closed port"`
+
+**C52** - The agent keeps its loops running when the relay is unreachable (OBS-38, AC 2)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(the_loops_keep_running_when_the_relay_is_unreachable)'`
+
+**C53** - `process.env` in the telemetry package is a lint error (OBS-39, AC 3)
+Proof: `pnpm --filter @d2rmm/config exec vitest run test/rules.test.ts -t "reports process.env in the telemetry package"`
+
+**C54** - `.env.example` lists every `OTEL_*` variable the config reads (OBS-40, AC 4)
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern=".env.example lists every OTEL variable the config reads" scripts/test/env-example.test.mjs`
+
+**C55** - An application file importing the telemetry node entry fails the architecture rule (OBS-41, AC 5)
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="an application file importing the telemetry node entry fails" scripts/test/telemetry-rules.test.mjs`
+
+**C56** - `openapi.json` documents `/v1/telemetry/traces` (OBS-42, AC 6)
+Proof: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/openapi.int.test.ts -t "openapi documents the telemetry relay"`
+
+**C57** - The sampler takes the ratio from the variable, `0.1` when unset, and a local child follows its parent (OBS-43, AC 7)
+Proof: `pnpm --filter @d2rmm/telemetry exec vitest run src/sdk/sampler.test.ts -t "ratio from the variable and 0.1 when unset"`
+
+**C58** - A forced sampled flag cannot export more than the cap (OBS-43, AC 7; AD-100)
+Proof: `pnpm --filter @d2rmm/telemetry exec vitest run src/sdk/sampler.test.ts -t "a forced sampled flag cannot exceed the cap"`
+
+**C59** - The web build creates no exporter unless `VITE_TELEMETRY` is `on` (OBS-44, AC 8)
+Proof: `pnpm --filter @d2rmm/telemetry exec vitest run src/web-sdk.test.ts -t "no exporter is created unless enabled"`
+
+**C60** - The relay refuses without a repository call when the lookup bucket is empty and a cache hit never takes a token (OBS-11, OBS-14; AD-097)
+Proof: `pnpm --filter @d2rmm/api exec vitest run src/modules/agents/application/authenticate-agent.test.ts -t "a miss with beforeLookup false returns throttled without a repository call"`
+
+**C61** - The release and deploy workflows leave the telemetry flags unset (OBS-44; AD-098)
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="release and deploy workflows leave VITE_TELEMETRY and D2RMM_TELEMETRY unset" scripts/test/telemetry-flags.test.mjs`
+
+**C62** - The agent's sampler decisions match the shared vector (OBS-43; AD-100)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(sampler_decisions_match_the_shared_vector)'`
+
+**C63** - The agent drops window title, process path, screen text, URLs and event paths before export (OBS-28, OBS-30)
+Proof: `cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml --workspace -E 'test(drops_window_title_process_path_screen_text_urls_events_with_paths_and_status_text)'`
+
+**C64** - The `fixture-read` feature is never a default feature in either manifest (OBS-24; AD-096)
+Proof: `node --test --test-reporter=./scripts/lib/count-reporter.mjs --test-name-pattern="fixture-read is never a default feature in either manifest" scripts/test/agent-source-rules.test.mjs`
+
+---
+
+## Handoff
+
+The feature's live state, written as it happens - a compaction gives no warning.
+
+**Settled mid-build:** none
+**Dispatched:** execute-batch-1 to execute-batch-4 (T1 to T37) returned complete; execute-batch-5 (T38 to T46, feature-worker) at HEAD 29d7e92, not yet returned
+**Walked:** none
+**Carried into batch 6:** the headless example reads frames only at supported resolutions (1920x1080 today), so the acceptance helper (T53) writes a 1920x1080 PNG (copy `apps/agent/fixtures/automap-game-name.png`) next to its sidecar text. The example is started as a process only from Node (the agent's clippy forbids process spawning).
+
+**T46 clarification (orchestrator, 2026-11-02):** the example is `adapters/examples/headless.rs` with `[[example]] required-features = ["fixture-read"]` and `test = true`. Its composition is an in-process `async fn run(args, input, output)` that `main` wraps over real stdin and stdout; the test `the example prints its lines and reads the sidecar text once` lives in that file's `#[cfg(test)]` module and drives `run` against a fake API (axum is already a dev-dependency) with in-memory input and output. The test spawns no process (AGS-22: `clippy.toml` disallows `std::process::Command` and `tokio::process::Command`; no exception is added). The file `adapters/tests/headless.rs` and its `[[test]]` entry are removed. `cargo build --release -p d2rmm-agent-adapters` must still build no example. T46's gate (feature clippy `--all-targets --features fixture-read -D warnings` and nextest with the feature) has one attempt left: change nothing in a sensor and make sure the code compiles and is clippy-clean before spending it.
+
+**T41 and T43 clarification (orchestrator, 2026-11-02):** `telemetry::init` changes signature in T41 and its only caller is the Windows shell (`apps/agent/src-tauri/src/app.rs`, `cfg(windows)`), so T41 updates that call site in the same commit and T41's evidence includes `node scripts/agent/win-check.mjs` run through the wrapper under step T41 (one unit, one budget). T43 wires the shell's `ExportConfig`: `Some` only when the compile-time setting `option_env!("D2RMM_TELEMETRY") == Some("on")` (AD-098; a debug profile alone is not a decision), with a `HeaderSource` implemented in the app crate over its token store and reading the token per request; evidence is `win-check.mjs` under step T43. The plan listed no task for this wiring; it is part of OBS-18 and AD-098.
+
+**Carried into batch 2:** T9's `startNodeTelemetry` returns `tracerProvider`, `meterProvider`, `loggerProvider` and `shutdown` and registers no globals, so T13 registers them. The T11 cruiser fixture imports the telemetry node entry by relative path; T13 wires the real `@d2rmm/telemetry/node` import and must show `pnpm arch` (through the wrapper) still fails an `application` file that imports that specifier. T16 creates its histograms on the meter named `d2rmm` (`APP_METER_NAME` in `packages/telemetry/src/sdk/views.ts`). The samplers use the Rust ratio rule (AD-102).
+
+**T10 clarification (orchestrator, 2026-11-02):** `packages/config/test/presets.test.ts` pins the exact list of repository ESLint blocks with `toStrictEqual`, so T10's new block for `packages/telemetry/src/**` must be added to that list, verbatim and in the same position, in the same commit; equality stays strict and nothing is loosened. This is part of extending the sensor under `harness-edits` (the `apps/api` block was added the same way), not a replan. If the gate hook refuses that one edit, stop and report.
+
+**Blocked:** `gate:observability-e2e/T8` used its 3 attempts (exit 3). execute-batch-1 stopped at T8; T9 to T11 not started (T9 depends on T8). T1 to T7 are committed (see the commit log); T8 is not committed and its files are left in the worktree as they were at the third attempt. Last error (attempt 3): `views.test.ts:64`, `drops the HTTP instrumentation duration histogram and keeps the application one by route and status class` expected 1 metric named `http.server.request.duration`, got 2. Attempts: (1) `tsc` TS2375 on `attributesProcessors: ... | undefined` under `exactOptionalPropertyTypes`, fixed by typing the helper `IAttributesProcessor[]`; (2) the same length failure, no code change; (3) collected the exports before `provider.shutdown()` on the hypothesis that shutdown adds a second export, still 2. A standalone run of the same `boundedMetricViews()` and the same two recordings (outside the gate, deleted afterwards) exports one metric with one data point, so the cause is in the test run, not in the views module. Not yet explained; the orchestrator should replan T8's test.
+**Reset and resolved (execute-batch-1, after the maintainer's reset of `gate:observability-e2e/T8`):** T8 passed on its first attempt of the new budget with the views test collecting through a non-exporting `MetricReader` and `reader.collect()`; both assertions unchanged (commit 4a0bb06). T9 passed on its second attempt (commit df693b3; attempt 1 failed because `BatchSpanProcessor.forceFlush()` rejects with the export error, fixed in the test and the handle's `shutdown()`).
+**Blocked at T10 (execute-batch-1, plan conflict, not a retry exhaustion):** `packages/config/test/presets.test.ts`, test `eslint keeps every repository rule, ignore and override unchanged`, pins the exact list of repository blocks with `toStrictEqual`. T10 adds one block for `packages/telemetry/src/**` (the tightening the task asks for), so that expectation fails (attempt 1 of 3, gate `pnpm --filter @d2rmm/config test`). Passing it needs an edit to that expectation, which the rules forbid without a replan. The new fixture test `reports process.env in the telemetry package` passes with the block. Uncommitted in the worktree: `packages/config/eslint.mjs` (the block) and `packages/config/test/rules.test.ts` (the fixture test). T11 depends on T10 and did not start.
+**Batch plan (this line wins over the batch line of the Execution Plan, which mislabels phases):** whole phases packed to about 7 tasks. execute-batch-1 = Phases 1 and 2 (T1 to T11), execute-batch-2 = Phases 3 and 4 (T12 to T21), execute-batch-3 = Phases 5 and 6 (T22 to T30), execute-batch-4 = Phases 7 and 8 (T31 to T37), execute-batch-5 = Phases 9 and 10 (T38 to T46), execute-batch-6 = Phases 11 and 12 (T47 to T56). Batches 7 to 9 are kept for the Verifier's findings.
+**Blocked at T12 (execute-batch-2, permission, not a retry exhaustion):** `.env.example` cannot be created. The maintainer's `.claude/settings.json` denies `Read(./.env.*)`, which matches `.env.example`, and the Write tool refused the file with "covered by a Read deny rule". The config half of T12 is done and its gate passed (`gate:observability-e2e/T12`, attempt 1: typecheck clean, 250 unit tests). Uncommitted in the worktree: `apps/api/src/main/config.ts`, `apps/api/src/main/config.test.ts`, `scripts/test/env-example.test.mjs`. Missing: `.env.example` at the repo root, which the harness test `.env.example lists every OTEL variable the config reads` needs. The content is four `OTEL_*` lines with placeholders (endpoint `http://127.0.0.1:4318`, headers `authorization=placeholder-replace-me`, sampler `0.1`, interval `60000`). Resolving the conflict between the deny rule and CLAUDE.md's `.env.example` exception is a maintainer decision. T13 to T21 not started, because T13 depends on T12.
+**Pinned versions and spike results:**
+
+- T1 (registry read 2026-11-02, exact pins in `packages/telemetry/package.json`): `@opentelemetry/api` 1.9.1, `core` 2.12.0, `resources` 2.12.0, `sdk-trace-base` 2.12.0, `sdk-metrics` 2.12.0, `sdk-trace-web` 2.12.0, `sdk-logs` 0.223.0, `exporter-trace-otlp-http` 0.223.0, `exporter-metrics-otlp-http` 0.223.0, `exporter-logs-otlp-http` 0.223.0, `semantic-conventions` 1.44.0; dev `@types/node` ^26.6.6.
+- The registry latest is the 3.0.0 line (`core`, `resources`, `sdk-metrics`, `sdk-logs` 3.0.0), whose api peer is `>=1.10.0 <1.11.0`. `sdk-trace-base` and `sdk-trace-web` have no 3.x release (latest 2.12.0, api peer `<1.10`), so the 2.x line with api 1.9.1 is the only coherent set. Rejected: api 1.10.0 and the 3.x line.
+- Registry notice: `sdk-trace-base` 2.12.0 and `sdk-trace-web` 2.12.0 are marked deprecated, "Use @opentelemetry/sdk-trace package". Kept as the design names them; the replacement is a maintainer decision (recorded in the T1 report, not in `decisions.md`).
+- T5 deviation: the TypeScript sampler implements the Rust rule (`lower 8 bytes >> 1 < floor(ratio * 2^63)`, as in `opentelemetry_sdk` 0.33.1 `sample_based_on_probability`), not `TraceIdRatioBased` from `sdk-trace-base` 2.12.0, which compares an XOR of the four 32-bit words of the trace id. The two rules disagree on the same trace id, so the shared vector `packages/telemetry/test-vectors/sampler.json` (generated from the Rust rule, outside the repo) cannot hold for both through the library class. T41 must use `Sampler::TraceIdRatioBased` as it is.
+- T8 deviation: `@opentelemetry/sdk-metrics` 2.12.0 has no `attributeKeys` option; the bounded keys go through `attributesProcessors` with `createAllowListAttributesProcessor`. The two HTTP histograms are scoped to `APP_METER_NAME` (`d2rmm`), so the drop view for `@opentelemetry/instrumentation-http` removes only the instrumentation's series (AD-095). T16 must create its histograms on `APP_METER_NAME`.
+- T9 (execute-batch-1, attempt 2 of the reset budget): `startNodeTelemetry` returns `tracerProvider`, `meterProvider`, `loggerProvider` and `shutdown`, and registers no global provider (T13 registers them). `sdk-trace-base` 2.12.0 is a shim over `@opentelemetry/sdk-trace` 2.12.0, and its `BatchSpanProcessor.forceFlush()` rejects with the export error (reported at most once a minute through `onExportError`); the handle's `shutdown()` does not rethrow it. The OTLP exporters of 0.223.0 have no redirect option, so the redirect clause holds by construction. The options take an optional `now` clock in addition to the design's list.
+- T13 (execute-batch-2, spike gate passed on attempt 3; the two failures before it were my test's span selectors, not the sensors). Pinned from the registry on the 0.223 / api 1.9.1 line: `@opentelemetry/instrumentation` 0.223.0, `@opentelemetry/instrumentation-http` 0.223.0, `@opentelemetry/instrumentation-pg` 0.76.0 (`instrumentation ^0.223.0`, `core ^2.9.0`), `@opentelemetry/instrumentation-pino` 0.69.0 (same ranges), `@opentelemetry/api-logs` 0.223.0, `@opentelemetry/context-async-hooks` 2.12.0 (peer `api >=1.0 <1.10`), `import-in-the-middle` 3.5.3 (instrumentation's `^3.0.0`). Rejected: `instrumentation-pg` 0.77.0 and `instrumentation-pino` 0.70.0 (`instrumentation ^0.300`, `api ^1.10`, `node >=22.15`, which conflict with the locked api 1.9.1). `@fastify/otel` 0.21.4 (`api ^1.9`, `instrumentation ^0.223`) was installed and removed again (see the fallback line). `@opentelemetry/instrumentation-fastify` is deprecated in favour of `@fastify/otel`.
+- T13 spike result, booted with `node --import ./src/main/instrument.ts src/main/local.ts` (Node 26.13, type stripping): the `pg` instrumentation works under ESM (`db.query.text` keeps `$1`, `enhancedDatabaseReporting: false`, no bound value); the HTTP server span is exported; pino lines carry `trace_id`/`span_id` and one OTLP log record is exported. Without a context manager no span had a parent (the 2.x SDK registers none), so `instrument.ts` sets `AsyncLocalStorageContextManager` from `@opentelemetry/context-async-hooks`.
+- T13 fallback (design § API bootstrap): not the design's Fastify fallback. `@fastify/otel` added an INTERNAL `request` span between the HTTP server span and the handler, so the `pg` span was a grandchild of the server span, and OBS-03 asks for a child. It is not registered, and the server span is the HTTP instrumentation's own (named by method, `POST`, with `url.path`; no `http.route` template). No task gives server spans a route template: the orchestrator decides whether T16 or a later task owns it (T16 uses the route template for metric attributes only).
+- T13 known warning: `module.register()` prints `DeprecationWarning DEP0205` once on stderr when the endpoint is set (`import-in-the-middle/hook.mjs` is loaded through `register`). No functional effect.
+- T13 lifecycle: `main/telemetry-lifecycle.ts` (new, no side effect on import) holds the handle; `local.ts` and `render.ts` call `shutdownTelemetry()` in their stop handlers before `process.exit` (design § API bootstrap). `instrument.ts` ignores incoming `/healthz` and `/v1/telemetry/traces` and outgoing requests to the OTLP host (no export is traced), and leaves header capture unset.
+- T13 architecture: `pnpm arch` through the wrapper under T13 passes on the real tree (0 errors; 2 pre-existing `no-orphans` warnings in `apps/api/src/modules/ranking/index.ts` and `apps/agent/src/index.ts`). The existing cruiser rule `application-no-adapters` already fails an application file importing the bare specifier `@d2rmm/telemetry/node` (resolved through the package exports to `packages/telemetry/src/node-sdk.ts`). No rule was changed. The proof is the harness test `an application file importing the @d2rmm/telemetry/node specifier fails` (fixture `scripts/test/fixtures/arch-telemetry/application-imports-telemetry-specifier`, workspace link written per run). A deliberately failing `pnpm arch` probe was not run through the wrapper, because a failure would count against the T13 budget.
+- T13 decisions.md: not written. The implementer may touch `.specs/` only for `tasks.md`; the fallback and the Fastify removal above are the entries for the orchestrator to queue in `.specs/phases/F0/decisions.md`.
+- T14 (execute-batch-2, gate `API full` passed on attempt 1, 88 integration tests). The Render `startCommand` is `node --import ./apps/api/src/main/instrument.ts apps/api/src/main/render.ts` (Render runs from the repository root). `apps/api/package.json` had no `dev` or `start` script: `start` is added (`node --import ./src/main/instrument.ts src/main/render.ts`); no `dev` is added, because the root `turbo run dev --parallel` would start the DATABASE_URL-bound local root without it. `render.yaml` adds `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS` as names with `sync: false` only. `stack.ts` spawns both `local.ts` roots with `--import ./src/main/instrument.ts`. The test `both roots start with no OTLP endpoint and answer a health check` passes (its box stays open only for the bddgen clause below); `startRoot` takes the preload as `execArgv`.
+- T14 open clause, for the orchestrator: `pnpm --filter @d2rmm/acceptance exec bddgen` is NOT clean and cannot be clean before T53 and T54. It reports `Missing step definitions: 42`, all from `.specs/features/observability-e2e/acceptance.feature` (the observability scenarios), whose steps are written in T53 (`observability.steps.ts`) and T54 (`telemetry-relay.steps.ts`). The T14 change touches no step. I ran bddgen through the wrapper under T14 by mistake, which counted one failure (`gate:observability-e2e/T14`, 1 of 3). The T14 box that names bddgen stays unticked for this reason. No retry was made.
+- T15 (execute-batch-2, gate `API full` passed on attempt 2 after one failure, 251 unit and 89 integration tests). `app.ts` creates the Fastify app first; `appLoggerOptions(sink)` is the logger (redaction, `mixin: traceFields`, the sink); `traceFields()` reads the active span. The three `console.error` files are converted, with one more call in the same files: the relay's drain error, its default dead-letter line (`outbox-relay.ts`), the stream replay (`stream-hub.ts`) and the agents sweep (`app.ts`). They call an `ErrorLog` port (`platform/error-log.ts`), injected as `log` (the app passes `app.log`). The relay and hub tests pass a silent `log`. `migrate.ts` keeps its `console.error`: it is the migration CLI, not a request path, and it is not one of the sites the design lists.
+- T15 finding: a span active around `app.inject` does not reach the route handler (light-my-request dispatch loses the async context, verified with `AsyncLocalStorageContextManager`; a plain `await` and `setImmediate` keep it). So `app.test.ts` proves the mixin by logging inside `context.with(span)` through the app logger. Request-scoped correlation is proven by `exports a log record with the trace id` (real HTTP server span, the log record carries the server trace id).
+- T16 (execute-batch-2, gate `API full` passed on attempt 2 after one failure, plus the Telemetry gate on the moved constant, 251 unit and 90 integration tests). `platform/http/request-metrics.ts` records `http.server.request.duration` (s) and `http.server.response.body.size` (By) on the meter from `metrics.getMeter(APP_METER_NAME)`, which `buildApp` registers. `APP_METER_NAME` moved from `sdk/views.ts` to the root `instrument-names.ts` (views re-exports it), so `main/` and the platform name the meter without the SDK. `@opentelemetry/sdk-metrics` 2.12.0 is an API dev dependency, for the in-memory reader of the test.
+- T16 finding: the design's premise (streams never reach `onResponse`) does not hold on Fastify 5: `onResponse` runs for a `reply.hijack()` stream (`reply.sent` cannot tell a hijack from a finished response, the flag is private). The hook records only the responses that went through `onSend`: a hijacked stream never does, so it records nothing (test: `/stream` has no point).
+- T17 (execute-batch-2, gate `API full` passed on attempt 1, 91 integration tests). `apps/api/migrations/0002_outbox_trace_context.ts` adds `trace_context text null` (down drops it); `0001` is untouched. `OutboxTable.trace_context: string | null`. `migrator.ts` registers `0002_outbox_trace_context` and gains `migrateTo(db, name)` (step down, for the test).
+- T17 test-expectation edit, for the orchestrator to see: `apps/api/src/main/__tests__/migrate.int.test.ts`, `first run applies 0001_skeleton and creates the four schemas`, expects `firstRun` to equal `['0001_skeleton']`. With 0002 in the map a first run applies both, so the expectation is now `['0001_skeleton', '0002_outbox_trace_context']`. The test name and its schema assertions are unchanged. Nothing was loosened.
+- T18 (execute-batch-2, gate `API full` passed on attempt 1, 92 integration tests). `PostgresOutbox.append` reads `traceparentOf(context.active()) ?? null` before its first await and writes it into the same insert as every row. The test shows the active context reaches `append` inside `uow.run` (the transaction callback).
+- T19 (execute-batch-2, gate `API full` passed on attempt 1, 94 integration tests). The batch selects `trace_context`. `#publish` runs each row under `context.with(parentOf(row.trace_context))` (the stored span, or `ROOT_CONTEXT` for null or a malformed value; never throws), and `platform.outbox.relay` wraps `bus.publish` only, with `d2r.outbox.event_type`. The row's state updates stay outside the span. SDK note: `ReadableSpan` of `sdk-trace` 2.x exposes the parent as `parentSpanContext`, not `parentSpanId`; the tests read it so.
+- T20 (execute-batch-2, gate `API full` passed on attempt 2 after one failure, 96 integration tests). `StreamHubDeps` gains `meter` (`app.ts` passes the application meter). `sse.connections` is an up-down counter: +1 where a connection joins the set, -1 in its `onClose` only when it was in the set, attribute `d2r.stream.kind`. `platform.stream.deliver` opens per connection that accepts the event (`Connection.accepts`), with `connection.offer` inside it, so it is a child of the span that published the event. Failure 1 was the test's reader, which took the first export of the in-memory reader (stale), not the latest; the fix reads the latest export, and the assertions are unchanged.
+- T21 (execute-batch-2, gate `API full` passed on attempt 1, 97 integration tests). `platform/outbox-lag.ts` registers `outbox.lag` (s) as an observable gauge on the application meter; its async callback reads the oldest row with `published_at is null and failed_at is null order by id limit 1`, and the age uses the injected Clock; 0 when none. `sdk-metrics` 2.12 awaits an async observable callback before it records (`ObservableRegistry`), so the query runs once per collection. `buildApp` registers it once.
+- Batch 2 (T12 to T21) is complete at this point. The open clause of T14 (bddgen) is the only unticked box of the batch; see the T14 note above.
+- Batch 3 (execute-batch-3, T22 to T30, Haiku implementer): T22 to T30 committed. Deviations and learned facts:
+  - T22: `agents.pair-agent` also dropped its `accountId` (not on the task's list, but the test `no span of identity or agents carries an account or agent id` and AD-091's "account ids stay off telemetry" cover it). Expectation changed, strictly: `identity-use-cases.test.ts`, `opens its span with the use-case name and the account id` is now `... and no account id` with `toEqual({})` (was `{ accountId: 'account-1' }`).
+  - T23: the C40 test imports `createMatchmakingUseCases` from the matchmaking public `index.ts` (an internals import would fail `no-cross-module-internals`, which has no test exception).
+  - T24: `InMemoryLobbyRoomRepository` takes the clock in its constructor (the fake's `openedAt` is the clock's instant on insert); `LobbyRoomDeps.clock` added; `buildApp` passes it.
+  - T25: `RoomMetrics.stageLeft(stage, difficulty, mode, seconds)` is synchronous and is called after the commit of the observation (a rolled-back transaction records nothing). Gate attempt 1 failed because the adapter test read the in-memory exporter after `provider.shutdown()` (shutdown runs one more export, the same effect as the T8 note); the test now reads before shutdown, assertions unchanged.
+  - T26: `RelayLimiter` counts every arrival, refused ones included, so a flood keeps its own window full. Surface: `arriveFromAddress`, `arriveAsPrincipal(key, limit, windowMs)`, `sweep()`, `watch(scheduler)` (every 30 s), `keyCounts()`. `addressKeyOf` is the copied `rateLimitKey` with the `::ffff:` unwrap and a tightened IPv4 parse; the agents module's `rateLimitKey` is untouched.
+  - T27: `RelayBudget` has its own minute and UTC-day tallies; the T26 window helper is not exported (a deviation from "reuses the T26 window helper", no behaviour difference). Refunds take bytes from the newest entries. The T27 gate passed on attempt 1; the commit hook's ESLint then flagged an unused constant, which was removed, and the commit went through without a second gate run (the change is a dead-constant removal only).
+  - T28: the use case takes `(input, opts?)`; the port passes `opts` through. The stream hub never calls `authenticateAgent` directly; it reaches it through `guards.requireAgent`, which never passes `beforeLookup`, so `throttled` cannot reach it. `FakeAgentsPort` (lobby) widened to the new error union.
+  - T29: `GuardDeps` gains a required `clock` (the lookup bucket: 10 tokens a second, 3 in flight); `app.ts` and the stream hub integration factory pass it (gate attempt 1 failed on that factory, attempt 2 passed). Session lookups take bucket tokens too (no cache, design § Relay route). `requireAgent` and the hub are unchanged (401 for every failure).
+  - T30: `ErrorLog` has only `error()`, so the forwarder's one warning per failed forward is `log.error('relay-forward-failed status=<n>' | 'relay-forward-failed error=<class>')` (no message, body, headers or credentials); a drop is `relay-forward-dropped reason=in-flight-cap`. Gate attempt 1 failed on a test helper that recorded each call twice; fixed in the helper, assertions unchanged.
+  - Not wired yet (T31): the limiter's `watch`, the budget charge per stream chunk, the forwarder's `forward` call and the scoped parsers all wait for the relay plugin.
+    **Blocked at T31 (execute-batch-4, plan conflict, not a retry exhaustion):** T31's own text registers the relay in `buildApp`, and `openapi.int.test.ts` then fails twice: `openapi.json lists every route` (the document now has `post /v1/telemetry/traces`, `ROUTES` does not) and `the committed openapi.json is the document the routes generate` (the committed file lacks the route). The contract rule gives `openapi.json` and `ROUTES` to T32 only, and T32 runs after T31, so the API full gate of T31 cannot pass in plan order. Attempt 1 of 3 on `gate:observability-e2e/T31` (typecheck clean; 283 unit tests pass; 102 integration tests, 2 failing, both openapi). The implementation is complete and uncommitted in the worktree: `telemetry-relay.ts`, `answer-error.ts` (moved out of `main/app.ts`), `relay-app.ts`, `fake-telemetry-backend.ts`, `telemetry-relay.int.test.ts`, plus edits to `guards.ts` (exported `sessionCookieValue`, `agentAccountId`), `relay-forwarder.ts` (`dropped`), `error-log.ts` (`atMostOnePerMinute`), `app.ts`, `local.ts`, `render.ts`. Options for the orchestrator: (a) move the `ROUTES` entry and `pnpm contracts:openapi` into T31 and keep T32 for the response schemas; (b) move the `buildApp` registration into T32 with the schemas. The implementer will not hide the route from the document to pass the gate.
+    **Resolved at T31 (execute-batch-4, after the replan of 2026-11-02, commit 5be44b9):** the replan moved the route's `ROUTES` entry and the `pnpm contracts:openapi` regeneration into T31 (option a); T32 only pins the contract. T31 adds the Zod response schemas (`RelayAccepted` for the empty `202`, `ErrorResponse` for `401`, `403`, `413`, `415`, `429`) in `packages/contracts/src/http/platform.ts`, registers the route with them, and regenerates `openapi.json` through the wrapper. The API full gate passed (283 unit, 102 integration) and `pnpm contracts:check` is clean. The blocked entry above stays as the history.
+
+- Batch 5 (execute-batch-5, T38 to T46, implementer). Commits: T38 `1439ef5`, T39 `b398718`, T40 `5724520`, T41 `dae905b`, T42 `a88ddda`, T43 `cd84daa`, T44 `11b682a`, T45 `ff115fb`. T46 is not committed (blocked, below). Harness 204/204 at T44; adapters 111 tests at T45 (the example's test runs only with `--features fixture-read`).
+- Pinned (crates.io index and registry sources, 0.33 line): `opentelemetry-otlp` 0.33.1 (`http-proto`, `trace`, `reqwest-client`, `reqwest-rustls`; `opentelemetry-proto` 0.33.1, `prost` 0.14.4), `opentelemetry-http` 0.33.1 (requires `reqwest` ^0.13.1, locked 0.13.5), `opentelemetry`/`opentelemetry_sdk` 0.33.1 (locked), `tracing-opentelemetry` 0.34.0 (locked), `async-trait` 0.1.92, `image` 0.25.10 (optional, `fixture-read`). No `native-tls` in the lock; `cargo deny check` passes without a `deny.toml` change (only the existing duplicate-version warnings).
+- Signatures read: `SpanExporter::export(&self, Vec<SpanData>) -> impl Future<Output = OTelSdkResult> + Send` (no `set_resource` on exporters); `SpanProcessor` = `on_start(&mut Span, &Context)`, `on_end(SpanData)`, `force_flush`, `shutdown_with_timeout` (`set_resource` defaulted); `opentelemetry_http::HttpClient::send_bytes(&self, Request<Bytes>) -> Result<Response<Bytes>, HttpError>` under `#[async_trait]`; `opentelemetry_otlp` `SpanExporter::builder().with_http().with_endpoint().with_http_client().with_retry_policy(RetryPolicy::disabled()).build()`. The OTLP exporter retries on its own (`export_http_with_retry`), so retries are disabled and the relay client owns 401 and 429. The SDK ratio rule `(low 8 bytes of trace id >> 1) < floor(ratio * 2^63)`; `packages/telemetry/test-vectors/sampler.json` agrees with it on all 17 cases (checked before the Rust test). `SpanEvents` and `SpanLinks` are `non_exhaustive` (fields pushed, not built); `TraceId::from_bytes` and `SpanId::from_bytes` (no `from_u64`); `InMemorySpanExporter` needs the SDK `testing` feature, so tests use a recording exporter.
+- T39 deviation: `opentelemetry-http` and `async-trait` were added in T39 (the client implements `HttpClient`); the task listed them under T42. T39's first gate run was a metadata lock refresh that overflowed the wrapper's output buffer and counted as one failure; its second run passed with `--no-fail-fast` added to the nextest call (not in the table text).
+- T41 deviation: the adapters tests `tests/telemetry.rs` and `tests/api_client.rs` also call `init`, so they now call `init(Mode::Test, None)` (the task named only the app). `init` returns `Result<TelemetryGuard, InitError>`. The Windows check needed the UI built (`pnpm --filter @d2rmm/agent build`, `apps/agent/dist`, gitignored, the release workflow builds it first); the first run failed on the missing `frontendDist`, the rerun passed. The shell keeps `Mode`, `None` and the guard in `run` and shuts the guard down after `run` returns.
+- T42 expectation change: `scripts/test/agent-source-rules.test.mjs`, `mutation covers the core rule modules`, exact list extended with `adapters/src/telemetry/{queue,relay_client,sanitize}.rs` (the harness rule allows harness tests to be extended; it is a tightening). Flagged for review.
+- T43 notes: the adapters gate failed twice (a compile error on `TraceId`/`SpanId` constructors and a `let_underscore_future`; then `a_slow_relay_never_delays_a_caller`, where my test started the loop before any span was queued, so the first tick had nothing to export). The test setup was fixed (one span queued before the loop starts); assertions are unchanged. The Windows check passed. Known gap: `TelemetryGuard::shutdown` ends the provider, but the processor's shutdown cannot await the export task, so up to one interval of spans can be lost at exit. Not in the task text; for the orchestrator.
+- T44: the source-rules test `fixture-read is never a default feature` was renamed to `... in either manifest` and extended to `adapters/Cargo.toml`; new tests `cargo tree for the app crate holds no fixture-read` (runs `cargo tree --locked -e features`) and `release-agent.yml builds no example and enables no all-features`; fixture `fixture-read-default-adapters`.
+- T45 note: `AllowLoopbackHttp::Yes` is also constructed in the adapter test harnesses (`tests/support/harness.rs`, `tests/api_client.rs`, `extra-tests/`), where the fake API is on loopback. Production construction is only the app's debug path (and, at T46, the example). The first T45 box stays open until the example lands.
+- **Blocked at T46 (execute-batch-5, plan conflict, not retry exhaustion)**: `gate:observability-e2e/T46`, 2 failures of 3, one retry left, not spent. Test `the example prints its lines and reads the sidecar text once` (`adapters/tests/headless.rs`) starts the example as a child process, and `apps/agent/src-tauri/clippy.toml` disallows `std::process::Command` and `tokio::process::Command` for the agent ("the agent starts no process; only the updater installs (AGS-22)"). The `--all-targets --features fixture-read -D warnings` clippy rejects `headless.rs:8` and `:68`. Attempts: (1) the table gate (fmt, clippy, nextest without features) passed, 111 tests, the feature test skipped; (2) the feature clippy and nextest run failed on `field lines is never read` in the example, fixed by removing the field; (3) rerun failed on the disallowed process type in the test. The example itself compiles and is clippy-clean. A fix needs one of: (a) a maintainer-approved `#[allow(clippy::disallowed_types)]` on the test target, scoped to the test (a sensor exception, not added here); (b) the test moved to the Node acceptance support, which spawns the example (replan of the T46 test); (c) the composition moved into an adapters module driven in-process (changes the ADR 027 composition root). Uncommitted in the worktree: `adapters/examples/headless.rs`, `adapters/tests/headless.rs`, `adapters/Cargo.toml` (`[[example]]` and `[[test]]` entries). T47 to T56 not started (they follow T46).
+- **Blocked again at T46 (execute-batch-5, resumed under the orchestrator's ruling, 2026-11-02)**: `gate:observability-e2e/T46` used its 3 attempts; the wrapper reports BLOCKED (exit 3). Attempt 3 (the blocked run) was `cargo fmt --check && cargo clippy --locked -p d2rmm-agent-adapters --all-targets --features fixture-read -- -D warnings && cargo nextest run --locked -p d2rmm-agent-adapters --features fixture-read`: fmt and clippy passed; 111 of 112 tests passed; `example/headless tests::the_example_prints_its_lines_and_reads_the_sidecar_text_once` failed after 32 s with `no observed line; seen: [{"code":"123456","event":"code"}, {"event":"paired"}, {"event":"assignment","room":"mmbaalh-12"}]` (`adapters/examples/headless.rs:460`). The run reached the assignment, and `read` was sent after it. The observation was not posted or not reported within 30 s. Not yet diagnosed (candidates to check: the fake's observation answer shape against the `ApiClient` translation, the read-once path, or the fused text). Before the ruling, the attempts were: (1) the table gate passed, feature test skipped; (2) a never-read field in the example; (3) the process type in the test. Under the ruling the example moved to an in-process `run` over injected `AsyncRead`/`AsyncWrite`, the test moved into the example file (`test = true`), and `adapters/tests/headless.rs` and its `[[test]]` entry were removed; tokio gained `io-std` and `io-util` on the normal dependency. Uncommitted in the worktree: `adapters/examples/headless.rs`, `adapters/Cargo.toml`, deletion of `adapters/tests/headless.rs`, and this note. T46 boxes are open. T45's first box stays open (it waits on T46). T47 to T56 not started.
+- **T46 done (execute-batch-5, resumed, 2026-11-02, Step: fix)**: root cause of the `no observed line` failure: the test's fixture frame was 8x8, and `region_for` (domain `vision.rs`) has a built-in region only for 1920x1080. `read_game_name` returned `ReadError::Failed`, `Handle::read_once` returned without posting, so no observation reached the fake and no `observed` line was printed (the 30 s timeout). The route (`/v1/lobby-rooms/{id}/observations`), the 202 success mapping, the `GAME_NAME_SEEN` translation, the sidecar text and the fusion (`mmbaalh-12` matches) were all correct. Fix: the test writes a 1920x1080 frame; no assertion, sensor or config changed. Gate `gate:observability-e2e/T46` passed on attempt 1 of 3 (fmt, feature clippy `-D warnings`, nextest with `fixture-read`: 112 of 112 passed; the example test in 2.9 s). Note: during the run the direct `cargo nextest` was denied by the phase-run gate (tests only through `attempt.mjs`), so the diagnosis used code reading and the wrapper run, not a direct run. `cargo build --release` builds no example by Cargo's rule for `[[example]]` without `--examples`; it was not run separately. Sensor observation (not changed): `clippy.toml` warns `tokio::process::Command does not refer to a reachable type` because adapters does not enable tokio's process feature, so the process ban is inert there; left for the maintainer. T47 to T56 not started.
+- T47 (execute-batch-6, gate `Harness` passed on attempt 1, 206 harness tests). Image pinned as `grafana/otel-lgtm:0.39.0@sha256:4c8056c9c05fcb3c8fd93800e85334bfd79b4d0271b47a54a121a64af41fe1fe` (the digest from `docker pull grafana/otel-lgtm:0.39.0`; Docker Hub lists the same digest for `latest`). The image's Grafana reads its providers from `/otel-lgtm/grafana/conf/provisioning/dashboards/*.yaml`; `infra/observability/provisioning/d2rmm-dashboards.yaml` is mounted there and points at `/var/lib/d2rmm/dashboards`, which compose mounts from `infra/observability/dashboards/`. New root scripts: `obs:up`, `obs:down`.
+- T48 (execute-batch-6, gate `Harness` passed on attempt 1, 208 harness tests). The panels query the Prometheus names of the five instruments: `http_server_request_duration_seconds` (`_count` and `_bucket`), `http_response_status_class` and `http_route` as labels, `outbox_lag_seconds`, `sse_connections` with `d2r_stream_kind`. Every panel filters on `service_name="d2rmm-api"`. T49 maps these names to `INSTRUMENT_NAMES`.
+- T50 (execute-batch-6, gate `Acceptance support` passed on attempt 1, 2 support tests). Deviation: `testcontainers` 12.2.1 is a direct devDependency of `@d2rmm/acceptance` next to `vitest` 5.0.5; `@testcontainers/postgresql` does not re-export `GenericContainer`, and both versions already resolve in the lockfile (the lock diff is the two importers). The helper checks a `unix://` DOCKER_HOST socket before it starts anything, and maps any start failure to an error naming Docker. The live start (`Wait.forHttp('/ready', 3200)`, the mapped ports) is not run by a gate until the trace scenarios of T54.
+- T51 (execute-batch-6, gate `Acceptance support` passed on attempt 2 of 3; 3 support tests). Attempt 1 failed on the fake's refusal: a keep-alive socket in the client pool reset as `ECONNRESET`, not `ECONNREFUSED`; the fix is in the fake (each answer sets `Connection: close`), the assertions are unchanged. `stack.ts` keeps the plain stack's behaviour: `apiEnv` and the `wrangler pages dev` launch moved to module functions with the same arguments. `startTracedStack` builds the site with `VITE_TELEMETRY=on` and `VITE_TELEMETRY_RATIO=1` into the stack's private state directory, uses database `acc_trace_<pid>` and sets `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_TRACES_SAMPLER_ARG=1.0` and `OTEL_METRIC_EXPORT_INTERVAL=5000`. The traced start and the site build are not run by any gate until T54 (the trace scenarios). The refactored plain-stack path has no gate of its own; the full `pnpm test:acceptance` in T56 is its proof.
+- T52 (execute-batch-6, gate `Acceptance support` plus the telemetry typecheck, lint and test, passed on attempt 1; 8 acceptance support tests, 36 telemetry tests). The gate adds the telemetry checks because the parity test and the `FORBIDDEN_WORDS` export live in `packages/telemetry` (`redact-attributes.ts` exports the set; the package index is unchanged). Reading choices, for T54 to confirm against a live trace: (a) OBS-08's "database query as a child of the request" is checked as a descendant of the API request span (the query may run under a use-case span); (b) OBS-08's relay is checked as below the request, the stored context, and the delivery as the relay's direct child; (c) OBS-12 root is the `agent.observation.post` span with no parent in the trace; (d) Tempo ids are read as hex or base64 and `batches` or `resourceSpans` answers are both read. The scan reads metrics and logs through Grafana's datasource proxy (the telemetry backend now also reports `grafanaUrl`, port 3000); those two readers have no gate yet and are first run by the trace scenarios.
+- T53 (execute-batch-6, gate `Acceptance support` passed on attempt 2 of 3; 10 support tests total). Attempt 1 failed the typecheck (`exactOptionalPropertyTypes` on the traceparent field), fixed in the step's type. The steps are in `observability.steps.ts`; `fixtures.ts` exports `After` (the traced stack closes after each scenario; no other change). The example is started with `cargo run --quiet --locked` in `apps/agent/src-tauri` (the first run compiles it; the Playwright test timeout is 60 s, so the first trace scenario may need the build warm). The example pairs itself: its `code` event is typed on the site by the host (`submitPairingCode`), which makes it the host's current agent. Trace B is found by the `agent.observation.post` search and the `d2r.room.id` attribute the sanitizer keeps.
+  **Design conflicts for the orchestrator, to confirm at T54:** (a) the scenario's stream clause ("the API span of the agent's stream request ... child of the agent's span") cannot be exported while the stream is open: `agent.stream.connect` ends when the stream drops (design risk row, "neither trace depends on it"). The step stops the example first, so the span can end and export at shutdown, but the example's shutdown does not await the span export (T43 note), so the clause may fail. (b) The design says trace B holds the heartbeat's API span too. The agent starts each heartbeat as its own root span, so the step reads the heartbeat in its own trace, which the scenario's words ("with the same trace id") allow; it does not place the heartbeat in trace B.
+- **Blocked at T54 (execute-batch-6, plan conflict, not retry exhaustion; 2 of 3 failures used, 1 attempt left and not spent).** Gate `gate:observability-e2e/T54` (typecheck, web build, bddgen, `playwright test --grep "@NFR-09"`). Attempt 1 failed the typecheck (`Buffer` is not a `fetch` body type; fixed). Attempt 2: 17 passed, 5 failed of 22, each with its cause:
+  1. Trace A (`A test match leaves one trace…`): the trace held every span of the chain, but the edge check took the first relay below the request, and the delivery hangs off a later relay. Fixed in `trace-reader.ts` (`requireDelivery`: the delivery is the child of any relay below the request). Not yet run.
+  2. Trace B (`The agent's observation leaves its own trace…`): the example printed no `code` event within 45 s and no stderr: a cold `cargo run` compile is the likely cause. The step now waits 480 s (`HEADLESS_START_TIMEOUT_MS`). Not yet run.
+  3. Relay row 7 (`as a paired agent with a text body`): the `beforeEach` hook exceeded 60 s, because the first traced stack of a worker builds the telemetry site. The `Before` hook now calls `test.setTimeout(300 s)`. Not yet run.
+  4. Flood row 1 (`a paired agent`): the backend held 60 copies of the batch, since every batch had the same bytes. Each batch now carries a random `batch` field (`newBatch`). Not yet run.
+  5. Flood row 2 (`a signed-in player`): 429 at the eleventh batch. A session lookup takes a token of the relay's lookup bucket (10 a second, design § Relay route), so a sequential sender is throttled. The player sends are paced at 150 ms (`PLAYER_PACE_MS`). Not yet run.
+     **Plan conflict (the reason for stopping):** the trace B scenario requires "the API span of the agent's stream request … a child of the agent's own span for that request". The agent's `agent.stream.connect` span ends only when the stream drops (design risk row, "neither trace depends on it"). The example ends its stream only at its own exit, and its shutdown does not await the span export (T43 note), so the parent span is not exported, and the API's server span points at a missing parent. The clause cannot pass with the agent as built. The orchestrator decides: change the agent's stream span (an export that does not wait for the drop), or change the scenario's clause (the maintainer approves the feature change), or keep the design's heartbeat-and-observation edges only. The heartbeat check (`agent.heartbeat` → its `POST`, in its own trace) is written and unverified.
+     **Also for the replan:** the design says trace B holds the heartbeat's API span too; the agent starts each heartbeat as its own root, so the step reads the heartbeat in its own trace (see T53).
+     **Uncommitted in the worktree (T54 work, none of it committed):** `tests/acceptance/steps/telemetry-relay.steps.ts` (new), `tests/acceptance/steps/observability.steps.ts`, `tests/acceptance/support/scenario-state.ts` (new), `tests/acceptance/support/stack.ts` (the traced API sends `x-acceptance-backend=present` to its OTLP endpoint; one telemetry-on site build per process in the temp directory; `apiEnv` and `launchPages` reuse), `tests/acceptance/support/trace-reader.ts` (`requireDelivery`, `searchTraceIds`, `fetchTrace`, `pollTraces`), `tests/acceptance/fixtures.ts` (exports `Before` and `After`). Gate results so far: 17 of 22 `@NFR-09` scenarios passed in attempt 2 (the five failures are listed above).
+     **Not run:** `pnpm test:acceptance`, `pnpm acceptance:check`, the full `@NFR-09` gate after these fixes. The Verifier and the screens sub-agent were not started.
+- **T55 done (execute-batch-6, gate `Harness` (`pnpm test:harness`) passed on attempt 1; 210 harness tests, 0 failed).** `.github/workflows/ci.yml`: the `integration` job adds `dtolnay/rust-toolchain` and `Swatinem/rust-cache` (workspace `apps/agent/src-tauri`), both pinned by the SHAs the agent job already uses, then `cargo build --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --example headless --features fixture-read`; no existing step is removed or changed. `scripts/test/ci-workflow.test.mjs` (new): both tests pass. The job-level gate of T55 is the Harness gate; the example itself is built and run by the T54 gate.
+- **T54 resumed after the maintainer reset (coordinator message, execute-batch-6), session exhausted before the gate ran.** Verified before the run: no background run of mine was active; `gate:observability-e2e/T54` had no row (reset applied); `agent.http.observation`, `agent.http.heartbeat` and `agent.http.stream` exist in `adapters/src/http/api_client.rs` (the call spans, which end when the response headers arrive), under `agent.observation.post`, `agent.heartbeat` (via gateway) and `agent.stream.connect` (the long-lived one). Changes applied, unverified by a gate: (a) trace B reader walks observation → `agent.http.observation` → API `POST` (`assertTraceB`, fixture in `trace-reader.test.ts` updated to that nesting); (b) the heartbeat step checks `agent.heartbeat` → `agent.http.heartbeat` → `POST` within its own trace, and the stream step checks `agent.http.stream` → `GET` within its own trace (`chainNamed`); the step no longer stops the agent first and does not require `agent.stream.connect`; (c) the five fixes listed above (edge via any relay, unique batch bodies, player pacing, traced and headless timeouts). Prettier applied to the changed files. The gate was NOT run: the first form of the command was denied with "Quote the whole gate command" (denial 2/3), and the next try was denied the same way (denial 3/3, retry budget exhausted, this session may only record the blocker and report). Next session: `pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@NFR-09"` through the wrapper. The unit tests of `support` (trace-reader fixture) were not run by that gate. T55 and T56 not started.
+- **Blocked at T54 (execute-batch-6, retry budget exhausted: 3 of 3 failures, gate `gate:observability-e2e/T54`; the wrapper exit 3).** Attempts 1 to 5 were mostly cheap checks; the failures counted were: lint (unused `World` import, fixed), the first full gate run (2 scenarios red), and the second full gate run (1 scenario red). Passing cheap checks (`acceptance` typecheck, eslint, prettier, `vitest run support`, 10 tests) did not count against failures. Do not treat the earlier conflict text above as current: the stream span is `agent.http.stream` and the step checks that edge, as the orchestrator stated.
+  - Changes made in this batch (uncommitted, in the worktree): (a) the flood player sends advance the traced API's controllable clock by `PLAYER_PACE_MS` (`tracedOf(world).advanceClock`), replacing the wall-clock sleep. Root cause of the Example 2 failure: the acceptance API runs on a `ControllableClock` that does not move, so the relay's lookup bucket (10 a second) never refilled and the eleventh session lookup got `429`. `TracedStack` gained `advanceClock(ms)` (`stack.ts`). (b) The traced stack's `AGENT_MIN_VERSION` is `0.0.0` (plain stack keeps `0.0.1`). Root cause of the early exit seen in the first run: the example reports its crate version `0.0.0` (the apps/agent placeholder), which the `0.0.1` minimum refuses, so no `code` event was printed. This is a test-environment setting, not a scenario, assertion, sensor or agent change; a deviation to confirm.
+  - Gate result (last run): 21 passed, 1 failed of 22 `@NFR-09` scenarios. Failing: `The agent's observation leaves its own trace and the room becomes Created` (trace B). Error: `the headless agent printed no "paired" event within 45000 ms` (after `code` was printed and the pairing code was submitted with status 200; the wait for `paired` is the step at `observability.steps.ts`, `state.agent.waitFor('paired')`, default 45 s). Likely cause to check next: the example's pairing completion (the `paired` event is printed by the example after its pairing poll; the traced API may need the code's expiry or the agent's version/poll path to be checked). Not diagnosed further in this session.
+  - Not done: `pnpm test:acceptance`, `pnpm acceptance:check`, T54 tick and commit; T55 and T56 not started (T55 depends on T54). No push, no merge, no `.claude/**`, no ADR, no `deny.toml` edits.
+- **T54 blocked for the orchestrator (execute-batch-6, resumed 2026-11-02; 2 of 3 failures used, 1 retry left and not spent; T54 not ticked, not committed; T55 and T56 not started).** Gate `gate:observability-e2e/T54`. Both gate runs: 21 of 22 `@NFR-09` scenarios pass (trace A included). Only trace B fails: `The agent's observation leaves its own trace and the room becomes Created`.
+  - **Missing `paired` (fixed; confirmed by both runs, where the pairing and `assignment` and `observed` now pass).** Root cause in test support: the traced API's controllable clock is anchored at its process start (`new Date()` in `startLocal`) and moves only by advances. The pairing code expires five minutes after that anchor on the API's clock, but the agent checks `expires_at` against wall time (`pair.rs` `show_code`). The example starts under `cargo run` after the scenario's own steps, and a cold compile adds to that; past five minutes the agent sees the code expired before its first claim, prints a new code, and loops. Fix (support only): `HeadlessAgent.build()` awaits the example build before the start, `TracedStack.apiClockMs()` is added, and the API clock is advanced to wall time right before the agent starts. Deviation to confirm: the traced API clock now moves to wall time at that point. The simulated agent's presence is not affected, because pairing the headless agent revokes the account's previous agent. The headless wait's error now lists the events seen.
+  - **Trace B, failure 1** (pairing fix in place): `no trace of { name = "agent.observation.post" } satisfied the expected edges within 30 s (1 candidates)`. One trace was found, but an edge of `assertTraceB` did not hold. The message did not show which.
+  - **Trace B, failure 2** (the same code plus the poll error's span outline in the message): `(0 candidates)`, `last trace: none fetched`. No trace with an `agent.observation.post` span was found in the 30 s window.
+  - **Not confirmed.** Code reading finds the chain correct: the observation is a root (`tokio::spawn` in `runtime.rs`), `agent.http.observation` is its child, the traceparent comes from the span current in `authorized`, the outbox stores `context.active()` and the relay sets each row's parent. Candidates to check next: the relay's per-account budget (60 requests a minute, then 429 with `Retry-After`; the agent then holds its exports, `relay_client.rs` `outcome_of`), the relay's forwarding to the backend, and the backend's search lag. Run 1 and run 2 differ only in timing, so the cause is probably the export path, but no trace has been read to confirm it.
+  - Not done: `pnpm test:acceptance`, `pnpm acceptance:check`, the T54 ticks and the T54 commit. The worktree holds the T54 work uncommitted (`tests/acceptance/support/{headless-agent,stack,trace-reader}.ts`, `tests/acceptance/steps/observability.steps.ts`, and the earlier T54 files).
+- **T54 done (execute-batch-6, gate `gate:observability-e2e/T54` passed on attempt 3 of 3; the two failures before it were counted, 2 of 3 used, no retry left after the pass).** Gate command: `pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/web build && pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep '@NFR-09'`. Result: typecheck, web build and bddgen clean; `@NFR-09` 22 of 22 passed, trace A and trace B included. The earlier `T54 BLOCKED` note is superseded.
+  - Failure 1 (typecheck, fixed): `support/agent-proxy.test.ts` read `headers.traceparent` on an index signature. Failure 2 (21 of 22, trace B red): the search (see below).
+  - **Cause of trace B, confirmed by reading and by a throwaway probe of the pinned image** (`grafana/otel-lgtm` 0.39.0, same digest, started with `docker run` outside the gate, removed afterwards): (1) Tempo's search index lags the ingest by about 30 s; a probe span was searchable after 31 s, while trace-by-id returned it at once. The 30 s window cannot hold a search; (2) the search returns trace ids without leading zeros; (3) the search requests hit the 5 s client timeout. The compose file and the product code are unchanged.
+  - **Fix (test support only).** The agent sends the `traceparent` of each request, so the trace id is known before the backend indexes it. `support/agent-proxy.ts` (new) is a recording proxy between the headless agent and the traced API: it keeps the method, the path and the traceparent of each request, and forwards the bytes (`flushHeaders()` on the response, see below). Trace B and the heartbeat and stream reads go by trace id, as trace A does. `searchTraceIds`, `fetchTrace` and `pollTraces` are removed from `trace-reader.ts`. Each request is bounded by `min(15 s, deadline)`, one at a time.
+  - **Second cause, found from the failure output of attempt 2, fixed in attempt 3.** The proxy did not put the stream response headers on the wire until the first body chunk, so the agent's `agent.http.stream` span (it ends when the headers arrive) stayed open until an event and was never exported while the agent ran (the example does not flush at shutdown). The proxy now calls `flushHeaders()`; a unit test checks the headers of a held event stream arrive at once. The stream step reads the agent's span while the agent runs, then stops the agent, because the API ends its span of the stream only when the stream closes.
+  - Diagnostics: the `readTrace` failure lists the span outline of the trace; a failing trace B or stream read also prints the agent's last 20 events, its last 20 stderr lines, the requests it sent with their trace ids, and the API's `relay-` log lines from Loki. `describeError` shows the cause of a `fetch failed` (the Loki read failed with `ECONNRESET` in attempt 2 and is printed next to the trace error, not in place of it).
+  - **Deviations to confirm.** (a) Trace B is found by the trace id of the agent's observation request (read through the proxy), not by a TraceQL search; the scenario's words hold (the backend holds one trace whose root is the observation span, within 30 s). (b) The heartbeat and stream clause stops the headless agent before the stream chain is read. (c) The traced API clock follows the wall clock while the agent runs (recorded above). (d) The window stays at 30 s.
+  - **Not run.** `pnpm test:acceptance` (full suite) and `pnpm acceptance:check`: the boxes 2 and 3 of T54 stay unticked for that reason. The support unit tests (`vitest run support`: `agent-proxy.test.ts`, the `describeError` test in `trace-reader.test.ts`) and eslint on the changed files were denied by the gate hook (denials 1 and 2 of 3, not retried), so they have not run; the gate does not include them. They must be run by T56's gate or by the orchestrator before the phase review.
+  - Not pushed; T55 and T56 are next.
+- **T56 not passed (execute-batch-6, gate `gate:observability-e2e/T56`, failure 1 of 3, 2 retries left and not spent; T56 not ticked, not committed).** Gate command: `pnpm build && pnpm typecheck && pnpm lint && pnpm arch && pnpm format:check && pnpm test:acceptance && pnpm contracts:check && pnpm harness:gate && pnpm quality:collect && pnpm quality:ratchet --context pr`. Build, typecheck, lint, arch and format:check passed; the run stopped in `pnpm test:acceptance`: 90 passed, 2 failed of 92.
+  - `harness-foundation` `@HF-01` ("The six workspaces build, type-check and test together", which runs `pnpm test` in every workspace): `@d2rmm/telemetry#test` failed, `Test Files 1 failed | 12 passed`, `Tests 1 failed | 35 passed`. The failing test is not named in the captured output (turbo streams it), and the output carries `expect(received).toBe(expected)` with `Expected: 0 / Received: 1`; no zero-valued assertion exists in `packages/telemetry` by grep, so the source of that assertion is not identified. The telemetry package passed in its own gate (T52, 36 tests). This looks like a failure only under the full run's load, but it is not confirmed.
+  - `observability-e2e` trace A ("A test match leaves one trace through the site, the API, the database, the outbox and the stream"): `"PlayerOne" has no new room within 5 s` (`tests/acceptance/support/world.ts` `refreshRoom`, a 5 s poll of `GET /v1/me/room`). The same scenario passed in the T54 gate (22 of 22), so the cause is probably the load of the full run, not the trace code. Not confirmed.
+  - Not decided by the implementer (it would change a shared wait, or a product test, outside this batch): the wait of `refreshRoom`, and the telemetry test's timing or environment under the full run. The orchestrator decides the fix before the next T56 attempt. The 21 other `@NFR-09` scenarios and the 90 other acceptance scenarios passed in this run.
+  - Not run in this batch: `pnpm contracts:check`, `pnpm harness:gate`, the ratchet, and the `.quality-baseline.json` check (the diff against `phase/F0...HEAD` is empty, checked before the gate).
+- **T56 root causes found, no gate run (execute-batch-6, resumed; gate `gate:observability-e2e/T56` 1 of 3 used, 2 retries left and not spent; T56 not ticked, not committed; nothing changed in the worktree).** Both failures happened in the same window of the same run (00:23): the Playwright run is `fullyParallel: true` with default workers (`tests/acceptance/playwright.config.ts`), so the HF-01 scenario (`pnpm build`, `pnpm typecheck`, `pnpm test` from the root, all CPU-heavy) ran alongside the traced scenarios.
+  - **(a) `@d2rmm/telemetry#test`: product test, not fixed here.** The name is in `packages/telemetry/.turbo/turbo-test.log` (the HF-01 step keeps only the last 3000 characters, so the name was cut from the output): `src/package-exports.test.ts > entries resolve to source files`, `Error: Test timed out in 5000ms`, the test took 5194 ms. Its first step is a dynamic import of `@d2rmm/telemetry`, `/node` and `/web` (the whole OpenTelemetry set, cold in each of 13 workers, about 2.9 s each), against vitest's default 5 s timeout. The file is unchanged since 5537926; the `Expected: 0 / Received: 1` line is HF-01's `expect(run.status).toBe(0)`, not a telemetry assertion. Fix needs a decision on `packages/telemetry` (a timeout on that test, or lower CPU load during the acceptance run); the implementer may not edit a product test.
+  - **(b) trace A `refreshRoom` ("PlayerOne has no new room within 5 s"): load, proven from the failed run's browser trace** (`tests/acceptance/test-results/observability-e2e-acceptan-3de33-e-the-outbox-and-the-stream-chromium/trace.zip`, read in a temp directory). The site's `POST /api/v1/staging/match-formed` answered 202 after 5683 ms; the concurrent `GET /api/v1/agents/me` took 3069 ms and `GET /api/v1/me/room` 1040 ms (the site's 404 polls). `refreshRoom` starts only after that POST has answered, so its 5 s window opens late under the slowdown. The failure snapshot shows the room `mmbaalh-1` in "Awaiting host" at the time of the error, so the room came after the window, not never. The `me/room` route is not throttled by the lookup bucket (`requireSession` does not use it), so the bucket is not the cause. Not fixed: a longer window in shared support would hide the load rather than remove it, and the real remedy is the concurrency with HF-01 (for example running HF-01's CPU work outside the parallel workers, or a Playwright project that runs serially), which is a plan decision for the orchestrator. A bound raised in `refreshRoom` is the minimal option if the orchestrator decides so; no scenario text bounds the room wait.
+  - **Decision needed before the next T56 attempt:** either (1) the orchestrator approves a change to the acceptance run's concurrency (HF-01 serial, or the build outside the parallel workers) and a timeout decision for the telemetry package test, or (2) both are accepted as they are and the gate is retried as is (likely to fail again on (a) under the same load). Not run: `pnpm test:acceptance`, `pnpm contracts:check`, `pnpm harness:gate`, the ratchet.
+- **T56 attempt 2 (execute-batch-6, resumed under AD-104 and AD-105; gate `gate:observability-e2e/T56` failure 2 of 3, 1 retry left and not spent; T56 not ticked, not committed).** Uncommitted in the worktree: the two approved changes, `tests/acceptance/playwright.config.ts` (project `chromium` with `grepInvert: /@HF-01/`, project `harness-root` with `grep: /@HF-01/` and `dependencies: ['chromium']`) and `packages/telemetry/src/package-exports.test.ts` (the `entries resolve to source files` test with the 30_000 ms timeout). Checks run directly and passed: `pnpm acceptance:check` (OK, 5 features); `bddgen` then `playwright test --list`: `@NFR-09` selects 22 tests, the full list is 92 tests in 5 files, `@HF-01` runs under `harness-root`. The gate run: build, typecheck, lint, arch and format:check passed; `pnpm test:acceptance` gave 91 passed, 1 failed of 92. The two failures of attempt 1 did not recur (telemetry package test and trace A passed). The failure is `@HF-01` (`pnpm test` from the root, step "Then each command succeeds"): `@d2rmm/config#test`, `packages/config/test/rules.test.ts`, `n/no-process-env reports a process.env read in a module file` (the first `ESLint.lintText` of the file, which cold-loads ESLint and the TypeScript parser) reports `Test timed out in 5000ms`; the other 11 config tests and all other workspaces pass. Cause: the same cold-import load as AD-105, in a test not covered by the two approved changes. Not fixed here: a timeout on that test (or a shared one) is a new decision in another package, so the maintainer or orchestrator decides. Not run: `pnpm contracts:check`, `pnpm harness:gate`, the ratchet (the chain stopped at `pnpm test:acceptance`). `.specs/STATE.md` and `.specs/phases/F0/decisions.md` stay uncommitted with AD-104 and AD-105 until the T56 gate is green.
+- **T56 blocked (execute-batch-6, attempt 3 of 3, gate `gate:observability-e2e/T56`, `attempt.mjs` exit 3, ledger `blocked` 3/3; T56 not ticked, not committed; the batch's changes stay uncommitted).** AD-106 applied: `packages/config/test/rules.test.ts` now gives `n/no-process-env reports a process.env read in a module file` a 30_000 ms third argument (no assertion changed). Uncommitted, with the AD-104 and AD-105 changes: `tests/acceptance/playwright.config.ts`, `packages/telemetry/src/package-exports.test.ts`, `packages/config/test/rules.test.ts`, `.specs/STATE.md`, `.specs/phases/F0/decisions.md`, this note.
+  - **Passed in attempt 3 (proved by the artifacts):** `pnpm build`, `typecheck`, `lint`, `arch`, `format:check`; `pnpm test:acceptance` 92 expected, 0 unexpected, 0 flaky, 0 skipped (`reports/acceptance/results.json`; `tests/acceptance/test-results/.last-run.json` `passed`; `@HF-01` passed, with `packages/config/.turbo/turbo-test.log` 12 of 12 and the rules test at 13.7 s); `pnpm contracts:check` (`git diff` empty for `packages/contracts`); `pnpm harness:gate` and `pnpm quality:collect` (inferred: `reports/quality.json` was rewritten in this run, and the chain stops at the first failure).
+  - **Failed: `pnpm quality:ratchet --context pr`, the last step.** Root cause, from `scripts/lib/ratchet.mjs` `evaluate` (lines 54 to 57: a metric measured in the baseline and absent now is a failure) and `scripts/lib/collect.mjs`: the T56 gate command does not run the producers of the `pr` metrics. `quality:gate` in `package.json` runs `pnpm harness:json && pnpm quality:reports` before `quality:collect`; T56's command omits both. `harness.level`, `harness.percent`, `harness.failed_checks`, `arch.violations`, `lint.warnings` and `tests.skipped` have no source file in this run (`reports/` holds only `acceptance/` and `quality.json`; no `.harness-score.report.json`). The ratchet therefore exits 1 with "was measured … is missing now". The output was truncated and the failure is inferred from the script and the file state, not read from the output.
+  - **Not changed (plan defect, not a retry):** the gate command needs the two producers, or T56 should name the `quality:gate` chain, which is a plan change for the orchestrator. No retry is left (3 of 3). Not run by the implementer: `pnpm quality:ratchet` directly (a retry in effect).
+  - **Sweep (read-only, for the maintainer; no edits made).** Cold-load shape, default 5 s timeout, unit tests that the root `pnpm test` runs (`*.int.test.ts` excluded):
+    - `packages/config/test/rules.test.ts:17` `n/no-process-env reports a process.env read in a module file`: the only test with a first `ESLint.lintText` in its file; fixed by AD-106. The five later tests in that file reuse the warm module (no change needed).
+    - `packages/telemetry/src/package-exports.test.ts:17` `entries resolve to source files`: dynamic imports of the OpenTelemetry set; fixed by AD-105.
+    - `apps/api/scripts/mutation-plan.test.ts:84`, `:95` and `:102` (`stryker.config.mjs for domain breaks at 80 …`, `… for application breaks at 70 …`, `report paths are reports/mutation/api-<layer>/mutation.json …`): dynamic `import()` of `apps/api/stryker.config.mjs` through `loadStrykerConfig`, inside the test bodies. Lower risk: the module imports only the local `scripts/mutation-plan.ts`, and these ran green in the API workspace.
+    - Not in the list: static OpenTelemetry and ESLint imports (loaded at collection, outside the test timeout); the `*.int.test.ts` spawns (`apps/api/src/main/__tests__/roots.int.test.ts`, `instrument.int.test.ts`; excluded from the root `pnpm test`); the web and agent jsdom render tests (no dynamic import or build inside a test body).
+  - **Decision needed from the orchestrator (before any further T56 attempt):** amend the T56 gate to run `pnpm harness:json && pnpm quality:reports` before `quality:collect`, or the `quality:gate` chain. The maintainer then approves the T56 close. Batch 6 is otherwise complete at T55.
+- **T56 done (execute-batch-6, gate `gate:observability-e2e/T56` passed on attempt 3 of 3; the ledger counts 2 failures before it, so no retry is left).** Gate command: the amended chain `pnpm build && pnpm typecheck && pnpm lint && pnpm arch && pnpm format:check && pnpm test:acceptance && pnpm contracts:check && pnpm harness:gate && pnpm quality:gate` (AD-104 to AD-106 applied, no assertion changed).
+  - **Failure 2 of 3, environment, not code:** the run started with Docker Desktop not running (`docker info` could not reach `~/.docker/run/docker.sock`), so the `global-setup` Postgres container failed with "Could not find a working container runtime strategy" after the build, typecheck, lint, arch and format steps had passed. Docker Desktop was started with `open -a Docker` (daemon 29.7.2, no code, test, gate or sensor changed) and the identical command was then run as attempt 3.
+  - **Numbers (attempt 3):** `pnpm test:acceptance` 92 expected, 0 unexpected, 0 flaky, 0 skipped (14.9 min; `reports/acceptance/results.json`; HF-01 ran in `harness-root`, the other 91 in `chromium`). `pnpm contracts:check` clean (no drift in `packages/contracts`). `pnpm harness:gate` level 4, 100 percent, 0 failed checks. `pnpm quality:gate` ratchet `[pr]` OK, with `harness.level` 4, `harness.percent` 100, `harness.failed_checks` 0, `arch.violations` 0, `lint.warnings` 0, `tests.skipped` 0, `acceptance.failed` 0, `acceptance.flaky` 0; `ci.duration_seconds` not measured yet (no source in the chain, not gated).
+  - **Baseline:** `git diff phase/F0...HEAD -- .quality-baseline.json` is empty (0 lines); the baseline was not edited.
+  - **Commits:** the batch's pending changes are committed with `Feature: observability-e2e` and `Task: T56` trailers (test changes and the specs split; `git log --grep 'Task: T56'` lists them).
+- **Verifier fix pass (execute-batch-7) blocked at `gate:observability-e2e/verification`, attempt 3 of the budget (exit 3; the unit is exhausted, nothing further is run).** The closed list has no `fix` step, so the fix pass uses `verification`, which had 2 failures before this batch. Its gates passed: telemetry unit tests (36), acceptance support unit tests (15), the new `telemetry-relay.test.ts` (9), the relay integration tests (8), `pnpm typecheck`, `pnpm lint`, `pnpm arch` (2 warnings, 0 errors). The third failure is `pnpm format:check`: `.specs/features/observability-e2e/verification.md` and `.specs/features/observability-e2e/mutations.json` (untracked Verifier artifacts) are not Prettier-formatted. The implementer did not format them, because the batch's fix commit 2 was to do that; this was a planning miss, not a code defect.
+  - **Finding 1 (AD-107) committed:** `f8dce34` `fix(telemetry): drop the network peer address and port from spans`, with `.specs/STATE.md` and `.specs/phases/F0/decisions.md` (AD-107). `network.peer.address` and `network.peer.port` are dropped in `packages/telemetry/src/redact-attributes.ts` and in the scan's copy `tests/acceptance/support/forbidden-keys.ts`; C38's test and the trace scan test (`trace-reader.test.ts`) cover both keys. The word-list parity test does not cover the peer rule (it compares `FORBIDDEN_WORDS` only).
+  - **Finding 2 (ADR 026) NOT committed:** the pure `bodyRefusal` decision is in `apps/api/src/platform/http/telemetry-relay.ts` (`admit` maps 415 and 413 to the same replies); the unit file is `apps/api/src/platform/http/telemetry-relay.test.ts`. Uncommitted in the worktree: the commit gate denies commits while the feature has a blocked unit. The Verifier's `Closed` column is not filled and the Verdict is untouched.
+  - **To resume (maintainer reset of `gate:observability-e2e/verification`, then the orchestrator):** run `pnpm exec prettier --write .specs/features/observability-e2e/verification.md .specs/features/observability-e2e/mutations.json`; commit fix 2 (`fix(api): extract the relay body decision`, trailers `Feature: observability-e2e`, `Step: fix`); fill both `Closed` cells with the SHAs and the proving tests; run `pnpm format:check` once more.
+- T9, T13, T38 to T43, T47 write here.
+
+---
+
+## Phase Execution Map
+
+```
+Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 → Phase 8 → Phase 9 → Phase 10 → Phase 11 → Phase 12
+
+Phase 1:  T1 → T2 → T3 → T4 → T5 → T6
+Phase 2:  T7 → T8 → T9 → T10 → T11
+Phase 3:  T12 → T13 → T14 → T15 → T16
+Phase 4:  T17 → T18 → T19 → T20 → T21
+Phase 5:  T22 → T23 → T24 → T25
+Phase 6:  T26 → T27 → T28 → T29 → T30
+Phase 7:  T31 → T32 → T33
+Phase 8:  T34 → T35 → T36 → T37
+Phase 9:  T38 → T39 → T40 → T41 → T42 → T43
+Phase 10: T44 → T45 → T46
+Phase 11: T47 → T48 → T49
+Phase 12: T50 → T51 → T52 → T53 → T54 → T55 → T56
+```
+
+Execution is strictly sequential within a feature; the first task of each phase depends on the last task of the one before.

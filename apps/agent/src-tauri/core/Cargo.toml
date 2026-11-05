@@ -1,0 +1,21 @@
+[package]
+name = "d2rmm-agent-core"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "D2R Match Making agent core: pairing, heartbeat, stream, vision and fusion. No Tauri dependency."
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["serde"] }
+d2rmm-agent-domain = { path = "../domain", version = "0.0.0" }
+serde = { version = "1.0.229", features = ["derive"] }
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt", "sync", "time"] }
+tracing = "0.1"
+uuid = "1"
+zeroize = "1"
+
+[dev-dependencies]
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "test-util", "time"] }

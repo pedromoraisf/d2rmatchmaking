@@ -17,6 +17,7 @@ import {
 } from '../../../scripts/lib/budget.mjs';
 import { activePhase } from './delegation.mjs';
 import { checkDispatchPolicy, READ_ONLY_HELPERS } from '../../../scripts/lib/model-policy.mjs';
+import { innerShellCommands } from './shell-indirection.mjs';
 
 const deny = (reason, effects = []) => ({ decision: 'deny', reason, effects });
 const allow = (effects = []) => ({ decision: null, effects });
@@ -176,7 +177,9 @@ export function checkBudget(input, ctx, sid, rel) {
       }
       return null;
     }
-    if (segments(cmd).some(runsSensor)) {
+    // Nested shells (`bash -c "pnpm test"`, `eval …`) run their command too: judge what they hide.
+    const executed = [cmd, ...innerShellCommands(cmd)].flatMap(segments);
+    if (executed.some(runsSensor)) {
       return deny(
         'During a phase run, tests and gates run only through the retry-budget wrapper: ' +
           '`node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- "<command>"`.',
@@ -195,7 +198,9 @@ export function checkBudget(input, ctx, sid, rel) {
   if (
     tool === 'Bash' &&
     where.kind === 'feature' &&
-    segments(cmd).some((s) => /\bgit\b(?:\s+-[Cc]\s+\S+)*\s+commit\b/.test(s))
+    [cmd, ...innerShellCommands(cmd)]
+      .flatMap(segments)
+      .some((s) => /\bgit\b(?:\s+-[Cc]\s+\S+)*\s+commit\b/.test(s))
   ) {
     if (featureBlocked(ledger, where.feature))
       return deny(`Feature ${where.feature} is blocked (retry budget): no commits.`);

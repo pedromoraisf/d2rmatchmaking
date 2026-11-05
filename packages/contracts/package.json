@@ -1,0 +1,28 @@
+{
+  "name": "@d2rmm/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Generated OpenAPI and AsyncAPI documents for the D2R Match Making API and events (ADR 020).",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint --max-warnings 0 .",
+    "test": "vitest run --passWithNoTests",
+    "contracts:openapi": "node scripts/generate.ts"
+  },
+  "devDependencies": {
+    "@d2rmm/config": "workspace:*",
+    "@types/node": "^26.6.6",
+    "eslint": "^9.39.0",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}

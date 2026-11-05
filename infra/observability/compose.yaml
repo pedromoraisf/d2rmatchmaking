@@ -1,0 +1,14 @@
+# The local observability backend (OBS-23). `pnpm obs:up` starts it and `pnpm obs:down` stops it.
+# The image is pinned by tag and digest (read from `docker pull grafana/otel-lgtm:0.39.0`). Every port binds to loopback:
+# the image ships with anonymous admin access, so nothing may listen on the network.
+services:
+  lgtm:
+    image: grafana/otel-lgtm:0.39.0@sha256:4c8056c9c05fcb3c8fd93800e85334bfd79b4d0271b47a54a121a64af41fe1fe
+    ports:
+      - '127.0.0.1:3000:3000' # Grafana
+      - '127.0.0.1:4317:4317' # OTLP gRPC
+      - '127.0.0.1:4318:4318' # OTLP HTTP
+      - '127.0.0.1:3200:3200' # Tempo query API
+    volumes:
+      - ./dashboards:/var/lib/d2rmm/dashboards:ro
+      - ./provisioning/d2rmm-dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/d2rmm-dashboards.yaml:ro

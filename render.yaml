@@ -1,0 +1,22 @@
+# Render blueprint for the API (design.md § Workflows and hosting files): one free web service for the F0 staging build.
+# autoDeploy is off: deploy-api.yml migrates the database and calls the deploy hook after ci.yml passes on main.
+services:
+  - type: web
+    name: d2rmm-api
+    runtime: node
+    plan: free
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --ignore-scripts
+    startCommand: node --import ./apps/api/src/main/instrument.ts apps/api/src/main/render.ts
+    healthCheckPath: /healthz
+    autoDeploy: false
+    envVars:
+      - key: D2RMM_ENV
+        value: staging
+      - key: ENABLE_STAGING_ENDPOINTS
+        value: 'true'
+      - key: DATABASE_URL
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_HEADERS
+        sync: false

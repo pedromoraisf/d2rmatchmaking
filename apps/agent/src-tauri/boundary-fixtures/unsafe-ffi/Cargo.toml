@@ -1,0 +1,8 @@
+[package]
+name = "unsafe-ffi"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Boundary fixture (AGS-22): an FFI call outside the two allowed adapters, so clippy must fail with `unsafe_code`.
+[workspace]

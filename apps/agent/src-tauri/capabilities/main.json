@@ -1,0 +1,6 @@
+{
+  "identifier": "main",
+  "description": "The agent window: listen to agent-state and ask for a new pairing code. Nothing else.",
+  "windows": ["main"],
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten", "allow-get-new-code"]
+}

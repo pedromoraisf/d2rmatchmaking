@@ -1,0 +1,90 @@
+{
+  "description": "Shared sampler decisions for the API, the site and the agent. A trace is sampled when its lower 8 bytes, shifted right by one, are below floor(ratio * 2^63); a ratio of 1 or more always samples. The Rust agent reads the same file (AD-100).",
+  "cases": [
+    {
+      "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+      "ratio": "0.5",
+      "expected": "dropped"
+    },
+    {
+      "traceId": "0af7651916cd43dd8448eb211c80319c",
+      "ratio": "0.05",
+      "expected": "dropped"
+    },
+    {
+      "traceId": "00000000000000000000000000000001",
+      "ratio": "0.5",
+      "expected": "sampled"
+    },
+    {
+      "traceId": "00000000000000000000000000000000",
+      "ratio": "0",
+      "expected": "dropped"
+    },
+    {
+      "traceId": "ffffffffffffffffffffffffffffffff",
+      "ratio": "0.99",
+      "expected": "dropped"
+    },
+    {
+      "traceId": "ffffffffffffffffffffffffffffffff",
+      "ratio": "1",
+      "expected": "sampled"
+    },
+    {
+      "traceId": "0123456789abcdef0123456789abcdef",
+      "ratio": "0.1",
+      "expected": "sampled"
+    },
+    {
+      "traceId": "00000000000000008000000000000000",
+      "ratio": "0.5",
+      "expected": "dropped"
+    },
+    {
+      "traceId": "00000000000000007fffffffffffffff",
+      "ratio": "0.5",
+      "expected": "sampled"
+    },
+    {
+      "traceId": "00000000000000000ccccccccccccccc",
+      "ratio": "0.05",
+      "expected": "sampled"
+    },
+    {
+      "traceId": "00000000000000004ccccccccccccccc",
+      "ratio": "0.3",
+      "expected": "dropped"
+    },
+    {
+      "traceId": "00000000000000004ccccccccccccccc",
+      "ratio": "0.1",
+      "expected": "dropped"
+    },
+    {
+      "traceId": "0000000000000000b333333333333333",
+      "ratio": "0.7",
+      "expected": "dropped"
+    },
+    {
+      "traceId": "0000000000000000b333333333333333",
+      "ratio": "0.75",
+      "expected": "sampled"
+    },
+    {
+      "traceId": "0000000000000000199999999999999a",
+      "ratio": "0.1",
+      "expected": "sampled"
+    },
+    {
+      "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+      "ratio": "0.1",
+      "expected": "dropped"
+    },
+    {
+      "traceId": "0af7651916cd43dd8448eb211c80319c",
+      "ratio": "0.9",
+      "expected": "sampled"
+    }
+  ]
+}

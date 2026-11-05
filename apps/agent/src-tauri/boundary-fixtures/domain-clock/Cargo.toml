@@ -1,0 +1,9 @@
+[package]
+name = "domain-clock"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Boundary fixture (AHM-04): reads the clock with std::time::Instant. The domain clippy policy must fail it with
+# disallowed_types, so the domain never gains a clock. Its clippy.toml is byte-identical to the domain's.
+[workspace]
