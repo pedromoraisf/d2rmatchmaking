@@ -3,8 +3,9 @@
 name: ci
 
 on:
+  # Only main on push: a branch with a pull request would otherwise run everything twice. deploy-api needs this push run.
   push:
-    branches: [main, 'phase/**']
+    branches: [main]
   pull_request:
   # Started by release-please.yml on the release PR branch: a GITHUB_TOKEN PR gets no pull_request run (ADR 015).
   workflow_dispatch:
