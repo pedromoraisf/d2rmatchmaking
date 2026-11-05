@@ -2,8 +2,8 @@
 // agent sees and reports, the streams that carry only their own events, the reconnect from the last event, and the origin
 // of the site's requests. Black box: HTTP, SSE and the browser only.
 import { Assignment, RoomView } from '@d2rmm/contracts';
-import { expect } from '@playwright/test';
-import { Given, Then, When } from '../fixtures.ts';
+import { expect, type Route } from '@playwright/test';
+import { Given, Then, When, type Scenario } from '../fixtures.ts';
 import { EventStream } from '../support/sse.ts';
 import { SESSION_COOKIE, type Visitor, type World } from '../support/world.ts';
 
@@ -407,4 +407,165 @@ Then("the session cookie was set by the site's own origin", async ({ world }) =>
     visitor.responses.some((response) => response.url.startsWith(world.site.api)),
     'no response came straight from the API',
   ).toBe(false);
+});
+
+// SSR-01 to SSR-05: the browser's read of the room is held, so the order of a stream event and a slow answer is fixed.
+// Reads are numbered from 1 in the order the page makes them since the route was installed. A reload makes two: the
+// loading read (1), and the read its stream opening starts (2). Every read the plan does not name goes to the API.
+const ROOM_READ_ROUTE = '**/api/v1/me/room';
+const ROOM_READS = 'room-reads';
+
+type RoomReadAction =
+  { readonly kind: 'api' } | { readonly kind: 'hold' } | { readonly kind: 'status'; readonly status: number };
+
+interface RoomReads {
+  readonly plan: Map<number, RoomReadAction>;
+  readonly handler: (route: Route) => Promise<void>;
+  /** Reads the page has started. */
+  started: number;
+  /** Reads the route has answered: with the API's answer or with a status. */
+  answered: number;
+  /** The read the route holds: its stage as the API answered it, and the function that releases it. */
+  held?: { readonly stage: string; readonly release: () => void };
+  /** The number of the read the slow answer belonged to, from the moment the scenario released it. */
+  releasedAt?: number;
+}
+
+async function answerRoomRead(reads: RoomReads, route: Route): Promise<void> {
+  reads.started += 1;
+  const action = reads.plan.get(reads.started) ?? { kind: 'api' };
+  if (action.kind === 'status') {
+    await route.fulfill({ status: action.status });
+  } else if (action.kind === 'hold') {
+    // The answer is the API's, taken now, before the scenario changes the room; the page gets it only on release.
+    const response = await route.fetch();
+    const { stage } = RoomView.parse(await response.json());
+    await new Promise<void>((release) => {
+      reads.held = {
+        stage,
+        release: () => {
+          reads.held = undefined;
+          release();
+        },
+      };
+    });
+    await route.fulfill({ response });
+  } else {
+    await route.fulfill({ response: await route.fetch() });
+  }
+  reads.answered += 1;
+}
+
+/** Installs the route on the current visitor's page, once per scenario. */
+async function installRoomReads(world: World, scenario: Scenario): Promise<RoomReads> {
+  const installed = scenario.values.get(ROOM_READS) as RoomReads | undefined;
+  if (installed !== undefined) {
+    return installed;
+  }
+  const reads: RoomReads = {
+    plan: new Map(),
+    started: 0,
+    answered: 0,
+    handler: (route) => answerRoomRead(reads, route),
+  };
+  scenario.values.set(ROOM_READS, reads);
+  await world.currentVisitor.page.route(ROOM_READ_ROUTE, reads.handler);
+  return reads;
+}
+
+function existingRoomReads(scenario: Scenario): RoomReads {
+  const reads = scenario.values.get(ROOM_READS) as RoomReads | undefined;
+  if (reads === undefined) {
+    throw new Error("the site's room reads are not held in this scenario");
+  }
+  return reads;
+}
+
+/** Unroutes the room reads, so a later read reaches the API. */
+async function stopRoomReads(world: World, scenario: Scenario): Promise<void> {
+  const reads = scenario.values.get(ROOM_READS) as RoomReads | undefined;
+  if (reads === undefined) {
+    return;
+  }
+  scenario.values.delete(ROOM_READS);
+  await world.currentVisitor.page.unroute(ROOM_READ_ROUTE, reads.handler);
+}
+
+async function heldRoomRead(
+  reads: RoomReads,
+): Promise<{ readonly stage: string; readonly release: () => void }> {
+  await expect.poll(() => reads.held !== undefined, { timeout: 5_000 }).toBe(true);
+  const held = reads.held;
+  if (held === undefined) {
+    throw new Error('the site holds no room read');
+  }
+  return held;
+}
+
+Given(
+  'the site is waiting for a slow answer that says the room is awaiting the host',
+  async ({ world, scenario }) => {
+    const reads = await installRoomReads(world, scenario);
+    reads.plan.set(2, { kind: 'hold' });
+    await world.currentVisitor.page.reload();
+    const held = await heldRoomRead(reads);
+    expect(held.stage, 'the stage of the held answer').toBe('awaiting_host');
+  },
+);
+
+Given(
+  "the site's read before its stream opens has a slow answer that says the room is awaiting the host",
+  async ({ world, scenario }) => {
+    const reads = await installRoomReads(world, scenario);
+    reads.plan.set(1, { kind: 'hold' });
+    await world.currentVisitor.page.reload();
+    const held = await heldRoomRead(reads);
+    expect(held.stage, 'the stage of the held answer').toBe('awaiting_host');
+  },
+);
+
+Given('the read after the slow answer will fail with a server error', async ({ world, scenario }) => {
+  const reads = await installRoomReads(world, scenario);
+  reads.plan.set(reads.started + 1, { kind: 'status', status: 500 });
+});
+
+Given('the read on the next stream open will answer that there is no room', async ({ world, scenario }) => {
+  const reads = await installRoomReads(world, scenario);
+  reads.plan.set(2, { kind: 'status', status: 404 });
+});
+
+When('the slow answer about the room arrives', async ({ scenario }) => {
+  const reads = existingRoomReads(scenario);
+  const held = reads.held;
+  if (held === undefined) {
+    throw new Error('the site holds no room read in this scenario');
+  }
+  // The held read is the last one started: the site's next read is the one after it.
+  reads.releasedAt = reads.started;
+  held.release();
+});
+
+Then('the site reads the room again', async ({ world, scenario }) => {
+  const reads = existingRoomReads(scenario);
+  const released = reads.releasedAt;
+  if (released === undefined) {
+    throw new Error('the slow answer was not released in this scenario');
+  }
+  await expect.poll(() => reads.answered, { timeout: 5_000 }).toBeGreaterThan(released);
+  await stopRoomReads(world, scenario);
+});
+
+Then('the site read the room exactly once after its stream opened', async ({ world, scenario }) => {
+  const reads = existingRoomReads(scenario);
+  // Read 1 is the loading read, held and released; the stream-open read is the one after it.
+  expect(reads.started - 1, 'the reads after the loading read').toBe(1);
+  await stopRoomReads(world, scenario);
+});
+
+Then('the site shows no room', async ({ world, scenario }) => {
+  const reads = existingRoomReads(scenario);
+  // The loading read and the stream-open read have both answered before the room can be gone.
+  await expect.poll(() => reads.answered, { timeout: 5_000 }).toBeGreaterThanOrEqual(2);
+  await expect(world.currentVisitor.page.getByText('Game name', { exact: true })).toBeHidden();
+  await stopRoomReads(world, scenario);
 });

@@ -121,11 +121,11 @@ How. Steps stay black-box: they import nothing from `apps/*`. A reload makes two
 
 **Done when**:
 
-- [ ] Every step above exists, and `bddgen` reports no missing step
-- [ ] `the site is waiting…` and `the site's read before…` fail the scenario if the held body's `stage` is not `awaiting_host`
-- [ ] No scenario, tag or timeout changed
-- [ ] Gate check passes: `pnpm exec turbo run test:acceptance -- --grep @SSR-`
-- [ ] Test count: the 4 `@SSR-*` scenarios pass
+- [x] Every step above exists, and `bddgen` reports no missing step
+- [x] `the site is waiting…` and `the site's read before…` fail the scenario if the held body's `stage` is not `awaiting_host`
+- [x] No scenario, tag or timeout changed
+- [x] Gate check passes: `pnpm exec turbo run test:acceptance -- --grep @SSR-`
+- [x] Test count: the 4 `@SSR-*` scenarios pass
 
 **Tests**: acceptance
 **Gate**: `pnpm exec turbo run test:acceptance -- --grep @SSR-`
