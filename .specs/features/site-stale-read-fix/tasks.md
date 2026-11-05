@@ -181,7 +181,7 @@ Proof: `pnpm exec turbo run test:acceptance -- --grep @SSR-05`
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** none
-**Dispatched:** `execute-batch-1` (T1, T2) to `feature-worker`, returned at `6945f25`: T1's first proof failed on the old code, with "Awaiting host" on screen, so the cause in `spec.md` holds; `verifier` at the proofs' `HEAD`
+**Dispatched:** `execute-batch-1` (T1, T2) to `feature-worker`, returned at `6945f25`: T1's first proof failed on the old code, with "Awaiting host" on screen, so the cause in `spec.md` holds; `execute-batch-2` (type of the held read), returned at `189d3e6`; `verifier` at `189d3e6`, returned FAIL with one finding on `@SSR-03`; `execute-batch-3` (the finding), returned at `dfd558b`
 **Walked:** none - the scenarios drive the site in a browser
 
 ---

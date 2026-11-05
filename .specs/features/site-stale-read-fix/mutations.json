@@ -1,0 +1,23 @@
+[
+  {
+    "file": "apps/web/src/app/App.tsx",
+    "old": "streamEvents.current += 1;",
+    "new": "streamEvents.current += 0;",
+    "proof": "pnpm --filter @d2rmm/web exec vitest run src/app/App.test.tsx -t \"ignores a read that answers after a stream event\"",
+    "label": "stream events are no longer counted, so no read is ever overtaken"
+  },
+  {
+    "file": "apps/web/src/app/App.tsx",
+    "old": "if (!overtaken) {",
+    "new": "if (true) {",
+    "proof": "pnpm --filter @d2rmm/web exec vitest run src/app/App.test.tsx -t \"ignores a read that answers after a stream event\"",
+    "label": "an overtaken read's answer is applied anyway before the new read"
+  },
+  {
+    "file": "apps/web/src/app/App.tsx",
+    "old": "room.failure === 'not-found' ? null : current.room",
+    "new": "current.room",
+    "proof": "pnpm --filter @d2rmm/web exec vitest run src/app/App.test.tsx -t \"clears the room when a read answers no room and no stream event arrived\"",
+    "label": "a 404 no longer clears the room"
+  }
+]
