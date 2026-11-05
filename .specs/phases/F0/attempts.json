@@ -8377,6 +8377,11 @@
           "at": "2026-11-05T18:26:59.279Z",
           "ok": true,
           "note": "pnpm test:acceptance"
+        },
+        {
+          "at": "2026-11-05T18:48:11.316Z",
+          "ok": true,
+          "note": "pnpm quality:ratchet --context phase"
         }
       ],
       "status": "passed"
