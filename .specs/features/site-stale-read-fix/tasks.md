@@ -80,18 +80,18 @@ How:
 
 **Done when**:
 
-- [ ] The tests below were written first, and `ignores a read that answers after a stream event` failed on today's code
-- [ ] `ignores a read that answers after a stream event`: with the read held, a `room.stage_changed` to `created` arrives, the held answer says `awaiting_host`, and while the new read is still held the screen shows "Created" and not "Awaiting host"
-- [ ] `reads again after ignoring a read`: one more `GET /api/v1/me/room` follows, and its answer shows
-- [ ] `reads again when a read fails after a stream event`: the held read answers 500, and a new read still follows
-- [ ] `ignores a test match read that answers after a stream event`: the same order, with the read started by "Start test match"
-- [ ] `a presence event during a read also makes the site read again`: an `agent.presence_changed` is enough
-- [ ] `a repeated event during a read costs one more read`: two events during one read cause one new read, and the screen does not change
-- [ ] `shows the answer of a read with no stream event during it and reads once`: the answer shows, and no further `GET /api/v1/me/room` follows
-- [ ] `clears the room when a read answers no room and no stream event arrived`: a 404 clears the room on screen
-- [ ] `keeps the stage from the stream when the new read fails`: the new read answers 500, and "Created" stays on screen
-- [ ] Gate check passes: `pnpm --filter @d2rmm/web exec vitest run src/app/App.test.tsx`
-- [ ] Test count: every test that was in `App.test.tsx` still passes, plus these 9
+- [x] The tests below were written first, and `ignores a read that answers after a stream event` failed on today's code
+- [x] `ignores a read that answers after a stream event`: with the read held, a `room.stage_changed` to `created` arrives, the held answer says `awaiting_host`, and while the new read is still held the screen shows "Created" and not "Awaiting host"
+- [x] `reads again after ignoring a read`: one more `GET /api/v1/me/room` follows, and its answer shows
+- [x] `reads again when a read fails after a stream event`: the held read answers 500, and a new read still follows
+- [x] `ignores a test match read that answers after a stream event`: the same order, with the read started by "Start test match"
+- [x] `a presence event during a read also makes the site read again`: an `agent.presence_changed` is enough
+- [x] `a repeated event during a read costs one more read`: two events during one read cause one new read, and the screen does not change
+- [x] `shows the answer of a read with no stream event during it and reads once`: the answer shows, and no further `GET /api/v1/me/room` follows
+- [x] `clears the room when a read answers no room and no stream event arrived`: a 404 clears the room on screen
+- [x] `keeps the stage from the stream when the new read fails`: the new read answers 500, and "Created" stays on screen
+- [x] Gate check passes: `pnpm --filter @d2rmm/web exec vitest run src/app/App.test.tsx`
+- [x] Test count: every test that was in `App.test.tsx` still passes, plus these 9
 
 **Tests**: unit
 **Gate**: `pnpm --filter @d2rmm/web exec vitest run src/app/App.test.tsx`

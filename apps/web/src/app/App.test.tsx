@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Member } from '@d2rmm/contracts';
 import type { SiteStreamHandlers, StreamOpener } from '../shared/stream.ts';
-import { createApiClient } from '../shared/api-client.ts';
+import { createApiClient, type Fetcher } from '../shared/api-client.ts';
 import { jsonResponse, routeFetch } from '../test/fake-api.ts';
 import { renderInLanguage } from '../test/render.tsx';
 import { App } from './App.tsx';
@@ -53,6 +53,61 @@ async function playEvent(
   act(() => {
     stream.seen.handlers?.onEvent(event);
   });
+}
+
+// Opens the stream the way the browser does: the site reads the room again at once.
+async function streamOpens(stream: ReturnType<typeof fakeStream>) {
+  await vi.waitFor(() => expect(stream.seen.handlers).toBeDefined());
+  act(() => {
+    stream.seen.handlers?.onOpen();
+  });
+}
+
+// Answers the room reads in call order: `answers[n]` answers read n + 1 at once. A read past the list is held until
+// `release` answers the oldest held read. Every other URL goes through routeFetch.
+function scriptedRoomReads(routes: Record<string, () => Response>, answers: Array<() => Response>) {
+  const base = routeFetch(routes);
+  const held: Array<(response: Response) => void> = [];
+  let reads = 0;
+  const fetch: Fetcher = (url, init) => {
+    if (url !== '/api/v1/me/room') {
+      return base.fetch(url, init);
+    }
+    reads += 1;
+    const answer = answers[reads - 1];
+    if (answer !== undefined) {
+      return Promise.resolve(answer());
+    }
+    return new Promise<Response>((resolve) => {
+      held.push(resolve);
+    });
+  };
+  return {
+    fetch,
+    reads: () => reads,
+    release: async (response: Response) => {
+      const next = held.shift();
+      if (next === undefined) {
+        throw new Error('no held room read to release');
+      }
+      await act(async () => {
+        next(response);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    },
+  };
+}
+
+function signedInRoutes(): Record<string, () => Response> {
+  return {
+    'GET /api/v1/config': () => jsonResponse(200, config),
+    'GET /api/v1/me': () => jsonResponse(200, player),
+    'GET /api/v1/agents/me': () => jsonResponse(200, { status: 'none' }),
+  };
+}
+
+function roomReply(stage: string): Response {
+  return jsonResponse(200, { ...room, stage });
 }
 
 describe('App', () => {
@@ -264,5 +319,174 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: 'Start test match' }));
     expect(await screen.findByText('mmbaalh-12')).toBeTruthy();
     expect(screen.getByText('Awaiting host')).toBeTruthy();
+  });
+
+  it('ignores a read that answers after a stream event', async () => {
+    const reads = scriptedRoomReads(signedInRoutes(), [() => roomReply('awaiting_host')]);
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(reads.fetch)} openStream={stream.openStream} />);
+    await screen.findByText('mmbaalh-12');
+    await streamOpens(stream);
+    await vi.waitFor(() => expect(reads.reads()).toBe(2));
+    await playEvent(stream, {
+      type: 'room.stage_changed',
+      data: { roomId: '4821', stage: 'created', members: [member] },
+    });
+    expect(screen.getByText('Created')).toBeTruthy();
+
+    await reads.release(jsonResponse(200, room));
+    expect(screen.getByText('Created')).toBeTruthy();
+    expect(screen.queryByText('Awaiting host')).toBeNull();
+  });
+
+  it('reads again after ignoring a read', async () => {
+    const reads = scriptedRoomReads(signedInRoutes(), [() => roomReply('awaiting_host')]);
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(reads.fetch)} openStream={stream.openStream} />);
+    await screen.findByText('mmbaalh-12');
+    await streamOpens(stream);
+    await vi.waitFor(() => expect(reads.reads()).toBe(2));
+    await playEvent(stream, {
+      type: 'room.stage_changed',
+      data: { roomId: '4821', stage: 'created', members: [member] },
+    });
+    await reads.release(jsonResponse(200, room));
+
+    await vi.waitFor(() => expect(reads.reads()).toBe(3));
+    await reads.release(roomReply('created'));
+    expect(screen.getByText('Created')).toBeTruthy();
+    expect(screen.queryByText('Awaiting host')).toBeNull();
+  });
+
+  it('reads again when a read fails after a stream event', async () => {
+    const reads = scriptedRoomReads(signedInRoutes(), [() => roomReply('awaiting_host')]);
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(reads.fetch)} openStream={stream.openStream} />);
+    await screen.findByText('mmbaalh-12');
+    await streamOpens(stream);
+    await vi.waitFor(() => expect(reads.reads()).toBe(2));
+    await playEvent(stream, {
+      type: 'room.stage_changed',
+      data: { roomId: '4821', stage: 'created', members: [member] },
+    });
+
+    await reads.release(jsonResponse(500));
+    await vi.waitFor(() => expect(reads.reads()).toBe(3));
+    await reads.release(roomReply('created'));
+    expect(screen.getByText('Created')).toBeTruthy();
+  });
+
+  it('ignores a test match read that answers after a stream event', async () => {
+    const reads = scriptedRoomReads(
+      { ...signedInRoutes(), 'POST /api/v1/staging/match-formed': () => jsonResponse(202) },
+      [() => jsonResponse(404)],
+    );
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(reads.fetch)} openStream={stream.openStream} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Start test match' }));
+    await vi.waitFor(() => expect(reads.reads()).toBe(2));
+    await playEvent(stream, {
+      type: 'room.assigned',
+      data: { roomId: '4821', run: 1, expectedGameName: 'mmbaalh-12', members: [member] },
+    });
+    await playEvent(stream, {
+      type: 'room.stage_changed',
+      data: { roomId: '4821', stage: 'created', members: [member] },
+    });
+    expect(screen.getByText('Created')).toBeTruthy();
+
+    await reads.release(roomReply('awaiting_host'));
+    expect(screen.getByText('Created')).toBeTruthy();
+    expect(screen.queryByText('Awaiting host')).toBeNull();
+  });
+
+  it('a presence event during a read also makes the site read again', async () => {
+    const reads = scriptedRoomReads(
+      { ...signedInRoutes(), 'GET /api/v1/agents/me': () => jsonResponse(200, pairedAgent) },
+      [() => roomReply('awaiting_host')],
+    );
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(reads.fetch)} openStream={stream.openStream} />);
+    await screen.findByText('mmbaalh-12');
+    await streamOpens(stream);
+    await vi.waitFor(() => expect(reads.reads()).toBe(2));
+    await playEvent(stream, {
+      type: 'agent.presence_changed',
+      data: { agentId: 'agent-1', online: true, gameRunning: true, screen: 'AUTOMAP_OPEN' },
+    });
+
+    await reads.release(roomReply('awaiting_host'));
+    await vi.waitFor(() => expect(reads.reads()).toBe(3));
+  });
+
+  it('a repeated event during a read costs one more read', async () => {
+    const reads = scriptedRoomReads(signedInRoutes(), [() => roomReply('awaiting_host')]);
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(reads.fetch)} openStream={stream.openStream} />);
+    await screen.findByText('mmbaalh-12');
+    await streamOpens(stream);
+    await vi.waitFor(() => expect(reads.reads()).toBe(2));
+    await playEvent(stream, {
+      type: 'room.stage_changed',
+      data: { roomId: '4821', stage: 'created', members: [member] },
+    });
+    await playEvent(stream, {
+      type: 'room.stage_changed',
+      data: { roomId: '4821', stage: 'created', members: [member] },
+    });
+    expect(screen.getByText('Created')).toBeTruthy();
+
+    await reads.release(roomReply('awaiting_host'));
+    await vi.waitFor(() => expect(reads.reads()).toBe(3));
+    await reads.release(roomReply('created'));
+    expect(screen.getByText('Created')).toBeTruthy();
+    expect(screen.queryByText('Awaiting host')).toBeNull();
+    expect(reads.reads()).toBe(3);
+  });
+
+  it('shows the answer of a read with no stream event during it and reads once', async () => {
+    const reads = scriptedRoomReads(signedInRoutes(), [() => roomReply('awaiting_host')]);
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(reads.fetch)} openStream={stream.openStream} />);
+    await screen.findByText('mmbaalh-12');
+    await streamOpens(stream);
+    await vi.waitFor(() => expect(reads.reads()).toBe(2));
+
+    await reads.release(roomReply('created'));
+    expect(screen.getByText('Created')).toBeTruthy();
+    expect(reads.reads()).toBe(2);
+  });
+
+  it('clears the room when a read answers no room and no stream event arrived', async () => {
+    const reads = scriptedRoomReads(signedInRoutes(), [() => roomReply('awaiting_host')]);
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(reads.fetch)} openStream={stream.openStream} />);
+    await screen.findByText('mmbaalh-12');
+    await streamOpens(stream);
+    await vi.waitFor(() => expect(reads.reads()).toBe(2));
+
+    await reads.release(jsonResponse(404));
+    expect(screen.queryByText('mmbaalh-12')).toBeNull();
+    expect(screen.queryByText('Awaiting host')).toBeNull();
+  });
+
+  it('keeps the stage from the stream when the new read fails', async () => {
+    const reads = scriptedRoomReads(signedInRoutes(), [() => roomReply('awaiting_host')]);
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(reads.fetch)} openStream={stream.openStream} />);
+    await screen.findByText('mmbaalh-12');
+    await streamOpens(stream);
+    await vi.waitFor(() => expect(reads.reads()).toBe(2));
+    await playEvent(stream, {
+      type: 'room.stage_changed',
+      data: { roomId: '4821', stage: 'created', members: [member] },
+    });
+
+    await reads.release(roomReply('awaiting_host'));
+    await vi.waitFor(() => expect(reads.reads()).toBe(3));
+    await reads.release(jsonResponse(500));
+    expect(screen.getByText('Created')).toBeTruthy();
+    expect(screen.queryByText('Awaiting host')).toBeNull();
   });
 });
