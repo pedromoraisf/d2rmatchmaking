@@ -37,6 +37,7 @@ From Design Doc § Walking skeleton. Every item needs a proof in the phase revie
 | observability-e2e         | Large   | api-web-skeleton, agent-skeleton, agent-hexagonal-migration | no                    | NFR-09, ADR 013                                                                                 | default    |
 | load-baseline             | Large   | observability-e2e                                           | no                    | NFR-01, NFR-14                                                                                  | default    |
 | ci-and-review-fixes       | Small   | load-baseline                                               | no                    | NFR-10, NFR-11, ADR 020/021/023/026                                                             | default    |
+| site-stale-read-fix       | Small   | ci-and-review-fixes                                         | no                    | NFR-01, ADR 007                                                                                 | default    |
 
 Retry budget is fixed for every feature: 1 attempt + 2 retries per unit (ADR 022); a brief cannot raise it.
 
@@ -79,6 +80,9 @@ configs, release-please config, first green CI on GitHub, and the first measured
   pushed. In: acceptance builds the site it needs, `mutation.agent.core` becomes measurable locally and in the nightly,
   and the review stops re-running `validate_verification.py` on the phase branch. Out: product behaviour, and the other
   risks listed in `review.md`. Details: `.specs/phases/F0/brief-revision-3.md`.
+- Revision 4 (2026-11-05, from the first GitHub runs): `site-stale-read-fix` stops a read in flight from undoing a stage
+  the stream delivered. In: the site's re-read and its tests. Out: API, contract and stream changes, and overlapping
+  reads with no event involved. Details: `.specs/phases/F0/brief-revision-4.md`.
 
 ## Open questions (answered by the maintainer on 2026-10-30)
 
@@ -113,6 +117,8 @@ scopes delegated — the maintainer reviews at the end of the phase (escalations
 **Approved**: 2026-11-01 - user: "aprovo a revisão 2 do brief da F0"
 
 **Approved**: 2026-11-04 - user: "aprovo a revisão 3 do brief da F0"
+
+**Approved**: 2026-11-05 - user: "Pelo fluxo da fase"
 
 ## Runner state
 
