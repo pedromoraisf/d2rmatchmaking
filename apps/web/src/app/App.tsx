@@ -1,6 +1,6 @@
 // Site root: reads the configuration, the signed-in player, the agent and the room, then keeps them current from the
 // stream. Every stream open and every action re-reads what it may have changed.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentView, ConfigResponse, MeResponse, RoomView } from '@d2rmm/contracts';
 import { useTranslation } from 'react-i18next';
 import { PairingForm } from '../features/agents/PairingForm.tsx';
@@ -65,18 +65,29 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
   const [boot, setBoot] = useState<Boot>({ status: 'loading' });
   const signedIn = boot.status === 'ready' && boot.session !== null;
 
+  // Stream events applied so far. A read that an event overtook may answer older than that event, so its answer is
+  // ignored and the site reads again.
+  const streamEvents = useRef(0);
+
   // Re-reads the agent and the room. A failed read keeps what is on screen; "no room" (404) clears it.
   const refreshSite = useCallback(async () => {
-    const [agent, room] = await Promise.all([client.myAgent(), client.myRoom()]);
-    setBoot((current) =>
-      current.status === 'ready'
-        ? {
-            ...current,
-            agent: agent.ok ? agent.value : current.agent,
-            room: room.ok ? shownRoom(room.value) : room.failure === 'not-found' ? null : current.room,
-          }
-        : current,
-    );
+    let overtaken = true;
+    while (overtaken) {
+      const seen = streamEvents.current;
+      const [agent, room] = await Promise.all([client.myAgent(), client.myRoom()]);
+      overtaken = streamEvents.current !== seen;
+      if (!overtaken) {
+        setBoot((current) =>
+          current.status === 'ready'
+            ? {
+                ...current,
+                agent: agent.ok ? agent.value : current.agent,
+                room: room.ok ? shownRoom(room.value) : room.failure === 'not-found' ? null : current.room,
+              }
+            : current,
+        );
+      }
+    }
   }, [client]);
 
   useEffect(() => {
@@ -101,6 +112,7 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
         void refreshSite();
       },
       onEvent: (event) => {
+        streamEvents.current += 1;
         setBoot((current) => (current.status === 'ready' ? applyStreamEvent(current, event) : current));
       },
     });

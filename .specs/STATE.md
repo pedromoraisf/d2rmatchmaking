@@ -1191,6 +1191,24 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-04
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-133 (assumed)
+
+- **Decision**: every stream event that reaches the site during a read makes that read stale, whatever the event's type.
+- **Reason**: a rule per event type needs more code and has no case that needs it. An event only costs one more read.
+- **Trade-off**: a presence event during a read also costs one more read. Reversal: compare the event's type before marking the read stale.
+- **Scope**: site-stale-read-fix / SSR-01
+- **Date**: 2026-11-05
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-134 (assumed)
+
+- **Decision**: when the new read fails, the site keeps what is on screen, including the stage the stream delivered.
+- **Reason**: every read already follows this rule, and the event's stage is the newest thing the site knows.
+- **Trade-off**: the screen can stay behind until the next event or stream open. Reversal: retry the failed read.
+- **Scope**: site-stale-read-fix / SSR-04
+- **Date**: 2026-11-05
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

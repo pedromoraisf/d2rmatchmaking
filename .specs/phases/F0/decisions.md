@@ -112,6 +112,8 @@ review. Reversals become tasks in a follow-up feature.
 | AD-130 | ci-and-review-fixes | The nightly `quality` job needs `agent-mutation`, runs unless cancelled, downloads the agent's reports unless the job was skipped, and a download with no artifact does not fail it | one workflow file | |
 | AD-131 | ci-and-review-fixes | The shared sampler vector moves into the adapters crate, its two test readers follow it, and the agent's mutation commands create `reports/mutation` first; goes past brief revision 3's sketch because the nightly's commands could not run otherwise | move the file back and drop the adapters from the commands | |
 | AD-132 | ci-and-review-fixes | The 7 missed mutants the adapters' run revealed are killed with unit tests, with no production change and no scope exclusion; CRF-29 has no fresh `spec-reviewer` verdict (dispatches used up), and CRF-29's `# not-scenario` needs confirming | delete the tests; the nightly's adapters step goes red | |
+| AD-133 | site-stale-read-fix | Every stream event during a read makes that read stale, whatever its type | compare the event's type before marking the read stale | |
+| AD-134 | site-stale-read-fix | When the new read fails, the site keeps what is on screen | retry the failed read | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 
