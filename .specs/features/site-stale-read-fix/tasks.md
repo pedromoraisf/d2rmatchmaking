@@ -183,6 +183,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Settled mid-build:** none
 **Dispatched:** `execute-batch-1` (T1, T2) to `feature-worker`, returned at `6945f25`: T1's first proof failed on the old code, with "Awaiting host" on screen, so the cause in `spec.md` holds; `execute-batch-2` (type of the held read), returned at `189d3e6`; `verifier` at `189d3e6`, returned FAIL with one finding on `@SSR-03`; `execute-batch-3` (the finding), returned at `dfd558b`
 **Walked:** none - the scenarios drive the site in a browser
+**Stopped (2026-11-05, orchestrator's session exhausted, no unit of this feature is blocked):** the session used its 3 denials of the rule "Quote the whole gate command after `--`". The third came from starting the wrapper with a `cd` prefix in a shell whose directory was the feature's worktree. Done: `8103d34` merges the feature into `phase/F0`, not pushed. Left, in order, from the main checkout: `node scripts/attempt.mjs run --feature site-stale-read-fix --step integration -- "pnpm check"`; build the headless example, then the full `pnpm test:acceptance` on the same step; `git worktree remove .claude/worktrees/site-stale-read-fix`; `pnpm phase:status --write` and its commit; push after the maintainer's go-ahead; confirm the CI run; update `review.md`.
 
 ---
 

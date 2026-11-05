@@ -7507,6 +7507,11 @@
           "at": "2026-11-04T14:29:11.826Z",
           "ok": false,
           "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-05T01:40:02.615Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
         }
       ],
       "status": "open"
@@ -7540,26 +7545,6 @@
         }
       ],
       "status": "open"
-    },
-    "gate:agent-hexagonal-migration/verification": {
-      "attempts": [
-        {
-          "at": "2026-11-02T03:51:00.025Z",
-          "ok": false,
-          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration → exit 1: ERROR agent-hexagonal-migration: `Mutations: 3` owes 3 mutation rows and proofs.md has 0 - run check_proofs.py --mutations with the Verifier's spec\n  ERROR agent-hexagonal-migration: finding 'Core rule modules still have 11 timeouts under `--' is not closed - fix it and write the commit in `Closed`\n  ERROR agent-hexagonal-migration: finding 'Adapters `sse.rs` survives under `--lib`: 5 of 5"
-        },
-        {
-          "at": "2026-11-02T05:01:41.070Z",
-          "ok": false,
-          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration → exit 1: ERROR agent-hexagonal-migration: proofs.md was written at 7e1b9d5 and HEAD is 773165e - run check_proofs.py again\n\nvalidate_verification: 1 error(s), 0 warning(s) across [agent-hexagonal-migration]"
-        },
-        {
-          "at": "2026-11-02T05:06:36.674Z",
-          "ok": true,
-          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration"
-        }
-      ],
-      "status": "passed"
     },
     "denial:3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/fb08b46c": {
       "attempts": [
@@ -7977,9 +7962,444 @@
           "at": "2026-11-05T00:05:36.014Z",
           "ok": true,
           "note": "pnpm check"
+        },
+        {
+          "at": "2026-11-05T01:10:15.764Z",
+          "ok": true,
+          "note": "pnpm check > /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/scratchpad/r2-check.log 2>&1 && pnpm harness:json && pnpm test:mutation > /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/scratchpad/r2-mutation.log 2>&1 && pnpm test:mutation:agent > /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/scratchpad/r2-mutants.log 2>&1"
+        },
+        {
+          "at": "2026-11-05T01:17:14.790Z",
+          "ok": true,
+          "note": "cargo build --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --example headless --features fixture-read > /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/scratchpad/r2-example.log 2>&1 && pnpm test:acceptance > /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/scratchpad/r2-acceptance.log 2>&1"
+        },
+        {
+          "at": "2026-11-05T01:38:02.997Z",
+          "ok": true,
+          "note": "pnpm test:load > /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/scratchpad/r2-load.log 2>&1"
+        },
+        {
+          "at": "2026-11-05T01:38:08.575Z",
+          "ok": true,
+          "note": "pnpm quality:collect"
+        },
+        {
+          "at": "2026-11-05T01:38:09.896Z",
+          "ok": true,
+          "note": "pnpm quality:ratchet --context phase"
+        },
+        {
+          "at": "2026-11-05T12:50:43.929Z",
+          "ok": true,
+          "note": "pnpm run test:e2e"
+        },
+        {
+          "at": "2026-11-05T13:08:41.767Z",
+          "ok": true,
+          "note": "pnpm run test:acceptance"
+        },
+        {
+          "at": "2026-11-05T14:44:38.068Z",
+          "ok": true,
+          "note": "cd /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/dd9bbe44-30ef-441c-9c43-4c46633a0c0f/scratchpad/depth.07YVLU/full && node --test scripts/test/agent-test-preservation.test.mjs"
+        },
+        {
+          "at": "2026-11-05T14:45:11.587Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        },
+        {
+          "at": "2026-11-05T15:07:20.877Z",
+          "ok": false,
+          "note": "node --test scripts/test/deploy-workflows.test.mjs → exit 1:     code: 'ERR_ASSERTION',\n    actual: undefined,\n    expected: 'bash',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }"
+        },
+        {
+          "at": "2026-11-05T15:07:29.041Z",
+          "ok": true,
+          "note": "node --test scripts/test/deploy-workflows.test.mjs"
+        },
+        {
+          "at": "2026-11-05T15:45:02.493Z",
+          "ok": true,
+          "note": "pnpm test:harness"
+        },
+        {
+          "at": "2026-11-05T15:54:14.126Z",
+          "ok": true,
+          "note": "pnpm specs:check"
         }
       ],
       "status": "passed"
+    },
+    "denial:dd9bbe44-30ef-441c-9c43-4c46633a0c0f/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-05T12:49:18.227Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        },
+        {
+          "at": "2026-11-05T15:51:36.992Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:dd9bbe44-30ef-441c-9c43-4c46633a0c0f/2d121ea3": {
+      "attempts": [
+        {
+          "at": "2026-11-05T12:50:23.865Z",
+          "ok": false,
+          "note": "rm -r is allowed only on build/test output folders (node_modules, dist, coverage, target, reports…). Blocked: $S"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:dd9bbe44-30ef-441c-9c43-4c46633a0c0f/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-05T12:50:24.246Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-05T12:53:54.207Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-05T17:15:11.223Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "blocked"
+    },
+    "feedback:dd9bbe44-30ef-441c-9c43-4c46633a0c0f/scripts/test/deploy-workflows.test.mjs:harness-tests": {
+      "attempts": [
+        {
+          "at": "2026-11-05T15:07:19.745Z",
+          "ok": false,
+          "note": "…\n      at Test.postRun (node:internal/test_runner/test:1542:19)\n      at Test.run (node:internal/test_runner/test:1467:12)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: undefined,\n    expected: "
+        }
+      ],
+      "status": "open"
+    },
+    "denial:dd9bbe44-30ef-441c-9c43-4c46633a0c0f/fb08b46c": {
+      "attempts": [
+        {
+          "at": "2026-11-05T15:53:57.658Z",
+          "ok": false,
+          "note": "Commit refused: the latest gate of this feature since the last commit has not passed through `scripts/attempt.mjs run`. Run the task gate through the wrapper first."
+        },
+        {
+          "at": "2026-11-05T15:54:19.453Z",
+          "ok": false,
+          "note": "Commit refused: the latest gate of this feature since the last commit has not passed through `scripts/attempt.mjs run`. Run the task gate through the wrapper first."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:site-stale-read-fix/spec": {
+      "attempts": [
+        {
+          "at": "2026-11-05T15:56:24.592Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py site-stale-read-fix"
+        },
+        {
+          "at": "2026-11-05T15:56:28.653Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs site-stale-read-fix"
+        },
+        {
+          "at": "2026-11-05T15:58:37.574Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py site-stale-read-fix && node scripts/acceptance-check.mjs site-stale-read-fix"
+        },
+        {
+          "at": "2026-11-05T16:00:04.426Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py site-stale-read-fix && node scripts/acceptance-check.mjs site-stale-read-fix"
+        },
+        {
+          "at": "2026-11-05T16:01:45.606Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py site-stale-read-fix && node scripts/acceptance-check.mjs site-stale-read-fix"
+        },
+        {
+          "at": "2026-11-05T16:02:32.086Z",
+          "ok": true,
+          "note": "pnpm exec prettier --write .specs/features/site-stale-read-fix/spec.md"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:site-stale-read-fix/review-spec": {
+      "attempts": [
+        {
+          "at": "2026-11-05T15:56:35.631Z",
+          "ok": true,
+          "note": "dispatch: Review the feature spec"
+        },
+        {
+          "at": "2026-11-05T15:58:44.760Z",
+          "ok": true,
+          "note": "dispatch: Re-review the feature spec"
+        },
+        {
+          "at": "2026-11-05T16:00:11.673Z",
+          "ok": true,
+          "note": "dispatch: Final review of the spec"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:site-stale-read-fix/tasks": {
+      "attempts": [
+        {
+          "at": "2026-11-05T16:03:31.392Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py site-stale-read-fix"
+        },
+        {
+          "at": "2026-11-05T16:03:50.607Z",
+          "ok": true,
+          "note": "pnpm exec prettier --write .specs/features/site-stale-read-fix/tasks.md && python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py site-stale-read-fix --execute"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:site-stale-read-fix/execute-batch-1": {
+      "attempts": [
+        {
+          "at": "2026-11-05T16:04:10.448Z",
+          "ok": true,
+          "note": "dispatch: Implement the stale read fix"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:site-stale-read-fix/T1": {
+      "attempts": [
+        {
+          "at": "2026-11-05T16:05:57.311Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/web exec vitest run src/app/App.test.tsx → exit 1:     487|     await vi.waitFor(() => expect(reads.reads()).toBe(3));\n       |                                                  ^\n    488|     await reads.release(jsonResponse(500));\n    489|     expect(screen.getByText('Created')).toBeTruthy();\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯"
+        },
+        {
+          "at": "2026-11-05T16:06:12.114Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/web exec vitest run src/app/App.test.tsx"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:site-stale-read-fix/T2": {
+      "attempts": [
+        {
+          "at": "2026-11-05T16:12:33.466Z",
+          "ok": true,
+          "note": "pnpm exec turbo run test:acceptance -- --grep @SSR-"
+        },
+        {
+          "at": "2026-11-05T16:18:34.968Z",
+          "ok": true,
+          "note": "pnpm typecheck"
+        },
+        {
+          "at": "2026-11-05T16:29:28.708Z",
+          "ok": true,
+          "note": "pnpm exec turbo run test:acceptance -- --grep @SSR-03 --repeat-each=12"
+        },
+        {
+          "at": "2026-11-05T16:31:20.421Z",
+          "ok": true,
+          "note": "pnpm typecheck"
+        },
+        {
+          "at": "2026-11-05T16:33:21.676Z",
+          "ok": true,
+          "note": "pnpm exec turbo run test:acceptance -- --grep @SSR-"
+        },
+        {
+          "at": "2026-11-05T16:53:14.867Z",
+          "ok": false,
+          "note": "pnpm exec turbo run test:acceptance -- --grep @SSR- --repeat-each=10 --workers=8 → exit 1: Failed:    @d2rmm/acceptance#test:acceptance\n\n\n@d2rmm/acceptance#test:acceptance:  ERROR  command (/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/site-stale-read-fix/tests/acceptance) /Users/pedromoraisf/Library/pnpm/bin/pnpm run test:acceptance --grep @SSR- --repeat-each=10 --workers=8 exited (1)\n WARNING  no output files found for task @d2rmm/config#build. Please check your `outputs` key in `tu"
+        },
+        {
+          "at": "2026-11-05T17:05:58.915Z",
+          "ok": true,
+          "note": "pnpm exec turbo run test:acceptance -- --grep @SSR- --repeat-each=6"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:site-stale-read-fix/proofs": {
+      "attempts": [
+        {
+          "at": "2026-11-05T16:17:48.382Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py site-stale-read-fix → exit 1: **HEAD**: 6a9a6c5\n**Tree**: clean\n**Result**: 16 pass, 1 fail; mutations 0 killed, 0 not\n  Build: **fail** - @d2rmm/acceptance:typecheck: steps/lobby-room.steps.ts(447,11): error TS2412: Type 'undefined' is no - pnpm typecheck"
+        },
+        {
+          "at": "2026-11-05T16:21:18.528Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py site-stale-read-fix"
+        },
+        {
+          "at": "2026-11-05T16:24:43.436Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py site-stale-read-fix --mutations .specs/features/site-stale-read-fix/mutations.json → exit 1: **HEAD**: 189d3e6\n**Tree**: clean\n**Result**: 16 pass, 1 fail; mutations 3 killed, 0 not\n  C10: **fail** - pnpm exec turbo run test:acceptance -- --grep @SSR-03"
+        },
+        {
+          "at": "2026-11-05T17:11:15.389Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py site-stale-read-fix --mutations .specs/features/site-stale-read-fix/mutations.json"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:site-stale-read-fix/execute-batch-2": {
+      "attempts": [
+        {
+          "at": "2026-11-05T16:18:13.863Z",
+          "ok": true,
+          "note": "dispatch: Fix the steps type error"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:dd9bbe44-30ef-441c-9c43-4c46633a0c0f#a4f7a3be6f3a8b754/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-05T16:18:25.234Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:site-stale-read-fix/verify": {
+      "attempts": [
+        {
+          "at": "2026-11-05T16:21:30.899Z",
+          "ok": true,
+          "note": "dispatch: Verify the stale read fix"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:dd9bbe44-30ef-441c-9c43-4c46633a0c0f#a1dbc4df0dee67b53/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-05T16:21:43.921Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:dd9bbe44-30ef-441c-9c43-4c46633a0c0f#a1dbc4df0dee67b53/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-05T16:21:48.120Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-05T16:21:58.371Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-05T16:24:46.542Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "blocked"
+    },
+    "dispatch:site-stale-read-fix/execute-batch-3": {
+      "attempts": [
+        {
+          "at": "2026-11-05T16:30:15.637Z",
+          "ok": true,
+          "note": "dispatch: Make the read steps deterministic"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:site-stale-read-fix/verification": {
+      "attempts": [
+        {
+          "at": "2026-11-05T17:07:03.976Z",
+          "ok": true,
+          "note": "pnpm exec prettier --write .specs/features/site-stale-read-fix/verification.md .specs/features/site-stale-read-fix/mutations.json .specs/features/site-stale-read-fix/tasks.md"
+        },
+        {
+          "at": "2026-11-05T17:11:25.221Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py site-stale-read-fix"
+        },
+        {
+          "at": "2026-11-05T17:11:42.933Z",
+          "ok": true,
+          "note": "pnpm exec prettier --write .specs/features/site-stale-read-fix/proofs.md"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:site-stale-read-fix/integration": {
+      "attempts": [
+        {
+          "at": "2026-11-05T17:14:38.699Z",
+          "ok": true,
+          "note": "pnpm check && pnpm contracts:check && pnpm quality:collect && pnpm quality:ratchet --context pr"
+        },
+        {
+          "at": "2026-11-05T17:26:31.271Z",
+          "ok": true,
+          "note": "pnpm check"
+        },
+        {
+          "at": "2026-11-05T17:26:48.840Z",
+          "ok": true,
+          "note": "cargo build --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --example headless --features fixture-read"
+        },
+        {
+          "at": "2026-11-05T17:59:34.727Z",
+          "ok": false,
+          "note": "pnpm test:acceptance → exit 1: Failed:    @d2rmm/acceptance#test:acceptance\n\n ELIFECYCLE  Command failed with exit code 1.\n\n@d2rmm/acceptance#test:acceptance:  ERROR  command (/Users/pedromoraisf/www/d2rmatchmaking/tests/acceptance) /Users/pedromoraisf/Library/pnpm/bin/pnpm run test:acceptance exited (1)\n ERROR  run failed: command  exited (1)"
+        },
+        {
+          "at": "2026-11-05T18:26:59.279Z",
+          "ok": true,
+          "note": "pnpm test:acceptance"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:f933e700-73bf-58fd-8e10-2ef7ee5e2191/f2ef373b": {
+      "attempts": [
+        {
+          "at": "2026-11-05T18:03:30.337Z",
+          "ok": false,
+          "note": "Edits outside the repository are not allowed."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:f933e700-73bf-58fd-8e10-2ef7ee5e2191/f63fcc16": {
+      "attempts": [
+        {
+          "at": "2026-11-05T18:27:12.653Z",
+          "ok": false,
+          "note": "The retry ledger is maintained by the hooks and scripts/attempt.mjs only."
+        }
+      ],
+      "status": "open"
     }
   },
   "resets": [
