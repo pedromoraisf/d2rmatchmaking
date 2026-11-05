@@ -426,7 +426,7 @@ interface RoomReads {
   /** Reads the route has answered: with the API's answer or with a status. */
   answered: number;
   /** The read the route holds: its stage as the API answered it, and the function that releases it. */
-  held?: { readonly stage: string; readonly release: () => void };
+  held?: { readonly stage: string; readonly release: () => void } | undefined;
   /** The number of the read the slow answer belonged to, from the moment the scenario released it. */
   releasedAt?: number;
 }
