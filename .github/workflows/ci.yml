@@ -112,6 +112,9 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
+        with:
+          # @HF-01 runs `pnpm test`, and agent-test-preservation reads its baseline commit from the history.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
