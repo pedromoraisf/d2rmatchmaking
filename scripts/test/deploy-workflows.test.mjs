@@ -139,6 +139,13 @@ test('deploy-web passes the branch name through env and quotes it in run', () =>
   assert.doesNotMatch(publish.run, /github\.head_ref/);
 });
 
+test('deploy-web fails the publish step when wrangler fails', () => {
+  const publish = stepsOf(workflow('deploy-web.yml').jobs.deploy).find((step) => step.id === 'publish');
+  assert.match(publish.run, /wrangler pages deploy .*\| tee /);
+  // Only an explicit `shell: bash` runs with pipefail; the default `bash -e` reports the exit code of tee.
+  assert.equal(publish.shell, 'bash');
+});
+
 test('pull-requests write is granted only on the comment job', () => {
   const wf = workflow('deploy-web.yml');
   assert.equal(wf.permissions['pull-requests'], undefined);

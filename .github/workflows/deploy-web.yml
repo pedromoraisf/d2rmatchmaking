@@ -87,6 +87,8 @@ jobs:
       - name: Publish to Cloudflare Pages
         id: publish
         working-directory: apps/web
+        # Only an explicit `shell: bash` sets pipefail: without it, a failed wrangler is hidden by the exit code of tee.
+        shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
