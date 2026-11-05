@@ -13,6 +13,11 @@ const STAGE_BY_LABEL: Record<string, string> = { 'Awaiting host': 'awaiting_host
 /** The scenario value that remembers the game name of the room shown before a newer test match (AWS-21). */
 const PREVIOUS_GAME_NAME = 'previous-game-name';
 
+/** Does an event's data carry the given stage, without a cast: the data is unknown until its fields are checked. */
+function hasStage(data: unknown, stage: string): boolean {
+  return typeof data === 'object' && data !== null && 'stage' in data && data.stage === stage;
+}
+
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -410,8 +415,9 @@ Then("the session cookie was set by the site's own origin", async ({ world }) =>
 });
 
 // SSR-01 to SSR-05: the browser's read of the room is held, so the order of a stream event and a slow answer is fixed.
-// Reads are numbered from 1 in the order the page makes them since the route was installed. A reload makes two: the
-// loading read (1), and the read its stream opening starts (2). Every read the plan does not name goes to the API.
+// Only reads of the reloaded page count: the route passes on every read made before the page has navigated, without
+// counting it. Reads are numbered from 1 from the first armed read. A reload makes two: the loading read (1), and the
+// read its stream opening starts (2). Every read the plan does not name goes to the API.
 const ROOM_READ_ROUTE = '**/api/v1/me/room';
 const ROOM_READS = 'room-reads';
 
@@ -421,7 +427,9 @@ type RoomReadAction =
 interface RoomReads {
   readonly plan: Map<number, RoomReadAction>;
   readonly handler: (route: Route) => Promise<void>;
-  /** Reads the page has started. */
+  /** False until the page has navigated: reads before that pass on to the API, uncounted and unplanned. */
+  armed: boolean;
+  /** Reads the page has started since it was armed. */
   started: number;
   /** Reads the route has answered: with the API's answer or with a status. */
   answered: number;
@@ -432,6 +440,11 @@ interface RoomReads {
 }
 
 async function answerRoomRead(reads: RoomReads, route: Route): Promise<void> {
+  if (!reads.armed) {
+    // A read of the page before it reloaded: not counted, not planned.
+    await route.continue();
+    return;
+  }
   reads.started += 1;
   const action = reads.plan.get(reads.started) ?? { kind: 'api' };
   if (action.kind === 'status') {
@@ -464,12 +477,18 @@ async function installRoomReads(world: World, scenario: Scenario): Promise<RoomR
   }
   const reads: RoomReads = {
     plan: new Map(),
+    armed: false,
     started: 0,
     answered: 0,
     handler: (route) => answerRoomRead(reads, route),
   };
   scenario.values.set(ROOM_READS, reads);
-  await world.currentVisitor.page.route(ROOM_READ_ROUTE, reads.handler);
+  const page = world.currentVisitor.page;
+  // Registered before the route, so the next navigation (the reload that follows) arms the reads of the new page.
+  page.once('framenavigated', () => {
+    reads.armed = true;
+  });
+  await page.route(ROOM_READ_ROUTE, reads.handler);
   return reads;
 }
 
@@ -534,12 +553,16 @@ Given('the read on the next stream open will answer that there is no room', asyn
   reads.plan.set(2, { kind: 'status', status: 404 });
 });
 
-When('the slow answer about the room arrives', async ({ scenario }) => {
+When('the slow answer about the room arrives', async ({ world, scenario }) => {
   const reads = existingRoomReads(scenario);
   const held = reads.held;
   if (held === undefined) {
     throw new Error('the site holds no room read in this scenario');
   }
+  // The agent's POST can answer before the relay has published the stage change. Wait until the host's API stream has
+  // it, so the site's stream opening cannot receive it during its read: the answer then stays the only change.
+  const stream = await world.siteStreamOf(hostOf(world));
+  await stream.waitFor((event) => event.type === 'room.stage_changed' && hasStage(event.data, 'created'));
   // The held read is the last one started: the site's next read is the one after it.
   reads.releasedAt = reads.started;
   held.release();
