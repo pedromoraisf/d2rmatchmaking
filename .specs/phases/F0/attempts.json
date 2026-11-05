@@ -877,9 +877,14 @@
           "at": "2026-10-30T18:23:50.728Z",
           "ok": true,
           "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py harness-foundation"
+        },
+        {
+          "at": "2026-11-04T14:29:19.766Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py harness-foundation → exit 1: ERROR harness-foundation: proofs.md was written at 9ca3d4a and HEAD is 2801b4b - run check_proofs.py again\n\nvalidate_verification: 1 error(s), 0 warning(s) across [harness-foundation]"
         }
       ],
-      "status": "passed"
+      "status": "open"
     },
     "gate:harness-foundation/integration": {
       "attempts": [
@@ -2297,9 +2302,14 @@
           "at": "2026-10-31T14:01:01.649Z",
           "ok": true,
           "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py api-web-skeleton"
+        },
+        {
+          "at": "2026-11-04T14:29:20.697Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py api-web-skeleton → exit 1: ERROR api-web-skeleton: proofs.md was written at 47f73e6 and HEAD is 2801b4b - run check_proofs.py again\n\nvalidate_verification: 1 error(s), 0 warning(s) across [api-web-skeleton]"
         }
       ],
-      "status": "passed"
+      "status": "open"
     },
     "denial:9422b36b-ab53-5dd4-81da-6f772f7fb2bb/73e92d1b": {
       "attempts": [
@@ -3352,9 +3362,14 @@
           "at": "2026-11-01T16:13:55.241Z",
           "ok": true,
           "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-skeleton"
+        },
+        {
+          "at": "2026-11-04T14:29:21.592Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-skeleton → exit 1: ERROR agent-skeleton: proofs.md was written at 2233c74 and HEAD is 2801b4b - run check_proofs.py again\n\nvalidate_verification: 1 error(s), 0 warning(s) across [agent-skeleton]"
         }
       ],
-      "status": "passed"
+      "status": "open"
     },
     "denial:4f6603a4-6956-5de3-946d-a8c4fb52ceda/f2ef373b": {
       "attempts": [
@@ -4690,26 +4705,6 @@
         }
       ],
       "status": "open"
-    },
-    "gate:agent-hexagonal-migration/verification": {
-      "attempts": [
-        {
-          "at": "2026-11-02T03:51:00.025Z",
-          "ok": false,
-          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration → exit 1: ERROR agent-hexagonal-migration: `Mutations: 3` owes 3 mutation rows and proofs.md has 0 - run check_proofs.py --mutations with the Verifier's spec\n  ERROR agent-hexagonal-migration: finding 'Core rule modules still have 11 timeouts under `--' is not closed - fix it and write the commit in `Closed`\n  ERROR agent-hexagonal-migration: finding 'Adapters `sse.rs` survives under `--lib`: 5 of 5"
-        },
-        {
-          "at": "2026-11-02T05:01:41.070Z",
-          "ok": false,
-          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration → exit 1: ERROR agent-hexagonal-migration: proofs.md was written at 7e1b9d5 and HEAD is 773165e - run check_proofs.py again\n\nvalidate_verification: 1 error(s), 0 warning(s) across [agent-hexagonal-migration]"
-        },
-        {
-          "at": "2026-11-02T05:06:36.674Z",
-          "ok": true,
-          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration"
-        }
-      ],
-      "status": "passed"
     },
     "denial:f058df8f-358c-5879-ae71-8aa416d73e1b/26a6d08d": {
       "attempts": [
@@ -6292,9 +6287,14 @@
           "at": "2026-11-03T19:09:17.801Z",
           "ok": true,
           "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py observability-e2e"
+        },
+        {
+          "at": "2026-11-04T14:29:23.402Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py observability-e2e → exit 1: ERROR observability-e2e: proofs.md was written at 65d4481 and HEAD is 2801b4b - run check_proofs.py again\n\nvalidate_verification: 1 error(s), 0 warning(s) across [observability-e2e]"
         }
       ],
-      "status": "passed"
+      "status": "open"
     },
     "gate:observability-e2e/integration": {
       "attempts": [
@@ -7342,6 +7342,71 @@
           "at": "2026-11-04T13:15:57.299Z",
           "ok": true,
           "note": "pnpm install --frozen-lockfile && pnpm check"
+        },
+        {
+          "at": "2026-11-04T14:28:36.043Z",
+          "ok": true,
+          "note": "pnpm check > /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/scratchpad/check.log 2>&1"
+        },
+        {
+          "at": "2026-11-04T14:29:25.767Z",
+          "ok": true,
+          "note": "pnpm harness:json"
+        },
+        {
+          "at": "2026-11-04T14:30:17.987Z",
+          "ok": true,
+          "note": "pnpm quality:collect"
+        },
+        {
+          "at": "2026-11-04T14:30:45.812Z",
+          "ok": true,
+          "note": "pnpm quality:ratchet --context phase"
+        },
+        {
+          "at": "2026-11-04T14:43:54.517Z",
+          "ok": true,
+          "note": "pnpm test:mutation > /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/scratchpad/mutation-api.log 2>&1"
+        },
+        {
+          "at": "2026-11-04T14:50:11.282Z",
+          "ok": true,
+          "note": "cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --output reports/mutation/agent-core -- --lib > /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/scratchpad/mutants-core.log 2>&1"
+        },
+        {
+          "at": "2026-11-04T14:51:54.495Z",
+          "ok": true,
+          "note": "cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain --output reports/mutation/agent-domain -- --lib > /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/scratchpad/mutants-domain.log 2>&1"
+        },
+        {
+          "at": "2026-11-04T14:54:14.402Z",
+          "ok": false,
+          "note": "pnpm test:acceptance > /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/scratchpad/acceptance.log 2>&1 → exit 1: "
+        },
+        {
+          "at": "2026-11-04T15:14:26.001Z",
+          "ok": false,
+          "note": "pnpm build > /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/scratchpad/build.log 2>&1 && pnpm test:acceptance > /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/scratchpad/acceptance.log 2>&1 → exit 1: "
+        },
+        {
+          "at": "2026-11-04T15:23:52.438Z",
+          "ok": true,
+          "note": "cargo build --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --example headless --features fixture-read > /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/scratchpad/build-example.log 2>&1 && pnpm test:acceptance > /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/scratchpad/acceptance-3.log 2>&1"
+        },
+        {
+          "at": "2026-11-04T15:44:46.541Z",
+          "ok": true,
+          "note": "pnpm test:load > /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/scratchpad/load.log 2>&1"
+        },
+        {
+          "at": "2026-11-04T15:44:52.491Z",
+          "ok": true,
+          "note": "pnpm quality:collect"
+        },
+        {
+          "at": "2026-11-04T15:44:53.778Z",
+          "ok": true,
+          "note": "pnpm quality:ratchet --context phase"
         }
       ],
       "status": "passed"
@@ -7402,6 +7467,516 @@
           "at": "2026-11-04T13:12:44.404Z",
           "ok": true,
           "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py load-baseline"
+        },
+        {
+          "at": "2026-11-04T14:29:24.336Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py load-baseline → exit 1: ERROR load-baseline: proofs.md was written at 0b5c654 and HEAD is 2801b4b - run check_proofs.py again\n\nvalidate_verification: 1 error(s), 0 warning(s) across [load-baseline]"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-04T14:27:01.358Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        },
+        {
+          "at": "2026-11-04T14:31:20.969Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/f63fcc16": {
+      "attempts": [
+        {
+          "at": "2026-11-04T14:27:31.240Z",
+          "ok": false,
+          "note": "The retry ledger is maintained by the hooks and scripts/attempt.mjs only."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-04T14:29:11.826Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/9133020": {
+      "attempts": [
+        {
+          "at": "2026-11-04T14:31:28.440Z",
+          "ok": false,
+          "note": "Edit .quality-baseline.json with the Edit tool (so the ratchet check runs) or via `pnpm quality:ratchet --update`."
+        },
+        {
+          "at": "2026-11-04T16:39:14.024Z",
+          "ok": false,
+          "note": "Edit .quality-baseline.json with the Edit tool (so the ratchet check runs) or via `pnpm quality:ratchet --update`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/f2ef373b": {
+      "attempts": [
+        {
+          "at": "2026-11-04T15:49:05.060Z",
+          "ok": false,
+          "note": "Edits outside the repository are not allowed."
+        },
+        {
+          "at": "2026-11-04T15:49:05.467Z",
+          "ok": false,
+          "note": "Edits outside the repository are not allowed."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:agent-hexagonal-migration/verification": {
+      "attempts": [
+        {
+          "at": "2026-11-02T03:51:00.025Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration → exit 1: ERROR agent-hexagonal-migration: `Mutations: 3` owes 3 mutation rows and proofs.md has 0 - run check_proofs.py --mutations with the Verifier's spec\n  ERROR agent-hexagonal-migration: finding 'Core rule modules still have 11 timeouts under `--' is not closed - fix it and write the commit in `Closed`\n  ERROR agent-hexagonal-migration: finding 'Adapters `sse.rs` survives under `--lib`: 5 of 5"
+        },
+        {
+          "at": "2026-11-02T05:01:41.070Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration → exit 1: ERROR agent-hexagonal-migration: proofs.md was written at 7e1b9d5 and HEAD is 773165e - run check_proofs.py again\n\nvalidate_verification: 1 error(s), 0 warning(s) across [agent-hexagonal-migration]"
+        },
+        {
+          "at": "2026-11-02T05:06:36.674Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0/fb08b46c": {
+      "attempts": [
+        {
+          "at": "2026-11-04T16:51:55.404Z",
+          "ok": false,
+          "note": "Commit refused: the latest gate of this feature since the last commit has not passed through `scripts/attempt.mjs run`. Run the task gate through the wrapper first."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:ci-and-review-fixes/spec": {
+      "attempts": [
+        {
+          "at": "2026-11-04T16:56:01.327Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py ci-and-review-fixes"
+        },
+        {
+          "at": "2026-11-04T16:56:02.261Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs ci-and-review-fixes"
+        },
+        {
+          "at": "2026-11-04T16:59:02.133Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py ci-and-review-fixes"
+        },
+        {
+          "at": "2026-11-04T16:59:03.065Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs ci-and-review-fixes"
+        },
+        {
+          "at": "2026-11-04T17:01:04.896Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py ci-and-review-fixes"
+        },
+        {
+          "at": "2026-11-04T17:34:55.460Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py ci-and-review-fixes"
+        },
+        {
+          "at": "2026-11-04T17:34:56.342Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs ci-and-review-fixes"
+        },
+        {
+          "at": "2026-11-04T17:36:00.692Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py ci-and-review-fixes"
+        },
+        {
+          "at": "2026-11-04T20:48:46.296Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py ci-and-review-fixes"
+        },
+        {
+          "at": "2026-11-04T20:48:47.195Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs ci-and-review-fixes"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:ci-and-review-fixes/review-spec": {
+      "attempts": [
+        {
+          "at": "2026-11-04T16:56:12.094Z",
+          "ok": true,
+          "note": "dispatch: Review ci-and-review-fixes spec"
+        },
+        {
+          "at": "2026-11-04T16:59:12.364Z",
+          "ok": true,
+          "note": "dispatch: Re-review ci-and-review-fixes spec"
+        },
+        {
+          "at": "2026-11-04T17:35:06.292Z",
+          "ok": true,
+          "note": "dispatch: Review the spec amendment"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:ci-and-review-fixes/tasks": {
+      "attempts": [
+        {
+          "at": "2026-11-04T17:02:48.430Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py ci-and-review-fixes --execute → exit 1: ERROR T2 declares `Depends on: T1` but the diagram has no T1 -> T2 arrow\n  ERROR T6 declares `Depends on: T5` but the diagram has no T5 -> T6 arrow\n\nvalidate_tasks: 2 error(s), 0 warning(s) in ./.specs/features/ci-and-review-fixes/tasks.md"
+        },
+        {
+          "at": "2026-11-04T17:02:59.063Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py ci-and-review-fixes --execute"
+        },
+        {
+          "at": "2026-11-04T17:34:57.201Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py ci-and-review-fixes --execute"
+        },
+        {
+          "at": "2026-11-04T20:48:48.075Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py ci-and-review-fixes --execute"
+        },
+        {
+          "at": "2026-11-04T22:33:58.857Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py ci-and-review-fixes --execute"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:ci-and-review-fixes/execute-batch-1": {
+      "attempts": [
+        {
+          "at": "2026-11-04T17:03:19.519Z",
+          "ok": true,
+          "note": "dispatch: Execute ci-and-review-fixes batch 1"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0#a4ea5963caea32680/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-04T17:04:11.115Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0#a4ea5963caea32680/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-04T17:06:07.487Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-04T17:09:38.890Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:ci-and-review-fixes/T1": {
+      "attempts": [
+        {
+          "at": "2026-11-04T17:06:15.610Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec bddgen → exit 2: \nsteps/harness-foundation.steps.ts(598,33): error TS4111: Property 'name' comes from an index signature, so it must be accessed with ['name'].\nsteps/harness-foundation.steps.ts(599,33): error TS4111: Property 'path' comes from an index signature, so it must be accessed with ['path'].\n/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/ci-and-review-fixes/tests/acceptance:\n ERR_PNPM_RECURSIVE_R"
+        },
+        {
+          "at": "2026-11-04T17:06:30.126Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec bddgen"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-and-review-fixes/T2": {
+      "attempts": [
+        {
+          "at": "2026-11-04T17:07:16.957Z",
+          "ok": true,
+          "note": "node --test scripts/test/ci-workflow.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-and-review-fixes/T3": {
+      "attempts": [
+        {
+          "at": "2026-11-04T17:08:48.291Z",
+          "ok": true,
+          "note": "node --test scripts/test/collect.test.mjs scripts/test/ratchet.test.mjs"
+        },
+        {
+          "at": "2026-11-04T17:09:53.005Z",
+          "ok": true,
+          "note": "node --test scripts/test/collect.test.mjs scripts/test/ratchet.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-and-review-fixes/T4": {
+      "attempts": [
+        {
+          "at": "2026-11-04T17:11:13.066Z",
+          "ok": false,
+          "note": "node --test scripts/test/agent-mutation-scope.test.mjs && pnpm test:mutation:agent && pnpm quality:collect → exit 1:  ELIFECYCLE  Command failed with exit code 1.\n\nError: create output parent directory \"reports/mutation/agent-domain\"\n\nCaused by:\n    No such file or directory (os error 2)"
+        },
+        {
+          "at": "2026-11-04T17:30:15.845Z",
+          "ok": false,
+          "note": "node --test scripts/test/agent-mutation-scope.test.mjs && pnpm test:mutation:agent && pnpm quality:collect → exit 4: \n ELIFECYCLE  Command failed with exit code 4.\n\n INFO Auto-set test timeout to 20s\n INFO Auto-set test timeout to 20s\nERROR cargo test failed in an unmutated tree, so no mutants were tested"
+        },
+        {
+          "at": "2026-11-04T22:12:35.010Z",
+          "ok": true,
+          "note": "node --test scripts/test/agent-mutation-scope.test.mjs && pnpm test:mutation:agent && pnpm quality:collect"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:ci-and-review-fixes/execute-batch-2": {
+      "attempts": [
+        {
+          "at": "2026-11-04T17:36:23.827Z",
+          "ok": true,
+          "note": "dispatch: Execute ci-and-review-fixes batch 2"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:ci-and-review-fixes/T9": {
+      "attempts": [
+        {
+          "at": "2026-11-04T17:39:48.301Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/acceptance typecheck && pnpm --filter @d2rmm/acceptance exec bddgen"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0#a541fcc59f0deec94/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-04T17:41:32.151Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:ci-and-review-fixes/T10": {
+      "attempts": [
+        {
+          "at": "2026-11-04T18:55:12.304Z",
+          "ok": false,
+          "note": "node --test scripts/test/agent-mutation-scope.test.mjs && pnpm --filter @d2rmm/telemetry exec vitest run src/sdk/sampler.test.ts && mkdir -p reports/mutation && cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib → exit 2: MISSED   adapters/src/telemetry/relay_client.rs:148:9: replace <impl fmt::Debug for RelayHttpClient>::fmt -> fmt::Result with Ok(Default::default()) in 13s build + 5s test\nMISSED   adapt"
+        },
+        {
+          "at": "2026-11-04T21:37:31.797Z",
+          "ok": true,
+          "note": "node --test scripts/test/agent-mutation-scope.test.mjs && pnpm --filter @d2rmm/telemetry exec vitest run src/sdk/sampler.test.ts && mkdir -p reports/mutation && cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:ci-and-review-fixes/execute-batch-3": {
+      "attempts": [
+        {
+          "at": "2026-11-04T20:49:27.231Z",
+          "ok": true,
+          "note": "dispatch: Execute ci-and-review-fixes batch 3"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:ci-and-review-fixes/T11": {
+      "attempts": [
+        {
+          "at": "2026-11-04T20:52:36.432Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib -E 'test(telemetry::queue)'"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-and-review-fixes/T12": {
+      "attempts": [
+        {
+          "at": "2026-11-04T20:53:14.272Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib -E 'test(telemetry::relay_client)'"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-and-review-fixes/T13": {
+      "attempts": [
+        {
+          "at": "2026-11-04T20:53:48.897Z",
+          "ok": true,
+          "note": "cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --all -- --check && cargo nextest run --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib -E 'test(telemetry::sanitize)'"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-and-review-fixes/T5": {
+      "attempts": [
+        {
+          "at": "2026-11-04T22:13:57.049Z",
+          "ok": true,
+          "note": "node --test scripts/test/nightly-workflow.test.mjs scripts/test/agent-mutation-scope.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-and-review-fixes/T6": {
+      "attempts": [
+        {
+          "at": "2026-11-04T22:16:15.048Z",
+          "ok": true,
+          "note": "node --test scripts/test/phase-runner-skill.test.mjs"
+        },
+        {
+          "at": "2026-11-04T22:16:37.233Z",
+          "ok": true,
+          "note": "node --test scripts/test/phase-runner-skill.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-and-review-fixes/T7": {
+      "attempts": [
+        {
+          "at": "2026-11-04T22:28:49.228Z",
+          "ok": true,
+          "note": "node --test scripts/test/phase-runner-skill.test.mjs"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-and-review-fixes/T8": {
+      "attempts": [
+        {
+          "at": "2026-11-04T22:31:29.622Z",
+          "ok": true,
+          "note": "node --test scripts/test/phase-runner-skill.test.mjs && rm -rf apps/web/dist && pnpm exec turbo run test:acceptance -- --grep @CRF-"
+        },
+        {
+          "at": "2026-11-04T22:32:18.007Z",
+          "ok": true,
+          "note": "node --test scripts/test/phase-runner-skill.test.mjs && rm -rf apps/web/dist && pnpm exec turbo run test:acceptance -- --grep @CRF-"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-and-review-fixes/proofs": {
+      "attempts": [
+        {
+          "at": "2026-11-04T23:23:08.821Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py ci-and-review-fixes"
+        },
+        {
+          "at": "2026-11-04T23:24:11.352Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/mutate.py --root . --spec .specs/features/ci-and-review-fixes/mutations.json → exit 1: | the download runs only when the agent job was skipped | `.github/workflows/nightly.yml:53` | yes |\n| the adapters mutation run drops --lib | `package.json:28` | yes |\n| the agent core metric reads the old path | `.quality-baseline.json:86` | no |\n| acceptance no longer builds the site | `turbo.json:41` | yes |\n\nmutate: 3 killed, 1 survived, 0 blocked"
+        },
+        {
+          "at": "2026-11-04T23:24:47.447Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/mutate.py --root . --spec .specs/features/ci-and-review-fixes/mutations.json"
+        },
+        {
+          "at": "2026-11-05T00:02:26.548Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py ci-and-review-fixes --mutations .specs/features/ci-and-review-fixes/mutations.json"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:ci-and-review-fixes/verify": {
+      "attempts": [
+        {
+          "at": "2026-11-04T23:23:32.245Z",
+          "ok": true,
+          "note": "dispatch: Verify ci-and-review-fixes"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:3ec59295-7ff5-5675-bbeb-ae4d2c2c14e0#ab26bce2b9329767e/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-04T23:24:04.390Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-04T23:24:42.048Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:ci-and-review-fixes/verification": {
+      "attempts": [
+        {
+          "at": "2026-11-05T00:02:44.832Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py ci-and-review-fixes"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-and-review-fixes/integration": {
+      "attempts": [
+        {
+          "at": "2026-11-05T00:04:11.910Z",
+          "ok": true,
+          "note": "pnpm check && pnpm contracts:check"
+        },
+        {
+          "at": "2026-11-05T00:05:36.014Z",
+          "ok": true,
+          "note": "pnpm check"
         }
       ],
       "status": "passed"
@@ -8263,6 +8838,36 @@
             "at": "2026-11-04T00:57:53.959Z",
             "ok": false,
             "note": "pnpm test:load && node --test scripts/load/check/full-summary.check.mjs → exit 1: building the k6 image d2rmm-load-k6:f0\nstep 25: 25 players provisioned, 25 in the step\nstep 25: passed\nstep 50: 25 players provisioned, 50 in the step\nstep 50: passed\nsummary written to /Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/load-baseline/reports/load/summary.json"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "gate:agent-hexagonal-migration/verification",
+      "by": "pedromoraisf",
+      "at": "2026-11-04T16:38:23.815Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-02T03:51:00.025Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration → exit 1: ERROR agent-hexagonal-migration: `Mutations: 3` owes 3 mutation rows and proofs.md has 0 - run check_proofs.py --mutations with the Verifier's spec\n  ERROR agent-hexagonal-migration: finding 'Core rule modules still have 11 timeouts under `--' is not closed - fix it and write the commit in `Closed`\n  ERROR agent-hexagonal-migration: finding 'Adapters `sse.rs` survives under `--lib`: 5 of 5"
+          },
+          {
+            "at": "2026-11-02T05:01:41.070Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration → exit 1: ERROR agent-hexagonal-migration: proofs.md was written at 7e1b9d5 and HEAD is 773165e - run check_proofs.py again\n\nvalidate_verification: 1 error(s), 0 warning(s) across [agent-hexagonal-migration]"
+          },
+          {
+            "at": "2026-11-02T05:06:36.674Z",
+            "ok": true,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration"
+          },
+          {
+            "at": "2026-11-04T14:29:22.506Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration → exit 1: ERROR agent-hexagonal-migration: proofs.md was written at 1c936f0 and HEAD is 2801b4b - run check_proofs.py again\n\nvalidate_verification: 1 error(s), 0 warning(s) across [agent-hexagonal-migration]"
           }
         ],
         "status": "blocked"
