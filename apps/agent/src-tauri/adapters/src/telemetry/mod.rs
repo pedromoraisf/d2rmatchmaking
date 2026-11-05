@@ -225,11 +225,8 @@ mod tests {
 
     use super::{LogGate, agent_resource, agent_sampler, sanitize};
 
-    /// The vector every sender reads (AD-100), at the repository root.
-    const SAMPLER_VECTOR: &str = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../packages/telemetry/test-vectors/sampler.json"
-    );
+    /// The vector every sender reads (AD-100), inside this crate so mutation runs copy it with the crate.
+    const SAMPLER_VECTOR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/test-vectors/sampler.json");
 
     #[test]
     fn agent_resource_carries_the_agent_version() {

@@ -25,6 +25,7 @@
     "test:integration": "turbo run test:integration",
     "test:e2e": "turbo run test:e2e",
     "test:mutation": "turbo run test:mutation",
+    "test:mutation:agent": "mkdir -p reports/mutation && cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain --output reports/mutation/agent-domain -- --lib && cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --output reports/mutation/agent-core -- --lib && cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib",
     "test:load": "LOAD_PROFILE=full node scripts/load/run.mjs",
     "test:load:smoke": "LOAD_PROFILE=smoke node scripts/load/run.mjs",
     "load:publish": "node scripts/load/publish.mjs",

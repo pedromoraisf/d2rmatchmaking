@@ -83,7 +83,7 @@
       ],
       "source": {
         "type": "cargo-mutants",
-        "path": "reports/mutation/agent-core/outcomes.json"
+        "path": "reports/mutation/agent-core/mutants.out/outcomes.json"
       }
     },
     "arch.violations": {

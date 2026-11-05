@@ -1,6 +1,6 @@
 // The sampler of the API, the site and the agent (OBS-43, AD-100). A ratio decides by trace id, the same way in every
 // process: a trace is sampled when the lower 8 bytes of its id, shifted right by one, are below floor(ratio * 2^63).
-// That is the rule of opentelemetry_sdk in Rust, so the shared vector in test-vectors/sampler.json holds for both.
+// That is the rule of opentelemetry_sdk in Rust, so the shared vector in apps/agent/src-tauri/adapters/test-vectors/sampler.json holds for both.
 import type { Context } from '@opentelemetry/api';
 import {
   ParentBasedSampler,

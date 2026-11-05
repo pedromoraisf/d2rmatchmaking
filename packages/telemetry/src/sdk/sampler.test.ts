@@ -83,7 +83,10 @@ describe('samplerFrom', () => {
   });
 
   it('decisions match the shared vector', () => {
-    const vectorPath = new URL('../../test-vectors/sampler.json', import.meta.url);
+    const vectorPath = new URL(
+      '../../../../apps/agent/src-tauri/adapters/test-vectors/sampler.json',
+      import.meta.url,
+    );
     const vector = JSON.parse(readFileSync(vectorPath, 'utf8')) as {
       cases: { traceId: string; ratio: string; expected: 'sampled' | 'dropped' }[];
     };

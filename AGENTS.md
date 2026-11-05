@@ -49,7 +49,7 @@ Bounded contexts: **Identity** (Account, Character) · **Agents** (pairing, pres
 | Lint / types / architecture                             | `pnpm lint` · `pnpm typecheck` · `pnpm arch`                                                |
 | Integration (Testcontainers) / e2e (Playwright)         | `pnpm test:integration` · `pnpm test:e2e`                                                   |
 | Acceptance (Gherkin via playwright-bdd)                 | `pnpm test:acceptance` · coverage check: `pnpm acceptance:check`                            |
-| Mutation (Stryker / cargo-mutants)                      | `pnpm test:mutation`                                                                        |
+| Mutation (Stryker / cargo-mutants)                      | `pnpm test:mutation` · agent core, domain and adapters: `pnpm test:mutation:agent`          |
 | Regenerate OpenAPI + AsyncAPI                           | `pnpm contracts:openapi` (then commit the JSON)                                             |
 | Harness maturity gate (L4)                              | `pnpm harness:gate`                                                                         |
 | Quality ratchet                                         | `pnpm quality:collect && pnpm quality:ratchet --context pr`                                 |

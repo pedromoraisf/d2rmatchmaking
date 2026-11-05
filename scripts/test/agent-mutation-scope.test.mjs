@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const nightly = readFileSync('.github/workflows/nightly.yml', 'utf8');
 const runLine = nightly.split('\n').find((line) => /cargo mutants\b/.test(line)) ?? '';
@@ -70,4 +70,64 @@ test('a mutation run without the domain or --lib fails', () => {
   const withoutLib = nightly.replace(/ -- --lib/g, '');
   assert.equal(coversCratesWithLib(withoutDomain), false, 'a run without the domain fails');
   assert.equal(coversCratesWithLib(withoutLib), false, 'a run without --lib fails');
+});
+
+// CRF-09, CRF-10, CRF-11 (ci-and-review-fixes): `pnpm test:mutation:agent` runs the same three crates as the nightly.
+const packageScripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts ?? {};
+const agentCommands = (packageScripts['test:mutation:agent'] ?? '')
+  .split('&&')
+  .map((command) => command.trim())
+  .filter((command) => command.length > 0);
+const flagOf = (command, flag) => new RegExp(`(?:^|\\s)${flag}\\s+(\\S+)`).exec(command)?.[1];
+const packageOf = (commands, crate) =>
+  commands.find(
+    (command) =>
+      command.startsWith('cargo mutants') && flagOf(command, '--package') === `d2rmm-agent-${crate}`,
+  );
+const nightlyCommands = nightly.split('\n').filter((line) => /cargo mutants\b/.test(line));
+
+test('the agent mutation command covers the three crates', () => {
+  for (const crate of MUTATED_CRATES) {
+    assert.ok(
+      packageOf(agentCommands, crate),
+      `test:mutation:agent runs cargo-mutants on d2rmm-agent-${crate}`,
+    );
+  }
+});
+
+test('each agent mutation command uses unit tests only', () => {
+  // The mkdir that creates reports/mutation is not a cargo-mutants command; CRF-10 covers the cargo-mutants ones.
+  const mutants = agentCommands.filter((command) => command.startsWith('cargo mutants'));
+  assert.equal(mutants.length, MUTATED_CRATES.length, 'one cargo-mutants command per crate');
+  for (const command of mutants) {
+    assert.match(command, /\s--\s+--lib$/u, command);
+  }
+});
+
+test('each agent mutation command writes where the nightly writes', () => {
+  for (const crate of MUTATED_CRATES) {
+    const ours = packageOf(agentCommands, crate);
+    const theirs = nightlyCommands.find((line) => flagOf(line, '--package') === `d2rmm-agent-${crate}`);
+    assert.ok(ours && theirs, `both name d2rmm-agent-${crate}`);
+    assert.equal(
+      flagOf(ours, '--output'),
+      flagOf(theirs, '--output'),
+      `${crate} --output matches the nightly`,
+    );
+  }
+});
+
+test('the agent mutation command creates the reports directory first', () => {
+  const mkdir = agentCommands.findIndex((command) => command === 'mkdir -p reports/mutation');
+  const firstMutants = agentCommands.findIndex((command) => command.startsWith('cargo mutants'));
+  assert.notEqual(mkdir, -1, 'the command creates reports/mutation');
+  assert.notEqual(firstMutants, -1, 'the command runs cargo-mutants');
+  assert.ok(mkdir < firstMutants, 'mkdir comes before the first cargo mutants');
+});
+
+// CRF-27 (ci-and-review-fixes): the shared sampler vector lives in the adapters crate, so cargo-mutants copies it with
+// the crate, and the telemetry package keeps no copy.
+test('the shared sampler vector lives in the adapters crate', () => {
+  assert.equal(existsSync('apps/agent/src-tauri/adapters/test-vectors/sampler.json'), true);
+  assert.equal(existsSync('packages/telemetry/test-vectors'), false);
 });

@@ -345,6 +345,43 @@ mod tests {
         assert_eq!(parse_retry_after("-5"), None);
     }
 
+    #[test]
+    fn the_longest_retry_wait_is_one_hour() {
+        assert_eq!(MAX_RETRY_AFTER, Duration::from_secs(60 * 60));
+    }
+
+    #[test]
+    fn a_refused_token_is_probed_once_an_hour() {
+        assert_eq!(PROBE_INTERVAL, Duration::from_secs(60 * 60));
+    }
+
+    #[test]
+    fn the_next_probe_comes_one_interval_later() {
+        let now = Instant::now();
+        let refused = token_hash("token");
+        let mut state = ExportState::default();
+        state.record(Outcome::DropAndStop, Some(refused), now);
+
+        let probe = now + PROBE_INTERVAL;
+        assert_eq!(
+            state.admit(Some(refused), probe),
+            Admission::Send,
+            "the first probe is due one interval after the refusal"
+        );
+
+        let just_before_next = probe + PROBE_INTERVAL - Duration::from_secs(1);
+        assert_eq!(
+            state.admit(Some(refused), just_before_next),
+            Admission::Hold,
+            "no probe before one interval after the last probe"
+        );
+        assert_eq!(
+            state.admit(Some(refused), probe + PROBE_INTERVAL),
+            Admission::Send,
+            "the next probe is sent one interval later"
+        );
+    }
+
     struct FixedHeaders;
 
     impl HeaderSource for FixedHeaders {
@@ -428,5 +465,12 @@ mod tests {
             "the redirect reaches the exporter as is"
         );
         assert!(drops_the_batch(outcome_of(302, None, Instant::now())));
+    }
+
+    #[test]
+    fn debug_output_names_the_client_and_nothing_else() {
+        let client = RelayHttpClient::new(Arc::new(FixedHeaders)).expect("the client builds");
+
+        assert_eq!(format!("{client:?}"), "RelayHttpClient");
     }
 }

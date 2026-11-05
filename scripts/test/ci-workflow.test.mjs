@@ -13,6 +13,21 @@ const workflow = parse(readFileSync(path.join(root, '.github', 'workflows', 'ci.
 const steps = workflow.jobs.integration.steps;
 const SHA = /@[0-9a-f]{40}(?:\s|$)/u;
 
+// CRF-01 (ci-and-review-fixes): the acceptance task builds the site it serves before it runs.
+test('the acceptance task depends on the site build', () => {
+  const turbo = JSON.parse(readFileSync(path.join(root, 'turbo.json'), 'utf8'));
+  const task = turbo.tasks['test:acceptance'];
+  assert.deepEqual(task.dependsOn, ['^build', '@d2rmm/web#build'], 'dependsOn names the site build');
+  assert.equal(task.cache, false, 'cache is unchanged');
+  assert.deepEqual(task.outputs, [], 'outputs are unchanged');
+});
+
+// CRF-03: CI runs acceptance through the same command, so the site build of turbo applies to it.
+test('the integration job runs acceptance through the command', () => {
+  const runs = steps.map((step) => step.run).filter((run) => typeof run === 'string');
+  assert.ok(runs.includes('pnpm run test:acceptance'), 'the integration job runs pnpm run test:acceptance');
+});
+
 test('the integration job builds the headless example', () => {
   const build = steps.find((step) => typeof step.run === 'string' && step.run.includes('--example headless'));
   assert.ok(build, 'a step builds the headless example');
