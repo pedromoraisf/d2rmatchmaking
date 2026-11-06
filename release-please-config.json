@@ -5,7 +5,8 @@
       "component": "agent",
       "include-component-in-tag": true,
       "tag-separator": "-",
-      "include-v-in-tag": true
+      "include-v-in-tag": true,
+      "release-as": "0.0.1"
     }
   }
 }

@@ -15,6 +15,10 @@ publishes it. Installed agents read `latest.json` from the latest release (AGS-2
    changes) and `SHA256SUMS`.
 4. The first release after the merge is the phase review's proof (C43).
 
+`release-please-config.json` holds `"release-as": "0.0.1"` for that first release, because release-please would propose
+`1.0.0` otherwise. Remove the line right after `agent-v0.0.1` exists: while it stays, release-please keeps proposing
+0.0.1 and `agent-v0.0.2` cannot happen.
+
 A tag pushed by hand (`agent-v*`) starts `release-agent.yml` through its `push: tags` trigger. A failed release re-runs
 through `workflow_dispatch` of `release-agent.yml` with the tag as input.
 
