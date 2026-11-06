@@ -119,6 +119,7 @@ test('the tag is validated before use', () => {
     '${{ steps.tag.outputs.tag }}',
     'tauri-action uses the validated tag',
   );
+  assert.equal(tauriAction(job).with.tauriScript, 'pnpm exec tauri', 'tauri-action runs the workspace CLI');
 
   for (const step of stepsOf(job)) {
     if (typeof step.run === 'string') {
