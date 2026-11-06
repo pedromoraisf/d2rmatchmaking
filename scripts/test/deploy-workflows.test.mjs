@@ -168,6 +168,8 @@ test('render.yaml checks /healthz, never auto-deploys and runs the staging build
   const env = Object.fromEntries(service.envVars.map((entry) => [entry.key, entry.value]));
   assert.equal(env.D2RMM_ENV, 'staging');
   assert.equal(env.ENABLE_STAGING_ENDPOINTS, 'true');
+  assert.equal(env.SITE_ORIGIN, 'https://d2rmatchmaking.pages.dev');
+  assert.match(service.buildCommand, /^npm install -g corepack@\d+\.\d+\.\d+ && corepack enable && /);
 });
 
 // The text of one job, from its key to the next job key, so a check can look at a single job's secrets and permissions.

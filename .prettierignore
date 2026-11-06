@@ -13,3 +13,5 @@ packages/contracts/json-schema/
 # written by scripts (quality-ratchet --update, phase-status --write)
 .quality-baseline.json
 .specs/phases/*/attempts.json
+# written by release-please, which does not format it
+apps/agent/CHANGELOG.md

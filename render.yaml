@@ -5,7 +5,10 @@ services:
     name: d2rmm-api
     runtime: node
     plan: free
-    buildCommand: corepack enable && pnpm install --frozen-lockfile --ignore-scripts
+    # A region cannot change after the service is created. Virginia is the closest to Brazil.
+    region: virginia
+    # Node 25 and later ship no corepack, so the build installs the pinned one first.
+    buildCommand: npm install -g corepack@0.36.0 && corepack enable && pnpm install --frozen-lockfile --ignore-scripts
     startCommand: node --import ./apps/api/src/main/instrument.ts apps/api/src/main/render.ts
     healthCheckPath: /healthz
     autoDeploy: false
@@ -14,6 +17,8 @@ services:
         value: staging
       - key: ENABLE_STAGING_ENDPOINTS
         value: 'true'
+      - key: SITE_ORIGIN
+        value: https://d2rmatchmaking.pages.dev
       - key: DATABASE_URL
         sync: false
       - key: OTEL_EXPORTER_OTLP_ENDPOINT
