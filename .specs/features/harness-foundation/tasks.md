@@ -572,7 +572,7 @@ Proof: `pnpm --filter @d2rmm/api exec vitest run scripts/mutation-plan.test.ts -
 **C18** - The first `ci.yml` run on the maintainer's PR is green for `verify`, `integration` and `secrets` (HF-10, AC 1)
 Proof: walk - the maintainer pushes `phase/F0` after the phase review and the PR checks page shows the three jobs green (queued in `.specs/phases/F0/review.md`)
 
-**C19** - `apps/agent` is the only released package, tags `agent-v<version>`, starting at `0.0.0` (HF-11, AC 1, 2)
+**C19** - `apps/agent` is the only released package, tags `agent-v<version>`, and the manifest and its `package.json` agree on the version (HF-11, AC 1, 2)
 Proof: `pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep "@HF-11"`
 
 ---

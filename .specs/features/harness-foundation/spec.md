@@ -138,9 +138,9 @@ the workflow and the first release follows Conventional Commits.
 **Acceptance Criteria**:
 
 1. The repository SHALL contain `release-please-config.json` with exactly one package, `apps/agent`, of release type `node`, component `agent`, tag separator `-` and `include-v-in-tag: true`, so that its tags read `agent-v<version>`.
-2. The repository SHALL contain `.release-please-manifest.json` mapping `apps/agent` to `0.0.0`.
+2. The repository SHALL contain `.release-please-manifest.json` mapping `apps/agent` to a semantic version, the same version as `apps/agent/package.json`. Amended by the maintainer on 2026-11-06: the original `0.0.0` could only hold before the first release.
 
-**Independent Test**: parse both JSON files and check the fields; `apps/agent/package.json` version is `0.0.0`.
+**Independent Test**: parse both JSON files and check the fields; the manifest's version and the `apps/agent/package.json` version are equal.
 
 ---
 
