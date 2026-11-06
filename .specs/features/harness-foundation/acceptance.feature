@@ -69,5 +69,5 @@ Feature: A contributor builds every workspace and the sensors enforce the layers
   @HF-11
   Scenario: Only the agent is released, with agent tags
     When the contributor reads the release configuration
-    Then "apps/agent" is the only released package, starting at version "0.0.0"
+    Then "apps/agent" is the only released package, and the manifest and its package.json agree on the version
     And its release tags read "agent-v" followed by the version
