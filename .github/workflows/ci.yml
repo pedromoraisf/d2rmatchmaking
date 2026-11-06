@@ -95,7 +95,7 @@ jobs:
         run: |
           echo "{\"seconds\": $(( $(date +%s) - CI_STARTED ))}" > reports/ci-timing.json
           pnpm run quality:gate
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: quality-reports
@@ -137,7 +137,7 @@ jobs:
       - name: Acceptance (BDD scenarios from .specs)
         if: hashFiles('.specs/features/*/acceptance.feature') != ''
         run: pnpm run test:acceptance
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: acceptance-report
