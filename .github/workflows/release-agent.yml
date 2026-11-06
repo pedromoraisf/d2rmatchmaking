@@ -101,6 +101,9 @@ jobs:
           D2RMM_API_BASE: ${{ vars.API_BASE_URL }}
         with:
           projectPath: apps/agent
+          # Without it the action runs `npm run tauri`, a script this package does not have. Set here, not as a package
+          # script, so a release can be rebuilt from a tag that already exists.
+          tauriScript: pnpm exec tauri
           tagName: ${{ steps.tag.outputs.tag }}
           releaseDraft: false
           includeUpdaterJson: true
