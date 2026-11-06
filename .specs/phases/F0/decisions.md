@@ -307,6 +307,12 @@ The maintainer reset `gate:load-baseline/T33` (`pedromoraisf`). The reset had to
 - **Reading**: latency and resource use stay far from any limit, and the number of errors is exactly half the step's players, so the failure looks like a fault limited to part of the step (for example the 25 players this step adds) and not a capacity limit. It is not yet a finding about the API: the summary cannot say which request failed. T39 adds the error breakdown (AD-124); T33 then runs again (attempt 2 of 3). The first suspects after that: the pairing/provisioning of the players a step adds, the per-account state of the players kept from the earlier step, the API pool of 10 connections and the per-request session lookup.
 - **Not a bottleneck claim**: nothing here shows the instance's limit yet.
 
+## Maintainer decision: the first installable agent is v0.0.2 (2026-11-06)
+
+`agent-v0.0.1` was created with no assets: its build failed on a missing `bundle.icon`, and the tag cannot move. The
+maintainer chose to release `v0.0.2` as the first installable version instead of overriding the icon in the workflow.
+Exit criterion 5 of the brief is therefore proved by `v0.0.2` self-updating to `v0.0.3`. The brief's text is unchanged.
+
 ## Condition before production telemetry (from load-baseline, AD-128)
 
 - Do not set `OTEL_EXPORTER_OTLP_ENDPOINT` in production until the telemetry share is at or under 0.10 (measured 6.73 at 100 players, default sampler 0.1), or the maintainer decides another limit. First split the sink's count by traces, metrics and logs, and then bring the limit back as a failing rule.

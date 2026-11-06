@@ -6,7 +6,7 @@
       "include-component-in-tag": true,
       "tag-separator": "-",
       "include-v-in-tag": true,
-      "release-as": "0.0.1"
+      "release-as": "0.0.2"
     }
   }
 }
