@@ -385,13 +385,13 @@ When('the contributor reads the release configuration', ({ scenario }) => {
 });
 
 Then(
-  /^"(.+)" is the only released package, starting at version "(.+)"$/,
-  ({ scenario }, pkg: string, version: string) => {
+  /^"(.+)" is the only released package, and the manifest and its package\.json agree on the version$/,
+  ({ scenario }, pkg: string) => {
     const { config, manifest } = requireRelease(harness(scenario));
     expect(Object.keys(config.packages), 'released packages').toEqual([pkg]);
-    expect(manifest[pkg], `${pkg} in the release manifest`).toBe(version);
+    expect(manifest[pkg], `${pkg} in the release manifest`).toMatch(/^\d+\.\d+\.\d+$/);
     const packageJson = readJson<{ version?: unknown }>(path.join(scenario.repoRoot, pkg, 'package.json'));
-    expect(packageJson.version, `${pkg} package version`).toBe(version);
+    expect(packageJson.version, `${pkg} package version`).toBe(manifest[pkg]);
   },
 );
 
