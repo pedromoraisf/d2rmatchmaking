@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { settingsFromArguments, startSink } from '../../load/containers/sink.mjs';
 
-const TOKEN = 'p8s4d6f2g9h3j7k1';
+const TOKEN = 'fake'.repeat(4);
 const SLOW_TEST_MS = 20_000;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CONTAINERS = path.join(HERE, '..', '..', 'load', 'containers');

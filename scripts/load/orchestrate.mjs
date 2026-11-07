@@ -75,7 +75,7 @@ const LABEL_KEY = 'd2rmm-load';
 const SAMPLE_INTERVAL_MS = 5000;
 const READY_TRIES = 90;
 const READY_INTERVAL_MS = 1000;
-const SECRET_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const ALPHANUMERIC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 const STEP_COUNTERS = [
   'errors',
   'requests',
@@ -116,7 +116,7 @@ export function secretOf(bytes) {
   if (!(bytes instanceof Uint8Array) || bytes.length === 0) {
     throw new TypeError('a secret needs random bytes');
   }
-  return Array.from(bytes, (byte) => SECRET_ALPHABET[byte % SECRET_ALPHABET.length]).join('');
+  return Array.from(bytes, (byte) => ALPHANUMERIC[byte % ALPHANUMERIC.length]).join('');
 }
 
 /**

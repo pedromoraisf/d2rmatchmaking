@@ -111,7 +111,7 @@ test('cookieFrom returns the session pair and tokenFrom the agent token', () => 
   assert.throws(() => cookieFrom('theme=dark; Path=/'), TypeError, 'no session cookie is refused');
   assert.throws(() => cookieFrom(undefined), TypeError);
 
-  assert.equal(tokenFrom({ token: 'd2rmm_a_abc-DEF_123' }), 'd2rmm_a_abc-DEF_123');
+  assert.equal(tokenFrom({ token: 'd2rmm_a_aaa-AAA_000' }), 'd2rmm_a_aaa-AAA_000');
   assert.throws(() => tokenFrom({ token: 'session-like' }), TypeError, 'a token needs the d2rmm_a_ prefix');
   assert.throws(() => tokenFrom({}), TypeError);
   assert.throws(() => tokenFrom(null), TypeError);

@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import { flagsOf, readToken } from '../../load/containers/control.mjs';
 import { settingsFromArguments, startMeter } from '../../load/containers/meter.mjs';
 
-const TOKEN = 'k3m9q2w7e5r8t1y6';
+const TOKEN = 'fake'.repeat(4);
 const REPLY_BYTES = 1000;
 const PING = Buffer.from('ping');
 
