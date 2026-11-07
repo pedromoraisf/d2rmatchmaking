@@ -114,6 +114,9 @@ review. Reversals become tasks in a follow-up feature.
 | AD-132 | ci-and-review-fixes | The 7 missed mutants the adapters' run revealed are killed with unit tests, with no production change and no scope exclusion; CRF-29 has no fresh `spec-reviewer` verdict (dispatches used up), and CRF-29's `# not-scenario` needs confirming | delete the tests; the nightly's adapters step goes red | |
 | AD-133 | site-stale-read-fix | Every stream event during a read makes that read stale, whatever its type | compare the event's type before marking the read stale | |
 | AD-134 | site-stale-read-fix | When the new read fails, the site keeps what is on screen | retry the failed read | |
+| AD-135 | room-trace-link | A room stores the active traceparent whatever its sampled flag, and the observation links to it | store or link only sampled contexts | |
+| AD-136 | room-trace-link | Only an observation from a member of the room gets the link; a stranger's keeps its 403 and no link | link once the room is found | |
+| AD-137 | room-trace-link | The link is a plain span link with no attributes | add an attribute such as the room's stage | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 

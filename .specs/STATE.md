@@ -1209,6 +1209,33 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-05
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-135 (assumed)
+
+- **Decision**: a room stores the `traceparent` active when it opens whatever its sampled flag, and the observation links to it the same way.
+- **Reason**: a link to a trace that was not exported costs nothing; a rule per flag adds code with no case that needs it.
+- **Trade-off**: a link can point at a trace the backend never received. Reversal: store or link only sampled contexts.
+- **Scope**: room-trace-link / RTL-01, RTL-03
+- **Date**: 2026-11-07
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-136 (assumed)
+
+- **Decision**: `lobby.record-observation` links only when the agent's account is a member of the room; a stranger's observation gets no link and the same 403.
+- **Reason**: the span links only rooms the agent may act on, so nothing about a room is read for a stranger.
+- **Trade-off**: a rejected observation cannot be followed to its room's match. Reversal: link once the room is found.
+- **Scope**: room-trace-link / RTL-06
+- **Date**: 2026-11-07
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-137 (assumed)
+
+- **Decision**: the link is a plain OpenTelemetry span link with no attributes.
+- **Reason**: Grafana's trace view lists span links and opens the linked trace; the trace id says everything an attribute would.
+- **Trade-off**: none known. Reversal: add an attribute such as the room's stage.
+- **Scope**: room-trace-link / RTL-03
+- **Date**: 2026-11-07
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
