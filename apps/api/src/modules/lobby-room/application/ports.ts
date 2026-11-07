@@ -14,6 +14,17 @@ export interface LobbyRoomRepository {
   openedAt(roomId: string): Promise<Date | undefined>;
 }
 
+/**
+ * The W3C traceparent of the match that opened each room (RTL-01, RTL-08). Internal: it is read by the observation span
+ * and never sent in a view or an event (RTL-07). The domain `LobbyRoom` holds no trace field.
+ */
+export interface RoomTraceContexts {
+  /** Stores the traceparent of the span that opened the room, in the transaction that inserts the room. */
+  record(tx: Transaction, roomId: string, traceparent: string): Promise<void>;
+  /** The stored traceparent, or null for a room with none or an unknown room. */
+  find(roomId: string): Promise<string | null>;
+}
+
 export interface ObservationRepository {
   /** True when this agent already stored an observation with this idempotency key (INV-09). */
   exists(agentId: string, idempotencyKey: string): Promise<boolean>;

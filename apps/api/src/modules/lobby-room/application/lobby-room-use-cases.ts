@@ -1,6 +1,7 @@
 import { D2R_ROOM_ID } from '@d2rmm/telemetry';
 import type { AgentsPort } from '../../agents/index.ts';
 import {
+  activeTraceparent,
   err,
   ok,
   withSpan,
@@ -15,7 +16,13 @@ import {
 } from '../../../shared-kernel/index.ts';
 import { LobbyRoom } from '../domain/lobby-room.ts';
 import { Observation, type ObservationType } from '../domain/observation.ts';
-import type { GameNameSequence, LobbyRoomRepository, ObservationRepository, RoomMetrics } from './ports.ts';
+import type {
+  GameNameSequence,
+  LobbyRoomRepository,
+  ObservationRepository,
+  RoomMetrics,
+  RoomTraceContexts,
+} from './ports.ts';
 
 export interface LobbyRoomDeps {
   readonly rooms: LobbyRoomRepository;
@@ -27,6 +34,7 @@ export interface LobbyRoomDeps {
   readonly outbox: Outbox;
   readonly clock: Clock;
   readonly roomMetrics: RoomMetrics;
+  readonly traceContexts: RoomTraceContexts;
 }
 
 /** A room as a site member sees it (contract `RoomView`). */
@@ -111,9 +119,14 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
           return err('unsupported-difficulty');
         }
         const { room, events } = opened.value;
+        // The span active here is `lobby.on-match-formed`, the outbox relay of `MatchFormed` (RTL-01, RTL-02).
+        const traceparent = activeTraceparent();
         await deps.uow.run(async (tx) => {
           await deps.rooms.insert(tx, room);
           await deps.outbox.append(tx, events);
+          if (traceparent !== null) {
+            await deps.traceContexts.record(tx, room.id, traceparent);
+          }
         });
         return ok('created');
       },

@@ -117,12 +117,12 @@ T1 → T2 → T3 → T4 → T5 → T6
 
 **Done when**:
 
-- [ ] A room opened inside a span records that span's traceparent (test `stores the traceparent active when the room opens`)
-- [ ] A room opened with no span active records nothing (test `stores no traceparent when no span is active`)
-- [ ] A second `MatchFormed` for the same match records nothing new (test `records nothing for a match that already has a room`)
-- [ ] The events appended and the room's snapshot carry no traceparent field (test `keeps the traceparent out of the room's events and views`)
-- [ ] `LobbyRoom` and every file under `domain/` are unchanged
-- [ ] Gate passes; every existing test of the file still passes
+- [x] A room opened inside a span records that span's traceparent (test `stores the traceparent active when the room opens`)
+- [x] A room opened with no span active records nothing (test `stores no traceparent when no span is active`)
+- [x] A second `MatchFormed` for the same match records nothing new (test `records nothing for a match that already has a room`)
+- [x] The events appended and the room's snapshot carry no traceparent field (test `keeps the traceparent out of the room's events and views`)
+- [x] `LobbyRoom` and every file under `domain/` are unchanged
+- [x] Gate passes; every existing test of the file still passes
 
 **Tests**: unit
 **Gate**: `pnpm --filter @d2rmm/api exec vitest run src/modules/lobby-room/application/lobby-room-use-cases.test.ts`
