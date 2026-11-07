@@ -1,8 +1,8 @@
 # room-trace-link proofs
 
-**HEAD**: dec78e9
+**HEAD**: 5149949
 **Tree**: clean
-**Result**: 17 pass, 0 fail; mutations 2 killed, 1 not
+**Result**: 17 pass, 0 fail; mutations 3 killed, 0 not
 
 | Check | Proof                                                                                                            | Ran | Passed | Result |
 | ----- | ---------------------------------------------------------------------------------------------------------------- | --- | ------ | ------ |
@@ -30,4 +30,4 @@
 | ------------------------------------------------- | ------------------------------------------------------------------------- | ------ |
 | link swaps trace id and span id                   | `apps/api/src/shared-kernel/tracing.ts:45`                                | yes    |
 | UNKNOWN observation exits before the link         | `apps/api/src/modules/lobby-room/application/lobby-room-use-cases.ts:161` | yes    |
-| unsampled context not stored (contradicts AD-135) | `apps/api/src/shared-kernel/tracing.ts:19`                                | no     |
+| unsampled context not stored (contradicts AD-135) | `apps/api/src/shared-kernel/tracing.ts:19`                                | yes    |
