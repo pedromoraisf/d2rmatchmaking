@@ -592,9 +592,14 @@
           "at": "2026-10-30T17:36:09.661Z",
           "ok": true,
           "note": "pnpm format:check"
+        },
+        {
+          "at": "2026-11-06T17:45:29.906Z",
+          "ok": false,
+          "note": "pnpm --filter @d2rmm/acceptance exec bddgen && pnpm --filter @d2rmm/acceptance exec playwright test --grep @HF-11 --trace off → exit 1:     at PostgreSqlContainer.start (/Users/pedromoraisf/www/d2rmatchmaking/node_modules/.pnpm/@testcontainers+postgresql@12.2.1/node_modules/@testcontainers/postgresql/build/postgresql-container.js:119:47)\n    at globalSetup (/Users/pedromoraisf/www/d2rmatchmaking/tests/acceptance/support/global-setup.ts:9:21)\n\nundefined\n/Users/pedromoraisf/www/d2rmatchmaking/test"
         }
       ],
-      "status": "passed"
+      "status": "open"
     },
     "gate:harness-foundation/T16": {
       "attempts": [
@@ -8405,6 +8410,366 @@
         }
       ],
       "status": "open"
+    },
+    "denial:f933e700-73bf-58fd-8e10-2ef7ee5e2191/c3392fc0": {
+      "attempts": [
+        {
+          "at": "2026-11-05T19:38:42.714Z",
+          "ok": false,
+          "note": "Production database access is an escalation: never run commands with the production connection string. Ask the maintainer."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:8e89e7f6-0267-5f71-8ea6-3dba167df44a/2d121ea3": {
+      "attempts": [
+        {
+          "at": "2026-11-06T15:16:35.365Z",
+          "ok": false,
+          "note": "rm -r is allowed only on build/test output folders (node_modules, dist, coverage, target, reports…). Blocked: $D"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:8e89e7f6-0267-5f71-8ea6-3dba167df44a/b14fc77": {
+      "attempts": [
+        {
+          "at": "2026-11-06T15:16:44.335Z",
+          "ok": false,
+          "note": "During a phase run every dispatch starts with \"[d2rmm feature=<feature> step=<step>]\" so its retry budget can be counted."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:8e89e7f6-0267-5f71-8ea6-3dba167df44a/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-06T15:24:42.448Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:8e89e7f6-0267-5f71-8ea6-3dba167df44a/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-06T17:45:19.685Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:34b9f78e-77bc-5037-bce4-bc1bb2bf7188/f2ef373b": {
+      "attempts": [
+        {
+          "at": "2026-11-07T07:20:35.993Z",
+          "ok": false,
+          "note": "Edits outside the repository are not allowed."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:34b9f78e-77bc-5037-bce4-bc1bb2bf7188/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-07T14:59:17.865Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:34b9f78e-77bc-5037-bce4-bc1bb2bf7188/fb08b46c": {
+      "attempts": [
+        {
+          "at": "2026-11-07T20:56:58.687Z",
+          "ok": false,
+          "note": "Commit refused: the latest gate of this feature since the last commit has not passed through `scripts/attempt.mjs run`. Run the task gate through the wrapper first."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:34b9f78e-77bc-5037-bce4-bc1bb2bf7188/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-07T20:59:23.818Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-07T21:05:16.820Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:room-trace-link/spec": {
+      "attempts": [
+        {
+          "at": "2026-11-07T20:59:28.895Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py room-trace-link"
+        },
+        {
+          "at": "2026-11-07T20:59:31.744Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs room-trace-link"
+        },
+        {
+          "at": "2026-11-07T21:01:00.024Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py room-trace-link"
+        },
+        {
+          "at": "2026-11-07T21:01:00.917Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs room-trace-link"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:room-trace-link/review-spec": {
+      "attempts": [
+        {
+          "at": "2026-11-07T20:59:42.282Z",
+          "ok": true,
+          "note": "dispatch: Review room-trace-link spec"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:room-trace-link/tasks": {
+      "attempts": [
+        {
+          "at": "2026-11-07T21:05:24.619Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py room-trace-link → exit 1: ERROR T3 declares `Depends on: T1` but the diagram has no T1 -> T3 arrow\n  ERROR T5 declares `Depends on: T2` but the diagram has no T2 -> T5 arrow\n  ERROR T5 declares `Depends on: T4` but the diagram has no T4 -> T5 arrow\n\nvalidate_tasks: 3 error(s), 0 warning(s) in ./.specs/features/room-trace-link/tasks.md"
+        },
+        {
+          "at": "2026-11-07T21:06:16.952Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py room-trace-link"
+        },
+        {
+          "at": "2026-11-07T21:06:41.050Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py room-trace-link --execute"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:room-trace-link/execute-batch-1": {
+      "attempts": [
+        {
+          "at": "2026-11-07T21:07:17.245Z",
+          "ok": true,
+          "note": "dispatch: Execute room-trace-link batch 1"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:34b9f78e-77bc-5037-bce4-bc1bb2bf7188#aa5c83717f88cbfd0/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-07T21:08:36.933Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-07T21:29:08.779Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:room-trace-link/T1": {
+      "attempts": [
+        {
+          "at": "2026-11-07T21:08:41.452Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api exec vitest run src/shared-kernel/tracing.test.ts"
+        },
+        {
+          "at": "2026-11-07T21:50:04.094Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api exec vitest run src/shared-kernel/tracing.test.ts"
+        },
+        {
+          "at": "2026-11-07T21:50:51.416Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api exec vitest run src/shared-kernel/tracing.test.ts"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:34b9f78e-77bc-5037-bce4-bc1bb2bf7188#aa5c83717f88cbfd0/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-07T21:08:48.194Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:room-trace-link/T2": {
+      "attempts": [
+        {
+          "at": "2026-11-07T21:10:40.469Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/migrate.int.test.ts src/platform/postgres/migrator.int.test.ts"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:room-trace-link/T3": {
+      "attempts": [
+        {
+          "at": "2026-11-07T21:15:32.141Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api exec vitest run src/modules/lobby-room/application/lobby-room-use-cases.test.ts"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:room-trace-link/T4": {
+      "attempts": [
+        {
+          "at": "2026-11-07T21:22:27.984Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api exec vitest run src/modules/lobby-room/application/lobby-room-use-cases.test.ts"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:room-trace-link/T5": {
+      "attempts": [
+        {
+          "at": "2026-11-07T21:29:25.795Z",
+          "ok": true,
+          "note": "pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/modules/lobby-room/adapters/postgres/lobby-repositories.int.test.ts"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:room-trace-link/T6": {
+      "attempts": [
+        {
+          "at": "2026-11-07T21:36:56.519Z",
+          "ok": true,
+          "note": "pnpm exec turbo run test:acceptance -- --grep @RTL-09"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:room-trace-link/proofs": {
+      "attempts": [
+        {
+          "at": "2026-11-07T21:44:45.370Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py room-trace-link"
+        },
+        {
+          "at": "2026-11-07T21:52:34.082Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py room-trace-link --mutations .specs/features/room-trace-link/mutations.json"
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:room-trace-link/verify": {
+      "attempts": [
+        {
+          "at": "2026-11-07T21:45:41.895Z",
+          "ok": true,
+          "note": "dispatch: Verify room-trace-link"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:34b9f78e-77bc-5037-bce4-bc1bb2bf7188#a662b992ee2de58f7/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-07T21:46:44.208Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:34b9f78e-77bc-5037-bce4-bc1bb2bf7188#a662b992ee2de58f7/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-07T21:48:35.857Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:room-trace-link/execute-batch-2": {
+      "attempts": [
+        {
+          "at": "2026-11-07T21:49:46.317Z",
+          "ok": true,
+          "note": "dispatch: Fix room-trace-link verifier findings"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:room-trace-link/verification": {
+      "attempts": [
+        {
+          "at": "2026-11-07T21:56:03.051Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py room-trace-link"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:room-trace-link/integration": {
+      "attempts": [
+        {
+          "at": "2026-11-07T22:06:28.639Z",
+          "ok": false,
+          "note": "pnpm check → exit 1:  WARNING  no output files found for task @d2rmm/api#test. Please check your `outputs` key in `turbo.json`\nBoth esbuild and oxc options were set. oxc options will be used and esbuild options will be ignored. The following esbuild options were set: `{ jsx: 'automatic' }`\nBoth esbuild and oxc options were set. oxc options will be used and esbuild options will be ignored. The following esbuild options were set: `{ jsx: 'automatic' }`\nquality-ratchet [pr]: 1 regression(s)\n  ✗ ci."
+        },
+        {
+          "at": "2026-11-07T22:15:21.652Z",
+          "ok": false,
+          "note": "pnpm check → exit 1:  ELIFECYCLE  Command failed with exit code 1.\n\n[warn] .specs/lessons.json\n[warn] .specs/LESSONS.md\n[warn] scripts/quality-ratchet.mjs\n[warn] Code style issues found in 3 files. Run Prettier with --write to fix."
+        },
+        {
+          "at": "2026-11-07T22:17:08.522Z",
+          "ok": true,
+          "note": "pnpm check"
+        },
+        {
+          "at": "2026-11-07T22:17:47.116Z",
+          "ok": true,
+          "note": "pnpm contracts:check"
+        },
+        {
+          "at": "2026-11-07T22:19:10.949Z",
+          "ok": true,
+          "note": "pnpm --dir /Users/pedromoraisf/www/d2rmatchmaking check"
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:81bb0cdb-31b0-51b3-8610-2993328a40ee/f63fcc16": {
+      "attempts": [
+        {
+          "at": "2026-11-07T22:13:30.399Z",
+          "ok": false,
+          "note": "The retry ledger is maintained by the hooks and scripts/attempt.mjs only."
+        }
+      ],
+      "status": "open"
     }
   },
   "resets": [
@@ -9293,6 +9658,31 @@
             "at": "2026-11-04T14:29:22.506Z",
             "ok": false,
             "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py agent-hexagonal-migration → exit 1: ERROR agent-hexagonal-migration: proofs.md was written at 1c936f0 and HEAD is 2801b4b - run check_proofs.py again\n\nvalidate_verification: 1 error(s), 0 warning(s) across [agent-hexagonal-migration]"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "gate:room-trace-link/verification",
+      "by": "pedromoraisf",
+      "at": "2026-11-07T21:55:56.272Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-07T21:48:21.007Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py room-trace-link --mutations .specs/features/room-trace-link/mutations.json → exit 1: **HEAD**: dec78e9\n**Tree**: clean\n**Result**: 17 pass, 0 fail; mutations 2 killed, 1 not\n  mutation not killed: unsampled context not stored (contradicts AD-135)"
+          },
+          {
+            "at": "2026-11-07T21:48:53.854Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py room-trace-link → exit 1: ERROR room-trace-link: proofs.md - mutation 'unsampled context not stored (contradicts AD-135)' reads 'no'\n  ERROR room-trace-link: finding 'A sampled-flag-off context is stored and linked \"l' is not closed - fix it and write the commit in `Closed`\n  ERROR room-trace-link: finding 'Flag round-trip of the link is unasserted: `traceF' is not closed - fix it and write the commit in `Closed`\n\nvalidate_v"
+          },
+          {
+            "at": "2026-11-07T21:52:50.102Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py room-trace-link → exit 1: ERROR room-trace-link: finding 'A sampled-flag-off context is stored and linked \"l' is not closed - fix it and write the commit in `Closed`\n  ERROR room-trace-link: finding 'Flag round-trip of the link is unasserted: `traceF' is not closed - fix it and write the commit in `Closed`\n\nvalidate_verification: 2 error(s), 0 warning(s) across [room-trace-link]"
           }
         ],
         "status": "blocked"

@@ -143,3 +143,4 @@ scopes delegated — the maintainer reviews at the end of the phase (escalations
 | load-baseline             | done      | done   | 43/43 |
 | ci-and-review-fixes       | done      | done   | 13/13 |
 | site-stale-read-fix       | done      | done   | 2/2   |
+| room-trace-link           | done      | done   | 6/6   |
