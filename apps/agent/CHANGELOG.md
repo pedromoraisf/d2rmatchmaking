@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.2](https://github.com/pedromoraisf/d2rmatchmaking/compare/agent-v0.0.1...agent-v0.0.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* **agent:** name the bundle icons so the Windows installer can be built ([72a749e](https://github.com/pedromoraisf/d2rmatchmaking/commit/72a749e06730105a6bdea33e14e451f1b50b72aa))
+* **agent:** name the bundle icons so the Windows installer can be built ([f227edf](https://github.com/pedromoraisf/d2rmatchmaking/commit/f227edf28928961237028a3d39e87d4b195fbcb8))
+
 ## 0.0.1 (2026-11-06)
 
 
