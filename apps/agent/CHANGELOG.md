@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.3](https://github.com/pedromoraisf/d2rmatchmaking/compare/agent-v0.0.2...agent-v0.0.3) (2026-11-07)
+
+
+### Miscellaneous Chores
+
+* **agent:** document how to check the version and the self-update ([7e6d14e](https://github.com/pedromoraisf/d2rmatchmaking/commit/7e6d14e78f530df94460cb89d97f2662e4853d81))
+
 ## [0.0.2](https://github.com/pedromoraisf/d2rmatchmaking/compare/agent-v0.0.1...agent-v0.0.2) (2026-11-07)
 
 
