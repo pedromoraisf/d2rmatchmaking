@@ -186,9 +186,9 @@ T1 → T2 → T3 → T4 → T5 → T6
 
 **Done when**:
 
-- [ ] `@RTL-09` passes against the local telemetry backend
-- [ ] `lobby-routes.int.test.ts` passes unchanged
-- [ ] Gate passes
+- [x] `@RTL-09` passes against the local telemetry backend
+- [x] `lobby-routes.int.test.ts` passes unchanged
+- [x] Gate passes
 
 **Tests**: acceptance
 **Gate**: `pnpm exec turbo run test:acceptance -- --grep @RTL-09`

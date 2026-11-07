@@ -4,6 +4,7 @@ import {
   assertTraceB,
   describeError,
   leaksIn,
+  linkedTraceIds,
   NAMES,
   printTraceIds,
   spansOfTempo,
@@ -160,5 +161,40 @@ describe('trace reader', () => {
         expect.stringContaining('cookie'),
       ]),
     );
+  });
+});
+
+describe('span links', () => {
+  it('reads the links of a span in both id encodings, and names the linked trace ids', () => {
+    const linkedTrace = 'c'.repeat(32);
+    const linkedSpan = '0000000000000009';
+    const base64Trace = Buffer.from(linkedTrace, 'hex').toString('base64');
+    const base64Span = Buffer.from(linkedSpan, 'hex').toString('base64');
+    const spans = spansOfTempo({
+      batches: [
+        {
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  traceId: TRACE,
+                  spanId: '0000000000000002',
+                  name: 'lobby.record-observation',
+                  links: [{ traceId: base64Trace, spanId: base64Span }],
+                },
+                { traceId: TRACE, spanId: '0000000000000003', name: 'POST' },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(spans[0]?.links).toStrictEqual([{ traceId: linkedTrace, spanId: linkedSpan }]);
+    expect(spans[1]?.links).toStrictEqual([]);
+    expect(linkedTraceIds({ traceId: TRACE, spans }, 'lobby.record-observation')).toStrictEqual([
+      linkedTrace,
+    ]);
+    expect(linkedTraceIds({ traceId: TRACE, spans }, 'POST')).toStrictEqual([]);
   });
 });

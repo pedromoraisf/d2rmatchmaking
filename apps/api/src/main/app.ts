@@ -21,6 +21,7 @@ import { lobbyRoomRoutes } from '../modules/lobby-room/adapters/http/routes.ts';
 import { PostgresGameNameSequence } from '../modules/lobby-room/adapters/postgres/postgres-game-name-sequence.ts';
 import { PostgresLobbyRoomRepository } from '../modules/lobby-room/adapters/postgres/postgres-lobby-room-repository.ts';
 import { PostgresObservationRepository } from '../modules/lobby-room/adapters/postgres/postgres-observation-repository.ts';
+import { PostgresRoomTraceContexts } from '../modules/lobby-room/adapters/postgres/postgres-room-trace-contexts.ts';
 import type { LobbyDatabase } from '../modules/lobby-room/adapters/postgres/schema.ts';
 import { OtelRoomMetrics } from '../modules/lobby-room/adapters/telemetry/otel-room-metrics.ts';
 import { createLobbyRoomUseCases } from '../modules/lobby-room/index.ts';
@@ -212,6 +213,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     outbox,
     clock,
     roomMetrics: new OtelRoomMetrics(metrics.getMeter(APP_METER_NAME)),
+    traceContexts: new PostgresRoomTraceContexts(db as unknown as Kysely<LobbyDatabase>),
   });
   const matchmaking = createMatchmakingUseCases({ ids, uow, outbox });
   bus.subscribe('MatchFormed', async (event) => {

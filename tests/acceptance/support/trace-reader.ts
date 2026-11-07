@@ -22,6 +22,12 @@ export const NAMES = {
 /** The attributes that carry a URL, whose query string and fragment must not be exported. */
 const URL_KEYS: ReadonlySet<string> = new Set(['url.full', 'http.url', 'http.target', 'url.query']);
 
+/** A span link: the trace id and span id of the span the link points at (RTL-03, RTL-09). */
+export interface SpanLinkRecord {
+  readonly traceId: string;
+  readonly spanId: string;
+}
+
 export interface SpanRecord {
   readonly kind: 'span';
   readonly traceId: string;
@@ -29,6 +35,8 @@ export interface SpanRecord {
   readonly parentSpanId: string;
   readonly name: string;
   readonly attributes: Readonly<Record<string, unknown>>;
+  /** The span's links as the backend answered them; absent or empty when the span has none. */
+  readonly links?: readonly SpanLinkRecord[];
 }
 
 export interface MetricRecord {
@@ -61,6 +69,7 @@ interface OtlpSpanJson {
   parentSpanId?: string;
   name?: string;
   attributes?: { key: string; value?: OtlpValue }[];
+  links?: { traceId?: string; spanId?: string }[];
 }
 interface OtlpScopeJson {
   spans?: OtlpSpanJson[];
@@ -107,6 +116,10 @@ export function spansOfTempo(body: unknown): SpanRecord[] {
           attributes: Object.fromEntries(
             (span.attributes ?? []).map((item) => [item.key, valueOf(item.value)]),
           ),
+          links: (span.links ?? []).map((link) => ({
+            traceId: hexId(link.traceId),
+            spanId: hexId(link.spanId),
+          })),
         });
       }
     }
@@ -185,6 +198,13 @@ function outlineOf(trace: Trace): string {
       return `${span.name}<${parent}`;
     })
     .join('; ');
+}
+
+/** The trace ids that the spans named `name` of a trace link to, in the order the trace holds them (RTL-09). */
+export function linkedTraceIds(trace: Trace, name: string): string[] {
+  return trace.spans
+    .filter((span) => span.name === name)
+    .flatMap((span) => (span.links ?? []).map((link) => link.traceId));
 }
 
 /** The edges of a trace as `parent -> child` names, for a failure message and for the scenario's log. */
