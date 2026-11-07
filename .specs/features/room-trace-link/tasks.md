@@ -165,9 +165,9 @@ T1 → T2 → T3 → T4 → T5 → T6
 
 **Done when**:
 
-- [ ] A room inserted without a traceparent reads `null` (test `reads a room written without a traceparent as having none`)
-- [ ] A recorded traceparent reads back equal (test `stores and reads a room's traceparent`)
-- [ ] Gate passes; every existing test of the file still passes
+- [x] A room inserted without a traceparent reads `null` (test `reads a room written without a traceparent as having none`)
+- [x] A recorded traceparent reads back equal (test `stores and reads a room's traceparent`)
+- [x] Gate passes; every existing test of the file still passes
 
 **Tests**: integration
 **Gate**: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/modules/lobby-room/adapters/postgres/lobby-repositories.int.test.ts`
