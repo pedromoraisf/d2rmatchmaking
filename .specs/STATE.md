@@ -1236,6 +1236,51 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-07
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-138 (maintainer, 2026-11-07)
+
+- **Decision**: delivery is the runner's. It pushes (never force), opens and merges PRs into phase branches and `main`, releases, tags and runs workflows without asking. Secrets, the production database, repository settings and rulesets, and money stay the maintainer's.
+- **Reason**: the maintainer wrote "push, merge, etc etc, não precisa ser mais meu. pode fazer sem precisar pedir aprovacao, ou que eu fale que queira que voce faça", and chose "Toda a entrega" when asked how far it goes.
+- **Trade-off**: the required checks of `main` become the only lock before it; they gain `integration` and `agent`.
+- **Scope**: harness; ADR 028; brief revision 6 (`harness-bootstrap`, `continuous-delivery`)
+- **Date**: 2026-11-07
+- **Status**: active once ADR 028 is accepted
+
+### AD-139 (maintainer, 2026-11-07)
+
+- **Decision**: a `harness-self` delegation scope lets the runner edit the gate, its registration and the retry-budget code in features the brief lists under it, guarded by `pnpm test:harness` and a recorded `security-reviewer` PASS on the diff before merge.
+- **Reason**: the maintainer chose "Liberar com guarda" over asking for every edit or no guard.
+- **Trade-off**: gate changes reach the phase branch without a human; the phase review lists them.
+- **Scope**: harness; ADR 028; brief revision 6 (`harness-bootstrap`)
+- **Date**: 2026-11-07
+- **Status**: active once ADR 028 is accepted
+
+### AD-140 (maintainer, 2026-11-07)
+
+- **Decision**: environment failures and unchanged reruns no longer count against a retry budget, and the orchestrator may reset each unit once with a recorded reason; a second reset of a unit is the maintainer's. `MAX_RETRIES` stays 2.
+- **Reason**: the maintainer chose "Orquestrador reseta 1 vez" over keeping every reset or resetting freely.
+- **Trade-off**: a unit can now take up to six counted failures across two budgets before it reaches the maintainer.
+- **Scope**: harness; ADR 022 in part; ADR 028; brief revision 6 (`budget-v2`)
+- **Date**: 2026-11-07
+- **Status**: active once ADR 028 is accepted
+
+### AD-141 (maintainer, 2026-11-07)
+
+- **Decision**: the harness pre-work for F1 runs as F0 brief revision 6, through the phase runner under F0's delegation; F0 closes after it.
+- **Reason**: the maintainer chose "Revisão 6 da F0" over a separate track outside the phase.
+- **Trade-off**: F0 stays open longer; F1's kickoff starts on the new harness.
+- **Scope**: phase F0; `.specs/phases/F0/brief-revision-6.md`
+- **Date**: 2026-11-07
+- **Status**: active
+
+### AD-142 (maintainer, 2026-11-07)
+
+- **Decision**: every recommendation of the F0 retrospective is implemented before F1, ordered by the friction it removes. That includes making PR mutation testing a parallel, non-required job held by the nightly run and the phase ratchet.
+- **Reason**: the maintainer wrote "sobre a recomendação que fez, quero que planeje tudo para ser implementado no repositorio" and "priorize as mudanças que removem friccoes do seu desenvolvimento, e aumentem a sua celeridade".
+- **Trade-off**: a PR can merge with surviving mutants; the nightly report and the phase ratchet catch the score.
+- **Scope**: brief revision 6 (all rows)
+- **Date**: 2026-11-07
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
