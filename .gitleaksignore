@@ -1,0 +1,10 @@
+# Findings the maintainer confirmed as fake values on 2026-11-07, by fingerprint (commit:file:rule:line). Each one is
+# pinned to the commit that added it: the same text anywhere else still fails. The code no longer holds them; only
+# history does, and history is never rewritten. Add a line here only for a finding the maintainer has checked.
+631ea69e814b438d918ee67dfa84e9dca7a24010:scripts/test/load/sink.test.mjs:generic-api-key:11
+b389769404b5b4b4c69bd1a24a345600214f80ab:scripts/test/load/meter.test.mjs:generic-api-key:12
+59b9bc1d402b5b4c72b2c1ac4fbc566e30640007:scripts/load/orchestrate.mjs:generic-api-key:68
+f686b8cf0d8d578a2f3775daa9d06b47979ce2c7:scripts/test/load/provision-requests.test.mjs:generic-api-key:114
+50333e55d4b804d3d9a51f589cef7cde4bd8acc7:scripts/test/load/container-spec.test.mjs:generic-api-key:27
+00bddba8d61dbe2e72d97f5625a5ba609583d69f:apps/agent/src-tauri/core/src/gateway/translate.rs:generic-api-key:270
+6d5306e5b285bf8e215a611254b3113e33c3b616:packages/contracts/src/http/lobby.test.ts:generic-api-key:5
