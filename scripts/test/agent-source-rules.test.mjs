@@ -307,6 +307,13 @@ const UPDATER_ENDPOINT =
   'https://github.com/pedromoraisf/d2rmatchmaking/releases/latest/download/latest.json';
 const UPDATER_PUBKEY_PENDING = 'MAINTAINER_PUBKEY_PENDING';
 
+test('the bundle names an .ico icon that exists, which the Windows installers require', () => {
+  const { icon } = readJson(`${agentTauri}/tauri.conf.json`).bundle;
+  const ico = icon.find((file) => file.endsWith('.ico'));
+  assert.ok(ico, 'bundle.icon lists an .ico file');
+  assert.ok(existsSync(path.join(root, agentTauri, ico)), `${ico} exists`);
+});
+
 test('updater checks the latest release over https, with no insecure transport', () => {
   const conf = readJson(`${agentTauri}/tauri.conf.json`);
   assert.deepEqual(
