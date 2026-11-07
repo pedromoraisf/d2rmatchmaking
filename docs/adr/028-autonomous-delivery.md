@@ -1,7 +1,7 @@
 # ADR 028 — Autonomous delivery and a self-maintained harness
 
-**Status**: Proposed
-**Date**: 2026-11-07
+**Status**: Accepted
+**Date**: 2026-11-07 (accepted 2026-11-07 by the maintainer: "Aprovo a revisão do ADR 028.")
 **Deciders**: maintainer
 **Supersedes**: in part ADR 021 (the escalation list: push, merges, deploys, releases, tags) and ADR 022 (who resets a
 retry budget and what counts as a failure)

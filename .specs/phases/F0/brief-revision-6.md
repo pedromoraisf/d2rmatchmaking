@@ -1,6 +1,6 @@
 # Phase F0 — Brief revision 6
 
-**Status**: DRAFT — waiting for the maintainer's approval of this revision and acceptance of ADR 028.
+**Status**: APPROVED — revision approved and ADR 028 accepted by the maintainer on 2026-11-07.
 **Why**: the F0 retrospective (2026-11-07) found that an agent was working in 57.3 h of the phase's 200.8 h. Most of the
 rest was the harness waiting for the maintainer or for itself. The maintainer asked for every recommendation of that
 retrospective to be implemented as pre-work before F1, in their words: "sobre a recomendação que fez, quero que
@@ -227,4 +227,4 @@ The box is ticked by the maintainer's approval of this revision.
 
 ## Approval
 
-Pending.
+**Approved**: 2026-11-07 - user: "Aprovo a revisão do ADR 028."
