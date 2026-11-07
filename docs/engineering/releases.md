@@ -15,9 +15,11 @@ publishes it. Installed agents read `latest.json` from the latest release (AGS-2
    changes) and `SHA256SUMS`.
 4. The first release after the merge is the phase review's proof (C43).
 
-`release-please-config.json` holds `"release-as": "0.0.2"` for the first installable release, because release-please
-would propose `1.0.0` otherwise. `agent-v0.0.1` has no assets: its build failed and the tag cannot move. Remove the line
-right after `agent-v0.0.2` exists: while it stays, release-please keeps proposing 0.0.2 and `agent-v0.0.3` cannot happen.
+`agent-v0.0.1` has no assets: its build failed and the tag cannot move, so `agent-v0.0.2` is the first installable
+release and the oldest version that can self-update.
+
+release-please only counts commits that touch `apps/agent`. To release with no behavior change, as the self-update proof
+does, use a `chore(agent)` commit with the footer `Release-As: <version>`.
 
 A tag pushed by hand (`agent-v*`) starts `release-agent.yml` through its `push: tags` trigger. A failed release re-runs
 through `workflow_dispatch` of `release-agent.yml` with the tag as input.
