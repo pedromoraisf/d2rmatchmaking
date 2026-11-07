@@ -38,6 +38,7 @@ From Design Doc § Walking skeleton. Every item needs a proof in the phase revie
 | load-baseline             | Large   | observability-e2e                                           | no                    | NFR-01, NFR-14                                                                                  | default    |
 | ci-and-review-fixes       | Small   | load-baseline                                               | no                    | NFR-10, NFR-11, ADR 020/021/023/026                                                             | default    |
 | site-stale-read-fix       | Small   | ci-and-review-fixes                                         | no                    | NFR-01, ADR 007                                                                                 | default    |
+| room-trace-link           | Medium  | site-stale-read-fix                                         | no                    | NFR-09, ADR 013                                                                                 | default    |
 
 Retry budget is fixed for every feature: 1 attempt + 2 retries per unit (ADR 022); a brief cannot raise it.
 
@@ -83,6 +84,10 @@ configs, release-please config, first green CI on GitHub, and the first measured
 - Revision 4 (2026-11-05, from the first GitHub runs): `site-stale-read-fix` stops a read in flight from undoing a stage
   the stream delivered. In: the site's re-read and its tests. Out: API, contract and stream changes, and overlapping
   reads with no event involved. Details: `.specs/phases/F0/brief-revision-4.md`.
+- Revision 5 (2026-11-07, from the F0 review): `room-trace-link` links the agent's trace of a room to the trace of its
+  match with a span link, which completes exit criterion 8. In: a stored `traceparent` on the room and the link on
+  `lobby.record-observation`. Out: contract, agent and site changes, and telemetry in production builds. Details:
+  `.specs/phases/F0/brief-revision-5.md`.
 
 ## Open questions (answered by the maintainer on 2026-10-30)
 
@@ -119,6 +124,8 @@ scopes delegated — the maintainer reviews at the end of the phase (escalations
 **Approved**: 2026-11-04 - user: "aprovo a revisão 3 do brief da F0"
 
 **Approved**: 2026-11-05 - user: "Pelo fluxo da fase"
+
+**Approved**: 2026-11-07 - user: "aprovado por pedromoraisf"
 
 ## Runner state
 

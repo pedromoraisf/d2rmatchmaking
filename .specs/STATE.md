@@ -829,7 +829,7 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Trade-off**: the brief's "one trace" is read as one trace per originator; if the maintainer wants a single trace, the room must carry the context (F1). Reversal is a span link.
 - **Scope**: observability-e2e / OBS-08, OBS-12
 - **Date**: 2026-11-02
-- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+- **Status**: reversed by the maintainer on 2026-11-07: the span link, delivered by `room-trace-link` (brief revision 5)
 
 ### AD-093 (assumed)
 
