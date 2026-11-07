@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Assignment, Observation, RoomView } from './lobby.ts';
 
 const observation = {
-  idempotencyKey: 'observation-1',
+  idempotencyKey: 'obs-1',
   type: 'GAME_NAME_SEEN',
   run: 7,
   value: 'mmbaalh-07',
