@@ -96,9 +96,9 @@ T1 → T2 → T3 → T4 → T5 → T6
 
 **Done when**:
 
-- [ ] The migration runs once on a fresh database and the column is nullable
-- [ ] `migrate.int.test.ts` and `migrator.int.test.ts` pass, with only the migration list extended
-- [ ] Gate passes
+- [x] The migration runs once on a fresh database and the column is nullable
+- [x] `migrate.int.test.ts` and `migrator.int.test.ts` pass, with only the migration list extended
+- [x] Gate passes
 
 **Tests**: integration
 **Gate**: `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/migrate.int.test.ts src/platform/postgres/migrator.int.test.ts`
