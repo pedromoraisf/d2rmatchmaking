@@ -5,7 +5,7 @@ export type { Cancel, Scheduler } from './scheduler.ts';
 export { SeededRandomSource } from './random-source.ts';
 export type { RandomSource } from './random-source.ts';
 export { SequentialIdGenerator } from './id-generator.ts';
-export { withSpan } from './tracing.ts';
+export { activeTraceparent, linkActiveSpan, withSpan } from './tracing.ts';
 export type { SpanAttributes } from './tracing.ts';
 export type { IdGenerator } from './id-generator.ts';
 export { err, isErr, isOk, ok } from './result.ts';

@@ -132,6 +132,7 @@
       "direction": "lower",
       "ceiling": 900,
       "tolerance": 0.25,
+      "ciOnly": true,
       "contexts": [
         "pr"
       ],

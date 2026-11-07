@@ -15,6 +15,7 @@ import { Observation } from '../../domain/observation.ts';
 import { PostgresGameNameSequence } from './postgres-game-name-sequence.ts';
 import { PostgresLobbyRoomRepository } from './postgres-lobby-room-repository.ts';
 import { PostgresObservationRepository } from './postgres-observation-repository.ts';
+import { PostgresRoomTraceContexts } from './postgres-room-trace-contexts.ts';
 import type { LobbyDatabase } from './schema.ts';
 
 const NOW = new Date('2026-10-31T12:00:00.000Z');
@@ -23,6 +24,7 @@ let database: MigratedTestDatabase<LobbyDatabase>;
 let rooms: PostgresLobbyRoomRepository;
 let observations: PostgresObservationRepository;
 let sequence: PostgresGameNameSequence;
+let traceContexts: PostgresRoomTraceContexts;
 
 beforeAll(async () => {
   database = await createMigratedTestDatabase<LobbyDatabase>();
@@ -41,6 +43,7 @@ beforeEach(async () => {
   rooms = new PostgresLobbyRoomRepository(database.db, clock);
   observations = new PostgresObservationRepository(database.db, clock);
   sequence = new PostgresGameNameSequence(database.db);
+  traceContexts = new PostgresRoomTraceContexts(database.db);
 });
 
 /** Runs the work in a real transaction and hands it the opaque token, as the platform's unit of work does. */
@@ -126,6 +129,23 @@ describe('Lobby Room Postgres adapters', () => {
     const duplicate = inTransaction((tx) => rooms.insert(tx, formed(payload, 13)));
 
     await expect(duplicate).rejects.toMatchObject({ code: '23505' });
+  });
+
+  it('reads a room written without a traceparent as having none', async () => {
+    const room = formed(match(), 14);
+    await inTransaction((tx) => rooms.insert(tx, room));
+
+    expect(await traceContexts.find(room.id)).toBeNull();
+  });
+
+  it("stores and reads a room's traceparent", async () => {
+    const room = formed(match(), 15);
+    const traceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+    await inTransaction((tx) => rooms.insert(tx, room));
+
+    await inTransaction((tx) => traceContexts.record(tx, room.id, traceparent));
+
+    expect(await traceContexts.find(room.id)).toBe(traceparent);
   });
 
   it('two sequence values differ and increase', async () => {

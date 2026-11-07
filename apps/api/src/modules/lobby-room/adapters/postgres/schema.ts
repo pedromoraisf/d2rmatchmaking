@@ -10,6 +10,8 @@ export interface LobbyDatabase {
     stage: 'formed' | 'awaiting_host' | 'created' | 'active' | 'closed' | 'expired';
     current_run: number;
     created_at: Date;
+    /** The W3C traceparent of the match that opened the room; null when none was active (RTL-01, RTL-02). */
+    trace_context: string | null;
   };
   'lobby.members': {
     room_id: string;

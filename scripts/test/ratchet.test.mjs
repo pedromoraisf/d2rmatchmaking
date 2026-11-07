@@ -61,6 +61,28 @@ test('evaluate: floors, ceilings, tolerance and missing sensors', () => {
   assert.match(r.failures[0], /below the floor 80/);
 });
 
+test('evaluate: a CI-only metric missing outside CI is a note, and still fails in CI', () => {
+  const ciOnly = structuredClone(base);
+  ciOnly.metrics['ci.duration_seconds'].ciOnly = true;
+
+  let r = evaluate(ciOnly, { 'harness.percent': 90 }, 'pr');
+  assert.deepEqual(r.failures, []);
+  assert.ok(r.notes.some((n) => /ci\.duration_seconds: measured only in CI/.test(n)));
+
+  r = evaluate(ciOnly, { 'harness.percent': 90 }, 'pr', { ci: true });
+  assert.match(r.failures[0], /ci\.duration_seconds: was measured .* missing now/);
+
+  r = evaluate(ciOnly, { 'harness.percent': 90, 'ci.duration_seconds': 380 }, 'pr');
+  assert.match(r.failures[0], /ci\.duration_seconds: regressed/);
+});
+
+test('compareBaselines: marking a metric CI-only is a loosening', () => {
+  const ciOnly = structuredClone(base);
+  ciOnly.metrics['ci.duration_seconds'].ciOnly = true;
+  assert.deepEqual(compareBaselines(base, ciOnly), ['ci.duration_seconds: now checked only in CI']);
+  assert.deepEqual(compareBaselines(ciOnly, base), []);
+});
+
 test('tighten: applies only improvements and never loosens', () => {
   const r = evaluate(base, { 'harness.percent': 93, 'ci.duration_seconds': 250 }, 'pr');
   const next = tighten(base, r.improvements, '2026-11-01');

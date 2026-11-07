@@ -2,11 +2,19 @@ import {
   BasicTracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
+  type ReadableSpan,
 } from '@opentelemetry/sdk-trace-base';
-import { trace } from '@opentelemetry/api';
+import { context, trace } from '@opentelemetry/api';
+import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { D2R_ROOM_ID } from '@d2rmm/telemetry';
-import { FakeClock, SequentialIdGenerator, type MatchFormedPayload } from '../../../shared-kernel/index.ts';
+import {
+  FakeClock,
+  SequentialIdGenerator,
+  withSpan,
+  type MatchFormedPayload,
+  type Transaction,
+} from '../../../shared-kernel/index.ts';
 import { createMatchmakingUseCases } from '../../matchmaking/index.ts';
 import { createLobbyRoomUseCases, type ObservationBody } from './lobby-room-use-cases.ts';
 import { FakeAgentsPort } from './testing/fake-agents-port.ts';
@@ -14,6 +22,7 @@ import { InMemoryGameNameSequence } from './testing/in-memory-game-name-sequence
 import { FakeRoomMetrics } from './testing/fake-room-metrics.ts';
 import { InMemoryLobbyRoomRepository } from './testing/in-memory-lobby-room-repository.ts';
 import { InMemoryObservationRepository } from './testing/in-memory-observation-repository.ts';
+import { InMemoryRoomTraceContexts } from './testing/in-memory-room-trace-contexts.ts';
 import { InMemoryUnitOfWork } from './testing/in-memory-unit-of-work.ts';
 import { RecordingOutbox } from './testing/recording-outbox.ts';
 
@@ -21,11 +30,12 @@ const CAPTURED_AT = new Date('2026-10-31T10:00:00.000Z');
 const OPENED_AT = new Date('2026-10-31T09:55:00.000Z');
 
 const exporter = new InMemorySpanExporter();
+const provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] });
 
 beforeAll(() => {
-  trace.setGlobalTracerProvider(
-    new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] }),
-  );
+  // A real context manager, so the span a use case makes active is the one `trace.getActiveSpan` returns.
+  context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
+  trace.setGlobalTracerProvider(provider);
 });
 
 beforeEach(() => {
@@ -39,6 +49,7 @@ function setup() {
   const agents = new FakeAgentsPort();
   const outbox = new RecordingOutbox();
   const roomMetrics = new FakeRoomMetrics();
+  const traceContexts = new InMemoryRoomTraceContexts();
   const useCases = createLobbyRoomUseCases({
     rooms,
     observations,
@@ -49,10 +60,26 @@ function setup() {
     outbox,
     clock,
     roomMetrics,
+    traceContexts,
   });
   agents.pair('agent-1', 'account-1');
   agents.pair('agent-2', 'account-2');
-  return { useCases, rooms, observations, outbox, agents, clock, roomMetrics };
+  return { useCases, rooms, observations, outbox, agents, clock, roomMetrics, traceContexts };
+}
+
+/** The finished span with this name; the test fails when the use case did not open it. */
+function finishedSpan(name: string): ReadableSpan {
+  const span = exporter.getFinishedSpans().find((finished) => finished.name === name);
+  if (span === undefined) {
+    throw new Error(`no finished span named ${name}`);
+  }
+  return span;
+}
+
+/** The W3C traceparent of a finished span: version 00, its trace id, its span id and its flags. */
+function traceparentOf(span: ReadableSpan): string {
+  const { traceId, spanId, traceFlags } = span.spanContext();
+  return `00-${traceId}-${spanId}-${traceFlags.toString(16).padStart(2, '0')}`;
 }
 
 function match(matchId = 'match-1'): MatchFormedPayload {
@@ -290,6 +317,170 @@ describe('lobby-room use cases', () => {
       expect(Object.keys(span.attributes)).not.toContain('accountId');
       expect(Object.keys(span.attributes)).not.toContain('agentId');
       expect(Object.keys(span.attributes)).not.toContain('roomId');
+    }
+  });
+});
+
+describe('the room trace context', () => {
+  it('stores the traceparent active when the room opens', async () => {
+    const { useCases, traceContexts } = setup();
+
+    await withSpan('outbox.relay', {}, () => useCases.onMatchFormed(match()));
+
+    const opened = finishedSpan('lobby.on-match-formed');
+    expect(await traceContexts.find('room-1')).toBe(traceparentOf(opened));
+    expect(opened.spanContext().traceId).toBe(finishedSpan('outbox.relay').spanContext().traceId);
+  });
+
+  it('stores no traceparent when no span is active', async () => {
+    trace.disable();
+    try {
+      const { useCases, traceContexts, outbox } = setup();
+
+      await useCases.onMatchFormed(match());
+
+      expect(outbox.appended).toHaveLength(2);
+      expect(await traceContexts.find('room-1')).toBeNull();
+    } finally {
+      trace.setGlobalTracerProvider(provider);
+    }
+  });
+
+  it('records nothing for a match that already has a room', async () => {
+    const { useCases, traceContexts } = setup();
+    await withSpan('outbox.relay', {}, () => useCases.onMatchFormed(match()));
+    const first = await traceContexts.find('room-1');
+
+    const second = await withSpan('outbox.relay', {}, () => useCases.onMatchFormed(match()));
+
+    expect(second).toEqual({ ok: true, value: 'already-created' });
+    expect(first).not.toBeNull();
+    expect(await traceContexts.find('room-1')).toBe(first);
+  });
+
+  it("keeps the traceparent out of the room's events and views", async () => {
+    const { useCases, traceContexts, outbox } = setup();
+    await withSpan('outbox.relay', {}, () => useCases.onMatchFormed(match()));
+    const stored = await traceContexts.find('room-1');
+    expect(stored).not.toBeNull();
+
+    const room = await useCases.getCurrentRoom({ accountId: 'account-1' });
+    const assignment = await useCases.getAssignment({ agentId: 'agent-2' });
+
+    expect(Object.keys(room ?? {})).toEqual([
+      'roomId',
+      'mode',
+      'activity',
+      'difficulty',
+      'stage',
+      'run',
+      'expectedGameName',
+      'password',
+      'members',
+    ]);
+    expect(Object.keys(assignment ?? {})).toEqual(['roomId', 'run', 'expectedGameName', 'members']);
+    expect(JSON.stringify([outbox.appended, room, assignment])).not.toContain(stored ?? '');
+  });
+});
+
+/** The finished observation spans, in the order they ended. */
+function observationSpans(): ReadableSpan[] {
+  return exporter.getFinishedSpans().filter((span) => span.name === 'lobby.record-observation');
+}
+
+/** The (trace id, span id) pair of each link of a span. */
+function linksOf(span: ReadableSpan): { traceId: string; spanId: string }[] {
+  return span.links.map((link) => ({ traceId: link.context.traceId, spanId: link.context.spanId }));
+}
+
+describe('the observation span link', () => {
+  it("links the observation span to the room's stored traceparent", async () => {
+    const { useCases, traceContexts } = setup();
+    await withSpan('outbox.relay', {}, () => useCases.onMatchFormed(match()));
+    const opened = finishedSpan('lobby.on-match-formed');
+
+    const result = await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
+
+    const [observation] = observationSpans();
+    expect(await traceContexts.find('room-1')).toBe(traceparentOf(opened));
+    expect(result).toEqual({ ok: true, value: { stored: true } });
+    expect(observation?.links).toHaveLength(1);
+    expect(linksOf(observation as ReadableSpan)).toEqual([
+      { traceId: opened.spanContext().traceId, spanId: opened.spanContext().spanId },
+    ]);
+  });
+
+  it('links a repeated observation too', async () => {
+    const { useCases } = setup();
+    await withSpan('outbox.relay', {}, () => useCases.onMatchFormed(match()));
+    const opened = finishedSpan('lobby.on-match-formed');
+    const expected = [{ traceId: opened.spanContext().traceId, spanId: opened.spanContext().spanId }];
+
+    await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
+    await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
+    await useCases.recordObservation({
+      agentId: 'agent-1',
+      roomId: 'room-1',
+      body: body({ type: 'UNKNOWN', idempotencyKey: 'key-unknown' }),
+    });
+
+    const spans = observationSpans();
+    expect(spans).toHaveLength(3);
+    for (const span of spans) {
+      expect(linksOf(span)).toEqual(expected);
+    }
+  });
+
+  it('adds no link when the room has no stored traceparent', async () => {
+    const { useCases, traceContexts } = setup();
+    trace.disable();
+    try {
+      await useCases.onMatchFormed(match());
+    } finally {
+      trace.setGlobalTracerProvider(provider);
+    }
+
+    const result = await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
+
+    expect(await traceContexts.find('room-1')).toBeNull();
+    expect(result).toEqual({ ok: true, value: { stored: true } });
+    expect(linksOf(observationSpans()[0] as ReadableSpan)).toEqual([]);
+  });
+
+  it('adds no link for a malformed stored traceparent', async () => {
+    const { useCases, traceContexts } = setup();
+    trace.disable();
+    try {
+      await useCases.onMatchFormed(match());
+    } finally {
+      trace.setGlobalTracerProvider(provider);
+    }
+    await traceContexts.record({} as Transaction, 'room-1', '00-not-a-valid-traceparent');
+
+    const result = await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
+
+    expect(result).toEqual({ ok: true, value: { stored: true } });
+    expect(linksOf(observationSpans()[0] as ReadableSpan)).toEqual([]);
+  });
+
+  it("adds no link and answers forbidden for a stranger's agent", async () => {
+    const { useCases, agents } = setup();
+    await withSpan('outbox.relay', {}, () => useCases.onMatchFormed(match()));
+    agents.pair('agent-9', 'account-9');
+
+    const stranger = await useCases.recordObservation({ agentId: 'agent-9', roomId: 'room-1', body: body() });
+    const unknownRoom = await useCases.recordObservation({
+      agentId: 'agent-1',
+      roomId: 'room-404',
+      body: body(),
+    });
+
+    expect(stranger).toEqual({ ok: false, error: 'forbidden' });
+    expect(unknownRoom).toEqual({ ok: false, error: 'forbidden' });
+    const spans = observationSpans();
+    expect(spans).toHaveLength(2);
+    for (const span of spans) {
+      expect(linksOf(span)).toEqual([]);
     }
   });
 });
