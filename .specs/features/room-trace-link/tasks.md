@@ -244,8 +244,8 @@ Proof: `pnpm exec turbo run test:acceptance -- --grep @RTL-09`
 
 The feature's live state, written as it happens - a compaction gives no warning.
 
-**Settled mid-build:** none
-**Dispatched:** execute-batch-1 (T1 to T6) to `feature-worker` at `3166fa0`, 2026-11-07
+**Settled mid-build:** none from the maintainer. Orchestrator notes on the worker's deviations: (1) `migrator.int.test.ts` asserts the full migration list too, so T2 extended its two list expectations as well as `migrate.int.test.ts` (additive; the Rules line named only the latter); (2) T6 added optional `links` and a pure `linkedTraceIds` helper to `tests/acceptance/support/trace-reader.ts`, with one new unit test, because the reader dropped span links; (3) `app.ts` is wired only in T6, so the commits of T3 to T5 do not run as a whole (typecheck red at `app.ts`); HEAD is consistent and `check_proofs` passed the build at `009a4a0`.
+**Dispatched:** execute-batch-1 (T1 to T6) to `feature-worker` at `3166fa0`, 2026-11-07, returned at `009a4a0` (6 of 6, every gate on attempt 1); verifier (step verify) at `009a4a0` after `check_proofs` 17 pass, 2026-11-07
 **Walked:** none
 
 ---
