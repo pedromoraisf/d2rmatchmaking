@@ -73,11 +73,11 @@ T1 → T2 → T3 → T4 → T5 → T6
 
 **Done when**:
 
-- [ ] `activeTraceparent` inside `withSpan` returns that span's traceparent; outside any span it returns `null`
-- [ ] `linkActiveSpan` with a valid value gives the active span exactly one link with the value's trace id and span id
-- [ ] `linkActiveSpan` with a malformed value (wrong length, non-hex, all-zero ids) adds no link and does not throw
-- [ ] Tests run with a context manager (`AsyncLocalStorageContextManager`) so the active span is real
-- [ ] Gate passes; every existing test of the file still passes
+- [x] `activeTraceparent` inside `withSpan` returns that span's traceparent; outside any span it returns `null`
+- [x] `linkActiveSpan` with a valid value gives the active span exactly one link with the value's trace id and span id
+- [x] `linkActiveSpan` with a malformed value (wrong length, non-hex, all-zero ids) adds no link and does not throw
+- [x] Tests run with a context manager (`AsyncLocalStorageContextManager`) so the active span is real
+- [x] Gate passes; every existing test of the file still passes
 
 **Tests**: unit
 **Gate**: `pnpm --filter @d2rmm/api exec vitest run src/shared-kernel/tracing.test.ts`
@@ -245,7 +245,7 @@ Proof: `pnpm exec turbo run test:acceptance -- --grep @RTL-09`
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** none
-**Dispatched:** none
+**Dispatched:** execute-batch-1 (T1 to T6) to `feature-worker` at `3166fa0`, 2026-11-07
 **Walked:** none
 
 ---

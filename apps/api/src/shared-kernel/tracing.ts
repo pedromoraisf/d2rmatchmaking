@@ -1,9 +1,50 @@
-import { SpanStatusCode, trace } from '@opentelemetry/api';
+import { isSpanContextValid, SpanStatusCode, trace } from '@opentelemetry/api';
 
 /** Span attributes: ids and bounded enums only, never codes, secrets, tokens, IP addresses or names (AWS-35). */
 export type SpanAttributes = Record<string, string | number | boolean>;
 
 const TRACER_NAME = 'd2rmm-api';
+
+/** A W3C `traceparent` of version 00: lowercase hex ids and flags, nothing else (RTL-05). */
+const TRACEPARENT = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/;
+const ZERO_TRACE_ID = '0'.repeat(32);
+const ZERO_SPAN_ID = '0'.repeat(16);
+
+/**
+ * The W3C `traceparent` of the active span, or null when no span is active or its context is not valid (a non-zero
+ * trace id and span id). The API stores it with a room; the observation span links back to it (RTL-01, RTL-02).
+ */
+export function activeTraceparent(): string | null {
+  const spanContext = trace.getActiveSpan()?.spanContext();
+  if (spanContext === undefined || !isSpanContextValid(spanContext)) {
+    return null;
+  }
+  const flags = spanContext.traceFlags.toString(16).padStart(2, '0');
+  return `00-${spanContext.traceId}-${spanContext.spanId}-${flags}`;
+}
+
+/**
+ * Adds one span link, to the trace id and span id of `traceparent`, to the active span. A value that is not a valid
+ * W3C `traceparent` (wrong shape, or an all-zero trace or span id), or no active span, adds nothing and never throws
+ * (RTL-03, RTL-05).
+ */
+export function linkActiveSpan(traceparent: string): void {
+  const span = trace.getActiveSpan();
+  const match = TRACEPARENT.exec(traceparent);
+  if (span === undefined || match === null) {
+    return;
+  }
+  const [, traceId, spanId, flags] = match;
+  if (traceId === undefined || spanId === undefined || flags === undefined) {
+    return;
+  }
+  if (traceId === ZERO_TRACE_ID || spanId === ZERO_SPAN_ID) {
+    return;
+  }
+  span.addLink({
+    context: { traceId, spanId, traceFlags: Number.parseInt(flags, 16), isRemote: true },
+  });
+}
 
 function isErrResult(value: unknown): boolean {
   return typeof value === 'object' && value !== null && 'ok' in value && value.ok === false;
