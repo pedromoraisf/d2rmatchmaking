@@ -124,6 +124,16 @@ describe('activeTraceparent', () => {
     expect(read).toBe(`00-${span?.spanContext().traceId}-${span?.spanContext().spanId}-01`);
   });
 
+  it('returns the traceparent of an unsampled active span with flags 00', () => {
+    const traceId = '4bf92f3577b34da6a3ce929d0e0e4736';
+    const spanId = '00f067aa0ba902b7';
+    const unsampled = trace.wrapSpanContext({ traceId, spanId, traceFlags: 0, isRemote: true });
+
+    const read = context.with(trace.setSpan(context.active(), unsampled), () => activeTraceparent());
+
+    expect(read).toBe(`00-${traceId}-${spanId}-00`);
+  });
+
   it('returns null when no span is active', () => {
     expect(activeTraceparent()).toBeNull();
   });
@@ -136,6 +146,17 @@ describe('linkActiveSpan', () => {
   it('links the active span once to the trace id and span id of the traceparent', async () => {
     await withSpan('lobby.record-observation', {}, () => {
       linkActiveSpan(`00-${traceId}-${spanId}-01`);
+    });
+
+    const [span] = exporter.getFinishedSpans();
+    expect(span?.links).toHaveLength(1);
+    expect(span?.links[0]?.context).toMatchObject({ traceId, spanId });
+    expect(span?.links[0]?.context.traceFlags).toBe(1);
+  });
+
+  it('links the active span to an unsampled traceparent with flags 00', async () => {
+    await withSpan('lobby.record-observation', {}, () => {
+      linkActiveSpan(`00-${traceId}-${spanId}-00`);
     });
 
     const [span] = exporter.getFinishedSpans();
