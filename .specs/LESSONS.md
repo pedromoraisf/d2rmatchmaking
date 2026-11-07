@@ -35,6 +35,20 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: scripts/load/lib/error-ratio.mjs:43 (spec)
 - last seen: 2026-11-04T13:16:22Z
 
+### L-004 - When an assumption fixes how a flag or mode is treated, test the off value too: tracers in tests sample by default, so only flags 01 ever ran.
+
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `apps/api tracing` · harmful: 0
+- features: room-trace-link
+- evidence: mutations.json: unsampled context not stored (AD-135) (apps/api tracing)
+- last seen: 2026-11-07T22:05:25Z
+
+### L-005 - Fill a markdown table's Closed cell by rebuilding the row from its cells and checking the cell count, never by string surgery on the line end.
+
+- signal: `gate_fail` · recurrence: 1 feature(s) · scope: `.specs verification.md` · harmful: 0
+- features: room-trace-link
+- evidence: gate:room-trace-link/verification attempt 3 (.specs verification.md)
+- last seen: 2026-11-07T22:05:25Z
+
 ## Quarantined (failed when applied - ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.
