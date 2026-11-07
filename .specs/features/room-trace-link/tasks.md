@@ -141,12 +141,12 @@ T1 → T2 → T3 → T4 → T5 → T6
 
 **Done when**:
 
-- [ ] With a stored traceparent, the `lobby.record-observation` span has exactly one link with its trace id and span id (test `links the observation span to the room's stored traceparent`)
-- [ ] A repeated observation and an `UNKNOWN` one get the same link (test `links a repeated observation too`)
-- [ ] With nothing stored, no link and the same answer (test `adds no link when the room has no stored traceparent`)
-- [ ] With a malformed stored value, no link and the same answer (test `adds no link for a malformed stored traceparent`)
-- [ ] A stranger's agent and an unknown room get `forbidden` and no link (test `adds no link and answers forbidden for a stranger's agent`)
-- [ ] Gate passes; every existing test of the file still passes
+- [x] With a stored traceparent, the `lobby.record-observation` span has exactly one link with its trace id and span id (test `links the observation span to the room's stored traceparent`)
+- [x] A repeated observation and an `UNKNOWN` one get the same link (test `links a repeated observation too`)
+- [x] With nothing stored, no link and the same answer (test `adds no link when the room has no stored traceparent`)
+- [x] With a malformed stored value, no link and the same answer (test `adds no link for a malformed stored traceparent`)
+- [x] A stranger's agent and an unknown room get `forbidden` and no link (test `adds no link and answers forbidden for a stranger's agent`)
+- [x] Gate passes; every existing test of the file still passes
 
 **Tests**: unit
 **Gate**: `pnpm --filter @d2rmm/api exec vitest run src/modules/lobby-room/application/lobby-room-use-cases.test.ts`

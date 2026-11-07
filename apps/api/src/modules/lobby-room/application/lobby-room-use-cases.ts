@@ -3,6 +3,7 @@ import type { AgentsPort } from '../../agents/index.ts';
 import {
   activeTraceparent,
   err,
+  linkActiveSpan,
   ok,
   withSpan,
   type Clock,
@@ -155,6 +156,11 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
           room.members.some((member) => member.accountId === accountId);
         if (accountId === null || room === null || !isMember) {
           return err('forbidden');
+        }
+        // The span links to the match that opened the room, for a repeated or UNKNOWN observation too (RTL-03, RTL-04).
+        const traceparent = await deps.traceContexts.find(room.id);
+        if (traceparent !== null) {
+          linkActiveSpan(traceparent);
         }
         const { body } = input;
         if (body.type === 'UNKNOWN') {

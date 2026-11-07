@@ -13,6 +13,7 @@ import {
   SequentialIdGenerator,
   withSpan,
   type MatchFormedPayload,
+  type Transaction,
 } from '../../../shared-kernel/index.ts';
 import { createMatchmakingUseCases } from '../../matchmaking/index.ts';
 import { createLobbyRoomUseCases, type ObservationBody } from './lobby-room-use-cases.ts';
@@ -379,5 +380,107 @@ describe('the room trace context', () => {
     ]);
     expect(Object.keys(assignment ?? {})).toEqual(['roomId', 'run', 'expectedGameName', 'members']);
     expect(JSON.stringify([outbox.appended, room, assignment])).not.toContain(stored ?? '');
+  });
+});
+
+/** The finished observation spans, in the order they ended. */
+function observationSpans(): ReadableSpan[] {
+  return exporter.getFinishedSpans().filter((span) => span.name === 'lobby.record-observation');
+}
+
+/** The (trace id, span id) pair of each link of a span. */
+function linksOf(span: ReadableSpan): { traceId: string; spanId: string }[] {
+  return span.links.map((link) => ({ traceId: link.context.traceId, spanId: link.context.spanId }));
+}
+
+describe('the observation span link', () => {
+  it("links the observation span to the room's stored traceparent", async () => {
+    const { useCases, traceContexts } = setup();
+    await withSpan('outbox.relay', {}, () => useCases.onMatchFormed(match()));
+    const opened = finishedSpan('lobby.on-match-formed');
+
+    const result = await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
+
+    const [observation] = observationSpans();
+    expect(await traceContexts.find('room-1')).toBe(traceparentOf(opened));
+    expect(result).toEqual({ ok: true, value: { stored: true } });
+    expect(observation?.links).toHaveLength(1);
+    expect(linksOf(observation as ReadableSpan)).toEqual([
+      { traceId: opened.spanContext().traceId, spanId: opened.spanContext().spanId },
+    ]);
+  });
+
+  it('links a repeated observation too', async () => {
+    const { useCases } = setup();
+    await withSpan('outbox.relay', {}, () => useCases.onMatchFormed(match()));
+    const opened = finishedSpan('lobby.on-match-formed');
+    const expected = [{ traceId: opened.spanContext().traceId, spanId: opened.spanContext().spanId }];
+
+    await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
+    await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
+    await useCases.recordObservation({
+      agentId: 'agent-1',
+      roomId: 'room-1',
+      body: body({ type: 'UNKNOWN', idempotencyKey: 'key-unknown' }),
+    });
+
+    const spans = observationSpans();
+    expect(spans).toHaveLength(3);
+    for (const span of spans) {
+      expect(linksOf(span)).toEqual(expected);
+    }
+  });
+
+  it('adds no link when the room has no stored traceparent', async () => {
+    const { useCases, traceContexts } = setup();
+    trace.disable();
+    try {
+      await useCases.onMatchFormed(match());
+    } finally {
+      trace.setGlobalTracerProvider(provider);
+    }
+
+    const result = await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
+
+    expect(await traceContexts.find('room-1')).toBeNull();
+    expect(result).toEqual({ ok: true, value: { stored: true } });
+    expect(linksOf(observationSpans()[0] as ReadableSpan)).toEqual([]);
+  });
+
+  it('adds no link for a malformed stored traceparent', async () => {
+    const { useCases, traceContexts } = setup();
+    trace.disable();
+    try {
+      await useCases.onMatchFormed(match());
+    } finally {
+      trace.setGlobalTracerProvider(provider);
+    }
+    await traceContexts.record({} as Transaction, 'room-1', '00-not-a-valid-traceparent');
+
+    const result = await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
+
+    expect(result).toEqual({ ok: true, value: { stored: true } });
+    expect(linksOf(observationSpans()[0] as ReadableSpan)).toEqual([]);
+  });
+
+  it("adds no link and answers forbidden for a stranger's agent", async () => {
+    const { useCases, agents } = setup();
+    await withSpan('outbox.relay', {}, () => useCases.onMatchFormed(match()));
+    agents.pair('agent-9', 'account-9');
+
+    const stranger = await useCases.recordObservation({ agentId: 'agent-9', roomId: 'room-1', body: body() });
+    const unknownRoom = await useCases.recordObservation({
+      agentId: 'agent-1',
+      roomId: 'room-404',
+      body: body(),
+    });
+
+    expect(stranger).toEqual({ ok: false, error: 'forbidden' });
+    expect(unknownRoom).toEqual({ ok: false, error: 'forbidden' });
+    const spans = observationSpans();
+    expect(spans).toHaveLength(2);
+    for (const span of spans) {
+      expect(linksOf(span)).toEqual([]);
+    }
   });
 });
