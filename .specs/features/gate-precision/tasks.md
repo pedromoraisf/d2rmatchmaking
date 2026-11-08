@@ -195,7 +195,7 @@ T15 → T16
 ### T5: Shell writes and their targets
 
 **What**: `.claude/hooks/lib/writes.mjs` with `writeTargets(parsed)` (GPR-05's writes: output redirections to a file, `tee` with a file operand, `sed -i`/`--in-place`, `perl -i`, `truncate`, `install` with a file operand, `cp` any operand, `mv`/`ln` source and target) and `writeDecision(parsed, ctx)`: `deny` naming the Edit tool for a harness or sensor file, the quality baseline or a test file (GPR-08); `ask` for a self-protected file (GPR-10); `null` otherwise. `/dev/null`, `/dev/stdout`, `/dev/stderr`, `&1`, `&2` and a `>` inside quotes are never targets (GPR-06). `ln`, `install` and `cp` with a secret-name source join the secret-copy deny. `dd of=`, `curl -o`, `wget -O`, `patch` and `git apply` return `null` (today's rules decide them).
-**Where**: `.claude/hooks/lib/writes.mjs`
+**Where**: `.claude/hooks/lib/writes.mjs`, `.claude/hooks/lib/gate-rules.mjs` (only `export` added to `isHarnessFile`, `isSelfProtected`, `TEST_FILE`, `BASELINE` and `ENV_FILE`; no other change)
 **Depends on**: T4
 **Reuses**: `isHarnessFile`, `isSelfProtected`, `TEST_FILE`, `BASELINE` of `gate-rules.mjs`; `isSecretName` (T4)
 **Requirement**: GPR-05, GPR-06, GPR-07, GPR-08, GPR-10
@@ -573,6 +573,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** none
 **Dispatched:** execute-batch-1 (T1 to T7) to `feature-worker` at `948bdaa`, 2026-11-08
+**Replan — T5 (2026-11-08):** the worker stopped at T5: the predicates it reuses are not exported from `gate-rules.mjs`, which was outside its Where. T5's Where now adds those five exports and nothing else. T4 keeps its own copy of the secret list (spec's list, a superset of `ENV_FILE`); T4 uses `git ls-files --others --ignored --exclude-standard --literal-pathspecs` instead of `git check-ignore --stdin` (same result for untracked files; tracked files are never ignored). Dispatched: execute-batch-1 (retry, T5 to T7) to `feature-worker` at the commit of this note.
 **Walked:** none
 **Done in batch 1:** T1 `dd0e7c7`, T2 `d43e110`, T3 `d2cdb5e`, T4 `2ebb2d2` (gates passed on attempt 1)
 **Blocked:** T5 (plan issue, not an attempt failure). T5's Reuses names `isHarnessFile`, `isSelfProtected`, `TEST_FILE`
