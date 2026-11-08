@@ -1355,8 +1355,8 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 
 ### AD-159 (assumed)
 
-- **Decision**: the replay corpus is extracted once from the F0 session transcripts by a committed extractor; home paths become `~`, scratchpad paths `<scratchpad>`, and any entry with a secret, an e-mail address or a host other than `github.com` and `localhost` is dropped. Expected decisions come from a category table in the test, not from the corpus.
-- **Reason**: gate-precision, GPR-23 and GPR-24. The brief asks for "the F0 commands that prompted or were denied"; the transcripts record them. The repository is public, so nothing personal or secret may enter it.
+- **Decision**: the replay corpus is extracted once from the F0 session transcripts by a committed extractor that keeps by allow-list: a Bash command is re-emitted word by word, with every word that is not a safe command, option, checkout path or revision replaced by `<v>`; Edit, Write, Read and Agent entries keep only the file path or subagent type, a size bucket and the matched pattern, never content or prompts. The repository path, home paths, the scratchpad, session ids, UUIDs, IPs and long hex or base64 runs are normalised everywhere, the gate's reason included. Expected decisions come from a category table in the test, not from the corpus.
+- **Reason**: gate-precision, GPR-23 and GPR-24. The brief asks for "the F0 commands that prompted or were denied"; the transcripts record them. The repository is public, so nothing personal or secret may enter it; a deny-list misses opaque tokens (security review of the design).
 - **Trade-off**: the corpus shows F0's commands in a public repository, normalised. Reversal: drop the fixture and keep the test on synthetic cases.
 - **Scope**: gate-precision
 - **Date**: 2026-11-08
