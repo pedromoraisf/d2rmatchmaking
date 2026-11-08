@@ -340,9 +340,9 @@ T7 → T8 → T9 → T10 → T11 → T12
 
 **Done when**:
 
-- [ ] Every scenario of `acceptance.feature` passes (T10 and T11's steps run here, since bddgen generates the whole feature)
-- [ ] `pnpm test:harness` and `pnpm contracts:check` pass with no test removed or skipped
-- [ ] Gate passes
+- [x] Every scenario of `acceptance.feature` passes (T10 and T11's steps run here, since bddgen generates the whole feature)
+- [x] `pnpm test:harness` and `pnpm contracts:check` pass with no test removed or skipped
+- [x] Gate passes
 
 **Tests**: acceptance
 **Gate**: `pnpm exec turbo run test:acceptance -- --grep @HBS- && pnpm test:harness && pnpm contracts:check`
@@ -416,6 +416,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Settled mid-build:** (1) HBS-47 applies while at least one feature is covered, and then denies every unresolvable operand whatever its name (AD-147, spec amendment); the batch-1 narrowing of unresolvable `gh pr merge` operands to covered branch names is reverted in T7. (2) Accepted batch-1 deviations: head and clean tree read after the command runs (fail-closed); `checkSegments` keeps the strongest decision across segments; the shell-write rule matches self-protected paths inside worktrees; a commit message naming the guarded files is denied, so commits use `-F`; worker commits carry the worker's own `Co-Authored-By`.
 **Dispatched:** execute-batch-1 (T1 to T7) to `feature-worker` at `7524f1f`, 2026-11-07, returned at `7aff920` (T1 to T6 committed; T7 uncommitted, session denial budget exhausted); execute-batch-2 (T7 finish, T8 to T12) to `feature-worker` at `bd4bc93`, 2026-11-07, returned at `9978a4d` (T7 committed; T8 stopped: auto mode refused the `.claude/settings.json` edit); execute-batch-3 (T8 to T12) to `feature-worker` at `9978a4d`, 2026-11-07. The T8 settings edit itself was made by the orchestrator in the worktree on the maintainer's explicit go-ahead ("Recomendado. Pode editar os settings.json da T8."), approved at the gate's prompt; the worker runs T8's gate and commits it. Batch 3 returned at `6c94011` (T8 committed; T9 stopped: auto mode refused the edits of `AGENTS.md`). The T9 text edits (`AGENTS.md`, `CLAUDE.md`, `SKILL.md` with a `harness-self` scope row, `escalation.md`, the brief template, whose `(never push)` is dropped) were made by the orchestrator on the maintainer's go-ahead ("Pode editar os guias da T9."); execute-batch-4 (T9 gate and commit with the worker's saved tests, T10 to T12) to `feature-worker` at `6c94011`, 2026-11-07. The REVIEW section of `SKILL.md`, which still has the maintainer push, is left to `continuous-delivery`. Batch 4 returned at `b5f6b43` (T9 committed; T10's acceptance gate failed once because bddgen needs every step of the feature: tasks replanned, see the note under Approved); execute-batch-5 (T10 to T12, starting from the uncommitted step file) to `feature-worker` at the replan commit, 2026-11-07
 **Walked:** none
+
+**Done (execute-batch-5, 2026-11-07):** T10 committed `a53772a` (gate `gate:harness-bootstrap/T10`, `tsc --noEmit` of `@d2rmm/acceptance`, passed on attempt 2; attempt 1 is the replan's failure); T11 committed `163ea98` (same type check, passed on attempt 1); T12 committed with this line (gate `gate:harness-bootstrap/T12`: `@HBS-` acceptance 144 of 144 passed, `pnpm test:harness` 439 of 439 with none failed, cancelled or skipped, `pnpm contracts:check` clean). T12 ledger: 1 failure of 3 (bddgen rejected the `no proof exists` step, whose regex captured a group its function did not take; fixed in the steps). A first T12 run was killed by the background limit of 30 minutes before it printed a result; it was rerun with a 2-hour limit. The `contracts:openapi` turbo tasks replayed a shared cache entry, so the drift check compared replayed generated files. No hook or sensor file changed in this batch.
 
 **Done (execute-batch-4, 2026-11-07):** T9 committed `b5f6b43` (gate `gate:harness-bootstrap/T9` passed on attempt 1; `node --test scripts/test/phase-runner-skill.test.mjs` 13 of 13). Prettier reformatted the test file before the commit; the file was re-run directly afterwards and stayed 13 of 13.
 

@@ -60,6 +60,7 @@ interface BootstrapWorld {
   dispatch: Dispatch | undefined;
   dispatchHead: string | undefined;
   dispatchCount: number;
+  guides: Map<string, string>;
 }
 
 const KEY = 'harness-bootstrap';
@@ -75,6 +76,7 @@ function worldOf(scenario: Scenario): BootstrapWorld {
     dispatch: undefined,
     dispatchHead: undefined,
     dispatchCount: 0,
+    guides: new Map<string, string>(),
   };
   scenario.values.set(KEY, created);
   return created;
@@ -432,7 +434,7 @@ Given(/^the branch "([^"]+)" exists$/, ({ scenario }, branch: string) => {
   setRef(repo, `refs/heads/${branch}`, commitAfter(repo, phaseHead, `feat: ${branch}`));
 });
 
-Given(/^no proof exists for "([^"]+)"$/, () => {
+Given(/^no proof exists for "[^"]+"$/, () => {
   // Nothing is recorded: the ledger and the verdicts hold no proof of this feature.
 });
 
@@ -653,6 +655,138 @@ Then(
 Then(/^the verdicts hold nothing for "([^"]+)"$/, ({ scenario }, feature: string) => {
   expect(verdictsOf(requireRepo(worldOf(scenario)), feature), `verdicts of ${feature}`).toEqual([]);
 });
+
+// The guides HBS-37 to HBS-42 read: the agent guide, the phase runner skill and its escalation reference, the Claude
+// guide. Each When step reads its files into the scenario; each Then step checks what the criterion names.
+const phaseRunnerSkill = '.claude/skills/d2rmm-phase-runner/SKILL.md';
+const escalationReference = '.claude/skills/d2rmm-phase-runner/references/escalation.md';
+const verdictHookFile = 'verdict.mjs';
+
+function guideText(scenario: Scenario, rel: string): string {
+  return readFileSync(path.join(scenario.repoRoot, rel), 'utf8');
+}
+
+function guideOf(scenario: Scenario, rel: string): string {
+  const text = worldOf(scenario).guides.get(rel);
+  if (text === undefined) throw new Error(`${rel} has not been read in this scenario`);
+  return text;
+}
+
+// Rule n of AGENTS.md's "Inviolable rules": from its line to the line of rule n + 1.
+function ruleOf(agents: string, n: number): string {
+  const start = agents.indexOf(`\n${n}. `, agents.indexOf('## Inviolable rules'));
+  if (start < 0) throw new Error(`rule ${n} is not in AGENTS.md`);
+  const end = agents.indexOf(`\n${n + 1}. `, start + 1);
+  return agents.slice(start, end < 0 ? undefined : end);
+}
+
+// The escalation item of AGENTS.md's "Phase workflow": from its line to the line of item 6.
+function escalationItemOf(agents: string): string {
+  const start = agents.indexOf('\n5. **Escalations', agents.indexOf('## Phase workflow'));
+  if (start < 0) throw new Error('the escalation item is not in AGENTS.md');
+  const end = agents.indexOf('\n6. ', start + 1);
+  return agents.slice(start, end < 0 ? undefined : end);
+}
+
+// A level-2 section of a document: from its heading to the next level-2 heading.
+function sectionOf(text: string, heading: string): string {
+  const start = text.indexOf(heading);
+  if (start < 0) throw new Error(`${heading} is not in the document`);
+  const end = text.indexOf('\n## ', start + heading.length);
+  return text.slice(start, end < 0 ? undefined : end);
+}
+
+// The first cell of each row of a markdown table, without the separator row.
+function firstCellsOf(table: string): string[] {
+  return table
+    .split('\n')
+    .filter((line) => line.startsWith('|'))
+    .map((line) => line.split('|')[1]?.trim() ?? '')
+    .filter((cell) => cell !== '' && !/^-+$/.test(cell));
+}
+
+// Every quoted phrase of a step, in order.
+function phrasesOf(text: string): string[] {
+  return [...text.matchAll(/"([^"]*)"/g)].map((match) => match[1] ?? '');
+}
+
+When(/^the agent reads the agent guide$/, ({ scenario }) => {
+  worldOf(scenario).guides.set('AGENTS.md', guideText(scenario, 'AGENTS.md'));
+});
+
+When(
+  /^the agent reads the phase runner instructions, the escalation list and the Claude guide$/,
+  ({ scenario }) => {
+    const world = worldOf(scenario);
+    for (const rel of [phaseRunnerSkill, escalationReference, 'CLAUDE.md']) {
+      world.guides.set(rel, guideText(scenario, rel));
+    }
+  },
+);
+
+Then(/^rule (\d+) contains (.+)$/, ({ scenario }, number: string, list: string) => {
+  const rule = ruleOf(guideOf(scenario, 'AGENTS.md'), Number(number));
+  for (const phrase of phrasesOf(list)) {
+    expect(rule, `rule ${number} of AGENTS.md`).toContain(phrase);
+  }
+});
+
+Then(/^the phase workflow's escalation item contains none of (.+)$/, ({ scenario }, list: string) => {
+  const item = escalationItemOf(guideOf(scenario, 'AGENTS.md'));
+  for (const phrase of phrasesOf(list)) {
+    expect(item, 'the escalation item of the phase workflow').not.toContain(phrase);
+  }
+});
+
+Then(
+  /^the phase runner instructions do not contain "([^"]+)" in any letter case$/,
+  ({ scenario }, phrase: string) => {
+    const text = guideOf(scenario, phaseRunnerSkill).toLowerCase();
+    expect(text, 'the phase runner instructions').not.toContain(phrase.toLowerCase());
+  },
+);
+
+Then(
+  /^the phase runner's escalation summary contains neither "([^"]+)" nor "([^"]+)"$/,
+  ({ scenario }, first: string, second: string) => {
+    const summary = sectionOf(guideOf(scenario, phaseRunnerSkill), '## Escalations');
+    expect(summary, 'the escalation summary of the phase runner').not.toContain(first);
+    expect(summary, 'the escalation summary of the phase runner').not.toContain(second);
+  },
+);
+
+Then(/^no first cell of the escalation table contains (.+)$/, ({ scenario }, list: string) => {
+  const cells = firstCellsOf(guideOf(scenario, escalationReference));
+  for (const phrase of phrasesOf(list)) {
+    expect(
+      cells.filter((cell) => cell.includes(phrase)),
+      `first cells of the escalation table containing "${phrase}"`,
+    ).toEqual([]);
+  }
+});
+
+Then(/^first cells of the escalation table contain (.+)$/, ({ scenario }, list: string) => {
+  const cells = firstCellsOf(guideOf(scenario, escalationReference));
+  for (const phrase of phrasesOf(list)) {
+    expect(
+      cells.some((cell) => cell.includes(phrase)),
+      `a first cell of the escalation table containing "${phrase}"`,
+    ).toBe(true);
+  }
+});
+
+Then(
+  /^the Claude guide contains "([^"]+)" and the file name of the hook that records the "security-reviewer" verdict$/,
+  ({ scenario }, phrase: string) => {
+    const guide = guideOf(scenario, 'CLAUDE.md');
+    expect(guide, 'the Claude guide').toContain(phrase);
+    expect(
+      existsSync(path.join(scenario.repoRoot, '.claude', 'hooks', verdictHookFile)),
+      'the verdict hook',
+    ).toBe(true);
+    expect(guide, 'the Claude guide').toContain(verdictHookFile);
+  },
+);
 
 After(({ scenario }) => {
   const stored = scenario.values.get(KEY) as BootstrapWorld | undefined;
