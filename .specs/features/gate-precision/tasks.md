@@ -574,6 +574,11 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Settled mid-build:** none
 **Dispatched:** execute-batch-1 (T1 to T7) to `feature-worker` at `948bdaa`, 2026-11-08
 **Walked:** none
+**Done in batch 1:** T1 `dd0e7c7`, T2 `d43e110`, T3 `d2cdb5e`, T4 `2ebb2d2` (gates passed on attempt 1)
+**Blocked:** T5 (plan issue, not an attempt failure). T5's Reuses names `isHarnessFile`, `isSelfProtected`, `TEST_FILE`
+and `BASELINE` of `gate-rules.mjs`, but those are module-private there (no `export`), and `gate-rules.mjs` is outside
+T5's Where. Options for the orchestrator: add those four exports in T5's Where, or move them to a shared module. T6 and
+T7 follow T5 in order, so they wait.
 
 ---
 
