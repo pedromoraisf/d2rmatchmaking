@@ -19,6 +19,7 @@ import {
   ENV_ATTEMPTS_TO_BLOCK,
   envFailuresOf,
   orchestratorResets,
+  isUnchangedRerun,
   recordRefusal,
   report,
 } from '../lib/budget.mjs';
@@ -225,6 +226,50 @@ test('keeps refused reruns apart', () => {
   assert.deepEqual(l.units[T2], before, 'the refused rerun is not an attempt');
   assert.equal(failuresOf(l, T2), 1);
   assert.equal(canAttempt(l, T2).attempt, 2);
+});
+
+test('isUnchangedRerun refuses only the same failing state', () => {
+  const CMD = 'node --test scripts/test/x.test.mjs';
+  const same = { fingerprint: 'fp1', command: CMD };
+  const counted = (fingerprint = 'fp1', command = CMD) => {
+    const l = emptyLedger();
+    recordAttempt(l, T2, false, { note: 'expected 2, received 3', fingerprint, command });
+    return l;
+  };
+
+  assert.equal(isUnchangedRerun(counted(), T2, same), true, 'the same command on the same tree');
+  assert.equal(
+    isUnchangedRerun(counted(), T2, { fingerprint: null, command: CMD }),
+    false,
+    'no fingerprint, never refused',
+  );
+  assert.equal(isUnchangedRerun(emptyLedger(), T2, same), false, 'no failure yet, nothing to refuse');
+
+  const machineOnly = emptyLedger();
+  recordAttempt(machineOnly, T2, false, { ...ENV, fingerprint: 'fp1', command: CMD });
+  assert.equal(
+    isUnchangedRerun(machineOnly, T2, same),
+    false,
+    'an environment failure is not a state proven failing',
+  );
+
+  const machineAfter = counted('fp1');
+  recordAttempt(machineAfter, T2, false, { ...ENV, fingerprint: 'fp2', command: CMD });
+  assert.equal(
+    isUnchangedRerun(machineAfter, T2, { fingerprint: 'fp2', command: CMD }),
+    false,
+    'after a machine failure on a changed tree',
+  );
+
+  const passedAfter = counted('fp1');
+  recordAttempt(passedAfter, T2, true, { fingerprint: 'fp1', command: CMD });
+  assert.equal(isUnchangedRerun(passedAfter, T2, same), false, 'after a pass in between');
+
+  assert.equal(
+    isUnchangedRerun(counted(), T2, { fingerprint: 'fp1', command: 'pnpm test' }),
+    false,
+    'another command on the same tree',
+  );
 });
 
 test("keeps every reset and counts the orchestrator's", () => {

@@ -369,8 +369,8 @@ T10 → T11 → T12 → T13 → T14
 
 **Done when**:
 
-- [ ] The five cases above (test `isUnchangedRerun refuses only the same failing state`)
-- [ ] Gate passes
+- [x] The five cases above (test `isUnchangedRerun refuses only the same failing state`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/budget.test.mjs`
