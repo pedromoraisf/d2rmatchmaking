@@ -202,11 +202,11 @@ T15 → T16
 
 **Done when**:
 
-- [ ] Each write form of GPR-05 is found with its target (test `finds every shell write`)
-- [ ] `cat .claude/hooks/gate.mjs 2>&1 | head -n 5`, `echo "a > b"`, `grep '>' file` give no write (test `a read is never a write`)
-- [ ] `echo x > eslint.config.mjs` denies with a reason naming the Edit tool; a write to a self-protected file asks (test `denies harness writes and asks for self-protected ones`)
-- [ ] `ln apps/api/.env x.txt` and `cp apps/api/.env x` deny (test `refuses a secret as a copy source`)
-- [ ] Gate passes
+- [x] Each write form of GPR-05 is found with its target (test `finds every shell write`)
+- [x] `cat .claude/hooks/gate.mjs 2>&1 | head -n 5`, `echo "a > b"`, `grep '>' file` give no write (test `a read is never a write`)
+- [x] `echo x > eslint.config.mjs` denies with a reason naming the Edit tool; a write to a self-protected file asks (test `denies harness writes and asks for self-protected ones`)
+- [x] `ln apps/api/.env x.txt` and `cp apps/api/.env x` deny (test `refuses a secret as a copy source`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/writes.test.mjs`

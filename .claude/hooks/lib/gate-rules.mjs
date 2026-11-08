@@ -22,12 +22,12 @@ const ask = (reason) => ({ decision: 'ask', reason });
 const strongest = (a, b) => (a?.decision === 'deny' ? a : b?.decision === 'deny' ? b : (a ?? b));
 
 // ---------------------------------------------------------------- paths
-const ENV_FILE = /(^|\/)\.env($|\.(?!example$)[^/]*$)/;
+export const ENV_FILE = /(^|\/)\.env($|\.(?!example$)[^/]*$)/;
 const VENDORED = /^\.claude\/skills\/tlc-spec-driven\//;
 const MIGRATION = /^apps\/api\/(src\/)?.*migrations\/[^/]+\.(sql|ts)$/;
 const ADR = /^docs\/adr\/\d{3}-[^/]+\.md$/;
-const BASELINE = '.quality-baseline.json';
-const TEST_FILE =
+export const BASELINE = '.quality-baseline.json';
+export const TEST_FILE =
   /(\.(test|spec)\.[cm]?[jt]sx?$)|(^|\/)tests?\/.*\.rs$|(^|\/)__tests__\/|\.feature$|^tests\/acceptance\/steps\//;
 const FEATURE_FILE = /\.feature$/;
 const GHERKIN_SKIP = /(^|\s)@(skip|fixme|fail|wip|ignore|todo)\b/gi;
@@ -53,7 +53,7 @@ const HARNESS_FILES = [
   /^scripts\/(quality-|specs-check)/,
   /^scripts\/lib\//,
 ];
-const isHarnessFile = (rel) => HARNESS_FILES.some((re) => re.test(rel));
+export const isHarnessFile = (rel) => HARNESS_FILES.some((re) => re.test(rel));
 // The gate guards itself: no delegation covers editing the hooks or their registration.
 const SELF_PROTECTED = [
   /^\.claude\/settings\.json$/,
@@ -62,7 +62,7 @@ const SELF_PROTECTED = [
   /^scripts\/attempt\.mjs$/,
   /^scripts\/test\/(ratchet|budget|attempt-cli)\.test\.mjs$/,
 ];
-const isSelfProtected = (rel) => SELF_PROTECTED.some((re) => re.test(rel));
+export const isSelfProtected = (rel) => SELF_PROTECTED.some((re) => re.test(rel));
 
 // ---------------------------------------------------------------- bash
 const RM_SAFE =
