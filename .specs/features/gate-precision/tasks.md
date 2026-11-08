@@ -225,15 +225,15 @@ T15 → T16
 
 **Done when**:
 
-- [ ] A read-only shell script in a scratchpad gets `allow`; one with `rm` gets today's decision for `rm` (test `judges a script outside the repository by its content`)
-- [ ] A binary, a FIFO, a 2 MB file and a script sourcing `/tmp/x.sh` ask (test `asks for a script it cannot judge`)
-- [ ] `python3 x.sh` and `node x.sh` never get the shell verdict; a `#!/usr/bin/env bash -x` script is not `text-shell` (test `needs a shell to run a shell script`)
-- [ ] `rg '//' src`, `ls /**` and `git log --grep '/fix/'` take no token as a script (test `takes only real script tokens`)
-- [ ] `python3 -c "open('eslint.config.mjs','w')"` denies naming the Edit tool (test `denies inline code that writes a harness file`)
-- [ ] `/bin/rm -rf apps` gets the decision of `rm -rf apps` (test `judges a command word by its last segment`)
-- [ ] A comment line ending in `\` or `'` changes nothing (test `skips comments whole`)
-- [ ] Every existing test of `gate-rules.test.mjs` passes unchanged
-- [ ] Gate passes
+- [x] A read-only shell script in a scratchpad gets `allow`; one with `rm` gets today's decision for `rm` (test `judges a script outside the repository by its content`)
+- [x] A binary, a FIFO, a 2 MB file and a script sourcing `/tmp/x.sh` ask (test `asks for a script it cannot judge`)
+- [x] `python3 x.sh` and `node x.sh` never get the shell verdict; a `#!/usr/bin/env bash -x` script is not `text-shell` (test `needs a shell to run a shell script`)
+- [x] `rg '//' src`, `ls /**` and `git log --grep '/fix/'` take no token as a script (test `takes only real script tokens`)
+- [x] `python3 -c "open('eslint.config.mjs','w')"` denies naming the Edit tool (test `denies inline code that writes a harness file`)
+- [x] `/bin/rm -rf apps` gets the decision of `rm -rf apps` (test `judges a command word by its last segment`)
+- [x] A comment line ending in `\` or `'` changes nothing (test `skips comments whole`)
+- [x] Every existing test of `gate-rules.test.mjs` passes unchanged
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/gate-rules.test.mjs .claude/hooks/test/scripts.test.mjs`
