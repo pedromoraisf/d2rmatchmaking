@@ -1335,6 +1335,69 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-07
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-157 (assumed)
+
+- **Decision**: a shell write to a harness or sensor file, the quality baseline or a test file is denied with an instruction to use the Edit tool; a shell write to a self-protected file keeps `ask`.
+- **Reason**: gate-precision, GPR-08 to GPR-10. Brief revision 6 turns the ask into a deny; HBS-23's accepted scenario says `ask` for self-protected files, and changing an accepted scenario is the maintainer's.
+- **Trade-off**: shell writes to the gate itself still prompt. Reversal: extend the deny to self-protected files with a new HBS scenario.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-158 (assumed)
+
+- **Decision**: polling is the same trimmed Bash command string run a fifth time within a sliding 10 minutes in one agent session, every Bash call counted (a denied one too); the per-session history keeps hashes, not commands, in its own file next to the ledger, pruned to 10 minutes.
+- **Reason**: gate-precision, GPR-17. The brief names "the fifth identical command within 10 minutes in one session"; the session id already separates parallel workers (ADR 022).
+- **Trade-off**: an agent that legitimately repeats a command five times in 10 minutes is refused and told to wait. Reversal: one constant.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-159 (assumed)
+
+- **Decision**: the replay corpus is extracted once from the F0 session transcripts by a committed extractor; home paths become `~`, scratchpad paths `<scratchpad>`, and any entry with a secret, an e-mail address or a host other than `github.com` and `localhost` is dropped. Expected decisions come from a category table in the test, not from the corpus.
+- **Reason**: gate-precision, GPR-23 and GPR-24. The brief asks for "the F0 commands that prompted or were denied"; the transcripts record them. The repository is public, so nothing personal or secret may enter it.
+- **Trade-off**: the corpus shows F0's commands in a public repository, normalised. Reversal: drop the fixture and keep the test on synthetic cases.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-160 (assumed)
+
+- **Decision**: the 300 ms p95 is measured by a local benchmark over the corpus on the phase machine; CI runs the replay's decisions, not its timing.
+- **Reason**: gate-precision, GPR-22. Timing on shared CI runners is not repeatable; the target is about the agent's machine.
+- **Trade-off**: a slow-down shows only when the benchmark runs. Reversal: add a CI step.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-162 (assumed)
+
+- **Decision**: the gate judges the script file it reads; a change to the file between that read and the run is not seen.
+- **Reason**: gate-precision, GPR-11. The same holds today for every untracked script the gate reads; the agent that would change it is the one being gated, and its edits are gated too.
+- **Trade-off**: a script rewritten between the gate's read and the run escapes the check. Reversal: ask for every script outside the repository again.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-163 (assumed)
+
+- **Decision**: the read-only table keeps only forms whose every file read is a path operand the gate checks: no recursive or pattern-file `grep`, no `rg -g`/`-e`, no `diff` on a directory, no `awk`, no `sed` regular expression, and an option allow-list for each `git` command.
+- **Reason**: gate-precision, GPR-02, GPR-03 and GPR-30. Each of those can reach a `.env` under a directory or hide what it reads; three spec reviews found such forms one by one.
+- **Trade-off**: those forms keep today's prompt. Reversal: add a row with its own proof.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-164 (assumed)
+
+- **Decision**: `git log -p` and `git show` with no path operand are read-only, though they print the whole history.
+- **Reason**: gate-precision, GPR-02. No secret is committed (`.gitignore`, gitleaks in CI, `pnpm secrets:scan` locally), and the history is public on GitHub.
+- **Trade-off**: a secret committed by mistake would be printed without a prompt. Reversal: require a path operand.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
