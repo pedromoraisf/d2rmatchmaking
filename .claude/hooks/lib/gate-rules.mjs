@@ -13,6 +13,8 @@ import { checkBudget, countDenial } from './budget-rules.mjs';
 import { countScenarios } from '../../../scripts/lib/acceptance.mjs';
 import { checkMutationSpec } from '../../../scripts/lib/mutation-scope.mjs';
 import { indirections, MAX_DEPTH, SHELL } from './shell-indirection.mjs';
+import { resolveInside } from './io.mjs';
+import path from 'node:path';
 
 const deny = (reason) => ({ decision: 'deny', reason });
 const ask = (reason) => ({ decision: 'ask', reason });
@@ -338,7 +340,7 @@ function checkSegment(seg, ctx) {
       'Edit .quality-baseline.json with the Edit tool (so the ratchet check runs) or via `pnpm quality:ratchet --update`.',
     );
   }
-  if (writes && head.some((x) => isHarnessFile(x.replace(/^\.\//, '')))) {
+  if (writes && head.some((x) => isHarnessFile(inRepoPath(x)) || isSelfProtected(inRepoPath(x)))) {
     return ask('Shell write to a harness/sensor file. Use the Edit tool so the gate can check it.');
   }
   return null;
@@ -472,6 +474,8 @@ export function checkEdit(rel, toolInput, ctx) {
   }
 
   if (isSelfProtected(rel)) {
+    // HBS-20: a feature the brief covers edits the gate in its own worktree. Every other rule above still applied.
+    if (ctx.coveredWorktree) return null;
     return ask(
       'The gate and its registration protect themselves: the maintainer confirms every change here.',
     );
@@ -491,13 +495,16 @@ export function checkEdit(rel, toolInput, ctx) {
  * the repository — same protected files, same test rules — reading the worktree's own copy of each file.
  */
 function worktreeView(rel, ctx) {
-  const m = /^(\.claude\/worktrees\/[^/]+)\/(.*)$/.exec(rel);
+  const m = /^(\.claude\/worktrees\/([^/]+))\/(.*)$/.exec(rel);
   if (!m) return { rel, ctx };
-  const [, prefix, inner] = m;
+  const [, prefix, name, inner] = m;
+  // HBS-19/20: covered only by the main checkout's brief (activePhase reads it from there).
+  const covered = (activePhase(ctx)?.covered ?? []).includes(name);
   return {
     rel: inner,
     ctx: {
       ...ctx,
+      coveredWorktree: covered,
       readFile: (r) => ctx.readFile(`${prefix}/${r}`),
       isTracked: (r) =>
         ctx.git ? ctx.git('-C', prefix, 'ls-files', '--error-unmatch', '--', r) !== null : false,
@@ -505,10 +512,25 @@ function worktreeView(rel, ctx) {
   };
 }
 
+/**
+ * The path an edit names, relative to the main checkout, after `..` and the symbolic links of its nearest existing
+ * directory (HBS-20): a link out of a worktree, or a `..` through one, is judged where it really lands.
+ */
+function repoRelative(ctx, filePath) {
+  if (!filePath) return '';
+  const main = ctx.mainRoot ?? ctx.root;
+  return path.relative(resolveInside(main, '.'), resolveInside(ctx.root, filePath)).split(path.sep).join('/');
+}
+
+/** A path of a shell command, relative to the main checkout, without a leading `./` (the same rule as the edits). */
+function inRepoPath(token) {
+  return token.replace(/^\.\//, '').replace(/^\.claude\/worktrees\/[^/]+\//, '');
+}
+
 function regularRules(tool, ti, ctx, toRelative) {
   if (tool === 'Bash') return checkBash(ti.command, ctx);
   if (tool === 'Edit' || tool === 'Write' || tool === 'MultiEdit' || tool === 'NotebookEdit') {
-    const view = worktreeView(toRelative(ctx.root, ti.file_path ?? ti.notebook_path), ctx);
+    const view = worktreeView(repoRelative(ctx, ti.file_path ?? ti.notebook_path), ctx);
     return checkEdit(view.rel, ti, view.ctx);
   }
   if (tool === 'Agent' || tool === 'Task') return checkBackgroundReview({ tool_name: tool, tool_input: ti });

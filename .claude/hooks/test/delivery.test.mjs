@@ -2,8 +2,20 @@
 // the decision ADR 021 gave it, or a stricter one; the maintainer's commands ask and the destructive ones are denied.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkBash } from '../lib/gate-rules.mjs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { checkBash, decide } from '../lib/gate-rules.mjs';
 import { allowedShape, coveredBranches, deliveryDecision, tokenize } from '../lib/delivery.mjs';
+import { toRelative } from '../lib/io.mjs';
 
 const BRIEF_COVERING_GATE_PRECISION = [
   '## Features',
@@ -175,4 +187,102 @@ test('tokens keep their quoting, and an unbalanced quote is not a token list', (
     undefined,
     'not a delivery decision',
   );
+});
+
+// ---------------------------------------------------------------- covered worktrees (HBS-18 to HBS-23)
+const BRIEF_UNTICKED = BRIEF_COVERING_GATE_PRECISION.replace('- [x] harness-self', '- [ ] harness-self');
+const GATE = '// gate\n';
+
+/** A real repository layout: a main checkout, its worktrees, a symbolic link out of one worktree. */
+function repoWith(brief) {
+  const main = realpathSync(mkdtempSync(path.join(tmpdir(), 'd2rmm-covered-')));
+  const put = (rel, text) => {
+    mkdirSync(path.dirname(path.join(main, rel)), { recursive: true });
+    writeFileSync(path.join(main, rel), text);
+  };
+  put('.specs/phases/ACTIVE', 'F0\n');
+  put('.specs/phases/F0/brief.md', brief);
+  put('.claude/hooks/gate.mjs', GATE);
+  for (const feature of ['gate-precision', 'load-baseline', 'gate-precision-evil', 'budget-v2']) {
+    put(`.claude/worktrees/${feature}/.claude/hooks/gate.mjs`, GATE);
+  }
+  put(
+    '.claude/worktrees/gate-precision/.claude/hooks/test/gate-rules.test.mjs',
+    "test('a', () => {});\ntest('b', () => {});\n",
+  );
+  symlinkSync(main, path.join(main, '.claude/worktrees/gate-precision/link-to-main'));
+  return main;
+}
+
+function ctxOf(main) {
+  const read = (rel) =>
+    existsSync(path.join(main, rel)) ? readFileSync(path.join(main, rel), 'utf8') : null;
+  return {
+    root: main,
+    mainRoot: main,
+    readFile: read,
+    readMainFile: read,
+    isTracked: () => false,
+    currentBranch: () => 'phase/F0',
+    git: () => null,
+    now: () => '2026-11-07T10:00:00Z',
+  };
+}
+
+const editOf = (filePath) => ({
+  tool_name: 'Edit',
+  tool_input: { file_path: filePath, old_string: 'a', new_string: 'b' },
+});
+const verdictOf = (main, input) => decide(input, ctxOf(main), toRelative)?.decision ?? 'none';
+
+test('lets a covered worktree edit the gate', () => {
+  const main = repoWith(BRIEF_COVERING_GATE_PRECISION);
+  const file = path.join(main, '.claude/worktrees/gate-precision/.claude/hooks/gate.mjs');
+  assert.equal(verdictOf(main, editOf(file)), 'none');
+});
+
+test('keeps the other edit rules in a covered worktree', () => {
+  const main = repoWith(BRIEF_COVERING_GATE_PRECISION);
+  const file = path.join(main, '.claude/worktrees/gate-precision/.claude/hooks/test/gate-rules.test.mjs');
+  const removal = {
+    tool_name: 'Edit',
+    tool_input: { file_path: file, old_string: "test('b', () => {});\n", new_string: '' },
+  };
+  assert.equal(verdictOf(main, removal), 'ask');
+});
+
+test('asks for every path outside a covered worktree', () => {
+  const main = repoWith(BRIEF_COVERING_GATE_PRECISION);
+  const paths = [
+    path.join(main, '.claude/hooks/gate.mjs'),
+    path.join(main, '.claude/worktrees/load-baseline/.claude/hooks/gate.mjs'),
+    path.join(main, '.claude/worktrees/gate-precision-evil/.claude/hooks/gate.mjs'),
+    path.join(main, '.claude/worktrees/gate-precision/../../hooks/gate.mjs'),
+    path.join(main, '.claude/worktrees/gate-precision/link-to-main/.claude/hooks/gate.mjs'),
+  ];
+  for (const p of paths) assert.equal(verdictOf(main, editOf(p)), 'ask', p);
+});
+
+test('asks without the scope ticked', () => {
+  const main = repoWith(BRIEF_UNTICKED);
+  const file = path.join(main, '.claude/worktrees/gate-precision/.claude/hooks/gate.mjs');
+  assert.equal(verdictOf(main, editOf(file)), 'ask');
+});
+
+test('keeps the shell-write decision in a covered worktree', () => {
+  const main = repoWith(BRIEF_COVERING_GATE_PRECISION);
+  const sed = {
+    tool_name: 'Bash',
+    tool_input: { command: 'sed -i s/a/b/ .claude/worktrees/gate-precision/.claude/hooks/gate.mjs' },
+  };
+  assert.equal(verdictOf(main, sed), 'ask');
+});
+
+test('resolves cd before allowing', () => {
+  const main = repoWith(BRIEF_COVERING_GATE_PRECISION);
+  const outside = realpathSync(mkdtempSync(path.join(tmpdir(), 'd2rmm-outside-')));
+  symlinkSync(outside, path.join(main, 'out-link'));
+  const ctx = ctxOf(main);
+  assert.notEqual(checkBash('cd out-link && git push origin feat/F0-x', ctx)?.decision, 'allow');
+  assert.equal(checkBash('cd .claude && git push origin feat/F0-x', ctx)?.decision, 'allow');
 });

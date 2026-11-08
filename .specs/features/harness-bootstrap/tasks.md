@@ -182,13 +182,13 @@ T7 → T8 → T9 → T10 → T11 → T12
 
 **Done when**:
 
-- [ ] A self-protected file in a covered worktree gives no decision (test `lets a covered worktree edit the gate`)
-- [ ] Test removal in a covered worktree still asks (test `keeps the other edit rules in a covered worktree`)
-- [ ] The main checkout, another worktree, `gate-precision-evil`, `..` and a symbolic link out each ask (test `asks for every path outside a covered worktree`)
-- [ ] An unticked scope asks (test `asks without the scope ticked`)
-- [ ] `sed -i` on a self-protected file in a covered worktree keeps its ask (test `keeps the shell-write decision in a covered worktree`)
-- [ ] `cd` through a symbolic link out of the checkout makes the line not an allowed shape (test `resolves cd before allowing`)
-- [ ] Gate passes
+- [x] A self-protected file in a covered worktree gives no decision (test `lets a covered worktree edit the gate`)
+- [x] Test removal in a covered worktree still asks (test `keeps the other edit rules in a covered worktree`)
+- [x] The main checkout, another worktree, `gate-precision-evil`, `..` and a symbolic link out each ask (test `asks for every path outside a covered worktree`)
+- [x] An unticked scope asks (test `asks without the scope ticked`)
+- [x] `sed -i` on a self-protected file in a covered worktree keeps its ask (test `keeps the shell-write decision in a covered worktree`)
+- [x] `cd` through a symbolic link out of the checkout makes the line not an allowed shape (test `resolves cd before allowing`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/gate-rules.test.mjs .claude/hooks/test/delivery.test.mjs`
