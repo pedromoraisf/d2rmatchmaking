@@ -243,7 +243,7 @@ Feature: The retry budget counts what the agent controls
 
   @BUD-20 @NFR-11
   Scenario Outline: A wrapper denial hands over the command to run
-    When the agent asks the gate to run "<command>" in the worktree of "demo"
+    When the agent, working in the worktree of "demo", asks the gate to run "<command>"
     Then the gate answers "deny"
     And the reason holds "<corrected>"
 
