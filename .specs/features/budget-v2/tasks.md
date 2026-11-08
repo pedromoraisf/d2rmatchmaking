@@ -90,11 +90,11 @@ T8 → T9 → T10
 
 **Done when**:
 
-- [ ] One case per signature and per match form (tests `classifies the Docker daemon`, `classifies a full disk`, `classifies a kill`, `classifies a port in use`, `classifies a missing command`, `classifies the wrapper timeout`)
-- [ ] A plain `exit 127` with no output is `not-found` (test `classifies a bare exit 127 as not found`)
-- [ ] `Module not found`, `404 not found` and an ordinary assertion failure are not environmental (test `leaves ordinary failures alone`)
-- [ ] Any signature with a test-failure marker is not environmental (test `a test-failure marker wins over a signature`)
-- [ ] Gate passes
+- [x] One case per signature and per match form (tests `classifies the Docker daemon`, `classifies a full disk`, `classifies a kill`, `classifies a port in use`, `classifies a missing command`, `classifies the wrapper timeout`)
+- [x] A plain `exit 127` with no output is `not-found` (test `classifies a bare exit 127 as not found`)
+- [x] `Module not found`, `404 not found` and an ordinary assertion failure are not environmental (test `leaves ordinary failures alone`)
+- [x] Any signature with a test-failure marker is not environmental (test `a test-failure marker wins over a signature`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/env-signatures.test.mjs`
