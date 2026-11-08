@@ -113,15 +113,15 @@ T8 → T9 → T10
 
 **Done when**:
 
-- [ ] An environment attempt is recorded with its signature and not counted (test `records an environment failure without counting it`)
-- [ ] Three in a row set `env-blocked`; a counted failure or a pass in between restarts the count (tests `three environment failures in a row block the unit`, `a counted failure restarts the environment count`)
-- [ ] `env-blocked` blocks the feature (test `an env-blocked unit blocks its feature`)
-- [ ] Refusals are kept apart from attempts (test `keeps refused reruns apart`)
-- [ ] Resets are append-only and orchestrator resets are counted across later resets (test `keeps every reset and counts the orchestrator's`)
-- [ ] The report shows the new columns and the resets with their reasons (test `reports machine failures, refusals and resets apart`)
-- [ ] `MAX_RETRIES` is 2 (test `keeps one attempt and two retries`)
-- [ ] An old ledger still loads and counts (test `reads a ledger written before budget v2`)
-- [ ] Gate passes; every existing test of the file passes
+- [x] An environment attempt is recorded with its signature and not counted (test `records an environment failure without counting it`)
+- [x] Three in a row set `env-blocked`; a counted failure or a pass in between restarts the count (tests `three environment failures in a row block the unit`, `a counted failure restarts the environment count`)
+- [x] `env-blocked` blocks the feature (test `an env-blocked unit blocks its feature`)
+- [x] Refusals are kept apart from attempts (test `keeps refused reruns apart`)
+- [x] Resets are append-only and orchestrator resets are counted across later resets (test `keeps every reset and counts the orchestrator's`)
+- [x] The report shows the new columns and the resets with their reasons (test `reports machine failures, refusals and resets apart`)
+- [x] `MAX_RETRIES` is 2 (test `keeps one attempt and two retries`)
+- [x] An old ledger still loads and counts (test `reads a ledger written before budget v2`)
+- [x] Gate passes; every existing test of the file passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/budget.test.mjs`
