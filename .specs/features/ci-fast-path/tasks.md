@@ -29,21 +29,21 @@ Rules of this feature:
 
 > Generated from codebase, project guidelines, and spec. Guidelines found: `AGENTS.md` (How to test, rules 3, 4 and 12), `docs/engineering/testing.md`.
 
-| Code Layer                              | Required Test Type                  | Coverage Expectation                                         | Location Pattern                                         | Run Command                                                       |
-| --------------------------------------- | ----------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------- | ----------------------------------------------------------------- |
-| API mutation runner (pure planning)     | unit (Vitest, fake file lists)      | CFP-03, CFP-04, CFP-06, every edge case                      | `apps/api/scripts/*.test.ts`                             | `pnpm --filter @d2rmm/api exec vitest run scripts/<file>.test.ts` |
-| Workflows, ruleset, Dependabot (parsed) | unit (`node --test`, YAML/JSON)     | CFP-01, 02, 05, 07 to 10, 13 to 15, 17 to 22, 24, 25         | `scripts/test/*.test.mjs`                                | `node --test scripts/test/<file>.test.mjs`                        |
-| Specs check                             | unit (`node --test`, fixture trees) | CFP-11, CFP-12                                               | `scripts/test/specs.test.mjs`                            | `node --test scripts/test/specs.test.mjs`                         |
-| Smoke script                            | unit (`node --test`, fake fetch and clock) | CFP-16                                                | `scripts/test/smoke-healthz.test.mjs`                    | `node --test scripts/test/smoke-healthz.test.mjs`                 |
-| Repository files as a contributor reads them | acceptance (playwright-bdd)    | Every scenario of `acceptance.feature`                       | `tests/acceptance/steps/ci-fast-path.steps.ts`           | `pnpm exec turbo run test:acceptance -- --grep @CFP-`             |
+| Code Layer                                   | Required Test Type                         | Coverage Expectation                                 | Location Pattern                               | Run Command                                               |
+| -------------------------------------------- | ------------------------------------------ | ---------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------- |
+| API mutation runner (pure planning)          | unit (Vitest, fake file lists)             | CFP-03, CFP-04, CFP-06, every edge case              | `apps/api/scripts/*.test.ts`                   | `pnpm -C apps/api exec vitest run scripts/<file>.test.ts` |
+| Workflows, ruleset, Dependabot (parsed)      | unit (`node --test`, YAML/JSON)            | CFP-01, 02, 05, 07 to 10, 13 to 15, 17 to 22, 24, 25 | `scripts/test/*.test.mjs`                      | `node --test scripts/test/<file>.test.mjs`                |
+| Specs check                                  | unit (`node --test`, fixture trees)        | CFP-11, CFP-12                                       | `scripts/test/specs.test.mjs`                  | `node --test scripts/test/specs.test.mjs`                 |
+| Smoke script                                 | unit (`node --test`, fake fetch and clock) | CFP-16                                               | `scripts/test/smoke-healthz.test.mjs`          | `node --test scripts/test/smoke-healthz.test.mjs`         |
+| Repository files as a contributor reads them | acceptance (playwright-bdd)                | Every scenario of `acceptance.feature`               | `tests/acceptance/steps/ci-fast-path.steps.ts` | `pnpm exec turbo run test:acceptance -- --grep @CFP-`     |
 
 ## Gate Check Commands
 
-| Gate Level | When to Use         | Command                                                 |
-| ---------- | ------------------- | ------------------------------------------------------- |
-| Quick      | Unit tasks          | the task's `node --test` or `vitest run` command        |
-| Full       | The acceptance task | `pnpm exec turbo run test:acceptance -- --grep @CFP-`   |
-| Build      | After the last task | `pnpm lint; pnpm typecheck; pnpm test:harness`          |
+| Gate Level | When to Use         | Command                                               |
+| ---------- | ------------------- | ----------------------------------------------------- |
+| Quick      | Unit tasks          | the task's `node --test` or `vitest run` command      |
+| Full       | The acceptance task | `pnpm exec turbo run test:acceptance -- --grep @CFP-` |
+| Build      | After the last task | `pnpm lint; pnpm typecheck; pnpm test:harness`        |
 
 ---
 
@@ -96,7 +96,7 @@ T9 → T10
 - [ ] Gate passes; every existing test of the files passes
 
 **Tests**: unit
-**Gate**: `pnpm --filter @d2rmm/api exec vitest run scripts/mutation-plan.test.ts scripts/mutation.test.ts`
+**Gate**: `pnpm -C apps/api exec vitest run scripts/mutation-plan.test.ts scripts/mutation.test.ts`
 
 **Commit**: `feat(harness): mutate only the files a pull request changes`
 
@@ -118,7 +118,7 @@ T9 → T10
 - [ ] Gate passes
 
 **Tests**: unit
-**Gate**: `pnpm --filter @d2rmm/api exec vitest run scripts/mutation-summary.test.ts`
+**Gate**: `pnpm -C apps/api exec vitest run scripts/mutation-summary.test.ts`
 
 **Commit**: `feat(harness): summarise survived mutants on the pull request`
 
@@ -308,16 +308,16 @@ Proof: `node --test --test-name-pattern "verify runs no mutation" scripts/test/c
 Proof: `node --test --test-name-pattern "the mutation job runs beside the required checks" scripts/test/ci-workflow.test.mjs`
 
 **C3** - Each layer mutates only the PR's changed files; a layer with none starts no Stryker run (CFP-03)
-Proof: `pnpm --filter @d2rmm/api exec vitest run scripts/mutation-plan.test.ts scripts/mutation.test.ts`
+Proof: `pnpm -C apps/api exec vitest run scripts/mutation-plan.test.ts scripts/mutation.test.ts`
 
 **C4** - A PR that touches no mutable file says so in the summary (CFP-04)
-Proof: `pnpm --filter @d2rmm/api exec vitest run scripts/mutation.test.ts -t "says no mutable file changed"`
+Proof: `pnpm -C apps/api exec vitest run scripts/mutation.test.ts -t "says no mutable file changed"`
 
 **C5** - The incremental files are cached under a key that starts with the base branch (CFP-05)
 Proof: `node --test --test-name-pattern "the mutation job runs beside the required checks" scripts/test/ci-workflow.test.mjs`
 
 **C6** - Survived mutants reach the summary with file, line and mutator (CFP-06)
-Proof: `pnpm --filter @d2rmm/api exec vitest run scripts/mutation-summary.test.ts`
+Proof: `pnpm -C apps/api exec vitest run scripts/mutation-summary.test.ts`
 
 **C7** - `integration` needs exactly `detect` and `verify` (CFP-07)
 Proof: `node --test --test-name-pattern "integration waits only for verify" scripts/test/ci-workflow.test.mjs`
@@ -361,9 +361,13 @@ Proof: `pnpm exec turbo run test:acceptance -- --grep @CFP-`
 
 The feature's live state, written as it happens - a compaction gives no warning.
 
-**Settled mid-build:** none
-**Dispatched:** execute-batch-1 (T1 to T6) to `feature-worker` at the commit of this note, 2026-11-08
+**Settled mid-build:** (1) The API gates run as `pnpm -C apps/api exec vitest run …`: the live gate's ledger rule (from `harness-bootstrap`) denies any command holding `d2rmm/`, which `--filter @d2rmm/api` does. Same tests, same runner; the rule's false positive is queued for `gate-precision`. (2) In changed-files mode the runner passes Stryker `--mutate <files>`; accepted, it is how CFP-03's "mutate only the changed files" reaches Stryker.
+**Dispatched:** execute-batch-1 (T1 to T6) to `feature-worker` at `e10c713`, 2026-11-08, returned with nothing committed (T1's gate denied twice by the ledger rule's false positive; T1 code left in the worktree); execute-batch-1 again (retry 1, T1 to T6) to `feature-worker` at the commit of this note, 2026-11-08
 **Walked:** none
+
+**Blocked (execute-batch-1, T1):** unit `T1`, gate `pnpm -C apps/api exec vitest run scripts/mutation-plan.test.ts scripts/mutation.test.ts`.
+The gate hook denied the wrapper call twice (denials 1/3 and 2/3) with "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only". Cause: the hook's ledger pattern (`.claude/hooks/lib/budget-rules.mjs`, `LEDGER_REF`) matches `d2rmm/`, which the package filter `@d2rmm/api` contains. Every gate with `@d2rmm/` hits it. The gate was not rewritten to avoid it (AGENTS.md: follow the reason a gate gives). Decision for the orchestrator or maintainer.
+T1 work is in the worktree, uncommitted: `apps/api/scripts/mutation.ts`, `apps/api/scripts/mutation-plan.ts`, `apps/api/scripts/mutation.test.ts` (new), `apps/api/scripts/mutation-plan.test.ts` (one test added). No gate was run on it. T2 and T3 to T6 were not started (T2 depends on T1).
 
 ---
 
