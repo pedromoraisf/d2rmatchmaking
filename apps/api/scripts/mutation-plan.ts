@@ -43,12 +43,19 @@ export function layerConfig(layer: Layer): LayerConfig {
   };
 }
 
-/** Lists the layer's source files under `apiRoot` and the repository-root report path for it. */
-export async function planLayer(apiRoot: string, layer: Layer): Promise<LayerPlan> {
+/**
+ * Lists the layer's source files under `apiRoot` and the repository-root report path for it. With `changed`, keeps only
+ * the files that are in it (paths relative to `apiRoot`, as the glob returns them).
+ */
+export async function planLayer(
+  apiRoot: string,
+  layer: Layer,
+  changed?: ReadonlySet<string>,
+): Promise<LayerPlan> {
   const found = new Set<string>();
   for (const pattern of SOURCE_GLOBS[layer]) {
     for await (const file of glob(pattern, { cwd: apiRoot })) {
-      if (!file.endsWith('.test.ts')) {
+      if (!file.endsWith('.test.ts') && (changed === undefined || changed.has(file))) {
         found.add(file);
       }
     }

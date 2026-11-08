@@ -89,11 +89,11 @@ T9 → T10
 
 **Done when**:
 
-- [ ] A layer keeps only its changed files (test `keeps only the files the PR changes in each layer`)
-- [ ] A layer with no changed file starts no Stryker run and writes its empty report (test `starts no Stryker run for a layer with no changed file`)
-- [ ] No changed file in any layer prints and summarises `No mutable file changed` (test `says no mutable file changed when the PR touches none`)
-- [ ] Without `--changed-from` every layer runs as before (test `runs every file without --changed-from`)
-- [ ] Gate passes; every existing test of the files passes
+- [x] A layer keeps only its changed files (test `keeps only the files the PR changes in each layer`)
+- [x] A layer with no changed file starts no Stryker run and writes its empty report (test `starts no Stryker run for a layer with no changed file`)
+- [x] No changed file in any layer prints and summarises `No mutable file changed` (test `says no mutable file changed when the PR touches none`)
+- [x] Without `--changed-from` every layer runs as before (test `runs every file without --changed-from`)
+- [x] Gate passes; every existing test of the files passes
 
 **Tests**: unit
 **Gate**: `pnpm -C apps/api exec vitest run scripts/mutation-plan.test.ts scripts/mutation.test.ts`

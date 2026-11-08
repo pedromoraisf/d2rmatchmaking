@@ -126,6 +126,19 @@ describe('mutation plan', () => {
     ]);
   });
 
+  it('planLayer keeps only the changed files when given the changed set', async () => {
+    await writeSource('src/modules/identity/domain/account.ts');
+    await writeSource('src/shared-kernel/result.ts');
+    await writeSource('src/modules/identity/application/register.ts');
+
+    const changed = new Set(['src/shared-kernel/result.ts', 'src/modules/identity/application/register.ts']);
+
+    expect((await planLayer(apiRoot, 'domain', changed)).files).toEqual(['src/shared-kernel/result.ts']);
+    expect((await planLayer(apiRoot, 'application', changed)).files).toEqual([
+      'src/modules/identity/application/register.ts',
+    ]);
+  });
+
   it('empty layer: with no application source the runner writes a zero-mutant report and exits 0', async () => {
     const stryker = fakeStryker({});
 
