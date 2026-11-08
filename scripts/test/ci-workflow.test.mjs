@@ -246,7 +246,7 @@ test('the smoke job boots the API the way Render does', () => {
 });
 
 // CFP-18, CFP-19: the new jobs read no secret, and every action they use outside actions/ is pinned by a full SHA.
-const NEW_JOBS = ['mutation', 'agent-mutation', 'smoke'];
+const NEW_JOBS = ['mutation', 'agent-mutation', 'smoke', 'agent-build'];
 
 test('the new jobs read no secret and pin their actions', () => {
   for (const name of NEW_JOBS) {
@@ -258,4 +258,39 @@ test('the new jobs read no secret and pin their actions', () => {
       }
     }
   }
+});
+
+// CFP-17: the agent's release compiles on Windows for a pull request that changes the agent, and no signing key is in
+// reach: updater artifacts are switched off for this build by a command-line override.
+test('the agent build job compiles the release without signing', () => {
+  const job = jobs['agent-build'];
+  assert.equal(job['runs-on'], 'windows-latest', 'agent-build runs on Windows');
+  assert.deepEqual(needsOf(job), ['detect'], 'agent-build needs only detect');
+  assert.equal(
+    job.if,
+    "github.event_name == 'pull_request' && needs.detect.outputs.agent == 'true'",
+    'it runs only on pull requests with an agent',
+  );
+  assert.doesNotMatch(JSON.stringify(job), /TAURI_SIGNING/u, 'no signing key is in the job');
+  assert.equal(job.env, undefined, 'the job sets no environment that could carry a key');
+
+  const changed = job.steps.find((step) => step.id === 'changed');
+  assert.match(
+    changed.run,
+    /git diff --name-only .*-- apps\/agent/u,
+    'it looks for changes under apps/agent',
+  );
+
+  const build = runOf(job, 'tauri build');
+  assert.ok(build, 'the release is compiled with tauri build');
+  assert.equal(
+    build.if,
+    "steps.changed.outputs.changed == 'true'",
+    'the build runs only when the agent changed',
+  );
+  assert.match(
+    build.run,
+    /--config '\{"bundle":\{"createUpdaterArtifacts":false\}\}'/u,
+    'updater artifacts are off for this build',
+  );
 });

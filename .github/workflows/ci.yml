@@ -322,6 +322,52 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --in-diff reports/agent.diff --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib
 
+  agent-build:
+    # CFP-17: a pull request that changes the agent compiles its release on Windows, the release's runner. Updater
+    # artifacts are off for this build only (a --config override, not a change to tauri.conf.json), so no signing key is
+    # needed, and none reaches this job's environment. Every step runs only when the PR changes apps/agent.
+    name: agent-build
+    needs: detect
+    if: github.event_name == 'pull_request' && needs.detect.outputs.agent == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The changed files are listed against origin/<base>, which needs the base branch's history.
+          fetch-depth: 0
+      - id: changed
+        name: Does the PR change a file under apps/agent?
+        run: |
+          changed="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- apps/agent)"
+          if [ -n "$changed" ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        if: steps.changed.outputs.changed == 'true'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        if: steps.changed.outputs.changed == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install the workspace
+        if: steps.changed.outputs.changed == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Build the UI (Tauri reads frontendDist)
+        if: steps.changed.outputs.changed == 'true'
+        run: pnpm --filter @d2rmm/agent build
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        if: steps.changed.outputs.changed == 'true'
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        if: steps.changed.outputs.changed == 'true'
+        with:
+          workspaces: apps/agent/src-tauri
+      - name: Compile the release without updater artifacts (no signing key)
+        if: steps.changed.outputs.changed == 'true'
+        working-directory: apps/agent
+        run: pnpm exec tauri build --ci --config '{"bundle":{"createUpdaterArtifacts":false}}' -- --locked
+
   secrets:
     name: secrets # gitleaks; required check in .github/rulesets/main.json
     runs-on: ubuntu-latest

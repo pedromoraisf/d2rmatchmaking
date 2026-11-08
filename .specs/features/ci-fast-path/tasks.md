@@ -245,8 +245,8 @@ T9 → T10
 
 **Done when**:
 
-- [ ] `agent-build` runs on Windows, on pull requests with an agent change, and runs `tauri build` with no signing key in its environment (test `the agent build job compiles the release without signing`)
-- [ ] Gate passes
+- [x] `agent-build` runs on Windows, on pull requests with an agent change, and runs `tauri build` with no signing key in its environment (test `the agent build job compiles the release without signing`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/ci-workflow.test.mjs`
