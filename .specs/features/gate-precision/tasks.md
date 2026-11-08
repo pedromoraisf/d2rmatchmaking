@@ -274,11 +274,11 @@ T15 → T16
 
 **Done when**:
 
-- [ ] `sleep 30` passes; `sleep 31`, `sleep 1m`, `sleep 20 && sleep 20`, `sleep infinity`, `sleep $N`, `sleep 1e2`, `bash -c "sleep 40"`, `env sleep 40`, `timeout 5 sleep 40` deny (test `adds up sleeps`)
-- [ ] `while true; do sleep 1; done`, `until x; do sleep 1; done` and `watch git status` deny (test `refuses polling loops`)
-- [ ] With a fake clock the fourth identical call passes, the fifth denies, and a fifth after 10 minutes passes (test `refuses the fifth identical call within ten minutes`)
-- [ ] Every polling deny carries `POLLING_REASON` (test `says to wait for the notification`)
-- [ ] Gate passes
+- [x] `sleep 30` passes; `sleep 31`, `sleep 1m`, `sleep 20 && sleep 20`, `sleep infinity`, `sleep $N`, `sleep 1e2`, `bash -c "sleep 40"`, `env sleep 40`, `timeout 5 sleep 40` deny (test `adds up sleeps`)
+- [x] `while true; do sleep 1; done`, `until x; do sleep 1; done` and `watch git status` deny (test `refuses polling loops`)
+- [x] With a fake clock the fourth identical call passes, the fifth denies, and a fifth after 10 minutes passes (test `refuses the fifth identical call within ten minutes`)
+- [x] Every polling deny carries `POLLING_REASON` (test `says to wait for the notification`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/polling.test.mjs`
