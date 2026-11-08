@@ -1,7 +1,7 @@
 # Gate Precision Design
 
 **Spec**: `.specs/features/gate-precision/spec.md`
-**Status**: Draft — architecture review PASS; security review blocked after 3 dispatches, last revision unreviewed (see `.specs/phases/F0/decisions.md` → Blocked)
+**Status**: Accepted — architecture review PASS; security review PASS after a maintainer reset (2026-11-08)
 
 ---
 
@@ -103,14 +103,22 @@ Every module is pure: `ctx` carries `root`, `mainRoot`, `readFile`, `realpath`, 
   inside the checkout with no `.git` entry of its own between it and the checkout root (a nested repository).
   Otherwise, or when `input.cwd` is missing, there is no `allow`.
 - **Caps**: at most 200 words, 64 path operands and 8 `git` spawns per line. Over a cap there is no `allow`.
-  `git` runs with `execFileSync` (an argument array, no shell) and `--end-of-options` before revisions.
+  `git` runs with `execFileSync` (an argument array, no shell), `--end-of-options` before revisions,
+  `-c core.fsmonitor=false`, `GIT_OPTIONAL_LOCKS=0` and `killSignal: 'SIGKILL'`, set once in the `git` wrapper of
+  `io.mjs`, so a helper holding the pipes cannot keep the spawn alive past its timeout.
 - **I/O deadline**: `decide` stays synchronous, so a timer cannot interrupt a spawn in flight. `gate.mjs` therefore
   gives `ctx` one deadline for the whole call, 5 s after start-up. Every `git` spawn, `realpath`, `stat` and
-  `readFile` through `ctx` checks it first and runs with a timeout of `min(2 s, time left)`. When the deadline has
-  passed, or a spawn times out, the call ends with no `allow`, or with `ask` when a deny rule still needed that I/O
-  to decide. The worst case is therefore about 5 s plus one 2 s spawn, well under the 15 s hook timeout; the
-  watchdog below is only a backstop. A unit test with a fake clock pins the deadline, and one with a slow fake
-  `git` pins the `ask`. Ignored paths are found with one batched `git check-ignore --stdin` per
+  `readFile` through `ctx` checks it before it starts. A `git` spawn also runs with a timeout of
+  `min(2 s, time left)`; Node's synchronous `fs` calls take no timeout, so an `fs` call already in flight on a hung
+  network mount is not interrupted (accepted residual: the checkout is local). When the deadline has passed, or a
+  spawn times out, the call ends with no `allow`, or with `ask` when a deny rule still needed that I/O to decide.
+  The worst case is therefore about 5 s plus one 2 s spawn, well under the 15 s hook timeout; the watchdog below is
+  only a backstop. A unit test with a fake clock pins the deadline, and one with a slow fake `git` pins the `ask`.
+- **Reading a file**: open with `O_RDONLY | O_NONBLOCK` (never blocks on a FIFO), `fstat` the descriptor, require a
+  regular file with `nlink` 1 and at most 1 MB, then read from the same descriptor. No `stat`-then-`readFile`
+  race; the same helper serves `scriptKind`'s 1 MB cap.
+- **No `allow` is no opinion**: when no deny rule needed the timed-out I/O, the gate gives no opinion and the
+  permission mode decides, as it does today for any line the gate does not judge. Ignored paths are found with one batched `git check-ignore --stdin` per
   line, which also covers secret names missing from the spec's list (`.gitignore` already holds `.env*`, `*.pem`,
   `*.key`, `*.pfx`).
 - **Dependencies**: `shell-parse.mjs`, `io.mjs`.
