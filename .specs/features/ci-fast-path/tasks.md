@@ -202,9 +202,9 @@ T9 → T10
 
 **Done when**:
 
-- [ ] The required checks are exactly the four (test `main requires verify, integration, agent and secrets`)
-- [ ] None of the four new jobs is required (test `the parallel jobs are not required`)
-- [ ] Gate passes
+- [x] The required checks are exactly the four (test `main requires verify, integration, agent and secrets`)
+- [x] None of the four new jobs is required (test `the parallel jobs are not required`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/rulesets.test.mjs`
