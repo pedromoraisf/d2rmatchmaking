@@ -1398,6 +1398,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-08
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-165 (assumed)
+
+- **Decision**: inline code (`python3 -c`, `python3 -` with a here-doc, `node -e`, `perl -e`) that writes the quality baseline keeps today's `ask`; GPR-09's deny naming the Edit tool covers harness, sensor and test files.
+- **Reason**: gate-precision, GPR-09. Two accepted assertions of `.claude/hooks/test/gate-rules.test.mjs` (harness-foundation) pin `ask` for inline baseline writes, and the row keeps every existing test unchanged (GPR-27).
+- **Trade-off**: an inline write to the baseline prompts instead of being refused. Reversal: change those two assertions to `deny` (the maintainer's decision).
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
