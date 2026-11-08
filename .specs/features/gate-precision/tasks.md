@@ -80,7 +80,7 @@ T9 → T10 → T11 → T12
 ### Phase 5: Replay and benchmark
 
 ```
-T12 → T13 → T14 → T15
+T12 → T13 → T14 → T17 → T15
 ```
 
 ### Phase 6: Scenarios
@@ -426,11 +426,34 @@ T15 → T16
 
 ---
 
+### T17: Resolve the git directory without a spawn
+
+**What**: `ledgerPath(cwd)` in `scripts/lib/ledger-store.mjs` and `mainCheckout` and the current branch in `.claude/hooks/lib/io.mjs` read the git directory from files instead of spawning `git rev-parse`: walk up from `cwd` to the first `.git`; a directory is the common directory; a file holds `gitdir: <path>`, whose `commondir` file (relative to it) names the common directory; the branch is the `ref: refs/heads/<name>` line of that git directory's `HEAD` (a detached `HEAD` reads as `HEAD`, as `--abbrev-ref` prints). Each result is memoised per process. When a file is missing or malformed the old `git rev-parse` call runs as before. Measured on the phase machine: one read-only gate call spawned `git rev-parse --git-common-dir` six times and `--abbrev-ref HEAD` once, about 115 ms each, 0.9 s in all (GPR-22).
+**Where**: `scripts/lib/ledger-store.mjs`, `.claude/hooks/lib/io.mjs` (modify)
+**Depends on**: T14
+**Reuses**: `ledgerPath`, `mainCheckout`, `makeRepoContext`
+**Requirement**: GPR-22
+
+**Done when**:
+
+- [ ] In a temporary repository and in a linked worktree of it, the file-based common directory and branch equal what `git rev-parse --git-common-dir` and `--abbrev-ref HEAD` print, detached `HEAD` included (test `reads the git directory from files`)
+- [ ] A missing or malformed `.git` file or `commondir` falls back to `git rev-parse` (test `falls back to git when the files do not say`)
+- [ ] A read-only Bash call through `node .claude/hooks/gate.mjs` spawns no `git rev-parse --git-common-dir` (test `a read-only call spawns no rev-parse`)
+- [ ] Every existing test under `.claude/hooks/test/` and `scripts/test/` passes unchanged
+- [ ] Gate passes
+
+**Tests**: unit (the spawn-count test starts the gate; not a mutation proof)
+**Gate**: `node --test scripts/test/ledger-store.test.mjs .claude/hooks/test/io.test.mjs .claude/hooks/test/gate-startup.test.mjs`
+
+**Commit**: `perf(harness): read the git directory from files in the gate`
+
+---
+
 ### T15: The gate benchmark
 
 **What**: `scripts/gate-bench.mjs`: replays every corpus entry three times, each as a cold `node .claude/hooks/gate.mjs` process with a temporary project directory, prints p50 and p95, and exits 1 when p95 is above 300 ms. Its pure parts (`percentile(values, p)`, the input built from an entry) are exported and unit-tested; `scripts/test/gate-bench.test.mjs` also counts `git` spawns per corpus line through a counting fake `ctx` and checks none exceeds the cap of 8.
 **Where**: `scripts/gate-bench.mjs`
-**Depends on**: T14
+**Depends on**: T17
 **Reuses**: the corpus (T14), `makeIo` spawn counting (T2)
 **Requirement**: GPR-22
 
@@ -531,6 +554,9 @@ Proof: `node --test --test-name-pattern "loads rule modules only when needed" .c
 **C20** - The gate's p95 over the F0 replay is at most 300 ms (GPR-22)
 Proof: `node scripts/gate-bench.mjs`
 
+**C33** - The gate reads the git directory from files and a read-only call spawns no `rev-parse` (GPR-22)
+Proof: `node --test --test-name-pattern "a read-only call spawns no rev-parse" .claude/hooks/test/gate-startup.test.mjs`
+
 **C21** - The corpus covers the four F0 friction rows (GPR-23)
 Proof: `node --test --test-name-pattern "covers the F0 friction rows" scripts/test/gate-replay.test.mjs`
 
@@ -587,6 +613,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Batch 2, resumed (2026-11-08):** T9 `5dd7b92` (gate passed on attempt 2; the first commit attempt landed as `e94bdd2` with the message "init" and no trailers, which was amended to `5dd7b92` with the task message and trailers; the full harness suite passes, 491 of 491). **Blocked at T10 (plan conflict, gate not run):** the Done-when test `loads no rule module eagerly` cannot hold while `scripts/lib/budget.mjs` line 29 re-exports `DISPATCH_STEP_RE as DISPATCH_STEPS` from `model-policy.mjs`. Every rule module imports `budget.mjs` (`sessionId` and the ledger functions), so importing `gate-rules.mjs` evaluates `model-policy.mjs` through the re-export. T11's GPR-21 runtime check (a read-only call loads none of the four) breaks the same way. `budget.mjs` is self-protected and outside T10's and this feature's Where. Options for the orchestrator: (A) amend T10's Where to allow `scripts/lib/budget.mjs` (drop the re-export; `budget-rules.mjs` takes the step pattern from `ctx.modules.modelPolicy`), a maintainer decision because the file is self-protected; (B) accept that the pure `model-policy.mjs` loads with every call, and amend GPR-21's wording, T10's test and T11's check. Everything else of T10 is done and uncommitted in the worktree: 146 of 147 hook tests pass, the one failing is that test. Uncommitted: `gate-rules.mjs` and `budget-rules.mjs` (the rules, `ctx.modules` for ratchet, acceptance, mutation-scope and model-policy, the scans first, the read-only allow last, the empty-call ask, the package scope, the AD-166 non-literal write ask), `polling.mjs` untouched, `.claude/hooks/test/rule-modules.mjs` (new), a `modules` line in four test helpers (`gate-rules`, `budget-rules`, `mutation-gate`; no assertion changed), and seven new tests appended to `gate-rules.test.mjs`. Deviations to note in the review: a polling deny goes through `countDenial` with the same reason text, so distinct polling calls share one session denial count; a line nested deeper than `MAX_DEPTH` skips the polling scan so the existing `ask` holds; the context's clock for the history is `ctx.nowMs` (milliseconds), which T11 must set, because `ctx.now` already returns an ISO string for the verdicts. A Bash heredoc containing a `d2rmm/` path was denied by the gate (denial 1 of 3 for that reason) and was rewritten with the Edit tool. T11 and T12 wait behind T10.
 **Replan — T10 (2026-11-08):** option (A): T10's Where adds `scripts/lib/budget.mjs`, only to drop the re-export (retry-budget code, delegated to this feature by `harness-self`); GPR-21 stays as approved. The shared polling denial count is noted for the phase review. Dispatched: execute-batch-2 (retry 2, T10 to T12) to `feature-worker` at the commit of this note.
 
+**Batch 2 done (2026-11-08):** T10 `5576520`, T11 `e738b62`, T12 `bfcc21e`. A T9 test inherited the commit hook's `GIT_DIR` and committed "init" into the real repository (stray branch `feat/F0-demo` at `e94bdd2`, left for the maintainer to delete; fixed in T11 by clearing `GIT_*` in that test). **T17 added (2026-11-08):** the orchestrator traced one read-only gate call at 0.9 s: six `git rev-parse --git-common-dir` and one `--abbrev-ref HEAD`, about 115 ms each; T17 reads them from files before the benchmark. Dispatched: execute-batch-3 (T13, T14, T17, T15) to `feature-worker` at the commit of this note.
+
 ---
 
 ## Phase Execution Map
@@ -596,10 +624,10 @@ Phase 1:  T1 → T2 → T3 → T4
 Phase 2:  T4 → T5 → T6 → T7
 Phase 3:  T7 → T8 → T9
 Phase 4:  T9 → T10 → T11 → T12
-Phase 5:  T12 → T13 → T14 → T15
+Phase 5:  T12 → T13 → T14 → T17 → T15
 Phase 6:  T15 → T16
 ```
 
 Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T7); `execute-batch-2` runs phases 3 and 4 (T8 to T12);
-`execute-batch-3` runs phase 5 (T13 to T15); `execute-batch-4` runs phase 6 (T16), after `budget-v2` is merged into
+`execute-batch-3` runs phase 5 (T13, T14, T17, T15); `execute-batch-4` runs phase 6 (T16), after `budget-v2` is merged into
 `phase/F0` and `phase/F0` into this branch.
