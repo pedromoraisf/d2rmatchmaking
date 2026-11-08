@@ -4,6 +4,8 @@ import { join } from 'node:path';
 /** Mutation layers of the API (ADR 014): the pure domain and the application use cases. */
 export type Layer = 'domain' | 'application';
 
+export const MUTATION_LAYERS: readonly Layer[] = ['domain', 'application'];
+
 export interface LayerConfig {
   readonly mutate: readonly string[];
   readonly thresholds: { readonly high: number; readonly low: number; readonly break: number };
@@ -43,6 +45,11 @@ export function layerConfig(layer: Layer): LayerConfig {
   };
 }
 
+/** Absolute path of the JSON report a layer writes at the repository root (`apiRoot` is apps/api). */
+export function layerReportPath(apiRoot: string, layer: Layer): string {
+  return join(apiRoot, '..', '..', 'reports', 'mutation', `api-${layer}`, 'mutation.json');
+}
+
 /**
  * Lists the layer's source files under `apiRoot` and the repository-root report path for it. With `changed`, keeps only
  * the files that are in it (paths relative to `apiRoot`, as the glob returns them).
@@ -62,7 +69,7 @@ export async function planLayer(
   }
   return {
     files: [...found].sort(),
-    reportPath: join(apiRoot, '..', '..', 'reports', 'mutation', `api-${layer}`, 'mutation.json'),
+    reportPath: layerReportPath(apiRoot, layer),
   };
 }
 

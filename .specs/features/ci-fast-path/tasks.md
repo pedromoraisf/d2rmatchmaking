@@ -112,10 +112,10 @@ T9 → T10
 
 **Done when**:
 
-- [ ] Each survived mutant appears with its file, line and mutator (test `lists every survived mutant with file, line and mutator`)
-- [ ] Killed, timed-out and no-coverage mutants are not listed as survivors (test `lists only survived mutants`)
-- [ ] No survivor writes `No survived mutant`; a missing report is named (test `reports no survivor and a missing report`)
-- [ ] Gate passes
+- [x] Each survived mutant appears with its file, line and mutator (test `lists every survived mutant with file, line and mutator`)
+- [x] Killed, timed-out and no-coverage mutants are not listed as survivors (test `lists only survived mutants`)
+- [x] No survivor writes `No survived mutant`; a missing report is named (test `reports no survivor and a missing report`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `pnpm -C apps/api exec vitest run scripts/mutation-summary.test.ts`
