@@ -572,7 +572,7 @@ Proof: `pnpm exec turbo run test:acceptance -- --grep @GPR-`
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** none
-**Dispatched:** none
+**Dispatched:** execute-batch-1 (T1 to T7) to `feature-worker` at `948bdaa`, 2026-11-08
 **Walked:** none
 
 ---
