@@ -351,8 +351,10 @@ function checkSegment(seg, ctx) {
     return deny('.env files hold secrets and are off-limits to the agent. Use .env.example.');
   }
 
-  // Shell writes to harness files bypass the Edit-level checks below.
-  const writes = /(\bsed\s+-i|\btee\b|>|\bmv\b|\bcp\b|\btruncate\b|\bperl\s+-p?i)/.test(seg);
+  // Shell writes to harness files bypass the Edit-level checks below. BUD-18: a descriptor redirection (2>&1, >&2,
+  // >/dev/null) writes no file, so its `>` is not a write.
+  const writeText = seg.replace(/\d*>&\d+|&?\d*>>?\s*\/dev\/null/g, ' ');
+  const writes = /(\bsed\s+-i|\btee\b|>|\bmv\b|\bcp\b|\btruncate\b|\bperl\s+-p?i)/.test(writeText);
   if (writes && head.some((x) => x === BASELINE || x.endsWith(`/${BASELINE}`))) {
     return deny(
       'Edit .quality-baseline.json with the Edit tool (so the ratchet check runs) or via `pnpm quality:ratchet --update`.',

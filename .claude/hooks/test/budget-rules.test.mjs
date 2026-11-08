@@ -472,10 +472,32 @@ test('allows read-only filters after the wrapper', () => {
     '| grep -c -v ok',
   ]) {
     const command = `${gate} ${filter}`;
-    // BUD-18: the gate SHALL NOT deny the line. Through the whole gate an older shell-write rule may still ask (GPR-07).
-    assert.notEqual(call('Bash', { command }, ctx)?.decision, 'deny', filter);
+    // BUD-18: a read-only filter after the wrapper gets no decision at all, through the whole gate.
+    assert.equal(call('Bash', { command }, ctx)?.decision ?? null, null, filter);
     // The wrapper rule itself gives no opinion on the line.
     assert.equal(checkBudget({ tool_name: 'Bash', tool_input: { command } }, ctx, 's1', ''), null, filter);
+  }
+});
+
+test('allows read-only filters after 2>&1', () => {
+  const ctx = ctxFor();
+  const gate = 'node scripts/attempt.mjs run --feature agent-skeleton --step T3 -- "pnpm test"';
+  for (const filter of ['2>&1 | tail -n 40', '2>&1 | grep FAIL', "2>&1 | grep -i -E 'not ok|FAIL'"]) {
+    const command = `${gate} ${filter}`;
+    // A descriptor redirection writes no file: the line gets no decision from the gate or the wrapper rule.
+    assert.equal(call('Bash', { command }, ctx)?.decision ?? null, null, filter);
+    assert.equal(checkBudget({ tool_name: 'Bash', tool_input: { command } }, ctx, 's1', ''), null, filter);
+  }
+});
+
+test('still asks for a real write after 2>&1', () => {
+  const ctx = ctxFor();
+  for (const command of [
+    'echo x > .claude/hooks/gate.mjs',
+    'cat a 2>&1 > eslint.config.mjs',
+    'cat a 2>/dev/null > .claude/hooks/gate.mjs',
+  ]) {
+    assert.equal(call('Bash', { command }, ctx)?.decision, 'ask', command);
   }
 });
 

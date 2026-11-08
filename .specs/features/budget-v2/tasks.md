@@ -347,10 +347,10 @@ T10 → T11 → T12 → T13 → T14
 
 **Done when**:
 
-- [ ] The BUD-18 filter forms with `2>&1` get no decision (test `allows read-only filters after 2>&1`)
-- [ ] `echo x > .claude/hooks/gate.mjs` and `cat a 2>&1 > eslint.config.mjs` still ask (test `still asks for a real write after 2>&1`)
-- [ ] Every existing test under `.claude/hooks/test/` passes
-- [ ] Gate passes
+- [x] The BUD-18 filter forms with `2>&1` get no decision (test `allows read-only filters after 2>&1`)
+- [x] `echo x > .claude/hooks/gate.mjs` and `cat a 2>&1 > eslint.config.mjs` still ask (test `still asks for a real write after 2>&1`)
+- [x] Every existing test under `.claude/hooks/test/` passes
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs .claude/hooks/test/gate-rules.test.mjs`
