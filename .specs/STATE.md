@@ -1335,6 +1335,42 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-07
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-153 (assumed)
+
+- **Decision**: an unchanged rerun is one with the same command and the same working-directory tree (tracked and untracked files git does not ignore, written through a temporary index, taken before the command starts) as the unit's latest counted failure since its last pass or reset; without a computable tree nothing is refused.
+- **Reason**: budget-v2, BUD-08 to BUD-10. ADR 028 § 4 refuses "running a unit again with nothing changed"; the brief says "the content of the paths the feature touches". One tree hash needs no rule for which paths belong to a feature.
+- **Trade-off**: an edit anywhere in the worktree lets a rerun run. Reversal: hash a path set instead.
+- **Scope**: budget-v2
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-154 (assumed)
+
+- **Decision**: `attempt.mjs run` stops a command after `--timeout <minutes>`, 60 by default, and records the stop as an environment failure.
+- **Reason**: budget-v2, BUD-06. ADR 028 § 4 lists "the wrapper's own timeout" among the signatures, and the wrapper has none today; 60 minutes is above every F0 gate, a full acceptance run included.
+- **Trade-off**: a gate that hangs on a code defect is not counted; three in a row block the unit as `env-blocked`, so it still stops. Reversal: one default.
+- **Scope**: budget-v2
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-155 (assumed)
+
+- **Decision**: a red stop whose failing checks match an environment signature lets the agent stop, is not counted, and says the machine needs attention.
+- **Reason**: budget-v2, BUD-07. Blocking the stop without counting it could loop; counting it is what ADR 028 § 4 removes.
+- **Trade-off**: an agent may end a turn with red checks caused by the machine. Reversal: count it again.
+- **Scope**: budget-v2
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-156 (assumed)
+
+- **Decision**: a failure whose output matches an environment signature and also shows a test-failure marker counts as an ordinary failure; a red stop is uncounted only when every failing check matches a signature with no marker.
+- **Reason**: budget-v2, BUD-02, BUD-07 and BUD-26. A real test failure must never spend nothing; a machine problem that is real shows again on the next run.
+- **Trade-off**: a run that both hit Docker and failed a test spends a unit. Reversal: drop the marker rule.
+- **Scope**: budget-v2
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

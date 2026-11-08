@@ -123,6 +123,10 @@ review. Reversals become tasks in a follow-up feature.
 | AD-146 | harness-bootstrap | Verdicts live in `verdicts.json` next to the hooks' ledger under `.git/`; any Edit, Write or shell write there is denied | move the store | |
 | AD-147 | harness-bootstrap | HBS-47 applies while at least one feature is covered; then every unresolvable merge operand is denied, whatever its name | one condition in the guard | |
 | AD-148 | harness-bootstrap | A release that attaches a file under a `.env*` or `.git` path segment asks (HBS-49, from the Verifier) | one pattern in `delivery.mjs` | |
+| AD-153 | budget-v2 | An unchanged rerun is one with the same working-directory tree as the last counted failure | hash a path set | |
+| AD-154 | budget-v2 | The wrapper stops a gate after `--timeout` (60 min default) and records an environment failure | one default | |
+| AD-155 | budget-v2 | A red stop caused by the machine lets the agent stop, uncounted | count it again | |
+| AD-156 | budget-v2 | A signature with a test-failure marker in the same output counts as an ordinary failure | drop the marker rule | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 
