@@ -223,10 +223,10 @@ T9 → T10
 
 **Done when**:
 
-- [ ] A 200 at 29 s and at 30 s passes; none by 31 s fails (test `waits at most 30 seconds for healthz`)
-- [ ] `smoke` needs only `detect`, runs on pull requests with an API, has the Postgres service, and uses Render's install, migration and start commands (test `the smoke job boots the API the way Render does`)
-- [ ] No step of the four new jobs references `secrets.`, and every non-`actions/` `uses:` is a full SHA (test `the new jobs read no secret and pin their actions`)
-- [ ] Gate passes
+- [x] A 200 at 29 s and at 30 s passes; none by 31 s fails (test `waits at most 30 seconds for healthz`)
+- [x] `smoke` needs only `detect`, runs on pull requests with an API, has the Postgres service, and uses Render's install, migration and start commands (test `the smoke job boots the API the way Render does`)
+- [x] No step of the four new jobs references `secrets.`, and every non-`actions/` `uses:` is a full SHA (test `the new jobs read no secret and pin their actions`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/smoke-healthz.test.mjs scripts/test/ci-workflow.test.mjs`

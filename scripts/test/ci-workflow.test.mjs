@@ -202,3 +202,60 @@ test('the agent mutation job skips a pull request with no agent change', () => {
     );
   }
 });
+
+// CFP-15, CFP-18, CFP-25: the smoke job boots the API with the install, migration and start commands of Render and of
+// deploy-api.yml, against a Postgres service, and requests /healthz (AD-161).
+const render = parse(readFileSync(path.join(root, 'render.yaml'), 'utf8')).services[0];
+const smoke = () => jobs.smoke;
+const runOf = (job, pattern) => job.steps.find((step) => String(step.run ?? '').includes(pattern));
+
+test('the smoke job boots the API the way Render does', () => {
+  const job = smoke();
+  assert.deepEqual(needsOf(job), ['detect'], 'smoke needs only detect');
+  assert.equal(
+    job.if,
+    "github.event_name == 'pull_request' && needs.detect.outputs.api == 'true'",
+    'it runs only on pull requests with an API',
+  );
+  assert.match(job.services.postgres.image, /^postgres:/u, 'it has a Postgres service container');
+
+  const install = runOf(job, 'pnpm install --frozen-lockfile --ignore-scripts');
+  const migrate = runOf(job, 'pnpm --filter @d2rmm/api db:migrate');
+  const start = runOf(job, render.startCommand);
+  const probe = runOf(job, 'scripts/ci/smoke-healthz.mjs');
+  assert.ok(install, 'the workspace is installed with the Render buildCommand install');
+  assert.ok(migrate, 'the migrations run as deploy-api.yml runs them');
+  assert.ok(start, 'the API starts with the startCommand of render.yaml');
+  assert.ok(probe, 'the smoke script runs');
+  assert.match(probe.run, /\/healthz/u, 'it requests /healthz');
+
+  const at = (step) => job.steps.indexOf(step);
+  assert.ok(
+    at(install) < at(migrate) && at(migrate) < at(start) && at(start) < at(probe),
+    'install, migrate, start and probe run in that order',
+  );
+  assert.equal(job.env.DATABASE_URL.startsWith('postgres://'), true, 'DATABASE_URL points at the service');
+  assert.equal(job.env.D2RMM_ENV, 'staging', 'the smoke job runs with the staging environment of Render');
+  assert.equal(job.env.ENABLE_STAGING_ENDPOINTS, 'true', 'as the Render service does');
+  assert.equal(job.env.SITE_ORIGIN, render.envVars.find((v) => v.key === 'SITE_ORIGIN').value);
+  assert.equal(
+    job.env.D2RMM_ACCEPTANCE,
+    undefined,
+    'the test controls are never on in the smoke job (AD-045)',
+  );
+});
+
+// CFP-18, CFP-19: the new jobs read no secret, and every action they use outside actions/ is pinned by a full SHA.
+const NEW_JOBS = ['mutation', 'agent-mutation', 'smoke'];
+
+test('the new jobs read no secret and pin their actions', () => {
+  for (const name of NEW_JOBS) {
+    const job = jobs[name];
+    assert.doesNotMatch(JSON.stringify(job), /secrets\./u, `${name} reads no secret`);
+    for (const step of job.steps) {
+      if (step.uses !== undefined && !step.uses.startsWith('actions/')) {
+        assert.match(step.uses, SHA, `${name} pins ${step.uses} by a full commit SHA`);
+      }
+    }
+  }
+});

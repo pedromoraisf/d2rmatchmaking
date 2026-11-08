@@ -155,7 +155,7 @@ jobs:
         with:
           # The changed files are listed against origin/<base>, which needs the base branch's history.
           fetch-depth: 0
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -172,6 +172,58 @@ jobs:
       - name: Survived mutants (job summary)
         if: always()
         run: node apps/api/scripts/mutation-summary.ts
+
+  smoke:
+    # The API boots the way Render boots it (AD-161, CFP-25): Render's install, the migrations of deploy-api.yml and the
+    # startCommand of render.yaml, against a Postgres service. /healthz must answer 200 within 30 seconds (CFP-15, CFP-16).
+    # Every value below is a test value; the job reads no secret (CFP-18).
+    name: smoke
+    needs: detect
+    if: github.event_name == 'pull_request' && needs.detect.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: smoke
+          POSTGRES_PASSWORD: smoke
+          POSTGRES_DB: d2rmm_smoke
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U smoke -d d2rmm_smoke"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # The environment render.ts reads on Render (render.yaml). The service container has no TLS, so the URL disables
+      # it; Neon, on Render, is verified.
+      D2RMM_ENV: staging
+      ENABLE_STAGING_ENDPOINTS: 'true'
+      SITE_ORIGIN: https://d2rmatchmaking.pages.dev
+      PORT: '8787'
+      DATABASE_URL: postgres://smoke:smoke@localhost:5432/d2rmm_smoke?sslmode=disable
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install the workspace (the Render buildCommand install)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Migrate the database (as deploy-api.yml does)
+        run: pnpm --filter @d2rmm/api db:migrate
+      - name: Start the API (the Render startCommand)
+        run: |
+          mkdir -p reports
+          nohup node --import ./apps/api/src/main/instrument.ts apps/api/src/main/render.ts > reports/smoke-api.log 2>&1 &
+      - name: GET /healthz within 30 seconds
+        run: node scripts/ci/smoke-healthz.mjs http://localhost:8787/healthz
+      - name: The API's log when the smoke check failed
+        if: failure()
+        run: cat reports/smoke-api.log
 
   agent:
     # Rust on Windows: fmt, clippy and nextest with default and all features, cargo-deny, and the four read-only
