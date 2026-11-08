@@ -1326,6 +1326,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-07
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-148 (assumed)
+
+- **Decision**: a `gh release create` or `gh release upload` whose file operand has a path segment starting with `.env` or equal to `.git` asks (HBS-49, appended to the approved spec).
+- **Reason**: harness-bootstrap, the Verifier's finding 2: `gh release upload v1 .env` was an allowed shape, so a secrets file could reach a public release without a prompt (AGENTS.md rule 6). Stricter, and the release itself stays the runner's.
+- **Trade-off**: attaching `.env.example` to a release also asks. Reversal: one pattern in `delivery.mjs`.
+- **Scope**: harness-bootstrap
+- **Date**: 2026-11-07
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

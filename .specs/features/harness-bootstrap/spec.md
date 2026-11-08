@@ -4,6 +4,8 @@
 
 **Amended by the runner** (assumed, AD-147; to confirm at the phase review): 2026-11-07, Execute found that HBS-47 as written denies a `git merge` or `gh pr merge` of any branch the main checkout has not fetched, even when no feature is covered and there is nothing to guard. HBS-47 applies while the brief covers at least one feature; while it does, every unresolvable operand is denied, whatever its name. No criterion is edited and no requirement is added.
 
+**Amended again by the runner** (assumed, AD-148; to confirm at the phase review): 2026-11-07, the Verifier found that `gh release upload v1 .env` was an allowed shape, so a secrets file could be published to a public release without a prompt (AGENTS.md rule 6). HBS-49 is appended; no approved criterion is edited. `review-spec` was not dispatched again: the Verifier wrote the finding and the requirement only makes the gate stricter.
+
 ## Problem Statement
 
 In F0 the gate asked the maintainer 49 times for push, PR merges, merges into `main`, releases and deploys, and 25 times
@@ -98,6 +100,7 @@ present for its edits, so every later row of brief revision 6 runs on the new ru
 7. HBS-07: WHEN the agent runs `curl` with only the options `-f`, `-s`, `-S` (alone or combined), `--fail`, `--silent`, `--show-error` and `-X POST`, and the single URL `"$RENDER_DEPLOY_HOOK_URL"` or `"${RENDER_DEPLOY_HOOK_URL}"` THEN the gate SHALL answer `allow`; that URL is the one `$` an allowed shape may hold
 8. HBS-08: IF a command line holding a delivery command of HBS-01 to HBS-07 is not an allowed shape THEN the gate SHALL NOT answer `allow`, and SHALL give the decision the rest of the line gets
 9. HBS-09: `.claude/settings.json` `permissions.ask` SHALL NOT list `git push`, `gh pr merge` or `gh release`, and SHALL still list `gh secret`
+10. HBS-49: IF `gh release create` or `gh release upload` names a file operand with a path segment that starts with `.env` or equals `.git` THEN the gate SHALL ask
 
 **Independent Test**: feed the gate a `git push -u origin feat/F0-x` call and read `allow`.
 
@@ -275,19 +278,21 @@ present for its edits, so every later row of brief revision 6 runs on the new ru
 | HBS-46         | P1: Merges only under the guard     | Tasks | Pending |
 | HBS-47         | P1: Merges only under the guard     | Tasks | Pending |
 | HBS-48         | P1: Merges only under the guard     | Tasks | Pending |
+| HBS-49         | P1: Delivery runs without asking    | Tasks | Pending |
 
 **ID format:** `[CATEGORY]-[NUMBER]`
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
 
-**Coverage:** 48 total, 48 mapped to tasks, 0 unmapped
+**Coverage:** 49 total, 49 mapped to tasks, 0 unmapped
 
 ---
 
 ## Sources
 
 - `.specs/phases/F0/brief-revision-6.md` § 2, § 3 (harness-bootstrap) and § 4 - the scope, approved by the maintainer ("Aprovo a revisão do ADR 028.")
-- ADR 028 § 1 - delivery is the runner's; what stays the maintainer's (HBS-01 to HBS-17, HBS-37 to HBS-41)
+- ADR 028 § 1 - delivery is the runner's; what stays the maintainer's (HBS-01 to HBS-17, HBS-37 to HBS-41, HBS-49)
+- AGENTS.md rule 6 - secrets never leave their stores (HBS-49)
 - ADR 028 § 3 - the `harness-self` scope and its guard (HBS-18 to HBS-36, HBS-42, HBS-45 to HBS-48)
 - ADR 021 - the delegation scopes and the escalation list this row amends (HBS-18, HBS-19, HBS-24, HBS-39 to HBS-41)
 - ADR 022 - the retry ledger the guard reads (HBS-25, HBS-31, HBS-32)

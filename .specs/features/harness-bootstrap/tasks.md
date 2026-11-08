@@ -25,6 +25,7 @@ Rules of this feature:
 **Status**: Approved
 **Approved**: 2026-11-07 - user: "aprovo specs e tasks da F0 que passarem nos gates automáticos; delego sub-agents, harness-edits e local-merge-phase-branch" (delegated via .specs/phases/F0/brief.md)
 **Replanned by the runner** (2026-11-07, during Execute): `bddgen` generates the whole feature and fails while any scenario lacks steps, so the acceptance gates of T10 and T11 could not pass before T12. T10 and T11 now gate on the acceptance type check, and T12 runs every `@HBS-` scenario. No criterion, check or proof changes. The tasks gate ran again on this text.
+**Replanned again by the runner** (2026-11-07, after the Verifier): T13 and T14 fix the Verifier's two findings (HBS-30's string flag; HBS-49, appended to the spec as AD-148). Proof commands no longer hold `|`, which split the `proofs.md` table: C1 runs its whole test file, and C10, C12, C15 and C16 are narrowed or split into C19, C21 and C22 with the same requirements covered. C20 proves HBS-49. The tasks gate ran again on this text.
 **Mutations**: 4
 **Build**: `pnpm test:harness; pnpm lint; pnpm typecheck`
 
@@ -71,6 +72,12 @@ T3 → T4 → T5 → T6 → T7
 
 ```
 T7 → T8 → T9 → T10 → T11 → T12
+```
+
+### Phase 4: The Verifier's findings
+
+```
+T12 → T13 → T14
 ```
 
 ---
@@ -351,10 +358,52 @@ T7 → T8 → T9 → T10 → T11 → T12
 
 ---
 
+### T13: Prove the background-review denial for a string flag
+
+**What**: the Verifier's finding 1: a unit test that `checkBackgroundReview` denies a `review-diff` `security-reviewer` dispatch whose `run_in_background` is the string `'true'`, as it does for the boolean.
+**Where**: `.claude/hooks/test/verdicts.test.mjs`
+**Depends on**: T12
+**Reuses**: the existing background-review test
+**Requirement**: HBS-30
+
+**Done when**:
+
+- [ ] The string `'true'` is denied with `run_in_background: false` in the reason (test `denies a background security review requested with the string true`)
+- [ ] Gate passes; every existing test of the file still passes
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/verdicts.test.mjs`
+
+**Commit**: `test(harness): cover a background review requested with a string flag`
+
+---
+
+### T14: Ask before a release attaches a secrets file or the git folder
+
+**What**: the Verifier's finding 2, HBS-49: a file operand of `gh release create` or `gh release upload` with a path segment that starts with `.env` or equals `.git` makes the line not an allowed shape, and the gate asks.
+**Where**: `.claude/hooks/lib/delivery.mjs`
+**Depends on**: T13
+**Reuses**: `isSafeFile`
+**Requirement**: HBS-49
+
+**Done when**:
+
+- [ ] `.env`, `apps/api/.env.local` and `.git/config` as release files ask (test `asks for a release that attaches a secrets file or the git folder`)
+- [ ] `setup.exe` and `dist/latest.json` as release files are still allowed (test `still allows ordinary release files`)
+- [ ] The `@HBS-49` scenario passes
+- [ ] Gate passes; every existing test of the file still passes
+
+**Tests**: unit, acceptance
+**Gate**: `pnpm exec turbo run test:acceptance -- --grep @HBS-49 && node --test .claude/hooks/test/delivery.test.mjs .claude/hooks/test/gate-rules.test.mjs`
+
+**Commit**: `fix(harness): ask before a release attaches a secrets file`
+
+---
+
 ## Checks
 
 **C1** - An attempt records its command, head and whether the tree was clean (HBS-25, AC 1)
-Proof: `node --test --test-name-pattern "records the command, head and clean tree|records a dirty tree as not clean" scripts/test/attempt-cli.test.mjs`
+Proof: `node --test scripts/test/attempt-cli.test.mjs`
 
 **C2** - `harness-self` covers only backticked feature rows of an approved brief read from the main checkout (HBS-18, HBS-19)
 Proof: `node --test .claude/hooks/test/delegation.test.mjs`
@@ -381,13 +430,13 @@ Proof: `node --test scripts/test/harness-settings.test.mjs`
 Proof: `pnpm exec turbo run test:acceptance -- --grep "@HBS-1[0-7] "`
 
 **C10** - A covered worktree edits the gate without a prompt; every other path and every shell write still ask (HBS-20 to HBS-23)
-Proof: `pnpm exec turbo run test:acceptance -- --grep "@HBS-(1[89]|2[0-3]) "`
+Proof: `pnpm exec turbo run test:acceptance -- --grep "@HBS-[12][0-9] "`
 
 **C11** - The brief template offers `harness-self` unticked (HBS-24)
 Proof: `node --test --test-name-pattern "the brief template offers harness-self" scripts/test/phase-runner-skill.test.mjs`
 
-**C12** - The verdicts are recorded through the hooks, and a review that never returns proves nothing (HBS-26 to HBS-29, HBS-45)
-Proof: `pnpm exec turbo run test:acceptance -- --grep "@HBS-(2[6-9]|45) "`
+**C12** - The verdicts are recorded through the hooks (HBS-26 to HBS-29)
+Proof: `pnpm exec turbo run test:acceptance -- --grep "@HBS-2[6-9] "`
 
 **C13** - The verdicts and the ledger are out of reach of edits and shell commands (HBS-31)
 Proof: `pnpm exec turbo run test:acceptance -- --grep @HBS-31`
@@ -395,17 +444,29 @@ Proof: `pnpm exec turbo run test:acceptance -- --grep @HBS-31`
 **C14** - A covered feature merges only at its proven head, pinned for a PR, and no other git command brings it in (HBS-32 to HBS-36, HBS-46 to HBS-48)
 Proof: `node --test .claude/hooks/test/guard.test.mjs`
 
-**C15** - The same guard, with the hooks run as processes (HBS-32 to HBS-36, HBS-46 to HBS-48)
-Proof: `pnpm exec turbo run test:acceptance -- --grep "@HBS-(3[2-6]|4[6-8]) "`
+**C15** - The same guard, with the hooks run as processes (HBS-32 to HBS-36)
+Proof: `pnpm exec turbo run test:acceptance -- --grep "@HBS-3[2-6] "`
 
-**C16** - The guides and the escalation list say what ADR 028 says (HBS-37 to HBS-42)
-Proof: `pnpm exec turbo run test:acceptance -- --grep "@HBS-(3[7-9]|4[0-2]) "`
+**C16** - The agent guide says what ADR 028 says (HBS-37 to HBS-39)
+Proof: `pnpm exec turbo run test:acceptance -- --grep "@HBS-3[7-9] "`
 
 **C17** - No contract drift (HBS-43)
 Proof: `pnpm contracts:check`
 
 **C18** - The harness suite passes with nothing removed or skipped (HBS-44)
 Proof: `pnpm test:harness`
+
+**C19** - The phase runner, its escalations and the Claude guide say what ADR 028 says (HBS-40 to HBS-42)
+Proof: `pnpm exec turbo run test:acceptance -- --grep "@HBS-4[0-2] "`
+
+**C20** - A release that attaches a secrets file or the git folder asks (HBS-49)
+Proof: `pnpm exec turbo run test:acceptance -- --grep @HBS-49`
+
+**C21** - A review that never returns proves nothing, with the hooks run as processes (HBS-45)
+Proof: `pnpm exec turbo run test:acceptance -- --grep @HBS-45`
+
+**C22** - A PR merge of a covered branch pins the proven head, unresolvable operands are denied and patches ask, with the hooks run as processes (HBS-46 to HBS-48)
+Proof: `pnpm exec turbo run test:acceptance -- --grep "@HBS-4[6-8] "`
 
 ---
 
@@ -414,7 +475,7 @@ Proof: `pnpm test:harness`
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** (1) HBS-47 applies while at least one feature is covered, and then denies every unresolvable operand whatever its name (AD-147, spec amendment); the batch-1 narrowing of unresolvable `gh pr merge` operands to covered branch names is reverted in T7. (2) Accepted batch-1 deviations: head and clean tree read after the command runs (fail-closed); `checkSegments` keeps the strongest decision across segments; the shell-write rule matches self-protected paths inside worktrees; a commit message naming the guarded files is denied, so commits use `-F`; worker commits carry the worker's own `Co-Authored-By`.
-**Dispatched:** execute-batch-1 (T1 to T7) to `feature-worker` at `7524f1f`, 2026-11-07, returned at `7aff920` (T1 to T6 committed; T7 uncommitted, session denial budget exhausted); execute-batch-2 (T7 finish, T8 to T12) to `feature-worker` at `bd4bc93`, 2026-11-07, returned at `9978a4d` (T7 committed; T8 stopped: auto mode refused the `.claude/settings.json` edit); execute-batch-3 (T8 to T12) to `feature-worker` at `9978a4d`, 2026-11-07. The T8 settings edit itself was made by the orchestrator in the worktree on the maintainer's explicit go-ahead ("Recomendado. Pode editar os settings.json da T8."), approved at the gate's prompt; the worker runs T8's gate and commits it. Batch 3 returned at `6c94011` (T8 committed; T9 stopped: auto mode refused the edits of `AGENTS.md`). The T9 text edits (`AGENTS.md`, `CLAUDE.md`, `SKILL.md` with a `harness-self` scope row, `escalation.md`, the brief template, whose `(never push)` is dropped) were made by the orchestrator on the maintainer's go-ahead ("Pode editar os guias da T9."); execute-batch-4 (T9 gate and commit with the worker's saved tests, T10 to T12) to `feature-worker` at `6c94011`, 2026-11-07. The REVIEW section of `SKILL.md`, which still has the maintainer push, is left to `continuous-delivery`. Batch 4 returned at `b5f6b43` (T9 committed; T10's acceptance gate failed once because bddgen needs every step of the feature: tasks replanned, see the note under Approved); execute-batch-5 (T10 to T12, starting from the uncommitted step file) to `feature-worker` at `553139a`, 2026-11-07, returned at `5f9c324` (T10 to T12 committed; 144 of 144 `@HBS-` scenarios); `check_proofs` at `5f9c324`: 21 pass; verifier (step verify) to `verifier` at the commit of this note, 2026-11-07
+**Dispatched:** execute-batch-1 (T1 to T7) to `feature-worker` at `7524f1f`, 2026-11-07, returned at `7aff920` (T1 to T6 committed; T7 uncommitted, session denial budget exhausted); execute-batch-2 (T7 finish, T8 to T12) to `feature-worker` at `bd4bc93`, 2026-11-07, returned at `9978a4d` (T7 committed; T8 stopped: auto mode refused the `.claude/settings.json` edit); execute-batch-3 (T8 to T12) to `feature-worker` at `9978a4d`, 2026-11-07. The T8 settings edit itself was made by the orchestrator in the worktree on the maintainer's explicit go-ahead ("Recomendado. Pode editar os settings.json da T8."), approved at the gate's prompt; the worker runs T8's gate and commits it. Batch 3 returned at `6c94011` (T8 committed; T9 stopped: auto mode refused the edits of `AGENTS.md`). The T9 text edits (`AGENTS.md`, `CLAUDE.md`, `SKILL.md` with a `harness-self` scope row, `escalation.md`, the brief template, whose `(never push)` is dropped) were made by the orchestrator on the maintainer's go-ahead ("Pode editar os guias da T9."); execute-batch-4 (T9 gate and commit with the worker's saved tests, T10 to T12) to `feature-worker` at `6c94011`, 2026-11-07. The REVIEW section of `SKILL.md`, which still has the maintainer push, is left to `continuous-delivery`. Batch 4 returned at `b5f6b43` (T9 committed; T10's acceptance gate failed once because bddgen needs every step of the feature: tasks replanned, see the note under Approved); execute-batch-5 (T10 to T12, starting from the uncommitted step file) to `feature-worker` at `553139a`, 2026-11-07, returned at `5f9c324` (T10 to T12 committed; 144 of 144 `@HBS-` scenarios); `check_proofs` at `5f9c324`: 21 pass; verifier (step verify) to `verifier` at `277a99c`, 2026-11-07, returned FAIL (2 findings, 7 of 8 mutations killed; `gate:harness-bootstrap/verification` at 2 of 3 failures from the Verifier's own runs, so its next run is the last); execute-batch-6 (T13, T14: the findings) to `feature-worker` at the commit of this note, 2026-11-07
 **Walked:** none
 
 **Done (execute-batch-5, 2026-11-07):** T10 committed `a53772a` (gate `gate:harness-bootstrap/T10`, `tsc --noEmit` of `@d2rmm/acceptance`, passed on attempt 2; attempt 1 is the replan's failure); T11 committed `163ea98` (same type check, passed on attempt 1); T12 committed with this line (gate `gate:harness-bootstrap/T12`: `@HBS-` acceptance 144 of 144 passed, `pnpm test:harness` 439 of 439 with none failed, cancelled or skipped, `pnpm contracts:check` clean). T12 ledger: 1 failure of 3 (bddgen rejected the `no proof exists` step, whose regex captured a group its function did not take; fixed in the steps). A first T12 run was killed by the background limit of 30 minutes before it printed a result; it was rerun with a 2-hour limit. The `contracts:openapi` turbo tasks replayed a shared cache entry, so the drift check compared replayed generated files. No hook or sensor file changed in this batch.
@@ -464,6 +525,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 Phase 1:  T1 → T2 → T3
 Phase 2:  T3 → T4 → T5 → T6 → T7
 Phase 3:  T7 → T8 → T9 → T10 → T11 → T12
+Phase 4:  T12 → T13 → T14
 ```
 
-Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T7); `execute-batch-2` runs phase 3 (T8 to T12).
+Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T7); `execute-batch-2` runs phase 3 (T8 to T12). Batches 2 to 5 finished T7 to T12 after stops (see Handoff); `execute-batch-6` runs phase 4 (T13, T14), the fix of the Verifier's findings.

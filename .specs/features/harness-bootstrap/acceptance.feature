@@ -61,6 +61,17 @@ Feature: Delivery is the runner's and the harness maintains itself under a guard
       | gh pr merge https://github.com/pedromoraisf/d2rmatchmaking/pull/42 --merge | https://github.com/pedromoraisf/d2rmatchmaking/pull/42 |
       | gh pr merge --merge                                                        | <head-branch>                                          |
 
+  @HBS-49 @NFR-11
+  Scenario Outline: A release that attaches a secrets file or the git folder asks
+    When the agent asks the gate to run "<command>"
+    Then the gate answers "ask"
+
+    Examples:
+      | command                                            |
+      | gh release upload agent-v0.0.3 .env                |
+      | gh release upload agent-v0.0.3 apps/api/.env.local |
+      | gh release create agent-v0.0.3 .git/config         |
+
   @HBS-07 @HBS-08 @NFR-11
   Scenario Outline: A command line that is not an allowed shape is not allowed
     When the agent asks the gate to run "<command>"
