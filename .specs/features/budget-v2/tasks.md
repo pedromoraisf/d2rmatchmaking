@@ -79,7 +79,7 @@ T8 → T9 → T10
 ### Phase 5: Verifier findings
 
 ```
-T10 → T11 → T12 → T13 → T14 → T15
+T10 → T11 → T12 → T13 → T14 → T15 → T16 → T17
 ```
 
 ---
@@ -421,6 +421,50 @@ T10 → T11 → T12 → T13 → T14 → T15
 
 ---
 
+### T16: The guard sees a covered branch on the remote too
+
+**What**: In `.claude/hooks/lib/guard.mjs`, a covered branch counts as not started only when neither `<branch>` nor `origin/<branch>` resolves; otherwise `touches` and `proofOf` use whichever head resolves (the local one first), as `judgeGhMerge` already does. The "git cannot answer" arm (the phase branch does not resolve) keeps failing closed (Verifier round 2, findings 1, 3 and 4).
+**Where**: `.claude/hooks/lib/guard.mjs` (modify)
+**Depends on**: T15
+**Reuses**: `touches`, `proofOf`, `commitOf`, `judgeGhMerge`
+**Requirement**: none in the spec — the T15 guard fix (maintainer-approved 2026-11-08)
+
+**Done when**:
+
+- [ ] With a covered branch that exists only as `origin/<branch>` and holds a commit beyond the phase, `git merge --no-ff origin/<branch>`, `git merge refs/remotes/origin/<branch>`, `git pull origin <branch>`, `gh pr merge <branch> --merge` and `git cherry-pick origin/<branch>` are denied (test `guards a covered branch that exists only on the remote`)
+- [ ] When the phase branch does not resolve, a covered branch that does not exist still touches every operand (test `fails closed when git cannot answer`)
+- [ ] A merge of a branch with its own commit, sharing none with the covered branch, is not judged as touching it (test `touches only through a shared commit`)
+- [ ] Every existing test of `guard.test.mjs` passes unchanged
+- [ ] Gate passes
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/guard.test.mjs`
+
+**Commit**: `fix(harness): guard a covered branch that exists only on the remote`
+
+---
+
+### T17: A reset is found however the wrapper is spelled
+
+**What**: In `.claude/hooks/lib/budget-rules.mjs`, `WRAPPER_ANY` matches `attempt.mjs` with an optional quote around it and any directory prefix (or none, after a `cd scripts`), so `node "scripts/attempt.mjs" reset …` and `cd scripts && node attempt.mjs reset …` are judged as resets (Verifier round 2, finding 2).
+**Where**: `.claude/hooks/lib/budget-rules.mjs` (modify)
+**Depends on**: T16
+**Reuses**: `WRAPPER_ANY`, the reset rule of T11
+**Requirement**: BUD-14, BUD-15
+
+**Done when**:
+
+- [ ] `node "scripts/attempt.mjs" reset --unit gate:x/T1 --by maintainer`, `node 'scripts/attempt.mjs' reset …` and `cd scripts && node attempt.mjs reset … --by maintainer` ask (test `finds a reset however the wrapper is spelled`)
+- [ ] Every existing test of `budget-rules.test.mjs` passes unchanged
+- [ ] Gate passes
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs`
+
+**Commit**: `fix(harness): find a reset however the wrapper is spelled`
+
+---
+
 ## Checks
 
 **C1** - Each signature is matched exactly, and a test-failure marker wins (BUD-01, BUD-26)
@@ -430,16 +474,16 @@ Proof: `node --test scripts/test/env-signatures.test.mjs`
 Proof: `node --test scripts/test/budget.test.mjs`
 
 **C3** - The wrapper classifies, times out at a whole-minute timeout with exit 124, and diagnoses the machine (BUD-03, BUD-04, BUD-06, BUD-27)
-Proof: `node --test --test-name-pattern "Docker failure|killed command|stops a command at its timeout|bad timeout|timeout in both forms|diagnoses the machine|diagnosis probe" scripts/test/attempt-cli.test.mjs`
+Proof: `node --test --test-name-pattern "Docker failure" --test-name-pattern "killed command" --test-name-pattern "stops a command at its timeout" --test-name-pattern "bad timeout" --test-name-pattern "timeout in both forms" --test-name-pattern "diagnoses the machine" --test-name-pattern "diagnosis probe" scripts/test/attempt-cli.test.mjs`
 
 **C4** - The wrapper refuses an unchanged rerun with exit 4 and runs after a change, another command or a machine failure (BUD-08, BUD-09, BUD-10, BUD-28)
-Proof: `node --test --test-name-pattern "rerun|empty commit|runs after a change|runs again after a machine failure|without a fingerprint|fingerprint before" scripts/test/attempt-cli.test.mjs`
+Proof: `node --test --test-name-pattern "rerun" --test-name-pattern "empty commit" --test-name-pattern "runs after a change" --test-name-pattern "runs again after a machine failure" --test-name-pattern "without a fingerprint" --test-name-pattern "fingerprint before" scripts/test/attempt-cli.test.mjs`
 
 **C5** - The wrapper keeps the full output and prints its last 60 lines (BUD-17)
 Proof: `node --test --test-name-pattern "full output" scripts/test/attempt-cli.test.mjs`
 
 **C6** - The orchestrator resets a unit once, with a reason, under one key normalisation (BUD-12, BUD-13, BUD-14, BUD-29)
-Proof: `node --test --test-name-pattern "reset|needs a reason|unit option" scripts/test/attempt-cli.test.mjs`
+Proof: `node --test --test-name-pattern "reset" --test-name-pattern "needs a reason" --test-name-pattern "unit option" scripts/test/attempt-cli.test.mjs`
 
 **C7** - The gate asks only for the maintainer's resets, allows read-only filters and hands over the corrected command (BUD-15, BUD-18, BUD-19, BUD-20)
 Proof: `node --test .claude/hooks/test/budget-rules.test.mjs`
@@ -470,6 +514,12 @@ Proof: `node --test --test-name-pattern "2>&1" .claude/hooks/test/budget-rules.t
 
 **C16** - A covered feature not started yet does not stop its own branch from being created (guard defect, maintainer-approved)
 Proof: `node --test --test-name-pattern "a covered branch not started touches nothing" .claude/hooks/test/guard.test.mjs`
+
+**C17** - A covered branch on the remote only is still guarded; git failing still fails closed; touching needs a shared commit (T15 fix, maintainer-approved)
+Proof: `node --test --test-name-pattern "exists only on the remote" --test-name-pattern "git cannot answer" --test-name-pattern "only through a shared commit" .claude/hooks/test/guard.test.mjs`
+
+**C18** - A reset is judged however the wrapper is spelled (BUD-14, BUD-15)
+Proof: `node --test --test-name-pattern "however the wrapper is spelled" .claude/hooks/test/budget-rules.test.mjs`
 
 ---
 
@@ -504,7 +554,7 @@ Phase 1:  T1 → T2
 Phase 2:  T2 → T3 → T4 → T5 → T6
 Phase 3:  T6 → T7 → T8
 Phase 4:  T8 → T9 → T10
-Phase 5:  T10 → T11 → T12 → T13 → T14 → T15
+Phase 5:  T10 → T11 → T12 → T13 → T14 → T15 → T16 → T17
 ```
 
-Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T6); `execute-batch-2` runs phases 3 and 4 (T7 to T10); `execute-batch-4` runs phase 5 (T11 to T14), the Verifier's findings; `execute-batch-5` runs T15.
+Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T6); `execute-batch-2` runs phases 3 and 4 (T7 to T10); `execute-batch-4` runs phase 5 (T11 to T14), the Verifier's findings; `execute-batch-5` runs T15; `execute-batch-6` runs T16 and T17, the round-2 findings.
