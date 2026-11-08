@@ -157,10 +157,10 @@ T9 → T10
 
 **Done when**:
 
-- [ ] The PR job needs only `detect`, runs only on pull requests with an agent, and mutates the diff of the three crates with `-- --lib` (test `the agent mutation job mutates the pull request's diff`)
-- [ ] Its cargo-mutants steps run only when the diff file is not empty (test `the agent mutation job skips a pull request with no agent change`)
-- [ ] The nightly job runs on `ubuntu-latest` with the same commands and paths (test `the nightly agent mutation runs on Linux`)
-- [ ] Gate passes; every existing test of both files passes
+- [x] The PR job needs only `detect`, runs only on pull requests with an agent, and mutates the diff of the three crates with `-- --lib` (test `the agent mutation job mutates the pull request's diff`)
+- [x] Its cargo-mutants steps run only when the diff file is not empty (test `the agent mutation job skips a pull request with no agent change`)
+- [x] The nightly job runs on `ubuntu-latest` with the same commands and paths (test `the nightly agent mutation runs on Linux`)
+- [x] Gate passes; every existing test of both files passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/ci-workflow.test.mjs scripts/test/nightly-workflow.test.mjs`

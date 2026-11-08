@@ -158,3 +158,47 @@ test('the mutation job runs beside the required checks', () => {
 test('integration waits only for verify', () => {
   assert.deepEqual(needsOf(jobs.integration), ['detect', 'verify']);
 });
+
+// CFP-08, CFP-09: the agent's mutation of the PR's diff runs unit tests only, and only when the PR changes the agent.
+const AGENT_CRATES = ['d2rmm-agent-domain', 'd2rmm-agent-core', 'd2rmm-agent-adapters'];
+const agentMutationSteps = () => jobs['agent-mutation'].steps;
+const cargoMutants = () =>
+  agentMutationSteps().filter((step) => String(step.run ?? '').includes('cargo mutants'));
+
+test("the agent mutation job mutates the pull request's diff", () => {
+  const job = jobs['agent-mutation'];
+  assert.deepEqual(needsOf(job), ['detect'], 'agent-mutation needs only detect');
+  assert.equal(
+    job.if,
+    "github.event_name == 'pull_request' && needs.detect.outputs.agent == 'true'",
+    'it runs only on pull requests with an agent',
+  );
+
+  const diff = agentMutationSteps().find((step) =>
+    String(step.run ?? '').includes('git diff origin/${{ github.base_ref }}...HEAD -- apps/agent/src-tauri'),
+  );
+  assert.ok(diff, 'the diff of the agent is written to a file');
+
+  const crates = cargoMutants().map((step) => step.run.match(/--package (\S+)/u)?.[1]);
+  assert.deepEqual(crates, AGENT_CRATES, 'each crate of the agent is mutated, in order');
+  for (const step of cargoMutants()) {
+    assert.match(step.run, /--in-diff reports\/agent\.diff /u, 'the mutants are those of the diff');
+    assert.match(step.run, /-- --lib$/u, 'the unit tests catch the mutants (ADR 026)');
+  }
+});
+
+test('the agent mutation job skips a pull request with no agent change', () => {
+  const diff = agentMutationSteps().find((step) => step.id === 'diff');
+  assert.match(diff.run, /if \[ -s reports\/agent\.diff \]/u, 'the diff file is tested for content');
+  assert.match(diff.run, /echo "changed=true" >> "\$GITHUB_OUTPUT"/u, 'a non-empty diff sets changed=true');
+
+  const mutants = cargoMutants();
+  assert.equal(mutants.length, AGENT_CRATES.length, 'every crate has its cargo-mutants step');
+  for (const step of mutants) {
+    assert.equal(
+      step.if,
+      "steps.diff.outputs.changed == 'true'",
+      'the step runs only when the diff is not empty',
+    );
+  }
+});

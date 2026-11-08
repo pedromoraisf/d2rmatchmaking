@@ -234,6 +234,42 @@ jobs:
         working-directory: .
         run: node scripts/agent/expect-failure.mjs disallowed_types -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/domain-clock/Cargo.toml -- -D warnings
 
+  agent-mutation:
+    # ADR 026: the agent's mutants of the pull request's diff are caught by the unit tests (--lib) of each crate. It runs
+    # beside the required checks and blocks no merge (CFP-08). With no agent change it runs no cargo-mutants (CFP-09).
+    name: agent-mutation
+    needs: detect
+    if: github.event_name == 'pull_request' && needs.detect.outputs.agent == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The diff is taken against origin/<base>, which needs the base branch's history.
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: apps/agent/src-tauri
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2
+        with:
+          tool: cargo-mutants
+      - id: diff
+        name: The agent's diff against the base branch
+        run: |
+          mkdir -p reports/mutation
+          git diff origin/${{ github.base_ref }}...HEAD -- apps/agent/src-tauri > reports/agent.diff
+          if [ -s reports/agent.diff ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Mutants of the diff (agent-domain)
+        if: steps.diff.outputs.changed == 'true'
+        run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --in-diff reports/agent.diff --package d2rmm-agent-domain --output reports/mutation/agent-domain -- --lib
+      - name: Mutants of the diff (agent-core)
+        if: steps.diff.outputs.changed == 'true'
+        run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --in-diff reports/agent.diff --package d2rmm-agent-core --output reports/mutation/agent-core -- --lib
+      - name: Mutants of the diff (agent-adapters)
+        if: steps.diff.outputs.changed == 'true'
+        run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --in-diff reports/agent.diff --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib
+
   secrets:
     name: secrets # gitleaks; required check in .github/rulesets/main.json
     runs-on: ubuntu-latest
