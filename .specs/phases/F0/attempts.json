@@ -10384,9 +10384,14 @@
           "at": "2026-11-08T06:15:57.871Z",
           "ok": true,
           "note": "dispatch: Re-review gate-precision design security"
+        },
+        {
+          "at": "2026-11-08T06:17:07.927Z",
+          "ok": false,
+          "note": "refused dispatch #4: Third security review of gate-precision design"
         }
       ],
-      "status": "open"
+      "status": "blocked"
     },
     "denial:99c38cc6-1d77-5b63-a47e-d6018bf3b842#a9663d4f17ecac43e/26a6d08d": {
       "attempts": [
@@ -10541,6 +10546,36 @@
           "at": "2026-11-08T06:07:29.410Z",
           "ok": false,
           "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe/d4b4129e": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:17:07.928Z",
+          "ok": false,
+          "note": "BLOCKED — dispatch:gate-precision/review-security used its 3 attempts (1 + 2 retries). Do not try again by any other route. Record it as blocked (feature tasks.md \"## Handoff\" and the phase decisions.md \"Blocked\" table) and return to the orchestrator / maintainer."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe/ec13538f": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:17:36.866Z",
+          "ok": false,
+          "note": "git worktree would bring in or rewrite feat/F0-continuous-delivery, which merges only by name at its proven head. Use `git merge --no-ff feat/F0-continuous-delivery` (HBS-35)."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe/c2e7f299": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:17:44.381Z",
+          "ok": false,
+          "note": "git branch would bring in or rewrite feat/F0-continuous-delivery, which merges only by name at its proven head. Use `git merge --no-ff feat/F0-continuous-delivery` (HBS-35)."
         }
       ],
       "status": "open"

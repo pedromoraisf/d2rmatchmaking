@@ -166,7 +166,7 @@ scopes delegated — the maintainer reviews at the end of the phase (escalations
 | site-stale-read-fix       | done      | done                                      | 2/2   |
 | room-trace-link           | done      | done                                      | 6/6   |
 | harness-bootstrap         | done      | done                                      | 14/14 |
-| gate-precision            | specify   | ready                                     | 0/0   |
+| gate-precision            | specify   | blocked                                   | 0/0   |
 | budget-v2                 | specify   | blocked                                   | 0/0   |
 | ci-fast-path              | done      | done                                      | 10/10 |
 | continuous-delivery       | specify   | ready                                     | 0/0   |
