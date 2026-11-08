@@ -79,7 +79,7 @@ T8 → T9 → T10
 ### Phase 5: Verifier findings
 
 ```
-T10 → T11 → T12 → T13 → T14
+T10 → T11 → T12 → T13 → T14 → T15
 ```
 
 ---
@@ -399,6 +399,28 @@ T10 → T11 → T12 → T13 → T14
 
 ---
 
+### T15: A covered branch that does not exist touches nothing
+
+**What**: In `.claude/hooks/lib/guard.mjs`, `touches(ctx, state, ref, branch)` returns `false` when the covered `branch` does not resolve to a commit (a covered feature not started yet), so `git worktree add <path> -b feat/F0-<feature> phase/F0` and `git branch feat/F0-<feature> phase/F0` are no longer denied as bringing that branch in. A `ref` that does not resolve keeps today's decision (the guard still fails closed on it), and a covered branch that exists is judged as today.
+**Where**: `.claude/hooks/lib/guard.mjs` (modify)
+**Depends on**: T14
+**Reuses**: `touches`, `revList`, `commitOf`
+**Requirement**: none in the spec — a guard defect found during the run (it denied creating `feat/F0-continuous-delivery`); added with the maintainer's approval on 2026-11-08 ("Sobre a worktree, crie por mim. eu aprovo sua execução"), under `harness-self`
+
+**Done when**:
+
+- [ ] With a covered feature whose branch does not exist, `git worktree add .claude/worktrees/x -b feat/F0-x phase/F0` and `git branch feat/F0-x phase/F0` get no guard decision (test `a covered branch not started touches nothing`)
+- [ ] A covered branch that exists and holds commits beyond the phase is still found by a merge or a branch operand naming it; an unresolvable operand still denies (test `still guards a covered branch that exists`)
+- [ ] Every existing test of `guard.test.mjs` passes unchanged
+- [ ] Gate passes
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/guard.test.mjs`
+
+**Commit**: `fix(harness): a covered branch not started touches nothing`
+
+---
+
 ## Checks
 
 **C1** - Each signature is matched exactly, and a test-failure marker wins (BUD-01, BUD-26)
@@ -446,6 +468,9 @@ Proof: `node --test --test-name-pattern "hidden behind another wrapper call" .cl
 **C15** - A read-only filter after `2>&1` gets no decision; a real write still asks (BUD-18)
 Proof: `node --test --test-name-pattern "2>&1" .claude/hooks/test/budget-rules.test.mjs`
 
+**C16** - A covered feature not started yet does not stop its own branch from being created (guard defect, maintainer-approved)
+Proof: `node --test --test-name-pattern "a covered branch not started touches nothing" .claude/hooks/test/guard.test.mjs`
+
 ---
 
 ## Handoff
@@ -468,6 +493,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 
 **Verifier (2026-11-08):** FAIL at `590421a`, 5 findings (one blocking: a reset hidden behind another wrapper call is not judged). Replanned as T11 to T14; checks C3, C4 and C6 widened (finding 3) by this commit. Dispatched: execute-batch-4 (T11 to T14) to `feature-worker` at the commit of this note.
 
+**Batch 4 (2026-11-08):** T11 `2cc708b`, T12 `9f6c6fe`, T13 `3392cdf`, T14 `72d7cbd`, findings closed `e024dfc`; every gate passed on its first run. T13 follows BUD-09's scenario where the Done-when was loose (an environment failure in between does not clear a refusal of the latest counted state). T11 also asks for a first orchestrator reset chained after another wrapper call. **T15 added (2026-11-08):** the guard defect that stops `continuous-delivery` from starting, with the maintainer's approval. Dispatched: execute-batch-5 (T15) to `feature-worker` at the commit of this note.
+
 ---
 
 ## Phase Execution Map
@@ -477,7 +504,7 @@ Phase 1:  T1 → T2
 Phase 2:  T2 → T3 → T4 → T5 → T6
 Phase 3:  T6 → T7 → T8
 Phase 4:  T8 → T9 → T10
-Phase 5:  T10 → T11 → T12 → T13 → T14
+Phase 5:  T10 → T11 → T12 → T13 → T14 → T15
 ```
 
-Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T6); `execute-batch-2` runs phases 3 and 4 (T7 to T10); `execute-batch-4` runs phase 5 (T11 to T14), the Verifier's findings.
+Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T6); `execute-batch-2` runs phases 3 and 4 (T7 to T10); `execute-batch-4` runs phase 5 (T11 to T14), the Verifier's findings; `execute-batch-5` runs T15.
