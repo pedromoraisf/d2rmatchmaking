@@ -20,26 +20,26 @@ changes what counts. Source: `.specs/phases/F0/brief-revision-6.md` § 3 (budget
 
 ## Out of Scope
 
-| Feature                                                                     | Reason                                                       |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| Changing `MAX_RETRIES` or the units of ADR 022                              | ADR 028 § 4 keeps them; brief revision 6 § 7                 |
-| The proofs cache and preflight                                              | `fast-proofs`, brief revision 6                              |
-| Read-only shell commands outside the wrapper, polling limits, gate speed    | `gate-precision`, brief revision 6                           |
-| Fixing the machine (Docker, memory, swap) when a unit is `env-blocked`      | An escalation of the machine to the maintainer (ADR 028 § 4) |
-| Any product behaviour: API, site, agent or contract changes                 | The row changes harness files, their tests and two guides    |
-| `.claude/hooks/gate.mjs` and the gate rules outside `budget-rules.mjs`      | The wrapper and reset rules live in `budget-rules.mjs`       |
+| Feature                                                                  | Reason                                                       |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| Changing `MAX_RETRIES` or the units of ADR 022                           | ADR 028 § 4 keeps them; brief revision 6 § 7                 |
+| The proofs cache and preflight                                           | `fast-proofs`, brief revision 6                              |
+| Read-only shell commands outside the wrapper, polling limits, gate speed | `gate-precision`, brief revision 6                           |
+| Fixing the machine (Docker, memory, swap) when a unit is `env-blocked`   | An escalation of the machine to the maintainer (ADR 028 § 4) |
+| Any product behaviour: API, site, agent or contract changes              | The row changes harness files, their tests and two guides    |
+| `.claude/hooks/gate.mjs` and the gate rules outside `budget-rules.mjs`   | The wrapper and reset rules live in `budget-rules.mjs`       |
 
 ---
 
 ## Assumptions & Open Questions
 
-| Assumption / decision                              | Chosen default                                                                                                                                                                                                       | Rationale                                                                                                                                                                                       | Confirmed?          |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| What "the content of the paths the feature touches" is | The tree of the whole working directory where the gate runs, tracked and untracked files not ignored by git, as `git write-tree` gives it through a temporary index                                           | One hash that any edit changes, without deciding which paths belong to the feature; stricter than a per-path set, since a change anywhere is needed and nothing outside the tree can fake one | n - AD-153, assumed |
-| The wrapper's timeout                               | `run` takes `--timeout <minutes>`, default 60; a command still running then is killed and recorded as an environment failure                                                                                        | ADR 028 lists "the wrapper's own timeout" among the signatures and the wrapper has none today; 60 minutes is above every F0 gate, including a full acceptance run                         | n - AD-154, assumed |
-| A red stop caused by the machine                   | The Stop hook lets the agent stop, does not count it, and says the machine needs attention                                                                                                                           | Blocking the stop without counting it could loop forever; counting it is what ADR 028 § 4 removes                                                                                               | n - AD-155, assumed |
-| A signature and a test-failure marker in the same output | The failure counts                                                                                                                                                                                    | A real test failure must never spend nothing; the machine problem shows again on the next run if it is real                                                                                      | n - AD-156, assumed |
-| Who an `env-blocked` unit blocks                   | Its feature, like a blocked unit; the orchestrator's one reset applies to it, and the runner escalates the machine                                                                                                  | ADR 028 § 4: "the runner escalates the machine, not the code"                                                                                                                                   | y - ADR 028 § 4     |
+| Assumption / decision                                    | Chosen default                                                                                                                                                      | Rationale                                                                                                                                                                                     | Confirmed?          |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| What "the content of the paths the feature touches" is   | The tree of the whole working directory where the gate runs, tracked and untracked files not ignored by git, as `git write-tree` gives it through a temporary index | One hash that any edit changes, without deciding which paths belong to the feature; stricter than a per-path set, since a change anywhere is needed and nothing outside the tree can fake one | n - AD-153, assumed |
+| The wrapper's timeout                                    | `run` takes `--timeout <minutes>`, default 60; a command still running then is killed and recorded as an environment failure                                        | ADR 028 lists "the wrapper's own timeout" among the signatures and the wrapper has none today; 60 minutes is above every F0 gate, including a full acceptance run                             | n - AD-154, assumed |
+| A red stop caused by the machine                         | The Stop hook lets the agent stop, does not count it, and says the machine needs attention                                                                          | Blocking the stop without counting it could loop forever; counting it is what ADR 028 § 4 removes                                                                                             | n - AD-155, assumed |
+| A signature and a test-failure marker in the same output | The failure counts                                                                                                                                                  | A real test failure must never spend nothing; the machine problem shows again on the next run if it is real                                                                                   | n - AD-156, assumed |
+| Who an `env-blocked` unit blocks                         | Its feature, like a blocked unit; the orchestrator's one reset applies to it, and the runner escalates the machine                                                  | ADR 028 § 4: "the runner escalates the machine, not the code"                                                                                                                                 | y - ADR 028 § 4     |
 
 **Open questions:** none - all resolved or logged above.
 
@@ -56,7 +56,7 @@ changes what counts. Source: `.specs/phases/F0/brief-revision-6.md` § 3 (budget
 **Acceptance Criteria** (each line is one EARS pattern and one requirement ID):
 
 1. BUD-01: The environment signatures SHALL be one fixed list in one module, each with a name and an exact match: `docker` (a line containing `Cannot connect to the Docker daemon` or `Could not find a working container runtime strategy`), `disk` (`ENOSPC` or, ignoring case, `no space left on device`), `killed` (exit status 137 or termination by `SIGKILL`), `port` (`EADDRINUSE`), `not-found` (exit status 127, a line ending in `: command not found`, or `spawn <name> ENOENT`) and `timeout` (the wrapper stopped the command, BUD-06)
-2. BUD-02: WHEN a command run by `attempt.mjs run` fails, matches a signature, and its output shows no test-failure marker (`not ok `, `✖`, `✗`, ` FAIL `, `failing`, `test result: FAILED`, or a line matching `Tests?:.*failed`) THEN the wrapper SHALL record the attempt as an environment failure, naming the signature, and SHALL NOT count it as a failure of the unit
+2. BUD-02: WHEN a command run by `attempt.mjs run` fails, matches a signature, and its output shows no test-failure marker (`not ok `, `✖`, `✗`, `FAIL`, `failing`, `test result: FAILED`, or a line matching `Tests?:.*failed`) THEN the wrapper SHALL record the attempt as an environment failure, naming the signature, and SHALL NOT count it as a failure of the unit
 3. BUD-26: IF a failed command matches a signature and its output also shows a test-failure marker THEN the wrapper SHALL count the failure as an ordinary one (AD-156)
 4. BUD-03: WHEN an environment failure is recorded THEN the wrapper SHALL exit with the command's exit status (124 for a `timeout`) and print that the failure was not counted and which signature matched
 5. BUD-04: IF the last three attempts of a unit are environment failures THEN the wrapper SHALL mark the unit `env-blocked` and refuse further runs with exit 3; it SHALL print a diagnosis of the machine (free memory, swap used, load average, running containers and leftover acceptance processes) when the third environment failure blocks the unit and on every refused run
@@ -100,7 +100,7 @@ changes what counts. Source: `.specs/phases/F0/brief-revision-6.md` § 3 (budget
 3. BUD-14: IF `ledger.resets` already holds an orchestrator reset of the unit, whatever resets came after it THEN `attempt.mjs reset --by orchestrator` SHALL refuse with exit 2 and say the next reset is the maintainer's
 4. BUD-15: WHEN the agent runs `attempt.mjs reset --unit <key> --by orchestrator --reason <why>` for a unit with no orchestrator reset in the ledger THEN the gate SHALL not ask; IF `--by` is anything else or missing, the reason is missing, the command cannot be parsed, the ledger cannot be read, or the unit has an orchestrator reset THEN the gate SHALL ask
 5. BUD-29: The gate and `attempt.mjs` SHALL read the same ledger and normalise a unit key the same way (trimmed, `--unit <key>` or `--unit=<key>`)
-5. BUD-16: WHEN `attempt.mjs report` runs THEN it SHALL list every reset with its unit, `by`, reason and time, and every unit's environment failures and refused reruns in columns of their own
+6. BUD-16: WHEN `attempt.mjs report` runs THEN it SHALL list every reset with its unit, `by`, reason and time, and every unit's environment failures and refused reruns in columns of their own
 
 **Independent Test**: block a unit, reset it as the orchestrator with a reason, block it again, and see the second orchestrator reset refused.
 
@@ -168,37 +168,37 @@ changes what counts. Source: `.specs/phases/F0/brief-revision-6.md` § 3 (budget
 
 ## Requirement Traceability
 
-| Requirement ID | Story                                        | Phase | Status  |
-| -------------- | -------------------------------------------- | ----- | ------- |
-| BUD-01         | P1: Environment failures do not count        | Tasks | Pending |
-| BUD-02         | P1: Environment failures do not count        | Tasks | Pending |
-| BUD-03         | P1: Environment failures do not count        | Tasks | Pending |
-| BUD-04         | P1: Environment failures do not count        | Tasks | Pending |
-| BUD-05         | P1: Environment failures do not count        | Tasks | Pending |
-| BUD-06         | P1: Environment failures do not count        | Tasks | Pending |
-| BUD-07         | P1: Environment failures do not count        | Tasks | Pending |
-| BUD-08         | P1: Unchanged reruns are refused             | Tasks | Pending |
-| BUD-09         | P1: Unchanged reruns are refused             | Tasks | Pending |
-| BUD-10         | P1: Unchanged reruns are refused             | Tasks | Pending |
-| BUD-11         | P1: Unchanged reruns are refused             | Tasks | Pending |
-| BUD-12         | P1: The orchestrator resets a unit once      | Tasks | Pending |
-| BUD-13         | P1: The orchestrator resets a unit once      | Tasks | Pending |
-| BUD-14         | P1: The orchestrator resets a unit once      | Tasks | Pending |
-| BUD-15         | P1: The orchestrator resets a unit once      | Tasks | Pending |
-| BUD-16         | P1: The orchestrator resets a unit once      | Tasks | Pending |
-| BUD-17         | P2: The wrapper is easy to call and to read  | Tasks | Pending |
-| BUD-18         | P2: The wrapper is easy to call and to read  | Tasks | Pending |
-| BUD-19         | P2: The wrapper is easy to call and to read  | Tasks | Pending |
-| BUD-20         | P2: The wrapper is easy to call and to read  | Tasks | Pending |
-| BUD-21         | P2: The wrapper is easy to call and to read  | Tasks | Pending |
-| BUD-22         | P2: The guides say what the budget counts    | Tasks | Pending |
-| BUD-23         | P2: The guides say what the budget counts    | Tasks | Pending |
-| BUD-24         | P1: Nothing else changes                     | Tasks | Pending |
-| BUD-25         | P1: Nothing else changes                     | Tasks | Pending |
-| BUD-26         | P1: Environment failures do not count        | Tasks | Pending |
-| BUD-27         | P1: Environment failures do not count        | Tasks | Pending |
-| BUD-28         | P1: Unchanged reruns are refused             | Tasks | Pending |
-| BUD-29         | P1: The orchestrator resets a unit once      | Tasks | Pending |
+| Requirement ID | Story                                       | Phase | Status  |
+| -------------- | ------------------------------------------- | ----- | ------- |
+| BUD-01         | P1: Environment failures do not count       | Tasks | Pending |
+| BUD-02         | P1: Environment failures do not count       | Tasks | Pending |
+| BUD-03         | P1: Environment failures do not count       | Tasks | Pending |
+| BUD-04         | P1: Environment failures do not count       | Tasks | Pending |
+| BUD-05         | P1: Environment failures do not count       | Tasks | Pending |
+| BUD-06         | P1: Environment failures do not count       | Tasks | Pending |
+| BUD-07         | P1: Environment failures do not count       | Tasks | Pending |
+| BUD-08         | P1: Unchanged reruns are refused            | Tasks | Pending |
+| BUD-09         | P1: Unchanged reruns are refused            | Tasks | Pending |
+| BUD-10         | P1: Unchanged reruns are refused            | Tasks | Pending |
+| BUD-11         | P1: Unchanged reruns are refused            | Tasks | Pending |
+| BUD-12         | P1: The orchestrator resets a unit once     | Tasks | Pending |
+| BUD-13         | P1: The orchestrator resets a unit once     | Tasks | Pending |
+| BUD-14         | P1: The orchestrator resets a unit once     | Tasks | Pending |
+| BUD-15         | P1: The orchestrator resets a unit once     | Tasks | Pending |
+| BUD-16         | P1: The orchestrator resets a unit once     | Tasks | Pending |
+| BUD-17         | P2: The wrapper is easy to call and to read | Tasks | Pending |
+| BUD-18         | P2: The wrapper is easy to call and to read | Tasks | Pending |
+| BUD-19         | P2: The wrapper is easy to call and to read | Tasks | Pending |
+| BUD-20         | P2: The wrapper is easy to call and to read | Tasks | Pending |
+| BUD-21         | P2: The wrapper is easy to call and to read | Tasks | Pending |
+| BUD-22         | P2: The guides say what the budget counts   | Tasks | Pending |
+| BUD-23         | P2: The guides say what the budget counts   | Tasks | Pending |
+| BUD-24         | P1: Nothing else changes                    | Tasks | Pending |
+| BUD-25         | P1: Nothing else changes                    | Tasks | Pending |
+| BUD-26         | P1: Environment failures do not count       | Tasks | Pending |
+| BUD-27         | P1: Environment failures do not count       | Tasks | Pending |
+| BUD-28         | P1: Unchanged reruns are refused            | Tasks | Pending |
+| BUD-29         | P1: The orchestrator resets a unit once     | Tasks | Pending |
 
 **ID format:** `[CATEGORY]-[NUMBER]`
 
