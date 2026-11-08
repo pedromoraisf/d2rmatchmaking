@@ -16,3 +16,8 @@
   failures and repeated denials in `.git/d2rmm/ledger.json`; when one is exhausted, record the blocker and report.
 - Resume: run `pnpm phase:status` first; it is the only source of "what's next" (ADR 024).
 - Escalations come to the maintainer as a permission prompt ("ask"). Everything else is recorded for the phase review.
+  Push, PRs, merges, releases and tags are the runner's (ADR 028); secrets, repository settings and money still ask.
+- `harness-self` (ADR 028): a brief can delegate edits of the gate, its registration and the retry-budget code to the
+  features it names. They edit those files only in their own worktree, and merge only at a head with a passed
+  `pnpm test:harness` and a `security-reviewer` `VERDICT: PASS`, which `.claude/hooks/verdict.mjs` (PostToolUse) records
+  from a foreground `review-diff` dispatch. Nobody writes that record by hand.

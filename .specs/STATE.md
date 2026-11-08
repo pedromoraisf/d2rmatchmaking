@@ -1281,6 +1281,60 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-07
 - **Status**: active
 
+### AD-143 (assumed)
+
+- **Decision**: the gate notes the head of `feat/<F>-<f>` when a foreground `security-reviewer` `review-diff` dispatch starts; a `PostToolUse` hook on the `Agent`/`Task` tool records the verdict from the dispatch's final report at that head, and a FAIL if the head moved or the report cannot be read; the gate denies that dispatch in the background.
+- **Reason**: harness-bootstrap, HBS-22 to HBS-25. Brief revision 6 left to the design what the hook input carries. `PostToolUse` carries the tool's input and response, both written by Claude Code; a background dispatch returns before the verdict exists. Stricter: no verdict, no merge.
+- **Trade-off**: the review of a harness-self diff blocks the orchestrator while it runs. Reversal: read the SubagentStop transcript instead.
+- **Scope**: harness-bootstrap
+- **Date**: 2026-11-07
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-144 (assumed)
+
+- **Decision**: `gh pr merge` must name the head branch and use `--merge`; a PR number, no argument, `--squash`, `--rebase` or `--admin` is denied with the corrected command.
+- **Reason**: harness-bootstrap, HBS-03 to HBS-05. The gate cannot reach GitHub to map a number to a feature; `main`'s ruleset allows merge commits only, which keep the progress trailers; `--admin` bypasses the required checks ADR 028 § 2 relies on.
+- **Trade-off**: the runner types the branch name. Reversal: one rule in the gate.
+- **Scope**: harness-bootstrap
+- **Date**: 2026-11-07
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-145 (assumed)
+
+- **Decision**: a local `git merge` into `main`, a push to `main`, to a remote other than `origin`, with no refspec or with a `src:dst` refspec, `wrangler deploy` / `wrangler pages deploy`, `npm`/`pnpm publish`, `gh release delete` and any `gh api` call with a method other than `GET` still ask.
+- **Reason**: harness-bootstrap, HBS-11 and HBS-12. ADR 028 names the delivery commands and these are not among them: `main` changes through the phase PR, Cloudflare deploys run in CI, no package is published, and `gh api` writes can change rulesets and settings, which stay the maintainer's.
+- **Trade-off**: a manual deploy or an API write still prompts. Reversal: one rule each in the gate.
+- **Scope**: harness-bootstrap
+- **Date**: 2026-11-07
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-146 (assumed)
+
+- **Decision**: verdicts live in `verdicts.json` in the same directory under `.git/` as the hooks' ledger, and the gate denies any Edit or Write there and any shell command, inline code or untracked script that names that folder, `verdicts.json` or `ledger.json`, or enters a `.git` directory, except the read-only status commands. A covered branch merges only at its proven head; any other git command that brings its commits in is denied, and patch and plumbing commands ask (HBS-32 to HBS-48).
+- **Reason**: harness-bootstrap, HBS-22 and HBS-26. Outside the tracked tree, so no commit carries a verdict; next to the ledger, which the hooks already own.
+- **Trade-off**: verdicts are per machine, like the ledger. Reversal: move the store.
+- **Scope**: harness-bootstrap
+- **Date**: 2026-11-07
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-147 (assumed)
+
+- **Decision**: HBS-47 (deny an operand that does not resolve) applies while the brief covers at least one feature under `harness-self`; while it does, every unresolvable operand is denied, whatever its name.
+- **Reason**: harness-bootstrap Execute (T7). As written, HBS-47 denied merges of unfetched branches with nothing to guard, which contradicts HBS-03 and the existing merge expectations. A narrowing to operands named like a covered branch was rejected: it reopens the bypass of a branch pushed from a covered head, deleted locally and merged by name.
+- **Trade-off**: while a feature is covered, the runner fetches or pushes a branch before merging it. Reversal: one condition in the guard.
+- **Scope**: harness-bootstrap
+- **Date**: 2026-11-07
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-148 (assumed)
+
+- **Decision**: a `gh release create` or `gh release upload` whose file operand has a path segment starting with `.env` or equal to `.git` asks (HBS-49, appended to the approved spec).
+- **Reason**: harness-bootstrap, the Verifier's finding 2: `gh release upload v1 .env` was an allowed shape, so a secrets file could reach a public release without a prompt (AGENTS.md rule 6). Stricter, and the release itself stays the runner's.
+- **Trade-off**: attaching `.env.example` to a release also asks. Reversal: one pattern in `delivery.mjs`.
+- **Scope**: harness-bootstrap
+- **Date**: 2026-11-07
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

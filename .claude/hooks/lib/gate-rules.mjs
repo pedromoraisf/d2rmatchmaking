@@ -5,12 +5,17 @@
 // deny → the call never runs; the reason goes back to the agent.
 // ask  → Claude Code asks the human. This is how mid-phase escalations reach the user.
 import { activePhase, approvalsIn } from './delegation.mjs';
+import { checkBackgroundReview, noteDispatch } from './verdicts.mjs';
+import { allowedShape, deliveryDecision, mergesAfterMainSwitch } from './delivery.mjs';
+import { guardDecision } from './guard.mjs';
 import { compareBaselines } from '../../../scripts/lib/ratchet.mjs';
 import { sessionId } from '../../../scripts/lib/budget.mjs';
-import { checkBudget, countDenial } from './budget-rules.mjs';
+import { checkBudget, countDenial, GIT_DIR_CD, LEDGER_REF } from './budget-rules.mjs';
 import { countScenarios } from '../../../scripts/lib/acceptance.mjs';
 import { checkMutationSpec } from '../../../scripts/lib/mutation-scope.mjs';
 import { indirections, MAX_DEPTH, SHELL } from './shell-indirection.mjs';
+import { resolveInside } from './io.mjs';
+import path from 'node:path';
 
 const deny = (reason) => ({ decision: 'deny', reason });
 const ask = (reason) => ({ decision: 'ask', reason });
@@ -152,6 +157,11 @@ function isGuardedPath(token, root) {
 /** Inline interpreter code (`python -c`, `node -e`, a heredoc, an untracked script): what the shell rules can't see. */
 function checkInlineCode(code, ctx) {
   const text = String(code ?? '');
+  if (LEDGER_REF.test(text) || GIT_DIR_CD.test(text)) {
+    return deny(
+      'This code names the retry ledger or the security verdicts, or enters .git: only the hooks and scripts/attempt.mjs touch those.',
+    );
+  }
   if (INLINE_ENV.test(text)) {
     return deny(
       '.env files hold secrets and are off-limits to the agent, from inline code too. Use .env.example.',
@@ -215,10 +225,23 @@ export function checkBash(command, ctx, depth = 0) {
   if (depth > MAX_DEPTH) {
     return ask('This command nests shells too deep to check what runs. Run the inner command directly.');
   }
-  return strongest(checkSegments(cmd, ctx), checkIndirections(cmd, ctx, depth));
+  // HBS-31: nested shells and untracked scripts are judged by their text too.
+  if (LEDGER_REF.test(cmd) || GIT_DIR_CD.test(cmd)) {
+    return deny(
+      'The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git.',
+    );
+  }
+  // ADR 028 § 1: one delivery command in an allowed shape runs without asking, unless another rule denies or asks.
+  // Only the top-level line can be such a shape: a command hidden in a nested shell or a wrapper is judged as a segment.
+  const shaped = depth === 0 && allowedShape(cmd, ctx);
+  const found = strongest(checkSegments(cmd, ctx, shaped), checkIndirections(cmd, ctx, depth));
+  if (found) return found;
+  return shaped
+    ? { decision: 'allow', reason: 'ADR 028 § 1: a delivery command in an allowed shape.' }
+    : null;
 }
 
-function checkSegments(cmd, ctx) {
+function checkSegments(cmd, ctx, shaped) {
   if (PROD_DB.test(cmd)) {
     return deny(
       'Production database access is an escalation: never run commands with the production connection string. Ask the maintainer.',
@@ -231,96 +254,112 @@ function checkSegments(cmd, ctx) {
   }
   const mutationDenial = checkMutationRun(cmd, ctx);
   if (mutationDenial) return mutationDenial;
+  // The merge guard (ADR 028 § 3) denies whatever the shape: its denial beats the allow of an allowed shape.
+  const guarded = guardDecision(cmd, ctx);
+  if (guarded?.decision === 'deny') return guarded;
+  if (shaped) return guarded; // a whole line in an allowed shape has no other command to judge
+  let found = strongest(
+    guarded,
+    mergesAfterMainSwitch(cmd)
+      ? ask('Merging after switching to main is an escalation: the maintainer decides it (HBS-14).')
+      : null,
+  );
   for (const seg of splitCommands(cmd)) {
-    const w = words(seg);
-    const at = w.findIndex((x) => !/^[A-Z_]+=/.test(x)); // skip env assignments
-    const head = w.slice(at);
-    const [c0, c1] = head;
+    found = strongest(found, checkSegment(seg, ctx));
+    if (found?.decision === 'deny') return found;
+  }
+  return found;
+}
 
-    if (c0 === 'git') {
-      const g = gitArgs(head.slice(1));
-      const [sub] = g;
-      const rest = g.join(' ');
-      if (
-        sub === 'push' &&
-        /(^|\s)(-f|--force|--force-with-lease|--mirror|--delete|-d)\b|\s\+\S/.test(rest)
-      ) {
-        return deny('Force push / remote deletion is never allowed.');
-      }
-      if (sub === 'push')
-        return ask('git push needs the maintainer’s explicit go-ahead (escalation: remote operation).');
-      if (sub === 'reset' && /--hard/.test(rest))
-        return deny('git reset --hard discards work. Use git stash or a new commit.');
-      if (sub === 'clean' && /-[a-z]*f/.test(rest)) return ask('git clean -f deletes untracked files.');
-      if ((sub === 'checkout' || sub === 'restore') && /(^|\s)(--\s+)?\.(\s|$)/.test(rest)) {
-        return ask('Discarding all working-tree changes.');
-      }
-      if (sub === 'merge' && (ctx.currentBranch?.() === 'main' || /\bmain\b/.test(rest))) {
-        return ask('Merging into main is an escalation (phase review).');
-      }
-      if (sub === 'rm' && g.slice(1).some((p) => TEST_FILE.test(p))) {
-        return ask('Deleting tests is an escalation: tests are never removed to make a gate pass.');
-      }
-      if (sub === 'tag' && !/(^|\s)(-l|--list)\b/.test(rest) && g.length > 1) {
-        return ask('Tags trigger releases (agent-v*). Ask first.');
-      }
+/** The ADR 019/021 rules for one segment (the delivery rules of ADR 028 come first). */
+function checkSegment(seg, ctx) {
+  const delivery = deliveryDecision(seg, ctx);
+  if (delivery) return delivery;
+  const w = words(seg);
+  const at = w.findIndex((x) => !/^[A-Z_]+=/.test(x)); // skip env assignments
+  const head = w.slice(at);
+  const [c0, c1] = head;
+
+  if (c0 === 'git') {
+    const g = gitArgs(head.slice(1));
+    const [sub] = g;
+    const rest = g.join(' ');
+    if (sub === 'push' && /(^|\s)(-f|--force|--force-with-lease|--mirror|--delete|-d)\b|\s\+\S/.test(rest)) {
+      return deny('Force push / remote deletion is never allowed.');
     }
-
-    if (c0 === 'gh') {
-      if (c1 === 'secret' || (c1 === 'variable' && head[2] === 'set'))
-        return ask('Creating or changing secrets/variables is an escalation.');
-      if (c1 === 'pr' && head[2] === 'merge') return ask('Merging a PR is an escalation (phase review).');
-      if (c1 === 'release') return ask('Releases are an escalation.');
-      if (c1 === 'workflow' && head[2] === 'run')
-        return ask('Running workflows manually can deploy. Ask first.');
-      if (c1 === 'repo' && /delete|archive|edit/.test(head[2] ?? ''))
-        return deny('Repository settings are maintainer-only.');
+    if (sub === 'push')
+      return ask('git push needs the maintainer’s explicit go-ahead (escalation: remote operation).');
+    if (sub === 'reset' && /--hard/.test(rest))
+      return deny('git reset --hard discards work. Use git stash or a new commit.');
+    if (sub === 'clean' && /-[a-z]*f/.test(rest)) return ask('git clean -f deletes untracked files.');
+    if ((sub === 'checkout' || sub === 'restore') && /(^|\s)(--\s+)?\.(\s|$)/.test(rest)) {
+      return ask('Discarding all working-tree changes.');
     }
-
-    if (c0 === 'wrangler' || (c0 === 'npx' && c1 === 'wrangler') || (c0 === 'pnpm' && c1 === 'wrangler')) {
-      if (/\b(deploy|publish|secret)\b/.test(seg))
-        return ask('Cloudflare deploys and secrets are escalations.');
+    if (sub === 'merge' && (ctx.currentBranch?.() === 'main' || /\bmain\b/.test(rest))) {
+      return ask('Merging into main is an escalation (phase review).');
     }
-    if (/api\.render\.com\/deploy|RENDER_DEPLOY_HOOK/.test(seg))
-      return ask('Render deploys are an escalation.');
-    if ((c0 === 'npm' || c0 === 'pnpm') && c1 === 'publish')
-      return ask('Publishing packages is an escalation.');
-
-    if (c0 === 'rm') {
-      const flags = head.filter((x) => x.startsWith('-')).join('');
-      const targets = head.slice(1).filter((x) => !x.startsWith('-'));
-      if (
-        /r/i.test(flags) &&
-        targets.some((t) => t === '/' || t === '~' || t === '.' || t === '*' || t === '..')
-      ) {
-        return deny(`Refusing "${seg}".`);
-      }
-      if (/r/i.test(flags) && targets.some((t) => !RM_SAFE.test(t))) {
-        return deny(
-          `rm -r is allowed only on build/test output folders (node_modules, dist, coverage, target, reports…). Blocked: ${targets.filter((t) => !RM_SAFE.test(t)).join(' ')}`,
-        );
-      }
-      if (targets.some((t) => TEST_FILE.test(t))) return ask('Deleting tests is an escalation.');
+    if (sub === 'rm' && g.slice(1).some((p) => TEST_FILE.test(p))) {
+      return ask('Deleting tests is an escalation: tests are never removed to make a gate pass.');
     }
+    if (sub === 'tag' && !/(^|\s)(-l|--list)\b/.test(rest) && g.length > 1) {
+      return ask('Tags trigger releases (agent-v*). Ask first.');
+    }
+  }
 
-    // Reading or printing secrets files.
+  if (c0 === 'gh') {
+    if (c1 === 'secret' || (c1 === 'variable' && head[2] === 'set'))
+      return ask('Creating or changing secrets/variables is an escalation.');
+    if (c1 === 'pr' && head[2] === 'merge') return ask('Merging a PR is an escalation (phase review).');
+    if (c1 === 'release') return ask('Releases are an escalation.');
+    if (c1 === 'workflow' && head[2] === 'run')
+      return ask('Running workflows manually can deploy. Ask first.');
+    if (c1 === 'repo' && /delete|archive|edit/.test(head[2] ?? ''))
+      return deny('Repository settings are maintainer-only.');
+  }
+
+  if (c0 === 'wrangler' || (c0 === 'npx' && c1 === 'wrangler') || (c0 === 'pnpm' && c1 === 'wrangler')) {
+    if (/\b(deploy|publish|secret)\b/.test(seg))
+      return ask('Cloudflare deploys and secrets are escalations.');
+  }
+  if (/api\.render\.com\/deploy|RENDER_DEPLOY_HOOK/.test(seg))
+    return ask('Render deploys are an escalation.');
+  if ((c0 === 'npm' || c0 === 'pnpm') && c1 === 'publish')
+    return ask('Publishing packages is an escalation.');
+
+  if (c0 === 'rm') {
+    const flags = head.filter((x) => x.startsWith('-')).join('');
+    const targets = head.slice(1).filter((x) => !x.startsWith('-'));
     if (
-      /(^|\s)(cat|less|more|head|tail|type|bat|cp|mv|source|\.)\s/.test(` ${seg}`) &&
-      head.some((x) => ENV_FILE.test(x))
+      /r/i.test(flags) &&
+      targets.some((t) => t === '/' || t === '~' || t === '.' || t === '*' || t === '..')
     ) {
-      return deny('.env files hold secrets and are off-limits to the agent. Use .env.example.');
+      return deny(`Refusing "${seg}".`);
     }
-
-    // Shell writes to harness files bypass the Edit-level checks below.
-    const writes = /(\bsed\s+-i|\btee\b|>|\bmv\b|\bcp\b|\btruncate\b|\bperl\s+-p?i)/.test(seg);
-    if (writes && head.some((x) => x === BASELINE || x.endsWith(`/${BASELINE}`))) {
+    if (/r/i.test(flags) && targets.some((t) => !RM_SAFE.test(t))) {
       return deny(
-        'Edit .quality-baseline.json with the Edit tool (so the ratchet check runs) or via `pnpm quality:ratchet --update`.',
+        `rm -r is allowed only on build/test output folders (node_modules, dist, coverage, target, reports…). Blocked: ${targets.filter((t) => !RM_SAFE.test(t)).join(' ')}`,
       );
     }
-    if (writes && head.some((x) => isHarnessFile(x.replace(/^\.\//, '')))) {
-      return ask('Shell write to a harness/sensor file. Use the Edit tool so the gate can check it.');
-    }
+    if (targets.some((t) => TEST_FILE.test(t))) return ask('Deleting tests is an escalation.');
+  }
+
+  // Reading or printing secrets files.
+  if (
+    /(^|\s)(cat|less|more|head|tail|type|bat|cp|mv|source|\.)\s/.test(` ${seg}`) &&
+    head.some((x) => ENV_FILE.test(x))
+  ) {
+    return deny('.env files hold secrets and are off-limits to the agent. Use .env.example.');
+  }
+
+  // Shell writes to harness files bypass the Edit-level checks below.
+  const writes = /(\bsed\s+-i|\btee\b|>|\bmv\b|\bcp\b|\btruncate\b|\bperl\s+-p?i)/.test(seg);
+  if (writes && head.some((x) => x === BASELINE || x.endsWith(`/${BASELINE}`))) {
+    return deny(
+      'Edit .quality-baseline.json with the Edit tool (so the ratchet check runs) or via `pnpm quality:ratchet --update`.',
+    );
+  }
+  if (writes && head.some((x) => isHarnessFile(inRepoPath(x)) || isSelfProtected(inRepoPath(x)))) {
+    return ask('Shell write to a harness/sensor file. Use the Edit tool so the gate can check it.');
   }
   return null;
 }
@@ -453,6 +492,8 @@ export function checkEdit(rel, toolInput, ctx) {
   }
 
   if (isSelfProtected(rel)) {
+    // HBS-20: a feature the brief covers edits the gate in its own worktree. Every other rule above still applied.
+    if (ctx.coveredWorktree) return null;
     return ask(
       'The gate and its registration protect themselves: the maintainer confirms every change here.',
     );
@@ -472,13 +513,16 @@ export function checkEdit(rel, toolInput, ctx) {
  * the repository — same protected files, same test rules — reading the worktree's own copy of each file.
  */
 function worktreeView(rel, ctx) {
-  const m = /^(\.claude\/worktrees\/[^/]+)\/(.*)$/.exec(rel);
+  const m = /^(\.claude\/worktrees\/([^/]+))\/(.*)$/.exec(rel);
   if (!m) return { rel, ctx };
-  const [, prefix, inner] = m;
+  const [, prefix, name, inner] = m;
+  // HBS-19/20: covered only by the main checkout's brief (activePhase reads it from there).
+  const covered = (activePhase(ctx)?.covered ?? []).includes(name);
   return {
     rel: inner,
     ctx: {
       ...ctx,
+      coveredWorktree: covered,
       readFile: (r) => ctx.readFile(`${prefix}/${r}`),
       isTracked: (r) =>
         ctx.git ? ctx.git('-C', prefix, 'ls-files', '--error-unmatch', '--', r) !== null : false,
@@ -486,12 +530,28 @@ function worktreeView(rel, ctx) {
   };
 }
 
+/**
+ * The path an edit names, relative to the main checkout, after `..` and the symbolic links of its nearest existing
+ * directory (HBS-20): a link out of a worktree, or a `..` through one, is judged where it really lands.
+ */
+function repoRelative(ctx, filePath) {
+  if (!filePath) return '';
+  const main = ctx.mainRoot ?? ctx.root;
+  return path.relative(resolveInside(main, '.'), resolveInside(ctx.root, filePath)).split(path.sep).join('/');
+}
+
+/** A path of a shell command, relative to the main checkout, without a leading `./` (the same rule as the edits). */
+function inRepoPath(token) {
+  return token.replace(/^\.\//, '').replace(/^\.claude\/worktrees\/[^/]+\//, '');
+}
+
 function regularRules(tool, ti, ctx, toRelative) {
   if (tool === 'Bash') return checkBash(ti.command, ctx);
   if (tool === 'Edit' || tool === 'Write' || tool === 'MultiEdit' || tool === 'NotebookEdit') {
-    const view = worktreeView(toRelative(ctx.root, ti.file_path ?? ti.notebook_path), ctx);
+    const view = worktreeView(repoRelative(ctx, ti.file_path ?? ti.notebook_path), ctx);
     return checkEdit(view.rel, ti, view.ctx);
   }
+  if (tool === 'Agent' || tool === 'Task') return checkBackgroundReview({ tool_name: tool, tool_input: ti });
   if (tool === 'Read' || tool === 'Grep') {
     const rel = toRelative(ctx.root, ti.file_path ?? ti.path ?? '');
     if (ENV_FILE.test(rel)) return deny('.env files hold secrets and are off-limits to the agent.');
@@ -515,10 +575,12 @@ export function decide(input, ctx, toRelative) {
   }
   const result = regularRules(tool, ti, ctx, toRelative);
   const counted = countDenial(result, ctx, sid);
-  if (budget?.effects?.length) {
-    return counted
-      ? { ...counted, effects: [...budget.effects, ...(counted.effects ?? [])] }
-      : { decision: null, reason: '', effects: budget.effects };
+  // ADR 028 § 3: a foreground security review of a diff notes its head when it starts, unless it is denied.
+  const effects = [...(budget?.effects ?? []), ...(counted?.effects ?? [])];
+  if (counted?.decision !== 'deny') {
+    const noted = noteDispatch(input, ctx);
+    if (noted) effects.push(noted);
   }
-  return counted;
+  if (effects.length === 0) return counted;
+  return counted ? { ...counted, effects } : { decision: null, reason: '', effects };
 }

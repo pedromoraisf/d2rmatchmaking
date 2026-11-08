@@ -46,6 +46,13 @@ function tail(text, n = 15) {
   return String(text).trim().split('\n').slice(-n).join('\n');
 }
 
+/** stdout of a git command run in `cwd`, or null when git fails (no commit yet, not a repository…). */
+function gitOutput(cwd, args, { trim = true } = {}) {
+  const r = spawnSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  if (r.status !== 0) return null;
+  return trim ? r.stdout.trim() : r.stdout;
+}
+
 if (cmd === 'run') {
   const feature = opt('--feature');
   const step = opt('--step');
@@ -74,7 +81,12 @@ if (cmd === 'run') {
   process.stderr.write(r.stderr ?? '');
   const ok = r.status === 0;
   const note = ok ? command : `${command} → exit ${r.status}: ${tail(`${r.stdout}\n${r.stderr}`, 6)}`;
-  const res = withLedger(file, (l) => recordAttempt(l, key, ok, { note }));
+  // HBS-25: the commit and the tree state where the command ran, read after it ran, so a command that dirties the
+  // tree records `clean: false` (the proof of a green run is only as good as the tree it ran on).
+  const head = gitOutput(root, ['rev-parse', 'HEAD']);
+  const porcelain = gitOutput(root, ['status', '--porcelain'], { trim: false });
+  const clean = porcelain !== null && porcelain.trim() === '';
+  const res = withLedger(file, (l) => recordAttempt(l, key, ok, { note, command, head, clean }));
   if (ok) {
     console.error(`✓ ${key} passed on attempt ${res.attempt}.`);
     process.exit(0);

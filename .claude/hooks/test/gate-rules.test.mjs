@@ -63,17 +63,19 @@ test('bash: destructive and bypass commands are denied', () => {
 test('bash: escalations ask the maintainer', () => {
   const ctx = fakeCtx();
   for (const c of [
-    'git push origin phase/F0',
-    'gh pr merge 12 --squash',
     'gh secret set RENDER_DEPLOY_HOOK',
     'npx wrangler pages deploy dist',
     'curl -X POST https://api.render.com/deploy/srv-1?key=x', // secretlint-disable-line -- fake fixture for the gate test
     'git rm apps/api/src/x.test.ts',
     'pnpm publish',
-    'git tag agent-v0.0.1',
   ]) {
     assert.equal(d(checkBash(c, ctx)), 'ask', c);
   }
+  // ADR 028 § 1 changed three of these: a push of a phase branch and a tag are allowed, a PR merge outside the merge
+  // options is denied with the fix (HBS-04).
+  assert.equal(d(checkBash('git push origin phase/F0', ctx)), 'allow');
+  assert.equal(d(checkBash('git tag agent-v0.0.1', ctx)), 'allow');
+  assert.equal(d(checkBash('gh pr merge 12 --squash', ctx)), 'deny');
   assert.equal(d(checkBash('git merge feat/x', fakeCtx({}, { branch: 'main' }))), 'ask');
   assert.equal(d(checkBash('git merge feat/x', fakeCtx({}, { branch: 'phase/F0' }))), 'allow');
 });
@@ -371,4 +373,60 @@ test('edit: an existing .only( fixture string does not block other edits; adding
 test('the committed retry-ledger snapshot cannot be edited by agents', () => {
   assert.equal(d(checkEdit('.specs/phases/F0/attempts.json', { content: '{}' }, fakeCtx())), 'deny');
   assert.equal(d(checkEdit('scripts/lib/phase-state.mjs', { content: 'x' }, fakeCtx())), 'ask');
+});
+
+test('denies a background security review of a diff', () => {
+  const review = (extra) => ({
+    tool_name: 'Agent',
+    tool_input: {
+      subagent_type: 'security-reviewer',
+      prompt: '[d2rmm feature=gate-precision step=review-diff] review the diff',
+      ...extra,
+    },
+  });
+  const background = decide(review({ run_in_background: true }), fakeCtx(), toRelative);
+  assert.equal(d(background), 'deny');
+  assert.match(background.reason, /run_in_background: false/);
+  assert.equal(d(decide(review({ run_in_background: false }), fakeCtx(), toRelative)), 'allow');
+  assert.equal(d(decide(review({}), fakeCtx(), toRelative)), 'allow');
+});
+
+test('denies edits of the verdicts and the ledger', () => {
+  for (const file of [
+    '/repo/.git/d2rmm/verdicts.json',
+    '/repo/.git/d2rmm/ledger.json',
+    '/repo/.claude/worktrees/gate-precision/.git/d2rmm/verdicts.json',
+  ]) {
+    const edit = { tool_name: 'Edit', tool_input: { file_path: file, old_string: 'a', new_string: '{}' } };
+    assert.equal(d(decide(edit, fakeCtx(), toRelative)), 'deny', file);
+  }
+});
+
+test('denies shell commands that reach the verdicts or the ledger', () => {
+  for (const command of [
+    'echo {} > .git/d2rmm/verdicts.json',
+    'cd .git && echo {} > d2rmm/ledger.json',
+    'cp /tmp/v.json .claude/worktrees/gate-precision/.git/d2rmm/verdicts.json',
+    `node -e "require('fs').writeFileSync('.git/d2rmm/verdicts.json','{}')"`,
+  ]) {
+    assert.equal(
+      d(decide({ tool_name: 'Bash', tool_input: { command } }, fakeCtx(), toRelative)),
+      'deny',
+      command,
+    );
+  }
+});
+
+test('keeps the status commands', () => {
+  for (const command of [
+    'node scripts/attempt.mjs status',
+    'node scripts/attempt.mjs report',
+    'node scripts/phase-status.mjs',
+  ]) {
+    assert.notEqual(
+      d(decide({ tool_name: 'Bash', tool_input: { command } }, fakeCtx(), toRelative)),
+      'deny',
+      command,
+    );
+  }
 });

@@ -52,6 +52,47 @@ test('attempt run: invented steps and unknown features are refused', () => {
   assert.equal(run(dir, 'run', '--feature', 'demo', '--step', 'spec', '--', 'true').status, 0);
 });
 
+function committedRepo() {
+  const dir = repo();
+  git('-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init');
+  git('-C', dir, 'add', '.specs');
+  git('-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'specs');
+  return dir;
+}
+const lastAttempt = (dir) => {
+  const ledger = JSON.parse(readFileSync(path.join(dir, '.git/d2rmm/ledger.json'), 'utf8'));
+  return ledger.units['gate:demo/T1'].attempts.at(-1);
+};
+
+test('records the command, head and clean tree of a passing attempt', () => {
+  const dir = committedRepo();
+  const head = git('-C', dir, 'rev-parse', 'HEAD').toString().trim();
+  assert.equal(run(dir, 'run', '--feature', 'demo', '--step', 'T1', '--', 'true').status, 0);
+  const a = lastAttempt(dir);
+  assert.equal(a.ok, true);
+  assert.equal(a.command, 'true');
+  assert.equal(a.head, head);
+  assert.equal(a.clean, true);
+});
+
+test('records them for a failing attempt too', () => {
+  const dir = committedRepo();
+  const head = git('-C', dir, 'rev-parse', 'HEAD').toString().trim();
+  assert.equal(run(dir, 'run', '--feature', 'demo', '--step', 'T1', '--', 'exit 1').status, 1);
+  const a = lastAttempt(dir);
+  assert.equal(a.ok, false);
+  assert.equal(a.command, 'exit 1');
+  assert.equal(a.head, head);
+  assert.equal(a.clean, true);
+});
+
+test('records a dirty tree as not clean', () => {
+  const dir = committedRepo();
+  writeFileSync(path.join(dir, 'uncommitted.txt'), 'x\n');
+  assert.equal(run(dir, 'run', '--feature', 'demo', '--step', 'T1', '--', 'true').status, 0);
+  assert.equal(lastAttempt(dir).clean, false);
+});
+
 test('worktrees share one ledger (parallel workers cannot reset each other)', () => {
   const dir = repo();
   git('-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init');

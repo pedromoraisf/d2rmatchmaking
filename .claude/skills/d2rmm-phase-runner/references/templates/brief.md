@@ -33,7 +33,8 @@ Tick what you delegate. Unticked items are asked during the run.
 - [ ] specs-and-tasks: approve each feature's spec.md and tasks.md once they pass the automatic gates
 - [ ] sub-agents: dispatch feature workers (worktrees), the Verifier and the reviewer subagents
 - [ ] harness-edits: edit sensor/harness configuration to tighten or extend it (hooks and settings.json still ask)
-- [ ] local-merge-phase-branch: merge green feature branches into phase/F<n> locally (never push)
+- [ ] local-merge-phase-branch: merge green feature branches into phase/F<n> locally
+- [ ] harness-self: edit the gate, its registration and the retry-budget code in `<feature>`, `<feature>` (feature rows of this brief), each in its own worktree, under the guard of ADR 028
 
 ## Approval
 

@@ -70,14 +70,25 @@ export function canAttempt(ledger, key) {
  * Record one attempt. Failures accumulate over the unit's whole life: the unit is blocked as soon as it
  * has MAX_ATTEMPTS failures, even if it passed in between (a passed gate that breaks again does not get
  * a fresh budget). Only a maintainer reset clears the count.
+ * `command`, `head` (the commit, or null) and `clean` (the tree had no uncommitted change) are stored on the attempt
+ * when given (HBS-25); attempts recorded without them still load and count.
  * Returns { status, attempt, remainingRetries }.
  */
-export function recordAttempt(ledger, key, ok, { note = '', at = new Date().toISOString() } = {}) {
+export function recordAttempt(
+  ledger,
+  key,
+  ok,
+  { note = '', at = new Date().toISOString(), command, head, clean } = {},
+) {
   const u = structuredClone(unit(ledger, key));
   if (u.status === 'blocked') {
     return { status: 'blocked', attempt: u.attempts.length, failures: MAX_ATTEMPTS, remainingRetries: 0 };
   }
-  u.attempts.push({ at, ok: Boolean(ok), note: String(note).slice(0, 500) });
+  const attempt = { at, ok: Boolean(ok), note: String(note).slice(0, 500) };
+  if (command !== undefined) attempt.command = String(command);
+  if (head !== undefined) attempt.head = head === null ? null : String(head);
+  if (clean !== undefined) attempt.clean = Boolean(clean);
+  u.attempts.push(attempt);
   const failures = u.attempts.filter((a) => !a.ok).length;
   if (ok) u.status = 'passed';
   else if (failures >= MAX_ATTEMPTS) u.status = 'blocked';

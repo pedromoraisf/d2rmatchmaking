@@ -6,6 +6,7 @@ import {
   emptyLedger,
   unitKey,
   canAttempt,
+  failuresOf,
   recordAttempt,
   recordDispatch,
   clearIfOpen,
@@ -46,6 +47,32 @@ test('failures accumulate even across a pass: no fresh budget by breaking a gree
   recordAttempt(l, k, true);
   recordAttempt(l, k, false);
   assert.equal(recordAttempt(l, k, false).status, 'blocked');
+});
+
+test('reads attempts recorded without the new fields', () => {
+  // A ledger written before HBS-25: attempts hold only at/ok/note. They still count toward the budget.
+  const old = {
+    version: 1,
+    units: {
+      'gate:f/T1': {
+        status: 'open',
+        attempts: [
+          { at: '2026-11-01T10:00:00Z', ok: false, note: 'first' },
+          { at: '2026-11-01T10:05:00Z', ok: false, note: 'second' },
+        ],
+      },
+    },
+  };
+  const k = 'gate:f/T1';
+  assert.equal(failuresOf(old, k), 2);
+  assert.equal(canAttempt(old, k).ok, true);
+  assert.equal(canAttempt(old, k).attempt, 3);
+  assert.equal(
+    recordAttempt(old, k, false, { command: 'pnpm test', head: 'abc', clean: true }).status,
+    'blocked',
+  );
+  assert.equal(old.units[k].attempts.at(-1).command, 'pnpm test');
+  assert.equal(old.units[k].attempts[0].command, undefined, 'old attempts are left as they were');
 });
 
 test('dispatches: three allowed, the fourth is refused and blocks the unit', () => {
