@@ -67,7 +67,7 @@ test('allows delivery commands of the allowed shapes', () => {
   for (const c of allowed) assert.equal(d(c), 'allow', c);
 });
 
-test('denies PR merges outside the merge options, naming the option and the fix', () => {
+test('denies PR merges outside the merge options', () => {
   const rejected = [
     ['gh pr merge feat/F0-ci-fast-path --squash', '--squash'],
     ['gh pr merge feat/F0-ci-fast-path -s', '-s'],
@@ -110,7 +110,7 @@ test('does not allow a line that is not an allowed shape', () => {
   }
 });
 
-test('gives a chained delivery command the other command’s decision', () => {
+test("gives a chained delivery command the other command's decision", () => {
   assert.equal(d('git push origin feat/F0-x && rm -rf apps'), 'deny');
   assert.equal(d('git push origin feat/F0-x; gh secret set TOKEN'), 'ask');
   assert.equal(d('git push origin feat/F0-x | gh secret set TOKEN'), 'ask');
@@ -135,7 +135,7 @@ test('denies destructive remote operations', () => {
   for (const c of denied) assert.equal(d(c), 'deny', c);
 });
 
-test('asks for what stays the maintainer’s', () => {
+test("asks for what stays the maintainer's", () => {
   const asked = [
     'git push origin HEAD:main',
     'git push origin feat/F0-x:phase/F0',

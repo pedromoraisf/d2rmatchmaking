@@ -26,7 +26,11 @@ const FEATURE_BRANCH = /^feat\/(F\d+)-(.+)$/;
 const PHASE_BRANCH = /^phase\/(F\d+)$/;
 const WORKTREE = /(?:^|[\s"'=/])\.claude\/worktrees\/([a-z0-9][a-z0-9-]*)(?:\/|\s|"|'|$)/;
 const SPECS_FILE = /^(\.claude\/worktrees\/[a-z0-9][a-z0-9-]*\/)?\.specs\//;
-const LEDGER_REF = /\.git\/d2rmm|d2rmm\/ledger|D2RMM_LEDGER/;
+// HBS-31: the retry ledger and the security verdicts live in the d2rmm/ folder of the git common directory. Any
+// command, inline code or script that names them, or enters a .git directory, is refused. The status commands of
+// scripts/attempt.mjs and scripts/phase-status.mjs name neither, so they stay allowed.
+export const LEDGER_REF = /\.git\/d2rmm|d2rmm\/|verdicts\.json|ledger\.json|D2RMM_LEDGER/;
+export const GIT_DIR_CD = /(^|[;&|(\n]\s*)cd\s+\S*\.git(?=\/|\s|$|[;&|)])/;
 const WRAPPER = /(^|\s)(node\s+)?(\.\/)?scripts\/attempt\.mjs\s+run\s/;
 const WRAPPER_ANY = /scripts\/attempt\.mjs\s+(\w+)/;
 // A sensor runs when it is the command a shell segment executes — never when its name is only an argument or a path
@@ -93,11 +97,16 @@ export function checkBudget(input, ctx, sid, rel) {
   const cmd = String(ti.command ?? '');
 
   // 1. The ledger is out of reach for agents (it lives in .git/, outside any diff).
-  if (EDIT_TOOLS.has(tool) && (rel.startsWith('.git/') || rel.includes('/.git/') || rel === '.git')) {
-    return deny('Files under .git/ (including the retry ledger) are off-limits.');
+  if (
+    EDIT_TOOLS.has(tool) &&
+    (rel.startsWith('.git/') || rel.includes('/.git/') || rel === '.git' || /(^|\/)d2rmm\//.test(rel))
+  ) {
+    return deny('Files under .git/ (including the retry ledger and the verdicts) are off-limits.');
   }
-  if (tool === 'Bash' && LEDGER_REF.test(cmd)) {
-    return deny('The retry ledger is maintained by the hooks and scripts/attempt.mjs only.');
+  if (tool === 'Bash' && (LEDGER_REF.test(cmd) || GIT_DIR_CD.test(cmd))) {
+    return deny(
+      'The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git.',
+    );
   }
   if (tool === 'Bash' && WRAPPER_ANY.exec(cmd)?.[1] === 'reset') {
     return {

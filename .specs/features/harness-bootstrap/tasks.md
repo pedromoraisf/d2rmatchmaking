@@ -207,10 +207,10 @@ T7 → T8 → T9 → T10 → T11 → T12
 
 **Done when**:
 
-- [ ] Edits of `verdicts.json` and `ledger.json` there are denied (test `denies edits of the verdicts and the ledger`)
-- [ ] The four shell examples are denied (test `denies shell commands that reach the verdicts or the ledger`)
-- [ ] The status commands are not denied (test `keeps the status commands`)
-- [ ] Gate passes; every existing test of both files passes
+- [x] Edits of `verdicts.json` and `ledger.json` there are denied (test `denies edits of the verdicts and the ledger`)
+- [x] The four shell examples are denied (test `denies shell commands that reach the verdicts or the ledger`)
+- [x] The status commands are not denied (test `keeps the status commands`)
+- [x] Gate passes; every existing test of both files passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs .claude/hooks/test/gate-rules.test.mjs`

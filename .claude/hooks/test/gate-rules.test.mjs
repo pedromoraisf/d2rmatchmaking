@@ -375,7 +375,7 @@ test('the committed retry-ledger snapshot cannot be edited by agents', () => {
   assert.equal(d(checkEdit('scripts/lib/phase-state.mjs', { content: 'x' }, fakeCtx())), 'ask');
 });
 
-test('denies a background security review of a diff (HBS-30)', () => {
+test('denies a background security review of a diff', () => {
   const review = (extra) => ({
     tool_name: 'Agent',
     tool_input: {
@@ -389,4 +389,44 @@ test('denies a background security review of a diff (HBS-30)', () => {
   assert.match(background.reason, /run_in_background: false/);
   assert.equal(d(decide(review({ run_in_background: false }), fakeCtx(), toRelative)), 'allow');
   assert.equal(d(decide(review({}), fakeCtx(), toRelative)), 'allow');
+});
+
+test('denies edits of the verdicts and the ledger', () => {
+  for (const file of [
+    '/repo/.git/d2rmm/verdicts.json',
+    '/repo/.git/d2rmm/ledger.json',
+    '/repo/.claude/worktrees/gate-precision/.git/d2rmm/verdicts.json',
+  ]) {
+    const edit = { tool_name: 'Edit', tool_input: { file_path: file, old_string: 'a', new_string: '{}' } };
+    assert.equal(d(decide(edit, fakeCtx(), toRelative)), 'deny', file);
+  }
+});
+
+test('denies shell commands that reach the verdicts or the ledger', () => {
+  for (const command of [
+    'echo {} > .git/d2rmm/verdicts.json',
+    'cd .git && echo {} > d2rmm/ledger.json',
+    'cp /tmp/v.json .claude/worktrees/gate-precision/.git/d2rmm/verdicts.json',
+    `node -e "require('fs').writeFileSync('.git/d2rmm/verdicts.json','{}')"`,
+  ]) {
+    assert.equal(
+      d(decide({ tool_name: 'Bash', tool_input: { command } }, fakeCtx(), toRelative)),
+      'deny',
+      command,
+    );
+  }
+});
+
+test('keeps the status commands', () => {
+  for (const command of [
+    'node scripts/attempt.mjs status',
+    'node scripts/attempt.mjs report',
+    'node scripts/phase-status.mjs',
+  ]) {
+    assert.notEqual(
+      d(decide({ tool_name: 'Bash', tool_input: { command } }, fakeCtx(), toRelative)),
+      'deny',
+      command,
+    );
+  }
 });

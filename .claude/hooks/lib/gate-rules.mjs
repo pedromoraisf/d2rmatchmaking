@@ -9,7 +9,7 @@ import { checkBackgroundReview, noteDispatch } from './verdicts.mjs';
 import { allowedShape, deliveryDecision, mergesAfterMainSwitch } from './delivery.mjs';
 import { compareBaselines } from '../../../scripts/lib/ratchet.mjs';
 import { sessionId } from '../../../scripts/lib/budget.mjs';
-import { checkBudget, countDenial } from './budget-rules.mjs';
+import { checkBudget, countDenial, GIT_DIR_CD, LEDGER_REF } from './budget-rules.mjs';
 import { countScenarios } from '../../../scripts/lib/acceptance.mjs';
 import { checkMutationSpec } from '../../../scripts/lib/mutation-scope.mjs';
 import { indirections, MAX_DEPTH, SHELL } from './shell-indirection.mjs';
@@ -156,6 +156,11 @@ function isGuardedPath(token, root) {
 /** Inline interpreter code (`python -c`, `node -e`, a heredoc, an untracked script): what the shell rules can't see. */
 function checkInlineCode(code, ctx) {
   const text = String(code ?? '');
+  if (LEDGER_REF.test(text) || GIT_DIR_CD.test(text)) {
+    return deny(
+      'This code names the retry ledger or the security verdicts, or enters .git: only the hooks and scripts/attempt.mjs touch those.',
+    );
+  }
   if (INLINE_ENV.test(text)) {
     return deny(
       '.env files hold secrets and are off-limits to the agent, from inline code too. Use .env.example.',
@@ -218,6 +223,12 @@ export function checkBash(command, ctx, depth = 0) {
   const cmd = String(command ?? '');
   if (depth > MAX_DEPTH) {
     return ask('This command nests shells too deep to check what runs. Run the inner command directly.');
+  }
+  // HBS-31: nested shells and untracked scripts are judged by their text too.
+  if (LEDGER_REF.test(cmd) || GIT_DIR_CD.test(cmd)) {
+    return deny(
+      'The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git.',
+    );
   }
   // ADR 028 § 1: one delivery command in an allowed shape runs without asking, unless another rule denies or asks.
   // Only the top-level line can be such a shape: a command hidden in a nested shell or a wrapper is judged as a segment.
