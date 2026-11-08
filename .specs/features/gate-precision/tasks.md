@@ -105,12 +105,12 @@ T15 → T16
 
 **Done when**:
 
-- [ ] Each GPR-03 shape lands in `unsafe`, one case each, including the spec's edge cases (`cat a` and `rm b` on two lines, `cat $(ls)`, `ls > out.txt`, `grep x <(cat y)`, `cat .e*`, `cat .en{v,v}`, `git log -p -- '.e*'`, `git ls-files ':(glob).e*'`) (test `lists every unsafe shape`)
-- [ ] A single-quoted string is one word with its spaces and `|`; `-H'Accept: x'` is one word; `'x$'` does not expand (test `keeps single-quoted text as one word`)
-- [ ] `2>&1` and `2>/dev/null` are taken out; `> out.txt` is a redirection with its target (test `takes out only the four whole tokens`)
-- [ ] Clusters, glued numbers and `=value` expand as the spec says (test `expands options`)
-- [ ] An unbalanced quote and a 2 MB line give `unparsed` (test `fails closed on what it cannot read`)
-- [ ] Gate passes
+- [x] Each GPR-03 shape lands in `unsafe`, one case each, including the spec's edge cases (`cat a` and `rm b` on two lines, `cat $(ls)`, `ls > out.txt`, `grep x <(cat y)`, `cat .e*`, `cat .en{v,v}`, `git log -p -- '.e*'`, `git ls-files ':(glob).e*'`) (test `lists every unsafe shape`)
+- [x] A single-quoted string is one word with its spaces and `|`; `-H'Accept: x'` is one word; `'x$'` does not expand (test `keeps single-quoted text as one word`)
+- [x] `2>&1` and `2>/dev/null` are taken out; `> out.txt` is a redirection with its target (test `takes out only the four whole tokens`)
+- [x] Clusters, glued numbers and `=value` expand as the spec says (test `expands options`)
+- [x] An unbalanced quote and a 2 MB line give `unparsed` (test `fails closed on what it cannot read`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/shell-parse.test.mjs`
