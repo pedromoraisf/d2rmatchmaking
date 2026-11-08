@@ -125,7 +125,7 @@ Feature: The retry budget counts what the agent controls
 
     Examples:
       | between                                                                     |
-      | the same gate then failed with "Cannot connect to the Docker daemon"        |
+      | another command of the same unit then failed with "Cannot connect to the Docker daemon" |
       | the agent made an empty commit                                              |
 
   @BUD-10 @NFR-11

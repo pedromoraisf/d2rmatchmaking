@@ -354,8 +354,8 @@ Proof: `pnpm contracts:check`
 
 The feature's live state, written as it happens - a compaction gives no warning.
 
-**Settled mid-build:** none
-**Dispatched:** execute-batch-1 (T1 to T6) to `feature-worker` at the commit of this note, 2026-11-08
+**Settled mid-build:** (1) One example of "Reruns of a state already proven failing are refused" could not happen: BUD-09 refuses the same command on the same tree before it runs, so the environment failure in between comes from another command of the same unit; the row is reworded, the scenario's outcome is unchanged. (2) Accepted batch-1 deviations: `scripts/lib/gate-run.mjs` and `scripts/lib/machine-diagnosis.mjs` hold the injected rules; `timeout` is matched before `killed`; `remainingRetries` is capped at `MAX_RETRIES`; `--timeout` is capped at 35791 minutes; the fingerprint and `clean` exclude `reports/attempts/`; reset reasons are trimmed. Until this branch merges, the main checkout's library counts environment attempts (still `ok: false`) as failures.
+**Dispatched:** execute-batch-1 (T1 to T6) to `feature-worker` at `9734d9a`, 2026-11-08, returned at `5aad60b` (T1 to T6 committed); execute-batch-2 (T7 to T10) to `feature-worker` at the commit of this note, 2026-11-08
 **Walked:** none
 
 ---
