@@ -1,0 +1,44 @@
+[
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "return a.fingerprint === fingerprint && a.command === String(command);",
+    "new": "return a.fingerprint === fingerprint;",
+    "proof": "node --test --test-name-pattern \"runs after a change or with another command\" scripts/test/attempt-cli.test.mjs",
+    "label": "unchanged rerun ignores the command"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "trailingEnvRun(u.attempts) >= ENV_ATTEMPTS_TO_BLOCK",
+    "new": "trailingEnvRun(u.attempts) > ENV_ATTEMPTS_TO_BLOCK",
+    "proof": "node --test --test-name-pattern \"three environment failures in a row block the unit\" scripts/test/budget.test.mjs",
+    "label": "env-blocked needs four instead of three"
+  },
+  {
+    "file": "scripts/lib/env-signatures.mjs",
+    "old": "if (hasTestFailure(text)) return null;",
+    "new": "if (false) return null;",
+    "proof": "node --test --test-name-pattern \"a test-failure marker wins over a signature\" scripts/test/env-signatures.test.mjs",
+    "label": "a test-failure marker no longer wins over a signature"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "if (orchestratorResets(ledger, key) >= 1) {",
+    "new": "if (orchestratorResets(ledger, key) >= 2) {",
+    "proof": "node --test .claude/hooks/test/budget-rules.test.mjs",
+    "label": "gate allows a second orchestrator reset"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "signatures.length > 0 && signatures.every(Boolean)",
+    "new": "signatures.length > 0 && signatures.some(Boolean)",
+    "proof": "node --test --test-name-pattern \"red stop\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "red stop uncounted when only some failures are the machine"
+  },
+  {
+    "file": "scripts/attempt.mjs",
+    "old": "orchestratorResets(l, key) >= 1) return 'refused'",
+    "new": "orchestratorResets(l, key) >= 2) return 'refused'",
+    "proof": "node --test --test-name-pattern \"refuses the orchestrator's second reset\" scripts/test/attempt-cli.test.mjs",
+    "label": "wrapper allows a second orchestrator reset"
+  }
+]
