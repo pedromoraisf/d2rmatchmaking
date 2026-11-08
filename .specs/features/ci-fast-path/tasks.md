@@ -179,11 +179,11 @@ T9 → T10
 
 **Done when**:
 
-- [ ] Each of the four gate forms of the scenario is refused with the feature and task named (test `refuses mutation in the gate of an open task`)
-- [ ] A task with one box ticked and one open is open (test `treats a partly ticked task as open`)
-- [ ] A done task and an open task without mutation pass (test `passes done tasks and gates without mutation`)
-- [ ] `pnpm specs:check` passes on this repository (the done tasks of `ci-and-review-fixes` included)
-- [ ] Gate passes; every existing test of the file passes
+- [x] Each of the four gate forms of the scenario is refused with the feature and task named (test `refuses mutation in the gate of an open task`)
+- [x] A task with one box ticked and one open is open (test `treats a partly ticked task as open`)
+- [x] A done task and an open task without mutation pass (test `passes done tasks and gates without mutation`)
+- [x] `pnpm specs:check` passes on this repository (the done tasks of `ci-and-review-fixes` included)
+- [x] Gate passes; every existing test of the file passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/specs.test.mjs && pnpm specs:check`
