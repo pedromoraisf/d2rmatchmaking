@@ -545,6 +545,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 
 **Round 2 (2026-11-08):** Verifier FAIL at `7276e6f` (4 findings: the remote-only bypass T15 opened, a reset spelled with quotes or after `cd scripts`, two surviving guard mutations). Fixed by T16 `67b2710` and T17 `9196e14`, closed in `110dad0`. `mutations.json`: the two round-2 mutations on the old `guard.mjs:77` line were rewritten for the T16 code; "touches only an unresolved ref" was replaced by "ignores a covered branch on the remote", because `touches` is only called with refs that resolve, so it was equivalent.
 
+**Verified (2026-11-08):** `check_proofs.py --mutations` at `360f81f`: 21 pass, 12 of 12 mutations killed; `validate_verification.py` 0 errors (attempt 3 of 3). Next: integration, then the `security-reviewer` `review-diff` at the integrated head (`harness-self`), then the merge into `phase/F0`.
+
 **Batch 4 (2026-11-08):** T11 `2cc708b`, T12 `9f6c6fe`, T13 `3392cdf`, T14 `72d7cbd`, findings closed `e024dfc`; every gate passed on its first run. T13 follows BUD-09's scenario where the Done-when was loose (an environment failure in between does not clear a refusal of the latest counted state). T11 also asks for a first orchestrator reset chained after another wrapper call. **T15 added (2026-11-08):** the guard defect that stops `continuous-delivery` from starting, with the maintainer's approval. Dispatched: execute-batch-5 (T15) to `feature-worker` at the commit of this note.
 
 ---
