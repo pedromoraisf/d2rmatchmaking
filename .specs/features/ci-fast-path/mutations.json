@@ -1,0 +1,37 @@
+[
+  {
+    "file": "scripts/ci/smoke-healthz.mjs",
+    "old": "if (elapsedMs >= deadlineMs) {",
+    "new": "if (elapsedMs > deadlineMs) {",
+    "proof": "node --test scripts/test/smoke-healthz.test.mjs",
+    "label": "smoke deadline >= to >"
+  },
+  {
+    "file": "scripts/lib/specs.mjs",
+    "old": "/test:mutation|cargo mutants|cargo-mutants/",
+    "new": "/test:mutation|cargo mutants/",
+    "proof": "node --test scripts/test/specs.test.mjs",
+    "label": "specs rule forgets cargo-mutants"
+  },
+  {
+    "file": "scripts/lib/specs.mjs",
+    "old": "} else if (inDone && /^\\s*- \\[ \\]/.test(line)) {",
+    "new": "} else if (/^\\s*- \\[ \\]/.test(line)) {",
+    "proof": "node --test scripts/test/specs.test.mjs",
+    "label": "open box counted outside Done when"
+  },
+  {
+    "file": "scripts/lib/specs.mjs",
+    "old": "if (task.open && MUTATION_GATE_RE.test(task.gate)) {",
+    "new": "if (MUTATION_GATE_RE.test(task.gate)) {",
+    "proof": "node --test scripts/test/specs.test.mjs",
+    "label": "done tasks refused too"
+  },
+  {
+    "file": "apps/api/scripts/mutation-plan.ts",
+    "old": "changed === undefined || changed.has(file)",
+    "new": "changed === undefined || changed.has(file) || file.includes('shared-kernel')",
+    "proof": "pnpm -C apps/api exec vitest run scripts/mutation-plan.test.ts scripts/mutation.test.ts",
+    "label": "changed filter leaks shared-kernel"
+  }
+]
