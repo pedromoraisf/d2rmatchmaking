@@ -29,6 +29,7 @@ jobs:
       api: ${{ steps.d.outputs.api }}
       agent: ${{ steps.d.outputs.agent }}
       acceptance: ${{ steps.d.outputs.acceptance }}
+      stryker: ${{ steps.d.outputs.stryker }}
     steps:
       - uses: actions/checkout@v7
       - id: d
@@ -36,6 +37,7 @@ jobs:
           [ -f apps/api/package.json ] && echo "api=true" >> "$GITHUB_OUTPUT" || echo "api=false" >> "$GITHUB_OUTPUT"
           [ -f apps/agent/src-tauri/Cargo.toml ] && echo "agent=true" >> "$GITHUB_OUTPUT" || echo "agent=false" >> "$GITHUB_OUTPUT"
           if compgen -G ".specs/features/*/acceptance.feature" > /dev/null; then echo "acceptance=true"; else echo "acceptance=false"; fi >> "$GITHUB_OUTPUT"
+          if compgen -G "apps/api/stryker.config.*" > /dev/null; then echo "stryker=true" >> "$GITHUB_OUTPUT"; else echo "stryker=false" >> "$GITHUB_OUTPUT"; fi
 
   verify:
     # format, lint, types, architecture, tests, specs, harness, ratchet
@@ -83,10 +85,6 @@ jobs:
       - name: Contracts drift (OpenAPI / AsyncAPI)
         if: hashFiles('packages/contracts/package.json') != ''
         run: pnpm run contracts:check
-      - name: Mutation (incremental, changed files)
-        if: github.event_name == 'pull_request' && hashFiles('apps/api/stryker.config.*') != ''
-        run: pnpm exec turbo run test:mutation --affected -- --incremental
-
       - name: Harness maturity (L4 gate)
         run: |
           pnpm run harness:json
@@ -143,6 +141,37 @@ jobs:
           name: acceptance-report
           path: reports/acceptance/
           retention-days: 14
+
+  mutation:
+    # The API's Stryker runs beside the required checks (CFP-01, CFP-02): it blocks no merge. Only the files the PR
+    # changes are mutated, and the incremental files are cached under the base branch (CFP-03, CFP-05).
+    name: mutation
+    needs: detect
+    if: github.event_name == 'pull_request' && needs.detect.outputs.stryker == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The changed files are listed against origin/<base>, which needs the base branch's history.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Restore the Stryker incremental files
+        uses: actions/cache@v4
+        with:
+          path: apps/api/reports/stryker-incremental-*.json
+          key: stryker-incremental-${{ github.base_ref }}-${{ github.sha }}
+          restore-keys: stryker-incremental-${{ github.base_ref }}-
+      - name: Mutation (API, changed files, incremental)
+        run: pnpm -C apps/api run test:mutation -- --changed-from origin/${{ github.base_ref }} --incremental
+      - name: Survived mutants (job summary)
+        if: always()
+        run: node apps/api/scripts/mutation-summary.ts
 
   agent:
     # Rust on Windows: fmt, clippy and nextest with default and all features, cargo-deny, and the four read-only

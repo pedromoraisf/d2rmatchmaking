@@ -134,11 +134,11 @@ T9 → T10
 
 **Done when**:
 
-- [ ] `verify` runs no `test:mutation` and keeps its other steps and commands (tests `verify runs no mutation`, `verify keeps every other sensor`)
-- [ ] `detect` outputs `stryker` (test `detect reports a Stryker configuration`)
-- [ ] `mutation` needs only `detect`, runs only on pull requests with Stryker, caches the incremental files under the base branch and writes the summary (test `the mutation job runs beside the required checks`)
-- [ ] `integration` needs exactly `detect` and `verify` (test `integration waits only for verify`)
-- [ ] Gate passes; every existing test of the file passes
+- [x] `verify` runs no `test:mutation` and keeps its other steps and commands (tests `verify runs no mutation`, `verify keeps every other sensor`)
+- [x] `detect` outputs `stryker` (test `detect reports a Stryker configuration`)
+- [x] `mutation` needs only `detect`, runs only on pull requests with Stryker, caches the incremental files under the base branch and writes the summary (test `the mutation job runs beside the required checks`)
+- [x] `integration` needs exactly `detect` and `verify` (test `integration waits only for verify`)
+- [x] Gate passes; every existing test of the file passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/ci-workflow.test.mjs`

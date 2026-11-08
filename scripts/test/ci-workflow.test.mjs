@@ -62,3 +62,99 @@ test('the integration job keeps its steps and pins the actions it adds by SHA', 
     assert.match(step.uses, SHA, `${prefix} is pinned by a full commit SHA`);
   }
 });
+
+// CFP-01, CFP-02, CFP-05, CFP-07, CFP-24: mutation leaves `verify` and runs in its own job beside the required checks.
+const jobs = workflow.jobs;
+const verifySteps = jobs.verify.steps;
+const commandLines = (run) =>
+  String(run ?? '')
+    .split('\n')
+    .map((line) => line.trim());
+const needsOf = (job) => [job.needs ?? []].flat().sort();
+
+test('verify runs no mutation', () => {
+  for (const step of verifySteps) {
+    assert.doesNotMatch(
+      String(step.run ?? ''),
+      /test:mutation|stryker|cargo mutants/u,
+      `${step.name ?? 'a step'} runs no mutation`,
+    );
+  }
+});
+
+test('verify keeps every other sensor', () => {
+  const commands = [
+    'pnpm run format:check',
+    'pnpm run lint',
+    'pnpm run typecheck',
+    'pnpm run arch',
+    'pnpm test',
+    'pnpm run tlc:selftest',
+    'pnpm run specs:check',
+    'pnpm run contracts:check',
+    'pnpm run harness:json',
+    'pnpm run harness:gate',
+    'pnpm run quality:gate',
+  ];
+  const runLines = verifySteps.flatMap((step) => commandLines(step.run));
+  for (const command of commands) {
+    assert.ok(runLines.includes(command), `verify still runs ${command}`);
+  }
+});
+
+test('detect reports a Stryker configuration', () => {
+  assert.equal(
+    jobs.detect.outputs.stryker,
+    '${{ steps.d.outputs.stryker }}',
+    'detect exposes the stryker output',
+  );
+  const detect = jobs.detect.steps.find((step) => step.id === 'd');
+  assert.match(
+    detect.run,
+    /compgen -G "apps\/api\/stryker\.config\.\*"/u,
+    'it looks for the Stryker configuration',
+  );
+  assert.match(
+    detect.run,
+    /echo "stryker=true" >> "\$GITHUB_OUTPUT"/u,
+    'it reports stryker=true when present',
+  );
+});
+
+test('the mutation job runs beside the required checks', () => {
+  const mutation = jobs.mutation;
+  assert.deepEqual(needsOf(mutation), ['detect'], 'mutation needs only detect');
+  assert.equal(
+    mutation.if,
+    "github.event_name == 'pull_request' && needs.detect.outputs.stryker == 'true'",
+    'it runs only on pull requests with a Stryker configuration',
+  );
+
+  const cache = mutation.steps.find((step) => String(step.uses ?? '').startsWith('actions/cache@'));
+  assert.ok(cache, 'the incremental files are restored and saved with actions/cache');
+  assert.equal(cache.with.path, 'apps/api/reports/stryker-incremental-*.json');
+  assert.ok(
+    cache.with.key.startsWith('stryker-incremental-${{ github.base_ref }}-'),
+    'the key starts with the base branch prefix',
+  );
+  assert.equal(
+    cache.with['restore-keys'],
+    'stryker-incremental-${{ github.base_ref }}-',
+    'the restore key is that prefix',
+  );
+
+  const runner = mutation.steps.find((step) => String(step.run ?? '').includes('test:mutation'));
+  assert.ok(runner, 'the API runner runs in the job');
+  assert.match(
+    runner.run,
+    /--changed-from origin\/\$\{\{ github\.base_ref \}\} --incremental/u,
+    'it mutates the files changed against the base branch, incrementally',
+  );
+
+  const summary = mutation.steps.find((step) => String(step.run ?? '').includes('mutation-summary.ts'));
+  assert.equal(summary.if, 'always()', 'the summary is written even when mutation fails');
+});
+
+test('integration waits only for verify', () => {
+  assert.deepEqual(needsOf(jobs.integration), ['detect', 'verify']);
+});
