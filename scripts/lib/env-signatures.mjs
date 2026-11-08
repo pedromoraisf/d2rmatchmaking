@@ -10,8 +10,16 @@ const TEST_FAILURE_LINE = /Tests?:.*failed/;
 
 const has = (output, needles) => needles.some((needle) => output.includes(needle));
 
-/** One entry per signature, in the order they are tried. `match` sees the status, signal, output and timeout flag. */
+/**
+ * One entry per signature, in the order they are tried. `match` sees the status, signal, output and timeout flag.
+ * `timeout` comes first: the wrapper stopped that command itself with SIGKILL, so its signal would also read `killed`
+ * and the cause is the wrapper's timeout (BUD-06).
+ */
 export const ENV_SIGNATURES = [
+  {
+    name: 'timeout',
+    match: ({ timedOut }) => timedOut === true,
+  },
   {
     name: 'docker',
     match: ({ output }) =>
@@ -37,10 +45,6 @@ export const ENV_SIGNATURES = [
     name: 'not-found',
     match: ({ status, output }) =>
       status === 127 || /: command not found\r?$/m.test(output) || /\bspawn \S+ ENOENT/.test(output),
-  },
-  {
-    name: 'timeout',
-    match: ({ timedOut }) => timedOut === true,
   },
 ];
 

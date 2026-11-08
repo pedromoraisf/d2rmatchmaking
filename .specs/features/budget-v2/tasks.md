@@ -140,12 +140,12 @@ T8 → T9 → T10
 
 **Done when**:
 
-- [ ] A Docker failure is not counted and names `docker` (test `does not count a Docker failure`)
-- [ ] A command killed by `SIGKILL` exits 137 and is not counted (test `does not count a killed command`)
-- [ ] A command past `--timeout 1` is stopped, exits 124 and is not counted (test `stops a command at its timeout`, with the clock injected)
-- [ ] `--timeout 0`, `0.5` and `soon` exit 2 without running (test `refuses a bad timeout`)
-- [ ] The third environment failure blocks the unit and prints the diagnosis; a fourth run exits 3 and prints it again (test `diagnoses the machine when it blocks a unit`)
-- [ ] Gate passes; every existing test of the file passes
+- [x] A Docker failure is not counted and names `docker` (test `does not count a Docker failure`)
+- [x] A command killed by `SIGKILL` exits 137 and is not counted (test `does not count a killed command`)
+- [x] A command past `--timeout 1` is stopped, exits 124 and is not counted (test `stops a command at its timeout`, with the clock injected)
+- [x] `--timeout 0`, `0.5` and `soon` exit 2 without running (test `refuses a bad timeout`)
+- [x] The third environment failure blocks the unit and prints the diagnosis; a fourth run exits 3 and prints it again (test `diagnoses the machine when it blocks a unit`)
+- [x] Gate passes; every existing test of the file passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/attempt-cli.test.mjs`
