@@ -80,7 +80,7 @@ T9 → T10 → T11 → T12
 ### Phase 5: Replay and benchmark
 
 ```
-T12 → T13 → T14 → T17 → T15
+T12 → T13 → T18 → T14 → T17 → T15
 ```
 
 ### Phase 6: Scenarios
@@ -402,11 +402,33 @@ T15 → T16
 
 ---
 
+### T18: A segment's writes come from its parsed targets
+
+**What**: In `.claude/hooks/lib/gate-rules.mjs`, the segment rule that asks for a "shell write to a harness/sensor file" (and denies one to the quality baseline) takes its writes from `writeTargets(parseLine(seg))` (T1, T5) instead of the raw `/(\bsed\s+-i|\btee\b|>|…)/` test, so `cat scripts/attempt.mjs 2>&1`, `2>/dev/null` and a `>` inside quotes are not writes (GPR-06, GPR-07 through the whole gate). A real write to a harness, sensor, self-protected or baseline path keeps its decision; an unparsable segment keeps the old raw test.
+**Where**: `.claude/hooks/lib/gate-rules.mjs` (modify)
+**Depends on**: T13
+**Reuses**: `writeTargets` (T5), `parseLine` (T1)
+**Requirement**: GPR-06, GPR-07
+
+**Done when**:
+
+- [ ] `cat scripts/attempt.mjs 2>&1`, `cat .claude/hooks/gate.mjs 2>/dev/null | head -n 5` and `grep '>' scripts/attempt.mjs` get no write decision through `decide` (test `a descriptor redirection is not a segment write`)
+- [ ] `echo x > .claude/hooks/gate.mjs`, `cat a 2>&1 > eslint.config.mjs` and `tee .quality-baseline.json` keep their decisions (test `a real segment write keeps its decision`)
+- [ ] Every existing test under `.claude/hooks/test/` passes unchanged
+- [ ] Gate passes
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/gate-rules.test.mjs`
+
+**Commit**: `fix(harness): take a segment's writes from its parsed targets`
+
+---
+
 ### T14: The F0 replay corpus and its test
 
 **What**: Run the extractor once on the F0 transcripts of this machine and commit `scripts/test/fixtures/gate-replay.json`. `scripts/test/gate-replay.test.mjs`: the category → expected decision table of GPR-26 fixed in the test; GPR-23's coverage (at least one entry for each of the four named friction rows, counted on the kept entries); GPR-24 (no home path, scratchpad path, e-mail address, host other than `github.com`/`localhost`, or run of 20 or more hex/base64 characters; every string in the allowed character classes); one `decide` per entry with a fake `ctx` (`git`, `stat`, `readFile`, `realpath` answered from a fixture table in the test) equal to its category's decision (GPR-25); and the old-rules-versus-new test: the new read-only rule never yields `allow` for an entry an old rule denies or asks.
-**Where**: `scripts/test/gate-replay.test.mjs`, `scripts/test/fixtures/gate-replay.json`
-**Depends on**: T13
+**Where**: `scripts/test/gate-replay.test.mjs`, `scripts/test/fixtures/gate-replay.json`, `scripts/gate-replay/extract.mjs` (category rules only: a line that is an allowed read-only shape is categorised read-only, whatever F0 answered)
+**Depends on**: T18
 **Reuses**: `decide` (T10), the extractor (T13)
 **Requirement**: GPR-23, GPR-24, GPR-25, GPR-26
 
@@ -557,6 +579,9 @@ Proof: `node scripts/gate-bench.mjs`
 **C33** - The gate reads the git directory from files and a read-only call spawns no `rev-parse` (GPR-22)
 Proof: `node --test --test-name-pattern "a read-only call spawns no rev-parse" .claude/hooks/test/gate-startup.test.mjs`
 
+**C34** - A descriptor redirection is not a write anywhere in the gate (GPR-06, GPR-07)
+Proof: `node --test --test-name-pattern "a descriptor redirection is not a segment write" .claude/hooks/test/gate-rules.test.mjs`
+
 **C21** - The corpus covers the four F0 friction rows (GPR-23)
 Proof: `node --test --test-name-pattern "covers the F0 friction rows" scripts/test/gate-replay.test.mjs`
 
@@ -615,6 +640,18 @@ The feature's live state, written as it happens - a compaction gives no warning.
 
 **Batch 2 done (2026-11-08):** T10 `5576520`, T11 `e738b62`, T12 `bfcc21e`. A T9 test inherited the commit hook's `GIT_DIR` and committed "init" into the real repository (stray branch `feat/F0-demo` at `e94bdd2`, left for the maintainer to delete; fixed in T11 by clearing `GIT_*` in that test). **T17 added (2026-11-08):** the orchestrator traced one read-only gate call at 0.9 s: six `git rev-parse --git-common-dir` and one `--abbrev-ref HEAD`, about 115 ms each; T17 reads them from files before the benchmark. Dispatched: execute-batch-3 (T13, T14, T17, T15) to `feature-worker` at the commit of this note.
 
+**Batch 3 (2026-11-08):** T13 `fe1fc8b` (gate passed on attempt 2). **Blocked at T14 (gate attempt 1 of 3 failed; not retried; T17 and T15 not started, T17 depends on T14).** The failing test `replays F0 with the expected decisions` has 2 of 48 entries wrong; the other three T14 tests pass.
+
+- `ro-0035` (read-not-write, expected allow, got ask "Shell write to a harness/sensor file"). Root cause is the old segment rule in `.claude/hooks/lib/gate-rules.mjs` (about lines 614 to 621): `writes = /(\bsed\s+-i|\btee\b|>|…)/.test(seg)` matches the `>` of `2>&1`, and the segment names a self-protected file. Reproduced on the current gate and on the pre-feature gate (base `0d0e92b`): `cat scripts/attempt.mjs 2>&1` asks, `cat scripts/attempt.mjs | head -3 2>&1` allows. T5 fixed only `writeDecision`, and T10's Where does not name this rule, so GPR-06 (a whole `2>&1` or `2>/dev/null` is never a write) is not delivered by the full gate. Needs a plan decision: amend T10 (or add a task) so the segment's writes come from the parsed write targets. Not changed here: the rule is outside T14's Where.
+- `ro-0025` (wrapper, expected deny, got allow): `cd .claude/worktrees/harness-foundation && cat …` denied in F0 with "During a phase run…". The pre-feature rules allow the same line in the replay model, so the F0 denial came from state or a rule version the replay does not hold. Decision for the orchestrator: drop it (keep only entries the pre-feature rules reproduce) or accept it as known drift.
+- Replay calibration (48 Bash entries, pre-feature rules against F0's recorded decision): F0 deny → old deny 10, old ask 1, old none 1; F0 ask → old ask 15, old deny 9, old none 9, old allow 1; F0 prompt → old none 1. Nine F0 asks are denied by the pre-feature rules in this model, so the replay world is only partly faithful to F0's gate state.
+
+**Uncommitted in the worktree (T14 not committed: the gate fails and the pre-commit harness run would block it):** `scripts/gate-replay/extract.mjs` (changed since T13: category rules, scratchpad placeholder kept as `<scratchpad>/<file>`, `branch` per entry, the loose reason for categories, standard base64 alphabet for the 20-character rule), `scripts/test/gate-replay-extract.test.mjs` (T13's multi-line expectation changed from `null` to `cat <v> ; cat <v>`; the other three expectations unchanged), new `scripts/test/gate-replay.test.mjs`, new `scripts/test/fixtures/gate-replay.json` (48 entries, read in full, no private value; `pnpm secrets:scan` exit 0). The extractor's last run drops: 454 Bash asks and 290 Bash denies with no category (lines with values or unsafe separators, guard and budget state, content rules), 95 Edit asks, 15 Agent calls, 21 other tools, 15 unsafe paths, 2 unparsed. Coverage on kept entries: read-only prompt 1, read-not-write (2>&1) 1, script 1 (scratchpad, asks), polling 3.
+
+**Deviations to review:** the replay keeps numbers, command and subcommand names, git refs, names of checkout entries, dotted file names and the branch of each call; it drops any line with a value in a read, delivery or wrapper position, so only 48 of about 1,000 F0 denials and asks are replayable; the 20-character rule uses the standard base64 alphabet (`[0-9A-Za-z+/]`) plus hex; "Polling and sleep" is covered by gate denials of loops, `watch` and long sleeps, since F0's native "Blocked: sleep" errors are not gate answers; no F0 transcript holds a gate error answer for the fourth friction sub-row. Not started: T17 (perf, read files) and T15 (benchmark); the orchestrator decides their order after T14.
+
+**Replan — T14 (2026-11-08):** two of 48 replay entries failed. ro-0035: the old segment rule of `gate-rules.mjs` still takes the `>` of `2>&1` for a write, so GPR-06 is not yet end to end; T18 takes segment writes from the parsed targets. ro-0025: F0 denied a read-only `cd … && cat …` under an older wrapper rule; the line is an allowed read-only shape, so the extractor categorises it read-only (expected `allow`), and T14's Where adds the extractor's category rules. T13's own test changed one expectation (a multi-line line is re-emitted joined by `;`); accepted. Dispatched: execute-batch-3 (retry, T18, T14, T17, T15) to `feature-worker` at the commit of this note.
+
 ---
 
 ## Phase Execution Map
@@ -624,10 +661,10 @@ Phase 1:  T1 → T2 → T3 → T4
 Phase 2:  T4 → T5 → T6 → T7
 Phase 3:  T7 → T8 → T9
 Phase 4:  T9 → T10 → T11 → T12
-Phase 5:  T12 → T13 → T14 → T17 → T15
+Phase 5:  T12 → T13 → T18 → T14 → T17 → T15
 Phase 6:  T15 → T16
 ```
 
 Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T7); `execute-batch-2` runs phases 3 and 4 (T8 to T12);
-`execute-batch-3` runs phase 5 (T13, T14, T17, T15); `execute-batch-4` runs phase 6 (T16), after `budget-v2` is merged into
+`execute-batch-3` runs phase 5 (T13, T18, T14, T17, T15); `execute-batch-4` runs phase 6 (T16), after `budget-v2` is merged into
 `phase/F0` and `phase/F0` into this branch.
