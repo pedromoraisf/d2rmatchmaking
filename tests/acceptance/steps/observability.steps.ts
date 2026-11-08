@@ -122,7 +122,7 @@ async function traceBDiagnostics(state: TelemetryState, grafanaUrl: string): Pro
 
 // Closes what the telemetry steps of the scenario started: the headless agent, the wall-clock follower, the traced stack and
 // the fake backend.
-After(async ({ world }) => {
+After({ tags: '@NFR-09' }, async ({ world }) => {
   const state = existingStateOf(world);
   await state?.agent?.stop();
   await state?.agentProxy?.close();

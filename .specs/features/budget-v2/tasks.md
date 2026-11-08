@@ -299,9 +299,9 @@ T8 → T9 → T10
 
 **Done when**:
 
-- [ ] Every scenario of `acceptance.feature` passes
-- [ ] `pnpm test:harness` and `pnpm contracts:check` pass with no test removed or skipped
-- [ ] Gate passes
+- [x] Every scenario of `acceptance.feature` passes
+- [x] `pnpm test:harness` and `pnpm contracts:check` pass with no test removed or skipped
+- [x] Gate passes
 
 **Tests**: acceptance
 **Gate**: `pnpm exec turbo run test:acceptance -- --grep @BUD- && pnpm test:harness && pnpm contracts:check`
