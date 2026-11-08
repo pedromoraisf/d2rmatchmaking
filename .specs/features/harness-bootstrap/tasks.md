@@ -320,8 +320,8 @@ T7 → T8 → T9 → T10 → T11 → T12
 
 **Done when**:
 
-- [ ] The steps of every scenario tagged HBS-18 to HBS-36 and HBS-45 to HBS-48 are written; they run in T12's gate
-- [ ] Gate passes
+- [x] The steps of every scenario tagged HBS-18 to HBS-36 and HBS-45 to HBS-48 are written; they run in T12's gate
+- [x] Gate passes
 
 **Tests**: acceptance
 **Gate**: `pnpm --filter @d2rmm/acceptance run typecheck`
