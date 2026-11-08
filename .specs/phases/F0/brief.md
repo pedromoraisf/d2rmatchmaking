@@ -167,8 +167,8 @@ scopes delegated — the maintainer reviews at the end of the phase (escalations
 | room-trace-link           | done      | done                                      | 6/6   |
 | harness-bootstrap         | done      | done                                      | 14/14 |
 | gate-precision            | specify   | ready                                     | 0/0   |
-| budget-v2                 | specify   | ready                                     | 0/0   |
-| ci-fast-path              | specify   | ready                                     | 0/0   |
-| continuous-delivery       | specify   | waiting on ci-fast-path                   | 0/0   |
+| budget-v2                 | specify   | blocked                                   | 0/0   |
+| ci-fast-path              | done      | done                                      | 10/10 |
+| continuous-delivery       | specify   | ready                                     | 0/0   |
 | fast-proofs               | specify   | waiting on budget-v2, continuous-delivery | 0/0   |
 | parallel-cloud-spike      | specify   | waiting on continuous-delivery            | 0/0   |
