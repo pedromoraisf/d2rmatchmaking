@@ -50,7 +50,7 @@
       "Bash(git push -f:*)",
       "Bash(git reset --hard:*)"
     ],
-    "ask": ["Bash(git push:*)", "Bash(gh pr merge:*)", "Bash(gh secret:*)", "Bash(gh release:*)"]
+    "ask": ["Bash(gh secret:*)"]
   },
   "hooks": {
     "PreToolUse": [
@@ -73,6 +73,16 @@
             "type": "command",
             "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/feedback.mjs",
             "timeout": 240
+          }
+        ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/verdict.mjs",
+            "timeout": 30
           }
         ]
       }

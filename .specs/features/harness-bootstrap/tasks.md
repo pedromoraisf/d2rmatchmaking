@@ -257,9 +257,9 @@ T7 → T8 → T9 → T10 → T11 → T12
 
 **Done when**:
 
-- [ ] The ask list holds `gh secret` and none of the three (test `stops asking for push, PR merge and release`)
-- [ ] `PostToolUse` runs `verdict.mjs` for `Agent|Task` (test `registers the verdict hook for subagent dispatches`)
-- [ ] Gate passes
+- [x] The ask list holds `gh secret` and none of the three (test `stops asking for push, PR merge and release`)
+- [x] `PostToolUse` runs `verdict.mjs` for `Agent|Task` (test `registers the verdict hook for subagent dispatches`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/harness-settings.test.mjs`
@@ -413,8 +413,16 @@ Proof: `pnpm test:harness`
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** (1) HBS-47 applies while at least one feature is covered, and then denies every unresolvable operand whatever its name (AD-147, spec amendment); the batch-1 narrowing of unresolvable `gh pr merge` operands to covered branch names is reverted in T7. (2) Accepted batch-1 deviations: head and clean tree read after the command runs (fail-closed); `checkSegments` keeps the strongest decision across segments; the shell-write rule matches self-protected paths inside worktrees; a commit message naming the guarded files is denied, so commits use `-F`; worker commits carry the worker's own `Co-Authored-By`.
-**Dispatched:** execute-batch-1 (T1 to T7) to `feature-worker` at `7524f1f`, 2026-11-07, returned at `7aff920` (T1 to T6 committed; T7 uncommitted, session denial budget exhausted); execute-batch-2 (T7 finish, T8 to T12) to `feature-worker` at the commit after this note, 2026-11-07
+**Dispatched:** execute-batch-1 (T1 to T7) to `feature-worker` at `7524f1f`, 2026-11-07, returned at `7aff920` (T1 to T6 committed; T7 uncommitted, session denial budget exhausted); execute-batch-2 (T7 finish, T8 to T12) to `feature-worker` at `bd4bc93`, 2026-11-07, returned at `9978a4d` (T7 committed; T8 stopped: auto mode refused the `.claude/settings.json` edit); execute-batch-3 (T8 to T12) to `feature-worker` at `9978a4d`, 2026-11-07. The T8 settings edit itself was made by the orchestrator in the worktree on the maintainer's explicit go-ahead ("Recomendado. Pode editar os settings.json da T8."), approved at the gate's prompt; the worker runs T8's gate and commits it
 **Walked:** none
+
+**Blocked (execute-batch-2, stopped at T8, 2026-11-07):**
+
+- Committed: T7 `9978a4d` (gate `gate:harness-bootstrap/T7` passed, 35 of 35; `pnpm test:harness` 430 of 430 at the commit). After the gate's first pass, three edits went in before the commit, all forced by the pre-commit sensors: `delivery.mjs` lost the unused `ctx` parameter of `evalGh`, `evaluate` and `deliveryDecision` (lint); `delivery.test.mjs` expects `deny` for `gh pr merge feat/F0-ci-fast-path --merge` while a feature is covered (AD-147; batch 1 had `allow`). The T7 gate is at its last attempt.
+- T8: `scripts/test/harness-settings.test.mjs` is written and uncommitted. Its gate has not run.
+- Unit `settings` (T8): the Edit of `.claude/settings.json` (the `permissions.ask` list, and the `PostToolUse` entry for `Agent|Task` running `verdict.mjs`) was denied by the auto-mode classifier as a self-modification. No other write to that file was attempted.
+- T9 to T12 depend on T8 in the Execution Plan and are not started.
+- Next step: the maintainer allows the settings edit (or makes it), then a run resumes at T8 with gate `node --test scripts/test/harness-settings.test.mjs`. The T7 gate has no attempt left; a failure of T7 blocks the feature.
 
 **Blocked (execute-batch-1, session stopped at T7, 2026-11-07):**
 
