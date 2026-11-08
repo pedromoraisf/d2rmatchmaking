@@ -390,10 +390,10 @@ T15 → T16
 
 **Done when**:
 
-- [ ] Each normalisation, on a made-up line holding every kind (test `normalises paths, ids and long tokens`)
-- [ ] `curl -H "Authorization: Bearer abc" https://x.example/y` re-emits with `<v>` for the header and URL; `git log --oneline -5` is unchanged (test `keeps only safe words`)
-- [ ] An Edit entry holds no `old_string`, `new_string` or content; an Agent entry holds no prompt (test `keeps no content or prompt`)
-- [ ] Gate passes
+- [x] Each normalisation, on a made-up line holding every kind (test `normalises paths, ids and long tokens`)
+- [x] `curl -H "Authorization: Bearer abc" https://x.example/y` re-emits with `<v>` for the header and URL; `git log --oneline -5` is unchanged (test `keeps only safe words`)
+- [x] An Edit entry holds no `old_string`, `new_string` or content; an Agent entry holds no prompt (test `keeps no content or prompt`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/gate-replay-extract.test.mjs`
