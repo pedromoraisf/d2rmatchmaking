@@ -6,6 +6,7 @@ import { readStdinJson, projectDir, makeRepoContext, toRelative } from './lib/io
 import { decide } from './lib/gate-rules.mjs';
 import { recordAttempt, recordDispatch } from '../../scripts/lib/budget.mjs';
 import { ledgerPath, loadLedger, withLedger } from '../../scripts/lib/ledger-store.mjs';
+import { applyVerdictEffects, verdictsPath } from './lib/verdict-store.mjs';
 
 const input = await readStdinJson();
 const root = projectDir(input);
@@ -22,6 +23,11 @@ try {
         if (e.op === 'dispatch') recordDispatch(ledger, e.key, { note: e.note });
       }
     });
+    // ADR 028 § 3: the head a security review starts on (HBS-26), written under the verdict store's lock.
+    applyVerdictEffects(
+      verdictsPath(root),
+      result.effects.filter((e) => e.op === 'note'),
+    );
   }
 } catch (err) {
   result = {

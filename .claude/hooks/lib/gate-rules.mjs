@@ -5,6 +5,7 @@
 // deny → the call never runs; the reason goes back to the agent.
 // ask  → Claude Code asks the human. This is how mid-phase escalations reach the user.
 import { activePhase, approvalsIn } from './delegation.mjs';
+import { checkBackgroundReview, noteDispatch } from './verdicts.mjs';
 import { compareBaselines } from '../../../scripts/lib/ratchet.mjs';
 import { sessionId } from '../../../scripts/lib/budget.mjs';
 import { checkBudget, countDenial } from './budget-rules.mjs';
@@ -492,6 +493,7 @@ function regularRules(tool, ti, ctx, toRelative) {
     const view = worktreeView(toRelative(ctx.root, ti.file_path ?? ti.notebook_path), ctx);
     return checkEdit(view.rel, ti, view.ctx);
   }
+  if (tool === 'Agent' || tool === 'Task') return checkBackgroundReview({ tool_name: tool, tool_input: ti });
   if (tool === 'Read' || tool === 'Grep') {
     const rel = toRelative(ctx.root, ti.file_path ?? ti.path ?? '');
     if (ENV_FILE.test(rel)) return deny('.env files hold secrets and are off-limits to the agent.');
@@ -515,10 +517,12 @@ export function decide(input, ctx, toRelative) {
   }
   const result = regularRules(tool, ti, ctx, toRelative);
   const counted = countDenial(result, ctx, sid);
-  if (budget?.effects?.length) {
-    return counted
-      ? { ...counted, effects: [...budget.effects, ...(counted.effects ?? [])] }
-      : { decision: null, reason: '', effects: budget.effects };
+  // ADR 028 § 3: a foreground security review of a diff notes its head when it starts, unless it is denied.
+  const effects = [...(budget?.effects ?? []), ...(counted?.effects ?? [])];
+  if (counted?.decision !== 'deny') {
+    const noted = noteDispatch(input, ctx);
+    if (noted) effects.push(noted);
   }
-  return counted;
+  if (effects.length === 0) return counted;
+  return counted ? { ...counted, effects } : { decision: null, reason: '', effects };
 }

@@ -372,3 +372,19 @@ test('the committed retry-ledger snapshot cannot be edited by agents', () => {
   assert.equal(d(checkEdit('.specs/phases/F0/attempts.json', { content: '{}' }, fakeCtx())), 'deny');
   assert.equal(d(checkEdit('scripts/lib/phase-state.mjs', { content: 'x' }, fakeCtx())), 'ask');
 });
+
+test('denies a background security review of a diff (HBS-30)', () => {
+  const review = (extra) => ({
+    tool_name: 'Agent',
+    tool_input: {
+      subagent_type: 'security-reviewer',
+      prompt: '[d2rmm feature=gate-precision step=review-diff] review the diff',
+      ...extra,
+    },
+  });
+  const background = decide(review({ run_in_background: true }), fakeCtx(), toRelative);
+  assert.equal(d(background), 'deny');
+  assert.match(background.reason, /run_in_background: false/);
+  assert.equal(d(decide(review({ run_in_background: false }), fakeCtx(), toRelative)), 'allow');
+  assert.equal(d(decide(review({}), fakeCtx(), toRelative)), 'allow');
+});

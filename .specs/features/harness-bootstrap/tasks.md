@@ -131,14 +131,14 @@ T7 → T8 → T9 → T10 → T11 → T12
 
 **Done when**:
 
-- [ ] A PASS report with an unmoved head records PASS at the noted head (test `records a PASS at the head the review started on`)
-- [ ] FAIL, PASS-then-FAIL, `VERDICT: PASS with …`, no verdict line and an unreadable response each record FAIL (test `records a FAIL for every report that is not exactly PASS`)
-- [ ] A head that moved records FAIL at the noted head (test `records a FAIL when the branch moved during the review`)
-- [ ] Another agent type, another step or no header records nothing (test `records nothing for other dispatches`)
-- [ ] A pending note alone is no verdict (test `a review that never returned leaves no verdict`)
-- [ ] A background `review-diff` security review is denied (test `denies a background security review of a diff`)
-- [ ] Both payload fixtures (`Task`, `Agent`) are read (test `reads the PostToolUse payload fixtures`)
-- [ ] Gate passes
+- [x] A PASS report with an unmoved head records PASS at the noted head (test `records a PASS at the head the review started on`)
+- [x] FAIL, PASS-then-FAIL, `VERDICT: PASS with …`, no verdict line and an unreadable response each record FAIL (test `records a FAIL for every report that is not exactly PASS`)
+- [x] A head that moved records FAIL at the noted head (test `records a FAIL when the branch moved during the review`)
+- [x] Another agent type, another step or no header records nothing (test `records nothing for other dispatches`)
+- [x] A pending note alone is no verdict (test `a review that never returned leaves no verdict`)
+- [x] A background `review-diff` security review is denied (test `denies a background security review of a diff`)
+- [x] Both payload fixtures (`Task`, `Agent`) are read (test `reads the PostToolUse payload fixtures`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/verdicts.test.mjs .claude/hooks/test/gate-rules.test.mjs`

@@ -59,6 +59,7 @@ export function makeRepoContext(root) {
   return {
     root,
     mainRoot: main,
+    now: () => new Date().toISOString(),
     readFile(rel) {
       const abs = path.join(root, rel);
       return existsSync(abs) ? readFileSync(abs, 'utf8') : null;
