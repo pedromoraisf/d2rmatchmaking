@@ -122,3 +122,10 @@ test('passes done tasks and gates without mutation', () => {
   const open = demo(demoTasks('- [ ] a criterion', 'node --test scripts/test/x.test.mjs'));
   assert.deepEqual(checkSpecs(open.read, open.list), []);
 });
+
+// CFP-11, CFP-12: only the Done when boxes decide whether a task is open; an unticked box in another section does not.
+test('ignores unticked boxes outside Done when', () => {
+  const stray = '**Notes**:\n\n- [ ] a follow-up outside the criteria\n\n';
+  const r = demo(demoTasks('- [x] a criterion', 'pnpm test:mutation', stray));
+  assert.deepEqual(checkSpecs(r.read, r.list), []);
+});
