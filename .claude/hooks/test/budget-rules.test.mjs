@@ -10,6 +10,7 @@ import {
   recordDispatch,
   MAX_ATTEMPTS,
 } from '../../../scripts/lib/budget.mjs';
+import { RULE_MODULES } from './rule-modules.mjs';
 
 const WORDS = 'aprovo specs e tasks da F0 que passarem nos gates automáticos';
 const BRIEF = `| api-web-skeleton | agent-skeleton |\n## Delegation\n- [x] specs-and-tasks: x\n- [x] sub-agents: x\n\n**Approved**: 2026-11-02 - user: "${WORDS}"\n`;
@@ -32,6 +33,7 @@ function ctxFor({
     headTime: () => headTime,
     git: () => '',
     ledger,
+    modules: RULE_MODULES,
   };
 }
 const call = (tool_name, tool_input, ctx, extra = {}) =>

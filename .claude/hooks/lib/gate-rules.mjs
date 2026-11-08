@@ -8,15 +8,13 @@ import { activePhase, approvalsIn } from './delegation.mjs';
 import { checkBackgroundReview, noteDispatch } from './verdicts.mjs';
 import { allowedShape, deliveryDecision, mergesAfterMainSwitch } from './delivery.mjs';
 import { guardDecision } from './guard.mjs';
-import { compareBaselines } from '../../../scripts/lib/ratchet.mjs';
 import { sessionId } from '../../../scripts/lib/budget.mjs';
-import { checkBudget, countDenial, GIT_DIR_CD, LEDGER_REF } from './budget-rules.mjs';
-import { countScenarios } from '../../../scripts/lib/acceptance.mjs';
-import { checkMutationSpec } from '../../../scripts/lib/mutation-scope.mjs';
+import { checkBudget, countDenial, GIT_DIR_CD, isPackageScopeOnly, LEDGER_REF } from './budget-rules.mjs';
 import { indirections, MAX_DEPTH, SHELL, splitShell } from './shell-indirection.mjs';
 import { parseLine } from './shell-parse.mjs';
 import { readOnlyDecision } from './read-only.mjs';
 import { writeDecision } from './writes.mjs';
+import { pollingDecision, repeatDecision } from './polling.mjs';
 import { resolveInside } from './io.mjs';
 import path from 'node:path';
 
@@ -26,6 +24,12 @@ const strongest = (a, b) => (a?.decision === 'deny' ? a : b?.decision === 'deny'
 // deny beats ask beats allow beats no opinion: an earlier allow never hides a later ask (GPR-04, GPR-11).
 const RANK = { deny: 3, ask: 2, allow: 1 };
 const worse = (a, b) => ((RANK[b?.decision] ?? 0) > (RANK[a?.decision] ?? 0) ? b : a);
+
+// GPR-21: the rule modules that need an import (ratchet, acceptance, mutation-scope, model-policy) are passed in as
+// `ctx.modules` by gate.mjs, loaded only for the calls that use them. A rule whose module is missing asks.
+const moduleOf = (ctx, name) => ctx.modules?.[name] ?? null;
+const missingRule = (name) =>
+  ask(`The ${name} rule did not load for this call, so the gate asks instead of allowing (GPR-21).`);
 
 // ---------------------------------------------------------------- paths
 export const ENV_FILE = /(^|\/)\.env($|\.(?!example$)[^/]*$)/;
@@ -119,13 +123,15 @@ function checkMutationRun(cmd, ctx) {
   const rel = arg.startsWith(`${ctx.root}/`) ? arg.slice(ctx.root.length + 1) : arg.replace(/^\.\//, '');
   const text = ctx.readFile(rel);
   if (text === null) return null;
+  const mutationScope = moduleOf(ctx, 'mutationScope');
+  if (!mutationScope) return missingRule('mutation-scope');
   let spec;
   try {
     spec = JSON.parse(text);
   } catch {
     return deny(`${rel} is not valid JSON, so the mutation scope cannot be checked (ADR 026).`);
   }
-  const errors = checkMutationSpec(spec);
+  const errors = mutationScope.checkMutationSpec(spec);
   if (errors.length === 0) return null;
   return deny(
     `Mutations run against unit tests only (ADR 026). Fix ${rel} first (\`node scripts/mutation-scope-check.mjs --file ${rel}\`): ${errors.slice(0, 3).join('; ')}${errors.length > 3 ? `; and ${errors.length - 3} more` : ''}`,
@@ -179,13 +185,93 @@ function isEditOnlyFile(token, root) {
   return !isSelfProtected(rel) && rel !== BASELINE && (isHarnessFile(rel) || TEST_FILE.test(rel));
 }
 
+// AD-166: the calls whose first argument (or first two) is the path they write, and `open`, whose mode decides.
+const PATH_FIRST =
+  /\b(writeFile\w*|appendFile\w*|createWriteStream|truncate\w*|write_text|write_bytes)\s*\(/g;
+const PATH_PAIR = /\b(rename\w*|copyFile\w*|cpSync|copy2|copyfile|move)\s*\(/g;
+const OPEN_CALL = /\bopen\s*\(/g;
+const LITERAL_PATH = /^(?:'[^'\\]*'|"[^"\\$@]*")$/;
+
+/** The arguments of a call whose `(` ends just before `start`, split at top-level commas (quotes and brackets kept). */
+function argsAt(text, start) {
+  const args = [];
+  let arg = '';
+  let depth = 0;
+  let quote = null;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === quote && text[i - 1] !== '\\') quote = null;
+    } else if (ch === '"' || ch === "'" || ch === '`') {
+      quote = ch;
+    } else if (ch === '(' || ch === '[' || ch === '{') {
+      depth++;
+    } else if (ch === ')' || ch === ']' || ch === '}') {
+      if (depth === 0) {
+        args.push(arg.trim());
+        return args;
+      }
+      depth--;
+    } else if (ch === ',' && depth === 0) {
+      args.push(arg.trim());
+      arg = '';
+      continue;
+    }
+    arg += ch;
+  }
+  args.push(arg.trim());
+  return args;
+}
+
+/**
+ * AD-166: inline code whose write call takes a path that is not a string literal (a variable, an expression) writes
+ * something the gate cannot see. `open` writes when its mode is a literal with `w`, `a`, `x`, `+` or, in perl, `>`.
+ */
+function writesUnreadablePath(text, lang) {
+  for (const [re, n] of [
+    [PATH_FIRST, 1],
+    [PATH_PAIR, 2],
+  ]) {
+    for (const m of text.matchAll(re)) {
+      if (
+        argsAt(text, m.index + m[0].length)
+          .slice(0, n)
+          .some((a) => !LITERAL_PATH.test(a))
+      )
+        return true;
+    }
+  }
+  for (const m of text.matchAll(OPEN_CALL)) {
+    const args = argsAt(text, m.index + m[0].length);
+    if (lang === 'perl') {
+      if (
+        args.length >= 3 &&
+        LITERAL_PATH.test(args[1]) &&
+        /[>+]/.test(args[1]) &&
+        !LITERAL_PATH.test(args[2])
+      ) {
+        return true;
+      }
+      if (args.length === 2 && !LITERAL_PATH.test(args[1]) && /["']\s*\+?>/.test(args[1])) return true;
+    } else if (
+      args.length >= 2 &&
+      LITERAL_PATH.test(args[1]) &&
+      /[wax+]/.test(args[1]) &&
+      !LITERAL_PATH.test(args[0])
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Inline interpreter code (`python -c`, `node -e`, a heredoc, a script judged by its content): what the shell rules
  * can't see. `lang` is the interpreter that runs it.
  */
 function checkInlineCode(code, ctx, lang) {
   const text = String(code ?? '');
-  if (LEDGER_REF.test(text) || GIT_DIR_CD.test(text)) {
+  if ((LEDGER_REF.test(text) && !isPackageScopeOnly(text)) || GIT_DIR_CD.test(text)) {
     return deny(
       'This code names the retry ledger or the security verdicts, or enters .git: only the hooks and scripts/attempt.mjs touch those.',
     );
@@ -214,6 +300,11 @@ function checkInlineCode(code, ctx, lang) {
         `This code writes and names ${guarded[0]}, a protected file. Use the Edit tool so the gate can check it.`,
       );
     }
+  }
+  if (writesUnreadablePath(text, lang)) {
+    return ask(
+      'This code writes to a path the gate cannot read (a variable or an expression), so it cannot check the write. Use a literal path or the Edit tool.',
+    );
   }
   return null;
 }
@@ -361,25 +452,51 @@ function checkIndirections(cmd, ctx, depth, input) {
   return found;
 }
 
+/** Whether the context carries the I/O the read-only rule uses. A context without it gets no read-only opinion. */
+const hasIo = (ctx) =>
+  typeof ctx.realpath === 'function' && typeof ctx.stat === 'function' && typeof ctx.git === 'function';
+
+/** A line nested in shells deeper than MAX_DEPTH: its bottom call asks (checkBash), so the whole line asks as before. */
+function nestsTooDeep(cmd, depth = 0) {
+  if (depth > MAX_DEPTH) return true;
+  return indirections(cmd).some((x) => x.kind === 'shell' && nestsTooDeep(x.text, depth + 1));
+}
+
+/**
+ * Checks that spawn nothing run before every segment rule (GPR-04): the polling rules (GPR-15, GPR-16) and the shell
+ * writes (GPR-05 to GPR-10). A line nested too deep is left to the indirection rule, which asks. Returns a decision
+ * or null.
+ */
+const spawnFreeScan = (cmd, parsed, ctx) =>
+  strongest(nestsTooDeep(cmd) ? null : pollingDecision(parsed), writeDecision(parsed, ctx));
+
+// HBS-31: nested shells and untracked scripts are judged by their text too.
 export function checkBash(command, ctx, depth = 0, input = undefined) {
   const cmd = String(command ?? '');
   if (depth > MAX_DEPTH) {
     return ask('This command nests shells too deep to check what runs. Run the inner command directly.');
   }
-  // HBS-31: nested shells and untracked scripts are judged by their text too.
-  if (LEDGER_REF.test(cmd) || GIT_DIR_CD.test(cmd)) {
+  if ((LEDGER_REF.test(cmd) && !isPackageScopeOnly(cmd)) || GIT_DIR_CD.test(cmd)) {
     return deny(
       'The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git.',
     );
   }
+  const parsed = parseLine(cmd);
+  // GPR-30 and GPR-01: the read-only rule's verdict. Its allow is held back until every other rule has given no opinion.
+  const readOnly = hasIo(ctx) ? readOnlyDecision(parsed, input, ctx) : null;
+  const early = strongest(spawnFreeScan(cmd, parsed, ctx), readOnly?.decision === 'allow' ? null : readOnly);
+  if (early?.decision === 'deny') return early;
   // ADR 028 § 1: one delivery command in an allowed shape runs without asking, unless another rule denies or asks.
   // Only the top-level line can be such a shape: a command hidden in a nested shell or a wrapper is judged as a segment.
   const shaped = depth === 0 && allowedShape(cmd, ctx);
-  const found = strongest(checkSegments(cmd, ctx, shaped), checkIndirections(cmd, ctx, depth, input));
+  const found = strongest(
+    early,
+    strongest(checkSegments(cmd, ctx, shaped), checkIndirections(cmd, ctx, depth, input)),
+  );
   if (found) return found;
-  return shaped
-    ? { decision: 'allow', reason: 'ADR 028 § 1: a delivery command in an allowed shape.' }
-    : null;
+  if (shaped) return { decision: 'allow', reason: 'ADR 028 § 1: a delivery command in an allowed shape.' };
+  // GPR-04: the read-only allow comes last, and only for the top-level line.
+  return depth === 0 && readOnly?.decision === 'allow' ? readOnly : null;
 }
 
 function checkSegments(cmd, ctx, shaped) {
@@ -561,7 +678,9 @@ export function checkEdit(rel, toolInput, ctx) {
     } catch {
       return deny('.quality-baseline.json must stay valid JSON.');
     }
-    const loosened = compareBaselines(b, a);
+    const ratchet = moduleOf(ctx, 'ratchet');
+    if (!ratchet) return missingRule('ratchet');
+    const loosened = ratchet.compareBaselines(b, a);
     if (loosened.length > 0) {
       return deny(
         `The quality baseline is a ratchet: it only tightens. Loosening needs the maintainer: ${loosened.join('; ')}`,
@@ -575,10 +694,12 @@ export function checkEdit(rel, toolInput, ctx) {
     if (/^#\s*language:\s*(?!en\b)/m.test(after))
       return deny('Gherkin keywords are English in this project (ADR 023).');
     if (before !== null) {
+      const acceptance = moduleOf(ctx, 'acceptance');
+      if (!acceptance) return missingRule('acceptance');
       if ((after.match(GHERKIN_SKIP) ?? []).length > (before.match(GHERKIN_SKIP) ?? []).length) {
         return ask('Skipping acceptance scenarios is an escalation (ADR 023).');
       }
-      if (countScenarios(after) < countScenarios(before)) {
+      if (acceptance.countScenarios(after) < acceptance.countScenarios(before)) {
         return ask('This edit removes acceptance scenarios. Removing scenarios is an escalation.');
       }
       if (
@@ -702,23 +823,49 @@ function regularRules(tool, ti, ctx, toRelative, input) {
 }
 
 /**
+ * GPR-17: the repetition rule for one Bash call. Every Bash call returns the history effect that records it (AD-158);
+ * the call is denied on the fifth identical one. Without a history snapshot or a clock in `ctx` there is no check.
+ */
+function repetitionOf(tool, ti, sid, ctx) {
+  if (tool !== 'Bash' || !ctx.history || typeof ctx.nowMs !== 'function') {
+    return { decision: null, reason: '', effects: [] };
+  }
+  return repeatDecision(ti.command, sid, ctx.history, ctx.nowMs());
+}
+
+/** Adds effects to a decision (a decision may be null: then the effects alone are returned). */
+const withEffects = (out, extra) =>
+  extra.length === 0
+    ? out
+    : { ...(out ?? { decision: null, reason: '' }), effects: [...(out?.effects ?? []), ...extra] };
+
+/**
  * Entry point. Returns { decision, reason, effects } or null (no opinion → normal permission flow).
  * `effects` are ledger updates (ADR 022) that gate.mjs applies under the ledger lock.
  */
 export function decide(input, ctx, toRelative) {
-  const tool = input?.tool_name ?? '';
-  const ti = input?.tool_input ?? {};
+  if (typeof input?.tool_name !== 'string' || input.tool_name === '') {
+    return ask('The gate got a call with no tool name, so it cannot judge it. Asking instead of allowing.');
+  }
+  const tool = input.tool_name;
+  const ti = input.tool_input ?? {};
   const sid = sessionId(input);
   const rel = toRelative(ctx.root, ti.file_path ?? ti.notebook_path ?? '');
+  const repeat = repetitionOf(tool, ti, sid, ctx);
 
   const budget = checkBudget(input, ctx, sid, rel);
   if (budget?.decision) {
-    return budget.reason.startsWith('Retry budget exhausted') ? budget : countDenial(budget, ctx, sid);
+    const out = budget.reason.startsWith('Retry budget exhausted') ? budget : countDenial(budget, ctx, sid);
+    return withEffects(out, repeat.effects);
   }
-  const result = regularRules(tool, ti, ctx, toRelative, input);
+  // GPR-17 denies before the other rules; the call is still recorded (its effect is kept on every path).
+  const result =
+    repeat.decision === 'deny'
+      ? { decision: 'deny', reason: repeat.reason }
+      : regularRules(tool, ti, ctx, toRelative, input);
   const counted = countDenial(result, ctx, sid);
   // ADR 028 § 3: a foreground security review of a diff notes its head when it starts, unless it is denied.
-  const effects = [...(budget?.effects ?? []), ...(counted?.effects ?? [])];
+  const effects = [...(budget?.effects ?? []), ...repeat.effects, ...(counted?.effects ?? [])];
   if (counted?.decision !== 'deny') {
     const noted = noteDispatch(input, ctx);
     if (noted) effects.push(noted);

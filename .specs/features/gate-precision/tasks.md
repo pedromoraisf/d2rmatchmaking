@@ -321,14 +321,14 @@ T15 → T16
 
 **Done when**:
 
-- [ ] A line `readOnlyDecision` would allow that another rule denies or asks gets that rule's decision, for a deny, an ask and a guard deny (test `allow comes last`)
-- [ ] `decide({})` asks (test `asks on an empty call`)
-- [ ] A `pnpm --filter` call naming a workspace package of this repository gets no ledger deny through `decide`; reading the ledger file itself still denies (test `a package scope passes the whole gate`)
-- [ ] `node -e "fs.writeFileSync(process.env.P, 'x')"` and `python3 -c "open(p, 'w')"` ask; a literal path is judged as today (test `asks for inline code writing a path it cannot read`)
-- [ ] Importing `gate-rules.mjs` loads none of the four modules (test `loads no rule module eagerly`)
-- [ ] A rule whose module is missing from `ctx.modules` asks (test `asks when a rule module is missing`)
-- [ ] Every existing test under `.claude/hooks/test/` passes unchanged (the tests pass the modules in `ctx`)
-- [ ] Gate passes
+- [x] A line `readOnlyDecision` would allow that another rule denies or asks gets that rule's decision, for a deny, an ask and a guard deny (test `allow comes last`)
+- [x] `decide({})` asks (test `asks on an empty call`)
+- [x] A `pnpm --filter` call naming a workspace package of this repository gets no ledger deny through `decide`; reading the ledger file itself still denies (test `a package scope passes the whole gate`)
+- [x] `node -e "fs.writeFileSync(process.env.P, 'x')"` and `python3 -c "open(p, 'w')"` ask; a literal path is judged as today (test `asks for inline code writing a path it cannot read`)
+- [x] Importing `gate-rules.mjs` loads none of the four modules (test `loads no rule module eagerly`)
+- [x] A rule whose module is missing from `ctx.modules` asks (test `asks when a rule module is missing`)
+- [x] Every existing test under `.claude/hooks/test/` passes unchanged (the tests pass the modules in `ctx`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test ".claude/hooks/test/*.test.mjs"`

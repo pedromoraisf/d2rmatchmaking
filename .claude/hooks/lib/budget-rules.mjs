@@ -13,14 +13,13 @@ import {
   lastGateAttempt,
   sessionExhausted,
   blockedMessage,
-  DISPATCH_STEPS,
 } from '../../../scripts/lib/budget.mjs';
 import { activePhase } from './delegation.mjs';
-import { checkDispatchPolicy, READ_ONLY_HELPERS } from '../../../scripts/lib/model-policy.mjs';
 import { innerShellCommands } from './shell-indirection.mjs';
 
 const deny = (reason, effects = []) => ({ decision: 'deny', reason, effects });
 const allow = (effects = []) => ({ decision: null, effects });
+const ask = (reason) => ({ decision: 'ask', reason, effects: [] });
 
 const FEATURE_BRANCH = /^feat\/(F\d+)-(.+)$/;
 const PHASE_BRANCH = /^phase\/(F\d+)$/;
@@ -156,7 +155,14 @@ export function checkBudget(input, ctx, sid, rel) {
 
   // 3. Subagent dispatches: each (feature, step, type) gets 1 + MAX_RETRIES dispatches.
   if (DISPATCH_TOOLS.has(tool) && running) {
-    if (READ_ONLY_HELPERS.includes(ti.subagent_type)) {
+    // GPR-21: the model policy is passed in by gate.mjs (ctx.modules); without it the dispatch asks.
+    const modelPolicy = ctx.modules?.modelPolicy ?? null;
+    if (!modelPolicy) {
+      return ask(
+        'The model-policy rule did not load for this call, so the gate asks instead of allowing (GPR-21).',
+      );
+    }
+    if (modelPolicy.READ_ONLY_HELPERS.includes(ti.subagent_type)) {
       return ti.model === undefined
         ? null
         : deny('Read-only helpers run on their default model; do not override it.');
@@ -169,12 +175,13 @@ export function checkBudget(input, ctx, sid, rel) {
     }
     const [, feature, rawStep] = m;
     const step = rawStep.toLowerCase();
-    if (!DISPATCH_STEPS.test(step)) {
+    const stepRe = modelPolicy.DISPATCH_STEP_RE;
+    if (!stepRe.test(step)) {
       return deny(
-        `Unknown dispatch step "${step}". Allowed: ${DISPATCH_STEPS.source.replace(/^\^\(|\)\$$/g, '').replace(/\|/g, ', ')}.`,
+        `Unknown dispatch step "${step}". Allowed: ${stepRe.source.replace(/^\^\(|\)\$$/g, '').replace(/\|/g, ', ')}.`,
       );
     }
-    const policy = checkDispatchPolicy(step, ti);
+    const policy = modelPolicy.checkDispatchPolicy(step, ti);
     if (policy) return deny(policy);
     const brief = ctx.readFile(phase.briefPath) ?? '';
     if (!new RegExp(`(^|[^a-z0-9-])${feature}([^a-z0-9-]|$)`, 'm').test(brief)) {
