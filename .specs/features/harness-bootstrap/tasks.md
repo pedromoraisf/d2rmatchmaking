@@ -388,10 +388,10 @@ T12 → T13 → T14
 
 **Done when**:
 
-- [ ] `.env`, `apps/api/.env.local` and `.git/config` as release files ask (test `asks for a release that attaches a secrets file or the git folder`)
-- [ ] `setup.exe` and `dist/latest.json` as release files are still allowed (test `still allows ordinary release files`)
-- [ ] The `@HBS-49` scenario passes
-- [ ] Gate passes; every existing test of the file still passes
+- [x] `.env`, `apps/api/.env.local` and `.git/config` as release files ask (test `asks for a release that attaches a secrets file or the git folder`)
+- [x] `setup.exe` and `dist/latest.json` as release files are still allowed (test `still allows ordinary release files`)
+- [x] The `@HBS-49` scenario passes
+- [x] Gate passes; every existing test of the file still passes
 
 **Tests**: unit, acceptance
 **Gate**: `pnpm exec turbo run test:acceptance -- --grep @HBS-49 && node --test .claude/hooks/test/delivery.test.mjs .claude/hooks/test/gate-rules.test.mjs`

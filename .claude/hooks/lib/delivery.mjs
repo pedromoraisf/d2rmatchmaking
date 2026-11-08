@@ -240,6 +240,9 @@ const RELEASE_SHAPES = {
   upload: { flags: [], valued: [] },
 };
 
+// HBS-49: a secrets file (a path segment starting with `.env`) or the git folder (`.git`) never goes to a release.
+const isSecretOrGitPath = (v) => v.split('/').some((s) => s.startsWith('.env') || s === '.git');
+
 function evalRelease(action, rest) {
   const parsed = parseGh(rest, RELEASE_SHAPES[action]);
   if (!parsed.ok || parsed.operands.length === 0) return notAllowed;
@@ -247,6 +250,11 @@ function evalRelease(action, rest) {
   if (!isRefName(tag) || !files.every(isSafeFile)) return notAllowed;
   if (action === 'edit' && files.length > 0) return notAllowed;
   if (action === 'upload' && files.length === 0) return notAllowed;
+  if (files.some(isSecretOrGitPath)) {
+    return askVerdict(
+      'A release that attaches a secrets file or the git folder is the maintainer’s decision (HBS-49, AGENTS.md rule 6).',
+    );
+  }
   return allowVerdict(`gh release ${action}`);
 }
 

@@ -162,6 +162,27 @@ test("asks for what stays the maintainer's", () => {
   for (const c of asked) assert.equal(d(c), 'ask', c);
 });
 
+test('asks for a release that attaches a secrets file or the git folder', () => {
+  const asked = [
+    'gh release upload agent-v0.0.3 .env',
+    'gh release upload agent-v0.0.3 apps/api/.env.local',
+    'gh release create agent-v0.0.3 .git/config',
+  ];
+  for (const c of asked) {
+    assert.equal(allowedShape(c, fakeCtx()), false, c);
+    assert.equal(d(c), 'ask', c);
+  }
+});
+
+test('still allows ordinary release files', () => {
+  const allowed = [
+    'gh release upload agent-v0.0.3 setup.exe',
+    'gh release upload agent-v0.0.3 dist/latest.json',
+    'gh release create agent-v0.0.3 setup.exe dist/latest.json --generate-notes',
+  ];
+  for (const c of allowed) assert.equal(d(c), 'allow', c);
+});
+
 test('asks for a merge while on main', () => {
   assert.equal(d('git merge feat/x', fakeCtx({}, { branch: 'main' })), 'ask');
   assert.equal(d('git checkout main && git merge phase/F0'), 'ask');
