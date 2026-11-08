@@ -428,6 +428,39 @@ test("asks only for the maintainer's resets", () => {
   assert.equal(decisionFor(blocked(), `${reset1('orchestrator')} && git commit -m x`), 'ask', 'chained');
 });
 
+test('asks for a reset hidden behind another wrapper call', () => {
+  const key = 'gate:x/T1';
+  const blocked = () => {
+    const l = emptyLedger();
+    for (let i = 0; i < MAX_ATTEMPTS; i += 1) recordAttempt(l, key, false, { note: 'boom' });
+    return l;
+  };
+  const decisionFor = (ledger, command) => call('Bash', { command }, ctxFor({ ledger }))?.decision ?? null;
+  const status = 'node scripts/attempt.mjs status';
+  const orchestratorReset = `node scripts/attempt.mjs reset --unit ${key} --by orchestrator --reason 'fixed'`;
+
+  assert.equal(
+    decisionFor(emptyLedger(), `${status} && node scripts/attempt.mjs reset --unit ${key} --by maintainer`),
+    'ask',
+    'a maintainer reset after a status call',
+  );
+  assert.equal(
+    decisionFor(blocked(), `${status} && ${orchestratorReset}`),
+    'ask',
+    'an orchestrator reset after a status call',
+  );
+  assert.equal(
+    decisionFor(blocked(), `echo scripts/attempt.mjs status; ${orchestratorReset}`),
+    'ask',
+    'an orchestrator reset after an echoed wrapper name',
+  );
+  assert.equal(
+    decisionFor(blocked(), `${status} && bash -c "${orchestratorReset}"`),
+    'ask',
+    'an orchestrator reset inside bash -c after a status call',
+  );
+});
+
 test('allows read-only filters after the wrapper', () => {
   const ctx = ctxFor();
   const gate = 'node scripts/attempt.mjs run --feature agent-skeleton --step T3 -- "pnpm test"';

@@ -326,9 +326,9 @@ T10 → T11 → T12 → T13 → T14
 
 **Done when**:
 
-- [ ] `node scripts/attempt.mjs status && node scripts/attempt.mjs reset --unit gate:x/T1 --by maintainer` asks; `echo scripts/attempt.mjs status; node scripts/attempt.mjs reset … --by orchestrator …` asks for a second orchestrator reset; `bash -c "… reset …"` behind a status call asks (test `asks for a reset hidden behind another wrapper call`)
-- [ ] Every existing test of `budget-rules.test.mjs` passes unchanged
-- [ ] Gate passes
+- [x] `node scripts/attempt.mjs status && node scripts/attempt.mjs reset --unit gate:x/T1 --by maintainer` asks; `echo scripts/attempt.mjs status; node scripts/attempt.mjs reset … --by orchestrator …` asks for a second orchestrator reset; `bash -c "… reset …"` behind a status call asks (test `asks for a reset hidden behind another wrapper call`)
+- [x] Every existing test of `budget-rules.test.mjs` passes unchanged
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs`
