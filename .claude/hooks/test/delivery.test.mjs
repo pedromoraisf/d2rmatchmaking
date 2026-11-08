@@ -175,8 +175,10 @@ test('a merge of a covered branch waits for the guard, and the covered list come
     '.specs/phases/F0/brief.md': BRIEF_COVERING_GATE_PRECISION,
   };
   assert.deepEqual(coveredBranches(fakeCtx(files)), ['feat/F0-gate-precision']);
-  assert.equal(d('gh pr merge feat/F0-gate-precision --merge', fakeCtx(files)), 'ask');
-  assert.equal(d('gh pr merge feat/F0-ci-fast-path --merge', fakeCtx(files)), 'allow');
+  // The guard denies a covered merge that is not proven, here because the branch does not resolve (guard.test.mjs).
+  assert.equal(d('gh pr merge feat/F0-gate-precision --merge', fakeCtx(files)), 'deny');
+  // While a feature is covered, an operand that does not resolve is denied whatever its name (HBS-47, AD-147).
+  assert.equal(d('gh pr merge feat/F0-ci-fast-path --merge', fakeCtx(files)), 'deny');
 });
 
 test('tokens keep their quoting, and an unbalanced quote is not a token list', () => {

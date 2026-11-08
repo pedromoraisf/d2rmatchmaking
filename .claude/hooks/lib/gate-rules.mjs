@@ -7,6 +7,7 @@
 import { activePhase, approvalsIn } from './delegation.mjs';
 import { checkBackgroundReview, noteDispatch } from './verdicts.mjs';
 import { allowedShape, deliveryDecision, mergesAfterMainSwitch } from './delivery.mjs';
+import { guardDecision } from './guard.mjs';
 import { compareBaselines } from '../../../scripts/lib/ratchet.mjs';
 import { sessionId } from '../../../scripts/lib/budget.mjs';
 import { checkBudget, countDenial, GIT_DIR_CD, LEDGER_REF } from './budget-rules.mjs';
@@ -253,10 +254,16 @@ function checkSegments(cmd, ctx, shaped) {
   }
   const mutationDenial = checkMutationRun(cmd, ctx);
   if (mutationDenial) return mutationDenial;
-  if (shaped) return null; // a whole line in an allowed shape has no other command to judge
-  let found = mergesAfterMainSwitch(cmd)
-    ? ask('Merging after switching to main is an escalation: the maintainer decides it (HBS-14).')
-    : null;
+  // The merge guard (ADR 028 § 3) denies whatever the shape: its denial beats the allow of an allowed shape.
+  const guarded = guardDecision(cmd, ctx);
+  if (guarded?.decision === 'deny') return guarded;
+  if (shaped) return guarded; // a whole line in an allowed shape has no other command to judge
+  let found = strongest(
+    guarded,
+    mergesAfterMainSwitch(cmd)
+      ? ask('Merging after switching to main is an escalation: the maintainer decides it (HBS-14).')
+      : null,
+  );
   for (const seg of splitCommands(cmd)) {
     found = strongest(found, checkSegment(seg, ctx));
     if (found?.decision === 'deny') return found;

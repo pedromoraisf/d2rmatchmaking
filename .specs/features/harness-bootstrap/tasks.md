@@ -229,16 +229,16 @@ T7 → T8 → T9 → T10 → T11 → T12
 
 **Done when**:
 
-- [ ] Each missing-proof example is denied with both names of HBS-33 (test `denies a covered merge without both proofs at its head`)
-- [ ] A branch holding the head plus a commit, a newer `origin/` ref, `$BRANCH` and a remote-only branch are denied (test `merges a covered branch only at its proven head`)
-- [ ] A merge by the head's commit id is guarded (test `guards a merge by commit id`)
-- [ ] `gh pr merge` without the proven `--match-head-commit`, with another sha, or with a newer `origin/` ref is denied (test `pins a covered PR merge to the proven head`)
-- [ ] `--auto` on a covered branch is denied (test `denies auto-merge of a covered branch`)
-- [ ] The seven other commands are denied with `git merge --no-ff feat/F0-gate-precision`, and read-only, switch and push are not (tests `denies other ways to bring a covered branch in`, `keeps reading and switching to a covered branch`)
-- [ ] Patches and plumbing ask (test `asks for patches and plumbing`)
-- [ ] With both proofs at the head, the PR merge with the head pinned and the local merge are not denied (test `lets a proven covered branch merge`)
-- [ ] Operand-less `git merge` and `git pull` are denied (test `denies a merge or pull with no operand`)
-- [ ] Gate passes
+- [x] Each missing-proof example is denied with both names of HBS-33 (test `denies a covered merge without both proofs at its head`)
+- [x] A branch holding the head plus a commit, a newer `origin/` ref, `$BRANCH` and a remote-only branch are denied (test `merges a covered branch only at its proven head`)
+- [x] A merge by the head's commit id is guarded (test `guards a merge by commit id`)
+- [x] `gh pr merge` without the proven `--match-head-commit`, with another sha, or with a newer `origin/` ref is denied (test `pins a covered PR merge to the proven head`)
+- [x] `--auto` on a covered branch is denied (test `denies auto-merge of a covered branch`)
+- [x] The seven other commands are denied with `git merge --no-ff feat/F0-gate-precision`, and read-only, switch and push are not (tests `denies other ways to bring a covered branch in`, `keeps reading and switching to a covered branch`)
+- [x] Patches and plumbing ask (test `asks for patches and plumbing`)
+- [x] With both proofs at the head, the PR merge with the head pinned and the local merge are not denied (test `lets a proven covered branch merge`)
+- [x] Operand-less `git merge` and `git pull` are denied (test `denies a merge or pull with no operand`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/guard.test.mjs .claude/hooks/test/gate-rules.test.mjs`

@@ -194,7 +194,7 @@ function evalPrOther(action, rest) {
 
 // `gh pr merge` (HBS-03 to HBS-05): one head branch and the merge options only.
 const MERGE_VALUED = ['--subject', '-t', '--body', '-b', '--match-head-commit'];
-function evalMerge(rest, ctx) {
+function evalMerge(rest) {
   let merge = false;
   const operands = [];
   for (let i = 0; i < rest.length; i += 1) {
@@ -224,9 +224,7 @@ function evalMerge(rest, ctx) {
   }
   if (!isRefName(op)) return denyVerdict(`\`${op}\` is not a branch name. ${MERGE_FIX}`);
   if (!merge) return denyVerdict(`gh pr merge needs --merge. ${MERGE_FIX}`);
-  if (coveredBranches(ctx).includes(op)) {
-    return askVerdict(`${op} is a covered harness-self branch: the merge guard decides it (ADR 028 § 3).`);
-  }
+  // A covered branch is allowed here too (HBS-36): the merge guard (guard.mjs) denies it unless it is proven.
   return allowVerdict('a merge of a head branch with the merge options');
 }
 
@@ -286,11 +284,11 @@ function evalApi(rest) {
   return null;
 }
 
-function evalGh(args, ctx) {
+function evalGh(args) {
   const [group, action, ...rest] = args;
   if (!group || group.quoted) return null;
   if (group.raw === 'pr') {
-    if (action?.raw === 'merge') return evalMerge(rest, ctx);
+    if (action?.raw === 'merge') return evalMerge(rest);
     if (action && Object.hasOwn(PR_SHAPES, action.raw)) return evalPrOther(action.raw, rest);
     return null;
   }
@@ -332,11 +330,11 @@ function evalCurl(rest) {
 
 // ---------------------------------------------------------------- the decision of one command
 /** The verdict of a tokenized command, or null when it is not a delivery command. */
-function evaluate(tokens, ctx) {
+function evaluate(tokens) {
   const [h0, ...rest] = tokens;
   if (!h0 || h0.quoted) return null;
   if (h0.raw === 'git') return evalGit(rest);
-  if (h0.raw === 'gh') return evalGh(rest, ctx);
+  if (h0.raw === 'gh') return evalGh(rest);
   if (h0.raw === 'curl') return evalCurl(rest);
   return null;
 }
@@ -360,10 +358,10 @@ export function coveredBranches(ctx) {
  * allowed here, because a segment is not the whole line (allowedShape decides that). Null when the segment is not a
  * delivery command, so the ADR 021 rules judge it.
  */
-export function deliveryDecision(segment, ctx) {
+export function deliveryDecision(segment) {
   const tokens = tokenize(segment);
   if (!tokens) return null;
-  const verdict = evaluate(withoutEnvPrefix(tokens), ctx);
+  const verdict = evaluate(withoutEnvPrefix(tokens));
   if (!verdict) return null;
   if (verdict.verdict === 'deny') return { decision: 'deny', reason: verdict.reason };
   if (verdict.verdict === 'ask') return { decision: 'ask', reason: verdict.reason };
@@ -386,7 +384,7 @@ export function allowedShape(command, ctx) {
   const tokens = tokenize(line);
   if (!tokens || tokens.length === 0) return false;
   if (tokens.some((t) => /[$`]/.test(t.raw) && !RENDER_URL.has(t.raw))) return false;
-  return evaluate(tokens, ctx)?.verdict === 'allow';
+  return evaluate(tokens)?.verdict === 'allow';
 }
 
 /** HBS-14: a line that switches to main and merges in the same command line is the maintainer's decision. */
