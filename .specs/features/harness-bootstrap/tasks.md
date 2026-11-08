@@ -24,6 +24,7 @@ Rules of this feature:
 **Design**: none - Small row in the brief; the placement is fixed in the rules above and in each task
 **Status**: Approved
 **Approved**: 2026-11-07 - user: "aprovo specs e tasks da F0 que passarem nos gates automáticos; delego sub-agents, harness-edits e local-merge-phase-branch" (delegated via .specs/phases/F0/brief.md)
+**Replanned by the runner** (2026-11-07, during Execute): `bddgen` generates the whole feature and fails while any scenario lacks steps, so the acceptance gates of T10 and T11 could not pass before T12. T10 and T11 now gate on the acceptance type check, and T12 runs every `@HBS-` scenario. No criterion, check or proof changes. The tasks gate ran again on this text.
 **Mutations**: 4
 **Build**: `pnpm test:harness; pnpm lint; pnpm typecheck`
 
@@ -299,11 +300,11 @@ T7 → T8 → T9 → T10 → T11 → T12
 
 **Done when**:
 
-- [ ] Every scenario tagged HBS-01 to HBS-17 passes
+- [ ] The steps of every scenario tagged HBS-01 to HBS-17 are written; they run in T12's gate
 - [ ] Gate passes
 
 **Tests**: acceptance
-**Gate**: `pnpm exec turbo run test:acceptance -- --grep "@HBS-(0[1-8]|1[0-7]) "`
+**Gate**: `pnpm --filter @d2rmm/acceptance run typecheck`
 
 **Commit**: `test(harness): acceptance steps for delivery under ADR 028`
 
@@ -319,11 +320,11 @@ T7 → T8 → T9 → T10 → T11 → T12
 
 **Done when**:
 
-- [ ] Every scenario tagged HBS-18 to HBS-36 and HBS-45 to HBS-48 passes
+- [ ] The steps of every scenario tagged HBS-18 to HBS-36 and HBS-45 to HBS-48 are written; they run in T12's gate
 - [ ] Gate passes
 
 **Tests**: acceptance
-**Gate**: `pnpm exec turbo run test:acceptance -- --grep "@HBS-(1[89]|2[0-9]|3[0-6]|4[5-8]) "`
+**Gate**: `pnpm --filter @d2rmm/acceptance run typecheck`
 
 **Commit**: `test(harness): acceptance steps for harness-self and its guard`
 
@@ -339,12 +340,12 @@ T7 → T8 → T9 → T10 → T11 → T12
 
 **Done when**:
 
-- [ ] Both scenarios pass
+- [ ] Every scenario of `acceptance.feature` passes (T10 and T11's steps run here, since bddgen generates the whole feature)
 - [ ] `pnpm test:harness` and `pnpm contracts:check` pass with no test removed or skipped
 - [ ] Gate passes
 
 **Tests**: acceptance
-**Gate**: `pnpm exec turbo run test:acceptance -- --grep "@HBS-(3[7-9]|4[0-2]) " && pnpm test:harness && pnpm contracts:check`
+**Gate**: `pnpm exec turbo run test:acceptance -- --grep @HBS- && pnpm test:harness && pnpm contracts:check`
 
 **Commit**: `test(harness): acceptance steps for the guides`
 
@@ -413,8 +414,18 @@ Proof: `pnpm test:harness`
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** (1) HBS-47 applies while at least one feature is covered, and then denies every unresolvable operand whatever its name (AD-147, spec amendment); the batch-1 narrowing of unresolvable `gh pr merge` operands to covered branch names is reverted in T7. (2) Accepted batch-1 deviations: head and clean tree read after the command runs (fail-closed); `checkSegments` keeps the strongest decision across segments; the shell-write rule matches self-protected paths inside worktrees; a commit message naming the guarded files is denied, so commits use `-F`; worker commits carry the worker's own `Co-Authored-By`.
-**Dispatched:** execute-batch-1 (T1 to T7) to `feature-worker` at `7524f1f`, 2026-11-07, returned at `7aff920` (T1 to T6 committed; T7 uncommitted, session denial budget exhausted); execute-batch-2 (T7 finish, T8 to T12) to `feature-worker` at `bd4bc93`, 2026-11-07, returned at `9978a4d` (T7 committed; T8 stopped: auto mode refused the `.claude/settings.json` edit); execute-batch-3 (T8 to T12) to `feature-worker` at `9978a4d`, 2026-11-07. The T8 settings edit itself was made by the orchestrator in the worktree on the maintainer's explicit go-ahead ("Recomendado. Pode editar os settings.json da T8."), approved at the gate's prompt; the worker runs T8's gate and commits it. Batch 3 returned at `6c94011` (T8 committed; T9 stopped: auto mode refused the edits of `AGENTS.md`). The T9 text edits (`AGENTS.md`, `CLAUDE.md`, `SKILL.md` with a `harness-self` scope row, `escalation.md`, the brief template, whose `(never push)` is dropped) were made by the orchestrator on the maintainer's go-ahead ("Pode editar os guias da T9."); execute-batch-4 (T9 gate and commit with the worker's saved tests, T10 to T12) to `feature-worker` at `6c94011`, 2026-11-07. The REVIEW section of `SKILL.md`, which still has the maintainer push, is left to `continuous-delivery`
+**Dispatched:** execute-batch-1 (T1 to T7) to `feature-worker` at `7524f1f`, 2026-11-07, returned at `7aff920` (T1 to T6 committed; T7 uncommitted, session denial budget exhausted); execute-batch-2 (T7 finish, T8 to T12) to `feature-worker` at `bd4bc93`, 2026-11-07, returned at `9978a4d` (T7 committed; T8 stopped: auto mode refused the `.claude/settings.json` edit); execute-batch-3 (T8 to T12) to `feature-worker` at `9978a4d`, 2026-11-07. The T8 settings edit itself was made by the orchestrator in the worktree on the maintainer's explicit go-ahead ("Recomendado. Pode editar os settings.json da T8."), approved at the gate's prompt; the worker runs T8's gate and commits it. Batch 3 returned at `6c94011` (T8 committed; T9 stopped: auto mode refused the edits of `AGENTS.md`). The T9 text edits (`AGENTS.md`, `CLAUDE.md`, `SKILL.md` with a `harness-self` scope row, `escalation.md`, the brief template, whose `(never push)` is dropped) were made by the orchestrator on the maintainer's go-ahead ("Pode editar os guias da T9."); execute-batch-4 (T9 gate and commit with the worker's saved tests, T10 to T12) to `feature-worker` at `6c94011`, 2026-11-07. The REVIEW section of `SKILL.md`, which still has the maintainer push, is left to `continuous-delivery`. Batch 4 returned at `b5f6b43` (T9 committed; T10's acceptance gate failed once because bddgen needs every step of the feature: tasks replanned, see the note under Approved); execute-batch-5 (T10 to T12, starting from the uncommitted step file) to `feature-worker` at the replan commit, 2026-11-07
 **Walked:** none
+
+**Done (execute-batch-4, 2026-11-07):** T9 committed `b5f6b43` (gate `gate:harness-bootstrap/T9` passed on attempt 1; `node --test scripts/test/phase-runner-skill.test.mjs` 13 of 13). Prettier reformatted the test file before the commit; the file was re-run directly afterwards and stayed 13 of 13.
+
+**Blocked (execute-batch-4, stopped at T10, 2026-11-07):**
+
+- Unit `gate:harness-bootstrap/T10`: 1 failure of 3 (attempt 1). `bddgen` generates every scenario of `.specs/features/*/acceptance.feature`, and `missingSteps: 'fail-on-gen'` fails the whole generation while any scenario has no steps. The 48 missing steps are the HBS-18 to HBS-48 scenarios that T11 and T12 implement. The `--grep` does not limit generation, so the T10 gate cannot pass before T11 and T12 have their steps. Not retried: a retry cannot change this. The plan needs a replan: for example, the acceptance gate runs after T12, or the steps of all scenarios land together.
+- T10 steps: `tests/acceptance/steps/harness-bootstrap.steps.ts` is written (prettier-formatted) and uncommitted. T10 is not ticked and not committed. Its steps never ran, since generation fails before any scenario runs.
+- Two gate-hook denials this session, both counted: a direct `bddgen` run was refused as a test outside the attempt wrapper, and the first `attempt.mjs run` form of the T10 gate (escaped inner double quotes) was refused by the quote check. The gate ran afterwards with the same command, using single quotes inside the double quotes for the grep pattern.
+- T11 and T12 are not started (they depend on T10 in the plan).
+- Next step: the orchestrator replans T10 to T12 (see above). Then a run resumes at T10 with the step file present, gate `pnpm exec turbo run test:acceptance -- --grep "@HBS-(0[1-8]|1[0-7]) "` through `scripts/attempt.mjs` (1 failure used of 3).
 
 **Done (execute-batch-3, 2026-11-07):** T8 committed `6c94011` (gate `gate:harness-bootstrap/T8` passed on attempt 1; `node --test scripts/test/harness-settings.test.mjs` 2 of 2).
 
