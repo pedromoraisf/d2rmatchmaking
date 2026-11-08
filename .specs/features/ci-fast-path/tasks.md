@@ -288,9 +288,9 @@ T9 → T10
 
 **Done when**:
 
-- [ ] Every scenario of `acceptance.feature` passes
-- [ ] `pnpm contracts:check` reports no drift
-- [ ] Gate passes
+- [x] Every scenario of `acceptance.feature` passes
+- [x] `pnpm contracts:check` reports no drift
+- [x] Gate passes
 
 **Tests**: acceptance
 **Gate**: `pnpm exec turbo run test:acceptance -- --grep @CFP- && pnpm contracts:check`
