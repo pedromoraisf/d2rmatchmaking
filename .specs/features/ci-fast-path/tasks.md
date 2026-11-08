@@ -265,11 +265,11 @@ T9 → T10
 
 **Done when**:
 
-- [ ] The two groups exist before `dev-tooling` with `update-types: [major]` (test `groups majors of the lint and telemetry families`)
-- [ ] An `eslint` major takes the eslint group by first match (test `an eslint major lands in its group, not in dev-tooling`)
-- [ ] The cooldown holds those majors 30 days (test `holds those majors for 30 days`)
-- [ ] The schedule and the old groups are unchanged (test `keeps the weekly schedule and the old groups`)
-- [ ] Gate passes
+- [x] The two groups exist before `dev-tooling` with `update-types: [major]` (test `groups majors of the lint and telemetry families`)
+- [x] An `eslint` major takes the eslint group by first match (test `an eslint major lands in its group, not in dev-tooling`)
+- [x] The cooldown holds those majors 30 days (test `holds those majors for 30 days`)
+- [x] The schedule and the old groups are unchanged (test `keeps the weekly schedule and the old groups`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/dependabot.test.mjs`
