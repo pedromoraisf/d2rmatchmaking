@@ -63,17 +63,19 @@ test('bash: destructive and bypass commands are denied', () => {
 test('bash: escalations ask the maintainer', () => {
   const ctx = fakeCtx();
   for (const c of [
-    'git push origin phase/F0',
-    'gh pr merge 12 --squash',
     'gh secret set RENDER_DEPLOY_HOOK',
     'npx wrangler pages deploy dist',
     'curl -X POST https://api.render.com/deploy/srv-1?key=x', // secretlint-disable-line -- fake fixture for the gate test
     'git rm apps/api/src/x.test.ts',
     'pnpm publish',
-    'git tag agent-v0.0.1',
   ]) {
     assert.equal(d(checkBash(c, ctx)), 'ask', c);
   }
+  // ADR 028 § 1 changed three of these: a push of a phase branch and a tag are allowed, a PR merge outside the merge
+  // options is denied with the fix (HBS-04).
+  assert.equal(d(checkBash('git push origin phase/F0', ctx)), 'allow');
+  assert.equal(d(checkBash('git tag agent-v0.0.1', ctx)), 'allow');
+  assert.equal(d(checkBash('gh pr merge 12 --squash', ctx)), 'deny');
   assert.equal(d(checkBash('git merge feat/x', fakeCtx({}, { branch: 'main' }))), 'ask');
   assert.equal(d(checkBash('git merge feat/x', fakeCtx({}, { branch: 'phase/F0' }))), 'allow');
 });

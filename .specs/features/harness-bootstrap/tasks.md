@@ -157,13 +157,13 @@ T7 → T8 → T9 → T10 → T11 → T12
 
 **Done when**:
 
-- [ ] Each allowed example of `acceptance.feature` answers `allow` (test `allows delivery commands of the allowed shapes`)
-- [ ] Each `gh pr merge` example of HBS-04/05 is denied with the rejected option and `gh pr merge <head-branch> --merge` (test `denies PR merges outside the merge options`)
-- [ ] Each not-allowed-shape example is not `allow` (test `does not allow a line that is not an allowed shape`)
-- [ ] Chained examples get the other command's decision (test `gives a chained delivery command the other command's decision`)
-- [ ] Destructive examples deny and maintainer examples ask (tests `denies destructive remote operations`, `asks for what stays the maintainer's`)
-- [ ] `git merge` while on `main` asks (test `asks for a merge while on main`)
-- [ ] Gate passes; every other existing test of `gate-rules.test.mjs` passes unchanged
+- [x] Each allowed example of `acceptance.feature` answers `allow` (test `allows delivery commands of the allowed shapes`)
+- [x] Each `gh pr merge` example of HBS-04/05 is denied with the rejected option and `gh pr merge <head-branch> --merge` (test `denies PR merges outside the merge options`)
+- [x] Each not-allowed-shape example is not `allow` (test `does not allow a line that is not an allowed shape`)
+- [x] Chained examples get the other command's decision (test `gives a chained delivery command the other command's decision`)
+- [x] Destructive examples deny and maintainer examples ask (tests `denies destructive remote operations`, `asks for what stays the maintainer's`)
+- [x] `git merge` while on `main` asks (test `asks for a merge while on main`)
+- [x] Gate passes; every other existing test of `gate-rules.test.mjs` passes unchanged
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/delivery.test.mjs .claude/hooks/test/gate-rules.test.mjs .claude/hooks/test/shell-indirection.test.mjs`

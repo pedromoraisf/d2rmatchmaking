@@ -1,7 +1,7 @@
 // Shared I/O helpers for Claude Code hooks. Hooks are plain Node ESM with zero dependencies,
 // so they work before `pnpm install` and on every contributor machine.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 
 export async function readStdinJson() {
@@ -24,6 +24,38 @@ export function toRelative(root, filePath) {
   if (!filePath) return '';
   const abs = path.isAbsolute(filePath) ? filePath : path.join(root, filePath);
   return path.relative(root, abs).split(path.sep).join('/');
+}
+
+/** A path with its symbolic links resolved; for a path that does not exist yet, its nearest existing ancestor's. */
+function realPathOf(p) {
+  let probe = path.resolve(p);
+  const missing = [];
+  while (!existsSync(probe)) {
+    const parent = path.dirname(probe);
+    if (parent === probe) break;
+    missing.unshift(path.basename(probe));
+    probe = parent;
+  }
+  try {
+    return path.join(realpathSync(probe), ...missing);
+  } catch {
+    return path.resolve(p);
+  }
+}
+
+/**
+ * HBS-20: the absolute path `rel` names under `base`, after resolving `..` and the symbolic links of its nearest
+ * existing directory. Both the base and the result are real paths, so they compare the same way.
+ */
+export function resolveInside(base, rel) {
+  return realPathOf(path.resolve(realPathOf(base), rel));
+}
+
+/** Is `rel` (after resolveInside) the base or a path under it? */
+export function insideRepo(base, rel) {
+  const root = realPathOf(base);
+  const abs = resolveInside(base, rel);
+  return abs === root || abs.startsWith(`${root}${path.sep}`);
 }
 
 /**
