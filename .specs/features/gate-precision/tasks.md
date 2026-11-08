@@ -575,11 +575,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Dispatched:** execute-batch-1 (T1 to T7) to `feature-worker` at `948bdaa`, 2026-11-08
 **Replan — T5 (2026-11-08):** the worker stopped at T5: the predicates it reuses are not exported from `gate-rules.mjs`, which was outside its Where. T5's Where now adds those five exports and nothing else. T4 keeps its own copy of the secret list (spec's list, a superset of `ENV_FILE`); T4 uses `git ls-files --others --ignored --exclude-standard --literal-pathspecs` instead of `git check-ignore --stdin` (same result for untracked files; tracked files are never ignored). Dispatched: execute-batch-1 (retry, T5 to T7) to `feature-worker` at the commit of this note.
 **Walked:** none
-**Done in batch 1:** T1 `dd0e7c7`, T2 `d43e110`, T3 `d2cdb5e`, T4 `2ebb2d2` (gates passed on attempt 1)
-**Blocked:** T5 (plan issue, not an attempt failure). T5's Reuses names `isHarnessFile`, `isSelfProtected`, `TEST_FILE`
-and `BASELINE` of `gate-rules.mjs`, but those are module-private there (no `export`), and `gate-rules.mjs` is outside
-T5's Where. Options for the orchestrator: add those four exports in T5's Where, or move them to a shared module. T6 and
-T7 follow T5 in order, so they wait.
+**Done in batch 1:** T1 `dd0e7c7`, T2 `d43e110`, T3 `d2cdb5e`, T4 `2ebb2d2`, T5 `165d0d9` (gates passed on attempt 1)
+**Blocked:** T6 (plan conflict, not an attempt failure; no T6 code written). GPR-09 denies inline code that writes a GPR-08 file, and GPR-08 names the quality baseline. `gate-rules.test.mjs` pins two cases of inline baseline writes as `ask` (`python3 -c "open('.quality-baseline.json', 'w')…"` and the `python3 -` here-doc with `open('.quality-baseline.json', 'w')`), and T6 requires every existing test to pass unchanged. Both cannot hold. The other inline cases in that test are deletions (`unlink`, `rmSync`), which GPR-05 does not count as writes, so they stay `ask` either way. Options for the orchestrator: (A) amend GPR-09 so the quality baseline keeps `ask` for inline writes, and T6 denies inline writes to harness, sensor and test files; (B) change those two expectations to `deny` (an existing test, the maintainer's decision). T7 waits behind T6.
 
 ---
 
