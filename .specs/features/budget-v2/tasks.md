@@ -164,14 +164,14 @@ T8 → T9 → T10
 
 **Done when**:
 
-- [ ] An unchanged rerun exits 4 without running and keeps the count (test `refuses a rerun with nothing changed`)
-- [ ] A counted failure, an environment failure, then the same tree: refused (test `refuses a rerun of a state already proven failing`)
-- [ ] An empty commit changes nothing: refused (test `an empty commit is not a change`)
-- [ ] An edited or added file, or another command, runs (test `runs after a change or with another command`)
-- [ ] After a machine failure alone, the same tree runs (test `runs again after a machine failure`)
-- [ ] Outside a git repository nothing is refused (test `never refuses without a fingerprint`)
-- [ ] The fingerprint is taken before the command runs (test `takes the fingerprint before the command`)
-- [ ] Gate passes
+- [x] An unchanged rerun exits 4 without running and keeps the count (test `refuses a rerun with nothing changed`)
+- [x] A counted failure, an environment failure, then the same tree: refused (test `refuses a rerun of a state already proven failing`)
+- [x] An empty commit changes nothing: refused (test `an empty commit is not a change`)
+- [x] An edited or added file, or another command, runs (test `runs after a change or with another command`)
+- [x] After a machine failure alone, the same tree runs (test `runs again after a machine failure`)
+- [x] Outside a git repository nothing is refused (test `never refuses without a fingerprint`)
+- [x] The fingerprint is taken before the command runs (test `takes the fingerprint before the command`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/attempt-cli.test.mjs`

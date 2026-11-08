@@ -261,3 +261,117 @@ test('bounds each diagnosis probe to ten seconds and reads unavailable when one 
   assert.ok(lines.some((l) => l.includes('load average (1, 5, 15 min): 1.00 0.50 0.25')));
   assert.ok(lines.some((l) => l.includes('leftover acceptance processes: none')));
 });
+
+// Budget v2 (T4): an unchanged rerun is refused before it runs; the tree is fingerprinted before the command.
+// Markers live outside the repository so that what a command writes does not change the tree under test.
+const gateArgs = (command) => ['run', '--feature', 'demo', '--step', 'T1', '--', command];
+const linesIn = (file) => readFileSync(file, 'utf8').trim().split('\n').length;
+const refusalsOf = (dir) =>
+  JSON.parse(readFileSync(path.join(dir, '.git/d2rmm/ledger.json'), 'utf8')).refusals ?? [];
+const outsideMarker = () => path.join(mkdtempSync(path.join(tmpdir(), 'd2rmm-mark-')), 'ran.txt');
+const treeOf = (dir) => {
+  const index = path.join(mkdtempSync(path.join(tmpdir(), 'd2rmm-idx-')), 'index');
+  const e = { ...env, GIT_INDEX_FILE: index };
+  execFileSync('git', ['-C', dir, 'add', '-A', '--', '.', ':(exclude)reports/attempts'], { env: e });
+  return execFileSync('git', ['-C', dir, 'write-tree'], { env: e, encoding: 'utf8' }).trim();
+};
+
+test('refuses a rerun with nothing changed', () => {
+  const dir = committedRepo();
+  const marker = outsideMarker();
+  const args = gateArgs(`echo x >> ${marker}; exit 1`);
+  assert.equal(run(dir, ...args).status, 1);
+  const again = run(dir, ...args);
+  assert.equal(again.status, 4);
+  assert.match(again.stderr, /nothing changed since the last failure/);
+  assert.equal(linesIn(marker), 1, 'the command did not run again');
+  assert.equal(countedFailures(dir), 1, 'the refusal spent nothing');
+  assert.equal(unitOf(dir).attempts.length, 1, 'the refusal is not an attempt');
+  assert.equal(refusalsOf(dir).length, 1);
+  assert.equal(refusalsOf(dir)[0].key, 'gate:demo/T1');
+});
+
+test('refuses a rerun of a state already proven failing', () => {
+  const dir = committedRepo();
+  const marker = outsideMarker();
+  const failing = gateArgs(`echo x >> ${marker}; exit 1`);
+  assert.equal(run(dir, ...failing).status, 1);
+  assert.equal(run(dir, ...gateArgs('echo Cannot connect to the Docker daemon; exit 1')).status, 1);
+  assert.equal(unitOf(dir).attempts.at(-1).signature, 'docker');
+  const again = run(dir, ...failing);
+  assert.equal(again.status, 4);
+  assert.equal(linesIn(marker), 1, 'the command did not run again');
+  assert.equal(countedFailures(dir), 1);
+});
+
+test('an empty commit is not a change', () => {
+  const dir = committedRepo();
+  const marker = outsideMarker();
+  const args = gateArgs(`echo x >> ${marker}; exit 1`);
+  assert.equal(run(dir, ...args).status, 1);
+  git('-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'empty');
+  assert.equal(run(dir, ...args).status, 4);
+  assert.equal(linesIn(marker), 1);
+});
+
+test('runs after a change or with another command', () => {
+  const edits = [
+    [
+      'edits a tracked file',
+      (dir) => writeFileSync(path.join(dir, '.specs/features/demo/tasks.md'), '# Tasks\n\n### T1: changed\n'),
+    ],
+    ['adds an untracked file', (dir) => writeFileSync(path.join(dir, 'new.txt'), 'x\n')],
+  ];
+  for (const [label, change] of edits) {
+    const dir = committedRepo();
+    const marker = outsideMarker();
+    const args = gateArgs(`echo x >> ${marker}; exit 1`);
+    assert.equal(run(dir, ...args).status, 1);
+    change(dir);
+    assert.equal(run(dir, ...args).status, 1, label);
+    assert.equal(linesIn(marker), 2, label);
+  }
+  const dir = committedRepo();
+  const marker = outsideMarker();
+  assert.equal(run(dir, ...gateArgs(`echo x >> ${marker}; exit 1`)).status, 1);
+  assert.equal(run(dir, ...gateArgs(`echo y >> ${marker}; exit 1`)).status, 1, 'another command');
+  assert.equal(linesIn(marker), 2);
+});
+
+test('runs again after a machine failure', () => {
+  const dir = committedRepo();
+  const marker = outsideMarker();
+  const args = gateArgs(`echo x >> ${marker}; echo Cannot connect to the Docker daemon; exit 1`);
+  assert.equal(run(dir, ...args).status, 1);
+  assert.equal(run(dir, ...args).status, 1, 'the same tree runs again after a machine failure');
+  assert.equal(linesIn(marker), 2);
+  assert.equal(countedFailures(dir), 0);
+});
+
+test('never refuses without a fingerprint', () => {
+  const plain = mkdtempSync(path.join(tmpdir(), 'd2rmm-plain-'));
+  mkdirSync(path.join(plain, '.specs/features/demo'), { recursive: true });
+  writeFileSync(path.join(plain, '.specs/features/demo/tasks.md'), '# Tasks\n\n### T1: do it\n');
+  const marker = outsideMarker();
+  const ledgerFile = path.join(mkdtempSync(path.join(tmpdir(), 'd2rmm-ledger-')), 'ledger.json');
+  const plainRun = () =>
+    spawnSync('node', [script, ...gateArgs(`echo x >> ${marker}; exit 1`)], {
+      cwd: plain,
+      encoding: 'utf8',
+      env: { ...env, D2RMM_LEDGER: ledgerFile },
+    });
+  assert.equal(plainRun().status, 1);
+  assert.equal(plainRun().status, 1, 'no git, no fingerprint, no refusal');
+  assert.equal(linesIn(marker), 2);
+});
+
+test('takes the fingerprint before the command', () => {
+  const dir = committedRepo();
+  const before = treeOf(dir);
+  const args = gateArgs(`echo changed > ${dir}/new.txt; exit 1`);
+  assert.equal(run(dir, ...args).status, 1);
+  assert.equal(unitOf(dir).attempts[0].fingerprint, before, 'recorded before the command wrote new.txt');
+  assert.notEqual(treeOf(dir), before, 'the command did change the tree');
+  assert.equal(run(dir, ...args).status, 1, 'the tree after the run differs, so the rerun runs');
+  assert.equal(countedFailures(dir), 2);
+});

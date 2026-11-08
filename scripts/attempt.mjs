@@ -7,10 +7,12 @@
 //   node scripts/attempt.mjs reset --unit <key> --by <maintainer>   maintainer only (the gate hook asks)
 //
 // Exit codes for `run`: the command's own status when it ran (124 for a timeout, 137 for a kill by SIGKILL); 3 when
-// the unit is (or becomes) blocked or env-blocked; 2 for invalid usage (unknown feature or step, a bad --timeout).
+// the unit is (or becomes) blocked or env-blocked; 4 when the rerun is refused because nothing changed since the last
+// counted failure; 2 for invalid usage (unknown feature or step, a bad --timeout).
 // A failure the machine caused (lib/env-signatures.mjs) is recorded and not counted.
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   MAX_ATTEMPTS,
@@ -19,6 +21,8 @@ import {
   unitKey,
   canAttempt,
   recordAttempt,
+  recordRefusal,
+  isUnchangedRerun,
   blockedMessage,
   failuresOf,
   featureBlocked,
@@ -61,6 +65,33 @@ function gitOutput(cwd, args, { trim = true } = {}) {
   return trim ? r.stdout.trim() : r.stdout;
 }
 
+/**
+ * BUD-08: the tree of the working directory (tracked and untracked files not ignored by git), written through a
+ * temporary index so the real index is never touched. The wrapper's own logs are left out. Null when git fails (BUD-28).
+ */
+function treeFingerprint(cwd) {
+  const dir = mkdtempSync(path.join(tmpdir(), 'd2rmm-tree-'));
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
+  env.GIT_INDEX_FILE = path.join(dir, 'index');
+  try {
+    const add = spawnSync('git', ['add', '-A', '--', '.', ':(exclude)reports/attempts'], {
+      cwd,
+      env,
+      stdio: 'ignore',
+    });
+    if (add.status !== 0) return null;
+    const tree = spawnSync('git', ['write-tree'], {
+      cwd,
+      env,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return tree.status === 0 ? tree.stdout.trim() : null;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 /** The --timeout of `run` in whole minutes (BUD-27): the default when absent, exit 2 when not a whole number ≥ 1. */
 function timeoutMinutes() {
   if (!opts.includes('--timeout')) return DEFAULT_TIMEOUT_MINUTES;
@@ -92,6 +123,16 @@ if (cmd === 'run') {
     if (before.units[key]?.status === 'env-blocked') console.error(`\n${diagnose().join('\n')}`);
     process.exit(3);
   }
+  // BUD-08/09: the tree is fingerprinted before the command starts; an unchanged rerun of a counted failure is refused.
+  const fingerprint = treeFingerprint(root);
+  if (isUnchangedRerun(before, key, { fingerprint, command })) {
+    withLedger(file, (l) => recordRefusal(l, key));
+    console.error(
+      `✗ refused: nothing changed since the last failure of ${key} (same tree, same command). The command did not ` +
+        'run and the failure count is unchanged. Change the code or the command first.',
+    );
+    process.exit(4);
+  }
   console.error(`attempt ${pre.attempt}/${MAX_ATTEMPTS} for ${key}: ${command}`);
   const r = await runGate(command, { cwd: root, timeoutMs: minutes * 60_000 });
   process.stdout.write(r.stdout);
@@ -112,6 +153,7 @@ if (cmd === 'run') {
       command,
       head,
       clean,
+      fingerprint,
       ...(sig ? { kind: 'env', signature: sig.signature } : {}),
     });
     return { res: out, unit: structuredClone(l.units[key]) };

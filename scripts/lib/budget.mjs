@@ -120,7 +120,7 @@ export function recordAttempt(
   ledger,
   key,
   ok,
-  { note = '', at = new Date().toISOString(), command, head, clean, kind, signature } = {},
+  { note = '', at = new Date().toISOString(), command, head, clean, kind, signature, fingerprint } = {},
 ) {
   const u = structuredClone(unit(ledger, key));
   if (isBlocked(u)) {
@@ -142,6 +142,7 @@ export function recordAttempt(
   if (command !== undefined) attempt.command = String(command);
   if (head !== undefined) attempt.head = head === null ? null : String(head);
   if (clean !== undefined) attempt.clean = Boolean(clean);
+  if (fingerprint !== undefined) attempt.fingerprint = fingerprint === null ? null : String(fingerprint);
   u.attempts.push(attempt);
   const failures = countedFailuresOf(u);
   if (ok) u.status = 'passed';
@@ -156,6 +157,22 @@ export function recordAttempt(
 /** Retries left after `failures` counted failures: never more than MAX_RETRIES, never negative. */
 function retriesLeft(failures) {
   return Math.min(MAX_RETRIES, Math.max(0, MAX_ATTEMPTS - failures));
+}
+
+/**
+ * BUD-09: is this run an unchanged rerun? True when the unit's latest counted failure since its last pass or reset has
+ * the same tree fingerprint and the same command. A null fingerprint (no git) never matches. Environment failures in
+ * between are skipped, so a counted failure, an environment failure and the same tree is still refused.
+ */
+export function isUnchangedRerun(ledger, key, { fingerprint, command }) {
+  if (fingerprint === null || fingerprint === undefined) return false;
+  const attempts = unit(ledger, key).attempts;
+  for (let i = attempts.length - 1; i >= 0; i -= 1) {
+    const a = attempts[i];
+    if (a.ok) return false;
+    if (isCountedFailure(a)) return a.fingerprint === fingerprint && a.command === String(command);
+  }
+  return false;
 }
 
 /**
