@@ -366,6 +366,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 
 **Replan — T10 (2026-11-08):** the maintainer reset `gate:budget-v2/T10`. Cause of the two failures found by the orchestrator: the untagged `After` hook of `observability.steps.ts` asks for the `world` fixture, which starts the stack and calls `stack.reset()` before every scenario, budget-v2's included. T10 now scopes that hook to `@NFR-09`. Next: execute-batch-3 (retry) finishes and commits T10.
 
+**T10 done (2026-11-08):** execute-batch-3 (retry, after the maintainer reset the dispatch) committed `3e3cc97`; gate passed on its first run after the reset: 55 of 55 `@BUD-` scenarios, `pnpm test:harness` 488 pass, `pnpm contracts:check` clean. The blocks above are resolved. Next: proofs.
+
 ---
 
 ## Phase Execution Map
