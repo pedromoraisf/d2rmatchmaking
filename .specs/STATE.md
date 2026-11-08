@@ -1317,6 +1317,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-07
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-147 (assumed)
+
+- **Decision**: HBS-47 (deny an operand that does not resolve) applies while the brief covers at least one feature under `harness-self`; while it does, every unresolvable operand is denied, whatever its name.
+- **Reason**: harness-bootstrap Execute (T7). As written, HBS-47 denied merges of unfetched branches with nothing to guard, which contradicts HBS-03 and the existing merge expectations. A narrowing to operands named like a covered branch was rejected: it reopens the bypass of a branch pushed from a covered head, deleted locally and merged by name.
+- **Trade-off**: while a feature is covered, the runner fetches or pushes a branch before merging it. Reversal: one condition in the guard.
+- **Scope**: harness-bootstrap
+- **Date**: 2026-11-07
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

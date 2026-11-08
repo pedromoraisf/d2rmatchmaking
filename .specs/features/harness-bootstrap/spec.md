@@ -2,6 +2,8 @@
 
 **Approved**: 2026-11-07 - user: "aprovo specs e tasks da F0 que passarem nos gates automáticos; delego sub-agents, harness-edits e local-merge-phase-branch" (delegated via .specs/phases/F0/brief.md)
 
+**Amended by the runner** (assumed, AD-147; to confirm at the phase review): 2026-11-07, Execute found that HBS-47 as written denies a `git merge` or `gh pr merge` of any branch the main checkout has not fetched, even when no feature is covered and there is nothing to guard. HBS-47 applies while the brief covers at least one feature; while it does, every unresolvable operand is denied, whatever its name. No criterion is edited and no requirement is added.
+
 ## Problem Statement
 
 In F0 the gate asked the maintainer 49 times for push, PR merges, merges into `main`, releases and deploys, and 25 times

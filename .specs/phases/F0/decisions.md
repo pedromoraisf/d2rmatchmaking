@@ -121,6 +121,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-144 | harness-bootstrap | `gh pr merge` must name the head branch and use `--merge`; a number, no argument, `--squash`, `--rebase` or `--admin` is denied with the fix | map numbers through the GitHub API | |
 | AD-145 | harness-bootstrap | A local merge into `main`, a push to `main`, to another remote, with no refspec or `src:dst`, `wrangler deploy`, `npm`/`pnpm publish`, `gh release delete` and `gh api` writes still ask | allow them in the gate | |
 | AD-146 | harness-bootstrap | Verdicts live in `verdicts.json` next to the hooks' ledger under `.git/`; any Edit, Write or shell write there is denied | move the store | |
+| AD-147 | harness-bootstrap | HBS-47 applies while at least one feature is covered; then every unresolvable merge operand is denied, whatever its name | one condition in the guard | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 

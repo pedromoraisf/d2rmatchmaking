@@ -412,9 +412,18 @@ Proof: `pnpm test:harness`
 
 The feature's live state, written as it happens - a compaction gives no warning.
 
-**Settled mid-build:** none
-**Dispatched:** execute-batch-1 (T1 to T7) to `feature-worker` at `7524f1f`, 2026-11-07
+**Settled mid-build:** (1) HBS-47 applies while at least one feature is covered, and then denies every unresolvable operand whatever its name (AD-147, spec amendment); the batch-1 narrowing of unresolvable `gh pr merge` operands to covered branch names is reverted in T7. (2) Accepted batch-1 deviations: head and clean tree read after the command runs (fail-closed); `checkSegments` keeps the strongest decision across segments; the shell-write rule matches self-protected paths inside worktrees; a commit message naming the guarded files is denied, so commits use `-F`; worker commits carry the worker's own `Co-Authored-By`.
+**Dispatched:** execute-batch-1 (T1 to T7) to `feature-worker` at `7524f1f`, 2026-11-07, returned at `7aff920` (T1 to T6 committed; T7 uncommitted, session denial budget exhausted); execute-batch-2 (T7 finish, T8 to T12) to `feature-worker` at the commit after this note, 2026-11-07
 **Walked:** none
+
+**Blocked (execute-batch-1, session stopped at T7, 2026-11-07):**
+
+- Committed: T1 `fc1638c`, T2 `a48fe56`, T3 `d19023e`, T4 `3cb2062`, T5 `e80cb4f`, T6 `7aff920` (each with its gate passed through `attempt.mjs`).
+- Unit `gate:harness-bootstrap/T7`: 1 failure of 3. Attempt 1 ran `node --test .claude/hooks/test/guard.test.mjs .claude/hooks/test/gate-rules.test.mjs`; the one failing test, `denies a covered merge without both proofs at its head`, failed because its case list mutated the shared fixture context (the first case inherited the last case's proofs). Fixed in the working tree afterwards (each case builds its own context); the gate has NOT been re-run since.
+- T7 is uncommitted in the worktree: `.claude/hooks/lib/guard.mjs` (new), `.claude/hooks/test/guard.test.mjs` (new), `.claude/hooks/lib/delivery.mjs` (a covered PR merge answers allow; the guard decides), `.claude/hooks/lib/gate-rules.mjs` (guard wiring in `checkSegments`), `.claude/hooks/gate.mjs` (`ctx.verdicts` loaded), `.claude/hooks/test/delivery.test.mjs` (one expectation: a covered merge without proofs is `deny`, was a placeholder `ask`).
+- Stop reason: the session's denial budget is exhausted (3 of 3). Three gate-hook denials, all the same class: a command chained outside the attempt wrapper or a direct lint/test run during the phase. The third was `prettier && attempt.mjs run …`. No further gate, commit or edit of hook files was made after that.
+- Next step for the orchestrator: a fresh session re-runs the T7 gate from the worktree (`node scripts/attempt.mjs run --feature harness-bootstrap --step T7 -- "node --test .claude/hooks/test/guard.test.mjs .claude/hooks/test/gate-rules.test.mjs"`), then commits T7 with trailers. T8–T12 are not started.
+- Incident recorded for the review: during T2's pre-commit run a test in `.claude/hooks/test/delegation.test.mjs` (before its fix) inherited the hook's `GIT_*` environment and committed into the real repository, created a `feat/F0-gate-precision` branch and a temp worktree registration, and set `core.bare = true`. Repaired: `core.bare` back to `false`, the branch and the registration removed, HEAD reset (soft, then index) to `fc1638c`. The test now clears `GIT_*` with `Reflect.deleteProperty` (process.env reassignment does not reach child processes); `guard.test.mjs` uses the same guard.
 
 ---
 
