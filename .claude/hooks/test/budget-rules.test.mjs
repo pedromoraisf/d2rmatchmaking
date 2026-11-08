@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { decide } from '../lib/gate-rules.mjs';
-import { onStop, onFeedback } from '../lib/budget-rules.mjs';
+import { checkBudget, isPackageScopeOnly, isSensorHelp, onStop, onFeedback } from '../lib/budget-rules.mjs';
 import { toRelative } from '../lib/io.mjs';
 import {
   emptyLedger,
@@ -344,4 +344,29 @@ test('worktrees are judged as their feature branch, and protected files stay pro
     ).decision,
     'deny',
   );
+});
+
+test("lets a sensor's help through", () => {
+  const ctx = ctxFor();
+  for (const c of ['pnpm exec vitest --help', 'npx stryker --version', 'cargo nextest --list']) {
+    assert.equal(call('Bash', { command: c }, ctx)?.decision ?? 'allow', 'allow', c);
+  }
+  for (const c of ['pnpm test --help', 'vitest --help | head']) {
+    assert.equal(call('Bash', { command: c }, ctx).decision, 'deny', c);
+  }
+  assert.equal(isSensorHelp('vitest --help'), true);
+  assert.equal(isSensorHelp('vitest run --help'), false);
+  assert.equal(isSensorHelp('vitest --help | head'), false);
+});
+
+test('a package scope is not the ledger', () => {
+  const ctx = ctxFor({ approved: false });
+  const bash = (command) => checkBudget({ tool_name: 'Bash', tool_input: { command } }, ctx, 's1', '');
+  assert.equal(bash('pnpm --filter @d2rmm/api test'), null);
+  assert.equal(isPackageScopeOnly('pnpm --filter @d2rmm/api test'), true);
+  for (const c of ['echo @d2rmm/x$(cat y)', 'ls @d2rmm/x/../ledger', 'cat .git/d2rmm/ledger.json']) {
+    assert.equal(bash(c)?.decision, 'deny', c);
+    assert.equal(isPackageScopeOnly(c), false, c);
+  }
+  assert.equal(isPackageScopeOnly('cat verdicts.json @d2rmm/api'), false);
 });

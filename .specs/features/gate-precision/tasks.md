@@ -252,10 +252,10 @@ T15 → T16
 
 **Done when**:
 
-- [ ] `pnpm exec vitest --help`, `npx stryker --version`, `cargo nextest --list` pass the wrapper rule on a feature branch; `pnpm test --help` and `vitest --help | head` do not (test `lets a sensor's help through`)
-- [ ] `pnpm --filter @d2rmm/api test` is not a ledger reference; `@d2rmm/x$(cat y)`, `@d2rmm/x/../ledger`, `.git/d2rmm/ledger.json` still deny (test `a package scope is not the ledger`)
-- [ ] Every existing test of `budget-rules.test.mjs` passes unchanged
-- [ ] Gate passes
+- [x] `pnpm exec vitest --help`, `npx stryker --version`, `cargo nextest --list` pass the wrapper rule on a feature branch; `pnpm test --help` and `vitest --help | head` do not (test `lets a sensor's help through`)
+- [x] `pnpm --filter @d2rmm/api test` is not a ledger reference; `@d2rmm/x$(cat y)`, `@d2rmm/x/../ledger`, `.git/d2rmm/ledger.json` still deny (test `a package scope is not the ledger`) — unit level only, see Handoff: the whole gate still denies the scope at `gate-rules.mjs` lines 188 and 370
+- [x] Every existing test of `budget-rules.test.mjs` passes unchanged
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs`
@@ -576,8 +576,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Replan — T5 (2026-11-08):** the worker stopped at T5: the predicates it reuses are not exported from `gate-rules.mjs`, which was outside its Where. T5's Where now adds those five exports and nothing else. T4 keeps its own copy of the secret list (spec's list, a superset of `ENV_FILE`); T4 uses `git ls-files --others --ignored --exclude-standard --literal-pathspecs` instead of `git check-ignore --stdin` (same result for untracked files; tracked files are never ignored). Dispatched: execute-batch-1 (retry, T5 to T7) to `feature-worker` at the commit of this note.
 **Replan — T6 (2026-11-08):** the worker stopped at T6: GPR-09 would deny inline writes to the quality baseline, which two accepted assertions of `gate-rules.test.mjs` pin as `ask`. Conservative default taken (AD-165, assumed): the baseline keeps `ask` for inline writes; the deny covers harness, sensor and test files. T6 also names `checkSegment`'s basename (GPR-32) and the `strongest` ordering. Dispatched: execute-batch-1 (retry 2, T6 and T7) to `feature-worker` at the commit of this note.
 **Walked:** none
-**Done in batch 1:** T1 `dd0e7c7`, T2 `d43e110`, T3 `d2cdb5e`, T4 `2ebb2d2`, T5 `165d0d9` (gates passed on attempt 1)
-**Blocked:** T6 (plan conflict, not an attempt failure; no T6 code written). GPR-09 denies inline code that writes a GPR-08 file, and GPR-08 names the quality baseline. `gate-rules.test.mjs` pins two cases of inline baseline writes as `ask` (`python3 -c "open('.quality-baseline.json', 'w')…"` and the `python3 -` here-doc with `open('.quality-baseline.json', 'w')`), and T6 requires every existing test to pass unchanged. Both cannot hold. The other inline cases in that test are deletions (`unlink`, `rmSync`), which GPR-05 does not count as writes, so they stay `ask` either way. Options for the orchestrator: (A) amend GPR-09 so the quality baseline keeps `ask` for inline writes, and T6 denies inline writes to harness, sensor and test files; (B) change those two expectations to `deny` (an existing test, the maintainer's decision). T7 waits behind T6.
+**Done in batch 1:** T1 `dd0e7c7`, T2 `d43e110`, T3 `d2cdb5e`, T4 `2ebb2d2`, T5 `165d0d9`, T6 `274bb0f` (gates passed on attempt 1); T7 in the commit that carries this line (gate passed on attempt 1)
+**Blocked:** none. **Open, GPR-33 (T7, for the orchestrator):** `gate-rules.mjs` still denies a package scope through its own `LEDGER_REF` checks (`checkInlineCode`, about line 188, and `checkBash`, about line 370), so the whole gate denies `pnpm --filter @d2rmm/api test` until both use `isPackageScopeOnly`. T7's Where names only `budget-rules.mjs`. The orchestrator decides whether T10 or a T7 amendment carries the change. **Resolved, T6 (plan conflict, no attempt failure):** GPR-09 denies inline code that writes a GPR-08 file, and GPR-08 names the quality baseline. `gate-rules.test.mjs` pins two cases of inline baseline writes as `ask` (`python3 -c "open('.quality-baseline.json', 'w')…"` and the `python3 -` here-doc with `open('.quality-baseline.json', 'w')`), and T6 requires every existing test to pass unchanged. Both cannot hold. The other inline cases in that test are deletions (`unlink`, `rmSync`), which GPR-05 does not count as writes, so they stay `ask` either way. Options for the orchestrator: (A) amend GPR-09 so the quality baseline keeps `ask` for inline writes, and T6 denies inline writes to harness, sensor and test files; (B) change those two expectations to `deny` (an existing test, the maintainer's decision). T7 waits behind T6.
 
 ---
 

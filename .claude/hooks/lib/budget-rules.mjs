@@ -31,6 +31,21 @@ const SPECS_FILE = /^(\.claude\/worktrees\/[a-z0-9][a-z0-9-]*\/)?\.specs\//;
 // scripts/attempt.mjs and scripts/phase-status.mjs name neither, so they stay allowed.
 export const LEDGER_REF = /\.git\/d2rmm|d2rmm\/|verdicts\.json|ledger\.json|D2RMM_LEDGER/;
 export const GIT_DIR_CD = /(^|[;&|(\n]\s*)cd\s+\S*\.git(?=\/|\s|$|[;&|)])/;
+// GPR-33: `@d2rmm/<package>` followed by a space, a quote or the end of the word is a package scope, not the ledger's
+// folder. It counts only when every `d2rmm/` in the line is such a scope and no ledger or verdict file is named.
+const PACKAGE_SCOPE = /@d2rmm\/[\w.-]+(?=\s|"|'|$)/g;
+const LEDGER_NAME = /verdicts\.json|ledger\.json|D2RMM_LEDGER/;
+export function isPackageScopeOnly(command) {
+  const cmd = String(command ?? '');
+  const scopes = cmd.match(PACKAGE_SCOPE)?.length ?? 0;
+  return scopes > 0 && scopes === cmd.split('d2rmm/').length - 1 && !LEDGER_NAME.test(cmd);
+}
+// GPR-14: a sensor's help or version call, alone on the line, is not a gate run (direct, or through pnpm exec / npx).
+const SENSOR_HELP =
+  /^(?:(?:pnpm\s+exec|npx)\s+)?(?:vitest|jest|playwright|stryker|eslint|tsc|depcruise|cargo\s+(?:nextest|clippy|mutants))\s+(?:--help|-h|--version|--list)$/;
+export function isSensorHelp(command) {
+  return SENSOR_HELP.test(String(command ?? '').trim());
+}
 const WRAPPER = /(^|\s)(node\s+)?(\.\/)?scripts\/attempt\.mjs\s+run\s/;
 const WRAPPER_ANY = /scripts\/attempt\.mjs\s+(\w+)/;
 // A sensor runs when it is the command a shell segment executes — never when its name is only an argument or a path
@@ -103,7 +118,8 @@ export function checkBudget(input, ctx, sid, rel) {
   ) {
     return deny('Files under .git/ (including the retry ledger and the verdicts) are off-limits.');
   }
-  if (tool === 'Bash' && (LEDGER_REF.test(cmd) || GIT_DIR_CD.test(cmd))) {
+  const ledgerRef = LEDGER_REF.test(cmd) && !isPackageScopeOnly(cmd);
+  if (tool === 'Bash' && (ledgerRef || GIT_DIR_CD.test(cmd))) {
     return deny(
       'The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git.',
     );
@@ -188,7 +204,7 @@ export function checkBudget(input, ctx, sid, rel) {
     }
     // Nested shells (`bash -c "pnpm test"`, `eval …`) run their command too: judge what they hide.
     const executed = [cmd, ...innerShellCommands(cmd)].flatMap(segments);
-    if (executed.some(runsSensor)) {
+    if (!isSensorHelp(cmd) && executed.some(runsSensor)) {
       return deny(
         'During a phase run, tests and gates run only through the retry-budget wrapper: ' +
           '`node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- "<command>"`.',
