@@ -297,12 +297,12 @@ T15 → T16
 
 **Done when**:
 
-- [ ] The path resolves to the common directory from a worktree (test `stores history next to the ledger`)
-- [ ] Prune, both caps and mode 0600 hold (test `keeps ten minutes and caps entries`)
-- [ ] A held lock past 200 ms reads empty; a 10 s old lock is broken (test `never waits long on the lock`)
-- [ ] A corrupt file is moved to one `.corrupt` file and reads empty (test `sets a corrupt file aside once`)
-- [ ] The file holds hashes only, never a command (test `stores no command text`)
-- [ ] Gate passes
+- [x] The path resolves to the common directory from a worktree (test `stores history next to the ledger`)
+- [x] Prune, both caps and mode 0600 hold (test `keeps ten minutes and caps entries`)
+- [x] A held lock past 200 ms reads empty; a 10 s old lock is broken (test `never waits long on the lock`)
+- [x] A corrupt file is moved to one `.corrupt` file and reads empty (test `sets a corrupt file aside once`)
+- [x] The file holds hashes only, never a command (test `stores no command text`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/history-store.test.mjs`
