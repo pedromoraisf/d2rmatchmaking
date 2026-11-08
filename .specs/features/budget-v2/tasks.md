@@ -278,9 +278,9 @@ T8 → T9 → T10
 
 **Done when**:
 
-- [ ] Rule 11 states both counting changes and the reset rule (test `rule 11 says what the budget counts`)
-- [ ] The reference covers signatures, `env-blocked`, exit 4, the orchestrator reset, the logs and the filters (test `the reference describes budget v2`)
-- [ ] Gate passes
+- [x] Rule 11 states both counting changes and the reset rule (test `rule 11 says what the budget counts`)
+- [x] The reference covers signatures, `env-blocked`, exit 4, the orchestrator reset, the logs and the filters (test `the reference describes budget v2`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/retry-budget-docs.test.mjs`
