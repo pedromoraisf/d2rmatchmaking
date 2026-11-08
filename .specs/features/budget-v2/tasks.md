@@ -454,9 +454,9 @@ T10 → T11 → T12 → T13 → T14 → T15 → T16 → T17
 
 **Done when**:
 
-- [ ] `node "scripts/attempt.mjs" reset --unit gate:x/T1 --by maintainer`, `node 'scripts/attempt.mjs' reset …` and `cd scripts && node attempt.mjs reset … --by maintainer` ask (test `finds a reset however the wrapper is spelled`)
-- [ ] Every existing test of `budget-rules.test.mjs` passes unchanged
-- [ ] Gate passes
+- [x] `node "scripts/attempt.mjs" reset --unit gate:x/T1 --by maintainer`, `node 'scripts/attempt.mjs' reset …` and `cd scripts && node attempt.mjs reset … --by maintainer` ask (test `finds a reset however the wrapper is spelled`)
+- [x] Every existing test of `budget-rules.test.mjs` passes unchanged
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs`

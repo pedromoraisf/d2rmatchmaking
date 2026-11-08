@@ -35,7 +35,8 @@ const SPECS_FILE = /^(\.claude\/worktrees\/[a-z0-9][a-z0-9-]*\/)?\.specs\//;
 export const LEDGER_REF = /\.git\/d2rmm|d2rmm\/|verdicts\.json|ledger\.json|D2RMM_LEDGER/;
 export const GIT_DIR_CD = /(^|[;&|(\n]\s*)cd\s+\S*\.git(?=\/|\s|$|[;&|)])/;
 const WRAPPER = /(^|\s)(node\s+)?(\.\/)?scripts\/attempt\.mjs\s+run\s/;
-const WRAPPER_ANY = /scripts\/attempt\.mjs\s+(\w+)/g;
+// BUD-14: the wrapper is recognised by its file name, with an optional quote and any directory (or none, after `cd`).
+const WRAPPER_ANY = /(?:^|[\s/"'])attempt\.mjs["']?\s+(\w+)/g;
 // A sensor runs when it is the command a shell segment executes — never when its name is only an argument or a path
 // (`grep -i stryker x`, `sed -n 1p scripts/acceptance-check.mjs`). Runners (npx, pnpm exec, python3, node…) are
 // peeled off first, so `npx vitest` and `python3 …/check_proofs.py` still count.

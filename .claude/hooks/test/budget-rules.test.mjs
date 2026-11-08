@@ -461,6 +461,28 @@ test('asks for a reset hidden behind another wrapper call', () => {
   );
 });
 
+test('finds a reset however the wrapper is spelled', () => {
+  const key = 'gate:x/T1';
+  const decisionFor = (command) =>
+    call('Bash', { command }, ctxFor({ ledger: emptyLedger() }))?.decision ?? null;
+
+  assert.equal(
+    decisionFor(`node "scripts/attempt.mjs" reset --unit ${key} --by maintainer`),
+    'ask',
+    'a double-quoted wrapper path',
+  );
+  assert.equal(
+    decisionFor(`node 'scripts/attempt.mjs' reset --unit ${key} --by maintainer`),
+    'ask',
+    'a single-quoted wrapper path',
+  );
+  assert.equal(
+    decisionFor(`cd scripts && node attempt.mjs reset --unit ${key} --by maintainer`),
+    'ask',
+    'the wrapper called from scripts/',
+  );
+});
+
 test('allows read-only filters after the wrapper', () => {
   const ctx = ctxFor();
   const gate = 'node scripts/attempt.mjs run --feature agent-skeleton --step T3 -- "pnpm test"';
