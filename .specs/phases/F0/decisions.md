@@ -131,6 +131,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-163 | gate-precision | The read-only table keeps only forms whose file reads are all checked path operands (no `grep -r`/`-e`, `rg -g`, `diff -r`, `awk`, `sed` regex) | add a row with its proof | |
 | AD-164 | gate-precision | `git log -p` and `git show` with no path are read-only | require a path operand | |
 | AD-165 | gate-precision | Inline code writing the quality baseline keeps `ask`; the GPR-09 deny covers harness, sensor and test files | change two accepted assertions to `deny` | |
+| AD-166 | gate-precision | Inline code writing a non-literal path asks (a worker wrote a harness file that way unseen) | one rule in `checkInlineCode` | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 

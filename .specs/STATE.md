@@ -1407,6 +1407,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-08
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-166 (assumed)
+
+- **Decision**: inline code whose write call takes a path that is not a string literal asks, whatever file it would write.
+- **Reason**: gate-precision, GPR-09. A worker wrote `gate-rules.mjs` through `node -e` with the path in a shell variable and the gate did not see it; the gate cannot judge a write whose target it cannot read, and the conservative answer is a prompt.
+- **Trade-off**: inline code that computes its output path prompts. Reversal: one rule in `checkInlineCode`.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
