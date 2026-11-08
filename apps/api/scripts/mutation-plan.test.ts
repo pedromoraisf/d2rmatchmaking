@@ -129,11 +129,15 @@ describe('mutation plan', () => {
   it('planLayer keeps only the changed files when given the changed set', async () => {
     await writeSource('src/modules/identity/domain/account.ts');
     await writeSource('src/shared-kernel/result.ts');
+    await writeSource('src/shared-kernel/clock.ts');
     await writeSource('src/modules/identity/application/register.ts');
 
     const changed = new Set(['src/shared-kernel/result.ts', 'src/modules/identity/application/register.ts']);
 
-    expect((await planLayer(apiRoot, 'domain', changed)).files).toEqual(['src/shared-kernel/result.ts']);
+    const domainFiles = (await planLayer(apiRoot, 'domain', changed)).files;
+    expect(domainFiles).toEqual(['src/shared-kernel/result.ts']);
+    // CFP-03: an unchanged file of the same layer as a changed one is not mutated.
+    expect(domainFiles).not.toContain('src/shared-kernel/clock.ts');
     expect((await planLayer(apiRoot, 'application', changed)).files).toEqual([
       'src/modules/identity/application/register.ts',
     ]);
