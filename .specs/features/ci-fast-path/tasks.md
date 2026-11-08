@@ -362,10 +362,10 @@ Proof: `pnpm exec turbo run test:acceptance -- --grep @CFP-`
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** (1) The API gates run as `pnpm -C apps/api exec vitest run …`: the live gate's ledger rule (from `harness-bootstrap`) denies any command holding `d2rmm/`, which `--filter @d2rmm/api` does. Same tests, same runner; the rule's false positive is queued for `gate-precision`. (2) In changed-files mode the runner passes Stryker `--mutate <files>`; accepted, it is how CFP-03's "mutate only the changed files" reaches Stryker.
-**Dispatched:** execute-batch-1 (T1 to T6) to `feature-worker` at `e10c713`, 2026-11-08, returned with nothing committed (T1's gate denied twice by the ledger rule's false positive; T1 code left in the worktree); execute-batch-1 again (retry 1, T1 to T6) to `feature-worker` at the commit of this note, 2026-11-08
+**Dispatched:** execute-batch-1 (T1 to T6) to `feature-worker` at `e10c713`, 2026-11-08, returned with nothing committed (T1's gate denied twice by the ledger rule's false positive; T1 code left in the worktree); execute-batch-1 again (retry 1, T1 to T6) to `feature-worker` at `c358d0e`, 2026-11-08, returned at `5ebe39a` (T1 to T6 committed, every gate passed); execute-batch-2 (T7 to T10) to `feature-worker` at the commit of this note, 2026-11-08
 **Walked:** none
 
-**Blocked (execute-batch-1, T1):** unit `T1`, gate `pnpm -C apps/api exec vitest run scripts/mutation-plan.test.ts scripts/mutation.test.ts`.
+**Resolved — was blocked (execute-batch-1, T1), cleared by the replan at `c358d0e`:** unit `T1`, gate `pnpm -C apps/api exec vitest run scripts/mutation-plan.test.ts scripts/mutation.test.ts`.
 The gate hook denied the wrapper call twice (denials 1/3 and 2/3) with "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only". Cause: the hook's ledger pattern (`.claude/hooks/lib/budget-rules.mjs`, `LEDGER_REF`) matches `d2rmm/`, which the package filter `@d2rmm/api` contains. Every gate with `@d2rmm/` hits it. The gate was not rewritten to avoid it (AGENTS.md: follow the reason a gate gives). Decision for the orchestrator or maintainer.
 T1 work is in the worktree, uncommitted: `apps/api/scripts/mutation.ts`, `apps/api/scripts/mutation-plan.ts`, `apps/api/scripts/mutation.test.ts` (new), `apps/api/scripts/mutation-plan.test.ts` (one test added). No gate was run on it. T2 and T3 to T6 were not started (T2 depends on T1).
 
