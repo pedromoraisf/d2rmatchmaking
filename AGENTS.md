@@ -82,9 +82,12 @@ else (secret scanning, Playwright, Lefthook…) comes from `pnpm install`; no ot
    confirms an action in-game, or accepts commands from the server (the server sends data only).
 6. **Secrets** live only in GitHub/Render/Cloudflare secrets. Never read, print or commit `.env*` (except `.env.example`).
    Never use the production database connection string.
-7. **Blast radius.** Approvals authorize local work and local commits only. `git push`, merges to `main`, deploys,
-   releases, tags, secrets and any production DB access need the maintainer's explicit go-ahead for that action.
-8. **Approvals are the maintainer's.** Never write an `**Approved**:` line the maintainer did not give. Under a phase
+7. **Blast radius (ADR 028).** Delivery is the runner's: `git push` (never forced), pull requests, merges (into phase
+   branches and, through the phase PR, into `main`), releases, tags and workflow runs happen when the gates say so,
+   without asking. Still the maintainer's: secrets and variables, the production database, repository settings,
+   rulesets and environments, and anything that costs money. Force pushes and remote deletions are never allowed.
+8. **Approvals are the maintainer's.** Never write an `**Approved**:` line the maintainer did not give. Approving a
+   phase brief or a brief revision, and accepting or superseding an ADR, are always the maintainer's. Under a phase
    delegation, quote the kickoff words verbatim and cite the brief (see "Phase workflow").
 9. **i18n from day 0.** No user-facing string hard-coded in components; English source strings, pt-BR translation.
 10. **Telemetry from day 0.** New request paths, jobs and agent loops get spans; see `docs/engineering/telemetry.md`.
@@ -118,8 +121,9 @@ the project skill **`d2rmm-phase-runner`** (ADR 021). The maintainer reviews **o
    implement task batches in parallel worktrees; Sonnet reviewers and the Verifier judge.
 4. **Retry budget** — every failing unit gets 2 retries, then it is blocked (ADR 022). During a run, gates go through
    `scripts/attempt.mjs` and subagent prompts start with `[d2rmm feature=<f> step=<step>]`.
-5. **Escalations interrupt mid-phase** (everything else waits for the review): push/merge to `main`, deploy, production
-   DB, secrets, changing an accepted ADR, loosening tests/thresholds/sensors, a blocked feature that blocks the phase.
+5. **Escalations interrupt mid-phase** (everything else waits for the review): production DB, secrets, repository
+   settings and rulesets, money, changing an accepted ADR, loosening tests/thresholds/sensors, a blocked feature that
+   blocks the phase (ADR 028).
 6. **Review** — `/phase-review F<n>` generates `.specs/phases/F<n>/review.md`: what shipped, proofs, mutation results,
    harness and ratchet deltas, assumed decisions to confirm, blocked items. The maintainer approves or sends back.
 

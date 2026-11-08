@@ -80,12 +80,13 @@ The phase brief's approval is the only human approval during the run. It is vali
   (the gate hook asks the maintainer to confirm that edit — never write it unprompted);
 - `## Delegation` ticks the scopes the maintainer granted. Unticked = not delegated = ask.
 
-| Scope                      | What it lets the runner do without asking                                                                                                                               |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `specs-and-tasks`          | Write the per-feature approvals once the automatic gates pass                                                                                                           |
-| `sub-agents`               | Dispatch feature workers, the Verifier and the reviewers (TLC's offer-then-confirm is answered here)                                                                    |
-| `harness-edits`            | Edit sensor/harness config (lint, depcruise, CI, Stryker…) — **only to tighten or extend**. The gate hook still asks for `.claude/hooks/**` and `.claude/settings.json` |
-| `local-merge-phase-branch` | Merge a green feature branch into `phase/<F>` locally                                                                                                                   |
+| Scope                      | What it lets the runner do without asking                                                                                                                                                           |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `specs-and-tasks`          | Write the per-feature approvals once the automatic gates pass                                                                                                                                       |
+| `sub-agents`               | Dispatch feature workers, the Verifier and the reviewers (TLC's offer-then-confirm is answered here)                                                                                                |
+| `harness-edits`            | Edit sensor/harness config (lint, depcruise, CI, Stryker…) — **only to tighten or extend**. The gate hook still asks for `.claude/hooks/**` and `.claude/settings.json`                             |
+| `local-merge-phase-branch` | Merge a green feature branch into `phase/<F>` locally                                                                                                                                               |
+| `harness-self`             | Edit the gate, its registration and the retry-budget code in the worktrees of the features it names; each merges only with `pnpm test:harness` and a `security-reviewer` PASS at its head (ADR 028) |
 
 A per-feature approval line under delegation is exactly:
 
@@ -177,8 +178,8 @@ round 2 applies, step `verify-r2` → `validate_verification.py <feature>` (step
 In the feature worktree, all as step `integration` through `attempt.mjs`: `pnpm check` green, `pnpm quality:collect && pnpm quality:ratchet --context pr` green,
 `harness-score --min-level 4` green, OpenAPI drift clean. Then (with `local-merge-phase-branch`) merge into `phase/<F>`
 with `--no-ff`, rerun `pnpm check` on `phase/<F>`, remove the worktree. Without the scope, leave it ready and list it
-in the review. **Never push** — pushing `phase/<F>` and opening the PR to `main` happen after the phase review, with
-the maintainer's go-ahead.
+in the review. Pushing branches and opening PRs are the runner's (ADR 028); the remote flow per feature comes with
+`continuous-delivery`.
 
 ### 8. Lessons
 
@@ -190,8 +191,8 @@ machine — resumes from the same evidence.
 
 ## Escalations — stop and ask (the gate hook enforces most as "ask")
 
-See `references/escalation.md`. In short: push or merge to `main`; deploy; production database; creating or changing
-secrets; changing an accepted ADR; deleting/skipping/weakening tests; lowering thresholds or the quality baseline;
+See `references/escalation.md`. In short (ADR 028): production database; creating or changing secrets; repository
+settings and rulesets; anything that costs money; changing an accepted ADR; deleting/skipping/weakening tests; lowering thresholds or the quality baseline;
 disabling or loosening a sensor; a product gray area with no conservative default; a blocked feature that blocks the
 phase. Everything else is decided, recorded and shown in the review.
 
