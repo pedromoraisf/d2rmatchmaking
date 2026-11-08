@@ -75,3 +75,16 @@ test('the agent job uploads its reports even when a command fails', () => {
   assert.equal(upload.if, 'always()');
   assert.equal(upload.with.path, 'reports/mutation');
 });
+
+// CFP-10: the nightly agent mutation runs on Linux, with its three cargo-mutants commands and report paths unchanged.
+test('the nightly agent mutation runs on Linux', () => {
+  assert.equal(agent['runs-on'], 'ubuntu-latest', 'the job runs on ubuntu-latest');
+  assert.deepEqual(
+    agent.steps.map((step) => step.run).filter((run) => String(run ?? '').startsWith('cargo mutants')),
+    [
+      'cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --output reports/mutation/agent-core -- --lib',
+      'cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain --output reports/mutation/agent-domain -- --lib',
+      'cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib',
+    ],
+  );
+});

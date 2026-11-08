@@ -1335,6 +1335,51 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-07
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-149 (assumed)
+
+- **Decision**: the nightly agent mutation runs on `ubuntu-latest`.
+- **Reason**: ci-fast-path, CFP-10. Brief revision 6 moves it "if the three crates build there": none of `d2rmm-agent-domain`, `-core` or `-adapters` has Windows-only code or dependencies, and CI's `integration` job already builds the adapters on Ubuntu.
+- **Trade-off**: a Windows-only defect in those crates' unit tests shows in the `agent` PR job, not in the nightly. Reversal: one `runs-on` line.
+- **Scope**: ci-fast-path
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-150 (assumed)
+
+- **Decision**: majors of the eslint family and of `@opentelemetry/*` arrive in one Dependabot group each, held by a 30-day `cooldown`; npm stays on a weekly schedule.
+- **Reason**: ci-fast-path, CFP-20 to CFP-22. The brief asks for a "monthly group"; Dependabot refuses a second `npm` entry for the same directory, so one ecosystem cannot have two schedules. The cooldown gives each major a month before it arrives.
+- **Trade-off**: a major can still arrive in any week once it is 30 days old. Reversal: the `cooldown` block.
+- **Scope**: ci-fast-path
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-151 (assumed)
+
+- **Decision**: the specs check refuses a mutation command only in the gate of an open task (one unticked `Done when` box or more).
+- **Reason**: ci-fast-path, CFP-11 and CFP-12. Done tasks of `ci-and-review-fixes` ran mutation in their gates under the old rules; the rule is for the work ahead.
+- **Trade-off**: none for open work. Reversal: drop the condition.
+- **Scope**: ci-fast-path
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-152 (assumed)
+
+- **Decision**: third-party actions of the new CI jobs are pinned by full commit SHA; `actions/*` keep the workflow's tags.
+- **Reason**: ci-fast-path, CFP-19. The `agent` job already pins its third-party actions; a non-required job still runs on every PR.
+- **Trade-off**: Dependabot bumps the pins. Reversal: use tags.
+- **Scope**: ci-fast-path
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-161 (assumed)
+
+- **Decision**: the smoke job installs, migrates and starts the API with Render's own commands (`render.yaml` and `deploy-api.yml`) instead of a compiled build; CFP-25 is appended to the approved spec.
+- **Reason**: ci-fast-path, CFP-15 and CFP-25. Render runs the API from `src/` with Node; a smoke check of a `tsc` build would test something production never runs.
+- **Trade-off**: none; the brief asks for a check of the deploy path. Reversal: one job.
+- **Scope**: ci-fast-path
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

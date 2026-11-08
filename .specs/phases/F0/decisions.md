@@ -123,6 +123,11 @@ review. Reversals become tasks in a follow-up feature.
 | AD-146 | harness-bootstrap | Verdicts live in `verdicts.json` next to the hooks' ledger under `.git/`; any Edit, Write or shell write there is denied | move the store | |
 | AD-147 | harness-bootstrap | HBS-47 applies while at least one feature is covered; then every unresolvable merge operand is denied, whatever its name | one condition in the guard | |
 | AD-148 | harness-bootstrap | A release that attaches a file under a `.env*` or `.git` path segment asks (HBS-49, from the Verifier) | one pattern in `delivery.mjs` | |
+| AD-149 | ci-fast-path | The nightly agent mutation runs on `ubuntu-latest` | one `runs-on` line | |
+| AD-150 | ci-fast-path | Majors of eslint and `@opentelemetry/*` come grouped and held by a 30-day cooldown; npm stays weekly | the `cooldown` block | |
+| AD-151 | ci-fast-path | The specs check refuses mutation only in the gates of open tasks | drop the condition | |
+| AD-152 | ci-fast-path | Third-party actions of the new CI jobs are pinned by full commit SHA | use tags | |
+| AD-161 | ci-fast-path | The smoke job starts the API with Render's own commands, not a compiled build (CFP-25 appended) | one job | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 
