@@ -117,6 +117,10 @@ review. Reversals become tasks in a follow-up feature.
 | AD-135 | room-trace-link | A room stores the active traceparent whatever its sampled flag, and the observation links to it | store or link only sampled contexts | |
 | AD-136 | room-trace-link | Only an observation from a member of the room gets the link; a stranger's keeps its 403 and no link | link once the room is found | |
 | AD-137 | room-trace-link | The link is a plain span link with no attributes | add an attribute such as the room's stage | |
+| AD-143 | harness-bootstrap | The security-reviewer's verdict is read by a PostToolUse hook from a foreground `review-diff` dispatch's final report; a background one is denied | read SubagentStop's transcript instead | |
+| AD-144 | harness-bootstrap | `gh pr merge` must name the head branch and use `--merge`; a number, no argument, `--squash`, `--rebase` or `--admin` is denied with the fix | map numbers through the GitHub API | |
+| AD-145 | harness-bootstrap | A local merge into `main`, a push to `main`, to another remote, with no refspec or `src:dst`, `wrangler deploy`, `npm`/`pnpm publish`, `gh release delete` and `gh api` writes still ask | allow them in the gate | |
+| AD-146 | harness-bootstrap | Verdicts live in `verdicts.json` next to the hooks' ledger under `.git/`; any Edit, Write or shell write there is denied | move the store | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 
