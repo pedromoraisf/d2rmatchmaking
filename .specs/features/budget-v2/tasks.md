@@ -431,11 +431,11 @@ T10 → T11 → T12 → T13 → T14 → T15 → T16 → T17
 
 **Done when**:
 
-- [ ] With a covered branch that exists only as `origin/<branch>` and holds a commit beyond the phase, `git merge --no-ff origin/<branch>`, `git merge refs/remotes/origin/<branch>`, `git pull origin <branch>`, `gh pr merge <branch> --merge` and `git cherry-pick origin/<branch>` are denied (test `guards a covered branch that exists only on the remote`)
-- [ ] When the phase branch does not resolve, a covered branch that does not exist still touches every operand (test `fails closed when git cannot answer`)
-- [ ] A merge of a branch with its own commit, sharing none with the covered branch, is not judged as touching it (test `touches only through a shared commit`)
-- [ ] Every existing test of `guard.test.mjs` passes unchanged
-- [ ] Gate passes
+- [x] With a covered branch that exists only as `origin/<branch>` and holds a commit beyond the phase, `git merge --no-ff origin/<branch>`, `git merge refs/remotes/origin/<branch>`, `git pull origin <branch>`, `gh pr merge <branch> --merge` and `git cherry-pick origin/<branch>` are denied (test `guards a covered branch that exists only on the remote`)
+- [x] When the phase branch does not resolve, a covered branch that does not exist still touches every operand (test `fails closed when git cannot answer`)
+- [x] A merge of a branch with its own commit, sharing none with the covered branch, is not judged as touching it (test `touches only through a shared commit`)
+- [x] Every existing test of `guard.test.mjs` passes unchanged
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/guard.test.mjs`

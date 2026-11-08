@@ -338,3 +338,47 @@ test('still guards a covered branch that exists', () => {
   assert.equal(decision('git merge --no-ff feat/F0-nope', f.ctx), 'deny', 'an unresolvable merge operand');
   assert.match(reason('git merge --no-ff feat/F0-nope', f.ctx), /names no commit here/);
 });
+
+test('guards a covered branch that exists only on the remote', () => {
+  // The covered branch lives on as origin/<branch> alone: its local branch is deleted, its commit beyond the phase kept.
+  const f = fixture();
+  f.g('update-ref', `refs/remotes/origin/${BRANCH}`, f.head);
+  f.g('branch', '-D', BRANCH);
+  const ctx = f.ctx;
+  for (const cmd of [
+    `git merge --no-ff origin/${BRANCH}`,
+    `git merge refs/remotes/origin/${BRANCH}`,
+    `git pull origin ${BRANCH}`,
+    `gh pr merge ${BRANCH} --merge`,
+    `git cherry-pick origin/${BRANCH}`,
+  ]) {
+    assert.equal(decision(cmd, ctx), 'deny', cmd);
+  }
+  // Its proofs at the remote head count: the merge of that head is not denied.
+  assert.equal(
+    decision(`git merge --no-ff origin/${BRANCH}`, provenAt(ctx, f.head)),
+    'none',
+    'proven at origin',
+  );
+});
+
+test('fails closed when git cannot answer', () => {
+  // The phase branch does not resolve: a covered branch that does not exist yet still touches the merged ref.
+  const f = fixture();
+  writeFileSync(path.join(f.dir, '.specs/phases/F0/brief.md'), BRIEF_TWO);
+  f.g('branch', '-D', BRANCH);
+  f.g('branch', '-D', 'phase/F0');
+  assert.equal(decision('git merge --no-ff main', f.ctx), 'deny', 'a merge naming a ref');
+  assert.match(reason('git merge --no-ff main', f.ctx), /continuous-delivery|gate-precision/);
+});
+
+test('touches only through a shared commit', () => {
+  // A branch off the phase with its own commit, sharing no commit with the covered branch, is not the covered branch.
+  const f = fixture();
+  f.g('checkout', '-q', '-b', 'own', f.base);
+  writeFileSync(path.join(f.dir, 'own.txt'), 'o\n');
+  f.g('add', '.');
+  f.g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'own');
+  f.g('checkout', '-q', 'main');
+  assert.equal(decision('git merge --no-ff own', f.ctx), 'none', 'a branch sharing no commit');
+});

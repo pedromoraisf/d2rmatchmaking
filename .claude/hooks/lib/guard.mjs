@@ -61,6 +61,8 @@ export function guardState(ctx) {
 const git = (ctx, ...args) => ctx.git?.(...args) ?? null;
 const commitOf = (ctx, ref) => git(ctx, 'rev-parse', '--verify', '--quiet', `${ref}^{commit}`);
 const resolves = (ctx, ref) => ref !== 'FETCH_HEAD' && Boolean(commitOf(ctx, ref));
+/** The head a branch names here: the local branch, else `origin/<branch>` (as `judgeGhMerge` does), else null. */
+const headOf = (ctx, branch) => commitOf(ctx, branch) || commitOf(ctx, `origin/${branch}`) || null;
 
 /** The commits a range lists, or null when git cannot list them (the caller then fails closed). */
 function revList(ctx, range) {
@@ -70,13 +72,15 @@ function revList(ctx, range) {
 
 /**
  * HBS-32: `ref` touches the covered branch when they share a commit beyond the phase branch. A covered branch that
- * does not resolve yet (its feature has not started) holds no commit, so it touches nothing; the phase branch must
- * resolve for that reading, so a git that cannot answer still fails closed.
+ * resolves neither as `<branch>` nor as `origin/<branch>` (its feature has not started) holds no commit, so it touches
+ * nothing; the phase branch must resolve for that reading, so a git that cannot answer still fails closed. Otherwise
+ * the head that resolves (local first) is the covered head.
  */
 function touches(ctx, state, ref, branch) {
-  if (!commitOf(ctx, branch) && commitOf(ctx, state.phaseBranch)) return false;
+  const head = headOf(ctx, branch);
+  if (!head && commitOf(ctx, state.phaseBranch)) return false;
   const a = revList(ctx, `${state.phaseBranch}..${ref}`);
-  const b = revList(ctx, `${state.phaseBranch}..${branch}`);
+  const b = revList(ctx, `${state.phaseBranch}..${head ?? branch}`);
   if (a === null || b === null) return true;
   return a.some((c) => b.includes(c));
 }
@@ -95,7 +99,7 @@ function isSubsetOfProven(ctx, state, ref, proven) {
  * clean tree and a PASS verdict exist for it, else null, with what is missing.
  */
 function proofOf(ctx, c) {
-  const head = commitOf(ctx, c.branch);
+  const head = headOf(ctx, c.branch);
   if (!head) return { head: null, test: false, review: false, branchHead: null };
   const units = ctx.ledger?.units ?? {};
   const test = Object.entries(units).some(
