@@ -14,6 +14,8 @@ import {
   sessionExhausted,
   blockedMessage,
   DISPATCH_STEPS,
+  orchestratorResets,
+  unitOption,
 } from '../../../scripts/lib/budget.mjs';
 import { activePhase } from './delegation.mjs';
 import { checkDispatchPolicy, READ_ONLY_HELPERS } from '../../../scripts/lib/model-policy.mjs';
@@ -56,6 +58,89 @@ const segments = (s) =>
     .split(/\n|;|&&|\|\||\|/)
     .map((x) => x.trim())
     .filter(Boolean);
+
+// BUD-15: a reset command is read the way attempt.mjs reads it: whitespace tokens, quotes removed.
+const RESET_CALL = /^(node\s+)?(\.\/)?scripts\/attempt\.mjs\s+reset(\s|$)/;
+const TOKEN = /"([^"]*)"|'([^']*)'|(\S+)/g;
+const tokens = (s) => [...s.matchAll(TOKEN)].map((m) => m[1] ?? m[2] ?? m[3]);
+const LEDGER_CORRUPT = 'gate:ledger/corrupt'; // the ledger store's marker for a ledger it cannot read
+
+/** BUD-15: null when the reset is the orchestrator's first reset of a unit with a reason; otherwise an ask. */
+function resetDecision(cmd, ledger) {
+  const ask = (reason) => ({ decision: 'ask', reason, effects: [] });
+  if (!ledger || ledger.units?.[LEDGER_CORRUPT]) {
+    return ask("The retry ledger cannot be read; the reset is the maintainer's (ADR 022).");
+  }
+  const plain = RESET_CALL.test(cmd.trim()) && segments(cmd).length === 1 && !/[<>$`&]/.test(unquoted(cmd));
+  if (!plain) return ask('Resetting a retry budget is a maintainer decision (ADR 022).');
+  const args = tokens(cmd);
+  const valueOf = (flag) => {
+    const i = args.indexOf(flag);
+    return i < 0 ? undefined : args[i + 1];
+  };
+  const reason = (valueOf('--reason') ?? '').trim();
+  const key = unitOption(args);
+  if (!key || valueOf('--by') !== 'orchestrator' || !reason) {
+    return ask('Resetting a retry budget is a maintainer decision (ADR 022).');
+  }
+  if (orchestratorResets(ledger, key) >= 1) {
+    return ask(
+      `${key} was already reset once by the orchestrator; the next reset is the maintainer's (ADR 022).`,
+    );
+  }
+  return null;
+}
+
+const GATE_QUOTED = /^\s*("[^"]*"|'[^']*')/;
+// BUD-18: after the wrapper, an optional 2>&1 and exactly one read-only filter: tail -n, head -n, or grep with the
+// options -i -E -v -c -n and one pattern (a single-quoted string without ' or a plain token).
+const READ_ONLY_FILTER = new RegExp(
+  String.raw`^\s*(?:2>&1\s*)?\|\s*(?:(?:tail|head)\s+-n\s+\d+|grep(?:\s+-[iEvcn])*\s+(?:'[^']*'|[A-Za-z0-9_.:@/-]+))\s*$`,
+);
+const CD_PREFIX = /^cd\s+\S+\s*&&\s*/;
+const FEATURE_OPT = /--feature\s+(\S+)/;
+const STEP_OPT = /--step\s+(\S+)/;
+const quoteGate = (g) =>
+  !g.includes('"') ? `"${g}"` : !g.includes("'") ? `'${g}'` : `"${g.replace(/"/g, '\\"')}"`;
+
+/**
+ * BUD-20: the wrapper call the agent should make instead, ready to run. The feature is the worktree's when the command
+ * runs in one, else the call's own, else `<feature>`; the step is the call's, else `<step>`.
+ */
+function correctedCommand(cmd, input) {
+  const sep = /\s--\s+/.exec(cmd);
+  const head = sep ? cmd.slice(0, sep.index) : cmd;
+  let gate;
+  if (sep) {
+    const rest = cmd.slice(sep.index + sep[0].length);
+    const quoted = GATE_QUOTED.exec(rest);
+    gate = quoted ? quoted[1].slice(1, -1) : rest.trim();
+  } else {
+    gate = cmd.trim().replace(CD_PREFIX, '');
+  }
+  const worktree = WORKTREE.exec(cmd)?.[1] ?? WORKTREE.exec(String(input?.cwd ?? ''))?.[1] ?? null;
+  const feature = worktree ?? FEATURE_OPT.exec(head)?.[1] ?? '<feature>';
+  const step = STEP_OPT.exec(head)?.[1] ?? '<step>';
+  return `node scripts/attempt.mjs run --feature ${feature} --step ${step} -- ${quoteGate(gate)}`;
+}
+
+/** BUD-18/19 and the quoting rule: null when a wrapper call is allowed, otherwise why it is denied. */
+function wrapperProblem(cmd) {
+  const sep = /\s--\s+/.exec(cmd);
+  if (!sep)
+    return segments(cmd).length > 1
+      ? 'Quote the whole gate command after "--" so nothing runs outside the attempt wrapper.'
+      : null;
+  const head = cmd.slice(0, sep.index);
+  const rest = cmd.slice(sep.index + sep[0].length);
+  const quote = 'Quote the whole gate command after "--" so nothing runs outside the attempt wrapper.';
+  if (segments(head).length > 1) return quote;
+  const quoted = GATE_QUOTED.exec(rest);
+  if (!quoted) return segments(rest).length > 1 ? quote : null;
+  const tail = rest.slice(quoted[0].length);
+  if (tail.trim() === '' || /^\s*2>&1\s*$/.test(tail) || READ_ONLY_FILTER.test(tail)) return null;
+  return 'After the wrapper only 2>&1 and one read-only filter may follow (| tail -n N, | head -n N, | grep [-i -E -v -c -n] PATTERN).';
+}
 
 /** Whether a shell segment executes a test/gate tool (not merely names one). */
 function runsSensor(segment) {
@@ -109,11 +194,8 @@ export function checkBudget(input, ctx, sid, rel) {
     );
   }
   if (tool === 'Bash' && WRAPPER_ANY.exec(cmd)?.[1] === 'reset') {
-    return {
-      decision: 'ask',
-      reason: 'Resetting a retry budget is a maintainer decision (ADR 022).',
-      effects: [],
-    };
+    const answer = resetDecision(cmd, ctx.ledger);
+    if (answer) return answer;
   }
 
   // 2. An exhausted session may only record the blocker and read.
@@ -181,17 +263,16 @@ export function checkBudget(input, ctx, sid, rel) {
   // 4. On phase/feature branches, gates run only through the wrapper (so every failure is counted).
   if (tool === 'Bash') {
     if (WRAPPER.test(cmd)) {
-      if (segments(cmd).length > 1) {
-        return deny('Quote the whole gate command after "--" so nothing runs outside the attempt wrapper.');
-      }
-      return null;
+      const problem = wrapperProblem(cmd);
+      return problem ? deny(`${problem} Run it as: ${correctedCommand(cmd, input)}`) : null;
     }
     // Nested shells (`bash -c "pnpm test"`, `eval …`) run their command too: judge what they hide.
     const executed = [cmd, ...innerShellCommands(cmd)].flatMap(segments);
     if (executed.some(runsSensor)) {
       return deny(
         'During a phase run, tests and gates run only through the retry-budget wrapper: ' +
-          '`node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- "<command>"`.',
+          '`node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- "<command>"`. ' +
+          `Run it as: ${correctedCommand(cmd, input)}`,
       );
     }
   }

@@ -1,13 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { decide } from '../lib/gate-rules.mjs';
-import { onStop, onFeedback } from '../lib/budget-rules.mjs';
+import { onStop, onFeedback, checkBudget } from '../lib/budget-rules.mjs';
 import { toRelative } from '../lib/io.mjs';
 import {
   emptyLedger,
   unitKey,
   recordAttempt,
   recordDispatch,
+  reset,
   MAX_ATTEMPTS,
 } from '../../../scripts/lib/budget.mjs';
 
@@ -344,4 +345,115 @@ test('worktrees are judged as their feature branch, and protected files stay pro
     ).decision,
     'deny',
   );
+});
+
+test("asks only for the maintainer's resets", () => {
+  const key = 'gate:demo/T1';
+  const fail = (ledger, n, extra = {}) => {
+    for (let i = 0; i < n; i += 1) recordAttempt(ledger, key, false, { note: 'boom', ...extra });
+    return ledger;
+  };
+  const blocked = () => fail(emptyLedger(), MAX_ATTEMPTS);
+  const envBlocked = () => fail(emptyLedger(), 3, { kind: 'env', signature: 'docker' });
+  const afterOrchestrator = () => {
+    const l = blocked();
+    reset(l, key, { by: 'orchestrator', reason: 'docker was stopped' });
+    return fail(l, MAX_ATTEMPTS);
+  };
+  const afterBoth = () => {
+    const l = afterOrchestrator();
+    reset(l, key, { by: 'pedromoraisf', reason: 'maintainer' });
+    return fail(l, MAX_ATTEMPTS);
+  };
+  const decisionFor = (ledger, command) => call('Bash', { command }, ctxFor({ ledger }))?.decision ?? null;
+  const reset1 = (by, tail = "--reason 'fixed'") =>
+    `node scripts/attempt.mjs reset --unit ${key} --by ${by} ${tail}`;
+
+  assert.equal(
+    decisionFor(blocked(), reset1('orchestrator')),
+    null,
+    'a blocked unit, first orchestrator reset',
+  );
+  assert.equal(decisionFor(envBlocked(), reset1('orchestrator')), null, 'an env-blocked unit');
+  assert.equal(
+    decisionFor(afterOrchestrator(), reset1('orchestrator')),
+    'ask',
+    'a second orchestrator reset',
+  );
+  assert.equal(decisionFor(afterBoth(), reset1('orchestrator')), 'ask', 'after the maintainer reset too');
+  assert.equal(decisionFor(blocked(), reset1('pedromoraisf')), 'ask', 'the maintainer resets');
+  assert.equal(decisionFor(blocked(), reset1('orchestrator', "--reason ''")), 'ask', 'an empty reason');
+  assert.equal(decisionFor(blocked(), reset1('orchestrator', '')), 'ask', 'no reason');
+  assert.equal(
+    decisionFor(blocked(), `node scripts/attempt.mjs reset --by orchestrator --reason 'fixed'`),
+    'ask',
+    'no unit',
+  );
+  assert.equal(
+    decisionFor(
+      afterOrchestrator(),
+      `node scripts/attempt.mjs reset --unit=${key} --by orchestrator --reason 'again'`,
+    ),
+    'ask',
+    'the --unit=<key> form names the same unit',
+  );
+  assert.equal(decisionFor(blocked(), `${reset1('orchestrator')} && git commit -m x`), 'ask', 'chained');
+});
+
+test('allows read-only filters after the wrapper', () => {
+  const ctx = ctxFor();
+  const gate = 'node scripts/attempt.mjs run --feature agent-skeleton --step T3 -- "pnpm test"';
+  for (const filter of [
+    '2>&1 | tail -n 40',
+    '| head -n 20',
+    '2>&1 | grep FAIL',
+    "| grep -i -E 'not ok|FAIL'",
+    '| grep -c -v ok',
+  ]) {
+    const command = `${gate} ${filter}`;
+    // BUD-18: the gate SHALL NOT deny the line. Through the whole gate an older shell-write rule may still ask (GPR-07).
+    assert.notEqual(call('Bash', { command }, ctx)?.decision, 'deny', filter);
+    // The wrapper rule itself gives no opinion on the line.
+    assert.equal(checkBudget({ tool_name: 'Bash', tool_input: { command } }, ctx, 's1', ''), null, filter);
+  }
+});
+
+test('denies anything else after the wrapper', () => {
+  const ctx = ctxFor();
+  const gate = 'node scripts/attempt.mjs run --feature agent-skeleton --step T3 -- "pnpm test"';
+  for (const tail of [
+    '| tee out.txt',
+    '&& git commit -m x',
+    '; rm -rf apps',
+    '| grep $(rm -rf apps)',
+    '| grep `rm -rf apps`',
+    '| tail -n 5 > out.txt',
+    '| tail -n 5 | sh',
+    '| tail -5',
+    '| grep -x FAIL',
+  ]) {
+    assert.equal(call('Bash', { command: `${gate} ${tail}` }, ctx).decision, 'deny', tail);
+  }
+});
+
+test('hands over the corrected command', () => {
+  const ctx = ctxFor();
+  const inWorktree = { cwd: '/repo/.claude/worktrees/demo' };
+  for (const [command, corrected] of [
+    ['pnpm test', 'node scripts/attempt.mjs run --feature demo --step <step> -- "pnpm test"'],
+    [
+      'node scripts/attempt.mjs run --feature demo --step T1 -- pnpm test && ls',
+      'node scripts/attempt.mjs run --feature demo --step T1 -- "pnpm test && ls"',
+    ],
+    [
+      'node scripts/attempt.mjs run --feature demo --step proofs -- pnpm test; ls',
+      'node scripts/attempt.mjs run --feature demo --step proofs -- "pnpm test; ls"',
+    ],
+  ]) {
+    const r = call('Bash', { command }, ctx, inWorktree);
+    assert.equal(r.decision, 'deny', command);
+    assert.ok(r.reason.includes(corrected), `${command}\n→ ${r.reason}`);
+  }
+  const outside = call('Bash', { command: 'pnpm test' }, ctx);
+  assert.ok(outside.reason.includes('--feature <feature> --step <step> -- "pnpm test"'), outside.reason);
 });

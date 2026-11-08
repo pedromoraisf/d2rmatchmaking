@@ -235,10 +235,10 @@ T8 → T9 → T10
 
 **Done when**:
 
-- [ ] The five reset cases of the scenarios get their decisions (test `asks only for the maintainer's resets`)
-- [ ] The three allowed filters pass and the seven other tails are denied (tests `allows read-only filters after the wrapper`, `denies anything else after the wrapper`)
-- [ ] Each denial carries the corrected command with the feature and step of BUD-20 (test `hands over the corrected command`)
-- [ ] Gate passes; every existing test of the file passes
+- [x] The five reset cases of the scenarios get their decisions (test `asks only for the maintainer's resets`)
+- [x] The three allowed filters pass and the seven other tails are denied (tests `allows read-only filters after the wrapper`, `denies anything else after the wrapper`)
+- [x] Each denial carries the corrected command with the feature and step of BUD-20 (test `hands over the corrected command`)
+- [x] Gate passes; every existing test of the file passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs`
