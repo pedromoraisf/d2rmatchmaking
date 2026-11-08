@@ -152,12 +152,12 @@ T15 → T16
 
 **Done when**:
 
-- [ ] Each table row has an allowed case and a refused-option case (test `matches each table row and refuses its other options`)
-- [ ] Abbreviations (`--out`), glued unlisted options (`-XPOST`, `--method=POST`), `git -c`/`-C`/`--git-dir`/`--work-tree`/`--exec-path`, `rg -g`/`-e`, `grep -r`/`-e`/`-f`, `diff -r`, `awk` and `sed` regular expressions are refused (test `refuses the forms AD-163 drops`)
-- [ ] `jq -n env` and `gh api x --jq env` are refused; `.environment` is allowed (test `matches banned jq words whole`)
-- [ ] `./git log` and `/tmp/cat a.txt` match no row (test `needs the bare command word`)
-- [ ] `NAME=value cat a` and `=cat a` match no row (test `refuses assignments and equals words`)
-- [ ] Gate passes
+- [x] Each table row has an allowed case and a refused-option case (test `matches each table row and refuses its other options`)
+- [x] Abbreviations (`--out`), glued unlisted options (`-XPOST`, `--method=POST`), `git -c`/`-C`/`--git-dir`/`--work-tree`/`--exec-path`, `rg -g`/`-e`, `grep -r`/`-e`/`-f`, `diff -r`, `awk` and `sed` regular expressions are refused (test `refuses the forms AD-163 drops`)
+- [x] `jq -n env` and `gh api x --jq env` are refused; `.environment` is allowed (test `matches banned jq words whole`)
+- [x] `./git log` and `/tmp/cat a.txt` match no row (test `needs the bare command word`)
+- [x] `NAME=value cat a` and `=cat a` match no row (test `refuses assignments and equals words`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/read-only.test.mjs`
