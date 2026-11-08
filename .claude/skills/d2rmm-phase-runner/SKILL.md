@@ -165,7 +165,7 @@ worker follows TLC `references/implement.md`, one atomic commit per task (`check
 block the stop while sensors are red — each within the retry budget. On exhaustion (exit 3, or a hook saying the
 session is exhausted) mark the task and the feature **blocked** in `tasks.md ## Handoff`, add it to
 `decisions.md → Blocked`, and move on to features that do not depend on it. A blocked feature that blocks every
-remaining feature of the phase is an escalation.
+remaining feature of the phase is an escalation. Run long work (a gate, a build, a test run) in the background, or in the foreground with a long timeout, and wait for its task notification; never poll with `sleep` or status loops.
 
 ### 6. Verify (fresh agent, always)
 

@@ -370,8 +370,8 @@ T15 → T16
 
 **Done when**:
 
-- [ ] Both guides carry the sentence (test `the guides say to wait for the notification`)
-- [ ] Gate passes
+- [x] Both guides carry the sentence (test `the guides say to wait for the notification`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/phase-runner-skill.test.mjs`
