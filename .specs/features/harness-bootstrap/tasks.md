@@ -86,10 +86,10 @@ T7 → T8 → T9 → T10 → T11 → T12
 
 **Done when**:
 
-- [ ] A passing and a failing attempt each record `command`, `head` and `clean` (tests `records the command, head and clean tree of a passing attempt`, `records them for a failing attempt too`)
-- [ ] An attempt run with an uncommitted change records `clean: false` (test `records a dirty tree as not clean`)
-- [ ] A ledger with old attempts still loads and counts (test `reads attempts recorded without the new fields`)
-- [ ] Gate passes; every existing test of both files still passes
+- [x] A passing and a failing attempt each record `command`, `head` and `clean` (tests `records the command, head and clean tree of a passing attempt`, `records them for a failing attempt too`)
+- [x] An attempt run with an uncommitted change records `clean: false` (test `records a dirty tree as not clean`)
+- [x] A ledger with old attempts still loads and counts (test `reads attempts recorded without the new fields`)
+- [x] Gate passes; every existing test of both files still passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/attempt-cli.test.mjs scripts/test/budget.test.mjs`
