@@ -368,8 +368,8 @@ T12 → T13 → T14
 
 **Done when**:
 
-- [ ] The string `'true'` is denied with `run_in_background: false` in the reason (test `denies a background security review requested with the string true`)
-- [ ] Gate passes; every existing test of the file still passes
+- [x] The string `'true'` is denied with `run_in_background: false` in the reason (test `denies a background security review requested with the string true`)
+- [x] Gate passes; every existing test of the file still passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/verdicts.test.mjs`

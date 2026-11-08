@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   applyVerdictEffect,
+  checkBackgroundReview,
   latestVerdict,
   noteDispatch,
   recordVerdict,
@@ -170,4 +171,11 @@ test('the store writes verdicts.json and reads it back', () => {
   withVerdicts(file, (store) => applyVerdictEffect(store, noteDispatch(review('u1'), ctxAt('abc1'))));
   assert.equal(loadVerdicts(file).notes.u1.head, 'abc1');
   assert.deepEqual(loadVerdicts(path.join(dir, 'missing.json')), emptyVerdicts());
+});
+
+test('denies a background security review requested with the string true', () => {
+  const input = review('u2', undefined, { run_in_background: 'true' });
+  const verdict = checkBackgroundReview(input);
+  assert.equal(verdict?.decision, 'deny');
+  assert.match(verdict.reason, /run_in_background: false/);
 });
