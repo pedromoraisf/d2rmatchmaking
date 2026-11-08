@@ -79,11 +79,12 @@ Feature: The required checks are fast and mutation runs beside them
     Then its required checks are exactly "verify", "integration", "agent" and "secrets"
     And none of "mutation", "agent-mutation", "smoke" and "agent-build" is required
 
-  @CFP-15 @CFP-18 @CFP-19 @NFR-11
-  Scenario: A PR boots the API's production build
+  @CFP-15 @CFP-18 @CFP-19 @CFP-25 @NFR-11
+  Scenario: A PR boots the API the way Render does
     When the contributor reads the CI workflow
     Then a job "smoke" runs on pull requests with a Postgres service container
-    And it builds the API for production, runs the migrations, starts the API and requests "/healthz"
+    And it installs the workspace, runs the migrations and starts the API with the commands of "render.yaml" and "deploy-api.yml"
+    And it requests "/healthz"
     And none of the new jobs reads a repository secret
     And every action of the new jobs outside "actions/" is pinned by a full commit SHA
 

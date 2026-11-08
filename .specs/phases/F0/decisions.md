@@ -127,6 +127,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-150 | ci-fast-path | Majors of eslint and `@opentelemetry/*` come grouped and held by a 30-day cooldown; npm stays weekly | the `cooldown` block | |
 | AD-151 | ci-fast-path | The specs check refuses mutation only in the gates of open tasks | drop the condition | |
 | AD-152 | ci-fast-path | Third-party actions of the new CI jobs are pinned by full commit SHA | use tags | |
+| AD-161 | ci-fast-path | The smoke job starts the API with Render's own commands, not a compiled build (CFP-25 appended) | one job | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 

@@ -2,6 +2,8 @@
 
 **Approved**: 2026-11-08 - user: "aprovo specs e tasks da F0 que passarem nos gates automáticos; delego sub-agents, harness-edits e local-merge-phase-branch" (delegated via .specs/phases/F0/brief.md)
 
+**Amended by the runner** (assumed, AD-161; to confirm at the phase review): 2026-11-08, Tasks found that Render runs the API from `src/` (`render.yaml` `startCommand`) after `pnpm install --frozen-lockfile --ignore-scripts`, with no compiled build. CFP-25 is appended: the smoke job reproduces those commands, and it replaces the "production build script" and "build's output" clauses of CFP-15. No other criterion is edited.
+
 ## Problem Statement
 
 In F0 the PR critical path took 14.9 minutes, 7.7 of them Stryker inside `verify`, which `integration` waits for.
@@ -125,6 +127,7 @@ majors that broke F0. Source: `.specs/phases/F0/brief-revision-6.md` § 3 (ci-fa
 3. CFP-17: `ci.yml` SHALL hold a job `agent-build` on a Windows runner that runs on `pull_request` events when the `detect` output `agent` is `true` and the PR changes a file under `apps/agent/`, and builds the agent with `tauri build` with no signing key in its environment
 4. CFP-18: No step of `mutation`, `agent-mutation`, `smoke` or `agent-build` SHALL reference `secrets.` in its `run`, `env` or `with`
 5. CFP-19: Every `uses:` of the jobs `mutation`, `agent-mutation`, `smoke` and `agent-build` that is not under `actions/` SHALL be pinned by a full commit SHA
+6. CFP-25: The `smoke` job SHALL install the workspace with Render's `buildCommand` install (`pnpm install --frozen-lockfile --ignore-scripts`), run the migrations with `pnpm --filter @d2rmm/api db:migrate` as `deploy-api.yml` does, and start the API with the `startCommand` of `render.yaml`, in place of a production build (AD-161)
 
 **Independent Test**: parse `ci.yml`; the jobs run on the feature's PR.
 
@@ -198,12 +201,13 @@ majors that broke F0. Source: `.specs/phases/F0/brief-revision-6.md` § 3 (ci-fa
 | CFP-22         | P2: Slower majors from Dependabot      | Tasks | Pending |
 | CFP-23         | P1: Nothing else changes               | Tasks | Pending |
 | CFP-24         | P1: Nothing else changes               | Tasks | Pending |
+| CFP-25         | P2: Smoke checks before merge          | Tasks | Pending |
 
 **ID format:** `[CATEGORY]-[NUMBER]`
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
 
-**Coverage:** 24 total, 24 mapped to tasks, 0 unmapped
+**Coverage:** 25 total, 25 mapped to tasks, 0 unmapped
 
 ---
 

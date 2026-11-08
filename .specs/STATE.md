@@ -1371,6 +1371,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-08
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-161 (assumed)
+
+- **Decision**: the smoke job installs, migrates and starts the API with Render's own commands (`render.yaml` and `deploy-api.yml`) instead of a compiled build; CFP-25 is appended to the approved spec.
+- **Reason**: ci-fast-path, CFP-15 and CFP-25. Render runs the API from `src/` with Node; a smoke check of a `tsc` build would test something production never runs.
+- **Trade-off**: none; the brief asks for a check of the deploy path. Reversal: one job.
+- **Scope**: ci-fast-path
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
