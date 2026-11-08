@@ -190,9 +190,9 @@ T8 → T9 → T10
 
 **Done when**:
 
-- [ ] 60, 61 and 200 lines: the log holds them all and the terminal shows lines 1, 2 and 141 onwards (test `keeps the full output and prints the last 60 lines`)
-- [ ] The result and the duration are printed (test `prints the result and the duration`)
-- [ ] Gate passes
+- [x] 60, 61 and 200 lines: the log holds them all and the terminal shows lines 1, 2 and 141 onwards (test `keeps the full output and prints the last 60 lines`)
+- [x] The result and the duration are printed (test `prints the result and the duration`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/attempt-cli.test.mjs`

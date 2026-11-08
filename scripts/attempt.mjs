@@ -11,7 +11,7 @@
 // counted failure; 2 for invalid usage (unknown feature or step, a bad --timeout).
 // A failure the machine caused (lib/env-signatures.mjs) is recorded and not counted.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -37,6 +37,7 @@ import { diagnose } from './lib/machine-diagnosis.mjs';
 
 const DEFAULT_TIMEOUT_MINUTES = 60;
 const MAX_TIMEOUT_MINUTES = 35791; // setTimeout holds at most 2^31 - 1 ms
+const LOG_TAIL_LINES = 60; // the terminal shows the end of a gate's output (BUD-17)
 
 const root = process.cwd();
 const argv = process.argv.slice(2);
@@ -92,6 +93,25 @@ function treeFingerprint(cwd) {
   }
 }
 
+/** The output of a command, stdout then stderr, each line ended by a newline. */
+function joinOutput(stdout, stderr) {
+  return [stdout, stderr]
+    .filter((s) => s !== '')
+    .map((s) => (s.endsWith('\n') ? s : `${s}\n`))
+    .join('');
+}
+
+/** The last LOG_TAIL_LINES lines of a text, all of them when there are that many or fewer, each ended by a newline. */
+function lastLines(text, n = LOG_TAIL_LINES) {
+  if (text === '') return '';
+  return `${text.replace(/\n$/, '').split('\n').slice(-n).join('\n')}\n`;
+}
+
+/** BUD-17: reports/attempts/<unit>/<n>.log, the unit key with ':' and '/' replaced by '-', n the attempt number. */
+function attemptLogPath(cwdRoot, key, n) {
+  return path.join(cwdRoot, 'reports', 'attempts', key.replace(/[:/]/g, '-'), `${n}.log`);
+}
+
 /** The --timeout of `run` in whole minutes (BUD-27): the default when absent, exit 2 when not a whole number ≥ 1. */
 function timeoutMinutes() {
   if (!opts.includes('--timeout')) return DEFAULT_TIMEOUT_MINUTES;
@@ -134,18 +154,28 @@ if (cmd === 'run') {
     process.exit(4);
   }
   console.error(`attempt ${pre.attempt}/${MAX_ATTEMPTS} for ${key}: ${command}`);
+  const started = Date.now();
   const r = await runGate(command, { cwd: root, timeoutMs: minutes * 60_000 });
-  process.stdout.write(r.stdout);
-  process.stderr.write(r.stderr);
+  const seconds = ((Date.now() - started) / 1000).toFixed(1);
   const exit = exitStatus(r);
   const ok = r.status === 0 && !r.timedOut;
   const output = `${r.stdout}\n${r.stderr}`;
+  // BUD-17: the full output goes to the log; the terminal shows the result, the duration and the end of the output.
+  const text = joinOutput(r.stdout, r.stderr);
+  const log = attemptLogPath(root, key, (before.units[key]?.attempts.length ?? 0) + 1);
+  mkdirSync(path.dirname(log), { recursive: true });
+  writeFileSync(log, text);
+  console.error(`${key}: exit ${exit} in ${seconds}s. Full output: ${path.relative(root, log)}`);
+  process.stdout.write(lastLines(text));
   const sig = ok ? null : classify({ status: r.status, signal: r.signal, output, timedOut: r.timedOut });
   const note = ok ? command : `${command} → exit ${exit}: ${tail(output, 6)}`;
   // HBS-25: the commit and the tree state where the command ran, read after it ran, so a command that dirties the
   // tree records `clean: false` (the proof of a green run is only as good as the tree it ran on).
   const head = gitOutput(root, ['rev-parse', 'HEAD']);
-  const porcelain = gitOutput(root, ['status', '--porcelain'], { trim: false });
+  // The wrapper's own logs under reports/attempts are not the command's change (BUD-17), so they do not dirty the tree.
+  const porcelain = gitOutput(root, ['status', '--porcelain', '--', '.', ':(exclude)reports/attempts'], {
+    trim: false,
+  });
   const clean = porcelain !== null && porcelain.trim() === '';
   const { res, unit } = withLedger(file, (l) => {
     const out = recordAttempt(l, key, ok, {

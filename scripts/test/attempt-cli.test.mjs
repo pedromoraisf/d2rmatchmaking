@@ -375,3 +375,32 @@ test('takes the fingerprint before the command', () => {
   assert.equal(run(dir, ...args).status, 1, 'the tree after the run differs, so the rerun runs');
   assert.equal(countedFailures(dir), 2);
 });
+
+// Budget v2 (T5): the full output on disk, the end on the terminal.
+test('keeps the full output and prints the last 60 lines', () => {
+  for (const [lines, first] of [
+    [60, 1],
+    [61, 2],
+    [200, 141],
+  ]) {
+    const dir = repo();
+    const r = run(dir, 'run', '--feature', 'demo', '--step', 'T1', '--', `seq 1 ${lines}`);
+    assert.equal(r.status, 0, `${lines} lines`);
+    const log = readFileSync(path.join(dir, 'reports/attempts/gate-demo-T1/1.log'), 'utf8');
+    assert.equal(log.trim().split('\n').length, lines, 'the log holds every line');
+    const shown = r.stdout.trim().split('\n').map(Number);
+    assert.deepEqual(
+      shown,
+      Array.from({ length: lines - first + 1 }, (_, i) => first + i),
+      `the terminal shows lines ${first} to ${lines}`,
+    );
+  }
+});
+
+test('prints the result and the duration', () => {
+  const dir = repo();
+  const r = run(dir, 'run', '--feature', 'demo', '--step', 'T1', '--', 'true');
+  assert.equal(r.status, 0);
+  assert.match(r.stderr, /gate:demo\/T1: exit 0 in \d+\.\d+s\./);
+  assert.match(r.stderr, /passed on attempt 1/);
+});
