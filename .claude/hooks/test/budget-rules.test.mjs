@@ -204,6 +204,34 @@ test('stop: red blocks twice, the third red stop is let through with the session
   assert.deepEqual(l2.units, {});
 });
 
+test('red stop: lets the agent stop when the machine failed', () => {
+  const ledger = emptyLedger();
+  const failing = [
+    { status: 1, output: 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock' },
+    { status: 127, output: 'sh: cargo: command not found' },
+  ];
+  for (let i = 0; i < 4; i += 1) {
+    const verdict = onStop(ledger, 's7', '## typecheck\nCannot connect to the Docker daemon', failing);
+    assert.equal(verdict.block, false);
+    assert.doesNotMatch(verdict.message, /retry budget exhausted/);
+    assert.match(verdict.message, /docker/);
+    assert.match(verdict.message, /not-found/);
+  }
+  assert.deepEqual(ledger.units, {}, 'the red stop is not counted');
+});
+
+test('counts a red stop with a real failure', () => {
+  const ledger = emptyLedger();
+  const failing = [
+    { status: 1, output: 'Cannot connect to the Docker daemon' },
+    { status: 1, output: 'expected 2, received 3' },
+  ];
+  const verdict = onStop(ledger, 's6', '## typecheck\nCannot connect\n\n## unit tests\nexpected 2', failing);
+  assert.equal(verdict.block, true);
+  assert.match(verdict.message, /failure 1\/3, 2 retries left/);
+  assert.equal(Object.keys(ledger.units).length, 1, 'the red stop is counted');
+});
+
 test('feedback: the same sensor failing on the same file three times in a row is blocked', () => {
   const ledger = emptyLedger();
   const red = [{ id: 'eslint', ok: false, out: 'no-unused-vars' }];

@@ -257,9 +257,9 @@ T8 → T9 → T10
 
 **Done when**:
 
-- [ ] Every check environmental: stop allowed, not counted, signatures named (test `lets the agent stop when the machine failed`)
-- [ ] One real failure among them: counted and blocked as today (test `counts a red stop with a real failure`)
-- [ ] Gate passes; every existing test of the file passes
+- [x] Every check environmental: stop allowed, not counted, signatures named (test `lets the agent stop when the machine failed`)
+- [x] One real failure among them: counted and blocked as today (test `counts a red stop with a real failure`)
+- [x] Gate passes; every existing test of the file passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs`

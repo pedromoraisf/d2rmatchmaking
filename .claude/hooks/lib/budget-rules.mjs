@@ -19,6 +19,7 @@ import {
 } from '../../../scripts/lib/budget.mjs';
 import { activePhase } from './delegation.mjs';
 import { checkDispatchPolicy, READ_ONLY_HELPERS } from '../../../scripts/lib/model-policy.mjs';
+import { classify } from '../../../scripts/lib/env-signatures.mjs';
 import { innerShellCommands } from './shell-indirection.mjs';
 
 const deny = (reason, effects = []) => ({ decision: 'deny', reason, effects });
@@ -325,13 +326,26 @@ export function countDenial(result, ctx, sid) {
 /**
  * Stop / SubagentStop with sensors red (consecutive): block the stop to force a fix at most MAX_RETRIES times;
  * on the next red stop let the agent stop, with the session marked exhausted. Green resets the counter.
+ * BUD-07: `failing` lists each failing check as { status, output }; when every one is environmental (ENV signatures,
+ * no test-failure marker) the red stop is not counted and the agent may stop.
  * Mutates the ledger. Returns { block, message }.
  */
-export function onStop(ledger, sid, failuresText) {
+export function onStop(ledger, sid, failuresText, failing = []) {
   const key = unitKey('stop', sid);
   if (!failuresText) {
     clearIfOpen(ledger, key);
     return { block: false, message: '' };
+  }
+  const signatures = failing.map(
+    (check) => classify({ status: check.status, output: check.output })?.signature,
+  );
+  if (signatures.length > 0 && signatures.every(Boolean)) {
+    return {
+      block: false,
+      message:
+        `[d2rmm stop] Sensors are red because of the machine (${[...new Set(signatures)].join(', ')}). ` +
+        'The red stop is not counted; the machine needs attention before the next run.',
+    };
   }
   const res = recordAttempt(ledger, key, false, { note: failuresText.slice(0, 400) });
   if (res.status === 'blocked') {
