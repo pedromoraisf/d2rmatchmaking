@@ -108,11 +108,11 @@ T7 → T8 → T9 → T10 → T11 → T12
 
 **Done when**:
 
-- [ ] `harness-self` is a delegation scope (test `knows the harness-self scope`)
-- [ ] Covered features are the backticked feature rows on the ticked line; a backticked path is not one (test `covers only backticked feature rows`)
-- [ ] An unticked line or an unapproved brief covers nothing (test `covers nothing without a ticked, approved brief`)
-- [ ] Run from a worktree, the brief is read from the main checkout (test `reads the brief of the main checkout from a worktree`)
-- [ ] Gate passes
+- [x] `harness-self` is a delegation scope (test `knows the harness-self scope`)
+- [x] Covered features are the backticked feature rows on the ticked line; a backticked path is not one (test `covers only backticked feature rows`)
+- [x] An unticked line or an unapproved brief covers nothing (test `covers nothing without a ticked, approved brief`)
+- [x] Run from a worktree, the brief is read from the main checkout (test `reads the brief of the main checkout from a worktree`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/delegation.test.mjs`

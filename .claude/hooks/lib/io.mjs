@@ -26,6 +26,23 @@ export function toRelative(root, filePath) {
   return path.relative(root, abs).split(path.sep).join('/');
 }
 
+/**
+ * The main checkout (ADR 028 § 3): the parent of the git common directory, whatever directory the hook runs from.
+ * Returns null outside a git repository.
+ */
+export function mainCheckout(root) {
+  try {
+    const common = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    return path.dirname(path.resolve(root, common));
+  } catch {
+    return null;
+  }
+}
+
 export function makeRepoContext(root) {
   const git = (...args) => {
     try {
@@ -38,10 +55,17 @@ export function makeRepoContext(root) {
       return null;
     }
   };
+  const main = mainCheckout(root) ?? root;
   return {
     root,
+    mainRoot: main,
     readFile(rel) {
       const abs = path.join(root, rel);
+      return existsSync(abs) ? readFileSync(abs, 'utf8') : null;
+    },
+    /** A file of the main checkout (the phase, its brief): never a worktree's copy. */
+    readMainFile(rel) {
+      const abs = path.join(main, rel);
       return existsSync(abs) ? readFileSync(abs, 'utf8') : null;
     },
     isTracked(rel) {
