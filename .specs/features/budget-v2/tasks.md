@@ -409,10 +409,10 @@ T10 → T11 → T12 → T13 → T14 → T15
 
 **Done when**:
 
-- [ ] With a covered feature whose branch does not exist, `git worktree add .claude/worktrees/x -b feat/F0-x phase/F0` and `git branch feat/F0-x phase/F0` get no guard decision (test `a covered branch not started touches nothing`)
-- [ ] A covered branch that exists and holds commits beyond the phase is still found by a merge or a branch operand naming it; an unresolvable operand still denies (test `still guards a covered branch that exists`)
-- [ ] Every existing test of `guard.test.mjs` passes unchanged
-- [ ] Gate passes
+- [x] With a covered feature whose branch does not exist, `git worktree add .claude/worktrees/x -b feat/F0-x phase/F0` and `git branch feat/F0-x phase/F0` get no guard decision (test `a covered branch not started touches nothing`)
+- [x] A covered branch that exists and holds commits beyond the phase is still found by a merge or a branch operand naming it; an unresolvable operand still denies (test `still guards a covered branch that exists`)
+- [x] Every existing test of `guard.test.mjs` passes unchanged
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/guard.test.mjs`

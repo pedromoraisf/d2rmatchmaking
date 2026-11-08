@@ -68,8 +68,13 @@ function revList(ctx, range) {
   return out === null ? null : out.split('\n').filter(Boolean);
 }
 
-/** HBS-32: `ref` touches the covered branch when they share a commit beyond the phase branch. */
+/**
+ * HBS-32: `ref` touches the covered branch when they share a commit beyond the phase branch. A covered branch that
+ * does not resolve yet (its feature has not started) holds no commit, so it touches nothing; the phase branch must
+ * resolve for that reading, so a git that cannot answer still fails closed.
+ */
 function touches(ctx, state, ref, branch) {
+  if (!commitOf(ctx, branch) && commitOf(ctx, state.phaseBranch)) return false;
   const a = revList(ctx, `${state.phaseBranch}..${ref}`);
   const b = revList(ctx, `${state.phaseBranch}..${branch}`);
   if (a === null || b === null) return true;

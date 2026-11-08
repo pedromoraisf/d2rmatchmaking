@@ -301,3 +301,40 @@ test('leaves an unresolvable operand alone with no covered feature', () => {
   assert.equal(decision('gh pr merge gone --merge', f.ctx), 'none', 'a PR merge');
   assert.equal(decision('git merge --no-ff gone', f.ctx), 'none', 'a local merge');
 });
+
+// A brief that covers the existing `gate-precision` and a second feature whose branch does not exist yet.
+const BRIEF_TWO = BRIEF.replace(
+  '| gate-precision | Large |',
+  '| gate-precision | Large |\n| continuous-delivery | Medium |',
+).replace('`gate-precision` (ADR 028)', '`gate-precision`, `continuous-delivery` (ADR 028)');
+
+test('a covered branch not started touches nothing', () => {
+  const f = fixture();
+  writeFileSync(path.join(f.dir, '.specs/phases/F0/brief.md'), BRIEF_TWO);
+  // feat/F0-continuous-delivery does not exist: creating it from the phase branch brings in no covered commit.
+  assert.equal(
+    decision(
+      'git worktree add .claude/worktrees/continuous-delivery -b feat/F0-continuous-delivery phase/F0',
+      f.ctx,
+    ),
+    'none',
+    'git worktree add',
+  );
+  assert.equal(decision('git branch feat/F0-continuous-delivery phase/F0', f.ctx), 'none', 'git branch');
+});
+
+test('still guards a covered branch that exists', () => {
+  const f = fixture();
+  writeFileSync(path.join(f.dir, '.specs/phases/F0/brief.md'), BRIEF_TWO);
+  // feat/F0-gate-precision exists and holds a commit beyond the phase: naming it as an operand is still judged.
+  assert.equal(
+    decision(`git worktree add .claude/worktrees/x -b newer ${BRANCH}`, f.ctx),
+    'deny',
+    'a branch operand naming the existing covered branch',
+  );
+  assert.equal(decision(`git branch -f phase/F0 ${BRANCH}`, f.ctx), 'deny', 'a forced branch move');
+  assert.equal(decision(`git merge --no-ff ${BRANCH}`, f.ctx), 'deny', 'a merge without proofs');
+  // An operand that resolves nowhere is still denied while a feature is covered.
+  assert.equal(decision('git merge --no-ff feat/F0-nope', f.ctx), 'deny', 'an unresolvable merge operand');
+  assert.match(reason('git merge --no-ff feat/F0-nope', f.ctx), /names no commit here/);
+});
