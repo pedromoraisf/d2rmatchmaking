@@ -176,14 +176,14 @@ T15 → T16
 
 **Done when**:
 
-- [ ] The Independent Test lines of the spec: `cd apps && rg -n foo api/package.json 2>/dev/null | head -n 20` → `allow`, `rg -n foo apps` → `null`, `grep KEY apps/api/.env` → `deny` (test `decides the spec's independent test`)
-- [ ] Every GPR-30 edge case denies (`grep K apps/api/.env`, `grep -e K apps/api/.env`, `git show HEAD:.env`, `git log -p -- .npmrc`, `jq . .npmrc`, `cat .ENV`, `cat apps/api/.Env.local`) (test `denies a secret name in any operand`)
-- [ ] `cat ~/.ssh/id_rsa`, `cat /proc/self/environ`, `git diff --no-index`, a `..` escape and a symbolic link out of the checkout get no `allow` (test `allows nothing outside the checkout`)
-- [ ] A `cwd` outside the checkout, a missing `cwd` and a `cwd` in a nested repository get no `allow`; a worktree `cwd` does (test `resolves operands against the call's working directory`)
-- [ ] A hard link to a file, an ignored file and a directory as a read path get no `allow` (test `allows only plain tracked or untracked files`)
-- [ ] Over each cap, and with a fake `git` that times out, there is no `allow`; a timed-out deny check gives `ask` (test `stops at its caps and its deadline`)
-- [ ] `git log -p` with no path is allowed (AD-164) (test `allows the whole history`)
-- [ ] Gate passes
+- [x] The Independent Test lines of the spec: `cd apps && rg -n foo api/package.json 2>/dev/null | head -n 20` → `allow`, `rg -n foo apps` → `null`, `grep KEY apps/api/.env` → `deny` (test `decides the spec's independent test`)
+- [x] Every GPR-30 edge case denies (`grep K apps/api/.env`, `grep -e K apps/api/.env`, `git show HEAD:.env`, `git log -p -- .npmrc`, `jq . .npmrc`, `cat .ENV`, `cat apps/api/.Env.local`) (test `denies a secret name in any operand`)
+- [x] `cat ~/.ssh/id_rsa`, `cat /proc/self/environ`, `git diff --no-index`, a `..` escape and a symbolic link out of the checkout get no `allow` (test `allows nothing outside the checkout`)
+- [x] A `cwd` outside the checkout, a missing `cwd` and a `cwd` in a nested repository get no `allow`; a worktree `cwd` does (test `resolves operands against the call's working directory`)
+- [x] A hard link to a file, an ignored file and a directory as a read path get no `allow` (test `allows only plain tracked or untracked files`)
+- [x] Over each cap, and with a fake `git` that times out, there is no `allow`; a timed-out deny check gives `ask` (test `stops at its caps and its deadline`)
+- [x] `git log -p` with no path is allowed (AD-164) (test `allows the whole history`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/read-only.test.mjs`

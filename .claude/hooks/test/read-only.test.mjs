@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseLine } from '../lib/shell-parse.mjs';
-import { READ_ONLY_TABLE, isSafeWord, matchShape } from '../lib/read-only.mjs';
+import { READ_ONLY_TABLE, isSafeWord, matchShape, readOnlyDecision } from '../lib/read-only.mjs';
 
 const shape = (line) => matchShape(parseLine(line));
 const rowsOf = (line) => shape(line)?.map((r) => r.row) ?? null;
@@ -148,4 +148,205 @@ test('isSafeWord takes only safe characters, single quotes and no leading =', ()
   assert.equal(isSafeWord(w('x', 'none', true, true)), false);
   assert.equal(isSafeWord(w('=x')), false);
   assert.equal(isSafeWord(w('a b', 'none', false)), false);
+});
+
+// ---------------------------------------------------------------- part 2: a fake checkout and a fake git
+
+/** A disk of directories and files; `links` map a path to its target; `slow` paths time out in realpath/stat. */
+function fakeDisk({ dirs = [], files = {}, links = {}, slow = [] } = {}) {
+  const nodes = new Map();
+  for (const d of ['/', '/repo', '/tmp', ...dirs]) nodes.set(d, { kind: 'dir', nlink: 1 });
+  for (const [p, o] of Object.entries(files)) nodes.set(p, { kind: 'file', nlink: o.nlink ?? 1 });
+  const target = (p) => {
+    let t = p;
+    for (let i = 0; i < 8 && links[t]; i++) t = links[t];
+    return t;
+  };
+  return {
+    realpath(p) {
+      if (slow.includes(p)) return { timedOut: true };
+      const t = target(p);
+      return nodes.has(t) ? t : null;
+    },
+    stat(p) {
+      if (slow.includes(p)) return { timedOut: true };
+      const node = nodes.get(target(p));
+      if (!node) return null;
+      return {
+        isFile: () => node.kind === 'file',
+        isDirectory: () => node.kind === 'dir',
+        nlink: node.nlink,
+      };
+    },
+  };
+}
+
+/** `git`: rev-parse knows `revs`; ls-files lists the `ignored` paths asked about; `timeout` times every call out. */
+function fakeGit({ revs = [], ignored = [], timeout = false } = {}) {
+  return (args) => {
+    if (timeout) return { timedOut: true };
+    if (args[0] === 'rev-parse') return revs.includes(args.at(-1)) ? 'sha' : null;
+    if (args.includes('ls-files')) {
+      const paths = args.slice(args.indexOf('--') + 1);
+      return ignored.filter((p) => paths.includes(p)).join('\n');
+    }
+    return null;
+  };
+}
+
+function checkout({ disk = {}, git = {} } = {}) {
+  const d = fakeDisk(disk);
+  return { root: '/repo', mainRoot: '/repo', realpath: d.realpath, stat: d.stat, git: fakeGit(git) };
+}
+
+const decide = (line, input, ctx) => readOnlyDecision(parseLine(line), input, ctx);
+const FILES = {
+  dirs: ['/repo/apps', '/repo/apps/api'],
+  files: { '/repo/apps/api/package.json': {}, '/repo/a.txt': {} },
+};
+
+test("decides the spec's independent test", () => {
+  const ctx = checkout({ disk: FILES });
+  assert.equal(
+    decide('cd apps && rg -n foo api/package.json 2>/dev/null | head -n 20', { cwd: '/repo' }, ctx)?.decision,
+    'allow',
+  );
+  assert.equal(decide('rg -n foo apps', { cwd: '/repo' }, ctx), null, 'a directory is not a read path');
+  assert.equal(decide('grep KEY apps/api/.env', { cwd: '/repo' }, ctx)?.decision, 'deny');
+});
+
+test('denies a secret name in any operand', () => {
+  const ctx = checkout({ disk: FILES });
+  for (const line of [
+    'grep K apps/api/.env',
+    'grep -e K apps/api/.env',
+    'git show HEAD:.env',
+    'git log -p -- .npmrc',
+    'jq . .npmrc',
+    'cat .ENV',
+    'cat apps/api/.Env.local',
+    'grep .env README.md',
+    'git log -- .git/config',
+  ]) {
+    assert.equal(decide(line, { cwd: '/repo' }, ctx)?.decision, 'deny', line);
+  }
+  assert.notEqual(
+    decide('cat .env.example', { cwd: '/repo' }, ctx)?.decision,
+    'deny',
+    '.env.example is not a secret',
+  );
+});
+
+test('allows nothing outside the checkout', () => {
+  const ctx = checkout({
+    disk: {
+      dirs: ['/etc'],
+      files: { '/etc/hosts': {}, '/repo/a.txt': {} },
+      links: { '/repo/link.txt': '/etc/hosts' },
+    },
+  });
+  for (const line of [
+    'cat ~/.ssh/id_rsa',
+    'cat /proc/self/environ',
+    'git diff --no-index a b',
+    'cat ../a.txt',
+    'cat link.txt',
+    'cat /etc/hosts',
+  ]) {
+    assert.notEqual(decide(line, { cwd: '/repo' }, ctx)?.decision, 'allow', line);
+  }
+  assert.equal(decide('cat a.txt', { cwd: '/repo' }, ctx)?.decision, 'allow', 'the control: a file inside');
+});
+
+test("resolves operands against the call's working directory", () => {
+  const ctx = checkout({
+    disk: {
+      dirs: [...FILES.dirs, '/tmp/scratch', '/repo/tools/x', '/repo/.claude/worktrees/gate-precision'],
+      files: {
+        ...FILES.files,
+        '/repo/tools/x/.git': {},
+        '/repo/.claude/worktrees/gate-precision/.git': {},
+        '/repo/.claude/worktrees/gate-precision/README.md': {},
+      },
+    },
+  });
+  assert.equal(decide('cat apps/api/package.json', { cwd: '/repo' }, ctx)?.decision, 'allow');
+  assert.equal(
+    decide('cat api/package.json', { cwd: '/repo/apps' }, ctx)?.decision,
+    'allow',
+    'relative to cwd',
+  );
+  assert.equal(
+    decide('cat apps/api/package.json', { cwd: '/repo/apps' }, ctx),
+    null,
+    'not relative to the root',
+  );
+  assert.equal(decide('cat a.txt', { cwd: '/tmp/scratch' }, ctx), null, 'a cwd outside the checkout');
+  assert.equal(decide('cat a.txt', {}, ctx), null, 'no cwd');
+  assert.equal(decide('cat package.json', { cwd: '/repo/tools/x' }, ctx), null, 'a nested repository');
+  assert.equal(
+    decide('cat README.md', { cwd: '/repo/.claude/worktrees/gate-precision' }, ctx)?.decision,
+    'allow',
+    'a worktree is not a nested repository',
+  );
+});
+
+test('allows only plain tracked or untracked files', () => {
+  const ctx = checkout({
+    disk: {
+      ...FILES,
+      files: { ...FILES.files, '/repo/h.txt': { nlink: 2 }, '/repo/dist/out.log': {} },
+      dirs: [...FILES.dirs, '/repo/dist'],
+    },
+    git: { ignored: ['dist/out.log'] },
+  });
+  const input = { cwd: '/repo' };
+  assert.equal(decide('cat h.txt', input, ctx), null, 'a hard link');
+  assert.equal(decide('cat dist/out.log', input, ctx), null, 'an ignored file');
+  assert.equal(decide('cat apps', input, ctx), null, 'a directory');
+  assert.equal(decide('head -n 1 apps', input, ctx), null, 'a directory under head');
+  assert.equal(decide('cat apps/api/package.json', input, ctx)?.decision, 'allow', 'a plain file');
+});
+
+test('stops at its caps and its deadline', () => {
+  const input = { cwd: '/repo' };
+  const ctx = checkout({
+    disk: { dirs: [], files: { '/repo/a.txt': {} } },
+    git: { revs: ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9'] },
+  });
+  const paths = (n) => ['cat', ...Array(n).fill('a.txt')].join(' ');
+  assert.equal(decide(paths(64), input, ctx)?.decision, 'allow', 'the 64-path cap holds 64 paths');
+  assert.equal(decide(paths(65), input, ctx), null, 'over the 64-path cap');
+  const echo = (n) => ['echo', ...Array(n).fill('a')].join(' ');
+  assert.equal(decide(echo(199), input, ctx)?.decision, 'allow', '200 words is the cap');
+  assert.equal(decide(echo(200), input, ctx), null, 'over the 200-word cap');
+  assert.equal(
+    decide(`git show ${['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8'].join(' ')}`, input, ctx)?.decision,
+    'allow',
+    'eight spawns',
+  );
+  assert.equal(
+    decide(`git show ${['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9'].join(' ')}`, input, ctx),
+    null,
+    'nine spawns',
+  );
+
+  const slowGit = checkout({ disk: { files: { '/repo/a.txt': {} } }, git: { timeout: true } });
+  assert.equal(decide('git log -- a.txt', input, slowGit), null, 'a git spawn that times out');
+
+  const slowDisk = checkout({ disk: { files: { '/repo/a.txt': {} }, slow: ['/repo/a.txt'] } });
+  assert.equal(decide('cat a.txt', input, slowDisk)?.decision, 'ask', 'a timed-out deny check asks');
+});
+
+test('allows the whole history', () => {
+  const ctx = checkout({ disk: FILES });
+  assert.equal(decide('git log -p', { cwd: '/repo' }, ctx)?.decision, 'allow');
+  assert.equal(decide('git show --stat', { cwd: '/repo' }, ctx)?.decision, 'allow');
+});
+
+test('refuses a listing that would reach the git directory', () => {
+  const ctx = checkout({ disk: FILES });
+  assert.equal(decide('find . -name a.txt', { cwd: '/repo' }, ctx), null, 'find from the root holds .git');
+  assert.equal(decide('ls -R', { cwd: '/repo' }, ctx), null, 'a recursive listing from the root');
+  assert.equal(decide('ls -la', { cwd: '/repo' }, ctx)?.decision, 'allow', 'a plain listing of the root');
 });
