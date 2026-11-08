@@ -389,8 +389,8 @@ T10 → T11 → T12 → T13 → T14
 
 **Done when**:
 
-- [ ] `--timeout=0` and `--timeout=1.5` exit 2; `--timeout=2` runs (test `reads the timeout in both forms`)
-- [ ] Gate passes
+- [x] `--timeout=0` and `--timeout=1.5` exit 2; `--timeout=2` runs (test `reads the timeout in both forms`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test --test-name-pattern "timeout" scripts/test/attempt-cli.test.mjs`

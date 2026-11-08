@@ -115,10 +115,14 @@ function attemptLogPath(cwdRoot, key, n) {
   return path.join(cwdRoot, 'reports', 'attempts', key.replace(/[:/]/g, '-'), `${n}.log`);
 }
 
-/** The --timeout of `run` in whole minutes (BUD-27): the default when absent, exit 2 when not a whole number ≥ 1. */
+/**
+ * The --timeout of `run` in whole minutes (BUD-27), as `--timeout <n>` or `--timeout=<n>`: the default when absent,
+ * exit 2 when not a whole number ≥ 1.
+ */
 function timeoutMinutes() {
-  if (!opts.includes('--timeout')) return DEFAULT_TIMEOUT_MINUTES;
-  const v = opt('--timeout') ?? '';
+  const option = opts.find((o) => o === '--timeout' || o.startsWith('--timeout='));
+  if (option === undefined) return DEFAULT_TIMEOUT_MINUTES;
+  const v = option === '--timeout' ? (opt('--timeout') ?? '') : option.slice('--timeout='.length);
   const n = Number(v);
   if (!/^\d+$/.test(v) || n < 1 || n > MAX_TIMEOUT_MINUTES) {
     usage(`--timeout takes whole minutes from 1 to ${MAX_TIMEOUT_MINUTES}, got "${v}"`);

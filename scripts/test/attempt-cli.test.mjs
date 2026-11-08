@@ -205,6 +205,20 @@ test('refuses a bad timeout', () => {
   assert.equal(existsSync(marker), false, 'no command ran');
 });
 
+test('reads the timeout in both forms', () => {
+  const dir = repo();
+  const marker = path.join(dir, 'ran.txt');
+  const gate = ['run', '--feature', 'demo', '--step', 'T1'];
+  for (const value of ['--timeout=0', '--timeout=1.5']) {
+    const r = run(dir, ...gate, value, '--', `echo x >> ${marker}`);
+    assert.equal(r.status, 2, value);
+  }
+  assert.equal(existsSync(marker), false, 'no refused form ran the command');
+  const ok = run(dir, ...gate, '--timeout=2', '--', `echo x >> ${marker}`);
+  assert.equal(ok.status, 0, '--timeout=2 runs');
+  assert.equal(existsSync(marker), true, 'the command ran');
+});
+
 test('diagnoses the machine when it blocks a unit', () => {
   const dir = repo();
   const marker = path.join(dir, 'ran.txt');
