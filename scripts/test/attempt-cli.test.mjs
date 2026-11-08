@@ -404,3 +404,113 @@ test('prints the result and the duration', () => {
   assert.match(r.stderr, /gate:demo\/T1: exit 0 in \d+\.\d+s\./);
   assert.match(r.stderr, /passed on attempt 1/);
 });
+
+// Budget v2 (T6): the orchestrator resets a unit once, with a reason; every reset is kept.
+const ledgerOf = (dir) => JSON.parse(readFileSync(path.join(dir, '.git/d2rmm/ledger.json'), 'utf8'));
+let failureNo = 0;
+/** Three counted failures. Each command is new, so no rerun is refused; the third blocks the unit (exit 3). */
+const blockCounted = (dir) => {
+  for (const status of [1, 1, 3]) {
+    failureNo += 1;
+    assert.equal(run(dir, ...gateArgs(`exit 1 #${failureNo}`)).status, status);
+  }
+  assert.equal(unitOf(dir).status, 'blocked');
+};
+/** Three environment failures in a row: the unit is env-blocked. */
+const blockMachine = (dir) => {
+  const args = gateArgs('echo Cannot connect to the Docker daemon; exit 1');
+  for (let i = 0; i < 3; i += 1) assert.equal(run(dir, ...args).status, 1);
+  assert.equal(unitOf(dir).status, 'env-blocked');
+};
+
+test('resets a unit once for the orchestrator', () => {
+  const dir = repo();
+  blockCounted(dir);
+  const r = run(
+    dir,
+    'reset',
+    '--unit',
+    'gate:demo/T1',
+    '--by',
+    'orchestrator',
+    '--reason',
+    'Docker was stopped; started again',
+  );
+  assert.equal(r.status, 0);
+  const ledger = ledgerOf(dir);
+  assert.equal(ledger.units['gate:demo/T1'], undefined, 'the unit has no attempts');
+  assert.equal(ledger.resets.length, 1);
+  assert.equal(ledger.resets[0].key, 'gate:demo/T1');
+  assert.equal(ledger.resets[0].by, 'orchestrator');
+  assert.equal(ledger.resets[0].reason, 'Docker was stopped; started again');
+  assert.equal(ledger.resets[0].previous.attempts.length, 3, 'the reset keeps what it cleared');
+});
+
+test('needs a reason from the orchestrator', () => {
+  const dir = repo();
+  blockCounted(dir);
+  const r = run(dir, 'reset', '--unit', 'gate:demo/T1', '--by', 'orchestrator');
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /non-empty --reason/);
+  assert.equal(ledgerOf(dir).resets, undefined, 'nothing was reset');
+  assert.equal(unitOf(dir).status, 'blocked');
+});
+
+test("refuses the orchestrator's second reset", () => {
+  const dir = repo();
+  blockCounted(dir);
+  assert.equal(
+    run(dir, 'reset', '--unit', 'gate:demo/T1', '--by', 'orchestrator', '--reason', 'first').status,
+    0,
+  );
+  blockCounted(dir);
+  assert.equal(
+    run(dir, 'reset', '--unit', 'gate:demo/T1', '--by', 'pedromoraisf', '--reason', 'maintainer').status,
+    0,
+  );
+  blockCounted(dir);
+  const second = run(dir, 'reset', '--unit', 'gate:demo/T1', '--by', 'orchestrator', '--reason', 'again');
+  assert.equal(second.status, 2);
+  assert.match(second.stderr, /maintainer's/);
+  assert.equal(unitOf(dir).status, 'blocked', 'the refused reset changed nothing');
+  assert.equal(ledgerOf(dir).resets.length, 2, 'the earlier resets are kept');
+});
+
+test('resets an env-blocked unit', () => {
+  const dir = repo();
+  blockMachine(dir);
+  const r = run(
+    dir,
+    'reset',
+    '--unit',
+    'gate:demo/T1',
+    '--by',
+    'orchestrator',
+    '--reason',
+    'Docker was stopped',
+  );
+  assert.equal(r.status, 0);
+  const ledger = ledgerOf(dir);
+  assert.equal(ledger.resets[0].previous.status, 'env-blocked');
+  assert.equal(ledger.units['gate:demo/T1'], undefined);
+});
+
+test('reads both forms of the unit option', () => {
+  const dir = repo();
+  blockCounted(dir);
+  const equals = run(dir, 'reset', '--unit=gate:demo/T1', '--by', 'orchestrator', '--reason', 'equals form');
+  assert.equal(equals.status, 0);
+  assert.equal(ledgerOf(dir).resets[0].key, 'gate:demo/T1');
+  blockCounted(dir);
+  const spaced = run(
+    dir,
+    'reset',
+    '--unit',
+    ' gate:demo/T1 ',
+    '--by',
+    'orchestrator',
+    '--reason',
+    'space form',
+  );
+  assert.equal(spaced.status, 2, 'the spaced form, trimmed, names the unit the orchestrator already reset');
+});

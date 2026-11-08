@@ -4,7 +4,8 @@
 //   node scripts/attempt.mjs run --feature <f> --step <T3|spec|tasks|proofs|verification|integration> [--timeout <minutes>] -- <command…>
 //   node scripts/attempt.mjs status [--feature <f>]     exit 1 when the feature has a blocked unit
 //   node scripts/attempt.mjs report                     markdown table for the phase review
-//   node scripts/attempt.mjs reset --unit <key> --by <maintainer>   maintainer only (the gate hook asks)
+//   node scripts/attempt.mjs reset --unit <key> --by orchestrator --reason <why>   once per unit (BUD-12, BUD-14)
+//   node scripts/attempt.mjs reset --unit <key> --by <maintainer>   the maintainer's (the gate hook asks)
 //
 // Exit codes for `run`: the command's own status when it ran (124 for a timeout, 137 for a kill by SIGKILL); 3 when
 // the unit is (or becomes) blocked or env-blocked; 4 when the rerun is refused because nothing changed since the last
@@ -28,6 +29,8 @@ import {
   featureBlocked,
   report,
   reset,
+  orchestratorResets,
+  unitOption,
 } from './lib/budget.mjs';
 import { ledgerPath, loadLedger, withLedger } from './lib/ledger-store.mjs';
 import { allowedSteps } from './lib/steps.mjs';
@@ -232,11 +235,24 @@ if (cmd === 'report') {
 }
 
 if (cmd === 'reset') {
-  const key = opt('--unit');
+  // BUD-12..14, BUD-29: the orchestrator resets a unit once, with a reason; the second reset is the maintainer's.
+  const key = unitOption(opts);
   const by = opt('--by');
-  if (!key || !by) usage('reset needs --unit <key> --by <maintainer>');
-  const done = withLedger(file, (l) => reset(l, key, { by }));
-  console.log(done ? `reset ${key} (by ${by})` : `nothing to reset for ${key}`);
+  const reason = opt('--reason')?.trim() || null;
+  if (!key || !by) usage('reset needs --unit <key> --by <maintainer|orchestrator> [--reason <why>]');
+  if (by === 'orchestrator' && !reason) usage('an orchestrator reset needs a non-empty --reason');
+  const outcome = withLedger(file, (l) => {
+    if (by === 'orchestrator' && orchestratorResets(l, key) >= 1) return 'refused';
+    return reset(l, key, { by, reason }) ? 'reset' : 'none';
+  });
+  if (outcome === 'refused') {
+    console.error(
+      `attempt: ${key} was already reset once by the orchestrator. The next reset of it is the maintainer's ` +
+        '(--by <maintainer>).',
+    );
+    process.exit(2);
+  }
+  console.log(outcome === 'reset' ? `reset ${key} (by ${by})` : `nothing to reset for ${key}`);
   process.exit(0);
 }
 

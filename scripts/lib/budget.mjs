@@ -240,6 +240,27 @@ export function orchestratorResets(ledger, key) {
   return (ledger.resets ?? []).filter((r) => r.key === key && r.by === 'orchestrator').length;
 }
 
+const RESET_UNIT_FLAG = '--unit';
+
+/** A unit key as the reset option gives it: trimmed, or null when empty (BUD-29). */
+export function normaliseUnitKey(value) {
+  const key = String(value ?? '').trim();
+  return key === '' ? null : key;
+}
+
+/**
+ * The unit key of a reset: `--unit <key>` or `--unit=<key>` in an argument list, normalised by normaliseUnitKey.
+ * The gate and attempt.mjs both read the key with this function (BUD-29). Null when the list names no unit.
+ */
+export function unitOption(args) {
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = String(args[i]);
+    if (arg === RESET_UNIT_FLAG) return normaliseUnitKey(args[i + 1]);
+    if (arg.startsWith(`${RESET_UNIT_FLAG}=`)) return normaliseUnitKey(arg.slice(RESET_UNIT_FLAG.length + 1));
+  }
+  return null;
+}
+
 export function blockedUnits(ledger, prefix = '') {
   return Object.entries(ledger.units)
     .filter(([k, u]) => isBlocked(u) && k.startsWith(prefix))

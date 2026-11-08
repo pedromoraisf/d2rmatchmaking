@@ -211,12 +211,12 @@ T8 → T9 → T10
 
 **Done when**:
 
-- [ ] A first orchestrator reset with a reason clears the unit and is kept with its reason (test `resets a unit once for the orchestrator`)
-- [ ] A missing reason exits 2 (test `needs a reason from the orchestrator`)
-- [ ] A second orchestrator reset exits 2, also after a maintainer reset in between (test `refuses the orchestrator's second reset`)
-- [ ] An `env-blocked` unit takes the orchestrator's reset (test `resets an env-blocked unit`)
-- [ ] `--unit=<key>` and `--unit <key>` name the same unit (test `reads both forms of the unit option`)
-- [ ] Gate passes
+- [x] A first orchestrator reset with a reason clears the unit and is kept with its reason (test `resets a unit once for the orchestrator`)
+- [x] A missing reason exits 2 (test `needs a reason from the orchestrator`)
+- [x] A second orchestrator reset exits 2, also after a maintainer reset in between (test `refuses the orchestrator's second reset`)
+- [x] An `env-blocked` unit takes the orchestrator's reset (test `resets an env-blocked unit`)
+- [x] `--unit=<key>` and `--unit <key>` name the same unit (test `reads both forms of the unit option`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/attempt-cli.test.mjs`
