@@ -76,6 +76,12 @@ T6 → T7 → T8
 T8 → T9 → T10
 ```
 
+### Phase 5: Verifier findings
+
+```
+T10 → T11 → T12 → T13 → T14
+```
+
 ---
 
 ## Task Breakdown
@@ -310,6 +316,89 @@ T8 → T9 → T10
 
 ---
 
+### T11: A reset hidden behind another wrapper call still asks
+
+**What**: In `.claude/hooks/lib/budget-rules.mjs`, the reset rule reads every `scripts/attempt.mjs reset` in the line (each segment and each inner shell text), not the first `scripts/attempt.mjs <word>`: a maintainer reset anywhere in the line asks, and an orchestrator reset that would be the second asks, whatever precedes it (Verifier finding 1).
+**Where**: `.claude/hooks/lib/budget-rules.mjs` (modify)
+**Depends on**: T10
+**Reuses**: `WRAPPER_ANY`, the reset checks of T5
+**Requirement**: BUD-14, BUD-15
+
+**Done when**:
+
+- [ ] `node scripts/attempt.mjs status && node scripts/attempt.mjs reset --unit gate:x/T1 --by maintainer` asks; `echo scripts/attempt.mjs status; node scripts/attempt.mjs reset … --by orchestrator …` asks for a second orchestrator reset; `bash -c "… reset …"` behind a status call asks (test `asks for a reset hidden behind another wrapper call`)
+- [ ] Every existing test of `budget-rules.test.mjs` passes unchanged
+- [ ] Gate passes
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs`
+
+**Commit**: `fix(harness): ask for every reset in a command line`
+
+---
+
+### T12: A descriptor redirection is not a shell write
+
+**What**: In `.claude/hooks/lib/gate-rules.mjs`, the shell-write rule for harness files takes out the four whole tokens `2>&1`, `>/dev/null`, `2>/dev/null` and `&>/dev/null` before it looks for `>`, so `<wrapper> 2>&1 | tail -n N` and `2>&1 | grep …` no longer ask (BUD-18; Verifier finding 2). `budget-rules.test.mjs` asserts these filter forms get no decision at all, instead of only no deny.
+**Where**: `.claude/hooks/lib/gate-rules.mjs` (modify)
+**Depends on**: T11
+**Reuses**: the shell-write rule
+**Requirement**: BUD-18
+
+**Done when**:
+
+- [ ] The BUD-18 filter forms with `2>&1` get no decision (test `allows read-only filters after 2>&1`)
+- [ ] `echo x > .claude/hooks/gate.mjs` and `cat a 2>&1 > eslint.config.mjs` still ask (test `still asks for a real write after 2>&1`)
+- [ ] Every existing test under `.claude/hooks/test/` passes
+- [ ] Gate passes
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs .claude/hooks/test/gate-rules.test.mjs`
+
+**Commit**: `fix(harness): a descriptor redirection is not a shell write`
+
+---
+
+### T13: Unit tests of the unchanged-rerun rule
+
+**What**: `scripts/test/budget.test.mjs` gains pure tests of `isUnchangedRerun` (Verifier finding 4): refused for the same command and fingerprint after a counted failure; not refused with a null fingerprint, after an environment failure in between, after a pass in between, or for a different command.
+**Where**: `scripts/test/budget.test.mjs` (modify)
+**Depends on**: T12
+**Reuses**: `isUnchangedRerun` of `scripts/lib/budget.mjs`
+**Requirement**: BUD-09, BUD-10
+
+**Done when**:
+
+- [ ] The five cases above (test `isUnchangedRerun refuses only the same failing state`)
+- [ ] Gate passes
+
+**Tests**: unit
+**Gate**: `node --test scripts/test/budget.test.mjs`
+
+**Commit**: `test(harness): prove the unchanged-rerun rule on its own`
+
+---
+
+### T14: The `--timeout=<n>` form
+
+**What**: `scripts/attempt.mjs` reads `--timeout=<n>` as `--timeout <n>`, so `--timeout=0` and `--timeout=1.5` are refused with exit 2 and `--timeout=2` sets two minutes (Verifier finding 5).
+**Where**: `scripts/attempt.mjs` (modify)
+**Depends on**: T13
+**Reuses**: the timeout parsing of T3
+**Requirement**: BUD-27
+
+**Done when**:
+
+- [ ] `--timeout=0` and `--timeout=1.5` exit 2; `--timeout=2` runs (test `reads the timeout in both forms`)
+- [ ] Gate passes
+
+**Tests**: unit
+**Gate**: `node --test --test-name-pattern "timeout" scripts/test/attempt-cli.test.mjs`
+
+**Commit**: `fix(harness): read the timeout in both forms`
+
+---
+
 ## Checks
 
 **C1** - Each signature is matched exactly, and a test-failure marker wins (BUD-01, BUD-26)
@@ -319,16 +408,16 @@ Proof: `node --test scripts/test/env-signatures.test.mjs`
 Proof: `node --test scripts/test/budget.test.mjs`
 
 **C3** - The wrapper classifies, times out at a whole-minute timeout with exit 124, and diagnoses the machine (BUD-03, BUD-04, BUD-06, BUD-27)
-Proof: `node --test --test-name-pattern "Docker failure" scripts/test/attempt-cli.test.mjs`
+Proof: `node --test --test-name-pattern "Docker failure|killed command|stops a command at its timeout|bad timeout|timeout in both forms|diagnoses the machine|diagnosis probe" scripts/test/attempt-cli.test.mjs`
 
 **C4** - The wrapper refuses an unchanged rerun with exit 4 and runs after a change, another command or a machine failure (BUD-08, BUD-09, BUD-10, BUD-28)
-Proof: `node --test --test-name-pattern "rerun" scripts/test/attempt-cli.test.mjs`
+Proof: `node --test --test-name-pattern "rerun|empty commit|runs after a change|runs again after a machine failure|without a fingerprint|fingerprint before" scripts/test/attempt-cli.test.mjs`
 
 **C5** - The wrapper keeps the full output and prints its last 60 lines (BUD-17)
 Proof: `node --test --test-name-pattern "full output" scripts/test/attempt-cli.test.mjs`
 
 **C6** - The orchestrator resets a unit once, with a reason, under one key normalisation (BUD-12, BUD-13, BUD-14, BUD-29)
-Proof: `node --test --test-name-pattern "reset" scripts/test/attempt-cli.test.mjs`
+Proof: `node --test --test-name-pattern "reset|needs a reason|unit option" scripts/test/attempt-cli.test.mjs`
 
 **C7** - The gate asks only for the maintainer's resets, allows read-only filters and hands over the corrected command (BUD-15, BUD-18, BUD-19, BUD-20)
 Proof: `node --test .claude/hooks/test/budget-rules.test.mjs`
@@ -347,6 +436,15 @@ Proof: `pnpm test:harness`
 
 **C12** - No contract drift (BUD-25)
 Proof: `pnpm contracts:check`
+
+**C13** - The unchanged-rerun rule refuses only the same failing state (BUD-09, BUD-10)
+Proof: `node --test --test-name-pattern "isUnchangedRerun" scripts/test/budget.test.mjs`
+
+**C14** - A reset anywhere in a command line is judged, not only the first wrapper call (BUD-14, BUD-15)
+Proof: `node --test --test-name-pattern "hidden behind another wrapper call" .claude/hooks/test/budget-rules.test.mjs`
+
+**C15** - A read-only filter after `2>&1` gets no decision; a real write still asks (BUD-18)
+Proof: `node --test --test-name-pattern "2>&1" .claude/hooks/test/budget-rules.test.mjs`
 
 ---
 
@@ -368,6 +466,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 
 **T10 done (2026-11-08):** execute-batch-3 (retry, after the maintainer reset the dispatch) committed `3e3cc97`; gate passed on its first run after the reset: 55 of 55 `@BUD-` scenarios, `pnpm test:harness` 488 pass, `pnpm contracts:check` clean. The blocks above are resolved. Next: proofs.
 
+**Verifier (2026-11-08):** FAIL at `590421a`, 5 findings (one blocking: a reset hidden behind another wrapper call is not judged). Replanned as T11 to T14; checks C3, C4 and C6 widened (finding 3) by this commit. Dispatched: execute-batch-4 (T11 to T14) to `feature-worker` at the commit of this note.
+
 ---
 
 ## Phase Execution Map
@@ -377,6 +477,7 @@ Phase 1:  T1 → T2
 Phase 2:  T2 → T3 → T4 → T5 → T6
 Phase 3:  T6 → T7 → T8
 Phase 4:  T8 → T9 → T10
+Phase 5:  T10 → T11 → T12 → T13 → T14
 ```
 
-Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T6); `execute-batch-2` runs phases 3 and 4 (T7 to T10).
+Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T6); `execute-batch-2` runs phases 3 and 4 (T7 to T10); `execute-batch-4` runs phase 5 (T11 to T14), the Verifier's findings.
