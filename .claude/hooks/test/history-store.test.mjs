@@ -27,6 +27,10 @@ import {
 } from '../lib/history-store.mjs';
 
 delete process.env.D2RMM_LEDGER; // the test-only override of ledgerPath must not leak into the git check
+// git sets GIT_DIR and GIT_INDEX_FILE for the hooks of a commit: the temporary repositories and the git calls of
+// ledgerPath must not inherit them, or they would act on the repository that runs the hook.
+for (const key of Object.keys(process.env))
+  if (key.startsWith('GIT_')) Reflect.deleteProperty(process.env, key);
 
 const NOW = 1_800_000_000_000;
 const MINUTE = 60_000;

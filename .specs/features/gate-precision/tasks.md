@@ -347,11 +347,11 @@ T15 → T16
 
 **Done when**:
 
-- [ ] A 101 MB input, a malformed JSON and an empty stdin each get a decision with exit 0 and no hook error (test `answers every input`)
-- [ ] A read-only Bash call loads none of the four modules; an Edit of `.quality-baseline.json` loads the ratchet (test `loads rule modules only when needed`)
-- [ ] A stalled stdin gets `ask` from the watchdog within 9 s (test `answers before the hook timeout`)
-- [ ] The log carries no command text (test `logs no command`)
-- [ ] Gate passes
+- [x] A 101 MB input, a malformed JSON and an empty stdin each get a decision with exit 0 and no hook error (test `answers every input`)
+- [x] A read-only Bash call loads none of the four modules; an Edit of `.quality-baseline.json` loads the ratchet (test `loads rule modules only when needed`)
+- [x] A stalled stdin gets `ask` from the watchdog within 9 s (test `answers before the hook timeout`)
+- [x] The log carries no command text (test `logs no command`)
+- [x] Gate passes
 
 **Tests**: harness (spawns the gate; not a mutation proof)
 **Gate**: `node --test .claude/hooks/test/gate-startup.test.mjs`
