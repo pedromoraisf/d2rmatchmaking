@@ -413,7 +413,7 @@ Proof: `pnpm test:harness`
 The feature's live state, written as it happens - a compaction gives no warning.
 
 **Settled mid-build:** none
-**Dispatched:** none
+**Dispatched:** execute-batch-1 (T1 to T7) to `feature-worker` at `7524f1f`, 2026-11-07
 **Walked:** none
 
 ---
