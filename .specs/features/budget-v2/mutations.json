@@ -43,17 +43,17 @@
   },
   {
     "file": ".claude/hooks/lib/guard.mjs",
-    "old": "if (!commitOf(ctx, branch) && commitOf(ctx, state.phaseBranch)) return false;",
-    "new": "if (!commitOf(ctx, branch)) return false;",
-    "proof": "node --test .claude/hooks/test/guard.test.mjs",
+    "old": "if (!head && commitOf(ctx, state.phaseBranch)) return false;",
+    "new": "if (!head) return false;",
+    "proof": "node --test --test-name-pattern \"git cannot answer\" .claude/hooks/test/guard.test.mjs",
     "label": "unresolved covered branch touches nothing even when the phase branch does not resolve"
   },
   {
     "file": ".claude/hooks/lib/guard.mjs",
-    "old": "if (!commitOf(ctx, branch) && commitOf(ctx, state.phaseBranch)) return false;",
-    "new": "if (!commitOf(ctx, branch) && commitOf(ctx, state.phaseBranch)) return commitOf(ctx, ref) === null;",
-    "proof": "node --test .claude/hooks/test/guard.test.mjs",
-    "label": "not-started branch touches only an unresolved ref"
+    "old": "const headOf = (ctx, branch) => commitOf(ctx, branch) || commitOf(ctx, `origin/${branch}`) || null;",
+    "new": "const headOf = (ctx, branch) => commitOf(ctx, branch) || null;",
+    "proof": "node --test --test-name-pattern \"exists only on the remote\" .claude/hooks/test/guard.test.mjs",
+    "label": "the guard ignores a covered branch that exists only on the remote (replaces an equivalent mutation: touches is only called with refs that resolve)"
   },
   {
     "file": ".claude/hooks/lib/guard.mjs",
