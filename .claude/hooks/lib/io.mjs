@@ -1,6 +1,7 @@
 // Shared I/O helpers for Claude Code hooks. Hooks are plain Node ESM with zero dependencies,
 // so they work before `pnpm install` and on every contributor machine.
 import { execFileSync, spawnSync } from 'node:child_process';
+import * as nodeFs from 'node:fs';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 
@@ -131,4 +132,97 @@ export function run(cmd, args, { cwd, timeoutMs = 120_000 } = {}) {
 export function tail(text, lines = 60) {
   const all = String(text ?? '').split('\n');
   return all.length <= lines ? all.join('\n') : ['…', ...all.slice(-lines)].join('\n');
+}
+
+/** One gate call's I/O deadline (gate-precision, GPR-20): the whole call, not each step. */
+export const DEADLINE_MS = 5000;
+/** One `git` spawn's own timeout, never longer than the time left (gate-precision). */
+export const SPAWN_MAX_MS = 2000;
+/** The most a `readFile` reads (gate-precision): larger files are refused, never cut short. */
+export const READ_MAX_BYTES = 1024 * 1024;
+
+/**
+ * The bounded I/O of one gate call (gate-precision, design "I/O deadline"). `now`, `spawn` and `fs` are injected: the
+ * gate passes the real ones, the unit tests fakes. Every call checks the deadline before it starts; past it, or when a
+ * `git` spawn times out, the call returns `{ timedOut: true }` instead of throwing. A missing file, a refused file or a
+ * failed `git` returns null, as the older helpers do.
+ */
+export function makeIo({
+  now = () => Date.now(),
+  spawn = execFileSync,
+  fs = nodeFs,
+  deadlineMs = DEADLINE_MS,
+} = {}) {
+  const deadline = now() + deadlineMs;
+  const late = () => now() >= deadline;
+  const TIMED_OUT = Object.freeze({ timedOut: true });
+  let spawns = 0;
+  return {
+    /** `git` with an argument array, never a shell. Returns the trimmed stdout, null on failure, or timedOut. */
+    git(args, { cwd = process.cwd() } = {}) {
+      if (late()) return TIMED_OUT;
+      const timeout = Math.min(SPAWN_MAX_MS, deadline - now());
+      spawns++;
+      try {
+        return spawn('git', ['-c', 'core.fsmonitor=false', ...args], {
+          cwd,
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'ignore'],
+          env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' },
+          timeout,
+          killSignal: 'SIGKILL',
+        }).trim();
+      } catch (err) {
+        return err?.code === 'ETIMEDOUT' || err?.signal === 'SIGKILL' ? TIMED_OUT : null;
+      }
+    },
+    /**
+     * A regular file of at most READ_MAX_BYTES with one hard link, read from the same descriptor that was checked.
+     * O_NONBLOCK keeps a FIFO from blocking the open; its type is then refused.
+     */
+    readFile(abs) {
+      if (late()) return TIMED_OUT;
+      let fd;
+      try {
+        fd = fs.openSync(abs, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
+      } catch {
+        return null;
+      }
+      try {
+        const st = fs.fstatSync(fd);
+        if (!st.isFile() || st.nlink !== 1 || st.size > READ_MAX_BYTES) return null;
+        const buf = Buffer.alloc(READ_MAX_BYTES + 1);
+        let len = 0;
+        for (;;) {
+          const n = fs.readSync(fd, buf, len, buf.length - len, null);
+          if (n === 0) break;
+          len += n;
+          if (len > READ_MAX_BYTES) return null;
+        }
+        return buf.subarray(0, len).toString('utf8');
+      } catch {
+        return null;
+      } finally {
+        fs.closeSync(fd);
+      }
+    },
+    realpath(p) {
+      if (late()) return TIMED_OUT;
+      try {
+        return fs.realpathSync(p);
+      } catch {
+        return null;
+      }
+    },
+    stat(p) {
+      if (late()) return TIMED_OUT;
+      try {
+        return fs.statSync(p);
+      } catch {
+        return null;
+      }
+    },
+    /** The number of `git` processes this call has started (GPR-22 caps them at 8 per line). */
+    spawnCount: () => spawns,
+  };
 }

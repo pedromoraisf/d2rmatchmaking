@@ -129,11 +129,11 @@ T15 → T16
 
 **Done when**:
 
-- [ ] A fake clock past 5 s makes `git`, `readFile`, `realpath` and `stat` return `timedOut` without starting (test `checks the deadline before each call`)
-- [ ] A spawn's timeout is `min(2 s, time left)` and the options above are passed (test `bounds each git spawn`)
-- [ ] `readFile` refuses a FIFO, a directory, a hard-linked file and a file over 1 MB, and never blocks on the FIFO (test `reads only a small regular file with one link`)
-- [ ] Every existing test of `io.mjs` callers still passes
-- [ ] Gate passes
+- [x] A fake clock past 5 s makes `git`, `readFile`, `realpath` and `stat` return `timedOut` without starting (test `checks the deadline before each call`)
+- [x] A spawn's timeout is `min(2 s, time left)` and the options above are passed (test `bounds each git spawn`)
+- [x] `readFile` refuses a FIFO, a directory, a hard-linked file and a file over 1 MB, and never blocks on the FIFO (test `reads only a small regular file with one link`)
+- [x] Every existing test of `io.mjs` callers still passes
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/io.test.mjs .claude/hooks/test/gate-rules.test.mjs`
