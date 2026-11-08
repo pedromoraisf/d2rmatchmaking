@@ -92,7 +92,7 @@ const isEntrypoint = process.argv[1] !== undefined && import.meta.url === pathTo
 if (isEntrypoint) {
   const apiRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const markdown = await summarise(apiRoot);
-  const summary = process.env.GITHUB_STEP_SUMMARY;
+  const summary = process.env['GITHUB_STEP_SUMMARY'];
   if (summary !== undefined && summary !== '') {
     await appendFile(summary, markdown);
   } else {

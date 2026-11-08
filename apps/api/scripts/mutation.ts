@@ -16,7 +16,7 @@ const LAYERS: readonly Layer[] = ['domain', 'application'];
 
 export interface MutationArgs {
   /** The git ref given with `--changed-from`, when the run mutates only the files a change touches. */
-  readonly changedFrom?: string;
+  readonly changedFrom?: string | undefined;
   /** Every other argument, passed to Stryker unchanged. */
   readonly strykerArgs: readonly string[];
 }
@@ -80,7 +80,7 @@ async function writeEmptyReport(plan: LayerPlan): Promise<void> {
 /** Prints the no-file line and appends it to the job summary when GitHub Actions provides one. */
 async function announceNoMutableFile(): Promise<void> {
   process.stdout.write(`${NO_MUTABLE_FILE}\n`);
-  const summary = process.env.GITHUB_STEP_SUMMARY;
+  const summary = process.env['GITHUB_STEP_SUMMARY'];
   if (summary !== undefined && summary !== '') {
     await appendFile(summary, `${NO_MUTABLE_FILE}\n`);
   }
