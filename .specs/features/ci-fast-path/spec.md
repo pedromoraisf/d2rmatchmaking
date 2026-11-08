@@ -22,25 +22,25 @@ majors that broke F0. Source: `.specs/phases/F0/brief-revision-6.md` § 3 (ci-fa
 
 ## Out of Scope
 
-| Feature                                                                                            | Reason                                                                     |
-| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Applying `.github/rulesets/main.json` on GitHub                                                    | A repository setting; the maintainer's (ADR 028 § 1, brief § 6)            |
-| Making `mutation`, `agent-mutation`, `smoke` or `agent-build` required checks                      | Brief: not required at first                                               |
-| Changing Stryker or cargo-mutants thresholds, the quality baseline or its contexts                 | Loosening a sensor or the baseline is the maintainer's; none is needed here |
-| The phase review reading the nightly mutation report instead of running it locally                 | The phase-runner skill is `continuous-delivery`'s (brief § 3)              |
-| Measuring the median PR critical path                                                              | An exit criterion read from the first five PR runs, in the phase review    |
-| Any product behaviour: API, site, agent or contract changes                                        | The row changes workflows, harness scripts, the API's mutation runner (`apps/api/scripts/mutation.ts`, `mutation-plan.ts`) and their tests only; no threshold, glob or layer definition of the mutation plan changes |
+| Feature                                                                            | Reason                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Applying `.github/rulesets/main.json` on GitHub                                    | A repository setting; the maintainer's (ADR 028 § 1, brief § 6)                                                                                                                                                      |
+| Making `mutation`, `agent-mutation`, `smoke` or `agent-build` required checks      | Brief: not required at first                                                                                                                                                                                         |
+| Changing Stryker or cargo-mutants thresholds, the quality baseline or its contexts | Loosening a sensor or the baseline is the maintainer's; none is needed here                                                                                                                                          |
+| The phase review reading the nightly mutation report instead of running it locally | The phase-runner skill is `continuous-delivery`'s (brief § 3)                                                                                                                                                        |
+| Measuring the median PR critical path                                              | An exit criterion read from the first five PR runs, in the phase review                                                                                                                                              |
+| Any product behaviour: API, site, agent or contract changes                        | The row changes workflows, harness scripts, the API's mutation runner (`apps/api/scripts/mutation.ts`, `mutation-plan.ts`) and their tests only; no threshold, glob or layer definition of the mutation plan changes |
 
 ---
 
 ## Assumptions & Open Questions
 
-| Assumption / decision                         | Chosen default                                                                                                                                                         | Rationale                                                                                                                                                               | Confirmed?          |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| Where the nightly agent mutation runs         | `ubuntu-latest`                                                                                                                                                        | The brief moves it if the three crates build there: none has Windows-only code, and CI's `integration` job already builds `d2rmm-agent-adapters` on Ubuntu               | n - AD-149, assumed |
-| How majors of `eslint*` and `@opentelemetry/*` slow down | One Dependabot group per family for `major` updates, held by a 30-day `cooldown`; minor and patch stay weekly                                                  | Dependabot refuses a second `npm` entry for the same directory, so one ecosystem cannot have two schedules; the cooldown gives each major a month before it arrives    | n - AD-150, assumed |
-| Which tasks the mutation rule checks          | Open tasks only: a task with at least one unticked `Done when` box                                                                                                     | Done tasks of earlier features ran mutation in their gates under the old rules; rewriting their history is not this row's                                              | n - AD-151, assumed |
-| Third-party actions in the new jobs           | Pinned by full commit SHA, as the `agent` job does                                                                                                                     | Stricter supply chain; `actions/*` keep the tags the workflow already uses                                                                                              | n - AD-152, assumed |
+| Assumption / decision                                    | Chosen default                                                                                                | Rationale                                                                                                                                                           | Confirmed?          |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| Where the nightly agent mutation runs                    | `ubuntu-latest`                                                                                               | The brief moves it if the three crates build there: none has Windows-only code, and CI's `integration` job already builds `d2rmm-agent-adapters` on Ubuntu          | n - AD-149, assumed |
+| How majors of `eslint*` and `@opentelemetry/*` slow down | One Dependabot group per family for `major` updates, held by a 30-day `cooldown`; minor and patch stay weekly | Dependabot refuses a second `npm` entry for the same directory, so one ecosystem cannot have two schedules; the cooldown gives each major a month before it arrives | n - AD-150, assumed |
+| Which tasks the mutation rule checks                     | Open tasks only: a task with at least one unticked `Done when` box                                            | Done tasks of earlier features ran mutation in their gates under the old rules; rewriting their history is not this row's                                           | n - AD-151, assumed |
+| Third-party actions in the new jobs                      | Pinned by full commit SHA, as the `agent` job does                                                            | Stricter supply chain; `actions/*` keep the tags the workflow already uses                                                                                          | n - AD-152, assumed |
 
 **Open questions:** none - all resolved or logged above.
 
@@ -175,33 +175,33 @@ majors that broke F0. Source: `.specs/phases/F0/brief-revision-6.md` § 3 (ci-fa
 
 ## Requirement Traceability
 
-| Requirement ID | Story                                  | Phase | Status  |
-| -------------- | -------------------------------------- | ----- | ------- |
-| CFP-01         | P1: Mutation leaves the critical path  | Tasks | Pending |
-| CFP-02         | P1: Mutation leaves the critical path  | Tasks | Pending |
-| CFP-03         | P1: Mutation leaves the critical path  | Tasks | Pending |
-| CFP-04         | P1: Mutation leaves the critical path  | Tasks | Pending |
-| CFP-05         | P1: Mutation leaves the critical path  | Tasks | Pending |
-| CFP-06         | P1: Mutation leaves the critical path  | Tasks | Pending |
-| CFP-07         | P1: Mutation leaves the critical path  | Tasks | Pending |
-| CFP-08         | P1: Agent mutation on the PR           | Tasks | Pending |
-| CFP-09         | P1: Agent mutation on the PR           | Tasks | Pending |
-| CFP-10         | P1: Agent mutation on the PR           | Tasks | Pending |
-| CFP-11         | P1: Mutation leaves the task loop      | Tasks | Pending |
-| CFP-12         | P1: Mutation leaves the task loop      | Tasks | Pending |
-| CFP-13         | P1: The required checks                | Tasks | Pending |
-| CFP-14         | P1: The required checks                | Tasks | Pending |
-| CFP-15         | P2: Smoke checks before merge          | Tasks | Pending |
-| CFP-16         | P2: Smoke checks before merge          | Tasks | Pending |
-| CFP-17         | P2: Smoke checks before merge          | Tasks | Pending |
-| CFP-18         | P2: Smoke checks before merge          | Tasks | Pending |
-| CFP-19         | P2: Smoke checks before merge          | Tasks | Pending |
-| CFP-20         | P2: Slower majors from Dependabot      | Tasks | Pending |
-| CFP-21         | P2: Slower majors from Dependabot      | Tasks | Pending |
-| CFP-22         | P2: Slower majors from Dependabot      | Tasks | Pending |
-| CFP-23         | P1: Nothing else changes               | Tasks | Pending |
-| CFP-24         | P1: Nothing else changes               | Tasks | Pending |
-| CFP-25         | P2: Smoke checks before merge          | Tasks | Pending |
+| Requirement ID | Story                                 | Phase | Status  |
+| -------------- | ------------------------------------- | ----- | ------- |
+| CFP-01         | P1: Mutation leaves the critical path | Tasks | Pending |
+| CFP-02         | P1: Mutation leaves the critical path | Tasks | Pending |
+| CFP-03         | P1: Mutation leaves the critical path | Tasks | Pending |
+| CFP-04         | P1: Mutation leaves the critical path | Tasks | Pending |
+| CFP-05         | P1: Mutation leaves the critical path | Tasks | Pending |
+| CFP-06         | P1: Mutation leaves the critical path | Tasks | Pending |
+| CFP-07         | P1: Mutation leaves the critical path | Tasks | Pending |
+| CFP-08         | P1: Agent mutation on the PR          | Tasks | Pending |
+| CFP-09         | P1: Agent mutation on the PR          | Tasks | Pending |
+| CFP-10         | P1: Agent mutation on the PR          | Tasks | Pending |
+| CFP-11         | P1: Mutation leaves the task loop     | Tasks | Pending |
+| CFP-12         | P1: Mutation leaves the task loop     | Tasks | Pending |
+| CFP-13         | P1: The required checks               | Tasks | Pending |
+| CFP-14         | P1: The required checks               | Tasks | Pending |
+| CFP-15         | P2: Smoke checks before merge         | Tasks | Pending |
+| CFP-16         | P2: Smoke checks before merge         | Tasks | Pending |
+| CFP-17         | P2: Smoke checks before merge         | Tasks | Pending |
+| CFP-18         | P2: Smoke checks before merge         | Tasks | Pending |
+| CFP-19         | P2: Smoke checks before merge         | Tasks | Pending |
+| CFP-20         | P2: Slower majors from Dependabot     | Tasks | Pending |
+| CFP-21         | P2: Slower majors from Dependabot     | Tasks | Pending |
+| CFP-22         | P2: Slower majors from Dependabot     | Tasks | Pending |
+| CFP-23         | P1: Nothing else changes              | Tasks | Pending |
+| CFP-24         | P1: Nothing else changes              | Tasks | Pending |
+| CFP-25         | P2: Smoke checks before merge         | Tasks | Pending |
 
 **ID format:** `[CATEGORY]-[NUMBER]`
 
