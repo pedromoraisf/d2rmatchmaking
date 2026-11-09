@@ -40,7 +40,9 @@ export const GIT_DIR_CD = /(^|[;&|(\n]\s*)cd\s+\S*\.git(?=\/|\s|$|[;&|)])/;
 const WRAPPER = /(^|\s)(node\s+)?(\.\/)?scripts\/attempt\.mjs\s+run\s/;
 // BUD-14: the wrapper is recognised by its file name, with an optional quote and any directory (or none, after `cd`).
 // T24: case-insensitive, because the macOS file system is; it reads the command with its quotes and escapes removed.
-const WRAPPER_ANY = /(?:^|[\s/"'])attempt\.mjs["']?\s+(\w+)/gi;
+// T26: the first word after the file name is read whole (`$(echo reset)`, `$x`, `reset;`).
+const WRAPPER_ANY = /(?:^|[\s/"'])attempt\.mjs["']?\s+(\S+)/gi;
+const EXPANDED_ARG = /[$`{]/;
 // A sensor runs when it is the command a shell segment executes — never when its name is only an argument or a path
 // (`grep -i stryker x`, `sed -n 1p scripts/acceptance-check.mjs`). Runners (npx, pnpm exec, python3, node…) are
 // peeled off first, so `npx vitest` and `python3 …/check_proofs.py` still count.
@@ -98,29 +100,45 @@ function resetDecision(cmd, ledger) {
 }
 
 // BUD-15 (T24): a program whose name expands or globs (`att${x}empt.mjs`, `att*.mjs`) may be the wrapper.
+// T26: `{` (brace expansion) is an expansion too.
 const BARE = (s) => s.replace(/['"\\]/g, '');
-const EXPANDS = /[$`*?[]/;
+const EXPANDS = /[$`*?[{]/;
 const ASSIGN_WORD = /^[A-Za-z_][A-Za-z0-9_]*=/;
+// T26: an interpreter's first operand is the script it runs, so that operand is read as a program too.
+const INTERPRETER = /^(node|python[\d.]*|bun|tsx|deno|sh|bash|zsh)$/;
+const PREFIX_WORDS = new Set(['env', 'time', 'exec', 'command', 'nohup']);
 
-/** Whether a shell segment runs a program, or a first operand, that expands or globs, with `reset` among its arguments. */
+/**
+ * Whether a shell segment runs a program that expands or globs, or, under an interpreter, a script that does; and either
+ * has `reset` among its arguments or an argument that expands (`node scripts/a{t,t}empt.mjs $x` may be a reset).
+ */
 function runsExpandedReset(segment) {
   const words = shellWords(segment);
   let i = 0;
-  while (i < words.length && ASSIGN_WORD.test(words[i])) i++;
+  while (i < words.length && (ASSIGN_WORD.test(words[i]) || PREFIX_WORDS.has(words[i]))) i++;
   const head = words.slice(i);
   if (head.length === 0) return false;
   const args = head.slice(1);
   const operand = args.find((w) => !w.startsWith('-'));
-  const programs = [head[0], operand].filter((w) => w !== undefined);
-  return programs.some((w) => EXPANDS.test(w)) && args.includes('reset');
+  const programs = [head[0]];
+  if (INTERPRETER.test(head[0]) && operand !== undefined) programs.push(operand);
+  return (
+    programs.some((w) => EXPANDS.test(w)) &&
+    (args.includes('reset') || args.some((w) => EXPANDED_ARG.test(w)))
+  );
+}
+
+/** Whether a wrapper call in the text may be a reset: its first word after the file name is reset or expands. */
+function wrapperMayReset(text) {
+  return [...BARE(text).matchAll(WRAPPER_ANY)].some(
+    (m) => m[1].toLowerCase() === 'reset' || EXPANDED_ARG.test(m[1]),
+  );
 }
 
 /** BUD-14, BUD-15: whether a Bash line may reset a budget, read as the shell would run it (the commands it hides too). */
 function mayReset(cmd) {
   return [cmd, ...innerShellCommands(cmd)].some(
-    (text) =>
-      [...BARE(text).matchAll(WRAPPER_ANY)].some((m) => m[1].toLowerCase() === 'reset') ||
-      splitShell(text).some(runsExpandedReset),
+    (text) => wrapperMayReset(text) || splitShell(text).some(runsExpandedReset),
   );
 }
 

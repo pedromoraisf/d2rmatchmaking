@@ -168,6 +168,12 @@ function checkInlineCode(code, ctx) {
       "This code names the retry-budget modules, which can reset a budget without scripts/attempt.mjs. A reset is the maintainer's (ADR 022).",
     );
   }
+  // BUD-15 (T26): an import or require whose module is not one plain string literal can name the modules at run time.
+  if (/\b(?:import|require)\s*\((?!\s*(['"])[^'"\\]*\1\s*\))/.test(text)) {
+    return ask(
+      "This code loads a module from a name that is not one string literal, so it can name the retry-budget modules at run time. Use a literal path. A reset is the maintainer's (ADR 022).",
+    );
+  }
   if (INLINE_ENV.test(text)) {
     return deny(
       '.env files hold secrets and are off-limits to the agent, from inline code too. Use .env.example.',

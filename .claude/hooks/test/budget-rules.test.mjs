@@ -14,6 +14,7 @@ import {
 
 const WORDS = 'aprovo specs e tasks da F0 que passarem nos gates automáticos';
 const BRIEF = `| api-web-skeleton | agent-skeleton |\n## Delegation\n- [x] specs-and-tasks: x\n- [x] sub-agents: x\n\n**Approved**: 2026-11-02 - user: "${WORDS}"\n`;
+const RESET_REASON = 'Resetting a retry budget is a maintainer decision (ADR 022).';
 
 function ctxFor({
   branch = 'feat/F0-agent-skeleton',
@@ -557,6 +558,48 @@ test('a reset is judged through quotes, escapes, case and hidden code', () => {
     `node scripts/attempt.mjs reset --unit ${key} --by orchestrator --reason 'fixed'`,
     'node scripts/attempt.mjs status',
     'node scripts/attempt.mjs run --feature f --step T1 -- "node --test --test-name-pattern reset x.test.mjs"',
+  ]) {
+    assert.equal(decisionFor(command), null, command);
+  }
+  // T26 (finding 3): rule (b) asks on each of these alone, so the reason is the reset one and no other rule's.
+  for (const command of [
+    `node scripts/att?mpt.mjs reset --unit ${key} --by maintainer`,
+    `node scripts/att[e]mpt.mjs reset --unit ${key} --by maintainer`,
+    'node scripts/att`echo e`mpt.mjs reset --unit gate:f/T1 --by maintainer',
+    `node scripts/att$x.mjs reset --unit ${key} --by maintainer`,
+    `FOO=1 node scripts/att*.mjs reset --unit ${key} --by maintainer`,
+    `bash -c 'node scripts/att*.mjs reset --unit ${key} --by maintainer'`,
+  ]) {
+    const answer = call('Bash', { command }, ctx);
+    assert.equal(answer?.decision, 'ask', command);
+    assert.equal(answer.reason, RESET_REASON, command);
+  }
+});
+
+test('a reset is judged when the word itself is hidden', () => {
+  const key = 'gate:f/T1';
+  const ledger = emptyLedger();
+  for (let i = 0; i < MAX_ATTEMPTS; i += 1) recordAttempt(ledger, key, false, { note: 'boom' });
+  const ctx = ctxFor({ ledger });
+  const decisionFor = (command) => call('Bash', { command }, ctx)?.decision ?? null;
+
+  for (const command of [
+    `node scripts/attempt.mjs "$(echo reset)" --unit ${key} --by maintainer`,
+    `node scripts/attempt.mjs $r --unit ${key} --by maintainer`,
+    `x=reset; node scripts/attempt.mjs $x --unit ${key} --by maintainer`,
+    `node scripts/a{t,t}empt.mjs reset --unit ${key} --by maintainer`,
+    `node scripts/a{t,t}empt.mjs $x --unit ${key} --by maintainer`,
+  ]) {
+    assert.equal(decisionFor(command), 'ask', command);
+  }
+  for (const command of [
+    'node scripts/attempt.mjs run --feature f --step T1 -- "x"',
+    'node scripts/attempt.mjs status',
+    'node scripts/attempt.mjs report',
+    'node scripts/att*.mjs status',
+    'node scripts/attempt.mjs',
+    'git add scripts/attempt.mjs scripts/lib/budget.mjs',
+    'echo $HOME',
   ]) {
     assert.equal(decisionFor(command), null, command);
   }

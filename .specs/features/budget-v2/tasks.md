@@ -670,22 +670,22 @@ A gate run whose own command mentions "reset" (`node scripts/attempt.mjs run --f
 
 **Done when**:
 
-- [ ] A test named `a reset is judged when the word itself is hidden` asks for each of these four lines: the three wrapper calls with an expanded word, and the brace spelling above.
+- [x] A test named `a reset is judged when the word itself is hidden` asks for each of these four lines: the three wrapper calls with an expanded word, and the brace spelling above.
   - The same test asks for `node scripts/a{t,t}empt.mjs $x --unit k --by maintainer`.
   - It gets no decision for `node scripts/attempt.mjs run --feature f --step T1 -- "x"`, `node scripts/attempt.mjs status`, `node scripts/attempt.mjs report` and `node scripts/att*.mjs status`.
-- [ ] The T24 test gains cases that pin rule (b) (finding 3). Each is a line that no other rule asks on, and the worker checks by reading the decision's reason that rule (b) is the one asking:
+- [x] The T24 test gains cases that pin rule (b) (finding 3). Each is a line that no other rule asks on, and the worker checks by reading the decision's reason that rule (b) is the one asking:
   - a program path with `?`, one with `[`, and one with a backtick, each followed by `reset`;
   - `FOO=1 node scripts/att*.mjs reset --unit k --by maintainer` asks;
   - `bash -c 'node scripts/att*.mjs reset --unit k --by maintainer'` asks.
-- [ ] A test in `gate-rules.test.mjs` named `inline code naming the budget modules asks` pins T24's inline-code rule (finding 4). Each of these asks:
+- [x] A test in `gate-rules.test.mjs` named `inline code naming the budget modules asks` pins T24's inline-code rule (finding 4). Each of these asks:
   - `node -e "import('./scripts/ATTEMPT.mjs')"`;
   - `node -e "import('./scripts/att' + 'empt.mjs')"` (with spaces);
   - a name split by a backslash;
   - `node -e "import('./scripts/lib/ledger-store.mjs')"`;
   - the two dynamic-import examples of finding 2.
     It gets no decision for `node -e "import('node:fs')"`.
-- [ ] Every existing test of both files passes unchanged.
-- [ ] The gate passes.
+- [x] Every existing test of both files passes unchanged.
+- [x] The gate passes.
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs .claude/hooks/test/gate-rules.test.mjs`

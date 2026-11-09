@@ -310,6 +310,21 @@ test('bash: inline interpreter code that starts processes, writes protected file
   }
 });
 
+test('inline code naming the budget modules asks', () => {
+  const ctx = fakeCtx();
+  for (const c of [
+    `node -e "import('./scripts/ATTEMPT.mjs')"`,
+    `node -e "import('./scripts/att' + 'empt.mjs')"`,
+    String.raw`node -e "import('./scripts/att\empt.mjs')"`,
+    `node -e "import('./scripts/lib/ledger-store.mjs')"`,
+    `node -e "import('./scripts/'+a+'.mjs')"`,
+    `node -e "import(['att','empt'].join(''))"`,
+  ]) {
+    assert.equal(d(checkBash(c, ctx)), 'ask', c);
+  }
+  assert.equal(checkBash(`node -e "import('node:fs')"`, ctx)?.decision ?? null, null);
+});
+
 test('bash: scripts and stdin shells are inspected — untracked scripts by content, outside ones and pipes ask', () => {
   const ctx = fakeCtx(
     {
