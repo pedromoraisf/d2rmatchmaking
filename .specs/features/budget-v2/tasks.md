@@ -655,13 +655,18 @@ A gate run whose own command mentions "reset" (`node scripts/attempt.mjs run --f
 ### T26: A reset is found when the word itself is hidden
 
 **What**: Verifier round 5 (finding 1, blocking) found that the subcommand word can be hidden, and the reset then gets no decision: `node scripts/attempt.mjs "$(echo reset)" --unit k --by maintainer`, `node scripts/attempt.mjs $r …`, `x=reset; node scripts/attempt.mjs $x …` and `node scripts/a{t,t}empt.mjs reset …`. In `.claude/hooks/lib/budget-rules.mjs`:
-(a) a wrapper call found in a line or a hidden command, read with quotes and backslashes removed (T24), is a possible reset unless its first word after the file name is exactly `run`, `status` or `report` (case-insensitive). A call with no word after the file name is not a reset. `WRAPPER_ANY` captures that word as `\S+` instead of `\w+`.
-(b) `EXPANDS` gains `{`. Rule (b) of T24 holds when the program or first operand expands or globs and either `reset` is among the arguments or an argument holds `$`, a backtick or `{`.
-In `checkInlineCode` (`gate-rules.mjs`), inline code or an untracked script asks when it calls `import(` or `require(` with anything but one plain string literal (finding 2: `import('./scripts/'+a+'.mjs')`, `import(['att','empt'].join(''))`). This is one added condition next to T24's.
-**Where**: `.claude/hooks/lib/budget-rules.mjs` (modify), `.claude/hooks/lib/gate-rules.mjs` (one condition), `.claude/hooks/test/budget-rules.test.mjs` and `.claude/hooks/test/gate-rules.test.mjs` (new cases)
-**Depends on**: T25
-**Reuses**: `WRAPPER_ANY`, `BARE`, `EXPANDS`, `mayReset`, `checkInlineCode`, T24's test
-**Requirement**: BUD-14, BUD-15
+(a) a wrapper call found in a line or a hidden command, read with quotes and backslashes removed (T24), is a possible reset when its first word after the file name is `reset` (case-insensitive) or holds `$`, a backtick or `{`. `WRAPPER_ANY` captures that word as `\S+` instead of `\w+`. Any other word is not a reset, and neither is a call with no word after the file name. So `git add scripts/attempt.mjs scripts/lib/budget.mjs` and `attempt.mjs status;` get no decision.
+(b) `EXPANDS` gains `{`. Rule (b) of T24 holds when one of these expands or globs:
+
+- the program itself;
+- the first operand, when the segment's head after `NAME=value` words and runners is an interpreter (`node`, `python[\d.]*`, `bun`, `tsx`, `deno`, `sh`, `bash`, `zsh`), because that first operand is the script it runs.
+  It also needs `reset` among the arguments, or an argument that holds `$`, a backtick or `{`.
+  Replan, 2026-11-09: the first wording read the first operand of every program. That made `… | grep $(rm -rf apps)` ask instead of deny, and broke `denies anything else after the wrapper`.
+  In `checkInlineCode` (`gate-rules.mjs`), inline code or an untracked script asks when it calls `import(` or `require(` with anything but one plain string literal (finding 2: `import('./scripts/'+a+'.mjs')`, `import(['att','empt'].join(''))`). This is one added condition next to T24's.
+  **Where**: `.claude/hooks/lib/budget-rules.mjs` (modify), `.claude/hooks/lib/gate-rules.mjs` (one condition), `.claude/hooks/test/budget-rules.test.mjs` and `.claude/hooks/test/gate-rules.test.mjs` (new cases)
+  **Depends on**: T25
+  **Reuses**: `WRAPPER_ANY`, `BARE`, `EXPANDS`, `mayReset`, `checkInlineCode`, T24's test
+  **Requirement**: BUD-14, BUD-15
 
 **Done when**:
 
