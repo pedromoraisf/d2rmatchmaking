@@ -170,8 +170,8 @@ T5 → T6
 
 **Done when**:
 
-- [ ] The brief template has the Delivery section; the review template has no push-commands section; the decisions template has the maintainer table (test `the templates tell the remote flow`)
-- [ ] Gate passes
+- [x] The brief template has the Delivery section; the review template has no push-commands section; the decisions template has the maintainer table (test `the templates tell the remote flow`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/phase-runner-skill.test.mjs`

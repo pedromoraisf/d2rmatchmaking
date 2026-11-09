@@ -230,3 +230,29 @@ test('the skill no longer leaves delivery to the maintainer', () => {
     );
   }
 });
+
+// CDL-11, CDL-12 (continuous-delivery): the brief describes the remote flow, the review drops the push commands and the
+// decisions queue holds the maintainer table.
+const templateText = (name) =>
+  readFileSync(
+    path.join(root, '.claude', 'skills', 'd2rmm-phase-runner', 'references', 'templates', name),
+    'utf8',
+  );
+
+test('the templates tell the remote flow', () => {
+  const delivery = subsectionOf(templateText('brief.md'), '## Delivery', '## Delegation');
+  for (const phrase of [
+    'draft phase PR into `main`',
+    '`gh pr merge <pr> --merge`',
+    '`verify`, `integration`, `agent` and `secrets`',
+    '`decisions.md`',
+  ]) {
+    assert.ok(normalised(delivery).includes(phrase), `the brief Delivery section says "${phrase}"`);
+  }
+  const review = templateText('review.md');
+  assert.ok(!review.includes('## To ship'), 'the review template has no section of push commands');
+  assert.doesNotMatch(review, /git push|gh pr create/u);
+  const decisions = templateText('decisions.md');
+  assert.ok(decisions.includes('## For the maintainer'), 'the decisions template has the maintainer table');
+  assert.ok(decisions.includes('| Feature | Item | Asked | Answer |'), 'the table has the four columns');
+});
