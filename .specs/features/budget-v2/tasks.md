@@ -481,9 +481,9 @@ T17 → T18 → T19 → T20
 
 **Done when**:
 
-- [ ] env, env, counted, env, env → `env-blocked`; env, env, counted, env → `open`; env, env, pass, env, env → `open`; four env failures with a reset after the second → `open` (test `blocks at the fourth machine failure in total`)
-- [ ] The assertion of `a counted failure restarts the environment count` (`budget.test.mjs`, written by this feature's T3 at `2583309`) for env, env, counted, env, env becomes `env-blocked`, as BUD-30 requires: the maintainer's option (b) changes that outcome, and the change is stricter, not looser; its env, env, counted, env case stays `open`. Every other existing test of `budget.test.mjs` and `attempt-cli.test.mjs` passes unchanged
-- [ ] Gate passes
+- [x] env, env, counted, env, env → `env-blocked`; env, env, counted, env → `open`; env, env, pass, env, env → `open`; four env failures with a reset after the second → `open` (test `blocks at the fourth machine failure in total`)
+- [x] The assertion of `a counted failure restarts the environment count` (`budget.test.mjs`, written by this feature's T3 at `2583309`) for env, env, counted, env, env becomes `env-blocked`, as BUD-30 requires: the maintainer's option (b) changes that outcome, and the change is stricter, not looser; its env, env, counted, env case stays `open`. Every other existing test of `budget.test.mjs` and `attempt-cli.test.mjs` passes unchanged
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/budget.test.mjs scripts/test/attempt-cli.test.mjs`

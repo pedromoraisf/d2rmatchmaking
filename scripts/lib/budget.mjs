@@ -15,6 +15,8 @@ export const MAX_RETRIES = 2;
 export const MAX_ATTEMPTS = 1 + MAX_RETRIES;
 /** Environment failures in a row that block a unit as env-blocked (budget v2, BUD-04). */
 export const ENV_ATTEMPTS_TO_BLOCK = 3;
+/** Environment failures in all since the unit's last pass or reset that block it as env-blocked (BUD-30, AD-167). */
+export const ENV_TOTAL_TO_BLOCK = 4;
 
 /** Units of work that consume the budget. */
 export const UNIT_KINDS = /** @type {const} */ ([
@@ -97,6 +99,13 @@ function trailingEnvRun(attempts) {
   return n;
 }
 
+/** Environment failures since the unit's last pass (a reset starts the attempts list again). Counted failures do not end it. */
+function envTotalSincePass(attempts) {
+  let n = 0;
+  for (let i = attempts.length - 1; i >= 0 && !attempts[i].ok; i -= 1) if (attempts[i].kind === 'env') n += 1;
+  return n;
+}
+
 /** May this unit be attempted again? */
 export function canAttempt(ledger, key) {
   const u = unit(ledger, key);
@@ -147,7 +156,11 @@ export function recordAttempt(
   const failures = countedFailuresOf(u);
   if (ok) u.status = 'passed';
   else if (kind === 'env')
-    u.status = trailingEnvRun(u.attempts) >= ENV_ATTEMPTS_TO_BLOCK ? 'env-blocked' : 'open';
+    u.status =
+      trailingEnvRun(u.attempts) >= ENV_ATTEMPTS_TO_BLOCK ||
+      envTotalSincePass(u.attempts) >= ENV_TOTAL_TO_BLOCK
+        ? 'env-blocked'
+        : 'open';
   else if (failures >= MAX_ATTEMPTS) u.status = 'blocked';
   else u.status = 'open';
   ledger.units[key] = u;

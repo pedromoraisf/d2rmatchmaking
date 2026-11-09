@@ -196,8 +196,8 @@ test('a counted failure restarts the environment count', () => {
   recordAttempt(l, T2, false, ENV);
   assert.equal(
     recordAttempt(l, T2, false, ENV).status,
-    'open',
-    'two environment failures since the counted one',
+    'env-blocked',
+    'four environment failures in all since the last pass or reset (BUD-30)',
   );
   assert.equal(recordAttempt(l, T2, false, ENV).status, 'env-blocked');
 
@@ -207,6 +207,37 @@ test('a counted failure restarts the environment count', () => {
   recordAttempt(passing, T2, true);
   assert.equal(recordAttempt(passing, T2, false, ENV).status, 'open', 'a pass also restarts the count');
   assert.equal(failuresOf(passing, T2), 0);
+});
+
+test('blocks at the fourth machine failure in total', () => {
+  // BUD-30 (AD-167): the total of environment failures since the last pass or reset, in a row or not.
+  const counted = { note: 'expected 2, received 3' };
+  const a = emptyLedger();
+  recordAttempt(a, T2, false, ENV);
+  recordAttempt(a, T2, false, ENV);
+  recordAttempt(a, T2, false, counted);
+  recordAttempt(a, T2, false, ENV);
+  assert.equal(recordAttempt(a, T2, false, ENV).status, 'env-blocked', 'env, env, counted, env, env');
+
+  const b = emptyLedger();
+  recordAttempt(b, T2, false, ENV);
+  recordAttempt(b, T2, false, ENV);
+  recordAttempt(b, T2, false, counted);
+  assert.equal(recordAttempt(b, T2, false, ENV).status, 'open', 'env, env, counted, env');
+
+  const c = emptyLedger();
+  recordAttempt(c, T2, false, ENV);
+  recordAttempt(c, T2, false, ENV);
+  recordAttempt(c, T2, true);
+  recordAttempt(c, T2, false, ENV);
+  assert.equal(recordAttempt(c, T2, false, ENV).status, 'open', 'env, env, pass, env, env');
+
+  const d = emptyLedger();
+  recordAttempt(d, T2, false, ENV);
+  recordAttempt(d, T2, false, ENV);
+  reset(d, T2, { by: 'orchestrator', reason: 'Docker was started again' });
+  recordAttempt(d, T2, false, ENV);
+  assert.equal(recordAttempt(d, T2, false, ENV).status, 'open', 'env, env, reset, env, env');
 });
 
 test('an env-blocked unit blocks its feature', () => {
