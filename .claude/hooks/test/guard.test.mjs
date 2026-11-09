@@ -372,6 +372,65 @@ test('fails closed when git cannot answer', () => {
   assert.match(reason('git merge --no-ff main', f.ctx), /continuous-delivery|gate-precision/);
 });
 
+test('the guard reads both the local and the remote head', () => {
+  const origin = `origin/${BRANCH}`;
+
+  // The local branch sits at the phase head; origin is ahead with a gate-touching commit.
+  let f = fixture();
+  f.g('branch', '-f', BRANCH, 'phase/F0');
+  f.g('update-ref', `refs/remotes/${origin}`, f.head);
+  assert.equal(decision(`git merge --no-ff ${origin}`, f.ctx), 'deny', 'origin ahead, no proof');
+  assert.ok(
+    reason(`git merge --no-ff ${origin}`, f.ctx).includes(f.head),
+    'the proof is due at the origin head',
+  );
+
+  // Local is ahead of origin: the proof is due at the local head, and a proof at origin alone does not count.
+  f = fixture();
+  f.g('update-ref', `refs/remotes/${origin}`, f.base);
+  assert.equal(decision(`git merge --no-ff ${BRANCH}`, f.ctx), 'deny', 'local ahead, no proof');
+  assert.ok(
+    reason(`git merge --no-ff ${BRANCH}`, f.ctx).includes(f.head),
+    'the proof is due at the local head',
+  );
+  assert.equal(
+    decision(`git merge --no-ff ${BRANCH}`, provenAt(f.ctx, f.base)),
+    'deny',
+    'a proof at origin only',
+  );
+  assert.equal(decision(`git merge --no-ff ${BRANCH}`, provenAt(f.ctx, f.head)), 'none', 'a proof at local');
+
+  // Local and origin diverged: each has its own commit on the phase head, so the merge is denied with both heads.
+  f = fixture();
+  f.g('checkout', '-q', '-b', 'side', f.base);
+  writeFileSync(path.join(f.dir, 'side.txt'), 's\n');
+  f.g('add', '.');
+  f.g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'side');
+  const side = f.g('rev-parse', 'HEAD');
+  f.g('checkout', '-q', 'main');
+  f.g('update-ref', `refs/remotes/${origin}`, side);
+  for (const ref of [BRANCH, origin]) {
+    assert.equal(decision(`git merge --no-ff ${ref}`, f.ctx), 'deny', `diverged, merging ${ref}`);
+    const why = reason(`git merge --no-ff ${ref}`, f.ctx);
+    assert.ok(why.includes(f.head) && why.includes(side), `both heads named: ${why}`);
+  }
+  assert.equal(
+    decision(`git merge --no-ff ${BRANCH}`, provenAt(f.ctx, f.head)),
+    'deny',
+    'diverged with a proof',
+  );
+
+  // Origin is ahead and the proof sits at its head: the merge is allowed.
+  f = fixture();
+  f.g('branch', '-f', BRANCH, 'phase/F0');
+  f.g('update-ref', `refs/remotes/${origin}`, f.head);
+  assert.equal(
+    decision(`git merge --no-ff ${origin}`, provenAt(f.ctx, f.head)),
+    'none',
+    'proof at the larger head',
+  );
+});
+
 test('touches only through a shared commit', () => {
   // A branch off the phase with its own commit, sharing no commit with the covered branch, is not the covered branch.
   const f = fixture();

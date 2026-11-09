@@ -637,13 +637,13 @@ A gate run whose own command mentions "reset" (`node scripts/attempt.mjs run --f
 
 **Done when**:
 
-- [ ] A test named `the guard reads both the local and the remote head` covers four cases:
+- [x] A test named `the guard reads both the local and the remote head` covers four cases:
   - Local at the phase head and origin ahead with a gate-touching commit: `git merge origin/feat/F0-x` is denied for missing proof at the origin head.
   - Local ahead of origin: proof is demanded at the local head.
   - Local and origin diverged: the merge is denied, and the reason names both heads.
   - Proof at the larger head: the merge is allowed.
-- [ ] The existing tests "a covered branch not started touches nothing", "exists only on the remote", "git cannot answer" and "only through a shared commit" pass unchanged, and so does every other test of `guard.test.mjs`.
-- [ ] The gate passes.
+- [x] The existing tests "a covered branch not started touches nothing", "exists only on the remote", "git cannot answer" and "only through a shared commit" pass unchanged, and so does every other test of `guard.test.mjs`.
+- [x] The gate passes.
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/guard.test.mjs`
