@@ -17,6 +17,8 @@ export const MAX_ATTEMPTS = 1 + MAX_RETRIES;
 export const ENV_ATTEMPTS_TO_BLOCK = 3;
 /** Environment failures in all since the unit's last pass or reset that block it as env-blocked (BUD-30, AD-167). */
 export const ENV_TOTAL_TO_BLOCK = 4;
+/** Red stops of one agent session the machine may cause without counting (BUD-31, AD-167). */
+export const UNCOUNTED_RED_STOPS_PER_SESSION = 2;
 
 /** Units of work that consume the budget. */
 export const UNIT_KINDS = /** @type {const} */ ([
@@ -196,6 +198,21 @@ export function recordRefusal(ledger, key, at = new Date().toISOString()) {
   const refusal = { key, at };
   ledger.refusals = [...(ledger.refusals ?? []), refusal];
   return refusal;
+}
+
+/** Red stops of an agent session left uncounted so far (BUD-31). */
+export function uncountedRedStopsOf(ledger, sid) {
+  return (ledger.uncountedStops ?? []).filter((s) => s.sid === sid).length;
+}
+
+/**
+ * A red stop left uncounted under BUD-07 (BUD-31). Kept in `ledger.uncountedStops` with its session and its sequence
+ * number in that session, so a merge keeps each one once.
+ */
+export function recordUncountedRedStop(ledger, sid, at = new Date().toISOString()) {
+  const entry = { sid, seq: uncountedRedStopsOf(ledger, sid) + 1, at };
+  ledger.uncountedStops = [...(ledger.uncountedStops ?? []), entry];
+  return entry;
 }
 
 /**
@@ -379,7 +396,15 @@ export function mergeLedgers(a, b) {
     seenRefusals.add(id);
     return true;
   });
-  const out = { version: 1, units: {}, resets, refusals };
+  // Uncounted red stops (BUD-31) are kept once each, by session and sequence number: a merge never adds to a session's count.
+  const seenStops = new Set();
+  const uncountedStops = [...(a?.uncountedStops ?? []), ...(b?.uncountedStops ?? [])].filter((s) => {
+    const id = `${s.sid}\u0000${s.seq}`;
+    if (seenStops.has(id)) return false;
+    seenStops.add(id);
+    return true;
+  });
+  const out = { version: 1, units: {}, resets, refusals, uncountedStops };
   const resetAt = new Map(allResets.map((r) => [r.key, r.at]));
   for (const src of [a, b]) {
     for (const [k, u] of Object.entries(src?.units ?? {})) {

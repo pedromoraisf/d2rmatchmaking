@@ -16,6 +16,9 @@ import {
   DISPATCH_STEPS,
   orchestratorResets,
   unitOption,
+  UNCOUNTED_RED_STOPS_PER_SESSION,
+  uncountedRedStopsOf,
+  recordUncountedRedStop,
 } from '../../../scripts/lib/budget.mjs';
 import { activePhase } from './delegation.mjs';
 import { checkDispatchPolicy, READ_ONLY_HELPERS } from '../../../scripts/lib/model-policy.mjs';
@@ -330,6 +333,8 @@ export function countDenial(result, ctx, sid) {
  * on the next red stop let the agent stop, with the session marked exhausted. Green resets the counter.
  * BUD-07: `failing` lists each failing check as { status, output }; when every one is environmental (ENV signatures,
  * no test-failure marker) the red stop is not counted and the agent may stop.
+ * BUD-31: only the first UNCOUNTED_RED_STOPS_PER_SESSION such red stops of a session are left uncounted; a red stop of
+ * a session with no session id (`unknown-session`) is never left uncounted.
  * Mutates the ledger. Returns { block, message }.
  */
 export function onStop(ledger, sid, failuresText, failing = []) {
@@ -341,12 +346,21 @@ export function onStop(ledger, sid, failuresText, failing = []) {
   const signatures = failing.map(
     (check) => classify({ status: check.status, output: check.output })?.signature,
   );
-  if (signatures.length > 0 && signatures.every(Boolean)) {
+  const namedSession = !String(sid).startsWith('unknown-session');
+  if (
+    signatures.length > 0 &&
+    signatures.every(Boolean) &&
+    namedSession &&
+    uncountedRedStopsOf(ledger, sid) < UNCOUNTED_RED_STOPS_PER_SESSION
+  ) {
+    recordUncountedRedStop(ledger, sid);
+    const used = uncountedRedStopsOf(ledger, sid);
     return {
       block: false,
       message:
         `[d2rmm stop] Sensors are red because of the machine (${[...new Set(signatures)].join(', ')}). ` +
-        'The red stop is not counted; the machine needs attention before the next run.',
+        `The red stop is not counted (${used} of ${UNCOUNTED_RED_STOPS_PER_SESSION} this session); ` +
+        'the machine needs attention before the next run.',
     };
   }
   const res = recordAttempt(ledger, key, false, { note: failuresText.slice(0, 400) });

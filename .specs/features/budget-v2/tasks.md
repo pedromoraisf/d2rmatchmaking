@@ -502,9 +502,9 @@ T17 → T18 → T19 → T20
 
 **Done when**:
 
-- [ ] Two machine-caused red stops of one session stay uncounted; the third counts; another session's first stays uncounted; a red stop with no session id counts (test `leaves at most two red stops uncounted per session`)
-- [ ] `red stop: lets the agent stop when the machine failed` (`budget-rules.test.mjs`, written by this feature's T8 at `e5b8dd0`) loops four red stops in one session expecting none counted; BUD-31 makes the third and fourth count, so it asserts the first two uncounted and the third and fourth counted — stricter, not looser. Every other existing test of `budget-rules.test.mjs` passes unchanged
-- [ ] Gate passes
+- [x] Two machine-caused red stops of one session stay uncounted; the third counts; another session's first stays uncounted; a red stop with no session id counts (test `leaves at most two red stops uncounted per session`)
+- [x] `red stop: lets the agent stop when the machine failed` (`budget-rules.test.mjs`, written by this feature's T8 at `e5b8dd0`) loops four red stops in one session expecting none counted; BUD-31 makes the third and fourth count, so it asserts the first two uncounted and the third and fourth counted — stricter, not looser. Every other existing test of `budget-rules.test.mjs` passes unchanged
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs`

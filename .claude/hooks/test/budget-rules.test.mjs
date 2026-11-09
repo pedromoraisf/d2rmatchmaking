@@ -210,14 +210,49 @@ test('red stop: lets the agent stop when the machine failed', () => {
     { status: 1, output: 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock' },
     { status: 127, output: 'sh: cargo: command not found' },
   ];
-  for (let i = 0; i < 4; i += 1) {
+  // BUD-31 (AD-167): two red stops of one session are left uncounted; the third and fourth count.
+  for (let i = 0; i < 2; i += 1) {
     const verdict = onStop(ledger, 's7', '## typecheck\nCannot connect to the Docker daemon', failing);
     assert.equal(verdict.block, false);
     assert.doesNotMatch(verdict.message, /retry budget exhausted/);
     assert.match(verdict.message, /docker/);
     assert.match(verdict.message, /not-found/);
   }
-  assert.deepEqual(ledger.units, {}, 'the red stop is not counted');
+  assert.deepEqual(ledger.units, {}, 'the first two red stops are not counted');
+  for (let i = 0; i < 2; i += 1) {
+    const verdict = onStop(ledger, 's7', '## typecheck\nCannot connect to the Docker daemon', failing);
+    assert.equal(verdict.block, true, 'the third and fourth red stops are counted');
+  }
+  assert.equal(ledger.units[unitKey('stop', 's7')].attempts.length, 2, 'the third and fourth are counted');
+});
+
+test('leaves at most two red stops uncounted per session', () => {
+  // BUD-31 (AD-167): the cap is per session; a session with no id counts as an ordinary one.
+  const machine = [{ status: 1, output: 'Cannot connect to the Docker daemon' }];
+  const text = '## typecheck\nCannot connect to the Docker daemon';
+  const ledger = emptyLedger();
+  assert.equal(onStop(ledger, 'a1', text, machine).block, false, 'the first red stop of a1 is uncounted');
+  assert.equal(onStop(ledger, 'a1', text, machine).block, false, 'the second red stop of a1 is uncounted');
+  assert.equal(onStop(ledger, 'a1', text, machine).block, true, 'the third red stop of a1 counts');
+  assert.equal(
+    onStop(ledger, 'b2', text, machine).block,
+    false,
+    "another session's first red stop is uncounted",
+  );
+  assert.equal(
+    onStop(ledger, 'b2', text, machine).block,
+    false,
+    "another session's second red stop is uncounted",
+  );
+  assert.equal(onStop(ledger, 'b2', text, machine).block, true, "another session's third red stop counts");
+
+  const noId = emptyLedger();
+  assert.equal(
+    onStop(noId, 'unknown-session', text, machine).block,
+    true,
+    'a red stop with no session id counts',
+  );
+  assert.equal(onStop(noId, 'unknown-session', text, machine).block, true, 'and so does the next one');
 });
 
 test('counts a red stop with a real failure', () => {
