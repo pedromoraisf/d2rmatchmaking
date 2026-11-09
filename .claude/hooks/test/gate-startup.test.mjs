@@ -4,7 +4,7 @@
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -147,4 +147,40 @@ test('logs no command', () => {
   assert.equal(notObject.decision, 'ask');
   assert.ok(!notObject.stderr.includes(marker), 'a call that is not an object is not logged');
   assert.ok(!notObject.stdout.includes(marker), 'the answer does not repeat the raw input');
+});
+
+test('a read-only call spawns no rev-parse', () => {
+  // GPR-22: a `git` shim on PATH logs every call the gate makes; the shim must be the one the gate runs.
+  const root = repo();
+  const shimDir = tempDir();
+  const calls = path.join(tempDir(), 'git-calls.txt');
+  const realGit = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  writeFileSync(
+    path.join(shimDir, 'git'),
+    `#!/bin/sh\nprintf '%s\\n' "$*" >> ${JSON.stringify(calls)}\nexec ${JSON.stringify(realGit)} "$@"\n`,
+    { mode: 0o755 },
+  );
+  const shimEnv = {
+    ...withoutGitEnv,
+    CLAUDE_PROJECT_DIR: root,
+    D2RMM_TRACE_FILE: path.join(tempDir(), 'trace.txt'),
+    PATH: `${shimDir}${path.delimiter}${process.env.PATH}`,
+  };
+  execFileSync('git', ['--version'], { cwd: root, env: shimEnv });
+  assert.match(readFileSync(calls, 'utf8'), /--version/, 'the shim is the git the gate would run');
+
+  const r = spawnSync(process.execPath, ['--import', REGISTER, GATE], {
+    input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git status --short' }, cwd: root }),
+    cwd: root,
+    env: shimEnv,
+    encoding: 'utf8',
+    timeout: 30_000,
+  });
+  assert.equal(decisionOf(r.stdout), 'allow', 'a read-only call is allowed');
+  const spawned = readFileSync(calls, 'utf8').split('\n').filter(Boolean);
+  assert.deepEqual(
+    spawned.filter((line) => line.includes('rev-parse') && line.includes('--git-common-dir')),
+    [],
+    'no git rev-parse --git-common-dir is spawned',
+  );
 });

@@ -458,11 +458,11 @@ T15 → T16
 
 **Done when**:
 
-- [ ] In a temporary repository and in a linked worktree of it, the file-based common directory and branch equal what `git rev-parse --git-common-dir` and `--abbrev-ref HEAD` print, detached `HEAD` included (test `reads the git directory from files`)
-- [ ] A missing or malformed `.git` file or `commondir` falls back to `git rev-parse` (test `falls back to git when the files do not say`)
-- [ ] A read-only Bash call through `node .claude/hooks/gate.mjs` spawns no `git rev-parse --git-common-dir` (test `a read-only call spawns no rev-parse`)
-- [ ] Every existing test under `.claude/hooks/test/` and `scripts/test/` passes unchanged
-- [ ] Gate passes
+- [x] In a temporary repository and in a linked worktree of it, the file-based common directory and branch equal what `git rev-parse --git-common-dir` and `--abbrev-ref HEAD` print, detached `HEAD` included (test `reads the git directory from files`)
+- [x] A missing or malformed `.git` file or `commondir` falls back to `git rev-parse` (test `falls back to git when the files do not say`)
+- [x] A read-only Bash call through `node .claude/hooks/gate.mjs` spawns no `git rev-parse --git-common-dir` (test `a read-only call spawns no rev-parse`)
+- [x] Every existing test under `.claude/hooks/test/` and `scripts/test/` passes unchanged
+- [x] Gate passes
 
 **Tests**: unit (the spawn-count test starts the gate; not a mutation proof)
 **Gate**: `node --test scripts/test/ledger-store.test.mjs .claude/hooks/test/io.test.mjs .claude/hooks/test/gate-startup.test.mjs`

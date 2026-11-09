@@ -2,7 +2,7 @@
 // so they work before `pnpm install` and on every contributor machine.
 import { execFileSync, spawnSync } from 'node:child_process';
 import * as nodeFs from 'node:fs';
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 export async function readStdinJson() {
@@ -59,11 +59,93 @@ export function insideRepo(base, rel) {
   return abs === root || abs.startsWith(`${root}${path.sep}`);
 }
 
+// gate-precision (GPR-22): the git directory, the common directory and the branch are read from files, so a call
+// spawns no `git rev-parse`. A linked worktree's `.git` is a file (`gitdir: <path>`); its `commondir` file names the
+// common directory and its `HEAD` names the branch. A file that is missing or says something else gives null, and the
+// caller falls back to `git` as before. Each answer is memoised per process.
+const locationMemo = new Map();
+
+/** The kind of a path: a directory, a regular file, anything else, or null when it does not exist. */
+function kindOf(p) {
+  try {
+    const st = statSync(p);
+    if (st.isDirectory()) return 'dir';
+    return st.isFile() ? 'file' : 'other';
+  } catch {
+    return null;
+  }
+}
+
+/** A small text file read whole, or null. */
+function smallText(p) {
+  try {
+    return readFileSync(p, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+/** The branch a git directory's HEAD names, as `--abbrev-ref HEAD` prints it; null when the HEAD says something else. */
+function branchOf(gitDir) {
+  const head = smallText(path.join(gitDir, 'HEAD'));
+  if (head === null) return null;
+  const line = head.trim();
+  const ref = /^ref: refs\/heads\/(.+)$/.exec(line);
+  if (ref) return ref[1];
+  return /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(line) ? 'HEAD' : null;
+}
+
+/** The locations of the checkout that holds `start`, from its git files; null when the files do not say. */
+function readGitLocations(start) {
+  // git's own overrides of the directory are answered by git, not by the files.
+  if (process.env.GIT_DIR || process.env.GIT_COMMON_DIR) return null;
+  let dir = start;
+  for (;;) {
+    const dotGit = path.join(dir, '.git');
+    const kind = kindOf(dotGit);
+    if (kind === 'dir') return fromGitDir(dotGit, dotGit);
+    if (kind === 'file') return fromGitFile(dotGit, dir);
+    if (kind !== null) return null;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+function fromGitDir(gitDir, common) {
+  const branch = branchOf(gitDir);
+  return branch === null ? null : { gitDir, common, branch };
+}
+
+function fromGitFile(dotGit, dir) {
+  const text = smallText(dotGit);
+  const link = text === null ? null : /^gitdir:[ \t]*(.+)$/.exec(text.trim());
+  if (!link) return null;
+  const gitDir = path.resolve(dir, link[1].trim());
+  const commonText = smallText(path.join(gitDir, 'commondir'));
+  if (commonText === null) return null;
+  const common = path.resolve(gitDir, commonText.trim());
+  if (kindOf(common) !== 'dir') return null;
+  return fromGitDir(gitDir, common);
+}
+
+/**
+ * The git directory (`gitDir`), the common directory (`common`) and the branch (`branch`) of the checkout that holds
+ * `start`, read from files (GPR-22). Null when the files do not say; the caller then asks git.
+ */
+export function gitLocations(start = process.cwd()) {
+  const key = path.resolve(start);
+  if (!locationMemo.has(key)) locationMemo.set(key, readGitLocations(key));
+  return locationMemo.get(key);
+}
+
 /**
  * The main checkout (ADR 028 § 3): the parent of the git common directory, whatever directory the hook runs from.
  * Returns null outside a git repository.
  */
 export function mainCheckout(root) {
+  const found = gitLocations(root);
+  if (found) return path.dirname(found.common);
   try {
     const common = execFileSync('git', ['rev-parse', '--git-common-dir'], {
       cwd: root,
@@ -106,7 +188,8 @@ export function makeRepoContext(root) {
       return git('ls-files', '--error-unmatch', '--', rel) !== null;
     },
     currentBranch() {
-      return git('rev-parse', '--abbrev-ref', 'HEAD');
+      const found = gitLocations(root);
+      return found ? found.branch : git('rev-parse', '--abbrev-ref', 'HEAD');
     },
     headTime(dir) {
       const t = dir ? git('-C', dir, 'log', '-1', '--format=%ct') : git('log', '-1', '--format=%ct');

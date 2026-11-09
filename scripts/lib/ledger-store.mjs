@@ -8,10 +8,14 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { gitLocations } from '../../.claude/hooks/lib/io.mjs';
 import { emptyLedger, mergeLedgers } from './budget.mjs';
 
 export function ledgerPath(cwd) {
   if (process.env.D2RMM_LEDGER) return process.env.D2RMM_LEDGER; // tests only
+  // gate-precision (GPR-22): the common directory from the git files; git only when they do not say.
+  const found = gitLocations(cwd);
+  if (found) return path.join(found.common, 'd2rmm', 'ledger.json');
   let common;
   try {
     common = execFileSync('git', ['rev-parse', '--git-common-dir'], {
