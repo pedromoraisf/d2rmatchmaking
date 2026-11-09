@@ -148,10 +148,10 @@ T5 → T6
 
 **Done when**:
 
-- [ ] Each instruction is found in the skill and its command (test `the skill tells the remote flow`)
-- [ ] The two old phrases are absent, whitespace normalised (test `the skill no longer leaves delivery to the maintainer`)
-- [ ] Every existing test of `phase-runner-skill.test.mjs` passes unchanged
-- [ ] Gate passes
+- [x] Each instruction is found in the skill and its command (test `the skill tells the remote flow`)
+- [x] The two old phrases are absent, whitespace normalised (test `the skill no longer leaves delivery to the maintainer`)
+- [x] Every existing test of `phase-runner-skill.test.mjs` passes unchanged
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/phase-runner-skill.test.mjs`

@@ -85,7 +85,7 @@ The phase brief's approval is the only human approval during the run. It is vali
 | `specs-and-tasks`          | Write the per-feature approvals once the automatic gates pass                                                                                                                                       |
 | `sub-agents`               | Dispatch feature workers, the Verifier and the reviewers (TLC's offer-then-confirm is answered here)                                                                                                |
 | `harness-edits`            | Edit sensor/harness config (lint, depcruise, CI, Stryker…) — **only to tighten or extend**. The gate hook still asks for `.claude/hooks/**` and `.claude/settings.json`                             |
-| `local-merge-phase-branch` | Merge a green feature branch into `phase/<F>` locally                                                                                                                                               |
+| `local-merge-phase-branch` | Merge a green feature branch into `phase/<F>` through its pull request (ADR 028 § 1)                                                                                                                |
 | `harness-self`             | Edit the gate, its registration and the retry-budget code in the worktrees of the features it names; each merges only with `pnpm test:harness` and a `security-reviewer` PASS at its head (ADR 028) |
 
 A per-feature approval line under delegation is exactly:
@@ -99,8 +99,8 @@ before the gates pass, is a fabricated approval.
 
 ## KICKOFF — `/phase-kickoff F<n>`
 
-0. Preconditions: the previous phase reports `closed` in `phase-status F<n-1>` (review approved and `phase/F<n-1>`
-   merged into `main`). Then, on a new `phase/F<n>` branch from `main`, tighten the baseline with the merged numbers:
+0. Preconditions: the previous phase reports `closed` in `phase-status F<n-1>` (its review written and `phase/F<n-1>`
+   merged into `main` by its phase PR). Then, on a new `phase/F<n>` branch from `main`, tighten the baseline with the merged numbers:
    `pnpm quality:collect && pnpm quality:ratchet --context phase --update`. If `brief.md` already exists and is
    approved, do not touch it — report and stop; if it is an unapproved draft, update it in place.
 1. Read the roadmap (its `## Requirement coverage` lists the requirements this phase must cover — every one must
@@ -110,7 +110,9 @@ before the gates pass, is a fabricated approval.
    (TLC auto-sizing), dependency order and which can run in parallel, FR/NFR covered, budgets, risks, open questions
    the maintainer must answer **now** (product gray areas that cannot take a conservative default).
 3. Create `.specs/phases/F<n>/decisions.md` from its template. Write `F<n>` to `.specs/phases/ACTIVE`.
-4. Present the brief and stop. The maintainer answers the open questions and approves with their words + delegation.
+4. Commit the draft (`docs(specs): draft brief F<n>`), push `phase/<F>` and open a draft phase PR into `main`
+   (`gh pr create --draft --base main --head phase/<F>`). The phase PR stays a draft until the review merges it (ADR 028, CDL-01).
+5. Present the brief and stop. The maintainer answers the open questions and approves with their words + delegation.
 
 ## RUN — `/phase-run F<n>`
 
@@ -173,21 +175,33 @@ remaining feature of the phase is an escalation.
 TLC `references/validate.md` → fix findings in one pass (dispatched as the next `execute-batch-<n>` with the findings as its tasks) → `check_proofs.py --mutations` (step `proofs`) and, if TLC's
 round 2 applies, step `verify-r2` → `validate_verification.py <feature>` (step `verification`) exits 0.
 
-### 7. Integrate
+### 7. Integrate (through pull requests, ADR 028)
 
-In the feature worktree, all as step `integration` through `attempt.mjs`: `pnpm check` green, `pnpm quality:collect && pnpm quality:ratchet --context pr` green,
-`harness-score --min-level 4` green, OpenAPI drift clean. Then (with `local-merge-phase-branch`) merge into `phase/<F>`
-with `--no-ff`, rerun `pnpm check` on `phase/<F>`, remove the worktree. Without the scope, leave it ready and list it
-in the review. Pushing branches and opening PRs are the runner's (ADR 028); the remote flow per feature comes with
-`continuous-delivery`.
+A feature reaches `phase/<F>` only through a pull request the runner opens and merges (CDL-02, CDL-04). Nothing merges
+into the phase branch locally.
+
+1. **Local integration**, all as step `integration` through `attempt.mjs`, in the feature worktree: `pnpm check` green,
+   the feature's own acceptance scenarios green with `pnpm exec turbo run test:acceptance -- --grep @<PREFIX>-` (`<PREFIX>`
+   is the requirement-ID prefix of the feature, such as `CDL-`), `pnpm quality:collect && pnpm quality:ratchet --context pr`
+   green, `harness-score --min-level 4` green, OpenAPI drift clean. Never run the full acceptance suite, the load test or
+   the full mutation run locally; CI runs them (CDL-03, CDL-18).
+2. **Push and open the feature PR.** Push `feat/<F>-<feature>` and open a feature PR into `phase/<F>`:
+   `gh pr create --base phase/<F> --head feat/<F>-<feature>`. CI runs its required checks on it.
+3. **Wait for the checks.** Start `gh pr checks <pr> --watch` as a background task and continue on its notification.
+   Wait for the feature PR's required checks to pass. A failed check is a red unit: fix its root cause on the feature
+   branch within the retry budget (step `integration`).
+4. **Merge.** When the checks are green, merge the PR with `gh pr merge <pr> --merge`, never squash or rebase, so the
+   progress trailers reach `phase/<F>` (CDL-04). `phase-status` reads the feature as integrated only when its
+   `Step: verification` commit is reachable from `phase/<F>`.
+5. Fast-forward the local `phase/<F>` to `origin/phase/<F>`, remove the feature worktree, and run step 8.
 
 ### 8. Lessons
 
 TLC `references/lessons.md` after each feature's gate.
 
-After each integration, run `node scripts/phase-status.mjs --write` on `phase/<F>` and commit the regenerated
-`## Runner state` and `attempts.json` (`chore(specs): runner state <F>`), so a compacted or new session — on any
-machine — resumes from the same evidence.
+After each integration, run `node scripts/phase-status.mjs --write` on `phase/<F>`, commit the regenerated
+`## Runner state` and `attempts.json` (`chore(specs): runner state <F>`) and push `phase/<F>`, so a compacted or new
+session — on any machine — resumes from the same evidence.
 
 ## Escalations — stop and ask (the gate hook enforces most as "ask")
 
@@ -195,6 +209,12 @@ See `references/escalation.md`. In short (ADR 028): production database; creatin
 settings and rulesets; anything that costs money; changing an accepted ADR; deleting/skipping/weakening tests; lowering thresholds or the quality baseline;
 disabling or loosening a sensor; a product gray area with no conservative default; a blocked feature that blocks the
 phase. Everything else is decided, recorded and shown in the review.
+
+Items ADR 028 § 1 keeps with the maintainer (a secret or variable, a repository setting or ruleset, money, an ADR or
+brief approval, a weaker test or sensor, a reset beyond the orchestrator's one) do not stop the phase. For each one, add a
+row to the `## For the maintainer` table of `decisions.md` (Feature, Item, Asked, Answer left empty), leave the gate's
+permission prompt for that action unanswered, and continue with the features that do not depend on it. `phase-status`
+blocks that feature with the reason `maintainer` until its Answer is filled (CDL-16).
 
 ## REVIEW — `/phase-review F<n>`
 
@@ -205,11 +225,15 @@ Precondition: `phase-status` reports `review` (every feature done or blocked).
    `node scripts/attempt.mjs report`. Each feature's verification gate ran at its head before its merge and needs the proofs at that head, so it cannot pass on the phase branch after the merges; the retry-budget status and the phase status above are its evidence here.
 2. Generate `.specs/phases/F<n>/review.md` from `references/templates/review.md` with **real numbers** from those runs
    (never estimates): exit criteria ✓/✗ with proof links, features and commits, assumed decisions to confirm, blocked
-   items with the retry-budget report (units, attempts, last error, resets), harness score and ratchet deltas, mutation scores, CI time, what changed in the harness, risks for the next
-   phase, and the exact commands the maintainer runs to push and open the PR.
-3. Stop. The maintainer accepts by writing the approval line in `review.md` (then pushes `phase/<F>` and merges the PR
-   to `main`; `phase-status` moves to `closed`) or sends items back (they become a follow-up feature row in the brief,
-   which needs the maintainer's approval like any brief change).
+   items with the retry-budget report (units, attempts, last error, resets), harness score and ratchet deltas, mutation
+   scores, CI time, what changed in the harness, risks for the next phase, and the checks of the phase PR's head.
+3. **Merge the phase PR (CDL-06, AD-170).** Merge when both hold: every command of step 1 passed on `phase/<F>` and
+   `review.md` records each one, and the four checks of ADR 028 § 2, `verify`, `integration`, `agent` and `secrets`, passed
+   on the phase PR's head, whatever the ruleset requires. Then mark the phase PR ready with `gh pr ready <pr>` and merge
+   it with `gh pr merge <pr> --merge`. If either part did not hold, do not merge: record which command or check failed
+   and why in `review.md`, and stop.
+4. `phase-status` moves to `closed` once the merge lands. The maintainer reads `review.md` afterwards and sends items
+   back as follow-up feature rows in the brief, which need the maintainer's approval like any brief change (AD-168).
 
 ## Output
 

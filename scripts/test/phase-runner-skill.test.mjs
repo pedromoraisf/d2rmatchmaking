@@ -169,3 +169,64 @@ test('the brief template offers harness-self', () => {
   assert.match(line, /`[^`]+`/u, 'the line names the feature rows in backticks');
   assert.ok(line.includes('ADR 028'), 'the line points to ADR 028');
 });
+
+// CDL-01 to CDL-06, CDL-13, CDL-16, CDL-18 (continuous-delivery): the runner delivers through pull requests, and the
+// skill and its commands say so. Phrases are matched with whitespace normalised, since the markdown wraps them.
+const normalised = (text) => text.replace(/\s+/gu, ' ');
+const command = (name) => normalised(readFileSync(path.join(root, '.claude', 'commands', name), 'utf8'));
+const SKILL_TEXT = normalised(skill);
+const KICKOFF_COMMAND = command('phase-kickoff.md');
+const RUN_COMMAND = command('phase-run.md');
+const REVIEW_COMMAND = command('phase-review.md');
+
+test('the skill tells the remote flow', () => {
+  const instructions = [
+    // CDL-01: kickoff pushes the phase branch and opens a draft phase PR.
+    [SKILL_TEXT, 'push `phase/<F>` and open a draft phase PR into `main`'],
+    [KICKOFF_COMMAND, 'push `phase/$ARGUMENTS` and open a draft phase PR into `main`'],
+    // CDL-02: each verified feature is pushed with a PR into the phase branch.
+    [SKILL_TEXT, 'Push `feat/<F>-<feature>` and open a feature PR into `phase/<F>`'],
+    [RUN_COMMAND, 'open a feature PR into `phase/$ARGUMENTS`'],
+    // CDL-03 and CDL-18: local check, the feature's own scenarios and the required checks; nothing full locally.
+    [SKILL_TEXT, '`pnpm check`'],
+    [SKILL_TEXT, '--grep @<PREFIX>-'],
+    [SKILL_TEXT, "Wait for the feature PR's required checks to pass"],
+    [SKILL_TEXT, 'Never run the full acceptance suite, the load test or the full mutation run locally'],
+    [RUN_COMMAND, 'never the full acceptance suite, the load test or the full mutation run'],
+    // CDL-04: merge with --merge, never squash or rebase.
+    [SKILL_TEXT, 'merge the PR with `gh pr merge <pr> --merge`, never squash or rebase'],
+    [RUN_COMMAND, 'merge with `gh pr merge <pr> --merge`, never squash or rebase'],
+    // CDL-05: the wait is a background task.
+    [SKILL_TEXT, 'Start `gh pr checks <pr> --watch` as a background task'],
+    [RUN_COMMAND, '`gh pr checks <pr> --watch` as a background task'],
+    // CDL-06 and AD-170: the phase PR merges on the review's gates and the four checks.
+    [SKILL_TEXT, '`verify`, `integration`, `agent` and `secrets`'],
+    [SKILL_TEXT, 'record which command or check failed and why in `review.md`'],
+    [
+      REVIEW_COMMAND,
+      'mark the phase PR ready with `gh pr ready <pr>` and merge it with `gh pr merge <pr> --merge`',
+    ],
+    [REVIEW_COMMAND, '`verify`, `integration`, `agent` and `secrets`'],
+    // CDL-16: maintainer items become rows, and the other features continue.
+    [SKILL_TEXT, 'add a row to the `## For the maintainer` table of `decisions.md`'],
+    [SKILL_TEXT, 'continue with the features that do not depend on it'],
+    [RUN_COMMAND, 'the `## For the maintainer` table of `decisions.md`'],
+  ];
+  for (const [text, phrase] of instructions) {
+    assert.ok(text.includes(phrase), `the remote flow says "${phrase}"`);
+  }
+});
+
+// CDL-13: the skill and the two commands no longer leave delivery to the maintainer.
+test('the skill no longer leaves delivery to the maintainer', () => {
+  for (const text of [SKILL_TEXT, KICKOFF_COMMAND, RUN_COMMAND, REVIEW_COMMAND]) {
+    assert.ok(
+      !text.includes('leave it ready and list it in the review'),
+      'no "leave it ready and list it in the review"',
+    );
+    assert.ok(
+      !text.includes('the exact commands the maintainer runs to push and open the PR'),
+      'no "the exact commands the maintainer runs to push and open the PR"',
+    );
+  }
+});
