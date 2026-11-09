@@ -239,10 +239,10 @@
   },
   {
     "file": ".claude/hooks/lib/budget-rules.mjs",
-    "old": "if (INTERPRETER.test(head[0]) && operand !== undefined) programs.push(operand);",
-    "new": "if (false) programs.push(operand);",
-    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
-    "label": "only the program is checked for an expansion, not its first operand (T24)"
+    "old": "words.slice(0, j).some((p) => RUNNER_WORD.test(p))",
+    "new": "true",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a dynamic script path counts without a runner before it (T30)"
   },
   {
     "file": ".claude/hooks/lib/budget-rules.mjs",
@@ -400,24 +400,24 @@
   },
   {
     "file": ".claude/hooks/lib/budget-rules.mjs",
-    "old": "const EXPANDED_ARG = /[$`{]/;",
-    "new": "const EXPANDED_ARG = /[$`]/;",
-    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" --test-name-pattern \"a reset is judged when the word itself is hidden\" .claude/hooks/test/budget-rules.test.mjs",
-    "label": "a brace in an argument no longer counts as expanding (T26)"
+    "old": "const EXPANDED_ARG = /[$`{*?[~<>(]/;",
+    "new": "const EXPANDED_ARG = /[$`*?[~<>(]/;",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a brace in an argument no longer counts as expanding (T26, T30)"
   },
   {
     "file": ".claude/hooks/lib/budget-rules.mjs",
-    "old": "if (INTERPRETER.test(head[0]) && operand !== undefined) programs.push(operand);",
-    "new": "if (operand !== undefined) programs.push(operand);",
-    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" --test-name-pattern \"a reset is judged when the word itself is hidden\" .claude/hooks/test/budget-rules.test.mjs",
-    "label": "the first operand is read as a program under any head, not only an interpreter (T26 b)"
+    "old": "words.some((x, k) => k !== j && (x === 'reset' || EXPANDED_ARG.test(x)))",
+    "new": "words.some((x) => x === 'reset' || EXPANDED_ARG.test(x))",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "the dynamic script path itself counts as its own expanding argument (T30)"
   },
   {
     "file": ".claude/hooks/lib/budget-rules.mjs",
-    "old": "(node|python[\\d.]*|bun|tsx|deno|sh|bash|zsh)",
-    "new": "(python[\\d.]*|bun|tsx|deno|sh|bash|zsh)",
-    "proof": "node --test --test-name-pattern \"a reset is judged when the word itself is hidden\" .claude/hooks/test/budget-rules.test.mjs",
-    "label": "node is no longer an interpreter head (T26 b)"
+    "old": "/^(node|python[\\d.]*|bun|tsx|deno|sh|bash|zsh|pnpm|",
+    "new": "/^(python[\\d.]*|bun|tsx|deno|sh|bash|zsh|pnpm|",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "node is no longer a runner word (T30)"
   },
   {
     "file": ".claude/hooks/lib/budget-rules.mjs",
@@ -453,5 +453,40 @@
     "new": "/\\b(?:import|require)\\s*\\(/.test(text)",
     "proof": "node --test --test-name-pattern \"inline code naming the budget modules asks\" .claude/hooks/test/gate-rules.test.mjs",
     "label": "every import( or require( asks, a plain literal too (T26)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDED_ARG = /[$`{*?[~<>(]/;",
+    "new": "const EXPANDED_ARG = /[$`{*[~<>(]/;",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a ? glob no longer counts as expanding (T30)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDED_ARG = /[$`{*?[~<>(]/;",
+    "new": "const EXPANDED_ARG = /[$`{*?[<>(]/;",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a ~ no longer counts as expanding (T30)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDED_ARG = /[$`{*?[~<>(]/;",
+    "new": "const EXPANDED_ARG = /[$`{?[~<>(]/;",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a * glob no longer counts as expanding (T30)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "(m) => m[1].toLowerCase() === 'reset' || EXPANDED_ARG.test(m[1])",
+    "new": "(m) => m[1].toLowerCase() === 'reset'",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a wrapper word that expands is no longer a possible reset (T30)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "isDynamicScript(w) &&",
+    "new": "false &&",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a dynamic script path behind a runner is no longer judged (T30)"
   }
 ]
