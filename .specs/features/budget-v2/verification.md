@@ -110,3 +110,33 @@ Nine more in `mutations.json` plus the rewritten one, proved by unit tests only 
 - BUD-31: green stops do not reset the cap (`clearIfOpen` touches units only); a ledger without `uncountedStops` is read as empty and the first uncounted stop creates it (probe); bare `unknown-session` counts (test); per-session scope (mutated to pooled, killed).
 - The two changed assertions are stricter. `a counted failure restarts the environment count` expects `env-blocked` where it expected `open` (blocks earlier). `red stop: lets the agent stop when the machine failed` expects two uncounted stops with no unit written, then two blocking stops with two attempts recorded, where it expected four uncounted. Neither loosens.
 - `@BUD-30` scenario: env x2, a counted failure, env x2 gives `env-blocked`; a trailing-run-only rule leaves it `open` (run of 2), so the scenario discriminates.
+
+## Round 4
+
+Judged at `6303f5e`: T23 (AD-172, only a reset clears the BUD-30 machine-failure total). Verdict: PASS on the code; one
+process blocker (below).
+
+### Mutations injected (round 4)
+
+Two stale round-3 entries are rewritten for the current code (`envTotalOfAttempts`), three are added; all proved by unit
+tests only (ADR 026; `mutation-scope: OK`). Full run: 24 killed, 0 survived.
+
+| Mutation                                                                   | Location                     | Killed |
+| -------------------------------------------------------------------------- | ---------------------------- | ------ |
+| a pass clears the machine-failure total (rewritten, was survives a pass)   | `scripts/lib/budget.mjs:109` | yes    |
+| the total counts counted failures too (rewritten for `envTotalOfAttempts`) | `scripts/lib/budget.mjs:109` | yes    |
+| a pass clears the total a merge carried in                                 | `scripts/lib/budget.mjs:168` | yes    |
+| a merge drops the total carried from the other copy                        | `scripts/lib/budget.mjs:431` | yes    |
+| the total ignores the carried environment failures                         | `scripts/lib/budget.mjs:117` | yes    |
+
+### Findings (round 4)
+
+| Finding                                                                                                                                                                                                 | Evidence                                                                                                                                                             | Fix                                                                                      | Closed |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------ |
+| Not blocking (process): the Verifier could not commit this round. The gate denied `git commit` (no gate run through the wrapper since the last commit), then denied the wrapper call itself three times | Gate text: "Quote the whole gate command after --" on a quoted `node scripts/attempt.mjs run --feature budget-v2 --step verification -- "<cmd>"`; denial 3/3 reached | The orchestrator commits `verification.md` and `mutations.json` (trailers Feature, Step) | -      |
+
+### Probed and held (round 4)
+
+- Probes through `recordAttempt` and `mergeLedgers`: env, env, pass, env, env gives `env-blocked`; env, env, counted, pass, env stays open (3 in all); a merge carrying 3 env failures into a kept copy with none, then a pass, then one env failure gives `env-blocked`; repeated and reversed merges keep the carried count; a merge with a newer reset drops the stale copy; a ledger without `envCarried`, or with attempts lacking `kind`, reads as 0.
+- The only other removals of a unit are `reset` and `clearIfOpen`; `clearIfOpen` is called only for stop and feedback units, which never record a machine failure, so it cannot clear a gate unit total. An `env-blocked` unit refuses a later pass (`recordAttempt` returns early).
+- The changed T18 assertion is stricter: `env, env, pass, env, env` expects `env-blocked` where it expected `open`. The new test `only a reset clears the machine-failure total` also covers the merge and the reset.
