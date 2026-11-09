@@ -1,0 +1,37 @@
+[
+  {
+    "file": "scripts/lib/phase-state.mjs",
+    "old": "openItems.filter((i) => i.feature === f)",
+    "new": "openItems",
+    "proof": "node --test --test-name-pattern \"an open maintainer item blocks only its feature\" scripts/test/phase-state.test.mjs",
+    "label": "a maintainer item blocks every feature, not only its own"
+  },
+  {
+    "file": "scripts/lib/phase-state.mjs",
+    "old": "t.feature === f && t.step === 'verification');",
+    "new": "t.feature === f);",
+    "proof": "node --test --test-name-pattern \"integrates only when the trailers reach the phase\" --test-name-pattern \"integrates only on the closing commit\" scripts/test/phase-state.test.mjs",
+    "label": "any trailer of the feature on the phase branch counts as integrated"
+  },
+  {
+    "file": "scripts/lib/phase-state.mjs",
+    "old": "ev.blocked(f) ? 'retry-budget'",
+    "new": "ev.blocked(f) ? 'maintainer'",
+    "proof": "node --test scripts/test/phase-state.test.mjs",
+    "label": "a retry-budget block is reported as a maintainer block"
+  },
+  {
+    "file": ".claude/skills/d2rmm-phase-runner/SKILL.md",
+    "old": "it with `gh pr merge <pr> --merge`. If either",
+    "new": "it with `gh pr merge <pr> --squash`. If either",
+    "proof": "node --test scripts/test/phase-runner-skill.test.mjs",
+    "label": "the REVIEW step of the skill squashes the phase PR"
+  },
+  {
+    "file": "scripts/lib/phase-state.mjs",
+    "old": "openItems.filter((i) => !briefed.has(i.feature))",
+    "new": "openItems.filter((i) => briefed.has(i.feature))",
+    "proof": "node --test --test-name-pattern \"lists open maintainer items by feature\" scripts/test/phase-state.test.mjs",
+    "label": "phaseItems holds the items of briefed features"
+  }
+]

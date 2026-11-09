@@ -44,14 +44,10 @@ Retry budget (`node scripts/attempt.mjs report`): every unit, attempts, failures
 
 ## Risks for the next phase
 
-## To ship (maintainer runs or approves)
+## Phase PR
 
-```sh
-git push -u origin phase/F<n>
-gh pr create --base main --head phase/F<n> --title "F<n>: <name>" --body-file .specs/phases/F<n>/review.md
-# after merge
-pnpm quality:collect && pnpm quality:ratchet --context phase --update
-```
+The runner merges the phase PR when the gates below and the four checks of ADR 028 § 2 pass (CDL-06). Record the merge
+and the checks of the head here: `gh pr view <pr> --json mergedAt,headRefOid`.
 
 ## Approval
 

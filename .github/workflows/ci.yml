@@ -29,6 +29,7 @@ jobs:
       api: ${{ steps.d.outputs.api }}
       agent: ${{ steps.d.outputs.agent }}
       acceptance: ${{ steps.d.outputs.acceptance }}
+      stryker: ${{ steps.d.outputs.stryker }}
     steps:
       - uses: actions/checkout@v7
       - id: d
@@ -36,6 +37,7 @@ jobs:
           [ -f apps/api/package.json ] && echo "api=true" >> "$GITHUB_OUTPUT" || echo "api=false" >> "$GITHUB_OUTPUT"
           [ -f apps/agent/src-tauri/Cargo.toml ] && echo "agent=true" >> "$GITHUB_OUTPUT" || echo "agent=false" >> "$GITHUB_OUTPUT"
           if compgen -G ".specs/features/*/acceptance.feature" > /dev/null; then echo "acceptance=true"; else echo "acceptance=false"; fi >> "$GITHUB_OUTPUT"
+          if compgen -G "apps/api/stryker.config.*" > /dev/null; then echo "stryker=true" >> "$GITHUB_OUTPUT"; else echo "stryker=false" >> "$GITHUB_OUTPUT"; fi
 
   verify:
     # format, lint, types, architecture, tests, specs, harness, ratchet
@@ -83,10 +85,6 @@ jobs:
       - name: Contracts drift (OpenAPI / AsyncAPI)
         if: hashFiles('packages/contracts/package.json') != ''
         run: pnpm run contracts:check
-      - name: Mutation (incremental, changed files)
-        if: github.event_name == 'pull_request' && hashFiles('apps/api/stryker.config.*') != ''
-        run: pnpm exec turbo run test:mutation --affected -- --incremental
-
       - name: Harness maturity (L4 gate)
         run: |
           pnpm run harness:json
@@ -143,6 +141,89 @@ jobs:
           name: acceptance-report
           path: reports/acceptance/
           retention-days: 14
+
+  mutation:
+    # The API's Stryker runs beside the required checks (CFP-01, CFP-02): it blocks no merge. Only the files the PR
+    # changes are mutated, and the incremental files are cached under the base branch (CFP-03, CFP-05).
+    name: mutation
+    needs: detect
+    if: github.event_name == 'pull_request' && needs.detect.outputs.stryker == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The changed files are listed against origin/<base>, which needs the base branch's history.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Restore the Stryker incremental files
+        uses: actions/cache@v4
+        with:
+          path: apps/api/reports/stryker-incremental-*.json
+          key: stryker-incremental-${{ github.base_ref }}-${{ github.sha }}
+          restore-keys: stryker-incremental-${{ github.base_ref }}-
+      - name: Mutation (API, changed files, incremental)
+        run: pnpm -C apps/api run test:mutation -- --changed-from origin/${{ github.base_ref }} --incremental
+      - name: Survived mutants (job summary)
+        if: always()
+        run: node apps/api/scripts/mutation-summary.ts
+
+  smoke:
+    # The API boots the way Render boots it (AD-161, CFP-25): Render's install, the migrations of deploy-api.yml and the
+    # startCommand of render.yaml, against a Postgres service. /healthz must answer 200 within 30 seconds (CFP-15, CFP-16).
+    # Every value below is a test value; the job reads no secret (CFP-18).
+    name: smoke
+    needs: detect
+    if: github.event_name == 'pull_request' && needs.detect.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: smoke
+          POSTGRES_PASSWORD: smoke
+          POSTGRES_DB: d2rmm_smoke
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U smoke -d d2rmm_smoke"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # The environment render.ts reads on Render (render.yaml). The service container has no TLS, so the URL disables
+      # it; Neon, on Render, is verified.
+      D2RMM_ENV: staging
+      ENABLE_STAGING_ENDPOINTS: 'true'
+      SITE_ORIGIN: https://d2rmatchmaking.pages.dev
+      PORT: '8787'
+      DATABASE_URL: postgres://smoke:smoke@localhost:5432/d2rmm_smoke?sslmode=disable
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install the workspace (the Render buildCommand install)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Migrate the database (as deploy-api.yml does)
+        run: pnpm --filter @d2rmm/api db:migrate
+      - name: Start the API (the Render startCommand)
+        run: |
+          mkdir -p reports
+          nohup node --import ./apps/api/src/main/instrument.ts apps/api/src/main/render.ts > reports/smoke-api.log 2>&1 &
+      - name: GET /healthz within 30 seconds
+        run: node scripts/ci/smoke-healthz.mjs http://localhost:8787/healthz
+      - name: The API's log when the smoke check failed
+        if: failure()
+        run: cat reports/smoke-api.log
 
   agent:
     # Rust on Windows: fmt, clippy and nextest with default and all features, cargo-deny, and the four read-only
@@ -204,6 +285,88 @@ jobs:
       - name: Fixture domain-clock must fail with disallowed_types
         working-directory: .
         run: node scripts/agent/expect-failure.mjs disallowed_types -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/domain-clock/Cargo.toml -- -D warnings
+
+  agent-mutation:
+    # ADR 026: the agent's mutants of the pull request's diff are caught by the unit tests (--lib) of each crate. It runs
+    # beside the required checks and blocks no merge (CFP-08). With no agent change it runs no cargo-mutants (CFP-09).
+    name: agent-mutation
+    needs: detect
+    if: github.event_name == 'pull_request' && needs.detect.outputs.agent == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The diff is taken against origin/<base>, which needs the base branch's history.
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: apps/agent/src-tauri
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2
+        with:
+          tool: cargo-mutants
+      - id: diff
+        name: The agent's diff against the base branch
+        run: |
+          mkdir -p reports/mutation
+          git diff origin/${{ github.base_ref }}...HEAD -- apps/agent/src-tauri > reports/agent.diff
+          if [ -s reports/agent.diff ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Mutants of the diff (agent-domain)
+        if: steps.diff.outputs.changed == 'true'
+        run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --in-diff reports/agent.diff --package d2rmm-agent-domain --output reports/mutation/agent-domain -- --lib
+      - name: Mutants of the diff (agent-core)
+        if: steps.diff.outputs.changed == 'true'
+        run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --in-diff reports/agent.diff --package d2rmm-agent-core --output reports/mutation/agent-core -- --lib
+      - name: Mutants of the diff (agent-adapters)
+        if: steps.diff.outputs.changed == 'true'
+        run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --in-diff reports/agent.diff --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib
+
+  agent-build:
+    # CFP-17: a pull request that changes the agent compiles its release on Windows, the release's runner. Updater
+    # artifacts are off for this build only (a --config override, not a change to tauri.conf.json), so no signing key is
+    # needed, and none reaches this job's environment. Every step runs only when the PR changes apps/agent.
+    name: agent-build
+    needs: detect
+    if: github.event_name == 'pull_request' && needs.detect.outputs.agent == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The changed files are listed against origin/<base>, which needs the base branch's history.
+          fetch-depth: 0
+      - id: changed
+        name: Does the PR change a file under apps/agent?
+        run: |
+          changed="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- apps/agent)"
+          if [ -n "$changed" ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        if: steps.changed.outputs.changed == 'true'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        if: steps.changed.outputs.changed == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install the workspace
+        if: steps.changed.outputs.changed == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Build the UI (Tauri reads frontendDist)
+        if: steps.changed.outputs.changed == 'true'
+        run: pnpm --filter @d2rmm/agent build
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        if: steps.changed.outputs.changed == 'true'
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        if: steps.changed.outputs.changed == 'true'
+        with:
+          workspaces: apps/agent/src-tauri
+      - name: Compile the release without updater artifacts (no signing key)
+        if: steps.changed.outputs.changed == 'true'
+        working-directory: apps/agent
+        run: pnpm exec tauri build --ci --config '{"bundle":{"createUpdaterArtifacts":false}}' -- --locked
 
   secrets:
     name: secrets # gitleaks; required check in .github/rulesets/main.json

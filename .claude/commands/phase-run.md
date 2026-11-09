@@ -15,3 +15,10 @@ First run `node scripts/phase-status.mjs $ARGUMENTS --json` — it is the only s
 Run `node scripts/attempt.mjs status` to see blocked units. Then continue from the first unfinished step,
 respecting the retry budget (1 attempt + 2 retries per unit, ADR 022): never retry a blocked unit. Report one line per completed step. Stop only for an escalation or when
 every feature is done or blocked; then suggest `/phase-review $ARGUMENTS`.
+
+Features reach `phase/$ARGUMENTS` through pull requests (ADR 028, CDL-02 to CDL-05): push each verified feature branch and
+open a feature PR into `phase/$ARGUMENTS`; integrate locally with `pnpm check` and the feature's own scenarios
+(`--grep @<PREFIX>-`), and never the full acceptance suite, the load test or the full mutation run; wait for the required
+checks with `gh pr checks <pr> --watch` as a background task; merge with `gh pr merge <pr> --merge`, never squash or
+rebase. A feature that needs an item only the maintainer can answer gets a row in the `## For the maintainer` table of
+`decisions.md`, and the other features continue (CDL-16).

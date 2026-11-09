@@ -41,11 +41,15 @@ const phaseBranch = `phase/${phase}`;
 const hasPhaseBranch = git('rev-parse', '--verify', '--quiet', phaseBranch) !== null;
 const ledger = loadLedger(ledgerPath(root), root);
 
+// Merged into main: the local main or origin/main holds the phase branch (CDL-17).
+const isAncestorOf = (ref) => hasPhaseBranch && git('merge-base', '--is-ancestor', phaseBranch, ref) !== null;
+
 const state = derivePhaseState({
   phase,
   brief: read(briefRel),
   review: read(`.specs/phases/${phase}/review.md`),
-  mergedToMain: hasPhaseBranch && git('merge-base', '--is-ancestor', phaseBranch, 'main') !== null,
+  decisions: read(`.specs/phases/${phase}/decisions.md`),
+  mergedToMain: isAncestorOf('main') || isAncestorOf('origin/main'),
   file: (f, name) => read(`.specs/features/${f}/${name}`),
   commits: commits('--all'),
   phaseCommits: hasPhaseBranch ? commits(phaseBranch) : [],
@@ -58,11 +62,13 @@ if (args.includes('--json')) {
   console.log(
     `phase ${phase}: next = ${state.next}${state.phaseBlocked ? '  ⚠ PHASE BLOCKED — escalate' : ''}`,
   );
+  for (const i of state.phaseItems) console.log(`  maintainer, not in the brief (${i.feature}): ${i.item}`);
   for (const s of state.features) {
     const extra = s.waitingOn.length ? ` (waiting on ${s.waitingOn.join(', ')})` : '';
     console.log(
       `  ${s.status.padEnd(8)} ${s.feature.padEnd(22)} next: ${s.next}${s.task ? ` ${s.task}` : ''}  tasks ${s.tasks.done}/${s.tasks.total}${extra}`,
     );
+    for (const i of s.items) console.log(`      maintainer: ${i.item}`);
   }
   if (state.runnable.length) {
     console.log(

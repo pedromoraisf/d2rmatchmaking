@@ -128,6 +128,15 @@ review. Reversals become tasks in a follow-up feature.
 | AD-155 | budget-v2 | A red stop caused by the machine lets the agent stop, uncounted | count it again | |
 | AD-156 | budget-v2 | A signature with a test-failure marker in the same output counts as an ordinary failure | drop the marker rule | |
 | AD-167 | budget-v2 | Maintainer chose option (b): the three-in-a-row rule stands; a fourth environment failure in total blocks a unit; at most two uncounted red stops per session; signatures unchanged | raise the totals | |
+| AD-149 | ci-fast-path | The nightly agent mutation runs on `ubuntu-latest` | one `runs-on` line | |
+| AD-150 | ci-fast-path | Majors of eslint and `@opentelemetry/*` come grouped and held by a 30-day cooldown; npm stays weekly | the `cooldown` block | |
+| AD-151 | ci-fast-path | The specs check refuses mutation only in the gates of open tasks | drop the condition | |
+| AD-152 | ci-fast-path | Third-party actions of the new CI jobs are pinned by full commit SHA | use tags | |
+| AD-161 | ci-fast-path | The smoke job starts the API with Render's own commands, not a compiled build (CFP-25 appended) | one job | |
+| AD-168 | continuous-delivery | `phase-status` drops `awaiting-review`: review exists → `merge` → `closed` once merged into `main` | restore the step | |
+| AD-169 | continuous-delivery | Maintainer items are rows of `decisions.md → For the maintainer`; an open row blocks only its feature and is printed on its line | another evidence source | |
+| AD-170 | continuous-delivery | The phase PR merges only when `verify`, `integration`, `agent` and `secrets` passed on its head, whatever the applied ruleset requires | read the ruleset file | |
+| AD-171 | continuous-delivery | The phase PR does not merge while any maintainer item is open; the review lists them and stops | one sentence in the skill | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 
@@ -362,6 +371,17 @@ Exit criterion 5 of the brief is therefore proved by `v0.0.2` self-updating to `
 
 | agent-hexagonal-migration / phase review (2026-11-04) — resolved 2026-11-04 | gate `verification` | 3 failures: 2 from the feature's own run, 1 from `/phase-review F0` running `validate_verification.py` on `phase/F0` | `proofs.md was written at 1c936f0 and HEAD is 2801b4b`. No code or proof defect: the validator requires the proofs at HEAD exactly, so it cannot pass after the merge. The gate passed at the feature's head before the merge | Maintainer reset `gate:agent-hexagonal-migration/verification` (by pedromoraisf). The review step's fix is proposed in `.specs/phases/F0/brief-revision-3.md` |
 | budget-v2 / T10 (2026-11-08) — resolved 2026-11-08: reset by pedromoraisf, T10 replanned (the telemetry `After` hook scoped to `@NFR-09`), gate passed at `3e3cc97` | gate `T10` | 3 failures: two refusals before the gate ran (`attempt: unknown feature "budget-v2"`, the wrapper launched from another worktree), then one full run from the worktree: 53 of 55 `@BUD-` scenarios passed, BUD-06 (the `--timeout 1` scenario) and BUD-15 Example #4 failed with `TypeError: fetch failed` / `read ECONNRESET` | Two of the three failures are the machine's, which budget-v2 itself stops counting; the third is a dropped connection in two scenarios, not a failed assertion. T10 code (`budget-v2.steps.ts`, `support/gate-world.ts`, the `harness-bootstrap.steps.ts` move) stays uncommitted in the worktree | (a) the maintainer resets `gate:budget-v2/T10` (`node scripts/attempt.mjs reset --unit gate:budget-v2/T10 --by <name>`) and the runner runs the gate once more; (b) the runner replans T10 to find why the two scenarios lose their connection first. `fast-proofs` waits on budget-v2 |
+| continuous-delivery / start (2026-11-08) | gate hook, merge guard (HBS-35) | 2 denials (1 of 3 each): `git worktree add .claude/worktrees/continuous-delivery -b feat/F0-continuous-delivery phase/F0`, then `git branch feat/F0-continuous-delivery phase/F0` — "would bring in or rewrite feat/F0-continuous-delivery" | Gate defect, not a delivery risk: `touches()` in `.claude/hooks/lib/guard.mjs:72-77` returns true when `revList` fails, and `phase/F0..feat/F0-continuous-delivery` fails because a covered feature's branch does not exist before its start. So every command naming `phase/F0` touches it. The same will stop `fast-proofs`. Not worked around | (a) the maintainer creates the branch and worktree (`git worktree add .claude/worktrees/continuous-delivery -b feat/F0-continuous-delivery phase/F0`); (b) a guard fix — a covered branch that does not exist touches nothing — through `harness-self` in a covered feature, with `pnpm test:harness` and a security PASS |
+
+## Follow-ups from continuous-delivery (security review of the diff, PASS, 2026-11-09)
+
+Non-blocking, for the phase review:
+
+1. The skill and `/phase-run`, `/phase-review` say `gh pr merge <pr> --merge`; the gate's delivery rule takes the head branch (`gh pr merge <branch> --merge`, plus `--match-head-commit <sha>` for a covered branch). The runner uses the branch form until the text is fixed.
+2. AD-171 (no phase merge while a maintainer item is open) is in the skill's text only; `phase-status` reads `merge` with an open item when every remaining feature is blocked, and `phaseItems` never block.
+3. `mergedToMain` accepts a local `main` or a local `refs/remotes/origin/main`; the ruleset's required checks stay the real lock before `main`.
+4. The runner can fill an Answer cell of `## For the maintainer` itself; the table is only as safe as the runner's honesty.
+5. ADR 024 still lists `awaiting-review` in the phase lifecycle; amending an accepted ADR is the maintainer's.
 
 ## Escalations raised
 

@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import {
   derivePhaseState,
   briefFeatures,
+  maintainerItems,
+  PHASE_STEPS,
   parseTrailers,
   renderRunnerState,
   writeRunnerState,
@@ -136,10 +138,63 @@ test('phase closes only after review approval and merge to main', () => {
     `Feature: ${f}\nStep: verification`,
   ]);
   assert.equal(derivePhaseState(ev(files, c, c)).next, 'review');
-  assert.equal(derivePhaseState(ev(files, c, c, { review: '# review' })).next, 'awaiting-review');
+  assert.equal(derivePhaseState(ev(files, c, c, { review: '# review' })).next, 'merge');
   const reviewed = `# review\n**Approved**: 2026-11-20 - user: "aprovo a F0"`;
   assert.equal(derivePhaseState(ev(files, c, c, { review: reviewed })).next, 'merge');
   assert.equal(derivePhaseState(ev(files, c, c, { review: reviewed, mergedToMain: true })).next, 'closed');
+});
+
+// CDL-07 (AD-168): the review, not its approval line, closes the phase; the merge into main closes it for good.
+test('closes on the review and the merge, with no approval line', () => {
+  const files = {};
+  for (const f of ['core', 'web']) {
+    Object.assign(files, {
+      [`${f}/spec.md`]: APPROVED,
+      [`${f}/acceptance.feature`]: 'F',
+      [`${f}/design.md`]: 'd',
+      [`${f}/tasks.md`]: TASKS,
+      [`${f}/proofs.md`]: 'p',
+      [`${f}/verification.md`]: 'v',
+    });
+  }
+  const c = ['core', 'web'].flatMap((f) => [
+    `Feature: ${f}\nTask: T1`,
+    `Feature: ${f}\nTask: T2`,
+    `Feature: ${f}\nStep: verification`,
+  ]);
+  const review = '# review\n\nNo approval line here.';
+  assert.equal(derivePhaseState(ev(files, c, c)).next, 'review');
+  assert.equal(derivePhaseState(ev(files, c, c, { review })).next, 'merge');
+  assert.equal(derivePhaseState(ev(files, c, c, { review, mergedToMain: false })).next, 'merge');
+  assert.equal(derivePhaseState(ev(files, c, c, { review, mergedToMain: true })).next, 'closed');
+});
+
+test('has no awaiting-review step', () => {
+  assert.ok(!PHASE_STEPS.includes('awaiting-review'));
+  assert.ok(PHASE_STEPS.includes('merge'));
+});
+
+// CDL-04: a feature is integrated when its verification commit is reachable from the phase branch.
+test('integrates only when the trailers reach the phase', () => {
+  const files = {
+    'core/spec.md': APPROVED,
+    'core/acceptance.feature': 'F',
+    'core/design.md': 'd',
+    'core/tasks.md': TASKS,
+    'core/proofs.md': 'p',
+    'core/verification.md': 'v',
+  };
+  const trailers = [
+    'Feature: core\nTask: T1',
+    'Feature: core\nTask: T2',
+    'Feature: core\nStep: verification',
+  ];
+  // A merge commit: the feature's commits are reachable through its second parent.
+  const merged = derivePhaseState(ev(files, trailers, ['Merge pull request #7 from core', ...trailers]));
+  assert.equal(next(merged, 'core').next, 'done');
+  // A squash commit: the trailers of the feature branch do not reach the phase.
+  const squashed = derivePhaseState(ev(files, trailers, ['feat(core): core in one commit (#7)']));
+  assert.equal(next(squashed, 'core').next, 'integrate');
 });
 
 test('runner state section is regenerated, never appended twice', () => {
@@ -188,4 +243,113 @@ test('roadmap: every PRD requirement has exactly one primary phase; approved bri
   assert.ok(checkRoadmap(prd, roadmap, { F1: '**Approved**: 2026-12-01 - user: "ok"\nFR-01' }).length > 10);
   const dup = roadmap.replace(/(\|\s*F4\s*\|\s*NFR-05)/, '$1, FR-01');
   assert.ok(checkRoadmap(prd, dup, {}).some((e) => /FR-01 has more than one/.test(e)));
+});
+
+// CDL-08 to CDL-10 (continuous-delivery): the `## For the maintainer` table of decisions.md blocks only its feature.
+const BRIEF3 = BRIEF.replace(
+  '| web | Medium | core | yes | FR-29 | default |',
+  '| web | Medium | core | yes | FR-29 | default |\n| docs | Small | — | yes | FR-30 | default |',
+);
+const MAINTAINER = (rows) =>
+  `# Decisions\n\n## For the maintainer\n\n| Feature | Item | Asked | Answer |\n| --- | --- | --- | --- |\n${rows.join('\n')}\n`;
+
+test('an open maintainer item blocks only its feature', () => {
+  const decisions = MAINTAINER(['| core | Create the TURSO_TOKEN secret | 2026-11-08 |  |']);
+  const s = derivePhaseState(ev({}, [], [], { brief: BRIEF3, decisions }));
+  assert.equal(next(s, 'core').status, 'blocked');
+  assert.equal(next(s, 'core').reason, 'maintainer');
+  assert.equal(next(s, 'web').status, 'waiting', 'a dependent of the blocked feature waits');
+  assert.equal(next(s, 'docs').status, 'ready', 'an independent feature keeps its state');
+  assert.equal(next(s, 'docs').next, 'specify');
+});
+
+test('an answered maintainer item no longer blocks', () => {
+  const answered = MAINTAINER(['| core | Create the TURSO_TOKEN secret | 2026-11-08 | done |']);
+  assert.equal(
+    next(derivePhaseState(ev({}, [], [], { brief: BRIEF3, decisions: answered })), 'core').status,
+    'ready',
+  );
+  const spaces = MAINTAINER(['| core | Create the TURSO_TOKEN secret | 2026-11-08 |    |']);
+  assert.equal(
+    next(derivePhaseState(ev({}, [], [], { brief: BRIEF3, decisions: spaces })), 'core').status,
+    'blocked',
+  );
+});
+
+test('lists open maintainer items by feature', () => {
+  const decisions = MAINTAINER([
+    '| core | Create the TURSO_TOKEN secret | 2026-11-08 |  |',
+    '| core | Apply the main ruleset | 2026-11-08 |  |',
+    '| omega | Pay for a larger runner | 2026-11-08 |  |',
+    '| docs | Old question | 2026-11-01 | yes |',
+  ]);
+  assert.deepEqual(
+    maintainerItems(decisions).map((i) => [i.feature, i.item, i.open]),
+    [
+      ['core', 'Create the TURSO_TOKEN secret', true],
+      ['core', 'Apply the main ruleset', true],
+      ['omega', 'Pay for a larger runner', true],
+      ['docs', 'Old question', false],
+    ],
+  );
+  const s = derivePhaseState(ev({}, [], [], { brief: BRIEF3, decisions }));
+  assert.deepEqual(
+    next(s, 'core').items.map((i) => i.item),
+    ['Create the TURSO_TOKEN secret', 'Apply the main ruleset'],
+  );
+  assert.deepEqual(
+    s.phaseItems.map((i) => [i.feature, i.item]),
+    [['omega', 'Pay for a larger runner']],
+    'an item for a feature not in the brief lands on the phase',
+  );
+});
+
+test('no maintainer table changes nothing', () => {
+  const plain = derivePhaseState(ev({}, [], [], { brief: BRIEF3 }));
+  for (const decisions of [null, '# Decisions\n\nno table here\n', MAINTAINER([])]) {
+    const s = derivePhaseState(ev({}, [], [], { brief: BRIEF3, decisions }));
+    assert.deepEqual(s, plain);
+  }
+  assert.deepEqual(maintainerItems(null), []);
+  assert.ok(plain.features.every((f) => f.blocked === false));
+});
+
+// CDL-04 (Verifier finding 1): the feature's task commits on the phase branch do not integrate it; the closing commit does.
+test('integrates only on the closing commit', () => {
+  const files = {
+    'core/spec.md': APPROVED,
+    'core/acceptance.feature': 'F',
+    'core/design.md': 'd',
+    'core/tasks.md': TASKS,
+    'core/proofs.md': 'p',
+    'core/verification.md': 'v',
+  };
+  const trailers = [
+    'Feature: core\nTask: T1',
+    'Feature: core\nTask: T2',
+    'Feature: core\nStep: verification',
+  ];
+  // The task commits reached the phase branch; the verification commit did not.
+  const taskOnly = derivePhaseState(ev(files, trailers, trailers.slice(0, 2)));
+  assert.equal(next(taskOnly, 'core').next, 'integrate');
+  // The closing commit reaches the phase branch too: the feature is done.
+  assert.equal(next(derivePhaseState(ev(files, trailers, trailers)), 'core').next, 'done');
+});
+
+// CDL-08 (Verifier finding 2): the block reason names the ledger, the maintainer, or the ledger when both hold.
+test('names why a feature is blocked', () => {
+  const decisions = MAINTAINER(['| core | Create the TURSO_TOKEN secret | 2026-11-08 |  |']);
+  const byLedger = derivePhaseState(ev({}, [], [], { brief: BRIEF3, blocked: (f) => f === 'core' }));
+  assert.equal(next(byLedger, 'core').reason, 'retry-budget');
+  assert.equal(next(byLedger, 'core').blocked, true);
+  const byMaintainer = derivePhaseState(ev({}, [], [], { brief: BRIEF3, decisions }));
+  assert.equal(next(byMaintainer, 'core').reason, 'maintainer');
+  assert.equal(next(byMaintainer, 'core').blocked, true);
+  const both = derivePhaseState(ev({}, [], [], { brief: BRIEF3, decisions, blocked: (f) => f === 'core' }));
+  assert.equal(next(both, 'core').reason, 'retry-budget', 'the ledger block wins over an open item');
+  assert.deepEqual(
+    next(both, 'core').items.map((i) => i.item),
+    ['Create the TURSO_TOKEN secret'],
+    'the open item is still listed',
+  );
 });
