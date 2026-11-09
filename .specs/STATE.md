@@ -1380,6 +1380,42 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-08
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-168 (assumed)
+
+- **Decision**: `phase-status` drops the `awaiting-review` step: a phase whose `review.md` exists goes to `merge`, then `closed` once `phase/F<n>` is merged into `main`; an approval line in the review is no longer read.
+- **Reason**: continuous-delivery, CDL-07. ADR 028 § 1: the runner merges the phase PR when the review's gates are green, and the maintainer reads the review afterwards.
+- **Trade-off**: the phase closes before the maintainer reads the review; anything sent back becomes a follow-up feature. Reversal: restore the step.
+- **Scope**: continuous-delivery
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-169 (assumed)
+
+- **Decision**: what still needs the maintainer is a row of a `## For the maintainer` table in the phase's `decisions.md` (Feature, Item, Asked, Answer); a row with an empty Answer blocks its feature with the reason `maintainer`; `phase-status` prints each open row on its feature's line on every run, never suppressed after the first; a blank Answer is open.
+- **Reason**: continuous-delivery, CDL-08 to CDL-10. Brief revision 6 asks for one place, "shown once per feature", blocking only the feature that needs it; ADR 024 asks for state derived from files.
+- **Trade-off**: the maintainer answers by editing a table. Reversal: another evidence source in `phase-state.mjs`.
+- **Scope**: continuous-delivery
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-170 (assumed)
+
+- **Decision**: before merging the phase PR into `main`, the runner requires `verify`, `integration`, `agent` and `secrets` (the checks ADR 028 § 2 names) to have run on the PR's head and passed, whatever the applied ruleset requires.
+- **Reason**: continuous-delivery, CDL-06. Applying the ruleset is the maintainer's; until it is applied GitHub may require fewer checks, and the runner must not merge into `main` on less than ADR 028 names.
+- **Trade-off**: a check renamed in CI blocks the phase merge until the list follows. Reversal: read the required checks from the ruleset file.
+- **Scope**: continuous-delivery
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-171 (assumed)
+
+- **Decision**: the review step does not merge the phase PR while any maintainer item of the phase is open; it lists the open items in `review.md` and stops.
+- **Reason**: continuous-delivery, Verifier finding 4. With `review.md` written and a feature blocked only by an open maintainer item, `phase-status` reads `merge`; merging into `main` with an unanswered maintainer question would ship what the maintainer has not decided.
+- **Trade-off**: one open question holds the phase PR. Reversal: one sentence in the skill.
+- **Scope**: continuous-delivery
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

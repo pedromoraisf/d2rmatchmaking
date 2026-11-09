@@ -17,3 +17,11 @@ review. Reversals become tasks in a follow-up feature.
 
 | When | What | Answer |
 | ---- | ---- | ------ |
+
+## For the maintainer
+
+What only the maintainer can answer (ADR 028 § 1). The runner adds a row and leaves the gate's permission prompt for that
+action unanswered. The row's feature stays blocked until its Answer cell holds text (CDL-08 to CDL-10).
+
+| Feature | Item | Asked | Answer |
+| ------- | ---- | ----- | ------ |
