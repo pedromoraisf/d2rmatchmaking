@@ -749,10 +749,45 @@ A gate run whose own command mentions "reset" (`node scripts/attempt.mjs run --f
 
 ---
 
+### T29: The cases the T26 rules were masking
+
+**What**: The proofs at `4cb0b6a` killed 61 of 65 mutations. The 4 survivors are masked by another rule:
+
+- The `+`, whitespace and backslash strips of T24's inline-code rule. Each T28 case is an `import(` of a built string, which T26's dynamic-import rule asks for anyway.
+- `touches` failing closed when any list fails. T28 merges the very ref whose list fails, so `a` is already null.
+
+Add these cases, tests only:
+
+- In `inline code naming the budget modules asks` (`gate-rules.test.mjs`), add three cases with no `import(` or `require(`. Each asks, and asserts the module-name reason (the one T24's rule gives):
+  - `node -e "const p='./scripts/att' + 'empt.mjs'; fs.readFileSync(p)"`
+  - the same line without the spaces around `+`
+  - a name split by a backslash, again with no `import(`
+- In `the guard reads both the local and the remote head` (`guard.test.mjs`):
+  - Set local at the phase head and origin at the fixture head, then create a third branch on the fixture head with one more commit.
+  - Make the list `phase/F0..origin/<branch>` fail, and merge the third branch with `git merge --no-ff`.
+  - The merge is denied: the third branch's own list answers and shares a commit with origin, and only the failing origin list makes `touches` fail closed.
+    **Where**: `.claude/hooks/test/gate-rules.test.mjs`, `.claude/hooks/test/guard.test.mjs` (new cases)
+    **Depends on**: T28
+    **Reuses**: the T24 inline-code test, `failingList`, `newCommitOn` of the guard fixture
+    **Requirement**: BUD-14, BUD-15. The guard case falls under the T15 fix, maintainer-approved.
+
+**Done when**:
+
+- [ ] Every case above is in its test and passes.
+- [ ] Every existing test of both files passes unchanged.
+- [ ] The gate passes.
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/gate-rules.test.mjs .claude/hooks/test/guard.test.mjs`
+
+**Commit**: `test(harness): pin the mutations the T26 rules masked`
+
+---
+
 ### Phase 7: The third review of the diff
 
 ```
-T23 → T24 → T25 → T26 → T27 → T28
+T23 → T24 → T25 → T26 → T27 → T28 → T29
 ```
 
 ---
@@ -912,6 +947,7 @@ Non-blocking, for the phase review:
   - 5 need a test case or a reason assertion, now T28.
   - "a covered branch on one side only is read as diverged" is equivalent and is removed from `mutations.json`. When one head is missing, `git merge-base` fails and returns null. That null equals the missing head, so `headAt` returns the present head either way.
 - Next: T28, the maintainer's reset of `gate:budget-v2/proofs`, the proofs with mutations, then a Verifier round that writes round 6.
+- T28 `4cb0b6a` (68 of 68). The maintainer reset `gate:budget-v2/proofs`. Proofs at `4cb0b6a`: 29 pass, mutations 61 killed, 4 not. That is failure 1 of 3. The 4 survivors are masked by another rule, so T29 adds the cases that tell them apart.
 
 **Batch 4 (2026-11-08):** T11 `2cc708b`, T12 `9f6c6fe`, T13 `3392cdf`, T14 `72d7cbd`, findings closed `e024dfc`; every gate passed on its first run. T13 follows BUD-09's scenario where the Done-when was loose (an environment failure in between does not clear a refusal of the latest counted state). T11 also asks for a first orchestrator reset chained after another wrapper call. **T15 added (2026-11-08):** the guard defect that stops `continuous-delivery` from starting, with the maintainer's approval. Dispatched: execute-batch-5 (T15) to `feature-worker` at the commit of this note.
 
@@ -928,7 +964,7 @@ Phase 3:  T6 → T7 → T8
 Phase 4:  T8 → T9 → T10
 Phase 5:  T10 → T11 → T12 → T13 → T14 → T15 → T16 → T17
 Phase 6:  T17 → T18 → T19 → T20 → T21 → T22 → T23
-Phase 7:  T23 → T24 → T25 → T26 → T27 → T28
+Phase 7:  T23 → T24 → T25 → T26 → T27 → T28 → T29
 ```
 
 Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T6); `execute-batch-2` runs phases 3 and 4 (T7 to T10); `execute-batch-4` runs phase 5 (T11 to T14), the Verifier's findings; `execute-batch-5` runs T15; `execute-batch-6` runs T16 and T17, the round-2 findings; `execute-batch-7` runs phase 6 (T18 to T20), after the security review of the diff; `execute-batch-8` runs T21 and T22, the round-3 findings; `execute-batch-9` runs T23, the second review of the diff; `execute-batch-5` runs phase 7 (T24, T25), the third review of the diff. The model policy names only `execute-batch-1` to `-9`, all used. `execute-batch-5` is reused for phase 7: T24 and T25, then T26 and T27, the round-5 findings. A dispatch unit counts every dispatch, not only failures, so that is its third and last dispatch.
