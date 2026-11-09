@@ -1,8 +1,8 @@
 # continuous-delivery proofs
 
-**HEAD**: 849ff36
+**HEAD**: d137ba5
 **Tree**: clean
-**Result**: 19 pass, 0 fail; mutations 0 killed, 0 not
+**Result**: 21 pass, 0 fail; mutations 5 killed, 0 not
 
 | Check | Proof                                                                                                            | Ran           | Passed | Result |
 | ----- | ---------------------------------------------------------------------------------------------------------------- | ------------- | ------ | ------ |
@@ -22,6 +22,18 @@
 | C14   | `node --test --test-name-pattern "the skill tells the remote flow" scripts/test/phase-runner-skill.test.mjs`     | count unknown | -      | pass   |
 | C15   | `node --test --test-name-pattern "reads a merge on origin/main" scripts/test/phase-status-cli.test.mjs`          | count unknown | -      | pass   |
 | C16   | `pnpm exec turbo run test:acceptance -- --grep @CDL-`                                                            | 10            | -      | pass   |
+| C17   | `node --test --test-name-pattern "integrates only on the closing commit" --test-name-pattern "names why a featu` | count unknown | -      | pass   |
+| C18   | `node --test --test-name-pattern "the review step merges with --merge and waits for open items" scripts/test/ph` | count unknown | -      | pass   |
 | Build | `pnpm lint`                                                                                                      | -             | -      | pass   |
 | Build | `pnpm typecheck`                                                                                                 | -             | -      | pass   |
 | Build | `pnpm test:harness`                                                                                              | -             | -      | pass   |
+
+## Mutations
+
+| Mutation                                                            | Location                                         | Killed |
+| ------------------------------------------------------------------- | ------------------------------------------------ | ------ |
+| a maintainer item blocks every feature, not only its own            | `scripts/lib/phase-state.mjs:126`                | yes    |
+| any trailer of the feature on the phase branch counts as integrated | `scripts/lib/phase-state.mjs:100`                | yes    |
+| a retry-budget block is reported as a maintainer block              | `scripts/lib/phase-state.mjs:127`                | yes    |
+| the REVIEW step of the skill squashes the phase PR                  | `.claude/skills/d2rmm-phase-runner/SKILL.md:233` | yes    |
+| phaseItems holds the items of briefed features                      | `scripts/lib/phase-state.mjs:168`                | yes    |
