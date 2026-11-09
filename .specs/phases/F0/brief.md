@@ -154,21 +154,21 @@ scopes delegated — the maintainer reviews at the end of the phase (escalations
 
 **Phase next step**: run
 
-| Feature                   | Next step | Status                                    | Tasks |
-| ------------------------- | --------- | ----------------------------------------- | ----- |
-| harness-foundation        | done      | done                                      | 22/22 |
-| api-web-skeleton          | done      | done                                      | 53/53 |
-| agent-skeleton            | done      | done                                      | 33/33 |
-| agent-hexagonal-migration | done      | done                                      | 58/58 |
-| observability-e2e         | done      | done                                      | 56/56 |
-| load-baseline             | done      | done                                      | 43/43 |
-| ci-and-review-fixes       | done      | done                                      | 13/13 |
-| site-stale-read-fix       | done      | done                                      | 2/2   |
-| room-trace-link           | done      | done                                      | 6/6   |
-| harness-bootstrap         | done      | done                                      | 14/14 |
-| gate-precision            | specify   | blocked                                   | 0/0   |
-| budget-v2                 | specify   | blocked                                   | 0/0   |
-| ci-fast-path              | done      | done                                      | 10/10 |
-| continuous-delivery       | specify   | ready                                     | 0/0   |
-| fast-proofs               | specify   | waiting on budget-v2, continuous-delivery | 0/0   |
-| parallel-cloud-spike      | specify   | waiting on continuous-delivery            | 0/0   |
+| Feature                   | Next step | Status               | Tasks |
+| ------------------------- | --------- | -------------------- | ----- |
+| harness-foundation        | done      | done                 | 22/22 |
+| api-web-skeleton          | done      | done                 | 53/53 |
+| agent-skeleton            | done      | done                 | 33/33 |
+| agent-hexagonal-migration | done      | done                 | 58/58 |
+| observability-e2e         | done      | done                 | 56/56 |
+| load-baseline             | done      | done                 | 43/43 |
+| ci-and-review-fixes       | done      | done                 | 13/13 |
+| site-stale-read-fix       | done      | done                 | 2/2   |
+| room-trace-link           | done      | done                 | 6/6   |
+| harness-bootstrap         | done      | done                 | 14/14 |
+| gate-precision            | specify   | ready                | 0/0   |
+| budget-v2                 | specify   | ready                | 0/0   |
+| ci-fast-path              | done      | done                 | 10/10 |
+| continuous-delivery       | done      | done                 | 8/8   |
+| fast-proofs               | specify   | waiting on budget-v2 | 0/0   |
+| parallel-cloud-spike      | specify   | ready                | 0/0   |

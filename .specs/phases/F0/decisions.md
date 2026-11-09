@@ -367,6 +367,16 @@ Exit criterion 5 of the brief is therefore proved by `v0.0.2` self-updating to `
 | agent-hexagonal-migration / phase review (2026-11-04) — resolved 2026-11-04 | gate `verification` | 3 failures: 2 from the feature's own run, 1 from `/phase-review F0` running `validate_verification.py` on `phase/F0` | `proofs.md was written at 1c936f0 and HEAD is 2801b4b`. No code or proof defect: the validator requires the proofs at HEAD exactly, so it cannot pass after the merge. The gate passed at the feature's head before the merge | Maintainer reset `gate:agent-hexagonal-migration/verification` (by pedromoraisf). The review step's fix is proposed in `.specs/phases/F0/brief-revision-3.md` |
 | continuous-delivery / start (2026-11-08) | gate hook, merge guard (HBS-35) | 2 denials (1 of 3 each): `git worktree add .claude/worktrees/continuous-delivery -b feat/F0-continuous-delivery phase/F0`, then `git branch feat/F0-continuous-delivery phase/F0` — "would bring in or rewrite feat/F0-continuous-delivery" | Gate defect, not a delivery risk: `touches()` in `.claude/hooks/lib/guard.mjs:72-77` returns true when `revList` fails, and `phase/F0..feat/F0-continuous-delivery` fails because a covered feature's branch does not exist before its start. So every command naming `phase/F0` touches it. The same will stop `fast-proofs`. Not worked around | (a) the maintainer creates the branch and worktree (`git worktree add .claude/worktrees/continuous-delivery -b feat/F0-continuous-delivery phase/F0`); (b) a guard fix — a covered branch that does not exist touches nothing — through `harness-self` in a covered feature, with `pnpm test:harness` and a security PASS |
 
+## Follow-ups from continuous-delivery (security review of the diff, PASS, 2026-11-09)
+
+Non-blocking, for the phase review:
+
+1. The skill and `/phase-run`, `/phase-review` say `gh pr merge <pr> --merge`; the gate's delivery rule takes the head branch (`gh pr merge <branch> --merge`, plus `--match-head-commit <sha>` for a covered branch). The runner uses the branch form until the text is fixed.
+2. AD-171 (no phase merge while a maintainer item is open) is in the skill's text only; `phase-status` reads `merge` with an open item when every remaining feature is blocked, and `phaseItems` never block.
+3. `mergedToMain` accepts a local `main` or a local `refs/remotes/origin/main`; the ruleset's required checks stay the real lock before `main`.
+4. The runner can fill an Answer cell of `## For the maintainer` itself; the table is only as safe as the runner's honesty.
+5. ADR 024 still lists `awaiting-review` in the phase lifecycle; amending an accepted ADR is the maintainer's.
+
 ## Escalations raised
 
 | When       | What                                                                                                                                                                                                                                                                                                                                                                                                                    | Answer                                                                                                                                                                                                                            |
