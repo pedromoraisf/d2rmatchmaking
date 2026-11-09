@@ -523,9 +523,9 @@ T17 → T18 → T19 → T20
 
 **Done when**:
 
-- [ ] Every scenario of `acceptance.feature` passes, the `@BUD-30` one included
-- [ ] The harness suite passes with no test removed or skipped
-- [ ] Gate passes
+- [x] Every scenario of `acceptance.feature` passes, the `@BUD-30` one included
+- [x] The harness suite passes with no test removed or skipped
+- [x] Gate passes
 
 **Tests**: acceptance
 **Gate**: `pnpm exec turbo run test:acceptance -- --grep @BUD- && pnpm test:harness`
