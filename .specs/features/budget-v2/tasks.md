@@ -482,7 +482,7 @@ T17 → T18 → T19 → T20
 **Done when**:
 
 - [ ] env, env, counted, env, env → `env-blocked`; env, env, counted, env → `open`; env, env, pass, env, env → `open`; four env failures with a reset after the second → `open` (test `blocks at the fourth machine failure in total`)
-- [ ] Every existing test of `budget.test.mjs` and `attempt-cli.test.mjs` passes unchanged
+- [ ] The assertion of `a counted failure restarts the environment count` (`budget.test.mjs`, written by this feature's T3 at `2583309`) for env, env, counted, env, env becomes `env-blocked`, as BUD-30 requires: the maintainer's option (b) changes that outcome, and the change is stricter, not looser; its env, env, counted, env case stays `open`. Every other existing test of `budget.test.mjs` and `attempt-cli.test.mjs` passes unchanged
 - [ ] Gate passes
 
 **Tests**: unit
@@ -503,7 +503,7 @@ T17 → T18 → T19 → T20
 **Done when**:
 
 - [ ] Two machine-caused red stops of one session stay uncounted; the third counts; another session's first stays uncounted; a red stop with no session id counts (test `leaves at most two red stops uncounted per session`)
-- [ ] Every existing test of `budget-rules.test.mjs` passes unchanged
+- [ ] `red stop: lets the agent stop when the machine failed` (`budget-rules.test.mjs`, written by this feature's T8 at `e5b8dd0`) loops four red stops in one session expecting none counted; BUD-31 makes the third and fourth count, so it asserts the first two uncounted and the third and fourth counted — stricter, not looser. Every other existing test of `budget-rules.test.mjs` passes unchanged
 - [ ] Gate passes
 
 **Tests**: unit
@@ -625,6 +625,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Integration and review-diff (2026-11-08):** `pnpm check`, ratchet and contracts green at `ec53b14` (the first `pnpm check` failed on Prettier padding in `spec.md`, fixed by `ec53b14`). `security-reviewer` `review-diff` FAIL: an agent can make its own failures look environmental (`exit 137`, `exit 127`, an echoed signature) and so escape the budget; red stops had no cap. The maintainer chose option (b) ("vai de B"): the spec gains BUD-30 and BUD-31 (`883048f`, spec-reviewer PASS). Dispatched: execute-batch-7 (T18 to T20) to `feature-worker` at the commit of this note. Non-blocking for the phase review: N1 (a covered worktree path can hold another branch name), N2 (`git remote remove` is not judged), N3 (a wrapper spelled with a glob), N4 (a forced file under `reports/attempts`).
 
 **Batch 4 (2026-11-08):** T11 `2cc708b`, T12 `9f6c6fe`, T13 `3392cdf`, T14 `72d7cbd`, findings closed `e024dfc`; every gate passed on its first run. T13 follows BUD-09's scenario where the Done-when was loose (an environment failure in between does not clear a refusal of the latest counted state). T11 also asks for a first orchestrator reset chained after another wrapper call. **T15 added (2026-11-08):** the guard defect that stops `continuous-delivery` from starting, with the maintainer's approval. Dispatched: execute-batch-5 (T15) to `feature-worker` at the commit of this note.
+
+**Blocked — T18 plan defect (2026-11-08, gate not run):** T18's Done-when says every existing test of `budget.test.mjs` passes unchanged, but `a counted failure restarts the environment count` asserts `open` for the sequence env, env, counted, env, env (its message: "two environment failures since the counted one"). T18's own first bullet requires `env-blocked` for that same sequence under BUD-30. The new test `blocks at the fourth machine failure in total` fails red as written; with `ENV_TOTAL_TO_BLOCK = 4` the existing assertion fails (1 of 20 in `budget.test.mjs`; `attempt-cli.test.mjs` passes 27 of 27). T19 has the same kind of conflict: `red stop: lets the agent stop when the machine failed` expects four uncounted red stops of one session, which BUD-31 forbids on the third. No attempt was spent: the gate was not run, because it cannot pass as written. The worktree is at `79d63a9`, clean; the attempted change is saved as `t18-attempt.patch` in the implementer's scratchpad. Needs the orchestrator's replan: the two existing assertions must change (or the Done-when must say so), which the implementer may not do.
 
 ---
 
