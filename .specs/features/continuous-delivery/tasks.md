@@ -190,9 +190,9 @@ T5 → T6
 
 **Done when**:
 
-- [ ] Every scenario of `acceptance.feature` passes
-- [ ] `pnpm test:harness` and `pnpm contracts:check` pass with no test removed or skipped (CDL-14, CDL-15)
-- [ ] Gate passes
+- [x] Every scenario of `acceptance.feature` passes
+- [x] `pnpm test:harness` and `pnpm contracts:check` pass with no test removed or skipped (CDL-14, CDL-15)
+- [x] Gate passes
 
 **Tests**: acceptance
 **Gate**: `pnpm exec turbo run test:acceptance -- --grep @CDL- && pnpm test:harness && pnpm contracts:check`
