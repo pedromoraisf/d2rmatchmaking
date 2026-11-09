@@ -82,6 +82,12 @@ T8 → T9 → T10
 T10 → T11 → T12 → T13 → T14 → T15 → T16 → T17
 ```
 
+### Phase 6: Bounding forged machine failures
+
+```
+T17 → T18 → T19 → T20
+```
+
 ---
 
 ## Task Breakdown
@@ -465,6 +471,69 @@ T10 → T11 → T12 → T13 → T14 → T15 → T16 → T17
 
 ---
 
+### T18: A fourth machine failure in total blocks the unit
+
+**What**: In `scripts/lib/budget.mjs`, `recordAttempt` marks a unit `env-blocked` when its environment failures since its last pass or reset reach `ENV_TOTAL_TO_BLOCK = 4`, next to the existing three-in-a-row rule (`ENV_ATTEMPTS_TO_BLOCK`); a pass or a reset starts that total again. The diagnosis printed when the third in a row blocks a unit is printed when the fourth in total does (BUD-30, AD-167).
+**Where**: `scripts/lib/budget.mjs` (modify)
+**Depends on**: T17
+**Reuses**: `trailingEnvRun`, `isEnvFailure`, `recordAttempt`, `reset`
+**Requirement**: BUD-30
+
+**Done when**:
+
+- [ ] env, env, counted, env, env → `env-blocked`; env, env, counted, env → `open`; env, env, pass, env, env → `open`; four env failures with a reset after the second → `open` (test `blocks at the fourth machine failure in total`)
+- [ ] Every existing test of `budget.test.mjs` and `attempt-cli.test.mjs` passes unchanged
+- [ ] Gate passes
+
+**Tests**: unit
+**Gate**: `node --test scripts/test/budget.test.mjs scripts/test/attempt-cli.test.mjs`
+
+**Commit**: `fix(harness): block a unit at its fourth machine failure in total`
+
+---
+
+### T19: At most two uncounted red stops per session
+
+**What**: In `.claude/hooks/lib/budget-rules.mjs`, `onStop` records each red stop it leaves uncounted under BUD-07 in the ledger under the session id; when two are already recorded for that session, or the input has no session id, the red stop counts as an ordinary one with today's rules (BUD-31, AD-167; AD-155 unchanged).
+**Where**: `.claude/hooks/lib/budget-rules.mjs` (modify)
+**Depends on**: T18
+**Reuses**: `onStop`, the red-stop counting of T8
+**Requirement**: BUD-31
+
+**Done when**:
+
+- [ ] Two machine-caused red stops of one session stay uncounted; the third counts; another session's first stays uncounted; a red stop with no session id counts (test `leaves at most two red stops uncounted per session`)
+- [ ] Every existing test of `budget-rules.test.mjs` passes unchanged
+- [ ] Gate passes
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs`
+
+**Commit**: `fix(harness): count a session's third machine-caused red stop`
+
+---
+
+### T20: The new scenario runs
+
+**What**: Run the `@BUD-30` scenario ("Four machine failures in all block the unit…") and the whole `@BUD-` suite with the steps of `tests/acceptance/steps/budget-v2.steps.ts`; add a step only if a line of the new scenario has none (none is expected: it reuses the lines of "A counted failure between machine failures starts the count again").
+**Where**: `tests/acceptance/steps/budget-v2.steps.ts` (only if a step is missing)
+**Depends on**: T19
+**Reuses**: the T10 steps
+**Requirement**: BUD-30
+
+**Done when**:
+
+- [ ] Every scenario of `acceptance.feature` passes, the `@BUD-30` one included
+- [ ] The harness suite passes with no test removed or skipped
+- [ ] Gate passes
+
+**Tests**: acceptance
+**Gate**: `pnpm exec turbo run test:acceptance -- --grep @BUD- && pnpm test:harness`
+
+**Commit**: `test(harness): run the budget-v2 total-failures scenario`
+
+---
+
 ## Checks
 
 **C1** - Each signature is matched exactly, and a test-failure marker wins (BUD-01, BUD-26)
@@ -521,6 +590,12 @@ Proof: `node --test --test-name-pattern "exists only on the remote" --test-name-
 **C18** - A reset is judged however the wrapper is spelled (BUD-14, BUD-15)
 Proof: `node --test --test-name-pattern "however the wrapper is spelled" .claude/hooks/test/budget-rules.test.mjs`
 
+**C19** - A fourth machine failure in total blocks the unit; a pass or a reset starts the total again (BUD-30)
+Proof: `node --test --test-name-pattern "blocks at the fourth machine failure in total" scripts/test/budget.test.mjs`
+
+**C20** - At most two red stops per session are left uncounted (BUD-31)
+Proof: `node --test --test-name-pattern "at most two red stops uncounted per session" .claude/hooks/test/budget-rules.test.mjs`
+
 ---
 
 ## Handoff
@@ -547,6 +622,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 
 **Verified (2026-11-08):** `check_proofs.py --mutations` at `360f81f`: 21 pass, 12 of 12 mutations killed; `validate_verification.py` 0 errors (attempt 3 of 3). Next: integration, then the `security-reviewer` `review-diff` at the integrated head (`harness-self`), then the merge into `phase/F0`.
 
+**Integration and review-diff (2026-11-08):** `pnpm check`, ratchet and contracts green at `ec53b14` (the first `pnpm check` failed on Prettier padding in `spec.md`, fixed by `ec53b14`). `security-reviewer` `review-diff` FAIL: an agent can make its own failures look environmental (`exit 137`, `exit 127`, an echoed signature) and so escape the budget; red stops had no cap. The maintainer chose option (b) ("vai de B"): the spec gains BUD-30 and BUD-31 (`883048f`, spec-reviewer PASS). Dispatched: execute-batch-7 (T18 to T20) to `feature-worker` at the commit of this note. Non-blocking for the phase review: N1 (a covered worktree path can hold another branch name), N2 (`git remote remove` is not judged), N3 (a wrapper spelled with a glob), N4 (a forced file under `reports/attempts`).
+
 **Batch 4 (2026-11-08):** T11 `2cc708b`, T12 `9f6c6fe`, T13 `3392cdf`, T14 `72d7cbd`, findings closed `e024dfc`; every gate passed on its first run. T13 follows BUD-09's scenario where the Done-when was loose (an environment failure in between does not clear a refusal of the latest counted state). T11 also asks for a first orchestrator reset chained after another wrapper call. **T15 added (2026-11-08):** the guard defect that stops `continuous-delivery` from starting, with the maintainer's approval. Dispatched: execute-batch-5 (T15) to `feature-worker` at the commit of this note.
 
 ---
@@ -559,6 +636,7 @@ Phase 2:  T2 → T3 → T4 → T5 → T6
 Phase 3:  T6 → T7 → T8
 Phase 4:  T8 → T9 → T10
 Phase 5:  T10 → T11 → T12 → T13 → T14 → T15 → T16 → T17
+Phase 6:  T17 → T18 → T19 → T20
 ```
 
-Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T6); `execute-batch-2` runs phases 3 and 4 (T7 to T10); `execute-batch-4` runs phase 5 (T11 to T14), the Verifier's findings; `execute-batch-5` runs T15; `execute-batch-6` runs T16 and T17, the round-2 findings.
+Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T6); `execute-batch-2` runs phases 3 and 4 (T7 to T10); `execute-batch-4` runs phase 5 (T11 to T14), the Verifier's findings; `execute-batch-5` runs T15; `execute-batch-6` runs T16 and T17, the round-2 findings; `execute-batch-7` runs phase 6 (T18 to T20), after the security review of the diff.
