@@ -1459,6 +1459,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-08
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-172 (assumed)
+
+- **Decision**: the BUD-30 total of environment failures is cleared only by a reset of the unit, not by a pass.
+- **Reason**: budget-v2, second security review of the diff (2026-11-09): `attempt.mjs run` does not check that a task's command is its `**Gate**`, so `-- "true"` is a real pass, and with the total cleared by a pass an agent bought two free runs per cycle without end. With the total cleared only by a reset, forging buys at most three uncounted environment failures until the next reset (a forged pass adds none and only marks the unit passed), and resets are the orchestrator's one or the maintainer's.
+- **Trade-off**: a unit whose machine fails four times over its whole life blocks, even with passes between. Reversal: clear the total on a pass of the task's own gate command, once the wrapper checks it.
+- **Scope**: budget-v2
+- **Date**: 2026-11-09
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

@@ -64,7 +64,7 @@ changes what counts. Source: `.specs/phases/F0/brief-revision-6.md` § 3 (budget
 7. BUD-06: WHEN `attempt.mjs run` starts the command THEN it SHALL stop it after `--timeout <minutes>` (60 by default) and record the stop as an environment failure with the `timeout` signature
 8. BUD-27: IF `--timeout` is not a whole number of minutes, or is below 1 THEN `attempt.mjs run` SHALL refuse with exit 2 without running the command
 9. BUD-07: WHEN every failing check of the Stop hook matches a signature and shows no test-failure marker THEN it SHALL let the agent stop, SHALL NOT count the red stop, and SHALL say which signatures matched; IF any failing check does not THEN the red stop SHALL count as today
-10. BUD-30: IF a unit has four environment failures since its last pass or reset, in a row or not, THEN the wrapper SHALL mark it `env-blocked` as BUD-04 does, printing the same machine diagnosis when the fourth failure blocks it; a pass or a reset of the unit starts that total again (AD-167)
+10. BUD-30: IF a unit has four environment failures since its last reset, in a row or not and whatever passed between them, THEN the wrapper SHALL mark it `env-blocked` as BUD-04 does, printing the same machine diagnosis when the fourth failure blocks it; only a reset of the unit starts that total again (AD-167, AD-172)
 11. BUD-31: IF two red stops of an agent session (the hook input's `session_id`, counted in the ledger by the Stop hook) have already been left uncounted under BUD-07 THEN every later red stop of that session SHALL count as an ordinary red stop, with today's stop rules (AD-155) unchanged (AD-167)
 
 **Independent Test**: run a command that prints `Cannot connect to the Docker daemon` and exits 1 through the wrapper, and read an unchanged failure count.
@@ -158,7 +158,7 @@ changes what counts. Source: `.specs/phases/F0/brief-revision-6.md` § 3 (budget
 
 ## Edge Cases
 
-- BUD-04 counts only consecutive environment failures: a counted failure or a pass in between starts the count again. BUD-30 still bounds the total: a fourth environment failure since the last pass or reset blocks the unit, whatever came between.
+- BUD-04 counts only consecutive environment failures: a counted failure or a pass in between starts the count again. BUD-30 still bounds the total: a fourth environment failure since the last reset blocks the unit, whatever came between, a pass included (a pass can be forged with a command that passes, so it does not clear the total).
 - BUD-31 with no `session_id` in the hook input: the red stop counts as an ordinary one.
 - BUD-09 covers a rerun after a commit that changed nothing in the tree: the fingerprint is the tree, not the commit;
   and a counted failure, then an environment failure, then a rerun of the same tree: refused.

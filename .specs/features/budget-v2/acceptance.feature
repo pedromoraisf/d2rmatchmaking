@@ -70,6 +70,13 @@ Feature: The retry budget counts what the agent controls
     And the agent runs a gate for "demo" step "T1" that fails with "Cannot connect to the Docker daemon" twice
     Then the unit is "env-blocked"
 
+  @BUD-30 @NFR-11
+  Scenario: A pass between machine failures does not start the total again
+    When the agent runs a gate for "demo" step "T1" that fails with "Cannot connect to the Docker daemon" twice
+    And the agent changes a file and runs a gate for "demo" step "T1" that prints "ok" and exits 0
+    And the agent runs a gate for "demo" step "T1" that fails with "Cannot connect to the Docker daemon" twice
+    Then the unit is "env-blocked"
+
   @BUD-06 @NFR-11
   Scenario: A gate that runs past its timeout is stopped and not counted
     When the agent runs a gate for "demo" step "T1" with "--timeout 1" that never ends

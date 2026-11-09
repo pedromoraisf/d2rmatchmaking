@@ -137,6 +137,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-169 | continuous-delivery | Maintainer items are rows of `decisions.md → For the maintainer`; an open row blocks only its feature and is printed on its line | another evidence source | |
 | AD-170 | continuous-delivery | The phase PR merges only when `verify`, `integration`, `agent` and `secrets` passed on its head, whatever the applied ruleset requires | read the ruleset file | |
 | AD-171 | continuous-delivery | The phase PR does not merge while any maintainer item is open; the review lists them and stops | one sentence in the skill | |
+| AD-172 | budget-v2 | The BUD-30 total is cleared only by a reset, not by a pass (a pass can be forged) | clear it on a pass of the task's own gate | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 
@@ -382,6 +383,10 @@ Non-blocking, for the phase review:
 3. `mergedToMain` accepts a local `main` or a local `refs/remotes/origin/main`; the ruleset's required checks stay the real lock before `main`.
 4. The runner can fill an Answer cell of `## For the maintainer` itself; the table is only as safe as the runner's honesty.
 5. ADR 024 still lists `awaiting-review` in the phase lifecycle; amending an accepted ADR is the maintainer's.
+
+## Follow-up from budget-v2 (second security review of the diff, 2026-11-09)
+
+`scripts/attempt.mjs run --step T<n>` runs whatever command it is given and records a pass for the unit; it does not check that the command is the task's `**Gate**` in `tasks.md`. A task can therefore be marked passed with `-- "true"`. The feature-level proofs (`check_proofs.py`) and the Verifier still run the real tests before a feature is done, so a forged task pass cannot reach `phase/F0` unseen; the hole matters for the retry budget, which AD-172 closes. Proposed for F1: the wrapper refuses a `T<n>` command that is not the task's gate.
 
 ## Escalations raised
 
