@@ -1416,6 +1416,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-08
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-173 (assumed)
+
+- **Decision**: the brief's "run one small feature in a cloud session" is read as running the gates of `ci-fast-path` (a small, merged feature) in one cloud session that only measures (no edit, commit or push): `pnpm install`, `pnpm check`, the integration suite, `--grep @CFP-` acceptance, the agent's `cargo nextest run`, and the pre-commit hooks via `lefthook run pre-commit --all-files`; the same on the phase machine with the 1-minute load average below 2.
+- **Reason**: parallel-cloud-spike, PCS-01 and PCS-02. The gates are what a parallel session must run; one session is the smallest spend that answers the question (cost approved by the maintainer, 2026-11-09: "Pode sim").
+- **Trade-off**: a whole feature run (dispatch, worktrees, the ledger, hooks during edits) and concurrency stay unmeasured; the ADR names them as such. Reversal: one full feature run in a cloud session, or several sessions at once.
+- **Scope**: parallel-cloud-spike
+- **Date**: 2026-11-09
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
