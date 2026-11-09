@@ -412,10 +412,10 @@ T15 → T16
 
 **Done when**:
 
-- [ ] `cat scripts/attempt.mjs 2>&1`, `cat .claude/hooks/gate.mjs 2>/dev/null | head -n 5` and `grep '>' scripts/attempt.mjs` get no write decision through `decide` (test `a descriptor redirection is not a segment write`)
-- [ ] `echo x > .claude/hooks/gate.mjs`, `cat a 2>&1 > eslint.config.mjs` and `tee .quality-baseline.json` keep their decisions (test `a real segment write keeps its decision`)
-- [ ] Every existing test under `.claude/hooks/test/` passes unchanged
-- [ ] Gate passes
+- [x] `cat scripts/attempt.mjs 2>&1`, `cat .claude/hooks/gate.mjs 2>/dev/null | head -n 5` and `grep '>' scripts/attempt.mjs` get no write decision through `decide` (test `a descriptor redirection is not a segment write`)
+- [x] `echo x > .claude/hooks/gate.mjs`, `cat a 2>&1 > eslint.config.mjs` and `tee .quality-baseline.json` keep their decisions (test `a real segment write keeps its decision`)
+- [x] Every existing test under `.claude/hooks/test/` passes unchanged
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/gate-rules.test.mjs`

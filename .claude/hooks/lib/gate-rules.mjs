@@ -13,7 +13,7 @@ import { checkBudget, countDenial, GIT_DIR_CD, isPackageScopeOnly, LEDGER_REF } 
 import { indirections, MAX_DEPTH, SHELL, splitShell } from './shell-indirection.mjs';
 import { parseLine } from './shell-parse.mjs';
 import { readOnlyDecision } from './read-only.mjs';
-import { writeDecision } from './writes.mjs';
+import { writeDecision, writeTargets } from './writes.mjs';
 import { pollingDecision, repeatDecision } from './polling.mjs';
 import { resolveInside } from './io.mjs';
 import path from 'node:path';
@@ -610,17 +610,28 @@ function checkSegment(seg, ctx) {
     return deny('.env files hold secrets and are off-limits to the agent. Use .env.example.');
   }
 
-  // Shell writes to harness files bypass the Edit-level checks below.
-  const writes = /(\bsed\s+-i|\btee\b|>|\bmv\b|\bcp\b|\btruncate\b|\bperl\s+-p?i)/.test(seg);
-  if (writes && head.some((x) => x === BASELINE || x.endsWith(`/${BASELINE}`))) {
+  // Shell writes to harness files bypass the Edit-level checks below. The writes are the parsed write targets
+  // (GPR-06): `2>&1`, `2>/dev/null` and a `>` inside quotes name no file.
+  const writes = segmentWriteTargets(seg, head);
+  if (writes.some((x) => x === BASELINE || x.endsWith(`/${BASELINE}`))) {
     return deny(
       'Edit .quality-baseline.json with the Edit tool (so the ratchet check runs) or via `pnpm quality:ratchet --update`.',
     );
   }
-  if (writes && head.some((x) => isHarnessFile(inRepoPath(x)) || isSelfProtected(inRepoPath(x)))) {
+  if (writes.some((x) => isHarnessFile(inRepoPath(x)) || isSelfProtected(inRepoPath(x)))) {
     return ask('Shell write to a harness/sensor file. Use the Edit tool so the gate can check it.');
   }
   return null;
+}
+
+// The raw write test, kept for a segment that does not parse (GPR-06: the parser cannot say what it writes).
+const RAW_WRITE = /(\bsed\s+-i|\btee\b|>|\bmv\b|\bcp\b|\btruncate\b|\bperl\s+-p?i)/;
+
+/** The paths a segment writes: its parsed write targets (writes.mjs), or the words of the segment when it does not parse. */
+function segmentWriteTargets(seg, head) {
+  const parsed = parseLine(seg);
+  if (parsed.unsafe.includes('unparsed')) return RAW_WRITE.test(seg) ? head : [];
+  return writeTargets(parsed).map((t) => t.path);
 }
 
 // ---------------------------------------------------------------- edits

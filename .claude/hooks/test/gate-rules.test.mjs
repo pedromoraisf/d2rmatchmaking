@@ -564,3 +564,22 @@ test('the fifth identical call denies through decide', () => {
   }
   assert.deepEqual(decisions, [null, null, null, null, 'deny']);
 });
+
+test('a descriptor redirection is not a segment write', () => {
+  const ctx = fakeCtx();
+  for (const c of [
+    'cat scripts/attempt.mjs 2>&1',
+    'cat .claude/hooks/gate.mjs 2>/dev/null | head -n 5',
+    "grep '>' scripts/attempt.mjs",
+    'cat scripts/attempt.mjs | head -3 2>&1',
+  ]) {
+    assert.equal(d(checkBash(c, ctx)), 'allow', c);
+  }
+});
+
+test('a real segment write keeps its decision', () => {
+  const ctx = fakeCtx();
+  assert.equal(d(checkBash('echo x > .claude/hooks/gate.mjs', ctx)), 'ask');
+  assert.equal(d(checkBash('cat a 2>&1 > eslint.config.mjs', ctx)), 'deny');
+  assert.equal(d(checkBash('tee .quality-baseline.json', ctx)), 'deny');
+});
