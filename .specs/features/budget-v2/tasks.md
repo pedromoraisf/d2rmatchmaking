@@ -773,9 +773,9 @@ Add these cases, tests only:
 
 **Done when**:
 
-- [ ] Every case above is in its test and passes.
-- [ ] Every existing test of both files passes unchanged.
-- [ ] The gate passes.
+- [x] Every case above is in its test and passes.
+- [x] Every existing test of both files passes unchanged.
+- [x] The gate passes.
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/gate-rules.test.mjs .claude/hooks/test/guard.test.mjs`

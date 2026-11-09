@@ -324,6 +324,16 @@ test('inline code naming the budget modules asks', () => {
     assert.equal(d(checkBash(c, ctx)), 'ask', c);
   }
   assert.equal(checkBash(`node -e "import('node:fs')"`, ctx)?.decision ?? null, null);
+  // T29: no import( or require( here, so the T24 module-name rule is the one that asks. Its reason is asserted.
+  for (const c of [
+    `node -e "const p='./scripts/att' + 'empt.mjs'; fs.readFileSync(p)"`,
+    `node -e "const p='./scripts/att'+'empt.mjs'; fs.readFileSync(p)"`,
+    String.raw`node -e "const p='./scripts/att\empt.mjs'; fs.readFileSync(p)"`,
+  ]) {
+    const answer = checkBash(c, ctx);
+    assert.equal(answer?.decision, 'ask', c);
+    assert.ok(answer.reason.includes('names the retry-budget modules'), `${c}: ${answer.reason}`);
+  }
 });
 
 test('bash: scripts and stdin shells are inspected — untracked scripts by content, outside ones and pipes ask', () => {

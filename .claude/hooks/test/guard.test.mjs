@@ -471,6 +471,21 @@ test('the guard reads both the local and the remote head', () => {
     'the proof is due at origin head',
   );
 
+  // T29: a third branch off the fixture head, merged while origin's list fails. The third branch's own list answers and
+  // shares its head commit with origin, so only the failing origin list makes touches fail closed.
+  f = fixture();
+  f.g('branch', '-f', BRANCH, 'phase/F0');
+  f.g('update-ref', `refs/remotes/${origin}`, f.head);
+  // newCommitOn writes `<name>.txt`, so the third branch takes a plain name that the brief does not cover.
+  const third = f.newCommitOn('third', 'third\n');
+  assert.notEqual(third, f.head);
+  const failingThird = failingList(f.ctx, `phase/F0..${origin}`);
+  assert.equal(decision('git merge --no-ff third', failingThird), 'deny', 'the merged list shares a commit');
+  assert.ok(
+    reason('git merge --no-ff third', failingThird).includes(f.head),
+    'the proof is due at origin head',
+  );
+
   // T27: the diverged deny tells the maintainer to push or fetch the branch, by name, until both heads agree.
   f = fixture();
   f.g('checkout', '-q', '-b', 'side', f.base);
