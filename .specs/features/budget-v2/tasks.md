@@ -837,10 +837,44 @@ Round 6 finding 3 is not changed here. It is the residual class N10, recorded be
 
 ---
 
+### T31: The program branch of rule (b) gets cases of its own
+
+**What**: The proofs at `d0451da` killed 61 of 70 mutations. All 9 survivors are in the branch of `runsExpandedReset` whose program itself expands: `EXPANDS`, the skip of `NAME=value` words, and the `reset`-or-expanding-argument clause. The T24 and T26 cases all run `node scripts/att*.mjs …`, which T30's runner branch now also catches, so that program branch has no case it alone decides.
+
+Add these cases to `a reset is judged through quotes, escapes, case and hidden code` in `budget-rules.test.mjs`. They are tests only, and no runner precedes the program. Each case asks and asserts `RESET_REASON`:
+
+- `./scripts/att*.mjs reset --unit k --by maintainer`
+- `./scripts/att?.mjs reset --unit k --by maintainer`
+- `./scripts/att[e].mjs reset --unit k --by maintainer`
+- a program path with a backtick, followed by `reset`
+- `./scripts/att$x.mjs reset --unit k --by maintainer` (here only the reason tells this rule from the script-outside-the-repository ask)
+- `FOO=1 ./scripts/att*.mjs reset --unit k --by maintainer`
+- `./scripts/att*.mjs $x --unit k --by maintainer`
+  This case gets no decision:
+- `./scripts/att*.mjs status --unit k`
+  **Where**: `.claude/hooks/test/budget-rules.test.mjs` (new cases)
+  **Depends on**: T30
+  **Reuses**: the T24 test, `RESET_REASON`
+  **Requirement**: BUD-14, BUD-15
+
+**Done when**:
+
+- [ ] Every case above is in the T24 test and passes.
+- [ ] Before the gate, the implementer applies each of these 9 mutations of `mutations.json` to the source, one at a time: "a program name with $/*/?/backtick/[", "an expanded program asks even without the word reset", "environment assignments before the program are not skipped", "an expanding argument alone no longer makes rule (b) ask" and "the word reset alone no longer makes rule (b) ask". With each one applied, the implementer runs `node --test .claude/hooks/test/budget-rules.test.mjs`, checks that it fails, and restores the file with `git restore`. The implementer reports the 9 results.
+- [ ] Every existing test of `budget-rules.test.mjs` and `gate-rules.test.mjs` passes unchanged.
+- [ ] The gate passes.
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs .claude/hooks/test/gate-rules.test.mjs`
+
+**Commit**: `test(harness): pin the program branch of rule (b)`
+
+---
+
 ### Phase 7: The third review of the diff
 
 ```
-T23 → T24 → T25 → T26 → T27 → T28 → T29 → T30
+T23 → T24 → T25 → T26 → T27 → T28 → T29 → T30 → T31
 ```
 
 ---
@@ -1010,6 +1044,7 @@ Non-blocking, for the phase review:
 - Finding 2 is folded into T30.
 - Finding 3, accepted as residual N10 for the phase review: inline code that reaches `import`/`require` through a comment or an alias, the same class as N9. A text gate cannot follow every JavaScript spelling.
 - Next: T30, mutations for it, the proofs, a Verifier round 7 (needs the maintainer's reset of `dispatch:budget-v2/verify-r2`), integration and the fourth `review-diff`.
+- T30 `83a971f` (51 of 51). The orchestrator wrote the T30 mutations (`d0451da`): it re-anchored four entries from T26's removed interpreter rule and added five new ones. Proofs at `d0451da`: 29 pass, 61 of 70 killed, failure 2 of 3. The 9 survivors are in rule (b)'s program branch. T30's runner branch masked them, because every older case runs through `node`. The orchestrator should have checked that the older cases still isolate their branch before running the proofs. Replanned as T31. T31's Done-when makes the implementer apply each survivor and see it fail before the gate, because `gate:budget-v2/proofs` has one attempt left.
 
 **Batch 4 (2026-11-08):** T11 `2cc708b`, T12 `9f6c6fe`, T13 `3392cdf`, T14 `72d7cbd`, findings closed `e024dfc`; every gate passed on its first run. T13 follows BUD-09's scenario where the Done-when was loose (an environment failure in between does not clear a refusal of the latest counted state). T11 also asks for a first orchestrator reset chained after another wrapper call. **T15 added (2026-11-08):** the guard defect that stops `continuous-delivery` from starting, with the maintainer's approval. Dispatched: execute-batch-5 (T15) to `feature-worker` at the commit of this note.
 
@@ -1026,7 +1061,7 @@ Phase 3:  T6 → T7 → T8
 Phase 4:  T8 → T9 → T10
 Phase 5:  T10 → T11 → T12 → T13 → T14 → T15 → T16 → T17
 Phase 6:  T17 → T18 → T19 → T20 → T21 → T22 → T23
-Phase 7:  T23 → T24 → T25 → T26 → T27 → T28 → T29 → T30
+Phase 7:  T23 → T24 → T25 → T26 → T27 → T28 → T29 → T30 → T31
 ```
 
 Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T6); `execute-batch-2` runs phases 3 and 4 (T7 to T10); `execute-batch-4` runs phase 5 (T11 to T14), the Verifier's findings; `execute-batch-5` runs T15; `execute-batch-6` runs T16 and T17, the round-2 findings; `execute-batch-7` runs phase 6 (T18 to T20), after the security review of the diff; `execute-batch-8` runs T21 and T22, the round-3 findings; `execute-batch-9` runs T23, the second review of the diff; `execute-batch-5` runs phase 7 (T24, T25), the third review of the diff. The model policy names only `execute-batch-1` to `-9`, all used. `execute-batch-5` is reused for phase 7: T24 and T25, then T26 and T27, the round-5 findings. A dispatch unit counts every dispatch, not only failures, so that is its third and last dispatch.

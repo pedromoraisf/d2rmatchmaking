@@ -423,7 +423,7 @@
     "file": ".claude/hooks/lib/budget-rules.mjs",
     "old": "args.includes('reset') || args.some((w) => EXPANDED_ARG.test(w))",
     "new": "args.includes('reset')",
-    "proof": "node --test --test-name-pattern \"a reset is judged when the word itself is hidden\" .claude/hooks/test/budget-rules.test.mjs",
+    "proof": "node --test --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
     "label": "an expanding argument alone no longer makes rule (b) ask (T26 b)"
   },
   {
