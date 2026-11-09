@@ -554,6 +554,9 @@ test('a reset is judged through quotes, escapes, case and hidden code', () => {
   ]) {
     assert.equal(decisionFor(command), 'ask', command);
   }
+  // T28: another rule asks on the upper-case line too on macOS, so only the reason pins the case-insensitive match.
+  const upperCase = call('Bash', { command: `node scripts/ATTEMPT.mjs ${maintainerReset}` }, ctx);
+  assert.equal(upperCase.reason, RESET_REASON, 'the upper-case wrapper name is judged by the reset rule');
   for (const command of [
     `node scripts/attempt.mjs reset --unit ${key} --by orchestrator --reason 'fixed'`,
     'node scripts/attempt.mjs status',
@@ -592,6 +595,15 @@ test('a reset is judged when the word itself is hidden', () => {
   ]) {
     assert.equal(decisionFor(command), 'ask', command);
   }
+  // T28: an upper-case subcommand, and a brace in an argument alone (no `reset` word), each ask with the reset reason.
+  for (const command of [
+    `node scripts/attempt.mjs RESET --unit ${key} --by maintainer`,
+    `node scripts/att*.mjs re{s,}et --unit ${key} --by maintainer`,
+  ]) {
+    const answer = call('Bash', { command }, ctx);
+    assert.equal(answer?.decision, 'ask', command);
+    assert.equal(answer.reason, RESET_REASON, command);
+  }
   for (const command of [
     'node scripts/attempt.mjs run --feature f --step T1 -- "x"',
     'node scripts/attempt.mjs status',
@@ -600,6 +612,7 @@ test('a reset is judged when the word itself is hidden', () => {
     'node scripts/attempt.mjs',
     'git add scripts/attempt.mjs scripts/lib/budget.mjs',
     'echo $HOME',
+    'ls scripts/*.mjs reset',
   ]) {
     assert.equal(decisionFor(command), null, command);
   }

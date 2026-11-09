@@ -319,6 +319,7 @@ test('inline code naming the budget modules asks', () => {
     `node -e "import('./scripts/lib/ledger-store.mjs')"`,
     `node -e "import('./scripts/'+a+'.mjs')"`,
     `node -e "import(['att','empt'].join(''))"`,
+    `node -e "const a='x';require('./scripts/'+a+'.mjs')"`,
   ]) {
     assert.equal(d(checkBash(c, ctx)), 'ask', c);
   }
