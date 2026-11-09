@@ -127,9 +127,9 @@ T5 → T6
 
 **Done when**:
 
-- [ ] A phase branch merged only into `origin/main` (a local `main` behind it) reports `closed` (test `reads a merge on origin/main`)
-- [ ] Open items print on their feature's line and on the phase line; `--json` carries them (test `prints open maintainer items`)
-- [ ] Gate passes
+- [x] A phase branch merged only into `origin/main` (a local `main` behind it) reports `closed` (test `reads a merge on origin/main`)
+- [x] Open items print on their feature's line and on the phase line; `--json` carries them (test `prints open maintainer items`)
+- [x] Gate passes
 
 **Tests**: harness (spawns the CLI; not a mutation proof)
 **Gate**: `node --test scripts/test/phase-status-cli.test.mjs scripts/test/phase-state.test.mjs`
