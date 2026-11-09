@@ -709,9 +709,9 @@ A gate run whose own command mentions "reset" (`node scripts/attempt.mjs run --f
 
 **Done when**:
 
-- [ ] The three cases above are in the T25 test, and they pass.
-- [ ] Every existing test of `guard.test.mjs` passes unchanged.
-- [ ] The gate passes.
+- [x] The three cases above are in the T25 test, and they pass.
+- [x] Every existing test of `guard.test.mjs` passes unchanged.
+- [x] The gate passes.
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/guard.test.mjs`

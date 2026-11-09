@@ -429,6 +429,45 @@ test('the guard reads both the local and the remote head', () => {
     'none',
     'proof at the larger head',
   );
+
+  // T27: only one of the two commit lists fails, local or origin: the merge fails closed and demands proof at the head.
+  const failingList = (ctx, range) => {
+    const git = ctx.git;
+    ctx.git = (...args) => (args[0] === 'rev-list' && args[1] === range ? null : git(...args));
+    return ctx;
+  };
+  for (const range of [`phase/F0..${origin}`, `phase/F0..${BRANCH}`]) {
+    f = fixture();
+    f.g('update-ref', `refs/remotes/${origin}`, f.head);
+    const ctx = failingList(f.ctx, range);
+    assert.equal(decision(`git merge --no-ff ${BRANCH}`, ctx), 'deny', `the list ${range} fails`);
+    assert.ok(reason(`git merge --no-ff ${BRANCH}`, ctx).includes(f.head), `the proof is due at ${f.head}`);
+  }
+
+  // T27: a covered branch that exists only on origin is merged at its proven head, and not without proof.
+  f = fixture();
+  f.g('update-ref', `refs/remotes/${origin}`, f.head);
+  f.g('branch', '-D', BRANCH);
+  assert.equal(decision(`git merge --no-ff ${origin}`, f.ctx), 'deny', 'origin only, no proof');
+  assert.equal(
+    decision(`git merge --no-ff ${origin}`, provenAt(f.ctx, f.head)),
+    'none',
+    'origin only, proven',
+  );
+
+  // T27: the diverged deny tells the maintainer to push or fetch the branch, by name, until both heads agree.
+  f = fixture();
+  f.g('checkout', '-q', '-b', 'side', f.base);
+  writeFileSync(path.join(f.dir, 'side.txt'), 's\n');
+  f.g('add', '.');
+  f.g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'side');
+  const sideHead = f.g('rev-parse', 'HEAD');
+  f.g('checkout', '-q', 'main');
+  f.g('update-ref', `refs/remotes/${origin}`, sideHead);
+  for (const ref of [BRANCH, origin]) {
+    const why = reason(`git merge --no-ff ${ref}`, f.ctx);
+    assert.ok(why.includes(`push or fetch ${BRANCH} until`), `the advice names the branch: ${why}`);
+  }
 });
 
 test('touches only through a shared commit', () => {
