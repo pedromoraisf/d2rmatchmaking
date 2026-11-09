@@ -104,11 +104,11 @@ T5 → T6
 
 **Done when**:
 
-- [ ] No review → `review`; a review with or without an approval line → `merge`; merged into main → `closed` (test `closes on the review and the merge, with no approval line`)
-- [ ] `awaiting-review` appears nowhere in `PHASE_STEPS` (test `has no awaiting-review step`)
-- [ ] Merge commit → `done`; squash with no trailers → `integrate` (test `integrates only when the trailers reach the phase`)
-- [ ] Every other existing test of `phase-state.test.mjs` passes unchanged
-- [ ] Gate passes
+- [x] No review → `review`; a review with or without an approval line → `merge`; merged into main → `closed` (test `closes on the review and the merge, with no approval line`)
+- [x] `awaiting-review` appears nowhere in `PHASE_STEPS` (test `has no awaiting-review step`)
+- [x] Merge commit → `done`; squash with no trailers → `integrate` (test `integrates only when the trailers reach the phase`)
+- [x] Every other existing test of `phase-state.test.mjs` passes unchanged
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/phase-state.test.mjs`

@@ -5,6 +5,7 @@ import {
   derivePhaseState,
   briefFeatures,
   maintainerItems,
+  PHASE_STEPS,
   parseTrailers,
   renderRunnerState,
   writeRunnerState,
@@ -137,10 +138,63 @@ test('phase closes only after review approval and merge to main', () => {
     `Feature: ${f}\nStep: verification`,
   ]);
   assert.equal(derivePhaseState(ev(files, c, c)).next, 'review');
-  assert.equal(derivePhaseState(ev(files, c, c, { review: '# review' })).next, 'awaiting-review');
+  assert.equal(derivePhaseState(ev(files, c, c, { review: '# review' })).next, 'merge');
   const reviewed = `# review\n**Approved**: 2026-11-20 - user: "aprovo a F0"`;
   assert.equal(derivePhaseState(ev(files, c, c, { review: reviewed })).next, 'merge');
   assert.equal(derivePhaseState(ev(files, c, c, { review: reviewed, mergedToMain: true })).next, 'closed');
+});
+
+// CDL-07 (AD-168): the review, not its approval line, closes the phase; the merge into main closes it for good.
+test('closes on the review and the merge, with no approval line', () => {
+  const files = {};
+  for (const f of ['core', 'web']) {
+    Object.assign(files, {
+      [`${f}/spec.md`]: APPROVED,
+      [`${f}/acceptance.feature`]: 'F',
+      [`${f}/design.md`]: 'd',
+      [`${f}/tasks.md`]: TASKS,
+      [`${f}/proofs.md`]: 'p',
+      [`${f}/verification.md`]: 'v',
+    });
+  }
+  const c = ['core', 'web'].flatMap((f) => [
+    `Feature: ${f}\nTask: T1`,
+    `Feature: ${f}\nTask: T2`,
+    `Feature: ${f}\nStep: verification`,
+  ]);
+  const review = '# review\n\nNo approval line here.';
+  assert.equal(derivePhaseState(ev(files, c, c)).next, 'review');
+  assert.equal(derivePhaseState(ev(files, c, c, { review })).next, 'merge');
+  assert.equal(derivePhaseState(ev(files, c, c, { review, mergedToMain: false })).next, 'merge');
+  assert.equal(derivePhaseState(ev(files, c, c, { review, mergedToMain: true })).next, 'closed');
+});
+
+test('has no awaiting-review step', () => {
+  assert.ok(!PHASE_STEPS.includes('awaiting-review'));
+  assert.ok(PHASE_STEPS.includes('merge'));
+});
+
+// CDL-04: a feature is integrated when its verification commit is reachable from the phase branch.
+test('integrates only when the trailers reach the phase', () => {
+  const files = {
+    'core/spec.md': APPROVED,
+    'core/acceptance.feature': 'F',
+    'core/design.md': 'd',
+    'core/tasks.md': TASKS,
+    'core/proofs.md': 'p',
+    'core/verification.md': 'v',
+  };
+  const trailers = [
+    'Feature: core\nTask: T1',
+    'Feature: core\nTask: T2',
+    'Feature: core\nStep: verification',
+  ];
+  // A merge commit: the feature's commits are reachable through its second parent.
+  const merged = derivePhaseState(ev(files, trailers, ['Merge pull request #7 from core', ...trailers]));
+  assert.equal(next(merged, 'core').next, 'done');
+  // A squash commit: the trailers of the feature branch do not reach the phase.
+  const squashed = derivePhaseState(ev(files, trailers, ['feat(core): core in one commit (#7)']));
+  assert.equal(next(squashed, 'core').next, 'integrate');
 });
 
 test('runner state section is regenerated, never appended twice', () => {

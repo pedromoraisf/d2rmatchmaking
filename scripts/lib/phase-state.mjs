@@ -18,15 +18,7 @@ export const FEATURE_STEPS = [
   'done',
 ];
 
-export const PHASE_STEPS = [
-  'kickoff',
-  'awaiting-approval',
-  'run',
-  'review',
-  'awaiting-review',
-  'merge',
-  'closed',
-];
+export const PHASE_STEPS = ['kickoff', 'awaiting-approval', 'run', 'review', 'merge', 'closed'];
 
 /** Features table of a brief: | Feature | Size | Depends on | … |. */
 export function briefFeatures(briefText) {
@@ -162,8 +154,8 @@ export function derivePhaseState(ev) {
   else if (all.some((s) => s.status === 'ready' || s.status === 'waiting')) {
     phaseNext = all.some((s) => s.status === 'ready') ? 'run' : 'review'; // only blocked/waiting-on-blocked left
   } else if (!ev.review) phaseNext = 'review';
-  else if (approvalsIn(ev.review).length === 0) phaseNext = 'awaiting-review';
-  else if (!ev.mergedToMain) phaseNext = 'merge';
+  else if (!ev.mergedToMain)
+    phaseNext = 'merge'; // the review's gates passed; the runner merges the phase PR (AD-168)
   else phaseNext = 'closed';
 
   const ready = all.filter((s) => s.status === 'ready');
