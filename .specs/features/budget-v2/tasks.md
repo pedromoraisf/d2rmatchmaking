@@ -85,7 +85,7 @@ T10 → T11 → T12 → T13 → T14 → T15 → T16 → T17
 ### Phase 6: Bounding forged machine failures
 
 ```
-T17 → T18 → T19 → T20 → T21 → T22
+T17 → T18 → T19 → T20 → T21 → T22 → T23
 ```
 
 ---
@@ -473,7 +473,7 @@ T17 → T18 → T19 → T20 → T21 → T22
 
 ### T18: A fourth machine failure in total blocks the unit
 
-**What**: In `scripts/lib/budget.mjs`, `recordAttempt` marks a unit `env-blocked` when its environment failures since its last pass or reset reach `ENV_TOTAL_TO_BLOCK = 4`, next to the existing three-in-a-row rule (`ENV_ATTEMPTS_TO_BLOCK`); a pass or a reset starts that total again. The diagnosis printed when the third in a row blocks a unit is printed when the fourth in total does (BUD-30, AD-167).
+**What**: In `scripts/lib/budget.mjs`, `recordAttempt` marks a unit `env-blocked` when its environment failures since its last pass or reset reach `ENV_TOTAL_TO_BLOCK = 4`, next to the existing three-in-a-row rule (`ENV_ATTEMPTS_TO_BLOCK`); a pass or a reset starts that total again. The diagnosis printed when the third in a row blocks a unit is printed when the fourth in total does (BUD-30, AD-167). Superseded by T23 (AD-172): only a reset starts the total again; a pass does not.
 **Where**: `scripts/lib/budget.mjs` (modify)
 **Depends on**: T17
 **Reuses**: `trailingEnvRun`, `isEnvFailure`, `recordAttempt`, `reset`
@@ -536,7 +536,7 @@ T17 → T18 → T19 → T20 → T21 → T22
 
 ### T21: A merge of ledgers keeps both bounds
 
-**What**: In `scripts/lib/budget.mjs`, `mergeLedgers` keeps every `(sid, seq)` of `uncountedStops` once and, per session, the larger count of either side; for a unit it keeps the larger environment-failure total since the last pass or reset of either side, so a merge can neither give a session its uncounted stops back nor lower a unit's BUD-30 total (Verifier round 3, finding 1 and the non-blocking merge note).
+**What**: In `scripts/lib/budget.mjs`, `mergeLedgers` keeps every `(sid, seq)` of `uncountedStops` once and, per session, the larger count of either side; for a unit it keeps the larger environment-failure total since the last pass or reset of either side, so a merge can neither give a session its uncounted stops back nor lower a unit's BUD-30 total (Verifier round 3, finding 1 and the non-blocking merge note). Superseded by T23 (AD-172): only a reset starts the total again; a pass does not.
 **Where**: `scripts/lib/budget.mjs` (modify)
 **Depends on**: T20
 **Reuses**: `mergeLedgers`, the BUD-30 total of T18, the `uncountedStops` field of T19
@@ -573,6 +573,28 @@ T17 → T18 → T19 → T20 → T21 → T22
 **Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs`
 
 **Commit**: `test(harness): count red stops of an unknown session's subagents`
+
+---
+
+### T23: Only a reset clears the machine-failure total
+
+**What**: In `scripts/lib/budget.mjs`, the BUD-30 total counts every environment failure in the unit's attempts (which a reset empties), whatever passed between them; a pass no longer ends the count and no longer clears `envCarried`; only a reset does (AD-172). `mergeLedgers` keeps the larger total across a pass. T18's own test case "env, env, pass, env, env → `open`" (written by this feature at `ea401bc`) becomes `env-blocked`, as the amended BUD-30 requires (stricter); T21's merge test keeps its expectations or tightens the same way. The "A pass between machine failures does not start the total again" scenario runs with the existing steps.
+**Where**: `scripts/lib/budget.mjs` (modify)
+**Depends on**: T22
+**Reuses**: `envTotalSincePass`, `envCarried`, `mergeLedgers`, `recordAttempt`
+**Requirement**: BUD-30
+
+**Done when**:
+
+- [ ] env, env, pass, env, env → `env-blocked`; four env failures with a reset after the second → `open`; `envCarried` survives a pass and is cleared by a reset (test `only a reset clears the machine-failure total`)
+- [ ] T18's pass case in `blocks at the fourth machine failure in total` expects `env-blocked`; every other existing test of `budget.test.mjs` and `attempt-cli.test.mjs` passes unchanged
+- [ ] Every scenario of `acceptance.feature` passes, the two `@BUD-30` ones included
+- [ ] Gate passes
+
+**Tests**: unit and acceptance
+**Gate**: `node --test scripts/test/budget.test.mjs scripts/test/attempt-cli.test.mjs && pnpm exec turbo run test:acceptance -- --grep @BUD-30`
+
+**Commit**: `fix(harness): only a reset clears the machine-failure total`
 
 ---
 
@@ -632,7 +654,7 @@ Proof: `node --test --test-name-pattern "exists only on the remote" --test-name-
 **C18** - A reset is judged however the wrapper is spelled (BUD-14, BUD-15)
 Proof: `node --test --test-name-pattern "however the wrapper is spelled" .claude/hooks/test/budget-rules.test.mjs`
 
-**C19** - A fourth machine failure in total blocks the unit; a pass or a reset starts the total again (BUD-30)
+**C19** - A fourth machine failure in total blocks the unit; only a reset starts the total again, a pass does not (AD-172) (BUD-30)
 Proof: `node --test --test-name-pattern "blocks at the fourth machine failure in total" scripts/test/budget.test.mjs`
 
 **C20** - At most two red stops per session are left uncounted (BUD-31)
@@ -643,6 +665,9 @@ Proof: `node --test --test-name-pattern "a merge keeps the uncounted stops" --te
 
 **C22** - A subagent of an unknown session counts its red stops (BUD-31)
 Proof: `node --test --test-name-pattern "a subagent of an unknown session counts its red stops" .claude/hooks/test/budget-rules.test.mjs`
+
+**C23** - Only a reset clears the machine-failure total; a pass does not (BUD-30, AD-172)
+Proof: `node --test --test-name-pattern "only a reset clears the machine-failure total" scripts/test/budget.test.mjs`
 
 ---
 
@@ -674,6 +699,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 
 **Batch 7 and round 3 (2026-11-08):** T18 `ea401bc`, T19 `a6e8aeb`, T20 `5f24d1c` (every gate on its first run; 56 `@BUD-` scenarios, 501 harness tests). Verifier round 3 FAIL at `674dfda`: 19 of 21 mutations killed; `mergeLedgers` can drop `uncountedStops`, and `unknown-session#agent` is untested. Not blocking: each subagent has its own two uncounted stops (the agent does not choose its session id; dispatches are counted). Replanned as T21 and T22. Dispatched: execute-batch-8 (T21, T22) to `feature-worker` at the commit of this note.
 
+**Round 3 closed and second review-diff (2026-11-09):** T21 `bae7638`, T22 `c06298d`, findings closed `a361dcc`; proofs 25 pass, 21 of 21 mutations killed; verification 0 errors (`647a7af`); `phase/F0` merged in (`a5628b7`), integration green. `security-reviewer` `review-diff` FAIL: a forged pass (`-- "true"`) cleared the BUD-30 total, so env, env, pass cycles bought free runs without end. Spec amended (`2b9220d`, AD-172): only a reset clears the total. Replanned as T23. Dispatched: execute-batch-9 (T23) to `feature-worker` at the commit of this note. Non-blocking for the phase review: N5 (a stale merge can restore a total after a pass: fails safe), N6 (`--by orchestrator` is self-declared: the BUD-12 design), N7 (two uncounted stops per subagent).
+
 **Batch 4 (2026-11-08):** T11 `2cc708b`, T12 `9f6c6fe`, T13 `3392cdf`, T14 `72d7cbd`, findings closed `e024dfc`; every gate passed on its first run. T13 follows BUD-09's scenario where the Done-when was loose (an environment failure in between does not clear a refusal of the latest counted state). T11 also asks for a first orchestrator reset chained after another wrapper call. **T15 added (2026-11-08):** the guard defect that stops `continuous-delivery` from starting, with the maintainer's approval. Dispatched: execute-batch-5 (T15) to `feature-worker` at the commit of this note.
 
 **Blocked — T18 plan defect (2026-11-08, gate not run):** T18's Done-when says every existing test of `budget.test.mjs` passes unchanged, but `a counted failure restarts the environment count` asserts `open` for the sequence env, env, counted, env, env (its message: "two environment failures since the counted one"). T18's own first bullet requires `env-blocked` for that same sequence under BUD-30. The new test `blocks at the fourth machine failure in total` fails red as written; with `ENV_TOTAL_TO_BLOCK = 4` the existing assertion fails (1 of 20 in `budget.test.mjs`; `attempt-cli.test.mjs` passes 27 of 27). T19 has the same kind of conflict: `red stop: lets the agent stop when the machine failed` expects four uncounted red stops of one session, which BUD-31 forbids on the third. No attempt was spent: the gate was not run, because it cannot pass as written. The worktree is at `79d63a9`, clean; the attempted change is saved as `t18-attempt.patch` in the implementer's scratchpad. Needs the orchestrator's replan: the two existing assertions must change (or the Done-when must say so), which the implementer may not do.
@@ -688,7 +715,7 @@ Phase 2:  T2 → T3 → T4 → T5 → T6
 Phase 3:  T6 → T7 → T8
 Phase 4:  T8 → T9 → T10
 Phase 5:  T10 → T11 → T12 → T13 → T14 → T15 → T16 → T17
-Phase 6:  T17 → T18 → T19 → T20 → T21 → T22
+Phase 6:  T17 → T18 → T19 → T20 → T21 → T22 → T23
 ```
 
-Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T6); `execute-batch-2` runs phases 3 and 4 (T7 to T10); `execute-batch-4` runs phase 5 (T11 to T14), the Verifier's findings; `execute-batch-5` runs T15; `execute-batch-6` runs T16 and T17, the round-2 findings; `execute-batch-7` runs phase 6 (T18 to T20), after the security review of the diff; `execute-batch-8` runs T21 and T22, the round-3 findings.
+Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T6); `execute-batch-2` runs phases 3 and 4 (T7 to T10); `execute-batch-4` runs phase 5 (T11 to T14), the Verifier's findings; `execute-batch-5` runs T15; `execute-batch-6` runs T16 and T17, the round-2 findings; `execute-batch-7` runs phase 6 (T18 to T20), after the security review of the diff; `execute-batch-8` runs T21 and T22, the round-3 findings; `execute-batch-9` runs T23, the second review of the diff.
