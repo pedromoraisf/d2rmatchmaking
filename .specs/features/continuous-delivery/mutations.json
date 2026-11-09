@@ -10,7 +10,7 @@
     "file": "scripts/lib/phase-state.mjs",
     "old": "t.feature === f && t.step === 'verification');",
     "new": "t.feature === f);",
-    "proof": "node --test --test-name-pattern \"integrates only when the trailers reach the phase\" scripts/test/phase-state.test.mjs",
+    "proof": "node --test --test-name-pattern \"integrates only when the trailers reach the phase\" --test-name-pattern \"integrates only on the closing commit\" scripts/test/phase-state.test.mjs",
     "label": "any trailer of the feature on the phase branch counts as integrated"
   },
   {
