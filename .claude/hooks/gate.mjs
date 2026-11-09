@@ -9,7 +9,7 @@
 // (io.mjs). Log lines never hold the command or the raw input.
 import * as nodeFs from 'node:fs';
 import path from 'node:path';
-import { DEADLINE_MS, makeIo, makeRepoContext, projectDir, toRelative } from './lib/io.mjs';
+import { DEADLINE_MS, gitLocations, makeIo, makeRepoContext, projectDir, toRelative } from './lib/io.mjs';
 import { BASELINE, decide } from './lib/gate-rules.mjs';
 import { recordAttempt, recordDispatch } from '../../scripts/lib/budget.mjs';
 import { ledgerPath, loadLedger, withLedger } from '../../scripts/lib/ledger-store.mjs';
@@ -171,7 +171,9 @@ function contextFor(root, io, modules) {
       return io.stat(abs)?.timedOut ? null : readWhole(abs);
     },
     isTracked: (rel) => text(io.git(['ls-files', '--error-unmatch', '--', rel], { cwd: root })) !== null,
-    currentBranch: () => text(io.git(['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root })),
+    // GPR-22: the branch from the git files; git only when they do not say.
+    currentBranch: () =>
+      gitLocations(root)?.branch ?? text(io.git(['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root })),
     headTime(dir) {
       const args = dir ? ['-C', dir, 'log', '-1', '--format=%ct'] : ['log', '-1', '--format=%ct'];
       const t = text(io.git(args, { cwd: root }));

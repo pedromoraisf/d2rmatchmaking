@@ -481,10 +481,10 @@ T15 → T16
 
 **Done when**:
 
-- [ ] `percentile` and the per-entry input are right (test `computes the percentile`)
-- [ ] No corpus line spawns more than 8 `git` processes (test `stays under the spawn cap`)
-- [ ] `node scripts/gate-bench.mjs` prints p95 at most 300 ms on this machine and exits 0
-- [ ] Gate passes
+- [x] `percentile` and the per-entry input are right (test `computes the percentile`)
+- [x] No corpus line spawns more than 8 `git` processes (test `stays under the spawn cap`)
+- [x] `node scripts/gate-bench.mjs` prints p95 at most 300 ms on this machine and exits 0
+- [x] Gate passes
 
 **Tests**: unit (the bench itself is a harness run, not a mutation proof)
 **Gate**: `node --test scripts/test/gate-bench.test.mjs && node scripts/gate-bench.mjs`
