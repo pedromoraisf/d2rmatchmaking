@@ -29,8 +29,8 @@
   },
   {
     "file": ".claude/hooks/lib/budget-rules.mjs",
-    "old": "signatures.length > 0 && signatures.every(Boolean)",
-    "new": "signatures.length > 0 && signatures.some(Boolean)",
+    "old": "signatures.length > 0 &&\n    signatures.every(Boolean) &&",
+    "new": "signatures.length > 0 &&\n    signatures.some(Boolean) &&",
     "proof": "node --test --test-name-pattern \"red stop\" .claude/hooks/test/budget-rules.test.mjs",
     "label": "red stop uncounted when only some failures are the machine"
   },
@@ -82,5 +82,68 @@
     "new": ".slice(0, 1).some((m) => m[1] === 'reset')",
     "proof": "node --test --test-name-pattern \"hidden behind another wrapper call\" .claude/hooks/test/budget-rules.test.mjs",
     "label": "only the first wrapper call is read for a reset"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "uncountedRedStopsOf(ledger, sid) < UNCOUNTED_RED_STOPS_PER_SESSION",
+    "new": "uncountedRedStopsOf(ledger, sid) <= UNCOUNTED_RED_STOPS_PER_SESSION",
+    "proof": "node --test --test-name-pattern \"leaves at most two red stops uncounted per session\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a third red stop of a session is still left uncounted (BUD-31 cap one too high)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "    namedSession &&\n",
+    "new": "    true &&\n",
+    "proof": "node --test --test-name-pattern \"leaves at most two red stops uncounted per session\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a red stop with no session id is left uncounted (BUD-31)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "!String(sid).startsWith('unknown-session')",
+    "new": "String(sid) !== 'unknown-session'",
+    "proof": "node --test --test-name-pattern \"leaves at most two red stops uncounted per session\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a subagent of an unknown session (unknown-session#agent) is treated as a named session"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "envTotalSincePass(u.attempts) >= ENV_TOTAL_TO_BLOCK",
+    "new": "envTotalSincePass(u.attempts) > ENV_TOTAL_TO_BLOCK",
+    "proof": "node --test --test-name-pattern \"blocks at the fourth machine failure in total\" scripts/test/budget.test.mjs",
+    "label": "env-blocked needs a fifth machine failure in total instead of the fourth (BUD-30)"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "export const ENV_TOTAL_TO_BLOCK = 4;",
+    "new": "export const ENV_TOTAL_TO_BLOCK = 5;",
+    "proof": "node --test --test-name-pattern \"blocks at the fourth machine failure in total\" scripts/test/budget.test.mjs",
+    "label": "ENV_TOTAL_TO_BLOCK is five"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "i >= 0 && !attempts[i].ok; i -= 1) if (attempts[i].kind === 'env') n += 1;",
+    "new": "i >= 0; i -= 1) if (attempts[i].kind === 'env') n += 1;",
+    "proof": "node --test --test-name-pattern \"blocks at the fourth machine failure in total\" scripts/test/budget.test.mjs",
+    "label": "the environment total survives a pass"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "i >= 0 && !attempts[i].ok; i -= 1) if (attempts[i].kind === 'env') n += 1;",
+    "new": "i >= 0 && !attempts[i].ok; i -= 1) if (!attempts[i].ok) n += 1;",
+    "proof": "node --test --test-name-pattern \"blocks at the fourth machine failure in total\" scripts/test/budget.test.mjs",
+    "label": "the environment total counts counted failures too"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "return (ledger.uncountedStops ?? []).filter((s) => s.sid === sid).length;",
+    "new": "return (ledger.uncountedStops ?? []).length;",
+    "proof": "node --test --test-name-pattern \"leaves at most two red stops uncounted per session\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "the uncounted red stops are pooled across sessions instead of per session"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "const out = { version: 1, units: {}, resets, refusals, uncountedStops };",
+    "new": "const out = { version: 1, units: {}, resets, refusals, uncountedStops: [] };",
+    "proof": "node --test scripts/test/budget.test.mjs",
+    "label": "mergeLedgers drops the uncounted red stops (a merge resets a session's cap)"
   }
 ]
