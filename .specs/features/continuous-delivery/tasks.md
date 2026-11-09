@@ -238,9 +238,9 @@ T6 → T7 → T8
 
 **Done when**:
 
-- [ ] The review step names `gh pr ready <pr>`, `gh pr merge <pr> --merge` and the open-items stop (test `the review step merges with --merge and waits for open items`)
-- [ ] Every existing test of `phase-runner-skill.test.mjs` passes unchanged
-- [ ] Gate passes
+- [x] The review step names `gh pr ready <pr>`, `gh pr merge <pr> --merge` and the open-items stop (test `the review step merges with --merge and waits for open items`)
+- [x] Every existing test of `phase-runner-skill.test.mjs` passes unchanged
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/phase-runner-skill.test.mjs`

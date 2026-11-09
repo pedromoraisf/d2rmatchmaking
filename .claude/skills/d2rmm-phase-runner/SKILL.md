@@ -231,7 +231,8 @@ Precondition: `phase-status` reports `review` (every feature done or blocked).
    `review.md` records each one, and the four checks of ADR 028 § 2, `verify`, `integration`, `agent` and `secrets`, passed
    on the phase PR's head, whatever the ruleset requires. Then mark the phase PR ready with `gh pr ready <pr>` and merge
    it with `gh pr merge <pr> --merge`. If either part did not hold, do not merge: record which command or check failed
-   and why in `review.md`, and stop.
+   and why in `review.md`, and stop. While any maintainer item of the phase is open, do not merge the phase PR: list the
+   open items in `review.md` and stop (AD-171).
 4. `phase-status` moves to `closed` once the merge lands. The maintainer reads `review.md` afterwards and sends items
    back as follow-up feature rows in the brief, which need the maintainer's approval like any brief change (AD-168).
 

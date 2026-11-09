@@ -256,3 +256,16 @@ test('the templates tell the remote flow', () => {
   assert.ok(decisions.includes('## For the maintainer'), 'the decisions template has the maintainer table');
   assert.ok(decisions.includes('| Feature | Item | Asked | Answer |'), 'the table has the four columns');
 });
+
+// CDL-06 (Verifier findings 3 and 4, AD-171): the review step marks the phase PR ready, merges it with --merge, and does
+// not merge while a maintainer item of the phase is open.
+test('the review step merges with --merge and waits for open items', () => {
+  const reviewStep = normalised(REVIEW);
+  for (const phrase of [
+    'mark the phase PR ready with `gh pr ready <pr>`',
+    'merge it with `gh pr merge <pr> --merge`',
+    'While any maintainer item of the phase is open, do not merge the phase PR: list the open items in `review.md` and stop',
+  ]) {
+    assert.ok(reviewStep.includes(phrase), `the review step says "${phrase}"`);
+  }
+});
