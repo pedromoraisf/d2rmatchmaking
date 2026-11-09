@@ -162,6 +162,12 @@ function checkInlineCode(code, ctx) {
       'This code names the retry ledger or the security verdicts, or enters .git: only the hooks and scripts/attempt.mjs touch those.',
     );
   }
+  // BUD-15 (T24): code that names the budget modules can call a reset without the wrapper, so it is the maintainer's.
+  if (/attempt\.mjs|budget\.mjs|ledger-store\.mjs/i.test(text.replace(/['"+\\\s]/g, ''))) {
+    return ask(
+      "This code names the retry-budget modules, which can reset a budget without scripts/attempt.mjs. A reset is the maintainer's (ADR 022).",
+    );
+  }
   if (INLINE_ENV.test(text)) {
     return deny(
       '.env files hold secrets and are off-limits to the agent, from inline code too. Use .env.example.',

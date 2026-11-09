@@ -23,7 +23,7 @@ import {
 import { activePhase } from './delegation.mjs';
 import { checkDispatchPolicy, READ_ONLY_HELPERS } from '../../../scripts/lib/model-policy.mjs';
 import { classify } from '../../../scripts/lib/env-signatures.mjs';
-import { innerShellCommands } from './shell-indirection.mjs';
+import { innerShellCommands, shellWords, splitShell } from './shell-indirection.mjs';
 
 const deny = (reason, effects = []) => ({ decision: 'deny', reason, effects });
 const allow = (effects = []) => ({ decision: null, effects });
@@ -39,7 +39,8 @@ export const LEDGER_REF = /\.git\/d2rmm|d2rmm\/|verdicts\.json|ledger\.json|D2RM
 export const GIT_DIR_CD = /(^|[;&|(\n]\s*)cd\s+\S*\.git(?=\/|\s|$|[;&|)])/;
 const WRAPPER = /(^|\s)(node\s+)?(\.\/)?scripts\/attempt\.mjs\s+run\s/;
 // BUD-14: the wrapper is recognised by its file name, with an optional quote and any directory (or none, after `cd`).
-const WRAPPER_ANY = /(?:^|[\s/"'])attempt\.mjs["']?\s+(\w+)/g;
+// T24: case-insensitive, because the macOS file system is; it reads the command with its quotes and escapes removed.
+const WRAPPER_ANY = /(?:^|[\s/"'])attempt\.mjs["']?\s+(\w+)/gi;
 // A sensor runs when it is the command a shell segment executes — never when its name is only an argument or a path
 // (`grep -i stryker x`, `sed -n 1p scripts/acceptance-check.mjs`). Runners (npx, pnpm exec, python3, node…) are
 // peeled off first, so `npx vitest` and `python3 …/check_proofs.py` still count.
@@ -94,6 +95,33 @@ function resetDecision(cmd, ledger) {
     );
   }
   return null;
+}
+
+// BUD-15 (T24): a program whose name expands or globs (`att${x}empt.mjs`, `att*.mjs`) may be the wrapper.
+const BARE = (s) => s.replace(/['"\\]/g, '');
+const EXPANDS = /[$`*?[]/;
+const ASSIGN_WORD = /^[A-Za-z_][A-Za-z0-9_]*=/;
+
+/** Whether a shell segment runs a program, or a first operand, that expands or globs, with `reset` among its arguments. */
+function runsExpandedReset(segment) {
+  const words = shellWords(segment);
+  let i = 0;
+  while (i < words.length && ASSIGN_WORD.test(words[i])) i++;
+  const head = words.slice(i);
+  if (head.length === 0) return false;
+  const args = head.slice(1);
+  const operand = args.find((w) => !w.startsWith('-'));
+  const programs = [head[0], operand].filter((w) => w !== undefined);
+  return programs.some((w) => EXPANDS.test(w)) && args.includes('reset');
+}
+
+/** BUD-14, BUD-15: whether a Bash line may reset a budget, read as the shell would run it (the commands it hides too). */
+function mayReset(cmd) {
+  return [cmd, ...innerShellCommands(cmd)].some(
+    (text) =>
+      [...BARE(text).matchAll(WRAPPER_ANY)].some((m) => m[1].toLowerCase() === 'reset') ||
+      splitShell(text).some(runsExpandedReset),
+  );
 }
 
 const GATE_QUOTED = /^\s*("[^"]*"|'[^']*')/;
@@ -198,8 +226,9 @@ export function checkBudget(input, ctx, sid, rel) {
       'The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git.',
     );
   }
-  // BUD-14, BUD-15: every wrapper call in the line is read, so a reset behind a status call is judged too.
-  if (tool === 'Bash' && [...cmd.matchAll(WRAPPER_ANY)].some((m) => m[1] === 'reset')) {
+  // BUD-14, BUD-15: every wrapper call in the line is read, so a reset behind a status call is judged too, and so is one
+  // spelled with quotes, escapes or case, or run by an expanded program (T24).
+  if (tool === 'Bash' && mayReset(cmd)) {
     const answer = resetDecision(cmd, ctx.ledger);
     if (answer) return answer;
   }

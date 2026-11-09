@@ -612,10 +612,10 @@ A gate run whose own command mentions "reset" (`node scripts/attempt.mjs run --f
 
 **Done when**:
 
-- [ ] A test named `a reset is judged through quotes, escapes, case and hidden code` asks for each of: `node scripts/att''empt.mjs reset --unit gate:f/T1 --by maintainer`; `node scripts/attempt\.mjs reset …`; `node scripts/"attempt".mjs reset …`; `node scripts/ATTEMPT.mjs reset …`; `bash -c "node scripts/att''empt.mjs reset --unit gate:f/T1 --by maintainer"`; `node scripts/att${x}empt.mjs reset …`; `node scripts/att*.mjs reset …`; `node -e "import('./scripts/att'+'empt.mjs')"`; an untracked `scripts/x.mjs` whose text imports `./lib/budget.mjs`, run as `node scripts/x.mjs reset …`
-- [ ] The same test gets no decision for the plain first orchestrator reset with a reason, `node scripts/attempt.mjs status`, and the gate run above whose command mentions "reset"
-- [ ] Every existing test of `budget-rules.test.mjs` and `gate-rules.test.mjs` passes unchanged
-- [ ] Gate passes
+- [x] A test named `a reset is judged through quotes, escapes, case and hidden code` asks for each of: `node scripts/att''empt.mjs reset --unit gate:f/T1 --by maintainer`; `node scripts/attempt\.mjs reset …`; `node scripts/"attempt".mjs reset …`; `node scripts/ATTEMPT.mjs reset …`; `bash -c "node scripts/att''empt.mjs reset --unit gate:f/T1 --by maintainer"`; `node scripts/att${x}empt.mjs reset …`; `node scripts/att*.mjs reset …`; `node -e "import('./scripts/att'+'empt.mjs')"`; an untracked `scripts/x.mjs` whose text imports `./lib/budget.mjs`, run as `node scripts/x.mjs reset …`
+- [x] The same test gets no decision for the plain first orchestrator reset with a reason, `node scripts/attempt.mjs status`, and the gate run above whose command mentions "reset"
+- [x] Every existing test of `budget-rules.test.mjs` and `gate-rules.test.mjs` passes unchanged
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs .claude/hooks/test/gate-rules.test.mjs`

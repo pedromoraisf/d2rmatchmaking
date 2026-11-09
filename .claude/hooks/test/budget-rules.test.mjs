@@ -530,6 +530,38 @@ test('finds a reset however the wrapper is spelled', () => {
   );
 });
 
+test('a reset is judged through quotes, escapes, case and hidden code', () => {
+  const key = 'gate:f/T1';
+  const ledger = emptyLedger();
+  for (let i = 0; i < MAX_ATTEMPTS; i += 1) recordAttempt(ledger, key, false, { note: 'boom' });
+  const base = ctxFor({ ledger });
+  const budgetScript = "import { ledgerPath } from './lib/budget.mjs';\n";
+  const ctx = { ...base, readFile: (rel) => (rel === 'scripts/x.mjs' ? budgetScript : base.readFile(rel)) };
+  const decisionFor = (command) => call('Bash', { command }, ctx)?.decision ?? null;
+  const maintainerReset = `reset --unit ${key} --by maintainer`;
+
+  for (const command of [
+    `node scripts/att''empt.mjs ${maintainerReset}`,
+    `node scripts/attempt\\.mjs ${maintainerReset}`,
+    `node scripts/"attempt".mjs ${maintainerReset}`,
+    `node scripts/ATTEMPT.mjs ${maintainerReset}`,
+    `bash -c "node scripts/att''empt.mjs ${maintainerReset}"`,
+    `node scripts/att\${x}empt.mjs ${maintainerReset}`,
+    `node scripts/att*.mjs ${maintainerReset}`,
+    "node -e \"import('./scripts/att'+'empt.mjs')\"",
+    `node scripts/x.mjs reset --unit ${key} --by orchestrator --reason 'fixed'`,
+  ]) {
+    assert.equal(decisionFor(command), 'ask', command);
+  }
+  for (const command of [
+    `node scripts/attempt.mjs reset --unit ${key} --by orchestrator --reason 'fixed'`,
+    'node scripts/attempt.mjs status',
+    'node scripts/attempt.mjs run --feature f --step T1 -- "node --test --test-name-pattern reset x.test.mjs"',
+  ]) {
+    assert.equal(decisionFor(command), null, command);
+  }
+});
+
 test('allows read-only filters after the wrapper', () => {
   const ctx = ctxFor();
   const gate = 'node scripts/attempt.mjs run --feature agent-skeleton --step T3 -- "pnpm test"';
