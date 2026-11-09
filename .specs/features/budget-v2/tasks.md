@@ -652,10 +652,73 @@ A gate run whose own command mentions "reset" (`node scripts/attempt.mjs run --f
 
 ---
 
+### T26: A reset is found when the word itself is hidden
+
+**What**: Verifier round 5 (finding 1, blocking) found that the subcommand word can be hidden, and the reset then gets no decision: `node scripts/attempt.mjs "$(echo reset)" --unit k --by maintainer`, `node scripts/attempt.mjs $r …`, `x=reset; node scripts/attempt.mjs $x …` and `node scripts/a{t,t}empt.mjs reset …`. In `.claude/hooks/lib/budget-rules.mjs`:
+(a) a wrapper call found in a line or a hidden command, read with quotes and backslashes removed (T24), is a possible reset unless its first word after the file name is exactly `run`, `status` or `report` (case-insensitive). A call with no word after the file name is not a reset. `WRAPPER_ANY` captures that word as `\S+` instead of `\w+`.
+(b) `EXPANDS` gains `{`. Rule (b) of T24 holds when the program or first operand expands or globs and either `reset` is among the arguments or an argument holds `$`, a backtick or `{`.
+In `checkInlineCode` (`gate-rules.mjs`), inline code or an untracked script asks when it calls `import(` or `require(` with anything but one plain string literal (finding 2: `import('./scripts/'+a+'.mjs')`, `import(['att','empt'].join(''))`). This is one added condition next to T24's.
+**Where**: `.claude/hooks/lib/budget-rules.mjs` (modify), `.claude/hooks/lib/gate-rules.mjs` (one condition), `.claude/hooks/test/budget-rules.test.mjs` and `.claude/hooks/test/gate-rules.test.mjs` (new cases)
+**Depends on**: T25
+**Reuses**: `WRAPPER_ANY`, `BARE`, `EXPANDS`, `mayReset`, `checkInlineCode`, T24's test
+**Requirement**: BUD-14, BUD-15
+
+**Done when**:
+
+- [ ] A test named `a reset is judged when the word itself is hidden` asks for each of these four lines: the three wrapper calls with an expanded word, and the brace spelling above.
+  - The same test asks for `node scripts/a{t,t}empt.mjs $x --unit k --by maintainer`.
+  - It gets no decision for `node scripts/attempt.mjs run --feature f --step T1 -- "x"`, `node scripts/attempt.mjs status`, `node scripts/attempt.mjs report` and `node scripts/att*.mjs status`.
+- [ ] The T24 test gains cases that pin rule (b) (finding 3). Each is a line that no other rule asks on, and the worker checks by reading the decision's reason that rule (b) is the one asking:
+  - a program path with `?`, one with `[`, and one with a backtick, each followed by `reset`;
+  - `FOO=1 node scripts/att*.mjs reset --unit k --by maintainer` asks;
+  - `bash -c 'node scripts/att*.mjs reset --unit k --by maintainer'` asks.
+- [ ] A test in `gate-rules.test.mjs` named `inline code naming the budget modules asks` pins T24's inline-code rule (finding 4). Each of these asks:
+  - `node -e "import('./scripts/ATTEMPT.mjs')"`;
+  - `node -e "import('./scripts/att' + 'empt.mjs')"` (with spaces);
+  - a name split by a backslash;
+  - `node -e "import('./scripts/lib/ledger-store.mjs')"`;
+  - the two dynamic-import examples of finding 2.
+    It gets no decision for `node -e "import('node:fs')"`.
+- [ ] Every existing test of both files passes unchanged.
+- [ ] The gate passes.
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs .claude/hooks/test/gate-rules.test.mjs`
+
+**Commit**: `fix(harness): find a reset whose word is hidden`
+
+---
+
+### T27: The guard tests pin one failing range, an origin-only proof and the advice
+
+**What**: Verifier round 5 (finding 5) left three T25 mutations alive. Add cases to `the guard reads both the local and the remote head` in `.claude/hooks/test/guard.test.mjs`:
+
+- Only one of the two commit lists fails, local or origin: the merge fails closed and demands proof.
+- A covered branch exists only on origin with a proof at its head: `git merge origin/<branch>` is allowed.
+- The diverged deny's reason contains "push or fetch" and the branch name.
+  No code changes, unless a case fails. If one fails, the guard is fixed to match T25's What.
+  **Where**: `.claude/hooks/test/guard.test.mjs` (new cases)
+  **Depends on**: T26
+  **Reuses**: the fake git of `guard.test.mjs`, T25's test
+  **Requirement**: none in the spec. This is the T15 guard fix, maintainer-approved on 2026-11-08, under `harness-self`.
+
+**Done when**:
+
+- [ ] The three cases above are in the T25 test, and they pass.
+- [ ] Every existing test of `guard.test.mjs` passes unchanged.
+- [ ] The gate passes.
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/guard.test.mjs`
+
+**Commit**: `test(harness): pin the guard's failing range, origin-only proof and advice`
+
+---
+
 ### Phase 7: The third review of the diff
 
 ```
-T23 → T24 → T25
+T23 → T24 → T25 → T26 → T27
 ```
 
 ---
@@ -737,6 +800,9 @@ Proof: `node --test --test-name-pattern "a reset is judged through quotes, escap
 **C25** - The guard reads both the local and the remote head of a covered branch (T15 fix, maintainer-approved)
 Proof: `node --test --test-name-pattern "the guard reads both the local and the remote head" .claude/hooks/test/guard.test.mjs`
 
+**C26** - A reset is judged when its word is hidden, and inline code that names or builds a budget module asks (BUD-14, BUD-15)
+Proof: `node --test --test-name-pattern "a reset is judged when the word itself is hidden" --test-name-pattern "a reset is judged through quotes, escapes, case and hidden code" .claude/hooks/test/budget-rules.test.mjs && node --test --test-name-pattern "inline code naming the budget modules asks" .claude/hooks/test/gate-rules.test.mjs`
+
 ---
 
 ## Handoff
@@ -792,6 +858,18 @@ Non-blocking, for the phase review:
 - **Blocked:** the round-5 Verifier dispatch was refused. `dispatch:budget-v2/verify-r2` has used its three dispatches (rounds 2 to 4).
 - The maintainer approved the reset of that unit at the gate's prompt (`--by pedromoraisf`). Dispatched: verify-r2 (round 5) to `verifier` at the commit of this note.
 
+**Verifier round 5 (2026-11-09):** FAIL at `4bd6b05`.
+
+- Proofs: 28 pass. Mutations: 40 killed, 14 not.
+- Finding 1 (blocking): a hidden reset word gets no decision, for example `"$(echo reset)"`, `$x` or `a{t,t}empt`.
+- Finding 2: inline code that builds the module name at run time is not seen.
+- Findings 3 to 5: the surviving mutations come from missing test cases.
+- `gate:budget-v2/verification` is blocked at 3 of 3: its failures add up across rounds.
+- `gate:budget-v2/proofs` is at 2 of 3.
+- Replanned as T26 (findings 1 to 4) and T27 (finding 5).
+- Dispatched: execute-batch-5 (T26, T27) to `feature-worker` at the commit of this note.
+- After the fixes, the verification gate needs the maintainer's reset.
+
 **Batch 4 (2026-11-08):** T11 `2cc708b`, T12 `9f6c6fe`, T13 `3392cdf`, T14 `72d7cbd`, findings closed `e024dfc`; every gate passed on its first run. T13 follows BUD-09's scenario where the Done-when was loose (an environment failure in between does not clear a refusal of the latest counted state). T11 also asks for a first orchestrator reset chained after another wrapper call. **T15 added (2026-11-08):** the guard defect that stops `continuous-delivery` from starting, with the maintainer's approval. Dispatched: execute-batch-5 (T15) to `feature-worker` at the commit of this note.
 
 **Blocked — T18 plan defect (2026-11-08, gate not run):** T18's Done-when says every existing test of `budget.test.mjs` passes unchanged, but `a counted failure restarts the environment count` asserts `open` for the sequence env, env, counted, env, env (its message: "two environment failures since the counted one"). T18's own first bullet requires `env-blocked` for that same sequence under BUD-30. The new test `blocks at the fourth machine failure in total` fails red as written; with `ENV_TOTAL_TO_BLOCK = 4` the existing assertion fails (1 of 20 in `budget.test.mjs`; `attempt-cli.test.mjs` passes 27 of 27). T19 has the same kind of conflict: `red stop: lets the agent stop when the machine failed` expects four uncounted red stops of one session, which BUD-31 forbids on the third. No attempt was spent: the gate was not run, because it cannot pass as written. The worktree is at `79d63a9`, clean; the attempted change is saved as `t18-attempt.patch` in the implementer's scratchpad. Needs the orchestrator's replan: the two existing assertions must change (or the Done-when must say so), which the implementer may not do.
@@ -807,7 +885,7 @@ Phase 3:  T6 → T7 → T8
 Phase 4:  T8 → T9 → T10
 Phase 5:  T10 → T11 → T12 → T13 → T14 → T15 → T16 → T17
 Phase 6:  T17 → T18 → T19 → T20 → T21 → T22 → T23
-Phase 7:  T23 → T24 → T25
+Phase 7:  T23 → T24 → T25 → T26 → T27
 ```
 
-Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T6); `execute-batch-2` runs phases 3 and 4 (T7 to T10); `execute-batch-4` runs phase 5 (T11 to T14), the Verifier's findings; `execute-batch-5` runs T15; `execute-batch-6` runs T16 and T17, the round-2 findings; `execute-batch-7` runs phase 6 (T18 to T20), after the security review of the diff; `execute-batch-8` runs T21 and T22, the round-3 findings; `execute-batch-9` runs T23, the second review of the diff; `execute-batch-5` runs phase 7 (T24, T25), the third review of the diff. The model policy names only `execute-batch-1` to `-9`, all used. The step `execute-batch-5` is reused for phase 7 because its dispatch budget counts failures, and it has none.
+Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T6); `execute-batch-2` runs phases 3 and 4 (T7 to T10); `execute-batch-4` runs phase 5 (T11 to T14), the Verifier's findings; `execute-batch-5` runs T15; `execute-batch-6` runs T16 and T17, the round-2 findings; `execute-batch-7` runs phase 6 (T18 to T20), after the security review of the diff; `execute-batch-8` runs T21 and T22, the round-3 findings; `execute-batch-9` runs T23, the second review of the diff; `execute-batch-5` runs phase 7 (T24, T25), the third review of the diff. The model policy names only `execute-batch-1` to `-9`, all used. `execute-batch-5` is reused for phase 7: T24 and T25, then T26 and T27, the round-5 findings. A dispatch unit counts every dispatch, not only failures, so that is its third and last dispatch.
