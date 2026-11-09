@@ -21,6 +21,8 @@ import {
   orchestratorResets,
   isUnchangedRerun,
   recordRefusal,
+  recordUncountedRedStop,
+  uncountedRedStopsOf,
   report,
 } from '../lib/budget.mjs';
 import { taskIds } from '../lib/steps.mjs';
@@ -403,4 +405,56 @@ test('keeps one attempt and two retries', () => {
   assert.equal(canAttempt(l, T2).attempt, 3, 'the third attempt is the last retry');
   assert.equal(recordAttempt(l, T2, false).status, 'blocked');
   assert.equal(canAttempt(l, T2).ok, false);
+});
+
+test('a merge keeps the uncounted stops', () => {
+  // BUD-31: a merge gives no session back its uncounted red stops and loses none: the larger count of either side.
+  const one = emptyLedger();
+  recordUncountedRedStop(one, 's1');
+  const two = emptyLedger();
+  recordUncountedRedStop(two, 's1');
+  recordUncountedRedStop(two, 's1');
+  recordUncountedRedStop(two, 's2');
+  const merged = mergeLedgers(one, two);
+  assert.equal(uncountedRedStopsOf(merged, 's1'), 2, 'the larger count of the session');
+  assert.equal(uncountedRedStopsOf(merged, 's2'), 1);
+  assert.equal(merged.uncountedStops.length, 3, 'each (sid, seq) is kept once');
+  assert.equal(
+    uncountedRedStopsOf(mergeLedgers(two, one), 's1'),
+    2,
+    'the order of the merge does not matter',
+  );
+  assert.equal(
+    uncountedRedStopsOf(mergeLedgers(merged, one), 's1'),
+    2,
+    'merging again does not lower the count',
+  );
+  assert.equal(
+    uncountedRedStopsOf(mergeLedgers(merged, merged), 's1'),
+    2,
+    'merging with itself changes nothing',
+  );
+});
+
+test('a merge keeps the larger environment total', () => {
+  // BUD-30: a merge does not lower a unit's environment failures since its last pass or reset.
+  const k = 'gate:budget-v2/T21';
+  const counted = { note: 'expected 2, received 3' };
+  const a = emptyLedger();
+  recordAttempt(a, k, false, ENV);
+  recordAttempt(a, k, false, ENV);
+  recordAttempt(a, k, false, counted);
+  recordAttempt(a, k, false, ENV);
+  const b = emptyLedger();
+  recordAttempt(b, k, false, counted);
+  recordAttempt(b, k, false, counted);
+
+  for (const merged of [mergeLedgers(a, b), mergeLedgers(b, a)]) {
+    assert.equal(merged.units[k].status, 'open', 'three environment failures are not yet a block');
+    assert.equal(
+      recordAttempt(merged, k, false, ENV).status,
+      'env-blocked',
+      'the merged total is 3, so a fourth machine failure blocks the unit',
+    );
+  }
 });

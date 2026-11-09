@@ -108,6 +108,14 @@ function envTotalSincePass(attempts) {
   return n;
 }
 
+/**
+ * The environment total of a unit: its own attempts since the last pass, plus the environment failures a merge carried
+ * from another copy of the unit (`envCarried`, set by mergeLedgers and cleared by a pass).
+ */
+function envTotalOf(u) {
+  return envTotalSincePass(u.attempts) + (u.envCarried ?? 0);
+}
+
 /** May this unit be attempted again? */
 export function canAttempt(ledger, key) {
   const u = unit(ledger, key);
@@ -156,11 +164,12 @@ export function recordAttempt(
   if (fingerprint !== undefined) attempt.fingerprint = fingerprint === null ? null : String(fingerprint);
   u.attempts.push(attempt);
   const failures = countedFailuresOf(u);
-  if (ok) u.status = 'passed';
-  else if (kind === 'env')
+  if (ok) {
+    u.status = 'passed';
+    delete u.envCarried;
+  } else if (kind === 'env')
     u.status =
-      trailingEnvRun(u.attempts) >= ENV_ATTEMPTS_TO_BLOCK ||
-      envTotalSincePass(u.attempts) >= ENV_TOTAL_TO_BLOCK
+      trailingEnvRun(u.attempts) >= ENV_ATTEMPTS_TO_BLOCK || envTotalOf(u) >= ENV_TOTAL_TO_BLOCK
         ? 'env-blocked'
         : 'open';
   else if (failures >= MAX_ATTEMPTS) u.status = 'blocked';
@@ -396,21 +405,17 @@ export function mergeLedgers(a, b) {
     seenRefusals.add(id);
     return true;
   });
-  // Uncounted red stops (BUD-31) are kept once each, by session and sequence number: a merge never adds to a session's count.
-  const seenStops = new Set();
-  const uncountedStops = [...(a?.uncountedStops ?? []), ...(b?.uncountedStops ?? [])].filter((s) => {
-    const id = `${s.sid}\u0000${s.seq}`;
-    if (seenStops.has(id)) return false;
-    seenStops.add(id);
-    return true;
-  });
+  const uncountedStops = mergeUncountedStops(a?.uncountedStops ?? [], b?.uncountedStops ?? []);
   const out = { version: 1, units: {}, resets, refusals, uncountedStops };
   const resetAt = new Map(allResets.map((r) => [r.key, r.at]));
+  // The largest environment total of each unit over the copies that were kept (BUD-30).
+  const envMax = new Map();
   for (const src of [a, b]) {
     for (const [k, u] of Object.entries(src?.units ?? {})) {
       // A reset newer than every attempt in a snapshot drops that stale copy.
       const last = u.attempts?.at(-1)?.at ?? '';
       if (resetAt.has(k) && resetAt.get(k) > last) continue;
+      envMax.set(k, Math.max(envMax.get(k) ?? 0, envTotalOf(u)));
       const cur = out.units[k];
       if (
         !cur ||
@@ -422,5 +427,29 @@ export function mergeLedgers(a, b) {
       }
     }
   }
+  // The kept version may hold fewer environment failures than another copy: it carries the largest total (BUD-30).
+  for (const [k, u] of Object.entries(out.units)) {
+    const carried = envMax.get(k) - envTotalSincePass(u.attempts);
+    if (carried > 0) u.envCarried = carried;
+    else delete u.envCarried;
+  }
   return out;
+}
+
+/**
+ * Uncounted red stops (BUD-31) of two ledgers: per session, the side with the larger count is kept, each (sid, seq)
+ * once. A merge never gives a session its uncounted stops back, and never lowers its count.
+ */
+function mergeUncountedStops(fromA, fromB) {
+  const sids = [...new Set([...fromA, ...fromB].map((s) => s.sid))];
+  const ofSession = (list, sid) => {
+    const bySeq = new Map();
+    for (const s of list) if (s.sid === sid && !bySeq.has(s.seq)) bySeq.set(s.seq, s);
+    return [...bySeq.values()];
+  };
+  return sids.flatMap((sid) => {
+    const a = ofSession(fromA, sid);
+    const b = ofSession(fromB, sid);
+    return b.length > a.length ? b : a;
+  });
 }

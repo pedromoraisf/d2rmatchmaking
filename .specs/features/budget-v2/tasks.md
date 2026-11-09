@@ -544,10 +544,10 @@ T17 → T18 → T19 → T20 → T21 → T22
 
 **Done when**:
 
-- [ ] Two ledgers holding uncounted stops of one session merge to the larger count, each `(sid, seq)` once; returning `uncountedStops: []` from the merge turns the test red (test `a merge keeps the uncounted stops`)
-- [ ] `[env, env, counted, env]` merged with `[counted, counted]` keeps the environment total 3 (test `a merge keeps the larger environment total`)
-- [ ] Every existing test of `budget.test.mjs` passes unchanged
-- [ ] Gate passes
+- [x] Two ledgers holding uncounted stops of one session merge to the larger count, each `(sid, seq)` once; returning `uncountedStops: []` from the merge turns the test red (test `a merge keeps the uncounted stops`)
+- [x] `[env, env, counted, env]` merged with `[counted, counted]` keeps the environment total 3 (test `a merge keeps the larger environment total`)
+- [x] Every existing test of `budget.test.mjs` passes unchanged
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/budget.test.mjs`
