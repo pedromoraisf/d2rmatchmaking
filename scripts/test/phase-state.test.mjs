@@ -313,3 +313,43 @@ test('no maintainer table changes nothing', () => {
   assert.deepEqual(maintainerItems(null), []);
   assert.ok(plain.features.every((f) => f.blocked === false));
 });
+
+// CDL-04 (Verifier finding 1): the feature's task commits on the phase branch do not integrate it; the closing commit does.
+test('integrates only on the closing commit', () => {
+  const files = {
+    'core/spec.md': APPROVED,
+    'core/acceptance.feature': 'F',
+    'core/design.md': 'd',
+    'core/tasks.md': TASKS,
+    'core/proofs.md': 'p',
+    'core/verification.md': 'v',
+  };
+  const trailers = [
+    'Feature: core\nTask: T1',
+    'Feature: core\nTask: T2',
+    'Feature: core\nStep: verification',
+  ];
+  // The task commits reached the phase branch; the verification commit did not.
+  const taskOnly = derivePhaseState(ev(files, trailers, trailers.slice(0, 2)));
+  assert.equal(next(taskOnly, 'core').next, 'integrate');
+  // The closing commit reaches the phase branch too: the feature is done.
+  assert.equal(next(derivePhaseState(ev(files, trailers, trailers)), 'core').next, 'done');
+});
+
+// CDL-08 (Verifier finding 2): the block reason names the ledger, the maintainer, or the ledger when both hold.
+test('names why a feature is blocked', () => {
+  const decisions = MAINTAINER(['| core | Create the TURSO_TOKEN secret | 2026-11-08 |  |']);
+  const byLedger = derivePhaseState(ev({}, [], [], { brief: BRIEF3, blocked: (f) => f === 'core' }));
+  assert.equal(next(byLedger, 'core').reason, 'retry-budget');
+  assert.equal(next(byLedger, 'core').blocked, true);
+  const byMaintainer = derivePhaseState(ev({}, [], [], { brief: BRIEF3, decisions }));
+  assert.equal(next(byMaintainer, 'core').reason, 'maintainer');
+  assert.equal(next(byMaintainer, 'core').blocked, true);
+  const both = derivePhaseState(ev({}, [], [], { brief: BRIEF3, decisions, blocked: (f) => f === 'core' }));
+  assert.equal(next(both, 'core').reason, 'retry-budget', 'the ledger block wins over an open item');
+  assert.deepEqual(
+    next(both, 'core').items.map((i) => i.item),
+    ['Create the TURSO_TOKEN secret'],
+    'the open item is still listed',
+  );
+});

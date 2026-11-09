@@ -217,9 +217,9 @@ T6 → T7 → T8
 
 **Done when**:
 
-- [ ] Task trailers without the closing commit read `integrate` (test `integrates only on the closing commit`)
-- [ ] The block reason is pinned for the ledger, the maintainer and both (test `names why a feature is blocked`)
-- [ ] Gate passes
+- [x] Task trailers without the closing commit read `integrate` (test `integrates only on the closing commit`)
+- [x] The block reason is pinned for the ledger, the maintainer and both (test `names why a feature is blocked`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/phase-state.test.mjs`
