@@ -871,10 +871,65 @@ Add these cases to `a reset is judged through quotes, escapes, case and hidden c
 
 ---
 
+### T32: Any word the shell builds after a runner counts as a possible script
+
+**What**: Round 7 (finding 1, blocking) found that `isDynamicScript` still requires a `/` or a script extension. These all get no decision:
+
+- `cd scripts && node att* reset --unit gate:f/T1 --by maintainer`
+- `node attempt.mj? reset …`
+- `node a* reset …`
+- `bun att* reset …`
+
+`s=scripts/attempt.mjs; node $s reset …` is also open, for the same reason.
+
+In `.claude/hooks/lib/budget-rules.mjs`, `isDynamicScript` becomes "the word holds an `EXPANDED_ARG` character", whatever its shape. `SCRIPT_EXT` goes if nothing else uses it. The rest of T30's runner branch is unchanged: a runner word comes before the word, and another word is `reset` or expands.
+
+Round 7 finding 2: the `<`, `>` and `(` in `EXPANDED_ARG` get cases in which only the reset rule decides. The reason assertion tells it from the other rules that also ask.
+**Where**: `.claude/hooks/lib/budget-rules.mjs` (modify), `.claude/hooks/test/budget-rules.test.mjs` (new cases in `a reset word or script path the shell builds always asks`)
+**Depends on**: T31
+**Reuses**: `isDynamicScript`, `EXPANDED_ARG`, `RUNNER_WORD`, `RESET_REASON`, T31's kill check
+**Requirement**: BUD-14, BUD-15
+
+**Done when**:
+
+- [ ] Each of these asks, with `RESET_REASON`:
+  - `cd scripts && node att* reset --unit gate:f/T1 --by maintainer`
+  - `cd scripts && node attempt.m* reset --unit k --by maintainer`
+  - `node attempt.mj? reset --unit k --by maintainer`
+  - `node a* reset --unit k --by maintainer`
+  - `bun att* reset --unit k --by maintainer`
+  - `cd scripts; node "att"* reset --unit k --by maintainer`
+  - `s=scripts/attempt.mjs; node $s reset --unit k --by maintainer`
+  - `node scripts/attempt.mjs <(echo reset) --unit k --by maintainer`
+  - `node scripts/attempt.mjs >x reset --unit k --by maintainer`
+  - `node scripts/attempt.mjs (reset) --unit k --by maintainer`
+- [ ] Each of these keeps no decision:
+  - `ls r?set`
+  - `grep -r reset* .`
+  - `node --test scripts/test/*.test.mjs`
+  - every line of T30's no-decision list
+- [ ] Before the gate, the implementer checks that each of these mutations fails the test file. The check is the same as in T31: apply with Edit, run `node --test .claude/hooks/test/budget-rules.test.mjs`, `git restore`, empty diff.
+  - (1) `isDynamicScript` requiring `/` or a script extension again
+  - (2) `EXPANDED_ARG` without `<`
+  - (3) without `>`
+  - (4) without `(`
+  - (5) the runner-word condition replaced by `true`
+  - (6) the "another word is `reset` or expands" condition replaced by `true`
+    The implementer reports each result and the exact `old`/`new` text used.
+- [ ] Every existing test of `budget-rules.test.mjs` and `gate-rules.test.mjs` passes unchanged.
+- [ ] The gate passes.
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs .claude/hooks/test/gate-rules.test.mjs`
+
+**Commit**: `fix(harness): any word the shell builds after a runner is a possible script`
+
+---
+
 ### Phase 7: The third review of the diff
 
 ```
-T23 → T24 → T25 → T26 → T27 → T28 → T29 → T30 → T31
+T23 → T24 → T25 → T26 → T27 → T28 → T29 → T30 → T31 → T32
 ```
 
 ---
@@ -1045,6 +1100,7 @@ Non-blocking, for the phase review:
 - Finding 3, accepted as residual N10 for the phase review: inline code that reaches `import`/`require` through a comment or an alias, the same class as N9. A text gate cannot follow every JavaScript spelling.
 - Next: T30, mutations for it, the proofs, a Verifier round 7 (needs the maintainer's reset of `dispatch:budget-v2/verify-r2`), integration and the fourth `review-diff`.
 - T30 `83a971f` (51 of 51). The orchestrator wrote the T30 mutations (`d0451da`): it re-anchored four entries from T26's removed interpreter rule and added five new ones. Proofs at `d0451da`: 29 pass, 61 of 70 killed, failure 2 of 3. The 9 survivors are in rule (b)'s program branch. T30's runner branch masked them, because every older case runs through `node`. The orchestrator should have checked that the older cases still isolate their branch before running the proofs. Replanned as T31. T31's Done-when makes the implementer apply each survivor and see it fail before the gate, because `gate:budget-v2/proofs` has one attempt left.
+- T31 `7cbb9b0`: all 9 survivors were seen to fail before the gate. Proofs at `7cbb9b0`: 29 pass, 70 of 70 killed. `gate:budget-v2/proofs` passed, with 2 of 3 failures used. Verifier round 7: FAIL (`dd7348e`). Rounds 6 and 7 hold: T30 is sound for everything it names, and T31 and the nine orchestrator mutations are real. Finding 1 (blocking): a globbed script word with no `/` and no extension (`cd scripts && node att* reset`) resets unasked. Finding 2: `<`, `>`, `(` have no case of their own. Replanned as T32. It drops the shape condition, so any word the shell builds after a runner counts. The orchestrator writes T32's mutations from the implementer's verified `old`/`new`.
 
 **Batch 4 (2026-11-08):** T11 `2cc708b`, T12 `9f6c6fe`, T13 `3392cdf`, T14 `72d7cbd`, findings closed `e024dfc`; every gate passed on its first run. T13 follows BUD-09's scenario where the Done-when was loose (an environment failure in between does not clear a refusal of the latest counted state). T11 also asks for a first orchestrator reset chained after another wrapper call. **T15 added (2026-11-08):** the guard defect that stops `continuous-delivery` from starting, with the maintainer's approval. Dispatched: execute-batch-5 (T15) to `feature-worker` at the commit of this note.
 
@@ -1061,7 +1117,7 @@ Phase 3:  T6 → T7 → T8
 Phase 4:  T8 → T9 → T10
 Phase 5:  T10 → T11 → T12 → T13 → T14 → T15 → T16 → T17
 Phase 6:  T17 → T18 → T19 → T20 → T21 → T22 → T23
-Phase 7:  T23 → T24 → T25 → T26 → T27 → T28 → T29 → T30 → T31
+Phase 7:  T23 → T24 → T25 → T26 → T27 → T28 → T29 → T30 → T31 → T32
 ```
 
 Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T6); `execute-batch-2` runs phases 3 and 4 (T7 to T10); `execute-batch-4` runs phase 5 (T11 to T14), the Verifier's findings; `execute-batch-5` runs T15; `execute-batch-6` runs T16 and T17, the round-2 findings; `execute-batch-7` runs phase 6 (T18 to T20), after the security review of the diff; `execute-batch-8` runs T21 and T22, the round-3 findings; `execute-batch-9` runs T23, the second review of the diff; `execute-batch-5` runs phase 7 (T24, T25), the third review of the diff. The model policy names only `execute-batch-1` to `-9`, all used. `execute-batch-5` is reused for phase 7: T24 and T25, then T26 and T27, the round-5 findings. A dispatch unit counts every dispatch, not only failures, so that is its third and last dispatch.
