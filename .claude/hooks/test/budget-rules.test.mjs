@@ -618,6 +618,42 @@ test('a reset is judged when the word itself is hidden', () => {
   }
 });
 
+test('a reset word or script path the shell builds always asks', () => {
+  const key = 'gate:f/T1';
+  const ledger = emptyLedger();
+  for (let i = 0; i < MAX_ATTEMPTS; i += 1) recordAttempt(ledger, key, false, { note: 'boom' });
+  const ctx = ctxFor({ ledger });
+  const decisionFor = (command) => call('Bash', { command }, ctx)?.decision ?? null;
+
+  for (const command of [
+    `node scripts/attempt.mjs r?set --unit ${key} --by maintainer`,
+    `node scripts/attempt.mjs res[e]t --unit ${key} --by maintainer`,
+    `node scripts/attempt.mjs r* --unit ${key} --by maintainer`,
+    `node scripts/attempt.mjs ~reset --unit ${key} --by maintainer`,
+    `touch reset && node scripts/attempt.mjs r?set --unit ${key} --by maintainer`,
+    `pnpm node scripts/att*.mjs reset --unit k --by maintainer`,
+    `npx node scripts/att*.mjs reset --unit k --by maintainer`,
+    `node -r x scripts/att*.mjs reset --unit k --by maintainer`,
+    `node -r x scripts/att*.mjs r?set --unit k --by maintainer`,
+    `bash -c 'pnpm node scripts/att*.mjs reset --unit k --by maintainer'`,
+  ]) {
+    const answer = call('Bash', { command }, ctx);
+    assert.equal(answer?.decision, 'ask', command);
+    assert.equal(answer.reason, RESET_REASON, command);
+  }
+  for (const command of [
+    'ls scripts/*.mjs reset',
+    'node --test scripts/test/*.test.mjs',
+    'git add scripts/attempt.mjs scripts/lib/budget.mjs',
+    'node scripts/attempt.mjs status',
+    'node scripts/attempt.mjs report',
+    'node scripts/attempt.mjs run --feature f --step T1 -- "x"',
+    'echo $HOME',
+  ]) {
+    assert.equal(decisionFor(command), null, command);
+  }
+});
+
 test('allows read-only filters after the wrapper', () => {
   const ctx = ctxFor();
   const gate = 'node scripts/attempt.mjs run --feature agent-skeleton --step T3 -- "pnpm test"';

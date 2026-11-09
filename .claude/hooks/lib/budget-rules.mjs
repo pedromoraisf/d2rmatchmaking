@@ -42,7 +42,8 @@ const WRAPPER = /(^|\s)(node\s+)?(\.\/)?scripts\/attempt\.mjs\s+run\s/;
 // T24: case-insensitive, because the macOS file system is; it reads the command with its quotes and escapes removed.
 // T26: the first word after the file name is read whole (`$(echo reset)`, `$x`, `reset;`).
 const WRAPPER_ANY = /(?:^|[\s/"'])attempt\.mjs["']?\s+(\S+)/gi;
-const EXPANDED_ARG = /[$`{]/;
+// T30: every character the shell expands, globs or redirects. A word that holds one is one the shell builds.
+const EXPANDED_ARG = /[$`{*?[~<>(]/;
 // A sensor runs when it is the command a shell segment executes — never when its name is only an argument or a path
 // (`grep -i stryker x`, `sed -n 1p scripts/acceptance-check.mjs`). Runners (npx, pnpm exec, python3, node…) are
 // peeled off first, so `npx vitest` and `python3 …/check_proofs.py` still count.
@@ -104,13 +105,18 @@ function resetDecision(cmd, ledger) {
 const BARE = (s) => s.replace(/['"\\]/g, '');
 const EXPANDS = /[$`*?[{]/;
 const ASSIGN_WORD = /^[A-Za-z_][A-Za-z0-9_]*=/;
-// T26: an interpreter's first operand is the script it runs, so that operand is read as a program too.
-const INTERPRETER = /^(node|python[\d.]*|bun|tsx|deno|sh|bash|zsh)$/;
 const PREFIX_WORDS = new Set(['env', 'time', 'exec', 'command', 'nohup']);
+// T30: a word that is a script path the shell builds: it holds a character that expands or globs, and it names a file
+// by a directory or a script extension.
+const SCRIPT_EXT = /\.(mjs|js|cjs|ts)$/i;
+const RUNNER_WORD =
+  /^(node|python[\d.]*|bun|tsx|deno|sh|bash|zsh|pnpm|pnpx|npx|bunx|npm|yarn|env|exec|time|nohup|command)$/;
+const isDynamicScript = (w) => EXPANDED_ARG.test(w) && (w.includes('/') || SCRIPT_EXT.test(w));
 
 /**
- * Whether a shell segment runs a program that expands or globs, or, under an interpreter, a script that does; and either
- * has `reset` among its arguments or an argument that expands (`node scripts/a{t,t}empt.mjs $x` may be a reset).
+ * Whether a shell segment runs a reset that the shell builds. Its program expands or globs and has `reset` or an
+ * expanding word among its arguments. Or a dynamic script path (T30) comes after a runner, and another word is `reset`
+ * or expands (`pnpm node scripts/att*.mjs reset`, `node -r x scripts/a{t,t}empt.mjs $x`).
  */
 function runsExpandedReset(segment) {
   const words = shellWords(segment);
@@ -119,12 +125,13 @@ function runsExpandedReset(segment) {
   const head = words.slice(i);
   if (head.length === 0) return false;
   const args = head.slice(1);
-  const operand = args.find((w) => !w.startsWith('-'));
-  const programs = [head[0]];
-  if (INTERPRETER.test(head[0]) && operand !== undefined) programs.push(operand);
-  return (
-    programs.some((w) => EXPANDS.test(w)) &&
-    (args.includes('reset') || args.some((w) => EXPANDED_ARG.test(w)))
+  if (EXPANDS.test(head[0]) && (args.includes('reset') || args.some((w) => EXPANDED_ARG.test(w))))
+    return true;
+  return words.some(
+    (w, j) =>
+      isDynamicScript(w) &&
+      words.slice(0, j).some((p) => RUNNER_WORD.test(p)) &&
+      words.some((x, k) => k !== j && (x === 'reset' || EXPANDED_ARG.test(x))),
   );
 }
 

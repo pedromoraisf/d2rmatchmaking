@@ -819,16 +819,16 @@ Round 6 finding 3 is not changed here. It is the residual class N10, recorded be
 
 **Done when**:
 
-- [ ] A test named `a reset word or script path the shell builds always asks` asks, with `RESET_REASON`, for each of:
+- [x] A test named `a reset word or script path the shell builds always asks` asks, with `RESET_REASON`, for each of:
   - `node scripts/attempt.mjs r?set --unit gate:f/T1 --by maintainer`, and the same with `res[e]t`, `r*` and `~reset`;
   - `pnpm node scripts/att*.mjs reset --unit k --by maintainer`;
   - `npx node scripts/att*.mjs reset --unit k --by maintainer`;
   - `node -r x scripts/att*.mjs reset --unit k --by maintainer`;
   - `node -r x scripts/att*.mjs r?set --unit k --by maintainer`;
   - `bash -c 'pnpm node scripts/att*.mjs reset --unit k --by maintainer'`.
-- [ ] The same test gets no decision for every line in the no-decision list above.
-- [ ] Every existing test of `budget-rules.test.mjs` and `gate-rules.test.mjs` passes unchanged. That includes `denies anything else after the wrapper` and the T24 and T26 tests.
-- [ ] The gate passes.
+- [x] The same test gets no decision for every line in the no-decision list above.
+- [x] Every existing test of `budget-rules.test.mjs` and `gate-rules.test.mjs` passes unchanged. That includes `denies anything else after the wrapper` and the T24 and T26 tests.
+- [x] The gate passes.
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs .claude/hooks/test/gate-rules.test.mjs`
