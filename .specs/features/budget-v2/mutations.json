@@ -166,5 +166,215 @@
     "new": "return envTotalOfAttempts(u.attempts);",
     "proof": "node --test --test-name-pattern \"only a reset clears the machine-failure total\" scripts/test/budget.test.mjs",
     "label": "the total ignores the carried environment failures"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const BARE = (s) => s.replace(/['\"\\\\]/g, '');",
+    "new": "const BARE = (s) => s.replace(/['\"]/g, '');",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "the reset check no longer removes backslashes (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const BARE = (s) => s.replace(/['\"\\\\]/g, '');",
+    "new": "const BARE = (s) => s.replace(/[\"\\\\]/g, '');",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "the reset check no longer removes single quotes (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const BARE = (s) => s.replace(/['\"\\\\]/g, '');",
+    "new": "const BARE = (s) => s.replace(/['\\\\]/g, '');",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "the reset check no longer removes double quotes (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "\\s+(\\w+)/gi;",
+    "new": "\\s+(\\w+)/g;",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "the wrapper name is matched case-sensitively (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDS = /[$`*?[]/;",
+    "new": "const EXPANDS = /[`*?[]/;",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a program name with $ is no longer an expansion (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDS = /[$`*?[]/;",
+    "new": "const EXPANDS = /[$`?[]/;",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a program name with * is no longer a glob (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDS = /[$`*?[]/;",
+    "new": "const EXPANDS = /[$`*[]/;",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a program name with ? is no longer a glob (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDS = /[$`*?[]/;",
+    "new": "const EXPANDS = /[$*?[]/;",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a program name with a backtick is no longer an expansion (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDS = /[$`*?[]/;",
+    "new": "const EXPANDS = /[$`*?]/;",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a program name with [ is no longer a glob (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "args.includes('reset')",
+    "new": "true",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "an expanded program asks even without the word reset (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const programs = [head[0], operand].filter((w) => w !== undefined);",
+    "new": "const programs = [head[0]].filter((w) => w !== undefined);",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "only the program is checked for an expansion, not its first operand (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "while (i < words.length && ASSIGN_WORD.test(words[i])) i++;",
+    "new": "while (false) i++;",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "environment assignments before the program are not skipped (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "return [cmd, ...innerShellCommands(cmd)].some(\n    (text) =>\n      [...BARE",
+    "new": "return [cmd].some(\n    (text) =>\n      [...BARE",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a reset is not looked for in the commands a shell hides (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "new": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "inline code naming the budget modules is matched case-sensitively (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "new": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"\\\\\\s]/g, ''))",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "inline code is not stripped of + before the module name is matched (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "new": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\]/g, ''))",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "inline code is not stripped of whitespace before the module name is matched (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "new": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\s]/g, ''))",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "inline code is not stripped of backslashes before the module name is matched (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "new": "/attempt\\.mjs|budget\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "inline code naming ledger-store.mjs no longer asks (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "new": "/budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "inline code naming attempt.mjs no longer asks (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "new": "/attempt\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "inline code naming budget.mjs no longer asks (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "return lists.some((b) => a.some((c) => b.includes(c)));",
+    "new": "return lists.every((b) => a.some((c) => b.includes(c)));",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "a branch touches the covered branch only when it shares a commit with both heads (T25 union)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "const names = [branch, `origin/${branch}`].filter((r) => commitOf(ctx, r));",
+    "new": "const names = [branch].filter((r) => commitOf(ctx, r));",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "the covered commits ignore origin when the local branch exists (T25 union)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "const names = [branch, `origin/${branch}`].filter((r) => commitOf(ctx, r));",
+    "new": "const names = [`origin/${branch}`].filter((r) => commitOf(ctx, r));",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "the covered commits ignore the local branch when origin exists (T25 union)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "lists.some((b) => b === null)",
+    "new": "lists.every((b) => b === null)",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" --test-name-pattern \"fails closed when git cannot answer\" .claude/hooks/test/guard.test.mjs",
+    "label": "touches fails closed only when every covered list fails, not when one does (T25)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "if (base === remote) return { head: local, diverged: null };",
+    "new": "if (base === remote) return { head: remote, diverged: null };",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "proof is due at origin when local contains it (T25 larger head)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "if (base === local) return { head: remote, diverged: null };",
+    "new": "if (base === local) return { head: local, diverged: null };",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "proof is due at local when origin contains it (T25 larger head)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "return { head: null, diverged: { local, remote } };",
+    "new": "return { head: local, diverged: null };",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "diverged local and origin heads are not denied, the local one is taken (T25)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "if (diverged) return {",
+    "new": "if (false) return {",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "proofOf ignores the diverged heads (T25)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "if (!local || !remote || local === remote) return",
+    "new": "if (!local && !remote || local === remote) return",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" --test-name-pattern \"exists only on the remote\" --test-name-pattern \"a covered branch not started touches nothing\" .claude/hooks/test/guard.test.mjs",
+    "label": "a covered branch on one side only is read as diverged (T25)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "`push or fetch ${c.branch} until",
+    "new": "`push or fetch ${p.diverged.local} until",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "the diverged reason names the wrong branch (T25)"
   }
 ]
