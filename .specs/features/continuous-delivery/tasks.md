@@ -67,6 +67,12 @@ T3 → T4 → T5
 T5 → T6
 ```
 
+### Phase 4: Verifier findings
+
+```
+T6 → T7 → T8
+```
+
 ---
 
 ## Task Breakdown
@@ -201,6 +207,48 @@ T5 → T6
 
 ---
 
+### T7: Pin integration and the block reason
+
+**What**: `scripts/test/phase-state.test.mjs` gains two tests (Verifier findings 1 and 2): a feature whose `Task:` commits reach the phase branch without its `Step: verification` commit is `integrate`, not `done`; a feature the retry ledger blocks reports `reason: 'retry-budget'`, one with only an open maintainer item `maintainer`, and one with both reports `retry-budget` (the ledger block wins). No code change unless a test shows a defect.
+**Where**: `scripts/test/phase-state.test.mjs` (modify)
+**Depends on**: T6
+**Reuses**: the evidence builders of `phase-state.test.mjs`
+**Requirement**: CDL-04, CDL-08
+
+**Done when**:
+
+- [ ] Task trailers without the closing commit read `integrate` (test `integrates only on the closing commit`)
+- [ ] The block reason is pinned for the ledger, the maintainer and both (test `names why a feature is blocked`)
+- [ ] Gate passes
+
+**Tests**: unit
+**Gate**: `node --test scripts/test/phase-state.test.mjs`
+
+**Commit**: `test(harness): pin integration on the closing commit and the block reason`
+
+---
+
+### T8: The review step merges with --merge and waits for open maintainer items
+
+**What**: The REVIEW section of `.claude/skills/d2rmm-phase-runner/SKILL.md` and `.claude/commands/phase-review.md` say: mark the phase PR ready with `gh pr ready <pr>` and merge it with `gh pr merge <pr> --merge`, never squash or rebase (Verifier finding 3); and do not merge the phase PR while any maintainer item of the phase is open: list the open items in `review.md` and stop (Verifier finding 4, AD-171). `scripts/test/phase-runner-skill.test.mjs` checks the three phrases against the skill's text, whitespace normalised.
+**Where**: `.claude/skills/d2rmm-phase-runner/SKILL.md`, `.claude/commands/phase-review.md`, `scripts/test/phase-runner-skill.test.mjs`
+**Depends on**: T7
+**Reuses**: the phrase checks of T4
+**Requirement**: CDL-06
+
+**Done when**:
+
+- [ ] The review step names `gh pr ready <pr>`, `gh pr merge <pr> --merge` and the open-items stop (test `the review step merges with --merge and waits for open items`)
+- [ ] Every existing test of `phase-runner-skill.test.mjs` passes unchanged
+- [ ] Gate passes
+
+**Tests**: unit
+**Gate**: `node --test scripts/test/phase-runner-skill.test.mjs`
+
+**Commit**: `docs(harness): the review step merges with --merge and waits for open items`
+
+---
+
 ## Checks
 
 **C1** - Kickoff pushes the phase branch and opens a draft phase PR (CDL-01)
@@ -251,6 +299,12 @@ Proof: `node --test --test-name-pattern "reads a merge on origin/main" scripts/t
 **C16** - Every scenario passes (CDL-04, CDL-07 to CDL-10, CDL-17)
 Proof: `pnpm exec turbo run test:acceptance -- --grep @CDL-`
 
+**C17** - A feature is integrated only on its closing commit; the block reason is named (CDL-04, CDL-08)
+Proof: `node --test --test-name-pattern "integrates only on the closing commit" --test-name-pattern "names why a feature is blocked" scripts/test/phase-state.test.mjs`
+
+**C18** - The review step merges with `--merge` and waits for open maintainer items (CDL-06)
+Proof: `node --test --test-name-pattern "the review step merges with --merge and waits for open items" scripts/test/phase-runner-skill.test.mjs`
+
 ---
 
 ## Handoff
@@ -261,6 +315,8 @@ The feature's live state, written as it happens - a compaction gives no warning.
 **Dispatched:** execute-batch-1 (T1 to T6) to `feature-worker` at the commit of this line, 2026-11-08
 **Walked:** none
 
+**Batch 1 (2026-11-08):** T1 `297dd82`, T2 `1c53e41`, T3 `91f1f91`, T4 `789e669`, T5 `9e3fb7d`, T6 `849ff36`. Proofs at `849ff36`: 19 pass. **Verifier (2026-11-08):** FAIL at `345935e`, three blocking findings (two surviving mutations of `phase-state`, one of the skill's review step) and one non-blocking (the phase reads `merge` with an open maintainer item and no dependent: AD-171, the review step does not merge while any is open). Replanned as T7 and T8. Dispatched: execute-batch-2 (T7, T8) to `feature-worker` at the commit of this note. To report in the phase review: ADR 024 still lists `awaiting-review` (an accepted ADR, the maintainer's to amend).
+
 ---
 
 ## Phase Execution Map
@@ -269,6 +325,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 Phase 1:  T1 → T2 → T3
 Phase 2:  T3 → T4 → T5
 Phase 3:  T5 → T6
+Phase 4:  T6 → T7 → T8
 ```
 
-Batches: `execute-batch-1` runs phases 1 to 3 (T1 to T6).
+Batches: `execute-batch-1` runs phases 1 to 3 (T1 to T6); `execute-batch-2` runs phase 4 (T7, T8), the Verifier's findings.

@@ -131,6 +131,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-168 | continuous-delivery | `phase-status` drops `awaiting-review`: review exists → `merge` → `closed` once merged into `main` | restore the step | |
 | AD-169 | continuous-delivery | Maintainer items are rows of `decisions.md → For the maintainer`; an open row blocks only its feature and is printed on its line | another evidence source | |
 | AD-170 | continuous-delivery | The phase PR merges only when `verify`, `integration`, `agent` and `secrets` passed on its head, whatever the applied ruleset requires | read the ruleset file | |
+| AD-171 | continuous-delivery | The phase PR does not merge while any maintainer item is open; the review lists them and stops | one sentence in the skill | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 

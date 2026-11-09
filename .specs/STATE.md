@@ -1407,6 +1407,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-08
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-171 (assumed)
+
+- **Decision**: the review step does not merge the phase PR while any maintainer item of the phase is open; it lists the open items in `review.md` and stops.
+- **Reason**: continuous-delivery, Verifier finding 4. With `review.md` written and a feature blocked only by an open maintainer item, `phase-status` reads `merge`; merging into `main` with an unanswered maintainer question would ship what the maintainer has not decided.
+- **Trade-off**: one open question holds the phase PR. Reversal: one sentence in the skill.
+- **Scope**: continuous-delivery
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
