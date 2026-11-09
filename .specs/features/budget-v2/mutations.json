@@ -101,7 +101,7 @@
     "file": ".claude/hooks/lib/budget-rules.mjs",
     "old": "!String(sid).startsWith('unknown-session')",
     "new": "String(sid) !== 'unknown-session'",
-    "proof": "node --test --test-name-pattern \"leaves at most two red stops uncounted per session\" .claude/hooks/test/budget-rules.test.mjs",
+    "proof": "node --test --test-name-pattern \"leaves at most two red stops uncounted per session\" --test-name-pattern \"a subagent of an unknown session counts its red stops\" .claude/hooks/test/budget-rules.test.mjs",
     "label": "a subagent of an unknown session (unknown-session#agent) is treated as a named session"
   },
   {
