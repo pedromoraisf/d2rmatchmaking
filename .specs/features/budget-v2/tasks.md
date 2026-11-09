@@ -586,10 +586,10 @@ T17 → T18 → T19 → T20 → T21 → T22 → T23
 
 **Done when**:
 
-- [ ] env, env, pass, env, env → `env-blocked`; four env failures with a reset after the second → `open`; `envCarried` survives a pass and is cleared by a reset (test `only a reset clears the machine-failure total`)
-- [ ] T18's pass case in `blocks at the fourth machine failure in total` expects `env-blocked`; every other existing test of `budget.test.mjs` and `attempt-cli.test.mjs` passes unchanged
-- [ ] Every scenario of `acceptance.feature` passes, the two `@BUD-30` ones included
-- [ ] Gate passes
+- [x] env, env, pass, env, env → `env-blocked`; four env failures with a reset after the second → `open`; `envCarried` survives a pass and is cleared by a reset (test `only a reset clears the machine-failure total`)
+- [x] T18's pass case in `blocks at the fourth machine failure in total` expects `env-blocked`; every other existing test of `budget.test.mjs` and `attempt-cli.test.mjs` passes unchanged
+- [ ] Every scenario of `acceptance.feature` passes, the two `@BUD-30` ones included (the gate ran the `@BUD-30` scenarios only, as its command states; the full `@BUD-` set is not run by this task)
+- [x] Gate passes
 
 **Tests**: unit and acceptance
 **Gate**: `node --test scripts/test/budget.test.mjs scripts/test/attempt-cli.test.mjs && pnpm exec turbo run test:acceptance -- --grep @BUD-30`

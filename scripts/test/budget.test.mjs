@@ -232,7 +232,7 @@ test('blocks at the fourth machine failure in total', () => {
   recordAttempt(c, T2, false, ENV);
   recordAttempt(c, T2, true);
   recordAttempt(c, T2, false, ENV);
-  assert.equal(recordAttempt(c, T2, false, ENV).status, 'open', 'env, env, pass, env, env');
+  assert.equal(recordAttempt(c, T2, false, ENV).status, 'env-blocked', 'env, env, pass, env, env');
 
   const d = emptyLedger();
   recordAttempt(d, T2, false, ENV);
@@ -240,6 +240,36 @@ test('blocks at the fourth machine failure in total', () => {
   reset(d, T2, { by: 'orchestrator', reason: 'Docker was started again' });
   recordAttempt(d, T2, false, ENV);
   assert.equal(recordAttempt(d, T2, false, ENV).status, 'open', 'env, env, reset, env, env');
+});
+
+test('only a reset clears the machine-failure total', () => {
+  // BUD-30, AD-172: a pass does not start the total again, and a merge keeps it through a later pass.
+  const counted = { note: 'expected 2, received 3' };
+  const passed = emptyLedger();
+  recordAttempt(passed, T2, false, ENV);
+  recordAttempt(passed, T2, false, ENV);
+  recordAttempt(passed, T2, true);
+  recordAttempt(passed, T2, false, ENV);
+  assert.equal(recordAttempt(passed, T2, false, ENV).status, 'env-blocked', 'env, env, pass, env, env');
+
+  const a = emptyLedger();
+  recordAttempt(a, T2, false, ENV);
+  recordAttempt(a, T2, false, ENV);
+  recordAttempt(a, T2, false, counted);
+  recordAttempt(a, T2, false, ENV);
+  const b = emptyLedger();
+  recordAttempt(b, T2, false, counted);
+  recordAttempt(b, T2, false, counted);
+  recordAttempt(b, T2, true);
+  const merged = mergeLedgers(a, b);
+  assert.equal(recordAttempt(merged, T2, true).status, 'passed');
+  assert.equal(
+    recordAttempt(merged, T2, false, ENV).status,
+    'env-blocked',
+    'three machine failures merged in, a pass, then one more: four in all',
+  );
+  reset(merged, T2, { by: 'orchestrator', reason: 'Docker was started again' });
+  assert.equal(recordAttempt(merged, T2, false, ENV).status, 'open', 'a reset clears the carried total too');
 });
 
 test('an env-blocked unit blocks its feature', () => {

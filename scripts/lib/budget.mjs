@@ -15,7 +15,7 @@ export const MAX_RETRIES = 2;
 export const MAX_ATTEMPTS = 1 + MAX_RETRIES;
 /** Environment failures in a row that block a unit as env-blocked (budget v2, BUD-04). */
 export const ENV_ATTEMPTS_TO_BLOCK = 3;
-/** Environment failures in all since the unit's last pass or reset that block it as env-blocked (BUD-30, AD-167). */
+/** Environment failures in all since the unit's last reset that block it as env-blocked (BUD-30, AD-167, AD-172). */
 export const ENV_TOTAL_TO_BLOCK = 4;
 /** Red stops of one agent session the machine may cause without counting (BUD-31, AD-167). */
 export const UNCOUNTED_RED_STOPS_PER_SESSION = 2;
@@ -101,19 +101,20 @@ function trailingEnvRun(attempts) {
   return n;
 }
 
-/** Environment failures since the unit's last pass (a reset starts the attempts list again). Counted failures do not end it. */
-function envTotalSincePass(attempts) {
-  let n = 0;
-  for (let i = attempts.length - 1; i >= 0 && !attempts[i].ok; i -= 1) if (attempts[i].kind === 'env') n += 1;
-  return n;
+/**
+ * Environment failures in a unit's attempts. A reset removes the unit, so the list starts again at a reset; a pass
+ * does not (BUD-30, AD-172), and neither do counted failures.
+ */
+function envTotalOfAttempts(attempts) {
+  return attempts.filter((a) => a.kind === 'env').length;
 }
 
 /**
- * The environment total of a unit: its own attempts since the last pass, plus the environment failures a merge carried
- * from another copy of the unit (`envCarried`, set by mergeLedgers and cleared by a pass).
+ * The environment total of a unit: its own attempts since the last reset, plus the environment failures a merge carried
+ * from another copy of the unit (`envCarried`, set by mergeLedgers and cleared only by a reset).
  */
 function envTotalOf(u) {
-  return envTotalSincePass(u.attempts) + (u.envCarried ?? 0);
+  return envTotalOfAttempts(u.attempts) + (u.envCarried ?? 0);
 }
 
 /** May this unit be attempted again? */
@@ -164,10 +165,8 @@ export function recordAttempt(
   if (fingerprint !== undefined) attempt.fingerprint = fingerprint === null ? null : String(fingerprint);
   u.attempts.push(attempt);
   const failures = countedFailuresOf(u);
-  if (ok) {
-    u.status = 'passed';
-    delete u.envCarried;
-  } else if (kind === 'env')
+  if (ok) u.status = 'passed';
+  else if (kind === 'env')
     u.status =
       trailingEnvRun(u.attempts) >= ENV_ATTEMPTS_TO_BLOCK || envTotalOf(u) >= ENV_TOTAL_TO_BLOCK
         ? 'env-blocked'
@@ -429,7 +428,7 @@ export function mergeLedgers(a, b) {
   }
   // The kept version may hold fewer environment failures than another copy: it carries the largest total (BUD-30).
   for (const [k, u] of Object.entries(out.units)) {
-    const carried = envMax.get(k) - envTotalSincePass(u.attempts);
+    const carried = envMax.get(k) - envTotalOfAttempts(u.attempts);
     if (carried > 0) u.envCarried = carried;
     else delete u.envCarried;
   }
