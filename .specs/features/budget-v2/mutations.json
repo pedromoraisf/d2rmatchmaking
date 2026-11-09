@@ -106,8 +106,8 @@
   },
   {
     "file": "scripts/lib/budget.mjs",
-    "old": "envTotalSincePass(u.attempts) >= ENV_TOTAL_TO_BLOCK",
-    "new": "envTotalSincePass(u.attempts) > ENV_TOTAL_TO_BLOCK",
+    "old": "envTotalOf(u) >= ENV_TOTAL_TO_BLOCK",
+    "new": "envTotalOf(u) > ENV_TOTAL_TO_BLOCK",
     "proof": "node --test --test-name-pattern \"blocks at the fourth machine failure in total\" scripts/test/budget.test.mjs",
     "label": "env-blocked needs a fifth machine failure in total instead of the fourth (BUD-30)"
   },
