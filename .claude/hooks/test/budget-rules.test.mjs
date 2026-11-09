@@ -577,6 +577,25 @@ test('a reset is judged through quotes, escapes, case and hidden code', () => {
     assert.equal(answer?.decision, 'ask', command);
     assert.equal(answer.reason, RESET_REASON, command);
   }
+  // T31: the program branch of rule (b) decides these alone, since no runner precedes the program.
+  for (const command of [
+    `./scripts/att*.mjs reset --unit ${key} --by maintainer`,
+    `./scripts/att?.mjs reset --unit ${key} --by maintainer`,
+    `./scripts/att[e].mjs reset --unit ${key} --by maintainer`,
+    './scripts/att`echo e`.mjs reset --unit gate:f/T1 --by maintainer',
+    `./scripts/att$x.mjs reset --unit ${key} --by maintainer`,
+    `FOO=1 ./scripts/att*.mjs reset --unit ${key} --by maintainer`,
+    `./scripts/att*.mjs $x --unit ${key} --by maintainer`,
+  ]) {
+    const answer = call('Bash', { command }, ctx);
+    assert.equal(answer?.decision, 'ask', command);
+    assert.equal(answer.reason, RESET_REASON, command);
+  }
+  assert.equal(
+    decisionFor(`./scripts/att*.mjs status --unit ${key}`),
+    null,
+    'a status call of a dynamic program',
+  );
 });
 
 test('a reset is judged when the word itself is hidden', () => {

@@ -859,10 +859,10 @@ Add these cases to `a reset is judged through quotes, escapes, case and hidden c
 
 **Done when**:
 
-- [ ] Every case above is in the T24 test and passes.
-- [ ] Before the gate, the implementer applies each of these 9 mutations of `mutations.json` to the source, one at a time: "a program name with $/*/?/backtick/[", "an expanded program asks even without the word reset", "environment assignments before the program are not skipped", "an expanding argument alone no longer makes rule (b) ask" and "the word reset alone no longer makes rule (b) ask". With each one applied, the implementer runs `node --test .claude/hooks/test/budget-rules.test.mjs`, checks that it fails, and restores the file with `git restore`. The implementer reports the 9 results.
-- [ ] Every existing test of `budget-rules.test.mjs` and `gate-rules.test.mjs` passes unchanged.
-- [ ] The gate passes.
+- [x] Every case above is in the T24 test and passes.
+- [x] Before the gate, the implementer applies each of these 9 mutations of `mutations.json` to the source, one at a time: "a program name with $/*/?/backtick/[", "an expanded program asks even without the word reset", "environment assignments before the program are not skipped", "an expanding argument alone no longer makes rule (b) ask" and "the word reset alone no longer makes rule (b) ask". With each one applied, the implementer runs `node --test .claude/hooks/test/budget-rules.test.mjs`, checks that it fails, and restores the file with `git restore`. The implementer reports the 9 results.
+- [x] Every existing test of `budget-rules.test.mjs` and `gate-rules.test.mjs` passes unchanged.
+- [x] The gate passes.
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs .claude/hooks/test/gate-rules.test.mjs`
