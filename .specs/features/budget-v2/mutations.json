@@ -192,7 +192,7 @@
     "file": ".claude/hooks/lib/budget-rules.mjs",
     "old": "attempt\\.mjs[\"']?\\s+(\\S+)/gi;",
     "new": "attempt\\.mjs[\"']?\\s+(\\S+)/g;",
-    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" --test-name-pattern \"a reset is judged when the word itself is hidden\" .claude/hooks/test/budget-rules.test.mjs",
     "label": "the wrapper name is matched case-sensitively (T24)"
   },
   {
@@ -234,7 +234,7 @@
     "file": ".claude/hooks/lib/budget-rules.mjs",
     "old": "args.includes('reset')",
     "new": "true",
-    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" --test-name-pattern \"a reset is judged when the word itself is hidden\" .claude/hooks/test/budget-rules.test.mjs",
     "label": "an expanded program asks even without the word reset (T24)"
   },
   {
@@ -262,42 +262,42 @@
     "file": ".claude/hooks/lib/gate-rules.mjs",
     "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
     "new": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/.test(text.replace(/['\"+\\\\\\s]/g, ''))",
-    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "proof": "node --test --test-name-pattern \"inline code naming the budget modules asks\" .claude/hooks/test/gate-rules.test.mjs",
     "label": "inline code naming the budget modules is matched case-sensitively (T24)"
   },
   {
     "file": ".claude/hooks/lib/gate-rules.mjs",
     "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
     "new": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"\\\\\\s]/g, ''))",
-    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "proof": "node --test --test-name-pattern \"inline code naming the budget modules asks\" .claude/hooks/test/gate-rules.test.mjs",
     "label": "inline code is not stripped of + before the module name is matched (T24)"
   },
   {
     "file": ".claude/hooks/lib/gate-rules.mjs",
     "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
     "new": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\]/g, ''))",
-    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "proof": "node --test --test-name-pattern \"inline code naming the budget modules asks\" .claude/hooks/test/gate-rules.test.mjs",
     "label": "inline code is not stripped of whitespace before the module name is matched (T24)"
   },
   {
     "file": ".claude/hooks/lib/gate-rules.mjs",
     "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
     "new": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\s]/g, ''))",
-    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "proof": "node --test --test-name-pattern \"inline code naming the budget modules asks\" .claude/hooks/test/gate-rules.test.mjs",
     "label": "inline code is not stripped of backslashes before the module name is matched (T24)"
   },
   {
     "file": ".claude/hooks/lib/gate-rules.mjs",
     "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
     "new": "/attempt\\.mjs|budget\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
-    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "proof": "node --test --test-name-pattern \"inline code naming the budget modules asks\" .claude/hooks/test/gate-rules.test.mjs",
     "label": "inline code naming ledger-store.mjs no longer asks (T24)"
   },
   {
     "file": ".claude/hooks/lib/gate-rules.mjs",
     "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
     "new": "/budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
-    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "proof": "node --test --test-name-pattern \"inline code naming the budget modules asks\" .claude/hooks/test/gate-rules.test.mjs",
     "label": "inline code naming attempt.mjs no longer asks (T24)"
   },
   {
@@ -365,13 +365,6 @@
   },
   {
     "file": ".claude/hooks/lib/guard.mjs",
-    "old": "if (!local || !remote || local === remote) return",
-    "new": "if (!local && !remote || local === remote) return",
-    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" --test-name-pattern \"exists only on the remote\" --test-name-pattern \"a covered branch not started touches nothing\" .claude/hooks/test/guard.test.mjs",
-    "label": "a covered branch on one side only is read as diverged (T25)"
-  },
-  {
-    "file": ".claude/hooks/lib/guard.mjs",
     "old": "`push or fetch ${c.branch} until",
     "new": "`push or fetch ${p.diverged.local} until",
     "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
@@ -395,7 +388,7 @@
     "file": ".claude/hooks/lib/budget-rules.mjs",
     "old": "m[1].toLowerCase() === 'reset'",
     "new": "m[1] === 'reset'",
-    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" --test-name-pattern \"a reset is judged when the word itself is hidden\" .claude/hooks/test/budget-rules.test.mjs",
     "label": "the reset word is matched case-sensitively (T26 a)"
   },
   {
@@ -409,14 +402,14 @@
     "file": ".claude/hooks/lib/budget-rules.mjs",
     "old": "const EXPANDED_ARG = /[$`{]/;",
     "new": "const EXPANDED_ARG = /[$`]/;",
-    "proof": "node --test --test-name-pattern \"a reset is judged when the word itself is hidden\" .claude/hooks/test/budget-rules.test.mjs",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" --test-name-pattern \"a reset is judged when the word itself is hidden\" .claude/hooks/test/budget-rules.test.mjs",
     "label": "a brace in an argument no longer counts as expanding (T26)"
   },
   {
     "file": ".claude/hooks/lib/budget-rules.mjs",
     "old": "if (INTERPRETER.test(head[0]) && operand !== undefined) programs.push(operand);",
     "new": "if (operand !== undefined) programs.push(operand);",
-    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" --test-name-pattern \"a reset is judged when the word itself is hidden\" .claude/hooks/test/budget-rules.test.mjs",
     "label": "the first operand is read as a program under any head, not only an interpreter (T26 b)"
   },
   {
