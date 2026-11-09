@@ -81,11 +81,11 @@ T5 → T6
 
 **Done when**:
 
-- [ ] An open item blocks its feature with the reason `maintainer`; a dependent is `waiting`; an independent feature keeps its state (test `an open maintainer item blocks only its feature`)
-- [ ] A filled Answer clears the item; an Answer of spaces does not (test `an answered maintainer item no longer blocks`)
-- [ ] Two items of one feature are both listed; an item for a feature not in the brief lands in `phaseItems` (test `lists open maintainer items by feature`)
-- [ ] No table, or `ev.decisions` null, changes nothing (test `no maintainer table changes nothing`)
-- [ ] Gate passes
+- [x] An open item blocks its feature with the reason `maintainer`; a dependent is `waiting`; an independent feature keeps its state (test `an open maintainer item blocks only its feature`)
+- [x] A filled Answer clears the item; an Answer of spaces does not (test `an answered maintainer item no longer blocks`)
+- [x] Two items of one feature are both listed; an item for a feature not in the brief lands in `phaseItems` (test `lists open maintainer items by feature`)
+- [x] No table, or `ev.decisions` null, changes nothing (test `no maintainer table changes nothing`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/phase-state.test.mjs`

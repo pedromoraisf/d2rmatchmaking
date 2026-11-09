@@ -52,6 +52,28 @@ export function briefFeatures(briefText) {
   return rows;
 }
 
+/**
+ * `## For the maintainer` table of decisions.md: | Feature | Item | Asked | Answer |. An item is open when its
+ * Answer cell is empty or holds only spaces (CDL-08 to CDL-10).
+ */
+export function maintainerItems(decisionsText) {
+  const section =
+    String(decisionsText ?? '')
+      .split(/^## /m)
+      .find((s) => /^For the maintainer\b/.test(s)) ?? '';
+  const items = [];
+  for (const line of section.split('\n')) {
+    if (!line.trim().startsWith('|')) continue;
+    const cells = line
+      .split('|')
+      .slice(1, -1)
+      .map((c) => c.trim());
+    if (cells.length < 2 || !cells[0] || /^:?-+:?$/.test(cells[0]) || /^feature$/i.test(cells[0])) continue;
+    items.push({ feature: cells[0], item: cells[1], open: (cells[3] ?? '') === '' });
+  }
+  return items;
+}
+
 /** Parse "Feature:", "Task:" and "Step:" trailers from commit bodies. */
 export function parseTrailers(body) {
   const t = {};
@@ -72,9 +94,11 @@ export function parseTrailers(body) {
  * @param {Array<{body: string}>} ev.commits        every commit (all branches)
  * @param {Array<{body: string}>} ev.phaseCommits   commits reachable from phase/<F>
  * @param {(feature: string) => boolean} ev.blocked   retry ledger says the feature is blocked
+ * @param {string|null} [ev.decisions]  decisions.md text (its "For the maintainer" table; absent or null → none)
  */
 export function derivePhaseState(ev) {
   const features = briefFeatures(ev.brief);
+  const openItems = maintainerItems(ev.decisions).filter((i) => i.open);
   const commitTrailers = ev.commits.map((c) => parseTrailers(c.body));
   const phaseTrailers = ev.phaseCommits.map((c) => parseTrailers(c.body));
   const tasksDone = (f) =>
@@ -107,6 +131,8 @@ export function derivePhaseState(ev) {
     else if (!merged(f)) next = 'integrate';
     else next = 'done';
 
+    const own = openItems.filter((i) => i.feature === f);
+    const reason = ev.blocked(f) ? 'retry-budget' : own.length > 0 ? 'maintainer' : null;
     states.set(f, {
       feature: f,
       size: row.size,
@@ -114,7 +140,9 @@ export function derivePhaseState(ev) {
       next,
       task: next === 'execute' ? (pending[0] ?? null) : null,
       tasks: { total: ids.length, done: ids.length - pending.length },
-      blocked: ev.blocked(f),
+      blocked: reason !== null,
+      reason,
+      items: own,
     });
   }
 
@@ -139,10 +167,13 @@ export function derivePhaseState(ev) {
   else phaseNext = 'closed';
 
   const ready = all.filter((s) => s.status === 'ready');
+  const briefed = new Set(features.map((r) => r.feature));
   return {
     phase: ev.phase,
     next: phaseNext,
     features: all,
+    // Open maintainer items of features that are not in the brief (CDL-09).
+    phaseItems: openItems.filter((i) => !briefed.has(i.feature)),
     // What may run now, in parallel (each in its own worktree): every ready feature.
     runnable: ready.map((s) => ({ feature: s.feature, step: s.next, task: s.task })),
     phaseBlocked:

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   derivePhaseState,
   briefFeatures,
+  maintainerItems,
   parseTrailers,
   renderRunnerState,
   writeRunnerState,
@@ -188,4 +189,73 @@ test('roadmap: every PRD requirement has exactly one primary phase; approved bri
   assert.ok(checkRoadmap(prd, roadmap, { F1: '**Approved**: 2026-12-01 - user: "ok"\nFR-01' }).length > 10);
   const dup = roadmap.replace(/(\|\s*F4\s*\|\s*NFR-05)/, '$1, FR-01');
   assert.ok(checkRoadmap(prd, dup, {}).some((e) => /FR-01 has more than one/.test(e)));
+});
+
+// CDL-08 to CDL-10 (continuous-delivery): the `## For the maintainer` table of decisions.md blocks only its feature.
+const BRIEF3 = BRIEF.replace(
+  '| web | Medium | core | yes | FR-29 | default |',
+  '| web | Medium | core | yes | FR-29 | default |\n| docs | Small | — | yes | FR-30 | default |',
+);
+const MAINTAINER = (rows) =>
+  `# Decisions\n\n## For the maintainer\n\n| Feature | Item | Asked | Answer |\n| --- | --- | --- | --- |\n${rows.join('\n')}\n`;
+
+test('an open maintainer item blocks only its feature', () => {
+  const decisions = MAINTAINER(['| core | Create the TURSO_TOKEN secret | 2026-11-08 |  |']);
+  const s = derivePhaseState(ev({}, [], [], { brief: BRIEF3, decisions }));
+  assert.equal(next(s, 'core').status, 'blocked');
+  assert.equal(next(s, 'core').reason, 'maintainer');
+  assert.equal(next(s, 'web').status, 'waiting', 'a dependent of the blocked feature waits');
+  assert.equal(next(s, 'docs').status, 'ready', 'an independent feature keeps its state');
+  assert.equal(next(s, 'docs').next, 'specify');
+});
+
+test('an answered maintainer item no longer blocks', () => {
+  const answered = MAINTAINER(['| core | Create the TURSO_TOKEN secret | 2026-11-08 | done |']);
+  assert.equal(
+    next(derivePhaseState(ev({}, [], [], { brief: BRIEF3, decisions: answered })), 'core').status,
+    'ready',
+  );
+  const spaces = MAINTAINER(['| core | Create the TURSO_TOKEN secret | 2026-11-08 |    |']);
+  assert.equal(
+    next(derivePhaseState(ev({}, [], [], { brief: BRIEF3, decisions: spaces })), 'core').status,
+    'blocked',
+  );
+});
+
+test('lists open maintainer items by feature', () => {
+  const decisions = MAINTAINER([
+    '| core | Create the TURSO_TOKEN secret | 2026-11-08 |  |',
+    '| core | Apply the main ruleset | 2026-11-08 |  |',
+    '| omega | Pay for a larger runner | 2026-11-08 |  |',
+    '| docs | Old question | 2026-11-01 | yes |',
+  ]);
+  assert.deepEqual(
+    maintainerItems(decisions).map((i) => [i.feature, i.item, i.open]),
+    [
+      ['core', 'Create the TURSO_TOKEN secret', true],
+      ['core', 'Apply the main ruleset', true],
+      ['omega', 'Pay for a larger runner', true],
+      ['docs', 'Old question', false],
+    ],
+  );
+  const s = derivePhaseState(ev({}, [], [], { brief: BRIEF3, decisions }));
+  assert.deepEqual(
+    next(s, 'core').items.map((i) => i.item),
+    ['Create the TURSO_TOKEN secret', 'Apply the main ruleset'],
+  );
+  assert.deepEqual(
+    s.phaseItems.map((i) => [i.feature, i.item]),
+    [['omega', 'Pay for a larger runner']],
+    'an item for a feature not in the brief lands on the phase',
+  );
+});
+
+test('no maintainer table changes nothing', () => {
+  const plain = derivePhaseState(ev({}, [], [], { brief: BRIEF3 }));
+  for (const decisions of [null, '# Decisions\n\nno table here\n', MAINTAINER([])]) {
+    const s = derivePhaseState(ev({}, [], [], { brief: BRIEF3, decisions }));
+    assert.deepEqual(s, plain);
+  }
+  assert.deepEqual(maintainerItems(null), []);
+  assert.ok(plain.features.every((f) => f.blocked === false));
 });
