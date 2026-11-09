@@ -783,6 +783,15 @@ Non-blocking, for the phase review:
 - N8: commits that sit only on an uncovered branch name are not seen. This is the limit of branch-based coverage.
 - N9: inline code that builds a ledger path by concatenation is a residual of the text gate that predates this feature.
 
+**Phase 7 done and blocked dispatch (2026-11-09):**
+
+- T24 `748d03c` and T25 `b202433` passed their gates on the first run. Proofs at `b202433`: 28 pass, 0 fail (`4f372b3`).
+- The worker flagged two things:
+  - T24's inline-code `ask` applies outside phase runs and without the word `reset`.
+  - The guard test file takes about 130 s.
+- **Blocked:** the round-5 Verifier dispatch was refused. `dispatch:budget-v2/verify-r2` has used its three dispatches (rounds 2 to 4).
+- The maintainer approved the reset of that unit at the gate's prompt (`--by pedromoraisf`). Dispatched: verify-r2 (round 5) to `verifier` at the commit of this note.
+
 **Batch 4 (2026-11-08):** T11 `2cc708b`, T12 `9f6c6fe`, T13 `3392cdf`, T14 `72d7cbd`, findings closed `e024dfc`; every gate passed on its first run. T13 follows BUD-09's scenario where the Done-when was loose (an environment failure in between does not clear a refusal of the latest counted state). T11 also asks for a first orchestrator reset chained after another wrapper call. **T15 added (2026-11-08):** the guard defect that stops `continuous-delivery` from starting, with the maintainer's approval. Dispatched: execute-batch-5 (T15) to `feature-worker` at the commit of this note.
 
 **Blocked — T18 plan defect (2026-11-08, gate not run):** T18's Done-when says every existing test of `budget.test.mjs` passes unchanged, but `a counted failure restarts the environment count` asserts `open` for the sequence env, env, counted, env, env (its message: "two environment failures since the counted one"). T18's own first bullet requires `env-blocked` for that same sequence under BUD-30. The new test `blocks at the fourth machine failure in total` fails red as written; with `ENV_TOTAL_TO_BLOCK = 4` the existing assertion fails (1 of 20 in `budget.test.mjs`; `attempt-cli.test.mjs` passes 27 of 27). T19 has the same kind of conflict: `red stop: lets the agent stop when the machine failed` expects four uncounted red stops of one session, which BUD-31 forbids on the third. No attempt was spent: the gate was not run, because it cannot pass as written. The worktree is at `79d63a9`, clean; the attempted change is saved as `t18-attempt.patch` in the implementer's scratchpad. Needs the orchestrator's replan: the two existing assertions must change (or the Done-when must say so), which the implementer may not do.
