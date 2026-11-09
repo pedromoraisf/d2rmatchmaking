@@ -255,6 +255,18 @@ test('leaves at most two red stops uncounted per session', () => {
   assert.equal(onStop(noId, 'unknown-session', text, machine).block, true, 'and so does the next one');
 });
 
+test('a subagent of an unknown session counts its red stops', () => {
+  // BUD-31 (Verifier round 3): a subagent of an input with no session id is a session of its own, not an unnamed one.
+  const machine = [{ status: 1, output: 'Cannot connect to the Docker daemon' }];
+  const text = '## typecheck\nCannot connect to the Docker daemon';
+  const ledger = emptyLedger();
+  assert.equal(
+    onStop(ledger, 'unknown-session#agent-1', text, machine).block,
+    true,
+    'the first red stop of a subagent of an input with no session id counts',
+  );
+});
+
 test('counts a red stop with a real failure', () => {
   const ledger = emptyLedger();
   const failing = [

@@ -566,8 +566,8 @@ T17 → T18 → T19 → T20 → T21 → T22
 
 **Done when**:
 
-- [ ] The first red stop of `unknown-session#agent-1` counts; mutating the check to `String(sid) !== 'unknown-session'` turns it red (test `a subagent of an unknown session counts its red stops`)
-- [ ] Gate passes
+- [x] The first red stop of `unknown-session#agent-1` counts; mutating the check to `String(sid) !== 'unknown-session'` turns it red (test `a subagent of an unknown session counts its red stops`)
+- [x] Gate passes
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs`
