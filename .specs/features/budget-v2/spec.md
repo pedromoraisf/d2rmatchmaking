@@ -64,6 +64,8 @@ changes what counts. Source: `.specs/phases/F0/brief-revision-6.md` § 3 (budget
 7. BUD-06: WHEN `attempt.mjs run` starts the command THEN it SHALL stop it after `--timeout <minutes>` (60 by default) and record the stop as an environment failure with the `timeout` signature
 8. BUD-27: IF `--timeout` is not a whole number of minutes, or is below 1 THEN `attempt.mjs run` SHALL refuse with exit 2 without running the command
 9. BUD-07: WHEN every failing check of the Stop hook matches a signature and shows no test-failure marker THEN it SHALL let the agent stop, SHALL NOT count the red stop, and SHALL say which signatures matched; IF any failing check does not THEN the red stop SHALL count as today
+10. BUD-30: IF a unit has four environment failures since its last pass or reset, in a row or not, THEN the wrapper SHALL mark it `env-blocked` as BUD-04 does, printing the same machine diagnosis when the fourth failure blocks it; a pass or a reset of the unit starts that total again (AD-167)
+11. BUD-31: IF two red stops of an agent session (the hook input's `session_id`, counted in the ledger by the Stop hook) have already been left uncounted under BUD-07 THEN every later red stop of that session SHALL count as an ordinary red stop, with today's stop rules (AD-155) unchanged (AD-167)
 
 **Independent Test**: run a command that prints `Cannot connect to the Docker daemon` and exits 1 through the wrapper, and read an unchanged failure count.
 
@@ -156,7 +158,8 @@ changes what counts. Source: `.specs/phases/F0/brief-revision-6.md` § 3 (budget
 
 ## Edge Cases
 
-- BUD-04 counts only consecutive environment failures: a counted failure or a pass in between starts the count again.
+- BUD-04 counts only consecutive environment failures: a counted failure or a pass in between starts the count again. BUD-30 still bounds the total: a fourth environment failure since the last pass or reset blocks the unit, whatever came between.
+- BUD-31 with no `session_id` in the hook input: the red stop counts as an ordinary one.
 - BUD-09 covers a rerun after a commit that changed nothing in the tree: the fingerprint is the tree, not the commit;
   and a counted failure, then an environment failure, then a rerun of the same tree: refused.
 - BUD-10 covers a rerun after Docker is started again with no file changed and no counted failure before.
@@ -199,19 +202,21 @@ changes what counts. Source: `.specs/phases/F0/brief-revision-6.md` § 3 (budget
 | BUD-27         | P1: Environment failures do not count       | Tasks | Pending |
 | BUD-28         | P1: Unchanged reruns are refused            | Tasks | Pending |
 | BUD-29         | P1: The orchestrator resets a unit once     | Tasks | Pending |
+| BUD-30         | P1: Environment failures do not count       | Tasks | Pending |
+| BUD-31         | P1: Environment failures do not count       | Tasks | Pending |
 
 **ID format:** `[CATEGORY]-[NUMBER]`
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
 
-**Coverage:** 29 total, 29 mapped to tasks, 0 unmapped
+**Coverage:** 31 total, 31 mapped to tasks, 0 unmapped
 
 ---
 
 ## Sources
 
 - `.specs/phases/F0/brief-revision-6.md` § 1 and § 3 (budget-v2) - the scope, approved by the maintainer ("Aprovo a revisão do ADR 028.")
-- ADR 028 § 4 - what counts, the orchestrator's one reset, `MAX_RETRIES` unchanged (BUD-01 to BUD-16, BUD-21, BUD-26 to BUD-29)
+- ADR 028 § 4 - what counts, the orchestrator's one reset, `MAX_RETRIES` unchanged (BUD-01 to BUD-16, BUD-21, BUD-26 to BUD-31; BUD-30 and BUD-31 extend ADR 028 § 4 after the security review of the diff, 2026-11-08: the three-in-a-row rule stands)
 - ADR 022 - the retry budget and its units (BUD-01 to BUD-21)
 - AD-140 in `.specs/STATE.md` - the maintainer's choice of one orchestrator reset per unit (BUD-12 to BUD-15)
 - ADR 019 - the gate hook (BUD-15, BUD-18 to BUD-20)

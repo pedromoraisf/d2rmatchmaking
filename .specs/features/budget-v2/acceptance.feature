@@ -11,6 +11,7 @@ Feature: The retry budget counts what the agent controls
   # not-scenario: BUD-21 — a constant; proved by a unit test that reads `MAX_RETRIES`
   # not-scenario: BUD-24 — proved by the gate `pnpm test:harness` on the feature's head
   # not-scenario: BUD-25 — proved by the gate `pnpm contracts:check` on the feature's head
+  # not-scenario: BUD-31 — a count over a session's red stops; proved by the unit test of the Stop hook's budget rule
 
   Background:
     Given a temporary repository with an approved phase brief and the feature "demo"
@@ -61,6 +62,13 @@ Feature: The retry budget counts what the agent controls
     And the agent changes a file and runs a gate for "demo" step "T1" that prints "expected 2, received 3" and exits 1
     And the agent runs a gate for "demo" step "T1" that fails with "Cannot connect to the Docker daemon" once
     Then the unit is "open"
+
+  @BUD-30 @NFR-11
+  Scenario: Four machine failures in all block the unit, even with a counted failure between them
+    When the agent runs a gate for "demo" step "T1" that fails with "Cannot connect to the Docker daemon" twice
+    And the agent changes a file and runs a gate for "demo" step "T1" that prints "expected 2, received 3" and exits 1
+    And the agent runs a gate for "demo" step "T1" that fails with "Cannot connect to the Docker daemon" twice
+    Then the unit is "env-blocked"
 
   @BUD-06 @NFR-11
   Scenario: A gate that runs past its timeout is stopped and not counted

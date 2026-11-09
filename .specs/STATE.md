@@ -1371,6 +1371,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-08
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-167 (assumed)
+
+- **Decision**: the environment signatures stay as they are; a unit is `env-blocked` at its fourth environment failure since its last pass or reset, in a row or not (BUD-30), next to the three-in-a-row rule; an agent session leaves at most two red stops uncounted as machine-caused (BUD-31).
+- **Reason**: budget-v2, security review of the diff (2026-11-08): the agent writes the gate command and the code its checks run, so `exit 137`, `exit 127` or an echoed signature makes its own failure look environmental. The maintainer chose option (b), "vai de B" (2026-11-08): keep ADR 028's three-in-a-row rule and close the hole without changing it. The runner kept the signatures (making `killed` SIGKILL-only would edit an approved scenario's example) and bounds forging with the two totals instead.
+- **Trade-off**: forging a machine failure gains at most three free runs over a unit's life, and the fourth blocks it; a machine that fails four times across a unit's life blocks it too. Reversal: raise the totals.
+- **Scope**: budget-v2
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

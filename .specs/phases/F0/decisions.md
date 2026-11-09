@@ -127,6 +127,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-154 | budget-v2 | The wrapper stops a gate after `--timeout` (60 min default) and records an environment failure | one default | |
 | AD-155 | budget-v2 | A red stop caused by the machine lets the agent stop, uncounted | count it again | |
 | AD-156 | budget-v2 | A signature with a test-failure marker in the same output counts as an ordinary failure | drop the marker rule | |
+| AD-167 | budget-v2 | Maintainer chose option (b): the three-in-a-row rule stands; a fourth environment failure in total blocks a unit; at most two uncounted red stops per session; signatures unchanged | raise the totals | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 
