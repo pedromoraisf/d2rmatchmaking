@@ -1,8 +1,8 @@
 # budget-v2 proofs
 
-**HEAD**: c18ca59
+**HEAD**: 4475b0f
 **Tree**: clean
-**Result**: 25 pass, 0 fail; mutations 21 killed, 0 not
+**Result**: 26 pass, 0 fail; mutations 24 killed, 0 not
 
 | Check | Proof                                                                                                            | Ran           | Passed | Result |
 | ----- | ---------------------------------------------------------------------------------------------------------------- | ------------- | ------ | ------ |
@@ -15,7 +15,7 @@
 | C7    | `node --test .claude/hooks/test/budget-rules.test.mjs`                                                           | count unknown | -      | pass   |
 | C8    | `node --test --test-name-pattern "red stop" .claude/hooks/test/budget-rules.test.mjs`                            | count unknown | -      | pass   |
 | C9    | `node --test scripts/test/retry-budget-docs.test.mjs`                                                            | count unknown | -      | pass   |
-| C10   | `pnpm exec turbo run test:acceptance -- --grep @BUD-`                                                            | 56            | -      | pass   |
+| C10   | `pnpm exec turbo run test:acceptance -- --grep @BUD-`                                                            | 57            | -      | pass   |
 | C11   | `pnpm test:harness`                                                                                              | 1             | -      | pass   |
 | C12   | `pnpm contracts:check`                                                                                           | count unknown | -      | pass   |
 | C13   | `node --test --test-name-pattern "isUnchangedRerun" scripts/test/budget.test.mjs`                                | count unknown | -      | pass   |
@@ -28,6 +28,7 @@
 | C20   | `node --test --test-name-pattern "at most two red stops uncounted per session" .claude/hooks/test/budget-rules.` | count unknown | -      | pass   |
 | C21   | `node --test --test-name-pattern "a merge keeps the uncounted stops" --test-name-pattern "a merge keeps the lar` | count unknown | -      | pass   |
 | C22   | `node --test --test-name-pattern "a subagent of an unknown session counts its red stops" .claude/hooks/test/bud` | count unknown | -      | pass   |
+| C23   | `node --test --test-name-pattern "only a reset clears the machine-failure total" scripts/test/budget.test.mjs`   | count unknown | -      | pass   |
 | Build | `pnpm lint`                                                                                                      | -             | -      | pass   |
 | Build | `pnpm typecheck`                                                                                                 | -             | -      | pass   |
 | Build | `pnpm test:harness`                                                                                              | -             | -      | pass   |
@@ -36,8 +37,8 @@
 
 | Mutation                                                                                                                                           | Location                                 | Killed |
 | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ------ |
-| unchanged rerun ignores the command                                                                                                                | `scripts/lib/budget.mjs:197`             | yes    |
-| env-blocked needs four instead of three                                                                                                            | `scripts/lib/budget.mjs:172`             | yes    |
+| unchanged rerun ignores the command                                                                                                                | `scripts/lib/budget.mjs:196`             | yes    |
+| env-blocked needs four instead of three                                                                                                            | `scripts/lib/budget.mjs:171`             | yes    |
 | a test-failure marker no longer wins over a signature                                                                                              | `scripts/lib/env-signatures.mjs:63`      | yes    |
 | gate allows a second orchestrator reset                                                                                                            | `.claude/hooks/lib/budget-rules.mjs:91`  | yes    |
 | red stop uncounted when only some failures are the machine                                                                                         | `.claude/hooks/lib/budget-rules.mjs:351` | yes    |
@@ -51,9 +52,12 @@
 | a third red stop of a session is still left uncounted (BUD-31 cap one too high)                                                                    | `.claude/hooks/lib/budget-rules.mjs:354` | yes    |
 | a red stop with no session id is left uncounted (BUD-31)                                                                                           | `.claude/hooks/lib/budget-rules.mjs:353` | yes    |
 | a subagent of an unknown session (unknown-session#agent) is treated as a named session                                                             | `.claude/hooks/lib/budget-rules.mjs:349` | yes    |
-| env-blocked needs a fifth machine failure in total instead of the fourth (BUD-30)                                                                  | `scripts/lib/budget.mjs:172`             | yes    |
+| env-blocked needs a fifth machine failure in total instead of the fourth (BUD-30)                                                                  | `scripts/lib/budget.mjs:171`             | yes    |
 | ENV_TOTAL_TO_BLOCK is five                                                                                                                         | `scripts/lib/budget.mjs:19`              | yes    |
-| the environment total survives a pass                                                                                                              | `scripts/lib/budget.mjs:107`             | yes    |
-| the environment total counts counted failures too                                                                                                  | `scripts/lib/budget.mjs:107`             | yes    |
-| the uncounted red stops are pooled across sessions instead of per session                                                                          | `scripts/lib/budget.mjs:214`             | yes    |
-| mergeLedgers drops the uncounted red stops (a merge resets a session's cap)                                                                        | `scripts/lib/budget.mjs:409`             | yes    |
+| a pass clears the machine-failure total (BUD-30, AD-172)                                                                                           | `scripts/lib/budget.mjs:109`             | yes    |
+| the environment total counts counted failures too                                                                                                  | `scripts/lib/budget.mjs:109`             | yes    |
+| the uncounted red stops are pooled across sessions instead of per session                                                                          | `scripts/lib/budget.mjs:213`             | yes    |
+| mergeLedgers drops the uncounted red stops (a merge resets a session's cap)                                                                        | `scripts/lib/budget.mjs:408`             | yes    |
+| a pass clears the total a merge carried in (AD-172)                                                                                                | `scripts/lib/budget.mjs:168`             | yes    |
+| a merge drops the total carried from the other copy (BUD-30)                                                                                       | `scripts/lib/budget.mjs:431`             | yes    |
+| the total ignores the carried environment failures                                                                                                 | `scripts/lib/budget.mjs:117`             | yes    |
