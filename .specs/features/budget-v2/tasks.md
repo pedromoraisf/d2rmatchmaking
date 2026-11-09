@@ -784,10 +784,63 @@ Add these cases, tests only:
 
 ---
 
+### T30: A reset word or script path that the shell builds always asks
+
+**What**: Round 6 (finding 1, blocking) found more spellings that reset with no decision:
+
+- A glob as the wrapper's first word: `touch reset && node scripts/attempt.mjs r?set --unit gate:f/T1 --by maintainer`, and the same with `res[e]t` or `r*`.
+- A dynamic script path behind a runner or an interpreter option: `pnpm node scripts/att*.mjs reset …`, `npx node scripts/att*.mjs reset …`, `node -r x scripts/att*.mjs reset …`.
+
+Rounds 5 and 6 each found a new spelling. This task therefore closes the whole class: any word or path that the shell builds now counts.
+
+In `.claude/hooks/lib/budget-rules.mjs`:
+(a) The first word after the wrapper's file name, read as in T26, is a possible reset when it is `reset`, or when it holds any character the shell expands or globs: `$`, a backtick, `{`, `*`, `?`, `[`, `~`, `<`, `>`, `(`. One character set serves both the word and the arguments (`EXPANDED_ARG`), so T26's argument clause now also covers globs.
+(b) A segment, or a command it hides, is judged as a reset when all three hold:
+
+- one of its tokens is a dynamic script path: it holds an expanding or globbing character and contains `/` or ends in `.mjs`, `.js`, `.cjs` or `.ts` (case-insensitive);
+- a word before that token is an interpreter or runner: `node`, `python[\d.]*`, `bun`, `tsx`, `deno`, `sh`, `bash`, `zsh`, `pnpm`, `pnpx`, `npx`, `bunx`, `npm`, `yarn`, `env`, `exec`, `time`, `nohup` or `command`;
+- another argument is `reset`, or holds an expanding or globbing character.
+  This replaces T26's interpreter-head rule. A program that is itself dynamic (`./scripts/att*.mjs reset`) stays judged as before.
+
+These keep no decision:
+
+- `ls scripts/*.mjs reset` (no interpreter);
+- `node --test scripts/test/*.test.mjs` (no other dynamic argument and no `reset`);
+- `git add scripts/attempt.mjs scripts/lib/budget.mjs`;
+- `node scripts/attempt.mjs status`, `report`, and a gate run;
+- `echo $HOME`.
+  `… | grep $(rm -rf apps)` after the wrapper stays a deny.
+
+Round 6 finding 3 is not changed here. It is the residual class N10, recorded below: inline code that reaches `import`/`require` through a comment or an alias.
+**Where**: `.claude/hooks/lib/budget-rules.mjs` (modify), `.claude/hooks/test/budget-rules.test.mjs` (new test)
+**Depends on**: T29
+**Reuses**: `EXPANDED_ARG`, `wrapperMayReset`, `mayReset`, `BARE`, `innerShellCommands`, `RESET_REASON`
+**Requirement**: BUD-14, BUD-15
+
+**Done when**:
+
+- [ ] A test named `a reset word or script path the shell builds always asks` asks, with `RESET_REASON`, for each of:
+  - `node scripts/attempt.mjs r?set --unit gate:f/T1 --by maintainer`, and the same with `res[e]t`, `r*` and `~reset`;
+  - `pnpm node scripts/att*.mjs reset --unit k --by maintainer`;
+  - `npx node scripts/att*.mjs reset --unit k --by maintainer`;
+  - `node -r x scripts/att*.mjs reset --unit k --by maintainer`;
+  - `node -r x scripts/att*.mjs r?set --unit k --by maintainer`;
+  - `bash -c 'pnpm node scripts/att*.mjs reset --unit k --by maintainer'`.
+- [ ] The same test gets no decision for every line in the no-decision list above.
+- [ ] Every existing test of `budget-rules.test.mjs` and `gate-rules.test.mjs` passes unchanged. That includes `denies anything else after the wrapper` and the T24 and T26 tests.
+- [ ] The gate passes.
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs .claude/hooks/test/gate-rules.test.mjs`
+
+**Commit**: `fix(harness): ask for any reset word or script path the shell builds`
+
+---
+
 ### Phase 7: The third review of the diff
 
 ```
-T23 → T24 → T25 → T26 → T27 → T28 → T29
+T23 → T24 → T25 → T26 → T27 → T28 → T29 → T30
 ```
 
 ---
@@ -949,6 +1002,15 @@ Non-blocking, for the phase review:
 - Next: T28, the maintainer's reset of `gate:budget-v2/proofs`, the proofs with mutations, then a Verifier round that writes round 6.
 - T28 `4cb0b6a` (68 of 68). The maintainer reset `gate:budget-v2/proofs`. Proofs at `4cb0b6a`: 29 pass, mutations 61 killed, 4 not. That is failure 1 of 3. The 4 survivors are masked by another rule, so T29 adds the cases that tell them apart.
 
+**Round 6 written (2026-11-09):**
+
+- T29 `7d49583`. Proofs at `7d49583`: 29 pass, 65 of 65 mutations killed (passed on attempt 2).
+- Verifier round 6: FAIL (`9ba39fe`). Round 5 is closed and the orchestrator's triage held, including the equivalent mutation. `validate_verification.py` passed.
+- Finding 1 (blocking): a glob as the wrapper's first word, or a dynamic script path behind `pnpm`, `npx` or `node -r x`, resets with no decision. Replanned as T30, which closes the whole class: every word or path the shell builds counts, not a list of spellings.
+- Finding 2 is folded into T30.
+- Finding 3, accepted as residual N10 for the phase review: inline code that reaches `import`/`require` through a comment or an alias, the same class as N9. A text gate cannot follow every JavaScript spelling.
+- Next: T30, mutations for it, the proofs, a Verifier round 7 (needs the maintainer's reset of `dispatch:budget-v2/verify-r2`), integration and the fourth `review-diff`.
+
 **Batch 4 (2026-11-08):** T11 `2cc708b`, T12 `9f6c6fe`, T13 `3392cdf`, T14 `72d7cbd`, findings closed `e024dfc`; every gate passed on its first run. T13 follows BUD-09's scenario where the Done-when was loose (an environment failure in between does not clear a refusal of the latest counted state). T11 also asks for a first orchestrator reset chained after another wrapper call. **T15 added (2026-11-08):** the guard defect that stops `continuous-delivery` from starting, with the maintainer's approval. Dispatched: execute-batch-5 (T15) to `feature-worker` at the commit of this note.
 
 **Blocked — T18 plan defect (2026-11-08, gate not run):** T18's Done-when says every existing test of `budget.test.mjs` passes unchanged, but `a counted failure restarts the environment count` asserts `open` for the sequence env, env, counted, env, env (its message: "two environment failures since the counted one"). T18's own first bullet requires `env-blocked` for that same sequence under BUD-30. The new test `blocks at the fourth machine failure in total` fails red as written; with `ENV_TOTAL_TO_BLOCK = 4` the existing assertion fails (1 of 20 in `budget.test.mjs`; `attempt-cli.test.mjs` passes 27 of 27). T19 has the same kind of conflict: `red stop: lets the agent stop when the machine failed` expects four uncounted red stops of one session, which BUD-31 forbids on the third. No attempt was spent: the gate was not run, because it cannot pass as written. The worktree is at `79d63a9`, clean; the attempted change is saved as `t18-attempt.patch` in the implementer's scratchpad. Needs the orchestrator's replan: the two existing assertions must change (or the Done-when must say so), which the implementer may not do.
@@ -964,7 +1026,7 @@ Phase 3:  T6 → T7 → T8
 Phase 4:  T8 → T9 → T10
 Phase 5:  T10 → T11 → T12 → T13 → T14 → T15 → T16 → T17
 Phase 6:  T17 → T18 → T19 → T20 → T21 → T22 → T23
-Phase 7:  T23 → T24 → T25 → T26 → T27 → T28 → T29
+Phase 7:  T23 → T24 → T25 → T26 → T27 → T28 → T29 → T30
 ```
 
 Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T6); `execute-batch-2` runs phases 3 and 4 (T7 to T10); `execute-batch-4` runs phase 5 (T11 to T14), the Verifier's findings; `execute-batch-5` runs T15; `execute-batch-6` runs T16 and T17, the round-2 findings; `execute-batch-7` runs phase 6 (T18 to T20), after the security review of the diff; `execute-batch-8` runs T21 and T22, the round-3 findings; `execute-batch-9` runs T23, the second review of the diff; `execute-batch-5` runs phase 7 (T24, T25), the third review of the diff. The model policy names only `execute-batch-1` to `-9`, all used. `execute-batch-5` is reused for phase 7: T24 and T25, then T26 and T27, the round-5 findings. A dispatch unit counts every dispatch, not only failures, so that is its third and last dispatch.
