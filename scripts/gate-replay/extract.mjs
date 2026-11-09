@@ -32,8 +32,8 @@ const URL = /\b[a-z][a-z0-9+.-]*:\/\/[^\s'"`<>)\];|&]*/gi;
 const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
 const SCRATCHPAD = /(?:\/private)?\/tmp\/claude-\d+(?:\/[^\s'"/]+)*\/scratchpad(?=\/|[\s'"]|$)/g;
 const HOME = /\/(?:Users|home)\/[^/\s'"]+/g;
-// A run of 20 or more hex or base64 characters that holds a digit (a hash, a token, an id).
-const LONG_RUN = /[0-9A-Za-z+/=_-]{20,}/g;
+// A run of 20 or more hex or base64 characters (the standard alphabet) that holds a digit (a hash, a token, an id).
+const LONG_RUN = /[0-9A-Za-z+/]{20,}={0,2}/g;
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
@@ -59,11 +59,14 @@ export function normalise(text, env = {}) {
 // The whole redirection tokens that the parser takes out; they are re-added at the end (the gate takes them out too).
 const WHOLE_TOKEN = /(^|\s)(2>&1|>\/dev\/null|2>\/dev\/null|&>\/dev\/null)(?=\s|$)/g;
 
-// A word that names a checkout path or a command: the path rule (relative, no `..`, no link, no URL).
+// A word that names a checkout path or a command: the path rule (relative, no `..`, no link, no URL). The scratchpad
+// keeps its placeholder and the file name below it, so a script there is still judged as outside the checkout.
 function pathWord(text) {
-  if (text.includes('://') || text.includes('<') || text.startsWith('~') || text.startsWith('/'))
-    return VALUE;
+  if (text.includes('://') || text.startsWith('~') || text.startsWith('/')) return VALUE;
   if (text.split('/').includes('..')) return VALUE;
+  if (text.startsWith('<scratchpad>/')) {
+    return plainSafe(text.slice('<scratchpad>/'.length)) ? text : VALUE;
+  }
   let rel = text;
   if (rel.startsWith('<repo>/')) rel = rel.slice('<repo>/'.length);
   else if (rel === '<repo>') rel = '.';
@@ -135,12 +138,98 @@ const SUBCOMMANDS = new Set([
   'mutation',
   'quality',
   'harness',
+  // Command names and shell keywords that a command runs (`command sleep 15`, `for …; do …; done`): names, not values.
+  'sleep',
+  'watch',
+  'command',
+  'env',
+  'timeout',
+  'xargs',
+  'nohup',
+  'exec',
+  'time',
+  'for',
+  'do',
+  'done',
+  'case',
+  'esac',
+  'if',
+  'then',
+  'else',
+  'fi',
+  'while',
+  'until',
+  'break',
+  'continue',
+  'kill',
+  'pkill',
+  'ps',
+  'uptime',
+  'sysctl',
+  'docker',
+  'cargo',
+  'npx',
+  'pnpm',
+  'npm',
+  'python3',
+  'python',
+  'perl',
+  'bash',
+  'sh',
+  'node',
+  'gh',
+  'git',
+  'rm',
+  'mkdir',
+  'cp',
+  'mv',
+  'touch',
+  'chmod',
+  'ln',
+  'tee',
+  'awk',
+  'curl',
+  'wget',
+  'test',
+  'true',
+  'false',
+  'cut',
+  'sort',
+  'uniq',
+  'tr',
+  'head',
+  'tail',
+  'wc',
+  'ls',
+  'cat',
+  'rg',
+  'grep',
+  'sed',
+  'find',
+  'diff',
+  'jq',
+  'echo',
+  'printf',
+  'which',
+  'date',
+  'pwd',
+  'stat',
+  'file',
+  'tree',
+  'du',
+  'df',
+  'cd',
+  'mktemp',
+  'install',
+  'truncate',
 ]);
 
 /** One word of a re-emitted command. `isCommand` is true for the command word of a segment. */
 function emitWord(word, isCommand, env) {
   if (word.quoted !== 'none' || word.expands) return VALUE;
-  const text = word.text;
+  const text = normalise(word.text, env);
+  // A checkout or scratchpad path keeps its placeholder prefix to the path rule; any other `<` is a value.
+  if (/^<(repo|scratchpad)>(\/|$)/.test(text)) return pathWord(text);
   if (text.includes('<')) return VALUE;
   if (/^\d+$/.test(text)) return text; // a number names no value; the table judges it as a number
   if (text.startsWith('-')) {
@@ -154,41 +243,53 @@ function emitWord(word, isCommand, env) {
   return VALUE;
 }
 
+const HEREDOC_START = /<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/;
+
 /**
- * A Bash command re-emitted word by word from parseLine (GPR-23, GPR-24). Command words, options, checkout paths,
- * revisions and file names survive; every other word, quoted string, option value, URL and here-document body becomes
- * `<v>`. Numbers survive. The four whole redirection tokens are re-added at the end. Returns null for a line that
- * cannot be read or that spans lines without a here-document.
+ * Takes the body of every here-document out of a command (the lines after its start, through the delimiter line).
+ * Returns the remaining text and how many bodies were taken out; the body is then one `<v>` in the re-emitted line.
+ */
+export function stripHeredocs(text) {
+  const out = [];
+  let delim = null;
+  let heredocs = 0;
+  for (const line of text.split('\n')) {
+    if (delim !== null) {
+      if (line.trim() === delim) delim = null;
+      continue;
+    }
+    out.push(line);
+    const start = HEREDOC_START.exec(line);
+    if (start) {
+      delim = start[2];
+      heredocs++;
+    }
+  }
+  return { text: out.join('\n'), heredocs };
+}
+
+/**
+ * A Bash command re-emitted word by word from parseLine (GPR-23, GPR-24). The raw command is parsed, then each word is
+ * normalised. Command words, options, checkout paths, revisions and file names survive; every other word, quoted
+ * string, option value, URL and here-document body becomes `<v>`. Numbers survive. The four whole redirection tokens
+ * are re-added at the end; a newline between commands becomes `;`. Returns null for a command that cannot be read.
  * `env.exists(name)` tells whether a plain word names an entry of the checkout.
  */
 export function reemitBash(command, env = {}) {
-  const lines = String(command ?? '').split('\n');
-  const head = lines[0];
-  const parsed = parseLine(head);
+  const { text, heredocs } = stripHeredocs(String(command ?? ''));
+  const parsed = parseLine(text);
   if (parsed.unsafe.includes('unparsed')) return null;
-  const heredoc = parsed.segments.some((seg) =>
-    seg.redirections.some((r) => r.op === '<<' || r.op === '<<<'),
-  );
-  if (lines.length > 1 && !heredoc) return null;
   const parts = [];
   parsed.segments.forEach((seg, i) => {
     seg.words.forEach((w, k) => parts.push(emitWord(w, k === 0, env)));
     for (const r of seg.redirections) {
       parts.push(`${r.fd ?? ''}${r.op}`);
-      parts.push(
-        r.target.includes('/')
-          ? pathWord(r.target)
-          : emitWord(
-              { text: r.target, quoted: 'none', expands: false, safe: SAFE_CHARS.test(r.target) },
-              false,
-              env,
-            ),
-      );
+      parts.push(emitWord({ text: r.target, quoted: 'none', expands: false, safe: true }, false, env));
     }
-    if (i < parsed.operators.length) parts.push(parsed.operators[i]);
+    if (i < parsed.operators.length) parts.push(parsed.operators[i] === '\n' ? ';' : parsed.operators[i]);
   });
-  for (const m of head.matchAll(WHOLE_TOKEN)) parts.push(m[2]);
-  if (heredoc) parts.push(VALUE);
+  for (const m of text.matchAll(WHOLE_TOKEN)) parts.push(m[2]);
+  if (heredocs > 0) parts.push(VALUE);
   return parts.join(' ');
 }
 
@@ -208,15 +309,23 @@ const cleanPath = (text) => {
 
 const SENTENCE_EDGE = /^[.,;:!?()"']+|[.,;:!?()"']+$/g;
 
-/** A gate reason as a list of safe words (edge punctuation dropped), or undefined when a word stays outside the grammar. */
+// The gate's own denial counter (`[denial 1/3: …]`) is not part of the reason.
+const DENIAL_SUFFIX = /\[denial[^\]]*\]/g;
+// The placeholders a normalised reason may hold besides the safe words.
+const REASON_PLACEHOLDERS = new Set([VALUE, '<repo>', '<scratchpad>']);
+
+/**
+ * A gate reason as a list of safe words (edge punctuation dropped, punctuation-only tokens dropped), or undefined when
+ * a word stays outside the grammar (GPR-24): the reason is then left out of the entry, the call is kept.
+ */
 export function cleanReason(text, env = {}) {
   if (!text) return undefined;
-  const words = normalise(text, env)
+  const words = normalise(String(text).replace(DENIAL_SUFFIX, ' '), env)
     .split(/\s+/)
     .map((w) => w.replace(SENTENCE_EDGE, ''))
-    .filter((w) => w.length > 0);
+    .filter((w) => /[A-Za-z0-9]/.test(w) || REASON_PLACEHOLDERS.has(w));
   if (words.length === 0) return undefined;
-  if (!words.every((w) => /^[A-Za-z0-9_./:@%+=,-]+$/.test(w) || w === VALUE)) return undefined;
+  if (!words.every((w) => REASON_PLACEHOLDERS.has(w) || /^[A-Za-z0-9_./:@%+=,-]+$/.test(w))) return undefined;
   return words.join(' ');
 }
 
@@ -256,15 +365,17 @@ export function entryOf(call, result, env = {}) {
   const verdict = classifyResult(result);
   if (!verdict) return { drop: 'no-verdict' };
   const reason = verdict.reason ? cleanReason(verdict.reason, env) : undefined;
+  // The category reads the whole reason (the wrapper's text holds `<T#|…>`, which the fixture never keeps).
+  const loose = verdict.reason ? normalise(verdict.reason.replace(DENIAL_SUFFIX, ' '), env) : undefined;
   const f0 = { decision: verdict.decision };
   if (reason) f0.reason = reason;
   const input = call.input ?? {};
   const pattern = reason ? reason.split(' ').slice(0, 8).join(' ') : undefined;
   switch (call.name) {
     case 'Bash': {
-      const command = reemitBash(normalise(input.command ?? '', env), env);
+      const command = reemitBash(input.command ?? '', env);
       if (command === null) return { drop: 'unparsed' };
-      return { entry: { tool: 'Bash', input: { command }, f0 } };
+      return { entry: { tool: 'Bash', input: { command }, f0 }, loose };
     }
     case 'Edit':
     case 'Write':
@@ -277,7 +388,7 @@ export function entryOf(call, result, env = {}) {
         size: call.name === 'Read' ? '<1k' : sizeBucket(String(content).length),
       };
       if (pattern) toolInput.pattern = pattern;
-      return { entry: { tool: call.name, input: toolInput, f0 } };
+      return { entry: { tool: call.name, input: toolInput, f0 }, loose };
     }
     case 'Agent': {
       const toolInput = { size: sizeBucket(String(input.prompt ?? '').length) };
@@ -286,7 +397,7 @@ export function entryOf(call, result, env = {}) {
         toolInput.subagent_type = input.subagent_type;
       }
       if (pattern) toolInput.pattern = pattern;
-      return { entry: { tool: 'Agent', input: toolInput, f0 } };
+      return { entry: { tool: 'Agent', input: toolInput, f0 }, loose };
     }
     default:
       return { drop: 'tool' };
@@ -297,7 +408,6 @@ export function entryOf(call, result, env = {}) {
 
 const SECRET_WORD =
   /(^|\/)\.env($|\.(?!example$)[^/\s]*$)|\.npmrc\b|\.netrc\b|\.git-credentials\b|id_(rsa|ed25519)|\.pem\b|\.key\b|credentials|hosts\.yml|\.dev\.vars|\.envrc|\.pypirc|\.tfvars|\.p12\b|\.pfx\b|\.jks\b|terraform\.tfstate/i;
-const WRITE_OPERATOR = /(^|\s)(\d*>>?\|?|&>)\s*\S|(^|\s)tee(\s|$)|(^|\s)sed\s[^|;&]*\s-i/;
 const READ_COMMANDS = new Set([
   'cat',
   'head',
@@ -354,20 +464,124 @@ const READ_GIT = new Set([
 ]);
 const SCRIPT_TOKEN = /(^|\/)[^\s/]+\.(sh|bash|mjs|cjs|js|py|ts)$/;
 
-/** The command segments of a re-emitted line, split on the operators. */
-const segmentsOf = (command) => command.split(/\s(?:\|\||\||&&|;|&)\s/).map((s) => s.trim());
+const OPERATOR_TOKENS = new Set(['|', '||', '|&', '&&', ';', '&', '(', ')']);
+const REDIRECT_TOKEN = /^\d*(<<<?|<|>>?|>\||>&|&>>?)$/;
+// The gate's ledger references (budget-rules.mjs LEDGER_REF): the ledger folder, its files and the environment override.
+// A package scope (`@d2rmm/<package>`) is not the ledger folder (GPR-33): the `d2rmm/` here is not preceded by `@`.
+const LEDGER_NAMES = /\.git\/d2rmm|(^|[^@\w])d2rmm\/|verdicts\.json|ledger\.json|D2RMM_LEDGER/;
+const WHOLE_TOKENS = new Set(['2>&1', '>/dev/null', '2>/dev/null', '&>/dev/null']);
+const FORCE_FLAG = /^--force|^-f$|^--force-with-lease/;
+const GH_DELIVERY = new Set([
+  'pr view',
+  'pr merge',
+  'pr create',
+  'pr list',
+  'pr checks',
+  'release view',
+  'release list',
+  'release create',
+  'workflow run',
+  'workflow view',
+  'workflow list',
+  'run view',
+  'run list',
+]);
 
-/** Every checkout-level read: each segment starts with a read command (or a read git subcommand). */
-function isReadOnlyLine(command) {
-  const stripped = command.replace(WHOLE_TOKEN, ' ');
-  return segmentsOf(stripped).every((seg) => {
-    const words = seg.split(/\s+/).filter(Boolean);
-    const [cmd, sub] = words;
-    if (!cmd) return false;
-    if (cmd === 'git')
-      return READ_GIT.has(sub) && !words.some((w) => w === '-c' || /^-[dDmMfF]$|^--(delete|force)/.test(w));
-    return READ_COMMANDS.has(cmd) && !(cmd === 'sed' && words.some((w) => w === '-i'));
-  });
+/** The words of each command of a re-emitted line: operators split them; redirections and their targets are left out. */
+export function commandsOf(command) {
+  const commands = [[]];
+  const tokens = command.split(/\s+/).filter(Boolean);
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (WHOLE_TOKENS.has(t)) continue;
+    if (OPERATOR_TOKENS.has(t)) {
+      commands.push([]);
+    } else if (REDIRECT_TOKEN.test(t)) {
+      i++;
+    } else {
+      commands.at(-1).push(t);
+    }
+  }
+  return commands.filter((c) => c.length > 0);
+}
+
+/** The targets of the output redirections of a re-emitted line (`>`, `>>`, `>|`, `2>` …). */
+function writeTargets(command) {
+  const tokens = command.split(/\s+/).filter(Boolean);
+  const targets = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (WHOLE_TOKENS.has(t)) continue;
+    if (REDIRECT_TOKEN.test(t) && t.includes('>')) {
+      targets.push((tokens[i + 1] ?? '').replace(/^<repo>\//, ''));
+      i++;
+    }
+  }
+  return targets;
+}
+
+/** A command that only reads: a read command or a read git subcommand, never a write flag. */
+function isReadCommand(words) {
+  const [cmd, sub] = words;
+  if (cmd === 'git')
+    return READ_GIT.has(sub) && !words.some((w) => w === '-c' || /^-[dDmMfF]$|^--(delete|force)/.test(w));
+  return READ_COMMANDS.has(cmd) && !(cmd === 'sed' && words.includes('-i'));
+}
+
+/** A delivery command of an allowed shape (GPR-26): push without force, PR, release, workflow and run reads. */
+function isDeliveryCommand(words) {
+  const [cmd, sub] = words;
+  if (cmd === 'git') return sub === 'push' && !words.some((w) => FORCE_FLAG.test(w));
+  if (cmd === 'gh') return GH_DELIVERY.has(`${sub} ${words[2] ?? ''}`);
+  return false;
+}
+
+/** A script run by a shell or interpreter, or run as the command word itself; the wrapper is not a script. */
+function isScriptCommand(words) {
+  const [cmd] = words;
+  if (words.some((w) => /attempt\.mjs/.test(w))) return false;
+  if (/^(node|bash|sh|python3?|perl)$/.test(cmd)) return words.slice(1).some((w) => SCRIPT_TOKEN.test(w));
+  return SCRIPT_TOKEN.test(cmd) || cmd.startsWith('./');
+}
+
+/** A script that lives outside the checkout: the scratchpad placeholder before its name. */
+function isOutsideScript(words) {
+  if (!isScriptCommand(words)) return false;
+  const [cmd] = words;
+  const script = /^(node|bash|sh|python3?|perl)$/.test(cmd)
+    ? words.slice(1).find((w) => SCRIPT_TOKEN.test(w))
+    : cmd;
+  return script !== undefined && script.startsWith('<scratchpad>/');
+}
+
+/** A sleep that adds up over 30 seconds, a sleep in a loop, or the `watch` command (GPR-15, GPR-16). */
+function isPolling(command, commands) {
+  if (commands.some((c) => c[0] === 'watch')) return true;
+  const sleeps = [...command.matchAll(/(?:^|\s)sleep\s+(\S+)/g)].map((m) => m[1]);
+  if (sleeps.length === 0) return false;
+  if (/(^|\s)(for|while|until)\s/.test(command)) return true;
+  const total = sleeps.reduce((sum, v) => (/^\d+$/.test(v) ? sum + Number(v) : Infinity), 0);
+  return total > 30;
+}
+
+/** Repository settings, secrets and variables, and the production database: maintainer items of ADR 028 § 1. */
+function isMaintainer(words) {
+  const [cmd, sub] = words;
+  if (cmd === 'gh' && (sub === 'secret' || sub === 'variable')) return true;
+  if (cmd === 'gh' && sub === 'repo' && words[2] === 'edit') return true;
+  return cmd === 'gh' && sub === 'api' && words.some((w) => /rulesets|environments|settings/.test(w));
+}
+
+/**
+ * A line of the allowed read-only shapes (GPR-02, GPR-03): every command reads, the commands join with `|` and `&&`
+ * only, nothing is written, and no word names a secret or the git common directory. No value (`<v>`) may stand in it.
+ */
+function readOnlyShape(command, commands) {
+  if (commands.length === 0 || command.includes('<v>')) return false;
+  if (command.split(/\s+/).some((t) => OPERATOR_TOKENS.has(t) && t !== '|' && t !== '&&')) return false;
+  if (writeTargets(command).length > 0) return false;
+  if (commands.some((c) => c.some((w) => SECRET_WORD.test(w) || /^\.git(\/|$)/.test(w)))) return false;
+  return commands.every(isReadCommand);
 }
 
 /**
@@ -383,54 +597,87 @@ export function categoryOf(entry) {
     return SECRET_WORD.test(input.file_path ?? '') && entry.f0.decision !== 'ask' ? 'read-secret' : null;
   if (tool === 'Edit' || tool === 'Write') {
     const file = input.file_path ?? '';
-    if (/\.only\(\)/.test(reason)) return 'edit-content';
+    // A content rule (`.only()`) needs the new content, which the corpus does not hold: no category for it.
     if (/ledger|verdict/i.test(reason)) return 'edit-ledger';
     if (/quality-baseline/.test(file) || /quality-baseline/.test(reason)) return 'edit-baseline';
     return null;
   }
   if (tool !== 'Bash') return null;
   const command = input.command;
-  if (/Quote the whole gate command|only through the wrapper|During a phase run/.test(reason))
+  // A deny that names the whole line, then the presence rules: a line holding one of these gets its decision whatever
+  // the other commands on it are.
+  const commands = commandsOf(command);
+  // The ledger and the verdicts are named in the line itself, or the replay could not reproduce the deny.
+  if (LEDGER_NAMES.test(command)) return 'ledger';
+  // An allowed read-only shape is read-only whatever F0 answered (ro-0025: F0 denied it under an older wrapper rule).
+  if (readOnlyShape(command, commands)) {
+    return command.split(/\s+/).some((t) => WHOLE_TOKENS.has(t)) ? 'read-not-write' : 'read-only';
+  }
+  // The wrapper's denials name a sensor or a quoted command the line holds: a value (`<v>`) may hide it (a quoted
+  // commit message, a sensor name in a runner's place), so those lines have no category.
+  if (/Quote the whole gate command|only through the wrapper|During a phase run/.test(reason)) {
+    if (command.includes('<v>') || ambiguousRunner(commands)) return null;
     return 'wrapper';
+  }
   if (/Retry budget|BLOCKED|is blocked|Unknown dispatch|Commit refused|dispatch|retry ledger/i.test(reason))
     return null;
-  if (/would bring in or rewrite/.test(reason)) return 'guard';
-  if (/\bledger\b|verdicts?\.json|\.git\/d2rmm/i.test(command) || /ledger/i.test(reason)) return 'ledger';
-  if (/git push\b[^|;&]*(--force|\s-f\b)/.test(command)) return 'force-push';
-  if (/^(gh|git) (secret|variable)\b|^gh repo edit|^gh api .*(rulesets|environments|settings)/.test(command))
-    return 'maintainer';
-  if (/^git push\b|^gh (pr|release|workflow|run)\b/.test(command)) return 'delivery';
-  const stripped = command.replace(WHOLE_TOKEN, ' ');
-  if (WRITE_OPERATOR.test(stripped)) {
-    const target = (stripped.match(/(?:^|\s)\d*>>?\|?\s*(\S+)/) ?? [])[1] ?? '';
-    const rel = target.replace(/^<repo>\//, '');
-    if (isSelfProtected(rel)) return 'shell-write-ask';
-    if (isHarnessFile(rel) || /\.test\.|\.spec\.|^tests\//.test(rel)) return 'shell-write-deny';
+  // The guard (`git worktree`, `git branch`, `git merge-tree`) answers from the commits of the branches, which the
+  // replay does not hold: its entries have no category.
+  if (/would bring in or rewrite/.test(reason)) return null;
+  if (commands.some((c) => c[0] === 'git' && c[1] === 'push' && c.some((w) => FORCE_FLAG.test(w))))
+    return 'force-push';
+  if (commands.some((c) => c.some((w) => SECRET_WORD.test(w.replace(/^<repo>\//, ''))))) return 'secret-read';
+  // The git common directory and everything under it is a secret name too, in an operand of a table command (GPR-30).
+  if (commands.some((c) => TABLE_COMMANDS.has(c[0]) && c.some((w) => /^\.git(\/|$)/.test(w))))
+    return 'secret-read';
+  if (isPolling(command, commands)) return 'polling';
+  if (commands.some(isMaintainer)) return 'maintainer';
+  const targets = writeTargets(command);
+  if (targets.length > 0) {
+    // Only a file of the checkout is a harness file; a scratch file (`<scratchpad>/…`) or an absolute path is not.
+    if (!/^[^<~/]/.test(targets[0])) return null;
+    if (isSelfProtected(targets[0])) return 'shell-write-ask';
+    if (isHarnessFile(targets[0]) || /\.test\.|\.spec\.|^tests\//.test(targets[0])) return 'shell-write-deny';
     return null;
   }
-  if (/(^|\s)sleep\s/.test(command) || /\b(while|until|watch)\b/.test(command)) {
-    const sleeps = [...command.matchAll(/\bsleep\s+(\S+)/g)].map((m) => m[1]);
-    const loop = /\b(while|until)\b/.test(command) || /(^|\s)watch(\s|$)/.test(command);
-    const total = sleeps.reduce((sum, v) => (/^\d+$/.test(v) ? sum + Number(v) : Infinity), 0);
-    return loop || total > 30 ? 'polling' : null;
-  }
-  if (SECRET_WORD.test(command.replace(/^<repo>\//, ''))) return 'secret-read';
-  const words = command.split(/\s+/);
-  if (/^(python3?|node|perl)$/.test(words[0]) && words.some((w) => w === '-c' || w === '-e'))
-    return 'inline-code';
-  const scriptWord = /^(node|bash|sh|python3?|perl)$/.test(words[0])
-    ? words.slice(1).find((w) => SCRIPT_TOKEN.test(w))
-    : SCRIPT_TOKEN.test(words[0]) || words[0].startsWith('./')
-      ? words[0]
-      : undefined;
-  if (scriptWord) return /attempt\.mjs/.test(command) ? null : 'script';
-  if (isReadOnlyLine(command)) {
-    if (/Shell write/i.test(reason)) return 'read-not-write';
-    return 'read-only';
-  }
-  if (/Invalid string length|cannot judge|not a text|unreadable/i.test(reason)) return 'script';
+  // The rest: every command of the line must be of one family for the line to have that family's decision. A line
+  // with a value (`<v>`) is judged by the gate on that value (a path or a revision it cannot see), so the replay does
+  // not claim its decision: those lines have no category.
+  // A script outside the checkout is judged by its content; the replay holds none, so it is unreadable and asks.
+  if (commands.some(isOutsideScript) && commands.every((c) => isReadCommand(c) || isScriptCommand(c)))
+    return 'script';
+  if (command.includes('<v>')) return null;
+  // The allowed shapes join commands with `|` and `&&` only (GPR-03): any other separator is no shape at all.
+  if (command.split(/\s+/).some((t) => OPERATOR_TOKENS.has(t) && t !== '|' && t !== '&&')) return null;
+  const wholeTokens = command.split(/\s+/).some((t) => WHOLE_TOKENS.has(t));
+  if (commands.length > 0 && commands.every(isReadCommand))
+    return wholeTokens ? 'read-not-write' : 'read-only';
+  // Push and PR commands are an allowed shape on a feature or phase branch only (ADR 028 § 1).
+  const onFlowBranch = /^(feat|phase)\//.test(entry.branch ?? '');
+  if (
+    onFlowBranch &&
+    commands.some(isDeliveryCommand) &&
+    commands.every((c) => isReadCommand(c) || isDeliveryCommand(c))
+  )
+    return 'delivery';
   return null;
 }
+
+/** The read-only table's commands: a secret name in an operand of one of these denies (GPR-30). */
+const TABLE_COMMANDS = new Set(['cat', 'head', 'tail', 'wc', 'rg', 'grep', 'sed', 'diff', 'jq', 'ls']);
+
+/** The runners whose first word names a sensor or a script: a value there hides which one runs. */
+const RUNNERS = new Set(['pnpm', 'npx', 'cargo', 'yarn', 'node', 'bash', 'sh']);
+function ambiguousRunner(commands) {
+  return commands.some((c) => {
+    if (!RUNNERS.has(c[0])) return false;
+    const names = c.slice(1).filter((w) => !w.startsWith('-') && w !== 'exec' && w !== 'run');
+    return names[0] === '<v>';
+  });
+}
+
+// A git branch name in the safe-word grammar (a name, never a value).
+const BRANCH_NAME = /^[A-Za-z0-9_./-]{1,100}$/;
 
 const dropKey = (entry) =>
   JSON.stringify([entry.tool, entry.input, entry.f0.decision, entry.f0.reason ?? null]);
@@ -450,7 +697,11 @@ export function pairCalls(records) {
         if (c?.type !== 'tool_result') continue;
         const call = calls.get(c.tool_use_id);
         if (!call) continue;
-        pairs.push({ call, result: { text: textOf(c.content), permission: rec.permissionDecision ?? null } });
+        pairs.push({
+          call,
+          result: { text: textOf(c.content), permission: rec.permissionDecision ?? null },
+          branch: typeof rec.gitBranch === 'string' ? rec.gitBranch : null,
+        });
       }
     }
   }
@@ -506,18 +757,24 @@ export function extract(paths, env) {
         }
       })
       .filter(Boolean);
-    for (const { call, result } of pairCalls(records)) {
+    for (const { call, result, branch } of pairCalls(records)) {
       const out = entryOf(call, result, env);
       if (out.drop) {
         if (out.drop !== 'no-verdict') count(out.drop);
         continue;
       }
-      const category = categoryOf(out.entry);
+      const category = categoryOf({
+        ...out.entry,
+        branch: branch && BRANCH_NAME.test(branch) ? branch : undefined,
+        f0: { ...out.entry.f0, reason: out.loose ?? out.entry.f0.reason },
+      });
       if (!category) {
         count(`category: ${out.entry.tool} ${out.entry.f0.decision}`);
         continue;
       }
+      // The branch the session was on: a replayed push or merge is judged on it. A name outside the grammar is left out.
       const entry = { id: '', category, ...out.entry };
+      if (branch && BRANCH_NAME.test(branch) && !branch.includes('..')) entry.branch = branch;
       const key = dropKey(entry);
       if (seen.has(key)) continue;
       seen.add(key);

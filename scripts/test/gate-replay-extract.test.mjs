@@ -39,8 +39,8 @@ test('keeps only safe words', () => {
   assert.equal(reemitBash('cat ../x.md'), 'cat <v>');
   // The whole redirection tokens are kept at the end.
   assert.equal(reemitBash('cat apps/x.ts 2>&1 | head -n 5'), 'cat apps/x.ts | head -n 5 2>&1');
-  // A line that spans lines without a here-document cannot be replayed.
-  assert.equal(reemitBash('cat a\ncat b'), null);
+  // Commands on separate lines are re-emitted with `;` between them (a multi-line polling loop is replayed).
+  assert.equal(reemitBash('cat a\ncat b'), 'cat <v> ; cat <v>');
   // A here-document body is one placeholder.
   assert.equal(reemitBash("python3 - <<'EOF'\nprint(1)\nEOF").endsWith(' <v>'), true);
 });
