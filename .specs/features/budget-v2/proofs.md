@@ -1,8 +1,8 @@
 # budget-v2 proofs
 
-**HEAD**: 4475b0f
+**HEAD**: b202433
 **Tree**: clean
-**Result**: 26 pass, 0 fail; mutations 24 killed, 0 not
+**Result**: 28 pass, 0 fail; mutations 0 killed, 0 not
 
 | Check | Proof                                                                                                            | Ran           | Passed | Result |
 | ----- | ---------------------------------------------------------------------------------------------------------------- | ------------- | ------ | ------ |
@@ -29,35 +29,8 @@
 | C21   | `node --test --test-name-pattern "a merge keeps the uncounted stops" --test-name-pattern "a merge keeps the lar` | count unknown | -      | pass   |
 | C22   | `node --test --test-name-pattern "a subagent of an unknown session counts its red stops" .claude/hooks/test/bud` | count unknown | -      | pass   |
 | C23   | `node --test --test-name-pattern "only a reset clears the machine-failure total" scripts/test/budget.test.mjs`   | count unknown | -      | pass   |
+| C24   | `node --test --test-name-pattern "a reset is judged through quotes, escapes, case and hidden code" .claude/hook` | count unknown | -      | pass   |
+| C25   | `node --test --test-name-pattern "the guard reads both the local and the remote head" .claude/hooks/test/guard.` | count unknown | -      | pass   |
 | Build | `pnpm lint`                                                                                                      | -             | -      | pass   |
 | Build | `pnpm typecheck`                                                                                                 | -             | -      | pass   |
 | Build | `pnpm test:harness`                                                                                              | -             | -      | pass   |
-
-## Mutations
-
-| Mutation                                                                                                                                           | Location                                 | Killed |
-| -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ------ |
-| unchanged rerun ignores the command                                                                                                                | `scripts/lib/budget.mjs:196`             | yes    |
-| env-blocked needs four instead of three                                                                                                            | `scripts/lib/budget.mjs:171`             | yes    |
-| a test-failure marker no longer wins over a signature                                                                                              | `scripts/lib/env-signatures.mjs:63`      | yes    |
-| gate allows a second orchestrator reset                                                                                                            | `.claude/hooks/lib/budget-rules.mjs:91`  | yes    |
-| red stop uncounted when only some failures are the machine                                                                                         | `.claude/hooks/lib/budget-rules.mjs:351` | yes    |
-| wrapper allows a second orchestrator reset                                                                                                         | `scripts/attempt.mjs:249`                | yes    |
-| unresolved covered branch touches nothing even when the phase branch does not resolve                                                              | `.claude/hooks/lib/guard.mjs:81`         | yes    |
-| the guard ignores a covered branch that exists only on the remote (replaces an equivalent mutation: touches is only called with refs that resolve) | `.claude/hooks/lib/guard.mjs:65`         | yes    |
-| any commit beyond the phase counts as touching a covered branch                                                                                    | `.claude/hooks/lib/guard.mjs:85`         | yes    |
-| a ref holding some unproven commits passes as subset of the proven head                                                                            | `.claude/hooks/lib/guard.mjs:94`         | yes    |
-| any redirection target is ignored as a write, not only /dev/null                                                                                   | `.claude/hooks/lib/gate-rules.mjs:356`   | yes    |
-| only the first wrapper call is read for a reset                                                                                                    | `.claude/hooks/lib/budget-rules.mjs:202` | yes    |
-| a third red stop of a session is still left uncounted (BUD-31 cap one too high)                                                                    | `.claude/hooks/lib/budget-rules.mjs:354` | yes    |
-| a red stop with no session id is left uncounted (BUD-31)                                                                                           | `.claude/hooks/lib/budget-rules.mjs:353` | yes    |
-| a subagent of an unknown session (unknown-session#agent) is treated as a named session                                                             | `.claude/hooks/lib/budget-rules.mjs:349` | yes    |
-| env-blocked needs a fifth machine failure in total instead of the fourth (BUD-30)                                                                  | `scripts/lib/budget.mjs:171`             | yes    |
-| ENV_TOTAL_TO_BLOCK is five                                                                                                                         | `scripts/lib/budget.mjs:19`              | yes    |
-| a pass clears the machine-failure total (BUD-30, AD-172)                                                                                           | `scripts/lib/budget.mjs:109`             | yes    |
-| the environment total counts counted failures too                                                                                                  | `scripts/lib/budget.mjs:109`             | yes    |
-| the uncounted red stops are pooled across sessions instead of per session                                                                          | `scripts/lib/budget.mjs:213`             | yes    |
-| mergeLedgers drops the uncounted red stops (a merge resets a session's cap)                                                                        | `scripts/lib/budget.mjs:408`             | yes    |
-| a pass clears the total a merge carried in (AD-172)                                                                                                | `scripts/lib/budget.mjs:168`             | yes    |
-| a merge drops the total carried from the other copy (BUD-30)                                                                                       | `scripts/lib/budget.mjs:431`             | yes    |
-| the total ignores the carried environment failures                                                                                                 | `scripts/lib/budget.mjs:117`             | yes    |
