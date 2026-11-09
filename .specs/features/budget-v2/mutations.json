@@ -43,24 +43,24 @@
   },
   {
     "file": ".claude/hooks/lib/guard.mjs",
-    "old": "if (!head && commitOf(ctx, state.phaseBranch)) return false;",
-    "new": "if (!head) return false;",
+    "old": "if (names.length === 0 && commitOf(ctx, state.phaseBranch)) return false;",
+    "new": "if (names.length === 0) return false;",
     "proof": "node --test --test-name-pattern \"git cannot answer\" .claude/hooks/test/guard.test.mjs",
-    "label": "unresolved covered branch touches nothing even when the phase branch does not resolve"
+    "label": "unresolved covered branch touches nothing even when the phase branch does not resolve (rewritten for T25)"
   },
   {
     "file": ".claude/hooks/lib/guard.mjs",
-    "old": "const headOf = (ctx, branch) => commitOf(ctx, branch) || commitOf(ctx, `origin/${branch}`) || null;",
-    "new": "const headOf = (ctx, branch) => commitOf(ctx, branch) || null;",
-    "proof": "node --test --test-name-pattern \"exists only on the remote\" .claude/hooks/test/guard.test.mjs",
-    "label": "the guard ignores a covered branch that exists only on the remote (replaces an equivalent mutation: touches is only called with refs that resolve)"
+    "old": "const remote = commitOf(ctx, `origin/${branch}`);",
+    "new": "const remote = null;",
+    "proof": "node --test --test-name-pattern \"exists only on the remote\" --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "proofOf ignores origin/<branch> as a head (rewritten for T25)"
   },
   {
     "file": ".claude/hooks/lib/guard.mjs",
-    "old": "return a.some((c) => b.includes(c));",
-    "new": "return a.length > 0 && b.length > 0;",
-    "proof": "node --test .claude/hooks/test/guard.test.mjs",
-    "label": "any commit beyond the phase counts as touching a covered branch"
+    "old": "return lists.some((b) => a.some((c) => b.includes(c)));",
+    "new": "return lists.some((b) => a.length > 0 && b.length > 0);",
+    "proof": "node --test --test-name-pattern \"touches only through a shared commit\" .claude/hooks/test/guard.test.mjs",
+    "label": "any commit beyond the phase counts as touching a covered branch (rewritten for T25)"
   },
   {
     "file": ".claude/hooks/lib/guard.mjs",
@@ -78,10 +78,10 @@
   },
   {
     "file": ".claude/hooks/lib/budget-rules.mjs",
-    "old": ".some((m) => m[1] === 'reset')",
-    "new": ".slice(0, 1).some((m) => m[1] === 'reset')",
+    "old": ".some((m) => m[1].toLowerCase() === 'reset')",
+    "new": ".slice(0, 1).some((m) => m[1].toLowerCase() === 'reset')",
     "proof": "node --test --test-name-pattern \"hidden behind another wrapper call\" .claude/hooks/test/budget-rules.test.mjs",
-    "label": "only the first wrapper call is read for a reset"
+    "label": "only the first wrapper call is read for a reset (rewritten for T24)"
   },
   {
     "file": ".claude/hooks/lib/budget-rules.mjs",
