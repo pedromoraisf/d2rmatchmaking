@@ -8,7 +8,7 @@
 | Acceptance (BDD)     | playwright-bdd running `.specs/features/*/acceptance.feature` (English Gherkin) | steps in `tests/acceptance/steps` | proofs, CI integration job (ADR 023)         |
 | End to end (non-BDD) | Playwright                                                                      | `apps/web/e2e`                    | CI                                           |
 | Load                 | k6 (+ SSE extension) in Docker                                                  | `scripts/load`                    | on demand and at the end of a phase (NFR-14) |
-| Mutation             | StrykerJS (domain ≥ 80%, application ≥ 70%); cargo-mutants (agent core ≥ 70%)   | per workspace                     | incremental on PR, full nightly              |
+| Mutation             | StrykerJS (domain ≥ 80%, application ≥ 70%); cargo-mutants (agent core ≥ 70%)   | per workspace                     | nightly only (ADR 029)                       |
 
 Rules:
 

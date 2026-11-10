@@ -1,19 +1,22 @@
 # Agentic workflow (how the harness fits together)
 
+Lean harness, ADR 029: CI is the quality gate; the hooks only guard what cannot be undone.
+
 ```text
 GUIDES (feed-forward)                 SENSORS (feedback)                         GATES (stop)
-AGENTS.md, CLAUDE.md                  PostToolUse: prettier, eslint,             PreToolUse gate: deny/ask
-.cursor/rules/*.mdc (scoped)            depcruise, vitest related, TLC validators  Stop hook: affected types/tests
-docs/domain, docs/engineering         Lefthook pre-commit / pre-push             CI: verify, integration, agent, secrets
-docs/adr, .specs (TLC)                CI + nightly (mutation, harness report)    harness-score --min-level 4
-skills: tlc-spec-driven,              quality ratchet (.quality-baseline.json)   phase review (maintainer)
-  d2rmm-phase-runner
-subagents: reviewers, verifier, worker
+AGENTS.md, CLAUDE.md                  PostToolUse: prettier, eslint,             PreToolUse gate: deny/ask on the
+docs/engineering/lessons.md             depcruise, vitest related, own test        few irreversible actions
+.cursor/rules/*.mdc (scoped)          Stop hook: affected types/tests            CI: verify, integration, agent, secrets
+docs/domain, docs/adr, .specs         Lefthook pre-commit / pre-push             phase brief and review (maintainer)
+skill: d2rmm-phase-runner             quality ratchet (.quality-baseline.json)
+subagents: feature-worker, reviewers  nightly: mutation, ratchet, backup
 ```
 
-- Method: TLC spec-driven (`.claude/skills/tlc-spec-driven`), wrapped by `d2rmm-phase-runner` (ADR 021).
-- Human touchpoints per phase: **kickoff** (approve brief + delegation) and **review** (`review.md`), plus escalations.
-- The harness is code: `pnpm test:harness` tests the gate rules, the feedback plan, the ratchet and the delegation checks.
-- Retry budget (ADR 022): 1 attempt + 2 retries per unit of work, counted in `.git/d2rmm/ledger.json` by the hooks and
-  `scripts/attempt.mjs`; exhausted units block instead of looping.
-- Harness maturity is measured by `harness-score` and must stay at L4; its score is part of the ratchet.
+- Method: `d2rmm-phase-runner` (`.claude/skills/d2rmm-phase-runner/SKILL.md`). Per feature: spec with Gherkin
+  scenarios, design only when Large or Complex, a task checklist, one PR into the phase branch merged when CI is green.
+- Human touchpoints per phase: **kickoff** (approve the brief) and **review** (approve `review.md`), plus escalations.
+- Failures: fix the cause and rerun; after three failures of the same thing, record the blocker and move on. Lessons go
+  to `docs/engineering/lessons.md`, which every agent reads first.
+- Mutation testing runs in the nightly only (ADR 026, ADR 029).
+- `pnpm test:harness` tests the gate rules, the feedback plan, the phase state, the ratchet and the workflow files.
+- `pnpm harness` prints the harness-score report; it is not a gate.

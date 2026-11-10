@@ -1,611 +1,114 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { checkBash, checkEdit, decide } from '../lib/gate-rules.mjs';
-import { toRelative } from '../lib/io.mjs';
-import { applyHistoryEffect } from '../lib/history-store.mjs';
-import { emptyLedger, unitKey, recordAttempt, MAX_ATTEMPTS } from '../../../scripts/lib/budget.mjs';
-import { RULE_MODULES } from './rule-modules.mjs';
+import { decide, decideBash, decidePath } from '../lib/gate-rules.mjs';
 
-function fakeCtx(files = {}, { tracked = [], branch = 'feat/x' } = {}) {
-  return {
-    root: '/repo',
-    readFile: (rel) => (rel in files ? files[rel] : null),
-    isTracked: (rel) => tracked.includes(rel),
-    currentBranch: () => branch,
-    git: () => '',
-    modules: RULE_MODULES,
-  };
-}
-const d = (r) => r?.decision ?? 'allow';
+const verdict = (cmd) => decideBash(cmd)?.decision ?? 'allow';
+const pathVerdict = (rel, write = true, tracked = false) =>
+  decidePath(rel, { write, isTracked: () => tracked })?.decision ?? 'allow';
 
-const BRIEF_APPROVED = [
-  '# F0 brief',
-  '## Delegation',
-  '- [x] specs-and-tasks: approve specs and tasks that pass the automatic gates',
-  '- [x] sub-agents: dispatch workers',
-  '- [ ] harness-edits: edit harness files',
-  '',
-  '**Approved**: 2026-11-02 - user: "aprovo specs e tasks da F0 que passarem nos gates automáticos"',
-].join('\n');
-
-test('bash: safe everyday commands pass', () => {
-  const ctx = fakeCtx();
-  for (const c of [
-    'pnpm test',
+test('allows ordinary work, delivery included', () => {
+  for (const cmd of [
     'git status',
-    'git commit -m "feat: x"',
-    'rm -rf node_modules dist',
-    'rm -rf apps/api/coverage',
-    'node --test',
-  ]) {
-    assert.equal(d(checkBash(c, ctx)), 'allow', c);
-  }
+    'grep -rn foo --exclude-dir=.git .',
+    'cat .env.example',
+    'git fetch origin main',
+    'git push -u origin feat/F1-queues',
+    'git push origin HEAD',
+    'gh pr create --base phase/F1 --fill',
+    'gh pr merge 40 --merge',
+    'gh release create agent-v0.1.0',
+    'git tag agent-v0.1.0',
+    'gh workflow run nightly.yml',
+    'gh api repos/o/r/pulls/3',
+    'gh api repos/o/r/rulesets',
+    'git commit -m "docs: explain why --no-verify is denied"',
+    'pnpm test 2>&1 | tail -20',
+    'sleep 5 && gh run view 1',
+    'rm -rf node_modules apps/web/dist',
+    'rm -rf /private/tmp/x/scratch',
+    'rm .specs/old.md',
+  ])
+    assert.equal(verdict(cmd), 'allow', cmd);
 });
 
-test('bash: destructive and bypass commands are denied', () => {
-  const ctx = fakeCtx();
-  for (const c of [
-    'git push --force origin main',
-    'git push -f',
+test('denies force pushes, remote deletions and catastrophic local removals', () => {
+  for (const cmd of [
+    'rm -rf /',
+    'rm -rf ~',
+    'rm -fr $HOME/',
+    'cd x && rm -r ..',
+    'sudo rm -rf /*',
+    'git push -f origin main',
+    'git push --force origin x',
+    'git push --force-with-lease origin x',
     'git push origin +main',
-    'git reset --hard HEAD~1',
+    'git push origin :old-branch',
+    'git push --delete origin x',
+    'git push --mirror',
+    'git status && git push -uf origin x',
+    'gh repo delete o/r --yes',
+    'gh release delete v1',
+    'gh api -X DELETE repos/o/r/git/refs/heads/x',
+  ])
+    assert.equal(verdict(cmd), 'deny', cmd);
+});
+
+test('denies secrets, the production database and skipped hooks', () => {
+  for (const cmd of [
+    'cat .env',
+    'cat apps/api/.env.local',
+    "source '.env.production'",
+    'psql $PRODUCTION_DATABASE_URL',
+    'psql -h ep-x.neon.tech -d app',
     'git commit --no-verify -m x',
     'LEFTHOOK=0 git commit -m x',
-    'rm -rf /',
-    'rm -rf src',
-    'rm -fr apps/api',
-    'cat .env',
-    'psql "postgres://u:p@ep-x.neon.tech/db"', // secretlint-disable-line -- fake fixture for the gate test
-    'echo $NEON_DATABASE_URL',
-    'sed -i s/80/10/ .quality-baseline.json',
-  ]) {
-    assert.equal(d(checkBash(c, ctx)), 'deny', c);
-  }
+  ])
+    assert.equal(verdict(cmd), 'deny', cmd);
 });
 
-test('bash: escalations ask the maintainer', () => {
-  const ctx = fakeCtx();
-  for (const c of [
+test("asks for the maintainer's items", () => {
+  for (const cmd of [
     'gh secret set RENDER_DEPLOY_HOOK',
-    'npx wrangler pages deploy dist',
-    'curl -X POST https://api.render.com/deploy/srv-1?key=x', // secretlint-disable-line -- fake fixture for the gate test
-    'git rm apps/api/src/x.test.ts',
-    'pnpm publish',
-  ]) {
-    assert.equal(d(checkBash(c, ctx)), 'ask', c);
-  }
-  // ADR 028 § 1 changed three of these: a push of a phase branch and a tag are allowed, a PR merge outside the merge
-  // options is denied with the fix (HBS-04).
-  assert.equal(d(checkBash('git push origin phase/F0', ctx)), 'allow');
-  assert.equal(d(checkBash('git tag agent-v0.0.1', ctx)), 'allow');
-  assert.equal(d(checkBash('gh pr merge 12 --squash', ctx)), 'deny');
-  assert.equal(d(checkBash('git merge feat/x', fakeCtx({}, { branch: 'main' }))), 'ask');
-  assert.equal(d(checkBash('git merge feat/x', fakeCtx({}, { branch: 'phase/F0' }))), 'allow');
+    'gh variable set FOO --body 1',
+    'pnpm exec wrangler pages secret put X',
+    'gh api -X PUT repos/o/r/rulesets/1 --input r.json',
+    'gh api --method PATCH repos/o/r -f allow_auto_merge=true',
+    'gh api -X PUT repos/o/r/environments/production',
+  ])
+    assert.equal(verdict(cmd), 'ask', cmd);
 });
 
-test('edit: secrets, vendored skill and applied migrations are denied', () => {
-  const ctx = fakeCtx({}, { tracked: ['apps/api/migrations/0001_init.sql'] });
-  assert.equal(d(checkEdit('.env', { content: 'X=1' }, ctx)), 'deny');
-  assert.equal(d(checkEdit('apps/api/.env.local', { content: 'X=1' }, ctx)), 'deny');
-  assert.equal(d(checkEdit('.env.example', { content: 'X=' }, ctx)), 'allow');
-  assert.equal(d(checkEdit('.claude/skills/tlc-spec-driven/SKILL.md', { content: '' }, ctx)), 'deny');
-  assert.equal(d(checkEdit('apps/api/migrations/0001_init.sql', { content: '' }, ctx)), 'deny');
-  assert.equal(d(checkEdit('apps/api/migrations/0002_next.sql', { content: '' }, ctx)), 'allow');
-  assert.equal(d(checkEdit('../outside.txt', { content: '' }, ctx)), 'deny');
+test('paths: env files denied, vendored and committed migrations denied, sensors ask', () => {
+  assert.equal(pathVerdict('.env', false), 'deny');
+  assert.equal(pathVerdict('apps/api/.env.local', true), 'deny');
+  assert.equal(pathVerdict('.env.example', true), 'allow');
+  assert.equal(pathVerdict('.claude/skills/tlc-spec-driven/SKILL.md'), 'deny');
+  assert.equal(pathVerdict('.claude/skills/tlc-spec-driven/SKILL.md', false), 'allow');
+  assert.equal(pathVerdict('apps/api/migrations/0001_init.sql', true, true), 'deny');
+  assert.equal(pathVerdict('apps/api/migrations/0009_new.sql', true, false), 'allow');
+  for (const rel of [
+    '.quality-baseline.json',
+    '.claude/settings.json',
+    '.claude/hooks/gate.mjs',
+    'lefthook.yml',
+    'apps/api/stryker.config.mjs',
+  ])
+    assert.equal(pathVerdict(rel), 'ask', rel);
+  for (const rel of [
+    'apps/api/src/modules/matchmaking/domain/queue.ts',
+    '.github/workflows/ci.yml',
+    '.specs/STATE.md',
+  ])
+    assert.equal(pathVerdict(rel), 'allow', rel);
 });
 
-test('edit: the quality baseline only tightens', () => {
-  const base = { metrics: { 'mutation.api.domain': { value: 82, direction: 'higher', floor: 80 } } };
-  const ctx = fakeCtx({ '.quality-baseline.json': JSON.stringify(base) });
-  const tighter = { metrics: { 'mutation.api.domain': { value: 85, direction: 'higher', floor: 80 } } };
-  const looser = { metrics: { 'mutation.api.domain': { value: 82, direction: 'higher', floor: 70 } } };
-  assert.equal(d(checkEdit('.quality-baseline.json', { content: JSON.stringify(tighter) }, ctx)), 'allow');
-  assert.equal(d(checkEdit('.quality-baseline.json', { content: JSON.stringify(looser) }, ctx)), 'deny');
-  assert.equal(d(checkEdit('.quality-baseline.json', { content: '{"metrics":{}}' }, ctx)), 'deny');
-  assert.equal(d(checkEdit('.quality-baseline.json', { content: 'not json' }, ctx)), 'deny');
-});
-
-test('edit: weakening tests escalates, .only is denied', () => {
-  const before = "test('a', () => {});\ntest('b', () => {});\n";
-  const ctx = fakeCtx({ 'apps/api/src/x.test.ts': before });
-  const rel = 'apps/api/src/x.test.ts';
-  assert.equal(d(checkEdit(rel, { old_string: "test('b', () => {});\n", new_string: '' }, ctx)), 'ask');
-  assert.equal(d(checkEdit(rel, { old_string: "test('b'", new_string: "test.skip('b'" }, ctx)), 'ask');
-  assert.equal(d(checkEdit(rel, { old_string: "test('b'", new_string: "test.only('b'" }, ctx)), 'deny');
-  assert.equal(d(checkEdit(rel, { content: `${before}test('c', () => {});\n` }, ctx)), 'allow');
-});
-
-test('edit: approvals — only delegated, verbatim, cited', () => {
-  const words = 'aprovo specs e tasks da F0 que passarem nos gates automáticos';
-  const files = { '.specs/phases/ACTIVE': 'F0\n', '.specs/phases/F0/brief.md': BRIEF_APPROVED };
-  const ctx = fakeCtx(files);
-  const rel = '.specs/features/harness-foundation/spec.md';
-  const good = `**Approved**: 2026-11-03 - user: "${words}" (delegated via .specs/phases/F0/brief.md)`;
-  assert.equal(d(checkEdit(rel, { content: `# Spec\n${good}\n` }, ctx)), 'allow');
+test('decide routes tools and ignores files outside the repository', () => {
+  const ctx = { toRelative: (p) => p, isTracked: () => false };
+  assert.equal(decide({ tool_name: 'Read', tool_input: { file_path: '.env' } }, ctx).decision, 'deny');
   assert.equal(
-    d(checkEdit(rel, { content: '# Spec\n**Approved**: 2026-11-03 - user: "looks good"\n' }, ctx)),
-    'deny',
+    decide({ tool_name: 'Write', tool_input: { file_path: '../elsewhere/.quality-baseline.json' } }, ctx),
+    null,
   );
-  assert.equal(
-    d(checkEdit(rel, { content: `# Spec\n**Approved**: 2026-11-03 - user: "${words}"\n` }, ctx)),
-    'deny',
-  );
-  // No active phase → ask the human.
-  assert.equal(d(checkEdit(rel, { content: `# Spec\n${good}\n` }, fakeCtx())), 'ask');
-  // Brief without approval → ask.
-  const unapproved = {
-    ...files,
-    '.specs/phases/F0/brief.md': BRIEF_APPROVED.replace(/\*\*Approved.*$/m, ''),
-  };
-  assert.equal(d(checkEdit(rel, { content: `# Spec\n${good}\n` }, fakeCtx(unapproved))), 'ask');
-  // Writing the brief approval itself always asks.
-  assert.equal(d(checkEdit('.specs/phases/F0/brief.md', { content: BRIEF_APPROVED }, fakeCtx())), 'ask');
-});
-
-test('edit: accepted ADRs and harness files escalate unless delegated', () => {
-  const adr = '# ADR 002\n\n**Status**: Accepted\n';
-  const ctx = fakeCtx({ 'docs/adr/002-modular-monolith.md': adr });
-  assert.equal(d(checkEdit('docs/adr/002-modular-monolith.md', { content: `${adr}x` }, ctx)), 'ask');
-  assert.equal(d(checkEdit('docs/adr/022-new.md', { content: '# new' }, ctx)), 'allow');
-  assert.equal(d(checkEdit('lefthook.yml', { content: 'x' }, ctx)), 'ask');
-  const delegated = fakeCtx({
-    '.specs/phases/ACTIVE': 'F0',
-    '.specs/phases/F0/brief.md': BRIEF_APPROVED.replace('- [ ] harness-edits', '- [x] harness-edits'),
-  });
-  assert.equal(d(checkEdit('lefthook.yml', { content: 'x' }, delegated)), 'allow');
-  // The gate protects itself even under delegation.
-  assert.equal(d(checkEdit('.claude/hooks/gate.mjs', { content: 'x' }, delegated)), 'ask');
-  assert.equal(d(checkEdit('.claude/settings.json', { content: '{}' }, delegated)), 'ask');
-});
-
-test('decide: routes tools and blocks reading secrets', () => {
-  const ctx = fakeCtx();
-  assert.equal(
-    d(decide({ tool_name: 'Read', tool_input: { file_path: '/repo/.env' } }, ctx, toRelative)),
-    'deny',
-  );
-  assert.equal(
-    d(decide({ tool_name: 'Read', tool_input: { file_path: '/repo/README.md' } }, ctx, toRelative)),
-    'allow',
-  );
-  assert.equal(
-    d(decide({ tool_name: 'Write', tool_input: { file_path: '/repo/.env', content: '' } }, ctx, toRelative)),
-    'deny',
-  );
-  assert.equal(d(decide({ tool_name: 'WebSearch', tool_input: {} }, ctx, toRelative)), 'allow');
-});
-
-test('approval examples inside HTML comments never count', async () => {
-  const { approvalsIn, activePhase } = await import('../lib/delegation.mjs');
-  const brief = '## Approval\n\n<!-- example:\n**Approved**: 2026-11-02 - user: "aprovo"\n-->\n';
-  assert.deepEqual(approvalsIn(brief), []);
-  const ctx = fakeCtx({ '.specs/phases/ACTIVE': 'F0', '.specs/phases/F0/brief.md': brief });
-  assert.equal(activePhase(ctx).approved, false);
-});
-
-test('acceptance scenarios: never focused, skipped, removed or in another language without the maintainer', () => {
-  const rel = '.specs/features/api-web-skeleton/acceptance.feature';
-  const before =
-    'Feature: x\n\n  @ROOM-01\n  Scenario: a\n    When b\n    Then c\n\n  @ROOM-02\n  Scenario: d\n    When e\n    Then f\n';
-  const ctx = fakeCtx({ [rel]: before });
-  assert.equal(d(checkEdit(rel, { content: before.replace('@ROOM-01', '@ROOM-01 @only') }, ctx)), 'deny');
-  assert.equal(d(checkEdit(rel, { content: `# language: pt\n${before}` }, ctx)), 'deny');
-  assert.equal(d(checkEdit(rel, { content: before.replace('@ROOM-02', '@ROOM-02 @skip') }, ctx)), 'ask');
-  assert.equal(d(checkEdit(rel, { content: before.slice(0, before.indexOf('  @ROOM-02')) }, ctx)), 'ask');
-  assert.equal(
-    d(checkEdit(rel, { content: `${before}  # not-scenario: ROOM-03 — load test\n` }, ctx)),
-    'ask',
-  );
-  assert.equal(
-    d(checkEdit(rel, { content: `${before}\n  @ROOM-03\n  Scenario: g\n    When h\n    Then i\n` }, ctx)),
-    'allow',
-  );
-  assert.equal(d(checkEdit('tests/acceptance/playwright.config.ts', { content: 'retries: 2' }, ctx)), 'ask');
-});
-
-function phaseRunCtx(ledger = emptyLedger()) {
-  return {
-    ...fakeCtx(
-      { '.specs/phases/ACTIVE': 'F0', '.specs/phases/F0/brief.md': BRIEF_APPROVED },
-      { branch: 'feat/F0-x' },
-    ),
-    headTime: () => 0,
-    ledger,
-  };
-}
-const bash = (command, ctx) =>
-  d(decide({ tool_name: 'Bash', tool_input: { command }, session_id: 's1' }, ctx, toRelative));
-
-test('phase run: the wrapper rule matches the command a segment runs, not a tool name in its arguments', () => {
-  const ctx = phaseRunCtx();
-  for (const c of [
-    'python3 .claude/skills/tlc-spec-driven/scripts/lessons.py list --status confirmed',
-    'sed -n 1,80p scripts/acceptance-check.mjs',
-    'grep -i stryker scripts/quality-collect.mjs',
-  ]) {
-    assert.equal(bash(c, ctx), 'allow', c);
-  }
-  for (const c of ['pnpm exec vitest run', 'stryker run']) {
-    assert.equal(bash(c, ctx), 'deny', c);
-  }
-});
-
-test('phase run: a gate hidden in a nested shell still needs the wrapper, and so does a hidden commit', () => {
-  const ctx = phaseRunCtx();
-  for (const c of [
-    'bash -c "pnpm exec vitest run"',
-    `sh -c 'cd apps/api && pnpm test'`,
-    'eval pnpm exec vitest run',
-    'env CI=1 pnpm exec vitest run',
-    'bash -c "git commit -m x"',
-  ]) {
-    assert.equal(bash(c, ctx), 'deny', c);
-  }
-});
-
-test('bash: indirection is judged by the command it hides (shell -c, eval, prefixes, xargs, find -exec)', () => {
-  const ctx = fakeCtx();
-  for (const c of [
-    'bash -c "git push --force origin main"',
-    'sh -c "rm -rf src"',
-    'eval rm -rf src',
-    'bash -c "cat .env"',
-    'echo src | xargs rm -rf',
-    'find . -name "*.ts" -exec rm -rf {} +',
-    'bash -c "sh -c \'git reset --hard\'"',
-  ]) {
-    assert.equal(d(checkBash(c, ctx)), 'deny', c);
-  }
-  for (const c of [
-    'bash -c "git push origin main"',
-    'eval git push',
-    'sudo git push',
-    'env FOO=1 git push',
-    'timeout 30 git push origin main',
-    'nohup gh release create v1',
-    'git -C apps/api push',
-    'git -c core.editor=true push origin main',
-    'git --no-pager push',
-    'eval eval eval eval eval eval eval ls',
-  ]) {
-    assert.equal(d(checkBash(c, ctx)), 'ask', c);
-  }
-  for (const c of [
-    'bash -c "pnpm test"',
-    `sh -c 'ls -la'`,
-    'env CI=1 pnpm test',
-    'timeout 60 pnpm test',
-    'find . -name "*.log" -exec ls {} +',
-    'git -C apps/api status',
-  ]) {
-    assert.equal(d(checkBash(c, ctx)), 'allow', c);
-  }
-});
-
-test('bash: inline interpreter code that starts processes, writes protected files or reads .env is stopped', () => {
-  const ctx = fakeCtx();
-  for (const c of [
-    `python3 -c "print(open('.env').read())"`,
-    `node -e "require('dotenv').config({ path: '.env.local' })"`,
-  ]) {
-    assert.equal(d(checkBash(c, ctx)), 'deny', c);
-  }
-  for (const c of [
-    `python3 -c "import subprocess; subprocess.run(['git', 'push'])"`,
-    `node -e "require('child_process').execSync('git push')"`,
-    `python3 -c "import os; os.system('git push')"`,
-    `node -e "require('fs').writeFileSync('.claude/hooks/gate.mjs', '')"`,
-    `python3 -c "open('.quality-baseline.json', 'w').write('{}')"`,
-    `node --eval="require('fs').rmSync('apps/api/src/a.test.ts')"`,
-    `perl -e "unlink '.github/workflows/ci.yml'"`,
-    "python3 - <<'EOF'\nimport json\njson.dump({}, open('.quality-baseline.json', 'w'))\nEOF",
-  ]) {
-    assert.equal(d(checkBash(c, ctx)), 'ask', c);
-  }
-  for (const c of [
-    `python3 -c "print(1)"`,
-    `node -e "console.log(process.env.HOME)"`,
-    `node -e "import('./.claude/hooks/lib/gate-rules.mjs').then((m) => console.log(Object.keys(m)))"`,
-    `node -e "require('fs').writeFileSync('/tmp/out.json', '{}')"`,
-    "python3 - <<'EOF'\nimport json\nprint(json.dumps({}))\nEOF",
-  ]) {
-    assert.equal(d(checkBash(c, ctx)), 'allow', c);
-  }
-});
-
-test('inline code naming the budget modules asks', () => {
-  const ctx = fakeCtx();
-  for (const c of [
-    `node -e "import('./scripts/ATTEMPT.mjs')"`,
-    `node -e "import('./scripts/att' + 'empt.mjs')"`,
-    String.raw`node -e "import('./scripts/att\empt.mjs')"`,
-    `node -e "import('./scripts/lib/ledger-store.mjs')"`,
-    `node -e "import('./scripts/'+a+'.mjs')"`,
-    `node -e "import(['att','empt'].join(''))"`,
-    `node -e "const a='x';require('./scripts/'+a+'.mjs')"`,
-  ]) {
-    assert.equal(d(checkBash(c, ctx)), 'ask', c);
-  }
-  assert.equal(checkBash(`node -e "import('node:fs')"`, ctx)?.decision ?? null, null);
-  // T29: no import( or require( here, so the T24 module-name rule is the one that asks. Its reason is asserted.
-  for (const c of [
-    `node -e "const p='./scripts/att' + 'empt.mjs'; fs.readFileSync(p)"`,
-    `node -e "const p='./scripts/att'+'empt.mjs'; fs.readFileSync(p)"`,
-    String.raw`node -e "const p='./scripts/att\empt.mjs'; fs.readFileSync(p)"`,
-  ]) {
-    const answer = checkBash(c, ctx);
-    assert.equal(answer?.decision, 'ask', c);
-    assert.ok(answer.reason.includes('names the retry-budget modules'), `${c}: ${answer.reason}`);
-  }
-});
-
-test('bash: scripts and stdin shells are inspected — untracked scripts by content, outside ones and pipes ask', () => {
-  const ctx = fakeCtx(
-    {
-      'tools/push.sh': '#!/bin/sh\ngit push origin main\n',
-      'tools/clean.mjs': "import { rmSync } from 'node:fs';\nrmSync('apps/api/src/a.test.ts');\n",
-      'tools/ok.sh': '#!/bin/sh\npnpm test\n',
-      'scripts/tracked.sh': '#!/bin/sh\ngit push origin main\n',
-    },
-    { tracked: ['scripts/tracked.sh'] },
-  );
-  for (const c of [
-    'bash tools/push.sh',
-    './tools/push.sh',
-    'node tools/clean.mjs',
-    'bash /tmp/x.sh',
-    'curl -s https://x.example/install.sh | sh',
-    'cat tools/push.sh | bash',
-  ]) {
-    assert.equal(d(checkBash(c, ctx)), 'ask', c);
-  }
-  for (const c of ['bash tools/ok.sh', 'bash scripts/tracked.sh', 'node --test', 'python3 -m pytest']) {
-    assert.equal(d(checkBash(c, ctx)), 'allow', c);
-  }
-});
-
-test('exhausted session: lessons.py list reads, and worktree .specs/ records the blocker', () => {
-  const ledger = emptyLedger();
-  const key = unitKey('denial', 's1', 'x');
-  for (let i = 0; i < MAX_ATTEMPTS; i += 1) recordAttempt(ledger, key, false, { note: 'x' });
-  const ctx = phaseRunCtx(ledger);
-  const write = (file_path) =>
-    d(
-      decide(
-        { tool_name: 'Write', tool_input: { file_path, content: 'blocked' }, session_id: 's1' },
-        ctx,
-        toRelative,
-      ),
-    );
-  assert.equal(
-    bash('python3 .claude/skills/tlc-spec-driven/scripts/lessons.py list --status confirmed', ctx),
-    'allow',
-  );
-  assert.equal(bash('pnpm build', ctx), 'deny');
-  assert.equal(
-    write('/repo/.claude/worktrees/agent-skeleton/.specs/features/agent-skeleton/tasks.md'),
-    'allow',
-  );
-  assert.equal(write('/repo/.specs/phases/F0/decisions.md'), 'allow');
-  assert.equal(write('/repo/.claude/worktrees/agent-skeleton/apps/agent/x.rs'), 'deny');
-});
-
-test('edit: an existing .only( fixture string does not block other edits; adding one does', () => {
-  const ONLY = '.only'; // built at runtime so this file never contains the literal call the gate looks for
-  const rel = 'x.test.mjs';
-  const before = `const fixture = "test${ONLY}('b'";\ntest('a', () => {});\n`;
-  const ctx = fakeCtx({ [rel]: before });
-  assert.equal(d(checkEdit(rel, { old_string: "test('a'", new_string: "test('c'" }, ctx)), 'allow');
-  assert.equal(d(checkEdit(rel, { old_string: "test('a'", new_string: `test${ONLY}('a'` }, ctx)), 'deny');
-});
-
-test('the committed retry-ledger snapshot cannot be edited by agents', () => {
-  assert.equal(d(checkEdit('.specs/phases/F0/attempts.json', { content: '{}' }, fakeCtx())), 'deny');
-  assert.equal(d(checkEdit('scripts/lib/phase-state.mjs', { content: 'x' }, fakeCtx())), 'ask');
-});
-
-test('denies a background security review of a diff', () => {
-  const review = (extra) => ({
-    tool_name: 'Agent',
-    tool_input: {
-      subagent_type: 'security-reviewer',
-      prompt: '[d2rmm feature=gate-precision step=review-diff] review the diff',
-      ...extra,
-    },
-  });
-  const background = decide(review({ run_in_background: true }), fakeCtx(), toRelative);
-  assert.equal(d(background), 'deny');
-  assert.match(background.reason, /run_in_background: false/);
-  assert.equal(d(decide(review({ run_in_background: false }), fakeCtx(), toRelative)), 'allow');
-  assert.equal(d(decide(review({}), fakeCtx(), toRelative)), 'allow');
-});
-
-test('denies edits of the verdicts and the ledger', () => {
-  for (const file of [
-    '/repo/.git/d2rmm/verdicts.json',
-    '/repo/.git/d2rmm/ledger.json',
-    '/repo/.claude/worktrees/gate-precision/.git/d2rmm/verdicts.json',
-  ]) {
-    const edit = { tool_name: 'Edit', tool_input: { file_path: file, old_string: 'a', new_string: '{}' } };
-    assert.equal(d(decide(edit, fakeCtx(), toRelative)), 'deny', file);
-  }
-});
-
-test('denies shell commands that reach the verdicts or the ledger', () => {
-  for (const command of [
-    'echo {} > .git/d2rmm/verdicts.json',
-    'cd .git && echo {} > d2rmm/ledger.json',
-    'cp /tmp/v.json .claude/worktrees/gate-precision/.git/d2rmm/verdicts.json',
-    `node -e "require('fs').writeFileSync('.git/d2rmm/verdicts.json','{}')"`,
-  ]) {
-    assert.equal(
-      d(decide({ tool_name: 'Bash', tool_input: { command } }, fakeCtx(), toRelative)),
-      'deny',
-      command,
-    );
-  }
-});
-
-test('keeps the status commands', () => {
-  for (const command of [
-    'node scripts/attempt.mjs status',
-    'node scripts/attempt.mjs report',
-    'node scripts/phase-status.mjs',
-  ]) {
-    assert.notEqual(
-      d(decide({ tool_name: 'Bash', tool_input: { command } }, fakeCtx(), toRelative)),
-      'deny',
-      command,
-    );
-  }
-});
-
-// ---------------------------------------------------------------- gate precision, T10 (GPR-04, GPR-09, GPR-21, GPR-33)
-
-const fileLike = (isFile, isDirectory) => ({
-  isFile: () => isFile,
-  isDirectory: () => isDirectory,
-  nlink: 1,
-});
-/** A checkout at /repo with a scripts folder: enough I/O for the read-only rule to allow a line. */
-function checkoutCtx(files = {}) {
-  const dirs = new Set(['/repo', '/repo/scripts']);
-  return {
-    ...fakeCtx(files),
-    realpath: (p) => (p === '/repo' || p.startsWith('/repo/') ? p : null),
-    stat: (p) => (dirs.has(p) ? fileLike(false, true) : null),
-    git: () => '',
-  };
-}
-const READ_LINE = 'node scripts/phase-status.mjs --json F0';
-const readInput = { tool_name: 'Bash', tool_input: { command: READ_LINE }, cwd: '/repo', session_id: 's1' };
-
-test('allow comes last', () => {
-  // The read-only table allows the line; only the script's content decides what else it does.
-  const clean = checkoutCtx({ 'scripts/phase-status.mjs': "console.log('ok');\n" });
-  assert.equal(checkBash(READ_LINE, clean, 0, readInput)?.decision, 'allow');
-  const spawning = checkoutCtx({
-    'scripts/phase-status.mjs': "import { execSync } from 'node:child_process';\n",
-  });
-  assert.equal(checkBash(READ_LINE, spawning, 0, readInput)?.decision, 'ask');
-  const naming = checkoutCtx({ 'scripts/phase-status.mjs': "const file = 'ledger.json';\n" });
-  assert.equal(checkBash(READ_LINE, naming, 0, readInput)?.decision, 'deny');
-  assert.equal(decide(readInput, naming, toRelative)?.decision, 'deny');
-  assert.equal(decide(readInput, spawning, toRelative)?.decision, 'ask');
-  assert.equal(decide(readInput, clean, toRelative)?.decision, 'allow');
-});
-
-test('asks on an empty call', () => {
-  assert.equal(decide({}, fakeCtx(), toRelative)?.decision, 'ask');
-  assert.equal(decide(undefined, fakeCtx(), toRelative)?.decision, 'ask');
-  assert.equal(decide({ tool_input: { command: 'cat a.txt' } }, fakeCtx(), toRelative)?.decision, 'ask');
-});
-
-test('a package scope passes the whole gate', () => {
-  const ctx = fakeCtx();
-  const scoped = decide(
-    { tool_name: 'Bash', tool_input: { command: 'pnpm --filter @d2rmm/api test' }, session_id: 's1' },
-    ctx,
-    toRelative,
-  );
-  assert.ok(
-    !['deny', 'ask'].includes(scoped?.decision),
-    'a workspace package scope is not a ledger reference',
-  );
-  assert.equal(
-    bash('cat .git/d2rmm/ledger.json', ctx),
-    'deny',
-    'reading the ledger file itself still denies',
-  );
-  assert.equal(bash('pnpm --filter @d2rmm/api test && cat ledger.json', ctx), 'deny');
-});
-
-test('asks for inline code writing a path it cannot read', () => {
-  const ctx = fakeCtx();
-  assert.equal(checkBash(`node -e "fs.writeFileSync(process.env.P, 'x')"`, ctx)?.decision, 'ask');
-  assert.equal(checkBash(`python3 -c "open(p, 'w')"`, ctx)?.decision, 'ask');
-  assert.equal(checkBash(`perl -e 'open(my $fh, ">", $path)'`, ctx)?.decision, 'ask');
-  // A literal path is judged as today: no opinion for a file that is not protected.
-  assert.equal(checkBash(`python3 -c "open('notes.txt', 'w')"`, ctx), null);
-  assert.equal(checkBash(`python3 -c "open(p, 'r')"`, ctx), null, 'a read is not a write');
-});
-
-test('loads no rule module eagerly', () => {
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-  const ruleModules = ['ratchet', 'acceptance', 'mutation-scope', 'model-policy'].map((m) =>
-    path.join(root, 'scripts/lib', `${m}.mjs`),
-  );
-  const staticImport = /\b(?:import|export)\s+(?:[^'";]*?\bfrom\s*)?'([^']+)'/g;
-  const seen = new Set();
-  const queue = [path.join(root, '.claude/hooks/lib/gate-rules.mjs')];
-  while (queue.length > 0) {
-    const file = queue.pop();
-    if (seen.has(file)) continue;
-    seen.add(file);
-    assert.equal(ruleModules.includes(file), false, `${path.relative(root, file)} is imported statically`);
-    for (const m of readFileSync(file, 'utf8').matchAll(staticImport)) {
-      if (m[1].startsWith('.')) queue.push(path.resolve(path.dirname(file), m[1]));
-    }
-  }
-  assert.ok(seen.size > 5, 'the walk reached the gate modules');
-});
-
-test('asks when a rule module is missing', () => {
-  const bare = { ...fakeCtx({ '.quality-baseline.json': '{"metrics":{}}' }), modules: {} };
-  const baseline = { tool_name: 'Edit', tool_input: { file_path: '.quality-baseline.json', content: '{}' } };
-  assert.equal(d(decide(baseline, bare, toRelative)), 'ask');
-  const spec = { ...fakeCtx({ '.specs/features/f/acceptance.feature': 'Feature: f\n' }), modules: {} };
-  const feature = {
-    tool_name: 'Edit',
-    tool_input: {
-      file_path: '.specs/features/f/acceptance.feature',
-      old_string: 'Feature',
-      new_string: 'Feature x',
-    },
-  };
-  assert.equal(d(decide(feature, spec, toRelative)), 'ask');
-  const phase = { ...phaseRunCtx(), modules: {} };
-  const dispatch = {
-    tool_name: 'Agent',
-    tool_input: { subagent_type: 'feature-worker', prompt: '[d2rmm feature=x step=T1] go' },
-  };
-  assert.equal(d(decide(dispatch, phase, toRelative)), 'ask', 'a dispatch without the model policy asks');
-});
-
-test('the fifth identical call denies through decide', () => {
-  const store = { version: 1, sessions: Object.create(null) };
-  const decisions = [];
-  for (let i = 0; i < 5; i++) {
-    const ctx = { ...fakeCtx(), history: store, nowMs: () => 1_800_000_000_000 + i * 1000 };
-    const r = decide(
-      { tool_name: 'Bash', tool_input: { command: 'git status' }, session_id: 's1' },
-      ctx,
-      toRelative,
-    );
-    decisions.push(r?.decision ?? null);
-    for (const e of r?.effects ?? []) applyHistoryEffect(store, e);
-  }
-  assert.deepEqual(decisions, [null, null, null, null, 'deny']);
-});
-
-test('a descriptor redirection is not a segment write', () => {
-  const ctx = fakeCtx();
-  for (const c of [
-    'cat scripts/attempt.mjs 2>&1',
-    'cat .claude/hooks/gate.mjs 2>/dev/null | head -n 5',
-    "grep '>' scripts/attempt.mjs",
-    'cat scripts/attempt.mjs | head -3 2>&1',
-  ]) {
-    assert.equal(d(checkBash(c, ctx)), 'allow', c);
-  }
-});
-
-test('a real segment write keeps its decision', () => {
-  const ctx = fakeCtx();
-  assert.equal(d(checkBash('echo x > .claude/hooks/gate.mjs', ctx)), 'ask');
-  assert.equal(d(checkBash('cat a 2>&1 > eslint.config.mjs', ctx)), 'deny');
-  assert.equal(d(checkBash('tee .quality-baseline.json', ctx)), 'deny');
+  assert.equal(decide({ tool_name: 'Agent', tool_input: { prompt: 'cat .env' } }, ctx), null);
+  assert.equal(decide({ tool_name: 'Bash', tool_input: { command: 'git push -f' } }, ctx).decision, 'deny');
 });

@@ -11,6 +11,12 @@ Feature: The required checks are fast and mutation runs beside them
   # not-scenario: CFP-06 — the summary of survived mutants is a pure function over a Stryker report; proved by a unit test colocated with it
   # not-scenario: CFP-16 — the 30-second wait is a rule of the smoke script; proved by a unit test colocated with it
   # not-scenario: CFP-23 — proved by the gate `pnpm contracts:check` on the feature's head
+  # not-scenario: CFP-02 — superseded by ADR 029: mutation runs in the nightly only, no PR job mutates
+  # not-scenario: CFP-05 — superseded by ADR 029: mutation runs in the nightly only, no PR job mutates
+  # not-scenario: CFP-08 — superseded by ADR 029: mutation runs in the nightly only, no PR job mutates
+  # not-scenario: CFP-09 — superseded by ADR 029: mutation runs in the nightly only, no PR job mutates
+  # not-scenario: CFP-11 — superseded by ADR 029: the specs check no longer reads task gates
+  # not-scenario: CFP-12 — superseded by ADR 029: the specs check no longer reads task gates
 
   Background:
     Given a contributor has a clean checkout with dependencies installed
@@ -21,57 +27,11 @@ Feature: The required checks are fast and mutation runs beside them
     Then the verify job does not run "test:mutation"
     And the integration job needs exactly "detect" and "verify"
 
-  @CFP-02 @CFP-05 @NFR-10
-  Scenario: The API's mutation runs in its own job on pull requests
-    When the contributor reads the CI workflow
-    Then a job "mutation" needs only "detect"
-    And it runs only on pull requests and only when the detect job reports a Stryker configuration
-    And it restores and saves the Stryker incremental files under a key that starts with the base branch
-
-  @CFP-08 @CFP-09 @NFR-10
-  Scenario: The agent's mutation of a PR's diff runs in its own job
-    When the contributor reads the CI workflow
-    Then a job "agent-mutation" needs only "detect" and runs only on pull requests
-    And it runs cargo mutants on the PR's diff for the domain, the core and the adapters, each with unit tests only
-    And its cargo mutants commands run only when the PR changes a file under "apps/agent/src-tauri/"
-
   @CFP-10 @NFR-10
   Scenario: The nightly agent mutation runs on Linux
     When the contributor reads the nightly workflow
     Then the agent mutation job runs on "ubuntu-latest"
     And its three cargo mutants commands and report paths are the ones it had before
-
-  @CFP-11 @NFR-10
-  Scenario Outline: The specs check refuses an open task whose gate runs mutation
-    Given a copy of the specs tree where feature "demo" has an open task "T2" whose gate is "<gate>"
-    When the contributor runs the specs check on that copy
-    Then the check fails
-    And the failure names "demo" and "T2"
-
-    Examples:
-      | gate                                                                          |
-      | pnpm test:mutation                                                            |
-      | pnpm test:mutation:agent                                                      |
-      | cargo mutants --package d2rmm-agent-core -- --lib                             |
-      | node --test x.test.mjs && cargo-mutants --package d2rmm-agent-domain -- --lib |
-
-  @CFP-11 @NFR-10
-  Scenario: A task with some boxes ticked and one open is still open
-    Given a copy of the specs tree where feature "demo" has a task "T2" with one box ticked and one open whose gate is "pnpm test:mutation"
-    When the contributor runs the specs check on that copy
-    Then the check fails
-    And the failure names "demo" and "T2"
-
-  @CFP-12 @NFR-10
-  Scenario Outline: A done task's gate, or a gate with no mutation, is not flagged
-    Given a copy of the specs tree where feature "demo" has <task> "T2" whose gate is "<gate>"
-    When the contributor runs the specs check on that copy
-    Then the check passes
-
-    Examples:
-      | task        | gate                                  |
-      | a done task | pnpm test:mutation                    |
-      | an open task | node --test scripts/test/x.test.mjs  |
 
   @CFP-13 @CFP-14 @NFR-11
   Scenario: The ruleset requires the four checks that guard main
@@ -105,4 +65,4 @@ Feature: The required checks are fast and mutation runs beside them
   @CFP-24 @NFR-11
   Scenario: The verify job keeps every other sensor
     When the contributor reads the CI workflow
-    Then the verify job still runs format, lint, typecheck, architecture, unit tests, the TLC self-test, the specs check, the contracts check, the harness gate and the PR ratchet
+    Then the verify job still runs format, lint, typecheck, architecture, unit tests, the specs check, the contracts check and the PR ratchet

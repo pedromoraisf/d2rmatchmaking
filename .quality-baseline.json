@@ -1,49 +1,8 @@
 {
-  "$comment": "Quality ratchet (ADR 021). Values only tighten: `pnpm quality:ratchet --update` raises them after a green run; loosening anything needs the maintainer (the PreToolUse gate denies it). value=null means not measured yet — the first measurement sets it. contexts = where the metric is enforced (pr: every PR CI run; nightly: nightly.yml; phase: phase review).",
+  "$comment": "Quality ratchet (ADR 021, ADR 029). Values only tighten: `pnpm quality:ratchet --update` raises them after a green run; loosening anything needs the maintainer (the PreToolUse gate denies it). value=null means not measured yet — the first measurement sets it. contexts = where the metric is enforced (pr: every PR CI run; nightly: nightly.yml; phase: phase review).",
   "version": 1,
-  "updated": "2026-11-07",
+  "updated": "2026-11-10",
   "metrics": {
-    "harness.level": {
-      "value": 4,
-      "direction": "higher",
-      "floor": 4,
-      "contexts": [
-        "pr",
-        "nightly",
-        "phase"
-      ],
-      "source": {
-        "type": "harness-score",
-        "field": "level"
-      }
-    },
-    "harness.percent": {
-      "value": 100,
-      "direction": "higher",
-      "floor": 80,
-      "contexts": [
-        "pr",
-        "nightly",
-        "phase"
-      ],
-      "source": {
-        "type": "harness-score",
-        "field": "percent"
-      }
-    },
-    "harness.failed_checks": {
-      "value": 0,
-      "direction": "lower",
-      "contexts": [
-        "pr",
-        "nightly",
-        "phase"
-      ],
-      "source": {
-        "type": "harness-score",
-        "field": "failed"
-      }
-    },
     "mutation.api.domain": {
       "value": 100,
       "direction": "higher",

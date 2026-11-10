@@ -1,24 +1,13 @@
 ---
-description: Run (or resume) the active phase autonomously under its approved delegation — TLC per feature, automatic gates, escalations only.
+description: Run (or resume) the active phase autonomously — spec, tasks and workers per feature, one PR per feature merged when CI is green, escalations only.
 argument-hint: F<n>
 ---
 
 Use the `d2rmm-phase-runner` skill, section RUN, for phase **$ARGUMENTS**.
 
-You are the orchestrator (ADR 025). If this session is not running Opus 5.5 or Sonnet (check the model you are), stop
-and ask the maintainer to restart Claude Code in the repository (the project pins `claude-opus-5-5`, medium effort).
-Plan and gate yourself; delegate every task batch to `feature-worker` (Haiku) and every review/verification to the
-Sonnet judges.
-
-First run `node scripts/phase-status.mjs $ARGUMENTS --json` — it is the only source of what to do next
-(ADR 024). Refuse to start if the brief has no maintainer approval or `pnpm specs:check` fails.
-Run `node scripts/attempt.mjs status` to see blocked units. Then continue from the first unfinished step,
-respecting the retry budget (1 attempt + 2 retries per unit, ADR 022): never retry a blocked unit. Report one line per completed step. Stop only for an escalation or when
-every feature is done or blocked; then suggest `/phase-review $ARGUMENTS`.
-
-Features reach `phase/$ARGUMENTS` through pull requests (ADR 028, CDL-02 to CDL-05): push each verified feature branch and
-open a feature PR into `phase/$ARGUMENTS`; integrate locally with `pnpm check` and the feature's own scenarios
-(`--grep @<PREFIX>-`), and never the full acceptance suite, the load test or the full mutation run; wait for the required
-checks with `gh pr checks <pr> --watch` as a background task; merge with `gh pr merge <pr> --merge`, never squash or
-rebase. A feature that needs an item only the maintainer can answer gets a row in the `## For the maintainer` table of
-`decisions.md`, and the other features continue (CDL-16).
+Run `node scripts/phase-status.mjs $ARGUMENTS` first; it is the only source of what to do next. Start only if it
+reports `run`. Write specs, designs and tasks yourself; dispatch every task batch to a `feature-worker` with
+`isolation: "worktree"`, runnable features in parallel; open one PR per feature into `phase/$ARGUMENTS`, have it
+reviewed once, and merge it with `gh pr merge <pr> --merge` when CI is green. After three failures of the same thing,
+record the blocker and move on. Report one line per completed step; stop only for an escalation or when every feature
+is merged or blocked, then suggest `/phase-review $ARGUMENTS`.

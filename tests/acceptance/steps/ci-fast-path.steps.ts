@@ -1,21 +1,18 @@
 // Acceptance steps for ci-fast-path (ADR 023), one step per line of acceptance.feature. Black box: the steps read the
-// repository's workflow, ruleset and Dependabot files, and run the specs check as a process on a temporary copy of the
-// .specs tree. Nothing here imports scripts/lib or apps/ (rule acceptance-is-black-box).
+// repository's workflow, ruleset and Dependabot files. Nothing here imports scripts/lib or apps/ (rule acceptance-is-black-box).
 //
 // Reused as written from harness-foundation.steps.ts: the Background, "the contributor reads the CI workflow", "the
 // contributor reads the nightly workflow" and "the check fails". Those steps keep their results under that file's
 // key in the scenario values, so the steps here read the same key.
-import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect } from '@playwright/test';
 import { parse } from 'yaml';
-import { After, Given, When, Then, type Scenario } from '../fixtures.ts';
+import { When, Then, type Scenario } from '../fixtures.ts';
 
 const SHARED_KEY = 'harness-foundation';
 const OWN_KEY = 'ci-fast-path';
-const NEW_JOBS = ['mutation', 'agent-mutation', 'smoke', 'agent-build'];
+const NEW_JOBS = ['smoke', 'agent-build'];
 const AGENT_CRATES = ['domain', 'core', 'adapters'];
 
 interface Step {
@@ -181,77 +178,6 @@ function firstGroupFor(
   return undefined;
 }
 
-// The specs tree the check reads: the real .specs and the PRD, with one fixture feature.
-function fixtureTasks(task: string, gate: string, boxes: string[]): string {
-  return [
-    `# Demo tasks`,
-    ``,
-    `### ${task}: The fixture task`,
-    ``,
-    `**What**: a fixture task for the specs check.`,
-    ``,
-    `**Done when**:`,
-    ...boxes.map((box) => `- ${box} a criterion`),
-    ``,
-    `**Gate**: \`${gate}\``,
-    ``,
-  ].join('\n');
-}
-
-After(({ scenario }) => {
-  const copy = own(scenario).copy;
-  if (copy !== undefined) rmSync(copy, { recursive: true, force: true });
-});
-
-// CFP-11, CFP-12: a copy of the specs tree with a fixture feature "demo" whose one task is done, open or partly ticked.
-Given(
-  /^a copy of the specs tree where feature "([^"]+)" has (a done task|an open task|a task) "([^"]+)"( with one box ticked and one open)? whose gate is "([^"]+)"$/,
-  ({ scenario }, feature: string, kind: string, task: string, partly: string | undefined, gate: string) => {
-    // An optional group that did not match arrives as an empty string, so the test is for content, not undefined.
-    let boxes: string[];
-    if (partly) boxes = ['[x]', '[ ]'];
-    else if (kind === 'a done task') boxes = ['[x]', '[x]'];
-    else if (kind === 'an open task') boxes = ['[ ]', '[ ]'];
-    else throw new Error(`"${kind}" needs its state: a done task or an open task`);
-
-    const root = mkdtempSync(path.join(tmpdir(), 'd2rmm-ci-fast-path-'));
-    own(scenario).copy = root;
-    cpSync(path.join(scenario.repoRoot, '.specs'), path.join(root, '.specs'), { recursive: true });
-    mkdirSync(path.join(root, 'docs', 'product'), { recursive: true });
-    cpSync(
-      path.join(scenario.repoRoot, 'docs', 'product', 'prd.md'),
-      path.join(root, 'docs', 'product', 'prd.md'),
-    );
-    const featureDir = path.join(root, '.specs', 'features', feature);
-    mkdirSync(featureDir, { recursive: true });
-    writeFileSync(path.join(featureDir, 'tasks.md'), fixtureTasks(task, gate, boxes));
-  },
-);
-
-When('the contributor runs the specs check on that copy', ({ scenario }) => {
-  const root = own(scenario).copy;
-  if (root === undefined) throw new Error('no copy of the specs tree was made in this scenario');
-  const result = spawnSync(process.execPath, [path.join(scenario.repoRoot, 'scripts', 'specs-check.mjs')], {
-    cwd: root,
-    encoding: 'utf8',
-  });
-  shared(scenario).check = { status: result.status, output: `${result.stdout}${result.stderr}`, rules: [] };
-});
-
-Then('the check passes', ({ scenario }) => {
-  const check = shared(scenario).check;
-  if (check === undefined) throw new Error('the specs check has not run in this scenario');
-  expect(check.status, check.output).toBe(0);
-});
-
-Then(/^the failure names "([^"]+)" and "([^"]+)"$/, ({ scenario }, feature: string, task: string) => {
-  const check = shared(scenario).check;
-  if (check === undefined) throw new Error('the specs check has not run in this scenario');
-  expect(check.output, 'the failure names the feature and the task').toContain(
-    `feature "${feature}" task ${task} `,
-  );
-});
-
 // CFP-01, CFP-07, CFP-24: the CI workflow's verify job runs no mutation and keeps its sensors.
 Then(/^the verify job does not run "(.+)"$/, ({ scenario }, text: string) => {
   for (const run of runsOf(jobNamed(scenario, 'verify')))
@@ -273,10 +199,8 @@ const VERIFY_COMMANDS: Record<string, string> = {
   typecheck: 'pnpm run typecheck',
   architecture: 'pnpm run arch',
   'unit tests': 'pnpm test',
-  'the TLC self-test': 'pnpm run tlc:selftest',
   'the specs check': 'pnpm run specs:check',
   'the contracts check': 'pnpm run contracts:check',
-  'the harness gate': 'pnpm run harness:gate',
   'the PR ratchet': 'pnpm run quality:gate',
 };
 
@@ -290,72 +214,6 @@ Then(/^the verify job still runs (.+)$/, ({ scenario }, list: string) => {
     expect(lines, `verify runs ${command ?? phrase}`).toContain(command);
   }
 });
-
-// CFP-02, CFP-03, CFP-05, CFP-08, CFP-09: the mutation jobs of the CI workflow.
-Then(
-  /^a job "([^"]+)" needs only "([^"]+)"( and runs only on pull requests)?$/,
-  ({ scenario }, name: string, needed: string, pullOnly: string | undefined) => {
-    const job = jobNamed(scenario, name);
-    expect(needsOf(job), `needs of ${name}`).toEqual([needed]);
-    if (pullOnly)
-      expect(job.if ?? '', `condition of ${name}`).toContain("github.event_name == 'pull_request'");
-    own(scenario).job = name;
-  },
-);
-
-Then(
-  'it runs only on pull requests and only when the detect job reports a Stryker configuration',
-  ({ scenario }) => {
-    const condition = currentJob(scenario).if ?? '';
-    expect(condition, 'condition of mutation').toContain("github.event_name == 'pull_request'");
-    expect(condition, 'condition of mutation').toContain("needs.detect.outputs.stryker == 'true'");
-  },
-);
-
-Then(
-  'it restores and saves the Stryker incremental files under a key that starts with the base branch',
-  ({ scenario }) => {
-    const cache = stepWith(
-      currentJob(scenario),
-      (step) => String(step.uses ?? '').startsWith('actions/cache@'),
-      'with actions/cache',
-    );
-    expect(cache.with?.['path'], 'cached path').toBe('apps/api/reports/stryker-incremental-*.json');
-    const prefix = 'stryker-incremental-${{ github.base_ref }}-';
-    expect((cache.with?.['key'] ?? '').startsWith(prefix), 'the cache key starts with the base branch').toBe(
-      true,
-    );
-    expect(cache.with?.['restore-keys'], 'restore key').toBe(prefix);
-  },
-);
-
-Then(
-  /^it runs cargo mutants on the PR's diff for the domain, the core and the adapters, each with unit tests only$/,
-  ({ scenario }) => {
-    const commands = runsOf(currentJob(scenario)).filter((run) => run.includes('cargo mutants'));
-    for (const crate of AGENT_CRATES) {
-      const command = commands.find((run) => run.includes(`--package d2rmm-agent-${crate} `));
-      expect(command, `cargo mutants for ${crate}`).toBeDefined();
-      expect(command ?? '', `${crate} in the PR diff`).toContain('--in-diff reports/agent.diff');
-      expect(command ?? '', `${crate} unit tests only`).toMatch(/ -- --lib$/u);
-    }
-  },
-);
-
-Then(
-  /^its cargo mutants commands run only when the PR changes a file under "([^"]+)"$/,
-  ({ scenario }, dir: string) => {
-    const job = currentJob(scenario);
-    const diff = stepWith(job, (step) => step.id === 'diff', 'with the id diff');
-    expect(diff.run ?? '', 'the diff of the PR').toContain(dir.replace(/\/$/u, ''));
-    const commands = (job.steps ?? []).filter((step) => (step.run ?? '').includes('cargo mutants'));
-    expect(commands.length, 'cargo mutants commands').toBeGreaterThan(0);
-    for (const step of commands)
-      expect(step.if ?? '', 'condition of a cargo mutants command').toBe(
-        "steps.diff.outputs.changed == 'true'",
-      );
-  },
-);
 
 // CFP-10: the nightly agent mutation runs on Linux with its commands and report paths unchanged.
 Then(/^the agent mutation job runs on "([^"]+)"$/, ({ scenario }, runner: string) => {
