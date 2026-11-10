@@ -3,6 +3,7 @@ import { createAuthenticateSession } from './authenticate-session.ts';
 import { createGetMe } from './get-me.ts';
 import type { AccountRepository, SecretHasher, SessionRepository } from './ports.ts';
 import { createSignInTestAccount } from './sign-in-test-account.ts';
+import { createSignOut } from './sign-out.ts';
 
 export interface IdentityDeps {
   readonly accounts: AccountRepository;
@@ -19,6 +20,7 @@ export function createIdentityUseCases(deps: IdentityDeps) {
     signInTestAccount: createSignInTestAccount(deps),
     authenticateSession: createAuthenticateSession(deps),
     getMe: createGetMe(deps),
+    signOut: createSignOut(deps),
   };
 }
 

@@ -21,7 +21,7 @@ Rules for the worker:
       `AccountRepository`, and `delete(tokenHash)` on `SessionRepository` (Postgres + in-memory fakes); add the new
       migration to the list in `migrate.int.test.ts` — gate:
       `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/modules/identity/adapters/postgres/identity-repositories.int.test.ts src/main/__tests__/migrate.int.test.ts`
-- [ ] T2 — Domain and application: `newBattleNetAccount(id, sub, battletag)` and `displayNameOf(battletag)` in
+- [x] T2 — Domain and application: `newBattleNetAccount(id, sub, battletag)` and `displayNameOf(battletag)` in
       `domain/account.ts`; port `BattleNetOAuth` (`authorizeUrl({state, codeChallenge, redirectUri})`,
       `exchange({code, verifier, redirectUri}) → Result<{sub, battletag}, 'exchange-failed' | 'userinfo-failed'>`);
       use cases `signInWithBattleNet` (find by sub, create on first sign-in, update a changed BattleTag, open a 7-day
