@@ -162,6 +162,18 @@ function checkInlineCode(code, ctx) {
       'This code names the retry ledger or the security verdicts, or enters .git: only the hooks and scripts/attempt.mjs touch those.',
     );
   }
+  // BUD-15 (T24): code that names the budget modules can call a reset without the wrapper, so it is the maintainer's.
+  if (/attempt\.mjs|budget\.mjs|ledger-store\.mjs/i.test(text.replace(/['"+\\\s]/g, ''))) {
+    return ask(
+      "This code names the retry-budget modules, which can reset a budget without scripts/attempt.mjs. A reset is the maintainer's (ADR 022).",
+    );
+  }
+  // BUD-15 (T26): an import or require whose module is not one plain string literal can name the modules at run time.
+  if (/\b(?:import|require)\s*\((?!\s*(['"])[^'"\\]*\1\s*\))/.test(text)) {
+    return ask(
+      "This code loads a module from a name that is not one string literal, so it can name the retry-budget modules at run time. Use a literal path. A reset is the maintainer's (ADR 022).",
+    );
+  }
   if (INLINE_ENV.test(text)) {
     return deny(
       '.env files hold secrets and are off-limits to the agent, from inline code too. Use .env.example.',
@@ -351,8 +363,10 @@ function checkSegment(seg, ctx) {
     return deny('.env files hold secrets and are off-limits to the agent. Use .env.example.');
   }
 
-  // Shell writes to harness files bypass the Edit-level checks below.
-  const writes = /(\bsed\s+-i|\btee\b|>|\bmv\b|\bcp\b|\btruncate\b|\bperl\s+-p?i)/.test(seg);
+  // Shell writes to harness files bypass the Edit-level checks below. BUD-18: a descriptor redirection (2>&1, >&2,
+  // >/dev/null) writes no file, so its `>` is not a write.
+  const writeText = seg.replace(/\d*>&\d+|&?\d*>>?\s*\/dev\/null/g, ' ');
+  const writes = /(\bsed\s+-i|\btee\b|>|\bmv\b|\bcp\b|\btruncate\b|\bperl\s+-p?i)/.test(writeText);
   if (writes && head.some((x) => x === BASELINE || x.endsWith(`/${BASELINE}`))) {
     return deny(
       'Edit .quality-baseline.json with the Edit tool (so the ratchet check runs) or via `pnpm quality:ratchet --update`.',

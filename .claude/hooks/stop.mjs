@@ -50,11 +50,14 @@ if (any(/^apps\/agent\/src-tauri\//) && existsSync(`${root}/apps/agent/src-tauri
 }
 
 const failures = [];
+const failing = [];
 for (const [name, cmd, args] of checks) {
   const r = run(cmd, args, { cwd: root, timeoutMs: 300_000 });
-  if (!r.ok) failures.push(`## ${name}\n${tail(r.out, 50)}`);
+  if (r.ok) continue;
+  failures.push(`## ${name}\n${tail(r.out, 50)}`);
+  failing.push({ status: r.code, output: r.out });
 }
-const verdict = withLedger(ledgerFile, (l) => onStop(l, sid, failures.join('\n\n')));
+const verdict = withLedger(ledgerFile, (l) => onStop(l, sid, failures.join('\n\n'), failing));
 if (verdict.block) {
   process.stdout.write(JSON.stringify({ decision: 'block', reason: verdict.message }));
 } else if (verdict.message) {

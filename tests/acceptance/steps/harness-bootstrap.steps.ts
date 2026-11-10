@@ -17,6 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { expect } from '@playwright/test';
 import { After, Given, Then, When, type Scenario } from '../fixtures.ts';
+import { answerOf, gateWorldOf, type GateAnswer } from '../support/gate-world.ts';
 
 const maxOutputBytes = 16 * 1024 * 1024;
 const hookTimeoutMs = 120_000;
@@ -26,11 +27,8 @@ const untickedHarnessSelf = '- [ ] harness-self';
 const removedTestCase = "test('first case', () => {});\n";
 const testFileText = `import { test } from 'node:test';\n\n${removedTestCase}test('second case', () => {});\n`;
 
-// The gate's answer to one tool call: the decision it gives (none when it prints nothing) and its reason.
-interface Answer {
-  decision: string | undefined;
-  reason: string;
-}
+// The gate's answer to one tool call (support/gate-world.ts).
+type Answer = GateAnswer;
 
 // A foreground dispatch that has started and may still return: its tool_use_id and its tool input.
 interface Dispatch {
@@ -51,11 +49,13 @@ interface LedgerFile {
   units: Record<string, { status: string; attempts: unknown[] }>;
 }
 
-// The state this feature's steps share within one scenario, stored in the scenario fixture.
+// The state this feature's steps share within one scenario, stored in the scenario fixture. The temporary repository,
+// the last decision and the temporary directories are the gate world's (support/gate-world.ts), shared with
+// budget-v2: the accessors below read and write it.
 interface BootstrapWorld {
   repo: string | undefined;
   phase: string;
-  temporary: string[];
+  readonly temporary: string[];
   answer: Answer | undefined;
   dispatch: Dispatch | undefined;
   dispatchHead: string | undefined;
@@ -68,11 +68,24 @@ const KEY = 'harness-bootstrap';
 function worldOf(scenario: Scenario): BootstrapWorld {
   const stored = scenario.values.get(KEY);
   if (stored !== undefined) return stored as BootstrapWorld;
+  const gate = gateWorldOf(scenario);
   const created: BootstrapWorld = {
-    repo: undefined,
+    get repo() {
+      return gate.repo;
+    },
+    set repo(value: string | undefined) {
+      gate.repo = value;
+    },
     phase: 'F0',
-    temporary: [],
-    answer: undefined,
+    get temporary() {
+      return gate.temporary;
+    },
+    get answer() {
+      return gate.answer;
+    },
+    set answer(value: Answer | undefined) {
+      gate.answer = value;
+    },
     dispatch: undefined,
     dispatchHead: undefined,
     dispatchCount: 0,
@@ -226,18 +239,6 @@ function runHook(
   });
   if (result.status !== 0) throw new Error(`${hook} exited ${result.status}\n${result.stderr}`);
   return result.stdout.trim();
-}
-
-function answerOf(text: string): Answer {
-  if (text === '') return { decision: undefined, reason: '' };
-  const output =
-    (JSON.parse(text) as { hookSpecificOutput?: Record<string, unknown> }).hookSpecificOutput ?? {};
-  const decision = output['permissionDecision'];
-  const reason = output['permissionDecisionReason'];
-  return {
-    decision: typeof decision === 'string' ? decision : undefined,
-    reason: typeof reason === 'string' ? reason : '',
-  };
 }
 
 // The gate's answer to one PreToolUse call in the scenario's repository.
@@ -789,6 +790,6 @@ Then(
 );
 
 After(({ scenario }) => {
-  const stored = scenario.values.get(KEY) as BootstrapWorld | undefined;
-  for (const dir of stored?.temporary ?? []) rmSync(dir, { recursive: true, force: true });
+  // The temporary directories of every gate scenario, the harness-bootstrap ones and budget-v2's.
+  for (const dir of gateWorldOf(scenario).temporary) rmSync(dir, { recursive: true, force: true });
 });

@@ -61,6 +61,19 @@ export function guardState(ctx) {
 const git = (ctx, ...args) => ctx.git?.(...args) ?? null;
 const commitOf = (ctx, ref) => git(ctx, 'rev-parse', '--verify', '--quiet', `${ref}^{commit}`);
 const resolves = (ctx, ref) => ref !== 'FETCH_HEAD' && Boolean(commitOf(ctx, ref));
+/**
+ * The head a covered branch names here (T25): the local branch and `origin/<branch>` are both read. When both resolve
+ * and differ, the one that contains the other is the head; when neither contains the other, `diverged` names both.
+ */
+function headAt(ctx, branch) {
+  const local = commitOf(ctx, branch);
+  const remote = commitOf(ctx, `origin/${branch}`);
+  if (!local || !remote || local === remote) return { head: local || remote || null, diverged: null };
+  const base = git(ctx, 'merge-base', local, remote);
+  if (base === remote) return { head: local, diverged: null };
+  if (base === local) return { head: remote, diverged: null };
+  return { head: null, diverged: { local, remote } };
+}
 
 /** The commits a range lists, or null when git cannot list them (the caller then fails closed). */
 function revList(ctx, range) {
@@ -68,12 +81,19 @@ function revList(ctx, range) {
   return out === null ? null : out.split('\n').filter(Boolean);
 }
 
-/** HBS-32: `ref` touches the covered branch when they share a commit beyond the phase branch. */
+/**
+ * HBS-32: `ref` touches the covered branch when they share a commit beyond the phase branch. The covered commits are the
+ * union of those beyond the phase on the local branch and on `origin/<branch>`, each read when it resolves (T25). A
+ * covered branch that resolves neither (its feature has not started) holds no commit, so it touches nothing; the phase
+ * branch must resolve for that reading, so a git that cannot answer still fails closed.
+ */
 function touches(ctx, state, ref, branch) {
+  const names = [branch, `origin/${branch}`].filter((r) => commitOf(ctx, r));
+  if (names.length === 0 && commitOf(ctx, state.phaseBranch)) return false;
   const a = revList(ctx, `${state.phaseBranch}..${ref}`);
-  const b = revList(ctx, `${state.phaseBranch}..${branch}`);
-  if (a === null || b === null) return true;
-  return a.some((c) => b.includes(c));
+  const lists = (names.length > 0 ? names : [branch]).map((r) => revList(ctx, `${state.phaseBranch}..${r}`));
+  if (a === null || lists.some((b) => b === null)) return true;
+  return lists.some((b) => a.some((c) => b.includes(c)));
 }
 
 const touchedCovered = (ctx, state, ref) => state.covered.filter((c) => touches(ctx, state, ref, c.branch));
@@ -90,7 +110,8 @@ function isSubsetOfProven(ctx, state, ref, proven) {
  * clean tree and a PASS verdict exist for it, else null, with what is missing.
  */
 function proofOf(ctx, c) {
-  const head = commitOf(ctx, c.branch);
+  const { head, diverged } = headAt(ctx, c.branch);
+  if (diverged) return { head: null, test: false, review: false, branchHead: null, diverged };
   if (!head) return { head: null, test: false, review: false, branchHead: null };
   const units = ctx.ledger?.units ?? {};
   const test = Object.entries(units).some(
@@ -105,6 +126,12 @@ function proofOf(ctx, c) {
 }
 
 function missingReason(c, p) {
+  if (p.diverged) {
+    return (
+      `${c.branch} is at ${p.diverged.local} here and at ${p.diverged.remote} on origin, and neither contains the other: ` +
+      `push or fetch ${c.branch} until both heads agree, then merge it at its proven head (ADR 028 § 3).`
+    );
+  }
   const missing = [];
   if (!p.test) {
     missing.push(
