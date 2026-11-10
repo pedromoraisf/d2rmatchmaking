@@ -571,9 +571,9 @@ T15 → T19 → T20 → T21 → T16
 
 **Done when**:
 
-- [ ] A test named `the guard fails closed when git does not answer in time` covers a timed-out `commitOf` of the covered branch, and then a timed-out `rev-list`. In each case, `git merge --no-ff feat/F0-x` and `git branch -f phase/F0 feat/F0-x` are denied, and the reason says git did not answer in time.
-- [ ] Every existing test of `guard.test.mjs` passes unchanged. The `@HBS-32`, `@HBS-35` and `@HBS-36` scenarios pass at `--workers=2`.
-- [ ] The gate passes.
+- [x] A test named `the guard fails closed when git does not answer in time` covers a timed-out `commitOf` of the covered branch, and then a timed-out `rev-list`. In each case, `git merge --no-ff feat/F0-x` and `git branch -f phase/F0 feat/F0-x` are denied, and the reason says git did not answer in time.
+- [x] Every existing test of `guard.test.mjs` passes unchanged. The `@HBS-32`, `@HBS-35` and `@HBS-36` scenarios pass at `--workers=2`.
+- [x] The gate passes.
 
 **Tests**: unit and acceptance
 **Gate**: `node --test .claude/hooks/test/guard.test.mjs && pnpm exec turbo run test:acceptance -- --grep "@HBS-3[2-6]" --workers=2`

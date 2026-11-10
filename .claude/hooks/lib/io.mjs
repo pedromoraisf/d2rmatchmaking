@@ -230,6 +230,14 @@ export const READ_MAX_BYTES = 1024 * 1024;
  * `git` spawn times out, the call returns `{ timedOut: true }` instead of throwing. A missing file, a refused file or a
  * failed `git` returns null, as the older helpers do.
  */
+// How many git calls of this process timed out (T21): the guard reads a timed-out call as unknown, never as absent.
+let gitTimeoutCount = 0;
+
+/** The number of `git` calls that timed out so far in this process (see makeIo's `git`). */
+export function gitTimeouts() {
+  return gitTimeoutCount;
+}
+
 export function makeIo({
   now = () => Date.now(),
   spawn = execFileSync,
@@ -243,7 +251,10 @@ export function makeIo({
   return {
     /** `git` with an argument array, never a shell. Returns the trimmed stdout, null on failure, or timedOut. */
     git(args, { cwd = process.cwd() } = {}) {
-      if (late()) return TIMED_OUT;
+      if (late()) {
+        gitTimeoutCount += 1;
+        return TIMED_OUT;
+      }
       const timeout = Math.min(SPAWN_MAX_MS, deadline - now());
       spawns++;
       try {
@@ -256,7 +267,9 @@ export function makeIo({
           killSignal: 'SIGKILL',
         }).trim();
       } catch (err) {
-        return err?.code === 'ETIMEDOUT' || err?.signal === 'SIGKILL' ? TIMED_OUT : null;
+        const timedOut = err?.code === 'ETIMEDOUT' || err?.signal === 'SIGKILL';
+        if (timedOut) gitTimeoutCount += 1;
+        return timedOut ? TIMED_OUT : null;
       }
     },
     /**
