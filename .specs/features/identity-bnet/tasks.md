@@ -77,5 +77,5 @@ Rules for the worker:
       it, the plain API gets none (IDB-06); steps in `tests/acceptance/steps/identity-bnet.steps.ts` for every step of
       `acceptance.feature`, reusing the existing pairing and heartbeat steps — gate:
       `pnpm exec turbo run test:acceptance -- --grep @IDB-`
-- [ ] T10 — Whole-repo sensors on the branch — gate:
+- [x] T10 — Whole-repo sensors on the branch — gate:
       `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check`
