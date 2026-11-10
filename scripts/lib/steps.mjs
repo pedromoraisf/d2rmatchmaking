@@ -10,7 +10,10 @@ export function taskIds(tasksText) {
   return [...String(tasksText ?? '').matchAll(TASK_RE)].map((m) => m[1].toUpperCase());
 }
 
+// `fix` is the runner's fix loop (FPR-09): the preflight runs as this step, with its own budget unit.
+const WRAPPER_FIXED_STEPS = [...FIXED_STEPS, 'fix'];
+
 export function allowedSteps(featureDir) {
   const tasks = path.join(featureDir, 'tasks.md');
-  return new Set([...FIXED_STEPS, ...taskIds(existsSync(tasks) ? readFileSync(tasks, 'utf8') : '')]);
+  return new Set([...WRAPPER_FIXED_STEPS, ...taskIds(existsSync(tasks) ? readFileSync(tasks, 'utf8') : '')]);
 }

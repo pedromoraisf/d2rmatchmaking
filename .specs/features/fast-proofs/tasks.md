@@ -98,10 +98,10 @@ Export the pure parts (`parseChecks`, `proofKey`) for the unit test. Run `main` 
 
 **Done when**:
 
-- [ ] A test named `the wrapper accepts step fix and counts it on its own unit` runs `attempt.mjs run --feature f --step fix -- "<a passing command>"` and sees exit 0 and a unit `gate:f/fix` in the ledger. A failing command counts on `gate:f/fix` and not on `gate:f/proofs`.
-- [ ] An unknown step (`--step nope`) is still refused.
-- [ ] Every existing test of `attempt-cli.test.mjs` passes unchanged.
-- [ ] The gate passes.
+- [x] A test named `the wrapper accepts step fix and counts it on its own unit` runs `attempt.mjs run --feature f --step fix -- "<a passing command>"` and sees exit 0 and a unit `gate:f/fix` in the ledger. A failing command counts on `gate:f/fix` and not on `gate:f/proofs`.
+- [x] An unknown step (`--step nope`) is still refused.
+- [x] Every existing test of `attempt-cli.test.mjs` passes unchanged.
+- [x] The gate passes.
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/attempt-cli.test.mjs`
