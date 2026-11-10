@@ -43,6 +43,37 @@ describe('api client', () => {
     expect(calls.map((call) => call.url)).toStrictEqual(['/api/v1/me/room']);
   });
 
+  it('signs out with a POST carrying the JSON content type and an empty JSON object', async () => {
+    const { fetch, calls } = routeFetch({ 'POST /api/v1/auth/logout': () => jsonResponse(204) });
+
+    expect(await createApiClient(fetch).signOut()).toStrictEqual({ ok: true, value: undefined });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.init.method).toBe('POST');
+    expect(calls[0]?.init.headers).toStrictEqual({ 'Content-Type': 'application/json' });
+    expect(calls[0]?.init.body).toBe('{}');
+  });
+
+  it('revokes an agent with a DELETE on its id, carrying the JSON content type and an empty JSON object', async () => {
+    const { fetch, calls } = routeFetch({ 'DELETE /api/v1/agents/agent-1': () => jsonResponse(204) });
+
+    expect(await createApiClient(fetch).revokeAgent('agent-1')).toStrictEqual({ ok: true, value: undefined });
+    expect(calls[0]?.url).toBe('/api/v1/agents/agent-1');
+    expect(calls[0]?.init.method).toBe('DELETE');
+    expect(calls[0]?.init.headers).toStrictEqual({ 'Content-Type': 'application/json' });
+    expect(calls[0]?.init.body).toBe('{}');
+  });
+
+  it('maps a 404 on revoke to not-found and a 401 on sign-out to unauthenticated', async () => {
+    const { fetch } = routeFetch({
+      'DELETE /api/v1/agents/agent-9': () => jsonResponse(404),
+      'POST /api/v1/auth/logout': () => jsonResponse(401),
+    });
+    const client = createApiClient(fetch);
+
+    expect(await client.revokeAgent('agent-9')).toStrictEqual({ ok: false, failure: 'not-found' });
+    expect(await client.signOut()).toStrictEqual({ ok: false, failure: 'unauthenticated' });
+  });
+
   it('maps a 401 to unauthenticated', async () => {
     const { fetch } = routeFetch({ 'GET /api/v1/me': () => jsonResponse(401) });
     expect(await createApiClient(fetch).me()).toStrictEqual({ ok: false, failure: 'unauthenticated' });

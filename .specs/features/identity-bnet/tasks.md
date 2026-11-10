@@ -55,7 +55,7 @@ Rules for the worker:
       span `agents.revoke`; unit tests and a route integration test proving the revoked token answers 401 on the next
       heartbeat; regenerate and commit the OpenAPI — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/modules/agents/application && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/agents-routes.int.test.ts && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json`
-- [ ] T7 — Site: "Sign in with Battle.net" link to `/api/v1/auth/bnet/login` when `config.bnetSignIn` (next to the
+- [x] T7 — Site: "Sign in with Battle.net" link to `/api/v1/auth/bnet/login` when `config.bnetSignIn` (next to the
       test sign-in on staging), the failure message when the URL has `?signin=failed` (then removed from the URL),
       a "Sign out" button, and a "Revoke agent" button with a confirmation step in the presence panel that returns
       to the pairing form; every string in `en` and `pt-BR` locale files; component tests for each state and for

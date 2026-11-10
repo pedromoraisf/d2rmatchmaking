@@ -12,6 +12,7 @@ import { type ApiClient, createApiClient } from '../shared/api-client.ts';
 import { tracingFetcher } from '../shared/telemetry.ts';
 import { openSiteStream, type StreamOpener } from '../shared/stream.ts';
 import { Layout } from './Layout.tsx';
+import { clearSignInFailure, signInFailedIn } from './sign-in-failure.ts';
 import { applyStreamEvent } from './site-state.ts';
 
 export interface AppProps {
@@ -64,6 +65,12 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
   const { t } = useTranslation();
   const [boot, setBoot] = useState<Boot>({ status: 'loading' });
   const signedIn = boot.status === 'ready' && boot.session !== null;
+
+  // The Battle.net callback's failure flag is read once, on the first render, and then removed from the address bar.
+  const [signInFailed] = useState(() => signInFailedIn(window.location.search));
+  useEffect(() => {
+    clearSignInFailure(window.location, window.history);
+  }, []);
 
   // Stream events applied so far. A read that an event overtook may answer older than that event, so its answer is
   // ignored and the site reads again.
@@ -139,13 +146,36 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
       <SignInPanel
         client={client}
         staging={boot.config.stagingEndpoints}
+        bnetSignIn={boot.config.bnetSignIn}
+        bnetFailed={signInFailed}
         session={session}
         onSignedIn={(next) => {
           setBoot((current) => (current.status === 'ready' ? { ...current, session: next } : current));
           void refreshSite();
         }}
+        onSignedOut={() => {
+          // Signed out: nothing of the player's stays on screen, and the stream closes with the signed-in state.
+          setBoot((current) =>
+            current.status === 'ready'
+              ? { ...current, session: null, agent: null, room: null, pairedNotice: false }
+              : current,
+          );
+        }}
       />
-      {session !== null && agent?.status === 'paired' ? <PresencePanel agent={agent} /> : null}
+      {session !== null && agent?.status === 'paired' ? (
+        <PresencePanel
+          client={client}
+          agent={agent}
+          onRevoked={() => {
+            // The agent is cut off: the site reads it again, and the answer ("no agent") shows the pairing form. A failed
+            // read keeps what is on screen, as every read does.
+            setBoot((current) =>
+              current.status === 'ready' ? { ...current, pairedNotice: false } : current,
+            );
+            void refreshSite();
+          }}
+        />
+      ) : null}
       {session !== null && (agent?.status === 'none' || pairedNotice) ? (
         <PairingForm
           client={client}
