@@ -106,12 +106,10 @@ const BARE = (s) => s.replace(/['"\\]/g, '');
 const EXPANDS = /[$`*?[{]/;
 const ASSIGN_WORD = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const PREFIX_WORDS = new Set(['env', 'time', 'exec', 'command', 'nohup']);
-// T30: a word that is a script path the shell builds: it holds a character that expands or globs, and it names a file
-// by a directory or a script extension.
-const SCRIPT_EXT = /\.(mjs|js|cjs|ts)$/i;
 const RUNNER_WORD =
   /^(node|python[\d.]*|bun|tsx|deno|sh|bash|zsh|pnpm|pnpx|npx|bunx|npm|yarn|env|exec|time|nohup|command)$/;
-const isDynamicScript = (w) => EXPANDED_ARG.test(w) && (w.includes('/') || SCRIPT_EXT.test(w));
+// T32: a word the shell builds (it holds an expanding, globbing or redirecting character) may be a script, whatever its shape.
+const isDynamicScript = (w) => EXPANDED_ARG.test(w);
 
 /**
  * Whether a shell segment runs a reset that the shell builds. Its program expands or globs and has `reset` or an

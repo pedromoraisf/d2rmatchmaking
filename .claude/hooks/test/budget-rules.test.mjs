@@ -655,12 +655,27 @@ test('a reset word or script path the shell builds always asks', () => {
     `node -r x scripts/att*.mjs reset --unit k --by maintainer`,
     `node -r x scripts/att*.mjs r?set --unit k --by maintainer`,
     `bash -c 'pnpm node scripts/att*.mjs reset --unit k --by maintainer'`,
+    // T32: any word the shell builds after a runner is a possible script, whatever its shape.
+    `cd scripts && node att* reset --unit gate:f/T1 --by maintainer`,
+    `cd scripts && node attempt.m* reset --unit k --by maintainer`,
+    `node attempt.mj? reset --unit k --by maintainer`,
+    `node a* reset --unit k --by maintainer`,
+    `bun att* reset --unit k --by maintainer`,
+    `cd scripts; node "att"* reset --unit k --by maintainer`,
+    `s=scripts/attempt.mjs; node $s reset --unit k --by maintainer`,
+    // T32 (finding 2): only the reset rule decides these, and the reason tells it from the redirection and subshell rules.
+    `node scripts/attempt.mjs <(echo reset) --unit k --by maintainer`,
+    `node scripts/attempt.mjs <reset --unit k --by maintainer`,
+    `node scripts/attempt.mjs >x reset --unit k --by maintainer`,
+    `node scripts/attempt.mjs (reset) --unit k --by maintainer`,
   ]) {
     const answer = call('Bash', { command }, ctx);
     assert.equal(answer?.decision, 'ask', command);
     assert.equal(answer.reason, RESET_REASON, command);
   }
   for (const command of [
+    'ls r?set',
+    'grep -r reset* .',
     'ls scripts/*.mjs reset',
     'node --test scripts/test/*.test.mjs',
     'git add scripts/attempt.mjs scripts/lib/budget.mjs',

@@ -892,7 +892,7 @@ Round 7 finding 2: the `<`, `>` and `(` in `EXPANDED_ARG` get cases in which onl
 
 **Done when**:
 
-- [ ] Each of these asks, with `RESET_REASON`:
+- [x] Each of these asks, with `RESET_REASON`:
   - `cd scripts && node att* reset --unit gate:f/T1 --by maintainer`
   - `cd scripts && node attempt.m* reset --unit k --by maintainer`
   - `node attempt.mj? reset --unit k --by maintainer`
@@ -903,12 +903,12 @@ Round 7 finding 2: the `<`, `>` and `(` in `EXPANDED_ARG` get cases in which onl
   - `node scripts/attempt.mjs <(echo reset) --unit k --by maintainer`
   - `node scripts/attempt.mjs >x reset --unit k --by maintainer`
   - `node scripts/attempt.mjs (reset) --unit k --by maintainer`
-- [ ] Each of these keeps no decision:
+- [x] Each of these keeps no decision:
   - `ls r?set`
   - `grep -r reset* .`
   - `node --test scripts/test/*.test.mjs`
   - every line of T30's no-decision list
-- [ ] Before the gate, the implementer checks that each of these mutations fails the test file. The check is the same as in T31: apply with Edit, run `node --test .claude/hooks/test/budget-rules.test.mjs`, `git restore`, empty diff.
+- [x] Before the gate, the implementer checks that each of these mutations fails the test file. The check is the same as in T31: apply with Edit, run `node --test .claude/hooks/test/budget-rules.test.mjs`, `git restore`, empty diff.
   - (1) `isDynamicScript` requiring `/` or a script extension again
   - (2) `EXPANDED_ARG` without `<`
   - (3) without `>`
@@ -916,8 +916,8 @@ Round 7 finding 2: the `<`, `>` and `(` in `EXPANDED_ARG` get cases in which onl
   - (5) the runner-word condition replaced by `true`
   - (6) the "another word is `reset` or expands" condition replaced by `true`
     The implementer reports each result and the exact `old`/`new` text used.
-- [ ] Every existing test of `budget-rules.test.mjs` and `gate-rules.test.mjs` passes unchanged.
-- [ ] The gate passes.
+- [x] Every existing test of `budget-rules.test.mjs` and `gate-rules.test.mjs` passes unchanged.
+- [x] The gate passes.
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs .claude/hooks/test/gate-rules.test.mjs`
