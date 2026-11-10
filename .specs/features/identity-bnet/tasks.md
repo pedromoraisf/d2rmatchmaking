@@ -91,7 +91,7 @@ Rules for the worker:
       (`http://127.evil.example`). Accept only `localhost`, `[::1]` and a full IPv4 `127.a.b.c` (each part 0 to 255),
       for both `OTEL_EXPORTER_OTLP_ENDPOINT` and `BNET_OAUTH_BASE_URL`; tests for `127.evil.example`, `127.0.0.1.nip.io`,
       `127.0.0.1` and `127.1.2.3` — gate: `pnpm --filter @d2rmm/api exec vitest run src/main/config.test.ts`
-- [ ] T13 — Security review finding 5 (IDB-04): if `signInWithBattleNet` throws (database error), the callback ends in a
+- [x] T13 — Security review finding 5 (IDB-04): if `signInWithBattleNet` throws (database error), the callback ends in a
       500 without clearing the state cookie. Catch it in the callback route, record the outcome, clear the state cookie
       and redirect to `/?signin=failed`; a test with a failing repository — gate:
       `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/identity-routes.int.test.ts`

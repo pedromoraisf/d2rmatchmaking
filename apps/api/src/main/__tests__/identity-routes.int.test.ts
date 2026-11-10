@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { Writable } from 'node:stream';
+import type { Kysely } from 'kysely';
 import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it } from 'vitest';
 import {
   createMigratedTestDatabase,
@@ -205,6 +206,28 @@ function startFakeBattleNet(): Promise<{ readonly server: Server; readonly base:
   });
 }
 
+/**
+ * The app's database with every insert into the sessions table failing, as a lost connection would: the sign-in's last
+ * write throws after the account is found or created (IDB-04).
+ */
+function withFailingSessions(db: Kysely<AppDatabase>): Kysely<AppDatabase> {
+  const insertInto: Kysely<AppDatabase>['insertInto'] = (table) => {
+    if (table === 'identity.sessions') {
+      throw new Error('connection lost');
+    }
+    return db.insertInto(table);
+  };
+  return new Proxy(db, {
+    get(target, property) {
+      if (property === 'insertInto') {
+        return insertInto;
+      }
+      const value: unknown = Reflect.get(target, property, target);
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+    },
+  });
+}
+
 /** The `name=value` pair of the session cookie a response sets, or '' when it sets none. */
 function sessionPairOf(response: { readonly headers: Record<string, unknown> }): string {
   const raw = response.headers['set-cookie'];
@@ -323,6 +346,44 @@ describe('identity routes with Battle.net', () => {
     expect(logged).not.toContain('state=');
     expect(logged).not.toContain('good-code');
     expect(logged).not.toContain(state);
+  });
+
+  it('ends a sign-in that throws in the database: the state cookie is cleared, no session is set, the player is redirected (IDB-04)', async () => {
+    const failing = await buildApp({
+      db: withFailingSessions(database.db),
+      config: {
+        stagingEndpoints: false,
+        minAgentVersion: '0.0.1',
+        siteOrigin: SITE_ORIGIN,
+        trustProxyHops: 1,
+        bnet: { clientId: FAKE_CLIENT_ID, clientSecret: FAKE_CLIENT_SECRET, baseUrl: fake.base },
+      },
+      clock,
+      scheduler: new FakeScheduler(clock),
+      random: new NodeRandomSource(),
+      ids: new RandomUuidGenerator(),
+      logSink: silentSink,
+    });
+    try {
+      const login = await failing.app.inject({ method: 'GET', url: '/v1/auth/bnet/login' });
+      const state = new URL(String(login.headers['location'])).searchParams.get('state') ?? '';
+      const stateCookie = setCookieHeader(login.headers['set-cookie']).split(';')[0] ?? '';
+
+      const callback = await failing.app.inject({
+        method: 'GET',
+        url: `/v1/auth/bnet/callback?code=good-code&state=${state}`,
+        headers: { cookie: stateCookie },
+      });
+
+      expect(callback.statusCode).toBe(302);
+      expect(callback.headers['location']).toBe(`${SITE_ORIGIN}/?signin=failed`);
+      const raw = callback.headers['set-cookie'];
+      const cookies = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [];
+      expect(cookies.some((cookie) => cookie.startsWith('__Host-d2rmm_oauth=;'))).toBe(true);
+      expect(cookies.some((cookie) => cookie.startsWith('__Host-d2rmm_session=d2rmm_s_'))).toBe(false);
+    } finally {
+      await failing.app.close();
+    }
   });
 
   it('signs out: the session is deleted, and the old cookie answers 401', async () => {

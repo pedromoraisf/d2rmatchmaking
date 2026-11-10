@@ -30,7 +30,7 @@ const OAUTH_MAX_AGE_SECONDS = 10 * 60;
 const SECURE_COOKIE = { httpOnly: true, secure: true, sameSite: 'lax', path: '/' } as const;
 
 /** Why a Battle.net sign-in failed: the callback's checks (IDB-04) or the two calls to Battle.net. */
-export type BattleNetFailure = CallbackFailure | 'exchange-failed' | 'userinfo-failed';
+export type BattleNetFailure = CallbackFailure | 'exchange-failed' | 'userinfo-failed' | 'sign-in-error';
 
 type Guard = (request: FastifyRequest, reply: FastifyReply) => Promise<FastifyReply | undefined>;
 
@@ -159,11 +159,20 @@ export function identityRoutes(app: FastifyInstance, deps: IdentityRouteDeps): v
       if (!checked.ok) {
         return fail(checked.error);
       }
-      const signedIn = await deps.useCases.signInWithBattleNet({
+      // A throw (a database error, IDB-04) is recorded on the span and ends the sign-in like any other failure: the state
+      // cookie is cleared and the player lands on the site signed out, never on a 500 with the cookie still set.
+      const exchange = {
         code: checked.value.code,
         verifier: checked.value.verifier,
         redirectUri: redirectUriOf(deps.bnet.siteOrigin),
+      };
+      const signedIn = await deps.useCases.signInWithBattleNet(exchange).catch((error: unknown) => {
+        span.recordException(error instanceof Error ? error : new Error(String(error)));
+        return undefined;
       });
+      if (signedIn === undefined) {
+        return fail('sign-in-error');
+      }
       if (!signedIn.ok) {
         return fail(signedIn.error);
       }
