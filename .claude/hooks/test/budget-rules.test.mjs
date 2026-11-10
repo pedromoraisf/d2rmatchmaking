@@ -1,18 +1,20 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { decide } from '../lib/gate-rules.mjs';
-import { onStop, onFeedback } from '../lib/budget-rules.mjs';
+import { onStop, onFeedback, checkBudget } from '../lib/budget-rules.mjs';
 import { toRelative } from '../lib/io.mjs';
 import {
   emptyLedger,
   unitKey,
   recordAttempt,
   recordDispatch,
+  reset,
   MAX_ATTEMPTS,
 } from '../../../scripts/lib/budget.mjs';
 
 const WORDS = 'aprovo specs e tasks da F0 que passarem nos gates automáticos';
 const BRIEF = `| api-web-skeleton | agent-skeleton |\n## Delegation\n- [x] specs-and-tasks: x\n- [x] sub-agents: x\n\n**Approved**: 2026-11-02 - user: "${WORDS}"\n`;
+const RESET_REASON = 'Resetting a retry budget is a maintainer decision (ADR 022).';
 
 function ctxFor({
   branch = 'feat/F0-agent-skeleton',
@@ -203,6 +205,81 @@ test('stop: red blocks twice, the third red stop is let through with the session
   assert.deepEqual(l2.units, {});
 });
 
+test('red stop: lets the agent stop when the machine failed', () => {
+  const ledger = emptyLedger();
+  const failing = [
+    { status: 1, output: 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock' },
+    { status: 127, output: 'sh: cargo: command not found' },
+  ];
+  // BUD-31 (AD-167): two red stops of one session are left uncounted; the third and fourth count.
+  for (let i = 0; i < 2; i += 1) {
+    const verdict = onStop(ledger, 's7', '## typecheck\nCannot connect to the Docker daemon', failing);
+    assert.equal(verdict.block, false);
+    assert.doesNotMatch(verdict.message, /retry budget exhausted/);
+    assert.match(verdict.message, /docker/);
+    assert.match(verdict.message, /not-found/);
+  }
+  assert.deepEqual(ledger.units, {}, 'the first two red stops are not counted');
+  for (let i = 0; i < 2; i += 1) {
+    const verdict = onStop(ledger, 's7', '## typecheck\nCannot connect to the Docker daemon', failing);
+    assert.equal(verdict.block, true, 'the third and fourth red stops are counted');
+  }
+  assert.equal(ledger.units[unitKey('stop', 's7')].attempts.length, 2, 'the third and fourth are counted');
+});
+
+test('leaves at most two red stops uncounted per session', () => {
+  // BUD-31 (AD-167): the cap is per session; a session with no id counts as an ordinary one.
+  const machine = [{ status: 1, output: 'Cannot connect to the Docker daemon' }];
+  const text = '## typecheck\nCannot connect to the Docker daemon';
+  const ledger = emptyLedger();
+  assert.equal(onStop(ledger, 'a1', text, machine).block, false, 'the first red stop of a1 is uncounted');
+  assert.equal(onStop(ledger, 'a1', text, machine).block, false, 'the second red stop of a1 is uncounted');
+  assert.equal(onStop(ledger, 'a1', text, machine).block, true, 'the third red stop of a1 counts');
+  assert.equal(
+    onStop(ledger, 'b2', text, machine).block,
+    false,
+    "another session's first red stop is uncounted",
+  );
+  assert.equal(
+    onStop(ledger, 'b2', text, machine).block,
+    false,
+    "another session's second red stop is uncounted",
+  );
+  assert.equal(onStop(ledger, 'b2', text, machine).block, true, "another session's third red stop counts");
+
+  const noId = emptyLedger();
+  assert.equal(
+    onStop(noId, 'unknown-session', text, machine).block,
+    true,
+    'a red stop with no session id counts',
+  );
+  assert.equal(onStop(noId, 'unknown-session', text, machine).block, true, 'and so does the next one');
+});
+
+test('a subagent of an unknown session counts its red stops', () => {
+  // BUD-31 (Verifier round 3): a subagent of an input with no session id is a session of its own, not an unnamed one.
+  const machine = [{ status: 1, output: 'Cannot connect to the Docker daemon' }];
+  const text = '## typecheck\nCannot connect to the Docker daemon';
+  const ledger = emptyLedger();
+  assert.equal(
+    onStop(ledger, 'unknown-session#agent-1', text, machine).block,
+    true,
+    'the first red stop of a subagent of an input with no session id counts',
+  );
+});
+
+test('counts a red stop with a real failure', () => {
+  const ledger = emptyLedger();
+  const failing = [
+    { status: 1, output: 'Cannot connect to the Docker daemon' },
+    { status: 1, output: 'expected 2, received 3' },
+  ];
+  const verdict = onStop(ledger, 's6', '## typecheck\nCannot connect\n\n## unit tests\nexpected 2', failing);
+  assert.equal(verdict.block, true);
+  assert.match(verdict.message, /failure 1\/3, 2 retries left/);
+  assert.equal(Object.keys(ledger.units).length, 1, 'the red stop is counted');
+});
+
 test('feedback: the same sensor failing on the same file three times in a row is blocked', () => {
   const ledger = emptyLedger();
   const red = [{ id: 'eslint', ok: false, out: 'no-unused-vars' }];
@@ -344,4 +421,349 @@ test('worktrees are judged as their feature branch, and protected files stay pro
     ).decision,
     'deny',
   );
+});
+
+test("asks only for the maintainer's resets", () => {
+  const key = 'gate:demo/T1';
+  const fail = (ledger, n, extra = {}) => {
+    for (let i = 0; i < n; i += 1) recordAttempt(ledger, key, false, { note: 'boom', ...extra });
+    return ledger;
+  };
+  const blocked = () => fail(emptyLedger(), MAX_ATTEMPTS);
+  const envBlocked = () => fail(emptyLedger(), 3, { kind: 'env', signature: 'docker' });
+  const afterOrchestrator = () => {
+    const l = blocked();
+    reset(l, key, { by: 'orchestrator', reason: 'docker was stopped' });
+    return fail(l, MAX_ATTEMPTS);
+  };
+  const afterBoth = () => {
+    const l = afterOrchestrator();
+    reset(l, key, { by: 'pedromoraisf', reason: 'maintainer' });
+    return fail(l, MAX_ATTEMPTS);
+  };
+  const decisionFor = (ledger, command) => call('Bash', { command }, ctxFor({ ledger }))?.decision ?? null;
+  const reset1 = (by, tail = "--reason 'fixed'") =>
+    `node scripts/attempt.mjs reset --unit ${key} --by ${by} ${tail}`;
+
+  assert.equal(
+    decisionFor(blocked(), reset1('orchestrator')),
+    null,
+    'a blocked unit, first orchestrator reset',
+  );
+  assert.equal(decisionFor(envBlocked(), reset1('orchestrator')), null, 'an env-blocked unit');
+  assert.equal(
+    decisionFor(afterOrchestrator(), reset1('orchestrator')),
+    'ask',
+    'a second orchestrator reset',
+  );
+  assert.equal(decisionFor(afterBoth(), reset1('orchestrator')), 'ask', 'after the maintainer reset too');
+  assert.equal(decisionFor(blocked(), reset1('pedromoraisf')), 'ask', 'the maintainer resets');
+  assert.equal(decisionFor(blocked(), reset1('orchestrator', "--reason ''")), 'ask', 'an empty reason');
+  assert.equal(decisionFor(blocked(), reset1('orchestrator', '')), 'ask', 'no reason');
+  assert.equal(
+    decisionFor(blocked(), `node scripts/attempt.mjs reset --by orchestrator --reason 'fixed'`),
+    'ask',
+    'no unit',
+  );
+  assert.equal(
+    decisionFor(
+      afterOrchestrator(),
+      `node scripts/attempt.mjs reset --unit=${key} --by orchestrator --reason 'again'`,
+    ),
+    'ask',
+    'the --unit=<key> form names the same unit',
+  );
+  assert.equal(decisionFor(blocked(), `${reset1('orchestrator')} && git commit -m x`), 'ask', 'chained');
+});
+
+test('asks for a reset hidden behind another wrapper call', () => {
+  const key = 'gate:x/T1';
+  const blocked = () => {
+    const l = emptyLedger();
+    for (let i = 0; i < MAX_ATTEMPTS; i += 1) recordAttempt(l, key, false, { note: 'boom' });
+    return l;
+  };
+  const decisionFor = (ledger, command) => call('Bash', { command }, ctxFor({ ledger }))?.decision ?? null;
+  const status = 'node scripts/attempt.mjs status';
+  const orchestratorReset = `node scripts/attempt.mjs reset --unit ${key} --by orchestrator --reason 'fixed'`;
+
+  assert.equal(
+    decisionFor(emptyLedger(), `${status} && node scripts/attempt.mjs reset --unit ${key} --by maintainer`),
+    'ask',
+    'a maintainer reset after a status call',
+  );
+  assert.equal(
+    decisionFor(blocked(), `${status} && ${orchestratorReset}`),
+    'ask',
+    'an orchestrator reset after a status call',
+  );
+  assert.equal(
+    decisionFor(blocked(), `echo scripts/attempt.mjs status; ${orchestratorReset}`),
+    'ask',
+    'an orchestrator reset after an echoed wrapper name',
+  );
+  assert.equal(
+    decisionFor(blocked(), `${status} && bash -c "${orchestratorReset}"`),
+    'ask',
+    'an orchestrator reset inside bash -c after a status call',
+  );
+});
+
+test('finds a reset however the wrapper is spelled', () => {
+  const key = 'gate:x/T1';
+  const decisionFor = (command) =>
+    call('Bash', { command }, ctxFor({ ledger: emptyLedger() }))?.decision ?? null;
+
+  assert.equal(
+    decisionFor(`node "scripts/attempt.mjs" reset --unit ${key} --by maintainer`),
+    'ask',
+    'a double-quoted wrapper path',
+  );
+  assert.equal(
+    decisionFor(`node 'scripts/attempt.mjs' reset --unit ${key} --by maintainer`),
+    'ask',
+    'a single-quoted wrapper path',
+  );
+  assert.equal(
+    decisionFor(`cd scripts && node attempt.mjs reset --unit ${key} --by maintainer`),
+    'ask',
+    'the wrapper called from scripts/',
+  );
+});
+
+test('a reset is judged through quotes, escapes, case and hidden code', () => {
+  const key = 'gate:f/T1';
+  const ledger = emptyLedger();
+  for (let i = 0; i < MAX_ATTEMPTS; i += 1) recordAttempt(ledger, key, false, { note: 'boom' });
+  const base = ctxFor({ ledger });
+  const budgetScript = "import { ledgerPath } from './lib/budget.mjs';\n";
+  const ctx = { ...base, readFile: (rel) => (rel === 'scripts/x.mjs' ? budgetScript : base.readFile(rel)) };
+  const decisionFor = (command) => call('Bash', { command }, ctx)?.decision ?? null;
+  const maintainerReset = `reset --unit ${key} --by maintainer`;
+
+  for (const command of [
+    `node scripts/att''empt.mjs ${maintainerReset}`,
+    `node scripts/attempt\\.mjs ${maintainerReset}`,
+    `node scripts/"attempt".mjs ${maintainerReset}`,
+    `node scripts/ATTEMPT.mjs ${maintainerReset}`,
+    `bash -c "node scripts/att''empt.mjs ${maintainerReset}"`,
+    `node scripts/att\${x}empt.mjs ${maintainerReset}`,
+    `node scripts/att*.mjs ${maintainerReset}`,
+    "node -e \"import('./scripts/att'+'empt.mjs')\"",
+    `node scripts/x.mjs reset --unit ${key} --by orchestrator --reason 'fixed'`,
+  ]) {
+    assert.equal(decisionFor(command), 'ask', command);
+  }
+  // T28: another rule asks on the upper-case line too on macOS, so only the reason pins the case-insensitive match.
+  const upperCase = call('Bash', { command: `node scripts/ATTEMPT.mjs ${maintainerReset}` }, ctx);
+  assert.equal(upperCase.reason, RESET_REASON, 'the upper-case wrapper name is judged by the reset rule');
+  for (const command of [
+    `node scripts/attempt.mjs reset --unit ${key} --by orchestrator --reason 'fixed'`,
+    'node scripts/attempt.mjs status',
+    'node scripts/attempt.mjs run --feature f --step T1 -- "node --test --test-name-pattern reset x.test.mjs"',
+  ]) {
+    assert.equal(decisionFor(command), null, command);
+  }
+  // T26 (finding 3): rule (b) asks on each of these alone, so the reason is the reset one and no other rule's.
+  for (const command of [
+    `node scripts/att?mpt.mjs reset --unit ${key} --by maintainer`,
+    `node scripts/att[e]mpt.mjs reset --unit ${key} --by maintainer`,
+    'node scripts/att`echo e`mpt.mjs reset --unit gate:f/T1 --by maintainer',
+    `node scripts/att$x.mjs reset --unit ${key} --by maintainer`,
+    `FOO=1 node scripts/att*.mjs reset --unit ${key} --by maintainer`,
+    `bash -c 'node scripts/att*.mjs reset --unit ${key} --by maintainer'`,
+  ]) {
+    const answer = call('Bash', { command }, ctx);
+    assert.equal(answer?.decision, 'ask', command);
+    assert.equal(answer.reason, RESET_REASON, command);
+  }
+  // T31: the program branch of rule (b) decides these alone, since no runner precedes the program.
+  for (const command of [
+    `./scripts/att*.mjs reset --unit ${key} --by maintainer`,
+    `./scripts/att?.mjs reset --unit ${key} --by maintainer`,
+    `./scripts/att[e].mjs reset --unit ${key} --by maintainer`,
+    './scripts/att`echo e`.mjs reset --unit gate:f/T1 --by maintainer',
+    `./scripts/att$x.mjs reset --unit ${key} --by maintainer`,
+    `FOO=1 ./scripts/att*.mjs reset --unit ${key} --by maintainer`,
+    `./scripts/att*.mjs $x --unit ${key} --by maintainer`,
+  ]) {
+    const answer = call('Bash', { command }, ctx);
+    assert.equal(answer?.decision, 'ask', command);
+    assert.equal(answer.reason, RESET_REASON, command);
+  }
+  assert.equal(
+    decisionFor(`./scripts/att*.mjs status --unit ${key}`),
+    null,
+    'a status call of a dynamic program',
+  );
+});
+
+test('a reset is judged when the word itself is hidden', () => {
+  const key = 'gate:f/T1';
+  const ledger = emptyLedger();
+  for (let i = 0; i < MAX_ATTEMPTS; i += 1) recordAttempt(ledger, key, false, { note: 'boom' });
+  const ctx = ctxFor({ ledger });
+  const decisionFor = (command) => call('Bash', { command }, ctx)?.decision ?? null;
+
+  for (const command of [
+    `node scripts/attempt.mjs "$(echo reset)" --unit ${key} --by maintainer`,
+    `node scripts/attempt.mjs $r --unit ${key} --by maintainer`,
+    `x=reset; node scripts/attempt.mjs $x --unit ${key} --by maintainer`,
+    `node scripts/a{t,t}empt.mjs reset --unit ${key} --by maintainer`,
+    `node scripts/a{t,t}empt.mjs $x --unit ${key} --by maintainer`,
+  ]) {
+    assert.equal(decisionFor(command), 'ask', command);
+  }
+  // T28: an upper-case subcommand, and a brace in an argument alone (no `reset` word), each ask with the reset reason.
+  for (const command of [
+    `node scripts/attempt.mjs RESET --unit ${key} --by maintainer`,
+    `node scripts/att*.mjs re{s,}et --unit ${key} --by maintainer`,
+  ]) {
+    const answer = call('Bash', { command }, ctx);
+    assert.equal(answer?.decision, 'ask', command);
+    assert.equal(answer.reason, RESET_REASON, command);
+  }
+  for (const command of [
+    'node scripts/attempt.mjs run --feature f --step T1 -- "x"',
+    'node scripts/attempt.mjs status',
+    'node scripts/attempt.mjs report',
+    'node scripts/att*.mjs status',
+    'node scripts/attempt.mjs',
+    'git add scripts/attempt.mjs scripts/lib/budget.mjs',
+    'echo $HOME',
+    'ls scripts/*.mjs reset',
+  ]) {
+    assert.equal(decisionFor(command), null, command);
+  }
+});
+
+test('a reset word or script path the shell builds always asks', () => {
+  const key = 'gate:f/T1';
+  const ledger = emptyLedger();
+  for (let i = 0; i < MAX_ATTEMPTS; i += 1) recordAttempt(ledger, key, false, { note: 'boom' });
+  const ctx = ctxFor({ ledger });
+  const decisionFor = (command) => call('Bash', { command }, ctx)?.decision ?? null;
+
+  for (const command of [
+    `node scripts/attempt.mjs r?set --unit ${key} --by maintainer`,
+    `node scripts/attempt.mjs res[e]t --unit ${key} --by maintainer`,
+    `node scripts/attempt.mjs r* --unit ${key} --by maintainer`,
+    `node scripts/attempt.mjs ~reset --unit ${key} --by maintainer`,
+    `touch reset && node scripts/attempt.mjs r?set --unit ${key} --by maintainer`,
+    `pnpm node scripts/att*.mjs reset --unit k --by maintainer`,
+    `npx node scripts/att*.mjs reset --unit k --by maintainer`,
+    `node -r x scripts/att*.mjs reset --unit k --by maintainer`,
+    `node -r x scripts/att*.mjs r?set --unit k --by maintainer`,
+    `bash -c 'pnpm node scripts/att*.mjs reset --unit k --by maintainer'`,
+    // T32: any word the shell builds after a runner is a possible script, whatever its shape.
+    `cd scripts && node att* reset --unit gate:f/T1 --by maintainer`,
+    `cd scripts && node attempt.m* reset --unit k --by maintainer`,
+    `node attempt.mj? reset --unit k --by maintainer`,
+    `node a* reset --unit k --by maintainer`,
+    `bun att* reset --unit k --by maintainer`,
+    `cd scripts; node "att"* reset --unit k --by maintainer`,
+    `s=scripts/attempt.mjs; node $s reset --unit k --by maintainer`,
+    // T32 (finding 2): only the reset rule decides these, and the reason tells it from the redirection and subshell rules.
+    `node scripts/attempt.mjs <(echo reset) --unit k --by maintainer`,
+    `node scripts/attempt.mjs <reset --unit k --by maintainer`,
+    `node scripts/attempt.mjs >x reset --unit k --by maintainer`,
+    `node scripts/attempt.mjs (reset) --unit k --by maintainer`,
+  ]) {
+    const answer = call('Bash', { command }, ctx);
+    assert.equal(answer?.decision, 'ask', command);
+    assert.equal(answer.reason, RESET_REASON, command);
+  }
+  for (const command of [
+    'ls r?set',
+    'grep -r reset* .',
+    'ls scripts/*.mjs reset',
+    'node --test scripts/test/*.test.mjs',
+    'git add scripts/attempt.mjs scripts/lib/budget.mjs',
+    'node scripts/attempt.mjs status',
+    'node scripts/attempt.mjs report',
+    'node scripts/attempt.mjs run --feature f --step T1 -- "x"',
+    'echo $HOME',
+  ]) {
+    assert.equal(decisionFor(command), null, command);
+  }
+});
+
+test('allows read-only filters after the wrapper', () => {
+  const ctx = ctxFor();
+  const gate = 'node scripts/attempt.mjs run --feature agent-skeleton --step T3 -- "pnpm test"';
+  for (const filter of [
+    '2>&1 | tail -n 40',
+    '| head -n 20',
+    '2>&1 | grep FAIL',
+    "| grep -i -E 'not ok|FAIL'",
+    '| grep -c -v ok',
+  ]) {
+    const command = `${gate} ${filter}`;
+    // BUD-18: a read-only filter after the wrapper gets no decision at all, through the whole gate.
+    assert.equal(call('Bash', { command }, ctx)?.decision ?? null, null, filter);
+    // The wrapper rule itself gives no opinion on the line.
+    assert.equal(checkBudget({ tool_name: 'Bash', tool_input: { command } }, ctx, 's1', ''), null, filter);
+  }
+});
+
+test('allows read-only filters after 2>&1', () => {
+  const ctx = ctxFor();
+  const gate = 'node scripts/attempt.mjs run --feature agent-skeleton --step T3 -- "pnpm test"';
+  for (const filter of ['2>&1 | tail -n 40', '2>&1 | grep FAIL', "2>&1 | grep -i -E 'not ok|FAIL'"]) {
+    const command = `${gate} ${filter}`;
+    // A descriptor redirection writes no file: the line gets no decision from the gate or the wrapper rule.
+    assert.equal(call('Bash', { command }, ctx)?.decision ?? null, null, filter);
+    assert.equal(checkBudget({ tool_name: 'Bash', tool_input: { command } }, ctx, 's1', ''), null, filter);
+  }
+});
+
+test('still asks for a real write after 2>&1', () => {
+  const ctx = ctxFor();
+  for (const command of [
+    'echo x > .claude/hooks/gate.mjs',
+    'cat a 2>&1 > eslint.config.mjs',
+    'cat a 2>/dev/null > .claude/hooks/gate.mjs',
+  ]) {
+    assert.equal(call('Bash', { command }, ctx)?.decision, 'ask', command);
+  }
+});
+
+test('denies anything else after the wrapper', () => {
+  const ctx = ctxFor();
+  const gate = 'node scripts/attempt.mjs run --feature agent-skeleton --step T3 -- "pnpm test"';
+  for (const tail of [
+    '| tee out.txt',
+    '&& git commit -m x',
+    '; rm -rf apps',
+    '| grep $(rm -rf apps)',
+    '| grep `rm -rf apps`',
+    '| tail -n 5 > out.txt',
+    '| tail -n 5 | sh',
+    '| tail -5',
+    '| grep -x FAIL',
+  ]) {
+    assert.equal(call('Bash', { command: `${gate} ${tail}` }, ctx).decision, 'deny', tail);
+  }
+});
+
+test('hands over the corrected command', () => {
+  const ctx = ctxFor();
+  const inWorktree = { cwd: '/repo/.claude/worktrees/demo' };
+  for (const [command, corrected] of [
+    ['pnpm test', 'node scripts/attempt.mjs run --feature demo --step <step> -- "pnpm test"'],
+    [
+      'node scripts/attempt.mjs run --feature demo --step T1 -- pnpm test && ls',
+      'node scripts/attempt.mjs run --feature demo --step T1 -- "pnpm test && ls"',
+    ],
+    [
+      'node scripts/attempt.mjs run --feature demo --step proofs -- pnpm test; ls',
+      'node scripts/attempt.mjs run --feature demo --step proofs -- "pnpm test; ls"',
+    ],
+  ]) {
+    const r = call('Bash', { command }, ctx, inWorktree);
+    assert.equal(r.decision, 'deny', command);
+    assert.ok(r.reason.includes(corrected), `${command}\n→ ${r.reason}`);
+  }
+  const outside = call('Bash', { command: 'pnpm test' }, ctx);
+  assert.ok(outside.reason.includes('--feature <feature> --step <step> -- "pnpm test"'), outside.reason);
 });

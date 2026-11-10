@@ -123,6 +123,11 @@ review. Reversals become tasks in a follow-up feature.
 | AD-146 | harness-bootstrap | Verdicts live in `verdicts.json` next to the hooks' ledger under `.git/`; any Edit, Write or shell write there is denied | move the store | |
 | AD-147 | harness-bootstrap | HBS-47 applies while at least one feature is covered; then every unresolvable merge operand is denied, whatever its name | one condition in the guard | |
 | AD-148 | harness-bootstrap | A release that attaches a file under a `.env*` or `.git` path segment asks (HBS-49, from the Verifier) | one pattern in `delivery.mjs` | |
+| AD-153 | budget-v2 | An unchanged rerun is one with the same working-directory tree as the last counted failure | hash a path set | |
+| AD-154 | budget-v2 | The wrapper stops a gate after `--timeout` (60 min default) and records an environment failure | one default | |
+| AD-155 | budget-v2 | A red stop caused by the machine lets the agent stop, uncounted | count it again | |
+| AD-156 | budget-v2 | A signature with a test-failure marker in the same output counts as an ordinary failure | drop the marker rule | |
+| AD-167 | budget-v2 | Maintainer chose option (b): the three-in-a-row rule stands; a fourth environment failure in total blocks a unit; at most two uncounted red stops per session; signatures unchanged | raise the totals | |
 | AD-149 | ci-fast-path | The nightly agent mutation runs on `ubuntu-latest` | one `runs-on` line | |
 | AD-150 | ci-fast-path | Majors of eslint and `@opentelemetry/*` come grouped and held by a 30-day cooldown; npm stays weekly | the `cooldown` block | |
 | AD-151 | ci-fast-path | The specs check refuses mutation only in the gates of open tasks | drop the condition | |
@@ -132,6 +137,7 @@ review. Reversals become tasks in a follow-up feature.
 | AD-169 | continuous-delivery | Maintainer items are rows of `decisions.md → For the maintainer`; an open row blocks only its feature and is printed on its line | another evidence source | |
 | AD-170 | continuous-delivery | The phase PR merges only when `verify`, `integration`, `agent` and `secrets` passed on its head, whatever the applied ruleset requires | read the ruleset file | |
 | AD-171 | continuous-delivery | The phase PR does not merge while any maintainer item is open; the review lists them and stops | one sentence in the skill | |
+| AD-172 | budget-v2 | The BUD-30 total is cleared only by a reset, not by a pass (a pass can be forged) | clear it on a pass of the task's own gate | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 
@@ -365,6 +371,7 @@ Exit criterion 5 of the brief is therefore proved by `v0.0.2` self-updating to `
 | room-trace-link / verification (resolved 2026-11-07: reset by pedromoraisf, gate passed) | gate `verification`        | 3 runs of `validate_verification.py`: two inside the Verifier's dispatch (findings open, so bound to fail), and the orchestrator's final run at `5149949` after the fix | both findings read "not closed": the orchestrator's script that wrote `Closed` added a fifth cell, so the commit `d47de04` sat outside the `Closed` column. The fix itself is in place: `check_proofs --mutations` at `5149949` gives 17 pass and 3 of 3 mutations killed. The table is corrected (uncommitted, a `.specs` file) | the maintainer resets `gate:room-trace-link/verification` (`node scripts/attempt.mjs reset --unit gate:room-trace-link/verification --by pedromoraisf`); the runner then runs `validate_verification.py` once and commits `proofs.md` and `verification.md` |
 
 | agent-hexagonal-migration / phase review (2026-11-04) — resolved 2026-11-04 | gate `verification` | 3 failures: 2 from the feature's own run, 1 from `/phase-review F0` running `validate_verification.py` on `phase/F0` | `proofs.md was written at 1c936f0 and HEAD is 2801b4b`. No code or proof defect: the validator requires the proofs at HEAD exactly, so it cannot pass after the merge. The gate passed at the feature's head before the merge | Maintainer reset `gate:agent-hexagonal-migration/verification` (by pedromoraisf). The review step's fix is proposed in `.specs/phases/F0/brief-revision-3.md` |
+| budget-v2 / T10 (2026-11-08) — resolved 2026-11-08: reset by pedromoraisf, T10 replanned (the telemetry `After` hook scoped to `@NFR-09`), gate passed at `3e3cc97` | gate `T10` | 3 failures: two refusals before the gate ran (`attempt: unknown feature "budget-v2"`, the wrapper launched from another worktree), then one full run from the worktree: 53 of 55 `@BUD-` scenarios passed, BUD-06 (the `--timeout 1` scenario) and BUD-15 Example #4 failed with `TypeError: fetch failed` / `read ECONNRESET` | Two of the three failures are the machine's, which budget-v2 itself stops counting; the third is a dropped connection in two scenarios, not a failed assertion. T10 code (`budget-v2.steps.ts`, `support/gate-world.ts`, the `harness-bootstrap.steps.ts` move) stays uncommitted in the worktree | (a) the maintainer resets `gate:budget-v2/T10` (`node scripts/attempt.mjs reset --unit gate:budget-v2/T10 --by <name>`) and the runner runs the gate once more; (b) the runner replans T10 to find why the two scenarios lose their connection first. `fast-proofs` waits on budget-v2 |
 | continuous-delivery / start (2026-11-08) | gate hook, merge guard (HBS-35) | 2 denials (1 of 3 each): `git worktree add .claude/worktrees/continuous-delivery -b feat/F0-continuous-delivery phase/F0`, then `git branch feat/F0-continuous-delivery phase/F0` — "would bring in or rewrite feat/F0-continuous-delivery" | Gate defect, not a delivery risk: `touches()` in `.claude/hooks/lib/guard.mjs:72-77` returns true when `revList` fails, and `phase/F0..feat/F0-continuous-delivery` fails because a covered feature's branch does not exist before its start. So every command naming `phase/F0` touches it. The same will stop `fast-proofs`. Not worked around | (a) the maintainer creates the branch and worktree (`git worktree add .claude/worktrees/continuous-delivery -b feat/F0-continuous-delivery phase/F0`); (b) a guard fix — a covered branch that does not exist touches nothing — through `harness-self` in a covered feature, with `pnpm test:harness` and a security PASS |
 
 ## Follow-ups from continuous-delivery (security review of the diff, PASS, 2026-11-09)
@@ -376,6 +383,10 @@ Non-blocking, for the phase review:
 3. `mergedToMain` accepts a local `main` or a local `refs/remotes/origin/main`; the ruleset's required checks stay the real lock before `main`.
 4. The runner can fill an Answer cell of `## For the maintainer` itself; the table is only as safe as the runner's honesty.
 5. ADR 024 still lists `awaiting-review` in the phase lifecycle; amending an accepted ADR is the maintainer's.
+
+## Follow-up from budget-v2 (second security review of the diff, 2026-11-09)
+
+`scripts/attempt.mjs run --step T<n>` runs whatever command it is given and records a pass for the unit; it does not check that the command is the task's `**Gate**` in `tasks.md`. A task can therefore be marked passed with `-- "true"`. The feature-level proofs (`check_proofs.py`) and the Verifier still run the real tests before a feature is done, so a forged task pass cannot reach `phase/F0` unseen; the hole matters for the retry budget, which AD-172 closes. Proposed for F1: the wrapper refuses a `T<n>` command that is not the task's gate.
 
 ## Escalations raised
 

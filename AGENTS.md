@@ -93,7 +93,11 @@ else (secret scanning, Playwright, Lefthook…) comes from `pnpm install`; no ot
 10. **Telemetry from day 0.** New request paths, jobs and agent loops get spans; see `docs/engineering/telemetry.md`.
 11. **Retry budget: 1 attempt + 2 retries.** Any failing unit of work — a gate, a subagent dispatch, a red stop, the
     same sensor failing on the same file, the same denied action — may be retried at most twice. The third failure
-    blocks it; record the blocker and move on or report. Never route around it. Enforced by code (ADR 022,
+    blocks it; record the blocker and move on or report. Never route around it. Environment failures (the Docker
+    daemon unreachable, a full disk, a killed process, a port in use, a missing binary, the wrapper's timeout) and
+    unchanged reruns do not count. The wrapper records an environment failure and refuses an unchanged rerun (exit 4)
+    without running it. The orchestrator resets a unit once, with a reason; a second reset of the same unit is the
+    maintainer's. Enforced by code (ADR 022, ADR 028 § 4,
     `.claude/skills/d2rmm-phase-runner/references/retry-budget.md`).
 12. **Mutation testing runs against unit tests only** (ADR 026). A mutation's proof is a unit test: Rust
     `cargo nextest run -p <crate> --lib`, TypeScript `vitest run` on a colocated `*.test.ts`. Tests that assemble the
