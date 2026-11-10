@@ -153,6 +153,10 @@ review. Reversals become tasks in a follow-up feature.
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 
+## Blocked: the orchestrator session after the F0 merge (2026-11-10)
+
+The gate-precision guard (T21) denied `git fetch origin main` three times. Each time it said "git rev-list phase/F0..feat/F0-fast-proofs did not answer in time", which happens under load on the phase machine. On the third denial, the gate exhausted this session's retry budget, so the orchestrator could not confirm that PR 31 merged or read `main`'s runs. Cause: the 2 s cap on each git read, with the guard reading every covered branch. Its fail-closed answer is right, but on this machine it turns load into exhausted sessions. For F1: give the guard's reads a longer cap or a single batched read, and do not count a "did not answer in time" denial against the session. Unblock: the maintainer resets the session's denial unit (`node scripts/attempt.mjs status`, then `reset --by <maintainer>`).
+
 ## Blocked: agent-hexagonal-migration, proofs and verification (2026-11-01)
 
 T1-T58 are committed on `feat/F0-agent-hexagonal-migration`; every task gate passed. Two units are blocked at 3/3 and only the maintainer can reset them (ADR 022): `gate:agent-hexagonal-migration/proofs` and `gate:agent-hexagonal-migration/verification`. The feature blocks `observability-e2e` and `load-baseline`, so the phase is blocked.
