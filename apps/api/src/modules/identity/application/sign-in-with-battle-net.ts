@@ -80,11 +80,30 @@ async function accountForSignIn(
   battletag: string,
 ): Promise<Account> {
   const existing = await deps.accounts.findByBnetSub(sub);
-  if (existing === null) {
-    const created: BattleNetAccount = newBattleNetAccount(deps.ids.next(), sub, battletag);
-    await deps.accounts.insertBattleNetAccount(created);
-    return created;
+  if (existing !== null) {
+    return withBattletag(deps, existing, battletag);
   }
+  const created: BattleNetAccount = newBattleNetAccount(deps.ids.next(), sub, battletag);
+  try {
+    await deps.accounts.insertBattleNetAccount(created);
+  } catch (error) {
+    // Two first sign-ins of one account at once: the other insert won the unique `bnet_sub`. Read that account; when
+    // none exists the failure is not a race and is rethrown.
+    const winner = await deps.accounts.findByBnetSub(sub);
+    if (winner === null) {
+      throw error;
+    }
+    return withBattletag(deps, winner, battletag);
+  }
+  return created;
+}
+
+/** A found account: a changed BattleTag is stored on the same account (IDB-03). */
+async function withBattletag(
+  deps: SignInWithBattleNetDeps,
+  existing: Account,
+  battletag: string,
+): Promise<Account> {
   if (existing.battletag === battletag) {
     return existing;
   }

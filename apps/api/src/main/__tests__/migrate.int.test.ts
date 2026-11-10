@@ -22,6 +22,7 @@ describe('migrate', () => {
       '0002_outbox_trace_context',
       '0003_room_trace_context',
       '0004_account_bnet_sub',
+      '0005_battletag_not_unique',
     ]);
 
     const result = await database.pool.query<{ schema_name: string }>(

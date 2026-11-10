@@ -4,8 +4,10 @@ import {
   createMigratedTestDatabase,
   type MigratedTestDatabase,
 } from '../../../../../test/support/migrated-database.ts';
-import { FakeClock } from '../../../../shared-kernel/index.ts';
+import { FakeClock, SeededRandomSource } from '../../../../shared-kernel/index.ts';
 import type { Account } from '../../domain/account.ts';
+import { createSignInWithBattleNet } from '../../application/sign-in-with-battle-net.ts';
+import { FakeBattleNetOAuth } from '../../application/testing/fake-battle-net-oauth.ts';
 import { PostgresAccountRepository } from './postgres-account-repository.ts';
 import { PostgresSessionRepository } from './postgres-session-repository.ts';
 import { Sha256SecretHasher } from './sha256-secret-hasher.ts';
@@ -140,5 +142,64 @@ describe('Identity Postgres repositories', () => {
 
     expect(await sessions.findByHash(tokenHash)).toBeNull();
     await expect(sessions.delete(tokenHash)).resolves.toBeUndefined();
+  });
+
+  it('lets another Battle.net account take a BattleTag that a player changed away from (IDB-02)', async () => {
+    const firstId = randomUUID();
+    await accounts.insertBattleNetAccount({
+      id: firstId,
+      battletag: 'Alice#1234',
+      displayName: 'Alice',
+      bnetSub: 'sub-first',
+    });
+    await accounts.updateBattletag(firstId, 'Alicia#5678', 'Alicia');
+
+    const reused = accounts.insertBattleNetAccount({
+      id: randomUUID(),
+      battletag: 'Alice#1234',
+      displayName: 'Alice',
+      bnetSub: 'sub-second',
+    });
+
+    await expect(reused).resolves.toBeUndefined();
+    expect(await accounts.findByBnetSub('sub-second')).toMatchObject({ battletag: 'Alice#1234' });
+  });
+
+  it('still refuses a second test account with the same key when BattleTags are not unique (IDB-07)', async () => {
+    await accounts.insertTestAccount(testAccount('PlayerFour'));
+
+    const duplicate = accounts.insertTestAccount({
+      id: randomUUID(),
+      battletag: 'PlayerFour#test',
+      displayName: 'PlayerFour',
+      testKey: 'playerfour',
+    });
+
+    await expect(duplicate).rejects.toMatchObject({ code: '23505' });
+  });
+
+  it('two first sign-ins of one sub at once both open a session on the same account (no 500)', async () => {
+    const battleNet = new FakeBattleNetOAuth();
+    battleNet.willSignIn('sub-race', 'Racer#0001');
+    const signIn = createSignInWithBattleNet({
+      accounts,
+      sessions,
+      hasher: new Sha256SecretHasher(),
+      clock: new FakeClock(NOW),
+      random: new SeededRandomSource(11),
+      // Real UUIDs: the accounts table types its id as uuid.
+      ids: { next: () => randomUUID() },
+      battleNet,
+    });
+    const callback = { code: 'code', verifier: 'verifier', redirectUri: 'https://site.example/cb' };
+
+    const [first, second] = await Promise.all([signIn(callback), signIn(callback)]);
+
+    expect(first.ok && second.ok).toBe(true);
+    if (!first.ok || !second.ok) {
+      return;
+    }
+    expect(second.value.accountId).toBe(first.value.accountId);
+    expect(await accounts.findByBnetSub('sub-race')).toMatchObject({ id: first.value.accountId });
   });
 });

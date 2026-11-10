@@ -64,7 +64,7 @@ Rules for the worker:
 
 ## Batch 2
 
-- [ ] T8 — Unique-index fix (Batch 1 finding A): migration `0005_battletag_not_unique` (identity-bnet merges first;
+- [x] T8 — Unique-index fix (Batch 1 finding A): migration `0005_battletag_not_unique` (identity-bnet merges first;
       `characters` renumbers its migration after it) drops the unique constraint on
       `identity.accounts.battletag` and adds a unique index on `test_key` where it is not null, so a freed BattleTag
       re-used by another Battle.net account signs in (IDB-02) and test accounts stay unique by their key (IDB-07);

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { BattleNetAccount } from '../domain/account.ts';
 import { FakeClock } from '../../../shared-kernel/clock.ts';
 import { SequentialIdGenerator } from '../../../shared-kernel/id-generator.ts';
 import { SeededRandomSource } from '../../../shared-kernel/random-source.ts';
@@ -11,6 +12,14 @@ import { InMemorySessionRepository } from './testing/in-memory-session-repositor
 const START = new Date('2026-11-01T12:00:00.000Z');
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const SESSION_TOKEN_SHAPE = /^d2rmm_s_[A-Za-z0-9_-]{43}$/;
+/** An in-memory repository whose first Battle.net insert loses a race: the winner's account is already stored. */
+class RacingAccountRepository extends InMemoryAccountRepository {
+  override async insertBattleNetAccount(account: BattleNetAccount): Promise<void> {
+    this.seed({ ...account, id: 'account-winner' });
+    throw new Error('duplicate key value violates unique constraint "accounts_bnet_sub"');
+  }
+}
+
 const CALLBACK = {
   code: 'auth-code',
   verifier: 'pkce-verifier',
@@ -151,5 +160,59 @@ describe('signInWithBattleNet', () => {
     expect(result).toEqual({ ok: false, error: 'userinfo-failed' });
     expect(sessions.storedHashes()).toEqual([]);
     expect(await accounts.findByBnetSub('sub-default')).toBeNull();
+  });
+
+  it('reads the account that won when two first sign-ins of one sub race (no 500)', async () => {
+    const clock = new FakeClock(START);
+    const sessions = new InMemorySessionRepository();
+    const battleNet = new FakeBattleNetOAuth();
+    battleNet.willSignIn('sub-alice', 'Alice#1234');
+    // The other request's insert lands first: the account exists when this insert hits the unique `bnet_sub`.
+    const accounts = new RacingAccountRepository();
+    const signIn = createSignInWithBattleNet({
+      accounts,
+      sessions,
+      hasher: new FakeSecretHasher(),
+      clock,
+      random: new SeededRandomSource(7),
+      ids: new SequentialIdGenerator('account'),
+      battleNet,
+    });
+
+    const result = await signIn(CALLBACK);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(result.value.accountId).toBe('account-winner');
+    expect(sessions.storedHashes()).toHaveLength(1);
+  });
+
+  it('rethrows an insert failure when no account with the sub exists (a bug, not a race)', async () => {
+    const clock = new FakeClock(START);
+    const battleNet = new FakeBattleNetOAuth();
+    battleNet.willSignIn('sub-alice', 'Alice#1234');
+    const broken = {
+      findByBnetSub: async () => null,
+      findById: async () => null,
+      findTestAccount: async () => null,
+      insertTestAccount: async () => undefined,
+      updateBattletag: async () => undefined,
+      insertBattleNetAccount: async () => {
+        throw new Error('connection lost');
+      },
+    };
+    const signIn = createSignInWithBattleNet({
+      accounts: broken,
+      sessions: new InMemorySessionRepository(),
+      hasher: new FakeSecretHasher(),
+      clock,
+      random: new SeededRandomSource(7),
+      ids: new SequentialIdGenerator('account'),
+      battleNet,
+    });
+
+    await expect(signIn(CALLBACK)).rejects.toThrow('connection lost');
   });
 });

@@ -33,6 +33,7 @@ describe('the outbox migrations', () => {
       '0002_outbox_trace_context',
       '0003_room_trace_context',
       '0004_account_bnet_sub',
+      '0005_battletag_not_unique',
     ]);
     expect(await traceContextColumn()).toEqual({ data_type: 'text', is_nullable: 'YES' });
 
@@ -43,6 +44,7 @@ describe('the outbox migrations', () => {
       '0002_outbox_trace_context',
       '0003_room_trace_context',
       '0004_account_bnet_sub',
+      '0005_battletag_not_unique',
     ]);
     expect(await traceContextColumn()).toEqual({ data_type: 'text', is_nullable: 'YES' });
   });
