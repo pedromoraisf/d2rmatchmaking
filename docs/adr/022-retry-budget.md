@@ -1,6 +1,6 @@
 # ADR 022 — Retry budget: one attempt plus two retries, enforced by code
 
-**Status**: Accepted
+**Status**: Accepted — superseded by [ADR 029](029-lean-harness.md) on 2026-11-10
 **Date**: 2026-10-30
 **Deciders**: maintainer
 

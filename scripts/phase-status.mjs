@@ -1,89 +1,58 @@
 #!/usr/bin/env node
-// Where is the phase? Derived from evidence only (ADR 024): .specs files, git commit trailers, the retry ledger.
+// Where is the phase? Derived from the brief, the feature files and git (ADR 029).
 //
-//   node scripts/phase-status.mjs [F<n>]            human summary + what may run now
-//   node scripts/phase-status.mjs [F<n>] --json     machine-readable state (the runner starts every step from it)
-//   node scripts/phase-status.mjs [F<n>] --write    regenerate the brief's "## Runner state" and the committed
-//                                                   retry-ledger snapshot (.specs/phases/<F>/attempts.json)
-// Idempotent: the same evidence always produces the same output and the same files.
+//   node scripts/phase-status.mjs [F<n>]          summary + what may run now
+//   node scripts/phase-status.mjs [F<n>] --json   machine-readable state
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { derivePhaseState, renderRunnerState, writeRunnerState } from './lib/phase-state.mjs';
-import { featureBlocked } from './lib/budget.mjs';
-import { ledgerPath, loadLedger } from './lib/ledger-store.mjs';
+import { derivePhaseState } from './lib/phase-state.mjs';
 
 const root = process.cwd();
 const args = process.argv.slice(2);
 const read = (rel) => (existsSync(path.join(root, rel)) ? readFileSync(path.join(root, rel), 'utf8') : null);
 const git = (...a) => {
   try {
-    return execFileSync('git', a, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    execFileSync('git', a, { cwd: root, stdio: 'ignore' });
+    return true;
   } catch {
-    return null;
+    return false;
   }
 };
-const SEP = '\u001e';
-const commits = (...range) =>
-  (git('log', ...range, `--format=%H%n%B${SEP}`) ?? '')
-    .split(SEP)
-    .map((c) => c.trim())
-    .filter(Boolean)
-    .map((c) => ({ sha: c.split('\n')[0], body: c }));
+const exists = (ref) => git('rev-parse', '--verify', '--quiet', ref);
+const isAncestor = (a, b) => exists(a) && exists(b) && git('merge-base', '--is-ancestor', a, b);
 
 const phase = args.find((a) => /^F\d+$/.test(a)) ?? (read('.specs/phases/ACTIVE') ?? '').trim();
 if (!/^F\d+$/.test(phase)) {
   console.log('phase-status: no active phase (.specs/phases/ACTIVE is empty). Next: /phase-kickoff F<n>.');
   process.exit(0);
 }
-const briefRel = `.specs/phases/${phase}/brief.md`;
-const phaseBranch = `phase/${phase}`;
-const hasPhaseBranch = git('rev-parse', '--verify', '--quiet', phaseBranch) !== null;
-const ledger = loadLedger(ledgerPath(root), root);
-
-// Merged into main: the local main or origin/main holds the phase branch (CDL-17).
-const isAncestorOf = (ref) => hasPhaseBranch && git('merge-base', '--is-ancestor', phaseBranch, ref) !== null;
+const phaseRefs = [`phase/${phase}`, `origin/phase/${phase}`];
+// A feature is merged when its branch (local or pushed) is in the phase branch.
+const merged = (feature) =>
+  [`feat/${phase}-${feature}`, `origin/feat/${phase}-${feature}`].some((b) =>
+    phaseRefs.some((p) => isAncestor(b, p)),
+  );
 
 const state = derivePhaseState({
   phase,
-  brief: read(briefRel),
+  brief: read(`.specs/phases/${phase}/brief.md`),
   review: read(`.specs/phases/${phase}/review.md`),
-  decisions: read(`.specs/phases/${phase}/decisions.md`),
-  mergedToMain: isAncestorOf('main') || isAncestorOf('origin/main'),
+  mergedToMain: phaseRefs.some((p) => isAncestor(p, 'origin/main') || isAncestor(p, 'main')),
   file: (f, name) => read(`.specs/features/${f}/${name}`),
-  commits: commits('--all'),
-  phaseCommits: hasPhaseBranch ? commits(phaseBranch) : [],
-  blocked: (f) => featureBlocked(ledger, f),
+  merged,
 });
 
 if (args.includes('--json')) {
   console.log(JSON.stringify(state, null, 2));
 } else {
-  console.log(
-    `phase ${phase}: next = ${state.next}${state.phaseBlocked ? '  ⚠ PHASE BLOCKED — escalate' : ''}`,
-  );
-  for (const i of state.phaseItems) console.log(`  maintainer, not in the brief (${i.feature}): ${i.item}`);
-  for (const s of state.features) {
-    const extra = s.waitingOn.length ? ` (waiting on ${s.waitingOn.join(', ')})` : '';
+  console.log(`phase ${phase}: next = ${state.next}`);
+  for (const f of state.features) {
+    const wait = f.waitingOn.length ? ` (waiting on ${f.waitingOn.join(', ')})` : '';
     console.log(
-      `  ${s.status.padEnd(8)} ${s.feature.padEnd(22)} next: ${s.next}${s.task ? ` ${s.task}` : ''}  tasks ${s.tasks.done}/${s.tasks.total}${extra}`,
-    );
-    for (const i of s.items) console.log(`      maintainer: ${i.item}`);
-  }
-  if (state.runnable.length) {
-    console.log(
-      `runnable now: ${state.runnable.map((r) => `${r.feature}→${r.step}${r.task ? `(${r.task})` : ''}`).join(', ')}`,
+      `  ${f.next.padEnd(8)} ${f.feature.padEnd(22)} tasks ${f.tasks.done}/${f.tasks.total}${wait}`,
     );
   }
-}
-
-if (args.includes('--write')) {
-  const brief = read(briefRel);
-  if (brief !== null) {
-    const next = writeRunnerState(brief, renderRunnerState(state));
-    if (next !== brief) writeFileSync(path.join(root, briefRel), next);
-  }
-  const snap = path.join(root, '.specs/phases', phase, 'attempts.json');
-  const text = `${JSON.stringify(ledger, null, 2)}\n`;
-  if (!existsSync(snap) || readFileSync(snap, 'utf8') !== text) writeFileSync(snap, text);
+  if (state.runnable.length)
+    console.log(`runnable now: ${state.runnable.map((r) => `${r.feature}→${r.next}`).join(', ')}`);
 }

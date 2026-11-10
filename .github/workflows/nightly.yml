@@ -1,4 +1,4 @@
-# Nightly sensors: full mutation, harness report, ratchet (nightly context) and Postgres backup.
+# Nightly sensors: full mutation (the only place it runs, ADR 029), ratchet (nightly context) and Postgres backup.
 name: nightly
 
 on:
@@ -43,10 +43,6 @@ jobs:
       - name: Mutation (full)
         if: hashFiles('apps/api/stryker.config.*') != ''
         run: pnpm run test:mutation
-      - name: Harness report
-        run: |
-          pnpm run harness:json
-          pnpm exec harness-score . --config .harness-score.json --md reports/harness-score.md --quiet
       # The agent's reports come from the agent-mutation job (CRF-14, CRF-15). Without an artifact the download fails, and
       # continue-on-error lets the ratchet step give its own verdict (CRF-17).
       - name: Download the agent's mutation reports
@@ -64,9 +60,7 @@ jobs:
         if: always()
         with:
           name: nightly-quality
-          path: |
-            reports/
-            .harness-score.report.json
+          path: reports/
           retention-days: 30
 
   agent-mutation:

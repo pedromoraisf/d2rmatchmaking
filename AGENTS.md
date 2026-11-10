@@ -29,7 +29,7 @@ apps/agent         Tauri 2, hexagonal (ADR 027): src-tauri/domain (d2rmm-agent-d
 packages/contracts Zod schemas → JSON Schema (Rust via typify) → openapi.json + asyncapi.json (generated, committed)
 packages/telemetry OpenTelemetry bootstrap for Node and browser
 packages/config    shared tsconfig / eslint / prettier presets
-.specs/            TLC spec-driven state: STATE.md, phases/<F#>/, features/<feature>/
+.specs/            phases/<F#>/ (brief, decisions, review), features/<feature>/ (spec, scenarios, tasks), archive/
 .claude/           settings.json (hooks), hooks/, skills/, agents/, commands/
 .cursor/rules/     scoped rules (same content, Cursor format)
 ```
@@ -39,27 +39,26 @@ Bounded contexts: **Identity** (Account, Character) · **Agents** (pairing, pres
 
 ## Commands
 
-| Goal                                                    | Command                                                                                     |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Install (also installs Lefthook git hooks)              | `pnpm install`                                                                              |
-| Everything CI runs, locally                             | `pnpm check`                                                                                |
-| Unit tests (all workspaces + harness)                   | `pnpm test`                                                                                 |
-| Harness self-tests only (hooks, ratchet, specs)         | `pnpm test:harness`                                                                         |
-| Secret scan (secretlint locally; gitleaks runs in CI)   | `pnpm secrets:scan`                                                                         |
-| Lint / types / architecture                             | `pnpm lint` · `pnpm typecheck` · `pnpm arch`                                                |
-| Integration (Testcontainers) / e2e (Playwright)         | `pnpm test:integration` · `pnpm test:e2e`                                                   |
-| Acceptance (Gherkin via playwright-bdd)                 | `pnpm test:acceptance` · coverage check: `pnpm acceptance:check`                            |
-| Mutation (Stryker / cargo-mutants)                      | `pnpm test:mutation` · agent core, domain and adapters: `pnpm test:mutation:agent`          |
-| Regenerate OpenAPI + AsyncAPI                           | `pnpm contracts:openapi` (then commit the JSON)                                             |
-| Harness maturity gate (L4)                              | `pnpm harness:gate`                                                                         |
-| Quality ratchet                                         | `pnpm quality:collect && pnpm quality:ratchet --context pr`                                 |
-| Phase-delegation checks on `.specs/` (+ mutation scope) | `pnpm specs:check` · mutation scope alone: `node scripts/mutation-scope-check.mjs`          |
-| Run a gate within the retry budget (phase runs)         | `node scripts/attempt.mjs run --feature <f> --step <T#> -- "<cmd>"`                         |
-| Where is the phase? (derived from evidence)             | `pnpm phase:status` · `--json` · `--write`                                                  |
-| Retry-budget status / report                            | `node scripts/attempt.mjs status [--feature <f>]` · `node scripts/attempt.mjs report`       |
-| Rust agent                                              | `cargo nextest run` / `cargo clippy --all-targets -- -D warnings` in `apps/agent/src-tauri` |
+| Goal                                                  | Command                                                                                     |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Install (also installs Lefthook git hooks)            | `pnpm install`                                                                              |
+| Everything CI runs, locally                           | `pnpm check`                                                                                |
+| Unit tests (all workspaces + harness)                 | `pnpm test`                                                                                 |
+| Harness self-tests only (hooks, ratchet, specs)       | `pnpm test:harness`                                                                         |
+| Lessons to read before planning                       | `docs/engineering/lessons.md`                                                               |
+| Secret scan (secretlint locally; gitleaks runs in CI) | `pnpm secrets:scan`                                                                         |
+| Lint / types / architecture                           | `pnpm lint` · `pnpm typecheck` · `pnpm arch`                                                |
+| Integration (Testcontainers) / e2e (Playwright)       | `pnpm test:integration` · `pnpm test:e2e`                                                   |
+| Acceptance (Gherkin via playwright-bdd)               | `pnpm test:acceptance` · coverage check: `pnpm acceptance:check`                            |
+| Mutation (nightly only; Stryker / cargo-mutants)      | `pnpm test:mutation` · agent core, domain and adapters: `pnpm test:mutation:agent`          |
+| Regenerate OpenAPI + AsyncAPI                         | `pnpm contracts:openapi` (then commit the JSON)                                             |
+| Harness-score report (informational)                  | `pnpm harness`                                                                              |
+| Quality ratchet                                       | `pnpm quality:collect && pnpm quality:ratchet --context pr`                                 |
+| Checks on `.specs/` (roadmap coverage, scenarios)     | `pnpm specs:check`                                                                          |
+| Where is the phase? (derived from files and branches) | `pnpm phase:status` · `--json`                                                              |
+| Rust agent                                            | `cargo nextest run` / `cargo clippy --all-targets -- -D warnings` in `apps/agent/src-tauri` |
 
-Node 26 (`.nvmrc`), pnpm 10, Python 3.8+ (TLC gate scripts, stdlib only), Rust stable for the agent. Everything
+Node 26 (`.nvmrc`), pnpm 10, Python 3.8+ (the commit-message check, stdlib only), Rust stable for the agent. Everything
 else (secret scanning, Playwright, Lefthook…) comes from `pnpm install`; no other system install is needed.
 
 ## Inviolable rules
@@ -87,64 +86,57 @@ else (secret scanning, Playwright, Lefthook…) comes from `pnpm install`; no ot
    without asking. Still the maintainer's: secrets and variables, the production database, repository settings,
    rulesets and environments, and anything that costs money. Force pushes and remote deletions are never allowed.
 8. **Approvals are the maintainer's.** Never write an `**Approved**:` line the maintainer did not give. Approving a
-   phase brief or a brief revision, and accepting or superseding an ADR, are always the maintainer's. Under a phase
-   delegation, quote the kickoff words verbatim and cite the brief (see "Phase workflow").
+   phase brief or a brief revision, approving a phase review, and accepting or superseding an ADR, are always the
+   maintainer's.
 9. **i18n from day 0.** No user-facing string hard-coded in components; English source strings, pt-BR translation.
 10. **Telemetry from day 0.** New request paths, jobs and agent loops get spans; see `docs/engineering/telemetry.md`.
-11. **Retry budget: 1 attempt + 2 retries.** Any failing unit of work — a gate, a subagent dispatch, a red stop, the
-    same sensor failing on the same file, the same denied action — may be retried at most twice. The third failure
-    blocks it; record the blocker and move on or report. Never route around it. Environment failures (the Docker
-    daemon unreachable, a full disk, a killed process, a port in use, a missing binary, the wrapper's timeout) and
-    unchanged reruns do not count. The wrapper records an environment failure and refuses an unchanged rerun (exit 4)
-    without running it. The orchestrator resets a unit once, with a reason; a second reset of the same unit is the
-    maintainer's. Enforced by code (ADR 022, ADR 028 § 4,
-    `.claude/skills/d2rmm-phase-runner/references/retry-budget.md`).
+11. **Three failures, then stop.** Fix the cause before rerunning; an unchanged rerun proves nothing. After three
+    failures of the same thing (a gate, a check, a dispatch), record the blocker in the phase's `decisions.md` (what
+    failed, the last error, what each attempt changed), add a lesson to `docs/engineering/lessons.md` if it teaches
+    one, and move to work that does not depend on it. Never route around it (ADR 029).
 12. **Mutation testing runs against unit tests only** (ADR 026). A mutation's proof is a unit test: Rust
     `cargo nextest run -p <crate> --lib`, TypeScript `vitest run` on a colocated `*.test.ts`. Tests that assemble the
     service (integration, e2e, acceptance, load) never run once per mutation. A rule that only the assembled service
-    can observe is extracted into a pure function and unit-tested. Enforced by `pnpm specs:check` and the gate.
+    can observe is extracted into a pure function and unit-tested. Mutation runs in the nightly only, never on a PR or in
+    a task gate (ADR 029).
 
-The Claude Code gate hook (`.claude/hooks/gate.mjs`) enforces most of these deterministically. If it denies or asks,
-do not look for a workaround: follow the reason it gives.
+The Claude Code gate hook (`.claude/hooks/gate.mjs`) guards the irreversible ones (force pushes, deletions, secrets,
+the production database, skipped hooks, vendored files, committed migrations, sensors); CI and the reviewers check the
+rest. If the gate denies or asks, do not look for a workaround: follow the reason it gives.
 
 ## Phase workflow (how work is planned and run)
 
-Development follows **TLC spec-driven development** (`.claude/skills/tlc-spec-driven`, vendored, CC-BY-4.0) wrapped by
-the project skill **`d2rmm-phase-runner`** (ADR 021). The maintainer reviews **once per phase**, not per task:
+The project skill **`d2rmm-phase-runner`** runs each roadmap phase (ADR 029). The maintainer stops the work twice per
+phase, at the brief and at the review:
 
-1. **Kickoff** — `/phase-kickoff F<n>` drafts `.specs/phases/F<n>/brief.md` (features, scope, delegation checkboxes,
-   budgets). The maintainer approves it in their own words, e.g.
-   `aprovo specs e tasks da F0 que passarem nos gates automáticos`. That sentence is the phase approval.
-2. **Run** — `/phase-run F<n>` executes each feature through Specify → Design → Tasks → Execute. Human stops in TLC are
-   replaced by automatic gates: TLC scripts (`validate_spec.py`, `validate_tasks.py`), traceability to PRD FR/NFR, and the
-   read-only reviewer subagents. A spec/tasks file that passes gets
-   `**Approved**: <date> - user: "<kickoff words>" (delegated via .specs/phases/F<n>/brief.md)`.
-   Gray areas take the **conservative default**, are recorded as `AD-NNN … (assumed)` in `.specs/STATE.md` and queued in
-   `.specs/phases/F<n>/decisions.md`.
-3. **Roles and models** (ADR 025) — the orchestrator (Opus 5.5, medium) plans and gates; Haiku `feature-worker`s
-   implement task batches in parallel worktrees; Sonnet reviewers and the Verifier judge.
-4. **Retry budget** — every failing unit gets 2 retries, then it is blocked (ADR 022). During a run, gates go through
-   `scripts/attempt.mjs` and subagent prompts start with `[d2rmm feature=<f> step=<step>]`.
-5. **Escalations interrupt mid-phase** (everything else waits for the review): production DB, secrets, repository
-   settings and rulesets, money, changing an accepted ADR, loosening tests/thresholds/sensors, a blocked feature that
-   blocks the phase (ADR 028).
-6. **Review** — `/phase-review F<n>` generates `.specs/phases/F<n>/review.md`: what shipped, proofs, mutation results,
-   harness and ratchet deltas, assumed decisions to confirm, blocked items. The maintainer approves or sends back.
+1. **Kickoff** — `/phase-kickoff F<n>` drafts `.specs/phases/F<n>/brief.md`: goal, exit criteria, features with their
+   requirements, decisions taken, what the runner needs. The maintainer approves it in their own words; that line
+   covers every spec of the phase.
+2. **Run** — `/phase-run F<n>`. Per feature: `spec.md` (EARS requirements traced to the PRD) with its
+   `acceptance.feature`; `design.md` only for Large or Complex features; `tasks.md` as a checklist. `feature-worker`s
+   (Haiku, ADR 025) implement batches in their own worktrees, runnable features in parallel, one Conventional Commit
+   per task on `feat/F<n>-<feature>`. Each feature becomes one PR into `phase/F<n>`, reviewed once by the architecture
+   (and, when relevant, security) reviewer, and merged when CI is green. Gray areas take the conservative default,
+   written in the PR description; what the maintainer should confirm goes to the phase `decisions.md`.
+3. **Escalations** interrupt mid-phase: production DB, secrets, repository settings and rulesets, money, changing an
+   accepted ADR, loosening tests or sensors, a blocked feature that blocks the phase.
+4. **Review** — `/phase-review F<n>` writes `review.md` with real numbers (exit criteria, PRs, nightly mutation scores,
+   decisions to confirm, blocked items). The maintainer approves it; then the phase PR merges into `main`.
 
-One commit per task (Conventional Commits, checked by `check_commit.py`), on a feature branch `feat/F<n>-<feature>`
-off `phase/F<n>`, with progress trailers `Feature: <feature>` + `Task: T<n>` (or `Step: …`). State is never
-remembered: `pnpm phase:status` derives it from files, trailers and the retry ledger (ADR 024), so any session
-resumes idempotently. `ROADMAP.md` assigns every PRD requirement to exactly one of the five phases.
+State is never remembered: `pnpm phase:status` derives it from the brief, the feature files and the merged feature
+branches, so any session resumes from the same answer. `ROADMAP.md` assigns every PRD requirement to exactly one of
+the five phases. Before planning, read `docs/engineering/lessons.md`.
 
 ## How to test
 
 - Pyramid: unit (Vitest / `cargo nextest`, snapshot with `insta`) → integration (Testcontainers Postgres) → contract
   (schema + OpenAPI drift) → **acceptance (BDD)**: the English Gherkin scenarios in each feature's
   `.specs/features/<feature>/acceptance.feature`, run as-is by playwright-bdd (ADR 023) → load (k6, NFR-14: ≥100 concurrent players). Mutation on domain and
-  application (StrykerJS) and agent core (`cargo-mutants`), always against the unit tests only (rule 12).
+  application (StrykerJS) and agent core (`cargo-mutants`), always against the unit tests only (rule 12), in the
+  nightly only.
 - Domain tests use fakes for ports (`FakeClock`, in-memory stores). No mocks of what you own.
-- Each requirement has at least one scenario tagged with its ID; its `## Checks` proof runs those scenarios
-  (`playwright test --grep @<REQ-ID>`). Scenarios are never edited to make code pass, skipped or focused.
+- Each requirement has at least one scenario tagged with its ID (`playwright test --grep @<REQ-ID>`). Scenarios are
+  never edited to make code pass, skipped or focused.
 - Details: `docs/engineering/testing.md`.
 
 ## Conventions

@@ -89,11 +89,8 @@ test('verify keeps every other sensor', () => {
     'pnpm run typecheck',
     'pnpm run arch',
     'pnpm test',
-    'pnpm run tlc:selftest',
     'pnpm run specs:check',
     'pnpm run contracts:check',
-    'pnpm run harness:json',
-    'pnpm run harness:gate',
     'pnpm run quality:gate',
   ];
   const runLines = verifySteps.flatMap((step) => commandLines(step.run));
@@ -102,105 +99,23 @@ test('verify keeps every other sensor', () => {
   }
 });
 
-test('detect reports a Stryker configuration', () => {
-  assert.equal(
-    jobs.detect.outputs.stryker,
-    '${{ steps.d.outputs.stryker }}',
-    'detect exposes the stryker output',
-  );
-  const detect = jobs.detect.steps.find((step) => step.id === 'd');
-  assert.match(
-    detect.run,
-    /compgen -G "apps\/api\/stryker\.config\.\*"/u,
-    'it looks for the Stryker configuration',
-  );
-  assert.match(
-    detect.run,
-    /echo "stryker=true" >> "\$GITHUB_OUTPUT"/u,
-    'it reports stryker=true when present',
-  );
-});
-
-test('the mutation job runs beside the required checks', () => {
-  const mutation = jobs.mutation;
-  assert.deepEqual(needsOf(mutation), ['detect'], 'mutation needs only detect');
-  assert.equal(
-    mutation.if,
-    "github.event_name == 'pull_request' && needs.detect.outputs.stryker == 'true'",
-    'it runs only on pull requests with a Stryker configuration',
-  );
-
-  const cache = mutation.steps.find((step) => String(step.uses ?? '').startsWith('actions/cache@'));
-  assert.ok(cache, 'the incremental files are restored and saved with actions/cache');
-  assert.equal(cache.with.path, 'apps/api/reports/stryker-incremental-*.json');
-  assert.ok(
-    cache.with.key.startsWith('stryker-incremental-${{ github.base_ref }}-'),
-    'the key starts with the base branch prefix',
-  );
-  assert.equal(
-    cache.with['restore-keys'],
-    'stryker-incremental-${{ github.base_ref }}-',
-    'the restore key is that prefix',
-  );
-
-  const runner = mutation.steps.find((step) => String(step.run ?? '').includes('test:mutation'));
-  assert.ok(runner, 'the API runner runs in the job');
-  assert.match(
-    runner.run,
-    /--changed-from origin\/\$\{\{ github\.base_ref \}\} --incremental/u,
-    'it mutates the files changed against the base branch, incrementally',
-  );
-
-  const summary = mutation.steps.find((step) => String(step.run ?? '').includes('mutation-summary.ts'));
-  assert.equal(summary.if, 'always()', 'the summary is written even when mutation fails');
+// ADR 029: mutation runs in the nightly only. No pull request job mutates.
+test('no job of the pull request runs mutation', () => {
+  for (const [name, job] of Object.entries(jobs)) {
+    for (const step of job.steps ?? []) {
+      assert.doesNotMatch(
+        String(step.run ?? ''),
+        /test:mutation|stryker|cargo mutants/u,
+        `${name} runs no mutation`,
+      );
+    }
+  }
+  assert.equal(jobs.mutation, undefined);
+  assert.equal(jobs['agent-mutation'], undefined);
 });
 
 test('integration waits only for verify', () => {
   assert.deepEqual(needsOf(jobs.integration), ['detect', 'verify']);
-});
-
-// CFP-08, CFP-09: the agent's mutation of the PR's diff runs unit tests only, and only when the PR changes the agent.
-const AGENT_CRATES = ['d2rmm-agent-domain', 'd2rmm-agent-core', 'd2rmm-agent-adapters'];
-const agentMutationSteps = () => jobs['agent-mutation'].steps;
-const cargoMutants = () =>
-  agentMutationSteps().filter((step) => String(step.run ?? '').includes('cargo mutants'));
-
-test("the agent mutation job mutates the pull request's diff", () => {
-  const job = jobs['agent-mutation'];
-  assert.deepEqual(needsOf(job), ['detect'], 'agent-mutation needs only detect');
-  assert.equal(
-    job.if,
-    "github.event_name == 'pull_request' && needs.detect.outputs.agent == 'true'",
-    'it runs only on pull requests with an agent',
-  );
-
-  const diff = agentMutationSteps().find((step) =>
-    String(step.run ?? '').includes('git diff origin/${{ github.base_ref }}...HEAD -- apps/agent/src-tauri'),
-  );
-  assert.ok(diff, 'the diff of the agent is written to a file');
-
-  const crates = cargoMutants().map((step) => step.run.match(/--package (\S+)/u)?.[1]);
-  assert.deepEqual(crates, AGENT_CRATES, 'each crate of the agent is mutated, in order');
-  for (const step of cargoMutants()) {
-    assert.match(step.run, /--in-diff reports\/agent\.diff /u, 'the mutants are those of the diff');
-    assert.match(step.run, /-- --lib$/u, 'the unit tests catch the mutants (ADR 026)');
-  }
-});
-
-test('the agent mutation job skips a pull request with no agent change', () => {
-  const diff = agentMutationSteps().find((step) => step.id === 'diff');
-  assert.match(diff.run, /if \[ -s reports\/agent\.diff \]/u, 'the diff file is tested for content');
-  assert.match(diff.run, /echo "changed=true" >> "\$GITHUB_OUTPUT"/u, 'a non-empty diff sets changed=true');
-
-  const mutants = cargoMutants();
-  assert.equal(mutants.length, AGENT_CRATES.length, 'every crate has its cargo-mutants step');
-  for (const step of mutants) {
-    assert.equal(
-      step.if,
-      "steps.diff.outputs.changed == 'true'",
-      'the step runs only when the diff is not empty',
-    );
-  }
 });
 
 // CFP-15, CFP-18, CFP-25: the smoke job boots the API with the install, migration and start commands of Render and of
@@ -246,7 +161,7 @@ test('the smoke job boots the API the way Render does', () => {
 });
 
 // CFP-18, CFP-19: the new jobs read no secret, and every action they use outside actions/ is pinned by a full SHA.
-const NEW_JOBS = ['mutation', 'agent-mutation', 'smoke', 'agent-build'];
+const NEW_JOBS = ['smoke', 'agent-build'];
 
 test('the new jobs read no secret and pin their actions', () => {
   for (const name of NEW_JOBS) {

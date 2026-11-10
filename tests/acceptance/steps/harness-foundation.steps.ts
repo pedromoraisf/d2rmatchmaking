@@ -89,7 +89,6 @@ interface HarnessWorld {
   workflow: Workflow | undefined;
   metric: Metric | undefined;
   agentCommands: string[] | undefined;
-  skill: string | undefined;
   documents: string[];
 }
 
@@ -109,7 +108,6 @@ function harness(scenario: Scenario): HarnessWorld {
     workflow: undefined,
     metric: undefined,
     agentCommands: undefined,
-    skill: undefined,
     documents: [],
   };
   scenario.values.set(key, created);
@@ -409,7 +407,6 @@ Then(/^its release tags read "(.+)" followed by the version$/, ({ scenario }, pr
 const ciWorkflow = '.github/workflows/ci.yml';
 const nightlyWorkflow = '.github/workflows/nightly.yml';
 const qualityBaseline = '.quality-baseline.json';
-const phaseSkill = '.claude/skills/d2rmm-phase-runner/SKILL.md';
 const reviewTemplate = '.claude/skills/d2rmm-phase-runner/references/templates/review.md';
 const agentCrates = ['domain', 'core', 'adapters'];
 
@@ -429,12 +426,6 @@ function requireWorkflow(world: HarnessWorld): Workflow {
 function requireMetric(world: HarnessWorld): Metric {
   if (!world.metric) throw new Error('the agent core metric has not been read in this scenario');
   return world.metric;
-}
-
-function requireSkill(world: HarnessWorld): string {
-  if (world.skill === undefined)
-    throw new Error('the phase runner instructions have not been read in this scenario');
-  return world.skill;
 }
 
 // The value of a command's flag, as in `cargo mutants --package d2rmm-agent-core --output reports/x -- --lib`.
@@ -477,14 +468,6 @@ function downloadStep(workflow: Workflow): WorkflowStep {
   const found = steps.find((step) => String(step.uses ?? '').startsWith('actions/download-artifact@'));
   if (found === undefined) throw new Error('the quality job has no download-artifact step');
   return found;
-}
-
-// The text of a section, from its heading line up to the next line that starts with `stop`.
-function between(text: string, start: string, stop: string): string {
-  const from = text.indexOf(start);
-  if (from < 0) throw new Error(`no text starts with "${start}"`);
-  const to = text.indexOf(stop, from + start.length);
-  return text.slice(from, to < 0 ? undefined : to);
 }
 
 When('the contributor asks turbo for the plan of the acceptance run', ({ scenario }) => {
@@ -623,34 +606,6 @@ Then('the download action is pinned by its full commit', ({ scenario }) => {
 
 Then('a failed download does not fail the quality job', ({ scenario }) => {
   expect(downloadStep(requireWorkflow(harness(scenario)))['continue-on-error']).toBe(true);
-});
-
-When('the contributor reads the phase runner instructions', ({ scenario }) => {
-  harness(scenario).skill = readText(scenario.repoRoot, phaseSkill);
-});
-
-Then('the review reads the phase status and the retry budget of each feature', ({ scenario }) => {
-  const review = between(requireSkill(harness(scenario)), '## REVIEW', '\n## ');
-  expect(review, 'REVIEW section').toContain('pnpm phase:status');
-  expect(review, 'REVIEW section').toContain('node scripts/attempt.mjs status --feature');
-});
-
-Then('the review does not run the verification validator', ({ scenario }) => {
-  const review = between(requireSkill(harness(scenario)), '## REVIEW', '\n## ');
-  expect(review, 'REVIEW section').not.toContain('validate_verification.py');
-});
-
-Then('a feature still runs the verification validator before its merge', ({ scenario }) => {
-  const verify = between(requireSkill(harness(scenario)), '### 6. Verify', '### 7. Integrate');
-  expect(verify, 'Verify step of RUN').toContain('validate_verification.py');
-});
-
-Then("the review produces the agent's mutation reports before the phase ratchet", ({ scenario }) => {
-  const review = between(requireSkill(harness(scenario)), '## REVIEW', '\n## ');
-  const mutation = review.indexOf('pnpm test:mutation:agent');
-  const ratchet = review.indexOf('pnpm quality:ratchet --context phase');
-  expect(mutation, 'agent mutation command in REVIEW').toBeGreaterThanOrEqual(0);
-  expect(ratchet, 'phase ratchet in REVIEW').toBeGreaterThan(mutation);
 });
 
 When('the contributor reads the review template and the agent guide', ({ scenario }) => {

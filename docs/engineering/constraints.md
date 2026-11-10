@@ -10,7 +10,7 @@ Hard limits the design must respect. A change that breaks one needs an ADR.
 | Render egress      | 5 GB/month                                                           | ≤ ~70 KB per player-hour (NFR-14 at 100 players); minimal SSE payloads; adaptive heartbeat |
 | Neon               | 1 GB storage, 100 CU-hours, scale-to-zero after 5 min                | No DB write per heartbeat; small pool; observations retained 30 days                       |
 | Cloudflare R2      | free tier                                                            | Dispute prints only, 30-day lifecycle                                                      |
-| GitHub Actions     | free for public repos                                                | Turborepo `--affected`; mutation incremental on PRs, full nightly                          |
+| GitHub Actions     | free for public repos                                                | Turborepo `--affected`; mutation in the nightly only (ADR 029)                             |
 | Grafana Cloud      | free tier quotas                                                     | Head sampling; no high-cardinality attributes                                              |
 
 ## Performance

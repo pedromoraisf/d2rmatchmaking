@@ -1,6 +1,6 @@
 # ADR 028 — Autonomous delivery and a self-maintained harness
 
-**Status**: Accepted
+**Status**: Accepted — § 3 and § 4 superseded by [ADR 029](029-lean-harness.md) on 2026-11-10
 **Date**: 2026-11-07 (accepted 2026-11-07 by the maintainer: "Aprovo a revisão do ADR 028.")
 **Deciders**: maintainer
 **Supersedes**: in part ADR 021 (the escalation list: push, merges, deploys, releases, tags) and ADR 022 (who resets a

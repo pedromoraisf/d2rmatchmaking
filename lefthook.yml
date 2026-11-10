@@ -32,8 +32,6 @@ commit-msg:
   commands:
     conventional:
       run: python3 .claude/skills/tlc-spec-driven/scripts/check_commit.py {1}
-    progress-trailers:
-      run: node scripts/commit-trailers.mjs {1}
 
 pre-push:
   parallel: true
@@ -47,8 +45,6 @@ pre-push:
     rust:
       glob: 'apps/agent/src-tauri/**/*.rs'
       run: cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings
-    harness:
-      run: pnpm run harness:gate
     ratchet:
       # measure first, then compare: a metric that was measured and is now missing is a regression
       run: pnpm run quality:gate

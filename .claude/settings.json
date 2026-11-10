@@ -20,7 +20,6 @@
       "Bash(pnpm secrets:scan)",
       "Bash(node --test:*)",
       "Bash(node scripts/:*)",
-      "Bash(node scripts/attempt.mjs run:*)",
       "Bash(python3 .claude/skills/tlc-spec-driven/scripts/:*)",
       "Bash(cargo check:*)",
       "Bash(cargo clippy:*)",
@@ -55,12 +54,12 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Read|Grep|Agent|Task",
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Read",
         "hooks": [
           {
             "type": "command",
             "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/gate.mjs",
-            "timeout": 15
+            "timeout": 10
           }
         ]
       }
@@ -73,16 +72,6 @@
             "type": "command",
             "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/feedback.mjs",
             "timeout": 240
-          }
-        ]
-      },
-      {
-        "matcher": "Agent|Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PROJECT_DIR}/.claude/hooks/verdict.mjs",
-            "timeout": 30
           }
         ]
       }
