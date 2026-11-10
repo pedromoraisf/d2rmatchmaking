@@ -432,4 +432,6 @@ pnpm quality:collect && pnpm quality:ratchet --context phase --update
 
 ## Approval
 
-<!-- **Approved**: <date> - user: "<maintainer's words>" -->
+**Approved**: 2026-11-10 - user: "Aprovo o review.md. Pode escrever a linha que eu confirmo a edição"
+
+The mutation item was decided in the same message: "Opção A" (a follow-up of unit tests for `tracing.ts`, no production change).
