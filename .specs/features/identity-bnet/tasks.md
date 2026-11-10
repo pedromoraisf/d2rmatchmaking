@@ -28,7 +28,7 @@ Rules for the worker:
       session — IDB-02, IDB-03) and `signOut` (delete by token hash — IDB-05); unit tests with fakes for every branch —
       gate:
       `pnpm --filter @d2rmm/api exec vitest run src/modules/identity/domain src/modules/identity/application`
-- [ ] T3 — Pure OAuth state rules in `application/oauth-state.ts`: create a state (random `state`, PKCE verifier and
+- [x] T3 — Pure OAuth state rules in `application/oauth-state.ts`: create a state (random `state`, PKCE verifier and
       S256 challenge from the injected `RandomSource`, expiry now + 10 min), encode it for the cookie, and
       `checkCallback(cookieValue, query, now) → Result<{code, verifier}, 'missing-state' | 'state-mismatch' |
 'state-expired' | 'provider-error'>`; unit tests on every boundary (exactly 10 min, wrong state, missing cookie,
