@@ -25,19 +25,33 @@ From Design Doc § Walking skeleton. Every item needs a proof in the phase revie
 - [ ] Load test of the main journey passes ≥ 100 concurrent players and publishes max players/rooms and bytes per player-hour — proof: k6 summary in `reports/load/`
 - [ ] `.quality-baseline.json` has first real values for harness, mutation (domain), CI time and load — proof: ratchet `--update` diff
 - [ ] The agent core follows ADR 027: the domain crate has no I/O dependency (an architecture test fails on a deliberate violation kept as a fixture), the generated contract types do not reach the domain, and mutation testing runs on the domain and application of the agent with unit tests only (ADR 026) — proof: `pnpm test:harness` + the cargo-mutants report
+- [ ] Replaying the F0 command corpus through the gate gives `allow` for read-only commands and for push, PR, merge, release and workflow commands, and `ask` only for secrets, repository settings and the other maintainer items of ADR 028 — proof: `pnpm test:harness` (gate replay test)
+- [ ] An environment failure and an unchanged rerun leave a unit's failure count as it was; the orchestrator's first reset of a unit runs and the second asks — proof: budget and attempt CLI tests
+- [ ] A `harness-self` feature cannot merge without its recorded `security-reviewer` PASS at its head — proof: gate test
+- [ ] The median PR CI critical path is at most 8 minutes over the first five PR runs after `ci-fast-path` — proof: run ids in the review
+- [ ] The rows after `harness-bootstrap` merge through PRs the runner pushed and merged, with required checks green — proof: PR links
+- [ ] Preflight reruns only proofs that failed or whose inputs changed — proof: preflight test
 
 ## Features
 
-| Feature                   | Size    | Depends on                                                  | Parallel              | Covers                                                                                          | Wall-clock |
-| ------------------------- | ------- | ----------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
-| harness-foundation        | Large   | —                                                           | no (first)            | NFR-10, NFR-11, ADR 001/003/004/014/019/020/021                                                 | default    |
-| api-web-skeleton          | Large   | harness-foundation                                          | with agent-skeleton   | FR-01 (stub), FR-03, FR-05, NFR-01, NFR-07, NFR-08, NFR-12, ADR 002/005/006/007/008/009/012/017 | default    |
-| agent-skeleton            | Complex | harness-foundation                                          | with api-web-skeleton | FR-03, FR-05, FR-27 (fixture), FR-29, NFR-04, NFR-06, ADR 010/011/015/016                       | 10 h       |
-| agent-hexagonal-migration | Complex | agent-skeleton                                              | no                    | NFR-06, NFR-10, ADR 010/026/027                                                                 | 10 h       |
-| observability-e2e         | Large   | api-web-skeleton, agent-skeleton, agent-hexagonal-migration | no                    | NFR-09, ADR 013                                                                                 | default    |
-| load-baseline             | Large   | observability-e2e                                           | no                    | NFR-01, NFR-14                                                                                  | default    |
-| ci-and-review-fixes       | Small   | load-baseline                                               | no                    | NFR-10, NFR-11, ADR 020/021/023/026                                                             | default    |
-| site-stale-read-fix       | Small   | ci-and-review-fixes                                         | no                    | NFR-01, ADR 007                                                                                 | default    |
+| Feature                   | Size    | Depends on                                                  | Parallel                          | Covers                                                                                          | Wall-clock |
+| ------------------------- | ------- | ----------------------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
+| harness-foundation        | Large   | —                                                           | no (first)                        | NFR-10, NFR-11, ADR 001/003/004/014/019/020/021                                                 | default    |
+| api-web-skeleton          | Large   | harness-foundation                                          | with agent-skeleton               | FR-01 (stub), FR-03, FR-05, NFR-01, NFR-07, NFR-08, NFR-12, ADR 002/005/006/007/008/009/012/017 | default    |
+| agent-skeleton            | Complex | harness-foundation                                          | with api-web-skeleton             | FR-03, FR-05, FR-27 (fixture), FR-29, NFR-04, NFR-06, ADR 010/011/015/016                       | 10 h       |
+| agent-hexagonal-migration | Complex | agent-skeleton                                              | no                                | NFR-06, NFR-10, ADR 010/026/027                                                                 | 10 h       |
+| observability-e2e         | Large   | api-web-skeleton, agent-skeleton, agent-hexagonal-migration | no                                | NFR-09, ADR 013                                                                                 | default    |
+| load-baseline             | Large   | observability-e2e                                           | no                                | NFR-01, NFR-14                                                                                  | default    |
+| ci-and-review-fixes       | Small   | load-baseline                                               | no                                | NFR-10, NFR-11, ADR 020/021/023/026                                                             | default    |
+| site-stale-read-fix       | Small   | ci-and-review-fixes                                         | no                                | NFR-01, ADR 007                                                                                 | default    |
+| room-trace-link           | Medium  | site-stale-read-fix                                         | no                                | NFR-09, ADR 013                                                                                 | default    |
+| harness-bootstrap         | Small   | room-trace-link                                             | no (first)                        | NFR-11, ADR 021/022/028                                                                         | default    |
+| gate-precision            | Large   | harness-bootstrap                                           | with budget-v2, ci-fast-path      | NFR-11, ADR 019/028                                                                             | default    |
+| budget-v2                 | Medium  | harness-bootstrap                                           | with gate-precision, ci-fast-path | NFR-11, ADR 022/028                                                                             | default    |
+| ci-fast-path              | Medium  | harness-bootstrap                                           | with gate-precision, budget-v2    | NFR-10, NFR-11, ADR 014/026/028                                                                 | default    |
+| continuous-delivery       | Medium  | harness-bootstrap, ci-fast-path                             | no                                | NFR-11, ADR 021/024/028                                                                         | default    |
+| fast-proofs               | Medium  | budget-v2, continuous-delivery                              | no                                | NFR-11, ADR 022/023                                                                             | default    |
+| parallel-cloud-spike      | Small   | continuous-delivery                                         | no (last)                         | NFR-11, ADR 021/025                                                                             | default    |
 
 Retry budget is fixed for every feature: 1 attempt + 2 retries per unit (ADR 022); a brief cannot raise it.
 
@@ -83,6 +97,15 @@ configs, release-please config, first green CI on GitHub, and the first measured
 - Revision 4 (2026-11-05, from the first GitHub runs): `site-stale-read-fix` stops a read in flight from undoing a stage
   the stream delivered. In: the site's re-read and its tests. Out: API, contract and stream changes, and overlapping
   reads with no event involved. Details: `.specs/phases/F0/brief-revision-4.md`.
+- Revision 5 (2026-11-07, from the F0 review): `room-trace-link` links the agent's trace of a room to the trace of its
+  match with a span link, which completes exit criterion 8. In: a stored `traceparent` on the room and the link on
+  `lobby.record-observation`. Out: contract, agent and site changes, and telemetry in production builds. Details:
+  `.specs/phases/F0/brief-revision-5.md`.
+- Revision 6 (2026-11-07, from the F0 retrospective, ADR 028): seven harness rows remove the friction measured in F0
+  before F1 starts — autonomous delivery and the `harness-self` scope, a precise gate, a retry budget that counts what
+  the agent controls, a faster CI, continuous delivery through PRs, a proofs preflight and a cloud-parallelism spike.
+  Out: F1 product work, `MAX_RETRIES`, ADR 025's roles and models, the vendored TLC skill. Details:
+  `.specs/phases/F0/brief-revision-6.md`.
 
 ## Open questions (answered by the maintainer on 2026-10-30)
 
@@ -104,7 +127,8 @@ scopes delegated — the maintainer reviews at the end of the phase (escalations
 - [x] specs-and-tasks: approve each feature's spec.md and tasks.md once they pass the automatic gates
 - [x] sub-agents: dispatch feature workers (worktrees), the Verifier and the reviewer subagents
 - [x] harness-edits: edit sensor/harness configuration to tighten or extend it (hooks and settings.json still ask)
-- [x] local-merge-phase-branch: merge green feature branches into phase/F0 locally (never push)
+- [x] local-merge-phase-branch: merge green feature branches into phase/F0 locally
+- [x] harness-self: edit the gate, its registration and the retry-budget code in `gate-precision`, `budget-v2`, `continuous-delivery` and `fast-proofs`, each in its own worktree, under the guard of ADR 028 (ticked by the maintainer's approval of brief revision 6, 2026-11-07: "Aprovo a revisão do ADR 028.")
 
 ## Approval
 
@@ -120,19 +144,31 @@ scopes delegated — the maintainer reviews at the end of the phase (escalations
 
 **Approved**: 2026-11-05 - user: "Pelo fluxo da fase"
 
+**Approved**: 2026-11-07 - user: "aprovado por pedromoraisf"
+
+**Approved**: 2026-11-07 - user: "Aprovo a revisão do ADR 028."
+
 ## Runner state
 
 <!-- generated by `pnpm phase:status --write` from files, git trailers and the retry ledger — do not edit -->
 
-**Phase next step**: awaiting-review
+**Phase next step**: run
 
-| Feature                   | Next step | Status | Tasks |
-| ------------------------- | --------- | ------ | ----- |
-| harness-foundation        | done      | done   | 22/22 |
-| api-web-skeleton          | done      | done   | 53/53 |
-| agent-skeleton            | done      | done   | 33/33 |
-| agent-hexagonal-migration | done      | done   | 58/58 |
-| observability-e2e         | done      | done   | 56/56 |
-| load-baseline             | done      | done   | 43/43 |
-| ci-and-review-fixes       | done      | done   | 13/13 |
-| site-stale-read-fix       | done      | done   | 2/2   |
+| Feature                   | Next step | Status               | Tasks |
+| ------------------------- | --------- | -------------------- | ----- |
+| harness-foundation        | done      | done                 | 22/22 |
+| api-web-skeleton          | done      | done                 | 53/53 |
+| agent-skeleton            | done      | done                 | 33/33 |
+| agent-hexagonal-migration | done      | done                 | 58/58 |
+| observability-e2e         | done      | done                 | 56/56 |
+| load-baseline             | done      | done                 | 43/43 |
+| ci-and-review-fixes       | done      | done                 | 13/13 |
+| site-stale-read-fix       | done      | done                 | 2/2   |
+| room-trace-link           | done      | done                 | 6/6   |
+| harness-bootstrap         | done      | done                 | 14/14 |
+| gate-precision            | specify   | ready                | 0/0   |
+| budget-v2                 | specify   | ready                | 0/0   |
+| ci-fast-path              | done      | done                 | 10/10 |
+| continuous-delivery       | done      | done                 | 8/8   |
+| fast-proofs               | specify   | waiting on budget-v2 | 0/0   |
+| parallel-cloud-spike      | specify   | ready                | 0/0   |

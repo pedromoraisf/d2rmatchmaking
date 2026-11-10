@@ -5,6 +5,7 @@ export const DELEGATION_SCOPES = [
   'sub-agents',
   'harness-edits',
   'local-merge-phase-branch',
+  'harness-self', // ADR 028 § 3: the named features edit the gate in their own worktree, under the guard
 ];
 
 const APPROVED_RE =
@@ -46,16 +47,55 @@ export function delegatedScopes(briefText) {
   return scopes;
 }
 
+/** The text of a `## <name>` section of a brief (matched by its first word, case-insensitive), or null. */
+function sectionOf(briefText, name) {
+  if (!briefText) return null;
+  return briefText.split(/^## /m).find((s) => s.toLowerCase().startsWith(name)) ?? null;
+}
+
+/** The feature names of the `## Features` table: first cells of its rows, without backticks. */
+export function featureRows(briefText) {
+  const rows = new Set();
+  for (const line of (sectionOf(briefText, 'features') ?? '').split('\n')) {
+    const m = /^\s*\|([^|]+)\|/.exec(line);
+    if (!m) continue;
+    const name = m[1].trim().replace(/^`|`$/g, '');
+    if (/^[a-z0-9][a-z0-9-]*$/.test(name)) rows.add(name); // the header ("Feature") and separators are not names
+  }
+  return rows;
+}
+
+/**
+ * HBS-19: the features a ticked `harness-self` line covers. Only backticked names that are rows of `## Features`
+ * count (a backticked path is not one); an unticked line, or a brief with no approval line, covers nothing.
+ */
+export function coveredFeatures(briefText) {
+  if (approvalsIn(briefText).length === 0) return [];
+  const line = (sectionOf(briefText, 'delegation') ?? '')
+    .split('\n')
+    .find((l) => /^\s*[-*]\s*\[(x|X)\]\s*`?harness-self`?(?![\w-])/.test(l));
+  if (!line) return [];
+  const rows = featureRows(briefText);
+  const names = [...line.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+  return [...new Set(names.filter((n) => rows.has(n)))];
+}
+
 /**
  * The active phase: `.specs/phases/ACTIVE` holds the phase id (e.g. "F0").
- * Returns null when no phase is active or its brief is not approved by the user.
+ * The phase and its brief are read from the MAIN checkout when the context can (HBS-19): a worktree's own copy of
+ * the brief never widens the delegation. Returns null when no phase is active.
+ * `approved` is false when the brief carries no user approval line; `covered` lists the covered features (HBS-19).
  */
 export function activePhase(ctx) {
-  const id = (ctx.readFile('.specs/phases/ACTIVE') ?? '').trim();
+  const read = ctx.readMainFile ?? ctx.readFile;
+  const id = (read('.specs/phases/ACTIVE') ?? '').trim();
   if (!/^F\d+$/.test(id)) return null;
   const briefPath = `.specs/phases/${id}/brief.md`;
-  const brief = ctx.readFile(briefPath);
+  const brief = read(briefPath);
   const approvals = approvalsIn(brief);
-  if (approvals.length === 0) return { id, briefPath, approved: false, scopes: new Set(), approvals };
-  return { id, briefPath, approved: true, scopes: delegatedScopes(brief), approvals };
+  const covered = coveredFeatures(brief);
+  if (approvals.length === 0) {
+    return { id, briefPath, approved: false, scopes: new Set(), approvals, covered };
+  }
+  return { id, briefPath, approved: true, scopes: delegatedScopes(brief), approvals, covered };
 }

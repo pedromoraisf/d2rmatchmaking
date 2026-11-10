@@ -35,15 +35,17 @@ export function compareBaselines(prev, next) {
       problems.push(`${name}: tolerance ${p.tolerance ?? 0} → ${n.tolerance}`);
     const lostCtx = (p.contexts ?? []).filter((c) => !(n.contexts ?? []).includes(c));
     if (lostCtx.length) problems.push(`${name}: no longer checked in ${lostCtx.join(', ')}`);
+    if (n.ciOnly === true && p.ciOnly !== true) problems.push(`${name}: now checked only in CI`);
   }
   return problems;
 }
 
 /**
  * Evaluate current measurements against the baseline for one context (pr, nightly, phase…).
+ * A metric marked `ciOnly` is produced only by CI (e.g. its duration), so outside CI its absence is a note.
  * Returns { failures: string[], notes: string[], improvements: {name: value} }.
  */
-export function evaluate(baseline, current, context) {
+export function evaluate(baseline, current, context, { ci = false } = {}) {
   const failures = [];
   const notes = [];
   const improvements = {};
@@ -53,6 +55,7 @@ export function evaluate(baseline, current, context) {
     const higher = m.direction === 'higher';
     if (v === undefined || v === null) {
       if (m.value === null || m.value === undefined) notes.push(`${name}: not measured yet`);
+      else if (m.ciOnly === true && !ci) notes.push(`${name}: measured only in CI`);
       else
         failures.push(`${name}: was measured (${m.value}) but is missing now — a sensor stopped reporting`);
       continue;

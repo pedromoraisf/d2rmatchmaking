@@ -1,8 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { checkBash, checkEdit, decide } from '../lib/gate-rules.mjs';
 import { toRelative } from '../lib/io.mjs';
+import { applyHistoryEffect } from '../lib/history-store.mjs';
 import { emptyLedger, unitKey, recordAttempt, MAX_ATTEMPTS } from '../../../scripts/lib/budget.mjs';
+import { RULE_MODULES } from './rule-modules.mjs';
 
 function fakeCtx(files = {}, { tracked = [], branch = 'feat/x' } = {}) {
   return {
@@ -11,6 +16,7 @@ function fakeCtx(files = {}, { tracked = [], branch = 'feat/x' } = {}) {
     isTracked: (rel) => tracked.includes(rel),
     currentBranch: () => branch,
     git: () => '',
+    modules: RULE_MODULES,
   };
 }
 const d = (r) => r?.decision ?? 'allow';
@@ -63,17 +69,19 @@ test('bash: destructive and bypass commands are denied', () => {
 test('bash: escalations ask the maintainer', () => {
   const ctx = fakeCtx();
   for (const c of [
-    'git push origin phase/F0',
-    'gh pr merge 12 --squash',
     'gh secret set RENDER_DEPLOY_HOOK',
     'npx wrangler pages deploy dist',
     'curl -X POST https://api.render.com/deploy/srv-1?key=x', // secretlint-disable-line -- fake fixture for the gate test
     'git rm apps/api/src/x.test.ts',
     'pnpm publish',
-    'git tag agent-v0.0.1',
   ]) {
     assert.equal(d(checkBash(c, ctx)), 'ask', c);
   }
+  // ADR 028 § 1 changed three of these: a push of a phase branch and a tag are allowed, a PR merge outside the merge
+  // options is denied with the fix (HBS-04).
+  assert.equal(d(checkBash('git push origin phase/F0', ctx)), 'allow');
+  assert.equal(d(checkBash('git tag agent-v0.0.1', ctx)), 'allow');
+  assert.equal(d(checkBash('gh pr merge 12 --squash', ctx)), 'deny');
   assert.equal(d(checkBash('git merge feat/x', fakeCtx({}, { branch: 'main' }))), 'ask');
   assert.equal(d(checkBash('git merge feat/x', fakeCtx({}, { branch: 'phase/F0' }))), 'allow');
 });
@@ -308,6 +316,32 @@ test('bash: inline interpreter code that starts processes, writes protected file
   }
 });
 
+test('inline code naming the budget modules asks', () => {
+  const ctx = fakeCtx();
+  for (const c of [
+    `node -e "import('./scripts/ATTEMPT.mjs')"`,
+    `node -e "import('./scripts/att' + 'empt.mjs')"`,
+    String.raw`node -e "import('./scripts/att\empt.mjs')"`,
+    `node -e "import('./scripts/lib/ledger-store.mjs')"`,
+    `node -e "import('./scripts/'+a+'.mjs')"`,
+    `node -e "import(['att','empt'].join(''))"`,
+    `node -e "const a='x';require('./scripts/'+a+'.mjs')"`,
+  ]) {
+    assert.equal(d(checkBash(c, ctx)), 'ask', c);
+  }
+  assert.equal(checkBash(`node -e "import('node:fs')"`, ctx)?.decision ?? null, null);
+  // T29: no import( or require( here, so the T24 module-name rule is the one that asks. Its reason is asserted.
+  for (const c of [
+    `node -e "const p='./scripts/att' + 'empt.mjs'; fs.readFileSync(p)"`,
+    `node -e "const p='./scripts/att'+'empt.mjs'; fs.readFileSync(p)"`,
+    String.raw`node -e "const p='./scripts/att\empt.mjs'; fs.readFileSync(p)"`,
+  ]) {
+    const answer = checkBash(c, ctx);
+    assert.equal(answer?.decision, 'ask', c);
+    assert.ok(answer.reason.includes('names the retry-budget modules'), `${c}: ${answer.reason}`);
+  }
+});
+
 test('bash: scripts and stdin shells are inspected — untracked scripts by content, outside ones and pipes ask', () => {
   const ctx = fakeCtx(
     {
@@ -371,4 +405,207 @@ test('edit: an existing .only( fixture string does not block other edits; adding
 test('the committed retry-ledger snapshot cannot be edited by agents', () => {
   assert.equal(d(checkEdit('.specs/phases/F0/attempts.json', { content: '{}' }, fakeCtx())), 'deny');
   assert.equal(d(checkEdit('scripts/lib/phase-state.mjs', { content: 'x' }, fakeCtx())), 'ask');
+});
+
+test('denies a background security review of a diff', () => {
+  const review = (extra) => ({
+    tool_name: 'Agent',
+    tool_input: {
+      subagent_type: 'security-reviewer',
+      prompt: '[d2rmm feature=gate-precision step=review-diff] review the diff',
+      ...extra,
+    },
+  });
+  const background = decide(review({ run_in_background: true }), fakeCtx(), toRelative);
+  assert.equal(d(background), 'deny');
+  assert.match(background.reason, /run_in_background: false/);
+  assert.equal(d(decide(review({ run_in_background: false }), fakeCtx(), toRelative)), 'allow');
+  assert.equal(d(decide(review({}), fakeCtx(), toRelative)), 'allow');
+});
+
+test('denies edits of the verdicts and the ledger', () => {
+  for (const file of [
+    '/repo/.git/d2rmm/verdicts.json',
+    '/repo/.git/d2rmm/ledger.json',
+    '/repo/.claude/worktrees/gate-precision/.git/d2rmm/verdicts.json',
+  ]) {
+    const edit = { tool_name: 'Edit', tool_input: { file_path: file, old_string: 'a', new_string: '{}' } };
+    assert.equal(d(decide(edit, fakeCtx(), toRelative)), 'deny', file);
+  }
+});
+
+test('denies shell commands that reach the verdicts or the ledger', () => {
+  for (const command of [
+    'echo {} > .git/d2rmm/verdicts.json',
+    'cd .git && echo {} > d2rmm/ledger.json',
+    'cp /tmp/v.json .claude/worktrees/gate-precision/.git/d2rmm/verdicts.json',
+    `node -e "require('fs').writeFileSync('.git/d2rmm/verdicts.json','{}')"`,
+  ]) {
+    assert.equal(
+      d(decide({ tool_name: 'Bash', tool_input: { command } }, fakeCtx(), toRelative)),
+      'deny',
+      command,
+    );
+  }
+});
+
+test('keeps the status commands', () => {
+  for (const command of [
+    'node scripts/attempt.mjs status',
+    'node scripts/attempt.mjs report',
+    'node scripts/phase-status.mjs',
+  ]) {
+    assert.notEqual(
+      d(decide({ tool_name: 'Bash', tool_input: { command } }, fakeCtx(), toRelative)),
+      'deny',
+      command,
+    );
+  }
+});
+
+// ---------------------------------------------------------------- gate precision, T10 (GPR-04, GPR-09, GPR-21, GPR-33)
+
+const fileLike = (isFile, isDirectory) => ({
+  isFile: () => isFile,
+  isDirectory: () => isDirectory,
+  nlink: 1,
+});
+/** A checkout at /repo with a scripts folder: enough I/O for the read-only rule to allow a line. */
+function checkoutCtx(files = {}) {
+  const dirs = new Set(['/repo', '/repo/scripts']);
+  return {
+    ...fakeCtx(files),
+    realpath: (p) => (p === '/repo' || p.startsWith('/repo/') ? p : null),
+    stat: (p) => (dirs.has(p) ? fileLike(false, true) : null),
+    git: () => '',
+  };
+}
+const READ_LINE = 'node scripts/phase-status.mjs --json F0';
+const readInput = { tool_name: 'Bash', tool_input: { command: READ_LINE }, cwd: '/repo', session_id: 's1' };
+
+test('allow comes last', () => {
+  // The read-only table allows the line; only the script's content decides what else it does.
+  const clean = checkoutCtx({ 'scripts/phase-status.mjs': "console.log('ok');\n" });
+  assert.equal(checkBash(READ_LINE, clean, 0, readInput)?.decision, 'allow');
+  const spawning = checkoutCtx({
+    'scripts/phase-status.mjs': "import { execSync } from 'node:child_process';\n",
+  });
+  assert.equal(checkBash(READ_LINE, spawning, 0, readInput)?.decision, 'ask');
+  const naming = checkoutCtx({ 'scripts/phase-status.mjs': "const file = 'ledger.json';\n" });
+  assert.equal(checkBash(READ_LINE, naming, 0, readInput)?.decision, 'deny');
+  assert.equal(decide(readInput, naming, toRelative)?.decision, 'deny');
+  assert.equal(decide(readInput, spawning, toRelative)?.decision, 'ask');
+  assert.equal(decide(readInput, clean, toRelative)?.decision, 'allow');
+});
+
+test('asks on an empty call', () => {
+  assert.equal(decide({}, fakeCtx(), toRelative)?.decision, 'ask');
+  assert.equal(decide(undefined, fakeCtx(), toRelative)?.decision, 'ask');
+  assert.equal(decide({ tool_input: { command: 'cat a.txt' } }, fakeCtx(), toRelative)?.decision, 'ask');
+});
+
+test('a package scope passes the whole gate', () => {
+  const ctx = fakeCtx();
+  const scoped = decide(
+    { tool_name: 'Bash', tool_input: { command: 'pnpm --filter @d2rmm/api test' }, session_id: 's1' },
+    ctx,
+    toRelative,
+  );
+  assert.ok(
+    !['deny', 'ask'].includes(scoped?.decision),
+    'a workspace package scope is not a ledger reference',
+  );
+  assert.equal(
+    bash('cat .git/d2rmm/ledger.json', ctx),
+    'deny',
+    'reading the ledger file itself still denies',
+  );
+  assert.equal(bash('pnpm --filter @d2rmm/api test && cat ledger.json', ctx), 'deny');
+});
+
+test('asks for inline code writing a path it cannot read', () => {
+  const ctx = fakeCtx();
+  assert.equal(checkBash(`node -e "fs.writeFileSync(process.env.P, 'x')"`, ctx)?.decision, 'ask');
+  assert.equal(checkBash(`python3 -c "open(p, 'w')"`, ctx)?.decision, 'ask');
+  assert.equal(checkBash(`perl -e 'open(my $fh, ">", $path)'`, ctx)?.decision, 'ask');
+  // A literal path is judged as today: no opinion for a file that is not protected.
+  assert.equal(checkBash(`python3 -c "open('notes.txt', 'w')"`, ctx), null);
+  assert.equal(checkBash(`python3 -c "open(p, 'r')"`, ctx), null, 'a read is not a write');
+});
+
+test('loads no rule module eagerly', () => {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+  const ruleModules = ['ratchet', 'acceptance', 'mutation-scope', 'model-policy'].map((m) =>
+    path.join(root, 'scripts/lib', `${m}.mjs`),
+  );
+  const staticImport = /\b(?:import|export)\s+(?:[^'";]*?\bfrom\s*)?'([^']+)'/g;
+  const seen = new Set();
+  const queue = [path.join(root, '.claude/hooks/lib/gate-rules.mjs')];
+  while (queue.length > 0) {
+    const file = queue.pop();
+    if (seen.has(file)) continue;
+    seen.add(file);
+    assert.equal(ruleModules.includes(file), false, `${path.relative(root, file)} is imported statically`);
+    for (const m of readFileSync(file, 'utf8').matchAll(staticImport)) {
+      if (m[1].startsWith('.')) queue.push(path.resolve(path.dirname(file), m[1]));
+    }
+  }
+  assert.ok(seen.size > 5, 'the walk reached the gate modules');
+});
+
+test('asks when a rule module is missing', () => {
+  const bare = { ...fakeCtx({ '.quality-baseline.json': '{"metrics":{}}' }), modules: {} };
+  const baseline = { tool_name: 'Edit', tool_input: { file_path: '.quality-baseline.json', content: '{}' } };
+  assert.equal(d(decide(baseline, bare, toRelative)), 'ask');
+  const spec = { ...fakeCtx({ '.specs/features/f/acceptance.feature': 'Feature: f\n' }), modules: {} };
+  const feature = {
+    tool_name: 'Edit',
+    tool_input: {
+      file_path: '.specs/features/f/acceptance.feature',
+      old_string: 'Feature',
+      new_string: 'Feature x',
+    },
+  };
+  assert.equal(d(decide(feature, spec, toRelative)), 'ask');
+  const phase = { ...phaseRunCtx(), modules: {} };
+  const dispatch = {
+    tool_name: 'Agent',
+    tool_input: { subagent_type: 'feature-worker', prompt: '[d2rmm feature=x step=T1] go' },
+  };
+  assert.equal(d(decide(dispatch, phase, toRelative)), 'ask', 'a dispatch without the model policy asks');
+});
+
+test('the fifth identical call denies through decide', () => {
+  const store = { version: 1, sessions: Object.create(null) };
+  const decisions = [];
+  for (let i = 0; i < 5; i++) {
+    const ctx = { ...fakeCtx(), history: store, nowMs: () => 1_800_000_000_000 + i * 1000 };
+    const r = decide(
+      { tool_name: 'Bash', tool_input: { command: 'git status' }, session_id: 's1' },
+      ctx,
+      toRelative,
+    );
+    decisions.push(r?.decision ?? null);
+    for (const e of r?.effects ?? []) applyHistoryEffect(store, e);
+  }
+  assert.deepEqual(decisions, [null, null, null, null, 'deny']);
+});
+
+test('a descriptor redirection is not a segment write', () => {
+  const ctx = fakeCtx();
+  for (const c of [
+    'cat scripts/attempt.mjs 2>&1',
+    'cat .claude/hooks/gate.mjs 2>/dev/null | head -n 5',
+    "grep '>' scripts/attempt.mjs",
+    'cat scripts/attempt.mjs | head -3 2>&1',
+  ]) {
+    assert.equal(d(checkBash(c, ctx)), 'allow', c);
+  }
+});
+
+test('a real segment write keeps its decision', () => {
+  const ctx = fakeCtx();
+  assert.equal(d(checkBash('echo x > .claude/hooks/gate.mjs', ctx)), 'ask');
+  assert.equal(d(checkBash('cat a 2>&1 > eslint.config.mjs', ctx)), 'deny');
+  assert.equal(d(checkBash('tee .quality-baseline.json', ctx)), 'deny');
 });

@@ -28,13 +28,17 @@ async function traceContextColumn(): Promise<{ data_type: string; is_nullable: s
 
 describe('the outbox migrations', () => {
   it('migrates to 0002 and back', async () => {
-    expect(await migrateToLatest(db)).toEqual(['0001_skeleton', '0002_outbox_trace_context']);
+    expect(await migrateToLatest(db)).toEqual([
+      '0001_skeleton',
+      '0002_outbox_trace_context',
+      '0003_room_trace_context',
+    ]);
     expect(await traceContextColumn()).toEqual({ data_type: 'text', is_nullable: 'YES' });
 
     await migrateTo(db, '0001_skeleton');
     expect(await traceContextColumn()).toBeUndefined();
 
-    expect(await migrateToLatest(db)).toEqual(['0002_outbox_trace_context']);
+    expect(await migrateToLatest(db)).toEqual(['0002_outbox_trace_context', '0003_room_trace_context']);
     expect(await traceContextColumn()).toEqual({ data_type: 'text', is_nullable: 'YES' });
   });
 });

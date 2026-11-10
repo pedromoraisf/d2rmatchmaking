@@ -22,7 +22,9 @@ const current =
     ? JSON.parse(readFileSync(currentPath, 'utf8'))
     : collect(baseline, process.cwd());
 
-const { failures, notes, improvements } = evaluate(baseline, current, context);
+const { failures, notes, improvements } = evaluate(baseline, current, context, {
+  ci: Boolean(process.env.CI),
+});
 for (const n of notes) console.log(`  · ${n}`);
 if (failures.length > 0) {
   console.error(`quality-ratchet [${context}]: ${failures.length} regression(s)`);

@@ -1,0 +1,520 @@
+[
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "return a.fingerprint === fingerprint && a.command === String(command);",
+    "new": "return a.fingerprint === fingerprint;",
+    "proof": "node --test --test-name-pattern \"runs after a change or with another command\" scripts/test/attempt-cli.test.mjs",
+    "label": "unchanged rerun ignores the command"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "trailingEnvRun(u.attempts) >= ENV_ATTEMPTS_TO_BLOCK",
+    "new": "trailingEnvRun(u.attempts) > ENV_ATTEMPTS_TO_BLOCK",
+    "proof": "node --test --test-name-pattern \"three environment failures in a row block the unit\" scripts/test/budget.test.mjs",
+    "label": "env-blocked needs four instead of three"
+  },
+  {
+    "file": "scripts/lib/env-signatures.mjs",
+    "old": "if (hasTestFailure(text)) return null;",
+    "new": "if (false) return null;",
+    "proof": "node --test --test-name-pattern \"a test-failure marker wins over a signature\" scripts/test/env-signatures.test.mjs",
+    "label": "a test-failure marker no longer wins over a signature"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "if (orchestratorResets(ledger, key) >= 1) {",
+    "new": "if (orchestratorResets(ledger, key) >= 2) {",
+    "proof": "node --test .claude/hooks/test/budget-rules.test.mjs",
+    "label": "gate allows a second orchestrator reset"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "signatures.length > 0 &&\n    signatures.every(Boolean) &&",
+    "new": "signatures.length > 0 &&\n    signatures.some(Boolean) &&",
+    "proof": "node --test --test-name-pattern \"red stop\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "red stop uncounted when only some failures are the machine"
+  },
+  {
+    "file": "scripts/attempt.mjs",
+    "old": "orchestratorResets(l, key) >= 1) return 'refused'",
+    "new": "orchestratorResets(l, key) >= 2) return 'refused'",
+    "proof": "node --test --test-name-pattern \"refuses the orchestrator's second reset\" scripts/test/attempt-cli.test.mjs",
+    "label": "wrapper allows a second orchestrator reset"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "if (names.length === 0 && commitOf(ctx, state.phaseBranch)) return false;",
+    "new": "if (names.length === 0) return false;",
+    "proof": "node --test --test-name-pattern \"git cannot answer\" .claude/hooks/test/guard.test.mjs",
+    "label": "unresolved covered branch touches nothing even when the phase branch does not resolve (rewritten for T25)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "const remote = commitOf(ctx, `origin/${branch}`);",
+    "new": "const remote = null;",
+    "proof": "node --test --test-name-pattern \"exists only on the remote\" --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "proofOf ignores origin/<branch> as a head (rewritten for T25)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "return lists.some((b) => a.some((c) => b.includes(c)));",
+    "new": "return lists.some((b) => a.length > 0 && b.length > 0);",
+    "proof": "node --test --test-name-pattern \"touches only through a shared commit\" .claude/hooks/test/guard.test.mjs",
+    "label": "any commit beyond the phase counts as touching a covered branch (rewritten for T25)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "return a !== null && b !== null && a.every((c) => b.includes(c));",
+    "new": "return a !== null && b !== null && a.some((c) => b.includes(c));",
+    "proof": "node --test .claude/hooks/test/guard.test.mjs",
+    "label": "a ref holding some unproven commits passes as subset of the proven head"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "&?\\d*>>?\\s*\\/dev\\/null",
+    "new": "&?\\d*>>?\\s*\\S+",
+    "proof": "node --test --test-name-pattern \"still asks for a real write after 2>&1\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "any redirection target is ignored as a write, not only /dev/null"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "[...BARE(text).matchAll(WRAPPER_ANY)].some(",
+    "new": "[...BARE(text).matchAll(WRAPPER_ANY)].slice(0, 1).some(",
+    "proof": "node --test --test-name-pattern \"hidden behind another wrapper call\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "only the first wrapper call is read for a reset (rewritten for T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "uncountedRedStopsOf(ledger, sid) < UNCOUNTED_RED_STOPS_PER_SESSION",
+    "new": "uncountedRedStopsOf(ledger, sid) <= UNCOUNTED_RED_STOPS_PER_SESSION",
+    "proof": "node --test --test-name-pattern \"leaves at most two red stops uncounted per session\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a third red stop of a session is still left uncounted (BUD-31 cap one too high)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "    namedSession &&\n",
+    "new": "    true &&\n",
+    "proof": "node --test --test-name-pattern \"leaves at most two red stops uncounted per session\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a red stop with no session id is left uncounted (BUD-31)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "!String(sid).startsWith('unknown-session')",
+    "new": "String(sid) !== 'unknown-session'",
+    "proof": "node --test --test-name-pattern \"leaves at most two red stops uncounted per session\" --test-name-pattern \"a subagent of an unknown session counts its red stops\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a subagent of an unknown session (unknown-session#agent) is treated as a named session"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "envTotalOf(u) >= ENV_TOTAL_TO_BLOCK",
+    "new": "envTotalOf(u) > ENV_TOTAL_TO_BLOCK",
+    "proof": "node --test --test-name-pattern \"blocks at the fourth machine failure in total\" scripts/test/budget.test.mjs",
+    "label": "env-blocked needs a fifth machine failure in total instead of the fourth (BUD-30)"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "export const ENV_TOTAL_TO_BLOCK = 4;",
+    "new": "export const ENV_TOTAL_TO_BLOCK = 5;",
+    "proof": "node --test --test-name-pattern \"blocks at the fourth machine failure in total\" scripts/test/budget.test.mjs",
+    "label": "ENV_TOTAL_TO_BLOCK is five"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "return attempts.filter((a) => a.kind === 'env').length;",
+    "new": "return attempts.slice(attempts.findLastIndex((a) => a.ok) + 1).filter((a) => a.kind === 'env').length;",
+    "proof": "node --test --test-name-pattern \"blocks at the fourth machine failure in total\" --test-name-pattern \"only a reset clears the machine-failure total\" scripts/test/budget.test.mjs",
+    "label": "a pass clears the machine-failure total (BUD-30, AD-172)"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "return attempts.filter((a) => a.kind === 'env').length;",
+    "new": "return attempts.filter((a) => !a.ok).length;",
+    "proof": "node --test --test-name-pattern \"blocks at the fourth machine failure in total\" --test-name-pattern \"only a reset clears the machine-failure total\" scripts/test/budget.test.mjs",
+    "label": "the environment total counts counted failures too"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "return (ledger.uncountedStops ?? []).filter((s) => s.sid === sid).length;",
+    "new": "return (ledger.uncountedStops ?? []).length;",
+    "proof": "node --test --test-name-pattern \"leaves at most two red stops uncounted per session\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "the uncounted red stops are pooled across sessions instead of per session"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "const out = { version: 1, units: {}, resets, refusals, uncountedStops };",
+    "new": "const out = { version: 1, units: {}, resets, refusals, uncountedStops: [] };",
+    "proof": "node --test scripts/test/budget.test.mjs",
+    "label": "mergeLedgers drops the uncounted red stops (a merge resets a session's cap)"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "  if (ok) u.status = 'passed';\n",
+    "new": "  if (ok) {\n    u.status = 'passed';\n    delete u.envCarried;\n  }\n",
+    "proof": "node --test --test-name-pattern \"only a reset clears the machine-failure total\" scripts/test/budget.test.mjs",
+    "label": "a pass clears the total a merge carried in (AD-172)"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "const carried = envMax.get(k) - envTotalOfAttempts(u.attempts);",
+    "new": "const carried = 0;",
+    "proof": "node --test --test-name-pattern \"only a reset clears the machine-failure total\" scripts/test/budget.test.mjs",
+    "label": "a merge drops the total carried from the other copy (BUD-30)"
+  },
+  {
+    "file": "scripts/lib/budget.mjs",
+    "old": "return envTotalOfAttempts(u.attempts) + (u.envCarried ?? 0);",
+    "new": "return envTotalOfAttempts(u.attempts);",
+    "proof": "node --test --test-name-pattern \"only a reset clears the machine-failure total\" scripts/test/budget.test.mjs",
+    "label": "the total ignores the carried environment failures"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const BARE = (s) => s.replace(/['\"\\\\]/g, '');",
+    "new": "const BARE = (s) => s.replace(/['\"]/g, '');",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "the reset check no longer removes backslashes (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const BARE = (s) => s.replace(/['\"\\\\]/g, '');",
+    "new": "const BARE = (s) => s.replace(/[\"\\\\]/g, '');",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "the reset check no longer removes single quotes (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const BARE = (s) => s.replace(/['\"\\\\]/g, '');",
+    "new": "const BARE = (s) => s.replace(/['\\\\]/g, '');",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "the reset check no longer removes double quotes (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "attempt\\.mjs[\"']?\\s+(\\S+)/gi;",
+    "new": "attempt\\.mjs[\"']?\\s+(\\S+)/g;",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" --test-name-pattern \"a reset is judged when the word itself is hidden\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "the wrapper name is matched case-sensitively (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDS = /[$`*?[{]/;",
+    "new": "const EXPANDS = /[`*?[{]/;",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a program name with $ is no longer an expansion (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDS = /[$`*?[{]/;",
+    "new": "const EXPANDS = /[$`?[{]/;",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a program name with * is no longer a glob (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDS = /[$`*?[{]/;",
+    "new": "const EXPANDS = /[$`*[{]/;",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a program name with ? is no longer a glob (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDS = /[$`*?[{]/;",
+    "new": "const EXPANDS = /[$*?[{]/;",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a program name with a backtick is no longer an expansion (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDS = /[$`*?[{]/;",
+    "new": "const EXPANDS = /[$`*?{]/;",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a program name with [ is no longer a glob (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "args.includes('reset')",
+    "new": "true",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" --test-name-pattern \"a reset is judged when the word itself is hidden\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "an expanded program asks even without the word reset (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "words.slice(0, j).some((p) => RUNNER_WORD.test(p))",
+    "new": "true",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a dynamic script path counts without a runner before it (T30)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "(ASSIGN_WORD.test(words[i]) || PREFIX_WORDS.has(words[i]))",
+    "new": "PREFIX_WORDS.has(words[i])",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "environment assignments before the program are not skipped (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "return [cmd, ...innerShellCommands(cmd)].some(",
+    "new": "return [cmd].some(",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a reset is not looked for in the commands a shell hides (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "new": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "proof": "node --test --test-name-pattern \"inline code naming the budget modules asks\" .claude/hooks/test/gate-rules.test.mjs",
+    "label": "inline code naming the budget modules is matched case-sensitively (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "new": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"\\\\\\s]/g, ''))",
+    "proof": "node --test --test-name-pattern \"inline code naming the budget modules asks\" .claude/hooks/test/gate-rules.test.mjs",
+    "label": "inline code is not stripped of + before the module name is matched (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "new": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\]/g, ''))",
+    "proof": "node --test --test-name-pattern \"inline code naming the budget modules asks\" .claude/hooks/test/gate-rules.test.mjs",
+    "label": "inline code is not stripped of whitespace before the module name is matched (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "new": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\s]/g, ''))",
+    "proof": "node --test --test-name-pattern \"inline code naming the budget modules asks\" .claude/hooks/test/gate-rules.test.mjs",
+    "label": "inline code is not stripped of backslashes before the module name is matched (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "new": "/attempt\\.mjs|budget\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "proof": "node --test --test-name-pattern \"inline code naming the budget modules asks\" .claude/hooks/test/gate-rules.test.mjs",
+    "label": "inline code naming ledger-store.mjs no longer asks (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "new": "/budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "proof": "node --test --test-name-pattern \"inline code naming the budget modules asks\" .claude/hooks/test/gate-rules.test.mjs",
+    "label": "inline code naming attempt.mjs no longer asks (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/attempt\\.mjs|budget\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "new": "/attempt\\.mjs|ledger-store\\.mjs/i.test(text.replace(/['\"+\\\\\\s]/g, ''))",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "inline code naming budget.mjs no longer asks (T24)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "return lists.some((b) => a.some((c) => b.includes(c)));",
+    "new": "return lists.every((b) => a.some((c) => b.includes(c)));",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "a branch touches the covered branch only when it shares a commit with both heads (T25 union)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "const names = [branch, `origin/${branch}`].filter((r) => commitOf(ctx, r));",
+    "new": "const names = [branch].filter((r) => commitOf(ctx, r));",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "the covered commits ignore origin when the local branch exists (T25 union)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "const names = [branch, `origin/${branch}`].filter((r) => commitOf(ctx, r));",
+    "new": "const names = [`origin/${branch}`].filter((r) => commitOf(ctx, r));",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "the covered commits ignore the local branch when origin exists (T25 union)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "lists.some((b) => b === null)",
+    "new": "lists.every((b) => b === null)",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" --test-name-pattern \"fails closed when git cannot answer\" .claude/hooks/test/guard.test.mjs",
+    "label": "touches fails closed only when every covered list fails, not when one does (T25)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "if (base === remote) return { head: local, diverged: null };",
+    "new": "if (base === remote) return { head: remote, diverged: null };",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "proof is due at origin when local contains it (T25 larger head)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "if (base === local) return { head: remote, diverged: null };",
+    "new": "if (base === local) return { head: local, diverged: null };",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "proof is due at local when origin contains it (T25 larger head)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "return { head: null, diverged: { local, remote } };",
+    "new": "return { head: local, diverged: null };",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "diverged local and origin heads are not denied, the local one is taken (T25)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "if (diverged) return {",
+    "new": "if (false) return {",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "proofOf ignores the diverged heads (T25)"
+  },
+  {
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "`push or fetch ${c.branch} until",
+    "new": "`push or fetch ${p.diverged.local} until",
+    "proof": "node --test --test-name-pattern \"the guard reads both the local and the remote head\" .claude/hooks/test/guard.test.mjs",
+    "label": "the diverged reason names the wrong branch (T25)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "m[1].toLowerCase() === 'reset' || EXPANDED_ARG.test(m[1])",
+    "new": "m[1].toLowerCase() === 'reset'",
+    "proof": "node --test --test-name-pattern \"a reset is judged when the word itself is hidden\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a wrapper call whose first word expands is no longer a possible reset (T26 a)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "m[1].toLowerCase() === 'reset' || EXPANDED_ARG.test(m[1])",
+    "new": "true",
+    "proof": "node --test --test-name-pattern \"a reset is judged when the word itself is hidden\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "any word after the wrapper file name is read as a reset, status included (T26 a)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "m[1].toLowerCase() === 'reset'",
+    "new": "m[1] === 'reset'",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" --test-name-pattern \"a reset is judged when the word itself is hidden\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "the reset word is matched case-sensitively (T26 a)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "attempt\\.mjs[\"']?\\s+(\\S+)/gi;",
+    "new": "attempt\\.mjs[\"']?\\s+(\\w+)/gi;",
+    "proof": "node --test --test-name-pattern \"a reset is judged when the word itself is hidden\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "WRAPPER_ANY captures only a plain word, so $(echo reset) is not seen (T26 a)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDED_ARG = /[$`{*?[~<>(]/;",
+    "new": "const EXPANDED_ARG = /[$`*?[~<>(]/;",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a brace in an argument no longer counts as expanding (T26, T30)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "words.some((x, k) => k !== j && (x === 'reset' || EXPANDED_ARG.test(x)))",
+    "new": "words.some((x) => x === 'reset' || EXPANDED_ARG.test(x))",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "the dynamic script path itself counts as its own expanding argument (T30)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "/^(node|python[\\d.]*|bun|tsx|deno|sh|bash|zsh|pnpm|",
+    "new": "/^(python[\\d.]*|bun|tsx|deno|sh|bash|zsh|pnpm|",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "node is no longer a runner word (T30)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "args.includes('reset') || args.some((w) => EXPANDED_ARG.test(w))",
+    "new": "args.includes('reset')",
+    "proof": "node --test --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "an expanding argument alone no longer makes rule (b) ask (T26 b)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "args.includes('reset') || args.some((w) => EXPANDED_ARG.test(w))",
+    "new": "args.some((w) => EXPANDED_ARG.test(w))",
+    "proof": "node --test --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "the word reset alone no longer makes rule (b) ask (T26 b)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/\\b(?:import|require)\\s*\\((?!\\s*(['\"])[^'\"\\\\]*\\1\\s*\\))/.test(text)",
+    "new": "/\\b(?:import)\\s*\\((?!\\s*(['\"])[^'\"\\\\]*\\1\\s*\\))/.test(text)",
+    "proof": "node --test --test-name-pattern \"inline code naming the budget modules asks\" .claude/hooks/test/gate-rules.test.mjs",
+    "label": "a dynamic require( is no longer asked (T26)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/\\b(?:import|require)\\s*\\((?!\\s*(['\"])[^'\"\\\\]*\\1\\s*\\))/.test(text)",
+    "new": "/\\b(?:require)\\s*\\((?!\\s*(['\"])[^'\"\\\\]*\\1\\s*\\))/.test(text)",
+    "proof": "node --test --test-name-pattern \"inline code naming the budget modules asks\" .claude/hooks/test/gate-rules.test.mjs",
+    "label": "a dynamic import( is no longer asked (T26)"
+  },
+  {
+    "file": ".claude/hooks/lib/gate-rules.mjs",
+    "old": "/\\b(?:import|require)\\s*\\((?!\\s*(['\"])[^'\"\\\\]*\\1\\s*\\))/.test(text)",
+    "new": "/\\b(?:import|require)\\s*\\(/.test(text)",
+    "proof": "node --test --test-name-pattern \"inline code naming the budget modules asks\" .claude/hooks/test/gate-rules.test.mjs",
+    "label": "every import( or require( asks, a plain literal too (T26)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDED_ARG = /[$`{*?[~<>(]/;",
+    "new": "const EXPANDED_ARG = /[$`{*[~<>(]/;",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a ? glob no longer counts as expanding (T30)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDED_ARG = /[$`{*?[~<>(]/;",
+    "new": "const EXPANDED_ARG = /[$`{*?[<>(]/;",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a ~ no longer counts as expanding (T30)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDED_ARG = /[$`{*?[~<>(]/;",
+    "new": "const EXPANDED_ARG = /[$`{?[~<>(]/;",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a * glob no longer counts as expanding (T30)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "(m) => m[1].toLowerCase() === 'reset' || EXPANDED_ARG.test(m[1])",
+    "new": "(m) => m[1].toLowerCase() === 'reset'",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a wrapper word that expands is no longer a possible reset (T30)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "isDynamicScript(w) &&",
+    "new": "false &&",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a dynamic script path behind a runner is no longer judged (T30)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const isDynamicScript = (w) => EXPANDED_ARG.test(w);",
+    "new": "const isDynamicScript = (w) => EXPANDED_ARG.test(w) && (w.includes('/') || /\\.(mjs|js|cjs|ts)$/i.test(w));",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a script word the shell builds needs a / or a script extension again (T32)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDED_ARG = /[$`{*?[~<>(]/;",
+    "new": "const EXPANDED_ARG = /[$`{*?[~>(]/;",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a < no longer counts as expanding (T32)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDED_ARG = /[$`{*?[~<>(]/;",
+    "new": "const EXPANDED_ARG = /[$`{*?[~<(]/;",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a > no longer counts as expanding (T32)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDED_ARG = /[$`{*?[~<>(]/;",
+    "new": "const EXPANDED_ARG = /[$`{*?[~<>]/;",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a ( no longer counts as expanding (T32)"
+  }
+]

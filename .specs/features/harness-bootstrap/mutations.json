@@ -1,0 +1,58 @@
+[
+  {
+    "label": "verdict PASS accepted by prefix",
+    "file": ".claude/hooks/lib/verdicts.mjs",
+    "old": "return last.trim() === 'VERDICT: PASS' ? 'PASS' : 'FAIL';",
+    "new": "return last.trim().startsWith('VERDICT: PASS') ? 'PASS' : 'FAIL';",
+    "proof": "node --test .claude/hooks/test/verdicts.test.mjs"
+  },
+  {
+    "label": "dirty-tree attempt proves a head",
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "a.ok === true && a.command === 'pnpm test:harness' && a.clean === true && a.head === head",
+    "new": "a.ok === true && a.command === 'pnpm test:harness' && a.head === head",
+    "proof": "node --test .claude/hooks/test/guard.test.mjs"
+  },
+  {
+    "label": "merge subset check weakened to some",
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "return a !== null && b !== null && a.every((c) => b.includes(c));",
+    "new": "return a !== null && b !== null && a.some((c) => b.includes(c));",
+    "proof": "node --test .claude/hooks/test/guard.test.mjs"
+  },
+  {
+    "label": "push -f combined with u no longer denied",
+    "file": ".claude/hooks/lib/delivery.mjs",
+    "old": "/[fd]/.test(o.raw)",
+    "new": "/[d]/.test(o.raw)",
+    "proof": "node --test .claude/hooks/test/delivery.test.mjs"
+  },
+  {
+    "label": "gh pr merge pin not compared",
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "pinned === undefined || pinned.toLowerCase() !== p.head",
+    "new": "pinned === undefined",
+    "proof": "node --test .claude/hooks/test/guard.test.mjs"
+  },
+  {
+    "label": "moved head still records the reported verdict",
+    "file": ".claude/hooks/lib/verdicts.mjs",
+    "old": "current === note.head ? reported : 'FAIL'",
+    "new": "reported",
+    "proof": "node --test .claude/hooks/test/verdicts.test.mjs"
+  },
+  {
+    "label": "operand-ful merge of covered branch unguarded",
+    "file": ".claude/hooks/lib/guard.mjs",
+    "old": "if (state.covered.length === 0) return null;\n  for (const op of ops) {",
+    "new": "if (state.covered.length === 0 || ops.length > 0) return null;\n  for (const op of ops) {",
+    "proof": "node --test .claude/hooks/test/guard.test.mjs"
+  },
+  {
+    "label": "string true background review not denied",
+    "file": ".claude/hooks/lib/verdicts.mjs",
+    "old": "if (ti.run_in_background !== true && ti.run_in_background !== 'true') return null;",
+    "new": "if (ti.run_in_background !== true) return null;",
+    "proof": "node --test .claude/hooks/test/verdicts.test.mjs"
+  }
+]

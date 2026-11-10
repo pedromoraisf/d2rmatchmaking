@@ -28,6 +28,7 @@ import {
   assertTraceB,
   describeError,
   leaksIn,
+  linkedTraceIds,
   NAMES,
   readLogRecords,
   readTrace,
@@ -121,7 +122,7 @@ async function traceBDiagnostics(state: TelemetryState, grafanaUrl: string): Pro
 
 // Closes what the telemetry steps of the scenario started: the headless agent, the wall-clock follower, the traced stack and
 // the fake backend.
-After(async ({ world }) => {
+After({ tags: '@NFR-09' }, async ({ world }) => {
   const state = existingStateOf(world);
   await state?.agent?.stop();
   await state?.agentProxy?.close();
@@ -299,5 +300,72 @@ Then(
     });
     expect(heartbeatTrace.traceId, 'the heartbeat trace').toMatch(/^[0-9a-f]{32}$/u);
     expect(streamTrace.traceId, 'the stream trace').toMatch(/^[0-9a-f]{32}$/u);
+  },
+);
+
+// Scenario: The agent's observation links to the trace of the test match (RTL-09). The observation span of the API carries
+// one link, to the trace of the match that opened the room (RTL-03).
+const RECORD_OBSERVATION = 'lobby.record-observation';
+
+/** True when the trace has the agent's observation as its root, with the API request of that observation below it. */
+function observationRooted(trace: Trace): boolean {
+  return (
+    trace.spans.some((span) => span.name === NAMES.agentObservation && span.parentSpanId === '') &&
+    chainNamed(trace, [NAMES.agentObservation, NAMES.agentHttpObservation, NAMES.apiRequest])
+  );
+}
+
+/** True when the trace has the site's test match action as its root. */
+function siteActionRooted(trace: Trace): boolean {
+  return trace.spans.some((span) => span.name === NAMES.siteAction && span.parentSpanId === '');
+}
+
+/** The agent's observation request the proxy recorded last: the trace it carried is the agent's trace B. */
+function observationRequest(proxy: RecordingProxy): Promise<AgentRequestRecord> {
+  return awaitRequest(
+    proxy,
+    'observation',
+    (record) => record.method === 'POST' && /^\/v1\/lobby-rooms\/[^/]+\/observations$/u.test(record.path),
+  );
+}
+
+Then(
+  `the telemetry backend holds, within 30 seconds, the trace whose root is the agent's observation span`,
+  async ({ world }) => {
+    const state = stateOf(world);
+    const running = await requireBackend();
+    const request = await observationRequest(requireProxy(state));
+    await readTrace(running.queryUrl, traceIdOf(request.traceparent), observationRooted).catch(
+      async (error: unknown) => {
+        throw new Error(`${describeError(error)}\n${await traceBDiagnostics(state, running.grafanaUrl)}`);
+      },
+    );
+    process.stdout.write(`trace B, the agent observation (RTL-09): ${traceIdOf(request.traceparent)}\n`);
+  },
+);
+
+Then(
+  `its "lobby.record-observation" span links to the trace whose root is the site's test match action`,
+  async ({ world }) => {
+    const state = stateOf(world);
+    const running = await requireBackend();
+    // The site action's trace is read from the backend by the id its request carried: the link must name that id.
+    const siteTrace = await readTrace(
+      running.queryUrl,
+      traceIdOf(state.siteTraceparent),
+      siteActionRooted,
+    ).catch(async (error: unknown) => {
+      throw new Error(`${describeError(error)}\n${await traceBDiagnostics(state, running.grafanaUrl)}`);
+    });
+    const request = await observationRequest(requireProxy(state));
+    const traceB = await readTrace(running.queryUrl, traceIdOf(request.traceparent), (trace) =>
+      linkedTraceIds(trace, RECORD_OBSERVATION).includes(siteTrace.traceId),
+    ).catch(async (error: unknown) => {
+      throw new Error(`${describeError(error)}\n${await traceBDiagnostics(state, running.grafanaUrl)}`);
+    });
+    expect(
+      linkedTraceIds(traceB, RECORD_OBSERVATION),
+      'the trace ids the observation span links to',
+    ).toContain(siteTrace.traceId);
   },
 );

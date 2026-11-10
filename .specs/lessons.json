@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 4,
+  "next_id": 6,
   "lessons": [
     {
       "id": "L-001",
@@ -46,6 +46,34 @@
       "evidence": ["scripts/load/lib/error-ratio.mjs:43 (spec)"],
       "created": "2026-11-04T13:16:22Z",
       "last_seen": "2026-11-04T13:16:22Z"
+    },
+    {
+      "id": "L-004",
+      "key": "surviving_mutant::when an assumption fixes how a flag or mode is treated test the off value too tracers in tests sample by default so only flags 01 ever ran",
+      "text": "When an assumption fixes how a flag or mode is treated, test the off value too: tracers in tests sample by default, so only flags 01 ever ran.",
+      "signal": "surviving_mutant",
+      "scope": "apps/api tracing",
+      "status": "candidate",
+      "features": ["room-trace-link"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["mutations.json: unsampled context not stored (AD-135) (apps/api tracing)"],
+      "created": "2026-11-07T22:05:25Z",
+      "last_seen": "2026-11-07T22:05:25Z"
+    },
+    {
+      "id": "L-005",
+      "key": "gate_fail::fill a markdown table s closed cell by rebuilding the row from its cells and checking the cell count never by string surgery on the line end",
+      "text": "Fill a markdown table's Closed cell by rebuilding the row from its cells and checking the cell count, never by string surgery on the line end.",
+      "signal": "gate_fail",
+      "scope": ".specs verification.md",
+      "status": "candidate",
+      "features": ["room-trace-link"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["gate:room-trace-link/verification attempt 3 (.specs verification.md)"],
+      "created": "2026-11-07T22:05:25Z",
+      "last_seen": "2026-11-07T22:05:25Z"
     }
   ]
 }

@@ -70,9 +70,10 @@ jobs:
           retention-days: 30
 
   agent-mutation:
+    # Linux: the three crates have no Windows-only code, and integration already builds the adapters on Ubuntu (AD-149).
     needs: detect
     if: needs.detect.outputs.agent == 'true'
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7

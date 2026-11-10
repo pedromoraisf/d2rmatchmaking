@@ -1,0 +1,18 @@
+{
+  "session_id": "fixture-session",
+  "cwd": "/repo",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Agent",
+  "tool_use_id": "toolu_fixture_agent",
+  "tool_input": {
+    "subagent_type": "security-reviewer",
+    "description": "review the diff of gate-precision",
+    "prompt": "[d2rmm feature=gate-precision step=review-diff] review the diff"
+  },
+  "tool_response": [
+    {
+      "type": "text",
+      "text": "No blocking findings.\n\nVERDICT: PASS"
+    }
+  ]
+}

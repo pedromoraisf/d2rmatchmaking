@@ -1,0 +1,587 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "ro-0001",
+      "category": "wrapper",
+      "tool": "Bash",
+      "input": {
+        "command": "pnpm --filter @d2rmm/api test | tail -15 2>&1"
+      },
+      "f0": {
+        "decision": "deny"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0002",
+      "category": "polling",
+      "tool": "Bash",
+      "input": {
+        "command": "for <v> <v> 1 2 3 4 5 6 7 8 9 10 11 12 ; do <v> ( gh run list --workflow=release-please.yml --commit <v> --json <v> --template <v> ) ; case <v> <v> <v> ) break ; ; esac ; command sleep 15 ; done ; echo <v> ; gh pr list --state <v> --head <v> --json <v> --template <v> ; <v> ( gh pr list --state <v> --head <v> --json <v> --jq <v> ) ; test -n <v> && gh pr view <v> --json <v> --template <v>"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0003",
+      "category": "polling",
+      "tool": "Bash",
+      "input": {
+        "command": "gh pr merge 29 --merge | tail -2 ; <v> ( gh pr view 29 --json <v> --template <v> ) ; echo <v> ; <v> <v> ; for <v> <v> <v> ( seq 1 16 ) ; do <v> ( gh run list --workflow=release-please.yml --commit <v> --json <v> --template <v> ) ; case <v> <v> <v> | <v> ) break ; ; esac ; command sleep 15 ; done ; echo <v> ; <v> <v> ; gh run view <v> --json <v> --template <v> ; gh api <v> --jq <v> ; gh release view agent-v0.0.3 --json <v> --template <v> ; echo <v> 2>&1"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0004",
+      "category": "polling",
+      "tool": "Bash",
+      "input": {
+        "command": "gh run view 42276867566 --json <v> --jq <v> ; for <v> <v> 41477473434 41311537245 41202054354 ; do gh run view <v> --json <v> --jq <v> ; done ; gh api <v> --jq <v> ; command sleep 20 ; gh run view 42390965779 --json <v> --jq <v>"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0005",
+      "category": "shell-write-deny",
+      "tool": "Bash",
+      "input": {
+        "command": "cd .claude/worktrees/room-trace-link/apps/api/src/modules/lobby-room/application && python3 - << <v> ; cat >> .claude/worktrees/room-trace-link/apps/api/src/modules/lobby-room/application/lobby-room-use-cases.test.ts << <v> ; cd .claude/worktrees/room-trace-link && pnpm --filter @d2rmm/api exec vitest run src/modules/lobby-room/application/lobby-room-use-cases.test.ts | tail -40 2>&1 <v>"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0006",
+      "category": "shell-write-deny",
+      "tool": "Bash",
+      "input": {
+        "command": "cd .claude/worktrees/room-trace-link/apps/api/src/modules/lobby-room/application && python3 - << <v> ; cat >> .claude/worktrees/room-trace-link/apps/api/src/modules/lobby-room/application/lobby-room-use-cases.test.ts << <v> ; cd .claude/worktrees/room-trace-link && pnpm exec <v> --write apps/api/src/modules/lobby-room/application/lobby-room-use-cases.test.ts apps/api/src/modules/lobby-room/application/lobby-room-use-cases.ts && pnpm --filter @d2rmm/api exec vitest run src/modules/lobby-room/application/lobby-room-use-cases.test.ts | tail -40 >/dev/null 2>&1 <v>"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0007",
+      "category": "ledger",
+      "tool": "Bash",
+      "input": {
+        "command": "ls -la .git/d2rmm/ ; python3 - << <v> <v>"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0008",
+      "category": "ledger",
+      "tool": "Bash",
+      "input": {
+        "command": "ls -la .git/d2rmm/"
+      },
+      "f0": {
+        "decision": "deny",
+        "reason": "The retry ledger is maintained by the hooks and scripts/attempt.mjs only"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0009",
+      "category": "shell-write-deny",
+      "tool": "Bash",
+      "input": {
+        "command": "cat >> scripts/test/release-workflows.test.mjs << <v> ; pnpm exec <v> --write .github/workflows/release-agent.yml scripts/test/release-workflows.test.mjs scripts/agent/latest-json.mjs scripts/test/latest-json.test.mjs | tail -4 2>&1 <v>"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0010",
+      "category": "ledger",
+      "tool": "Bash",
+      "input": {
+        "command": "cd . && node -e <v> | head -30 ; ls -la .git/d2rmm/ ; git -C . log -1 --format=%cd 2>&1"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0011",
+      "category": "ledger",
+      "tool": "Bash",
+      "input": {
+        "command": "cd . && ls -la --time-style=full-iso .git/d2rmm/ | head ; stat -f <v> .git/d2rmm/ledger.json.lock ; date ; pgrep -fl <v> | head ; sed -n <v> .claude/worktrees/agent-skeleton/scripts/lib/ledger-store.mjs 2>&1 2>&1"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0012",
+      "category": "ledger",
+      "tool": "Bash",
+      "input": {
+        "command": "cd . && node -e <v> | tail -1 ; ls -la .git/d2rmm/ | tail -3 2>&1 2>&1"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0013",
+      "category": "ledger",
+      "tool": "Bash",
+      "input": {
+        "command": "cd . && ls -d .git/d2rmm/ledger.json.lock ; pgrep -fl <v> | head -5 ; node -e <v> | tail -1 2>&1"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0014",
+      "category": "ledger",
+      "tool": "Bash",
+      "input": {
+        "command": "node -e <v> | tail -3 ; cd . && ls -d .git/d2rmm/ledger.json.lock | tail -1 2>&1 2>&1"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0015",
+      "category": "shell-write-deny",
+      "tool": "Bash",
+      "input": {
+        "command": "tail -5 tests/acceptance/steps/harness-foundation.steps.ts && cat >> tests/acceptance/steps/harness-foundation.steps.ts << <v> <v>"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0016",
+      "category": "shell-write-deny",
+      "tool": "Bash",
+      "input": {
+        "command": "cat >> scripts/test/agent-mutation-scope.test.mjs << <v> ; node --test scripts/test/agent-mutation-scope.test.mjs | tail -12 2>&1 <v>"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0017",
+      "category": "shell-write-deny",
+      "tool": "Bash",
+      "input": {
+        "command": "python3 - << <v> ; cat > scripts/test/agent-mutation-scope.test.mjs << <v> ; npx <v> --write scripts/test/agent-mutation-scope.test.mjs .github/workflows/nightly.yml ; node --test scripts/test/agent-mutation-scope.test.mjs scripts/test/deploy-workflows.test.mjs | grep -E <v> 2>&1 <v>"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "feat/F0-agent-skeleton"
+    },
+    {
+      "id": "ro-0018",
+      "category": "read-only",
+      "tool": "Bash",
+      "input": {
+        "command": "git status --short && git log --oneline -3 && ls -la .env.example && cat .claude/skills/d2rmm-phase-runner/references/retry-budget.md | head -80"
+      },
+      "f0": {
+        "decision": "prompt"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0019",
+      "category": "wrapper",
+      "tool": "Bash",
+      "input": {
+        "command": "pnpm --filter @d2rmm/web lint | tail -30 2>&1"
+      },
+      "f0": {
+        "decision": "deny"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0020",
+      "category": "wrapper",
+      "tool": "Bash",
+      "input": {
+        "command": "cd .claude/worktrees/harness-foundation/apps/api && pnpm exec vitest run src/shared-kernel/clock.test.ts | tail -25 2>&1"
+      },
+      "f0": {
+        "decision": "deny"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0021",
+      "category": "ledger",
+      "tool": "Bash",
+      "input": {
+        "command": "cd .claude/worktrees/budget-v2 && pwd && grep -n <v> scripts/attempt.mjs | head -5 ; git rev-parse --git-common-dir ; for <v> <v> <v> .git/d2rmm/ledger.json ; do <v> -f <v> <v> && echo <v> && node -e <v> <v> ; done | head -20 2>&1"
+      },
+      "f0": {
+        "decision": "deny",
+        "reason": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only and no shell enters git"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0022",
+      "category": "shell-write-deny",
+      "tool": "Bash",
+      "input": {
+        "command": "cat > .github/workflows/deploy-api.yml << <v> ; echo <v> <v>"
+      },
+      "f0": {
+        "decision": "deny",
+        "reason": "Production database access is an escalation never run commands with the production connection string Ask the maintainer"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0023",
+      "category": "shell-write-deny",
+      "tool": "Bash",
+      "input": {
+        "command": "cd .claude/worktrees/api-web-skeleton/apps/api && mkdir -p src/test-support && cat > vitest.config.ts << <v> ; cat > vitest.integration.config.ts << <v> ; cat > src/test-support/postgres.ts << <v> ; cat > src/test-support/postgres.int.test.ts << <v> ; cd .claude/worktrees/api-web-skeleton && pnpm exec <v> --write apps/api/vitest.config.ts apps/api/vitest.integration.config.ts apps/api/src/test-support && echo <v> >/dev/null <v>"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0024",
+      "category": "maintainer",
+      "tool": "Bash",
+      "input": {
+        "command": "echo --- <v> ; git show --stat <v> <v> | cut -c1-240 ; git show <v> -- apps/agent/src-tauri/tauri.conf.json | cut -c1-120 ; echo --- <v> ; git rev-parse --short <v> || git <v> --tags origin <v> ; git fetch -q --tags origin ; git rev-parse --short <v> ; git <v> --is-ancestor <v> agent-v0.0.1 && echo <v> || echo <v> ; echo --- <v> ; git show agent-v0.0.1:apps/agent/src-tauri/tauri.conf.json | grep -n -A6 -E <v> | cut -c1-120 ; echo --- <v> ; gh pr view 27 --json <v> --jq <v> | cut -c1-500 ; gh pr view 27 --json <v> --jq .body | cut -c1-500 ; gh pr diff 27 --name-only ; echo --- <v> ; cat .github/rulesets/agent-release-tags.json | cut -c1-200 | head -40 ; echo --- env ; gh api <v> --jq <v> ; gh variable list | head ; gh secret list --env release | head ; echo --- <v> ; grep -n -E <v> .specs/features/agent-skeleton/spec.md | cut -c1-300 | head -8 2>/dev/null 2>&1 2>&1"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0025",
+      "category": "read-only",
+      "tool": "Bash",
+      "input": {
+        "command": "cd .claude/worktrees/harness-foundation && cat .dependency-cruiser.cjs turbo.json tsconfig.base.json eslint.config.mjs lefthook.yml .harness-score.json .gitignore .prettierignore"
+      },
+      "f0": {
+        "decision": "deny"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0026",
+      "category": "ledger",
+      "tool": "Bash",
+      "input": {
+        "command": "ls -la .git/d2rmm/ ; echo --- ; ls <v> ; echo --- ; git log --oneline | wc -l ; git log <v> --date=iso | tail -3 ; git log <v> --date=iso | head -3 ; echo --- ; git branch -a | head -50"
+      },
+      "f0": {
+        "decision": "deny",
+        "reason": "The retry ledger is maintained by the hooks and scripts/attempt.mjs only"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0027",
+      "category": "maintainer",
+      "tool": "Bash",
+      "input": {
+        "command": "cd . ; echo <v> ; gh secret list ; echo <v> ; gh variable list ; echo <v> ; gh api <v> --jq <v> ; for <v> <v> <v> release ; do echo <v> ; gh secret list --env <v> ; echo <v> ; gh variable list --env <v> ; done ; echo <v> ; gh api <v> --jq <v> ; echo <v> ; gh pr view 11 --json <v> --jq <v> ; git status -sb | head -3 ; git log origin/phase/F0..HEAD --oneline"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0028",
+      "category": "maintainer",
+      "tool": "Bash",
+      "input": {
+        "command": "cd . ; curl -sS -m 90 -o <v> -w <v> <v> ; curl -sS -m 90 -w <v> <v> | cut -c1-200 ; curl -sS -m 30 -o <v> -w <v> <v> ; gh pr view 12 --json <v> --jq <v> ; gh run view 42094969002 --json status --jq .status ; gh secret list --env <v> ; gh variable list"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0029",
+      "category": "maintainer",
+      "tool": "Bash",
+      "input": {
+        "command": "cd . ; echo <v> ; curl -sS -m 60 -w <v> <v> | cut -c1-200 ; curl -sS -m 60 -w <v> <v> | cut -c1-200 ; curl -sS -m 30 -o <v> -w <v> <v> ; echo <v> ; gh secret list --env <v> ; echo <v> ; gh variable list ; echo <v> ; gh api <v> --jq <v> ; gh api <v> --jq <v> ; echo <v> ; gh run view 42094969002 --json <v> --jq <v> ; gh run list --workflow=deploy-api.yml --limit 3 --json <v> --jq <v>"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0030",
+      "category": "maintainer",
+      "tool": "Bash",
+      "input": {
+        "command": "cd . ; gh run view 42233220982 --json <v> --jq <v> ; gh run view 42233220982 --log | grep -E <v> | grep -E <v> | grep -v <v> | cut -f2- | cut -c1-200 | sed -E <v> ; gh secret list --env <v> | cut -f1 ; gh run list --workflow=nightly.yml --limit 4 --json <v> --jq <v> ; gh api <v> --jq <v> ; gh variable list | cut -f1,2 ; gh pr view 12 --json <v> --jq <v> ; gh api <v> --jq <v> 2>/dev/null"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0031",
+      "category": "maintainer",
+      "tool": "Bash",
+      "input": {
+        "command": "cd . ; gh api <v> --jq <v> | cut -c1-120 ; gh api <v> --jq <v> | cut -c1-120 ; echo <v> ; gh secret list --env release | cut -f1 ; echo <v> ; gh variable list | cut -f1,2 ; echo <v> ; gh api <v> --jq <v> 2>&1 2>&1 2>&1"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0032",
+      "category": "maintainer",
+      "tool": "Bash",
+      "input": {
+        "command": "cd . ; gh pr view 12 --json <v> --jq <v> ; echo <v> ; gh secret list --env release | cut -f1 ; echo <v> ; gh variable list | cut -f1,2 ; echo <v> ; gh api <v> --jq <v>"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0033",
+      "category": "maintainer",
+      "tool": "Bash",
+      "input": {
+        "command": "cd . ; git fetch -q origin main ; git log origin/main -2 <v> ; gh pr view 12 --json <v> --jq <v> ; gh pr diff 12 | grep -E <v> ; <v> ( gh pr view 12 --json <v> --jq <v> ) ; <v> ( echo <v> | sed -E <v> ) ; <v> ( echo <v> | sed -E <v> ) ; gh run view <v> --job <v> --log | grep -E <v> | cut -f3- | cut -c29-170 | tail -3 ; gh run list --workflow=deploy-api.yml --limit 2 --json <v> --jq <v> ; gh secret list --env release | cut -f1 ; git <v> origin/main release-please-config.json ; git show origin/main:release-please-config.json | grep -n <v> 2>/dev/null"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0034",
+      "category": "shell-write-ask",
+      "tool": "Bash",
+      "input": {
+        "command": "cat >> .claude/hooks/test/gate-rules.test.mjs << <v> ; pnpm exec <v> --write .claude/hooks/test/verdicts.test.mjs .claude/hooks/lib/verdicts.mjs .claude/hooks/lib/verdict-store.mjs .claude/hooks/verdict.mjs .claude/hooks/lib/gate-rules.mjs .claude/hooks/gate.mjs .claude/hooks/lib/io.mjs .claude/hooks/test/gate-rules.test.mjs scripts/test/fixtures/hooks/agent-post-tool-use.json scripts/test/fixtures/hooks/agent-post-tool-use-agent.json <v>"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "feat/F0-harness-bootstrap"
+    },
+    {
+      "id": "ro-0035",
+      "category": "read-not-write",
+      "tool": "Bash",
+      "input": {
+        "command": "git status --short | head -20 && git log --oneline -3 && ls scripts scripts/lib scripts/test .claude/hooks .claude/hooks/lib .claude/hooks/test | head -120 && wc -l scripts/attempt.mjs scripts/lib/budget.mjs scripts/test/budget.test.mjs scripts/test/attempt-cli.test.mjs .claude/hooks/lib/budget-rules.mjs .claude/hooks/stop.mjs .claude/hooks/test/budget-rules.test.mjs 2>&1"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "feat/F0-harness-bootstrap"
+    },
+    {
+      "id": "ro-0036",
+      "category": "secret-read",
+      "tool": "Bash",
+      "input": {
+        "command": "cat lefthook.yml | head -80 ; ls -la .git | head -2 ; cat .git/hooks/commit-msg | head -20 2>/dev/null 2>/dev/null"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "feat/F0-gate-precision"
+    },
+    {
+      "id": "ro-0037",
+      "category": "script",
+      "tool": "Bash",
+      "input": {
+        "command": "node <scratchpad>/probe2.mjs"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0038",
+      "category": "shell-write-ask",
+      "tool": "Bash",
+      "input": {
+        "command": "<v> && git show <v> > .claude/hooks/lib/guard-old.mjs && sed <v> <v> > <v> && node <v> remote | head -5 ; rm .claude/hooks/lib/guard-old.mjs ; git status --short"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0039",
+      "category": "maintainer",
+      "tool": "Bash",
+      "input": {
+        "command": "echo <v> ; cat .github/rulesets/main.json | head -60 ; echo <v> ; gh api <v> --jq <v> ; echo <v> ; gh api <v> | cut -c1-300 | head -5 ; echo <v> ; sed -n <v> .github/workflows/deploy-api.yml ; echo <v> ; gh secret list | cut -f1 | head -20 ; gh variable list | cut -f1 | head -20 ; echo <v> ; gh api <v> --jq <v> ; echo <v> ; grep -n -E <v> <v> | cut -c1-180 | tail -15 ; grep -n -E <v> <v> | grep -iE <v> | cut -c1-200 | head -12 2>&1 2>&1 2>&1 2>/dev/null"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0040",
+      "category": "maintainer",
+      "tool": "Bash",
+      "input": {
+        "command": "echo <v> ; gh run view 42048265277 --log | sed -E <v> | grep -P <v> | cut -f3 | cut -c29-260 | sed -n <v> ; echo <v> ; echo <v> ; gh secret list --json <v> --jq <v> ; gh variable list --json <v> --jq <v> ; for <v> <v> <v> <v> ; do echo <v> ; gh secret list --env <v> --json <v> --jq <v> ; echo <v> ; gh variable list --env <v> --json <v> --jq <v> ; echo <v> ; gh api <v> --jq <v> ; done ; echo <v> ; gh api <v> --jq <v> ; echo <v> ; gh api <v> --jq <v> ; echo <v> ; git grep -n -E <v> -- .github scripts docs/adr docs/engineering | cut -c1-170 | head -12 ; echo <v> ; gh run list --branch main --limit 8 --json <v> --jq <v> ; echo <v> ; git log --oneline origin/main..HEAD | wc -l ; git log --oneline HEAD..origin/main | wc -l 2>/dev/null"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0041",
+      "category": "secret-read",
+      "tool": "Bash",
+      "input": {
+        "command": "cd .claude/worktrees/observability-e2e && git status --short | head ; git log --oneline -5 ; node scripts/phase-status.mjs <v> --json | grep -A12 <v> | head -20 ; grep -n <v> .specs/features/observability-e2e/tasks.md | head ; sed -n <v> .specs/features/observability-e2e/tasks.md | head -40 ; cat .git | head -1 ; node scripts/attempt.mjs status --feature <v> | grep -i <v> 2>&1 2>/dev/null 2>&1"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0042",
+      "category": "wrapper",
+      "tool": "Bash",
+      "input": {
+        "command": "pnpm --filter @d2rmm/acceptance typecheck | tail -25 2>&1"
+      },
+      "f0": {
+        "decision": "deny"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0043",
+      "category": "ledger",
+      "tool": "Bash",
+      "input": {
+        "command": "cat tests/acceptance/test-results/.last-run.json | head -c 1500 ; echo ; ls -la tests/acceptance/test-results | head ; echo --- ; grep -n <v> packages/config/.turbo/turbo-test.log | cut -c1-250 | head ; echo --- ; ls -t .claude/worktrees/observability-e2e/.git/d2rmm | head -3 2>/dev/null"
+      },
+      "f0": {
+        "decision": "deny",
+        "reason": "The retry ledger is maintained by the hooks and scripts/attempt.mjs only"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0044",
+      "category": "wrapper",
+      "tool": "Bash",
+      "input": {
+        "command": "pnpm --filter @d2rmm/telemetry typecheck && pnpm --filter @d2rmm/telemetry lint && pnpm --filter @d2rmm/telemetry test"
+      },
+      "f0": {
+        "decision": "deny"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0045",
+      "category": "ledger",
+      "tool": "Bash",
+      "input": {
+        "command": "<v> ; grep -nE <v> <v> | sed -E <v> | cut -c1-140 ; grep -cE <v> <v> ; python3 -c <v> ; echo <v> ; uptime ; git status --short ; git -C .claude/worktrees/site-stale-read-fix status --short | head ; git branch --merged phase/F0 | grep <v> ; ls .git/d2rmm ; sed -n <v> <v> | cut -c1-120 ; grep -n <v> -r <v> .specs/STATE.md | head"
+      },
+      "f0": {
+        "decision": "deny",
+        "reason": "The retry ledger is maintained by the hooks and scripts/attempt.mjs only"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0046",
+      "category": "delivery",
+      "tool": "Bash",
+      "input": {
+        "command": "git push -u origin phase/F0"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0047",
+      "category": "maintainer",
+      "tool": "Bash",
+      "input": {
+        "command": "sed -n <v> .github/workflows/release-please.yml | cut -c1-120 ; echo <v> ; sed -n <v> .github/workflows/release-agent.yml | cut -c1-110 ; grep -nE <v> .github/workflows/release-agent.yml | cut -c1-110 | head -24 ; echo <v> ; gh secret list --json <v> --jq <v> | tr <v> <v> ; echo ; gh variable list --json <v> --jq <v> | tr <v> <v> ; echo ; for <v> <v> <v> release ; do echo <v> ; gh api <v> --jq <v> | cut -c1-200 ; gh api <v> --jq <v> | cut -c1-200 ; done ; gh api <v> --jq <v> ; echo <v> ; gh run view 42092962651 --json <v> --jq <v> ; echo <v> ; gh run view 42092963049 --json <v> --jq <v> 2>&1 2>&1"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    },
+    {
+      "id": "ro-0048",
+      "category": "shell-write-deny",
+      "tool": "Bash",
+      "input": {
+        "command": "cat >> scripts/test/load/container-spec.test.mjs << <v> ; pnpm exec <v> --write scripts/load scripts/test/load ; node --test scripts/test/load/container-spec.test.mjs | grep -E <v> | head -30 >/dev/null 2>&1 <v>"
+      },
+      "f0": {
+        "decision": "ask"
+      },
+      "branch": "phase/F0"
+    }
+  ]
+}

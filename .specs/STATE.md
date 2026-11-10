@@ -829,7 +829,7 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Trade-off**: the brief's "one trace" is read as one trace per originator; if the maintainer wants a single trace, the room must carry the context (F1). Reversal is a span link.
 - **Scope**: observability-e2e / OBS-08, OBS-12
 - **Date**: 2026-11-02
-- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+- **Status**: reversed by the maintainer on 2026-11-07: the span link, delivered by `room-trace-link` (brief revision 5)
 
 ### AD-093 (assumed)
 
@@ -1208,6 +1208,375 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Scope**: site-stale-read-fix / SSR-04
 - **Date**: 2026-11-05
 - **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-135 (assumed)
+
+- **Decision**: a room stores the `traceparent` active when it opens whatever its sampled flag, and the observation links to it the same way.
+- **Reason**: a link to a trace that was not exported costs nothing; a rule per flag adds code with no case that needs it.
+- **Trade-off**: a link can point at a trace the backend never received. Reversal: store or link only sampled contexts.
+- **Scope**: room-trace-link / RTL-01, RTL-03
+- **Date**: 2026-11-07
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-136 (assumed)
+
+- **Decision**: `lobby.record-observation` links only when the agent's account is a member of the room; a stranger's observation gets no link and the same 403.
+- **Reason**: the span links only rooms the agent may act on, so nothing about a room is read for a stranger.
+- **Trade-off**: a rejected observation cannot be followed to its room's match. Reversal: link once the room is found.
+- **Scope**: room-trace-link / RTL-06
+- **Date**: 2026-11-07
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-137 (assumed)
+
+- **Decision**: the link is a plain OpenTelemetry span link with no attributes.
+- **Reason**: Grafana's trace view lists span links and opens the linked trace; the trace id says everything an attribute would.
+- **Trade-off**: none known. Reversal: add an attribute such as the room's stage.
+- **Scope**: room-trace-link / RTL-03
+- **Date**: 2026-11-07
+- **Status**: active (assumed; pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-138 (maintainer, 2026-11-07)
+
+- **Decision**: delivery is the runner's. It pushes (never force), opens and merges PRs into phase branches and `main`, releases, tags and runs workflows without asking. Secrets, the production database, repository settings and rulesets, and money stay the maintainer's.
+- **Reason**: the maintainer wrote "push, merge, etc etc, não precisa ser mais meu. pode fazer sem precisar pedir aprovacao, ou que eu fale que queira que voce faça", and chose "Toda a entrega" when asked how far it goes.
+- **Trade-off**: the required checks of `main` become the only lock before it; they gain `integration` and `agent`.
+- **Scope**: harness; ADR 028; brief revision 6 (`harness-bootstrap`, `continuous-delivery`)
+- **Date**: 2026-11-07
+- **Status**: active once ADR 028 is accepted
+
+### AD-139 (maintainer, 2026-11-07)
+
+- **Decision**: a `harness-self` delegation scope lets the runner edit the gate, its registration and the retry-budget code in features the brief lists under it, guarded by `pnpm test:harness` and a recorded `security-reviewer` PASS on the diff before merge.
+- **Reason**: the maintainer chose "Liberar com guarda" over asking for every edit or no guard.
+- **Trade-off**: gate changes reach the phase branch without a human; the phase review lists them.
+- **Scope**: harness; ADR 028; brief revision 6 (`harness-bootstrap`)
+- **Date**: 2026-11-07
+- **Status**: active once ADR 028 is accepted
+
+### AD-140 (maintainer, 2026-11-07)
+
+- **Decision**: environment failures and unchanged reruns no longer count against a retry budget, and the orchestrator may reset each unit once with a recorded reason; a second reset of a unit is the maintainer's. `MAX_RETRIES` stays 2.
+- **Reason**: the maintainer chose "Orquestrador reseta 1 vez" over keeping every reset or resetting freely.
+- **Trade-off**: a unit can now take up to six counted failures across two budgets before it reaches the maintainer.
+- **Scope**: harness; ADR 022 in part; ADR 028; brief revision 6 (`budget-v2`)
+- **Date**: 2026-11-07
+- **Status**: active once ADR 028 is accepted
+
+### AD-141 (maintainer, 2026-11-07)
+
+- **Decision**: the harness pre-work for F1 runs as F0 brief revision 6, through the phase runner under F0's delegation; F0 closes after it.
+- **Reason**: the maintainer chose "Revisão 6 da F0" over a separate track outside the phase.
+- **Trade-off**: F0 stays open longer; F1's kickoff starts on the new harness.
+- **Scope**: phase F0; `.specs/phases/F0/brief-revision-6.md`
+- **Date**: 2026-11-07
+- **Status**: active
+
+### AD-142 (maintainer, 2026-11-07)
+
+- **Decision**: every recommendation of the F0 retrospective is implemented before F1, ordered by the friction it removes. That includes making PR mutation testing a parallel, non-required job held by the nightly run and the phase ratchet.
+- **Reason**: the maintainer wrote "sobre a recomendação que fez, quero que planeje tudo para ser implementado no repositorio" and "priorize as mudanças que removem friccoes do seu desenvolvimento, e aumentem a sua celeridade".
+- **Trade-off**: a PR can merge with surviving mutants; the nightly report and the phase ratchet catch the score.
+- **Scope**: brief revision 6 (all rows)
+- **Date**: 2026-11-07
+- **Status**: active
+
+### AD-143 (assumed)
+
+- **Decision**: the gate notes the head of `feat/<F>-<f>` when a foreground `security-reviewer` `review-diff` dispatch starts; a `PostToolUse` hook on the `Agent`/`Task` tool records the verdict from the dispatch's final report at that head, and a FAIL if the head moved or the report cannot be read; the gate denies that dispatch in the background.
+- **Reason**: harness-bootstrap, HBS-22 to HBS-25. Brief revision 6 left to the design what the hook input carries. `PostToolUse` carries the tool's input and response, both written by Claude Code; a background dispatch returns before the verdict exists. Stricter: no verdict, no merge.
+- **Trade-off**: the review of a harness-self diff blocks the orchestrator while it runs. Reversal: read the SubagentStop transcript instead.
+- **Scope**: harness-bootstrap
+- **Date**: 2026-11-07
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-144 (assumed)
+
+- **Decision**: `gh pr merge` must name the head branch and use `--merge`; a PR number, no argument, `--squash`, `--rebase` or `--admin` is denied with the corrected command.
+- **Reason**: harness-bootstrap, HBS-03 to HBS-05. The gate cannot reach GitHub to map a number to a feature; `main`'s ruleset allows merge commits only, which keep the progress trailers; `--admin` bypasses the required checks ADR 028 § 2 relies on.
+- **Trade-off**: the runner types the branch name. Reversal: one rule in the gate.
+- **Scope**: harness-bootstrap
+- **Date**: 2026-11-07
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-145 (assumed)
+
+- **Decision**: a local `git merge` into `main`, a push to `main`, to a remote other than `origin`, with no refspec or with a `src:dst` refspec, `wrangler deploy` / `wrangler pages deploy`, `npm`/`pnpm publish`, `gh release delete` and any `gh api` call with a method other than `GET` still ask.
+- **Reason**: harness-bootstrap, HBS-11 and HBS-12. ADR 028 names the delivery commands and these are not among them: `main` changes through the phase PR, Cloudflare deploys run in CI, no package is published, and `gh api` writes can change rulesets and settings, which stay the maintainer's.
+- **Trade-off**: a manual deploy or an API write still prompts. Reversal: one rule each in the gate.
+- **Scope**: harness-bootstrap
+- **Date**: 2026-11-07
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-146 (assumed)
+
+- **Decision**: verdicts live in `verdicts.json` in the same directory under `.git/` as the hooks' ledger, and the gate denies any Edit or Write there and any shell command, inline code or untracked script that names that folder, `verdicts.json` or `ledger.json`, or enters a `.git` directory, except the read-only status commands. A covered branch merges only at its proven head; any other git command that brings its commits in is denied, and patch and plumbing commands ask (HBS-32 to HBS-48).
+- **Reason**: harness-bootstrap, HBS-22 and HBS-26. Outside the tracked tree, so no commit carries a verdict; next to the ledger, which the hooks already own.
+- **Trade-off**: verdicts are per machine, like the ledger. Reversal: move the store.
+- **Scope**: harness-bootstrap
+- **Date**: 2026-11-07
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-147 (assumed)
+
+- **Decision**: HBS-47 (deny an operand that does not resolve) applies while the brief covers at least one feature under `harness-self`; while it does, every unresolvable operand is denied, whatever its name.
+- **Reason**: harness-bootstrap Execute (T7). As written, HBS-47 denied merges of unfetched branches with nothing to guard, which contradicts HBS-03 and the existing merge expectations. A narrowing to operands named like a covered branch was rejected: it reopens the bypass of a branch pushed from a covered head, deleted locally and merged by name.
+- **Trade-off**: while a feature is covered, the runner fetches or pushes a branch before merging it. Reversal: one condition in the guard.
+- **Scope**: harness-bootstrap
+- **Date**: 2026-11-07
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-148 (assumed)
+
+- **Decision**: a `gh release create` or `gh release upload` whose file operand has a path segment starting with `.env` or equal to `.git` asks (HBS-49, appended to the approved spec).
+- **Reason**: harness-bootstrap, the Verifier's finding 2: `gh release upload v1 .env` was an allowed shape, so a secrets file could reach a public release without a prompt (AGENTS.md rule 6). Stricter, and the release itself stays the runner's.
+- **Trade-off**: attaching `.env.example` to a release also asks. Reversal: one pattern in `delivery.mjs`.
+- **Scope**: harness-bootstrap
+- **Date**: 2026-11-07
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-157 (assumed)
+
+- **Decision**: a shell write to a harness or sensor file, the quality baseline or a test file is denied with an instruction to use the Edit tool; a shell write to a self-protected file keeps `ask`.
+- **Reason**: gate-precision, GPR-08 to GPR-10. Brief revision 6 turns the ask into a deny; HBS-23's accepted scenario says `ask` for self-protected files, and changing an accepted scenario is the maintainer's.
+- **Trade-off**: shell writes to the gate itself still prompt. Reversal: extend the deny to self-protected files with a new HBS scenario.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-158 (assumed)
+
+- **Decision**: polling is the same trimmed Bash command string run a fifth time within a sliding 10 minutes in one agent session, every Bash call counted (a denied one too); the per-session history keeps hashes, not commands, in its own file next to the ledger, pruned to 10 minutes.
+- **Reason**: gate-precision, GPR-17. The brief names "the fifth identical command within 10 minutes in one session"; the session id already separates parallel workers (ADR 022).
+- **Trade-off**: an agent that legitimately repeats a command five times in 10 minutes is refused and told to wait. Reversal: one constant.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-159 (assumed)
+
+- **Decision**: the replay corpus is extracted once from the F0 session transcripts by a committed extractor that keeps by allow-list: a Bash command is re-emitted word by word, with every word that is not a safe command, option, checkout path or revision replaced by `<v>`; Edit, Write, Read and Agent entries keep only the file path or subagent type, a size bucket and the matched pattern, never content or prompts. The repository path, home paths, the scratchpad, session ids, UUIDs, IPs and long hex or base64 runs are normalised everywhere, the gate's reason included. Expected decisions come from a category table in the test, not from the corpus.
+- **Reason**: gate-precision, GPR-23 and GPR-24. The brief asks for "the F0 commands that prompted or were denied"; the transcripts record them. The repository is public, so nothing personal or secret may enter it; a deny-list misses opaque tokens (security review of the design).
+- **Trade-off**: the corpus shows F0's commands in a public repository, normalised. Reversal: drop the fixture and keep the test on synthetic cases.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-160 (assumed)
+
+- **Decision**: the 300 ms p95 is measured by a local benchmark over the corpus on the phase machine; CI runs the replay's decisions, not its timing.
+- **Reason**: gate-precision, GPR-22. Timing on shared CI runners is not repeatable; the target is about the agent's machine.
+- **Trade-off**: a slow-down shows only when the benchmark runs. Reversal: add a CI step.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-162 (assumed)
+
+- **Decision**: the gate judges the script file it reads; a change to the file between that read and the run is not seen.
+- **Reason**: gate-precision, GPR-11. The same holds today for every untracked script the gate reads; the agent that would change it is the one being gated, and its edits are gated too.
+- **Trade-off**: a script rewritten between the gate's read and the run escapes the check. Reversal: ask for every script outside the repository again.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-163 (assumed)
+
+- **Decision**: the read-only table keeps only forms whose every file read is a path operand the gate checks: no recursive or pattern-file `grep`, no `rg -g`/`-e`, no `diff` on a directory, no `awk`, no `sed` regular expression, and an option allow-list for each `git` command.
+- **Reason**: gate-precision, GPR-02, GPR-03 and GPR-30. Each of those can reach a `.env` under a directory or hide what it reads; three spec reviews found such forms one by one.
+- **Trade-off**: those forms keep today's prompt. Reversal: add a row with its own proof.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-164 (assumed)
+
+- **Decision**: `git log -p` and `git show` with no path operand are read-only, though they print the whole history.
+- **Reason**: gate-precision, GPR-02. No secret is committed (`.gitignore`, gitleaks in CI, `pnpm secrets:scan` locally), and the history is public on GitHub.
+- **Trade-off**: a secret committed by mistake would be printed without a prompt. Reversal: require a path operand.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-165 (assumed)
+
+- **Decision**: inline code (`python3 -c`, `python3 -` with a here-doc, `node -e`, `perl -e`) that writes the quality baseline keeps today's `ask`; GPR-09's deny naming the Edit tool covers harness, sensor and test files.
+- **Reason**: gate-precision, GPR-09. Two accepted assertions of `.claude/hooks/test/gate-rules.test.mjs` (harness-foundation) pin `ask` for inline baseline writes, and the row keeps every existing test unchanged (GPR-27).
+- **Trade-off**: an inline write to the baseline prompts instead of being refused. Reversal: change those two assertions to `deny` (the maintainer's decision).
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-166 (assumed)
+
+- **Decision**: inline code whose write call takes a path that is not a string literal asks, whatever file it would write.
+- **Reason**: gate-precision, GPR-09. A worker wrote `gate-rules.mjs` through `node -e` with the path in a shell variable and the gate did not see it; the gate cannot judge a write whose target it cannot read, and the conservative answer is a prompt.
+- **Trade-off**: inline code that computes its output path prompts. Reversal: one rule in `checkInlineCode`.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-153 (assumed)
+
+- **Decision**: an unchanged rerun is one with the same command and the same working-directory tree (tracked and untracked files git does not ignore, written through a temporary index, taken before the command starts) as the unit's latest counted failure since its last pass or reset; without a computable tree nothing is refused.
+- **Reason**: budget-v2, BUD-08 to BUD-10. ADR 028 § 4 refuses "running a unit again with nothing changed"; the brief says "the content of the paths the feature touches". One tree hash needs no rule for which paths belong to a feature.
+- **Trade-off**: an edit anywhere in the worktree lets a rerun run. Reversal: hash a path set instead.
+- **Scope**: budget-v2
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-154 (assumed)
+
+- **Decision**: `attempt.mjs run` stops a command after `--timeout <minutes>`, 60 by default, and records the stop as an environment failure.
+- **Reason**: budget-v2, BUD-06. ADR 028 § 4 lists "the wrapper's own timeout" among the signatures, and the wrapper has none today; 60 minutes is above every F0 gate, a full acceptance run included.
+- **Trade-off**: a gate that hangs on a code defect is not counted; three in a row block the unit as `env-blocked`, so it still stops. Reversal: one default.
+- **Scope**: budget-v2
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-155 (assumed)
+
+- **Decision**: a red stop whose failing checks match an environment signature lets the agent stop, is not counted, and says the machine needs attention.
+- **Reason**: budget-v2, BUD-07. Blocking the stop without counting it could loop; counting it is what ADR 028 § 4 removes.
+- **Trade-off**: an agent may end a turn with red checks caused by the machine. Reversal: count it again.
+- **Scope**: budget-v2
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-156 (assumed)
+
+- **Decision**: a failure whose output matches an environment signature and also shows a test-failure marker counts as an ordinary failure; a red stop is uncounted only when every failing check matches a signature with no marker.
+- **Reason**: budget-v2, BUD-02, BUD-07 and BUD-26. A real test failure must never spend nothing; a machine problem that is real shows again on the next run.
+- **Trade-off**: a run that both hit Docker and failed a test spends a unit. Reversal: drop the marker rule.
+- **Scope**: budget-v2
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-167 (assumed)
+
+- **Decision**: the environment signatures stay as they are; a unit is `env-blocked` at its fourth environment failure since its last pass or reset, in a row or not (BUD-30), next to the three-in-a-row rule; an agent session leaves at most two red stops uncounted as machine-caused (BUD-31).
+- **Reason**: budget-v2, security review of the diff (2026-11-08): the agent writes the gate command and the code its checks run, so `exit 137`, `exit 127` or an echoed signature makes its own failure look environmental. The maintainer chose option (b), "vai de B" (2026-11-08): keep ADR 028's three-in-a-row rule and close the hole without changing it. The runner kept the signatures (making `killed` SIGKILL-only would edit an approved scenario's example) and bounds forging with the two totals instead.
+- **Trade-off**: forging a machine failure gains at most three free runs over a unit's life, and the fourth blocks it; a machine that fails four times across a unit's life blocks it too. Reversal: raise the totals.
+- **Scope**: budget-v2
+
+### AD-149 (assumed)
+
+- **Decision**: the nightly agent mutation runs on `ubuntu-latest`.
+- **Reason**: ci-fast-path, CFP-10. Brief revision 6 moves it "if the three crates build there": none of `d2rmm-agent-domain`, `-core` or `-adapters` has Windows-only code or dependencies, and CI's `integration` job already builds the adapters on Ubuntu.
+- **Trade-off**: a Windows-only defect in those crates' unit tests shows in the `agent` PR job, not in the nightly. Reversal: one `runs-on` line.
+- **Scope**: ci-fast-path
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-150 (assumed)
+
+- **Decision**: majors of the eslint family and of `@opentelemetry/*` arrive in one Dependabot group each, held by a 30-day `cooldown`; npm stays on a weekly schedule.
+- **Reason**: ci-fast-path, CFP-20 to CFP-22. The brief asks for a "monthly group"; Dependabot refuses a second `npm` entry for the same directory, so one ecosystem cannot have two schedules. The cooldown gives each major a month before it arrives.
+- **Trade-off**: a major can still arrive in any week once it is 30 days old. Reversal: the `cooldown` block.
+- **Scope**: ci-fast-path
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-151 (assumed)
+
+- **Decision**: the specs check refuses a mutation command only in the gate of an open task (one unticked `Done when` box or more).
+- **Reason**: ci-fast-path, CFP-11 and CFP-12. Done tasks of `ci-and-review-fixes` ran mutation in their gates under the old rules; the rule is for the work ahead.
+- **Trade-off**: none for open work. Reversal: drop the condition.
+- **Scope**: ci-fast-path
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-152 (assumed)
+
+- **Decision**: third-party actions of the new CI jobs are pinned by full commit SHA; `actions/*` keep the workflow's tags.
+- **Reason**: ci-fast-path, CFP-19. The `agent` job already pins its third-party actions; a non-required job still runs on every PR.
+- **Trade-off**: Dependabot bumps the pins. Reversal: use tags.
+- **Scope**: ci-fast-path
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-161 (assumed)
+
+- **Decision**: the smoke job installs, migrates and starts the API with Render's own commands (`render.yaml` and `deploy-api.yml`) instead of a compiled build; CFP-25 is appended to the approved spec.
+- **Reason**: ci-fast-path, CFP-15 and CFP-25. Render runs the API from `src/` with Node; a smoke check of a `tsc` build would test something production never runs.
+- **Trade-off**: none; the brief asks for a check of the deploy path. Reversal: one job.
+- **Scope**: ci-fast-path
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-168 (assumed)
+
+- **Decision**: `phase-status` drops the `awaiting-review` step: a phase whose `review.md` exists goes to `merge`, then `closed` once `phase/F<n>` is merged into `main`; an approval line in the review is no longer read.
+- **Reason**: continuous-delivery, CDL-07. ADR 028 § 1: the runner merges the phase PR when the review's gates are green, and the maintainer reads the review afterwards.
+- **Trade-off**: the phase closes before the maintainer reads the review; anything sent back becomes a follow-up feature. Reversal: restore the step.
+- **Scope**: continuous-delivery
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-169 (assumed)
+
+- **Decision**: what still needs the maintainer is a row of a `## For the maintainer` table in the phase's `decisions.md` (Feature, Item, Asked, Answer); a row with an empty Answer blocks its feature with the reason `maintainer`; `phase-status` prints each open row on its feature's line on every run, never suppressed after the first; a blank Answer is open.
+- **Reason**: continuous-delivery, CDL-08 to CDL-10. Brief revision 6 asks for one place, "shown once per feature", blocking only the feature that needs it; ADR 024 asks for state derived from files.
+- **Trade-off**: the maintainer answers by editing a table. Reversal: another evidence source in `phase-state.mjs`.
+- **Scope**: continuous-delivery
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-170 (assumed)
+
+- **Decision**: before merging the phase PR into `main`, the runner requires `verify`, `integration`, `agent` and `secrets` (the checks ADR 028 § 2 names) to have run on the PR's head and passed, whatever the applied ruleset requires.
+- **Reason**: continuous-delivery, CDL-06. Applying the ruleset is the maintainer's; until it is applied GitHub may require fewer checks, and the runner must not merge into `main` on less than ADR 028 names.
+- **Trade-off**: a check renamed in CI blocks the phase merge until the list follows. Reversal: read the required checks from the ruleset file.
+- **Scope**: continuous-delivery
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-171 (assumed)
+
+- **Decision**: the review step does not merge the phase PR while any maintainer item of the phase is open; it lists the open items in `review.md` and stops.
+- **Reason**: continuous-delivery, Verifier finding 4. With `review.md` written and a feature blocked only by an open maintainer item, `phase-status` reads `merge`; merging into `main` with an unanswered maintainer question would ship what the maintainer has not decided.
+- **Trade-off**: one open question holds the phase PR. Reversal: one sentence in the skill.
+- **Scope**: continuous-delivery
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-172 (assumed)
+
+- **Decision**: the BUD-30 total of environment failures is cleared only by a reset of the unit, not by a pass.
+- **Reason**: budget-v2, second security review of the diff (2026-11-09): `attempt.mjs run` does not check that a task's command is its `**Gate**`, so `-- "true"` is a real pass, and with the total cleared by a pass an agent bought two free runs per cycle without end. With the total cleared only by a reset, forging buys at most three uncounted environment failures until the next reset (a forged pass adds none and only marks the unit passed), and resets are the orchestrator's one or the maintainer's.
+- **Trade-off**: a unit whose machine fails four times over its whole life blocks, even with passes between. Reversal: clear the total on a pass of the task's own gate command, once the wrapper checks it.
+- **Scope**: budget-v2
+- **Date**: 2026-11-09
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-174 (assumed)
+
+- **Decision**: the proofs preflight keys a proof by its command plus the path and content of every file the branch changes against `phase/<F>` (committed, staged, unstaged or untracked). It keeps its cache in the ignored `reports/proofs-cache/<feature>.json` and runs through the wrapper as step `fix`. The official `check_proofs.py` stays step `proofs`.
+- **Reason**: fast-proofs. This is the brief's key and step (brief-revision-6 § 3). `fix` is the closed-list step of the fix loop, so the preflight does not spend the official run's budget.
+- **Trade-off**: any change to a feature file invalidates every cached proof of that feature. The cache saves reruns with no change and the proofs left after an unrelated failure. Reversal: a narrower key in one function.
+- **Scope**: fast-proofs
+- **Date**: 2026-11-09
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-175 (assumed)
+
+- **Decision**: a shell write to a protected, non-self-protected file after `2>&1` is denied, not asked. budget-v2's test "still stops a real write after 2>&1" expects `deny` for `cat a 2>&1 > eslint.config.mjs`.
+- **Reason**: merging `phase/F0` into gate-precision. gate-precision's approved GPR-08 to GPR-10 (AD-157, brief revision 6) turn the shell-write ask into a deny. The change tightens budget-v2's assertion: the write is still caught.
+- **Trade-off**: none for honest work; the Edit tool is the route. Reversal: one expected value.
+- **Scope**: gate-precision, budget-v2
+- **Date**: 2026-11-09
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-176 (assumed)
+
+- **Decision**: two examples of gate-precision's `acceptance.feature` change; no requirement text does:
+  - GPR-01's `find . -name …` becomes `find apps -name …`;
+  - GPR-33's first example becomes `pnpm --filter @d2rmm/api list`.
+- **Reason**: T16's run. A `find` from `.` lists the git directory, which GPR-31 keeps out. In the Background's phase run, a `typecheck` outside the wrapper is denied by the sensor rule, which is not what GPR-33 is about.
+- **Trade-off**: neither example tests what it was written for any more; the rules they now cover are the ones the spec states. Reversal: restore the examples with a non-phase Background.
+- **Scope**: gate-precision
+- **Date**: 2026-11-09
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
 ## Handoff
 

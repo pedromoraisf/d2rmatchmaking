@@ -79,3 +79,205 @@ test('the agent guide names the agent mutation command', () => {
   assert.ok(row.includes('`pnpm test:mutation`'), 'the row names the API mutation command');
   assert.ok(row.includes('`pnpm test:mutation:agent`'), 'the row names the agent mutation command');
 });
+
+// HBS-37 to HBS-42 (ADR 028): the guides, the escalation table and the brief template say what ADR 028 says.
+const AGENTS = readFileSync(path.join(root, 'AGENTS.md'), 'utf8');
+const CLAUDE = readFileSync(path.join(root, 'CLAUDE.md'), 'utf8');
+const ESCALATION = readFileSync(
+  path.join(root, '.claude', 'skills', 'd2rmm-phase-runner', 'references', 'escalation.md'),
+  'utf8',
+);
+const BRIEF_TEMPLATE = readFileSync(
+  path.join(root, '.claude', 'skills', 'd2rmm-phase-runner', 'references', 'templates', 'brief.md'),
+  'utf8',
+);
+
+// HBS-37: rule 7 gives delivery to the runner and keeps the maintainer's blast radius with the maintainer.
+test('rule 7 gives delivery to the runner', () => {
+  const rule = subsectionOf(AGENTS, '\n7. **', '\n8. **');
+  for (const phrase of [
+    'ADR 028',
+    'git push',
+    'pull requests',
+    'merges',
+    'releases',
+    'tags',
+    'workflow runs',
+  ]) {
+    assert.ok(rule.includes(phrase), `rule 7 names "${phrase}"`);
+  }
+  for (const phrase of ['secrets', 'production database', 'repository settings', 'rulesets', 'money']) {
+    assert.ok(rule.includes(phrase), `rule 7 keeps "${phrase}" with the maintainer`);
+  }
+});
+
+// HBS-38: rule 8 keeps briefs, brief revisions and ADRs with the maintainer.
+test('rule 8 keeps briefs and ADRs with the maintainer', () => {
+  const rule = subsectionOf(AGENTS, '\n8. **', '\n9. **');
+  for (const phrase of ['brief', 'brief revision', 'ADR']) {
+    assert.ok(rule.includes(phrase), `rule 8 names "${phrase}"`);
+  }
+});
+
+// HBS-39: the escalation item of the phase workflow names no delivery.
+test('the phase workflow lists no delivery escalation', () => {
+  const item = subsectionOf(AGENTS, '\n5. **Escalations', '\n6. **Review');
+  assert.doesNotMatch(item, /push|merge to|deploy/iu);
+});
+
+// HBS-40: the runner never says "never push", and its escalation summary names no delivery.
+test('the runner never says never push', () => {
+  const skill = readFileSync(path.join(root, '.claude', 'skills', 'd2rmm-phase-runner', 'SKILL.md'), 'utf8');
+  assert.doesNotMatch(skill, /never push/iu);
+  const summary = subsectionOf(skill, '## Escalations', '## REVIEW');
+  assert.doesNotMatch(summary, /push or merge to|deploy;/u);
+});
+
+// HBS-41: the escalation table holds no delivery row and names the repository settings, rulesets and harness-self.
+const ESCALATION_CELLS = ESCALATION.split('\n')
+  .filter((line) => line.startsWith('|'))
+  .slice(2)
+  .map((line) => line.split('|')[1].trim());
+
+test('the escalation table matches ADR 028', () => {
+  for (const cell of ESCALATION_CELLS) {
+    assert.doesNotMatch(
+      cell,
+      /push|PR merge|merge into|deploy|release|tag/iu,
+      `"${cell}" is not a delivery row`,
+    );
+  }
+  for (const phrase of ['repository settings', 'rulesets', 'harness-self']) {
+    assert.ok(
+      ESCALATION_CELLS.some((cell) => cell.includes(phrase)),
+      `a row of the escalation table names "${phrase}"`,
+    );
+  }
+});
+
+// HBS-42: the Claude guide names harness-self and the hook file that records the security-reviewer verdict.
+test('CLAUDE.md names harness-self and the verdict hook', () => {
+  assert.match(CLAUDE, /harness-self/u);
+  assert.ok(CLAUDE.includes('.claude/hooks/verdict.mjs'), 'CLAUDE.md names the verdict hook file');
+});
+
+// HBS-24: the brief template lists harness-self unticked, names feature rows in backticks and points to ADR 028.
+test('the brief template offers harness-self', () => {
+  const delegation = subsectionOf(BRIEF_TEMPLATE, '## Delegation', '## Approval');
+  const line = delegation.split('\n').find((text) => text.startsWith('- [ ] harness-self'));
+  assert.ok(line, 'harness-self is listed and unticked');
+  assert.match(line, /`[^`]+`/u, 'the line names the feature rows in backticks');
+  assert.ok(line.includes('ADR 028'), 'the line points to ADR 028');
+});
+
+// GPR-19: both guides tell the agent to wait for the task notification of long work, and never to poll for it.
+test('the guides say to wait for the notification', () => {
+  const worker = readFileSync(path.join(root, '.claude', 'agents', 'feature-worker.md'), 'utf8');
+  for (const [name, text] of [
+    ['feature-worker.md', worker],
+    ['SKILL.md', skill],
+  ]) {
+    assert.match(text, /wait for its task notification/u, `${name} says to wait for the task notification`);
+    assert.match(text, /never poll with `sleep` or status loops/u, `${name} says never to poll`);
+  }
+});
+
+// CDL-01 to CDL-06, CDL-13, CDL-16, CDL-18 (continuous-delivery): the runner delivers through pull requests, and the
+// skill and its commands say so. Phrases are matched with whitespace normalised, since the markdown wraps them.
+const normalised = (text) => text.replace(/\s+/gu, ' ');
+const command = (name) => normalised(readFileSync(path.join(root, '.claude', 'commands', name), 'utf8'));
+const SKILL_TEXT = normalised(skill);
+const KICKOFF_COMMAND = command('phase-kickoff.md');
+const RUN_COMMAND = command('phase-run.md');
+const REVIEW_COMMAND = command('phase-review.md');
+
+test('the skill tells the remote flow', () => {
+  const instructions = [
+    // CDL-01: kickoff pushes the phase branch and opens a draft phase PR.
+    [SKILL_TEXT, 'push `phase/<F>` and open a draft phase PR into `main`'],
+    [KICKOFF_COMMAND, 'push `phase/$ARGUMENTS` and open a draft phase PR into `main`'],
+    // CDL-02: each verified feature is pushed with a PR into the phase branch.
+    [SKILL_TEXT, 'Push `feat/<F>-<feature>` and open a feature PR into `phase/<F>`'],
+    [RUN_COMMAND, 'open a feature PR into `phase/$ARGUMENTS`'],
+    // CDL-03 and CDL-18: local check, the feature's own scenarios and the required checks; nothing full locally.
+    [SKILL_TEXT, '`pnpm check`'],
+    [SKILL_TEXT, '--grep @<PREFIX>-'],
+    [SKILL_TEXT, "Wait for the feature PR's required checks to pass"],
+    [SKILL_TEXT, 'Never run the full acceptance suite, the load test or the full mutation run locally'],
+    [RUN_COMMAND, 'never the full acceptance suite, the load test or the full mutation run'],
+    // CDL-04: merge with --merge, never squash or rebase.
+    [SKILL_TEXT, 'merge the PR with `gh pr merge <pr> --merge`, never squash or rebase'],
+    [RUN_COMMAND, 'merge with `gh pr merge <pr> --merge`, never squash or rebase'],
+    // CDL-05: the wait is a background task.
+    [SKILL_TEXT, 'Start `gh pr checks <pr> --watch` as a background task'],
+    [RUN_COMMAND, '`gh pr checks <pr> --watch` as a background task'],
+    // CDL-06 and AD-170: the phase PR merges on the review's gates and the four checks.
+    [SKILL_TEXT, '`verify`, `integration`, `agent` and `secrets`'],
+    [SKILL_TEXT, 'record which command or check failed and why in `review.md`'],
+    [
+      REVIEW_COMMAND,
+      'mark the phase PR ready with `gh pr ready <pr>` and merge it with `gh pr merge <pr> --merge`',
+    ],
+    [REVIEW_COMMAND, '`verify`, `integration`, `agent` and `secrets`'],
+    // CDL-16: maintainer items become rows, and the other features continue.
+    [SKILL_TEXT, 'add a row to the `## For the maintainer` table of `decisions.md`'],
+    [SKILL_TEXT, 'continue with the features that do not depend on it'],
+    [RUN_COMMAND, 'the `## For the maintainer` table of `decisions.md`'],
+  ];
+  for (const [text, phrase] of instructions) {
+    assert.ok(text.includes(phrase), `the remote flow says "${phrase}"`);
+  }
+});
+
+// CDL-13: the skill and the two commands no longer leave delivery to the maintainer.
+test('the skill no longer leaves delivery to the maintainer', () => {
+  for (const text of [SKILL_TEXT, KICKOFF_COMMAND, RUN_COMMAND, REVIEW_COMMAND]) {
+    assert.ok(
+      !text.includes('leave it ready and list it in the review'),
+      'no "leave it ready and list it in the review"',
+    );
+    assert.ok(
+      !text.includes('the exact commands the maintainer runs to push and open the PR'),
+      'no "the exact commands the maintainer runs to push and open the PR"',
+    );
+  }
+});
+
+// CDL-11, CDL-12 (continuous-delivery): the brief describes the remote flow, the review drops the push commands and the
+// decisions queue holds the maintainer table.
+const templateText = (name) =>
+  readFileSync(
+    path.join(root, '.claude', 'skills', 'd2rmm-phase-runner', 'references', 'templates', name),
+    'utf8',
+  );
+
+test('the templates tell the remote flow', () => {
+  const delivery = subsectionOf(templateText('brief.md'), '## Delivery', '## Delegation');
+  for (const phrase of [
+    'draft phase PR into `main`',
+    '`gh pr merge <pr> --merge`',
+    '`verify`, `integration`, `agent` and `secrets`',
+    '`decisions.md`',
+  ]) {
+    assert.ok(normalised(delivery).includes(phrase), `the brief Delivery section says "${phrase}"`);
+  }
+  const review = templateText('review.md');
+  assert.ok(!review.includes('## To ship'), 'the review template has no section of push commands');
+  assert.doesNotMatch(review, /git push|gh pr create/u);
+  const decisions = templateText('decisions.md');
+  assert.ok(decisions.includes('## For the maintainer'), 'the decisions template has the maintainer table');
+  assert.ok(decisions.includes('| Feature | Item | Asked | Answer |'), 'the table has the four columns');
+});
+
+// CDL-06 (Verifier findings 3 and 4, AD-171): the review step marks the phase PR ready, merges it with --merge, and does
+// not merge while a maintainer item of the phase is open.
+test('the review step merges with --merge and waits for open items', () => {
+  const reviewStep = normalised(REVIEW);
+  for (const phrase of [
+    'mark the phase PR ready with `gh pr ready <pr>`',
+    'merge it with `gh pr merge <pr> --merge`',
+    'While any maintainer item of the phase is open, do not merge the phase PR: list the open items in `review.md` and stop',
+  ]) {
+    assert.ok(reviewStep.includes(phrase), `the review step says "${phrase}"`);
+  }
+});

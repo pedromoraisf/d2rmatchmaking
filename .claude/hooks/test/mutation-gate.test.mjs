@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { checkBash } from '../lib/gate-rules.mjs';
+import { RULE_MODULES } from './rule-modules.mjs';
 
 function fakeCtx(files = {}) {
   return {
@@ -9,6 +10,7 @@ function fakeCtx(files = {}) {
     isTracked: () => false,
     currentBranch: () => 'feat/x',
     git: () => '',
+    modules: RULE_MODULES,
   };
 }
 const d = (r) => r?.decision ?? 'allow';

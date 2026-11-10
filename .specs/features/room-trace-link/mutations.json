@@ -1,0 +1,23 @@
+[
+  {
+    "file": "apps/api/src/shared-kernel/tracing.ts",
+    "old": "context: { traceId, spanId, traceFlags",
+    "new": "context: { traceId: spanId, spanId: traceId, traceFlags",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run src/shared-kernel/tracing.test.ts -t \"links the active span once\"",
+    "label": "link swaps trace id and span id"
+  },
+  {
+    "file": "apps/api/src/modules/lobby-room/application/lobby-room-use-cases.ts",
+    "old": "        const traceparent = await deps.traceContexts.find(room.id);\n        if (traceparent !== null) {\n          linkActiveSpan(traceparent);\n        }\n        const { body } = input;\n        if (body.type === 'UNKNOWN') {\n          return ok({ stored: false });\n        }\n",
+    "new": "        const { body } = input;\n        if (body.type === 'UNKNOWN') {\n          return ok({ stored: false });\n        }\n        const traceparent = await deps.traceContexts.find(room.id);\n        if (traceparent !== null) {\n          linkActiveSpan(traceparent);\n        }\n",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run src/modules/lobby-room/application/lobby-room-use-cases.test.ts -t \"links a repeated observation too\"",
+    "label": "UNKNOWN observation exits before the link"
+  },
+  {
+    "file": "apps/api/src/shared-kernel/tracing.ts",
+    "old": "!isSpanContextValid(spanContext)) {\n    return null;",
+    "new": "!isSpanContextValid(spanContext) || (spanContext.traceFlags & 1) === 0) {\n    return null;",
+    "proof": "pnpm --filter @d2rmm/api exec vitest run src/modules/lobby-room/application/lobby-room-use-cases.test.ts src/shared-kernel/tracing.test.ts",
+    "label": "unsampled context not stored (contradicts AD-135)"
+  }
+]

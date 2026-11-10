@@ -31,3 +31,4 @@ Format: Context · Decision · Alternatives · Consequences. Only the maintainer
 | [025](025-agent-roles-and-models.md)       | Agent roles and models: Opus orchestrates, Haiku implements, Sonnet judges | Accepted |
 | [026](026-mutation-unit-tests-only.md)     | Mutation testing runs against unit tests only                              | Accepted |
 | [027](027-agent-hexagonal-architecture.md) | The desktop agent is hexagonal, like the Agents context of the backend     | Accepted |
+| [028](028-autonomous-delivery.md)          | Autonomous delivery and a self-maintained harness                          | Accepted |

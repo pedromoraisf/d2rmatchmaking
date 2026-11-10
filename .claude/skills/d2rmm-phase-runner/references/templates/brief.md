@@ -26,6 +26,20 @@ Retry budget is fixed for every feature: 1 attempt + 2 retries per unit (ADR 022
 
 1. <question> — options: <a> / <b>. Recommendation: <a>, because <…>.
 
+## Delivery
+
+The runner delivers through pull requests (ADR 028, CDL-01 to CDL-06, CDL-16):
+
+- Kickoff pushes `phase/F<n>` and opens a draft phase PR into `main`.
+- Each verified feature is pushed as `feat/F<n>-<feature>` with a PR into `phase/F<n>`. The runner integrates it locally
+  (`pnpm check` and the feature's own scenarios) and merges the PR with `gh pr merge <pr> --merge` once its required
+  checks are green. Never squash or rebase.
+- The review merges the phase PR into `main` when the review's gates and the checks `verify`, `integration`, `agent` and
+  `secrets` pass on its head. `phase-status` reads the phase as `closed` once `phase/F<n>` is in `main`.
+- What only the maintainer can answer (a secret, a repository setting or ruleset, money, an ADR or brief approval, a
+  weaker test or sensor) becomes a row of `decisions.md` → `## For the maintainer`. Its feature blocks; the others
+  continue.
+
 ## Delegation
 
 Tick what you delegate. Unticked items are asked during the run.
@@ -33,7 +47,8 @@ Tick what you delegate. Unticked items are asked during the run.
 - [ ] specs-and-tasks: approve each feature's spec.md and tasks.md once they pass the automatic gates
 - [ ] sub-agents: dispatch feature workers (worktrees), the Verifier and the reviewer subagents
 - [ ] harness-edits: edit sensor/harness configuration to tighten or extend it (hooks and settings.json still ask)
-- [ ] local-merge-phase-branch: merge green feature branches into phase/F<n> locally (never push)
+- [ ] local-merge-phase-branch: merge green feature branches into phase/F<n> through their pull requests (ADR 028)
+- [ ] harness-self: edit the gate, its registration and the retry-budget code in `<feature>`, `<feature>` (feature rows of this brief), each in its own worktree, under the guard of ADR 028
 
 ## Approval
 

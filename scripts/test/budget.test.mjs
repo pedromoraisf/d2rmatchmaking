@@ -6,6 +6,7 @@ import {
   emptyLedger,
   unitKey,
   canAttempt,
+  failuresOf,
   recordAttempt,
   recordDispatch,
   clearIfOpen,
@@ -15,6 +16,14 @@ import {
   lastGateAttempt,
   sessionExhausted,
   sessionId,
+  ENV_ATTEMPTS_TO_BLOCK,
+  envFailuresOf,
+  orchestratorResets,
+  isUnchangedRerun,
+  recordRefusal,
+  recordUncountedRedStop,
+  uncountedRedStopsOf,
+  report,
 } from '../lib/budget.mjs';
 import { taskIds } from '../lib/steps.mjs';
 
@@ -46,6 +55,32 @@ test('failures accumulate even across a pass: no fresh budget by breaking a gree
   recordAttempt(l, k, true);
   recordAttempt(l, k, false);
   assert.equal(recordAttempt(l, k, false).status, 'blocked');
+});
+
+test('reads attempts recorded without the new fields', () => {
+  // A ledger written before HBS-25: attempts hold only at/ok/note. They still count toward the budget.
+  const old = {
+    version: 1,
+    units: {
+      'gate:f/T1': {
+        status: 'open',
+        attempts: [
+          { at: '2026-11-01T10:00:00Z', ok: false, note: 'first' },
+          { at: '2026-11-01T10:05:00Z', ok: false, note: 'second' },
+        ],
+      },
+    },
+  };
+  const k = 'gate:f/T1';
+  assert.equal(failuresOf(old, k), 2);
+  assert.equal(canAttempt(old, k).ok, true);
+  assert.equal(canAttempt(old, k).attempt, 3);
+  assert.equal(
+    recordAttempt(old, k, false, { command: 'pnpm test', head: 'abc', clean: true }).status,
+    'blocked',
+  );
+  assert.equal(old.units[k].attempts.at(-1).command, 'pnpm test');
+  assert.equal(old.units[k].attempts[0].command, undefined, 'old attempts are left as they were');
 });
 
 test('dispatches: three allowed, the fourth is refused and blocks the unit', () => {
@@ -119,4 +154,337 @@ test('helpers: session ids per subagent, last gate attempt, task ids, key valida
   assert.deepEqual(taskIds('### T1: a\n## T12: b\n#### t3: c\nT4: not a heading'), ['T1', 'T12', 'T3']);
   assert.throws(() => unitKey('nope', 'x'));
   assert.throws(() => unitKey('gate'));
+});
+
+const ENV = { kind: 'env', signature: 'docker' };
+const T2 = 'gate:budget-v2/T2';
+
+test('records an environment failure without counting it', () => {
+  const l = emptyLedger();
+  const res = recordAttempt(l, T2, false, { ...ENV, note: 'Cannot connect to the Docker daemon' });
+  assert.equal(res.status, 'open');
+  assert.equal(res.failures, 0);
+  assert.equal(res.remainingRetries, 2);
+  assert.equal(failuresOf(l, T2), 0);
+  assert.equal(envFailuresOf(l, T2), 1);
+  assert.equal(canAttempt(l, T2).attempt, 1, 'the next attempt is still the first');
+  const a = l.units[T2].attempts[0];
+  assert.equal(a.ok, false);
+  assert.equal(a.kind, 'env');
+  assert.equal(a.signature, 'docker');
+  assert.throws(
+    () => recordAttempt(l, T2, false, { kind: 'env' }),
+    'an environment failure names its signature',
+  );
+});
+
+test('three environment failures in a row block the unit', () => {
+  const l = emptyLedger();
+  recordAttempt(l, T2, false, ENV);
+  assert.equal(recordAttempt(l, T2, false, ENV).status, 'open');
+  assert.equal(recordAttempt(l, T2, false, ENV).status, 'env-blocked');
+  assert.equal(canAttempt(l, T2).ok, false);
+  assert.match(canAttempt(l, T2).reason, /ENV-BLOCKED/);
+  assert.equal(recordAttempt(l, T2, true).status, 'env-blocked', 'a pass after the block does not unblock');
+  assert.equal(failuresOf(l, T2), 0, 'the block spent no counted failure');
+  assert.equal(ENV_ATTEMPTS_TO_BLOCK, 3);
+});
+
+test('a counted failure restarts the environment count', () => {
+  const l = emptyLedger();
+  recordAttempt(l, T2, false, ENV);
+  recordAttempt(l, T2, false, ENV);
+  assert.equal(recordAttempt(l, T2, false, { note: 'expected 2, received 3' }).status, 'open');
+  recordAttempt(l, T2, false, ENV);
+  assert.equal(
+    recordAttempt(l, T2, false, ENV).status,
+    'env-blocked',
+    'four environment failures in all since the last pass or reset (BUD-30)',
+  );
+  assert.equal(recordAttempt(l, T2, false, ENV).status, 'env-blocked');
+
+  const passing = emptyLedger();
+  recordAttempt(passing, T2, false, ENV);
+  recordAttempt(passing, T2, false, ENV);
+  recordAttempt(passing, T2, true);
+  assert.equal(recordAttempt(passing, T2, false, ENV).status, 'open', 'a pass also restarts the count');
+  assert.equal(failuresOf(passing, T2), 0);
+});
+
+test('blocks at the fourth machine failure in total', () => {
+  // BUD-30 (AD-167): the total of environment failures since the last pass or reset, in a row or not.
+  const counted = { note: 'expected 2, received 3' };
+  const a = emptyLedger();
+  recordAttempt(a, T2, false, ENV);
+  recordAttempt(a, T2, false, ENV);
+  recordAttempt(a, T2, false, counted);
+  recordAttempt(a, T2, false, ENV);
+  assert.equal(recordAttempt(a, T2, false, ENV).status, 'env-blocked', 'env, env, counted, env, env');
+
+  const b = emptyLedger();
+  recordAttempt(b, T2, false, ENV);
+  recordAttempt(b, T2, false, ENV);
+  recordAttempt(b, T2, false, counted);
+  assert.equal(recordAttempt(b, T2, false, ENV).status, 'open', 'env, env, counted, env');
+
+  const c = emptyLedger();
+  recordAttempt(c, T2, false, ENV);
+  recordAttempt(c, T2, false, ENV);
+  recordAttempt(c, T2, true);
+  recordAttempt(c, T2, false, ENV);
+  assert.equal(recordAttempt(c, T2, false, ENV).status, 'env-blocked', 'env, env, pass, env, env');
+
+  const d = emptyLedger();
+  recordAttempt(d, T2, false, ENV);
+  recordAttempt(d, T2, false, ENV);
+  reset(d, T2, { by: 'orchestrator', reason: 'Docker was started again' });
+  recordAttempt(d, T2, false, ENV);
+  assert.equal(recordAttempt(d, T2, false, ENV).status, 'open', 'env, env, reset, env, env');
+});
+
+test('only a reset clears the machine-failure total', () => {
+  // BUD-30, AD-172: a pass does not start the total again, and a merge keeps it through a later pass.
+  const counted = { note: 'expected 2, received 3' };
+  const passed = emptyLedger();
+  recordAttempt(passed, T2, false, ENV);
+  recordAttempt(passed, T2, false, ENV);
+  recordAttempt(passed, T2, true);
+  recordAttempt(passed, T2, false, ENV);
+  assert.equal(recordAttempt(passed, T2, false, ENV).status, 'env-blocked', 'env, env, pass, env, env');
+
+  const a = emptyLedger();
+  recordAttempt(a, T2, false, ENV);
+  recordAttempt(a, T2, false, ENV);
+  recordAttempt(a, T2, false, counted);
+  recordAttempt(a, T2, false, ENV);
+  const b = emptyLedger();
+  recordAttempt(b, T2, false, counted);
+  recordAttempt(b, T2, false, counted);
+  recordAttempt(b, T2, true);
+  const merged = mergeLedgers(a, b);
+  assert.equal(recordAttempt(merged, T2, true).status, 'passed');
+  assert.equal(
+    recordAttempt(merged, T2, false, ENV).status,
+    'env-blocked',
+    'three machine failures merged in, a pass, then one more: four in all',
+  );
+  reset(merged, T2, { by: 'orchestrator', reason: 'Docker was started again' });
+  assert.equal(recordAttempt(merged, T2, false, ENV).status, 'open', 'a reset clears the carried total too');
+});
+
+test('an env-blocked unit blocks its feature', () => {
+  const l = emptyLedger();
+  for (let i = 0; i < ENV_ATTEMPTS_TO_BLOCK; i += 1) recordAttempt(l, T2, false, ENV);
+  assert.equal(featureBlocked(l, 'budget-v2'), true);
+  assert.equal(featureBlocked(l, 'other-feature'), false);
+});
+
+test('keeps refused reruns apart', () => {
+  const l = emptyLedger();
+  recordAttempt(l, T2, false, { note: 'expected 2, received 3' });
+  const before = structuredClone(l.units[T2]);
+  const at = '2026-11-08T10:00:00.000Z';
+  recordRefusal(l, T2, at);
+  assert.deepEqual(l.refusals, [{ key: T2, at }]);
+  assert.deepEqual(l.units[T2], before, 'the refused rerun is not an attempt');
+  assert.equal(failuresOf(l, T2), 1);
+  assert.equal(canAttempt(l, T2).attempt, 2);
+});
+
+test('isUnchangedRerun refuses only the same failing state', () => {
+  const CMD = 'node --test scripts/test/x.test.mjs';
+  const same = { fingerprint: 'fp1', command: CMD };
+  const counted = (fingerprint = 'fp1', command = CMD) => {
+    const l = emptyLedger();
+    recordAttempt(l, T2, false, { note: 'expected 2, received 3', fingerprint, command });
+    return l;
+  };
+
+  assert.equal(isUnchangedRerun(counted(), T2, same), true, 'the same command on the same tree');
+  assert.equal(
+    isUnchangedRerun(counted(), T2, { fingerprint: null, command: CMD }),
+    false,
+    'no fingerprint, never refused',
+  );
+  assert.equal(isUnchangedRerun(emptyLedger(), T2, same), false, 'no failure yet, nothing to refuse');
+
+  const machineOnly = emptyLedger();
+  recordAttempt(machineOnly, T2, false, { ...ENV, fingerprint: 'fp1', command: CMD });
+  assert.equal(
+    isUnchangedRerun(machineOnly, T2, same),
+    false,
+    'an environment failure is not a state proven failing',
+  );
+
+  const machineAfter = counted('fp1');
+  recordAttempt(machineAfter, T2, false, { ...ENV, fingerprint: 'fp2', command: CMD });
+  assert.equal(
+    isUnchangedRerun(machineAfter, T2, { fingerprint: 'fp2', command: CMD }),
+    false,
+    'after a machine failure on a changed tree',
+  );
+
+  const passedAfter = counted('fp1');
+  recordAttempt(passedAfter, T2, true, { fingerprint: 'fp1', command: CMD });
+  assert.equal(isUnchangedRerun(passedAfter, T2, same), false, 'after a pass in between');
+
+  assert.equal(
+    isUnchangedRerun(counted(), T2, { fingerprint: 'fp1', command: 'pnpm test' }),
+    false,
+    'another command on the same tree',
+  );
+});
+
+test("keeps every reset and counts the orchestrator's", () => {
+  const l = emptyLedger();
+  const other = 'gate:budget-v2/T3';
+  for (let i = 0; i < MAX_ATTEMPTS; i += 1) recordAttempt(l, T2, false);
+  assert.equal(
+    reset(l, T2, { by: 'orchestrator', reason: 'Docker was stopped', at: '2026-11-08T11:00:00.000Z' }),
+    true,
+  );
+  assert.equal(orchestratorResets(l, T2), 1);
+  assert.equal(l.resets.length, 1);
+  assert.equal(l.resets[0].reason, 'Docker was stopped');
+  assert.equal(l.resets[0].previous.attempts.length, MAX_ATTEMPTS, 'the reset keeps what it cleared');
+
+  for (let i = 0; i < MAX_ATTEMPTS; i += 1) recordAttempt(l, T2, false);
+  reset(l, T2, { by: 'pedro', reason: 'maintainer', at: '2026-11-08T12:00:00.000Z' });
+  assert.equal(l.resets.length, 2, 'a later reset does not remove the earlier one');
+  assert.equal(l.resets[0].by, 'orchestrator');
+  assert.equal(orchestratorResets(l, T2), 1, 'a later maintainer reset does not hide the orchestrator reset');
+
+  recordAttempt(l, other, false);
+  reset(l, other, { by: 'orchestrator', reason: 'other', at: '2026-11-08T13:00:00.000Z' });
+  assert.equal(orchestratorResets(l, T2), 1, 'another unit’s reset is not counted here');
+  assert.equal(orchestratorResets(l, other), 1);
+});
+
+test('reports machine failures, refusals and resets apart', () => {
+  const l = emptyLedger();
+  recordAttempt(l, T2, false, { note: 'expected 2, received 3' });
+  recordAttempt(l, T2, false, { ...ENV, note: 'Cannot connect to the Docker daemon' });
+  recordRefusal(l, T2, '2026-11-08T10:30:00.000Z');
+  const before = report(l);
+  assert.ok(before.includes('| Environment failures | Refused reruns |'), 'the columns are there');
+  assert.ok(before.includes(`| \`${T2}\` | open | 2 | 1 | 1 | 1 |`), before);
+  reset(l, T2, {
+    by: 'orchestrator',
+    reason: 'Docker was stopped; started again',
+    at: '2026-11-08T11:00:00.000Z',
+  });
+  const after = report(l);
+  assert.ok(
+    after.includes(
+      `| \`${T2}\` | orchestrator | Docker was stopped; started again | 2026-11-08T11:00:00.000Z |`,
+    ),
+    after,
+  );
+});
+
+test('reads a ledger written before budget v2', () => {
+  const old = {
+    version: 1,
+    units: {
+      'gate:f/T1': {
+        status: 'open',
+        attempts: [
+          { at: '2026-11-01T10:00:00Z', ok: false, note: 'first' },
+          { at: '2026-11-01T10:05:00Z', ok: false, note: 'second' },
+        ],
+      },
+      'gate:f/T2': {
+        status: 'passed',
+        attempts: [
+          {
+            at: '2026-11-01T11:00:00Z',
+            ok: true,
+            note: 'ok',
+            command: 'pnpm test',
+            head: 'abc',
+            clean: true,
+          },
+        ],
+      },
+    },
+    resets: [
+      {
+        key: 'gate:f/T9',
+        by: 'pedro',
+        at: '2026-11-01T09:00:00Z',
+        previous: { status: 'blocked', attempts: [] },
+      },
+    ],
+  };
+  assert.equal(failuresOf(old, 'gate:f/T1'), 2);
+  assert.equal(envFailuresOf(old, 'gate:f/T1'), 0);
+  assert.equal(canAttempt(old, 'gate:f/T1').attempt, 3);
+  assert.equal(featureBlocked(old, 'f'), false);
+  assert.equal(orchestratorResets(old, 'gate:f/T9'), 0, 'a maintainer reset is not an orchestrator reset');
+  assert.equal(recordAttempt(old, 'gate:f/T1', false, { ...ENV }).status, 'open');
+  assert.equal(failuresOf(old, 'gate:f/T1'), 2);
+  assert.ok(report(old).includes('| `gate:f/T1` | open | 3 | 2 | 1 | 0 |'));
+  assert.equal(mergeLedgers(old, emptyLedger()).units['gate:f/T1'].attempts.length, 3);
+});
+
+test('keeps one attempt and two retries', () => {
+  assert.equal(MAX_RETRIES, 2);
+  const l = emptyLedger();
+  recordAttempt(l, T2, false);
+  recordAttempt(l, T2, false);
+  assert.equal(canAttempt(l, T2).attempt, 3, 'the third attempt is the last retry');
+  assert.equal(recordAttempt(l, T2, false).status, 'blocked');
+  assert.equal(canAttempt(l, T2).ok, false);
+});
+
+test('a merge keeps the uncounted stops', () => {
+  // BUD-31: a merge gives no session back its uncounted red stops and loses none: the larger count of either side.
+  const one = emptyLedger();
+  recordUncountedRedStop(one, 's1');
+  const two = emptyLedger();
+  recordUncountedRedStop(two, 's1');
+  recordUncountedRedStop(two, 's1');
+  recordUncountedRedStop(two, 's2');
+  const merged = mergeLedgers(one, two);
+  assert.equal(uncountedRedStopsOf(merged, 's1'), 2, 'the larger count of the session');
+  assert.equal(uncountedRedStopsOf(merged, 's2'), 1);
+  assert.equal(merged.uncountedStops.length, 3, 'each (sid, seq) is kept once');
+  assert.equal(
+    uncountedRedStopsOf(mergeLedgers(two, one), 's1'),
+    2,
+    'the order of the merge does not matter',
+  );
+  assert.equal(
+    uncountedRedStopsOf(mergeLedgers(merged, one), 's1'),
+    2,
+    'merging again does not lower the count',
+  );
+  assert.equal(
+    uncountedRedStopsOf(mergeLedgers(merged, merged), 's1'),
+    2,
+    'merging with itself changes nothing',
+  );
+});
+
+test('a merge keeps the larger environment total', () => {
+  // BUD-30: a merge does not lower a unit's environment failures since its last pass or reset.
+  const k = 'gate:budget-v2/T21';
+  const counted = { note: 'expected 2, received 3' };
+  const a = emptyLedger();
+  recordAttempt(a, k, false, ENV);
+  recordAttempt(a, k, false, ENV);
+  recordAttempt(a, k, false, counted);
+  recordAttempt(a, k, false, ENV);
+  const b = emptyLedger();
+  recordAttempt(b, k, false, counted);
+  recordAttempt(b, k, false, counted);
+
+  for (const merged of [mergeLedgers(a, b), mergeLedgers(b, a)]) {
+    assert.equal(merged.units[k].status, 'open', 'three environment failures are not yet a block');
+    assert.equal(
+      recordAttempt(merged, k, false, ENV).status,
+      'env-blocked',
+      'the merged total is 3, so a fourth machine failure blocks the unit',
+    );
+  }
 });
