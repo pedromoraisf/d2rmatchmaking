@@ -69,5 +69,5 @@ The screen reading (old T8 regions/classifier/parser, T9 Windows OCR on fixtures
       existing sign-in, pairing, heartbeat and stream steps (`agents.steps.ts`, `identity.steps.ts`, `site.steps.ts`,
       `support/agent-client.ts`, `support/world.ts`) and do not add near-duplicates of existing phrasings — gate:
       `pnpm exec turbo run test:acceptance -- --grep @CHR-`
-- [ ] T9 — Whole-repo sensors on the branch — gate:
+- [x] T9 — Whole-repo sensors on the branch — gate:
       `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check && cd apps/agent/src-tauri && cargo clippy --all-targets -- -D warnings`
