@@ -9,7 +9,11 @@ import { OPENAPI_PATH, buildOpenApiText } from '../openapi.ts';
 import { NodeRandomSource, RandomUuidGenerator } from '../runtime.ts';
 
 /** Every route buildApp registers with staging on, in Fastify's route syntax (`:id`) and the document's (`{id}`). */
-const ROUTES: readonly { readonly method: 'get' | 'post'; readonly url: string; readonly path: string }[] = [
+const ROUTES: readonly {
+  readonly method: 'get' | 'post' | 'delete';
+  readonly url: string;
+  readonly path: string;
+}[] = [
   { method: 'get', url: '/healthz', path: '/healthz' },
   { method: 'get', url: '/v1/config', path: '/v1/config' },
   { method: 'post', url: '/v1/auth/test-login', path: '/v1/auth/test-login' },
@@ -23,6 +27,7 @@ const ROUTES: readonly { readonly method: 'get' | 'post'; readonly url: string; 
   { method: 'post', url: '/v1/agents/heartbeat', path: '/v1/agents/heartbeat' },
   { method: 'get', url: '/v1/agents/me', path: '/v1/agents/me' },
   { method: 'get', url: '/v1/agents/me/assignment', path: '/v1/agents/me/assignment' },
+  { method: 'delete', url: '/v1/agents/:id', path: '/v1/agents/{id}' },
   { method: 'post', url: '/v1/lobby-rooms/:id/observations', path: '/v1/lobby-rooms/{id}/observations' },
   { method: 'get', url: '/v1/me/room', path: '/v1/me/room' },
   { method: 'post', url: '/v1/staging/match-formed', path: '/v1/staging/match-formed' },

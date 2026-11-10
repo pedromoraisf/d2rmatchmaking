@@ -49,7 +49,7 @@ Rules for the worker:
       `identity.sign-out` with an `outcome` attribute only (IDB-12, unit-tested with an in-memory exporter); wire it in
       `main/app.ts`; regenerate and commit the OpenAPI — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/main/config.test.ts && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/identity-routes.int.test.ts && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json`
-- [ ] T6 — Revoke (FR-04): use case `revokeAgent({accountId, agentId})` in the Agents application — revokes only the
+- [x] T6 — Revoke (FR-04): use case `revokeAgent({accountId, agentId})` in the Agents application — revokes only the
       account's current, unrevoked agent and publishes `AgentRevoked` the way pairing a second agent does (AD-037), else
       `not-found` (IDB-08, IDB-09); route `DELETE /v1/agents/:id` (requireSession + requireSameOrigin; 204 or 404);
       span `agents.revoke`; unit tests and a route integration test proving the revoked token answers 401 on the next
