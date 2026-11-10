@@ -28,7 +28,44 @@
     "gameClosed": "Jogo fechado",
     "screen": {
       "UNKNOWN": "Tela: desconhecida",
+      "CHARACTER_SELECT": "Tela: seleção de personagem",
+      "IN_GAME": "Tela: em jogo",
       "AUTOMAP_OPEN": "Tela: mapa automático aberto"
+    }
+  },
+  "characters": {
+    "heading": "Seus personagens",
+    "empty": "Abra a tela de seleção de personagens no jogo com o agente em execução para adicionar seus personagens.",
+    "level": "Nível {{level}}",
+    "readAt": "Última leitura {{time}}",
+    "unlocked": "Desbloqueadas: {{difficulties}}",
+    "classes": {
+      "amazon": "Amazona",
+      "assassin": "Assassina",
+      "barbarian": "Bárbaro",
+      "druid": "Druida",
+      "necromancer": "Necromante",
+      "paladin": "Paladino",
+      "sorceress": "Feiticeira",
+      "warlock": "Bruxo"
+    },
+    "modes": {
+      "softcore": "Softcore",
+      "hardcore": "Hardcore"
+    },
+    "ladders": {
+      "ladder": "Ladder",
+      "nonLadder": "Sem ladder"
+    },
+    "eras": {
+      "classic": "Clássico",
+      "lod": "Expansão",
+      "rotw": "Reign of the Warlock"
+    },
+    "difficulties": {
+      "normal": "Normal",
+      "nightmare": "Pesadelo",
+      "hell": "Inferno"
     }
   },
   "room": {

@@ -32,7 +32,7 @@ Rules for the worker:
       stream projection `CharactersRecorded` → `characters.updated`; add the migration to `migrate.int.test.ts`;
       regenerate the OpenAPI — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/platform/stream-projection.test.ts && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/migrate.int.test.ts src/main/__tests__/identity-routes.int.test.ts && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json`
-- [ ] T4 — Site: `CharacterList` (list, empty-state message, read time), labels for class, ladder, era, difficulties and
+- [x] T4 — Site: `CharacterList` (list, empty-state message, read time), labels for class, ladder, era, difficulties and
       the two new screens, refetch on `characters.updated`, en + pt-BR, component tests including keyboard focus —
       gate: `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
 - [ ] T5 — Agent domain: `characters.rs` with `Card` and the title table of CHR-07 (classic SC Sir/Dame, Lord/Lady,

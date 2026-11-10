@@ -1,6 +1,6 @@
 // The site's only way to call the API: same origin, through the /api/* Pages Function (ADR 012, AWS-29). Every POST
 // carries a JSON body and the JSON content type. A 401 is `unauthenticated`, so the site shows its signed-out view.
-import { AgentView, ConfigResponse, MeResponse, RoomView } from '@d2rmm/contracts';
+import { AgentView, ConfigResponse, MeResponse, MyCharactersResponse, RoomView } from '@d2rmm/contracts';
 
 export interface Parser<T> {
   parse(input: unknown): T;
@@ -36,6 +36,7 @@ export interface ApiClient {
   matchFormed(): Promise<ApiResult<void>>;
   myRoom(): Promise<ApiResult<RoomView>>;
   myAgent(): Promise<ApiResult<AgentView>>;
+  myCharacters(): Promise<ApiResult<MyCharactersResponse>>;
   pair(code: string): Promise<ApiResult<void>>;
 }
 
@@ -82,6 +83,7 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
     matchFormed: () => write('/v1/staging/match-formed', {}),
     myRoom: () => read('/v1/me/room', RoomView),
     myAgent: () => read('/v1/agents/me', AgentView),
+    myCharacters: () => read('/v1/me/characters', MyCharactersResponse),
     pair: (code) => write('/v1/agents/pair', { code }),
   };
 }
