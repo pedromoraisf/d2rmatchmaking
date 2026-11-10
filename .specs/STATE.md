@@ -1468,6 +1468,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-09
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-174 (assumed)
+
+- **Decision**: the proofs preflight keys a proof by its command plus the path and content of every file the branch changes against `phase/<F>` (committed, staged, unstaged or untracked). It keeps its cache in the ignored `reports/proofs-cache/<feature>.json` and runs through the wrapper as step `fix`. The official `check_proofs.py` stays step `proofs`.
+- **Reason**: fast-proofs. This is the brief's key and step (brief-revision-6 § 3). `fix` is the closed-list step of the fix loop, so the preflight does not spend the official run's budget.
+- **Trade-off**: any change to a feature file invalidates every cached proof of that feature. The cache saves reruns with no change and the proofs left after an unrelated failure. Reversal: a narrower key in one function.
+- **Scope**: fast-proofs
+- **Date**: 2026-11-09
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

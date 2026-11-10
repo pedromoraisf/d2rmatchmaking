@@ -139,7 +139,7 @@ if (cmd === 'run') {
   const featureDir = path.join(root, '.specs', 'features', feature);
   if (!existsSync(featureDir)) usage(`unknown feature "${feature}" (no .specs/features/${feature}/)`);
   if (!allowedSteps(featureDir).has(step)) {
-    usage(`step "${step}" is not a task id in tasks.md nor one of: ${FIXED_STEPS.join(', ')}`);
+    usage(`step "${step}" is not a task id in tasks.md nor one of: ${[...FIXED_STEPS, 'fix'].join(', ')}`);
   }
   const key = unitKey('gate', feature, step);
 
