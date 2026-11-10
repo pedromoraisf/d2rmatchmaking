@@ -64,11 +64,18 @@ Rules for the worker:
 
 ## Batch 2
 
-- [ ] T8 — Acceptance: a fake Battle.net provider in `tests/acceptance/support/fake-battle-net.ts` (`/authorize`
+- [ ] T8 — Unique-index fix (Batch 1 finding A): migration `0005_battletag_not_unique` (identity-bnet merges first;
+      `characters` renumbers its migration after it) drops the unique constraint on
+      `identity.accounts.battletag` and adds a unique index on `test_key` where it is not null, so a freed BattleTag
+      re-used by another Battle.net account signs in (IDB-02) and test accounts stay unique by their key (IDB-07);
+      `signInWithBattleNet` turns a unique violation on `bnet_sub` (two first sign-ins of one account at once) into
+      reading the account that won, never a 500; integration tests for both cases — gate:
+      `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/modules/identity/adapters/postgres/identity-repositories.int.test.ts src/main/__tests__/migrate.int.test.ts src/main/__tests__/identity-routes.int.test.ts`
+- [ ] T9 — Acceptance: a fake Battle.net provider in `tests/acceptance/support/fake-battle-net.ts` (`/authorize`
       redirects back to the given `redirect_uri` with a code or an `error`, `/token`, `/userinfo`; scriptable per
       scenario, records the last authorize request), started by the stack; the staging API gets `BNET_*` pointing at
       it, the plain API gets none (IDB-06); steps in `tests/acceptance/steps/identity-bnet.steps.ts` for every step of
       `acceptance.feature`, reusing the existing pairing and heartbeat steps — gate:
       `pnpm exec turbo run test:acceptance -- --grep @IDB-`
-- [ ] T9 — Whole-repo sensors on the branch — gate:
+- [ ] T10 — Whole-repo sensors on the branch — gate:
       `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check`
