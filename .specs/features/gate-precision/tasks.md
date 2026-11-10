@@ -524,9 +524,9 @@ T15 → T19 → T20 → T21 → T16
 
 **Done when**:
 
-- [ ] A test named `echo takes any literal word` allows `echo ---`, `echo -n x` and `echo --- && wc -l scripts/lib/budget.mjs`. It keeps today's decision for `echo $HOME`, and for `` echo `id` `` its decision is whatever it was before this task.
-- [ ] Every existing test of `read-only.test.mjs` passes unchanged.
-- [ ] The gate passes.
+- [x] A test named `echo takes any literal word` allows `echo ---`, `echo -n x` and `echo --- && wc -l scripts/lib/budget.mjs`. It keeps today's decision for `echo $HOME`, and for `` echo `id` `` its decision is whatever it was before this task.
+- [x] Every existing test of `read-only.test.mjs` passes unchanged.
+- [x] The gate passes.
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/read-only.test.mjs`

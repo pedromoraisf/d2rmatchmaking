@@ -350,3 +350,16 @@ test('refuses a listing that would reach the git directory', () => {
   assert.equal(decide('ls -R', { cwd: '/repo' }, ctx), null, 'a recursive listing from the root');
   assert.equal(decide('ls -la', { cwd: '/repo' }, ctx)?.decision, 'allow', 'a plain listing of the root');
 });
+
+test('echo takes any literal word', () => {
+  const input = { cwd: '/repo' };
+  const ctx = checkout({ disk: { dirs: [], files: { '/repo/scripts/lib/budget.mjs': {} } } });
+  for (const line of ['echo ---', 'echo -n x', 'echo --- && wc -l scripts/lib/budget.mjs']) {
+    assert.equal(decide(line, input, ctx)?.decision, 'allow', line);
+  }
+  // A word that expands is judged by the literal-word rule, as before: no decision from the row.
+  assert.equal(decide('echo $HOME', input, ctx), null, 'echo $HOME keeps its decision');
+  assert.equal(decide('echo `id`', input, ctx), null, 'echo `id` keeps its decision');
+  // The options the row does not list stay refused (the existing row case: echo -e).
+  assert.equal(decide('echo -e hi', input, ctx), null, 'echo -e is still refused');
+});

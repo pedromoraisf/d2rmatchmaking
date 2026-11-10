@@ -64,6 +64,20 @@ function parseFind(args) {
   return { options, operands };
 }
 
+/**
+ * `echo` (T19): its words are literal operands, so `echo ---` is a word and not an option. A word shaped like a short
+ * option (`-n`, `-e`) is an option, so the row still refuses the options it does not list.
+ */
+function parseEcho(args) {
+  const options = [];
+  const operands = [];
+  for (const w of args) {
+    if (/^-[A-Za-z]+$/.test(w.text)) options.push({ name: w.text, values: [] });
+    else operands.push(w);
+  }
+  return { options, operands };
+}
+
 /** One row per command of the spec's read-only table. `command` is the words that name it, bare. */
 export const READ_ONLY_TABLE = [
   { command: ['cat'], allowed: ['-n'] },
@@ -239,7 +253,7 @@ export const READ_ONLY_TABLE = [
     valued: ['--feature'],
     operands: none,
   },
-  { command: ['echo'], allowed: [] },
+  { command: ['echo'], allowed: ['-n'], parse: parseEcho },
 ];
 
 /**
