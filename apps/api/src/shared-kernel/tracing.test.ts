@@ -164,6 +164,30 @@ describe('linkActiveSpan', () => {
     expect(span?.links[0]?.context).toMatchObject({ traceId, spanId });
   });
 
+  it('adds no link to a valid traceparent with characters before it', async () => {
+    await withSpan('lobby.record-observation', {}, () => {
+      linkActiveSpan(`x00-${traceId}-${spanId}-01`);
+    });
+
+    expect(exporter.getFinishedSpans()[0]?.links).toEqual([]);
+  });
+
+  it('adds no link to a valid traceparent with characters after it', async () => {
+    await withSpan('lobby.record-observation', {}, () => {
+      linkActiveSpan(`00-${traceId}-${spanId}-01x`);
+    });
+
+    expect(exporter.getFinishedSpans()[0]?.links).toEqual([]);
+  });
+
+  it('marks the link context as remote', async () => {
+    await withSpan('lobby.record-observation', {}, () => {
+      linkActiveSpan(`00-${traceId}-${spanId}-01`);
+    });
+
+    expect(exporter.getFinishedSpans()[0]?.links[0]?.context.isRemote).toBe(true);
+  });
+
   it.each([
     ['a value of the wrong length', `00-${traceId}-${spanId}`],
     ['a value with a non-hex trace id', `00-${'g'.repeat(32)}-${spanId}-01`],
