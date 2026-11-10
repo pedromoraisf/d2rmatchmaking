@@ -612,7 +612,9 @@ When(
 When(/^the agent asks the gate to run "(.+)"$/, ({ scenario }, command: string) => {
   const world = worldOf(scenario);
   const repo = requireRepo(world);
-  const expanded = command.includes('{head}') ? command.replaceAll('{head}', headOf(repo)) : command;
+  // T20: a feature's text escapes its inner double quotes with a backslash (GPR-09); the shell command has plain ones.
+  const unescaped = command.replaceAll('\\"', '"');
+  const expanded = unescaped.includes('{head}') ? unescaped.replaceAll('{head}', headOf(repo)) : unescaped;
   world.answer = askGate(scenario, bashCall(expanded));
 });
 

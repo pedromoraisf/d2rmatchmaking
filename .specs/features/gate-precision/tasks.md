@@ -545,8 +545,8 @@ T15 → T19 → T20 → T21 → T16
 
 **Done when**:
 
-- [ ] The step unescapes `\"`. A grep shows that no other step text in `tests/acceptance` contains `\"`.
-- [ ] The gate passes.
+- [x] The step unescapes `\"`. A grep shows that no other step text in `tests/acceptance` contains `\"`.
+- [x] The gate passes.
 
 **Tests**: acceptance
 **Gate**: `pnpm exec turbo run test:acceptance -- --grep "@GPR-09|@HBS-0" --workers=2`
