@@ -35,7 +35,7 @@ Rules for the worker:
 - [x] T4 — Site: `CharacterList` (list, empty-state message, read time), labels for class, ladder, era, difficulties and
       the two new screens, refetch on `characters.updated`, en + pt-BR, component tests including keyboard focus —
       gate: `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
-- [ ] T5 — Agent domain: `characters.rs` with `Card` and the title table of CHR-07 (classic SC Sir/Dame, Lord/Lady,
+- [x] T5 — Agent domain: `characters.rs` with `Card` and the title table of CHR-07 (classic SC Sir/Dame, Lord/Lady,
       Baron/Baroness; classic HC Count/Countess, Duke/Duchess, King/Queen; expansion SC Slayer, Champion,
       Patriarch/Matriarch; expansion HC Destroyer, Conqueror, Guardian; no title → Normal), unit tests for every title
       — gate: `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-domain --lib`
