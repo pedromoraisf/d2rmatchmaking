@@ -72,14 +72,14 @@ Export the pure parts (`parseChecks`, `proofKey`) for the unit test. Run `main` 
 
 **Done when**:
 
-- [ ] A test named `preflight runs each proof once, then caches it` sets up a temporary git repository with `phase/F0`, a feature branch with one changed file, and a `tasks.md` with two checks whose proofs append to a log file. It shows:
+- [x] A test named `preflight runs each proof once, then caches it` sets up a temporary git repository with `phase/F0`, a feature branch with one changed file, and a `tasks.md` with two checks whose proofs append to a log file. It shows:
   - the first run runs both proofs and prints `ran`;
   - the second runs neither and prints `cached`;
   - after an edit to the changed file, both run again.
-- [ ] A test named `a failed proof runs again and fails the preflight` shows that a proof exiting 1 makes the preflight exit 1 with its check ID printed, and that the proof runs again on the next call with the same key.
-- [ ] A test named `a missing cache or a git error runs every proof` covers a deleted cache file, a corrupt one, and a `phase/F0` that does not exist: each makes every proof run, and the preflight still exits 0 when the proofs pass.
-- [ ] A test named `the key changes with the command and with a changed file's path or content` covers `proofKey` as a pure function.
-- [ ] The gate passes.
+- [x] A test named `a failed proof runs again and fails the preflight` shows that a proof exiting 1 makes the preflight exit 1 with its check ID printed, and that the proof runs again on the next call with the same key.
+- [x] A test named `a missing cache or a git error runs every proof` covers a deleted cache file, a corrupt one, and a `phase/F0` that does not exist: each makes every proof run, and the preflight still exits 0 when the proofs pass.
+- [x] A test named `the key changes with the command and with a changed file's path or content` covers `proofKey` as a pure function.
+- [x] The gate passes.
 
 **Tests**: unit
 **Gate**: `node --test scripts/test/proofs-preflight.test.mjs`
