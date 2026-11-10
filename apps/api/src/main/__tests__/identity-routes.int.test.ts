@@ -216,6 +216,14 @@ function sessionPairOf(response: { readonly headers: Record<string, unknown> }):
 describe('identity routes with Battle.net', () => {
   let fake: { readonly server: Server; readonly base: string };
   let bnet: BuiltApp;
+  // Every byte the Battle.net app logs in a test, so a test can assert what a log line does not carry (IDB-11).
+  let logged = '';
+  const capturingSink = new Writable({
+    write(chunk: Buffer, _encoding, callback) {
+      logged += chunk.toString('utf8');
+      callback();
+    },
+  });
 
   beforeAll(async () => {
     fake = await startFakeBattleNet();
@@ -228,6 +236,7 @@ describe('identity routes with Battle.net', () => {
   });
 
   beforeEach(async () => {
+    logged = '';
     bnet = await buildApp({
       db: database.db,
       config: {
@@ -241,7 +250,7 @@ describe('identity routes with Battle.net', () => {
       scheduler: new FakeScheduler(clock),
       random: new NodeRandomSource(),
       ids: new RandomUuidGenerator(),
-      logSink: silentSink,
+      logSink: capturingSink,
     });
   });
 
@@ -298,6 +307,22 @@ describe('identity routes with Battle.net', () => {
     expect(JSON.stringify(callback.headers['set-cookie'] ?? '')).not.toContain(
       '__Host-d2rmm_session=d2rmm_s_',
     );
+  });
+
+  it('logs the callback request without its code or state (IDB-11)', async () => {
+    const { stateCookie, state } = await startSignIn();
+    const callback = await bnet.app.inject({
+      method: 'GET',
+      url: `/v1/auth/bnet/callback?code=good-code&state=${state}`,
+      headers: { cookie: stateCookie },
+    });
+    expect(callback.statusCode).toBe(302);
+
+    expect(logged).toContain('/v1/auth/bnet/callback');
+    expect(logged).not.toContain('code=');
+    expect(logged).not.toContain('state=');
+    expect(logged).not.toContain('good-code');
+    expect(logged).not.toContain(state);
   });
 
   it('signs out: the session is deleted, and the old cookie answers 401', async () => {

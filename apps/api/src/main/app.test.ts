@@ -6,7 +6,7 @@ import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-ho
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base';
 import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { appLoggerOptions } from './app.ts';
+import { appLoggerOptions, pathOf } from './app.ts';
 
 type LogLine = Record<string, unknown>;
 
@@ -56,5 +56,39 @@ describe('the application logger', () => {
     expect(inside).toBeDefined();
     expect(inside?.['trace_id']).toBe(span.spanContext().traceId);
     expect(inside?.['span_id']).toBe(span.spanContext().spanId);
+  });
+
+  it('request lines carry the path without the query, so a callback code and state never reach the log (IDB-11)', async () => {
+    const lines: LogLine[] = [];
+    const app = Fastify({ logger: appLoggerOptions(collectingSink(lines)) });
+    app.get('/v1/auth/bnet/callback', (_request, reply) => reply.code(302).header('location', '/').send());
+    await app.ready();
+    try {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/v1/auth/bnet/callback?code=secret-code-value&state=secret-state-value',
+      });
+      expect(response.statusCode).toBe(302);
+    } finally {
+      await app.close();
+    }
+
+    const raw = JSON.stringify(lines);
+    expect(raw).not.toContain('code=');
+    expect(raw).not.toContain('state=');
+    expect(raw).not.toContain('secret-code-value');
+    expect(raw).not.toContain('secret-state-value');
+    const request = lines.find((line) => line['msg'] === 'incoming request');
+    expect(request).toBeDefined();
+    expect(request?.['req']).toMatchObject({ method: 'GET', url: '/v1/auth/bnet/callback' });
+  });
+});
+
+describe('pathOf', () => {
+  it('cuts the URL at its query string and at a fragment', () => {
+    expect(pathOf('/v1/auth/bnet/callback?code=a&state=b')).toBe('/v1/auth/bnet/callback');
+    expect(pathOf('/v1/me#frag')).toBe('/v1/me');
+    expect(pathOf('/v1/me')).toBe('/v1/me');
+    expect(pathOf('')).toBe('');
   });
 });

@@ -79,11 +79,42 @@ export function traceFields(): Record<string, string> {
   return { trace_id: spanContext.traceId, span_id: spanContext.spanId };
 }
 
-/** The Fastify logger of the app: credentials redacted, and every line carries the trace fields (OBS-26). */
+/** The request fields a log line of a request carries: Fastify's default set, with the URL cut at its query (IDB-11). */
+interface RequestLike {
+  readonly method: string;
+  readonly url: string;
+  readonly headers: Readonly<Record<string, unknown>>;
+  readonly host: string;
+  readonly ip: string;
+  readonly socket: { readonly remotePort: number | undefined } | undefined;
+}
+
+/** The request's path without its query string or fragment: the callback's `code` and `state` never reach a log line. */
+export function pathOf(rawUrl: string): string {
+  const cut = rawUrl.search(/[?#]/);
+  return cut === -1 ? rawUrl : rawUrl.slice(0, cut);
+}
+
+/** The `req` serializer of the app logger: Fastify's default fields, with `url` reduced to the path (IDB-11). */
+export function requestLogFieldsOf(request: RequestLike) {
+  const version = request.headers['accept-version'];
+  const remotePort = request.socket?.remotePort;
+  return {
+    method: request.method,
+    url: pathOf(request.url),
+    ...(typeof version === 'string' ? { version } : {}),
+    host: request.host,
+    remoteAddress: request.ip,
+    ...(remotePort === undefined ? {} : { remotePort }),
+  };
+}
+
+/** The Fastify logger of the app: credentials redacted, the query kept out of request lines, and every line carries the trace fields (OBS-26). */
 export function appLoggerOptions(sink?: Writable) {
   return {
     level: 'info',
     redact: { paths: REDACTED_LOG_PATHS, censor: '[redacted]' },
+    serializers: { req: requestLogFieldsOf },
     mixin: traceFields,
     ...(sink === undefined ? {} : { stream: sink }),
   };

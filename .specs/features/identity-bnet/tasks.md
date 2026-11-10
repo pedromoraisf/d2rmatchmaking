@@ -82,7 +82,7 @@ Rules for the worker:
 
 ## Batch 3 — review fixes (PR #43)
 
-- [ ] T11 — Security review finding 1 (IDB-11): the Fastify request log records `req.url`, so the callback's `code` and
+- [x] T11 — Security review finding 1 (IDB-11): the Fastify request log records `req.url`, so the callback's `code` and
       `state` reach the logs. Give `appLoggerOptions` a `req` serializer that logs the path without its query string,
       for every route; add a test that captures the log output of a callback request and asserts that neither `code=`
       nor `state=` (nor their values) appears — gate:
