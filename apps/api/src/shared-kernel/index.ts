@@ -15,6 +15,8 @@ export type {
   AgentPresenceChangedPayload,
   AgentRevokedEvent,
   AgentRevokedPayload,
+  CharactersRecordedEvent,
+  CharactersRecordedPayload,
   AnyDomainEvent,
   BusEvent,
   DomainEvent,

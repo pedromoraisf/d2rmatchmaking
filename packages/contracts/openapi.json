@@ -575,6 +575,8 @@
                           "type": "string",
                           "enum": [
                             "UNKNOWN",
+                            "CHARACTER_SELECT",
+                            "IN_GAME",
                             "AUTOMAP_OPEN"
                           ]
                         },
@@ -726,6 +728,8 @@
                         "type": "string",
                         "enum": [
                           "UNKNOWN",
+                          "CHARACTER_SELECT",
+                          "IN_GAME",
                           "AUTOMAP_OPEN"
                         ]
                       }
@@ -900,6 +904,8 @@
                           "type": "string",
                           "enum": [
                             "UNKNOWN",
+                            "CHARACTER_SELECT",
+                            "IN_GAME",
                             "AUTOMAP_OPEN"
                           ]
                         },

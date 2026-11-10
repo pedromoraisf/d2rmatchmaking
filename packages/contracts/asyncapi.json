@@ -16,6 +16,9 @@
         },
         "AgentPresenceChanged": {
           "$ref": "#/components/messages/AgentPresenceChanged"
+        },
+        "CharactersUpdated": {
+          "$ref": "#/components/messages/CharactersUpdated"
         }
       }
     }
@@ -241,6 +244,8 @@
                   "type": "string",
                   "enum": [
                     "UNKNOWN",
+                    "CHARACTER_SELECT",
+                    "IN_GAME",
                     "AUTOMAP_OPEN"
                   ]
                 }
@@ -251,6 +256,30 @@
                 "gameRunning",
                 "screen"
               ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "CharactersUpdated": {
+        "name": "characters.updated",
+        "contentType": "application/json",
+        "payload": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "characters.updated"
+            },
+            "data": {
+              "type": "object",
+              "properties": {},
               "additionalProperties": false
             }
           },

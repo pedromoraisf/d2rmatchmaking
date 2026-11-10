@@ -21,6 +21,7 @@ pub const CONTRACTS: &[(&str, &str)] = &[
     ("assignment.json", "Assignment"),
     ("observation.json", "Observation"),
     ("agent-event-room-assigned.json", "RoomAssignedEvent"),
+    ("record-characters-request.json", "RecordCharactersRequest"),
 ];
 
 /// Fields holding a claim secret or the token. The generator types them as `d2rmm_agent_core::secret::Secret` (AGS-09).

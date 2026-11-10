@@ -2,8 +2,14 @@
 // stream) and one JSON Schema per agent-facing message under json-schema/ (consumed by typify in the Rust agent).
 // openapi.json is not written here: the API generates it from its routes (apps/api/src/main/openapi.ts).
 import { z } from 'zod';
-import { AgentPresenceChangedEvent, RoomAssignedEvent, RoomStageChangedEvent } from './events/stream.ts';
+import {
+  AgentPresenceChangedEvent,
+  CharactersUpdatedEvent,
+  RoomAssignedEvent,
+  RoomStageChangedEvent,
+} from './events/stream.ts';
 import { ClaimRequest, ClaimResponse, Heartbeat, PairingCodeResponse } from './http/agents.ts';
+import { RecordCharactersRequest } from './http/characters.ts';
 import { Assignment, Observation } from './http/lobby.ts';
 
 export interface OpenApiDocument {
@@ -32,6 +38,7 @@ const STREAM_MESSAGES = {
   RoomAssigned: { name: 'room.assigned', schema: RoomAssignedEvent },
   RoomStageChanged: { name: 'room.stage_changed', schema: RoomStageChangedEvent },
   AgentPresenceChanged: { name: 'agent.presence_changed', schema: AgentPresenceChangedEvent },
+  CharactersUpdated: { name: 'characters.updated', schema: CharactersUpdatedEvent },
 } as const;
 
 // One file per agent-facing message (AWS-36). The claim file carries the response, the message that holds the token.
@@ -44,6 +51,7 @@ const JSON_SCHEMA_SOURCES = {
   'assignment.json': Assignment,
   'observation.json': Observation,
   'agent-event-room-assigned.json': RoomAssignedEvent,
+  'record-characters-request.json': RecordCharactersRequest,
 } as const;
 
 // Agent schemas are draft-07: typify reads that dialect (ADR 009, AD-060).

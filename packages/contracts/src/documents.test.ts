@@ -10,7 +10,7 @@ describe('contract documents', () => {
     });
   });
 
-  it('builds an AsyncAPI 3.0 document with the stream channel and its three messages', () => {
+  it('builds an AsyncAPI 3.0 document with the stream channel and its four messages', () => {
     const document = buildAsyncApiDocument();
     expect(document.asyncapi).toBe('3.0.0');
     expect(document.channels.stream.address).toBe('/v1/stream');
@@ -18,6 +18,7 @@ describe('contract documents', () => {
       'RoomAssigned',
       'RoomStageChanged',
       'AgentPresenceChanged',
+      'CharactersUpdated',
     ]);
     expect(document.components.messages['RoomStageChanged']?.name).toBe('room.stage_changed');
   });
@@ -31,6 +32,7 @@ describe('contract documents', () => {
       'heartbeat.json',
       'observation.json',
       'pairing-code.json',
+      'record-characters-request.json',
     ]);
   });
 

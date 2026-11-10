@@ -5,7 +5,7 @@ import { z } from 'zod';
 export const Id = z.string().min(1).max(64);
 export const IsoDateTime = z.iso.datetime();
 export const SemVer = z.string().regex(/^\d+\.\d+\.\d+$/);
-export const Screen = z.enum(['UNKNOWN', 'AUTOMAP_OPEN']);
+export const Screen = z.enum(['UNKNOWN', 'CHARACTER_SELECT', 'IN_GAME', 'AUTOMAP_OPEN']);
 export const Mode = z.enum(['pvp', 'leveling']);
 export const Difficulty = z.enum(['normal', 'nightmare', 'hell']);
 export const RoomStage = z.enum(['formed', 'awaiting_host', 'created', 'active', 'closed', 'expired']);

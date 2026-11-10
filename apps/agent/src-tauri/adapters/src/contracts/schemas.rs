@@ -93,6 +93,8 @@ pub const SCHEMAS: &[(&str, &str)] = &[
           "type": "string",
           "enum": [
             "UNKNOWN",
+            "CHARACTER_SELECT",
+            "IN_GAME",
             "AUTOMAP_OPEN"
           ]
         }
@@ -390,6 +392,88 @@ pub const SCHEMAS: &[(&str, &str)] = &[
   "required": [
     "type",
     "data"
+  ],
+  "additionalProperties": false
+}
+"##),
+    ("record-characters-request.json", r##"{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "characters": {
+      "minItems": 1,
+      "maxItems": 24,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 15,
+            "pattern": "^[A-Za-z]+(?:[-_][A-Za-z]+)?$"
+          },
+          "class": {
+            "type": "string",
+            "enum": [
+              "amazon",
+              "assassin",
+              "barbarian",
+              "druid",
+              "necromancer",
+              "paladin",
+              "sorceress",
+              "warlock"
+            ]
+          },
+          "level": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 99
+          },
+          "ladder": {
+            "type": "string",
+            "enum": [
+              "sc-ladder",
+              "sc-nonladder",
+              "hc-ladder",
+              "hc-nonladder"
+            ]
+          },
+          "era": {
+            "type": "string",
+            "enum": [
+              "classic",
+              "lod",
+              "rotw"
+            ]
+          },
+          "unlockedDifficulties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "normal",
+                "nightmare",
+                "hell"
+              ]
+            }
+          }
+        },
+        "required": [
+          "name",
+          "class",
+          "level",
+          "ladder",
+          "era",
+          "unlockedDifficulties"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "characters"
   ],
   "additionalProperties": false
 }

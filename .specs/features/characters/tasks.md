@@ -18,7 +18,7 @@ Rules for the worker:
 
 ## Batch 1 — no screenshots needed
 
-- [ ] T1 — Contracts of `design.md § Contracts` with unit tests (the name rule, level bounds, the three allowed
+- [x] T1 — Contracts of `design.md § Contracts` with unit tests (the name rule, level bounds, the three allowed
       difficulty lists, 1 to 24 unique names), the `characters.updated` site stream event; regenerate OpenAPI, AsyncAPI
       and the Rust types — gate:
       `pnpm --filter @d2rmm/contracts exec vitest run && pnpm contracts:openapi && (cd apps/agent/src-tauri && cargo run -q -p xtask -- contracts && cargo nextest run -p d2rmm-agent-adapters)`
