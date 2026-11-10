@@ -18,6 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { POSTGRES_URL_ENV } from './global-setup.ts';
+import { BNET_CLIENT_ID, BNET_CLIENT_SECRET, FakeBattleNet } from './fake-battle-net.ts';
 
 /** The repository root: this file is in tests/acceptance/support. */
 const repoRoot = path.resolve(fileURLToPath(new URL('../../..', import.meta.url)));
@@ -50,7 +51,12 @@ export interface Stack {
   readonly staging: Endpoint;
   /** The API with staging endpoints off (AWS-03). */
   readonly plain: Endpoint;
-  /** Resets both APIs: truncates the worker database and clears their memory stores and streams (AD-045). */
+  /** The fake Battle.net provider the staging API signs in with (IDB-01 to IDB-04). Scripted per scenario. */
+  readonly battleNet: FakeBattleNet;
+  /**
+   * Resets both APIs: truncates the worker database and clears their memory stores and streams (AD-045). Also clears the
+   * fake Battle.net provider's script and records.
+   */
   reset(): Promise<void>;
   /** Moves the controllable clock of both APIs forward by `ms`. */
   advanceClock(ms: number): Promise<void>;
@@ -188,11 +194,20 @@ interface ApiEnvInput {
   readonly staging: boolean;
   readonly controlSecret: string;
   readonly telemetry?: { readonly otlpEndpoint: string };
+  /** The Battle.net settings of the API: its client and the provider's base URL. Absent: Battle.net sign-in is off (IDB-06). */
+  readonly bnet?: { readonly baseUrl: string };
 }
 
 /** Builds the minimal environment of an API process; the telemetry variables are added only when the stack asks for them. */
 function apiEnv(input: ApiEnvInput): Record<string, string> {
   return {
+    ...(input.bnet === undefined
+      ? {}
+      : {
+          BNET_CLIENT_ID,
+          BNET_CLIENT_SECRET,
+          BNET_OAUTH_BASE_URL: input.bnet.baseUrl,
+        }),
     PATH: process.env['PATH'] ?? '',
     HOME: process.env['HOME'] ?? '',
     DATABASE_URL: input.databaseUrl,
@@ -321,6 +336,8 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
   const managed: Managed[] = [];
   const startedAt = Date.now();
   let advanced = 0;
+  // The fake Battle.net provider of this worker: it listens before the staging API starts, which is given its base URL.
+  const battleNet = new FakeBattleNet();
 
   const ports = {
     stagingApi: await freePort(),
@@ -339,6 +356,7 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
     apiEnv({ port, databaseUrl, site, staging, controlSecret });
 
   try {
+    await battleNet.start();
     // The staging API migrates the database first; the plain API starts after it, so the two never migrate at once.
     const staging = launch(
       'staging api',
@@ -346,7 +364,14 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
       ['--import', './src/main/instrument.ts', 'src/main/local.ts'],
       {
         cwd: path.join(repoRoot, 'apps', 'api'),
-        env: envOf(ports.stagingApi, true, origins.stagingSite),
+        env: apiEnv({
+          port: ports.stagingApi,
+          databaseUrl,
+          site: origins.stagingSite,
+          staging: true,
+          controlSecret,
+          bnet: { baseUrl: battleNet.baseUrl },
+        }),
       },
     );
     managed.push(staging);
@@ -386,6 +411,7 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
     }
   } catch (error) {
     await Promise.all(managed.map(stop));
+    await battleNet.stop();
     rmSync(stateDir, { recursive: true, force: true });
     throw error;
   }
@@ -404,7 +430,9 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
   return {
     staging: { api: origins.stagingApi, site: origins.stagingSite },
     plain: { api: origins.plainApi, site: origins.plainSite },
+    battleNet,
     async reset() {
+      battleNet.reset();
       for (const api of apis) {
         const answer = await controls(`${api}/__test/reset`);
         if (answer.status !== 204) {
@@ -432,6 +460,7 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
     },
     async close() {
       await Promise.all(managed.map(stop));
+      await battleNet.stop();
       rmSync(stateDir, { recursive: true, force: true });
     },
   };

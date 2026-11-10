@@ -51,6 +51,8 @@ export function SignInPanel({
     return (
       <section>
         <p>{t('signIn.signedInAs', { name: session.displayName })}</p>
+        {/* A refused Battle.net callback leaves the earlier session in place: the player still sees why (IDB-04). */}
+        {bnetFailed ? <p role="alert">{t('signIn.bnetFailed')}</p> : null}
         <button type="button" disabled={signingOut} onClick={() => void signOut()}>
           {t('signIn.signOut')}
         </button>

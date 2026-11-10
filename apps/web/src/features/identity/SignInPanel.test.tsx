@@ -88,6 +88,12 @@ describe('SignInPanel', () => {
     expect(screen.getByRole('link', { name: 'Sign in with Battle.net' })).toBeTruthy();
   });
 
+  it('still shows the Battle.net failure message to a visitor whose earlier session remains (IDB-04)', () => {
+    panel({ bnetSignIn: true, bnetFailed: true, session: me });
+    expect(screen.getByText('Signed in as PlayerOne')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toBe('Sign-in with Battle.net failed. Please try again.');
+  });
+
   it('signs out: posts the sign-out and reports the visitor signed out', async () => {
     const { fetch, calls } = routeFetch({ 'POST /api/v1/auth/logout': () => jsonResponse(204) });
     const onSignedOut = vi.fn();
