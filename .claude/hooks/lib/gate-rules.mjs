@@ -9,7 +9,7 @@ import { checkBackgroundReview, noteDispatch } from './verdicts.mjs';
 import { allowedShape, deliveryDecision, mergesAfterMainSwitch } from './delivery.mjs';
 import { guardDecision } from './guard.mjs';
 import { sessionId } from '../../../scripts/lib/budget.mjs';
-import { checkBudget, countDenial, GIT_DIR_CD, isPackageScopeOnly, LEDGER_REF } from './budget-rules.mjs';
+import { checkBudget, countDenial, namesLedger } from './budget-rules.mjs';
 import { indirections, MAX_DEPTH, SHELL, splitShell } from './shell-indirection.mjs';
 import { parseLine } from './shell-parse.mjs';
 import { readOnlyDecision } from './read-only.mjs';
@@ -271,7 +271,7 @@ function writesUnreadablePath(text, lang) {
  */
 function checkInlineCode(code, ctx, lang) {
   const text = String(code ?? '');
-  if ((LEDGER_REF.test(text) && !isPackageScopeOnly(text)) || GIT_DIR_CD.test(text)) {
+  if (namesLedger(text)) {
     return deny(
       'This code names the retry ledger or the security verdicts, or enters .git: only the hooks and scripts/attempt.mjs touch those.',
     );
@@ -488,7 +488,7 @@ export function checkBash(command, ctx, depth = 0, input = undefined) {
   if (depth > MAX_DEPTH) {
     return ask('This command nests shells too deep to check what runs. Run the inner command directly.');
   }
-  if ((LEDGER_REF.test(cmd) && !isPackageScopeOnly(cmd)) || GIT_DIR_CD.test(cmd)) {
+  if (namesLedger(cmd)) {
     return deny(
       'The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git.',
     );

@@ -45,6 +45,15 @@ export function isPackageScopeOnly(command) {
   const scopes = cmd.match(PACKAGE_SCOPE)?.length ?? 0;
   return scopes > 0 && scopes === cmd.split('d2rmm/').length - 1 && !LEDGER_NAME.test(cmd);
 }
+/**
+ * T22 (review-diff BLOCKER): whether a command line names the retry ledger or the verdicts, or enters .git. Every package
+ * scope is removed from the text first, so a scope exempts only itself and never lifts a ledger reference elsewhere in
+ * the line.
+ */
+export function namesLedger(command) {
+  const rest = String(command ?? '').replace(PACKAGE_SCOPE, ' ');
+  return LEDGER_REF.test(rest) || GIT_DIR_CD.test(rest);
+}
 // GPR-14: a sensor's help or version call, alone on the line, is not a gate run (direct, or through pnpm exec / npx).
 const SENSOR_HELP =
   /^(?:(?:pnpm\s+exec|npx)\s+)?(?:vitest|jest|playwright|stryker|eslint|tsc|depcruise|cargo\s+(?:nextest|clippy|mutants))\s+(?:--help|-h|--version|--list)$/;
@@ -258,8 +267,7 @@ export function checkBudget(input, ctx, sid, rel) {
   ) {
     return deny('Files under .git/ (including the retry ledger and the verdicts) are off-limits.');
   }
-  const ledgerRef = LEDGER_REF.test(cmd) && !isPackageScopeOnly(cmd);
-  if (tool === 'Bash' && (ledgerRef || GIT_DIR_CD.test(cmd))) {
+  if (tool === 'Bash' && namesLedger(cmd)) {
     return deny(
       'The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git.',
     );

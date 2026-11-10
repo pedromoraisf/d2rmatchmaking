@@ -792,3 +792,23 @@ test('hands over the corrected command', () => {
   const outside = call('Bash', { command: 'pnpm test' }, ctx);
   assert.ok(outside.reason.includes('--feature <feature> --step <step> -- "pnpm test"'), outside.reason);
 });
+
+// T22 (review-diff BLOCKER): a package scope exempts only itself. A ledger reference or a .git entry elsewhere in the line
+// is still denied, and a line whose only d2rmm text is a package scope gets no ledger deny.
+test('a package scope does not lift the ledger deny elsewhere in the line', () => {
+  const ctx = ctxFor({ approved: false });
+  for (const command of [
+    'mv .git/d2rmm /tmp/x; echo @d2rmm/api',
+    'cp -r .git/d2rmm /tmp/x; echo @d2rmm/api',
+    'ls .git/d2rmm; echo @d2rmm/api',
+  ]) {
+    assert.equal(call('Bash', { command }, ctx)?.decision, 'deny', command);
+  }
+  for (const command of [
+    'pnpm --filter @d2rmm/api list',
+    'pnpm --filter @d2rmm/api list && pnpm --filter @d2rmm/web list',
+  ]) {
+    const reason = call('Bash', { command }, ctx)?.reason ?? '';
+    assert.ok(!reason.includes('retry ledger'), `${command}: ${reason}`);
+  }
+});

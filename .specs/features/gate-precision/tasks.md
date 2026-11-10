@@ -592,9 +592,9 @@ T15 → T19 → T20 → T21 → T16 → T22
 
 **Done when**:
 
-- [ ] A test named `a package scope does not lift the ledger deny elsewhere in the line` denies these three lines: `mv .git/d2rmm /tmp/x; echo @d2rmm/api`, `cp -r .git/d2rmm /tmp/x; echo @d2rmm/api` and `ls .git/d2rmm; echo @d2rmm/api`. It gets no ledger deny for `pnpm --filter @d2rmm/api list` or for `pnpm --filter @d2rmm/api list && pnpm --filter @d2rmm/web list`.
-- [ ] Every existing test of `budget-rules.test.mjs` passes unchanged, including GPR-33's.
-- [ ] The gate passes.
+- [x] A test named `a package scope does not lift the ledger deny elsewhere in the line` denies these three lines: `mv .git/d2rmm /tmp/x; echo @d2rmm/api`, `cp -r .git/d2rmm /tmp/x; echo @d2rmm/api` and `ls .git/d2rmm; echo @d2rmm/api`. It gets no ledger deny for `pnpm --filter @d2rmm/api list` or for `pnpm --filter @d2rmm/api list && pnpm --filter @d2rmm/web list`.
+- [x] Every existing test of `budget-rules.test.mjs` passes unchanged, including GPR-33's.
+- [x] The gate passes.
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs`
