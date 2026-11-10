@@ -23,6 +23,10 @@ being true.
   playwright-bdd runs with `missingSteps: 'fail-on-gen'`, so a spec committed to `phase/F1` before its steps would
   fail generation in every other PR's acceptance run (found before the first F1 dispatch).
 
+- **In a fresh worktree, build the agent window once (`pnpm --filter @d2rmm/agent build`) before pushing.** Why: the
+  pre-push `cargo clippy` needs `apps/agent/dist` (Tauri `frontendDist`) and fails without it, which looks like a code
+  failure (characters, Batch 1).
+
 ## Tests
 
 - **No tight wall-clock limits in unit tests.** The maintainer's machine has 8 GB and runs the suites in parallel; a test
