@@ -45,7 +45,7 @@ Rules for the worker:
       `post_characters` with its HTTP adapter, span `agent.vision.read-characters` without names; unit tests with
       fakes for CHR-01, CHR-02 and the posting rule — gate:
       `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-core --lib && cargo nextest run -p d2rmm-agent-adapters`
-- [ ] T7 — Agent window and app crate: consent stored in the local settings file, Tauri commands `get_consent` /
+- [x] T7 — Agent window and app crate: consent stored in the local settings file, Tauri commands `get_consent` /
       `set_consent`, `ConsentView` (en + pt-BR, keyboard), and `src/adapters/window_capture.rs` (`PrintWindow` with
       `PW_RENDERFULLCONTENT` on the D2R process's top-level window, client area only, `None` when minimized or not
       found) with unit tests on the pure parts (client-area rectangle, BGRA → RGBA) — gate:

@@ -25,10 +25,21 @@ const WINDOWS_FEATURE_ALLOW_LIST = [
   'Globalization',
   'Foundation',
   'Storage_Streams',
+  // The window capture (CHR-03): GDI for the client bitmap, PrintWindow (Storage::Xps) and the window lookup.
+  'Win32_Graphics_Gdi',
+  'Win32_Storage_Xps',
+  'Win32_UI_WindowsAndMessaging',
 ];
 
-// The only two files that may allow unsafe_code, each with the windows:: paths it may name.
+// The only three files that may allow unsafe_code, each with the windows:: paths it may name.
 const UNSAFE_ADAPTERS = {
+  'src/adapters/window_capture.rs': [
+    'Win32::Foundation',
+    'Win32::Graphics::Gdi',
+    'Win32::Storage::Xps',
+    'Win32::UI::WindowsAndMessaging',
+    'core::BOOL',
+  ],
   'src/adapters/toolhelp.rs': [
     'CreateToolhelp32Snapshot',
     'Process32FirstW',
@@ -102,7 +113,7 @@ const windowsFeatureViolations = (base) => {
 const unsafeLocationViolations = (base) =>
   rustFiles(base)
     .filter(({ rel, text }) => /allow\(\s*unsafe_code\s*\)/.test(text) && !(rel in UNSAFE_ADAPTERS))
-    .map(({ rel }) => `${rel} allows unsafe_code outside the two adapters`);
+    .map(({ rel }) => `${rel} allows unsafe_code outside the three adapters`);
 
 const adapterPathViolations = (base) =>
   Object.entries(UNSAFE_ADAPTERS).flatMap(([rel, allowed]) => {
@@ -136,7 +147,7 @@ test('windows features stay on the allow-list', () => {
   assert.deepEqual(windowsFeatureViolations(root), []);
 });
 
-test('unsafe is allowed only in the two adapters', () => {
+test('unsafe is allowed only in the three adapters', () => {
   assert.deepEqual(unsafeLocationViolations(root), []);
 });
 
@@ -190,7 +201,7 @@ test('the windows feature rule rejects a feature off the list', () => {
 test('the unsafe location rule rejects an allow outside the adapters', () => {
   assert.match(
     unsafeLocationViolations(fixtureBase('unsafe-outside-adapters')).join('\n'),
-    /src\/adapters\/http\.rs allows unsafe_code outside the two adapters/,
+    /src\/adapters\/http\.rs allows unsafe_code outside the three adapters/,
   );
 });
 

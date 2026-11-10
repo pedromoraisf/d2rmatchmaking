@@ -2,6 +2,14 @@
 //! and ids) behind `#[cfg(windows)]`, since the agent ships for Windows alone (PRD). The HTTP stack lives in the adapters
 //! crate (`d2rmm-agent-adapters`).
 
+// The consent file and the window capture are compiled where the app uses them and in the tests (the pure parts run on
+// every platform); the Win32 calls are cfg(windows) inside the capture.
+#[cfg(any(windows, test))]
+pub mod consent_store;
+
+#[cfg(any(windows, test))]
+pub mod window_capture;
+
 #[cfg(windows)]
 pub mod system;
 

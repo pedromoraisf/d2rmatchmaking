@@ -14,7 +14,7 @@ use crate::groups::{Groups, ReadPorts};
 use crate::pair::{self, Command};
 use crate::ports::{ApiGateway, Rgba, StateSink, TokenStore};
 use crate::post_observation;
-use crate::{beat, check_update, follow_stream, read_frame};
+use crate::{beat, check_update, follow_stream, read_frame, watch_screen};
 
 const COMMAND_BUFFER: usize = 8;
 
@@ -60,12 +60,14 @@ fn spawn<G: ApiGateway + Send + Sync + 'static>(
         stream,
         update,
         read,
+        screen,
     } = groups;
     let (commands, receiver) = mpsc::channel(COMMAND_BUFFER);
     tokio::spawn(pair::run(Arc::clone(&device), pairing, receiver));
     tokio::spawn(beat::run(Arc::clone(&device), heartbeat, version));
     tokio::spawn(follow_stream::run(Arc::clone(&device), stream));
     tokio::spawn(check_update::run(Arc::clone(&device), update));
+    tokio::spawn(watch_screen::run(Arc::clone(&device), screen));
     Handle {
         device,
         read: Arc::new(read),
@@ -168,11 +170,15 @@ mod tests {
 
     use super::Probe;
     use crate::device_state::DeviceState;
-    use crate::fakes::{FakeApiGateway, MemoryTokens, NoProcesses, NoText, NoUpdates, NullSink};
+    use crate::fakes::{
+        FakeApiGateway, MemoryTokens, NoConsent, NoFrameReader, NoFrames, NoProcesses, NoText,
+        NoUpdates, NullSink,
+    };
     use crate::groups::{
         Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
     };
     use crate::ports::{SequentialIds, TokenStore, WallClock};
+    use crate::watch_screen::ScreenPorts;
 
     use chrono::{DateTime, Utc};
 
@@ -245,6 +251,14 @@ mod tests {
                 clock,
                 gateway: Arc::clone(&gateway),
                 tokens: tokens.clone(),
+            },
+            screen: ScreenPorts {
+                gateway: Arc::clone(&gateway),
+                tokens: tokens.clone(),
+                processes: Arc::new(NoProcesses),
+                frames: Arc::new(NoFrames),
+                reader: Arc::new(NoFrameReader),
+                consent: Arc::new(NoConsent),
             },
         };
         let device = DeviceState::new(Arc::new(NullSink));

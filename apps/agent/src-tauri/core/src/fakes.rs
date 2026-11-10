@@ -14,10 +14,11 @@ use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::{ReadText, Region};
 
 use crate::check_update::Updater;
-use crate::messages::{GameNameObservation, IssuedCode, Presence};
+use crate::messages::{FrameReading, GameNameObservation, IssuedCode, Presence, Screen};
 use crate::ports::{
-    ApiError, ApiGateway, EndReason, EventStream, ProcessSource, ReadError, Rgba, StateSink,
-    StoreError, StreamItem, TextReader, TokenStore, UpdateOutcome,
+    ApiError, ApiGateway, ConsentStore, EndReason, EventStream, FrameReader, FrameSource,
+    ProcessSource, ReadError, Rgba, StateSink, StoreError, StreamItem, TextReader, TokenStore,
+    UpdateOutcome,
 };
 use crate::secret::Secret;
 use crate::view::AgentView;
@@ -299,6 +300,40 @@ pub struct NoText;
 impl TextReader for NoText {
     fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
         Err(ReadError::EngineUnavailable)
+    }
+}
+
+/// A frame source with no game window: every capture finds nothing.
+pub struct NoFrames;
+
+impl FrameSource for NoFrames {
+    fn capture(&self) -> Option<Rgba> {
+        None
+    }
+}
+
+/// A consent store where the player never consented; saving is refused without a store.
+pub struct NoConsent;
+
+impl ConsentStore for NoConsent {
+    fn load(&self) -> bool {
+        false
+    }
+
+    fn save(&self, _consent: bool) -> Result<(), StoreError> {
+        Err(StoreError)
+    }
+}
+
+/// A frame reader that places every frame on no screen and reads no card.
+pub struct NoFrameReader;
+
+impl FrameReader for NoFrameReader {
+    fn read(&self, _frame: &Rgba) -> FrameReading {
+        FrameReading {
+            screen: Screen::Unknown,
+            cards: Vec::new(),
+        }
     }
 }
 
