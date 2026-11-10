@@ -2,6 +2,8 @@
 
 **Approved**: 2026-11-09 - user: "aprovo specs e tasks da F0 que passarem nos gates automáticos; delego sub-agents, harness-edits e local-merge-phase-branch" (delegated via .specs/phases/F0/brief.md)
 
+**Amended by the runner** (assumed, AD-174; to confirm at the phase review): 2026-11-09. Execute found that the wrapper accepts only `spec`, `design`, `tasks`, `proofs`, `verification`, `integration` and task IDs as steps. `fix` is a commit-trailer step only. FPR-09 is appended so the step FPR-07 names exists. No other criterion is edited.
+
 ## Problem Statement
 
 In F0, `check_proofs` ran 65 times for 8.9 hours. Each run re-proves every check of a feature, and with `--mutations`
@@ -71,6 +73,7 @@ harness").
 
 1. FPR-07: The Verify step of `.claude/skills/d2rmm-phase-runner/SKILL.md` SHALL say that the fix loop runs `proofs-preflight.mjs` through the wrapper as step `fix`, that `check_proofs.py` runs as step `proofs` once, when the preflight is green, and that it runs a second time only if that run fails
 2. FPR-08: WHEN `pnpm test:harness` runs on the feature's head THEN it SHALL pass with no test removed or skipped, and `check_proofs.py` SHALL be unchanged
+3. FPR-09: `node scripts/attempt.mjs run --feature <f> --step fix -- "<cmd>"` SHALL be accepted, and SHALL run and count under its own unit `gate:<f>/fix`
 
 **Independent Test**: read the skill's Verify step; run the harness suite.
 
@@ -96,18 +99,19 @@ harness").
 | FPR-06         | P1: The preflight reruns only what changed | Tasks | Pending |
 | FPR-07         | P1: The fix loop uses the preflight        | Tasks | Pending |
 | FPR-08         | P1: The fix loop uses the preflight        | Tasks | Pending |
+| FPR-09         | P1: The fix loop uses the preflight        | Tasks | Pending |
 
 **ID format:** `[CATEGORY]-[NUMBER]`
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
 
-**Coverage:** 8 total, 8 mapped to tasks, 0 unmapped
+**Coverage:** 9 total, 9 mapped to tasks, 0 unmapped
 
 ---
 
 ## Sources
 
-- `.specs/phases/F0/brief-revision-6.md` § 1 (proof reruns: 65 runs, 8.9 h) and § 3 (fast-proofs) (FPR-01 to FPR-07)
+- `.specs/phases/F0/brief-revision-6.md` § 1 (proof reruns: 65 runs, 8.9 h) and § 3 (fast-proofs) (FPR-01 to FPR-07, FPR-09)
 - ADR 022 - the retry budget the preflight runs under (FPR-05, FPR-07)
 - ADR 023 - acceptance scenarios (FPR-07)
 - `docs/product/prd.md#NFR-11` - harness verified in CI (FPR-08)

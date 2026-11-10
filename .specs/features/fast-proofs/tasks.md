@@ -46,7 +46,7 @@ Rules of this feature:
 ### Phase 1: The preflight and the guide
 
 ```
-T1 → T2
+T1 → T3 → T2
 ```
 
 ---
@@ -88,11 +88,33 @@ Export the pure parts (`parseChecks`, `proofKey`) for the unit test. Run `main` 
 
 ---
 
+### T3: The wrapper accepts step `fix`
+
+**What**: `allowedSteps` in `scripts/lib/steps.mjs` also accepts `fix`. `FIXED_STEPS` in `budget.mjs` stays unchanged, because `trailers.mjs` already adds `fix` for commit trailers. A run with `--step fix` counts under its own unit `gate:<f>/fix`, with the usual 1 attempt + 2 retries. If `attempt.mjs`'s usage message lists the steps, it names `fix` too. This task runs before T2, whose guide names this step. It runs after `phase/F0`, with `budget-v2`, is merged into this branch.
+**Where**: `scripts/lib/steps.mjs` (modify), `scripts/test/attempt-cli.test.mjs` (new test), `scripts/attempt.mjs` (usage text only, if it lists the steps)
+**Depends on**: T1
+**Reuses**: the CLI harness of `attempt-cli.test.mjs`
+**Requirement**: FPR-09
+
+**Done when**:
+
+- [ ] A test named `the wrapper accepts step fix and counts it on its own unit` runs `attempt.mjs run --feature f --step fix -- "<a passing command>"` and sees exit 0 and a unit `gate:f/fix` in the ledger. A failing command counts on `gate:f/fix` and not on `gate:f/proofs`.
+- [ ] An unknown step (`--step nope`) is still refused.
+- [ ] Every existing test of `attempt-cli.test.mjs` passes unchanged.
+- [ ] The gate passes.
+
+**Tests**: unit
+**Gate**: `node --test scripts/test/attempt-cli.test.mjs`
+
+**Commit**: `feat(harness): accept step fix in the attempt wrapper`
+
+---
+
 ### T2: The runner's guide uses the preflight
 
 **What**: In `.claude/skills/d2rmm-phase-runner/SKILL.md` § 6 Verify, the fix loop runs `node scripts/attempt.mjs run --feature <f> --step fix -- "node scripts/proofs-preflight.mjs <f>"`. `check_proofs.py` (with `--mutations` when the feature runs mutations) runs as step `proofs` once, when the preflight is green, and runs a second time only if that run fails. Add the steps of the scenario "The runner's guide puts the preflight in the fix loop" to `tests/acceptance/steps/fast-proofs.steps.ts`. They are black-box steps that read the file, in the style of `tests/acceptance/steps/ci-fast-path.steps.ts`.
 **Where**: `.claude/skills/d2rmm-phase-runner/SKILL.md` (modify § 6 only), `tests/acceptance/steps/fast-proofs.steps.ts` (new)
-**Depends on**: T1
+**Depends on**: T3
 **Reuses**: the file-reading steps of `ci-fast-path.steps.ts`
 **Requirement**: FPR-07, FPR-08
 
@@ -121,14 +143,26 @@ Proof: `pnpm exec turbo run test:acceptance -- --grep @FPR-07`
 **C3** - The harness suite passes with nothing removed or skipped (FPR-08)
 Proof: `pnpm test:harness`
 
+**C4** - The wrapper accepts step `fix` and counts it on its own unit (FPR-09)
+Proof: `node --test --test-name-pattern "the wrapper accepts step fix" scripts/test/attempt-cli.test.mjs`
+
 ---
 
 ## Handoff
 
 The feature's live state, written as it happens - a compaction gives no warning.
 
-**Settled mid-build:** none
-**Dispatched:** none
+**Settled mid-build:**
+
+- T1 `5c349e6` (5 of 5). T2 stopped because the wrapper refuses `--step fix`: `fix` is a trailer step only. The spec was amended with FPR-09 (AD-174), and T3 adds the step before T2.
+- Design choices T1 made, for the phase review:
+  - the cache folder is left out of the key;
+  - only `## Checks` is read;
+  - a feature with no proof exits 1;
+  - a failed run drops that key's green entry;
+  - a `tasks.md` edit changes the keys, because it is a changed file.
+
+**Dispatched:** execute-batch-1 (T1, T2) to `feature-worker`, returned with T2 stopped. execute-batch-2 (T3, T2) after `phase/F0`, with `budget-v2`, is merged in.
 **Walked:** none
 
 ---
@@ -136,7 +170,7 @@ The feature's live state, written as it happens - a compaction gives no warning.
 ## Phase Execution Map
 
 ```
-Phase 1:  T1 → T2
+Phase 1:  T1 → T3 → T2
 ```
 
-Batches: `execute-batch-1` runs phase 1 (T1, T2).
+Batches: `execute-batch-1` runs T1 (and stopped at T2); `execute-batch-2` runs T3, then T2.

@@ -12,6 +12,7 @@ Feature: The fix loop reruns only the proofs that changed
   # not-scenario: FPR-05 — the exit code; proved by the same unit test file
   # not-scenario: FPR-06 — a missing cache or a git error runs everything; proved by the same unit test file
   # not-scenario: FPR-08 — proved by the gate `pnpm test:harness` on the feature's head
+  # not-scenario: FPR-09 — which steps the wrapper accepts is a rule of `scripts/lib/steps.mjs`; proved by the wrapper's unit test `scripts/test/attempt-cli.test.mjs`
 
   @FPR-07 @NFR-11
   Scenario: The runner's guide puts the preflight in the fix loop
