@@ -10,7 +10,7 @@ import { App } from './App.tsx';
 
 afterEach(cleanup);
 
-const config = { stagingEndpoints: true, minAgentVersion: '0.0.1' };
+const config = { stagingEndpoints: true, minAgentVersion: '0.0.1', bnetSignIn: false };
 const player = { accountId: 'acc-1', displayName: 'PlayerOne' };
 const pairedAgent = {
   status: 'paired',

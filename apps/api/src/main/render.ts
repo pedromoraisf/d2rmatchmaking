@@ -46,6 +46,7 @@ async function main(): Promise<void> {
       minAgentVersion: config.agentMinVersion,
       siteOrigin: config.siteOrigin,
       trustProxyHops: config.trustProxyHops,
+      bnet: config.bnet,
     },
     clock,
     scheduler: new ClockScheduler(clock),

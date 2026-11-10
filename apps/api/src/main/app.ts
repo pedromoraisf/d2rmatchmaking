@@ -40,7 +40,10 @@ import { PostgresAccountRepository } from '../modules/identity/adapters/postgres
 import { PostgresSessionRepository } from '../modules/identity/adapters/postgres/postgres-session-repository.ts';
 import { Sha256SecretHasher } from '../modules/identity/adapters/postgres/sha256-secret-hasher.ts';
 import type { IdentityDatabase } from '../modules/identity/adapters/postgres/schema.ts';
+import { FetchBattleNetOAuth } from '../modules/identity/adapters/bnet/fetch-battle-net-oauth.ts';
+import { UnconfiguredBattleNetOAuth } from '../modules/identity/adapters/bnet/unconfigured-battle-net-oauth.ts';
 import { createIdentityUseCases } from '../modules/identity/application/identity-use-cases.ts';
+import type { BnetSettings } from './config.ts';
 import { atMostOnePerMinute } from '../platform/error-log.ts';
 import { InMemoryEventBus } from '../platform/event-bus.ts';
 import { answerError } from '../platform/http/answer-error.ts';
@@ -91,6 +94,8 @@ export interface AppConfig {
   readonly minAgentVersion: string;
   readonly siteOrigin: string;
   readonly trustProxyHops: number;
+  /** Battle.net sign-in settings (`BNET_*`, main/config.ts). Undefined: the login and callback routes answer 404. */
+  readonly bnet?: BnetSettings | undefined;
 }
 
 export interface AppDeps {
@@ -161,6 +166,16 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     tokenCache: new MemoryAgentTokenCache(),
   };
   const hasher = new Sha256SecretHasher();
+  // Battle.net is reached only when both client settings are configured; the routes answer 404 otherwise (IDB-06).
+  const battleNet =
+    config.bnet === undefined
+      ? new UnconfiguredBattleNetOAuth()
+      : new FetchBattleNetOAuth({
+          baseUrl: config.bnet.baseUrl,
+          clientId: config.bnet.clientId,
+          clientSecret: config.bnet.clientSecret,
+          fetch: (url, init) => fetch(url, init),
+        });
 
   const identity = createIdentityUseCases({
     accounts: new PostgresAccountRepository(db as unknown as Kysely<IdentityDatabase>, clock),
@@ -169,6 +184,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     clock,
     random,
     ids,
+    battleNet,
   });
   const agents = createAgentsUseCases({
     agents: new PostgresAgentRepository(db as unknown as Kysely<AgentsDatabase>, clock),
@@ -274,8 +290,16 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   typed.get('/v1/config', { schema: { response: { 200: ConfigResponse } } }, () => ({
     stagingEndpoints: config.stagingEndpoints,
     minAgentVersion: config.minAgentVersion,
+    bnetSignIn: config.bnet !== undefined,
   }));
-  identityRoutes(app, { useCases: identity, guards, stagingEndpoints: config.stagingEndpoints });
+  identityRoutes(app, {
+    useCases: identity,
+    guards,
+    stagingEndpoints: config.stagingEndpoints,
+    bnet: { enabled: config.bnet !== undefined, oauth: battleNet, siteOrigin: config.siteOrigin },
+    clock,
+    random,
+  });
   agentsRoutes(app, { useCases: agents, guards });
   lobbyRoomRoutes(app, { useCases: lobby, guards });
   matchmakingRoutes(app, { useCases: matchmaking, guards, stagingEndpoints: config.stagingEndpoints });

@@ -42,6 +42,7 @@ export async function startLocal(config: Config): Promise<LocalServer> {
         minAgentVersion: config.agentMinVersion,
         siteOrigin: config.siteOrigin,
         trustProxyHops: config.trustProxyHops,
+        bnet: config.bnet,
       },
       clock,
       scheduler: new ClockScheduler(clock),

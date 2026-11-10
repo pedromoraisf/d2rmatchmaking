@@ -16,9 +16,9 @@ export interface OAuthAttempt {
 
 /** The query parameters Battle.net sends back to the callback. Every one is optional: the callback checks them. */
 export interface CallbackQuery {
-  readonly code?: string;
-  readonly state?: string;
-  readonly error?: string;
+  readonly code?: string | undefined;
+  readonly state?: string | undefined;
+  readonly error?: string | undefined;
 }
 
 export type CallbackFailure = 'missing-state' | 'state-mismatch' | 'state-expired' | 'provider-error';

@@ -32,13 +32,18 @@ describe('the outbox migrations', () => {
       '0001_skeleton',
       '0002_outbox_trace_context',
       '0003_room_trace_context',
+      '0004_account_bnet_sub',
     ]);
     expect(await traceContextColumn()).toEqual({ data_type: 'text', is_nullable: 'YES' });
 
     await migrateTo(db, '0001_skeleton');
     expect(await traceContextColumn()).toBeUndefined();
 
-    expect(await migrateToLatest(db)).toEqual(['0002_outbox_trace_context', '0003_room_trace_context']);
+    expect(await migrateToLatest(db)).toEqual([
+      '0002_outbox_trace_context',
+      '0003_room_trace_context',
+      '0004_account_bnet_sub',
+    ]);
     expect(await traceContextColumn()).toEqual({ data_type: 'text', is_nullable: 'YES' });
   });
 });

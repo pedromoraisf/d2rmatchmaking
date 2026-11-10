@@ -84,7 +84,7 @@ describe('buildApp', () => {
     const response = await app.app.inject({ method: 'GET', url: '/v1/config' });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ stagingEndpoints: false, minAgentVersion: '1.2.3' });
+    expect(response.json()).toEqual({ stagingEndpoints: false, minAgentVersion: '1.2.3', bnetSignIn: false });
   });
 
   it('with stagingEndpoints false the test-login and match-formed routes answer 404', async () => {

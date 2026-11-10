@@ -25,13 +25,22 @@ describe('MeResponse', () => {
 });
 
 describe('ConfigResponse', () => {
-  it('accepts the feature flags and the minimum agent version', () => {
-    const config = { stagingEndpoints: true, minAgentVersion: '0.0.1' };
+  it('accepts the feature flags, the minimum agent version and the Battle.net sign-in flag', () => {
+    const config = { stagingEndpoints: true, minAgentVersion: '0.0.1', bnetSignIn: true };
     expect(ConfigResponse.parse(config)).toStrictEqual(config);
   });
 
   it('rejects a minimum agent version that is not semantic', () => {
-    expect(ConfigResponse.safeParse({ stagingEndpoints: false, minAgentVersion: '1.0' }).success).toBe(false);
+    expect(
+      ConfigResponse.safeParse({ stagingEndpoints: false, minAgentVersion: '1.0', bnetSignIn: false })
+        .success,
+    ).toBe(false);
+  });
+
+  it('rejects a config that does not say whether Battle.net sign-in is offered', () => {
+    expect(ConfigResponse.safeParse({ stagingEndpoints: false, minAgentVersion: '1.0.0' }).success).toBe(
+      false,
+    );
   });
 });
 

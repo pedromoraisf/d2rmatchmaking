@@ -13,6 +13,9 @@ const ROUTES: readonly { readonly method: 'get' | 'post'; readonly url: string; 
   { method: 'get', url: '/healthz', path: '/healthz' },
   { method: 'get', url: '/v1/config', path: '/v1/config' },
   { method: 'post', url: '/v1/auth/test-login', path: '/v1/auth/test-login' },
+  { method: 'get', url: '/v1/auth/bnet/login', path: '/v1/auth/bnet/login' },
+  { method: 'get', url: '/v1/auth/bnet/callback', path: '/v1/auth/bnet/callback' },
+  { method: 'post', url: '/v1/auth/logout', path: '/v1/auth/logout' },
   { method: 'get', url: '/v1/me', path: '/v1/me' },
   { method: 'post', url: '/v1/agents/pairing-codes', path: '/v1/agents/pairing-codes' },
   { method: 'post', url: '/v1/agents/pairing-codes/claim', path: '/v1/agents/pairing-codes/claim' },
@@ -85,6 +88,13 @@ describe('openapi document', () => {
     expect(observation?.requestBody).toBeDefined();
     expect(Object.keys(observation?.responses ?? {}).sort()).toStrictEqual(['202', '400', '401', '403']);
     expect(document.paths['/v1/agents/heartbeat']?.['post']?.requestBody).toBeDefined();
+    // Sign-out declares no body (an unauthenticated request must answer 401 before any body is checked).
+    expect(document.paths['/v1/auth/logout']?.['post']?.requestBody).toBeUndefined();
+    expect(Object.keys(document.paths['/v1/auth/logout']?.['post']?.responses ?? {}).sort()).toStrictEqual([
+      '204',
+      '401',
+      '403',
+    ]);
     expect(
       Object.keys(document.paths['/v1/agents/pairing-codes/claim']?.['post']?.responses ?? {}).sort(),
     ).toStrictEqual(['200', '202', '410']);

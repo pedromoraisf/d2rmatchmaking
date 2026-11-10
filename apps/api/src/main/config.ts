@@ -28,6 +28,17 @@ export interface Config {
   /** `TEST_CONTROL_SECRET`, the header value the test controls require. */
   readonly testControlSecret: string | undefined;
   readonly telemetry: TelemetryConfig;
+  /** Battle.net sign-in settings: defined only when both `BNET_CLIENT_ID` and `BNET_CLIENT_SECRET` are set (IDB-06). */
+  readonly bnet: BnetSettings | undefined;
+}
+
+export interface BnetSettings {
+  /** `BNET_CLIENT_ID`. */
+  readonly clientId: string;
+  /** `BNET_CLIENT_SECRET`: never echoed, logged or put in an error body. */
+  readonly clientSecret: string;
+  /** `BNET_OAUTH_BASE_URL`, default `https://oauth.battle.net`: https, or http on a loopback host, with no user info. */
+  readonly baseUrl: string;
 }
 
 export interface TelemetryConfig {
@@ -45,6 +56,7 @@ type Environment = Readonly<Record<string, string | undefined>>;
 
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '[::1]']);
 const DEFAULT_SAMPLER_ARG = '0.1';
+const DEFAULT_BNET_OAUTH_BASE_URL = 'https://oauth.battle.net';
 
 function flag(name: string, raw: string | undefined): boolean {
   if (raw === undefined || raw === 'false') {
@@ -72,10 +84,16 @@ function endpointOf(raw: string | undefined): string | undefined {
   if (raw === undefined || raw === '') {
     return undefined;
   }
+  return secureUrlOf('OTEL_EXPORTER_OTLP_ENDPOINT', raw);
+}
+
+/**
+ * The URL `name` holds, when it is https or http on a loopback host with no user info; otherwise a refusal that names
+ * the setting and never the value (the value may carry credentials).
+ */
+function secureUrlOf(name: string, raw: string): string {
   const refuse = (): never => {
-    throw new Error(
-      'OTEL_EXPORTER_OTLP_ENDPOINT must be https, or http on a loopback host, with no user info',
-    );
+    throw new Error(`${name} must be https, or http on a loopback host, with no user info`);
   };
   let url: URL;
   try {
@@ -91,6 +109,23 @@ function endpointOf(raw: string | undefined): string | undefined {
     return refuse();
   }
   return raw;
+}
+
+/** `BNET_OAUTH_BASE_URL`: the default when unset or empty; otherwise the same rule as the OTLP endpoint. */
+function bnetBaseUrlOf(raw: string | undefined): string {
+  return raw === undefined || raw === ''
+    ? DEFAULT_BNET_OAUTH_BASE_URL
+    : secureUrlOf('BNET_OAUTH_BASE_URL', raw);
+}
+
+/** The Battle.net settings, or undefined unless both the client id and the client secret are set (IDB-06). */
+function bnetOf(env: Environment, baseUrl: string): BnetSettings | undefined {
+  const clientId = env['BNET_CLIENT_ID'];
+  const clientSecret = env['BNET_CLIENT_SECRET'];
+  if (clientId === undefined || clientId === '' || clientSecret === undefined || clientSecret === '') {
+    return undefined;
+  }
+  return { clientId, clientSecret, baseUrl };
 }
 
 /** `key=value` pairs separated by commas, values percent-decoded (the OpenTelemetry environment format). */
@@ -141,7 +176,9 @@ export function loadConfig(env: Environment = process.env): Config {
   }
   const databaseUrl = env['DATABASE_URL'];
   const acceptanceRaw = env['D2RMM_ACCEPTANCE'];
+  const bnetBaseUrl = bnetBaseUrlOf(env['BNET_OAUTH_BASE_URL']);
   return {
+    bnet: bnetOf(env, bnetBaseUrl),
     databaseUrl: databaseUrl === '' ? undefined : databaseUrl,
     port: integer('PORT', env['PORT'], 8787, 0),
     host: env['HOST'] ?? '127.0.0.1',

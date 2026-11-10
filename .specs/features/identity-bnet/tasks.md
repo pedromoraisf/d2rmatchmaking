@@ -40,7 +40,7 @@ Rules for the worker:
       for success, non-2xx, malformed JSON and network error, asserting no secret, code or token in any returned error
       or thrown message (IDB-11) — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/modules/identity/adapters/bnet`
-- [ ] T5 — Config and routes: `BNET_CLIENT_ID`, `BNET_CLIENT_SECRET`, `BNET_OAUTH_BASE_URL` (default
+- [x] T5 — Config and routes: `BNET_CLIENT_ID`, `BNET_CLIENT_SECRET`, `BNET_OAUTH_BASE_URL` (default
       `https://oauth.battle.net`; https, or http on a loopback host; never echoed in errors) in `main/config.ts` with
       tests; `GET /v1/auth/bnet/login` (302 + `__Host-d2rmm_oauth` cookie), `GET /v1/auth/bnet/callback` (session
       cookie + 302 to `<SITE_ORIGIN>/`, or 302 to `<SITE_ORIGIN>/?signin=failed`), both 404 when the credentials are
