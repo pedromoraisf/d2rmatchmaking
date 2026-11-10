@@ -5,6 +5,10 @@ Feature: The harness reads what the repository really produces
   A contributor can run the acceptance suite from a fresh checkout, the ratchet reads the agent's real mutation score,
   and a phase review no longer spends budget on a check that cannot pass on the phase branch.
 
+  # not-scenario: CRF-18 — superseded by ADR 029: the review reads the nightly report and the verification validator is gone
+  # not-scenario: CRF-19 — superseded by ADR 029: the review reads the nightly report and the verification validator is gone
+  # not-scenario: CRF-20 — superseded by ADR 029: the review reads the nightly report and the verification validator is gone
+  # not-scenario: CRF-21 — superseded by ADR 029: the review reads the nightly report and the verification validator is gone
   # not-scenario: CRF-02 — a scenario cannot start the acceptance run from inside it; proved by a task gate that removes `apps/web/dist` and runs `pnpm test:acceptance` with one scenario, and by CRF-01's plan
   # not-scenario: CRF-05 — the score is a pure rule over a fixture; proved by a unit test in `scripts/test/collect.test.mjs` that writes outcomes at the baseline's source path in a temporary root and calls `collect`
   # not-scenario: CRF-08 — the same rule on an absent and an empty report; proved by unit tests in `scripts/test/collect.test.mjs`
@@ -50,14 +54,6 @@ Feature: The harness reads what the repository really produces
     And the download is skipped when the agent mutation job was skipped
     And the download action is pinned by its full commit
     And a failed download does not fail the quality job
-
-  @CRF-18 @CRF-19 @CRF-20 @CRF-21
-  Scenario: A phase review reads the evidence instead of re-validating the proofs
-    When the contributor reads the phase runner instructions
-    Then the review reads the phase status and the retry budget of each feature
-    And the review does not run the verification validator
-    And a feature still runs the verification validator before its merge
-    And the review produces the agent's mutation reports before the phase ratchet
 
   @CRF-22 @CRF-23
   Scenario: The agent mutation command is documented where contributors look

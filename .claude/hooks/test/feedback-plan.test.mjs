@@ -19,10 +19,9 @@ test('missing tools are skipped, not failed', () => {
   assert.deepEqual(ids('apps/api/src/modules/ranking/domain/rating.ts', none), []);
 });
 
-test('specs run the TLC validators and the delegation check', () => {
+test('specs run the acceptance and specs checks', () => {
   assert.deepEqual(ids('.specs/features/agent-skeleton/spec.md'), [
     'prettier',
-    'validate_spec.py',
     'acceptance-check',
     'specs-check',
   ]);
@@ -30,15 +29,16 @@ test('specs run the TLC validators and the delegation check', () => {
     'acceptance-check',
     'specs-check',
   ]);
-  assert.deepEqual(ids('.specs/features/agent-skeleton/tasks.md'), [
-    'prettier',
-    'validate_tasks.py',
-    'specs-check',
-  ]);
+  assert.deepEqual(ids('.specs/features/agent-skeleton/tasks.md'), ['prettier', 'specs-check']);
 });
 
-test('harness scripts run their own tests; vendored files are never reformatted', () => {
-  assert.ok(ids('.claude/hooks/lib/gate-rules.mjs').includes('harness-tests'));
+test('harness scripts run their own test only; vendored files are never reformatted', () => {
+  const step = planFeedback('.claude/hooks/lib/gate-rules.mjs', all).find((s) => s.id === 'harness-tests');
+  assert.deepEqual(step.args, ['--test', '.claude/hooks/test/gate-rules.test.mjs']);
+  const lib = planFeedback('scripts/lib/ratchet.mjs', all).find((s) => s.id === 'harness-tests');
+  assert.deepEqual(lib.args, ['--test', 'scripts/test/ratchet.test.mjs']);
+  const missing = planFeedback('scripts/lib/no-test.mjs', all, () => false).map((s) => s.id);
+  assert.ok(!missing.includes('harness-tests'));
   assert.deepEqual(ids('.claude/skills/tlc-spec-driven/SKILL.md'), []);
   assert.deepEqual(ids('apps/agent/src-tauri/src/main.rs'), ['rustfmt']);
 });

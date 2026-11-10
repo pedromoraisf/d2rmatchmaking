@@ -1,29 +1,14 @@
 #!/usr/bin/env node
-// Stop hook: before the agent ends its turn, run the affected type checks and tests.
-// If anything fails, block the stop and hand the errors back — the agent keeps working.
-// Guarded by stop_hook_active so it never loops: a second consecutive stop is let through.
+// Stop hook: before the agent ends its turn, run the affected type checks and tests. If anything fails, block the stop
+// once and hand the errors back. A second consecutive stop (stop_hook_active) is let through with the errors as a
+// message, so the hook never loops; what is still red goes into the report.
 import { existsSync } from 'node:fs';
-import { readStdinJson, projectDir, bin, run, tail, makeRepoContext } from './lib/io.mjs';
-import { onStop } from './lib/budget-rules.mjs';
-import { sessionId } from '../../scripts/lib/budget.mjs';
-import { ledgerPath, withLedger } from '../../scripts/lib/ledger-store.mjs';
+import { readStdinJson, projectDir, bin, run, tail, changedFiles } from './lib/io.mjs';
 
-// Termination is guaranteed by the retry budget (ADR 022), not by stop_hook_active: a red stop is
-// blocked at most MAX_RETRIES times per agent session, then the agent stops with the session exhausted.
 const input = await readStdinJson();
 const root = projectDir(input);
-const sid = sessionId(input);
-const ledgerFile = ledgerPath(root);
-const ctx = makeRepoContext(root);
-
-const changed = [
-  ...(ctx.git('diff', '--name-only', 'HEAD') ?? '').split('\n'),
-  ...(ctx.git('ls-files', '--others', '--exclude-standard') ?? '').split('\n'),
-].filter(Boolean);
-if (changed.length === 0) {
-  withLedger(ledgerFile, (l) => onStop(l, sid, ''));
-  process.exit(0);
-}
+const changed = changedFiles(root);
+if (changed.length === 0) process.exit(0);
 
 const any = (re) => changed.some((f) => re.test(f));
 const checks = [];
@@ -50,17 +35,19 @@ if (any(/^apps\/agent\/src-tauri\//) && existsSync(`${root}/apps/agent/src-tauri
 }
 
 const failures = [];
-const failing = [];
 for (const [name, cmd, args] of checks) {
   const r = run(cmd, args, { cwd: root, timeoutMs: 300_000 });
-  if (r.ok) continue;
-  failures.push(`## ${name}\n${tail(r.out, 50)}`);
-  failing.push({ status: r.code, output: r.out });
+  if (!r.ok) failures.push(`## ${name}\n${tail(r.out, 50)}`);
 }
-const verdict = withLedger(ledgerFile, (l) => onStop(l, sid, failures.join('\n\n'), failing));
-if (verdict.block) {
-  process.stdout.write(JSON.stringify({ decision: 'block', reason: verdict.message }));
-} else if (verdict.message) {
-  process.stdout.write(JSON.stringify({ systemMessage: verdict.message }));
+if (failures.length === 0) process.exit(0);
+const report = failures.join('\n\n');
+if (input.stop_hook_active) {
+  process.stdout.write(
+    JSON.stringify({ systemMessage: `[d2rmm stop] still failing; say so in the report:\n\n${report}` }),
+  );
+} else {
+  process.stdout.write(
+    JSON.stringify({ decision: 'block', reason: `[d2rmm stop] fix before stopping:\n\n${report}` }),
+  );
 }
 process.exit(0);

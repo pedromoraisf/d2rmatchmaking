@@ -7,6 +7,7 @@ Feature: A contributor builds every workspace and the sensors enforce the layers
 
   # not-scenario: HF-06 — a full Stryker run takes minutes, beyond the 60 s acceptance timeout, and runs nightly anyway; proved by `pnpm --filter @d2rmm/api test:mutation` and a Vitest check on both report files (tasks.md ## Checks, written at Tasks)
   # not-scenario: HF-09 — the empty application layer holds only until `api-web-skeleton` adds code, so a scenario would break by design; proved by a unit test of the mutation runner on an empty `mutate` set in a temporary directory
+  # not-scenario: HF-08 — superseded by ADR 029: the harness level is no longer a gate
   # not-scenario: HF-10 — needs a push, an escalation (AGENTS.md rule 7); proved by the first green `ci.yml` run on the maintainer's PR
 
   Background:
@@ -61,11 +62,6 @@ Feature: A contributor builds every workspace and the sensors enforce the layers
     # HF-07 AC 1's null application score and AC 2 (CI and load metrics stay null) hold only until later features; proved by the baseline check at Tasks.
 
   # NFR-11 asks for level 4 verified in CI; this scenario proves the local gate, and HF-10 proves the CI run.
-  @HF-08 @NFR-11
-  Scenario: The repository stays at harness level 4 locally
-    When the contributor runs "pnpm harness:gate"
-    Then the command succeeds
-
   @HF-11
   Scenario: Only the agent is released, with agent tags
     When the contributor reads the release configuration

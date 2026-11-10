@@ -1,6 +1,6 @@
-// Roadmap coverage (ADR 024): every PRD requirement has exactly one primary phase, and an approved brief covers
-// every requirement assigned to its phase. Keeps the five phases complete without anyone remembering the list.
-import { approvalsIn } from '../../.claude/hooks/lib/delegation.mjs';
+// Roadmap coverage: every PRD requirement has exactly one primary phase, and an approved brief covers every
+// requirement assigned to its phase. Keeps the five phases complete without anyone remembering the list.
+import { APPROVED } from './phase-state.mjs';
 
 const REQ = /\b(N?FR-\d{2})\b/g;
 
@@ -41,7 +41,7 @@ export function checkRoadmap(prdText, roadmapText, briefs /* {F0: text|null, …
   }
   for (const r of cov.keys()) if (!reqs.includes(r)) errors.push(`ROADMAP: ${r} is not in the PRD.`);
   for (const [phase, brief] of Object.entries(briefs)) {
-    if (!brief || approvalsIn(brief).length === 0) continue; // drafts may still be incomplete
+    if (!brief || !APPROVED.test(brief)) continue; // drafts may still be incomplete
     const covered = new Set(brief.match(REQ) ?? []);
     for (const [r, phases] of cov) {
       if (phases.includes(phase) && !covered.has(r))

@@ -1,11 +1,12 @@
 ---
-description: Rules for spec-driven artifacts in .specs (TLC + phase runner)
+description: Rules for spec-driven artifacts in .specs (phase runner, ADR 029)
 globs: .specs/**
 alwaysApply: false
 ---
 
-- Follow `.claude/skills/tlc-spec-driven/SKILL.md` and `.claude/skills/d2rmm-phase-runner/SKILL.md`.
-- Never write an `**Approved**:` line the maintainer did not give. Under a phase delegation, quote the kickoff words
-  verbatim and append `(delegated via .specs/phases/F<n>/brief.md)`.
-- Assumed decisions: `### AD-NNN — … (assumed)` in STATE.md and a row in the phase `decisions.md`.
-- Run `validate_spec.py` / `validate_tasks.py` and `pnpm specs:check` after edits.
+- Follow `.claude/skills/d2rmm-phase-runner/SKILL.md`.
+- Never write an `**Approved**:` line the maintainer did not give. Features need no approval line; the phase brief's
+  approval covers them.
+- Every `spec.md` ships an `acceptance.feature` with a scenario per requirement ID (ADR 023).
+- Decisions the maintainer should confirm go to the phase `decisions.md → To confirm`; the rest go in the PR description.
+- Run `pnpm specs:check` after edits.

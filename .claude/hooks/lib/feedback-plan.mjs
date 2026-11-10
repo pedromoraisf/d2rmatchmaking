@@ -10,9 +10,10 @@ const NOT_FORMATTED =
 /**
  * @param {string} rel repo-relative path
  * @param {(name: string) => boolean} has  whether a local binary/tool is available
+ * @param {(rel: string) => boolean} [exists]  whether a repo file exists
  * @returns {{ id: string, cmd: string, args: string[], fix?: boolean, timeoutMs?: number }[]}
  */
-export function planFeedback(rel, has) {
+export function planFeedback(rel, has, exists = () => true) {
   const steps = [];
   if (!rel || rel.startsWith('..')) return steps;
 
@@ -38,24 +39,12 @@ export function planFeedback(rel, has) {
     });
   }
   if (/^(scripts|\.claude\/hooks)\/.*\.mjs$/.test(rel)) {
-    const test = rel.endsWith('.test.mjs') ? rel : null;
-    steps.push({
-      id: 'harness-tests',
-      cmd: 'node',
-      args: ['--test', ...(test ? [test] : ['scripts/**/*.test.mjs', '.claude/hooks/**/*.test.mjs'])],
-    });
+    // The edited file's own test only: the whole harness suite runs in the Stop hook and in CI.
+    const test = rel.endsWith('.test.mjs') ? rel : harnessTestOf(rel);
+    if (test && exists(test)) steps.push({ id: 'harness-tests', cmd: 'node', args: ['--test', test] });
   }
   if (rel.endsWith('.rs') && has('rustfmt')) {
     steps.push({ id: 'rustfmt', cmd: 'rustfmt', args: ['--edition', '2024', rel], fix: true });
-  }
-  const spec = /^\.specs\/features\/([^/]+)\/(spec|tasks)\.md$/.exec(rel);
-  if (spec && has('python3')) {
-    const script = spec[2] === 'spec' ? 'validate_spec.py' : 'validate_tasks.py';
-    steps.push({
-      id: script,
-      cmd: 'python3',
-      args: [`.claude/skills/tlc-spec-driven/scripts/${script}`, spec[1]],
-    });
   }
   const acc = /^\.specs\/features\/([^/]+)\/(spec\.md|acceptance\.feature)$/.exec(rel);
   if (acc) {
@@ -65,6 +54,13 @@ export function planFeedback(rel, has) {
     steps.push({ id: 'specs-check', cmd: 'node', args: ['scripts/specs-check.mjs'] });
   }
   return steps;
+}
+
+/** `scripts/lib/x.mjs` → `scripts/test/x.test.mjs`; `.claude/hooks/lib/x.mjs` → `.claude/hooks/test/x.test.mjs`. */
+function harnessTestOf(rel) {
+  const name = /([^/]+)\.mjs$/.exec(rel)[1];
+  if (rel.startsWith('.claude/hooks/')) return `.claude/hooks/test/${name}.test.mjs`;
+  return `scripts/test/${name}.test.mjs`;
 }
 
 /** Reminders that do not block (added as context for the agent). */

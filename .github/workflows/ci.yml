@@ -1,4 +1,5 @@
-# CI sensors (ADR 019). Every step here also runs locally via `pnpm check` / Lefthook.
+# CI sensors (ADR 019, ADR 029). Every step here also runs locally via `pnpm check` / Lefthook.
+# Mutation testing runs in nightly.yml only (ADR 029).
 # Loosening any step is an escalation (see .claude/skills/d2rmm-phase-runner/references/escalation.md).
 name: ci
 
@@ -29,7 +30,6 @@ jobs:
       api: ${{ steps.d.outputs.api }}
       agent: ${{ steps.d.outputs.agent }}
       acceptance: ${{ steps.d.outputs.acceptance }}
-      stryker: ${{ steps.d.outputs.stryker }}
     steps:
       - uses: actions/checkout@v7
       - id: d
@@ -37,10 +37,9 @@ jobs:
           [ -f apps/api/package.json ] && echo "api=true" >> "$GITHUB_OUTPUT" || echo "api=false" >> "$GITHUB_OUTPUT"
           [ -f apps/agent/src-tauri/Cargo.toml ] && echo "agent=true" >> "$GITHUB_OUTPUT" || echo "agent=false" >> "$GITHUB_OUTPUT"
           if compgen -G ".specs/features/*/acceptance.feature" > /dev/null; then echo "acceptance=true"; else echo "acceptance=false"; fi >> "$GITHUB_OUTPUT"
-          if compgen -G "apps/api/stryker.config.*" > /dev/null; then echo "stryker=true" >> "$GITHUB_OUTPUT"; else echo "stryker=false" >> "$GITHUB_OUTPUT"; fi
 
   verify:
-    # format, lint, types, architecture, tests, specs, harness, ratchet
+    # format, lint, types, architecture, tests, specs, ratchet
     name: verify # required check in .github/rulesets/main.json — renaming it breaks the ruleset
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -78,17 +77,11 @@ jobs:
           fi
       - name: Unit tests (workspaces + harness self-tests)
         run: pnpm test
-      - name: TLC gate scripts self-test
-        run: pnpm run tlc:selftest
       - name: Specs and phase delegation
         run: pnpm run specs:check
       - name: Contracts drift (OpenAPI / AsyncAPI)
         if: hashFiles('packages/contracts/package.json') != ''
         run: pnpm run contracts:check
-      - name: Harness maturity (L4 gate)
-        run: |
-          pnpm run harness:json
-          pnpm run harness:gate
       - name: Quality ratchet (pr)
         run: |
           echo "{\"seconds\": $(( $(date +%s) - CI_STARTED ))}" > reports/ci-timing.json
@@ -97,9 +90,7 @@ jobs:
         if: always()
         with:
           name: quality-reports
-          path: |
-            reports/
-            .harness-score.report.json
+          path: reports/
           retention-days: 14
 
   integration:
@@ -141,37 +132,6 @@ jobs:
           name: acceptance-report
           path: reports/acceptance/
           retention-days: 14
-
-  mutation:
-    # The API's Stryker runs beside the required checks (CFP-01, CFP-02): it blocks no merge. Only the files the PR
-    # changes are mutated, and the incremental files are cached under the base branch (CFP-03, CFP-05).
-    name: mutation
-    needs: detect
-    if: github.event_name == 'pull_request' && needs.detect.outputs.stryker == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          # The changed files are listed against origin/<base>, which needs the base branch's history.
-          fetch-depth: 0
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Restore the Stryker incremental files
-        uses: actions/cache@v4
-        with:
-          path: apps/api/reports/stryker-incremental-*.json
-          key: stryker-incremental-${{ github.base_ref }}-${{ github.sha }}
-          restore-keys: stryker-incremental-${{ github.base_ref }}-
-      - name: Mutation (API, changed files, incremental)
-        run: pnpm -C apps/api run test:mutation -- --changed-from origin/${{ github.base_ref }} --incremental
-      - name: Survived mutants (job summary)
-        if: always()
-        run: node apps/api/scripts/mutation-summary.ts
 
   smoke:
     # The API boots the way Render boots it (AD-161, CFP-25): Render's install, the migrations of deploy-api.yml and the
@@ -285,42 +245,6 @@ jobs:
       - name: Fixture domain-clock must fail with disallowed_types
         working-directory: .
         run: node scripts/agent/expect-failure.mjs disallowed_types -- cargo clippy --manifest-path apps/agent/src-tauri/boundary-fixtures/domain-clock/Cargo.toml -- -D warnings
-
-  agent-mutation:
-    # ADR 026: the agent's mutants of the pull request's diff are caught by the unit tests (--lib) of each crate. It runs
-    # beside the required checks and blocks no merge (CFP-08). With no agent change it runs no cargo-mutants (CFP-09).
-    name: agent-mutation
-    needs: detect
-    if: github.event_name == 'pull_request' && needs.detect.outputs.agent == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          # The diff is taken against origin/<base>, which needs the base branch's history.
-          fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-        with:
-          workspaces: apps/agent/src-tauri
-      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2
-        with:
-          tool: cargo-mutants
-      - id: diff
-        name: The agent's diff against the base branch
-        run: |
-          mkdir -p reports/mutation
-          git diff origin/${{ github.base_ref }}...HEAD -- apps/agent/src-tauri > reports/agent.diff
-          if [ -s reports/agent.diff ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
-      - name: Mutants of the diff (agent-domain)
-        if: steps.diff.outputs.changed == 'true'
-        run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --in-diff reports/agent.diff --package d2rmm-agent-domain --output reports/mutation/agent-domain -- --lib
-      - name: Mutants of the diff (agent-core)
-        if: steps.diff.outputs.changed == 'true'
-        run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --in-diff reports/agent.diff --package d2rmm-agent-core --output reports/mutation/agent-core -- --lib
-      - name: Mutants of the diff (agent-adapters)
-        if: steps.diff.outputs.changed == 'true'
-        run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --in-diff reports/agent.diff --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib
 
   agent-build:
     # CFP-17: a pull request that changes the agent compiles its release on Windows, the release's runner. Updater

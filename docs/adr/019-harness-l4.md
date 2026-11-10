@@ -1,6 +1,6 @@
 # ADR 019 — Agentic harness at L4
 
-**Status**: Accepted
+**Status**: Accepted — superseded by [ADR 029](029-lean-harness.md) on 2026-11-10
 **Date**: 2026-10-30
 **Deciders**: maintainer
 
