@@ -25,11 +25,11 @@ From `decisions.md → To confirm`.
 
 ## Quality
 
-| Metric                                          | Baseline | Now | Source             |
-| ----------------------------------------------- | -------- | --- | ------------------ |
-| mutation api domain / application / agent core  |          |     | nightly run <link> |
-| CI duration (s)                                 |          |     | CI run <link>      |
-| load: max players / bytes per player-hour / p95 |          |     | `pnpm test:load`   |
+| Metric                                          | Baseline | Now | Source                                                                |
+| ----------------------------------------------- | -------- | --- | --------------------------------------------------------------------- |
+| mutation api domain / application / agent core  |          |     | nightly run <link> (`pnpm test:mutation`, `pnpm test:mutation:agent`) |
+| CI duration (s)                                 |          |     | CI run <link>                                                         |
+| load: max players / bytes per player-hour / p95 |          |     | `pnpm test:load`                                                      |
 
 ## Lessons added
 
