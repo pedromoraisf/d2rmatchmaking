@@ -71,3 +71,30 @@ The screen reading (old T8 regions/classifier/parser, T9 Windows OCR on fixtures
       `pnpm exec turbo run test:acceptance -- --grep @CHR-`
 - [x] T9 — Whole-repo sensors on the branch — gate:
       `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check && cd apps/agent/src-tauri && cargo clippy --all-targets -- -D warnings`
+
+## Batch 3 — review fixes (PR #44)
+
+- [ ] T10 — Tighten the agent's FFI sensor (both reviews): in `scripts/test/agent-source-rules.test.mjs`, the
+      `window_capture.rs` entry lists the exact symbols the file uses (as the `toolhelp.rs` entry does) instead of whole
+      module paths; add a test that a `PostMessageW`, `SendMessageW`, `SetWindowsHookExW`, `BitBlt` or `GetPixel` use in
+      that file fails the rule; add those and `SetWindowsHookExA`, `SetWinEventHook`, `StretchBlt`, `GetWindowDC` to
+      `disallowed-methods` in every agent `clippy.toml`; fix the "only two adapters may allow unsafe" wording in
+      `window_capture.rs` and `design.md` (three adapters) — gate:
+      `pnpm test:harness && cd apps/agent/src-tauri && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`
+- [ ] T11 — Bound the stored characters (security finding 2): an account holds at most 60 characters; a batch that
+      would take it past 60 new names answers 400 `too-many-characters` and stores nothing; application unit test and a
+      route integration test — gate:
+      `pnpm --filter @d2rmm/api exec vitest run src/modules/identity && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/identity-routes.int.test.ts`
+- [ ] T12 — Character names are case-insensitive, as in D2R (security finding 3): the contract's unique-name check
+      compares lowercased names; a new migration `0007_characters_name_ci` replaces the `(account_id, name)` unique
+      constraint with a unique index on `(account_id, lower(name))`; the upsert matches by lowercased name and stores the
+      newest spelling; tests for `Abc` then `abc` (one row) and for a batch with both (400) — gate:
+      `pnpm --filter @d2rmm/contracts exec vitest run && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/migrate.int.test.ts src/platform/postgres/migrator.int.test.ts src/main/__tests__/identity-routes.int.test.ts src/modules/identity/adapters/postgres && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json`
+- [ ] T13 — Window choice and device context (security findings 4, 5): among the visible top-level windows of the D2R
+      processes, capture the one with the largest client area; take the template DC from `GetDC(window)` (released on
+      every path) instead of the screen's `GetDC(None)`, and return `None` on a null handle; unit tests on the pure
+      window-choice function — gate:
+      `cd apps/agent/src-tauri && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`
+- [ ] T14 — The shared acceptance step "the API answers <status>" throws a clear error when the scenario made no
+      request (neither the relay answer nor `world.last`) — gate:
+      `pnpm exec turbo run test:acceptance -- --grep "@CHR-|@OBS-|@AWS-|@IDB-"`
