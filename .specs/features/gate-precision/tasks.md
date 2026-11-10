@@ -503,9 +503,9 @@ T15 → T19 → T20 → T21 → T16
 
 **Done when**:
 
-- [ ] Every scenario of `acceptance.feature` passes
-- [ ] `pnpm test:harness`, `pnpm contracts:check` and the `@HBS-` scenarios pass with no test removed or skipped (GPR-27 to GPR-29)
-- [ ] Gate passes
+- [x] Every scenario of `acceptance.feature` passes
+- [x] `pnpm test:harness`, `pnpm contracts:check` and the `@HBS-` scenarios pass with no test removed or skipped (GPR-27 to GPR-29)
+- [x] Gate passes
 
 **Tests**: acceptance
 **Gate**: `pnpm exec turbo run test:acceptance -- --grep "@GPR-|@HBS-" --workers=2 && pnpm test:harness && pnpm contracts:check`
