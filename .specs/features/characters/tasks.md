@@ -59,15 +59,15 @@ Rules for the worker:
       migration lists of `migrate.int.test.ts` and `migrator.int.test.ts`; regenerate the OpenAPI — gate:
       `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/migrate.int.test.ts src/platform/postgres/migrator.int.test.ts src/main/__tests__/identity-routes.int.test.ts && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json && pnpm typecheck && pnpm lint && pnpm arch`
 
-## Batch 2 — starts when the maintainer's screenshots are in `apps/agent/fixtures/characters/`
+## Batch 2 — after the split (maintainer, 2026-11-10)
 
-- [ ] T8 — Reading regions per fixture resolution in `vision.rs`, the screen classifier (CHR-04) and the card parser
-      (CHR-06, CHR-08: English and Portuguese dictionaries, diacritic-insensitive), unit tests on the sidecar text of
-      every fixture — gate: `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-domain --lib && cargo nextest run -p d2rmm-agent-core --lib`
-- [ ] T9 — Windows OCR on the real fixtures: a Windows-only test that reads every fixture and matches its `.txt`
-      (runs in the Windows CI job) — gate: CI job `agent (windows)` green on the branch
-- [ ] T10 — Headless example: `--consent`, stdin `consent on|off` and `show <png>`, sidecar `<png>.json` per region;
-      acceptance steps for every step of `acceptance.feature` in `tests/acceptance/steps/characters.steps.ts` — gate:
+The screen reading (old T8 regions/classifier/parser, T9 Windows OCR on fixtures, T10 headless reading) moved to
+`.specs/features/characters-reading/`, which waits for the screenshots.
+
+- [ ] T8 — Acceptance steps in `tests/acceptance/steps/characters.steps.ts` for every step of `acceptance.feature`: the
+      agent client sends heartbeats with the new screens and `POST /v1/me/characters` with its token; reuse the
+      existing sign-in, pairing, heartbeat and stream steps (`agents.steps.ts`, `identity.steps.ts`, `site.steps.ts`,
+      `support/agent-client.ts`, `support/world.ts`) and do not add near-duplicates of existing phrasings — gate:
       `pnpm exec turbo run test:acceptance -- --grep @CHR-`
-- [ ] T11 — Whole-repo sensors on the branch — gate:
+- [ ] T9 — Whole-repo sensors on the branch — gate:
       `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check && cd apps/agent/src-tauri && cargo clippy --all-targets -- -D warnings`

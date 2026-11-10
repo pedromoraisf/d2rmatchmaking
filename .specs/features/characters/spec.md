@@ -3,6 +3,11 @@
 **Phase**: F1 (covered by the brief's approval, ADR 029) · **Size**: Large (see `design.md`) · **Security review**: yes
 (first live capture of the game window)
 
+**Split (maintainer, 2026-11-10: "Split characters")**: the screen reading — CHR-04, CHR-06 and CHR-08 — moved to the
+follow-up feature `characters-reading`, which waits for the maintainer's screenshots. This feature ships consent,
+capture, the screen and characters contracts, storage, the site and the title table. Until the follow-up merges, the
+agent reports `UNKNOWN` and sends no characters on a real PC; exit criteria 4 and 8 of the brief stay open.
+
 ## Problem
 
 Queues need to know who a player brings: name, class, level, ladder or hardcore, era, and which difficulties the
@@ -40,20 +45,15 @@ agent is on (FR-05).
 - **CHR-03** — WHILE consent is given and the D2R process runs, the agent SHALL capture only the client area of the D2R
   game window, at most once per second, and SHALL keep every frame and crop in memory on this PC only (ADR 010,
   NFR-04).
-- **CHR-04** — WHEN a captured frame is the character selection screen, the game in progress, or the game with the
-  automap open THEN the agent's next heartbeat SHALL report `CHARACTER_SELECT`, `IN_GAME` or `AUTOMAP_OPEN`, and any
-  other frame, or no frame, SHALL report `UNKNOWN`.
+- **CHR-04** — moved to `characters-reading` (split).
 - **CHR-05** — WHEN the agent's heartbeat changes the online state, the game state or the screen THEN the site SHALL show
   the agent online or offline, the game open or closed, and the current screen in words, in the player's language,
   within 2 seconds (FR-05).
-- **CHR-06** — WHEN a frame is the character selection screen THEN the agent SHALL read, for each character card visible
-  on it, the name, class, level, softcore or hardcore, ladder or non-ladder, era and title, and SHALL send the cards it
-  read completely to the API in one request; a card with any field it could not read SHALL not be sent.
+- **CHR-06** — moved to `characters-reading` (split).
 - **CHR-07** — The agent SHALL derive the unlocked difficulties from the title and the character's mode: no title
   unlocks Normal; the Normal title unlocks Nightmare; the Nightmare title and the Hell title unlock Hell, for the classic,
   expansion, softcore and hardcore titles of either gender.
-- **CHR-08** — The reading of CHR-04, CHR-06 and CHR-07 SHALL give the same result for the English and the Portuguese
-  game client on the maintainer's fixtures, at every resolution that has fixtures.
+- **CHR-08** — moved to `characters-reading` (split).
 - **CHR-09** — WHEN the API receives characters from a paired agent THEN it SHALL store each one under the agent's account,
   keyed by account and name, creating it or replacing its fields with the newest reading, and SHALL answer 204.
 - **CHR-10** — IF a character in the request breaks the contract (unknown class, level outside 1 to 99, unknown era,
@@ -77,11 +77,8 @@ agent is on (FR-05).
 | CHR-01 | NFR-04, NFR-05; AGENTS.md "Never do: capture without consent"; ADR 010   |
 | CHR-02 | NFR-05; ADR 010                                                          |
 | CHR-03 | NFR-04; ADR 010; brief "Live capture ships a first version in F1"        |
-| CHR-04 | FR-05; Design Doc § Contratos (heartbeat `screen`)                       |
 | CHR-05 | FR-05; NFR-01 (2 s)                                                      |
-| CHR-06 | FR-02; Design Doc § Modelo de dados (`identity.characters`)              |
 | CHR-07 | FR-02 ("o título, que indica as dificuldades liberadas"); INV-02         |
-| CHR-08 | NFR-12; brief exit criterion 4                                           |
 | CHR-09 | FR-02; Design Doc § Modelo de domínio (Identity owns `Character`)        |
 | CHR-10 | FR-02; NFR-06 (the API validates what the agent sends)                   |
 | CHR-11 | FR-02                                                                    |
@@ -96,11 +93,8 @@ agent is on (FR-05).
 | CHR-01         | Consent before capture | Rust unit tests (core) + acceptance `@CHR-01` with the headless agent     |
 | CHR-02         | Consent before capture | Rust unit tests (core) + acceptance `@CHR-02`                             |
 | CHR-03         | Live capture           | Rust unit tests on the window lookup and crop; Windows CI test            |
-| CHR-04         | Screen presence        | Rust unit tests on fixtures (Windows CI) + acceptance `@CHR-04`           |
 | CHR-05         | Screen presence        | acceptance `@CHR-05`                                                      |
-| CHR-06         | Characters read        | Rust unit tests on fixtures (Windows CI) + acceptance `@CHR-06`           |
 | CHR-07         | Characters read        | Rust unit tests of the title table (every title, both genders)            |
-| CHR-08         | Characters read        | Rust unit tests on English and Portuguese fixtures (Windows CI)           |
 | CHR-09         | Characters stored      | acceptance `@CHR-09` + application unit tests                             |
 | CHR-10         | Characters stored      | acceptance `@CHR-10` + contract unit tests                                |
 | CHR-11         | Characters on the site | acceptance `@CHR-11` + component tests                                    |
