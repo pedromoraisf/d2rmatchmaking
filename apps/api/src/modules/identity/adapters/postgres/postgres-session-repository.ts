@@ -29,4 +29,8 @@ export class PostgresSessionRepository implements SessionRepository {
       .executeTakeFirst();
     return row === undefined ? null : { accountId: row.account_id, expiresAt: row.expires_at };
   }
+
+  async delete(tokenHash: string): Promise<void> {
+    await this.#db.deleteFrom('identity.sessions').where('token_hash', '=', tokenHash).execute();
+  }
 }

@@ -10,7 +10,7 @@ import { App } from './App.tsx';
 
 afterEach(cleanup);
 
-const config = { stagingEndpoints: true, minAgentVersion: '0.0.1' };
+const config = { stagingEndpoints: true, minAgentVersion: '0.0.1', bnetSignIn: false };
 const player = { accountId: 'acc-1', displayName: 'PlayerOne' };
 const pairedAgent = {
   status: 'paired',
@@ -488,5 +488,85 @@ describe('App', () => {
     await reads.release(jsonResponse(500));
     expect(screen.getByText('Created')).toBeTruthy();
     expect(screen.queryByText('Awaiting host')).toBeNull();
+  });
+
+  it('offers the Battle.net sign-in when the API has the credentials', async () => {
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, { ...config, stagingEndpoints: false, bnetSignIn: true }),
+      'GET /api/v1/me': () => jsonResponse(401),
+    });
+    renderInLanguage(<App client={createApiClient(fetch)} />);
+    expect(await screen.findByRole('link', { name: 'Sign in with Battle.net' })).toBeTruthy();
+  });
+
+  it('shows the Battle.net failure from the address and removes the flag from it', async () => {
+    window.history.replaceState(null, '', '/?signin=failed');
+    try {
+      const { fetch } = routeFetch({
+        'GET /api/v1/config': () =>
+          jsonResponse(200, { ...config, stagingEndpoints: false, bnetSignIn: true }),
+        'GET /api/v1/me': () => jsonResponse(401),
+      });
+      renderInLanguage(<App client={createApiClient(fetch)} />);
+      expect((await screen.findByRole('alert')).textContent).toBe(
+        'Sign-in with Battle.net failed. Please try again.',
+      );
+      expect(window.location.search).toBe('');
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
+  });
+
+  it('shows no failure message on an address without the flag', async () => {
+    window.history.replaceState(null, '', '/');
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, { ...config, stagingEndpoints: false, bnetSignIn: true }),
+      'GET /api/v1/me': () => jsonResponse(401),
+    });
+    renderInLanguage(<App client={createApiClient(fetch)} />);
+    await screen.findByRole('link', { name: 'Sign in with Battle.net' });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('revokes the agent: the paired view goes and the pairing form returns', async () => {
+    let revoked = false;
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(200, player),
+      'GET /api/v1/agents/me': () => jsonResponse(200, revoked ? { status: 'none' } : pairedAgent),
+      'GET /api/v1/me/room': () => jsonResponse(404),
+      'DELETE /api/v1/agents/agent-1': () => {
+        revoked = true;
+        return jsonResponse(204);
+      },
+    });
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={fakeStream().openStream} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Revoke agent' }));
+    await user.click(screen.getByRole('button', { name: 'Revoke' }));
+
+    expect(await screen.findByLabelText('Pairing code')).toBeTruthy();
+    expect(screen.queryByText('Agent online')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Revoke agent' })).toBeNull();
+  });
+
+  it('signs out: the signed-out site returns with the sign-in form', async () => {
+    let signedIn = true;
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => (signedIn ? jsonResponse(200, player) : jsonResponse(401)),
+      'GET /api/v1/agents/me': () => jsonResponse(200, { status: 'none' }),
+      'POST /api/v1/auth/logout': () => {
+        signedIn = false;
+        return jsonResponse(204);
+      },
+    });
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={fakeStream().openStream} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Sign out' }));
+
+    expect(await screen.findByText('Sign in with a test account')).toBeTruthy();
+    expect(screen.queryByText('Signed in as PlayerOne')).toBeNull();
+    expect(screen.queryByLabelText('Pairing code')).toBeNull();
   });
 });

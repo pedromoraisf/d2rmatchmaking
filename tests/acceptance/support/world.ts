@@ -5,6 +5,7 @@ import { randomInt } from 'node:crypto';
 import { MeResponse, RoomView } from '@d2rmm/contracts';
 import { expect, type Browser, type BrowserContext, type Cookie, type Page } from '@playwright/test';
 import { observationBody, SimulatedAgent, type ObservationInput } from './agent-client.ts';
+import { signInWithBattleNetThroughApi } from './fake-battle-net.ts';
 import { EventStream } from './sse.ts';
 import type { Endpoint, Stack } from './stack.ts';
 
@@ -232,11 +233,26 @@ export class World {
     return { status: response.status, body: await response.json().catch(() => undefined) };
   }
 
-  /** The player's session token, signing in through the API when the player has none yet. */
+  /** The player of this display name (the name part of a BattleTag, or a test name), or undefined. */
+  playerByDisplayName(displayName: string): Player | undefined {
+    for (const player of this.#players.values()) {
+      if (player.name.split('#')[0] === displayName) {
+        return player;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * The player's session token, signing in when the player has none yet. A name with a BattleTag (`Name#1234`) is a
+   * Battle.net account, signed in through the fake provider (IDB-02); any other name is a test account (AD-029).
+   */
   async sessionOf(name: string): Promise<string> {
     const player = this.player(name);
     if (player.session === undefined) {
-      const signedIn = await signInThroughApi(this.site, name);
+      const signedIn = name.includes('#')
+        ? await signInWithBattleNetThroughApi(this.site, this.stack.battleNet, name)
+        : await signInThroughApi(this.site, name);
       player.accountId = signedIn.accountId;
       player.session = signedIn.session;
     }
@@ -256,15 +272,19 @@ export class World {
     });
     page.on('response', (response) => {
       // headersArray() is asynchronous: the record is appended once the headers are read.
-      void response.headersArray().then((headers) => {
-        responses.push({
-          url: response.url(),
-          status: response.status(),
-          setCookie: headers
-            .filter((header) => header.name.toLowerCase() === 'set-cookie')
-            .map((header) => header.value),
-        });
-      });
+      // A page closed before the headers are read (a redirect the scenario ends on) rejects: nothing is recorded then.
+      response
+        .headersArray()
+        .then((headers) => {
+          responses.push({
+            url: response.url(),
+            status: response.status(),
+            setCookie: headers
+              .filter((header) => header.name.toLowerCase() === 'set-cookie')
+              .map((header) => header.value),
+          });
+        })
+        .catch(() => undefined);
     });
     const visitor: Visitor = { context, page, requests, responses };
     this.#visitors.push(visitor);

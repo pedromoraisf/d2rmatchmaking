@@ -17,7 +17,13 @@ afterAll(async () => {
 
 describe('migrate', () => {
   it('first run applies 0001_skeleton and creates the four schemas', async () => {
-    expect(firstRun).toEqual(['0001_skeleton', '0002_outbox_trace_context', '0003_room_trace_context']);
+    expect(firstRun).toEqual([
+      '0001_skeleton',
+      '0002_outbox_trace_context',
+      '0003_room_trace_context',
+      '0004_account_bnet_sub',
+      '0005_battletag_not_unique',
+    ]);
 
     const result = await database.pool.query<{ schema_name: string }>(
       `select schema_name from information_schema.schemata

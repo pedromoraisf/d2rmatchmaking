@@ -33,25 +33,29 @@ export interface ApiClient {
   config(): Promise<ApiResult<ConfigResponse>>;
   me(): Promise<ApiResult<MeResponse>>;
   testLogin(name: string): Promise<ApiResult<void>>;
+  signOut(): Promise<ApiResult<void>>;
   matchFormed(): Promise<ApiResult<void>>;
   myRoom(): Promise<ApiResult<RoomView>>;
   myAgent(): Promise<ApiResult<AgentView>>;
   pair(code: string): Promise<ApiResult<void>>;
+  revokeAgent(agentId: string): Promise<ApiResult<void>>;
 }
 
 export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, init)): ApiClient {
-  async function send(method: 'GET' | 'POST', path: string, body?: unknown): Promise<Sent> {
+  async function send(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<Sent> {
     const url = `${API_PREFIX}${path}`;
     let response: Response;
     try {
+      // Every write carries a JSON body (an empty object when there is nothing to send): the API's same-origin guard
+      // needs the JSON content type on every non-GET request.
       response =
-        method === 'POST'
-          ? await fetcher(url, {
+        method === 'GET'
+          ? await fetcher(url, { method })
+          : await fetcher(url, {
               method,
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(body ?? {}),
-            })
-          : await fetcher(url, { method });
+            });
     } catch {
       return { ok: false, failure: 'failed' };
     }
@@ -70,8 +74,12 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
     }
   }
 
-  async function write(path: string, body: unknown): Promise<ApiResult<void>> {
-    const sent = await send('POST', path, body);
+  async function write(
+    path: string,
+    body: unknown,
+    method: 'POST' | 'DELETE' = 'POST',
+  ): Promise<ApiResult<void>> {
+    const sent = await send(method, path, body);
     return sent.ok ? { ok: true, value: undefined } : sent;
   }
 
@@ -79,9 +87,11 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
     config: () => read('/v1/config', ConfigResponse),
     me: () => read('/v1/me', MeResponse),
     testLogin: (name) => write('/v1/auth/test-login', { name }),
+    signOut: () => write('/v1/auth/logout', {}),
     matchFormed: () => write('/v1/staging/match-formed', {}),
     myRoom: () => read('/v1/me/room', RoomView),
     myAgent: () => read('/v1/agents/me', AgentView),
     pair: (code) => write('/v1/agents/pair', { code }),
+    revokeAgent: (agentId) => write(`/v1/agents/${encodeURIComponent(agentId)}`, {}, 'DELETE'),
   };
 }

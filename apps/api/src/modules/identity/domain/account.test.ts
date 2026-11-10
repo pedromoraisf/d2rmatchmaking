@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isTestAccount, newTestAccount } from './account.ts';
+import { displayNameOf, isTestAccount, newBattleNetAccount, newTestAccount } from './account.ts';
 import { PlayerName } from './player-name.ts';
 
 const name = (raw: string): PlayerName => {
@@ -24,6 +24,31 @@ describe('newTestAccount', () => {
 
   it('is a test account', () => {
     expect(isTestAccount(newTestAccount('account-1', name('PlayerOne')))).toBe(true);
+  });
+});
+
+describe('displayNameOf', () => {
+  it('is the name part of a BattleTag, without its number', () => {
+    expect(displayNameOf('Alice#1234')).toBe('Alice');
+    expect(displayNameOf('Alicia#5678')).toBe('Alicia');
+  });
+
+  it('is the whole value when there is no number to cut', () => {
+    expect(displayNameOf('NoNumber')).toBe('NoNumber');
+  });
+});
+
+describe('newBattleNetAccount', () => {
+  it('takes the sub, the BattleTag and its name part, and carries no test key', () => {
+    const account = newBattleNetAccount('account-5', 'sub-alice', 'Alice#1234');
+
+    expect(account).toEqual({
+      id: 'account-5',
+      battletag: 'Alice#1234',
+      displayName: 'Alice',
+      bnetSub: 'sub-alice',
+    });
+    expect(isTestAccount(account)).toBe(false);
   });
 });
 
