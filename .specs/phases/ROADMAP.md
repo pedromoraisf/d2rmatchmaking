@@ -26,5 +26,5 @@ is recorded as an AD in STATE.md).
 | F3    | FR-19, FR-20, FR-21, FR-22, FR-23, FR-24, FR-25, FR-26, FR-30                                                                                               |
 | F4    | NFR-05                                                                                                                                                      |
 
-Before F1 kickoff, the maintainer settles two domain questions (see `docs/domain/invariants.md`): the ready-check
-decliner penalty and the 1v1 dispute conflict of interest.
+Before F3 kickoff, the maintainer settles the 1v1 dispute conflict of interest (see `docs/domain/invariants.md`). The
+ready-check decliner penalty was settled on 2026-11-10 (no penalty for now).

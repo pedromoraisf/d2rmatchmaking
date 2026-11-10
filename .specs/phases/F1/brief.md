@@ -3,7 +3,7 @@
 **Goal**: J1 (ranked duel, steps 1 to 5) and J2 (leveling session, steps 1 to 5) playable end to end: Battle.net
 sign-in, characters read by the agent, queues, ready check and rooms whose presence the agents confirm.
 **Roadmap**: .specs/phases/ROADMAP.md#f1
-**Status**: DRAFT — waiting for the maintainer's answers below and the approval line
+**Status**: APPROVED — 2026-11-10; starts once the lean harness (ADR 029, PR 40) is on `main`
 
 ## How F1 runs (the lean flow)
 
@@ -79,23 +79,22 @@ Notes:
 - **Declining a ready check carries no penalty, for now** (maintainer, 2026-11-10: "Não. Hoje não deve acontecer
   nada"). FR-13 and INV-05 change accordingly; the PRD copy in Claude Docs needs the same edit.
 - **The 1v1 dispute question (INV-11 step 2)** belongs to FR-20/FR-30 in F3; it does not block F1.
+- **Live capture ships a first version in F1** (window capture, Windows OCR, fixed reading regions, English and
+  Portuguese clients); F2 keeps the cascade, fusion, remote config and the ≥ 95% read rate. AD-057's fixture-only gate
+  is lifted for these two readings.
+- **Not answering the ready check keeps the 5-minute wait.**
+- **Real-world check**: CI proves J1 and J2 with headless agents; the maintainer plays J1 once on production with one
+  other person (or two accounts on two PCs); J2 with real people waits for the F4 beta.
 - **Workers stay on Haiku** (ADR 025). Recorded as a hypothesis: if workers still need many retries after the lean
   harness, Sonnet is the next thing to try.
 
 ## What I need from you
 
-1. **Live capture in F1.** FR-02 and FR-16 need the agent to read real screens, and AD-057 left live capture for F2.
-   Proposal: F1 ships a first version (window capture, Windows OCR, fixed reading regions, English and Portuguese
-   clients) and F2 keeps the cascade, fusion, remote config and the ≥ 95% read rate. Confirm, or say what to cut.
-2. **Not answering the ready check.** I kept the 5-minute wait for someone who does not answer (a no-show holds the
-   whole group for a minute; a decline frees it at once). Confirm, or make it no penalty too.
-3. **Screenshots for the fixtures**, before `characters` and `agent-game-name` start: the character selection screen
-   and an in-game automap with the game name, in English and in Portuguese, at the resolutions you play. I will list
-   the exact shots in the feature specs.
-4. **The real-world check.** J1 needs two players and J2 eight. Proposal: CI proves both journeys with headless agents;
-   you play J1 once on production with one other person (or two Battle.net accounts on two PCs); J2 with real people
-   waits for the F4 beta.
-5. **Battle.net OAuth credentials** for staging and production (client id and secret in GitHub/Render secrets).
+1. **Screenshots for the fixtures**, before `characters` and `agent-game-name` start: the character selection screen
+   and an in-game automap with the game name, in English and in Portuguese, at the resolutions you play. The feature
+   specs list the exact shots. Until they arrive, those two features stop at their specs and the rest continue.
+2. **Battle.net OAuth credentials** for staging and production (client id and secret in GitHub/Render secrets), before
+   `identity-bnet` deploys. Until then it runs against a fake OAuth server in CI.
 
 ## Out of scope
 
@@ -104,4 +103,7 @@ assisted typing (F2); the macOS/Linux agent, Discord, console players (not in th
 
 ## Approval
 
-<!-- **Approved**: <date> - user: "<maintainer's words>" -->
+**Approved**: 2026-11-10 - user: "Alteração realizada e brief validado"
+
+The proposals of the draft's open items 1, 2 and 4 (live capture, not answering, the real-world check) were accepted
+with it and moved to "Decisions already taken"; items 3 and 5 are inputs, listed under "What I need from you".
