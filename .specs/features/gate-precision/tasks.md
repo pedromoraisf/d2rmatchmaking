@@ -88,7 +88,7 @@ T12 → T13 → T18 → T14 → T17 → T15
 Starts after `budget-v2` is merged into `phase/F0`: the orchestrator merges `phase/F0` into this branch first, so `tests/acceptance/support/gate-world.ts` exists.
 
 ```
-T15 → T19 → T20 → T21 → T16
+T15 → T19 → T20 → T21 → T16 → T22
 ```
 
 ---
@@ -582,6 +582,27 @@ T15 → T19 → T20 → T21 → T16
 
 ---
 
+### T22: A package scope does not lift the ledger deny elsewhere in the line
+
+**What**: The `review-diff` at `28ef079` found a BLOCKER. `isPackageScopeOnly` in `.claude/hooks/lib/budget-rules.mjs` returns true when every `d2rmm/` in the line is an `@d2rmm/<pkg>` scope, and then the whole `LEDGER_REF` deny is skipped, `.git/d2rmm` included. So `mv .git/d2rmm /tmp/x; echo @d2rmm/api`, `cp -r .git/d2rmm /tmp/x; echo @d2rmm/api` and `ls .git/d2rmm; echo @d2rmm/api` get no decision; the old gate denied them. Fix: remove every `PACKAGE_SCOPE` match from the command text, then apply `LEDGER_REF` and `GIT_DIR_CD` to what is left. A package scope is then exempt only as itself.
+**Where**: `.claude/hooks/lib/budget-rules.mjs` (modify), `.claude/hooks/test/budget-rules.test.mjs` (new test)
+**Depends on**: T16
+**Reuses**: `PACKAGE_SCOPE`, `LEDGER_REF`, `GIT_DIR_CD`, the GPR-33 test
+**Requirement**: GPR-33. HBS-31 keeps its deny.
+
+**Done when**:
+
+- [ ] A test named `a package scope does not lift the ledger deny elsewhere in the line` denies these three lines: `mv .git/d2rmm /tmp/x; echo @d2rmm/api`, `cp -r .git/d2rmm /tmp/x; echo @d2rmm/api` and `ls .git/d2rmm; echo @d2rmm/api`. It gets no ledger deny for `pnpm --filter @d2rmm/api list` or for `pnpm --filter @d2rmm/api list && pnpm --filter @d2rmm/web list`.
+- [ ] Every existing test of `budget-rules.test.mjs` passes unchanged, including GPR-33's.
+- [ ] The gate passes.
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/budget-rules.test.mjs`
+
+**Commit**: `fix(harness): a package scope does not lift the ledger deny elsewhere in the line`
+
+---
+
 ## Checks
 
 **C1** - A read-only line inside the checkout gets `allow`; a directory read path and a secret do not (GPR-01, AC 1)
@@ -686,11 +707,14 @@ Proof: `node --test --test-name-pattern "stops at its caps and its deadline" .cl
 **C32** - The acceptance scenarios pass (GPR-01 to GPR-33 with a scenario)
 Proof: `pnpm exec turbo run test:acceptance -- --grep @GPR- --workers=2`
 
-**C33** - `echo` takes any literal word (GPR-01)
+**C35** - `echo` takes any literal word (GPR-01)
 Proof: `node --test --test-name-pattern "echo takes any literal word" .claude/hooks/test/read-only.test.mjs`
 
-**C34** - The guard fails closed when git does not answer in time (HBS-32, harness-self)
+**C36** - The guard fails closed when git does not answer in time (HBS-32, harness-self)
 Proof: `node --test --test-name-pattern "the guard fails closed when git does not answer in time" .claude/hooks/test/guard.test.mjs`
+
+**C37** - A package scope elsewhere in a line does not lift the ledger deny (GPR-33, HBS-31)
+Proof: `node --test --test-name-pattern "a package scope does not lift the ledger deny elsewhere in the line" .claude/hooks/test/budget-rules.test.mjs`
 
 ---
 
@@ -740,7 +764,7 @@ Phase 2:  T4 → T5 → T6 → T7
 Phase 3:  T7 → T8 → T9
 Phase 4:  T9 → T10 → T11 → T12
 Phase 5:  T12 → T13 → T18 → T14 → T17 → T15
-Phase 6:  T15 → T19 → T20 → T21 → T16
+Phase 6:  T15 → T19 → T20 → T21 → T16 → T22
 ```
 
 Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T7); `execute-batch-2` runs phases 3 and 4 (T8 to T12);
