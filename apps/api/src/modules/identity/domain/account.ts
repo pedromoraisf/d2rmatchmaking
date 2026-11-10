@@ -8,6 +8,13 @@ export interface Account {
   readonly battletag: string;
   readonly displayName: string;
   readonly testKey?: string;
+  /** The Battle.net `sub`, the stable identifier of a Battle.net account (IDB-03). Absent on test accounts. */
+  readonly bnetSub?: string;
+}
+
+/** An account created by Battle.net sign-in: it always has its `sub`. */
+export interface BattleNetAccount extends Account {
+  readonly bnetSub: string;
 }
 
 /** Builds the test account for a player name. */

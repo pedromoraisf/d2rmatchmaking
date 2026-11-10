@@ -3,6 +3,7 @@ import { Migrator, type Migration, type MigrationProvider } from 'kysely/migrati
 import * as skeleton from '../../../migrations/0001_skeleton.ts';
 import * as outboxTraceContext from '../../../migrations/0002_outbox_trace_context.ts';
 import * as roomTraceContext from '../../../migrations/0003_room_trace_context.ts';
+import * as accountBnetSub from '../../../migrations/0004_account_bnet_sub.ts';
 
 /**
  * Every migration of the API, by name. Kysely applies them in name order. The list lives here, not in `main/`, so the
@@ -12,6 +13,7 @@ const MIGRATIONS: Readonly<Record<string, Migration>> = {
   '0001_skeleton': skeleton,
   '0002_outbox_trace_context': outboxTraceContext,
   '0003_room_trace_context': roomTraceContext,
+  '0004_account_bnet_sub': accountBnetSub,
 };
 
 const provider: MigrationProvider = {

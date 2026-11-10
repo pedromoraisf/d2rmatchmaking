@@ -16,7 +16,7 @@ Rules for the worker:
 
 ## Batch 1
 
-- [ ] T1 — Migration `0004_account_bnet_sub` (additive: nullable `bnet_sub text` with a unique index on
+- [x] T1 — Migration `0004_account_bnet_sub` (additive: nullable `bnet_sub text` with a unique index on
       `identity.accounts`), repository methods `findByBnetSub`, `insertBattleNetAccount`, `updateBattletag` on
       `AccountRepository`, and `delete(tokenHash)` on `SessionRepository` (Postgres + in-memory fakes); add the new
       migration to the list in `migrate.int.test.ts` — gate:
