@@ -79,3 +79,19 @@ Rules for the worker:
       `pnpm exec turbo run test:acceptance -- --grep @IDB-`
 - [x] T10 — Whole-repo sensors on the branch — gate:
       `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check`
+
+## Batch 3 — review fixes (PR #43)
+
+- [ ] T11 — Security review finding 1 (IDB-11): the Fastify request log records `req.url`, so the callback's `code` and
+      `state` reach the logs. Give `appLoggerOptions` a `req` serializer that logs the path without its query string,
+      for every route; add a test that captures the log output of a callback request and asserts that neither `code=`
+      nor `state=` (nor their values) appears — gate:
+      `pnpm --filter @d2rmm/api exec vitest run src/main/app.test.ts && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/identity-routes.int.test.ts`
+- [ ] T12 — Security review finding 2: the loopback rule of `config.ts` accepts any hostname starting with `127.`
+      (`http://127.evil.example`). Accept only `localhost`, `[::1]` and a full IPv4 `127.a.b.c` (each part 0 to 255),
+      for both `OTEL_EXPORTER_OTLP_ENDPOINT` and `BNET_OAUTH_BASE_URL`; tests for `127.evil.example`, `127.0.0.1.nip.io`,
+      `127.0.0.1` and `127.1.2.3` — gate: `pnpm --filter @d2rmm/api exec vitest run src/main/config.test.ts`
+- [ ] T13 — Security review finding 5 (IDB-04): if `signInWithBattleNet` throws (database error), the callback ends in a
+      500 without clearing the state cookie. Catch it in the callback route, record the outcome, clear the state cookie
+      and redirect to `/?signin=failed`; a test with a failing repository — gate:
+      `pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/identity-routes.int.test.ts`
