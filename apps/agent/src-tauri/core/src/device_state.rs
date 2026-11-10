@@ -11,6 +11,7 @@ use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
 use crate::hub::Hub;
+use crate::messages::Screen;
 use crate::ports::{ApiError, StateSink, TokenStore};
 use crate::view::{PairingView, UpdateView};
 
@@ -27,6 +28,8 @@ pub struct DeviceState {
     pub update_now: Notify,
     /// The current room assignment (AGS-14). Latest `room.assigned` wins.
     pub assignment: watch::Sender<RoomAssignment>,
+    /// The screen the last frame showed (CHR-04). The heartbeat reports it and beats at once when it changes.
+    pub screen: watch::Sender<Screen>,
     /// Observations dropped after their retries ran out or were overtaken (AD-051).
     observations_dropped: AtomicU64,
 }
@@ -41,8 +44,21 @@ impl DeviceState {
             update_required: watch::channel(false).0,
             update_now: Notify::new(),
             assignment: watch::channel(RoomAssignment::empty()).0,
+            screen: watch::channel(Screen::Unknown).0,
             observations_dropped: AtomicU64::new(0),
         }
+    }
+
+    /// Records the screen the last frame showed. Only a change wakes the heartbeat (CHR-05).
+    pub fn set_screen(&self, screen: Screen) {
+        self.screen.send_if_modified(|current| {
+            if *current == screen {
+                false
+            } else {
+                *current = screen;
+                true
+            }
+        });
     }
 
     /// Whether a token is held.

@@ -9,6 +9,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Mutex, PoisonError};
 
+use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::{ReadText, Region};
 
@@ -29,6 +30,7 @@ pub enum Call {
     Heartbeat { presence: Presence, version: String },
     Assignment,
     PostObservation(GameNameObservation),
+    PostCharacters { cards: Vec<Card> },
     OpenStream { last_event_id: Option<String> },
 }
 
@@ -59,6 +61,7 @@ struct Script {
     heartbeat: VecDeque<Result<(), ApiError>>,
     assignment: VecDeque<Result<Option<Assignment>, ApiError>>,
     post_observation: VecDeque<Result<(), ApiError>>,
+    post_characters: VecDeque<Result<(), ApiError>>,
     open_stream: VecDeque<Result<Vec<StreamItem>, ApiError>>,
     hold_streams: bool,
     calls: Vec<Call>,
@@ -112,6 +115,10 @@ impl FakeApiGateway {
 
     pub fn script_post_observation(&self, answers: impl IntoIterator<Item = Result<(), ApiError>>) {
         self.with(|script| script.post_observation.extend(answers));
+    }
+
+    pub fn script_post_characters(&self, answers: impl IntoIterator<Item = Result<(), ApiError>>) {
+        self.with(|script| script.post_characters.extend(answers));
     }
 
     /// Each answer opens one stream that yields these items in order and then ends with `Closed`.
@@ -196,6 +203,15 @@ impl ApiGateway for FakeApiGateway {
                 .calls
                 .push(Call::PostObservation(observation.clone()));
             answer(&mut script.post_observation)
+        })
+    }
+
+    async fn post_characters(&self, _token: &Secret, cards: &[Card]) -> Result<(), ApiError> {
+        self.with(|script| {
+            script.calls.push(Call::PostCharacters {
+                cards: cards.to_vec(),
+            });
+            answer(&mut script.post_characters)
         })
     }
 

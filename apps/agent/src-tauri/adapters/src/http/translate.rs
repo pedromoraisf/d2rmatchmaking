@@ -5,6 +5,7 @@
 use d2rmm_agent_core::messages::{
     GameNameObservation, InvalidPairingCode, IssuedCode, PairingCode, Presence, Screen,
 };
+use d2rmm_agent_domain::characters::{Card, Class, Difficulty, Era, LadderFlag, Mode};
 use d2rmm_agent_domain::room_assignment::{Assignment, GameName, Member, MemberRole, RoomId};
 use serde_json::json;
 
@@ -77,16 +78,85 @@ pub fn heartbeat_from_presence(
     presence: &Presence,
     version: &str,
 ) -> Result<contract::Heartbeat, serde_json::Error> {
-    let screen = match presence.screen {
-        Screen::Unknown => "UNKNOWN",
-        Screen::AutomapOpen => "AUTOMAP_OPEN",
-    };
     serde_json::from_value(json!({
         "agentVersion": version,
         "pcState": "IDLE",
-        "game": { "running": presence.game_running, "window": "", "screen": screen },
+        "game": { "running": presence.game_running, "window": "", "screen": screen_word(presence.screen) },
         "capture": { "method": "none", "readRate": 0 },
     }))
+}
+
+/// The screen as the contract spells it (`Screen` of the contract, CHR-04).
+fn screen_word(screen: Screen) -> &'static str {
+    match screen {
+        Screen::Unknown => "UNKNOWN",
+        Screen::CharacterSelect => "CHARACTER_SELECT",
+        Screen::InGame => "IN_GAME",
+        Screen::AutomapOpen => "AUTOMAP_OPEN",
+    }
+}
+
+/// The complete cards of one character selection screen in the contract's batch shape (CHR-06, CHR-09). The domain already
+/// holds every value the contract's rules check, so a failure here is a bug and never a partial batch.
+pub fn characters_to_contract(
+    cards: &[Card],
+) -> Result<contract::RecordCharactersRequest, serde_json::Error> {
+    serde_json::from_value(json!({
+        "characters": cards.iter().map(card_to_json).collect::<Vec<_>>(),
+    }))
+}
+
+fn card_to_json(card: &Card) -> serde_json::Value {
+    json!({
+        "name": card.name(),
+        "class": class_word(card.class()),
+        "level": card.level(),
+        "ladder": ladder_word(card.mode(), card.ladder()),
+        "era": era_word(card.era()),
+        "unlockedDifficulties": card
+            .unlocked_difficulties()
+            .into_iter()
+            .map(difficulty_word)
+            .collect::<Vec<_>>(),
+    })
+}
+
+fn class_word(class: Class) -> &'static str {
+    match class {
+        Class::Amazon => "amazon",
+        Class::Assassin => "assassin",
+        Class::Barbarian => "barbarian",
+        Class::Druid => "druid",
+        Class::Necromancer => "necromancer",
+        Class::Paladin => "paladin",
+        Class::Sorceress => "sorceress",
+        Class::Warlock => "warlock",
+    }
+}
+
+fn era_word(era: Era) -> &'static str {
+    match era {
+        Era::Classic => "classic",
+        Era::Lod => "lod",
+        Era::Rotw => "rotw",
+    }
+}
+
+fn ladder_word(mode: Mode, ladder: LadderFlag) -> &'static str {
+    match (mode, ladder) {
+        (Mode::Softcore, LadderFlag::Ladder) => "sc-ladder",
+        (Mode::Softcore, LadderFlag::NonLadder) => "sc-nonladder",
+        (Mode::Hardcore, LadderFlag::Ladder) => "hc-ladder",
+        (Mode::Hardcore, LadderFlag::NonLadder) => "hc-nonladder",
+    }
+}
+
+fn difficulty_word(difficulty: Difficulty) -> &'static str {
+    match difficulty {
+        Difficulty::Normal => "normal",
+        Difficulty::Nightmare => "nightmare",
+        Difficulty::Hell => "hell",
+    }
 }
 
 /// A `GAME_NAME_SEEN` observation in its contract shape.
@@ -113,12 +183,13 @@ mod tests {
     use uuid::Uuid;
 
     use super::{
-        assignment_from_contract, assignment_to_contract, heartbeat_from_presence,
-        issued_code_from_contract, observation_to_contract,
+        assignment_from_contract, assignment_to_contract, characters_to_contract,
+        heartbeat_from_presence, issued_code_from_contract, observation_to_contract,
     };
     use crate::contracts::generated as contract;
     use crate::contracts::schemas::SCHEMAS;
     use d2rmm_agent_core::messages::{GameNameObservation, Presence, Screen};
+    use d2rmm_agent_domain::characters::{Card, Class, Era, LadderFlag, Mode, Title};
     use d2rmm_agent_domain::room_assignment::{Member, MemberRole};
 
     const ROOM: &str = "7d9f2c1e-0000-4000-8000-000000000001";
@@ -210,6 +281,77 @@ mod tests {
         assert!(
             schema("heartbeat.json").is_valid(&sent),
             "the body matches its schema"
+        );
+    }
+
+    #[test]
+    fn every_screen_is_sent_under_its_contract_word() {
+        for (screen, word) in [
+            (Screen::Unknown, "UNKNOWN"),
+            (Screen::CharacterSelect, "CHARACTER_SELECT"),
+            (Screen::InGame, "IN_GAME"),
+            (Screen::AutomapOpen, "AUTOMAP_OPEN"),
+        ] {
+            let presence = Presence {
+                game_running: true,
+                screen,
+            };
+            let sent = serde_json::to_value(
+                heartbeat_from_presence(&presence, "0.0.1").expect("a contract heartbeat"),
+            )
+            .expect("the heartbeat serializes");
+            assert_eq!(sent["game"]["screen"], word, "{screen:?}");
+            assert!(
+                schema("heartbeat.json").is_valid(&sent),
+                "{screen:?} matches the schema"
+            );
+        }
+    }
+
+    #[test]
+    fn cards_are_sent_in_the_batch_shape_and_match_the_schema() {
+        let cards = [
+            Card::new(
+                "Sorc",
+                Class::Sorceress,
+                85,
+                Mode::Softcore,
+                LadderFlag::Ladder,
+                Era::Lod,
+                Some(Title::Lord),
+            )
+            .expect("the card builds"),
+            Card::new(
+                "Hammer",
+                Class::Paladin,
+                92,
+                Mode::Hardcore,
+                LadderFlag::NonLadder,
+                Era::Rotw,
+                None,
+            )
+            .expect("the card builds"),
+        ];
+
+        let sent = serde_json::to_value(characters_to_contract(&cards).expect("a contract batch"))
+            .expect("the batch serializes");
+
+        assert_eq!(sent["characters"][0]["name"], "Sorc");
+        assert_eq!(sent["characters"][0]["class"], "sorceress");
+        assert_eq!(sent["characters"][0]["ladder"], "sc-ladder");
+        assert_eq!(sent["characters"][0]["era"], "lod");
+        assert_eq!(
+            sent["characters"][0]["unlockedDifficulties"],
+            json!(["normal", "nightmare", "hell"])
+        );
+        assert_eq!(sent["characters"][1]["ladder"], "hc-nonladder");
+        assert_eq!(
+            sent["characters"][1]["unlockedDifficulties"],
+            json!(["normal"])
+        );
+        assert!(
+            schema("record-characters-request.json").is_valid(&sent),
+            "the batch matches its schema"
         );
     }
 

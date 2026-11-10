@@ -16,6 +16,7 @@ use d2rmm_agent_core::secret::Secret;
 use crate::config::ApiBase;
 use crate::contracts::generated::{
     Assignment, ClaimRequest, ClaimResponse, Heartbeat, Observation, PairingCodeResponse,
+    RecordCharactersRequest,
 };
 use crate::telemetry::traceparent_for;
 
@@ -144,6 +145,27 @@ impl ApiClient {
         .await
     }
 
+    /// `POST /v1/me/characters` (CHR-09): the complete cards of one character selection screen. `204` is stored.
+    pub async fn post_characters(
+        &self,
+        token: &Secret,
+        body: &RecordCharactersRequest,
+    ) -> Result<(), ApiError> {
+        let span = info_span!("agent.http.characters", status = Empty);
+        async {
+            let request = self
+                .authorized(Method::POST, "/v1/me/characters", token)?
+                .json(body);
+            let response = self.send(request).await?;
+            match reading(Route::Characters, response.status()) {
+                Reading::Success => Ok(()),
+                _ => Err(failure(&response)),
+            }
+        }
+        .instrument(span)
+        .await
+    }
+
     /// `GET /v1/stream`. The response is handed to the stream reader, which parses the events (AGS-13).
     pub async fn open_stream(
         &self,
@@ -226,6 +248,7 @@ enum Route {
     Heartbeat,
     Assignment,
     Observation,
+    Characters,
     Stream,
 }
 
@@ -250,6 +273,7 @@ fn reading(route: Route, status: StatusCode) -> Reading {
         | (Route::Heartbeat, StatusCode::NO_CONTENT)
         | (Route::Assignment, StatusCode::OK)
         | (Route::Observation, StatusCode::ACCEPTED)
+        | (Route::Characters, StatusCode::NO_CONTENT)
         | (Route::Stream, StatusCode::OK) => Reading::Success,
         (Route::Claim, StatusCode::ACCEPTED) => Reading::Pending,
         (Route::Assignment, StatusCode::NOT_FOUND) => Reading::NoRoom,
@@ -352,6 +376,7 @@ mod tests {
             (Route::Assignment, StatusCode::OK, Reading::Success),
             (Route::Assignment, StatusCode::NOT_FOUND, Reading::NoRoom),
             (Route::Observation, StatusCode::ACCEPTED, Reading::Success),
+            (Route::Characters, StatusCode::NO_CONTENT, Reading::Success),
             (Route::Stream, StatusCode::OK, Reading::Success),
         ];
         for (route, status, expected) in table {
@@ -374,6 +399,8 @@ mod tests {
             (Route::Heartbeat, StatusCode::ACCEPTED),
             (Route::Assignment, StatusCode::ACCEPTED),
             (Route::Observation, StatusCode::OK),
+            (Route::Characters, StatusCode::OK),
+            (Route::Characters, StatusCode::UNAUTHORIZED),
             (Route::Stream, StatusCode::CREATED),
             (Route::Stream, StatusCode::NO_CONTENT),
         ];

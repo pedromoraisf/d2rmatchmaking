@@ -133,6 +133,14 @@ impl ApiGateway for Reporting {
         result
     }
 
+    async fn post_characters(
+        &self,
+        token: &Secret,
+        cards: &[d2rmm_agent_domain::characters::Card],
+    ) -> Result<(), ApiError> {
+        self.inner.post_characters(token, cards).await
+    }
+
     async fn open_stream(
         &self,
         token: &Secret,

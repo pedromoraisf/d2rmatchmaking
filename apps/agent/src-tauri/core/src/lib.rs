@@ -17,6 +17,7 @@ pub mod read_frame;
 pub mod runtime;
 pub mod secret;
 pub mod view;
+pub mod watch_screen;
 
 #[cfg(test)]
 mod tests {

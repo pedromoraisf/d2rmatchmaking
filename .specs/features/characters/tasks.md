@@ -39,7 +39,7 @@ Rules for the worker:
       Baron/Baroness; classic HC Count/Countess, Duke/Duchess, King/Queen; expansion SC Slayer, Champion,
       Patriarch/Matriarch; expansion HC Destroyer, Conqueror, Guardian; no title → Normal), unit tests for every title
       — gate: `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-domain --lib`
-- [ ] T6 — Agent core: ports `FrameSource` and `ConsentStore`, the `watch_screen` loop of `design.md` (1 s tick; no
+- [x] T6 — Agent core: ports `FrameSource` and `ConsentStore`, the `watch_screen` loop of `design.md` (1 s tick; no
       capture without consent or without the game running; shared current screen read by `beat`, which sends one
       immediate heartbeat on a screen change; posts characters only when the card set changed), gateway method
       `post_characters` with its HTTP adapter, span `agent.vision.read-characters` without names; unit tests with

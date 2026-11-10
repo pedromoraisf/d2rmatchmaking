@@ -13,7 +13,7 @@ use tracing::Instrument;
 
 use crate::device_state::DeviceState;
 use crate::groups::HeartbeatPorts;
-use crate::messages::{Presence, Screen};
+use crate::messages::Presence;
 use crate::ports::{ApiError, ApiGateway};
 use crate::view::Connectivity;
 
@@ -27,12 +27,15 @@ pub async fn run<G: ApiGateway + Send + Sync + 'static>(
     version: String,
 ) {
     let mut next = Instant::now();
+    let mut screen = device.screen.subscribe();
     loop {
         device.wait_until_allowed(DeviceState::api_allowed).await;
-        if !device
-            .sleep_while_allowed(next, DeviceState::api_allowed)
-            .await
-        {
+        // A change of screen beats at once (CHR-05); the schedule then restarts from that beat.
+        let due = tokio::select! {
+            on_time = device.sleep_while_allowed(next, DeviceState::api_allowed) => on_time,
+            _ = screen.changed() => device.api_allowed(),
+        };
+        if !due {
             continue;
         }
         // The schedule starts with the beat, so a slow answer does not move the next beat.
@@ -54,8 +57,7 @@ async fn beat<G: ApiGateway + Send + Sync>(
     };
     let presence = Presence {
         game_running: game_running(&ports.processes.names()),
-        // The screen is unknown until F2 reads it (AGS-10).
-        screen: Screen::Unknown,
+        screen: *device.screen.borrow(),
     };
     // A version the contract refuses fails in the gateway's translation, before anything is sent, and shows as unreachable.
     match ports.gateway.heartbeat(&token, &presence, version).await {
@@ -153,6 +155,38 @@ mod tests {
                     "D2R.exe in the snapshot sets game.running"
                 );
             }
+        });
+    }
+
+    #[test]
+    fn a_screen_change_beats_at_once_with_the_new_screen() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_heartbeat([Ok(()), Ok(()), Ok(())]);
+            let (device, ports) = paired(&gateway, Vec::new());
+            tokio::spawn(run(Arc::clone(&device), ports, "0.0.1".to_string()));
+
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            assert_eq!(beats(&gateway).len(), 1, "the first beat is at once");
+
+            device.set_screen(Screen::CharacterSelect);
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            let sent = beats(&gateway);
+            assert_eq!(
+                sent.len(),
+                2,
+                "the change beats without waiting for the schedule"
+            );
+            assert_eq!(
+                sent[1],
+                Call::Heartbeat {
+                    presence: Presence {
+                        game_running: false,
+                        screen: Screen::CharacterSelect,
+                    },
+                    version: "0.0.1".to_string(),
+                },
+            );
         });
     }
 
