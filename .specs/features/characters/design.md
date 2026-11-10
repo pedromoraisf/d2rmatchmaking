@@ -29,13 +29,13 @@ site:  GET /v1/me/characters on load and on `characters.updated`
 
 ## API (Identity module)
 
-| Layer       | What                                                                                                                                                                                                                                                                         |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| domain      | `domain/character/character.ts`: `Character` value with the rules above; `unlockedDifficulties` checked                                                                                                                                                                      |
-| application | port `CharacterRepository` (`upsertMany(accountId, characters, readAt)`, `listByAccount`); use cases `recordCharacters` (one unit of work, emits `CharactersRecorded {accountId}` to the outbox) and `listMyCharacters`                                                      |
-| adapters    | `postgres/postgres-character-repository.ts`; `http/routes.ts`: `POST /v1/me/characters` behind the agent guard (accountId from `AgentsPort`), `GET /v1/me/characters` behind the session guard                                                                               |
-| platform    | stream projection maps `CharactersRecorded` to `characters.updated` for that account's site stream                                                                                                                                                                           |
-| migration   | `0005_identity_characters` (number after identity-bnet's `0004`; rename to the next free number if another migration lands first): `identity.characters (id, account_id, name, class, level, ladder, era, unlocked_difficulties text[], read_at, unique (account_id, name))` |
+| Layer       | What                                                                                                                                                                                                                    |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| domain      | `domain/character/character.ts`: `Character` value with the rules above; `unlockedDifficulties` checked                                                                                                                 |
+| application | port `CharacterRepository` (`upsertMany(accountId, characters, readAt)`, `listByAccount`); use cases `recordCharacters` (one unit of work, emits `CharactersRecorded {accountId}` to the outbox) and `listMyCharacters` |
+| adapters    | `postgres/postgres-character-repository.ts`; `http/routes.ts`: `POST /v1/me/characters` behind the agent guard (accountId from `AgentsPort`), `GET /v1/me/characters` behind the session guard                          |
+| platform    | stream projection maps `CharactersRecorded` to `characters.updated` for that account's site stream                                                                                                                      |
+| migration   | `0006_identity_characters` (after identity-bnet's `0004` and `0005`): `identity.characters (id, account_id, name, class, level, ladder, era, unlocked_difficulties text[], read_at, unique (account_id, name))`         |
 
 Spans: `identity.record-characters` (attributes `d2r.characters.count`), `identity.list-characters`. No names.
 
