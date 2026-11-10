@@ -88,7 +88,7 @@ T12 → T13 → T18 → T14 → T17 → T15
 Starts after `budget-v2` is merged into `phase/F0`: the orchestrator merges `phase/F0` into this branch first, so `tests/acceptance/support/gate-world.ts` exists.
 
 ```
-T15 → T19 → T20 → T21 → T16 → T22
+T15 → T19 → T20 → T21 → T16 → T22 → T23
 ```
 
 ---
@@ -603,6 +603,27 @@ T15 → T19 → T20 → T21 → T16 → T22
 
 ---
 
+### T23: The watchdog counts from the process start
+
+**What**: `gate-startup.test.mjs` "answers before the hook timeout" failed twice inside `pnpm check`, at 10.1 s against its 9 s limit. A quiet run of the gate answers a stalled call in 8.12 s. In `.claude/hooks/gate.mjs`, the 8 s watchdog is armed only after the module's static imports have been evaluated, and under the harness suite's parallel load that takes about 2 s. Arm it for `WATCHDOG_MS - performance.now()`, with a floor of 0. `performance.now()` counts from the process's time origin, so the watchdog answers 8 s after the process starts, however slowly it loads. `WATCHDOG_MS` stays 8 s.
+**Where**: `.claude/hooks/gate.mjs` (modify the watchdog's arming only), `.claude/hooks/test/gate-startup.test.mjs` (new test)
+**Depends on**: T22
+**Reuses**: the stalled-stdin pattern of "answers before the hook timeout"
+**Requirement**: GPR-20. A stalled call is answered before the hook times out, with no gate hook error.
+
+**Done when**:
+
+- [ ] A test named `the watchdog counts from the process start` runs the gate with `node --import <a module that busy-waits 2 s> gate.mjs` and a stdin that never closes. It shows the exit code 0, the `ask` decision, and an answer within 9 s of the spawn.
+- [ ] Every existing test of `gate-startup.test.mjs` passes unchanged.
+- [ ] The gate passes.
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/gate-startup.test.mjs`
+
+**Commit**: `fix(harness): the gate's watchdog counts from the process start`
+
+---
+
 ## Checks
 
 **C1** - A read-only line inside the checkout gets `allow`; a directory read path and a secret do not (GPR-01, AC 1)
@@ -716,6 +737,9 @@ Proof: `node --test --test-name-pattern "the guard fails closed when git does no
 **C37** - A package scope elsewhere in a line does not lift the ledger deny (GPR-33, HBS-31)
 Proof: `node --test --test-name-pattern "a package scope does not lift the ledger deny elsewhere in the line" .claude/hooks/test/budget-rules.test.mjs`
 
+**C38** - The watchdog answers a stalled call 8 s after the process starts, even when loading is slow (GPR-20)
+Proof: `node --test --test-name-pattern "the watchdog counts from the process start" .claude/hooks/test/gate-startup.test.mjs`
+
 ---
 
 ## Handoff
@@ -764,7 +788,7 @@ Phase 2:  T4 → T5 → T6 → T7
 Phase 3:  T7 → T8 → T9
 Phase 4:  T9 → T10 → T11 → T12
 Phase 5:  T12 → T13 → T18 → T14 → T17 → T15
-Phase 6:  T15 → T19 → T20 → T21 → T16 → T22
+Phase 6:  T15 → T19 → T20 → T21 → T16 → T22 → T23
 ```
 
 Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T7); `execute-batch-2` runs phases 3 and 4 (T8 to T12);
