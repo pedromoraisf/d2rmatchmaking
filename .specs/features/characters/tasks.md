@@ -64,7 +64,7 @@ Rules for the worker:
 The screen reading (old T8 regions/classifier/parser, T9 Windows OCR on fixtures, T10 headless reading) moved to
 `.specs/features/characters-reading/`, which waits for the screenshots.
 
-- [ ] T8 — Acceptance steps in `tests/acceptance/steps/characters.steps.ts` for every step of `acceptance.feature`: the
+- [x] T8 — Acceptance steps in `tests/acceptance/steps/characters.steps.ts` for every step of `acceptance.feature`: the
       agent client sends heartbeats with the new screens and `POST /v1/me/characters` with its token; reuse the
       existing sign-in, pairing, heartbeat and stream steps (`agents.steps.ts`, `identity.steps.ts`, `site.steps.ts`,
       `support/agent-client.ts`, `support/world.ts`) and do not add near-duplicates of existing phrasings — gate:

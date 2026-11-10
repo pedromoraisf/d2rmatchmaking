@@ -259,8 +259,11 @@ When(/^a client sends spans to the relay (.+)$/, async ({ world }, how: string) 
   await send(world, form as Form);
 });
 
+// The relay's answer when the scenario sent to the relay; otherwise the last answer a step recorded (characters, CHR-09).
 Then(/^the API answers (\d{3})$/, ({ world }, code: string) => {
-  expect(relayOf(world).status, 'the relay answer').toBe(Number(code));
+  const relay = stateOf(world).relay;
+  const status = relay !== undefined ? relay.status : world.last?.status;
+  expect(status, 'the API answer').toBe(Number(code));
 });
 
 Then('the API answers 202 with no content', ({ world }) => {
