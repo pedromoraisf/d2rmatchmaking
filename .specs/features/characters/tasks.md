@@ -22,7 +22,7 @@ Rules for the worker:
       difficulty lists, 1 to 24 unique names), the `characters.updated` site stream event; regenerate OpenAPI, AsyncAPI
       and the Rust types — gate:
       `pnpm --filter @d2rmm/contracts exec vitest run && pnpm contracts:openapi && (cd apps/agent/src-tauri && cargo run -q -p xtask -- contracts && cargo nextest run -p d2rmm-agent-adapters)`
-- [ ] T2 — API domain and application: `domain/character/character.ts`, port `CharacterRepository`, use cases
+- [x] T2 — API domain and application: `domain/character/character.ts`, port `CharacterRepository`, use cases
       `recordCharacters` (upsert by account + name, newest reading wins, one unit of work, `CharactersRecorded` in the
       outbox) and `listMyCharacters`, in-memory fakes, unit tests for every rule of CHR-09 and CHR-10 — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/modules/identity/domain src/modules/identity/application`
