@@ -55,6 +55,8 @@ export interface TelemetryConfig {
 type Environment = Readonly<Record<string, string | undefined>>;
 
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '[::1]']);
+/** A dotted IPv4 address in 127.0.0.0/8: four parts, the first 127, each part checked to 255 by `isLoopbackHost`. */
+const IPV4_LOOPBACK = /^127\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
 const DEFAULT_SAMPLER_ARG = '0.1';
 const DEFAULT_BNET_OAUTH_BASE_URL = 'https://oauth.battle.net';
 
@@ -77,6 +79,18 @@ function integer(name: string, raw: string | undefined, fallback: number, minimu
     throw new Error(`${name} must be an integer of at least ${minimum}`);
   }
   return value;
+}
+
+/**
+ * A loopback hostname: `localhost`, `[::1]`, or a whole IPv4 address in 127.0.0.0/8 (each part 0 to 255). A name that
+ * only starts with `127.` (`127.evil.example`, `127.0.0.1.nip.io`) is not loopback.
+ */
+function isLoopbackHost(hostname: string): boolean {
+  if (LOOPBACK_HOSTS.has(hostname)) {
+    return true;
+  }
+  const match = IPV4_LOOPBACK.exec(hostname);
+  return match !== null && match.slice(1).every((part) => Number(part) <= 255);
 }
 
 /** A loopback host may use plain http; every other endpoint must be https. The refusal never echoes the endpoint. */
@@ -104,8 +118,7 @@ function secureUrlOf(name: string, raw: string): string {
   if (url.username !== '' || url.password !== '') {
     return refuse();
   }
-  const loopback = LOOPBACK_HOSTS.has(url.hostname) || url.hostname.startsWith('127.');
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopbackHost(url.hostname))) {
     return refuse();
   }
   return raw;

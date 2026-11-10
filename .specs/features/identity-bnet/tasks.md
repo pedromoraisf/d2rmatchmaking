@@ -87,7 +87,7 @@ Rules for the worker:
       for every route; add a test that captures the log output of a callback request and asserts that neither `code=`
       nor `state=` (nor their values) appears — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/main/app.test.ts && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/identity-routes.int.test.ts`
-- [ ] T12 — Security review finding 2: the loopback rule of `config.ts` accepts any hostname starting with `127.`
+- [x] T12 — Security review finding 2: the loopback rule of `config.ts` accepts any hostname starting with `127.`
       (`http://127.evil.example`). Accept only `localhost`, `[::1]` and a full IPv4 `127.a.b.c` (each part 0 to 255),
       for both `OTEL_EXPORTER_OTLP_ENDPOINT` and `BNET_OAUTH_BASE_URL`; tests for `127.evil.example`, `127.0.0.1.nip.io`,
       `127.0.0.1` and `127.1.2.3` — gate: `pnpm --filter @d2rmm/api exec vitest run src/main/config.test.ts`

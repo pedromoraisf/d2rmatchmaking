@@ -75,6 +75,44 @@ describe('loadConfig telemetry settings (OBS-40, OBS-43)', () => {
   });
 });
 
+describe('loopback hosts for plain http (IDB-06, OBS-40)', () => {
+  it('refuses a hostname that only starts with 127. for both URL settings', () => {
+    for (const host of ['127.evil.example', '127.0.0.1.nip.io']) {
+      expect(() => loadConfig({ OTEL_EXPORTER_OTLP_ENDPOINT: `http://${host}:4318` })).toThrow(
+        'OTEL_EXPORTER_OTLP_ENDPOINT',
+      );
+      expect(() =>
+        loadConfig({
+          BNET_CLIENT_ID: 'public-client-id',
+          BNET_CLIENT_SECRET: 'bnet-client-secret-value',
+          BNET_OAUTH_BASE_URL: `http://${host}:9000`,
+        }),
+      ).toThrow('BNET_OAUTH_BASE_URL');
+    }
+  });
+
+  it('accepts a full IPv4 address in 127.0.0.0/8 for both URL settings', () => {
+    for (const host of ['127.0.0.1', '127.1.2.3']) {
+      expect(loadConfig({ OTEL_EXPORTER_OTLP_ENDPOINT: `http://${host}:4318` }).telemetry.endpoint).toBe(
+        `http://${host}:4318`,
+      );
+      expect(
+        loadConfig({
+          BNET_CLIENT_ID: 'public-client-id',
+          BNET_CLIENT_SECRET: 'bnet-client-secret-value',
+          BNET_OAUTH_BASE_URL: `http://${host}:9000`,
+        }).bnet?.baseUrl,
+      ).toBe(`http://${host}:9000`);
+    }
+  });
+
+  it('refuses an IPv4 address with a part above 255', () => {
+    expect(() => loadConfig({ OTEL_EXPORTER_OTLP_ENDPOINT: 'http://127.0.0.256:4318' })).toThrow(
+      'OTEL_EXPORTER_OTLP_ENDPOINT',
+    );
+  });
+});
+
 describe('loadConfig Battle.net settings (IDB-06, IDB-11)', () => {
   const CLIENT_SECRET = 'bnet-client-secret-value';
   const credentials = { BNET_CLIENT_ID: 'public-client-id', BNET_CLIENT_SECRET: CLIENT_SECRET };
