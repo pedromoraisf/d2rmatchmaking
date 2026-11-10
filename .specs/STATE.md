@@ -1335,6 +1335,87 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-07
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-157 (assumed)
+
+- **Decision**: a shell write to a harness or sensor file, the quality baseline or a test file is denied with an instruction to use the Edit tool; a shell write to a self-protected file keeps `ask`.
+- **Reason**: gate-precision, GPR-08 to GPR-10. Brief revision 6 turns the ask into a deny; HBS-23's accepted scenario says `ask` for self-protected files, and changing an accepted scenario is the maintainer's.
+- **Trade-off**: shell writes to the gate itself still prompt. Reversal: extend the deny to self-protected files with a new HBS scenario.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-158 (assumed)
+
+- **Decision**: polling is the same trimmed Bash command string run a fifth time within a sliding 10 minutes in one agent session, every Bash call counted (a denied one too); the per-session history keeps hashes, not commands, in its own file next to the ledger, pruned to 10 minutes.
+- **Reason**: gate-precision, GPR-17. The brief names "the fifth identical command within 10 minutes in one session"; the session id already separates parallel workers (ADR 022).
+- **Trade-off**: an agent that legitimately repeats a command five times in 10 minutes is refused and told to wait. Reversal: one constant.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-159 (assumed)
+
+- **Decision**: the replay corpus is extracted once from the F0 session transcripts by a committed extractor that keeps by allow-list: a Bash command is re-emitted word by word, with every word that is not a safe command, option, checkout path or revision replaced by `<v>`; Edit, Write, Read and Agent entries keep only the file path or subagent type, a size bucket and the matched pattern, never content or prompts. The repository path, home paths, the scratchpad, session ids, UUIDs, IPs and long hex or base64 runs are normalised everywhere, the gate's reason included. Expected decisions come from a category table in the test, not from the corpus.
+- **Reason**: gate-precision, GPR-23 and GPR-24. The brief asks for "the F0 commands that prompted or were denied"; the transcripts record them. The repository is public, so nothing personal or secret may enter it; a deny-list misses opaque tokens (security review of the design).
+- **Trade-off**: the corpus shows F0's commands in a public repository, normalised. Reversal: drop the fixture and keep the test on synthetic cases.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-160 (assumed)
+
+- **Decision**: the 300 ms p95 is measured by a local benchmark over the corpus on the phase machine; CI runs the replay's decisions, not its timing.
+- **Reason**: gate-precision, GPR-22. Timing on shared CI runners is not repeatable; the target is about the agent's machine.
+- **Trade-off**: a slow-down shows only when the benchmark runs. Reversal: add a CI step.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-162 (assumed)
+
+- **Decision**: the gate judges the script file it reads; a change to the file between that read and the run is not seen.
+- **Reason**: gate-precision, GPR-11. The same holds today for every untracked script the gate reads; the agent that would change it is the one being gated, and its edits are gated too.
+- **Trade-off**: a script rewritten between the gate's read and the run escapes the check. Reversal: ask for every script outside the repository again.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-163 (assumed)
+
+- **Decision**: the read-only table keeps only forms whose every file read is a path operand the gate checks: no recursive or pattern-file `grep`, no `rg -g`/`-e`, no `diff` on a directory, no `awk`, no `sed` regular expression, and an option allow-list for each `git` command.
+- **Reason**: gate-precision, GPR-02, GPR-03 and GPR-30. Each of those can reach a `.env` under a directory or hide what it reads; three spec reviews found such forms one by one.
+- **Trade-off**: those forms keep today's prompt. Reversal: add a row with its own proof.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-164 (assumed)
+
+- **Decision**: `git log -p` and `git show` with no path operand are read-only, though they print the whole history.
+- **Reason**: gate-precision, GPR-02. No secret is committed (`.gitignore`, gitleaks in CI, `pnpm secrets:scan` locally), and the history is public on GitHub.
+- **Trade-off**: a secret committed by mistake would be printed without a prompt. Reversal: require a path operand.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-165 (assumed)
+
+- **Decision**: inline code (`python3 -c`, `python3 -` with a here-doc, `node -e`, `perl -e`) that writes the quality baseline keeps today's `ask`; GPR-09's deny naming the Edit tool covers harness, sensor and test files.
+- **Reason**: gate-precision, GPR-09. Two accepted assertions of `.claude/hooks/test/gate-rules.test.mjs` (harness-foundation) pin `ask` for inline baseline writes, and the row keeps every existing test unchanged (GPR-27).
+- **Trade-off**: an inline write to the baseline prompts instead of being refused. Reversal: change those two assertions to `deny` (the maintainer's decision).
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-166 (assumed)
+
+- **Decision**: inline code whose write call takes a path that is not a string literal asks, whatever file it would write.
+- **Reason**: gate-precision, GPR-09. A worker wrote `gate-rules.mjs` through `node -e` with the path in a shell variable and the gate did not see it; the gate cannot judge a write whose target it cannot read, and the conservative answer is a prompt.
+- **Trade-off**: inline code that computes its output path prompts. Reversal: one rule in `checkInlineCode`.
+- **Scope**: gate-precision
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ### AD-153 (assumed)
 
 - **Decision**: an unchanged rerun is one with the same command and the same working-directory tree (tracked and untracked files git does not ignore, written through a temporary index, taken before the command starts) as the unit's latest counted failure since its last pass or reset; without a computable tree nothing is refused.
@@ -1474,6 +1555,26 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Reason**: fast-proofs. This is the brief's key and step (brief-revision-6 § 3). `fix` is the closed-list step of the fix loop, so the preflight does not spend the official run's budget.
 - **Trade-off**: any change to a feature file invalidates every cached proof of that feature. The cache saves reruns with no change and the proofs left after an unrelated failure. Reversal: a narrower key in one function.
 - **Scope**: fast-proofs
+- **Date**: 2026-11-09
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-175 (assumed)
+
+- **Decision**: a shell write to a protected, non-self-protected file after `2>&1` is denied, not asked. budget-v2's test "still stops a real write after 2>&1" expects `deny` for `cat a 2>&1 > eslint.config.mjs`.
+- **Reason**: merging `phase/F0` into gate-precision. gate-precision's approved GPR-08 to GPR-10 (AD-157, brief revision 6) turn the shell-write ask into a deny. The change tightens budget-v2's assertion: the write is still caught.
+- **Trade-off**: none for honest work; the Edit tool is the route. Reversal: one expected value.
+- **Scope**: gate-precision, budget-v2
+- **Date**: 2026-11-09
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-176 (assumed)
+
+- **Decision**: two examples of gate-precision's `acceptance.feature` change; no requirement text does:
+  - GPR-01's `find . -name …` becomes `find apps -name …`;
+  - GPR-33's first example becomes `pnpm --filter @d2rmm/api list`.
+- **Reason**: T16's run. A `find` from `.` lists the git directory, which GPR-31 keeps out. In the Background's phase run, a `typecheck` outside the wrapper is denied by the sensor rule, which is not what GPR-33 is about.
+- **Trade-off**: neither example tests what it was written for any more; the rules they now cover are the ones the spec states. Reversal: restore the examples with a non-phase Background.
+- **Scope**: gate-precision
 - **Date**: 2026-11-09
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 

@@ -32,12 +32,8 @@ export const UNIT_KINDS = /** @type {const} */ ([
 /** Fixed step names a gate unit may use besides the task ids (T1, T2…) declared in tasks.md. */
 export const FIXED_STEPS = ['spec', 'design', 'tasks', 'proofs', 'verification', 'integration'];
 
-/**
- * Step names a subagent dispatch may use: a closed list, so a re-dispatch cannot dodge the budget by renaming the
- * step. The subagent type is NOT part of the key. The list and the step → subagent mapping live in model-policy.mjs
- * (ADR 025): planning steps are done by the orchestrator and are not dispatchable.
- */
-export { DISPATCH_STEP_RE as DISPATCH_STEPS } from './model-policy.mjs';
+// Dispatch step names (a closed list, so a re-dispatch cannot dodge the budget by renaming the step) live in
+// model-policy.mjs (ADR 025). budget-rules.mjs reads them through ctx.modules, so this module does not import it.
 
 export function emptyLedger() {
   return { version: 1, units: {} };

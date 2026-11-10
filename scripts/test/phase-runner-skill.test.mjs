@@ -170,6 +170,18 @@ test('the brief template offers harness-self', () => {
   assert.ok(line.includes('ADR 028'), 'the line points to ADR 028');
 });
 
+// GPR-19: both guides tell the agent to wait for the task notification of long work, and never to poll for it.
+test('the guides say to wait for the notification', () => {
+  const worker = readFileSync(path.join(root, '.claude', 'agents', 'feature-worker.md'), 'utf8');
+  for (const [name, text] of [
+    ['feature-worker.md', worker],
+    ['SKILL.md', skill],
+  ]) {
+    assert.match(text, /wait for its task notification/u, `${name} says to wait for the task notification`);
+    assert.match(text, /never poll with `sleep` or status loops/u, `${name} says never to poll`);
+  }
+});
+
 // CDL-01 to CDL-06, CDL-13, CDL-16, CDL-18 (continuous-delivery): the runner delivers through pull requests, and the
 // skill and its commands say so. Phrases are matched with whitespace normalised, since the markdown wraps them.
 const normalised = (text) => text.replace(/\s+/gu, ' ');

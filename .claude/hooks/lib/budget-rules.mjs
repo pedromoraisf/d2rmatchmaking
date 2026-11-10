@@ -13,7 +13,6 @@ import {
   lastGateAttempt,
   sessionExhausted,
   blockedMessage,
-  DISPATCH_STEPS,
   orchestratorResets,
   unitOption,
   UNCOUNTED_RED_STOPS_PER_SESSION,
@@ -21,12 +20,12 @@ import {
   recordUncountedRedStop,
 } from '../../../scripts/lib/budget.mjs';
 import { activePhase } from './delegation.mjs';
-import { checkDispatchPolicy, READ_ONLY_HELPERS } from '../../../scripts/lib/model-policy.mjs';
 import { classify } from '../../../scripts/lib/env-signatures.mjs';
 import { innerShellCommands, shellWords, splitShell } from './shell-indirection.mjs';
 
 const deny = (reason, effects = []) => ({ decision: 'deny', reason, effects });
 const allow = (effects = []) => ({ decision: null, effects });
+const ask = (reason) => ({ decision: 'ask', reason, effects: [] });
 
 const FEATURE_BRANCH = /^feat\/(F\d+)-(.+)$/;
 const PHASE_BRANCH = /^phase\/(F\d+)$/;
@@ -37,6 +36,30 @@ const SPECS_FILE = /^(\.claude\/worktrees\/[a-z0-9][a-z0-9-]*\/)?\.specs\//;
 // scripts/attempt.mjs and scripts/phase-status.mjs name neither, so they stay allowed.
 export const LEDGER_REF = /\.git\/d2rmm|d2rmm\/|verdicts\.json|ledger\.json|D2RMM_LEDGER/;
 export const GIT_DIR_CD = /(^|[;&|(\n]\s*)cd\s+\S*\.git(?=\/|\s|$|[;&|)])/;
+// GPR-33: `@d2rmm/<package>` followed by a space, a quote or the end of the word is a package scope, not the ledger's
+// folder. It counts only when every `d2rmm/` in the line is such a scope and no ledger or verdict file is named.
+const PACKAGE_SCOPE = /@d2rmm\/[\w.-]+(?=\s|"|'|$)/g;
+const LEDGER_NAME = /verdicts\.json|ledger\.json|D2RMM_LEDGER/;
+export function isPackageScopeOnly(command) {
+  const cmd = String(command ?? '');
+  const scopes = cmd.match(PACKAGE_SCOPE)?.length ?? 0;
+  return scopes > 0 && scopes === cmd.split('d2rmm/').length - 1 && !LEDGER_NAME.test(cmd);
+}
+/**
+ * T22 (review-diff BLOCKER): whether a command line names the retry ledger or the verdicts, or enters .git. Every package
+ * scope is removed from the text first, so a scope exempts only itself and never lifts a ledger reference elsewhere in
+ * the line.
+ */
+export function namesLedger(command) {
+  const rest = String(command ?? '').replace(PACKAGE_SCOPE, ' ');
+  return LEDGER_REF.test(rest) || GIT_DIR_CD.test(rest);
+}
+// GPR-14: a sensor's help or version call, alone on the line, is not a gate run (direct, or through pnpm exec / npx).
+const SENSOR_HELP =
+  /^(?:(?:pnpm\s+exec|npx)\s+)?(?:vitest|jest|playwright|stryker|eslint|tsc|depcruise|cargo\s+(?:nextest|clippy|mutants))\s+(?:--help|-h|--version|--list)$/;
+export function isSensorHelp(command) {
+  return SENSOR_HELP.test(String(command ?? '').trim());
+}
 const WRAPPER = /(^|\s)(node\s+)?(\.\/)?scripts\/attempt\.mjs\s+run\s/;
 // BUD-14: the wrapper is recognised by its file name, with an optional quote and any directory (or none, after `cd`).
 // T24: case-insensitive, because the macOS file system is; it reads the command with its quotes and escapes removed.
@@ -244,7 +267,7 @@ export function checkBudget(input, ctx, sid, rel) {
   ) {
     return deny('Files under .git/ (including the retry ledger and the verdicts) are off-limits.');
   }
-  if (tool === 'Bash' && (LEDGER_REF.test(cmd) || GIT_DIR_CD.test(cmd))) {
+  if (tool === 'Bash' && namesLedger(cmd)) {
     return deny(
       'The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git.',
     );
@@ -280,7 +303,14 @@ export function checkBudget(input, ctx, sid, rel) {
 
   // 3. Subagent dispatches: each (feature, step, type) gets 1 + MAX_RETRIES dispatches.
   if (DISPATCH_TOOLS.has(tool) && running) {
-    if (READ_ONLY_HELPERS.includes(ti.subagent_type)) {
+    // GPR-21: the model policy is passed in by gate.mjs (ctx.modules); without it the dispatch asks.
+    const modelPolicy = ctx.modules?.modelPolicy ?? null;
+    if (!modelPolicy) {
+      return ask(
+        'The model-policy rule did not load for this call, so the gate asks instead of allowing (GPR-21).',
+      );
+    }
+    if (modelPolicy.READ_ONLY_HELPERS.includes(ti.subagent_type)) {
       return ti.model === undefined
         ? null
         : deny('Read-only helpers run on their default model; do not override it.');
@@ -293,12 +323,13 @@ export function checkBudget(input, ctx, sid, rel) {
     }
     const [, feature, rawStep] = m;
     const step = rawStep.toLowerCase();
-    if (!DISPATCH_STEPS.test(step)) {
+    const stepRe = modelPolicy.DISPATCH_STEP_RE;
+    if (!stepRe.test(step)) {
       return deny(
-        `Unknown dispatch step "${step}". Allowed: ${DISPATCH_STEPS.source.replace(/^\^\(|\)\$$/g, '').replace(/\|/g, ', ')}.`,
+        `Unknown dispatch step "${step}". Allowed: ${stepRe.source.replace(/^\^\(|\)\$$/g, '').replace(/\|/g, ', ')}.`,
       );
     }
-    const policy = checkDispatchPolicy(step, ti);
+    const policy = modelPolicy.checkDispatchPolicy(step, ti);
     if (policy) return deny(policy);
     const brief = ctx.readFile(phase.briefPath) ?? '';
     if (!new RegExp(`(^|[^a-z0-9-])${feature}([^a-z0-9-]|$)`, 'm').test(brief)) {
@@ -326,7 +357,7 @@ export function checkBudget(input, ctx, sid, rel) {
     }
     // Nested shells (`bash -c "pnpm test"`, `eval …`) run their command too: judge what they hide.
     const executed = [cmd, ...innerShellCommands(cmd)].flatMap(segments);
-    if (executed.some(runsSensor)) {
+    if (!isSensorHelp(cmd) && executed.some(runsSensor)) {
       return deny(
         'During a phase run, tests and gates run only through the retry-budget wrapper: ' +
           '`node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- "<command>"`. ' +

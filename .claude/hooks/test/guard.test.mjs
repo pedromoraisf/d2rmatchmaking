@@ -7,7 +7,7 @@ import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { guardDecision } from '../lib/guard.mjs';
-import { makeRepoContext } from '../lib/io.mjs';
+import { makeIo, makeRepoContext } from '../lib/io.mjs';
 
 // Under a git hook, git exports GIT_DIR and friends; the repositories below must be the temporary ones.
 // Reassigning process.env does not reach child processes; deleting the keys does.
@@ -510,4 +510,36 @@ test('touches only through a shared commit', () => {
   f.g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'own');
   f.g('checkout', '-q', 'main');
   assert.equal(decision('git merge --no-ff own', f.ctx), 'none', 'a branch sharing no commit');
+});
+
+// T21: a git call past its deadline times out (makeIo with no time left). The guard reads that as unknown, so a merge or
+// a branch move of the covered branch is denied, and the reason says git did not answer in time.
+test('the guard fails closed when git does not answer in time', () => {
+  const timingOut = (ctx, match) => {
+    const git = ctx.git;
+    const late = makeIo({ now: () => 0, deadlineMs: 0 });
+    ctx.git = (...args) => {
+      if (!match(args)) return git(...args);
+      const r = late.git(args, { cwd: ctx.root });
+      return typeof r === 'string' ? r : null;
+    };
+    return ctx;
+  };
+  const commands = [`git merge --no-ff ${BRANCH}`, `git branch -f phase/F0 ${BRANCH}`];
+  // A timed-out commitOf of the covered branch, then a timed-out rev-list.
+  const cases = [
+    ['commitOf', (args) => args.includes(`${BRANCH}^{commit}`)],
+    ['rev-list', (args) => args[0] === 'rev-list'],
+  ];
+  for (const [name, match] of cases) {
+    for (const cmd of commands) {
+      const f = fixture();
+      const ctx = timingOut(f.ctx, match);
+      assert.equal(decision(cmd, ctx), 'deny', `${cmd} with a timed-out ${name}`);
+      assert.ok(
+        reason(cmd, ctx).includes('did not answer in time'),
+        `${cmd} with a timed-out ${name}: ${reason(cmd, ctx)}`,
+      );
+    }
+  }
 });

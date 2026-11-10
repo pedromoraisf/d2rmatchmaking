@@ -9,6 +9,7 @@
 import { activePhase } from './delegation.mjs';
 import { tokenize } from './delivery.mjs';
 import { latestVerdict } from './verdicts.mjs';
+import { gitTimeouts } from './io.mjs';
 
 const deny = (reason) => ({ decision: 'deny', reason });
 const ask = (reason) => ({ decision: 'ask', reason });
@@ -58,7 +59,21 @@ export function guardState(ctx) {
 }
 
 // ---------------------------------------------------------------- git reads (read-only, through ctx.git)
-const git = (ctx, ...args) => ctx.git?.(...args) ?? null;
+// T21: a git read that timed out is unknown, not absent. It throws GitUnanswered, which guardDecision turns into a deny;
+// a read that failed without a timeout still returns null, as before.
+class GitUnanswered extends Error {
+  constructor(args) {
+    super(`git ${args.join(' ')} did not answer in time`);
+    this.name = 'GitUnanswered';
+    this.args = args;
+  }
+}
+const git = (ctx, ...args) => {
+  const before = gitTimeouts();
+  const out = ctx.git?.(...args) ?? null;
+  if (out === null && gitTimeouts() > before) throw new GitUnanswered(args);
+  return out;
+};
 const commitOf = (ctx, ref) => git(ctx, 'rev-parse', '--verify', '--quiet', `${ref}^{commit}`);
 const resolves = (ctx, ref) => ref !== 'FETCH_HEAD' && Boolean(commitOf(ctx, ref));
 /**
@@ -326,6 +341,18 @@ function judgeSegment(segment, ctx, state) {
  * apply only while a covered feature exists.
  */
 export function guardDecision(command, ctx) {
+  try {
+    return judgeCommand(command, ctx);
+  } catch (err) {
+    if (!(err instanceof GitUnanswered)) throw err;
+    // T21: git did not answer, so the guard cannot tell whether a covered branch is involved: fail closed.
+    return deny(
+      `${err.message}, so the guard cannot tell whether a covered branch is involved. Run the command again (ADR 028 § 3).`,
+    );
+  }
+}
+
+function judgeCommand(command, ctx) {
   const state = guardState(ctx);
   let found = null;
   for (const seg of String(command ?? '')

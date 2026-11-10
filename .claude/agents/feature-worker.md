@@ -27,6 +27,7 @@ Rules:
 - Do not change the plan. If a task is wrong or impossible as written, stop and return it to the orchestrator with
   the reason — the orchestrator (Opus) replans; you do not.
 - Never push, merge, dispatch agents, edit harness files, or touch `.specs/` beyond `tasks.md` marks and Handoff.
+- Run long work (a gate, a build, a test run) in the background, or in the foreground with a long timeout, and wait for its task notification; never poll with `sleep` or status loops.
 
 Return a compact summary: feature, batch, tasks done (ids + commit hashes), test counts, gates passed, anything
 blocked with its unit key and last error, and deviations you had to report.

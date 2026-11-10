@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { decide } from '../lib/gate-rules.mjs';
-import { onStop, onFeedback, checkBudget } from '../lib/budget-rules.mjs';
+import { checkBudget, isPackageScopeOnly, isSensorHelp, onStop, onFeedback } from '../lib/budget-rules.mjs';
 import { toRelative } from '../lib/io.mjs';
 import {
   emptyLedger,
@@ -11,6 +11,7 @@ import {
   reset,
   MAX_ATTEMPTS,
 } from '../../../scripts/lib/budget.mjs';
+import { RULE_MODULES } from './rule-modules.mjs';
 
 const WORDS = 'aprovo specs e tasks da F0 que passarem nos gates automáticos';
 const BRIEF = `| api-web-skeleton | agent-skeleton |\n## Delegation\n- [x] specs-and-tasks: x\n- [x] sub-agents: x\n\n**Approved**: 2026-11-02 - user: "${WORDS}"\n`;
@@ -34,6 +35,7 @@ function ctxFor({
     headTime: () => headTime,
     git: () => '',
     ledger,
+    modules: RULE_MODULES,
   };
 }
 const call = (tool_name, tool_input, ctx, extra = {}) =>
@@ -423,6 +425,31 @@ test('worktrees are judged as their feature branch, and protected files stay pro
   );
 });
 
+test("lets a sensor's help through", () => {
+  const ctx = ctxFor();
+  for (const c of ['pnpm exec vitest --help', 'npx stryker --version', 'cargo nextest --list']) {
+    assert.equal(call('Bash', { command: c }, ctx)?.decision ?? 'allow', 'allow', c);
+  }
+  for (const c of ['pnpm test --help', 'vitest --help | head']) {
+    assert.equal(call('Bash', { command: c }, ctx).decision, 'deny', c);
+  }
+  assert.equal(isSensorHelp('vitest --help'), true);
+  assert.equal(isSensorHelp('vitest run --help'), false);
+  assert.equal(isSensorHelp('vitest --help | head'), false);
+});
+
+test('a package scope is not the ledger', () => {
+  const ctx = ctxFor({ approved: false });
+  const bash = (command) => checkBudget({ tool_name: 'Bash', tool_input: { command } }, ctx, 's1', '');
+  assert.equal(bash('pnpm --filter @d2rmm/api test'), null);
+  assert.equal(isPackageScopeOnly('pnpm --filter @d2rmm/api test'), true);
+  for (const c of ['echo @d2rmm/x$(cat y)', 'ls @d2rmm/x/../ledger', 'cat .git/d2rmm/ledger.json']) {
+    assert.equal(bash(c)?.decision, 'deny', c);
+    assert.equal(isPackageScopeOnly(c), false, c);
+  }
+  assert.equal(isPackageScopeOnly('cat verdicts.json @d2rmm/api'), false);
+});
+
 test("asks only for the maintainer's resets", () => {
   const key = 'gate:demo/T1';
   const fail = (ledger, n, extra = {}) => {
@@ -717,15 +744,13 @@ test('allows read-only filters after 2>&1', () => {
   }
 });
 
-test('still asks for a real write after 2>&1', () => {
+test('still stops a real write after 2>&1', () => {
   const ctx = ctxFor();
-  for (const command of [
-    'echo x > .claude/hooks/gate.mjs',
-    'cat a 2>&1 > eslint.config.mjs',
-    'cat a 2>/dev/null > .claude/hooks/gate.mjs',
-  ]) {
+  for (const command of ['echo x > .claude/hooks/gate.mjs', 'cat a 2>/dev/null > .claude/hooks/gate.mjs']) {
     assert.equal(call('Bash', { command }, ctx)?.decision, 'ask', command);
   }
+  // AD-175: a protected, non-self-protected file is refused under GPR-10 (AD-157), not asked.
+  assert.equal(call('Bash', { command: 'cat a 2>&1 > eslint.config.mjs' }, ctx)?.decision, 'deny');
 });
 
 test('denies anything else after the wrapper', () => {
@@ -766,4 +791,24 @@ test('hands over the corrected command', () => {
   }
   const outside = call('Bash', { command: 'pnpm test' }, ctx);
   assert.ok(outside.reason.includes('--feature <feature> --step <step> -- "pnpm test"'), outside.reason);
+});
+
+// T22 (review-diff BLOCKER): a package scope exempts only itself. A ledger reference or a .git entry elsewhere in the line
+// is still denied, and a line whose only d2rmm text is a package scope gets no ledger deny.
+test('a package scope does not lift the ledger deny elsewhere in the line', () => {
+  const ctx = ctxFor({ approved: false });
+  for (const command of [
+    'mv .git/d2rmm /tmp/x; echo @d2rmm/api',
+    'cp -r .git/d2rmm /tmp/x; echo @d2rmm/api',
+    'ls .git/d2rmm; echo @d2rmm/api',
+  ]) {
+    assert.equal(call('Bash', { command }, ctx)?.decision, 'deny', command);
+  }
+  for (const command of [
+    'pnpm --filter @d2rmm/api list',
+    'pnpm --filter @d2rmm/api list && pnpm --filter @d2rmm/web list',
+  ]) {
+    const reason = call('Bash', { command }, ctx)?.reason ?? '';
+    assert.ok(!reason.includes('retry ledger'), `${command}: ${reason}`);
+  }
 });
