@@ -34,7 +34,7 @@ Rules for the worker:
 'state-expired' | 'provider-error'>`; unit tests on every boundary (exactly 10 min, wrong state, missing cookie,
       malformed cookie, `error=access_denied`) — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/modules/identity/application/oauth-state.test.ts`
-- [ ] T4 — Adapter `adapters/bnet/fetch-battle-net-oauth.ts` implementing `BattleNetOAuth` over an injected `fetch`
+- [x] T4 — Adapter `adapters/bnet/fetch-battle-net-oauth.ts` implementing `BattleNetOAuth` over an injected `fetch`
       and base URL: `<base>/authorize`, `POST <base>/token` (HTTP Basic client auth, `grant_type=authorization_code`,
       `code_verifier`), `GET <base>/userinfo` (Bearer) reading `sub` and `battletag`; unit tests with a stub `fetch`
       for success, non-2xx, malformed JSON and network error, asserting no secret, code or token in any returned error
