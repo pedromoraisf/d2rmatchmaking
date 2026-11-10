@@ -488,5 +488,33 @@
     "new": "false &&",
     "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
     "label": "a dynamic script path behind a runner is no longer judged (T30)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const isDynamicScript = (w) => EXPANDED_ARG.test(w);",
+    "new": "const isDynamicScript = (w) => EXPANDED_ARG.test(w) && (w.includes('/') || /\\.(mjs|js|cjs|ts)$/i.test(w));",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a script word the shell builds needs a / or a script extension again (T32)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDED_ARG = /[$`{*?[~<>(]/;",
+    "new": "const EXPANDED_ARG = /[$`{*?[~>(]/;",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a < no longer counts as expanding (T32)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDED_ARG = /[$`{*?[~<>(]/;",
+    "new": "const EXPANDED_ARG = /[$`{*?[~<(]/;",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a > no longer counts as expanding (T32)"
+  },
+  {
+    "file": ".claude/hooks/lib/budget-rules.mjs",
+    "old": "const EXPANDED_ARG = /[$`{*?[~<>(]/;",
+    "new": "const EXPANDED_ARG = /[$`{*?[~<>]/;",
+    "proof": "node --test --test-name-pattern \"a reset word or script path the shell builds always asks\" --test-name-pattern \"a reset is judged when the word itself is hidden\" --test-name-pattern \"a reset is judged through quotes, escapes, case and hidden code\" .claude/hooks/test/budget-rules.test.mjs",
+    "label": "a ( no longer counts as expanding (T32)"
   }
 ]
