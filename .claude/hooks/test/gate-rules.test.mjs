@@ -316,6 +316,32 @@ test('bash: inline interpreter code that starts processes, writes protected file
   }
 });
 
+test('inline code naming the budget modules asks', () => {
+  const ctx = fakeCtx();
+  for (const c of [
+    `node -e "import('./scripts/ATTEMPT.mjs')"`,
+    `node -e "import('./scripts/att' + 'empt.mjs')"`,
+    String.raw`node -e "import('./scripts/att\empt.mjs')"`,
+    `node -e "import('./scripts/lib/ledger-store.mjs')"`,
+    `node -e "import('./scripts/'+a+'.mjs')"`,
+    `node -e "import(['att','empt'].join(''))"`,
+    `node -e "const a='x';require('./scripts/'+a+'.mjs')"`,
+  ]) {
+    assert.equal(d(checkBash(c, ctx)), 'ask', c);
+  }
+  assert.equal(checkBash(`node -e "import('node:fs')"`, ctx)?.decision ?? null, null);
+  // T29: no import( or require( here, so the T24 module-name rule is the one that asks. Its reason is asserted.
+  for (const c of [
+    `node -e "const p='./scripts/att' + 'empt.mjs'; fs.readFileSync(p)"`,
+    `node -e "const p='./scripts/att'+'empt.mjs'; fs.readFileSync(p)"`,
+    String.raw`node -e "const p='./scripts/att\empt.mjs'; fs.readFileSync(p)"`,
+  ]) {
+    const answer = checkBash(c, ctx);
+    assert.equal(answer?.decision, 'ask', c);
+    assert.ok(answer.reason.includes('names the retry-budget modules'), `${c}: ${answer.reason}`);
+  }
+});
+
 test('bash: scripts and stdin shells are inspected — untracked scripts by content, outside ones and pipes ask', () => {
   const ctx = fakeCtx(
     {

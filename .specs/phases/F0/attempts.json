@@ -31,26 +31,6 @@
       ],
       "status": "open"
     },
-    "denial:61d1faa0-a1b1-4641-bac9-56738c267bb8/26a6d08d": {
-      "attempts": [
-        {
-          "at": "2026-10-30T14:04:55.661Z",
-          "ok": false,
-          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
-        },
-        {
-          "at": "2026-10-30T14:04:58.742Z",
-          "ok": false,
-          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
-        },
-        {
-          "at": "2026-10-30T14:07:54.656Z",
-          "ok": false,
-          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
-        }
-      ],
-      "status": "blocked"
-    },
     "denial:61d1faa0-a1b1-4641-bac9-56738c267bb8/73e92d1b": {
       "attempts": [
         {
@@ -95,26 +75,6 @@
         }
       ],
       "status": "passed"
-    },
-    "stop:4257dab6-06ce-4eb3-91d7-2613c1298ff1": {
-      "attempts": [
-        {
-          "at": "2026-10-30T14:22:46.535Z",
-          "ok": false,
-          "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
-        },
-        {
-          "at": "2026-10-30T14:22:55.427Z",
-          "ok": false,
-          "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
-        },
-        {
-          "at": "2026-10-30T14:23:02.853Z",
-          "ok": false,
-          "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
-        }
-      ],
-      "status": "blocked"
     },
     "denial:26396464-ce3b-40f0-8be4-b0c31290b28a/73e92d1b": {
       "attempts": [
@@ -275,26 +235,6 @@
         }
       ],
       "status": "passed"
-    },
-    "denial:26396464-ce3b-40f0-8be4-b0c31290b28a#ab9d4656e1f139c60/73e92d1b": {
-      "attempts": [
-        {
-          "at": "2026-10-30T15:06:54.274Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-10-30T15:07:15.575Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-10-30T15:07:26.987Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        }
-      ],
-      "status": "blocked"
     },
     "gate:harness-foundation/T1": {
       "attempts": [
@@ -696,26 +636,6 @@
       ],
       "status": "open"
     },
-    "denial:52ce5725-fdb6-5b26-8eef-5b1b119c6dda/73e92d1b": {
-      "attempts": [
-        {
-          "at": "2026-10-30T17:59:01.166Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-10-30T18:22:09.996Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-10-30T18:30:19.453Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        }
-      ],
-      "status": "blocked"
-    },
     "dispatch:harness-foundation/execute-batch-4": {
       "attempts": [
         {
@@ -945,26 +865,6 @@
         }
       ],
       "status": "passed"
-    },
-    "denial:81b59b1c-d575-512d-867b-1194ee83ce82/73e92d1b": {
-      "attempts": [
-        {
-          "at": "2026-10-30T19:30:45.125Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-10-30T23:27:02.156Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-10-30T23:27:02.668Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        }
-      ],
-      "status": "blocked"
     },
     "denial:81b59b1c-d575-512d-867b-1194ee83ce82/e69b48c9": {
       "attempts": [
@@ -2071,26 +1971,6 @@
       ],
       "status": "open"
     },
-    "denial:320a23e5-c1b9-5018-ad67-78e018b37056#af5992648be806943/26a6d08d": {
-      "attempts": [
-        {
-          "at": "2026-10-31T10:58:43.869Z",
-          "ok": false,
-          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
-        },
-        {
-          "at": "2026-10-31T11:00:46.093Z",
-          "ok": false,
-          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
-        },
-        {
-          "at": "2026-10-31T11:21:40.274Z",
-          "ok": false,
-          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
-        }
-      ],
-      "status": "blocked"
-    },
     "denial:320a23e5-c1b9-5018-ad67-78e018b37056#af5992648be806943/73e92d1b": {
       "attempts": [
         {
@@ -2150,26 +2030,6 @@
         }
       ],
       "status": "passed"
-    },
-    "denial:320a23e5-c1b9-5018-ad67-78e018b37056/73e92d1b": {
-      "attempts": [
-        {
-          "at": "2026-10-31T11:23:40.271Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-10-31T11:23:47.775Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-10-31T14:02:29.245Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        }
-      ],
-      "status": "blocked"
     },
     "denial:320a23e5-c1b9-5018-ad67-78e018b37056/1c840b10": {
       "attempts": [
@@ -2876,26 +2736,6 @@
       ],
       "status": "open"
     },
-    "denial:3c46dcc8-bcab-5d8c-8a2e-1cd0e6102acd#aa301a08b2ae7b8c8/73e92d1b": {
-      "attempts": [
-        {
-          "at": "2026-11-01T01:45:09.107Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-01T01:45:13.562Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-01T01:59:52.082Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        }
-      ],
-      "status": "blocked"
-    },
     "gate:agent-skeleton/T23": {
       "attempts": [
         {
@@ -3236,26 +3076,6 @@
       ],
       "status": "open"
     },
-    "denial:4f6603a4-6956-5de3-946d-a8c4fb52ceda/26a6d08d": {
-      "attempts": [
-        {
-          "at": "2026-11-01T12:05:32.148Z",
-          "ok": false,
-          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
-        },
-        {
-          "at": "2026-11-01T14:57:11.212Z",
-          "ok": false,
-          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
-        },
-        {
-          "at": "2026-11-01T16:33:03.041Z",
-          "ok": false,
-          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
-        }
-      ],
-      "status": "blocked"
-    },
     "gate:agent-skeleton/integration": {
       "attempts": [
         {
@@ -3446,26 +3266,6 @@
       ],
       "status": "open"
     },
-    "denial:a96998eb-d380-5123-afdb-420ab85cf9b6/73e92d1b": {
-      "attempts": [
-        {
-          "at": "2026-11-01T16:37:50.517Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-01T16:38:19.338Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-01T16:59:12.246Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        }
-      ],
-      "status": "blocked"
-    },
     "gate:agent-hexagonal-migration/spec": {
       "attempts": [
         {
@@ -3545,26 +3345,6 @@
         }
       ],
       "status": "open"
-    },
-    "denial:b3b06141-fe60-57ef-ae7d-e3c46915270e/73e92d1b": {
-      "attempts": [
-        {
-          "at": "2026-11-01T17:12:54.097Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-01T17:30:34.531Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-01T17:35:08.784Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        }
-      ],
-      "status": "blocked"
     },
     "gate:agent-hexagonal-migration/tasks": {
       "attempts": [
@@ -3765,26 +3545,6 @@
         }
       ],
       "status": "open"
-    },
-    "denial:f058df8f-358c-5879-ae71-8aa416d73e1b#a2e329909298543bd/73e92d1b": {
-      "attempts": [
-        {
-          "at": "2026-11-01T18:12:46.389Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-01T18:12:54.694Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-01T18:15:01.682Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        }
-      ],
-      "status": "blocked"
     },
     "gate:agent-hexagonal-migration/T6": {
       "attempts": [
@@ -5776,26 +5536,6 @@
       ],
       "status": "passed"
     },
-    "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#afff2a246da5efb41/73e92d1b": {
-      "attempts": [
-        {
-          "at": "2026-11-02T23:16:42.770Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-03T00:12:11.332Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-03T00:12:27.156Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        }
-      ],
-      "status": "blocked"
-    },
     "gate:observability-e2e/T48": {
       "attempts": [
         {
@@ -6165,26 +5905,6 @@
         }
       ],
       "status": "open"
-    },
-    "denial:2ea976c0-e758-509a-9b71-75c917bddb74/73e92d1b": {
-      "attempts": [
-        {
-          "at": "2026-11-03T17:30:32.510Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-03T18:51:26.987Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-03T19:22:33.082Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        }
-      ],
-      "status": "blocked"
     },
     "denial:2ea976c0-e758-509a-9b71-75c917bddb74#aa6c9c58e5471c67e/73e92d1b": {
       "attempts": [
@@ -8061,26 +7781,6 @@
       ],
       "status": "open"
     },
-    "denial:dd9bbe44-30ef-441c-9c43-4c46633a0c0f/73e92d1b": {
-      "attempts": [
-        {
-          "at": "2026-11-05T12:50:24.246Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-05T12:53:54.207Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-05T17:15:11.223Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        }
-      ],
-      "status": "blocked"
-    },
     "feedback:dd9bbe44-30ef-441c-9c43-4c46633a0c0f/scripts/test/deploy-workflows.test.mjs:harness-tests": {
       "attempts": [
         {
@@ -8305,26 +8005,6 @@
         }
       ],
       "status": "open"
-    },
-    "denial:dd9bbe44-30ef-441c-9c43-4c46633a0c0f#a1dbc4df0dee67b53/73e92d1b": {
-      "attempts": [
-        {
-          "at": "2026-11-05T16:21:48.120Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-05T16:21:58.371Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-05T16:24:46.542Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        }
-      ],
-      "status": "blocked"
     },
     "dispatch:site-stale-read-fix/execute-batch-3": {
       "attempts": [
@@ -8910,6 +8590,11 @@
           "at": "2026-11-08T00:00:20.298Z",
           "ok": false,
           "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-08T03:35:35.804Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
         }
       ],
       "status": "open"
@@ -8979,26 +8664,6 @@
         }
       ],
       "status": "open"
-    },
-    "denial:99c38cc6-1d77-5b63-a47e-d6018bf3b842#ab76abb1e7804b101/73e92d1b": {
-      "attempts": [
-        {
-          "at": "2026-11-08T00:19:12.330Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-08T00:22:19.408Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        },
-        {
-          "at": "2026-11-08T00:59:54.300Z",
-          "ok": false,
-          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
-        }
-      ],
-      "status": "blocked"
     },
     "gate:harness-bootstrap/T1": {
       "attempts": [
@@ -9280,6 +8945,11 @@
           "at": "2026-11-08T01:43:46.504Z",
           "ok": false,
           "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        },
+        {
+          "at": "2026-11-08T05:24:09.856Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
         }
       ],
       "status": "open"
@@ -9472,6 +9142,2709 @@
         }
       ],
       "status": "passed"
+    },
+    "gate:ci-fast-path/spec": {
+      "attempts": [
+        {
+          "at": "2026-11-08T03:35:43.506Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py ci-fast-path && node scripts/acceptance-check.mjs ci-fast-path",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py ci-fast-path && node scripts/acceptance-check.mjs ci-fast-path",
+          "head": "0d0e92bef003c0d284247fa4f000b2d9a6c6f1e9",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T03:39:36.555Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py ci-fast-path && node scripts/acceptance-check.mjs ci-fast-path",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py ci-fast-path && node scripts/acceptance-check.mjs ci-fast-path",
+          "head": "0d0e92bef003c0d284247fa4f000b2d9a6c6f1e9",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T03:48:41.211Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py ci-fast-path && node scripts/acceptance-check.mjs ci-fast-path",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py ci-fast-path && node scripts/acceptance-check.mjs ci-fast-path",
+          "head": "991d0dd8b8b12b3a6382cec8f8f91c7e76f4c4f8",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:ci-fast-path/review-spec": {
+      "attempts": [
+        {
+          "at": "2026-11-08T03:36:15.876Z",
+          "ok": true,
+          "note": "dispatch: Review ci-fast-path spec"
+        },
+        {
+          "at": "2026-11-08T03:39:44.652Z",
+          "ok": true,
+          "note": "dispatch: Re-review ci-fast-path spec"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:budget-v2/spec": {
+      "attempts": [
+        {
+          "at": "2026-11-08T03:38:19.690Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py budget-v2 && node scripts/acceptance-check.mjs budget-v2 → exit 1: validate_spec: 0 error(s), 0 warning(s) in ./.specs/features/budget-v2/spec.md\n\nacceptance-check: 1 problem(s)\n  ✗ .specs/features/budget-v2/acceptance.feature: BUD-06 has scenarios and a not-scenario line; keep one.",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py budget-v2 && node scripts/acceptance-check.mjs budget-v2",
+          "head": "0d0e92bef003c0d284247fa4f000b2d9a6c6f1e9",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T03:38:26.440Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py budget-v2 && node scripts/acceptance-check.mjs budget-v2",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py budget-v2 && node scripts/acceptance-check.mjs budget-v2",
+          "head": "0d0e92bef003c0d284247fa4f000b2d9a6c6f1e9",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T03:43:05.637Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py budget-v2 && node scripts/acceptance-check.mjs budget-v2",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py budget-v2 && node scripts/acceptance-check.mjs budget-v2",
+          "head": "0d0e92bef003c0d284247fa4f000b2d9a6c6f1e9",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T04:24:09.219Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs budget-v2",
+          "command": "node scripts/acceptance-check.mjs budget-v2",
+          "head": "5aad60ba3edf8ea5aa68eb392ad6dfeba54015b9",
+          "clean": false,
+          "fingerprint": null
+        },
+        {
+          "at": "2026-11-08T16:47:03.465Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py budget-v2 && node scripts/acceptance-check.mjs budget-v2",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py budget-v2 && node scripts/acceptance-check.mjs budget-v2",
+          "head": "ec53b142859207353f45e8c6dad71b85793f0b30",
+          "clean": false,
+          "fingerprint": null
+        },
+        {
+          "at": "2026-11-09T01:32:35.325Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py budget-v2 && node scripts/acceptance-check.mjs budget-v2",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py budget-v2 && node scripts/acceptance-check.mjs budget-v2",
+          "head": "ec53b142859207353f45e8c6dad71b85793f0b30",
+          "clean": false,
+          "fingerprint": null
+        },
+        {
+          "at": "2026-11-09T01:35:20.480Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py budget-v2 && node scripts/acceptance-check.mjs budget-v2",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py budget-v2 && node scripts/acceptance-check.mjs budget-v2",
+          "head": "ec53b142859207353f45e8c6dad71b85793f0b30",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:gate-precision/spec": {
+      "attempts": [
+        {
+          "at": "2026-11-08T03:45:26.014Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py gate-precision && node scripts/acceptance-check.mjs gate-precision",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py gate-precision && node scripts/acceptance-check.mjs gate-precision",
+          "head": "0d0e92bef003c0d284247fa4f000b2d9a6c6f1e9",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T03:54:36.895Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py gate-precision && node scripts/acceptance-check.mjs gate-precision",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py gate-precision && node scripts/acceptance-check.mjs gate-precision",
+          "head": "0d0e92bef003c0d284247fa4f000b2d9a6c6f1e9",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T03:57:31.045Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py gate-precision && node scripts/acceptance-check.mjs gate-precision",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py gate-precision && node scripts/acceptance-check.mjs gate-precision",
+          "head": "0d0e92bef003c0d284247fa4f000b2d9a6c6f1e9",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T04:01:03.817Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py gate-precision && node scripts/acceptance-check.mjs gate-precision",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py gate-precision && node scripts/acceptance-check.mjs gate-precision",
+          "head": "0d0e92bef003c0d284247fa4f000b2d9a6c6f1e9",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T04:02:42.393Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py gate-precision && node scripts/acceptance-check.mjs gate-precision",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py gate-precision && node scripts/acceptance-check.mjs gate-precision",
+          "head": "0d0e92bef003c0d284247fa4f000b2d9a6c6f1e9",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T05:14:59.655Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py gate-precision && node scripts/acceptance-check.mjs gate-precision",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py gate-precision && node scripts/acceptance-check.mjs gate-precision",
+          "head": "0d0e92bef003c0d284247fa4f000b2d9a6c6f1e9",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T05:19:42.734Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py gate-precision && node scripts/acceptance-check.mjs gate-precision",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py gate-precision && node scripts/acceptance-check.mjs gate-precision",
+          "head": "0d0e92bef003c0d284247fa4f000b2d9a6c6f1e9",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T06:03:41.187Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py gate-precision",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py gate-precision",
+          "head": "0d0e92bef003c0d284247fa4f000b2d9a6c6f1e9",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T06:03:44.923Z",
+          "ok": true,
+          "note": "node scripts/acceptance-check.mjs gate-precision",
+          "command": "node scripts/acceptance-check.mjs gate-precision",
+          "head": "0d0e92bef003c0d284247fa4f000b2d9a6c6f1e9",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-fast-path/tasks": {
+      "attempts": [
+        {
+          "at": "2026-11-08T03:48:46.559Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py ci-fast-path",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py ci-fast-path",
+          "head": "991d0dd8b8b12b3a6382cec8f8f91c7e76f4c4f8",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T03:49:00.161Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py ci-fast-path --execute && pnpm specs:check",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py ci-fast-path --execute && pnpm specs:check",
+          "head": "991d0dd8b8b12b3a6382cec8f8f91c7e76f4c4f8",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T04:01:13.144Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py ci-fast-path --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py ci-fast-path --execute",
+          "head": "e10c71368ceabcd5d41ba6248c86e420bc14e381",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:ci-fast-path/execute-batch-1": {
+      "attempts": [
+        {
+          "at": "2026-11-08T03:49:18.858Z",
+          "ok": true,
+          "note": "dispatch: Execute ci-fast-path batch 1"
+        },
+        {
+          "at": "2026-11-08T04:01:45.035Z",
+          "ok": true,
+          "note": "dispatch: Retry ci-fast-path batch 1"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:budget-v2/tasks": {
+      "attempts": [
+        {
+          "at": "2026-11-08T03:51:00.148Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2",
+          "head": "6bba28b9209493e10595d78c63432770a18a1db5",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T03:51:12.086Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute && pnpm specs:check",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute && pnpm specs:check",
+          "head": "6bba28b9209493e10595d78c63432770a18a1db5",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T05:09:29.950Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute && node scripts/acceptance-check.mjs budget-v2",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute && node scripts/acceptance-check.mjs budget-v2",
+          "head": "8bc92767ea9aa6fe9ffb1c3f98ee18f3f4921c99",
+          "clean": false,
+          "fingerprint": null
+        },
+        {
+          "at": "2026-11-08T06:26:34.394Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute",
+          "head": "2ed8dcde7ccefa07e96752adb42fb97ab21747e3",
+          "clean": false,
+          "fingerprint": null
+        },
+        {
+          "at": "2026-11-08T06:56:52.176Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute",
+          "head": "590421ae5ff9b13909d8a346a283941b379628c7",
+          "clean": false,
+          "fingerprint": null
+        },
+        {
+          "at": "2026-11-08T14:08:59.483Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute",
+          "head": "e024dfc62119042f5cf37cacae8bf57e7ed6d3f4",
+          "clean": false,
+          "fingerprint": null
+        },
+        {
+          "at": "2026-11-08T14:53:11.592Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute",
+          "head": "7276e6fda21ef93443fcf89f11699c19ef5be010",
+          "clean": false,
+          "fingerprint": null
+        },
+        {
+          "at": "2026-11-09T01:36:37.001Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute",
+          "head": "883048f90cf5795a8314adb3b3d2cfdb7ce59a15",
+          "clean": false,
+          "fingerprint": null
+        },
+        {
+          "at": "2026-11-09T01:45:04.206Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute",
+          "head": "79d63a9bd94cb5776ea68f5b267fa4b1f44c4de0",
+          "clean": false,
+          "fingerprint": null
+        },
+        {
+          "at": "2026-11-09T02:50:05.063Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py budget-v2 --execute",
+          "head": "674dfdacd7c23b53bb7c16354c283fe1972b0a41",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:budget-v2/execute-batch-1": {
+      "attempts": [
+        {
+          "at": "2026-11-08T03:51:47.707Z",
+          "ok": true,
+          "note": "dispatch: Execute budget-v2 batch 1"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:99c38cc6-1d77-5b63-a47e-d6018bf3b842#a813e096dba73c964/2ddaa9e5": {
+      "attempts": [
+        {
+          "at": "2026-11-08T03:57:19.947Z",
+          "ok": false,
+          "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+        },
+        {
+          "at": "2026-11-08T03:57:27.264Z",
+          "ok": false,
+          "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:budget-v2/T1": {
+      "attempts": [
+        {
+          "at": "2026-11-08T03:59:00.216Z",
+          "ok": true,
+          "note": "node --test scripts/test/env-signatures.test.mjs",
+          "command": "node --test scripts/test/env-signatures.test.mjs",
+          "head": "9734d9a76394e051b54ac02342bef9c92de72aa8",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:99c38cc6-1d77-5b63-a47e-d6018bf3b842/2ddaa9e5": {
+      "attempts": [
+        {
+          "at": "2026-11-08T03:59:11.185Z",
+          "ok": false,
+          "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:budget-v2/T2": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:01:43.388Z",
+          "ok": false,
+          "note": "node --test scripts/test/budget.test.mjs → exit 1:     code: 'ERR_ASSERTION',\n    actual: 3,\n    expected: 2,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }",
+          "command": "node --test scripts/test/budget.test.mjs",
+          "head": "e962324d1678c3d3f1f8892fdcb4f7691474f404",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T04:02:03.860Z",
+          "ok": true,
+          "note": "node --test scripts/test/budget.test.mjs",
+          "command": "node --test scripts/test/budget.test.mjs",
+          "head": "e962324d1678c3d3f1f8892fdcb4f7691474f404",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T04:02:14.912Z",
+          "ok": true,
+          "note": "node --test scripts/test/budget.test.mjs",
+          "command": "node --test scripts/test/budget.test.mjs",
+          "head": "e962324d1678c3d3f1f8892fdcb4f7691474f404",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-fast-path/T1": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:02:06.556Z",
+          "ok": true,
+          "note": "pnpm -C apps/api exec vitest run scripts/mutation-plan.test.ts scripts/mutation.test.ts",
+          "command": "pnpm -C apps/api exec vitest run scripts/mutation-plan.test.ts scripts/mutation.test.ts",
+          "head": "c358d0eba3b000aa6820d1c91cc4119b4fdc4390",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T04:03:01.531Z",
+          "ok": true,
+          "note": "pnpm -C apps/api exec vitest run scripts/mutation-plan.test.ts scripts/mutation.test.ts",
+          "command": "pnpm -C apps/api exec vitest run scripts/mutation-plan.test.ts scripts/mutation.test.ts",
+          "head": "c358d0eba3b000aa6820d1c91cc4119b4fdc4390",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T05:31:00.725Z",
+          "ok": true,
+          "note": "pnpm -C apps/api exec vitest run scripts/mutation-plan.test.ts scripts/mutation.test.ts",
+          "command": "pnpm -C apps/api exec vitest run scripts/mutation-plan.test.ts scripts/mutation.test.ts",
+          "head": "59913d6dec72b35946488628ed8a0cf2aa227be5",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-fast-path/T2": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:04:09.570Z",
+          "ok": true,
+          "note": "pnpm -C apps/api exec vitest run scripts/mutation-summary.test.ts",
+          "command": "pnpm -C apps/api exec vitest run scripts/mutation-summary.test.ts",
+          "head": "8002a805c416c9132d0ec1f4c24d684dc090a79f",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T04:37:01.998Z",
+          "ok": false,
+          "note": "pnpm -C apps/api exec tsc --noEmit && pnpm -C apps/api exec vitest run scripts/mutation-summary.test.ts scripts/mutation.test.ts scripts/mutation-plan.test.ts → exit 2: scripts/mutation.ts(45,3): error TS2375: Type '{ changedFrom: string | undefined; strykerArgs: string[]; }' is not assignable to type 'MutationArgs' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.\n  Types of property 'changedFrom' are incompatible.\n    Type 'string | u",
+          "command": "pnpm -C apps/api exec tsc --noEmit && pnpm -C apps/api exec vitest run scripts/mutation-summary.test.ts scripts/mutation.test.ts scripts/mutation-plan.test.ts",
+          "head": "969ee7ffc5c1460f8aeb1947b8a4c6cf0705407f",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T04:37:26.440Z",
+          "ok": true,
+          "note": "pnpm -C apps/api exec tsc --noEmit && pnpm -C apps/api exec vitest run scripts/mutation-summary.test.ts scripts/mutation.test.ts scripts/mutation-plan.test.ts",
+          "command": "pnpm -C apps/api exec tsc --noEmit && pnpm -C apps/api exec vitest run scripts/mutation-summary.test.ts scripts/mutation.test.ts scripts/mutation-plan.test.ts",
+          "head": "969ee7ffc5c1460f8aeb1947b8a4c6cf0705407f",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:99c38cc6-1d77-5b63-a47e-d6018bf3b842#a0fc0eac0bc74c447/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:05:17.259Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:ci-fast-path/T3": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:05:41.092Z",
+          "ok": true,
+          "note": "node --test scripts/test/ci-workflow.test.mjs",
+          "command": "node --test scripts/test/ci-workflow.test.mjs",
+          "head": "f9a4284b7fb23dfd5a4631d0e31dc72e3d27de5e",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:budget-v2/T3": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:06:34.119Z",
+          "ok": false,
+          "note": "node --test scripts/test/attempt-cli.test.mjs → exit 1:     code: 'ERR_ASSERTION',\n    actual: false,\n    expected: true,\n    operator: '==',\n    diff: 'simple'\n  }",
+          "command": "node --test scripts/test/attempt-cli.test.mjs",
+          "head": "2583309e73b59a7c95cfc26eedde1941b6cd4ac2",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T04:07:11.151Z",
+          "ok": true,
+          "note": "node --test scripts/test/attempt-cli.test.mjs",
+          "command": "node --test scripts/test/attempt-cli.test.mjs",
+          "head": "2583309e73b59a7c95cfc26eedde1941b6cd4ac2",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-fast-path/T4": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:08:09.027Z",
+          "ok": false,
+          "note": "node --test scripts/test/ci-workflow.test.mjs scripts/test/nightly-workflow.test.mjs → exit 1:     code: 'ERR_ASSERTION',\n    actual: [ 'd2rmm-agent-core', 'd2rmm-agent-domain', 'd2rmm-agent-adapters' ],\n    expected: [ 'd2rmm-agent-domain', 'd2rmm-agent-core', 'd2rmm-agent-adapters' ],\n    operator: 'deepStrictEqual',\n    diff: 'simple'\n  }",
+          "command": "node --test scripts/test/ci-workflow.test.mjs scripts/test/nightly-workflow.test.mjs",
+          "head": "67fce5d5a8c41c8f2664ec32e4e4578c3bfc9405",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T04:08:19.734Z",
+          "ok": true,
+          "note": "node --test scripts/test/ci-workflow.test.mjs scripts/test/nightly-workflow.test.mjs",
+          "command": "node --test scripts/test/ci-workflow.test.mjs scripts/test/nightly-workflow.test.mjs",
+          "head": "67fce5d5a8c41c8f2664ec32e4e4578c3bfc9405",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-fast-path/T5": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:10:20.069Z",
+          "ok": true,
+          "note": "node --test scripts/test/specs.test.mjs && pnpm specs:check",
+          "command": "node --test scripts/test/specs.test.mjs && pnpm specs:check",
+          "head": "240ecc08f664d20b3bda7f81a6d02d5223ab8620",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T05:11:38.473Z",
+          "ok": true,
+          "note": "node --test scripts/test/specs.test.mjs",
+          "command": "node --test scripts/test/specs.test.mjs",
+          "head": "d6ff7a40f7e74c81d752aa1f6e9077838113afc8",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T05:29:36.803Z",
+          "ok": true,
+          "note": "pnpm run test:harness",
+          "command": "pnpm run test:harness",
+          "head": "d6ff7a40f7e74c81d752aa1f6e9077838113afc8",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:99c38cc6-1d77-5b63-a47e-d6018bf3b842#ac7967386db939417/2ddaa9e5": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:10:33.035Z",
+          "ok": false,
+          "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:budget-v2/T4": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:11:47.692Z",
+          "ok": true,
+          "note": "node --test scripts/test/attempt-cli.test.mjs",
+          "command": "node --test scripts/test/attempt-cli.test.mjs",
+          "head": "853ec30b7f7bc04167f20d95c875643c34be331a",
+          "clean": false,
+          "fingerprint": "d5a8da84173b12d8dadbbc597a1e2be0d8ae6340"
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-fast-path/T6": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:12:21.931Z",
+          "ok": true,
+          "note": "node --test scripts/test/rulesets.test.mjs",
+          "command": "node --test scripts/test/rulesets.test.mjs",
+          "head": "1a4f224a1818124a2da8baca85ce55529ce4a266",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:ci-fast-path/execute-batch-2": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:14:44.139Z",
+          "ok": true,
+          "note": "dispatch: Execute ci-fast-path batch 2"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:budget-v2/T5": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:15:29.793Z",
+          "ok": false,
+          "note": "node --test --test-name-pattern 'full output|result and the duration|attempt run|records|does not count|refuses|diagnoses|bounds|stops|runs|never|takes|worktrees' scripts/test/attempt-cli.test.mjs → exit 1:     code: 'ERR_ASSERTION',\n    actual: false,\n    expected: true,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }",
+          "command": "node --test --test-name-pattern 'full output|result and the duration|attempt run|records|does not count|refuses|diagnoses|bounds|stops|runs|never|takes|worktrees' scripts/test/attempt-cli.test.mjs",
+          "head": "7cb97dd86526877aed1113e939de84b00a8b647a",
+          "clean": false,
+          "fingerprint": "c04c82b89d8543e517a2848fb1fb9fd89c0115e8"
+        },
+        {
+          "at": "2026-11-08T04:16:23.859Z",
+          "ok": true,
+          "note": "node --test scripts/test/attempt-cli.test.mjs",
+          "command": "node --test scripts/test/attempt-cli.test.mjs",
+          "head": "7cb97dd86526877aed1113e939de84b00a8b647a",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-fast-path/T7": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:17:08.407Z",
+          "ok": true,
+          "note": "node --test scripts/test/smoke-healthz.test.mjs scripts/test/ci-workflow.test.mjs",
+          "command": "node --test scripts/test/smoke-healthz.test.mjs scripts/test/ci-workflow.test.mjs",
+          "head": "9927a4cd8cd0cff1c2173cec147d4a5aa876b944",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-fast-path/T8": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:19:33.908Z",
+          "ok": true,
+          "note": "node --test scripts/test/ci-workflow.test.mjs",
+          "command": "node --test scripts/test/ci-workflow.test.mjs",
+          "head": "5bb8e0962f57092da81c8a1c1c608dfc7833c8c0",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:budget-v2/T6": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:21:06.490Z",
+          "ok": true,
+          "note": "node --test scripts/test/attempt-cli.test.mjs",
+          "command": "node --test scripts/test/attempt-cli.test.mjs",
+          "head": "ba5a15a21146a74396c529968b000d18823bc1b1",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:ci-fast-path/T9": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:21:53.795Z",
+          "ok": false,
+          "note": "node --test scripts/test/dependabot.test.mjs → exit 1:     code: 'ERR_ASSERTION',\n    actual: undefined,\n    expected: 'dev-tooling',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }",
+          "command": "node --test scripts/test/dependabot.test.mjs",
+          "head": "d3504be50140532422aa8f3afee73051702ba328",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T04:22:08.940Z",
+          "ok": true,
+          "note": "node --test scripts/test/dependabot.test.mjs",
+          "command": "node --test scripts/test/dependabot.test.mjs",
+          "head": "d3504be50140532422aa8f3afee73051702ba328",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:budget-v2/execute-batch-2": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:24:35.921Z",
+          "ok": true,
+          "note": "dispatch: Execute budget-v2 batch 2"
+        },
+        {
+          "at": "2026-11-08T04:31:29.399Z",
+          "ok": true,
+          "note": "dispatch: Retry budget-v2 batch 2"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:ci-fast-path/T10": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:27:57.098Z",
+          "ok": false,
+          "note": "pnpm exec turbo run test:acceptance -- --grep @CFP- && pnpm contracts:check → exit 1: Failed:    @d2rmm/acceptance#test:acceptance\n\n\n@d2rmm/acceptance#test:acceptance:  ERROR  command (/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/ci-fast-path/tests/acceptance) /Users/pedromoraisf/Library/pnpm/bin/pnpm run test:acceptance --grep @CFP- exited (1)\n WARNING  no output files found for task @d2rmm/config#build. Please check your `outputs` key in `turbo.json`\n ERROR  run failed: command  ex",
+          "command": "pnpm exec turbo run test:acceptance -- --grep @CFP- && pnpm contracts:check",
+          "head": "33dcac9488e14f72c07529ba8c1941ef14c41e43",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T04:29:19.966Z",
+          "ok": false,
+          "note": "pnpm exec turbo run test:acceptance -- --grep @CFP- && pnpm contracts:check → exit 1:   Time:    54.043s \nFailed:    @d2rmm/acceptance#test:acceptance\n\n\n@d2rmm/acceptance#test:acceptance:  ERROR  command (/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/ci-fast-path/tests/acceptance) /Users/pedromoraisf/Library/pnpm/bin/pnpm run test:acceptance --grep @CFP- exited (1)\n ERROR  run failed: command  exited (1)",
+          "command": "pnpm exec turbo run test:acceptance -- --grep @CFP- && pnpm contracts:check",
+          "head": "33dcac9488e14f72c07529ba8c1941ef14c41e43",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T04:31:14.500Z",
+          "ok": true,
+          "note": "pnpm exec turbo run test:acceptance -- --grep @CFP- && pnpm contracts:check",
+          "command": "pnpm exec turbo run test:acceptance -- --grep @CFP- && pnpm contracts:check",
+          "head": "33dcac9488e14f72c07529ba8c1941ef14c41e43",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:budget-v2/T7": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:28:45.564Z",
+          "ok": false,
+          "note": "node --test .claude/hooks/test/budget-rules.test.mjs → exit 1:     code: 'ERR_ASSERTION',\n    actual: 'ask',\n    expected: null,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }",
+          "command": "node --test .claude/hooks/test/budget-rules.test.mjs",
+          "head": "54f05d077d6ad9049e1208f77556e32bab772e21",
+          "clean": false,
+          "fingerprint": null
+        },
+        {
+          "at": "2026-11-08T04:32:00.169Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/budget-rules.test.mjs",
+          "command": "node --test .claude/hooks/test/budget-rules.test.mjs",
+          "head": "f6266dfc09307ca178a5f177b438a22c0522b1e5",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:99c38cc6-1d77-5b63-a47e-d6018bf3b842#aee52316b59ab30d9/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:29:14.895Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-08T04:29:33.606Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:99c38cc6-1d77-5b63-a47e-d6018bf3b842#aee52316b59ab30d9/f2ef373b": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:29:51.993Z",
+          "ok": false,
+          "note": "Edits outside the repository are not allowed."
+        },
+        {
+          "at": "2026-11-08T04:29:54.507Z",
+          "ok": false,
+          "note": "Edits outside the repository are not allowed."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:ci-fast-path/execute-batch-3": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:36:09.578Z",
+          "ok": true,
+          "note": "dispatch: Fix ci-fast-path typecheck error"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:budget-v2/T8": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:36:19.998Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/budget-rules.test.mjs",
+          "command": "node --test .claude/hooks/test/budget-rules.test.mjs",
+          "head": "9f7f77444edb7dc64aab99b4118b7f2789712986",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:budget-v2/T9": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:39:28.604Z",
+          "ok": true,
+          "note": "node --test scripts/test/retry-budget-docs.test.mjs",
+          "command": "node --test scripts/test/retry-budget-docs.test.mjs",
+          "head": "e5b8dd04fad72ef50f27e1aa8ce4f40f69a00ad3",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:ci-fast-path/verify": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:42:39.629Z",
+          "ok": true,
+          "note": "dispatch: Verify ci-fast-path"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:99c38cc6-1d77-5b63-a47e-d6018bf3b842#a1bdfc5365bad5466/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:43:03.916Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-08T04:43:08.736Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:99c38cc6-1d77-5b63-a47e-d6018bf3b842#a1bdfc5365bad5466/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-08T04:43:45.230Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:99c38cc6-1d77-5b63-a47e-d6018bf3b842/b83934d9": {
+      "attempts": [
+        {
+          "at": "2026-11-08T05:10:29.484Z",
+          "ok": false,
+          "note": "Feature ci-fast-path is blocked; do not dispatch more work for it."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:ci-fast-path/execute-batch-4": {
+      "attempts": [
+        {
+          "at": "2026-11-08T05:11:14.841Z",
+          "ok": true,
+          "note": "dispatch: Fix ci-fast-path verifier findings"
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:gate-precision/review-spec": {
+      "attempts": [
+        {
+          "at": "2026-11-08T05:11:23.584Z",
+          "ok": true,
+          "note": "dispatch: Final review of gate-precision spec"
+        },
+        {
+          "at": "2026-11-08T05:15:10.349Z",
+          "ok": true,
+          "note": "dispatch: Review gate-precision spec again"
+        },
+        {
+          "at": "2026-11-08T05:19:53.199Z",
+          "ok": true,
+          "note": "dispatch: Last review of gate-precision spec"
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:gate-precision/review-architecture": {
+      "attempts": [
+        {
+          "at": "2026-11-08T05:26:50.325Z",
+          "ok": true,
+          "note": "dispatch: Architecture review of gate-precision design"
+        },
+        {
+          "at": "2026-11-08T06:07:52.356Z",
+          "ok": true,
+          "note": "dispatch: Review gate-precision design architecture"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:99c38cc6-1d77-5b63-a47e-d6018bf3b842#a9663d4f17ecac43e/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-08T05:27:25.901Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:99c38cc6-1d77-5b63-a47e-d6018bf3b842#ac4fb4fe2d31243d5/2ddaa9e5": {
+      "attempts": [
+        {
+          "at": "2026-11-08T05:31:00.933Z",
+          "ok": false,
+          "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:99c38cc6-1d77-5b63-a47e-d6018bf3b842#a03c3488d3d17bf99/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-08T05:32:39.673Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:59344c19-5bd1-581a-b289-297fbfe857c6/2ddaa9e5": {
+      "attempts": [
+        {
+          "at": "2026-11-08T05:39:21.269Z",
+          "ok": false,
+          "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:ci-fast-path/integration": {
+      "attempts": [
+        {
+          "at": "2026-11-08T05:40:04.876Z",
+          "ok": false,
+          "note": "pnpm check → exit 1: Checking formatting...\n ELIFECYCLE  Command failed with exit code 1.\n ELIFECYCLE  Command failed with exit code 1.\n\n[warn] .specs/features/ci-fast-path/spec.md\n[warn] Code style issues found in the above file. Run Prettier with --write to fix.",
+          "command": "pnpm check",
+          "head": "3c56e7fb0a10f1af29372a200d14463603704fe7",
+          "clean": true
+        },
+        {
+          "at": "2026-11-08T05:44:38.497Z",
+          "ok": true,
+          "note": "pnpm check",
+          "command": "pnpm check",
+          "head": "035a37f78ef83476bee6c1690a6dde78e031543b",
+          "clean": true
+        },
+        {
+          "at": "2026-11-08T06:07:07.987Z",
+          "ok": true,
+          "note": "pnpm quality:collect && pnpm quality:ratchet --context pr && pnpm contracts:check",
+          "command": "pnpm quality:collect && pnpm quality:ratchet --context pr && pnpm contracts:check",
+          "head": "035a37f78ef83476bee6c1690a6dde78e031543b",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T06:15:43.451Z",
+          "ok": true,
+          "note": "pnpm check",
+          "command": "pnpm check",
+          "head": "791015d5a89be694e122e7e8e9e451b799c065c3",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:59344c19-5bd1-581a-b289-297fbfe857c6#a7d84561f4254bc9c/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-08T05:43:19.166Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:59344c19-5bd1-581a-b289-297fbfe857c6#a7d84561f4254bc9c/2ddaa9e5": {
+      "attempts": [
+        {
+          "at": "2026-11-08T05:43:46.767Z",
+          "ok": false,
+          "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe/11d2eb69": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:03:23.021Z",
+          "ok": false,
+          "note": "A delegated approval must quote the kickoff words verbatim and cite \"(delegated via .specs/phases/F0/brief.md)\". Run the automatic gates first."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:07:29.410Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        },
+        {
+          "at": "2026-11-09T01:35:53.022Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe/d4b4129e": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:17:07.928Z",
+          "ok": false,
+          "note": "BLOCKED — dispatch:gate-precision/review-security used its 3 attempts (1 + 2 retries). Do not try again by any other route. Record it as blocked (feature tasks.md \"## Handoff\" and the phase decisions.md \"Blocked\" table) and return to the orchestrator / maintainer."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe/ec13538f": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:17:36.866Z",
+          "ok": false,
+          "note": "git worktree would bring in or rewrite feat/F0-continuous-delivery, which merges only by name at its proven head. Use `git merge --no-ff feat/F0-continuous-delivery` (HBS-35)."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe/c2e7f299": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:17:44.381Z",
+          "ok": false,
+          "note": "git branch would bring in or rewrite feat/F0-continuous-delivery, which merges only by name at its proven head. Use `git merge --no-ff feat/F0-continuous-delivery` (HBS-35)."
+        }
+      ],
+      "status": "open"
+    },
+    "stop:4257dab6-06ce-4eb3-91d7-2613c1298ff1": {
+      "attempts": [
+        {
+          "at": "2026-10-30T14:22:46.535Z",
+          "ok": false,
+          "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+        },
+        {
+          "at": "2026-10-30T14:22:55.427Z",
+          "ok": false,
+          "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+        },
+        {
+          "at": "2026-10-30T14:23:02.853Z",
+          "ok": false,
+          "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+        }
+      ],
+      "status": "blocked"
+    },
+    "dispatch:gate-precision/review-security": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:24:42.013Z",
+          "ok": true,
+          "note": "dispatch: Security re-review of gate-precision design"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe/7182e6bb": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:26:53.060Z",
+          "ok": false,
+          "note": "BLOCKED — dispatch:budget-v2/execute-batch-3 used its 3 attempts (1 + 2 retries). Do not try again by any other route. Record it as blocked (feature tasks.md \"## Handoff\" and the phase decisions.md \"Blocked\" table) and return to the orchestrator / maintainer."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:budget-v2/execute-batch-3": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:27:11.726Z",
+          "ok": true,
+          "note": "dispatch: Finish budget-v2 T10 scenarios"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:gate-precision/tasks": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:30:53.011Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision",
+          "head": "b7eca4878a260ad7f487ba333e4cad8363f4ca48",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T06:31:07.716Z",
+          "ok": true,
+          "note": "pnpm specs:check",
+          "command": "pnpm specs:check",
+          "head": "b7eca4878a260ad7f487ba333e4cad8363f4ca48",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T06:31:29.190Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "head": "b7eca4878a260ad7f487ba333e4cad8363f4ca48",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T07:02:52.773Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "head": "6293b328e7dd6773a4b31ba32e7f2d4baea055eb",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T14:04:07.337Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "head": "5554f9e0fd737f4a1420d8ddd3ab167d67cb4997",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T14:27:36.896Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "head": "87c00bacca8ed00d3bd271f9c5ab0ea05a7a45ea",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T14:40:25.235Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "head": "92eaeff43f401834fe4b52c85d3d04c1d25983fb",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T15:58:24.179Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "head": "5dd7b9226e5f60d9552346bb1b7ce8a5372a17f8",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T16:48:36.731Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "head": "bfcc21eaa2987e1c05be2bf0c40875c851291cca",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T20:40:49.328Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "head": "fe1fc8b227b997f7dba4642a2f2c33fb1282a8ee",
+          "clean": false
+        },
+        {
+          "at": "2026-11-09T02:07:15.990Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py gate-precision --execute",
+          "head": "a9beafb99eb40a247ba8734faa752220a360c5be",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:gate-precision/execute-batch-1": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:32:25.164Z",
+          "ok": true,
+          "note": "dispatch: Execute gate-precision batch 1"
+        },
+        {
+          "at": "2026-11-08T07:03:12.030Z",
+          "ok": true,
+          "note": "dispatch: Resume gate-precision batch 1 at T5"
+        },
+        {
+          "at": "2026-11-08T14:04:26.818Z",
+          "ok": true,
+          "note": "dispatch: Resume gate-precision batch 1 at T6"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:budget-v2/T10": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:34:11.689Z",
+          "ok": true,
+          "note": "pnpm exec turbo run test:acceptance -- --grep @BUD- && pnpm test:harness && pnpm contracts:check",
+          "command": "pnpm exec turbo run test:acceptance -- --grep @BUD- && pnpm test:harness && pnpm contracts:check",
+          "head": "6d091d9b84dfc21f9dad89a0900bf1ce7dee3075",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:gate-precision/T1": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:35:49.811Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/shell-parse.test.mjs",
+          "command": "node --test .claude/hooks/test/shell-parse.test.mjs",
+          "head": "f8acbafefd4fedbb30bac71cb8ad394e78305372",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:budget-v2/verify": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:46:35.412Z",
+          "ok": true,
+          "note": "dispatch: Verify budget-v2 independently"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a4f69f0cd761c70ee/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:47:05.440Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:gate-precision/T2": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:47:15.678Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/io.test.mjs .claude/hooks/test/gate-rules.test.mjs",
+          "command": "node --test .claude/hooks/test/io.test.mjs .claude/hooks/test/gate-rules.test.mjs",
+          "head": "dd0e7c79efa8fd86e9351b0b0c7cdf30b0a21674",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a60d1f7f12178cb17/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:49:00.679Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-08T06:55:13.194Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a60d1f7f12178cb17/f2ef373b": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:49:10.115Z",
+          "ok": false,
+          "note": "Edits outside the repository are not allowed."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a60d1f7f12178cb17/2d121ea3": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:49:31.936Z",
+          "ok": false,
+          "note": "rm -r is allowed only on build/test output folders (node_modules, dist, coverage, target, reports…). Blocked: x'\","
+        },
+        {
+          "at": "2026-11-08T06:52:19.906Z",
+          "ok": false,
+          "note": "rm -r is allowed only on build/test output folders (node_modules, dist, coverage, target, reports…). Blocked: $S/repo"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:gate-precision/T3": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:50:59.613Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/read-only.test.mjs",
+          "command": "node --test .claude/hooks/test/read-only.test.mjs",
+          "head": "d43e1103ff2725c576a157c6b4beda3019467ec8",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a60d1f7f12178cb17/fb08b46c": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:52:11.773Z",
+          "ok": false,
+          "note": "Commit refused: the latest gate of this feature since the last commit has not passed through `scripts/attempt.mjs run`. Run the task gate through the wrapper first."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a4f69f0cd761c70ee/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:54:20.899Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        },
+        {
+          "at": "2026-11-08T06:54:26.264Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a60d1f7f12178cb17/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:54:25.656Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:budget-v2/verification": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:55:17.369Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py budget-v2 → exit 1:   ERROR budget-v2: finding 'The BUD-18 form `<wrapper> 2>&1 \\' is not closed - fix it and write the commit in `Closed`\n  ERROR budget-v2: finding 'Checks C3, C4 and C6 do not select the tests that ' is not closed - fix it and write the commit in `Closed`\n  ERROR budget-v2: finding '`isUnchangedRerun` (BUD-09/10, the pure rule) has ' is not closed - fix it and write the commit in `Closed`\n  ERROR budget-v2",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py budget-v2",
+          "head": "590421ae5ff9b13909d8a346a283941b379628c7",
+          "clean": true,
+          "fingerprint": null
+        },
+        {
+          "at": "2026-11-08T14:47:54.924Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py budget-v2 → exit 1:   ERROR budget-v2: proofs.md - C3 reads 'bad timeout'\n  ERROR budget-v2: proofs.md - C4 reads 'runs again after a machine failure'\n  ERROR budget-v2: proofs.md - C6 reads 'count unknown'\n  ERROR budget-v2: finding 'The BUD-18 form `<wrapper> 2>&1 \\' is not closed - fix it and write the commit in `Closed`\n\nvalidate_verification: 5 error(s), 0 warning(s) across [budget-v2]",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py budget-v2",
+          "head": "c59900bc112534f80afee5e70c92d5a5feb9670d",
+          "clean": false,
+          "fingerprint": null
+        },
+        {
+          "at": "2026-11-08T16:30:49.105Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py budget-v2",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py budget-v2",
+          "head": "360f81fc3311f0caf3e1bee6e8d08ca5a92bd8b0",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:budget-v2/execute-batch-4": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:57:19.127Z",
+          "ok": true,
+          "note": "dispatch: Fix budget-v2 verifier findings"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:gate-precision/T4": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:58:23.547Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/read-only.test.mjs",
+          "command": "node --test .claude/hooks/test/read-only.test.mjs",
+          "head": "d2cdb5eec70698fc06e2c0aa7b9059a3da0c3ecc",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:budget-v2/T11": {
+      "attempts": [
+        {
+          "at": "2026-11-08T06:58:58.605Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/budget-rules.test.mjs",
+          "command": "node --test .claude/hooks/test/budget-rules.test.mjs",
+          "head": "fae715297dccaa98851d17bffa9ecd0e3efbd26b",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:budget-v2/T12": {
+      "attempts": [
+        {
+          "at": "2026-11-08T07:02:08.893Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/budget-rules.test.mjs .claude/hooks/test/gate-rules.test.mjs",
+          "command": "node --test .claude/hooks/test/budget-rules.test.mjs .claude/hooks/test/gate-rules.test.mjs",
+          "head": "2cc708b694cba1a8363c2edc0f1f8613153a9a8e",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:budget-v2/T13": {
+      "attempts": [
+        {
+          "at": "2026-11-08T07:05:13.566Z",
+          "ok": true,
+          "note": "node --test scripts/test/budget.test.mjs",
+          "command": "node --test scripts/test/budget.test.mjs",
+          "head": "9f6c6fec20e9c990f64891009825b9d41d2b69d4",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:gate-precision/T5": {
+      "attempts": [
+        {
+          "at": "2026-11-08T07:07:06.886Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/writes.test.mjs",
+          "command": "node --test .claude/hooks/test/writes.test.mjs",
+          "head": "babc0fe8c65231037f096477b89488e1421cd717",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:budget-v2/T14": {
+      "attempts": [
+        {
+          "at": "2026-11-08T07:07:38.931Z",
+          "ok": true,
+          "note": "node --test --test-name-pattern \"timeout\" scripts/test/attempt-cli.test.mjs",
+          "command": "node --test --test-name-pattern \"timeout\" scripts/test/attempt-cli.test.mjs",
+          "head": "3392cdf25c9b3854130d6796a60ccab518d793ba",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:budget-v2/execute-batch-5": {
+      "attempts": [
+        {
+          "at": "2026-11-08T14:09:16.089Z",
+          "ok": true,
+          "note": "dispatch: Fix guard for unstarted covered branch"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#ab6e143baee357e5e/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-08T14:16:48.508Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:gate-precision/T6": {
+      "attempts": [
+        {
+          "at": "2026-11-08T14:17:01.690Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/gate-rules.test.mjs .claude/hooks/test/scripts.test.mjs",
+          "command": "node --test .claude/hooks/test/gate-rules.test.mjs .claude/hooks/test/scripts.test.mjs",
+          "head": "859bade5ad5bac157175c8e09354e264ab30ae51",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:budget-v2/T15": {
+      "attempts": [
+        {
+          "at": "2026-11-08T14:18:59.669Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/guard.test.mjs",
+          "command": "node --test .claude/hooks/test/guard.test.mjs",
+          "head": "dc5c5770fa53a300a90e0bf6b0c462cf91707057",
+          "clean": false,
+          "fingerprint": null
+        },
+        {
+          "at": "2026-11-08T14:20:39.173Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/guard.test.mjs",
+          "command": "node --test .claude/hooks/test/guard.test.mjs",
+          "head": "dc5c5770fa53a300a90e0bf6b0c462cf91707057",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#ab6e143baee357e5e/2ddaa9e5": {
+      "attempts": [
+        {
+          "at": "2026-11-08T14:19:43.986Z",
+          "ok": false,
+          "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+        },
+        {
+          "at": "2026-11-08T14:22:38.626Z",
+          "ok": false,
+          "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:gate-precision/T7": {
+      "attempts": [
+        {
+          "at": "2026-11-08T14:21:28.912Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/budget-rules.test.mjs",
+          "command": "node --test .claude/hooks/test/budget-rules.test.mjs",
+          "head": "274bb0f06a4b3af382a2a3618bcf9b5870602eb8",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#ab6e143baee357e5e/f2ef373b": {
+      "attempts": [
+        {
+          "at": "2026-11-08T14:21:37.278Z",
+          "ok": false,
+          "note": "Edits outside the repository are not allowed."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:gate-precision/execute-batch-2": {
+      "attempts": [
+        {
+          "at": "2026-11-08T14:28:12.133Z",
+          "ok": true,
+          "note": "dispatch: Execute gate-precision batch 2"
+        },
+        {
+          "at": "2026-11-08T14:40:43.863Z",
+          "ok": true,
+          "note": "dispatch: Resume gate-precision batch 2 at T9"
+        },
+        {
+          "at": "2026-11-08T15:58:52.046Z",
+          "ok": true,
+          "note": "dispatch: Resume gate-precision batch 2 at T10"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:gate-precision/T8": {
+      "attempts": [
+        {
+          "at": "2026-11-08T14:31:27.582Z",
+          "ok": false,
+          "note": "node --test .claude/hooks/test/polling.test.mjs → exit 1:       at TestContext.<anonymous> (file:///Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/gate-precision/.claude/hooks/test/polling.test.mjs:98:16)\n      at Test.runInAsyncScope (node:async_hooks:226:14)\n      at Test.run (node:internal/test_runner/test:1402:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)\n      at Test.postRun (node:internal/test_runner/test:1542:19)\n      at Test.run (node:interna",
+          "command": "node --test .claude/hooks/test/polling.test.mjs",
+          "head": "efb2cb57c6cfb0a228796ea299a58258f631d1ac",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T14:31:38.952Z",
+          "ok": false,
+          "note": "node --test .claude/hooks/test/polling.test.mjs → exit 1:     code: 'ERR_ASSERTION',\n    actual: undefined,\n    expected: 'Do not poll. Run the long work in the background and wait for its task notification instead of sleeping, looping or watching.',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }",
+          "command": "node --test .claude/hooks/test/polling.test.mjs",
+          "head": "efb2cb57c6cfb0a228796ea299a58258f631d1ac",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T14:32:27.296Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/polling.test.mjs",
+          "command": "node --test .claude/hooks/test/polling.test.mjs",
+          "head": "efb2cb57c6cfb0a228796ea299a58258f631d1ac",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:budget-v2/verify-r2": {
+      "attempts": [
+        {
+          "at": "2026-11-08T14:36:51.843Z",
+          "ok": true,
+          "note": "dispatch: Verifier round 2 for budget-v2"
+        },
+        {
+          "at": "2026-11-09T02:36:38.215Z",
+          "ok": true,
+          "note": "dispatch: Verifier round 3 for budget-v2"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:gate-precision/T9": {
+      "attempts": [
+        {
+          "at": "2026-11-08T14:42:29.170Z",
+          "ok": false,
+          "note": "node --test .claude/hooks/test/history-store.test.mjs → exit 1:     code: 'ERR_ASSERTION',\n    actual: [ 'a' ],\n    expected: [],\n    operator: 'deepStrictEqual',\n    diff: 'simple'\n  }",
+          "command": "node --test .claude/hooks/test/history-store.test.mjs",
+          "head": "0949e3a55b2ce23c2e572be8511f0e752da1a8cc",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T14:42:41.732Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/history-store.test.mjs",
+          "command": "node --test .claude/hooks/test/history-store.test.mjs",
+          "head": "0949e3a55b2ce23c2e572be8511f0e752da1a8cc",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a8dcd85a97d9284ff/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-08T14:47:05.400Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a8dcd85a97d9284ff/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-08T14:47:23.225Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-08T14:47:47.382Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:budget-v2/execute-batch-6": {
+      "attempts": [
+        {
+          "at": "2026-11-08T14:53:33.522Z",
+          "ok": true,
+          "note": "dispatch: Fix budget-v2 round-2 findings"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:budget-v2/T16": {
+      "attempts": [
+        {
+          "at": "2026-11-08T15:13:46.120Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/guard.test.mjs",
+          "command": "node --test .claude/hooks/test/guard.test.mjs",
+          "head": "9bed5a948bcf58e51fb822cad39eb74d73f48492",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a2bef30ee282b06e3/2ddaa9e5": {
+      "attempts": [
+        {
+          "at": "2026-11-08T15:14:20.520Z",
+          "ok": false,
+          "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:budget-v2/T17": {
+      "attempts": [
+        {
+          "at": "2026-11-08T15:44:06.446Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/budget-rules.test.mjs",
+          "command": "node --test .claude/hooks/test/budget-rules.test.mjs",
+          "head": "67b2710e3def0ea1a0a1e5785a82a2c682a43f93",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:gate-precision/T10": {
+      "attempts": [
+        {
+          "at": "2026-11-08T16:01:13.515Z",
+          "ok": true,
+          "note": "node --test \".claude/hooks/test/*.test.mjs\"",
+          "command": "node --test \".claude/hooks/test/*.test.mjs\"",
+          "head": "06aa581bca564462e5407d52914d72673bdf0111",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a09d3b2b1ce306cf4/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-08T16:09:42.662Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a09d3b2b1ce306cf4/f2ef373b": {
+      "attempts": [
+        {
+          "at": "2026-11-08T16:09:49.798Z",
+          "ok": false,
+          "note": "Edits outside the repository are not allowed."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:unknown-session/2d121ea3": {
+      "attempts": [
+        {
+          "at": "2026-11-08T16:15:53.713Z",
+          "ok": false,
+          "note": "rm -r is allowed only on build/test output folders (node_modules, dist, coverage, target, reports…). Blocked: apps"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:gate-precision/T11": {
+      "attempts": [
+        {
+          "at": "2026-11-08T16:16:44.237Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/gate-startup.test.mjs",
+          "command": "node --test .claude/hooks/test/gate-startup.test.mjs",
+          "head": "557652090f5c0bb66924337443d3a48d9e3dc885",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T16:21:57.109Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/gate-startup.test.mjs .claude/hooks/test/history-store.test.mjs",
+          "command": "node --test .claude/hooks/test/gate-startup.test.mjs .claude/hooks/test/history-store.test.mjs",
+          "head": "29fca5c377dd8d596ccc71fa691dfdd4da968ca3",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T16:25:00.774Z",
+          "ok": false,
+          "note": "node --test .claude/hooks/test/gate-startup.test.mjs .claude/hooks/test/history-store.test.mjs → exit 1:       at git (file:///Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/gate-precision/.claude/hooks/test/history-store.test.mjs:48:12)\n      at TestContext.<anonymous> (file:///Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/gate-precision/.claude/hooks/test/history-store.test.mjs:57:3)\n      at Test.runInAsyncScope (node:async_hooks:226:14)\n      at Test.run (node:internal/tes",
+          "command": "node --test .claude/hooks/test/gate-startup.test.mjs .claude/hooks/test/history-store.test.mjs",
+          "head": "29fca5c377dd8d596ccc71fa691dfdd4da968ca3",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T16:25:34.011Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/gate-startup.test.mjs .claude/hooks/test/history-store.test.mjs",
+          "command": "node --test .claude/hooks/test/gate-startup.test.mjs .claude/hooks/test/history-store.test.mjs",
+          "head": "29fca5c377dd8d596ccc71fa691dfdd4da968ca3",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T16:28:03.357Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/gate-startup.test.mjs .claude/hooks/test/history-store.test.mjs",
+          "command": "node --test .claude/hooks/test/gate-startup.test.mjs .claude/hooks/test/history-store.test.mjs",
+          "head": "29fca5c377dd8d596ccc71fa691dfdd4da968ca3",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a09d3b2b1ce306cf4/8a3b8ec0": {
+      "attempts": [
+        {
+          "at": "2026-11-08T16:20:46.312Z",
+          "ok": false,
+          "note": "git branch would bring in or rewrite feat/F0-gate-precision, which merges only by name at its proven head. Use `git merge --no-ff feat/F0-gate-precision` (HBS-35)."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a09d3b2b1ce306cf4/14dbb9ee": {
+      "attempts": [
+        {
+          "at": "2026-11-08T16:21:10.342Z",
+          "ok": false,
+          "note": "git reset would bring in or rewrite feat/F0-gate-precision, which merges only by name at its proven head. Use `git merge --no-ff feat/F0-gate-precision` (HBS-35)."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:gate-precision/T12": {
+      "attempts": [
+        {
+          "at": "2026-11-08T16:30:43.281Z",
+          "ok": true,
+          "note": "node --test scripts/test/phase-runner-skill.test.mjs",
+          "command": "node --test scripts/test/phase-runner-skill.test.mjs",
+          "head": "e738b62a20174fa7bc20113b4f8aff62a583adee",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe/1ca20bb1": {
+      "attempts": [
+        {
+          "at": "2026-11-08T16:32:35.363Z",
+          "ok": false,
+          "note": "git merge-tree would bring in or rewrite feat/F0-continuous-delivery, which merges only by name at its proven head. Use `git merge --no-ff feat/F0-continuous-delivery` (HBS-35)."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:budget-v2/integration": {
+      "attempts": [
+        {
+          "at": "2026-11-08T16:33:07.322Z",
+          "ok": false,
+          "note": "pnpm check → exit 1: Checking formatting...\n ELIFECYCLE  Command failed with exit code 1.\n ELIFECYCLE  Command failed with exit code 1.\n\n[warn] .specs/features/budget-v2/spec.md\n[warn] Code style issues found in the above file. Run Prettier with --write to fix.",
+          "command": "pnpm check",
+          "head": "2dc0242e23678c2c771efd4d5be86e6f43f9bd4b",
+          "clean": true,
+          "fingerprint": null
+        },
+        {
+          "at": "2026-11-08T16:40:54.119Z",
+          "ok": true,
+          "note": "pnpm check",
+          "command": "pnpm check",
+          "head": "ec53b142859207353f45e8c6dad71b85793f0b30",
+          "clean": true,
+          "fingerprint": null
+        },
+        {
+          "at": "2026-11-08T16:43:54.546Z",
+          "ok": true,
+          "note": "pnpm quality:collect && pnpm quality:ratchet --context pr && pnpm contracts:check",
+          "command": "pnpm quality:collect && pnpm quality:ratchet --context pr && pnpm contracts:check",
+          "head": "ec53b142859207353f45e8c6dad71b85793f0b30",
+          "clean": true,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a09d3b2b1ce306cf4/2ddaa9e5": {
+      "attempts": [
+        {
+          "at": "2026-11-08T16:33:28.742Z",
+          "ok": false,
+          "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe/f2ef373b": {
+      "attempts": [
+        {
+          "at": "2026-11-08T16:36:16.593Z",
+          "ok": false,
+          "note": "Edits outside the repository are not allowed."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:budget-v2/review-diff": {
+      "attempts": [
+        {
+          "at": "2026-11-08T16:44:06.911Z",
+          "ok": true,
+          "note": "dispatch: Security review of the budget-v2 diff"
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:gate-precision/execute-batch-3": {
+      "attempts": [
+        {
+          "at": "2026-11-08T16:48:53.749Z",
+          "ok": true,
+          "note": "dispatch: Execute gate-precision batch 3"
+        },
+        {
+          "at": "2026-11-08T20:41:12.226Z",
+          "ok": true,
+          "note": "dispatch: Resume gate-precision batch 3 at T18"
+        },
+        {
+          "at": "2026-11-09T01:37:29.388Z",
+          "ok": true,
+          "note": "dispatch: Restore T14 and finish gate-precision batch 3"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a436c07a6a06ab567/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-08T16:56:01.595Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:gate-precision/T13": {
+      "attempts": [
+        {
+          "at": "2026-11-08T16:56:06.871Z",
+          "ok": false,
+          "note": "node --test scripts/test/gate-replay-extract.test.mjs → exit 1:     code: 'ERR_ASSERTION',\n    actual: 'cat <repo>/apps/a.ts; cat ~/notes/x.md; cat <scratchpad>/r.sh; curl <v> echo <v>; mail <v>',\n    expected: 'cat <repo>/apps/a.ts; cat ~/notes/x.md; cat <scratchpad>/r.sh; curl <v>; echo <v>; mail <v>',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }",
+          "command": "node --test scripts/test/gate-replay-extract.test.mjs",
+          "head": "aad19464c4a8077858eb28e6686a05904f6b63ce",
+          "clean": false
+        },
+        {
+          "at": "2026-11-08T16:56:16.457Z",
+          "ok": true,
+          "note": "node --test scripts/test/gate-replay-extract.test.mjs",
+          "command": "node --test scripts/test/gate-replay-extract.test.mjs",
+          "head": "aad19464c4a8077858eb28e6686a05904f6b63ce",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a436c07a6a06ab567/2ddaa9e5": {
+      "attempts": [
+        {
+          "at": "2026-11-08T17:32:06.776Z",
+          "ok": false,
+          "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a436c07a6a06ab567/2d121ea3": {
+      "attempts": [
+        {
+          "at": "2026-11-08T17:51:44.703Z",
+          "ok": false,
+          "note": "rm -r is allowed only on build/test output folders (node_modules, dist, coverage, target, reports…). Blocked: /private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaking/d607ed1b-39b2-577f-b467-d13a2235e3fe/scratchpad/old"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:gate-precision/T14": {
+      "attempts": [
+        {
+          "at": "2026-11-08T18:01:14.768Z",
+          "ok": false,
+          "note": "node --test scripts/test/gate-replay.test.mjs → exit 1:     code: 'ERR_ASSERTION',\n    actual: [ 'ro-0025 wrapper: expected deny, got allow', 'ro-0035 read-not-write: expected allow, got ask' ],\n    expected: [],\n    operator: 'deepStrictEqual',\n    diff: 'simple'\n  }",
+          "command": "node --test scripts/test/gate-replay.test.mjs",
+          "head": "fe1fc8b227b997f7dba4642a2f2c33fb1282a8ee",
+          "clean": false
+        },
+        {
+          "at": "2026-11-09T01:41:41.355Z",
+          "ok": true,
+          "note": "node --test scripts/test/gate-replay.test.mjs",
+          "command": "node --test scripts/test/gate-replay.test.mjs",
+          "head": "4b4e9d1d56819005df1dbdd7c971793af4c9ebf9",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a3e9c0d398ce880a9/3c8f35fe": {
+      "attempts": [
+        {
+          "at": "2026-11-08T20:46:00.365Z",
+          "ok": false,
+          "note": "git archive would bring in or rewrite feat/F0-continuous-delivery, which merges only by name at its proven head. Use `git merge --no-ff feat/F0-continuous-delivery` (HBS-35)."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a3e9c0d398ce880a9/2d121ea3": {
+      "attempts": [
+        {
+          "at": "2026-11-08T20:46:09.446Z",
+          "ok": false,
+          "note": "rm -r is allowed only on build/test output folders (node_modules, dist, coverage, target, reports…). Blocked: $S/old"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:gate-precision/T18": {
+      "attempts": [
+        {
+          "at": "2026-11-08T20:47:06.158Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/gate-rules.test.mjs",
+          "command": "node --test .claude/hooks/test/gate-rules.test.mjs",
+          "head": "ca3fa9f74714274119ab105406a67c513f9c6b42",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a3e9c0d398ce880a9/ab62b54e": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:23:59.801Z",
+          "ok": false,
+          "note": "git stash would bring in or rewrite feat/F0-gate-precision, which merges only by name at its proven head. Use `git merge --no-ff feat/F0-gate-precision` (HBS-35)."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe/659313e4": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:32:44.533Z",
+          "ok": false,
+          "note": "BLOCKED — dispatch:budget-v2/review-spec used its 3 attempts (1 + 2 retries). Do not try again by any other route. Record it as blocked (feature tasks.md \"## Handoff\" and the phase decisions.md \"Blocked\" table) and return to the orchestrator / maintainer."
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:budget-v2/review-spec": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:33:06.988Z",
+          "ok": true,
+          "note": "dispatch: Re-review the budget-v2 spec amendment"
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:budget-v2/execute-batch-7": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:36:51.600Z",
+          "ok": true,
+          "note": "dispatch: Execute budget-v2 batch 7"
+        },
+        {
+          "at": "2026-11-09T01:45:20.501Z",
+          "ok": true,
+          "note": "dispatch: Resume budget-v2 batch 7"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe/ab62b54e": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:37:00.286Z",
+          "ok": false,
+          "note": "git stash would bring in or rewrite feat/F0-gate-precision, which merges only by name at its proven head. Use `git merge --no-ff feat/F0-gate-precision` (HBS-35)."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:continuous-delivery/spec": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:39:44.161Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py continuous-delivery && node scripts/acceptance-check.mjs continuous-delivery",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py continuous-delivery && node scripts/acceptance-check.mjs continuous-delivery",
+          "head": "1c4aa8cd4967a63567c0d418d0c5ac5878163161",
+          "clean": false
+        },
+        {
+          "at": "2026-11-09T01:42:50.922Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py continuous-delivery && node scripts/acceptance-check.mjs continuous-delivery",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py continuous-delivery && node scripts/acceptance-check.mjs continuous-delivery",
+          "head": "1c4aa8cd4967a63567c0d418d0c5ac5878163161",
+          "clean": false
+        },
+        {
+          "at": "2026-11-09T01:44:21.909Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py continuous-delivery && node scripts/acceptance-check.mjs continuous-delivery",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_spec.py continuous-delivery && node scripts/acceptance-check.mjs continuous-delivery",
+          "head": "1c4aa8cd4967a63567c0d418d0c5ac5878163161",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:continuous-delivery/review-spec": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:40:09.595Z",
+          "ok": true,
+          "note": "dispatch: Review the continuous-delivery spec"
+        },
+        {
+          "at": "2026-11-09T01:43:24.056Z",
+          "ok": true,
+          "note": "dispatch: Second review of continuous-delivery spec"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:continuous-delivery/tasks": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:46:26.236Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py continuous-delivery && pnpm specs:check",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py continuous-delivery && pnpm specs:check",
+          "head": "0dcb365a983b8908a5a7c23f100a34bdeee6acc6",
+          "clean": false
+        },
+        {
+          "at": "2026-11-09T01:46:40.522Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py continuous-delivery --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py continuous-delivery --execute",
+          "head": "0dcb365a983b8908a5a7c23f100a34bdeee6acc6",
+          "clean": false
+        },
+        {
+          "at": "2026-11-09T02:48:55.885Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py continuous-delivery --execute",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_tasks.py continuous-delivery --execute",
+          "head": "345935e7ef880bebd3b6b65d23830264200e0a4a",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:continuous-delivery/execute-batch-1": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:46:56.382Z",
+          "ok": true,
+          "note": "dispatch: Execute continuous-delivery batch 1"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:gate-precision/T17": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:47:29.785Z",
+          "ok": false,
+          "note": "node --test scripts/test/ledger-store.test.mjs .claude/hooks/test/io.test.mjs .claude/hooks/test/gate-startup.test.mjs → exit 1:       at TestContext.<anonymous> (file:///Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/gate-precision/scripts/test/ledger-store.test.mjs:117:36)\n      at Test.runInAsyncScope (node:async_hooks:226:14)\n      at Test.run (node:internal/test_runner/test:1402:25)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {\n    code: 'ERR_I",
+          "command": "node --test scripts/test/ledger-store.test.mjs .claude/hooks/test/io.test.mjs .claude/hooks/test/gate-startup.test.mjs",
+          "head": "9d1c257e5ab97dbac38bdf637570fd743fea0273",
+          "clean": false
+        },
+        {
+          "at": "2026-11-09T01:48:05.011Z",
+          "ok": false,
+          "note": "node --test scripts/test/ledger-store.test.mjs .claude/hooks/test/io.test.mjs .claude/hooks/test/gate-startup.test.mjs → exit 1:     code: 'ERR_ASSERTION',\n    actual: null,\n    expected: 'origin/main',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }",
+          "command": "node --test scripts/test/ledger-store.test.mjs .claude/hooks/test/io.test.mjs .claude/hooks/test/gate-startup.test.mjs",
+          "head": "9d1c257e5ab97dbac38bdf637570fd743fea0273",
+          "clean": false
+        },
+        {
+          "at": "2026-11-09T01:48:35.415Z",
+          "ok": true,
+          "note": "node --test scripts/test/ledger-store.test.mjs .claude/hooks/test/io.test.mjs .claude/hooks/test/gate-startup.test.mjs",
+          "command": "node --test scripts/test/ledger-store.test.mjs .claude/hooks/test/io.test.mjs .claude/hooks/test/gate-startup.test.mjs",
+          "head": "9d1c257e5ab97dbac38bdf637570fd743fea0273",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:budget-v2/T18": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:48:26.728Z",
+          "ok": true,
+          "note": "node --test scripts/test/budget.test.mjs scripts/test/attempt-cli.test.mjs",
+          "command": "node --test scripts/test/budget.test.mjs scripts/test/attempt-cli.test.mjs",
+          "head": "a8f0b1bf00e2eee7c44ff0a9987bbf0585911356",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:continuous-delivery/T1": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:49:30.331Z",
+          "ok": true,
+          "note": "node --test scripts/test/phase-state.test.mjs",
+          "command": "node --test scripts/test/phase-state.test.mjs",
+          "head": "e358682d500b55b3a6355cd459f5e17d4a1a39c1",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:continuous-delivery/T2": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:53:28.900Z",
+          "ok": true,
+          "note": "node --test scripts/test/phase-state.test.mjs",
+          "command": "node --test scripts/test/phase-state.test.mjs",
+          "head": "297dd82a5c04e9ee65a8a3bec9a77004b5530b50",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#aa01f2118f269e0c3/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:53:36.221Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#aa01f2118f269e0c3/f2ef373b": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:53:54.857Z",
+          "ok": false,
+          "note": "Edits outside the repository are not allowed."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:budget-v2/T19": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:54:34.077Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/budget-rules.test.mjs",
+          "command": "node --test .claude/hooks/test/budget-rules.test.mjs",
+          "head": "ea401bc8f318bb6ade24a09ba4404b1985ea45a2",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#aa01f2118f269e0c3/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:57:21.820Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-09T01:57:44.379Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:gate-precision/T15": {
+      "attempts": [
+        {
+          "at": "2026-11-09T01:58:15.103Z",
+          "ok": true,
+          "note": "node --test scripts/test/gate-bench.test.mjs",
+          "command": "node --test scripts/test/gate-bench.test.mjs",
+          "head": "a9beafb99eb40a247ba8734faa752220a360c5be",
+          "clean": false
+        },
+        {
+          "at": "2026-11-09T01:59:45.253Z",
+          "ok": false,
+          "note": "node scripts/gate-bench.mjs → exit 1: gate calls: 144 (48 corpus entries, 3 cold runs each)\np50 495 ms, p95 1007 ms (target: p95 at most 300 ms)\n\ngate-bench: p95 1007 ms is above 300 ms",
+          "command": "node scripts/gate-bench.mjs",
+          "head": "a9beafb99eb40a247ba8734faa752220a360c5be",
+          "clean": false
+        },
+        {
+          "at": "2026-11-09T02:05:23.677Z",
+          "ok": false,
+          "note": "node scripts/gate-bench.mjs → exit 1: gate calls: 144 (48 corpus entries, 3 cold runs each)\np50 193 ms, p95 309 ms (target: p95 at most 300 ms)\n\ngate-bench: p95 309 ms is above 300 ms",
+          "command": "node scripts/gate-bench.mjs",
+          "head": "a9beafb99eb40a247ba8734faa752220a360c5be",
+          "clean": false
+        },
+        {
+          "at": "2026-11-09T02:20:45.261Z",
+          "ok": true,
+          "note": "node --test scripts/test/gate-bench.test.mjs && node scripts/gate-bench.mjs",
+          "command": "node --test scripts/test/gate-bench.test.mjs && node scripts/gate-bench.mjs",
+          "head": "a945339a63d3a053f6ad8e57e1ae5b0a5545bb43",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#aa01f2118f269e0c3/2ddaa9e5": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:01:49.391Z",
+          "ok": false,
+          "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#aa01f2118f269e0c3/2d121ea3": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:01:57.060Z",
+          "ok": false,
+          "note": "rm -r is allowed only on build/test output folders (node_modules, dist, coverage, target, reports…). Blocked: $S/prof"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:budget-v2/T20": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:05:34.777Z",
+          "ok": true,
+          "note": "pnpm exec turbo run test:acceptance -- --grep @BUD- && pnpm test:harness",
+          "command": "pnpm exec turbo run test:acceptance -- --grep @BUD- && pnpm test:harness",
+          "head": "a6e8aeb5257fb0d1b41d8150c0448940042e950a",
+          "clean": true,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:continuous-delivery/T3": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:05:45.051Z",
+          "ok": false,
+          "note": "node --test scripts/test/phase-status-cli.test.mjs scripts/test/phase-state.test.mjs → exit 1:     signal: null,\n    output: [ null, 'On branch phase/F0\\nnothing to commit, working tree clean\\n', '' ],\n    pid: 80601,\n    stdout: 'On branch phase/F0\\nnothing to commit, working tree clean\\n',\n    stderr: ''\n  }",
+          "command": "node --test scripts/test/phase-status-cli.test.mjs scripts/test/phase-state.test.mjs",
+          "head": "1c53e410539cee63cee7016dfd0f53a56e6a9800",
+          "clean": false
+        },
+        {
+          "at": "2026-11-09T02:06:14.325Z",
+          "ok": true,
+          "note": "node --test scripts/test/phase-status-cli.test.mjs scripts/test/phase-state.test.mjs",
+          "command": "node --test scripts/test/phase-status-cli.test.mjs scripts/test/phase-state.test.mjs",
+          "head": "1c53e410539cee63cee7016dfd0f53a56e6a9800",
+          "clean": false
+        },
+        {
+          "at": "2026-11-09T02:08:03.455Z",
+          "ok": true,
+          "note": "node --test scripts/test/phase-status-cli.test.mjs scripts/test/phase-state.test.mjs",
+          "command": "node --test scripts/test/phase-status-cli.test.mjs scripts/test/phase-state.test.mjs",
+          "head": "1c53e410539cee63cee7016dfd0f53a56e6a9800",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a90eae176a6882165/26a6d08d": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:07:48.489Z",
+          "ok": false,
+          "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:continuous-delivery/T4": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:10:41.538Z",
+          "ok": true,
+          "note": "node --test scripts/test/phase-runner-skill.test.mjs",
+          "command": "node --test scripts/test/phase-runner-skill.test.mjs",
+          "head": "91f1f91303ac46c93cec4e8c5d684fe9df250177",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:continuous-delivery/T5": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:12:30.150Z",
+          "ok": true,
+          "note": "node --test scripts/test/phase-runner-skill.test.mjs",
+          "command": "node --test scripts/test/phase-runner-skill.test.mjs",
+          "head": "789e669858e262731619bd3ed1dc4b93c1385b53",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:continuous-delivery/T6": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:19:22.096Z",
+          "ok": true,
+          "note": "pnpm exec turbo run test:acceptance -- --grep @CDL- && pnpm test:harness && pnpm contracts:check",
+          "command": "pnpm exec turbo run test:acceptance -- --grep @CDL- && pnpm test:harness && pnpm contracts:check",
+          "head": "9e3fb7d9c546fe82a4cf45d24c4d102eb7ca215f",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a90eae176a6882165/2ddaa9e5": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:19:32.092Z",
+          "ok": false,
+          "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#af3ce55b7254e319f/2ddaa9e5": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:37:22.570Z",
+          "ok": false,
+          "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:continuous-delivery/proofs": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:44:05.869Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py continuous-delivery",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py continuous-delivery",
+          "head": "849ff367fe3350f0b6b7bd5aea4a741ae35da201",
+          "clean": false
+        },
+        {
+          "at": "2026-11-09T03:04:03.212Z",
+          "ok": false,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py continuous-delivery --mutations .specs/features/continuous-delivery/mutations.json → exit 1: **HEAD**: fdbacc9\n**Tree**: clean\n**Result**: 21 pass, 0 fail; mutations 4 killed, 1 not\n  mutation not killed: any trailer of the feature on the phase branch counts as integrated",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py continuous-delivery --mutations .specs/features/continuous-delivery/mutations.json",
+          "head": "fdbacc9877013ea3f1e81c739ebde6384cbbddcf",
+          "clean": false
+        },
+        {
+          "at": "2026-11-09T03:15:58.211Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py continuous-delivery --mutations .specs/features/continuous-delivery/mutations.json",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py continuous-delivery --mutations .specs/features/continuous-delivery/mutations.json",
+          "head": "d137ba56bab18abe75912a605d19eb1a5371b039",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:continuous-delivery/verify": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:44:28.588Z",
+          "ok": true,
+          "note": "dispatch: Verify continuous-delivery independently"
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#af3ce55b7254e319f/fb08b46c": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:47:58.855Z",
+          "ok": false,
+          "note": "Commit refused: the latest gate of this feature since the last commit has not passed through `scripts/attempt.mjs run`. Run the task gate through the wrapper first."
+        }
+      ],
+      "status": "open"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#af3ce55b7254e319f/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:48:16.182Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-09T02:48:33.921Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        },
+        {
+          "at": "2026-11-09T02:48:36.652Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "blocked"
+    },
+    "dispatch:continuous-delivery/execute-batch-2": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:49:11.127Z",
+          "ok": true,
+          "note": "dispatch: Execute continuous-delivery batch 2"
+        }
+      ],
+      "status": "open"
+    },
+    "dispatch:budget-v2/execute-batch-8": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:50:18.753Z",
+          "ok": true,
+          "note": "dispatch: Execute budget-v2 batch 8"
+        }
+      ],
+      "status": "open"
+    },
+    "gate:continuous-delivery/T7": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:50:33.461Z",
+          "ok": true,
+          "note": "node --test scripts/test/phase-state.test.mjs",
+          "command": "node --test scripts/test/phase-state.test.mjs",
+          "head": "ae959e206fb59536bc7a0d650ce2e918d910b3ec",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:continuous-delivery/T8": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:52:41.779Z",
+          "ok": false,
+          "note": "node --test scripts/test/phase-runner-skill.test.mjs → exit 1:     code: 'ERR_ASSERTION',\n    actual: false,\n    expected: true,\n    operator: '==',\n    diff: 'simple'\n  }",
+          "command": "node --test scripts/test/phase-runner-skill.test.mjs",
+          "head": "bbc0568c6c36aeed22fbd0732ca1d98b78b4acaf",
+          "clean": false
+        },
+        {
+          "at": "2026-11-09T02:52:54.762Z",
+          "ok": true,
+          "note": "node --test scripts/test/phase-runner-skill.test.mjs",
+          "command": "node --test scripts/test/phase-runner-skill.test.mjs",
+          "head": "bbc0568c6c36aeed22fbd0732ca1d98b78b4acaf",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:budget-v2/T21": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:52:56.462Z",
+          "ok": true,
+          "note": "node --test scripts/test/budget.test.mjs",
+          "command": "node --test scripts/test/budget.test.mjs",
+          "head": "b3b45b632f82afd2d53978195c78909eda021786",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe#a99efe620d4f617cd/73e92d1b": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:58:57.066Z",
+          "ok": false,
+          "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+        }
+      ],
+      "status": "open"
+    },
+    "gate:budget-v2/T22": {
+      "attempts": [
+        {
+          "at": "2026-11-09T02:59:04.963Z",
+          "ok": true,
+          "note": "node --test .claude/hooks/test/budget-rules.test.mjs",
+          "command": "node --test .claude/hooks/test/budget-rules.test.mjs",
+          "head": "bae7638a9354987932782f1b787684e8779e1341",
+          "clean": false,
+          "fingerprint": null
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:continuous-delivery/verification": {
+      "attempts": [
+        {
+          "at": "2026-11-09T03:16:15.142Z",
+          "ok": true,
+          "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py continuous-delivery",
+          "command": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py continuous-delivery",
+          "head": "d137ba56bab18abe75912a605d19eb1a5371b039",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "gate:continuous-delivery/integration": {
+      "attempts": [
+        {
+          "at": "2026-11-09T03:22:51.642Z",
+          "ok": true,
+          "note": "pnpm check",
+          "command": "pnpm check",
+          "head": "066408973b22acf62a35fdbb1b6d776b1efe3559",
+          "clean": true
+        },
+        {
+          "at": "2026-11-09T03:23:04.617Z",
+          "ok": true,
+          "note": "pnpm quality:collect && pnpm quality:ratchet --context pr && pnpm contracts:check",
+          "command": "pnpm quality:collect && pnpm quality:ratchet --context pr && pnpm contracts:check",
+          "head": "066408973b22acf62a35fdbb1b6d776b1efe3559",
+          "clean": true
+        },
+        {
+          "at": "2026-11-09T11:46:10.253Z",
+          "ok": true,
+          "note": "pnpm check",
+          "command": "pnpm check",
+          "head": "7ecfe92fcdbac0cd6bf0d142c5d24ac934963019",
+          "clean": false
+        }
+      ],
+      "status": "passed"
+    },
+    "dispatch:continuous-delivery/review-diff": {
+      "attempts": [
+        {
+          "at": "2026-11-09T03:23:16.951Z",
+          "ok": true,
+          "note": "dispatch: Security review of continuous-delivery diff"
+        }
+      ],
+      "status": "open"
     }
   },
   "resets": [
@@ -10385,6 +12758,768 @@
             "at": "2026-11-07T21:52:50.102Z",
             "ok": false,
             "note": "python3 .claude/skills/tlc-spec-driven/scripts/validate_verification.py room-trace-link → exit 1: ERROR room-trace-link: finding 'A sampled-flag-off context is stored and linked \"l' is not closed - fix it and write the commit in `Closed`\n  ERROR room-trace-link: finding 'Flag round-trip of the link is unasserted: `traceF' is not closed - fix it and write the commit in `Closed`\n\nvalidate_verification: 2 error(s), 0 warning(s) across [room-trace-link]"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "gate:ci-fast-path/proofs",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T05:11:02.333Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-08T04:35:50.743Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py ci-fast-path → exit 1: **HEAD**: 969ee7f\n**Tree**: clean\n**Result**: 20 pass, 1 fail; mutations 0 killed, 0 not\n  Build: **fail** - @d2rmm/api:typecheck: scripts/mutation-summary.ts(95,31): error TS4111: Property 'GITHUB_STEP_SUMMAR - pnpm typecheck",
+            "command": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py ci-fast-path",
+            "head": "969ee7ffc5c1460f8aeb1947b8a4c6cf0705407f",
+            "clean": false
+          },
+          {
+            "at": "2026-11-08T04:42:15.670Z",
+            "ok": true,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py ci-fast-path",
+            "command": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py ci-fast-path",
+            "head": "981322550835b0ea06af9863b86dadac3ef4adfc",
+            "clean": false
+          },
+          {
+            "at": "2026-11-08T04:43:17.790Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/mutate.py --spec .specs/features/ci-fast-path/mutations.json → exit 1: | specs rule forgets cargo-mutants | `scripts/lib/specs.mjs:7` | yes |\n| open box counted outside Done when | `scripts/lib/specs.mjs:37` | no |\n| done tasks refused too | `scripts/lib/specs.mjs:100` | yes |\n| changed filter leaks shared-kernel | `apps/api/scripts/mutation-plan.ts:65` | no |\n\nmutate: 3 killed, 2 survived, 0 blocked",
+            "command": "python3 .claude/skills/tlc-spec-driven/scripts/mutate.py --spec .specs/features/ci-fast-path/mutations.json",
+            "head": "fd30a788b64e9e043e0e8e9949a8c0187509ae6e",
+            "clean": false
+          },
+          {
+            "at": "2026-11-08T04:43:35.820Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/mutate.py --spec .specs/features/ci-fast-path/mutations.json → exit 1: | specs rule forgets cargo-mutants | `scripts/lib/specs.mjs:7` | yes |\n| open box counted outside Done when | `scripts/lib/specs.mjs:37` | no |\n| done tasks refused too | `scripts/lib/specs.mjs:100` | yes |\n| changed filter leaks shared-kernel | `apps/api/scripts/mutation-plan.ts:65` | yes |\n\nmutate: 4 killed, 1 survived, 0 blocked",
+            "command": "python3 .claude/skills/tlc-spec-driven/scripts/mutate.py --spec .specs/features/ci-fast-path/mutations.json",
+            "head": "fd30a788b64e9e043e0e8e9949a8c0187509ae6e",
+            "clean": false
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "dispatch:gate-precision/review-spec",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T05:11:05.272Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-08T03:45:52.451Z",
+            "ok": true,
+            "note": "dispatch: Review gate-precision spec"
+          },
+          {
+            "at": "2026-11-08T03:55:05.764Z",
+            "ok": true,
+            "note": "dispatch: Re-review gate-precision spec"
+          },
+          {
+            "at": "2026-11-08T03:57:41.564Z",
+            "ok": true,
+            "note": "dispatch: Final review of gate-precision spec"
+          }
+        ],
+        "status": "open"
+      }
+    },
+    {
+      "key": "gate:budget-v2/T10",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:06.827Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-08T05:21:15.976Z",
+            "ok": false,
+            "note": "pnpm exec turbo run test:acceptance -- --grep @BUD- && pnpm test:harness && pnpm contracts:check → exit 1: Failed:    @d2rmm/acceptance#test:acceptance\n\n\n@d2rmm/acceptance#test:acceptance:  ERROR  command (/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/budget-v2/tests/acceptance) /Users/pedromoraisf/Library/pnpm/bin/pnpm run test:acceptance --grep @BUD- exited (1)\n WARNING  no output files found for task @d2rmm/config#build. Please check your `outputs` key in `turbo.json`\n ERROR  run f",
+            "command": "pnpm exec turbo run test:acceptance -- --grep @BUD- && pnpm test:harness && pnpm contracts:check",
+            "head": "59d2c39d383404c57711abbb093fafcbca9b5f0e",
+            "clean": false,
+            "fingerprint": null
+          },
+          {
+            "at": "2026-11-08T05:22:29.998Z",
+            "ok": false,
+            "note": "pnpm exec turbo run test:acceptance -- --grep @BUD- && pnpm test:harness && pnpm contracts:check → exit 1:   Time:    12.985s \nFailed:    @d2rmm/acceptance#test:acceptance\n\n\n@d2rmm/acceptance#test:acceptance:  ERROR  command (/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/budget-v2/tests/acceptance) /Users/pedromoraisf/Library/pnpm/bin/pnpm run test:acceptance --grep @BUD- exited (1)\n ERROR  run failed: command  exited (1)",
+            "command": "pnpm exec turbo run test:acceptance -- --grep @BUD- && pnpm test:harness && pnpm contracts:check",
+            "head": "59d2c39d383404c57711abbb093fafcbca9b5f0e",
+            "clean": false,
+            "fingerprint": null
+          },
+          {
+            "at": "2026-11-08T06:14:50.282Z",
+            "ok": false,
+            "note": "pnpm exec turbo run test:acceptance -- --grep @BUD- && pnpm test:harness && pnpm contracts:check → exit 1:   Time:    7m4.676s \nFailed:    @d2rmm/acceptance#test:acceptance\n\n\n@d2rmm/acceptance#test:acceptance:  ERROR  command (/Users/pedromoraisf/www/d2rmatchmaking/.claude/worktrees/budget-v2/tests/acceptance) /Users/pedromoraisf/Library/pnpm/bin/pnpm run test:acceptance --grep @BUD- exited (1)\n ERROR  run failed: command  exited (1)",
+            "command": "pnpm exec turbo run test:acceptance -- --grep @BUD- && pnpm test:harness && pnpm contracts:check",
+            "head": "911f8e6c37ae91057f0362841769ab8efc0d0d80",
+            "clean": false,
+            "fingerprint": null
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "dispatch:gate-precision/review-security",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:07.070Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-08T05:26:56.987Z",
+            "ok": true,
+            "note": "dispatch: Security review of gate-precision design"
+          },
+          {
+            "at": "2026-11-08T06:08:01.268Z",
+            "ok": true,
+            "note": "dispatch: Security review of gate-precision design"
+          },
+          {
+            "at": "2026-11-08T06:15:57.871Z",
+            "ok": true,
+            "note": "dispatch: Re-review gate-precision design security"
+          },
+          {
+            "at": "2026-11-08T06:17:07.927Z",
+            "ok": false,
+            "note": "refused dispatch #4: Third security review of gate-precision design"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:61d1faa0-a1b1-4641-bac9-56738c267bb8/26a6d08d",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:16.072Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-10-30T14:04:55.661Z",
+            "ok": false,
+            "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+          },
+          {
+            "at": "2026-10-30T14:04:58.742Z",
+            "ok": false,
+            "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+          },
+          {
+            "at": "2026-10-30T14:07:54.656Z",
+            "ok": false,
+            "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "stop:4257dab6-06ce-4eb3-91d7-2613c1298ff1",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:16.313Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-10-30T14:22:46.535Z",
+            "ok": false,
+            "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+          },
+          {
+            "at": "2026-10-30T14:22:55.427Z",
+            "ok": false,
+            "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+          },
+          {
+            "at": "2026-10-30T14:23:02.853Z",
+            "ok": false,
+            "note": "## harness tests\nCould not find '/Users/pedromoraisf/www/d2rmatchmaking/scripts/**/*.test.mjs'"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:26396464-ce3b-40f0-8be4-b0c31290b28a#ab9d4656e1f139c60/73e92d1b",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:16.551Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-10-30T15:06:54.274Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-10-30T15:07:15.575Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-10-30T15:07:26.987Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:52ce5725-fdb6-5b26-8eef-5b1b119c6dda/73e92d1b",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:16.799Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-10-30T17:59:01.166Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-10-30T18:22:09.996Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-10-30T18:30:19.453Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:81b59b1c-d575-512d-867b-1194ee83ce82/73e92d1b",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:17.045Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-10-30T19:30:45.125Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-10-30T23:27:02.156Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-10-30T23:27:02.668Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:320a23e5-c1b9-5018-ad67-78e018b37056#af5992648be806943/26a6d08d",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:17.289Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-10-31T10:58:43.869Z",
+            "ok": false,
+            "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+          },
+          {
+            "at": "2026-10-31T11:00:46.093Z",
+            "ok": false,
+            "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+          },
+          {
+            "at": "2026-10-31T11:21:40.274Z",
+            "ok": false,
+            "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:320a23e5-c1b9-5018-ad67-78e018b37056/73e92d1b",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:17.531Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-10-31T11:23:40.271Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-10-31T11:23:47.775Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-10-31T14:02:29.245Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:3c46dcc8-bcab-5d8c-8a2e-1cd0e6102acd#aa301a08b2ae7b8c8/73e92d1b",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:17.772Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-01T01:45:09.107Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-01T01:45:13.562Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-01T01:59:52.082Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:4f6603a4-6956-5de3-946d-a8c4fb52ceda/26a6d08d",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:18.021Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-01T12:05:32.148Z",
+            "ok": false,
+            "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+          },
+          {
+            "at": "2026-11-01T14:57:11.212Z",
+            "ok": false,
+            "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+          },
+          {
+            "at": "2026-11-01T16:33:03.041Z",
+            "ok": false,
+            "note": "During a phase run, tests and gates run only through the retry-budget wrapper: `node scripts/attempt.mjs run --feature <feature> --step <T#|spec|tasks|proofs|verification|integration> -- \"<command>\"`."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:a96998eb-d380-5123-afdb-420ab85cf9b6/73e92d1b",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:18.262Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-01T16:37:50.517Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-01T16:38:19.338Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-01T16:59:12.246Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:b3b06141-fe60-57ef-ae7d-e3c46915270e/73e92d1b",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:18.506Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-01T17:12:54.097Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-01T17:30:34.531Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-01T17:35:08.784Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:f058df8f-358c-5879-ae71-8aa416d73e1b#a2e329909298543bd/73e92d1b",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:18.750Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-01T18:12:46.389Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-01T18:12:54.694Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-01T18:15:01.682Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:e7c10135-0636-5aa7-a05e-df3c0012c619#afff2a246da5efb41/73e92d1b",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:19.013Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-02T23:16:42.770Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-03T00:12:11.332Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-03T00:12:27.156Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:2ea976c0-e758-509a-9b71-75c917bddb74/73e92d1b",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:19.294Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-03T17:30:32.510Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-03T18:51:26.987Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-03T19:22:33.082Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:dd9bbe44-30ef-441c-9c43-4c46633a0c0f/73e92d1b",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:19.534Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-05T12:50:24.246Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-05T12:53:54.207Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-05T17:15:11.223Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:dd9bbe44-30ef-441c-9c43-4c46633a0c0f#a1dbc4df0dee67b53/73e92d1b",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:19.773Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-05T16:21:48.120Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-05T16:21:58.371Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-05T16:24:46.542Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:99c38cc6-1d77-5b63-a47e-d6018bf3b842#ab76abb1e7804b101/73e92d1b",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:20.012Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-08T00:19:12.330Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-08T00:22:19.408Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-08T00:59:54.300Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:59344c19-5bd1-581a-b289-297fbfe857c6/73e92d1b",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T06:24:20.259Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-08T05:39:18.648Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-08T05:39:24.994Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-08T05:44:45.307Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "dispatch:budget-v2/execute-batch-3",
+      "by": "pedromoraisf",
+      "reason": null,
+      "at": "2026-11-08T06:26:59.550Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-08T05:10:02.123Z",
+            "ok": true,
+            "note": "dispatch: Execute budget-v2 batch 3"
+          },
+          {
+            "at": "2026-11-08T05:32:23.093Z",
+            "ok": true,
+            "note": "dispatch: Fix budget-v2 T10 step fixture"
+          },
+          {
+            "at": "2026-11-08T05:41:42.324Z",
+            "ok": true,
+            "note": "dispatch: budget-v2 batch 3 retry (T10)"
+          },
+          {
+            "at": "2026-11-08T06:26:53.059Z",
+            "ok": false,
+            "note": "refused dispatch #4: Finish budget-v2 T10 scenarios"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe/2ddaa9e5",
+      "by": "pedromoraisf",
+      "reason": null,
+      "at": "2026-11-08T14:26:04.919Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-08T06:06:59.764Z",
+            "ok": false,
+            "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+          },
+          {
+            "at": "2026-11-08T14:25:20.232Z",
+            "ok": false,
+            "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+          },
+          {
+            "at": "2026-11-08T14:25:37.965Z",
+            "ok": false,
+            "note": "The retry ledger and the security verdicts are maintained by the hooks and scripts/attempt.mjs only, and no shell enters .git."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "denial:d607ed1b-39b2-577f-b467-d13a2235e3fe/73e92d1b",
+      "by": "pedromoraisf",
+      "at": "2026-11-08T15:58:11.994Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-08T06:03:32.701Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-08T06:26:18.097Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          },
+          {
+            "at": "2026-11-08T15:47:54.528Z",
+            "ok": false,
+            "note": "Quote the whole gate command after \"--\" so nothing runs outside the attempt wrapper."
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "dispatch:budget-v2/review-spec",
+      "by": "pedromoraisf",
+      "reason": null,
+      "at": "2026-11-09T01:32:52.430Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-08T03:38:50.643Z",
+            "ok": true,
+            "note": "dispatch: Review budget-v2 spec"
+          },
+          {
+            "at": "2026-11-08T03:43:15.598Z",
+            "ok": true,
+            "note": "dispatch: Re-review budget-v2 spec"
+          },
+          {
+            "at": "2026-11-08T16:47:12.095Z",
+            "ok": true,
+            "note": "dispatch: Review the budget-v2 spec amendment"
+          },
+          {
+            "at": "2026-11-09T01:32:44.529Z",
+            "ok": false,
+            "note": "refused dispatch #4: Re-review the budget-v2 spec amendment"
+          }
+        ],
+        "status": "blocked"
+      }
+    },
+    {
+      "key": "gate:budget-v2/proofs",
+      "by": "pedromoraisf",
+      "reason": null,
+      "at": "2026-11-09T11:38:51.432Z",
+      "previous": {
+        "attempts": [
+          {
+            "at": "2026-11-08T06:46:16.301Z",
+            "ok": true,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py budget-v2",
+            "command": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py budget-v2",
+            "head": "a5c8fe06b74406b3f71d1ca87547d469211b588b",
+            "clean": false,
+            "fingerprint": null
+          },
+          {
+            "at": "2026-11-08T14:22:51.730Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py budget-v2 --mutations → exit 2: usage: check_proofs.py [-h] [--root ROOT] [--mutations MUTATIONS] feature\ncheck_proofs.py: error: argument --mutations: expected one argument",
+            "command": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py budget-v2 --mutations",
+            "head": "a97390dc4779ca8ae72b1ca13cce2d2d61bcda98",
+            "clean": true,
+            "fingerprint": null
+          },
+          {
+            "at": "2026-11-08T14:36:28.184Z",
+            "ok": true,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py budget-v2 --mutations .specs/features/budget-v2/mutations.json",
+            "command": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py budget-v2 --mutations .specs/features/budget-v2/mutations.json",
+            "head": "a97390dc4779ca8ae72b1ca13cce2d2d61bcda98",
+            "clean": false,
+            "fingerprint": null
+          },
+          {
+            "at": "2026-11-08T15:59:35.092Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py budget-v2 --mutations .specs/features/budget-v2/mutations.json → exit 1: **HEAD**: 110dad0\n**Tree**: clean\n**Result**: 21 pass, 0 fail; mutations 0 killed, 1 not\n  mutation not killed: spec refused",
+            "command": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py budget-v2 --mutations .specs/features/budget-v2/mutations.json",
+            "head": "110dad09b792cd5dcc1e36e14255b1ade891b02e",
+            "clean": false,
+            "fingerprint": null
+          },
+          {
+            "at": "2026-11-08T16:30:34.775Z",
+            "ok": true,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py budget-v2 --mutations .specs/features/budget-v2/mutations.json",
+            "command": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py budget-v2 --mutations .specs/features/budget-v2/mutations.json",
+            "head": "360f81fc3311f0caf3e1bee6e8d08ca5a92bd8b0",
+            "clean": false,
+            "fingerprint": null
+          },
+          {
+            "at": "2026-11-09T03:30:52.098Z",
+            "ok": false,
+            "note": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py budget-v2 --mutations .specs/features/budget-v2/mutations.json → exit 1: **HEAD**: 7772b53\n**Tree**: clean\n**Result**: 25 pass, 0 fail; mutations 20 killed, 1 not\n  mutation not killed: a subagent of an unknown session (unknown-session#agent) is treated as a named session",
+            "command": "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py budget-v2 --mutations .specs/features/budget-v2/mutations.json",
+            "head": "7772b53e97d4acad59c52efea7657f55bcd8a701",
+            "clean": false,
+            "fingerprint": null
           }
         ],
         "status": "blocked"

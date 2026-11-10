@@ -276,6 +276,18 @@ function checkInlineCode(code, ctx, lang) {
       'This code names the retry ledger or the security verdicts, or enters .git: only the hooks and scripts/attempt.mjs touch those.',
     );
   }
+  // BUD-15 (T24): code that names the budget modules can call a reset without the wrapper, so it is the maintainer's.
+  if (/attempt\.mjs|budget\.mjs|ledger-store\.mjs/i.test(text.replace(/['"+\\\s]/g, ''))) {
+    return ask(
+      "This code names the retry-budget modules, which can reset a budget without scripts/attempt.mjs. A reset is the maintainer's (ADR 022).",
+    );
+  }
+  // BUD-15 (T26): an import or require whose module is not one plain string literal can name the modules at run time.
+  if (/\b(?:import|require)\s*\((?!\s*(['"])[^'"\\]*\1\s*\))/.test(text)) {
+    return ask(
+      "This code loads a module from a name that is not one string literal, so it can name the retry-budget modules at run time. Use a literal path. A reset is the maintainer's (ADR 022).",
+    );
+  }
   if (INLINE_ENV.test(text)) {
     return deny(
       '.env files hold secrets and are off-limits to the agent, from inline code too. Use .env.example.',
@@ -626,11 +638,14 @@ function checkSegment(seg, ctx) {
 
 // The raw write test, kept for a segment that does not parse (GPR-06: the parser cannot say what it writes).
 const RAW_WRITE = /(\bsed\s+-i|\btee\b|>|\bmv\b|\bcp\b|\btruncate\b|\bperl\s+-p?i)/;
+const DESCRIPTOR_REDIRECT = /\d*>&\d+|&?\d*>>?\s*\/dev\/null/g;
 
 /** The paths a segment writes: its parsed write targets (writes.mjs), or the words of the segment when it does not parse. */
 function segmentWriteTargets(seg, head) {
   const parsed = parseLine(seg);
-  if (parsed.unsafe.includes('unparsed')) return RAW_WRITE.test(seg) ? head : [];
+  // BUD-18: a descriptor redirection (2>&1, >&2, >/dev/null) writes no file, so it is not a raw write either.
+  if (parsed.unsafe.includes('unparsed'))
+    return RAW_WRITE.test(seg.replace(DESCRIPTOR_REDIRECT, ' ')) ? head : [];
   return writeTargets(parsed).map((t) => t.path);
 }
 

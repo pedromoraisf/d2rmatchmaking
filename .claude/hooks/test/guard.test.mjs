@@ -301,3 +301,213 @@ test('leaves an unresolvable operand alone with no covered feature', () => {
   assert.equal(decision('gh pr merge gone --merge', f.ctx), 'none', 'a PR merge');
   assert.equal(decision('git merge --no-ff gone', f.ctx), 'none', 'a local merge');
 });
+
+// A brief that covers the existing `gate-precision` and a second feature whose branch does not exist yet.
+const BRIEF_TWO = BRIEF.replace(
+  '| gate-precision | Large |',
+  '| gate-precision | Large |\n| continuous-delivery | Medium |',
+).replace('`gate-precision` (ADR 028)', '`gate-precision`, `continuous-delivery` (ADR 028)');
+
+test('a covered branch not started touches nothing', () => {
+  const f = fixture();
+  writeFileSync(path.join(f.dir, '.specs/phases/F0/brief.md'), BRIEF_TWO);
+  // feat/F0-continuous-delivery does not exist: creating it from the phase branch brings in no covered commit.
+  assert.equal(
+    decision(
+      'git worktree add .claude/worktrees/continuous-delivery -b feat/F0-continuous-delivery phase/F0',
+      f.ctx,
+    ),
+    'none',
+    'git worktree add',
+  );
+  assert.equal(decision('git branch feat/F0-continuous-delivery phase/F0', f.ctx), 'none', 'git branch');
+});
+
+test('still guards a covered branch that exists', () => {
+  const f = fixture();
+  writeFileSync(path.join(f.dir, '.specs/phases/F0/brief.md'), BRIEF_TWO);
+  // feat/F0-gate-precision exists and holds a commit beyond the phase: naming it as an operand is still judged.
+  assert.equal(
+    decision(`git worktree add .claude/worktrees/x -b newer ${BRANCH}`, f.ctx),
+    'deny',
+    'a branch operand naming the existing covered branch',
+  );
+  assert.equal(decision(`git branch -f phase/F0 ${BRANCH}`, f.ctx), 'deny', 'a forced branch move');
+  assert.equal(decision(`git merge --no-ff ${BRANCH}`, f.ctx), 'deny', 'a merge without proofs');
+  // An operand that resolves nowhere is still denied while a feature is covered.
+  assert.equal(decision('git merge --no-ff feat/F0-nope', f.ctx), 'deny', 'an unresolvable merge operand');
+  assert.match(reason('git merge --no-ff feat/F0-nope', f.ctx), /names no commit here/);
+});
+
+test('guards a covered branch that exists only on the remote', () => {
+  // The covered branch lives on as origin/<branch> alone: its local branch is deleted, its commit beyond the phase kept.
+  const f = fixture();
+  f.g('update-ref', `refs/remotes/origin/${BRANCH}`, f.head);
+  f.g('branch', '-D', BRANCH);
+  const ctx = f.ctx;
+  for (const cmd of [
+    `git merge --no-ff origin/${BRANCH}`,
+    `git merge refs/remotes/origin/${BRANCH}`,
+    `git pull origin ${BRANCH}`,
+    `gh pr merge ${BRANCH} --merge`,
+    `git cherry-pick origin/${BRANCH}`,
+  ]) {
+    assert.equal(decision(cmd, ctx), 'deny', cmd);
+  }
+  // Its proofs at the remote head count: the merge of that head is not denied.
+  assert.equal(
+    decision(`git merge --no-ff origin/${BRANCH}`, provenAt(ctx, f.head)),
+    'none',
+    'proven at origin',
+  );
+});
+
+test('fails closed when git cannot answer', () => {
+  // The phase branch does not resolve: a covered branch that does not exist yet still touches the merged ref.
+  const f = fixture();
+  writeFileSync(path.join(f.dir, '.specs/phases/F0/brief.md'), BRIEF_TWO);
+  f.g('branch', '-D', BRANCH);
+  f.g('branch', '-D', 'phase/F0');
+  assert.equal(decision('git merge --no-ff main', f.ctx), 'deny', 'a merge naming a ref');
+  assert.match(reason('git merge --no-ff main', f.ctx), /continuous-delivery|gate-precision/);
+});
+
+test('the guard reads both the local and the remote head', () => {
+  const origin = `origin/${BRANCH}`;
+
+  // The local branch sits at the phase head; origin is ahead with a gate-touching commit.
+  let f = fixture();
+  f.g('branch', '-f', BRANCH, 'phase/F0');
+  f.g('update-ref', `refs/remotes/${origin}`, f.head);
+  assert.equal(decision(`git merge --no-ff ${origin}`, f.ctx), 'deny', 'origin ahead, no proof');
+  assert.ok(
+    reason(`git merge --no-ff ${origin}`, f.ctx).includes(f.head),
+    'the proof is due at the origin head',
+  );
+
+  // Local is ahead of origin: the proof is due at the local head, and a proof at origin alone does not count.
+  f = fixture();
+  f.g('update-ref', `refs/remotes/${origin}`, f.base);
+  assert.equal(decision(`git merge --no-ff ${BRANCH}`, f.ctx), 'deny', 'local ahead, no proof');
+  assert.ok(
+    reason(`git merge --no-ff ${BRANCH}`, f.ctx).includes(f.head),
+    'the proof is due at the local head',
+  );
+  assert.equal(
+    decision(`git merge --no-ff ${BRANCH}`, provenAt(f.ctx, f.base)),
+    'deny',
+    'a proof at origin only',
+  );
+  assert.equal(decision(`git merge --no-ff ${BRANCH}`, provenAt(f.ctx, f.head)), 'none', 'a proof at local');
+
+  // Local and origin diverged: each has its own commit on the phase head, so the merge is denied with both heads.
+  f = fixture();
+  f.g('checkout', '-q', '-b', 'side', f.base);
+  writeFileSync(path.join(f.dir, 'side.txt'), 's\n');
+  f.g('add', '.');
+  f.g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'side');
+  const side = f.g('rev-parse', 'HEAD');
+  f.g('checkout', '-q', 'main');
+  f.g('update-ref', `refs/remotes/${origin}`, side);
+  for (const ref of [BRANCH, origin]) {
+    assert.equal(decision(`git merge --no-ff ${ref}`, f.ctx), 'deny', `diverged, merging ${ref}`);
+    const why = reason(`git merge --no-ff ${ref}`, f.ctx);
+    assert.ok(why.includes(f.head) && why.includes(side), `both heads named: ${why}`);
+  }
+  assert.equal(
+    decision(`git merge --no-ff ${BRANCH}`, provenAt(f.ctx, f.head)),
+    'deny',
+    'diverged with a proof',
+  );
+
+  // Origin is ahead and the proof sits at its head: the merge is allowed.
+  f = fixture();
+  f.g('branch', '-f', BRANCH, 'phase/F0');
+  f.g('update-ref', `refs/remotes/${origin}`, f.head);
+  assert.equal(
+    decision(`git merge --no-ff ${origin}`, provenAt(f.ctx, f.head)),
+    'none',
+    'proof at the larger head',
+  );
+
+  // T27: only one of the two commit lists fails, local or origin: the merge fails closed and demands proof at the head.
+  const failingList = (ctx, range) => {
+    const git = ctx.git;
+    ctx.git = (...args) => (args[0] === 'rev-list' && args[1] === range ? null : git(...args));
+    return ctx;
+  };
+  for (const range of [`phase/F0..${origin}`, `phase/F0..${BRANCH}`]) {
+    f = fixture();
+    f.g('update-ref', `refs/remotes/${origin}`, f.head);
+    const ctx = failingList(f.ctx, range);
+    assert.equal(decision(`git merge --no-ff ${BRANCH}`, ctx), 'deny', `the list ${range} fails`);
+    assert.ok(reason(`git merge --no-ff ${BRANCH}`, ctx).includes(f.head), `the proof is due at ${f.head}`);
+  }
+
+  // T27: a covered branch that exists only on origin is merged at its proven head, and not without proof.
+  f = fixture();
+  f.g('update-ref', `refs/remotes/${origin}`, f.head);
+  f.g('branch', '-D', BRANCH);
+  assert.equal(decision(`git merge --no-ff ${origin}`, f.ctx), 'deny', 'origin only, no proof');
+  assert.equal(
+    decision(`git merge --no-ff ${origin}`, provenAt(f.ctx, f.head)),
+    'none',
+    'origin only, proven',
+  );
+
+  // T28: local at the phase head, origin ahead, and the list of origin/<branch> fails. The list that answers (local, empty
+  // beyond the phase) shares no commit with origin, so the merge is denied by the fail-closed check alone.
+  f = fixture();
+  f.g('branch', '-f', BRANCH, 'phase/F0');
+  f.g('update-ref', `refs/remotes/${origin}`, f.head);
+  const failingOrigin = failingList(f.ctx, `phase/F0..${origin}`);
+  assert.equal(
+    decision(`git merge --no-ff ${origin}`, failingOrigin),
+    'deny',
+    'origin list fails, origin ahead',
+  );
+  assert.ok(
+    reason(`git merge --no-ff ${origin}`, failingOrigin).includes(f.head),
+    'the proof is due at origin head',
+  );
+
+  // T29: a third branch off the fixture head, merged while origin's list fails. The third branch's own list answers and
+  // shares its head commit with origin, so only the failing origin list makes touches fail closed.
+  f = fixture();
+  f.g('branch', '-f', BRANCH, 'phase/F0');
+  f.g('update-ref', `refs/remotes/${origin}`, f.head);
+  // newCommitOn writes `<name>.txt`, so the third branch takes a plain name that the brief does not cover.
+  const third = f.newCommitOn('third', 'third\n');
+  assert.notEqual(third, f.head);
+  const failingThird = failingList(f.ctx, `phase/F0..${origin}`);
+  assert.equal(decision('git merge --no-ff third', failingThird), 'deny', 'the merged list shares a commit');
+  assert.ok(
+    reason('git merge --no-ff third', failingThird).includes(f.head),
+    'the proof is due at origin head',
+  );
+
+  // T27: the diverged deny tells the maintainer to push or fetch the branch, by name, until both heads agree.
+  f = fixture();
+  f.g('checkout', '-q', '-b', 'side', f.base);
+  writeFileSync(path.join(f.dir, 'side.txt'), 's\n');
+  f.g('add', '.');
+  f.g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'side');
+  const sideHead = f.g('rev-parse', 'HEAD');
+  f.g('checkout', '-q', 'main');
+  f.g('update-ref', `refs/remotes/${origin}`, sideHead);
+  for (const ref of [BRANCH, origin]) {
+    const why = reason(`git merge --no-ff ${ref}`, f.ctx);
+    assert.ok(why.includes(`push or fetch ${BRANCH} until`), `the advice names the branch: ${why}`);
+  }
+});
+
+test('touches only through a shared commit', () => {
+  // A branch off the phase with its own commit, sharing no commit with the covered branch, is not the covered branch.
+  const f = fixture();
+  f.g('checkout', '-q', '-b', 'own', f.base);
+  writeFileSync(path.join(f.dir, 'own.txt'), 'o\n');
+  f.g('add', '.');
+  f.g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'own');
+  f.g('checkout', '-q', 'main');
+  assert.equal(decision('git merge --no-ff own', f.ctx), 'none', 'a branch sharing no commit');
+});

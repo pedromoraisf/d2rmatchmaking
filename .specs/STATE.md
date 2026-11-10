@@ -1416,6 +1416,139 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-08
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-153 (assumed)
+
+- **Decision**: an unchanged rerun is one with the same command and the same working-directory tree (tracked and untracked files git does not ignore, written through a temporary index, taken before the command starts) as the unit's latest counted failure since its last pass or reset; without a computable tree nothing is refused.
+- **Reason**: budget-v2, BUD-08 to BUD-10. ADR 028 § 4 refuses "running a unit again with nothing changed"; the brief says "the content of the paths the feature touches". One tree hash needs no rule for which paths belong to a feature.
+- **Trade-off**: an edit anywhere in the worktree lets a rerun run. Reversal: hash a path set instead.
+- **Scope**: budget-v2
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-154 (assumed)
+
+- **Decision**: `attempt.mjs run` stops a command after `--timeout <minutes>`, 60 by default, and records the stop as an environment failure.
+- **Reason**: budget-v2, BUD-06. ADR 028 § 4 lists "the wrapper's own timeout" among the signatures, and the wrapper has none today; 60 minutes is above every F0 gate, a full acceptance run included.
+- **Trade-off**: a gate that hangs on a code defect is not counted; three in a row block the unit as `env-blocked`, so it still stops. Reversal: one default.
+- **Scope**: budget-v2
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-155 (assumed)
+
+- **Decision**: a red stop whose failing checks match an environment signature lets the agent stop, is not counted, and says the machine needs attention.
+- **Reason**: budget-v2, BUD-07. Blocking the stop without counting it could loop; counting it is what ADR 028 § 4 removes.
+- **Trade-off**: an agent may end a turn with red checks caused by the machine. Reversal: count it again.
+- **Scope**: budget-v2
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-156 (assumed)
+
+- **Decision**: a failure whose output matches an environment signature and also shows a test-failure marker counts as an ordinary failure; a red stop is uncounted only when every failing check matches a signature with no marker.
+- **Reason**: budget-v2, BUD-02, BUD-07 and BUD-26. A real test failure must never spend nothing; a machine problem that is real shows again on the next run.
+- **Trade-off**: a run that both hit Docker and failed a test spends a unit. Reversal: drop the marker rule.
+- **Scope**: budget-v2
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-167 (assumed)
+
+- **Decision**: the environment signatures stay as they are; a unit is `env-blocked` at its fourth environment failure since its last pass or reset, in a row or not (BUD-30), next to the three-in-a-row rule; an agent session leaves at most two red stops uncounted as machine-caused (BUD-31).
+- **Reason**: budget-v2, security review of the diff (2026-11-08): the agent writes the gate command and the code its checks run, so `exit 137`, `exit 127` or an echoed signature makes its own failure look environmental. The maintainer chose option (b), "vai de B" (2026-11-08): keep ADR 028's three-in-a-row rule and close the hole without changing it. The runner kept the signatures (making `killed` SIGKILL-only would edit an approved scenario's example) and bounds forging with the two totals instead.
+- **Trade-off**: forging a machine failure gains at most three free runs over a unit's life, and the fourth blocks it; a machine that fails four times across a unit's life blocks it too. Reversal: raise the totals.
+- **Scope**: budget-v2
+
+### AD-149 (assumed)
+
+- **Decision**: the nightly agent mutation runs on `ubuntu-latest`.
+- **Reason**: ci-fast-path, CFP-10. Brief revision 6 moves it "if the three crates build there": none of `d2rmm-agent-domain`, `-core` or `-adapters` has Windows-only code or dependencies, and CI's `integration` job already builds the adapters on Ubuntu.
+- **Trade-off**: a Windows-only defect in those crates' unit tests shows in the `agent` PR job, not in the nightly. Reversal: one `runs-on` line.
+- **Scope**: ci-fast-path
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-150 (assumed)
+
+- **Decision**: majors of the eslint family and of `@opentelemetry/*` arrive in one Dependabot group each, held by a 30-day `cooldown`; npm stays on a weekly schedule.
+- **Reason**: ci-fast-path, CFP-20 to CFP-22. The brief asks for a "monthly group"; Dependabot refuses a second `npm` entry for the same directory, so one ecosystem cannot have two schedules. The cooldown gives each major a month before it arrives.
+- **Trade-off**: a major can still arrive in any week once it is 30 days old. Reversal: the `cooldown` block.
+- **Scope**: ci-fast-path
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-151 (assumed)
+
+- **Decision**: the specs check refuses a mutation command only in the gate of an open task (one unticked `Done when` box or more).
+- **Reason**: ci-fast-path, CFP-11 and CFP-12. Done tasks of `ci-and-review-fixes` ran mutation in their gates under the old rules; the rule is for the work ahead.
+- **Trade-off**: none for open work. Reversal: drop the condition.
+- **Scope**: ci-fast-path
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-152 (assumed)
+
+- **Decision**: third-party actions of the new CI jobs are pinned by full commit SHA; `actions/*` keep the workflow's tags.
+- **Reason**: ci-fast-path, CFP-19. The `agent` job already pins its third-party actions; a non-required job still runs on every PR.
+- **Trade-off**: Dependabot bumps the pins. Reversal: use tags.
+- **Scope**: ci-fast-path
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-161 (assumed)
+
+- **Decision**: the smoke job installs, migrates and starts the API with Render's own commands (`render.yaml` and `deploy-api.yml`) instead of a compiled build; CFP-25 is appended to the approved spec.
+- **Reason**: ci-fast-path, CFP-15 and CFP-25. Render runs the API from `src/` with Node; a smoke check of a `tsc` build would test something production never runs.
+- **Trade-off**: none; the brief asks for a check of the deploy path. Reversal: one job.
+- **Scope**: ci-fast-path
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-168 (assumed)
+
+- **Decision**: `phase-status` drops the `awaiting-review` step: a phase whose `review.md` exists goes to `merge`, then `closed` once `phase/F<n>` is merged into `main`; an approval line in the review is no longer read.
+- **Reason**: continuous-delivery, CDL-07. ADR 028 § 1: the runner merges the phase PR when the review's gates are green, and the maintainer reads the review afterwards.
+- **Trade-off**: the phase closes before the maintainer reads the review; anything sent back becomes a follow-up feature. Reversal: restore the step.
+- **Scope**: continuous-delivery
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-169 (assumed)
+
+- **Decision**: what still needs the maintainer is a row of a `## For the maintainer` table in the phase's `decisions.md` (Feature, Item, Asked, Answer); a row with an empty Answer blocks its feature with the reason `maintainer`; `phase-status` prints each open row on its feature's line on every run, never suppressed after the first; a blank Answer is open.
+- **Reason**: continuous-delivery, CDL-08 to CDL-10. Brief revision 6 asks for one place, "shown once per feature", blocking only the feature that needs it; ADR 024 asks for state derived from files.
+- **Trade-off**: the maintainer answers by editing a table. Reversal: another evidence source in `phase-state.mjs`.
+- **Scope**: continuous-delivery
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-170 (assumed)
+
+- **Decision**: before merging the phase PR into `main`, the runner requires `verify`, `integration`, `agent` and `secrets` (the checks ADR 028 § 2 names) to have run on the PR's head and passed, whatever the applied ruleset requires.
+- **Reason**: continuous-delivery, CDL-06. Applying the ruleset is the maintainer's; until it is applied GitHub may require fewer checks, and the runner must not merge into `main` on less than ADR 028 names.
+- **Trade-off**: a check renamed in CI blocks the phase merge until the list follows. Reversal: read the required checks from the ruleset file.
+- **Scope**: continuous-delivery
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-171 (assumed)
+
+- **Decision**: the review step does not merge the phase PR while any maintainer item of the phase is open; it lists the open items in `review.md` and stops.
+- **Reason**: continuous-delivery, Verifier finding 4. With `review.md` written and a feature blocked only by an open maintainer item, `phase-status` reads `merge`; merging into `main` with an unanswered maintainer question would ship what the maintainer has not decided.
+- **Trade-off**: one open question holds the phase PR. Reversal: one sentence in the skill.
+- **Scope**: continuous-delivery
+- **Date**: 2026-11-08
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-172 (assumed)
+
+- **Decision**: the BUD-30 total of environment failures is cleared only by a reset of the unit, not by a pass.
+- **Reason**: budget-v2, second security review of the diff (2026-11-09): `attempt.mjs run` does not check that a task's command is its `**Gate**`, so `-- "true"` is a real pass, and with the total cleared by a pass an agent bought two free runs per cycle without end. With the total cleared only by a reset, forging buys at most three uncounted environment failures until the next reset (a forged pass adds none and only marks the unit passed), and resets are the orchestrator's one or the maintainer's.
+- **Trade-off**: a unit whose machine fails four times over its whole life blocks, even with passes between. Reversal: clear the total on a pass of the task's own gate command, once the wrapper checks it.
+- **Scope**: budget-v2
+- **Date**: 2026-11-09
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)
