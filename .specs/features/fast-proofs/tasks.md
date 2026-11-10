@@ -120,10 +120,10 @@ Export the pure parts (`parseChecks`, `proofKey`) for the unit test. Run `main` 
 
 **Done when**:
 
-- [ ] § 6 says what the What says, and nothing else in the skill changes.
-- [ ] The `@FPR-07` scenario passes.
-- [ ] `pnpm test:harness` passes with no test removed or skipped.
-- [ ] The gate passes.
+- [x] § 6 says what the What says, and nothing else in the skill changes.
+- [x] The `@FPR-07` scenario passes.
+- [x] `pnpm test:harness` passes with no test removed or skipped.
+- [x] The gate passes.
 
 **Tests**: acceptance
 **Gate**: `pnpm exec turbo run test:acceptance -- --grep @FPR-07 && pnpm test:harness`
