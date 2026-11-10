@@ -9,6 +9,7 @@
 // (io.mjs). Log lines never hold the command or the raw input.
 import * as nodeFs from 'node:fs';
 import path from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { DEADLINE_MS, gitLocations, makeIo, makeRepoContext, projectDir, toRelative } from './lib/io.mjs';
 import { BASELINE, decide } from './lib/gate-rules.mjs';
 import { recordAttempt, recordDispatch } from '../../scripts/lib/budget.mjs';
@@ -57,10 +58,15 @@ function answer(decision, reason) {
 const log = (line) => process.stderr.write(`[d2rmm gate] ${line}\n`);
 
 // GPR-20: armed before anything else can stall (stdin, an import()). A synchronous block is bounded by the I/O deadline.
-setTimeout(() => {
-  log('the call was not answered in time');
-  answer('ask', 'The gate ran out of time, so it asks instead of allowing.');
-}, WATCHDOG_MS);
+// T23: the watchdog counts from the process start (performance.now() is measured from it), so the time the static imports
+// take is not added to the 8 s.
+setTimeout(
+  () => {
+    log('the call was not answered in time');
+    answer('ask', 'The gate ran out of time, so it asks instead of allowing.');
+  },
+  Math.max(0, WATCHDOG_MS - performance.now()),
+);
 
 /** All of stdin as one Buffer. Over 100 MB it keeps draining, so the pipe is not cut, and answers TOO_BIG. */
 async function readStdin() {

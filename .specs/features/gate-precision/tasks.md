@@ -613,9 +613,9 @@ T15 → T19 → T20 → T21 → T16 → T22 → T23
 
 **Done when**:
 
-- [ ] A test named `the watchdog counts from the process start` runs the gate with `node --import <a module that busy-waits 2 s> gate.mjs` and a stdin that never closes. It shows the exit code 0, the `ask` decision, and an answer within 9 s of the spawn.
-- [ ] Every existing test of `gate-startup.test.mjs` passes unchanged.
-- [ ] The gate passes.
+- [x] A test named `the watchdog counts from the process start` runs the gate with `node --import <a module that busy-waits 2 s> gate.mjs` and a stdin that never closes. It shows the exit code 0, the `ask` decision, and an answer within 9 s of the spawn.
+- [x] Every existing test of `gate-startup.test.mjs` passes unchanged.
+- [x] The gate passes.
 
 **Tests**: unit
 **Gate**: `node --test .claude/hooks/test/gate-startup.test.mjs`

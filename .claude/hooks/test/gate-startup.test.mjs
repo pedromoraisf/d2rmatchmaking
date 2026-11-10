@@ -137,6 +137,30 @@ test('answers before the hook timeout', async () => {
   assert.equal(decisionOf(stdout), 'ask', 'a stalled call gets ask');
 });
 
+// T23: the watchdog counts from the process start. A module loaded before the gate busy-waits 2 s, as a slow load of the
+// static imports would; the answer still comes within 9 s of the spawn, so the watchdog is not armed after the load.
+test('the watchdog counts from the process start', async () => {
+  const root = repo();
+  const busy = path.join(tempDir(), 'busy-wait.mjs');
+  writeFileSync(busy, 'const end = Date.now() + 2000;\nwhile (Date.now() < end) {}\n');
+  const started = Date.now();
+  const child = spawn(process.execPath, ['--import', busy, GATE], {
+    cwd: root,
+    env: env(root, path.join(tempDir(), 't.txt')),
+  });
+  let stdout = '';
+  child.stdout.on('data', (chunk) => {
+    stdout += chunk;
+  });
+  // The stdin is never closed: the call stalls, and only the watchdog can answer.
+  const killer = setTimeout(() => child.kill('SIGKILL'), 15_000);
+  const code = await new Promise((resolve) => child.on('close', resolve));
+  clearTimeout(killer);
+  assert.equal(code, 0, 'the watchdog exits 0');
+  assert.equal(decisionOf(stdout), 'ask', 'a stalled call gets ask');
+  assert.ok(Date.now() - started < 9_000, 'the answer comes within 9 s of the spawn');
+});
+
 test('logs no command', () => {
   const root = repo();
   const marker = 'SECRETMARKER';
