@@ -40,7 +40,8 @@ const ALLOWED_DIFFICULTY_LISTS: readonly (readonly DifficultyValue[])[] = [
   ['normal', 'nightmare', 'hell'],
 ];
 
-export function isAllowedDifficultyList(list: readonly DifficultyValue[]): boolean {
+/** Compares values only, so any list of strings can be checked; the schema below narrows it to difficulties. */
+export function isAllowedDifficultyList(list: readonly string[]): boolean {
   return ALLOWED_DIFFICULTY_LISTS.some(
     (allowed) =>
       allowed.length === list.length && allowed.every((difficulty, index) => difficulty === list[index]),
