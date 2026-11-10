@@ -88,7 +88,7 @@ T12 → T13 → T18 → T14 → T17 → T15
 Starts after `budget-v2` is merged into `phase/F0`: the orchestrator merges `phase/F0` into this branch first, so `tests/acceptance/support/gate-world.ts` exists.
 
 ```
-T15 → T16
+T15 → T19 → T20 → T21 → T16
 ```
 
 ---
@@ -495,9 +495,9 @@ T15 → T16
 
 ### T16: Scenarios
 
-**What**: `tests/acceptance/steps/gate-precision.steps.ts`: the steps of every scenario of `acceptance.feature`, black box, running `.claude/hooks/gate.mjs` of this checkout as a child process against a temporary repository. The Background step `a temporary repository with an approved phase brief for "F0" on the branch "feat/F0-demo"` builds the repository the same way the `harness-bootstrap` Given does and stores it in `tests/acceptance/support/gate-world.ts`; the steps whose text already exists ("the agent asks the gate to run …", "the gate answers …", "the gate does not answer …", "the reason names …") are reused, never defined again. Starts after `phase/F0` (with `budget-v2`) is merged into this branch.
+**What**: `tests/acceptance/steps/gate-precision.steps.ts`: the steps of every scenario of `acceptance.feature`, black box, running `.claude/hooks/gate.mjs` of this checkout as a child process against a temporary repository. The Background step `a temporary repository with an approved phase brief for "F0" on the branch "feat/F0-demo"` builds the repository the same way the `harness-bootstrap` Given does and stores it in `tests/acceptance/support/gate-world.ts`; the steps whose text already exists ("the agent asks the gate to run …", "the gate answers …", "the gate does not answer …", "the reason names …") are reused, never defined again. Starts after `phase/F0` (with `budget-v2`) is merged into this branch. Replanned on 2026-11-09 after two red gate runs, in which 7 of 290 scenarios failed. The three tasks before it and AD-176 fix their causes. Its gate now runs the acceptance suite with two workers, so that the gate's git calls stay inside their 2-second cap.
 **Where**: `tests/acceptance/steps/gate-precision.steps.ts`
-**Depends on**: T15
+**Depends on**: T21
 **Reuses**: `support/gate-world.ts`, `harness-bootstrap.steps.ts`
 **Requirement**: GPR-01, GPR-03, GPR-04, GPR-05, GPR-06, GPR-07, GPR-08, GPR-09, GPR-10, GPR-11, GPR-12, GPR-13, GPR-14, GPR-15, GPR-16, GPR-17, GPR-18, GPR-20, GPR-30, GPR-31, GPR-32, GPR-33
 
@@ -508,9 +508,77 @@ T15 → T16
 - [ ] Gate passes
 
 **Tests**: acceptance
-**Gate**: `pnpm exec turbo run test:acceptance -- --grep "@GPR-|@HBS-" && pnpm test:harness && pnpm contracts:check`
+**Gate**: `pnpm exec turbo run test:acceptance -- --grep "@GPR-|@HBS-" --workers=2 && pnpm test:harness && pnpm contracts:check`
 
 **Commit**: `test(harness): acceptance steps for gate precision`
+
+---
+
+### T19: `echo` takes any literal word
+
+**What**: T16's run found that `echo --- && wc -l scripts/lib/budget.mjs` gets no decision. The `echo` row of the read-only table (`.claude/hooks/lib/read-only.mjs`, `{ command: ['echo'], allowed: [] }`) has no `parse`, so `---` is read as an option and refused. The spec allows "`echo` segments with literal words". Give the row a `parse` that returns every argument as an operand, with no options. A word that expands (`$`, a backtick, a glob) is still judged by the existing literal-word rule.
+**Where**: `.claude/hooks/lib/read-only.mjs` (modify), `.claude/hooks/test/read-only.test.mjs` (new case)
+**Depends on**: T15
+**Reuses**: the `parse` of the other rows
+**Requirement**: GPR-01
+
+**Done when**:
+
+- [ ] A test named `echo takes any literal word` allows `echo ---`, `echo -n x` and `echo --- && wc -l scripts/lib/budget.mjs`. It keeps today's decision for `echo $HOME`, and for `` echo `id` `` its decision is whatever it was before this task.
+- [ ] Every existing test of `read-only.test.mjs` passes unchanged.
+- [ ] The gate passes.
+
+**Tests**: unit
+**Gate**: `node --test .claude/hooks/test/read-only.test.mjs`
+
+**Commit**: `fix(harness): echo takes any literal word`
+
+---
+
+### T20: The shared gate step unescapes quotes
+
+**What**: the step `the agent asks the gate to run "(.+)"` in `tests/acceptance/steps/harness-bootstrap.steps.ts` passes `\"` through literally. The GPR-09 example therefore reaches the gate as `node -e \"require('fs')…\"`, and budget-v2's dynamic-`require` rule asks before the write rule can deny. The step turns `\"` into `"` before it sends the command. GPR-09 is the only feature step text that contains `\"`. Every other scenario sends the same text as before.
+**Where**: `tests/acceptance/steps/harness-bootstrap.steps.ts` (modify that step only)
+**Depends on**: T19
+**Reuses**: none
+**Requirement**: GPR-09
+
+**Done when**:
+
+- [ ] The step unescapes `\"`. A grep shows that no other step text in `tests/acceptance` contains `\"`.
+- [ ] The gate passes.
+
+**Tests**: acceptance
+**Gate**: `pnpm exec turbo run test:acceptance -- --grep "@GPR-09|@HBS-0" --workers=2`
+
+**Commit**: `test(harness): the shared gate step unescapes quotes`
+
+---
+
+### T21: The guard fails closed when git does not answer in time
+
+**What**: T16's run found that the guard reads a git call that timed out (`io.mjs`: 2 s per call, `{ timedOut: true }`, which older callers read as `null`) as "the ref does not exist". In `touches` (`.claude/hooks/lib/guard.mjs`), a covered branch whose `commitOf` timed out counts as "not started" and touches nothing, so a merge gets no decision: a fail-open (HBS-35 Example 5 under load). In the guard, a git read that timed out is unknown, not absent:
+
+- `commitOf` and `revList` tell a timeout from a missing ref, through the `{ timedOut }` result the repository context already returns;
+- `touches` returns true (fail closed) when any of its reads timed out;
+- `proofOf` gives no proven head when its head read timed out;
+- the deny reason says git did not answer in time and asks to run the command again.
+  A clean run decides exactly as before.
+  **Where**: `.claude/hooks/lib/guard.mjs` (modify), `.claude/hooks/lib/io.mjs` (only if the context needs to expose the timeout), `.claude/hooks/test/guard.test.mjs` (new case)
+  **Depends on**: T20
+  **Reuses**: the fake git of `guard.test.mjs` (`failingList`), `makeRepoContext`
+  **Requirement**: none in the spec. This is a fail-open found during the run, fixed under `harness-self` (ADR 028 § 3, HBS-32 fails closed).
+
+**Done when**:
+
+- [ ] A test named `the guard fails closed when git does not answer in time` covers a timed-out `commitOf` of the covered branch, and then a timed-out `rev-list`. In each case, `git merge --no-ff feat/F0-x` and `git branch -f phase/F0 feat/F0-x` are denied, and the reason says git did not answer in time.
+- [ ] Every existing test of `guard.test.mjs` passes unchanged. The `@HBS-32`, `@HBS-35` and `@HBS-36` scenarios pass at `--workers=2`.
+- [ ] The gate passes.
+
+**Tests**: unit and acceptance
+**Gate**: `node --test .claude/hooks/test/guard.test.mjs && pnpm exec turbo run test:acceptance -- --grep "@HBS-3[2-6]" --workers=2`
+
+**Commit**: `fix(harness): the guard fails closed when git does not answer in time`
 
 ---
 
@@ -616,7 +684,13 @@ Proof: `node --test --test-name-pattern "a package scope is not the ledger" .cla
 Proof: `node --test --test-name-pattern "stops at its caps and its deadline" .claude/hooks/test/read-only.test.mjs`
 
 **C32** - The acceptance scenarios pass (GPR-01 to GPR-33 with a scenario)
-Proof: `pnpm exec turbo run test:acceptance -- --grep @GPR-`
+Proof: `pnpm exec turbo run test:acceptance -- --grep @GPR- --workers=2`
+
+**C33** - `echo` takes any literal word (GPR-01)
+Proof: `node --test --test-name-pattern "echo takes any literal word" .claude/hooks/test/read-only.test.mjs`
+
+**C34** - The guard fails closed when git does not answer in time (HBS-32, harness-self)
+Proof: `node --test --test-name-pattern "the guard fails closed when git does not answer in time" .claude/hooks/test/guard.test.mjs`
 
 ---
 
@@ -666,9 +740,9 @@ Phase 2:  T4 → T5 → T6 → T7
 Phase 3:  T7 → T8 → T9
 Phase 4:  T9 → T10 → T11 → T12
 Phase 5:  T12 → T13 → T18 → T14 → T17 → T15
-Phase 6:  T15 → T16
+Phase 6:  T15 → T19 → T20 → T21 → T16
 ```
 
 Batches: `execute-batch-1` runs phases 1 and 2 (T1 to T7); `execute-batch-2` runs phases 3 and 4 (T8 to T12);
 `execute-batch-3` runs phase 5 (T13, T18, T14, T17, T15); `execute-batch-4` runs phase 6 (T16), after `budget-v2` is merged into
-`phase/F0` and `phase/F0` into this branch.
+`phase/F0` and `phase/F0` into this branch, and after T16's two red runs it runs T19, T20, T21 and then T16's last attempt.

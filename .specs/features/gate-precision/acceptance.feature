@@ -33,7 +33,7 @@ Feature: The gate is exact about reads, writes and polling
       | sed -n 1,40p .claude/hooks/gate.mjs                     |
       | cd apps && rg -n foo api/package.json 2>/dev/null \| head -n 20 |
       | git log --oneline -5 && git status --short              |
-      | find . -name '*.test.mjs' -not -path './node_modules/*' |
+      | find apps -name '*.test.mjs' -not -path './node_modules/*' |
       | jq '.metrics' .quality-baseline.json                    |
       | gh api repos/pedromoraisf/d2rmatchmaking/actions/runs   |
       | node scripts/phase-status.mjs F0 --json                 |
@@ -242,7 +242,7 @@ Feature: The gate is exact about reads, writes and polling
 
     Examples:
       | command                                            | decision               |
-      | pnpm --filter @d2rmm/api typecheck                 | does not answer "deny" |
+      | pnpm --filter @d2rmm/api list                      | does not answer "deny" |
       | cat .git/d2rmm/ledger.json                         | answers "deny"         |
       | pnpm --filter @d2rmm/api typecheck && cat d2rmm/x  | answers "deny"         |
 

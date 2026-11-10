@@ -147,6 +147,8 @@ review. Reversals become tasks in a follow-up feature.
 | AD-170 | continuous-delivery | The phase PR merges only when `verify`, `integration`, `agent` and `secrets` passed on its head, whatever the applied ruleset requires | read the ruleset file | |
 | AD-171 | continuous-delivery | The phase PR does not merge while any maintainer item is open; the review lists them and stops | one sentence in the skill | |
 | AD-172 | budget-v2 | The BUD-30 total is cleared only by a reset, not by a pass (a pass can be forged) | clear it on a pass of the task's own gate | |
+| AD-175 | gate-precision, budget-v2 | A shell write after `2>&1` to a protected file is denied (GPR-10), not asked | one expected value | |
+| AD-176 | gate-precision | Two acceptance examples change to match GPR-31 and the phase-run Background: `find apps`, `pnpm --filter … list` | restore them with a non-phase Background | |
 
 Queued for the maintainer (not edited by the runner): ADR 027's Enforcement paragraph says "Adapters stay in the app crate" while its Consequences and open point 2 allow `d2rmm-agent-adapters`; a one-line clarification would remove the tension. `.claude/hooks/test/mutation-gate.test.mjs` and `.claude/settings.json` mention the core crate path and may need the new crates (maintainer-owned files).
 

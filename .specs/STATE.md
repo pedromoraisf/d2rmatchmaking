@@ -1549,6 +1549,26 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-09
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-175 (assumed)
+
+- **Decision**: a shell write to a protected, non-self-protected file after `2>&1` is denied, not asked. budget-v2's test "still stops a real write after 2>&1" expects `deny` for `cat a 2>&1 > eslint.config.mjs`.
+- **Reason**: merging `phase/F0` into gate-precision. gate-precision's approved GPR-08 to GPR-10 (AD-157, brief revision 6) turn the shell-write ask into a deny. The change tightens budget-v2's assertion: the write is still caught.
+- **Trade-off**: none for honest work; the Edit tool is the route. Reversal: one expected value.
+- **Scope**: gate-precision, budget-v2
+- **Date**: 2026-11-09
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
+### AD-176 (assumed)
+
+- **Decision**: two examples of gate-precision's `acceptance.feature` change; no requirement text does:
+  - GPR-01's `find . -name …` becomes `find apps -name …`;
+  - GPR-33's first example becomes `pnpm --filter @d2rmm/api list`.
+- **Reason**: T16's run. A `find` from `.` lists the git directory, which GPR-31 keeps out. In the Background's phase run, a `typecheck` outside the wrapper is denied by the sensor rule, which is not what GPR-33 is about.
+- **Trade-off**: neither example tests what it was written for any more; the rules they now cover are the ones the spec states. Reversal: restore the examples with a non-phase Background.
+- **Scope**: gate-precision
+- **Date**: 2026-11-09
+- **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

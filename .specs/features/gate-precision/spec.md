@@ -4,6 +4,13 @@
 
 Maintainer's own approval of this spec, 2026-11-08: "Aprovo a spec da Gate Precision." The `spec-reviewer` did not return PASS: six reviews (three after a maintainer reset) each found narrower cases, all fixed in this text; the maintainer approved it directly instead of a seventh review. The delegated line above is the form the gate accepts during a phase run; this paragraph is the approval's source.
 
+**Amended by the runner** (assumed, AD-176; to confirm at the phase review): 2026-11-09. T16 found two examples of `acceptance.feature` that contradict other approved rules, and changed only those examples:
+
+- GPR-01's `find . -name …` became `find apps -name …`. A start of `.` contains the git directory, which GPR-31 keeps out of a listing.
+- GPR-33's first example became `pnpm --filter @d2rmm/api list`. The Background is a phase run, where `typecheck` outside the wrapper is denied by the sensor rule, not by the ledger rule GPR-33 is about.
+
+No requirement text changes.
+
 ## Problem Statement
 
 In F0 the gate asked for 89 read-only shell commands (15.7 hours of waiting; one reviewer waited 6 hours for a
