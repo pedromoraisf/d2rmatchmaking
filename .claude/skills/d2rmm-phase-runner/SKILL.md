@@ -171,9 +171,7 @@ remaining feature of the phase is an escalation. Run long work (a gate, a build,
 
 ### 6. Verify (fresh agent, always)
 
-`check_proofs.py <feature>` (step `proofs`) → dispatch the `verifier` subagent (Sonnet; step `verify`; author ≠ verifier) with
-TLC `references/validate.md` → fix findings in one pass (dispatched as the next `execute-batch-<n>` with the findings as its tasks) → `check_proofs.py --mutations` (step `proofs`) and, if TLC's
-round 2 applies, step `verify-r2` → `validate_verification.py <feature>` (step `verification`) exits 0.
+The fix loop runs the preflight through the wrapper as step `fix`: `node scripts/attempt.mjs run --feature <f> --step fix -- "node scripts/proofs-preflight.mjs <f>"`. It reruns only the proofs whose command or changed files moved since their last green run. `check_proofs.py <feature>` runs as step `proofs` once, when the preflight is green: `node scripts/attempt.mjs run --feature <f> --step proofs -- "python3 .claude/skills/tlc-spec-driven/scripts/check_proofs.py <f>"`, with `--mutations` when the feature runs mutations. It runs a second time only if that run fails. → dispatch the `verifier` subagent (Sonnet; step `verify`; author ≠ verifier) with TLC `references/validate.md` → fix findings in one pass (dispatched as the next `execute-batch-<n>` with the findings as its tasks) → if TLC's round 2 applies, step `verify-r2` → `validate_verification.py <feature>` (step `verification`) exits 0.
 
 ### 7. Integrate (through pull requests, ADR 028)
 

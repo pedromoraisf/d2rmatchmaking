@@ -56,6 +56,21 @@ test('attempt run: invented steps and unknown features are refused', () => {
   assert.equal(run(dir, 'run', '--feature', 'demo', '--step', 'spec', '--', 'true').status, 0);
 });
 
+test('the wrapper accepts step fix and counts it on its own unit', () => {
+  const dir = repo();
+  assert.equal(run(dir, 'run', '--feature', 'demo', '--step', 'fix', '--', 'true').status, 0);
+  const passing = JSON.parse(readFileSync(path.join(dir, '.git/d2rmm/ledger.json'), 'utf8')).units;
+  assert.equal(passing['gate:demo/fix'].attempts.length, 1);
+  assert.equal(passing['gate:demo/fix'].attempts[0].ok, true);
+  assert.equal(passing['gate:demo/proofs'], undefined);
+  assert.equal(run(dir, 'run', '--feature', 'demo', '--step', 'fix', '--', 'exit 1').status, 1);
+  const failing = JSON.parse(readFileSync(path.join(dir, '.git/d2rmm/ledger.json'), 'utf8')).units;
+  assert.equal(failing['gate:demo/fix'].attempts.length, 2);
+  assert.equal(failing['gate:demo/fix'].attempts[1].ok, false);
+  assert.equal(failing['gate:demo/proofs'], undefined);
+  assert.equal(run(dir, 'run', '--feature', 'demo', '--step', 'nope', '--', 'true').status, 2);
+});
+
 function committedRepo() {
   const dir = repo();
   git('-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init');
