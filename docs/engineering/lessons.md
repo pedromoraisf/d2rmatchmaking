@@ -19,6 +19,10 @@ being true.
 - **Format files before the format check runs.** Files written by an agent or a tool (reports, `verification.md`) fail
   `pnpm format:check` until Prettier runs on them. Why: a verification gate was spent on formatting alone.
 
+- **A feature's `acceptance.feature` reaches the phase branch together with its steps, in the feature PR.** Why:
+  playwright-bdd runs with `missingSteps: 'fail-on-gen'`, so a spec committed to `phase/F1` before its steps would
+  fail generation in every other PR's acceptance run (found before the first F1 dispatch).
+
 ## Tests
 
 - **No tight wall-clock limits in unit tests.** The maintainer's machine has 8 GB and runs the suites in parallel; a test
