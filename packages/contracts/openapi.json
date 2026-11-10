@@ -347,6 +347,276 @@
         }
       }
     },
+    "/v1/me/characters": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "characters": {
+                    "minItems": 1,
+                    "maxItems": 24,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 15,
+                          "pattern": "^[A-Za-z]+(?:[-_][A-Za-z]+)?$"
+                        },
+                        "class": {
+                          "type": "string",
+                          "enum": [
+                            "amazon",
+                            "assassin",
+                            "barbarian",
+                            "druid",
+                            "necromancer",
+                            "paladin",
+                            "sorceress",
+                            "warlock"
+                          ]
+                        },
+                        "level": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 99
+                        },
+                        "ladder": {
+                          "type": "string",
+                          "enum": [
+                            "sc-ladder",
+                            "sc-nonladder",
+                            "hc-ladder",
+                            "hc-nonladder"
+                          ]
+                        },
+                        "era": {
+                          "type": "string",
+                          "enum": [
+                            "classic",
+                            "lod",
+                            "rotw"
+                          ]
+                        },
+                        "unlockedDifficulties": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "normal",
+                              "nightmare",
+                              "hell"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "class",
+                        "level",
+                        "ladder",
+                        "era",
+                        "unlockedDifficulties"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "characters"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "characters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 15,
+                            "pattern": "^[A-Za-z]+(?:[-_][A-Za-z]+)?$"
+                          },
+                          "class": {
+                            "type": "string",
+                            "enum": [
+                              "amazon",
+                              "assassin",
+                              "barbarian",
+                              "druid",
+                              "necromancer",
+                              "paladin",
+                              "sorceress",
+                              "warlock"
+                            ]
+                          },
+                          "level": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 99
+                          },
+                          "ladder": {
+                            "type": "string",
+                            "enum": [
+                              "sc-ladder",
+                              "sc-nonladder",
+                              "hc-ladder",
+                              "hc-nonladder"
+                            ]
+                          },
+                          "era": {
+                            "type": "string",
+                            "enum": [
+                              "classic",
+                              "lod",
+                              "rotw"
+                            ]
+                          },
+                          "unlockedDifficulties": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "normal",
+                                "nightmare",
+                                "hell"
+                              ]
+                            }
+                          },
+                          "readAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "class",
+                          "level",
+                          "ladder",
+                          "era",
+                          "unlockedDifficulties",
+                          "readAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "characters"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/agents/pairing-codes": {
       "post": {
         "responses": {

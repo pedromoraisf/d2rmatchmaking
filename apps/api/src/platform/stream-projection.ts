@@ -71,6 +71,16 @@ export async function projectStreamEvent(
         },
       ];
     }
+    case 'CharactersRecorded': {
+      // The site refetches its list; the event carries no character (CHR-12, CHR-13).
+      return [
+        {
+          stream: 'site',
+          accountId: event.payload.accountId,
+          event: { type: 'characters.updated', data: {} },
+        },
+      ];
+    }
     default:
       return [];
   }

@@ -21,7 +21,7 @@ export const KEEP_ALIVE_MS = 25_000;
 export const MAX_STREAMS_PER_KEY = 5;
 
 /** The durable events a stream can carry; replay reads only these rows. */
-const STREAMED_DURABLE_TYPES = ['RoomAssignmentChanged', 'RoomStageChanged'] as const;
+const STREAMED_DURABLE_TYPES = ['RoomAssignmentChanged', 'RoomStageChanged', 'CharactersRecorded'] as const;
 
 /** The events the hub subscribes to on the bus. */
 const SUBSCRIBED_TYPES = [
@@ -29,6 +29,7 @@ const SUBSCRIBED_TYPES = [
   'RoomStageChanged',
   'AgentPresenceChanged',
   'AgentRevoked',
+  'CharactersRecorded',
 ] as const;
 
 /** Query parameters that would carry a credential: refused with 400 so tokens never reach a URL (AWS-11). */

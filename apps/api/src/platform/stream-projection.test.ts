@@ -80,6 +80,14 @@ describe('projectStreamEvent', () => {
     ]);
   });
 
+  it('CharactersRecorded goes to the owner site only, as characters.updated with no body', async () => {
+    const recorded: AnyDomainEvent = { type: 'CharactersRecorded', payload: { accountId: 'account-1' } };
+
+    expect(await projectStreamEvent(recorded, agents)).toEqual([
+      { stream: 'site', accountId: 'account-1', event: { type: 'characters.updated', data: {} } },
+    ]);
+  });
+
   it('AgentRevoked and MatchFormed project to nothing', async () => {
     const revoked: AnyDomainEvent = {
       type: 'AgentRevoked',

@@ -26,7 +26,7 @@ Rules for the worker:
       `recordCharacters` (upsert by account + name, newest reading wins, one unit of work, `CharactersRecorded` in the
       outbox) and `listMyCharacters`, in-memory fakes, unit tests for every rule of CHR-09 and CHR-10 — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/modules/identity/domain src/modules/identity/application`
-- [ ] T3 — API persistence and routes: migration `identity.characters` (next free number after the existing ones),
+- [x] T3 — API persistence and routes: migration `identity.characters` (next free number after the existing ones),
       Postgres repository, `POST /v1/me/characters` (agent token guard → 204 / 400 / 401) and `GET /v1/me/characters`
       (session guard), spans `identity.record-characters` / `identity.list-characters` with counts only (CHR-13),
       stream projection `CharactersRecorded` → `characters.updated`; add the migration to `migrate.int.test.ts`;
