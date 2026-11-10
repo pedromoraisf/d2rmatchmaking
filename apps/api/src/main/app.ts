@@ -42,8 +42,11 @@ import { PostgresCharacterRepository } from '../modules/identity/adapters/postgr
 import { PostgresSessionRepository } from '../modules/identity/adapters/postgres/postgres-session-repository.ts';
 import { Sha256SecretHasher } from '../modules/identity/adapters/postgres/sha256-secret-hasher.ts';
 import type { IdentityDatabase } from '../modules/identity/adapters/postgres/schema.ts';
+import { FetchBattleNetOAuth } from '../modules/identity/adapters/bnet/fetch-battle-net-oauth.ts';
+import { UnconfiguredBattleNetOAuth } from '../modules/identity/adapters/bnet/unconfigured-battle-net-oauth.ts';
 import { createCharacterUseCases } from '../modules/identity/application/character-use-cases.ts';
 import { createIdentityUseCases } from '../modules/identity/application/identity-use-cases.ts';
+import type { BnetSettings } from './config.ts';
 import { atMostOnePerMinute } from '../platform/error-log.ts';
 import { InMemoryEventBus } from '../platform/event-bus.ts';
 import { answerError } from '../platform/http/answer-error.ts';
@@ -79,11 +82,42 @@ export function traceFields(): Record<string, string> {
   return { trace_id: spanContext.traceId, span_id: spanContext.spanId };
 }
 
-/** The Fastify logger of the app: credentials redacted, and every line carries the trace fields (OBS-26). */
+/** The request fields a log line of a request carries: Fastify's default set, with the URL cut at its query (IDB-11). */
+interface RequestLike {
+  readonly method: string;
+  readonly url: string;
+  readonly headers: Readonly<Record<string, unknown>>;
+  readonly host: string;
+  readonly ip: string;
+  readonly socket: { readonly remotePort: number | undefined } | undefined;
+}
+
+/** The request's path without its query string or fragment: the callback's `code` and `state` never reach a log line. */
+export function pathOf(rawUrl: string): string {
+  const cut = rawUrl.search(/[?#]/);
+  return cut === -1 ? rawUrl : rawUrl.slice(0, cut);
+}
+
+/** The `req` serializer of the app logger: Fastify's default fields, with `url` reduced to the path (IDB-11). */
+export function requestLogFieldsOf(request: RequestLike) {
+  const version = request.headers['accept-version'];
+  const remotePort = request.socket?.remotePort;
+  return {
+    method: request.method,
+    url: pathOf(request.url),
+    ...(typeof version === 'string' ? { version } : {}),
+    host: request.host,
+    remoteAddress: request.ip,
+    ...(remotePort === undefined ? {} : { remotePort }),
+  };
+}
+
+/** The Fastify logger of the app: credentials redacted, the query kept out of request lines, and every line carries the trace fields (OBS-26). */
 export function appLoggerOptions(sink?: Writable) {
   return {
     level: 'info',
     redact: { paths: REDACTED_LOG_PATHS, censor: '[redacted]' },
+    serializers: { req: requestLogFieldsOf },
     mixin: traceFields,
     ...(sink === undefined ? {} : { stream: sink }),
   };
@@ -94,6 +128,8 @@ export interface AppConfig {
   readonly minAgentVersion: string;
   readonly siteOrigin: string;
   readonly trustProxyHops: number;
+  /** Battle.net sign-in settings (`BNET_*`, main/config.ts). Undefined: the login and callback routes answer 404. */
+  readonly bnet?: BnetSettings | undefined;
 }
 
 export interface AppDeps {
@@ -164,6 +200,16 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     tokenCache: new MemoryAgentTokenCache(),
   };
   const hasher = new Sha256SecretHasher();
+  // Battle.net is reached only when both client settings are configured; the routes answer 404 otherwise (IDB-06).
+  const battleNet =
+    config.bnet === undefined
+      ? new UnconfiguredBattleNetOAuth()
+      : new FetchBattleNetOAuth({
+          baseUrl: config.bnet.baseUrl,
+          clientId: config.bnet.clientId,
+          clientSecret: config.bnet.clientSecret,
+          fetch: (url, init) => fetch(url, init),
+        });
 
   const identity = createIdentityUseCases({
     accounts: new PostgresAccountRepository(db as unknown as Kysely<IdentityDatabase>, clock),
@@ -172,6 +218,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     clock,
     random,
     ids,
+    battleNet,
   });
   const characters = createCharacterUseCases({
     characters: new PostgresCharacterRepository(db as unknown as Kysely<IdentityDatabase>),
@@ -283,8 +330,16 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   typed.get('/v1/config', { schema: { response: { 200: ConfigResponse } } }, () => ({
     stagingEndpoints: config.stagingEndpoints,
     minAgentVersion: config.minAgentVersion,
+    bnetSignIn: config.bnet !== undefined,
   }));
-  identityRoutes(app, { useCases: identity, guards, stagingEndpoints: config.stagingEndpoints });
+  identityRoutes(app, {
+    useCases: identity,
+    guards,
+    stagingEndpoints: config.stagingEndpoints,
+    bnet: { enabled: config.bnet !== undefined, oauth: battleNet, siteOrigin: config.siteOrigin },
+    clock,
+    random,
+  });
   characterRoutes(app, { useCases: characters, agents: agentsPort, guards });
   agentsRoutes(app, { useCases: agents, guards });
   lobbyRoomRoutes(app, { useCases: lobby, guards });

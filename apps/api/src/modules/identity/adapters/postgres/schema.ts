@@ -7,6 +7,7 @@ export interface IdentityDatabase {
     battletag: string;
     display_name: string;
     test_key: string | null;
+    bnet_sub: string | null;
     created_at: Date;
   };
   'identity.sessions': {

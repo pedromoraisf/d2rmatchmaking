@@ -12,7 +12,10 @@
     "playerName": "Nome do jogador",
     "submit": "Entrar",
     "invalidName": "Use de 2 a 16 letras, números ou hífens.",
-    "signedInAs": "Conectado como {{name}}"
+    "signedInAs": "Conectado como {{name}}",
+    "bnetLink": "Entrar com a Battle.net",
+    "bnetFailed": "O login com a Battle.net falhou. Tente novamente.",
+    "signOut": "Sair"
   },
   "pairing": {
     "codeLabel": "Código de pareamento",
@@ -20,6 +23,12 @@
     "paired": "Agente pareado",
     "invalidCode": "Este código é inválido ou expirou.",
     "tooManyAttempts": "Muitas tentativas. Tente novamente em alguns minutos."
+  },
+  "revoke": {
+    "button": "Revogar agente",
+    "confirm": "Revogar este agente? Ele deixa de funcionar imediatamente.",
+    "confirmButton": "Revogar",
+    "cancel": "Cancelar"
   },
   "presence": {
     "online": "Agente online",

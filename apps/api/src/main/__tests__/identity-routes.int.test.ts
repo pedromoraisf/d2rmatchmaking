@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { Writable } from 'node:stream';
+import type { Kysely } from 'kysely';
 import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it } from 'vitest';
 import {
   createMigratedTestDatabase,
@@ -151,6 +154,258 @@ describe('identity routes', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ accountId: signedIn.json().accountId, displayName: 'PlayerOne' });
+  });
+
+  it('answers 404 on the Battle.net login and reports bnetSignIn false without credentials', async () => {
+    const config = await app.app.inject({ method: 'GET', url: '/v1/config' });
+    expect(config.json()).toMatchObject({ bnetSignIn: false });
+
+    const login = await app.app.inject({ method: 'GET', url: '/v1/auth/bnet/login' });
+    expect(login.statusCode).toBe(404);
+  });
+});
+
+/** A loopback stand-in for Battle.net: one client, one code, one identity (the scenarios script their own). */
+const FAKE_CLIENT_ID = 'public-client';
+const FAKE_CLIENT_SECRET = 'client-secret-value';
+const FAKE_BASIC = `Basic ${Buffer.from(`${FAKE_CLIENT_ID}:${FAKE_CLIENT_SECRET}`).toString('base64')}`;
+
+function startFakeBattleNet(): Promise<{ readonly server: Server; readonly base: string }> {
+  const server = createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on('data', (chunk: Buffer) => chunks.push(chunk));
+    request.on('end', () => {
+      const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+      response.setHeader('content-type', 'application/json');
+      if (request.method === 'POST' && url.pathname === '/token') {
+        const form = new URLSearchParams(Buffer.concat(chunks).toString());
+        if (form.get('code') === 'good-code' && request.headers.authorization === FAKE_BASIC) {
+          response.end(JSON.stringify({ access_token: 'token-1' }));
+          return;
+        }
+        response.statusCode = 400;
+        response.end(JSON.stringify({ error: 'invalid_grant' }));
+        return;
+      }
+      if (
+        request.method === 'GET' &&
+        url.pathname === '/userinfo' &&
+        request.headers.authorization === 'Bearer token-1'
+      ) {
+        response.end(JSON.stringify({ sub: 'sub-alice', battletag: 'Alice#1234' }));
+        return;
+      }
+      response.statusCode = 401;
+      response.end(JSON.stringify({ error: 'unauthorized' }));
+    });
+  });
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address() as AddressInfo;
+      resolve({ server, base: `http://127.0.0.1:${address.port}` });
+    });
+  });
+}
+
+/**
+ * The app's database with every insert into the sessions table failing, as a lost connection would: the sign-in's last
+ * write throws after the account is found or created (IDB-04).
+ */
+function withFailingSessions(db: Kysely<AppDatabase>): Kysely<AppDatabase> {
+  const insertInto: Kysely<AppDatabase>['insertInto'] = (table) => {
+    if (table === 'identity.sessions') {
+      throw new Error('connection lost');
+    }
+    return db.insertInto(table);
+  };
+  return new Proxy(db, {
+    get(target, property) {
+      if (property === 'insertInto') {
+        return insertInto;
+      }
+      const value: unknown = Reflect.get(target, property, target);
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+    },
+  });
+}
+
+/** The `name=value` pair of the session cookie a response sets, or '' when it sets none. */
+function sessionPairOf(response: { readonly headers: Record<string, unknown> }): string {
+  const raw = response.headers['set-cookie'];
+  const list = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [];
+  const found = list.find((value) => value.startsWith('__Host-d2rmm_session='));
+  return found?.split(';')[0] ?? '';
+}
+
+describe('identity routes with Battle.net', () => {
+  let fake: { readonly server: Server; readonly base: string };
+  let bnet: BuiltApp;
+  // Every byte the Battle.net app logs in a test, so a test can assert what a log line does not carry (IDB-11).
+  let logged = '';
+  const capturingSink = new Writable({
+    write(chunk: Buffer, _encoding, callback) {
+      logged += chunk.toString('utf8');
+      callback();
+    },
+  });
+
+  beforeAll(async () => {
+    fake = await startFakeBattleNet();
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve, reject) => {
+      fake.server.close((error) => (error === undefined ? resolve() : reject(error)));
+    });
+  });
+
+  beforeEach(async () => {
+    logged = '';
+    bnet = await buildApp({
+      db: database.db,
+      config: {
+        stagingEndpoints: false,
+        minAgentVersion: '0.0.1',
+        siteOrigin: SITE_ORIGIN,
+        trustProxyHops: 1,
+        bnet: { clientId: FAKE_CLIENT_ID, clientSecret: FAKE_CLIENT_SECRET, baseUrl: fake.base },
+      },
+      clock,
+      scheduler: new FakeScheduler(clock),
+      random: new NodeRandomSource(),
+      ids: new RandomUuidGenerator(),
+      logSink: capturingSink,
+    });
+  });
+
+  afterEach(async () => {
+    await bnet.app.close();
+  });
+
+  /** Starts a sign-in and returns its state cookie and the state Battle.net sends back. */
+  async function startSignIn() {
+    const login = await bnet.app.inject({ method: 'GET', url: '/v1/auth/bnet/login' });
+    const location = new URL(String(login.headers['location']));
+    const stateCookie = setCookieHeader(login.headers['set-cookie']).split(';')[0] ?? '';
+    return { login, stateCookie, state: location.searchParams.get('state') ?? '' };
+  }
+
+  it('offers the sign-in and redirects to the Battle.net authorize endpoint', async () => {
+    const config = await bnet.app.inject({ method: 'GET', url: '/v1/config' });
+    expect(config.json()).toMatchObject({ bnetSignIn: true });
+
+    const { login } = await startSignIn();
+
+    expect(login.statusCode).toBe(302);
+    expect(String(login.headers['location'])).toMatch(new RegExp(`^${fake.base}/authorize\\?`));
+  });
+
+  it('signs a visitor in through the callback, and /v1/me reads the account', async () => {
+    const { stateCookie, state } = await startSignIn();
+
+    const callback = await bnet.app.inject({
+      method: 'GET',
+      url: `/v1/auth/bnet/callback?code=good-code&state=${state}`,
+      headers: { cookie: stateCookie },
+    });
+
+    expect(callback.statusCode).toBe(302);
+    expect(callback.headers['location']).toBe(`${SITE_ORIGIN}/`);
+    const session = sessionPairOf(callback);
+    expect(session).toMatch(/^__Host-d2rmm_session=d2rmm_s_/);
+
+    const me = await bnet.app.inject({ method: 'GET', url: '/v1/me', headers: { cookie: session } });
+    expect(me.json()).toMatchObject({ displayName: 'Alice' });
+  });
+
+  it('opens no session when Battle.net refuses the code', async () => {
+    const { stateCookie, state } = await startSignIn();
+
+    const callback = await bnet.app.inject({
+      method: 'GET',
+      url: `/v1/auth/bnet/callback?code=bad-code&state=${state}`,
+      headers: { cookie: stateCookie },
+    });
+
+    expect(callback.headers['location']).toBe(`${SITE_ORIGIN}/?signin=failed`);
+    expect(JSON.stringify(callback.headers['set-cookie'] ?? '')).not.toContain(
+      '__Host-d2rmm_session=d2rmm_s_',
+    );
+  });
+
+  it('logs the callback request without its code or state (IDB-11)', async () => {
+    const { stateCookie, state } = await startSignIn();
+    const callback = await bnet.app.inject({
+      method: 'GET',
+      url: `/v1/auth/bnet/callback?code=good-code&state=${state}`,
+      headers: { cookie: stateCookie },
+    });
+    expect(callback.statusCode).toBe(302);
+
+    expect(logged).toContain('/v1/auth/bnet/callback');
+    expect(logged).not.toContain('code=');
+    expect(logged).not.toContain('state=');
+    expect(logged).not.toContain('good-code');
+    expect(logged).not.toContain(state);
+  });
+
+  it('ends a sign-in that throws in the database: the state cookie is cleared, no session is set, the player is redirected (IDB-04)', async () => {
+    const failing = await buildApp({
+      db: withFailingSessions(database.db),
+      config: {
+        stagingEndpoints: false,
+        minAgentVersion: '0.0.1',
+        siteOrigin: SITE_ORIGIN,
+        trustProxyHops: 1,
+        bnet: { clientId: FAKE_CLIENT_ID, clientSecret: FAKE_CLIENT_SECRET, baseUrl: fake.base },
+      },
+      clock,
+      scheduler: new FakeScheduler(clock),
+      random: new NodeRandomSource(),
+      ids: new RandomUuidGenerator(),
+      logSink: silentSink,
+    });
+    try {
+      const login = await failing.app.inject({ method: 'GET', url: '/v1/auth/bnet/login' });
+      const state = new URL(String(login.headers['location'])).searchParams.get('state') ?? '';
+      const stateCookie = setCookieHeader(login.headers['set-cookie']).split(';')[0] ?? '';
+
+      const callback = await failing.app.inject({
+        method: 'GET',
+        url: `/v1/auth/bnet/callback?code=good-code&state=${state}`,
+        headers: { cookie: stateCookie },
+      });
+
+      expect(callback.statusCode).toBe(302);
+      expect(callback.headers['location']).toBe(`${SITE_ORIGIN}/?signin=failed`);
+      const raw = callback.headers['set-cookie'];
+      const cookies = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [];
+      expect(cookies.some((cookie) => cookie.startsWith('__Host-d2rmm_oauth=;'))).toBe(true);
+      expect(cookies.some((cookie) => cookie.startsWith('__Host-d2rmm_session=d2rmm_s_'))).toBe(false);
+    } finally {
+      await failing.app.close();
+    }
+  });
+
+  it('signs out: the session is deleted, and the old cookie answers 401', async () => {
+    const { stateCookie, state } = await startSignIn();
+    const callback = await bnet.app.inject({
+      method: 'GET',
+      url: `/v1/auth/bnet/callback?code=good-code&state=${state}`,
+      headers: { cookie: stateCookie },
+    });
+    const session = sessionPairOf(callback);
+
+    const signOut = await bnet.app.inject({
+      method: 'POST',
+      url: '/v1/auth/logout',
+      headers: { origin: SITE_ORIGIN, cookie: session, 'content-type': 'application/json' },
+      payload: {},
+    });
+    expect(signOut.statusCode).toBe(204);
+
+    const me = await bnet.app.inject({ method: 'GET', url: '/v1/me', headers: { cookie: session } });
+    expect(me.statusCode).toBe(401);
   });
 });
 

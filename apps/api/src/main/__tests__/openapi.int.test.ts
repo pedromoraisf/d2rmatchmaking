@@ -9,10 +9,17 @@ import { OPENAPI_PATH, buildOpenApiText } from '../openapi.ts';
 import { NodeRandomSource, RandomUuidGenerator } from '../runtime.ts';
 
 /** Every route buildApp registers with staging on, in Fastify's route syntax (`:id`) and the document's (`{id}`). */
-const ROUTES: readonly { readonly method: 'get' | 'post'; readonly url: string; readonly path: string }[] = [
+const ROUTES: readonly {
+  readonly method: 'get' | 'post' | 'delete';
+  readonly url: string;
+  readonly path: string;
+}[] = [
   { method: 'get', url: '/healthz', path: '/healthz' },
   { method: 'get', url: '/v1/config', path: '/v1/config' },
   { method: 'post', url: '/v1/auth/test-login', path: '/v1/auth/test-login' },
+  { method: 'get', url: '/v1/auth/bnet/login', path: '/v1/auth/bnet/login' },
+  { method: 'get', url: '/v1/auth/bnet/callback', path: '/v1/auth/bnet/callback' },
+  { method: 'post', url: '/v1/auth/logout', path: '/v1/auth/logout' },
   { method: 'get', url: '/v1/me', path: '/v1/me' },
   { method: 'post', url: '/v1/agents/pairing-codes', path: '/v1/agents/pairing-codes' },
   { method: 'post', url: '/v1/agents/pairing-codes/claim', path: '/v1/agents/pairing-codes/claim' },
@@ -20,6 +27,7 @@ const ROUTES: readonly { readonly method: 'get' | 'post'; readonly url: string; 
   { method: 'post', url: '/v1/agents/heartbeat', path: '/v1/agents/heartbeat' },
   { method: 'get', url: '/v1/agents/me', path: '/v1/agents/me' },
   { method: 'get', url: '/v1/agents/me/assignment', path: '/v1/agents/me/assignment' },
+  { method: 'delete', url: '/v1/agents/:id', path: '/v1/agents/{id}' },
   { method: 'post', url: '/v1/lobby-rooms/:id/observations', path: '/v1/lobby-rooms/{id}/observations' },
   { method: 'get', url: '/v1/me/room', path: '/v1/me/room' },
   { method: 'post', url: '/v1/staging/match-formed', path: '/v1/staging/match-formed' },
@@ -85,6 +93,13 @@ describe('openapi document', () => {
     expect(observation?.requestBody).toBeDefined();
     expect(Object.keys(observation?.responses ?? {}).sort()).toStrictEqual(['202', '400', '401', '403']);
     expect(document.paths['/v1/agents/heartbeat']?.['post']?.requestBody).toBeDefined();
+    // Sign-out declares no body (an unauthenticated request must answer 401 before any body is checked).
+    expect(document.paths['/v1/auth/logout']?.['post']?.requestBody).toBeUndefined();
+    expect(Object.keys(document.paths['/v1/auth/logout']?.['post']?.responses ?? {}).sort()).toStrictEqual([
+      '204',
+      '401',
+      '403',
+    ]);
     expect(
       Object.keys(document.paths['/v1/agents/pairing-codes/claim']?.['post']?.responses ?? {}).sort(),
     ).toStrictEqual(['200', '202', '410']);

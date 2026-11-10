@@ -53,7 +53,7 @@ Rules for the worker:
 
 ## Batch 1b — catch up with phase/F1 (identity-bnet merged)
 
-- [ ] T12 — Merge `origin/phase/F1` into this branch (a merge commit, never a rebase or force push), resolving the
+- [x] T12 — Merge `origin/phase/F1` into this branch (a merge commit, never a rebase or force push), resolving the
       conflicts by keeping both sides; rename the migration `0005_identity_characters` to `0006_identity_characters`
       (identity-bnet's `0005_battletag_not_unique` ran first on staging) in the file name, `migrator.ts` and the
       migration lists of `migrate.int.test.ts` and `migrator.int.test.ts`; regenerate the OpenAPI — gate:

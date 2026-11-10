@@ -6,6 +6,7 @@ import {
   ClaimResponse,
   ErrorResponse,
   Heartbeat,
+  Id,
   PairingCodeResponse,
   PairRequest,
 } from '@d2rmm/contracts';
@@ -27,7 +28,13 @@ export interface AgentsRouteGuards {
 export interface AgentsRouteDeps {
   readonly useCases: Pick<
     AgentsUseCases,
-    'requestPairingCode' | 'pairAgent' | 'claimToken' | 'authenticateAgent' | 'recordHeartbeat' | 'getMyAgent'
+    | 'requestPairingCode'
+    | 'pairAgent'
+    | 'claimToken'
+    | 'authenticateAgent'
+    | 'recordHeartbeat'
+    | 'getMyAgent'
+    | 'revokeAgent'
   >;
   readonly guards: AgentsRouteGuards;
 }
@@ -149,6 +156,30 @@ export function agentsRoutes(app: FastifyInstance, deps: AgentsRouteDeps): void 
         gameRunning: request.body.game.running,
         screen: request.body.game.screen,
       });
+      return reply.code(204).send(null);
+    },
+  );
+
+  // Revoke (FR-04, IDB-08): the signed-in player cuts off one of their agents. Sent as JSON with an empty object, like the
+  // other site writes: the same-origin guard needs the JSON content type.
+  typed.delete(
+    '/v1/agents/:id',
+    {
+      preHandler: [guards.requireSession, guards.requireSameOrigin],
+      schema: {
+        params: z.object({ id: Id }),
+        response: { 204: z.null(), 401: ErrorResponse, 404: ErrorResponse },
+      },
+    },
+    async (request, reply) => {
+      const accountId = request.accountId;
+      if (accountId === undefined) {
+        return reply.code(401).send({ error: 'unauthenticated' });
+      }
+      const revoked = await useCases.revokeAgent({ accountId, agentId: request.params.id });
+      if (!revoked.ok) {
+        return reply.code(404).send({ error: 'not-found' });
+      }
       return reply.code(204).send(null);
     },
   );
