@@ -18,10 +18,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@eslint/js": "^9.39.0",
+    "@eslint/js": "^10.0.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-i18next": "^6.1.5",
-    "eslint-plugin-n": "^17.24.0",
+    "eslint-plugin-n": "^18.4.1",
     "globals": "^16.5.0",
     "typescript-eslint": "^8.46.0"
   },
