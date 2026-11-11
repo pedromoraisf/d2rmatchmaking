@@ -14,7 +14,7 @@ edited; one Conventional Commit per task (`feat(matchmaking): …`, `feat(web): 
       unit tests on every boundary (band at 29/30/59/60 s and the ± 400 cap, mutual band, floors 9/10, 39/40, 69/70,
       each filter differing alone, group sizes, teleporter/BO priority, host and join order, 2v2 snake teams) — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/modules/matchmaking/domain`
-- [ ] T3 — Application: ports, `joinQueue` (every refusal of QUE-03 … QUE-06), `leaveQueue`, `runMatcher` (one unit of
+- [x] T3 — Application: ports, `joinQueue` (every refusal of QUE-03 … QUE-06), `leaveQueue`, `runMatcher` (one unit of
       work: tickets out, `MatchFormed` in the outbox), `dropTicket`, `queue.updated` events, spans and metrics (QUE-16);
       unit tests with fakes — gate: `pnpm --filter @d2rmm/api exec vitest run src/modules/matchmaking/application`
 - [ ] T4 — Adapters and wiring: in-memory store, routes, the public port methods on Identity and Lobby Room, the stream

@@ -137,7 +137,7 @@ describe('formGroups: filters never widen (QUE-07)', () => {
     ['format', { id: 'b', format: 'arena' }],
     ['rules', { id: 'b', rules: 'bm' }],
   ])('two players differing only in %s never match', (_label, otherSpec) => {
-    const pool = [pvp({ id: 'a', format: 'duel' }), pvp({ id: 'b', format: 'duel', ...otherSpec })];
+    const pool = [pvp({ id: 'a', format: 'duel' }), pvp({ format: 'duel', ...otherSpec, id: 'b' })];
     const result = formGroups(pool, NOW);
     expect(result.groups).toHaveLength(0);
     expect(result.remaining).toHaveLength(2);
