@@ -2594,8 +2594,14 @@
                         "already-queued",
                         "in-room",
                         "too-many-joins",
-                        "queue-full"
+                        "queue-full",
+                        "ready-check-penalty"
                       ]
+                    },
+                    "secondsLeft": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": [
@@ -2629,8 +2635,14 @@
                         "already-queued",
                         "in-room",
                         "too-many-joins",
-                        "queue-full"
+                        "queue-full",
+                        "ready-check-penalty"
                       ]
+                    },
+                    "secondsLeft": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": [
@@ -2664,8 +2676,14 @@
                         "already-queued",
                         "in-room",
                         "too-many-joins",
-                        "queue-full"
+                        "queue-full",
+                        "ready-check-penalty"
                       ]
+                    },
+                    "secondsLeft": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": [
