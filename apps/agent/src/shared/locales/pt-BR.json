@@ -18,7 +18,8 @@
     "connected": "Conectado"
   },
   "room": {
-    "waiting": "Sala {{gameName}} — aguardando o jogo"
+    "waiting": "Sala {{gameName}} — aguardando o jogo",
+    "revealHint": "Abra o painel Party (P) e clique no olho para mostrar o nome do jogo."
   },
   "update": {
     "failed": "Falha na atualização — tentará novamente",

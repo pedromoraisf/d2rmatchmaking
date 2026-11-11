@@ -9,6 +9,8 @@ mod app;
 mod config;
 #[cfg(any(windows, test))]
 mod fixture_read;
+#[cfg(any(windows, test))]
+mod language_pack;
 
 #[cfg(windows)]
 use std::sync::Arc;
@@ -66,6 +68,9 @@ fn ports(app: AppHandle, gateway: Arc<HttpGateway>) -> Groups<HttpGateway> {
     let tokens: Arc<dyn TokenStore + Send + Sync> = Arc::new(KeyringTokenStore::new());
     let processes: Arc<dyn ProcessSource + Send + Sync> = Arc::new(ToolhelpProcessSource);
     let clock: Arc<dyn WallClock + Send + Sync> = Arc::new(SystemClock);
+    // The shipped English file; the domain's built-in pack is the same words, so a file that fails to parse changes nothing.
+    let language =
+        Arc::new(language_pack::shipped_english().unwrap_or_else(|_| LanguagePack::english()));
     let consent: Arc<dyn ConsentStore + Send + Sync> =
         Arc::new(app::consent_store_in(app.path().app_config_dir().ok()));
     Groups {
@@ -94,7 +99,7 @@ fn ports(app: AppHandle, gateway: Arc<HttpGateway>) -> Groups<HttpGateway> {
                     gateway: Arc::clone(&gateway),
                     tokens: Arc::clone(&tokens),
                 },
-                language: Arc::new(LanguagePack::english()),
+                language: Arc::clone(&language),
             },
         },
         stream: StreamPorts {

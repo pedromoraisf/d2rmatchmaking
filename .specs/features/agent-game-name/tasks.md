@@ -18,7 +18,7 @@ screenshots are at `/private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaki
 - [x] T3 — Core: the Party step in `watch_screen` (AGN-01, AGN-03, AGN-05; once per run; "needs reveal" state), span of
       AGN-07; unit tests with fakes — gate:
       `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-core --lib && cargo nextest run -p d2rmm-agent-adapters`
-- [ ] T4 — App crate: the real Party reader on live frames with Windows OCR and the English pack resource, wired in
+- [x] T4 — App crate: the real Party reader on live frames with Windows OCR and the English pack resource, wired in
       `main.rs` (AGN-06); agent window hint (AGN-04, en + pt-BR) — gate:
       `pnpm --filter @d2rmm/agent exec vitest run && pnpm --filter @d2rmm/agent lint && cd apps/agent/src-tauri && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`
 - [ ] T5 — Fixtures: `xtask draw-fixture party` (revealed name, masked, another name; JSON sidecars), and the

@@ -5,10 +5,18 @@ import {
   connectivityLabel,
   offersNewCode,
   pairingLabel,
+  revealLabel,
   roomLabel,
   updateLabel,
   type Label,
 } from './labels.ts';
+
+const room = (overrides: { needsReveal?: boolean; matched?: boolean } = {}) => ({
+  gameName: 'mmbaalh-12',
+  needsReveal: false,
+  matched: false,
+  ...overrides,
+});
 
 // Every key path of a translation file, with nested objects flattened to dotted paths.
 const keyPaths = (node: unknown, prefix = ''): string[] => {
@@ -43,7 +51,7 @@ describe('agent labels', () => {
 
   it('names the connection, room and update lines with their values', () => {
     expect(connectivityLabel('connected')).toStrictEqual({ key: 'connectivity.connected' });
-    expect(roomLabel({ gameName: 'mmbaalh-12' })).toStrictEqual({
+    expect(roomLabel(room())).toStrictEqual({
       key: 'room.waiting',
       values: { gameName: 'mmbaalh-12' },
     });
@@ -51,6 +59,13 @@ describe('agent labels', () => {
     expect(updateLabel('idle')).toBeNull();
     expect(updateLabel('failed')).toStrictEqual({ key: 'update.failed' });
     expect(updateLabel('required')).toStrictEqual({ key: 'update.required' });
+  });
+
+  it('shows the reveal hint only while the masked name is unmatched (AGN-04)', () => {
+    expect(revealLabel(null)).toBeNull();
+    expect(revealLabel(room())).toBeNull();
+    expect(revealLabel(room({ needsReveal: true }))).toStrictEqual({ key: 'room.revealHint' });
+    expect(revealLabel(room({ needsReveal: true, matched: true }))).toBeNull();
   });
 
   it('uses only keys both translation files define', () => {
@@ -63,7 +78,8 @@ describe('agent labels', () => {
       pairingLabel('paired'),
       connectivityLabel('connected'),
       connectivityLabel('unreachable'),
-      roomLabel({ gameName: 'x' }),
+      roomLabel(room()),
+      revealLabel(room({ needsReveal: true })),
       updateLabel('failed'),
       updateLabel('required'),
     ];

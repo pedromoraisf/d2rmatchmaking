@@ -17,6 +17,10 @@ export type UpdateState = 'idle' | 'failed' | 'required';
 
 export interface RoomState {
   gameName: string;
+  // The Party panel showed the masked game name and no match has come yet (AGN-04).
+  needsReveal: boolean;
+  // The Party panel showed the expected game name in this run (AGN-03).
+  matched: boolean;
 }
 
 export interface AgentView {
@@ -64,6 +68,12 @@ export function connectivityLabel(connectivity: Connectivity): Label {
 
 export function roomLabel(room: RoomState | null): Label | null {
   return room === null ? null : { key: 'room.waiting', values: { gameName: room.gameName } };
+}
+
+// The hint to reveal the game name: shown while the agent holds the room, the Party panel showed the masked name and no
+// match has come for this run (AGN-04).
+export function revealLabel(room: RoomState | null): Label | null {
+  return room !== null && room.needsReveal && !room.matched ? { key: 'room.revealHint' } : null;
 }
 
 export function updateLabel(update: UpdateState): Label | null {

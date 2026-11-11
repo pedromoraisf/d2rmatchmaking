@@ -18,7 +18,8 @@
     "connected": "Connected"
   },
   "room": {
-    "waiting": "Room {{gameName}} — waiting for the game"
+    "waiting": "Room {{gameName}} — waiting for the game",
+    "revealHint": "Open the Party panel (P) and click the eye to show the game name."
   },
   "update": {
     "failed": "Update failed — will retry",
