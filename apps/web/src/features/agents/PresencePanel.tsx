@@ -35,22 +35,24 @@ export function PresencePanel({ client, agent, onRevoked }: PresencePanelProps) 
   }
 
   return (
-    <section>
+    <section className="presence">
       <p>{t(onlineKey(agent.online))}</p>
       <p>{t(gameKey(agent.gameRunning))}</p>
       <p>{t(screenKey(agent.screen))}</p>
       {confirming ? (
-        <div>
+        <div className="stack">
           <p>{t('revoke.confirm')}</p>
-          <button type="button" disabled={busy} onClick={() => void revoke()}>
-            {t('revoke.confirmButton')}
-          </button>
-          <button type="button" disabled={busy} onClick={() => setConfirming(false)}>
-            {t('revoke.cancel')}
-          </button>
+          <div className="tags">
+            <button type="button" className="btn bad" disabled={busy} onClick={() => void revoke()}>
+              {t('revoke.confirmButton')}
+            </button>
+            <button type="button" className="btn quiet" disabled={busy} onClick={() => setConfirming(false)}>
+              {t('revoke.cancel')}
+            </button>
+          </div>
         </div>
       ) : (
-        <button type="button" onClick={() => setConfirming(true)}>
+        <button type="button" className="btn quiet" onClick={() => setConfirming(true)}>
           {t('revoke.button')}
         </button>
       )}

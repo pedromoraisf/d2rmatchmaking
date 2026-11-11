@@ -30,3 +30,25 @@ const LADDER_WORDS: Record<DeclaredLadder, 'ladder' | 'nonLadder'> = {
   'non-ladder': 'nonLadder',
 };
 export const ladderKey = (ladder: DeclaredLadder): string => `characters.ladders.${LADDER_WORDS[ladder]}`;
+
+// The two-letter mark on a character's card (SHL-04). Decorative: the class name is the text the player reads.
+const CLASS_MARKS: Record<CharacterClass, string> = {
+  amazon: 'AM',
+  assassin: 'AS',
+  barbarian: 'BA',
+  druid: 'DR',
+  necromancer: 'NE',
+  paladin: 'PA',
+  sorceress: 'SO',
+  warlock: 'WL',
+};
+export const classMark = (characterClass: CharacterClass): string => CLASS_MARKS[characterClass];
+
+// The colour of a difficulty's tag: Normal, Nightmare and Hell (SHL-04).
+export type DifficultyTone = 'd-n' | 'd-nm' | 'd-h';
+const DIFFICULTY_TONES: Record<Difficulty, DifficultyTone> = {
+  normal: 'd-n',
+  nightmare: 'd-nm',
+  hell: 'd-h',
+};
+export const difficultyTone = (difficulty: Difficulty): DifficultyTone => DIFFICULTY_TONES[difficulty];

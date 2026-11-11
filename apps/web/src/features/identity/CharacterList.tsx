@@ -6,7 +6,15 @@ import { useState, type FormEvent } from 'react';
 import type { CharacterView, DeclaredLadder, Era } from '@d2rmm/contracts';
 import { useTranslation } from 'react-i18next';
 import type { ApiClient } from '../../shared/api-client.ts';
-import { classKey, difficultyKey, eraKey, ladderKey, modeKey } from '../../shared/labels.ts';
+import {
+  classKey,
+  classMark,
+  difficultyKey,
+  difficultyTone,
+  eraKey,
+  ladderKey,
+  modeKey,
+} from '../../shared/labels.ts';
 
 const LADDERS: readonly DeclaredLadder[] = ['ladder', 'non-ladder'];
 const ERAS: readonly Era[] = ['classic', 'lod', 'rotw'];
@@ -24,41 +32,59 @@ export function CharacterList({
   const { t, i18n } = useTranslation();
   const joinWords = new Intl.ListFormat(i18n.language, { style: 'long', type: 'conjunction' });
   return (
-    <section aria-labelledby="characters-heading" tabIndex={0}>
+    <section className="panel" aria-labelledby="characters-heading" tabIndex={0}>
       <h2 id="characters-heading">{t('characters.heading')}</h2>
       {characters.length === 0 ? (
         <p>{t('characters.empty')}</p>
       ) : (
-        <ul>
+        <ul className="chars">
           {characters.map((character) => (
-            <li key={character.id}>
-              <p>
-                <strong>{character.name}</strong>
-              </p>
-              <p>{t(classKey(character.class))}</p>
-              <p>{t('characters.level', { level: character.level })}</p>
-              <p>{t(modeKey(character.hardcore))}</p>
-              {character.ladder !== null && character.era !== null ? (
-                <>
-                  <p>{t(ladderKey(character.ladder))}</p>
-                  <p>{t(eraKey(character.era))}</p>
-                </>
-              ) : (
-                <DeclareForm
-                  characterId={character.id}
-                  characterName={character.name}
-                  client={client}
-                  onDeclared={onDeclared}
-                />
-              )}
-              <p>
+            <li key={character.id} className="char">
+              <div className="char-id">
+                <span className="av" aria-hidden="true">
+                  {classMark(character.class)}
+                </span>
+                <div>
+                  <p>
+                    <strong>{character.name}</strong>
+                  </p>
+                  <span>{t(classKey(character.class))}</span>
+                </div>
+              </div>
+              <div className="char-meta">
+                <span>{t('characters.level', { level: character.level })}</span>
+                <span>{t(modeKey(character.hardcore))}</span>
+                {character.ladder !== null && character.era !== null ? (
+                  <>
+                    <span>{t(ladderKey(character.ladder))}</span>
+                    <span>{t(eraKey(character.era))}</span>
+                  </>
+                ) : null}
+              </div>
+              {/* The difficulties as coloured tags (SHL-04). The sentence below says the same to a screen reader. */}
+              <ul className="tags" aria-hidden="true">
+                {character.unlockedDifficulties.map((difficulty) => (
+                  <li key={difficulty} className={`tag ${difficultyTone(difficulty)}`}>
+                    {t(difficultyKey(difficulty))}
+                  </li>
+                ))}
+              </ul>
+              <p className="sr-only">
                 {t('characters.unlocked', {
                   difficulties: joinWords.format(
                     character.unlockedDifficulties.map((difficulty) => t(difficultyKey(difficulty))),
                   ),
                 })}
               </p>
-              <p>
+              {character.ladder === null || character.era === null ? (
+                <DeclareForm
+                  characterId={character.id}
+                  characterName={character.name}
+                  client={client}
+                  onDeclared={onDeclared}
+                />
+              ) : null}
+              <p className="muted">
                 {t('characters.readAt', { time: new Date(character.readAt).toLocaleString(i18n.language) })}
               </p>
             </li>
@@ -139,7 +165,7 @@ function DeclareForm({
           </label>
         ))}
       </fieldset>
-      <button type="submit" disabled={ladder === null || era === null || sending}>
+      <button type="submit" className="btn" disabled={ladder === null || era === null || sending}>
         {t('characters.declare.submit')}
       </button>
       {failed ? <p role="alert">{t('characters.declare.failed')}</p> : null}

@@ -5,5 +5,6 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   esbuild: { jsx: 'automatic' },
   build: { outDir: 'dist', emptyOutDir: true },
-  test: { environment: 'jsdom' },
+  // The theme's stylesheet is read as text by its contrast test (theme.test.ts), so vitest must not blank it.
+  test: { environment: 'jsdom', css: { include: [/theme\.css/] } },
 });

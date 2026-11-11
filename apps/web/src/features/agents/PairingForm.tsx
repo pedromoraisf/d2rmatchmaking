@@ -31,7 +31,7 @@ export function PairingForm({ client, paired, onPaired }: PairingFormProps) {
   }
 
   return (
-    <section>
+    <section className="pairing">
       <form onSubmit={(event) => void submit(event)}>
         <label>
           {t('pairing.codeLabel')}
@@ -43,7 +43,9 @@ export function PairingForm({ client, paired, onPaired }: PairingFormProps) {
             onChange={(event) => setCode(event.target.value)}
           />
         </label>
-        <button type="submit">{t('pairing.submit')}</button>
+        <button type="submit" className="btn-blood">
+          {t('pairing.submit')}
+        </button>
       </form>
       {failure !== null ? <p role="alert">{pairingMessage(failure, t)}</p> : null}
     </section>
