@@ -109,4 +109,49 @@ describe('api client', () => {
     const result = await createApiClient(fetch).myRoom();
     expect(result.ok && result.value.expectedGameName).toBe('mmbaalh-12');
   });
+
+  it('answers a ready check with a JSON POST to its accept and decline routes (RDY-02, RDY-04)', async () => {
+    const { fetch, calls } = routeFetch({
+      'POST /api/v1/ready-checks/rc-1/accept': () => jsonResponse(204),
+      'POST /api/v1/ready-checks/rc-1/decline': () => jsonResponse(204),
+    });
+    const client = createApiClient(fetch);
+    expect(await client.acceptReadyCheck('rc-1')).toStrictEqual({ ok: true, value: undefined });
+    expect(await client.declineReadyCheck('rc-1')).toStrictEqual({ ok: true, value: undefined });
+    expect(calls.map((call) => call.init.headers)).toStrictEqual([
+      { 'Content-Type': 'application/json' },
+      { 'Content-Type': 'application/json' },
+    ]);
+  });
+
+  it('maps a 409 on an answer to failed, so the site says the answer did not count', async () => {
+    const { fetch } = routeFetch({
+      'POST /api/v1/ready-checks/rc-1/accept': () => jsonResponse(409, { error: 'ready-check-ended' }),
+    });
+    expect(await createApiClient(fetch).acceptReadyCheck('rc-1')).toStrictEqual({
+      ok: false,
+      failure: 'failed',
+    });
+  });
+
+  it('keeps the seconds left of a ready-check penalty refusal', async () => {
+    const { fetch } = routeFetch({
+      'POST /api/v1/queue/tickets': () =>
+        jsonResponse(422, { error: 'ready-check-penalty', secondsLeft: 42 }),
+    });
+    const body = {
+      mode: 'pvp' as const,
+      characterId: 'c-1',
+      difficulty: 'normal' as const,
+      region: 'americas' as const,
+      format: 'duel' as const,
+      rules: 'gm' as const,
+    };
+    expect(await createApiClient(fetch).joinQueue(body)).toStrictEqual({
+      ok: false,
+      failure: 'refused',
+      refusal: 'ready-check-penalty',
+      secondsLeft: 42,
+    });
+  });
 });

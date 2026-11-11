@@ -7,6 +7,7 @@ import type {
   ConfigResponse,
   MeResponse,
   QueueTicketView,
+  ReadyCheckView,
   RoomView,
 } from '@d2rmm/contracts';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +18,7 @@ import { CharacterList } from '../features/identity/CharacterList.tsx';
 import { SignInPanel } from '../features/identity/SignInPanel.tsx';
 import { type RoomShown, RoomPanel } from '../features/lobby-room/RoomPanel.tsx';
 import { QueuePanel } from '../features/matchmaking/QueuePanel.tsx';
+import { ReadyCheckOverlay } from '../features/matchmaking/ReadyCheckOverlay.tsx';
 import { SearchingPanel } from '../features/matchmaking/SearchingPanel.tsx';
 import { StartTestMatchButton } from '../features/lobby-room/StartTestMatchButton.tsx';
 import { type ApiClient, createApiClient } from '../shared/api-client.ts';
@@ -41,6 +43,8 @@ interface Ready {
   pairedNotice: boolean;
   queue: QueueTicketView | null;
   queueNotice: SiteNotice;
+  /** The open ready check the player is in; the site reads it from the stream only (RDY-01). */
+  readyCheck: ReadyCheckView | null;
 }
 
 type Boot = { status: 'loading' } | { status: 'failed' } | Ready;
@@ -71,6 +75,7 @@ async function loadBoot(client: ApiClient): Promise<Boot> {
           pairedNotice: false,
           queue: null,
           queueNotice: null,
+          readyCheck: null,
         }
       : { status: 'failed' };
   }
@@ -90,6 +95,7 @@ async function loadBoot(client: ApiClient): Promise<Boot> {
     pairedNotice: false,
     queue: queue.ok ? queue.value.ticket : null,
     queueNotice: null,
+    readyCheck: null,
   };
 }
 
@@ -205,7 +211,7 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
     );
   }
 
-  const { session, agent, room, pairedNotice, queue, queueNotice } = boot;
+  const { session, agent, room, pairedNotice, queue, queueNotice, readyCheck } = boot;
   // The agent panel (presence, or the pairing form) is the status column; the header shows the agent's state and the
   // account. Characters, queues and rooms are the main column.
   const showPresence = session !== null && agent?.status === 'paired';
@@ -267,6 +273,9 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
         ) : null
       }
     >
+      {session !== null && readyCheck !== null ? (
+        <ReadyCheckOverlay key={readyCheck.id} readyCheck={readyCheck} client={client} />
+      ) : null}
       {session !== null && room !== null ? <RoomPanel room={room} /> : null}
       {session !== null && queue !== null ? (
         <SearchingPanel

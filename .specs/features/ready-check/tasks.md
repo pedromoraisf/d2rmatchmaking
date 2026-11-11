@@ -24,7 +24,7 @@ any route task's gate, no test weakened, `acceptance.feature` not edited; the ho
       the join refusal for a penalty, routes, stream projection, spans and the outcome metric (AD-087 list and dashboard
       panel); unit and integration tests (a penalty survives a restart); OpenAPI regenerated — gate:
       `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts && pnpm --filter @d2rmm/telemetry exec vitest run && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json && pnpm arch`
-- [ ] T4 — Site: the ready-check overlay of the prototype inside the site shell (countdown ring, members' marks, Accept,
+- [x] T4 — Site: the ready-check overlay of the prototype inside the site shell (countdown ring, members' marks, Accept,
       Decline, hotkey hint, the penalty sentence; focus on Accept; Escape does not decline), the penalty message on the
       queue panel; en + pt-BR; component tests — gate:
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
