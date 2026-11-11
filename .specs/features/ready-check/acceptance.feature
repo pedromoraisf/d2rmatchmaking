@@ -13,6 +13,7 @@ Feature: Ready check before a room opens
 
   @RDY-01 @FR-12 @web
   Scenario: A formed group gets a one-minute ready check
+    When the matcher runs
     Then within 2 seconds both sites show a ready check that ends 60 seconds after it opened
     And no room exists for Alice or Bob yet
 
