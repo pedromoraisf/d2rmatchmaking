@@ -99,9 +99,25 @@ describe('POST /v1/ready-checks/:id/accept', () => {
     expect(response.statusCode).toBe(426);
   });
 
-  it('answers 401 to an accept with no credential', async () => {
-    const response = await app.app.inject({ method: 'POST', url: '/v1/ready-checks/rc-1/accept' });
+  it('answers 401 to an accept from the site with no session', async () => {
+    const response = await app.app.inject({
+      method: 'POST',
+      url: '/v1/ready-checks/rc-1/accept',
+      headers: { origin: SITE_ORIGIN, 'content-type': 'application/json' },
+      payload: {},
+    });
     expect(response.statusCode).toBe(401);
+  });
+
+  it('answers 403 to an accept from another origin, even with a session', async () => {
+    const cookie = await signedInCookie('Alice');
+    const response = await app.app.inject({
+      method: 'POST',
+      url: '/v1/ready-checks/rc-1/accept',
+      headers: { cookie, origin: 'https://evil.example', 'content-type': 'application/json' },
+      payload: {},
+    });
+    expect(response.statusCode).toBe(403);
   });
 
   it('answers 404 not-found to a player who is in no such check, and changes nothing (RDY-06)', async () => {

@@ -50,18 +50,41 @@ export function readyCheckViewOf(payload: ReadyCheckChangedPayload, accountId: s
 }
 
 /**
- * The accept route's guard: an agent's bearer token must meet the minimum agent version (426) before the agent check; the
- * site's session passes through to the relay's origin check (RDY-07, RDY-11).
+ * The read's guard: an agent's bearer token meets the minimum version (426) before the agent check; the site reads with
+ * its session, which is not on the relay's lookup bucket (RDY-11).
  */
-function versionedAgentOrSite(guards: ReadyCheckRouteGuards): Guard {
+function readOwnerGuard(guards: ReadyCheckRouteGuards): Guard {
   return async (request, reply) => {
     if (request.headers.authorization !== undefined) {
       const versioned = await guards.requireAgentVersion(request, reply);
       if (versioned !== undefined) {
         return versioned;
       }
+      return guards.requireAgentOrSite(request, reply);
     }
-    return guards.requireAgentOrSite(request, reply);
+    return guards.requireSession(request, reply);
+  };
+}
+
+/**
+ * The accept route's guard. An agent's bearer token must meet the minimum agent version (426) and then passes the agent
+ * check (RDY-07). The site's answer takes the session and the same-origin check, not the relay's lookup bucket: the
+ * site's own telemetry draws on that bucket, and a click must not wait behind it (answered 429 in the acceptance run).
+ */
+function acceptGuard(guards: ReadyCheckRouteGuards): Guard {
+  return async (request, reply) => {
+    if (request.headers.authorization !== undefined) {
+      const versioned = await guards.requireAgentVersion(request, reply);
+      if (versioned !== undefined) {
+        return versioned;
+      }
+      return guards.requireAgentOrSite(request, reply);
+    }
+    const sameOrigin = await guards.requireSameOrigin(request, reply);
+    if (sameOrigin !== undefined) {
+      return sameOrigin;
+    }
+    return guards.requireSession(request, reply);
   };
 }
 
@@ -86,12 +109,7 @@ export function readyCheckRoutes(app: FastifyInstance, deps: ReadyCheckRouteDeps
   typed.get(
     '/v1/ready-checks/me',
     {
-      preHandler: [
-        async (request, reply) =>
-          request.headers.authorization !== undefined
-            ? versionedAgentOrSite(guards)(request, reply)
-            : guards.requireSession(request, reply),
-      ],
+      preHandler: [readOwnerGuard(guards)],
       schema: { response: { 200: ReadyCheckView, 204: z.null(), 401: ErrorResponse, 426: ErrorResponse } },
     },
     async (request, reply) => {
@@ -110,7 +128,7 @@ export function readyCheckRoutes(app: FastifyInstance, deps: ReadyCheckRouteDeps
   typed.post(
     '/v1/ready-checks/:id/accept',
     {
-      preHandler: [versionedAgentOrSite(guards)],
+      preHandler: [acceptGuard(guards)],
       schema: {
         params,
         response: {

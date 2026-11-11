@@ -1,12 +1,18 @@
-// Queues steps (QUE-01 … QUE-15): players join and leave the PvP and leveling queues with the characters their agents
-// registered, wait on the stack's clock, and are grouped into rooms. Black box: HTTP with the session cookie, the agent's
-// own contract, and the browser for the site. The generic answer "the API answers "<code>"" is the identity steps'.
-import { MyCharactersResponse, MyQueueTicketResponse, RoomView } from '@d2rmm/contracts';
+// Queues steps (QUE-01 … QUE-15) and the ready check that confirms a formed group (RDY-01 … RDY-08): players join and leave
+// the PvP and leveling queues with the characters their agents registered, wait on the stack's clock, confirm their group,
+// and are grouped into rooms. Black box: HTTP with the session cookie, the agent's own contract, the headless example for
+// the hotkey, and the browser for the site. The generic answer "the API answers "<code>"" is the identity steps'.
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { MyCharactersResponse, MyQueueTicketResponse, ReadyCheckView, RoomView } from '@d2rmm/contracts';
 import { expect, type Locator, type Page } from '@playwright/test';
 import type { DataTable } from 'playwright-bdd';
-import { Given, Then, When } from '../fixtures.ts';
-import type { GameState, SimulatedAgent } from '../support/agent-client.ts';
-import { SESSION_COOKIE, type World } from '../support/world.ts';
+import { After, Given, Then, When, test } from '../fixtures.ts';
+import { AGENT_VERSION, type GameState, type SimulatedAgent } from '../support/agent-client.ts';
+import { HeadlessAgent, prepareFixture } from '../support/headless-agent.ts';
+import { HEADLESS_START_TIMEOUT_MS, stateOf } from '../support/scenario-state.ts';
+import { SESSION_COOKIE, submitPairingCode, type World } from '../support/world.ts';
 
 /** The agents heartbeat this often while the clock moves (a real agent reports every 15 seconds, AWS-15). */
 const HEARTBEAT_EVERY_MS = 15_000;
@@ -505,4 +511,377 @@ Then('within 2 seconds the site shows the time waited, the band and "Leave queue
   await expect(page.getByRole('button', { name: 'Leave queue', exact: true })).toBeVisible({
     timeout: 2_000,
   });
+});
+
+// --- Ready check (RDY-01 … RDY-08, RDY-11) ---------------------------------------------------------------------------
+// A formed group confirms first: each member accepts or declines on the site or with the agent's hotkey (FR-12, FR-13).
+// The answers go through the API as the player would send them; the site steps click the page the player sees.
+
+/** The check the scenario's answers name: the id `GET /v1/ready-checks/me` gave when the group's check opened. */
+const checkIds = new WeakMap<World, string>();
+
+const SORC_OF_ALICE: QueueCharacter = {
+  name: 'Sorc',
+  class: 'sorceress',
+  level: 90,
+  hardcore: false,
+  unlockedDifficulties: ['normal', 'nightmare', 'hell'],
+  ladder: 'ladder',
+  era: 'rotw',
+};
+const HAMMER_OF_BOB: QueueCharacter = { ...SORC_OF_ALICE, name: 'Hammer', class: 'warlock' };
+const ZON_OF_CARA: QueueCharacter = { ...SORC_OF_ALICE, name: 'Zon', class: 'amazon' };
+/** The seconds a ready check's count may lag its start: the page reads the count once a second. */
+const COUNT_TOLERANCE_S = 10;
+/** The example builds on first use; pairing lives within the code, as in the game-name steps. */
+const START_TIMEOUT_MS = 180_000;
+
+/** The open ready check of the player, as the API reads it for the player (`GET /v1/ready-checks/me`), or null. */
+async function readyCheckOf(world: World, name: string) {
+  const response = await fetch(`${world.site.api}/v1/ready-checks/me`, {
+    headers: await sessionHeader(world, name),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (response.status === 204) {
+    return null;
+  }
+  expect(response.status, `${name}'s open ready check`).toBe(200);
+  return ReadyCheckView.parse(await response.json());
+}
+
+/** Keeps the id of the player's open check for the answers that follow, and returns the check. */
+async function rememberCheck(world: World, name: string) {
+  const check = await readyCheckOf(world, name);
+  expect(check, `${name} is in an open ready check`).not.toBeNull();
+  checkIds.set(world, check?.id ?? '');
+  return check;
+}
+
+/** The id of the check the scenario answers, or a failure that says none was remembered. */
+function rememberedCheck(world: World): string {
+  const id = checkIds.get(world);
+  if (id === undefined) {
+    throw new Error('no ready check was opened in this scenario');
+  }
+  return id;
+}
+
+/** The player answers the check: accept or decline, as the API takes it from the player's session (RDY-02, RDY-04). */
+async function answerAs(
+  world: World,
+  name: string,
+  checkId: string,
+  answer: 'accept' | 'decline',
+): Promise<void> {
+  const response = await fetch(`${world.site.api}/v1/ready-checks/${checkId}/${answer}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Origin: world.site.site,
+      ...(await sessionHeader(world, name)),
+    },
+    body: '{}',
+    signal: AbortSignal.timeout(10_000),
+  });
+  record(world, response.status, await response.json().catch(() => undefined));
+}
+
+/** The players' ticket or check: a member of a group in a check is not waiting, so "waiting" is the ticket or the check. */
+async function waitingOrInCheck(world: World, name: string): Promise<'waiting' | 'in-check'> {
+  if ((await ticketOf(world, name))?.status === 'waiting') {
+    return 'waiting';
+  }
+  expect(await readyCheckOf(world, name), `${name} waits in the queue or in a check`).not.toBeNull();
+  return 'in-check';
+}
+
+/** The answer buttons of the player's overlay, by their accessible names, and the overlay itself. */
+function overlayOf(world: World, name: string) {
+  return pageOf(world, name).getByRole('dialog', { name: 'Ready check', exact: true });
+}
+
+/** Clicks the overlay's answer button of the player's page. */
+async function clickOnSite(world: World, name: string, button: 'Accept' | 'Decline'): Promise<void> {
+  await overlayOf(world, name).getByRole('button', { name: button, exact: true }).click();
+}
+
+// Background: two players who queue for the same duel (RDY-01, RDY-02).
+Given('Alice and Bob are ready to queue for a GM duel on Hell in the Americas', async ({ world }) => {
+  await readyPlayer(world, 'Alice', SORC_OF_ALICE, 'browser');
+  await readyPlayer(world, 'Bob', HAMMER_OF_BOB, 'browser');
+});
+
+Given('Alice and Bob have joined that queue', async ({ world }) => {
+  await joinAs(world, 'Alice', 'PvP', 'Sorc', 'Hell', 'Americas', { format: 'duel', rules: 'gm' });
+  expect(world.last?.status, 'Alice joins').toBe(201);
+  await joinAs(world, 'Bob', 'PvP', 'Hammer', 'Hell', 'Americas', { format: 'duel', rules: 'gm' });
+  expect(world.last?.status, 'Bob joins, and the group forms').toBe(201);
+  await rememberCheck(world, 'Alice');
+});
+
+Then(
+  /^within (\d+) seconds both sites show a ready check that ends (\d+) seconds after it opened$/,
+  async ({ world }, seconds: string, minute: string) => {
+    for (const name of ['Alice', 'Bob']) {
+      await expect(overlayOf(world, name), `${name}'s site shows the ready check`).toBeVisible({
+        timeout: Number(seconds) * 1_000,
+      });
+    }
+    // The deadline is the API's clock plus the minute the check gives: the stack's clock moves only when a step moves it,
+    // so the span from its current reading to the deadline is the minute itself (RDY-01).
+    const check = await readyCheckOf(world, 'Alice');
+    const span = Date.parse(check?.deadline ?? '') - world.stack.apiClockMs();
+    expect(
+      Math.abs(span - Number(minute) * 1_000),
+      'the deadline is the minute after the check opened',
+    ).toBeLessThanOrEqual(COUNT_TOLERANCE_S * 1_000);
+    // The ring's count is shown to the player, whatever the browser's clock reads.
+    await expect(pageOf(world, 'Alice').getByText(/seconds left$/u)).toBeAttached();
+  },
+);
+
+Then('no room exists for Alice or Bob yet', async ({ world }) => {
+  expect(await roomOf(world, 'Alice'), 'no room for Alice').toBeNull();
+  expect(await roomOf(world, 'Bob'), 'no room for Bob').toBeNull();
+});
+
+When('Alice accepts on the site', async ({ world }) => {
+  await clickOnSite(world, 'Alice', 'Accept');
+});
+
+When('Bob accepts on the site', async ({ world }) => {
+  await clickOnSite(world, 'Bob', 'Accept');
+});
+
+When('Bob declines', async ({ world }) => {
+  await clickOnSite(world, 'Bob', 'Decline');
+});
+
+Then("Bob's site shows that one member accepted", async ({ world }) => {
+  const members = pageOf(world, 'Bob').getByRole('listitem', { name: /^Member \d+:/u });
+  await expect(members, 'two members are shown').toHaveCount(2);
+  await expect(members.filter({ hasText: 'Accepted' }), 'one member accepted').toHaveCount(1, {
+    timeout: 2_000,
+  });
+});
+
+Then('Alice and Bob are members of the same room within 2 seconds', async ({ world }) => {
+  await expect
+    .poll(async () => (await roomOf(world, 'Alice'))?.roomId ?? null, {
+      timeout: 2_000,
+      message: 'the room of the group',
+    })
+    .not.toBeNull();
+  const alice = await roomOf(world, 'Alice');
+  const bob = await roomOf(world, 'Bob');
+  expect(bob?.roomId, 'the same room').toBe(alice?.roomId);
+});
+
+// RDY-04: a player who joins after the group is behind it in the queue.
+Given('Cara has joined the same queue after Alice and Bob', async ({ world }) => {
+  await readyPlayer(world, 'Cara', ZON_OF_CARA, 'stream');
+  await joinAs(world, 'Cara', 'PvP', 'Zon', 'Hell', 'Americas', { format: 'duel', rules: 'gm' });
+  expect(world.last?.status, 'Cara joins').toBe(201);
+});
+
+Then('the ready check ends as failed', async ({ world }) => {
+  for (const name of ['Alice', 'Bob']) {
+    await expect(overlayOf(world, name), `${name}'s overlay is gone`).toHaveCount(0, { timeout: 2_000 });
+  }
+});
+
+// RDY-04: the decliner holds no ticket and may join again. The probe join is a real join, so the matcher runs on it.
+Then(/^(\w+) holds no ticket and can join the queue again at once$/, async ({ world }, name: string) => {
+  await expect.poll(async () => ticketOf(world, name), { message: `${name} holds no ticket` }).toBeNull();
+  await joinAs(world, name, 'PvP', 'Hammer', 'Hell', 'Americas', { format: 'duel', rules: 'gm' });
+  expect(world.last?.status, `${name} can join again`).toBe(201);
+});
+
+// RDY-04: the accepted member is ahead of the later join. The matcher may already have grouped her with Cara, which
+// is also being ahead of her.
+Then(/^(\w+) is waiting in the queue ahead of Cara$/, async ({ world }, name: string) => {
+  if ((await waitingOrInCheck(world, name)) === 'waiting') {
+    const mine = await ticketOf(world, name);
+    const cara = await ticketOf(world, 'Cara');
+    expect(cara, 'Cara is still waiting').not.toBeNull();
+    expect(Date.parse(mine?.joinedAt ?? ''), `${name} joined before Cara`).toBeLessThan(
+      Date.parse(cara?.joinedAt ?? ''),
+    );
+  }
+});
+
+// RDY-05: a member who did not answer waits five minutes; the accepted member stays in the queue.
+Then(
+  /^(\w+) cannot join the queue, refused with "([^"]+)"$/,
+  async ({ world }, name: string, reason: string) => {
+    await joinAs(world, name, 'PvP', 'Hammer', 'Hell', 'Americas', { format: 'duel', rules: 'gm' });
+    expect([409, 422], 'a refusal answers 409 or 422').toContain(world.last?.status);
+    expect((world.last?.body as { error?: string } | undefined)?.error, 'the refusal reason').toBe(reason);
+  },
+);
+
+Then(
+  /^after (\d+) more (minutes|seconds) (\w+) can join the queue again$/,
+  async ({ world }, amount: string, unit: string, name: string) => {
+    await passTime(world, Number(amount) * (unit === 'minutes' ? 60_000 : 1_000));
+    await joinAs(world, name, 'PvP', 'Hammer', 'Hell', 'Americas', { format: 'duel', rules: 'gm' });
+    expect(world.last?.status, `${name} can join again`).toBe(201);
+  },
+);
+
+Then(/^(\w+) is waiting in the queue$/, async ({ world }, name: string) => {
+  await waitingOrInCheck(world, name);
+});
+
+// RDY-06: the answers that come too late, twice, or from outside the check.
+Given('the ready check has ended', async ({ world }) => {
+  await answerAs(world, 'Bob', rememberedCheck(world), 'decline');
+  expect(world.last?.status, 'Bob declines').toBe(204);
+});
+
+Given('Alice has already accepted', async ({ world }) => {
+  await answerAs(world, 'Alice', rememberedCheck(world), 'accept');
+  expect(world.last?.status, 'Alice accepts').toBe(204);
+});
+
+Given('Cara is not a member of the ready check', async ({ world }) => {
+  await readyPlayer(world, 'Cara', ZON_OF_CARA, 'stream');
+});
+
+When(/^(\w+) answers that ready check$/, async ({ world }, name: string) => {
+  await answerAs(world, name, rememberedCheck(world), 'accept');
+});
+
+// RDY-07: the agent's hotkey accepts the check it holds. The agent is the headless example, paired as Alice's agent.
+Given("Alice's agent is the headless agent", async ({ world }) => {
+  test.setTimeout(HEADLESS_START_TIMEOUT_MS);
+  const session = await world.sessionOf('Alice');
+  const dir = mkdtempSync(path.join(tmpdir(), 'd2rmm-ready-check-'));
+  const fixture = prepareFixture(dir, 'mmbaalh-1');
+  await HeadlessAgent.build();
+  const agent = HeadlessAgent.start({
+    apiBase: world.site.api,
+    fixture: fixture.png,
+    agentVersion: AGENT_VERSION,
+  });
+  stateOf(world).agent = agent;
+  const shown = await agent.waitFor('code', START_TIMEOUT_MS);
+  const paired = await submitPairingCode(world.site, session, String(shown['code']));
+  expect(paired.status, 'pairing the headless agent').toBe(200);
+  await agent.waitFor('paired');
+});
+
+When("Alice presses the agent's accept hotkey", ({ world }) => {
+  const agent = stateOf(world).agent;
+  if (agent === undefined) {
+    throw new Error("Alice's agent is not the headless agent in this scenario");
+  }
+  agent.hotkey();
+});
+
+Then('the agent sent nothing to the game', ({ world }) => {
+  // The example has no input path: every event it prints is a report of the agent, never an input to the game (ADR 010).
+  const agent = stateOf(world).agent;
+  expect(
+    agent?.events.filter((event) => event.event === 'input'),
+    'no input events',
+  ).toStrictEqual([]);
+});
+
+// RDY-07, RDY-08: the answer lands in the check, whoever sent it (the hotkey, the keyboard or the mouse).
+Then("Alice's acceptance is recorded within 2 seconds", async ({ world }) => {
+  await expect
+    .poll(
+      async () =>
+        (await readyCheckOf(world, 'Alice'))?.members.find((member) => member.you)?.accepted ?? false,
+      {
+        timeout: 2_000,
+        message: "Alice's acceptance",
+      },
+    )
+    .toBe(true);
+});
+
+// RDY-08: the overlay takes the focus on Accept, says the penalty rule, and works from the keyboard.
+Then('Alice\'s site shows the ready check with the focus on "Accept"', async ({ world }) => {
+  await expect(overlayOf(world, 'Alice')).toBeVisible({ timeout: 2_000 });
+  await expect(overlayOf(world, 'Alice').getByRole('button', { name: 'Accept', exact: true })).toBeFocused();
+});
+
+Then(
+  'it says that declining has no penalty and that not answering gives a 5-minute wait',
+  async ({ world }) => {
+    await expect(
+      overlayOf(world, 'Alice').getByText('Declining has no penalty. Not answering gives a 5-minute wait.', {
+        exact: true,
+      }),
+    ).toBeVisible();
+  },
+);
+
+When('Alice presses Enter', async ({ world }) => {
+  await pageOf(world, 'Alice').keyboard.press('Enter');
+});
+
+// --- Queue changes of the ready check (QUE-12, QUE-10) ---------------------------------------------------------------
+
+Then('a ready check opens for Alice and Bob', async ({ world }) => {
+  const check = await rememberCheck(world, 'Alice');
+  expect(check?.members, 'the group of two').toHaveLength(2);
+});
+
+When('Alice and Bob accept the ready check', async ({ world }) => {
+  const checkId = rememberedCheck(world);
+  for (const name of ['Alice', 'Bob']) {
+    await answerAs(world, name, checkId, 'accept');
+    expect(world.last?.status, `${name} accepts`).toBe(204);
+  }
+});
+
+Then(
+  /^a ready check opens for a group of (\d+) with the teleporter and the BO in it$/,
+  async ({ world }, size: string) => {
+    const check = await rememberCheck(world, TELEPORTER);
+    expect(check?.members, 'the group').toHaveLength(Number(size));
+    // Both the teleporter and the BO are in this check: each reads the same open check.
+    const bo = await readyCheckOf(world, BO);
+    expect(bo?.id, 'the BO is in the same check').toBe(check?.id);
+  },
+);
+
+When('the eight members accept the ready check', async ({ world }) => {
+  // The pool's ninth player is not in the group of eight (the matcher takes the oldest tickets): only the members accept.
+  const checkId = rememberedCheck(world);
+  let accepted = 0;
+  for (const name of [TELEPORTER, BO, ...KILLERS]) {
+    if ((await readyCheckOf(world, name))?.id !== checkId) {
+      continue;
+    }
+    await answerAs(world, name, checkId, 'accept');
+    expect(world.last?.status, `${name} accepts`).toBe(204);
+    accepted += 1;
+  }
+  expect(accepted, 'the members of the group').toBe(8);
+});
+
+Then('their room has the teleporter as host and the BO in it', async ({ world }) => {
+  await expect
+    .poll(async () => (await roomOf(world, TELEPORTER))?.members.length ?? 0, {
+      timeout: 5_000,
+      message: 'the group',
+    })
+    .toBe(8);
+  const room = await roomOf(world, TELEPORTER);
+  expect(room?.members.find((member) => member.role === 'host')?.accountId, 'the teleporter hosts').toBe(
+    world.player(TELEPORTER).accountId,
+  );
+  expect(
+    room?.members.map((member) => member.accountId),
+    'the BO is in the group',
+  ).toContain(world.player(BO).accountId);
+});
+
+// Closes the headless agent the RDY-07 scenario started.
+After({ tags: '@RDY-07' }, async ({ world }) => {
+  await stateOf(world).agent?.stop();
 });

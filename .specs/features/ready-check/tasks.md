@@ -39,7 +39,7 @@ any route task's gate, no test weakened, `acceptance.feature` not edited; the ho
       (RDY-11) with the site re-reading it on load and on stream reopen and the agent on stream reconnect; the agent
       disarms the hotkey at the deadline; OpenAPI regenerated; unit, component, Rust and route tests — gate:
       `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts && pnpm --filter @d2rmm/web exec vitest run && cd apps/agent/src-tauri && cargo nextest run && cargo clippy --all-targets -- -D warnings`
-- [ ] T6 — Headless example: a `hotkey` stdin command that triggers the same accept path; acceptance steps for every
+- [x] T6 — Headless example: a `hotkey` stdin command that triggers the same accept path; acceptance steps for every
       step of `acceptance.feature` (ready-check and the changed queues steps) — gate:
       `pnpm exec turbo run test:acceptance -- --grep "@RDY-|@QUE-"`
 - [ ] T7 — Whole-repo sensors — gate:

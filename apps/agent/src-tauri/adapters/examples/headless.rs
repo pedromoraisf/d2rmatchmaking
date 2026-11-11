@@ -492,6 +492,10 @@ where
         if line.trim() == "read" {
             handle.read_once(frame.clone());
         }
+        // The agent's accept hotkey (RDY-07): the same accept path the Tauri global shortcut takes.
+        if line.trim() == "hotkey" {
+            handle.accept_ready_check(WallTime.now_utc());
+        }
     }
     let _ = guard.shutdown();
     writer.abort();
