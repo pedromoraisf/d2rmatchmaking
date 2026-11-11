@@ -29,8 +29,10 @@ describe('labels', () => {
     [classKey('necromancer'), 'Necromancer'],
     [eraKey('rotw'), 'Reign of the Warlock'],
     [difficultyKey('hell'), 'Hell'],
-    [modeKey('hc-ladder'), 'Hardcore'],
-    [ladderKey('sc-nonladder'), 'Non-ladder'],
+    [modeKey(true), 'Hardcore'],
+    [modeKey(false), 'Softcore'],
+    [ladderKey('non-ladder'), 'Non-ladder'],
+    [ladderKey('ladder'), 'Ladder'],
   ])('maps %s to its English text', (key, text) => {
     expect(i18n.t(key)).toBe(text);
   });

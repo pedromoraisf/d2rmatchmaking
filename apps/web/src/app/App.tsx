@@ -220,7 +220,13 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
         />
       ) : null}
       {session !== null && room !== null ? <RoomPanel room={room} /> : null}
-      {session !== null ? <CharacterList characters={boot.characters} /> : null}
+      {session !== null ? (
+        <CharacterList
+          characters={boot.characters}
+          client={client}
+          onDeclared={() => void refreshCharacters()}
+        />
+      ) : null}
       {session !== null && boot.config.stagingEndpoints ? (
         <StartTestMatchButton client={client} onStarted={() => void refreshSite()} />
       ) : null}

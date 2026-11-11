@@ -3,8 +3,8 @@ import type {
   AgentPresenceChangedEvent,
   CharacterClass,
   CharacterReading,
+  DeclaredLadder,
   Era,
-  Ladder,
   RoomView,
 } from '@d2rmm/contracts';
 
@@ -22,14 +22,11 @@ export const classKey = (characterClass: CharacterClass): string => `characters.
 export const eraKey = (era: Era): string => `characters.eras.${era}`;
 export const difficultyKey = (difficulty: Difficulty): string => `characters.difficulties.${difficulty}`;
 
-// A ladder value is a mode and a ladder flag together (glossary); the list shows the two words separately.
-const LADDER_WORDS: Record<Ladder, { mode: 'softcore' | 'hardcore'; ladder: 'ladder' | 'nonLadder' }> = {
-  'sc-ladder': { mode: 'softcore', ladder: 'ladder' },
-  'sc-nonladder': { mode: 'softcore', ladder: 'nonLadder' },
-  'hc-ladder': { mode: 'hardcore', ladder: 'ladder' },
-  'hc-nonladder': { mode: 'hardcore', ladder: 'nonLadder' },
+// The mode comes from the reading (softcore or hardcore); the ladder flag is the one the player declared (CHR-15).
+export const modeKey = (hardcore: boolean): string =>
+  `characters.modes.${hardcore ? 'hardcore' : 'softcore'}`;
+const LADDER_WORDS: Record<DeclaredLadder, 'ladder' | 'nonLadder'> = {
+  ladder: 'ladder',
+  'non-ladder': 'nonLadder',
 };
-export const modeKey = (ladder: CharacterReading['ladder']): string =>
-  `characters.modes.${LADDER_WORDS[ladder].mode}`;
-export const ladderKey = (ladder: CharacterReading['ladder']): string =>
-  `characters.ladders.${LADDER_WORDS[ladder].ladder}`;
+export const ladderKey = (ladder: DeclaredLadder): string => `characters.ladders.${LADDER_WORDS[ladder]}`;

@@ -117,7 +117,7 @@ difficulties; the player declares ladder and era on the site (`spec.md` CHR-09, 
       same origin; 204; 404 when not the player's); span `identity.declare-character` with no name; migration-list
       tests; OpenAPI regenerated — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/modules/identity && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/migrate.int.test.ts src/platform/postgres/migrator.int.test.ts src/main/__tests__/identity-routes.int.test.ts src/modules/identity/adapters/postgres && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json`
-- [ ] T17 — Site: each card shows softcore or hardcore, ladder and era or "Declare ladder and era to queue with this
+- [x] T17 — Site: each card shows softcore or hardcore, ladder and era or "Declare ladder and era to queue with this
       character", and a keyboard-usable declaration control (ladder / non-ladder, Classic / Expansion / Reign of the
       Warlock) that saves through the PATCH and refreshes the list; en + pt-BR; component tests — gate:
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`

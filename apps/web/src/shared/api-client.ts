@@ -1,6 +1,7 @@
 // The site's only way to call the API: same origin, through the /api/* Pages Function (ADR 012, AWS-29). Every POST
 // carries a JSON body and the JSON content type. A 401 is `unauthenticated`, so the site shows its signed-out view.
 import { AgentView, ConfigResponse, MeResponse, MyCharactersResponse, RoomView } from '@d2rmm/contracts';
+import type { DeclareCharacterRequest } from '@d2rmm/contracts';
 
 export interface Parser<T> {
   parse(input: unknown): T;
@@ -40,10 +41,15 @@ export interface ApiClient {
   myCharacters(): Promise<ApiResult<MyCharactersResponse>>;
   pair(code: string): Promise<ApiResult<void>>;
   revokeAgent(agentId: string): Promise<ApiResult<void>>;
+  declareCharacter(characterId: string, body: DeclareCharacterRequest): Promise<ApiResult<void>>;
 }
 
 export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, init)): ApiClient {
-  async function send(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<Sent> {
+  async function send(
+    method: 'GET' | 'POST' | 'DELETE' | 'PATCH',
+    path: string,
+    body?: unknown,
+  ): Promise<Sent> {
     const url = `${API_PREFIX}${path}`;
     let response: Response;
     try {
@@ -78,7 +84,7 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
   async function write(
     path: string,
     body: unknown,
-    method: 'POST' | 'DELETE' = 'POST',
+    method: 'POST' | 'DELETE' | 'PATCH' = 'POST',
   ): Promise<ApiResult<void>> {
     const sent = await send(method, path, body);
     return sent.ok ? { ok: true, value: undefined } : sent;
@@ -95,5 +101,7 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
     myCharacters: () => read('/v1/me/characters', MyCharactersResponse),
     pair: (code) => write('/v1/agents/pair', { code }),
     revokeAgent: (agentId) => write(`/v1/agents/${encodeURIComponent(agentId)}`, {}, 'DELETE'),
+    declareCharacter: (characterId, body) =>
+      write(`/v1/me/characters/${encodeURIComponent(characterId)}`, body, 'PATCH'),
   };
 }
