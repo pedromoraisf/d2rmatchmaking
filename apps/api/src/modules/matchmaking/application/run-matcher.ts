@@ -48,11 +48,15 @@ export function matchFormedEvent(group: FormedGroup, matchId: string): MatchForm
  * tickets read here are the tickets removed here.
  */
 export function createMatchNow(deps: RunMatcherDeps): () => Promise<void> {
-  return () =>
-    withSpan('matchmaking.match', {}, async (): Promise<void> => {
+  return async (): Promise<void> => {
+    // An idle tick, with nobody queued, records nothing: no span and no metric (the matcher runs every second).
+    const queued = await deps.store.all();
+    if (queued.length === 0) {
+      return;
+    }
+    await withSpan('matchmaking.match', {}, async (): Promise<void> => {
       const now = deps.clock.now();
-      const tickets = await deps.store.all();
-      const { groups, remaining } = formGroups(tickets, now);
+      const { groups, remaining } = formGroups(queued, now);
       if (groups.length > 0) {
         const events = groups.map((group) => matchFormedEvent(group, deps.ids.next()));
         const grouped = groups.flatMap((group) => group.members.map((member) => member.id));
@@ -70,4 +74,5 @@ export function createMatchNow(deps: RunMatcherDeps): () => Promise<void> {
       await deps.notifier.refresh(remaining, now);
       deps.notifier.sizes(remaining);
     });
+  };
 }

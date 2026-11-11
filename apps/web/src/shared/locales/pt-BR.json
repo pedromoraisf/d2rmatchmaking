@@ -180,6 +180,20 @@
       "pool": "{{players}} jogadores nesta fila",
       "leave": "Sair da fila",
       "leaveFailed": "Não foi possível sair da fila. Tente de novo."
+    },
+    "refusals": {
+      "not-your-character": "Este personagem não está na sua conta. Escolha outro.",
+      "undeclared-character": "Declare a escada e a era deste personagem primeiro.",
+      "difficulty-locked": "Esta dificuldade está bloqueada neste personagem.",
+      "below-floor": "Este personagem está abaixo do nível desta dificuldade.",
+      "below-minimum-level": "Este personagem está abaixo do nível mínimo escolhido.",
+      "minimum-below-floor": "O nível mínimo está abaixo do nível desta dificuldade.",
+      "activity-not-available": "Arautos exige Inferno e Reign of the Warlock.",
+      "agent-offline": "Seu agente está offline. Abra-o neste PC e tente de novo.",
+      "not-linked": "Vincule uma conta Battle.net para entrar na fila.",
+      "site-not-open": "Mantenha este site aberto para entrar na fila.",
+      "already-queued": "Você já tem um ticket na fila.",
+      "in-room": "Você está em uma sala que ainda está aberta."
     }
   }
 }

@@ -2,13 +2,14 @@
 // off and its reason shown while an entry rule fails. Every control is a native element, so the keyboard reaches all of it.
 import { useId, useState, type FormEvent } from 'react';
 import './queue.css';
-import type { CharacterView, QueueTicketView } from '@d2rmm/contracts';
+import type { CharacterView, QueueRefusalCode, QueueTicketView } from '@d2rmm/contracts';
 import { useTranslation } from 'react-i18next';
 import type { ApiClient } from '../../shared/api-client.ts';
 import { classKey, difficultyKey } from '../../shared/labels.ts';
 import { firstEntryReason, LEVEL_FLOORS, type JoinChoice, type QueueDifficulty } from './entry-reason.ts';
 import {
   activityKey,
+  refusalKey,
   formatKey,
   leftNoticeKey,
   reasonKey,
@@ -62,7 +63,8 @@ export function QueuePanel({
   const [role, setRole] = useState<QueueRoleValue>('killer');
   const [minLevel, setMinLevel] = useState(LEVEL_FLOORS.normal);
   const [sending, setSending] = useState(false);
-  const [failed, setFailed] = useState(false);
+  /** Why the last join was not accepted: the API's refusal code, or 'failed' for any other failure. */
+  const [failure, setFailure] = useState<QueueRefusalCode | 'failed' | null>(null);
 
   // The chosen character, or the first one when the choice is gone (a character list can change under the form).
   const character = characters.find((candidate) => candidate.id === characterId) ?? characters[0];
@@ -87,10 +89,13 @@ export function QueuePanel({
     setSending(true);
     const joined = await client.joinQueue(body);
     setSending(false);
-    setFailed(!joined.ok);
     if (joined.ok) {
+      setFailure(null);
       onJoined(joined.value);
+      return;
     }
+    // The API's reason for a refusal, or the generic failure for anything else.
+    setFailure(joined.failure === 'refused' && joined.refusal !== undefined ? joined.refusal : 'failed');
   }
 
   const describedBy = reason === null ? undefined : `${ids}-reason`;
@@ -283,9 +288,9 @@ export function QueuePanel({
             </p>
           ) : null}
         </div>
-        {failed ? (
+        {failure !== null ? (
           <p role="alert" className="note">
-            {t('queue.joinFailed')}
+            {t(failure === 'failed' ? 'queue.joinFailed' : refusalKey(failure))}
           </p>
         ) : null}
       </form>

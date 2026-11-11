@@ -1,4 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { trace } from '@opentelemetry/api';
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { MatchFormedEvent } from '../../../shared-kernel/index.ts';
 import { queueSetup, READY_CHARACTER } from './testing/queue-setup.ts';
 
@@ -127,5 +133,35 @@ describe('runMatcher: a waiting ticket', () => {
     const bodies = t.bus.queueUpdates().map(({ update }) => JSON.stringify(update));
     expect(bodies.length).toBeGreaterThan(0);
     expect(bodies.every((body) => !body.includes('alice'))).toBe(true);
+  });
+});
+
+describe('runMatcher: an idle tick (T8)', () => {
+  const exporter = new InMemorySpanExporter();
+  beforeAll(() => {
+    trace.setGlobalTracerProvider(
+      new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] }),
+    );
+  });
+
+  it('records no pool size and no matcher span when nobody is queued', async () => {
+    const t = queueSetup();
+    exporter.reset();
+
+    await t.queue.runMatcher();
+
+    expect(t.metrics.sizes).toHaveLength(0);
+    expect(exporter.getFinishedSpans().filter((span) => span.name === 'matchmaking.match')).toHaveLength(0);
+  });
+
+  it('records the matcher span on a tick that has a ticket to look at', async () => {
+    const t = queueSetup();
+    t.readyPlayer('alice', 'c-sorc');
+    await t.queue.joinQueue({ accountId: 'alice', request: duel('c-sorc') });
+    exporter.reset();
+
+    await t.queue.runMatcher();
+
+    expect(exporter.getFinishedSpans().filter((span) => span.name === 'matchmaking.match')).toHaveLength(1);
   });
 });

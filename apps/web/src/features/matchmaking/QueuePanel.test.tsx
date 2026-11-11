@@ -184,7 +184,7 @@ describe('QueuePanel', () => {
     expect(screen.getByRole('radio', { name: 'Killer' })).toBeTruthy();
   });
 
-  it('shows the failure when the API refuses the join', async () => {
+  it('says the reason the API refused the join, in words, and does not join', async () => {
     const { fetch } = routeFetch({
       'POST /api/v1/queue/tickets': () => jsonResponse(422, { error: 'agent-offline' }),
     });
@@ -196,9 +196,51 @@ describe('QueuePanel', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Find match' }));
 
     expect((await screen.findByRole('alert')).textContent).toBe(
-      'The queue did not accept the request. Try again.',
+      'Your agent is offline. Open it on this PC and try again.',
     );
     expect(onJoined).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['not-your-character', 'That character is not on your account. Pick another one.'],
+    ['undeclared-character', 'Declare the ladder and era of this character first.'],
+    ['difficulty-locked', 'This difficulty is locked on this character.'],
+    ['below-floor', 'This character is under the level for this difficulty.'],
+    ['below-minimum-level', 'This character is under the minimum level you chose.'],
+    ['minimum-below-floor', 'The minimum level is under the level for this difficulty.'],
+    ['activity-not-available', 'Heralds needs Hell and Reign of the Warlock.'],
+    ['agent-offline', 'Your agent is offline. Open it on this PC and try again.'],
+    ['not-linked', 'Link a Battle.net account to join the queue.'],
+    ['site-not-open', 'Keep this site open to join the queue.'],
+    ['already-queued', 'You already have a ticket in the queue.'],
+    ['in-room', 'You are in a room that is still open.'],
+  ] as const)('has a message for the refusal %s', async (code, message) => {
+    const status = code === 'already-queued' || code === 'in-room' ? 409 : 422;
+    const { fetch } = routeFetch({
+      'POST /api/v1/queue/tickets': () => jsonResponse(status, { error: code }),
+    });
+    renderInLanguage(
+      <QueuePanel characters={[SORC]} client={createApiClient(fetch)} notice={null} onJoined={vi.fn()} />,
+    );
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Find match' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(message);
+  });
+
+  it('shows the generic message when the join fails for another reason', async () => {
+    const { fetch } = routeFetch({
+      'POST /api/v1/queue/tickets': () => jsonResponse(500),
+    });
+    renderInLanguage(
+      <QueuePanel characters={[SORC]} client={createApiClient(fetch)} notice={null} onJoined={vi.fn()} />,
+    );
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Find match' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'The queue did not accept the request. Try again.',
+    );
   });
 
   it('says why the ticket left on its own, once', () => {

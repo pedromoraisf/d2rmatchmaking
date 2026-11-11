@@ -180,6 +180,20 @@
       "pool": "{{players}} players in this pool",
       "leave": "Leave queue",
       "leaveFailed": "The queue could not be left. Try again."
+    },
+    "refusals": {
+      "not-your-character": "That character is not on your account. Pick another one.",
+      "undeclared-character": "Declare the ladder and era of this character first.",
+      "difficulty-locked": "This difficulty is locked on this character.",
+      "below-floor": "This character is under the level for this difficulty.",
+      "below-minimum-level": "This character is under the minimum level you chose.",
+      "minimum-below-floor": "The minimum level is under the level for this difficulty.",
+      "activity-not-available": "Heralds needs Hell and Reign of the Warlock.",
+      "agent-offline": "Your agent is offline. Open it on this PC and try again.",
+      "not-linked": "Link a Battle.net account to join the queue.",
+      "site-not-open": "Keep this site open to join the queue.",
+      "already-queued": "You already have a ticket in the queue.",
+      "in-room": "You are in a room that is still open."
     }
   }
 }

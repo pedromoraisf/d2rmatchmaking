@@ -9,14 +9,17 @@ import {
   QueueTicketView,
   RoomView,
 } from '@d2rmm/contracts';
-import type { DeclareCharacterRequest, JoinQueueRequest } from '@d2rmm/contracts';
+import { QueueRefusal } from '@d2rmm/contracts';
+import type { DeclareCharacterRequest, JoinQueueRequest, QueueRefusalCode } from '@d2rmm/contracts';
 
 export interface Parser<T> {
   parse(input: unknown): T;
 }
 
-export type ApiFailure = 'unauthenticated' | 'not-found' | 'invalid' | 'rate-limited' | 'failed';
-export type ApiResult<T> = { ok: true; value: T } | { ok: false; failure: ApiFailure };
+/** `refused`: the queue answered 409 or 422 with the reason in `refusal` (QUE-03 … QUE-06). */
+export type ApiFailure = 'unauthenticated' | 'not-found' | 'invalid' | 'rate-limited' | 'refused' | 'failed';
+export type ApiResult<T> =
+  { ok: true; value: T } | { ok: false; failure: ApiFailure; refusal?: QueueRefusalCode };
 export type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 
 type Sent = { ok: true; response: Response } | { ok: false; failure: ApiFailure };
@@ -56,11 +59,12 @@ export interface ApiClient {
 }
 
 export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, init)): ApiClient {
-  async function send(
+  /** The raw answer of a request, or null when the request never reached the API. */
+  async function transmit(
     method: 'GET' | 'POST' | 'DELETE' | 'PATCH',
     path: string,
     body?: unknown,
-  ): Promise<Sent> {
+  ): Promise<Response | null> {
     const url = `${API_PREFIX}${path}`;
     let response: Response;
     try {
@@ -75,6 +79,18 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
               body: JSON.stringify(body ?? {}),
             });
     } catch {
+      return null;
+    }
+    return response;
+  }
+
+  async function send(
+    method: 'GET' | 'POST' | 'DELETE' | 'PATCH',
+    path: string,
+    body?: unknown,
+  ): Promise<Sent> {
+    const response = await transmit(method, path, body);
+    if (response === null) {
       return { ok: false, failure: 'failed' };
     }
     return response.ok ? { ok: true, response } : { ok: false, failure: failureFor(response.status) };
@@ -101,16 +117,30 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
     return sent.ok ? { ok: true, value: undefined } : sent;
   }
 
-  async function writeAndRead<T>(path: string, body: unknown, parser: Parser<T>): Promise<ApiResult<T>> {
-    const sent = await send('POST', path, body);
-    if (!sent.ok) {
-      return sent;
-    }
-    try {
-      return { ok: true, value: parser.parse(await sent.response.json()) };
-    } catch {
+  // A refusal (409 or 422) is not a failure of the request: its reason is the code the site translates (QUE-15).
+  async function joinQueue(body: JoinQueueRequest): Promise<ApiResult<QueueTicketView>> {
+    const response = await transmit('POST', '/v1/queue/tickets', body);
+    if (response === null) {
       return { ok: false, failure: 'failed' };
     }
+    if (response.ok) {
+      try {
+        return { ok: true, value: QueueTicketView.parse(await response.json()) };
+      } catch {
+        return { ok: false, failure: 'failed' };
+      }
+    }
+    if (response.status === 409 || response.status === 422) {
+      try {
+        const reason = QueueRefusal.safeParse(await response.json());
+        if (reason.success) {
+          return { ok: false, failure: 'refused', refusal: reason.data.error };
+        }
+      } catch {
+        return { ok: false, failure: 'failed' };
+      }
+    }
+    return { ok: false, failure: failureFor(response.status) };
   }
 
   return {
@@ -127,7 +157,7 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
     declareCharacter: (characterId, body) =>
       write(`/v1/me/characters/${encodeURIComponent(characterId)}`, body, 'PATCH'),
     myQueueTicket: () => read('/v1/queue/tickets/me', MyQueueTicketResponse),
-    joinQueue: (body) => writeAndRead('/v1/queue/tickets', body, QueueTicketView),
+    joinQueue: (body) => joinQueue(body),
     leaveQueue: (ticketId) => write(`/v1/queue/tickets/${encodeURIComponent(ticketId)}`, {}, 'DELETE'),
   };
 }

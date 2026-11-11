@@ -1,13 +1,13 @@
 // The queue's metrics on the application meter (QUE-16): the waiting size as an observable gauge, the wait at match as a
 // histogram. Only the bounded attributes of QUE-16 are recorded: no account and no character name.
-import { D2R_DIFFICULTY, D2R_ERA, D2R_LADDER, D2R_QUEUE_MODE } from '@d2rmm/telemetry';
+import { D2R_DIFFICULTY, D2R_ERA, D2R_LADDER, D2R_QUEUE_MODE, INSTRUMENT_NAMES } from '@d2rmm/telemetry';
 import type { Meter } from '@opentelemetry/api';
 import type { QueueAttributes, QueueMetrics } from '../../application/ports.ts';
 
 /** `d2r.queue.size`: the tickets waiting in one pool (gauge). */
-export const QUEUE_SIZE_METRIC = 'd2r.queue.size';
+export const QUEUE_SIZE_METRIC = INSTRUMENT_NAMES.queueSize;
 /** `d2r.queue.wait`: the seconds a ticket waited when it left in a match (histogram). */
-export const QUEUE_WAIT_METRIC = 'd2r.queue.wait';
+export const QUEUE_WAIT_METRIC = INSTRUMENT_NAMES.queueWait;
 
 function attributesOfPool(attributes: QueueAttributes): Record<string, string> {
   return {
