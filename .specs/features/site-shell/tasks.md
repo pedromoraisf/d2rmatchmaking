@@ -5,7 +5,7 @@ Spec: `spec.md` · Scenarios: `acceptance.feature` · Branch: `feat/F1-site-shel
 
 ## Batch 1
 
-- [ ] T1 — Theme: `apps/web/src/app/theme.css` with the prototype's tokens (colours, fonts, panel, button, tag, focus
+- [x] T1 — Theme: `apps/web/src/app/theme.css` with the prototype's tokens (colours, fonts, panel, button, tag, focus
       styles) adjusted for AA, imported once in `main.tsx`; fonts link in `index.html`; a unit test that computes the
       contrast of every text token on its surface token (≥ 4.5:1, or ≥ 3:1 for tokens used only for large text and UI
       borders) — gate: `pnpm --filter @d2rmm/web exec vitest run src/app`

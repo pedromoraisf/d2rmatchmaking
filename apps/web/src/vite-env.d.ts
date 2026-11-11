@@ -11,3 +11,9 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// The theme's source, read as text by the contrast test (theme.test.ts).
+declare module '*.css?raw' {
+  const css: string;
+  export default css;
+}
