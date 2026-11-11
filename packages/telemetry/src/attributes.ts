@@ -10,3 +10,5 @@ export const D2R_AGENT_VERSION = 'd2r.agent.version';
 export const D2R_STREAM_KIND = 'd2r.stream.kind';
 export const D2R_ROOM_STAGE = 'd2r.room.stage';
 export const D2R_OUTBOX_EVENT_TYPE = 'd2r.outbox.event_type';
+// How a ready check ended: accepted, declined or timed-out (RDY-10). A bounded value; no names.
+export const D2R_READY_CHECK_OUTCOME = 'd2r.ready_check.outcome';

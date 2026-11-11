@@ -603,4 +603,40 @@ describe('App', () => {
     expect(screen.queryByText('Signed in as PlayerOne')).toBeNull();
     expect(screen.queryByLabelText('Pairing code')).toBeNull();
   });
+
+  it('shows an open ready check the site reads on load, with the overlay focused on Accept (RDY-11)', async () => {
+    const deadline = new Date(Date.now() + 60_000).toISOString();
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(200, player),
+      'GET /api/v1/agents/me': () => jsonResponse(200, { status: 'none' }),
+      'GET /api/v1/ready-checks/me': () =>
+        jsonResponse(200, {
+          id: 'rc-1',
+          mode: 'pvp',
+          difficulty: 'hell',
+          deadline,
+          now: new Date().toISOString(),
+          members: [
+            { position: 1, class: 'sorceress', level: 91, accepted: false, you: true },
+            { position: 2, class: 'barbarian', level: 84, accepted: false, you: false },
+          ],
+        }),
+    });
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={fakeStream().openStream} />);
+    expect(await screen.findByRole('dialog', { name: 'Ready check' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Accept' })).toBeTruthy();
+  });
+
+  it('shows no overlay when the read answers 204 (no open check)', async () => {
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(200, player),
+      'GET /api/v1/agents/me': () => jsonResponse(200, { status: 'none' }),
+      'GET /api/v1/ready-checks/me': () => new Response(null, { status: 204 }),
+    });
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={fakeStream().openStream} />);
+    expect(await screen.findByText('Pairing code')).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'Ready check' })).toBeNull();
+  });
 });

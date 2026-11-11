@@ -1,0 +1,63 @@
+# Ready check — Tasks
+
+Spec: `spec.md` · Scenarios: `acceptance.feature` · Branch: `feat/F1-ready-check` → `phase/F1` (after `queues`)
+
+Placement (no design.md, Medium): the check is a `ReadyCheck` aggregate in `apps/api/src/modules/matchmaking/domain/`
+(pure: `open`, `accept`, `decline`, `expire(now)` → outcome with accepted/declined/timed-out members); open checks in an
+in-memory `ReadyCheckStore`; penalties in Postgres `matchmaking.penalties` (new migration, next free number); the 60 s
+deadline through the existing `TimerScheduler`; `runMatcher` hands a group to `openReadyCheck` instead of publishing
+`MatchFormed`; accepted members re-enter the queue with their original `joinedAt`. Routes:
+`POST /v1/ready-checks/:id/accept` and `/decline` with a session (same origin) or the agent token (accept only).
+Stream events `ready_check.started`, `ready_check.updated`, `ready_check.resolved` to the site; `ready_check.started`
+and `ready_check.resolved` to the agent. Rules: domain pure, contracts regenerated, the whole API integration suite in
+any route task's gate, no test weakened, `acceptance.feature` not edited; the hotkey sends no input (ADR 010).
+
+## Batch 1
+
+- [x] T1 — Contracts: ready-check views, answer routes, refusal `ready-check-penalty` with seconds left, the three stream
+      events for the site and two for the agent; OpenAPI, AsyncAPI and Rust types regenerated — gate:
+      `pnpm --filter @d2rmm/contracts exec vitest run && pnpm contracts:openapi && (cd apps/agent/src-tauri && cargo run -q -p xtask -- contracts && cargo nextest run -p d2rmm-agent-adapters)`
+- [x] T2 — Domain `ReadyCheck` and the queue re-entry rule (RDY-01 … RDY-05), unit tests on the 60 s boundary (59.999 /
+      60.000), decline at once, accepted members ahead of later tickets, penalties of 5 min at the boundary — gate:
+      `pnpm --filter @d2rmm/api exec vitest run src/modules/matchmaking/domain`
+- [x] T3 — Application and adapters: `openReadyCheck`, `answerReadyCheck`, `expireReadyCheck`, penalty store (migration),
+      the join refusal for a penalty, routes, stream projection, spans and the outcome metric (AD-087 list and dashboard
+      panel); unit and integration tests (a penalty survives a restart); OpenAPI regenerated — gate:
+      `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts && pnpm --filter @d2rmm/telemetry exec vitest run && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json && pnpm arch`
+- [x] T4 — Site: the ready-check overlay of the prototype inside the site shell (countdown ring, members' marks, Accept,
+      Decline, hotkey hint, the penalty sentence; focus on Accept; Escape does not decline), the penalty message on the
+      queue panel; en + pt-BR; component tests — gate:
+      `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
+- [x] T5 — Agent: the `ready_check.started/resolved` events in the core, the accept call through the gateway, and the
+      Ctrl+Shift+A global hotkey (Tauri global-shortcut) active only while a check is open; it calls the API only; Rust
+      unit tests with fakes; the agent window shows the hotkey while a check is open (en + pt-BR) — gate:
+      `pnpm --filter @d2rmm/agent exec vitest run && pnpm --filter @d2rmm/agent lint && cd apps/agent/src-tauri && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`
+
+## Batch 2
+
+- [x] T8 — Review of Batch 1: the agent accept path applies `requireAgentVersion` (426); `GET /v1/ready-checks/me`
+      (RDY-11) with the site re-reading it on load and on stream reopen and the agent on stream reconnect; the agent
+      disarms the hotkey at the deadline; OpenAPI regenerated; unit, component, Rust and route tests — gate:
+      `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts && pnpm --filter @d2rmm/web exec vitest run && cd apps/agent/src-tauri && cargo nextest run && cargo clippy --all-targets -- -D warnings`
+- [x] T6 — Headless example: a `hotkey` stdin command that triggers the same accept path; acceptance steps for every
+      step of `acceptance.feature` (ready-check and the changed queues steps) — gate:
+      `pnpm exec turbo run test:acceptance -- --grep "@RDY-|@QUE-"`
+- [x] T7 — Whole-repo sensors — gate:
+      `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check && cd apps/agent/src-tauri && cargo clippy --all-targets -- -D warnings`
+- [x] T9 — Countdown from server time (decision 3): the ready-check view carries the server's `now` with the deadline;
+      the site counts down from `deadline − serverNow` at receipt, independent of the browser clock; component test
+      with a skewed browser clock — gate: `pnpm --filter @d2rmm/contracts exec vitest run && pnpm --filter @d2rmm/web exec vitest run && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json`
+- [x] T10 — RDY-04 flake (a site missed a ready-check event 1 in 3 full runs): find the cause with evidence (log the
+      hub's deliveries and the site's received events in the failing scenario, run it 10× in the full set), fix it in
+      the product if events can be lost (e.g. make `ready_check.resolved`/`updated` durable through the outbox so a
+      reconnect replays them, or re-read on the site after each answer) — gate: 3 consecutive full runs of
+      `pnpm exec turbo run test:acceptance -- --grep "@RDY-|@QUE-"` with 26/26
+      Cause: no event was lost. The API's matcher timer (`ClockScheduler.every`) ran on a real 1-second `setInterval` while the acceptance clock is frozen, so about 1 time in 3 it re-matched Alice (back in the queue after Bob's decline) with Cara between two steps and opened a new ready check (RDY-04 steps saw no waiting ticket, or an overlay again); `every` now follows the injected clock like `at`. The RDY-07 flake was the agent comparing the check's absolute deadline with its own wall clock; it now counts the time left from the server's `now`.
+- [x] T11 — Hotkey without the banned plugin: `tauri-plugin-global-shortcut` is on the `cargo deny` ban list (ADR 010,
+      FR-29), so Ctrl+Shift+A (RDY-07) is registered with the `global-hotkey` crate from Rust only (`RegisterHotKey`: no
+      keyboard hook, no input, nothing exposed to the webview). The manager is created on the Tauri main thread in
+      `setup` and used only there (`run_on_main_thread`); a thread forwards presses to `accept_ready_check` (API call
+      only). Registered while a check is open, unregistered when it closes or at the deadline; unit tests with a fake
+      registrar — gate:
+      `cd apps/agent/src-tauri && cargo deny --locked check && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`
+      and `pnpm test:harness` and `pnpm --filter @d2rmm/agent exec vitest run`

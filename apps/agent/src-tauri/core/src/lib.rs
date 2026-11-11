@@ -15,6 +15,7 @@ pub mod party;
 pub mod ports;
 pub mod post_observation;
 pub mod read_frame;
+pub mod ready_check;
 pub mod runtime;
 pub mod secret;
 pub mod view;

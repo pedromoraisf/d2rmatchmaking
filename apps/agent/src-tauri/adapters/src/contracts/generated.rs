@@ -1271,6 +1271,419 @@ impl<'de> ::serde::Deserialize<'de> for PairingCodeResponseCode {
             })
     }
 }
+///`ReadyCheckResolvedEvent`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ReadyCheckResolvedEvent {
+    pub data: ReadyCheckResolvedEventData,
+    #[serde(rename = "type")]
+    pub type_: ::std::string::String,
+}
+///`ReadyCheckResolvedEventData`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ReadyCheckResolvedEventData {
+    pub id: ReadyCheckResolvedEventDataId,
+    pub outcome: ReadyCheckResolvedEventDataOutcome,
+}
+///`ReadyCheckResolvedEventDataId`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ReadyCheckResolvedEventDataId(::std::string::String);
+impl ::std::ops::Deref for ReadyCheckResolvedEventDataId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ReadyCheckResolvedEventDataId> for ::std::string::String {
+    fn from(value: ReadyCheckResolvedEventDataId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ReadyCheckResolvedEventDataId {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ReadyCheckResolvedEventDataId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ReadyCheckResolvedEventDataId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ReadyCheckResolvedEventDataId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`ReadyCheckResolvedEventDataOutcome`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum ReadyCheckResolvedEventDataOutcome {
+    #[serde(rename = "accepted")]
+    Accepted,
+    #[serde(rename = "declined")]
+    Declined,
+    #[serde(rename = "timed-out")]
+    TimedOut,
+}
+impl ::std::fmt::Display for ReadyCheckResolvedEventDataOutcome {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Accepted => f.write_str("accepted"),
+            Self::Declined => f.write_str("declined"),
+            Self::TimedOut => f.write_str("timed-out"),
+        }
+    }
+}
+impl ::std::str::FromStr for ReadyCheckResolvedEventDataOutcome {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "accepted" => Ok(Self::Accepted),
+            "declined" => Ok(Self::Declined),
+            "timed-out" => Ok(Self::TimedOut),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ReadyCheckResolvedEventDataOutcome {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for ReadyCheckResolvedEventDataOutcome {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///`ReadyCheckStartedEvent`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ReadyCheckStartedEvent {
+    pub data: ReadyCheckStartedEventData,
+    #[serde(rename = "type")]
+    pub type_: ::std::string::String,
+}
+///`ReadyCheckStartedEventData`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ReadyCheckStartedEventData {
+    pub deadline: ::chrono::DateTime<::chrono::offset::Utc>,
+    pub difficulty: ReadyCheckStartedEventDataDifficulty,
+    pub id: ReadyCheckStartedEventDataId,
+    pub members: ::std::vec::Vec<ReadyCheckStartedEventDataMembersItem>,
+    pub mode: ReadyCheckStartedEventDataMode,
+    pub now: ::chrono::DateTime<::chrono::offset::Utc>,
+}
+///`ReadyCheckStartedEventDataDifficulty`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum ReadyCheckStartedEventDataDifficulty {
+    #[serde(rename = "normal")]
+    Normal,
+    #[serde(rename = "nightmare")]
+    Nightmare,
+    #[serde(rename = "hell")]
+    Hell,
+}
+impl ::std::fmt::Display for ReadyCheckStartedEventDataDifficulty {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Normal => f.write_str("normal"),
+            Self::Nightmare => f.write_str("nightmare"),
+            Self::Hell => f.write_str("hell"),
+        }
+    }
+}
+impl ::std::str::FromStr for ReadyCheckStartedEventDataDifficulty {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "normal" => Ok(Self::Normal),
+            "nightmare" => Ok(Self::Nightmare),
+            "hell" => Ok(Self::Hell),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ReadyCheckStartedEventDataDifficulty {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for ReadyCheckStartedEventDataDifficulty {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///`ReadyCheckStartedEventDataId`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ReadyCheckStartedEventDataId(::std::string::String);
+impl ::std::ops::Deref for ReadyCheckStartedEventDataId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ReadyCheckStartedEventDataId> for ::std::string::String {
+    fn from(value: ReadyCheckStartedEventDataId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ReadyCheckStartedEventDataId {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ReadyCheckStartedEventDataId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ReadyCheckStartedEventDataId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ReadyCheckStartedEventDataId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`ReadyCheckStartedEventDataMembersItem`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ReadyCheckStartedEventDataMembersItem {
+    pub accepted: bool,
+    pub class: ReadyCheckStartedEventDataMembersItemClass,
+    pub level: ::std::num::NonZeroU64,
+    pub position: ::std::num::NonZeroU64,
+    pub you: bool,
+}
+///`ReadyCheckStartedEventDataMembersItemClass`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum ReadyCheckStartedEventDataMembersItemClass {
+    #[serde(rename = "amazon")]
+    Amazon,
+    #[serde(rename = "assassin")]
+    Assassin,
+    #[serde(rename = "barbarian")]
+    Barbarian,
+    #[serde(rename = "druid")]
+    Druid,
+    #[serde(rename = "necromancer")]
+    Necromancer,
+    #[serde(rename = "paladin")]
+    Paladin,
+    #[serde(rename = "sorceress")]
+    Sorceress,
+    #[serde(rename = "warlock")]
+    Warlock,
+}
+impl ::std::fmt::Display for ReadyCheckStartedEventDataMembersItemClass {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Amazon => f.write_str("amazon"),
+            Self::Assassin => f.write_str("assassin"),
+            Self::Barbarian => f.write_str("barbarian"),
+            Self::Druid => f.write_str("druid"),
+            Self::Necromancer => f.write_str("necromancer"),
+            Self::Paladin => f.write_str("paladin"),
+            Self::Sorceress => f.write_str("sorceress"),
+            Self::Warlock => f.write_str("warlock"),
+        }
+    }
+}
+impl ::std::str::FromStr for ReadyCheckStartedEventDataMembersItemClass {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "amazon" => Ok(Self::Amazon),
+            "assassin" => Ok(Self::Assassin),
+            "barbarian" => Ok(Self::Barbarian),
+            "druid" => Ok(Self::Druid),
+            "necromancer" => Ok(Self::Necromancer),
+            "paladin" => Ok(Self::Paladin),
+            "sorceress" => Ok(Self::Sorceress),
+            "warlock" => Ok(Self::Warlock),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ReadyCheckStartedEventDataMembersItemClass {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for ReadyCheckStartedEventDataMembersItemClass {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///`ReadyCheckStartedEventDataMode`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum ReadyCheckStartedEventDataMode {
+    #[serde(rename = "pvp")]
+    Pvp,
+    #[serde(rename = "leveling")]
+    Leveling,
+}
+impl ::std::fmt::Display for ReadyCheckStartedEventDataMode {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Pvp => f.write_str("pvp"),
+            Self::Leveling => f.write_str("leveling"),
+        }
+    }
+}
+impl ::std::str::FromStr for ReadyCheckStartedEventDataMode {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "pvp" => Ok(Self::Pvp),
+            "leveling" => Ok(Self::Leveling),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ReadyCheckStartedEventDataMode {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ReadyCheckStartedEventDataMode {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
 ///`RecordCharactersRequest`
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]

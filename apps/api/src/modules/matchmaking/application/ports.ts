@@ -1,5 +1,7 @@
 import type { EntryCharacter } from '../domain/entry-rules.ts';
+import type { ReadyCheck } from '../domain/ready-check/ready-check.ts';
 import type { QueueTicket } from '../domain/queue-ticket/queue-ticket.ts';
+import type { CharacterClassName } from '../../../shared-kernel/index.ts';
 
 /** The queue, in memory (ADR 006): the tickets waiting now. A restart drops them (spec, out of scope). */
 export interface QueueStore {
@@ -18,9 +20,38 @@ export interface JoinLimitStore {
   record(accountId: string, at: Date): Promise<void>;
 }
 
+/** The facts of a character a join reads: the entry facts (QUE-03) and its class, the mark a ready check shows (RDY-01). */
+export interface QueueCharacter extends EntryCharacter {
+  readonly characterClass: CharacterClassName;
+}
+
 /** Identity's character of an account (CHR-09, CHR-15). Null when the character is not the account's (QUE-03). */
 export interface CharactersPort {
-  characterOf(accountId: string, characterId: string): Promise<EntryCharacter | null>;
+  characterOf(accountId: string, characterId: string): Promise<QueueCharacter | null>;
+}
+
+/**
+ * The penalties of the accounts that did not answer a ready check (RDY-05, RDY-09): Postgres, so a restart keeps them.
+ * An account holds at most one penalty; a newer one replaces it.
+ */
+export interface PenaltyStore {
+  /** The instant the account's penalty ends, or undefined when the account holds none. */
+  untilOf(accountId: string): Promise<Date | undefined>;
+  /** Records the penalty of each account, ending at `until`. */
+  record(accountIds: readonly string[], until: Date, reason: 'ready-check-timeout'): Promise<void>;
+}
+
+/**
+ * The open ready checks, in memory (ADR 006, RDY-09). A check that ended stays for a while, so an answer that comes late
+ * is refused as ended (409) rather than as unknown (404, RDY-06).
+ */
+export interface ReadyCheckStore {
+  put(check: ReadyCheck): Promise<void>;
+  find(checkId: string): Promise<ReadyCheck | undefined>;
+  /** The open check the account is a member of, if any: a member of an open check may not queue again (INV-04). */
+  openOf(accountId: string): Promise<ReadyCheck | undefined>;
+  /** Drops the ended checks whose deadline is before `before`, so the store does not grow for ever. */
+  pruneEndedBefore(before: Date): Promise<void>;
 }
 
 /** Whether the account's paired agent is online now (QUE-05, FR-31). */
@@ -62,4 +93,6 @@ export interface QueueMetrics {
   queueSize(attributes: QueueAttributes, size: number): void;
   /** The seconds a ticket waited when it left the queue in a match (`d2r.queue.wait`). */
   waitAtMatch(attributes: QueueAttributes, seconds: number): void;
+  /** A ready check ended with this outcome (`d2r.ready_check.resolved`, RDY-10). */
+  readyCheckResolved(outcome: 'accepted' | 'declined' | 'timed-out'): void;
 }

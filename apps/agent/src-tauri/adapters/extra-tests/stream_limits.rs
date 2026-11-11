@@ -88,6 +88,12 @@ async fn invalid_stream_event_is_skipped() {
         StreamItem::RoomAssigned(assignment) => {
             assert_eq!(assignment.expected_game_name.as_str(), "mmbaalh-12");
         }
+        StreamItem::ReadyCheckStarted(check) => {
+            panic!("a ready check opened before the valid event: {}", check.id)
+        }
+        StreamItem::ReadyCheckResolved(end) => {
+            panic!("a ready check ended before the valid event: {}", end.id)
+        }
         StreamItem::Ended(reason) => panic!("the stream ended before the valid event: {reason:?}"),
     }
 }

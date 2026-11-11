@@ -214,6 +214,7 @@ describe('QueuePanel', () => {
     ['site-not-open', 'Keep this site open to join the queue.'],
     ['already-queued', 'You already have a ticket in the queue.'],
     ['in-room', 'You are in a room that is still open.'],
+    ['ready-check-penalty', 'You did not answer a ready check: wait before you queue again.'],
   ] as const)('has a message for the refusal %s', async (code, message) => {
     const status = code === 'already-queued' || code === 'in-room' ? 409 : 422;
     const { fetch } = routeFetch({
@@ -226,6 +227,22 @@ describe('QueuePanel', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Find match' }));
 
     expect((await screen.findByRole('alert')).textContent).toBe(message);
+  });
+
+  it('says how long a ready-check penalty still holds, in minutes and seconds (RDY-05)', async () => {
+    const { fetch } = routeFetch({
+      'POST /api/v1/queue/tickets': () =>
+        jsonResponse(422, { error: 'ready-check-penalty', secondsLeft: 300 }),
+    });
+    renderInLanguage(
+      <QueuePanel characters={[SORC]} client={createApiClient(fetch)} notice={null} onJoined={vi.fn()} />,
+    );
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Find match' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'You did not answer a ready check. You can queue again in 5:00.',
+    );
   });
 
   it('shows the generic message when the join fails for another reason', async () => {

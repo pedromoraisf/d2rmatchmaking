@@ -7,6 +7,7 @@ import {
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { MatchFormedEvent } from '../../../shared-kernel/index.ts';
 import { queueSetup, READY_CHARACTER } from './testing/queue-setup.ts';
+import type { QueueSetup } from './testing/queue-setup.ts';
 
 const duel = (characterId: string) => ({
   mode: 'pvp' as const,
@@ -17,8 +18,24 @@ const duel = (characterId: string) => ({
   rules: 'gm' as const,
 });
 
-describe('runMatcher: a match (QUE-12)', () => {
-  it('writes MatchFormed to the outbox and takes the grouped tickets out of the queue', async () => {
+/** Every grouped member accepts the ready check the matcher opened, in join order (RDY-02, RDY-03). */
+async function acceptAll(t: QueueSetup): Promise<void> {
+  const check = t.bus.readyChecksStarted().at(-1);
+  if (check === undefined) {
+    throw new Error('no ready check was opened');
+  }
+  for (const member of check.members) {
+    const answered = await t.queue.answerReadyCheck({
+      accountId: member.accountId,
+      checkId: check.readyCheckId,
+      answer: 'accept',
+    });
+    expect(answered.ok).toBe(true);
+  }
+}
+
+describe('runMatcher: a formed group opens a ready check (RDY-01)', () => {
+  it('opens a ready check for the group and takes the grouped tickets out of the queue, without MatchFormed', async () => {
     const t = queueSetup();
     t.readyPlayer('alice', 'c-sorc');
     await t.queue.joinQueue({ accountId: 'alice', request: duel('c-sorc') });
@@ -27,6 +44,7 @@ describe('runMatcher: a match (QUE-12)', () => {
       id: 'bob-ticket',
       accountId: 'bob',
       characterId: 'c-hammer',
+      characterClass: 'sorceress',
       mode: 'pvp',
       region: 'americas',
       difficulty: 'hell',
@@ -39,6 +57,39 @@ describe('runMatcher: a match (QUE-12)', () => {
     });
 
     await t.queue.runMatcher();
+
+    expect(await t.store.all()).toHaveLength(0);
+    expect(t.outbox.appended.filter((event) => event.type === 'MatchFormed')).toHaveLength(0);
+    expect(t.bus.readyChecksStarted()).toHaveLength(1);
+    expect(t.bus.readyChecksStarted()[0]?.members.map((member) => member.accountId)).toStrictEqual([
+      'alice',
+      'bob',
+    ]);
+  });
+
+  it('writes MatchFormed to the outbox once every member has accepted (RDY-03)', async () => {
+    const t = queueSetup();
+    t.readyPlayer('alice', 'c-sorc');
+    await t.queue.joinQueue({ accountId: 'alice', request: duel('c-sorc') });
+    // Bob's ticket is in the queue but was not matched on his join, so only the matcher run can pair them.
+    await t.store.add({
+      id: 'bob-ticket',
+      accountId: 'bob',
+      characterId: 'c-hammer',
+      characterClass: 'sorceress',
+      mode: 'pvp',
+      region: 'americas',
+      difficulty: 'hell',
+      ladder: 'sc-ladder',
+      era: 'rotw',
+      rating: 1500,
+      level: 90,
+      joinedAt: new Date(t.clock.now().getTime() + 1000),
+      pvp: { format: 'duel', rules: 'gm' },
+    });
+
+    await t.queue.runMatcher();
+    await acceptAll(t);
 
     expect(await t.store.all()).toHaveLength(0);
     const formed = t.outbox.appended.filter(
@@ -68,6 +119,7 @@ describe('runMatcher: a match (QUE-12)', () => {
         id: `${name}-ticket`,
         accountId: name,
         characterId: `c-${name}`,
+        characterClass: 'sorceress',
         mode: 'pvp',
         region: 'americas',
         difficulty: 'hell',
@@ -81,6 +133,7 @@ describe('runMatcher: a match (QUE-12)', () => {
     }
 
     await t.queue.runMatcher();
+    await acceptAll(t);
 
     const formed = t.outbox.appended.filter(
       (event): event is MatchFormedEvent => event.type === 'MatchFormed',
@@ -103,6 +156,7 @@ describe('runMatcher: a match (QUE-12)', () => {
       id: 'bob-ticket',
       accountId: 'bob',
       characterId: 'c-hammer',
+      characterClass: 'sorceress',
       mode: 'pvp',
       region: 'americas',
       difficulty: 'hell',
@@ -115,6 +169,7 @@ describe('runMatcher: a match (QUE-12)', () => {
     });
 
     await t.queue.runMatcher();
+    await acceptAll(t);
 
     const formed = t.outbox.appended.filter(
       (event): event is MatchFormedEvent => event.type === 'MatchFormed',

@@ -136,8 +136,10 @@ describe('the queue lock', () => {
       t.queue.joinQueue({ accountId: 'cara', request: duel('c-zon') }),
     ]);
 
-    const formed = t.outbox.appended.filter((event) => event.type === 'MatchFormed');
-    expect(formed).toHaveLength(1);
+    // One group opens one ready check (RDY-01); the third ticket waits in the queue.
+    expect(t.bus.readyChecksStarted()).toHaveLength(1);
     expect(await t.store.all()).toHaveLength(1);
+    const formed = t.outbox.appended.filter((event) => event.type === 'MatchFormed');
+    expect(formed).toHaveLength(0);
   });
 });

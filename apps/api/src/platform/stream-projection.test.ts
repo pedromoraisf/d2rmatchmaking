@@ -183,3 +183,67 @@ describe('compareStreamIds', () => {
     expect(() => compareStreamIds('12.x', '13')).toThrow(RangeError);
   });
 });
+
+describe('projectStreamEvent: ready checks (RDY-01, RDY-02, RDY-03)', () => {
+  const started: AnyDomainEvent = {
+    type: 'ReadyCheckStarted',
+    payload: {
+      readyCheckId: 'rc-1',
+      mode: 'pvp',
+      difficulty: 'hell',
+      deadline: '2026-11-10T12:01:00.000Z',
+      serverNow: '2026-11-10T12:00:00.000Z',
+      members: [
+        { accountId: 'account-1', position: 1, characterClass: 'sorceress', level: 90, accepted: false },
+        { accountId: 'account-2', position: 2, characterClass: 'barbarian', level: 84, accepted: false },
+      ],
+    },
+  };
+
+  it('opens the check on each member’s site and agent, with the member’s own mark as you', async () => {
+    const deliveries = await projectStreamEvent(started, agents);
+
+    expect(deliveries.map((delivery) => delivery.stream)).toEqual(['site', 'agent', 'site', 'agent']);
+    const first = deliveries[0];
+    expect(first?.stream === 'site' && first.event).toStrictEqual({
+      type: 'ready_check.started',
+      data: {
+        id: 'rc-1',
+        mode: 'pvp',
+        difficulty: 'hell',
+        deadline: '2026-11-10T12:01:00.000Z',
+        now: '2026-11-10T12:00:00.000Z',
+        members: [
+          { position: 1, class: 'sorceress', level: 90, accepted: false, you: true },
+          { position: 2, class: 'barbarian', level: 84, accepted: false, you: false },
+        ],
+      },
+    });
+  });
+
+  it('never carries an account id in the check body the recipient reads', async () => {
+    const deliveries = await projectStreamEvent(started, agents);
+    // The routing fields (`accountId`, `agentId`) stay in the envelope; the event body names nobody.
+    expect(JSON.stringify(deliveries.map((delivery) => delivery.event))).not.toMatch(/account-\d/u);
+  });
+
+  it('sends an acceptance to the sites only, not to the agents', async () => {
+    const updated: AnyDomainEvent = { ...started, type: 'ReadyCheckUpdated' };
+    const deliveries = await projectStreamEvent(updated, agents);
+    expect(deliveries.map((delivery) => delivery.stream)).toEqual(['site', 'site']);
+  });
+
+  it('sends the outcome to every member’s site and agent', async () => {
+    const resolved: AnyDomainEvent = {
+      type: 'ReadyCheckResolved',
+      payload: { readyCheckId: 'rc-1', outcome: 'timed-out', accountIds: ['account-1', 'account-2'] },
+    };
+    const deliveries = await projectStreamEvent(resolved, agents);
+    expect(deliveries.map((delivery) => delivery.stream)).toEqual(['site', 'agent', 'site', 'agent']);
+    expect(deliveries[1]).toStrictEqual({
+      stream: 'agent',
+      agentId: 'agent-1',
+      event: { type: 'ready_check.resolved', data: { id: 'rc-1', outcome: 'timed-out' } },
+    });
+  });
+});

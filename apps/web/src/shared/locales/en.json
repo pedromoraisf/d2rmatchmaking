@@ -195,7 +195,24 @@
       "already-queued": "You already have a ticket in the queue.",
       "in-room": "You are in a room that is still open.",
       "too-many-joins": "Too many joins in a minute. Wait a moment and try again.",
-      "queue-full": "This queue is full right now. Try again in a little while."
-    }
+      "queue-full": "This queue is full right now. Try again in a little while.",
+      "ready-check-penalty": "You did not answer a ready check: wait before you queue again."
+    },
+    "penalty": "You did not answer a ready check. You can queue again in {{time}}."
+  },
+  "readyCheck": {
+    "subtitle": "Match found · {{difficulty}}",
+    "heading": "Ready check",
+    "secondsLeft": "{{seconds}} seconds left",
+    "membersLabel": "Members of this match",
+    "memberLabel": "Member {{position}}: {{characterClass}}, level {{level}}",
+    "accepted": "Accepted",
+    "waiting": "Waiting",
+    "you": "YOU",
+    "accept": "Accept",
+    "decline": "Decline",
+    "answerFailed": "This answer did not count. The check may have ended.",
+    "hotkeyHint": "You can also accept with <kbd>{{hotkey}}</kbd> without leaving the game.",
+    "penaltyNotice": "Declining has no penalty. Not answering gives a 5-minute wait."
   }
 }

@@ -1,5 +1,5 @@
 // Wires the queue use cases over the in-memory doubles, with a fake clock the test moves.
-import { FakeClock, SequentialIdGenerator } from '../../../../shared-kernel/index.ts';
+import { FakeClock, FakeScheduler, SequentialIdGenerator } from '../../../../shared-kernel/index.ts';
 import type { EntryCharacter } from '../../domain/entry-rules.ts';
 import { JOIN_LIMIT } from '../../domain/queue-limits.ts';
 import { createQueueUseCases } from '../queue-use-cases.ts';
@@ -9,6 +9,8 @@ import {
   FakeAccountFacts,
   FakeCharacters,
   InMemoryJoinLimits,
+  InMemoryPenalties,
+  InMemoryReadyChecks,
   FixedRatings,
   InMemoryQueueStore,
   RecordingEventBus,
@@ -36,6 +38,10 @@ export function queueSetup() {
   const metrics = new RecordingQueueMetrics();
   const outbox = new RecordingOutbox();
   const joins = new InMemoryJoinLimits(JOIN_LIMIT);
+  const checks = new InMemoryReadyChecks();
+  const penalties = new InMemoryPenalties();
+  const scheduler = new FakeScheduler(clock);
+  const errors: unknown[] = [];
   const queue = createQueueUseCases({
     store,
     joinLimits: joins,
@@ -45,6 +51,12 @@ export function queueSetup() {
     sites: facts,
     rooms: facts,
     ratings,
+    checks,
+    penalties,
+    scheduler,
+    onError: (error) => {
+      errors.push(error);
+    },
     ids: new SequentialIdGenerator('t'),
     clock,
     uow: new InMemoryUnitOfWork(),
@@ -61,7 +73,22 @@ export function queueSetup() {
     facts.readyToQueue(accountId);
     characters.set(accountId, characterId, character);
   };
-  return { clock, store, joins, characters, facts, ratings, bus, metrics, outbox, queue, readyPlayer };
+  return {
+    clock,
+    store,
+    joins,
+    characters,
+    facts,
+    ratings,
+    bus,
+    metrics,
+    outbox,
+    queue,
+    checks,
+    penalties,
+    errors,
+    readyPlayer,
+  };
 }
 
 export type QueueSetup = ReturnType<typeof queueSetup>;

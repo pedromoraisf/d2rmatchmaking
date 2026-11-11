@@ -128,6 +128,15 @@ describe('QueueRefusal', () => {
     expect(QueueRefusal.parse({ error })).toStrictEqual({ error });
   });
 
+  it('accepts the ready-check penalty with the seconds left', () => {
+    const refusal = { error: 'ready-check-penalty', secondsLeft: 300 };
+    expect(QueueRefusal.parse(refusal)).toStrictEqual(refusal);
+  });
+
+  it('rejects a ready-check penalty with zero seconds left', () => {
+    expect(QueueRefusal.safeParse({ error: 'ready-check-penalty', secondsLeft: 0 }).success).toBe(false);
+  });
+
   it('rejects an unknown refusal code', () => {
     expect(QueueRefusal.safeParse({ error: 'bored' }).success).toBe(false);
   });
