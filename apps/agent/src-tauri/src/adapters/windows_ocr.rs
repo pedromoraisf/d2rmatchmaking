@@ -51,8 +51,16 @@ impl TextReader for WindowsOcr {
 /// Copies the region, scaled up by `OCR_SCALE`, into a BGRA8 software bitmap (`ocr_pixels`).
 fn crop_to_bitmap(image: &Rgba, region: Region) -> Result<SoftwareBitmap, ReadError> {
     let bgra = scaled_bgra(image, region, OCR_SCALE).ok_or(ReadError::Failed)?;
-    let width = region.width * OCR_SCALE;
-    let height = region.height * OCR_SCALE;
+    // A region is checked against the frame before scaling; the scaled sizes are still checked, so a size that
+    // overflows `u32` fails the read instead of wrapping.
+    let width = region
+        .width
+        .checked_mul(OCR_SCALE)
+        .ok_or(ReadError::Failed)?;
+    let height = region
+        .height
+        .checked_mul(OCR_SCALE)
+        .ok_or(ReadError::Failed)?;
     let bitmap = SoftwareBitmap::Create(
         BitmapPixelFormat::Bgra8,
         i32::try_from(width).map_err(|_| ReadError::Failed)?,

@@ -44,6 +44,6 @@ screenshots are at `/private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaki
       `tokio::task::spawn_blocking`; the claim names the run (`claim(&RunKey)`) and refuses when the followed run
       differs; core unit tests for each — gate:
       `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-core --lib && cargo nextest run -p d2rmm-agent-adapters`
-- [ ] T10 — `windows_ocr.rs` scaled sizes with `checked_mul` (security low); a `node:test` file for
+- [x] T10 — `windows_ocr.rs` scaled sizes with `checked_mul` (security low); a `node:test` file for
       `scripts/agent/ocr-check.mjs`'s `folderProblems` and `nextestArgs` (finding 4) — gate:
       `pnpm test:harness && cd apps/agent/src-tauri && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`
