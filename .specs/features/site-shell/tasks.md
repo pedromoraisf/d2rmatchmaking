@@ -9,7 +9,7 @@ Spec: `spec.md` · Scenarios: `acceptance.feature` · Branch: `feat/F1-site-shel
       styles) adjusted for AA, imported once in `main.tsx`; fonts link in `index.html`; a unit test that computes the
       contrast of every text token on its surface token (≥ 4.5:1, or ≥ 3:1 for tokens used only for large text and UI
       borders) — gate: `pnpm --filter @d2rmm/web exec vitest run src/app`
-- [ ] T2 — Header and layout: `Layout` becomes the prototype's sticky header (brand, `nav` with existing sections,
+- [x] T2 — Header and layout: `Layout` becomes the prototype's sticky header (brand, `nav` with existing sections,
       agent state pill, Battle.net name with sign-out, or the sign-in controls), the two-column home with the agent
       panel in the status column, the footer notice and agent download; en + pt-BR strings; component tests — gate:
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`

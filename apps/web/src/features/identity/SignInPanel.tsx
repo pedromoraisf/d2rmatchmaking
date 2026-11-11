@@ -49,7 +49,7 @@ export function SignInPanel({
 
   if (session !== null) {
     return (
-      <section>
+      <section className="bnet">
         <p>{t('signIn.signedInAs', { name: session.displayName })}</p>
         {/* A refused Battle.net callback leaves the earlier session in place: the player still sees why (IDB-04). */}
         {bnetFailed ? <p role="alert">{t('signIn.bnetFailed')}</p> : null}
@@ -81,7 +81,7 @@ export function SignInPanel({
   }
 
   return (
-    <section>
+    <section className="sign-in">
       {bnetSignIn ? (
         <p>
           <a href={BNET_LOGIN_PATH}>{t('signIn.bnetLink')}</a>
