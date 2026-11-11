@@ -28,7 +28,7 @@ screenshots are at `/private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaki
 
 ## Batch 2
 
-- [ ] T6 — Headless example reads the drawn Party fixtures; acceptance steps for `acceptance.feature` — gate:
+- [x] T6 — Headless example reads the drawn Party fixtures; acceptance steps for `acceptance.feature` — gate:
       `pnpm exec turbo run test:acceptance -- --grep @AGN-`
 - [ ] T7 — Whole-repo sensors — gate:
       `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check && cd apps/agent/src-tauri && cargo clippy --all-targets -- -D warnings`
