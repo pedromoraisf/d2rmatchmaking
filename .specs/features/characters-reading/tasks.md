@@ -42,3 +42,12 @@ created from `phase/F1` once `characters` has merged. Starts when the screenshot
       fixture, what each marker and popup region read; then fix the cause it shows (region boxes too tight for the
       glyphs, drawn font too small against the 1033 proportions, or OCR scale) and prove it on the PR's Windows job —
       gate: the PR's `agent` job green
+
+## Batch 3 — the maintainer's standalone OCR check
+
+- [x] T10 — Standalone Windows OCR check: `ocr-check.exe <folder>` (cargo example `ocr-check`, examples/ocr-check.rs) reads
+      the five screenshots of `scripts/agent/ocr-check.mjs` with the production reader and the same shared code as the
+      `ocr_check` test (`d2rmm_agent::ocr_check::check_folder`, the crate now also a library), prints PASS or FAIL per
+      file, names missing files, says when the en-US OCR language is not installed, exits non-zero on any failure; CI
+      `agent-build` builds it with static CRT and uploads `ocr-check-windows` (14 days); the README lists the no-install path first and the Node path second —
+      gate: `cd apps/agent/src-tauri && cargo build --example ocr-check && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs` and `pnpm test:harness`

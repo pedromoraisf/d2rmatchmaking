@@ -3,14 +3,8 @@
 #![deny(unsafe_code)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod adapters;
-mod app;
-#[cfg(any(windows, test))]
-mod config;
-#[cfg(any(windows, test))]
-mod fixture_read;
-#[cfg(any(windows, test))]
-mod language_pack;
+#[cfg(windows)]
+use d2rmm_agent::{adapters, app, language_pack};
 
 #[cfg(windows)]
 use std::sync::Arc;

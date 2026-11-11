@@ -83,6 +83,7 @@ fn crop_to_bitmap(image: &Rgba, region: Region) -> Result<SoftwareBitmap, ReadEr
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
     use std::sync::Arc;
 
     use d2rmm_agent_core::messages::FrameReading;
@@ -90,12 +91,15 @@ mod tests {
     use d2rmm_agent_core::read_frame::read_game_name;
     use d2rmm_agent_core::screen_reader::ScreenReader;
     use d2rmm_agent_domain::characters::{Class, Difficulty, Title};
-    use d2rmm_agent_domain::game_name_match::{FieldRead, read_field};
-    use d2rmm_agent_domain::language::{GAME_NAME, LanguagePack, PARTY};
-    use d2rmm_agent_domain::layout::{PanelRegion, ScreenRegion, panel_region, screen_region};
+    use d2rmm_agent_domain::game_name_match::FieldRead;
+    use d2rmm_agent_domain::language::LanguagePack;
+    use d2rmm_agent_domain::layout::{ScreenRegion, screen_region};
     use d2rmm_agent_domain::presence::Screen;
 
     use super::WindowsOcr;
+    use crate::ocr_check::{
+        Card, MAINTAINER_CARDS, check_folder, check_party, check_screen, decode_png,
+    };
 
     /// The committed F0 reference image (AD-047), decoded to RGBA8.
     fn reference_image() -> Rgba {
@@ -105,105 +109,11 @@ mod tests {
         ))
     }
 
-    /// A committed PNG, decoded to RGBA8.
-    fn decode_png(path: &str) -> Rgba {
-        let bytes = std::fs::read(path).expect("the committed image is readable");
-        let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes))
-            .read_info()
-            .expect("the committed image is a PNG");
-        let mut pixels = vec![0; decoder.output_buffer_size().expect("the image size fits")];
-        let info = decoder
-            .next_frame(&mut pixels)
-            .expect("the committed image decodes");
-        Rgba {
-            width: info.width,
-            height: info.height,
-            pixels,
-        }
-    }
-
-    /// The text of one panel region, read with the en-US engine.
-    fn read_panel(reader: &WindowsOcr, image: &Rgba, panel: PanelRegion) -> String {
-        let region = panel_region(panel, image.width, image.height)
-            .expect("a 1920-wide screenshot has the panel layout");
-        reader.read(image, region).expect("the region reads").text
-    }
-
-    /// Reads one Party frame: the panel must be open, and the Game Name field must read as `expected` for the room's name
-    /// `expected_name`. The error names what was read, so a failure shows the OCR text.
-    fn check_party(
-        reader: &WindowsOcr,
-        image: &Rgba,
-        expected_name: &str,
-        expected: FieldRead,
-    ) -> Result<(), String> {
-        let language = LanguagePack::english();
-        let title = read_panel(reader, image, PanelRegion::PartyTitle);
-        let label = read_panel(reader, image, PanelRegion::GameNameLabel);
-        let field = read_panel(reader, image, PanelRegion::GameNameField);
-        let read = format!("title {title:?}, label {label:?}, field {field:?}");
-        if !language.is_word(&title, PARTY) {
-            return Err(format!("the panel is not open: {read}"));
-        }
-        if !language.is_word(&label, GAME_NAME) {
-            return Err(format!("the Game Name label is not read: {read}"));
-        }
-        let got = read_field(&field, expected_name);
-        if got == expected {
-            Ok(())
-        } else {
-            Err(format!(
-                "the field is {got:?}, expected {expected:?}: {read}"
-            ))
-        }
-    }
-
     /// Fails, rather than skips, without the en-US engine.
     fn engine() -> WindowsOcr {
         WindowsOcr::new().expect(
             "the en-US Windows OCR engine is installed (this test fails, it never skips, without it)",
         )
-    }
-
-    /// A card as the character checks compare it: name, class, level and title.
-    type Card = (&'static str, Class, u8, Option<Title>);
-
-    /// The first two cards of the maintainer's selection screen (2026-11-10): a titled Matriarch and an untitled Sorceress.
-    const MAINTAINER_CARDS: [Card; 2] = [
-        ("vukVuka", Class::Sorceress, 88, Some(Title::Matriarch)),
-        ("vukaDao", Class::Sorceress, 11, None),
-    ];
-
-    /// Checks one character frame: its screen, and its cards in order. The error names what was read.
-    fn check_screen(reading: &FrameReading, screen: Screen, cards: &[Card]) -> Result<(), String> {
-        if reading.screen != screen {
-            return Err(format!(
-                "the screen is {:?}, expected {screen:?}",
-                reading.screen
-            ));
-        }
-        let listed: Vec<String> = reading
-            .cards
-            .iter()
-            .map(|card| {
-                format!(
-                    "{} {:?} {} {:?}",
-                    card.name(),
-                    card.class(),
-                    card.level(),
-                    card.title()
-                )
-            })
-            .collect();
-        let wanted: Vec<String> = cards
-            .iter()
-            .map(|(name, class, level, title)| format!("{name} {class:?} {level} {title:?}"))
-            .collect();
-        if listed == wanted {
-            Ok(())
-        } else {
-            Err(format!("the cards are {listed:?}, expected {wanted:?}"))
-        }
     }
 
     /// Reads a committed character fixture (`fixtures/characters`) with the screen reader and the en-US engine.
@@ -386,91 +296,19 @@ mod tests {
         );
     }
 
-    /// The maintainer's Windows check (apps/agent/README.md, `scripts/agent/ocr-check.mjs <dir>`). It reads the three
-    /// screenshots in the folder named by `D2RMM_OCR_CHECK_DIR`, prints one verdict per file with what it read, and fails
-    /// if any file fails. Ignored by default, so the committed suite never reads the maintainer's images.
+    /// The maintainer's Windows check (apps/agent/README.md, `scripts/agent/ocr-check.mjs <dir>`): the shared check of
+    /// `crate::ocr_check` reads the five screenshots in the folder named by `D2RMM_OCR_CHECK_DIR`, prints one verdict per
+    /// file with what it read, and fails if any file fails. Ignored by default, so the committed suite never reads the
+    /// maintainer's images.
     #[test]
     #[ignore = "the maintainer's Windows check: run scripts/agent/ocr-check.mjs <dir>"]
     fn ocr_check() {
         let dir = std::env::var("D2RMM_OCR_CHECK_DIR")
             .expect("D2RMM_OCR_CHECK_DIR names the screenshot folder");
-        let reader = engine();
-        let cases = [
-            (
-                "maintainer-party-revealed.png",
-                "DUEL NK LOCKS",
-                FieldRead::Matched,
-            ),
-            (
-                "maintainer-party-revealed-tooltip.png",
-                "DUEL NK LOCKS",
-                FieldRead::Matched,
-            ),
-            (
-                "maintainer-party-masked.png",
-                "DUEL NK LOCKS",
-                FieldRead::Masked,
-            ),
-        ];
-        let mut failed = Vec::new();
-        for (name, expected_name, expected) in cases {
-            let path = std::path::Path::new(&dir).join(name);
-            let image = decode_png(path.to_str().expect("the folder path is UTF-8"));
-            match check_party(&reader, &image, expected_name, expected) {
-                Ok(()) => println!("PASS {name}"),
-                Err(error) => {
-                    println!("FAIL {name}: {error}");
-                    failed.push(name);
-                }
-            }
+        let reader: Arc<dyn TextReader + Send + Sync> = Arc::new(engine());
+        if let Err(failed) = check_folder(Path::new(&dir), reader) {
+            panic!("{} file(s) failed: {failed:?}", failed.len());
         }
-        // The selection screen and its difficulty popup (CHR-06, CHR-18): the maintainer's two screenshots of 2026-11-10.
-        let screens = ScreenReader::new(Arc::new(engine()), Arc::new(LanguagePack::english()));
-        let character_cases: [(&str, Screen, Vec<Card>); 2] = [
-            (
-                "maintainer-select-screen.png",
-                Screen::CharacterSelect,
-                MAINTAINER_CARDS.to_vec(),
-            ),
-            (
-                "maintainer-select-difficulty.png",
-                Screen::CharacterSelect,
-                MAINTAINER_CARDS.to_vec(),
-            ),
-        ];
-        for (name, screen, cards) in character_cases {
-            let path = std::path::Path::new(&dir).join(name);
-            let image = decode_png(path.to_str().expect("the folder path is UTF-8"));
-            let reading = screens.read(&image);
-            let mut verdict = check_screen(&reading, screen, &cards);
-            if name == "maintainer-select-difficulty.png" && verdict.is_ok() {
-                let matriarch = reading
-                    .cards
-                    .first()
-                    .map(|card| card.unlocked_difficulties());
-                if matriarch
-                    != Some(vec![
-                        Difficulty::Normal,
-                        Difficulty::Nightmare,
-                        Difficulty::Hell,
-                    ])
-                {
-                    verdict = Err(format!("the popup's difficulties are {matriarch:?}"));
-                }
-            }
-            match verdict {
-                Ok(()) => println!("PASS {name}"),
-                Err(error) => {
-                    println!("FAIL {name}: {error}");
-                    failed.push(name);
-                }
-            }
-        }
-        assert!(
-            failed.is_empty(),
-            "{} file(s) failed: {failed:?}",
-            failed.len()
-        );
     }
 
     /// Fails, rather than skips, when the en-US OCR engine is not installed on the machine.

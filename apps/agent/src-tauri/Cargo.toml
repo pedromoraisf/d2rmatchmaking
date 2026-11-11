@@ -25,6 +25,8 @@ tauri = "2"
 tauri-plugin-updater = "2"
 thiserror = "2"
 uuid = { version = "1", features = ["v4"] }
+# The PNG decoder of the maintainer's OCR check (`ocr_check`, examples/ocr-check.rs) and of its test (AGN-02, AGS-16).
+png = "0.18"
 
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
@@ -39,5 +41,10 @@ fixture-read = ["dep:image"]
 tauri-build = "2"
 
 [dev-dependencies]
-png = "0.18"
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt"] }
+
+# The maintainer's standalone Windows OCR check: `ocr-check.exe <folder>` (apps/agent/README.md). An example, so the
+# installer never ships it and `tauri build` keeps its default run target. CI builds it on windows-latest (ci.yml agent-build).
+[[example]]
+name = "ocr-check"
+path = "examples/ocr-check.rs"
