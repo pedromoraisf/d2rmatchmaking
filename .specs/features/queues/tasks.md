@@ -10,7 +10,7 @@ edited; one Conventional Commit per task (`feat(matchmaking): …`, `feat(web): 
 
 - [x] T1 — Contracts of `design.md § Contracts` with unit tests; OpenAPI and AsyncAPI regenerated — gate:
       `pnpm --filter @d2rmm/contracts exec vitest run && pnpm contracts:openapi`
-- [ ] T2 — Domain: queue ticket, entry rules (QUE-03, QUE-04), band (QUE-08), matcher (QUE-07, QUE-09 … QUE-12) with
+- [x] T2 — Domain: queue ticket, entry rules (QUE-03, QUE-04), band (QUE-08), matcher (QUE-07, QUE-09 … QUE-12) with
       unit tests on every boundary (band at 29/30/59/60 s and the ± 400 cap, mutual band, floors 9/10, 39/40, 69/70,
       each filter differing alone, group sizes, teleporter/BO priority, host and join order, 2v2 snake teams) — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/modules/matchmaking/domain`
