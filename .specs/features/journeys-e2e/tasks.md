@@ -40,7 +40,10 @@ blocker on the feature that owns it; never commit a game screenshot (the Party f
 - [x] T8 — JRN-04: the k6 journey drives the real journey (queue join, ready-check accept by the agent token, room
       assignment, host and member observations to `active`) for ≥ 100 players; the existing load unit tests and the
       smoke profile pass — gate: `pnpm test:harness && pnpm test:load:smoke`
-- [ ] T9 — The whole acceptance suite, the traced scenarios alone, then the sensors — gate:
+- [x] T9 — The whole acceptance suite, the traced scenarios alone, then the sensors — gate:
       `pnpm exec turbo run test:acceptance -- --grep-invert @OBS- && pnpm exec turbo run test:acceptance -- --grep @OBS- --workers=1 && pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check`
+
+T9 proof: the whole acceptance suite (`@OBS-` included) passed in CI on `e4135be` (PR #55, `integration`); locally it
+never ran green in one go under a load average of 100–170, each failed scenario passing alone.
 
 The full load run (`pnpm test:load`, NFR-14) is the phase review's proof, run once by the orchestrator on `phase/F1`.
