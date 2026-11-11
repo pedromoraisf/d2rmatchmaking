@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  fitsAccountLimit,
   isAllowedDifficultyList,
   isCharacterLevel,
   isCharacterName,
@@ -121,5 +122,36 @@ describe('parseCharacterBatch (CHR-09, CHR-10)', () => {
       ok: false,
       error: 'invalid-batch',
     });
+  });
+});
+
+describe('account limit (security finding 2)', () => {
+  /** Distinct letters-only names: `Heroaa`, `Heroab`, … */
+  const nameOf = (index: number) =>
+    `Hero${String.fromCharCode(97 + Math.floor(index / 26))}${String.fromCharCode(97 + (index % 26))}`;
+  const stored = (count: number) => Array.from({ length: count }, (_, index) => nameOf(index));
+  const batchOf = (indexes: readonly number[]) => {
+    const parsed = parseCharacterBatch(indexes.map((index) => ({ ...sorc, name: nameOf(index) })));
+    if (!parsed.ok) {
+      throw new Error('the fixture batch must be valid');
+    }
+    return parsed.value;
+  };
+
+  it('a batch that ends at exactly 60 names fits', () => {
+    expect(fitsAccountLimit(stored(59), batchOf([100]))).toBe(true);
+  });
+
+  it('a batch that would pass 60 names does not fit', () => {
+    expect(fitsAccountLimit(stored(60), batchOf([100]))).toBe(false);
+  });
+
+  it('names the account already holds are replaced, so they do not count', () => {
+    expect(fitsAccountLimit(stored(60), batchOf([0, 1, 2]))).toBe(true);
+  });
+
+  it('a mixed batch counts only its new names', () => {
+    expect(fitsAccountLimit(stored(58), batchOf([0, 100, 101]))).toBe(true);
+    expect(fitsAccountLimit(stored(58), batchOf([100, 101, 102]))).toBe(false);
   });
 });

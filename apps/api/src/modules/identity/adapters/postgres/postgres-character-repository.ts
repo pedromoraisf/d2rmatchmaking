@@ -20,6 +20,25 @@ export class PostgresCharacterRepository implements CharacterRepository {
     this.#db = db;
   }
 
+  async lockAccount(tx: Transaction, accountId: string): Promise<void> {
+    // The account row is the lock: two batches of one account wait for each other until their transactions end.
+    await executorOf(tx)
+      .selectFrom('identity.accounts')
+      .select('id')
+      .where('id', '=', accountId)
+      .forUpdate()
+      .execute();
+  }
+
+  async storedNames(tx: Transaction, accountId: string): Promise<readonly string[]> {
+    const rows = await executorOf(tx)
+      .selectFrom('identity.characters')
+      .select('name')
+      .where('account_id', '=', accountId)
+      .execute();
+    return rows.map((row) => row.name);
+  }
+
   async upsertMany(
     tx: Transaction,
     accountId: string,

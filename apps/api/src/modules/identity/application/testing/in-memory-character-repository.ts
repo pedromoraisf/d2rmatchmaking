@@ -6,6 +6,16 @@ import type { Transaction } from '../../../../shared-kernel/index.ts';
 export class InMemoryCharacterRepository implements CharacterRepository {
   readonly #rows = new Map<string, { readonly accountId: string; readonly character: StoredCharacter }>();
 
+  async lockAccount(): Promise<void> {
+    // One writer at a time in memory: nothing to lock.
+  }
+
+  async storedNames(_tx: Transaction, accountId: string): Promise<readonly string[]> {
+    return [...this.#rows.values()]
+      .filter((row) => row.accountId === accountId)
+      .map((row) => row.character.name);
+  }
+
   async upsertMany(
     _tx: Transaction,
     accountId: string,

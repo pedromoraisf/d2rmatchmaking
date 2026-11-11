@@ -44,7 +44,7 @@ export function characterRoutes(app: FastifyInstance, deps: CharacterRouteDeps):
       }
       const recorded = await useCases.recordCharacters({ accountId, characters: request.body.characters });
       if (!recorded.ok) {
-        return reply.code(400).send({ error: 'invalid-characters' });
+        return reply.code(400).send({ error: recorded.error });
       }
       return reply.code(204).send(null);
     },

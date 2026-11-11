@@ -462,6 +462,17 @@ const SORC = {
   unlockedDifficulties: ['normal', 'nightmare', 'hell'],
 };
 
+/** `count` distinct letters-only names from `from` on, each a valid card (three letters per index). */
+function heroes(from: number, count: number): unknown[] {
+  return Array.from({ length: count }, (_, index) => {
+    const n = from + index;
+    const letters = [Math.floor(n / 676), Math.floor(n / 26) % 26, n % 26]
+      .map((digit) => String.fromCharCode(97 + digit))
+      .join('');
+    return { ...SORC, name: `Hero${letters}` };
+  });
+}
+
 /** The agent's batch post (CHR-09) with its token. */
 function postCharacters(token: string | undefined, characters: unknown[], version = AGENT_VERSION) {
   return app.app.inject({
@@ -543,6 +554,20 @@ describe('character routes', () => {
 
     expect((await postCharacters(token, characters)).statusCode).toBe(400);
     expect((await listCharacters(cookie)).json()).toEqual({ characters: [] });
+  });
+
+  it('answers 400 too-many-characters past 60 names and stores none of the batch', async () => {
+    const { cookie } = await freshSession();
+    const token = await pairedAgentToken(cookie);
+    expect((await postCharacters(token, heroes(0, 24))).statusCode).toBe(204);
+    expect((await postCharacters(token, heroes(24, 24))).statusCode).toBe(204);
+    expect((await postCharacters(token, heroes(48, 12))).statusCode).toBe(204);
+
+    const refused = await postCharacters(token, heroes(60, 2));
+
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json()).toEqual({ error: 'too-many-characters' });
+    expect((await listCharacters(cookie)).json().characters).toHaveLength(60);
   });
 
   it('keeps the characters of one account apart from another', async () => {

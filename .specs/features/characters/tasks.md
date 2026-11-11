@@ -81,7 +81,7 @@ The screen reading (old T8 regions/classifier/parser, T9 Windows OCR on fixtures
       `disallowed-methods` in every agent `clippy.toml`; fix the "only two adapters may allow unsafe" wording in
       `window_capture.rs` and `design.md` (three adapters) — gate:
       `pnpm test:harness && cd apps/agent/src-tauri && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`
-- [ ] T11 — Bound the stored characters (security finding 2): an account holds at most 60 characters; a batch that
+- [x] T11 — Bound the stored characters (security finding 2): an account holds at most 60 characters; a batch that
       would take it past 60 new names answers 400 `too-many-characters` and stores nothing; application unit test and a
       route integration test — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/modules/identity && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/identity-routes.int.test.ts`

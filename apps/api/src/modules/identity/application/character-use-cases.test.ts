@@ -131,6 +131,104 @@ describe('recordCharacters (CHR-09)', () => {
   });
 });
 
+/** Three letters per index, so every name is letters only and unique from 0 to 17575. */
+function lettersOf(index: number): string {
+  let rest = index;
+  let out = '';
+  for (let place = 0; place < 3; place++) {
+    out = String.fromCharCode(97 + (rest % 26)) + out;
+    rest = Math.floor(rest / 26);
+  }
+  return out;
+}
+
+/** `count` distinct characters, from `from` on, named `Hero<letters>`. */
+function heroes(count: number, from = 0): CharacterInput[] {
+  return Array.from({ length: count }, (_, index) => ({ ...sorc, name: `Hero${lettersOf(from + index)}` }));
+}
+
+describe('account limit of 60 characters (security finding 2)', () => {
+  it('stores a batch that brings the account to exactly 60 names', async () => {
+    const { useCases, characters } = setup();
+
+    expect(await useCases.recordCharacters({ accountId: 'alice', characters: heroes(24) })).toEqual({
+      ok: true,
+      value: { count: 24 },
+    });
+    expect(await useCases.recordCharacters({ accountId: 'alice', characters: heroes(24, 24) })).toEqual({
+      ok: true,
+      value: { count: 24 },
+    });
+    expect(await useCases.recordCharacters({ accountId: 'alice', characters: heroes(12, 48) })).toEqual({
+      ok: true,
+      value: { count: 12 },
+    });
+
+    expect(await characters.listByAccount('alice')).toHaveLength(60);
+  });
+
+  it('refuses a batch that would pass 60 new names, stores none of it and writes no outbox row', async () => {
+    const { useCases, characters, outbox } = setup();
+    await useCases.recordCharacters({ accountId: 'alice', characters: heroes(24) });
+    await useCases.recordCharacters({ accountId: 'alice', characters: heroes(24, 24) });
+    await useCases.recordCharacters({ accountId: 'alice', characters: heroes(12, 48) });
+    const appendedBefore = outbox.appended.length;
+
+    const result = await useCases.recordCharacters({
+      accountId: 'alice',
+      characters: heroes(2, 60),
+    });
+
+    expect(result).toEqual({ ok: false, error: 'too-many-characters' });
+    expect(await characters.listByAccount('alice')).toHaveLength(60);
+    expect(outbox.appended).toHaveLength(appendedBefore);
+  });
+
+  it('accepts a batch of names the account already holds when it is at the limit', async () => {
+    const { useCases, characters } = setup();
+    await useCases.recordCharacters({ accountId: 'alice', characters: heroes(24) });
+    await useCases.recordCharacters({ accountId: 'alice', characters: heroes(24, 24) });
+    await useCases.recordCharacters({ accountId: 'alice', characters: heroes(12, 48) });
+
+    const result = await useCases.recordCharacters({
+      accountId: 'alice',
+      characters: heroes(24).map((character) => ({ ...character, level: 90 })),
+    });
+
+    expect(result).toEqual({ ok: true, value: { count: 24 } });
+    expect(await characters.listByAccount('alice')).toHaveLength(60);
+  });
+
+  it('counts only the new names of a mixed batch against the limit', async () => {
+    const { useCases, characters } = setup();
+    await useCases.recordCharacters({ accountId: 'alice', characters: heroes(24) });
+    await useCases.recordCharacters({ accountId: 'alice', characters: heroes(24, 24) });
+    await useCases.recordCharacters({ accountId: 'alice', characters: heroes(10, 48) });
+
+    const mixed = await useCases.recordCharacters({
+      accountId: 'alice',
+      characters: [...heroes(1), ...heroes(2, 58)],
+    });
+    expect(mixed).toEqual({ ok: true, value: { count: 3 } });
+    expect(await characters.listByAccount('alice')).toHaveLength(60);
+
+    const onMore = await useCases.recordCharacters({ accountId: 'alice', characters: heroes(1, 60) });
+    expect(onMore).toEqual({ ok: false, error: 'too-many-characters' });
+  });
+
+  it('does not count the characters of another account', async () => {
+    const { useCases, characters } = setup();
+    await useCases.recordCharacters({ accountId: 'alice', characters: heroes(24) });
+    await useCases.recordCharacters({ accountId: 'alice', characters: heroes(24, 24) });
+    await useCases.recordCharacters({ accountId: 'alice', characters: heroes(12, 48) });
+
+    const result = await useCases.recordCharacters({ accountId: 'bob', characters: heroes(24, 60) });
+
+    expect(result).toEqual({ ok: true, value: { count: 24 } });
+    expect(await characters.listByAccount('bob')).toHaveLength(24);
+  });
+});
+
 describe('listMyCharacters (CHR-11)', () => {
   it('lists only the signed-in account characters, ordered by name', async () => {
     const { useCases } = setup();

@@ -8,6 +8,13 @@ export interface StoredCharacter extends Character {
 
 /** Characters keyed by account and name (design.md § Identity module, CHR-09). */
 export interface CharacterRepository {
+  /**
+   * Serializes the batches of one account until the caller's transaction ends, so the account limit (security finding 2)
+   * holds when two agents post at once.
+   */
+  lockAccount(tx: Transaction, accountId: string): Promise<void>;
+  /** The names the account holds now, read in the caller's transaction. */
+  storedNames(tx: Transaction, accountId: string): Promise<readonly string[]>;
   /** Creates each character or replaces its fields with this reading, in the caller's transaction. */
   upsertMany(
     tx: Transaction,

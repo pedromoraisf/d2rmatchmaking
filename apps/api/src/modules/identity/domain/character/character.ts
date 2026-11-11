@@ -25,6 +25,8 @@ export type Difficulty = 'normal' | 'nightmare' | 'hell';
 
 /** One batch of the agent holds at most this many cards of one screen (CHR-10). */
 export const MAX_CHARACTERS_PER_BATCH = 24;
+/** An account holds at most this many stored characters; a batch that would pass it stores nothing (security finding 2). */
+export const MAX_CHARACTERS_PER_ACCOUNT = 60;
 export const LEVEL_MIN = 1;
 export const LEVEL_MAX = 99;
 const NAME_MIN_LENGTH = 2;
@@ -129,4 +131,14 @@ export function parseCharacterBatch(
     return err('invalid-batch');
   }
   return ok(characters);
+}
+
+/**
+ * True when storing the batch keeps the account within MAX_CHARACTERS_PER_ACCOUNT. A name the account already holds is
+ * replaced in place, so only the new names count against the limit (security finding 2).
+ */
+export function fitsAccountLimit(storedNames: readonly string[], batch: readonly Character[]): boolean {
+  const held = new Set(storedNames);
+  const newNames = batch.filter((character) => !held.has(character.name)).length;
+  return storedNames.length + newNames <= MAX_CHARACTERS_PER_ACCOUNT;
 }
