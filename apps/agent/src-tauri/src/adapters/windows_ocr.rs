@@ -87,7 +87,7 @@ mod tests {
     use d2rmm_agent_domain::characters::{Class, Difficulty, Title};
     use d2rmm_agent_domain::game_name_match::{FieldRead, read_field};
     use d2rmm_agent_domain::language::{GAME_NAME, LanguagePack, PARTY};
-    use d2rmm_agent_domain::layout::{PanelRegion, panel_region};
+    use d2rmm_agent_domain::layout::{PanelRegion, ScreenRegion, panel_region, screen_region};
     use d2rmm_agent_domain::presence::Screen;
 
     use super::WindowsOcr;
@@ -210,12 +210,66 @@ mod tests {
         reader.read(&image)
     }
 
+    /// Prints what the engine reads of each marker, popup and first-card region of a drawn fixture, with the region's box
+    /// (T9 diagnostic). The CI log shows which region reads nothing, and what the engine returned for it.
+    fn print_marker_regions(engine: &WindowsOcr, name: &str) {
+        let image = decode_png(&format!(
+            "{}/../fixtures/characters/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        ));
+        let regions = [
+            ScreenRegion::CreateNew,
+            ScreenRegion::Life,
+            ScreenRegion::AreaDifficulty,
+            ScreenRegion::SelectDifficulty,
+            ScreenRegion::PopupNormal,
+            ScreenRegion::PopupNightmare,
+            ScreenRegion::PopupHell,
+            ScreenRegion::CardTitle(0),
+            ScreenRegion::CardName(0),
+            ScreenRegion::CardLevel(0),
+        ];
+        for region in regions {
+            let Some(area) = screen_region(region, image.width, image.height) else {
+                println!(
+                    "{name} {region:?}: no region in {}x{}",
+                    image.width, image.height
+                );
+                continue;
+            };
+            let text = match engine.read(&image, area) {
+                Ok(read) => format!("{:?}", read.text),
+                Err(_) => "the engine failed".to_string(),
+            };
+            println!(
+                "{name} {region:?} box {}x{} at {},{} in {}x{}: {text}",
+                area.width, area.height, area.x, area.y, image.width, image.height
+            );
+        }
+    }
+
     /// The character fixtures xtask draws (CHR-04, CHR-06, CHR-08, CHR-18): every screen, read with the en-US engine. The
     /// selection screen's cards, the popup's difficulties, the in-game and automap markers and the unknown menu. Every
     /// fixture is read before the test fails, so one run shows every mismatch.
     #[test]
     fn ocr_reads_the_drawn_character_fixtures() {
-        let reader = ScreenReader::new(Arc::new(engine()), Arc::new(LanguagePack::english()));
+        let engine = Arc::new(engine());
+        for name in [
+            "select-normal.png",
+            "select-titles.png",
+            "select-full.png",
+            "select-difficulty.png",
+            "select-difficulty-dimmed.png",
+            "in-game.png",
+            "automap.png",
+            "menu.png",
+        ] {
+            print_marker_regions(&engine, name);
+        }
+        let reader = ScreenReader::new(
+            Arc::clone(&engine) as Arc<dyn TextReader + Send + Sync>,
+            Arc::new(LanguagePack::english()),
+        );
         let full: Vec<Card> = vec![
             ("Aldric", Class::Paladin, 12, Some(Title::Sir)),
             ("Morrow", Class::Druid, 40, Some(Title::Lady)),
