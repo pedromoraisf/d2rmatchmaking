@@ -657,13 +657,13 @@ dependencies = [
  "d2rmm-agent-adapters",
  "d2rmm-agent-core",
  "d2rmm-agent-domain",
+ "global-hotkey",
  "image",
  "keyring",
  "png",
  "serde_json",
  "tauri",
  "tauri-build",
- "tauri-plugin-global-shortcut",
  "tauri-plugin-updater",
  "thiserror 2.0.21",
  "tokio",
@@ -1506,7 +1506,6 @@ dependencies = [
  "objc2",
  "objc2-app-kit",
  "once_cell",
- "serde",
  "thiserror 2.0.21",
  "windows-sys 0.59.0",
  "x11rb",
@@ -4463,21 +4462,6 @@ dependencies = [
  "serde_json",
  "tauri-utils",
  "walkdir",
-]
-
-[[package]]
-name = "tauri-plugin-global-shortcut"
-version = "2.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93ff17919fe09852d269bd37b1d3d2e993b9dbb514afe7acbf3346c1d3627e2d"
-dependencies = [
- "global-hotkey",
- "log",
- "serde",
- "serde_json",
- "tauri",
- "tauri-plugin",
- "thiserror 2.0.21",
 ]
 
 [[package]]

@@ -60,6 +60,7 @@ deny = [
   { crate = "tauri-plugin-shell" },
   { crate = "tauri-plugin-fs" },
   { crate = "tauri-plugin-http" },
+  # The agent's global hotkeys use `global-hotkey` from Rust only, never this plugin (no webview exposure).
   { crate = "tauri-plugin-global-shortcut" },
 ]
 

@@ -53,3 +53,11 @@ any route task's gate, no test weakened, `acceptance.feature` not edited; the ho
       reconnect replays them, or re-read on the site after each answer) — gate: 3 consecutive full runs of
       `pnpm exec turbo run test:acceptance -- --grep "@RDY-|@QUE-"` with 26/26
       Cause: no event was lost. The API's matcher timer (`ClockScheduler.every`) ran on a real 1-second `setInterval` while the acceptance clock is frozen, so about 1 time in 3 it re-matched Alice (back in the queue after Bob's decline) with Cara between two steps and opened a new ready check (RDY-04 steps saw no waiting ticket, or an overlay again); `every` now follows the injected clock like `at`. The RDY-07 flake was the agent comparing the check's absolute deadline with its own wall clock; it now counts the time left from the server's `now`.
+- [x] T11 — Hotkey without the banned plugin: `tauri-plugin-global-shortcut` is on the `cargo deny` ban list (ADR 010,
+      FR-29), so Ctrl+Shift+A (RDY-07) is registered with the `global-hotkey` crate from Rust only (`RegisterHotKey`: no
+      keyboard hook, no input, nothing exposed to the webview). The manager is created on the Tauri main thread in
+      `setup` and used only there (`run_on_main_thread`); a thread forwards presses to `accept_ready_check` (API call
+      only). Registered while a check is open, unregistered when it closes or at the deadline; unit tests with a fake
+      registrar — gate:
+      `cd apps/agent/src-tauri && cargo deny --locked check && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`
+      and `pnpm test:harness` and `pnpm --filter @d2rmm/agent exec vitest run`
