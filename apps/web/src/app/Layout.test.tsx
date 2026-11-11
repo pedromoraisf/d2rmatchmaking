@@ -1,4 +1,4 @@
-import { cleanup, screen } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { renderInLanguage } from '../test/render.tsx';
 import { AGENT_DOWNLOAD_URL, Layout } from './Layout.tsx';
@@ -49,5 +49,43 @@ describe('Layout', () => {
       ),
     ).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Baixar o agente' })).toBeTruthy();
+  });
+
+  it('keeps one h1 and the header, navigation, main and footer landmarks (SHL-05)', () => {
+    renderInLanguage(<Layout>{null}</Layout>, ['en-US']);
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole('banner')).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: 'Sections' })).toBeTruthy();
+    expect(screen.getByRole('main')).toBeTruthy();
+    expect(screen.getByRole('contentinfo')).toBeTruthy();
+  });
+
+  it('marks the Play section as the current page', () => {
+    renderInLanguage(<Layout>{null}</Layout>, ['pt-BR']);
+    expect(screen.getByRole('link', { name: 'Partida' }).getAttribute('aria-current')).toBe('page');
+  });
+
+  it('puts the agent panel and the agent download in the status column', () => {
+    const panel = 'Agent online';
+    renderInLanguage(<Layout status={<p>{panel}</p>}>{null}</Layout>, ['en-US']);
+    const status = screen.getByRole('complementary', { name: 'Status' });
+    expect(within(status).getByText(panel)).toBeTruthy();
+    expect(within(status).getByRole('link', { name: 'Download the agent' })).toBeTruthy();
+  });
+
+  it('shows the agent state and the account in the header, before the main column', () => {
+    const agentState = 'No agent paired';
+    const accountSlot = 'Account slot';
+    const content = 'Player content';
+    renderInLanguage(
+      <Layout agent={<span>{agentState}</span>} account={<span>{accountSlot}</span>}>
+        <p>{content}</p>
+      </Layout>,
+      ['en-US'],
+    );
+    const banner = screen.getByRole('banner');
+    expect(within(banner).getByText(agentState)).toBeTruthy();
+    expect(within(banner).getByText(accountSlot)).toBeTruthy();
+    expect(within(screen.getByRole('main')).getByText(content)).toBeTruthy();
   });
 });

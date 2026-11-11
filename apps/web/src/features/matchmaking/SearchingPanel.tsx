@@ -49,17 +49,37 @@ export function SearchingPanel({
 
   const waited = (now - Date.parse(ticket.joinedAt)) / 1000;
   return (
-    <section aria-labelledby="searching-heading">
-      <h2 id="searching-heading">{t('queue.searching.heading')}</h2>
-      <p>{t('queue.searching.waited', { time: formatWait(waited) })}</p>
-      {ticket.band !== null ? (
-        <p>{t('queue.searching.band', { low: ticket.band.low, high: ticket.band.high })}</p>
+    <section className="panel pad search-panel" aria-labelledby="searching-heading">
+      <div className="s-top">
+        <div>
+          <div className="lbl">
+            <span className="pulse" aria-hidden="true" />
+          </div>
+          <h2 id="searching-heading">{t('queue.searching.heading')}</h2>
+          <div className="pairs">
+            {ticket.band !== null ? (
+              <span className="tag">
+                {t('queue.searching.band', { low: ticket.band.low, high: ticket.band.high })}
+              </span>
+            ) : null}
+            <span className="tag">{t('queue.searching.pool', { players: ticket.poolSize })}</span>
+          </div>
+        </div>
+        <div className="num-block">
+          <div className="clock">{formatWait(waited)}</div>
+          <div className="note">{t('queue.searching.waited', { time: formatWait(waited) })}</div>
+        </div>
+      </div>
+      <div className="cta">
+        <button type="button" className="btn bad" onClick={() => void leave()} disabled={sending}>
+          {t('queue.searching.leave')}
+        </button>
+      </div>
+      {failed ? (
+        <p role="alert" className="note">
+          {t('queue.searching.leaveFailed')}
+        </p>
       ) : null}
-      <p>{t('queue.searching.pool', { players: ticket.poolSize })}</p>
-      <button type="button" onClick={() => void leave()} disabled={sending}>
-        {t('queue.searching.leave')}
-      </button>
-      {failed ? <p role="alert">{t('queue.searching.leaveFailed')}</p> : null}
     </section>
   );
 }

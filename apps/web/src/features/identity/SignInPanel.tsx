@@ -49,11 +49,11 @@ export function SignInPanel({
 
   if (session !== null) {
     return (
-      <section>
+      <section className="bnet">
         <p>{t('signIn.signedInAs', { name: session.displayName })}</p>
         {/* A refused Battle.net callback leaves the earlier session in place: the player still sees why (IDB-04). */}
         {bnetFailed ? <p role="alert">{t('signIn.bnetFailed')}</p> : null}
-        <button type="button" disabled={signingOut} onClick={() => void signOut()}>
+        <button type="button" className="btn quiet" disabled={signingOut} onClick={() => void signOut()}>
           {t('signIn.signOut')}
         </button>
         {signOutFailed ? <p role="alert">{t('app.error')}</p> : null}
@@ -81,10 +81,12 @@ export function SignInPanel({
   }
 
   return (
-    <section>
+    <section className="sign-in">
       {bnetSignIn ? (
         <p>
-          <a href={BNET_LOGIN_PATH}>{t('signIn.bnetLink')}</a>
+          <a className="btn" href={BNET_LOGIN_PATH}>
+            {t('signIn.bnetLink')}
+          </a>
         </p>
       ) : null}
       {bnetFailed ? <p role="alert">{t('signIn.bnetFailed')}</p> : null}
@@ -100,7 +102,9 @@ export function SignInPanel({
                 onChange={(event) => setPlayerName(event.target.value)}
               />
             </label>
-            <button type="submit">{t('signIn.submit')}</button>
+            <button type="submit" className="btn">
+              {t('signIn.submit')}
+            </button>
           </form>
           {failure !== null ? (
             <p role="alert">{failure === 'invalid' ? t('signIn.invalidName') : t('app.error')}</p>

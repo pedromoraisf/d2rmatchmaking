@@ -7,6 +7,21 @@
     "downloadAgent": "Baixar o agente",
     "smartScreenNote": "O instalador ainda não tem assinatura de código, por isso o Windows SmartScreen pode avisar antes de executá-lo."
   },
+  "nav": {
+    "label": "Seções",
+    "play": "Partida"
+  },
+  "header": {
+    "agent": {
+      "none": "Nenhum agente pareado",
+      "offline": "Agente não conectado",
+      "gameClosed": "Agente online · jogo fechado",
+      "gameOpen": "Agente online · jogo aberto"
+    }
+  },
+  "status": {
+    "label": "Situação"
+  },
   "signIn": {
     "heading": "Entrar com uma conta de teste",
     "playerName": "Nome do jogador",

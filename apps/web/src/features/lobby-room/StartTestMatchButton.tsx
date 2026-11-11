@@ -25,7 +25,7 @@ export function StartTestMatchButton({ client, onStarted }: StartTestMatchButton
 
   return (
     <div>
-      <button type="button" onClick={() => void start()}>
+      <button type="button" className="btn" onClick={() => void start()}>
         {t('testMatch.start')}
       </button>
       {failed ? <p role="alert">{t('app.error')}</p> : null}

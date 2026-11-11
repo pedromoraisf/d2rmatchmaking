@@ -1,6 +1,7 @@
 // The queue form (QUE-15, prototype "Partida"): mode, character, difficulty, region and the mode's options, with "Find match"
 // off and its reason shown while an entry rule fails. Every control is a native element, so the keyboard reaches all of it.
 import { useId, useState, type FormEvent } from 'react';
+import './queue.css';
 import type { CharacterView, QueueTicketView } from '@d2rmm/contracts';
 import { useTranslation } from 'react-i18next';
 import type { ApiClient } from '../../shared/api-client.ts';
@@ -24,6 +25,12 @@ import {
 type Mode = 'pvp' | 'leveling';
 
 const DIFFICULTIES: readonly QueueDifficulty[] = ['normal', 'nightmare', 'hell'];
+/** The prototype's colour codes for the difficulties (`data-d`). */
+const DIFFICULTY_CODE: Readonly<Record<QueueDifficulty, string>> = {
+  normal: 'n',
+  nightmare: 'nm',
+  hell: 'h',
+};
 const REGIONS: readonly QueueRegionValue[] = ['americas', 'europe', 'asia'];
 const FORMATS: readonly QueueFormatValue[] = ['duel', '2v2', 'arena'];
 const RULES: readonly QueueRulesValue[] = ['gm', 'bm'];
@@ -89,22 +96,31 @@ export function QueuePanel({
   const describedBy = reason === null ? undefined : `${ids}-reason`;
 
   return (
-    <section aria-labelledby={`${ids}-heading`}>
+    <section className="panel pad queue-panel" aria-labelledby={`${ids}-heading`}>
       <h2 id={`${ids}-heading`}>{t('queue.heading')}</h2>
-      {notice !== null ? <p role="status">{t(leftNoticeKey(notice))}</p> : null}
-      <form onSubmit={(event) => void submit(event)} aria-label={t('queue.heading')}>
-        <fieldset>
-          <legend>{t('queue.modeLegend')}</legend>
-          <button type="button" aria-pressed={mode === 'pvp'} onClick={() => setMode('pvp')}>
+      {notice !== null ? (
+        <p role="status" className="note">
+          {t(leftNoticeKey(notice))}
+        </p>
+      ) : null}
+      <form className="stack" onSubmit={(event) => void submit(event)} aria-label={t('queue.heading')}>
+        <fieldset className="modes">
+          <legend className="lbl">{t('queue.modeLegend')}</legend>
+          <button type="button" className="mode" aria-pressed={mode === 'pvp'} onClick={() => setMode('pvp')}>
             {t('queue.modePvp')}
           </button>{' '}
-          <button type="button" aria-pressed={mode === 'leveling'} onClick={() => setMode('leveling')}>
+          <button
+            type="button"
+            className="mode"
+            aria-pressed={mode === 'leveling'}
+            onClick={() => setMode('leveling')}
+          >
             {t('queue.modeLeveling')}
           </button>
         </fieldset>
 
-        <label>
-          {t('queue.character')}{' '}
+        <label className="row">
+          <span className="lbl">{t('queue.character')}</span>
           <select
             value={character?.id ?? ''}
             onChange={(event) => setCharacterId(event.target.value)}
@@ -122,13 +138,18 @@ export function QueuePanel({
           </select>
         </label>
 
-        <fieldset>
-          <legend>{t('queue.difficulty')}</legend>
+        <fieldset className="row diffs">
+          <legend className="lbl">{t('queue.difficulty')}</legend>
           {DIFFICULTIES.map((value) => {
             const locked = character !== undefined && !character.unlockedDifficulties.includes(value);
             const lockedId = `${ids}-locked-${value}`;
             return (
-              <label key={value}>
+              <label
+                key={value}
+                className="diff"
+                data-d={DIFFICULTY_CODE[value]}
+                data-on={difficulty === value ? 'true' : 'false'}
+              >
                 <input
                   type="radio"
                   name={`${ids}-difficulty`}
@@ -138,17 +159,22 @@ export function QueuePanel({
                   aria-describedby={locked ? lockedId : undefined}
                   onChange={() => chooseDifficulty(value)}
                 />{' '}
-                {t(difficultyKey(value))}
-                {locked ? <span id={lockedId}> {t(reasonKey('difficultyLocked'))}</span> : null}
+                <span className="n">{t(difficultyKey(value))}</span>
+                {locked ? (
+                  <span id={lockedId} className="lock">
+                    {' '}
+                    {t(reasonKey('difficultyLocked'))}
+                  </span>
+                ) : null}
               </label>
             );
           })}
         </fieldset>
 
-        <fieldset>
-          <legend>{t('queue.region')}</legend>
+        <fieldset className="row seg">
+          <legend className="lbl">{t('queue.region')}</legend>
           {REGIONS.map((value) => (
-            <label key={value}>
+            <label key={value} className="opt" data-on={region === value ? 'true' : 'false'}>
               <input
                 type="radio"
                 name={`${ids}-region`}
@@ -162,11 +188,11 @@ export function QueuePanel({
         </fieldset>
 
         {mode === 'pvp' ? (
-          <>
-            <fieldset>
-              <legend>{t('queue.format')}</legend>
+          <div className="grid2">
+            <fieldset className="row seg">
+              <legend className="lbl">{t('queue.format')}</legend>
               {FORMATS.map((value) => (
-                <label key={value}>
+                <label key={value} className="opt" data-on={format === value ? 'true' : 'false'}>
                   <input
                     type="radio"
                     name={`${ids}-format`}
@@ -178,10 +204,10 @@ export function QueuePanel({
                 </label>
               ))}
             </fieldset>
-            <fieldset>
-              <legend>{t('queue.rules')}</legend>
+            <fieldset className="row seg">
+              <legend className="lbl">{t('queue.rules')}</legend>
               {RULES.map((value) => (
-                <label key={value}>
+                <label key={value} className="opt" data-on={rules === value ? 'true' : 'false'}>
                   <input
                     type="radio"
                     name={`${ids}-rules`}
@@ -193,11 +219,11 @@ export function QueuePanel({
                 </label>
               ))}
             </fieldset>
-          </>
+          </div>
         ) : (
-          <>
-            <label>
-              {t('queue.activity')}{' '}
+          <div className="stack">
+            <label className="row">
+              <span className="lbl">{t('queue.activity')}</span>
               <select
                 value={activity}
                 onChange={(event) => setActivity(event.target.value as QueueActivityValue)}
@@ -209,42 +235,59 @@ export function QueuePanel({
                 ))}
               </select>
             </label>
-            <fieldset>
-              <legend>{t('queue.role')}</legend>
-              {ROLES.map((value) => (
-                <label key={value}>
+            <div className="grid2">
+              <fieldset className="row seg">
+                <legend className="lbl">{t('queue.role')}</legend>
+                {ROLES.map((value) => (
+                  <label key={value} className="opt" data-on={role === value ? 'true' : 'false'}>
+                    <input
+                      type="radio"
+                      name={`${ids}-role`}
+                      value={value}
+                      checked={role === value}
+                      onChange={() => setRole(value)}
+                    />{' '}
+                    {t(roleKey(value))}
+                  </label>
+                ))}
+              </fieldset>
+              <label className="row">
+                <span className="lbl">{t('queue.minLevel')}</span>
+                <span className="range">
                   <input
-                    type="radio"
-                    name={`${ids}-role`}
-                    value={value}
-                    checked={role === value}
-                    onChange={() => setRole(value)}
-                  />{' '}
-                  {t(roleKey(value))}
-                </label>
-              ))}
-            </fieldset>
-            <label>
-              {t('queue.minLevel')}{' '}
-              <input
-                type="range"
-                min={1}
-                max={99}
-                value={minLevel}
-                onChange={(event) => setMinLevel(Number(event.target.value))}
-              />{' '}
-              <output>{minLevel}</output>
-            </label>
-          </>
+                    type="range"
+                    min={1}
+                    max={99}
+                    value={minLevel}
+                    onChange={(event) => setMinLevel(Number(event.target.value))}
+                  />
+                  <output className="num">{minLevel}</output>
+                </span>
+              </label>
+            </div>
+          </div>
         )}
 
-        <p>
-          <button type="submit" disabled={reason !== null || sending} aria-describedby={describedBy}>
+        <div className="cta">
+          <button
+            type="submit"
+            className="btn-blood"
+            disabled={reason !== null || sending}
+            aria-describedby={describedBy}
+          >
             {t('queue.findMatch')}
           </button>
-        </p>
-        {reason !== null ? <p id={`${ids}-reason`}>{t(reasonKey(reason))}</p> : null}
-        {failed ? <p role="alert">{t('queue.joinFailed')}</p> : null}
+          {reason !== null ? (
+            <p id={`${ids}-reason`} className="note">
+              {t(reasonKey(reason))}
+            </p>
+          ) : null}
+        </div>
+        {failed ? (
+          <p role="alert" className="note">
+            {t('queue.joinFailed')}
+          </p>
+        ) : null}
       </form>
     </section>
   );

@@ -7,6 +7,21 @@
     "downloadAgent": "Download the agent",
     "smartScreenNote": "The installer is not code-signed yet, so Windows SmartScreen may warn you before it runs."
   },
+  "nav": {
+    "label": "Sections",
+    "play": "Play"
+  },
+  "header": {
+    "agent": {
+      "none": "No agent paired",
+      "offline": "Agent not connected",
+      "gameClosed": "Agent online · game closed",
+      "gameOpen": "Agent online · game open"
+    }
+  },
+  "status": {
+    "label": "Status"
+  },
   "signIn": {
     "heading": "Sign in with a test account",
     "playerName": "Player name",

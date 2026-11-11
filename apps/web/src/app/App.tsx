@@ -10,6 +10,7 @@ import type {
   RoomView,
 } from '@d2rmm/contracts';
 import { useTranslation } from 'react-i18next';
+import { AgentPill } from '../features/agents/AgentPill.tsx';
 import { PairingForm } from '../features/agents/PairingForm.tsx';
 import { PresencePanel } from '../features/agents/PresencePanel.tsx';
 import { CharacterList } from '../features/identity/CharacterList.tsx';
@@ -205,51 +206,67 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
   }
 
   const { session, agent, room, pairedNotice, queue, queueNotice } = boot;
+  // The agent panel (presence, or the pairing form) is the status column; the header shows the agent's state and the
+  // account. Characters, queues and rooms are the main column.
+  const showPresence = session !== null && agent?.status === 'paired';
+  const showPairing = session !== null && (agent?.status === 'none' || pairedNotice);
   return (
-    <Layout>
-      <SignInPanel
-        client={client}
-        staging={boot.config.stagingEndpoints}
-        bnetSignIn={boot.config.bnetSignIn}
-        bnetFailed={signInFailed}
-        session={session}
-        onSignedIn={(next) => {
-          setBoot((current) => (current.status === 'ready' ? { ...current, session: next } : current));
-          void refreshSite();
-        }}
-        onSignedOut={() => {
-          // Signed out: nothing of the player's stays on screen, and the stream closes with the signed-in state.
-          setBoot((current) =>
-            current.status === 'ready'
-              ? { ...current, session: null, agent: null, room: null, pairedNotice: false }
-              : current,
-          );
-        }}
-      />
-      {session !== null && agent?.status === 'paired' ? (
-        <PresencePanel
+    <Layout
+      agent={session !== null ? <AgentPill agent={agent} /> : null}
+      account={
+        <SignInPanel
           client={client}
-          agent={agent}
-          onRevoked={() => {
-            // The agent is cut off: the site reads it again, and the answer ("no agent") shows the pairing form. A failed
-            // read keeps what is on screen, as every read does.
+          staging={boot.config.stagingEndpoints}
+          bnetSignIn={boot.config.bnetSignIn}
+          bnetFailed={signInFailed}
+          session={session}
+          onSignedIn={(next) => {
+            setBoot((current) => (current.status === 'ready' ? { ...current, session: next } : current));
+            void refreshSite();
+          }}
+          onSignedOut={() => {
+            // Signed out: nothing of the player's stays on screen, and the stream closes with the signed-in state.
             setBoot((current) =>
-              current.status === 'ready' ? { ...current, pairedNotice: false } : current,
+              current.status === 'ready'
+                ? { ...current, session: null, agent: null, room: null, pairedNotice: false }
+                : current,
             );
-            void refreshSite();
           }}
         />
-      ) : null}
-      {session !== null && (agent?.status === 'none' || pairedNotice) ? (
-        <PairingForm
-          client={client}
-          paired={pairedNotice}
-          onPaired={() => {
-            setBoot((current) => (current.status === 'ready' ? { ...current, pairedNotice: true } : current));
-            void refreshSite();
-          }}
-        />
-      ) : null}
+      }
+      status={
+        showPresence || showPairing ? (
+          <>
+            {showPresence ? (
+              <PresencePanel
+                client={client}
+                agent={agent}
+                onRevoked={() => {
+                  // The agent is cut off: the site reads it again, and the answer ("no agent") shows the pairing form. A
+                  // failed read keeps what is on screen, as every read does.
+                  setBoot((current) =>
+                    current.status === 'ready' ? { ...current, pairedNotice: false } : current,
+                  );
+                  void refreshSite();
+                }}
+              />
+            ) : null}
+            {showPairing ? (
+              <PairingForm
+                client={client}
+                paired={pairedNotice}
+                onPaired={() => {
+                  setBoot((current) =>
+                    current.status === 'ready' ? { ...current, pairedNotice: true } : current,
+                  );
+                  void refreshSite();
+                }}
+              />
+            ) : null}
+          </>
+        ) : null
+      }
+    >
       {session !== null && room !== null ? <RoomPanel room={room} /> : null}
       {session !== null && queue !== null ? (
         <SearchingPanel

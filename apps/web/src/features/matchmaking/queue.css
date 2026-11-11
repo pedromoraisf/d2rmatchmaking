@@ -1,0 +1,226 @@
+/* The queue panels (prototype "Partida" and the searching view). Scoped to the two panels so the shell's theme stays
+   the only global styling; every colour comes from the theme's variables. */
+
+.queue-panel .row,
+.search-panel .row {
+  display: grid;
+  gap: 10px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.queue-panel fieldset,
+.search-panel fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.queue-panel .grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+
+.queue-panel .modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.queue-panel .mode {
+  text-align: left;
+  padding: 18px 18px 16px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--parch);
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  position: relative;
+}
+
+.queue-panel .mode:hover {
+  border-color: var(--gold-dim);
+}
+
+.queue-panel .mode[aria-pressed='true'] {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: linear-gradient(180deg, rgba(214, 180, 108, 0.1), rgba(214, 180, 108, 0.02));
+}
+
+.queue-panel .diffs {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.queue-panel .diff {
+  --dc: var(--d-n);
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 14px 14px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.queue-panel .diff[data-d='nm'] {
+  --dc: var(--d-nm);
+}
+
+.queue-panel .diff[data-d='h'] {
+  --dc: var(--d-h);
+}
+
+.queue-panel .diff .n {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.06em;
+  color: var(--dc);
+}
+
+.queue-panel .diff[data-on='true'] {
+  border-color: var(--dc);
+  box-shadow: inset 0 0 0 1px var(--dc);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--dc) 14%, transparent), transparent);
+}
+
+.queue-panel .diff:has(input:disabled) {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.queue-panel .diff input,
+.queue-panel .opt input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.queue-panel .diff:focus-within,
+.queue-panel .opt:focus-within {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.queue-panel .lock {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-family: var(--display);
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ash);
+}
+
+.queue-panel .seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.queue-panel .opt {
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
+  padding: 8px 13px;
+  font-size: 14.5px;
+  color: var(--ash);
+  cursor: pointer;
+}
+
+.queue-panel .opt[data-on='true'] {
+  color: var(--parch);
+  border-color: var(--gold);
+  background: rgba(214, 180, 108, 0.09);
+}
+
+.queue-panel .range {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.queue-panel .range input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--gold);
+}
+
+.queue-panel .range output,
+.search-panel .clock {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 26px;
+  color: var(--gold);
+  min-width: 48px;
+  text-align: right;
+}
+
+.queue-panel .cta,
+.search-panel .cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.queue-panel .cta .note {
+  margin: 0;
+}
+
+.queue-panel .note,
+.search-panel .note {
+  font-size: 14px;
+  color: var(--ash);
+  border-left: 1px solid var(--gold-dim);
+  padding: 2px 0 2px 12px;
+  margin: 0;
+}
+
+.search-panel .s-top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.search-panel .pairs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 13.5px;
+  color: var(--ash);
+}
+
+.search-panel .pulse {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+@media (max-width: 720px) {
+  .queue-panel .grid2,
+  .queue-panel .modes {
+    grid-template-columns: 1fr;
+  }
+
+  .queue-panel .diffs {
+    grid-template-columns: 1fr;
+  }
+}
