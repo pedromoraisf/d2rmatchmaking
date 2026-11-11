@@ -7,8 +7,10 @@ import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { migrateToLatest } from '../../platform/postgres/migrator.ts';
 import { createTestDatabase, type TestDatabase } from '../../../test/support/postgres.ts';
 
 /** The API package root: the composition roots and the preload are run from here. */
@@ -95,9 +97,25 @@ async function createAcceptanceDatabase(): Promise<string> {
   return url.toString();
 }
 
+/**
+ * Applies the migrations in this process, which has no preload, before the traced process starts. Migrating inside the
+ * traced process made each statement a root span: about 47 of them spent the sampler's shared budget (AD-100: a burst
+ * of 40 and 20 a second) before the first request, which then lost its server span in some runs.
+ */
+async function migrateUntraced(databaseUrl: string): Promise<void> {
+  const pool = new pg.Pool({ connectionString: databaseUrl });
+  const db = new Kysely<Record<string, never>>({ dialect: new PostgresDialect({ pool }) });
+  try {
+    await migrateToLatest(db);
+  } finally {
+    await db.destroy();
+  }
+}
+
 /** Starts local.ts with the preload and the endpoint set; resolves with its loopback address once it listens. */
 async function startInstrumentedLocal(): Promise<{ url: string; child: ChildProcess }> {
   const databaseUrl = await createAcceptanceDatabase();
+  await migrateUntraced(databaseUrl);
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['--import', PRELOAD, LOCAL_ROOT], {
       cwd: API_ROOT,

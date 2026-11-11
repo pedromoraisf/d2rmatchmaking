@@ -51,7 +51,11 @@ being true.
   the spec names. Why: observability-e2e, verification finding 1.
 - **Read OpenTelemetry metrics in tests with `reader.collect()` on a non-exporting `MetricReader`**, not from an
   in-memory exporter after `forceFlush()`. Why: the exporter returned more series than the view kept (T8).
-- **`instrument.int.test.ts` can time out on the fake OTLP backend in CI.** Rerun once; if it fails again, fix it.
+- **Work done before the first request spends the sampler's shared budget.** Every root span (a statement with no
+  parent, a timer job, a boot query) takes a token from the 40-token burst (AD-100). Migrating a fresh database inside the
+  traced process records about 47 roots before the first request, and a request that arrives after the budget is spent
+  loses its server span. Migrate in an untraced process before the traced one starts. Why: the CI failure of
+  `instrument.int.test.ts` (run 42965570821) showed the migration statements and no server span.
 
 ## Observability and load
 
