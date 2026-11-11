@@ -99,7 +99,9 @@ mod tests {
 
     use d2rmm_agent_domain::characters::{Class, Mode, Title};
     use d2rmm_agent_domain::language::LanguagePack;
-    use d2rmm_agent_domain::layout::{ScreenRegion, screen_region, screen_text_regions};
+    use d2rmm_agent_domain::layout::{
+        CARD_SLOTS, ScreenRegion, screen_region, screen_text_regions,
+    };
     use d2rmm_agent_domain::presence::Screen;
     use d2rmm_agent_domain::vision::{ReadText, Region};
     use serde_json::Value;
@@ -218,6 +220,68 @@ mod tests {
 
     fn names(reading: &FrameReading) -> Vec<&str> {
         reading.cards.iter().map(|card| card.name()).collect()
+    }
+
+    /// A sidecar reader that also records every region it is asked for (T8: the loop's OCR cost).
+    struct Recording {
+        inner: Sidecar,
+        asked: std::sync::Mutex<Vec<Region>>,
+    }
+
+    impl TextReader for Recording {
+        fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            self.asked.lock().expect("the asked list").push(region);
+            self.inner.read(image, region)
+        }
+    }
+
+    /// The regions a frame's text was read at, and the reading.
+    fn asked_for(json: &str) -> (FrameReading, Vec<Region>) {
+        let recording = Arc::new(Recording {
+            inner: Sidecar::of(json, 1920, 1080),
+            asked: std::sync::Mutex::new(Vec::new()),
+        });
+        let reader = ScreenReader::new(
+            Arc::clone(&recording) as Arc<dyn TextReader + Send + Sync>,
+            Arc::new(LanguagePack::english()),
+        );
+        let reading = reader.read(&frame(1920, 1080, None, &[]));
+        let asked = recording.asked.lock().expect("the asked list").clone();
+        (reading, asked)
+    }
+
+    /// Every card region of a 1920×1080 frame: the title, name, level and gold border of each slot.
+    fn card_regions() -> Vec<Region> {
+        (0..CARD_SLOTS)
+            .flat_map(|slot| {
+                [
+                    ScreenRegion::CardTitle(slot),
+                    ScreenRegion::CardName(slot),
+                    ScreenRegion::CardLevel(slot),
+                    ScreenRegion::CardSelected(slot),
+                ]
+            })
+            .filter_map(|region| screen_region(region, 1920, 1080))
+            .collect()
+    }
+
+    #[test]
+    fn the_card_regions_are_read_only_on_the_selection_screen() {
+        let cards = card_regions();
+        for json in [IN_GAME, AUTOMAP, MENU] {
+            let (reading, asked) = asked_for(json);
+            assert!(reading.cards.is_empty());
+            assert!(
+                asked.iter().all(|region| !cards.contains(region)),
+                "a frame that is not the selection screen reads no card region"
+            );
+        }
+        let (reading, asked) = asked_for(SELECT_NORMAL);
+        assert_eq!(reading.screen, Screen::CharacterSelect);
+        assert!(
+            asked.iter().any(|region| cards.contains(region)),
+            "the selection screen reads its cards"
+        );
     }
 
     #[test]

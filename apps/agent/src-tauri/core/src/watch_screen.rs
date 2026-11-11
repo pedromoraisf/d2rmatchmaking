@@ -53,7 +53,7 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
         return;
     };
     let frame = Arc::new(frame);
-    let reading = read_screen(ports, &frame);
+    let reading = read_screen(ports, &frame).await;
     device.set_screen(reading.screen);
     party::look(device, &ports.party, Arc::clone(&frame)).await;
     let FrameReading {
@@ -94,15 +94,23 @@ fn capture<G>(ports: &ScreenPorts<G>) -> Option<Rgba> {
     ports.frames.capture()
 }
 
-/// What the frame shows: its screen, and its cards on the character selection screen.
-fn read_screen<G>(ports: &ScreenPorts<G>, frame: &Rgba) -> FrameReading {
+/// What the frame shows: its screen, and its cards on the character selection screen. The OCR runs on a blocking thread, as
+/// the Party step's does, so a read never holds the async worker. The reader reads the card regions only for the selection
+/// screen (`domain::character_screen::read_screen`). A reader that panics shows nothing (`Unknown`).
+async fn read_screen<G>(ports: &ScreenPorts<G>, frame: &Arc<Rgba>) -> FrameReading {
     let span = tracing::info_span!(
         "agent.vision.read-characters",
         screen = tracing::field::Empty,
         cards = tracing::field::Empty,
     );
-    let _entered = span.enter();
-    let reading = ports.reader.read(frame);
+    let reader = Arc::clone(&ports.reader);
+    let frame = Arc::clone(frame);
+    let reading = tokio::task::spawn_blocking(move || reader.read(&frame))
+        .await
+        .unwrap_or(FrameReading {
+            screen: Screen::Unknown,
+            cards: Vec::new(),
+        });
     span.record("screen", tracing::field::debug(&reading.screen));
     span.record("cards", reading.cards.len());
     reading

@@ -35,7 +35,7 @@ created from `phase/F1` once `characters` has merged. Starts when the screenshot
 - [x] T7 — Name reconciliation (finding 3): a read name that equals a character the agent already posted for this
       account when `I`/`l`/`1` are treated as one glyph (and `0`/`o`) keeps the stored spelling; spec decision recorded;
       core unit tests — gate: `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-core --lib`
-- [ ] T8 — Loop cost (security low 3): the card regions are read only when the screen classified as character
+- [x] T8 — Loop cost (security low 3): the card regions are read only when the screen classified as character
       selection, and the frame's OCR runs through `tokio::task::spawn_blocking` as the Party step does; core unit tests
       — gate: `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-core --lib && cargo nextest run -p d2rmm-agent-adapters`
 - [ ] T9 — Windows OCR reads the screen markers (CI run 42973374788): the Windows fixture test prints, for every
