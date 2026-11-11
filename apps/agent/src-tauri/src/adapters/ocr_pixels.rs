@@ -5,21 +5,23 @@
 use d2rmm_agent_core::ports::Rgba;
 use d2rmm_agent_domain::vision::Region;
 
-/// `region` grown by `pad` pixels on every side and clamped to a frame of `width` × `height`. The engine drops text that
-/// touches the edge of what it reads (T9: the character labels are drawn at their boxes' edges and read empty), so the crop
-/// keeps the frame's own background around the text. A region that is not inside the frame is returned unchanged.
-pub fn padded_region(region: Region, width: u32, height: u32, pad: u32) -> Region {
-    let x0 = region.x.saturating_sub(pad);
-    let y0 = region.y.saturating_sub(pad);
+/// `region` grown by `pad_x` pixels left and right and `pad_y` pixels above and below, clamped to a frame of `width` × `height`.
+/// The engine drops text that touches the edge of what it reads (T9: the character labels sit at their boxes' left edges and
+/// read empty), so the crop keeps the frame's own background beside the text. Vertical padding is kept at 0 where rows sit
+/// close together: a crop that reaches the next row reads its text too (T9, CI round 2). A region that is not inside the
+/// frame is returned unchanged.
+pub fn padded_region(region: Region, width: u32, height: u32, pad_x: u32, pad_y: u32) -> Region {
+    let x0 = region.x.saturating_sub(pad_x);
+    let y0 = region.y.saturating_sub(pad_y);
     let x1 = region
         .x
         .saturating_add(region.width)
-        .saturating_add(pad)
+        .saturating_add(pad_x)
         .min(width);
     let y1 = region
         .y
         .saturating_add(region.height)
-        .saturating_add(pad)
+        .saturating_add(pad_y)
         .min(height);
     if x1 <= x0 || y1 <= y0 || region.x >= width || region.y >= height {
         return region;
@@ -161,16 +163,20 @@ mod tests {
             height: 40,
         };
         assert_eq!(
-            padded_region(inside, 1920, 1080, 16),
+            padded_region(inside, 1920, 1080, 16, 4),
             Region {
                 x: 0,
-                y: 4,
+                y: 16,
                 width: 56,
-                height: 72,
+                height: 48,
             },
-            "16 px each side, the left one reaching the frame edge at 0 after the clamp"
+            "16 px left and right, the left one clamped to the frame edge at 0; 4 px above and below"
         );
-        assert_eq!(padded_region(inside, 1920, 1080, 0), inside, "no padding");
+        assert_eq!(
+            padded_region(inside, 1920, 1080, 0, 0),
+            inside,
+            "no padding"
+        );
         let corner = Region {
             x: 1900,
             y: 1060,
@@ -178,7 +184,7 @@ mod tests {
             height: 20,
         };
         assert_eq!(
-            padded_region(corner, 1920, 1080, 16),
+            padded_region(corner, 1920, 1080, 16, 16),
             Region {
                 x: 1884,
                 y: 1044,
@@ -198,7 +204,7 @@ mod tests {
             width: 10,
             height: 10,
         };
-        assert_eq!(padded_region(outside, 1920, 1080, 16), outside);
+        assert_eq!(padded_region(outside, 1920, 1080, 16, 16), outside);
     }
 
     #[test]

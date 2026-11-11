@@ -48,12 +48,13 @@ impl TextReader for WindowsOcr {
     }
 }
 
-/// The frame's background kept around each region, in pixels: the engine drops text that touches the crop's edge (T9).
-const OCR_PAD: u32 = 16;
+/// The frame's background kept beside each region, in pixels: the engine drops text that touches the crop's left or right
+/// edge (T9). Rows are not padded: a crop that reaches the next row reads that row's text too.
+const OCR_PAD_X: u32 = 16;
 
 /// Copies the region with its background margin, scaled up by `OCR_SCALE`, into a BGRA8 software bitmap (`ocr_pixels`).
 fn crop_to_bitmap(image: &Rgba, region: Region) -> Result<SoftwareBitmap, ReadError> {
-    let region = padded_region(region, image.width, image.height, OCR_PAD);
+    let region = padded_region(region, image.width, image.height, OCR_PAD_X, 0);
     let bgra = scaled_bgra(image, region, OCR_SCALE).ok_or(ReadError::Failed)?;
     // A region is checked against the frame before scaling; the scaled sizes are still checked, so a size that
     // overflows `u32` fails the read instead of wrapping.
