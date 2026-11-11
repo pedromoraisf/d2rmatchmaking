@@ -85,6 +85,8 @@ pub struct AssignmentMembersItem {
     #[serde(rename = "joinOrder")]
     pub join_order: ::std::num::NonZeroU64,
     pub role: AssignmentMembersItemRole,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub team: ::std::option::Option<AssignmentMembersItemTeam>,
 }
 ///`AssignmentMembersItemAccountId`
 #[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -249,6 +251,61 @@ impl ::std::convert::TryFrom<&str> for AssignmentMembersItemRole {
     }
 }
 impl ::std::convert::TryFrom<::std::string::String> for AssignmentMembersItemRole {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///`AssignmentMembersItemTeam`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum AssignmentMembersItemTeam {
+    #[serde(rename = "a")]
+    A,
+    #[serde(rename = "b")]
+    B,
+}
+impl ::std::fmt::Display for AssignmentMembersItemTeam {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::A => f.write_str("a"),
+            Self::B => f.write_str("b"),
+        }
+    }
+}
+impl ::std::str::FromStr for AssignmentMembersItemTeam {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "a" => Ok(Self::A),
+            "b" => Ok(Self::B),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for AssignmentMembersItemTeam {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for AssignmentMembersItemTeam {
     type Error = self::error::ConversionError;
     fn try_from(
         value: ::std::string::String,
@@ -1534,6 +1591,8 @@ pub struct RoomAssignedEventDataMembersItem {
     #[serde(rename = "joinOrder")]
     pub join_order: ::std::num::NonZeroU64,
     pub role: RoomAssignedEventDataMembersItemRole,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub team: ::std::option::Option<RoomAssignedEventDataMembersItemTeam>,
 }
 ///`RoomAssignedEventDataMembersItemAccountId`
 #[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -1702,6 +1761,62 @@ impl ::std::convert::TryFrom<&str> for RoomAssignedEventDataMembersItemRole {
 }
 impl ::std::convert::TryFrom<::std::string::String>
 for RoomAssignedEventDataMembersItemRole {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///`RoomAssignedEventDataMembersItemTeam`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum RoomAssignedEventDataMembersItemTeam {
+    #[serde(rename = "a")]
+    A,
+    #[serde(rename = "b")]
+    B,
+}
+impl ::std::fmt::Display for RoomAssignedEventDataMembersItemTeam {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::A => f.write_str("a"),
+            Self::B => f.write_str("b"),
+        }
+    }
+}
+impl ::std::str::FromStr for RoomAssignedEventDataMembersItemTeam {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "a" => Ok(Self::A),
+            "b" => Ok(Self::B),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for RoomAssignedEventDataMembersItemTeam {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for RoomAssignedEventDataMembersItemTeam {
     type Error = self::error::ConversionError;
     fn try_from(
         value: ::std::string::String,

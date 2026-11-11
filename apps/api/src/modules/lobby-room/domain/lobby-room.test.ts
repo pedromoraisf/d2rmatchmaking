@@ -64,6 +64,18 @@ describe('LobbyRoom.fromMatch', () => {
     expect(room.gameName.value).toBe('mmbaalh-12');
   });
 
+  it('keeps the 2v2 team the match gave each member in the room members (QUE-12)', () => {
+    const teamed = open({
+      ...match(),
+      members: [
+        { accountId: 'account-1', characterId: null, joinOrder: 1, role: 'host', team: 'a' },
+        { accountId: 'account-2', characterId: null, joinOrder: 2, role: 'member', team: 'b' },
+      ],
+    });
+
+    expect(teamed.members.map((member) => member.team)).toStrictEqual(['a', 'b']);
+  });
+
   it('makes the member with the lowest join order the host', () => {
     expect(open().hostAccountId).toBe('account-1');
   });

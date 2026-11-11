@@ -13,6 +13,8 @@ export interface MatchMember {
   readonly characterId: string | null;
   readonly joinOrder: number;
   readonly role: MemberRole;
+  /** The team of a 2v2 member (QUE-12); absent in every other group. */
+  readonly team?: 'a' | 'b';
 }
 
 /** A domain event: its type name and its payload. */

@@ -99,6 +99,13 @@
                           "host",
                           "member"
                         ]
+                      },
+                      "team": {
+                        "type": "string",
+                        "enum": [
+                          "a",
+                          "b"
+                        ]
                       }
                     },
                     "required": [
@@ -190,6 +197,13 @@
                         "enum": [
                           "host",
                           "member"
+                        ]
+                      },
+                      "team": {
+                        "type": "string",
+                        "enum": [
+                          "a",
+                          "b"
                         ]
                       }
                     },

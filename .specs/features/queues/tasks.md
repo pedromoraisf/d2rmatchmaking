@@ -38,7 +38,7 @@ edited; one Conventional Commit per task (`feat(matchmaking): …`, `feat(web): 
 
 ## Batch 3 — review fixes (PR #51)
 
-- [ ] T9 — 2v2 teams reach the room (architecture finding 1, QUE-12): `MatchMember` gains an optional `team: 'a' | 'b'`
+- [x] T9 — 2v2 teams reach the room (architecture finding 1, QUE-12): `MatchMember` gains an optional `team: 'a' | 'b'`
       set by the matcher's snake teams in 2v2; contract and AsyncAPI regenerated; Lobby Room stores nothing new yet
       (teams are read in F3) but keeps the field in the room's members view — gate:
       `pnpm --filter @d2rmm/contracts exec vitest run && pnpm --filter @d2rmm/api exec vitest run && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json`

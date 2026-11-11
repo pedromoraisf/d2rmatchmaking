@@ -59,6 +59,69 @@ describe('runMatcher: a match (QUE-12)', () => {
     });
   });
 
+  it('gives each member of a 2v2 its team, and a duel member no team (QUE-12)', async () => {
+    const t = queueSetup();
+    const names = ['alice', 'bob', 'cara', 'dan'];
+    for (const [index, name] of names.entries()) {
+      t.readyPlayer(name, `c-${name}`);
+      await t.store.add({
+        id: `${name}-ticket`,
+        accountId: name,
+        characterId: `c-${name}`,
+        mode: 'pvp',
+        region: 'americas',
+        difficulty: 'hell',
+        ladder: 'sc-ladder',
+        era: 'rotw',
+        rating: 1500,
+        level: 90,
+        joinedAt: new Date(t.clock.now().getTime() + index * 1000),
+        pvp: { format: '2v2', rules: 'gm' },
+      });
+    }
+
+    await t.queue.runMatcher();
+
+    const formed = t.outbox.appended.filter(
+      (event): event is MatchFormedEvent => event.type === 'MatchFormed',
+    );
+    expect(formed).toHaveLength(1);
+    // Equal ratings: the snake draft takes join order A, B, B, A.
+    expect(formed[0]?.payload.members.map((member) => [member.accountId, member.team])).toStrictEqual([
+      ['alice', 'a'],
+      ['bob', 'b'],
+      ['cara', 'b'],
+      ['dan', 'a'],
+    ]);
+  });
+
+  it('gives a duel member no team key at all', async () => {
+    const t = queueSetup();
+    t.readyPlayer('alice', 'c-sorc');
+    await t.queue.joinQueue({ accountId: 'alice', request: duel('c-sorc') });
+    await t.store.add({
+      id: 'bob-ticket',
+      accountId: 'bob',
+      characterId: 'c-hammer',
+      mode: 'pvp',
+      region: 'americas',
+      difficulty: 'hell',
+      ladder: 'sc-ladder',
+      era: 'rotw',
+      rating: 1500,
+      level: 90,
+      joinedAt: new Date(t.clock.now().getTime() + 1000),
+      pvp: { format: 'duel', rules: 'gm' },
+    });
+
+    await t.queue.runMatcher();
+
+    const formed = t.outbox.appended.filter(
+      (event): event is MatchFormedEvent => event.type === 'MatchFormed',
+    );
+    expect(formed[0]?.payload.members.every((member) => !('team' in member))).toBe(true);
+  });
+
   it('tells each grouped player that the ticket left because it matched', async () => {
     const t = queueSetup();
     t.readyPlayer('alice', 'c-sorc');
