@@ -95,6 +95,6 @@ The screen reading (old T8 regions/classifier/parser, T9 Windows OCR on fixtures
       every path) instead of the screen's `GetDC(None)`, and return `None` on a null handle; unit tests on the pure
       window-choice function — gate:
       `cd apps/agent/src-tauri && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`
-- [ ] T14 — The shared acceptance step "the API answers <status>" throws a clear error when the scenario made no
+- [x] T14 — The shared acceptance step "the API answers <status>" throws a clear error when the scenario made no
       request (neither the relay answer nor `world.last`) — gate:
-      `pnpm exec turbo run test:acceptance -- --grep "@CHR-|@OBS-|@AWS-|@IDB-"`
+      `pnpm exec turbo run test:acceptance -- --grep "@CHR-|@AWS-|@IDB-" && pnpm exec turbo run test:acceptance -- --grep @OBS- --workers=1`

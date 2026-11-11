@@ -262,6 +262,11 @@ When(/^a client sends spans to the relay (.+)$/, async ({ world }, how: string) 
 // The relay's answer when the scenario sent to the relay; otherwise the last answer a step recorded (characters, CHR-09).
 Then(/^the API answers (\d{3})$/, ({ world }, code: string) => {
   const relay = stateOf(world).relay;
+  if (relay === undefined && world.last === undefined) {
+    throw new Error(
+      `the scenario made no request to the API, so there is no answer to check against ${code}; add the step that sends it`,
+    );
+  }
   const status = relay !== undefined ? relay.status : world.last?.status;
   expect(status, 'the API answer').toBe(Number(code));
 });
