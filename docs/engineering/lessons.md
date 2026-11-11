@@ -27,6 +27,10 @@ being true.
   pre-push `cargo clippy` needs `apps/agent/dist` (Tauri `frontendDist`) and fails without it, which looks like a code
   failure (characters, Batch 1).
 
+- **Remove a worker's worktree once its branch is pushed and its report is read.** Each worktree holds 5–7 GB of Rust
+  `target/`. Why: on 2026-11-11 six finished worktrees filled the maintainer's disk; a worker could not build, and
+  Docker and Postgres failed with I/O errors until Docker Desktop was restarted (characters-reading, lobby-rooms).
+
 - **A task that adds a Rust crate to the agent runs `cargo deny --locked check` in its gate**, and the security reviewer
   reads `apps/agent/src-tauri/deny.toml`. Why: `tauri-plugin-global-shortcut` is banned there, and PR #52 passed the
   worker's gates and both reviews before CI refused it (ready-check, 2026-11-11).
