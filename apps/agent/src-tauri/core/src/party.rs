@@ -581,4 +581,142 @@ mod look_tests {
             "the run claimed its one observation"
         );
     }
+
+    /// The span of one Party reading (AGN-07).
+    const READ_SPAN: &str = "agent.vision.read-game-name";
+
+    /// The fields one span recorded, by name, as text.
+    type Fields = std::collections::BTreeMap<String, String>;
+
+    /// A subscriber that keeps every span's name and recorded fields, in creation order. It writes no events and tracks no
+    /// context: the tests read only what a span recorded. It is hand-written so core takes no subscriber crate
+    /// (the architecture rule keeps subscribers out of core's manifest).
+    #[derive(Default)]
+    struct Spans {
+        recorded: Mutex<Vec<(String, Fields)>>,
+    }
+
+    /// Writes a span's fields into a map: booleans as `true` or `false`, anything else as its debug text.
+    struct FieldWriter<'a>(&'a mut Fields);
+
+    impl tracing::field::Visit for FieldWriter<'_> {
+        fn record_bool(&mut self, field: &tracing::field::Field, value: bool) {
+            self.0.insert(field.name().to_string(), value.to_string());
+        }
+
+        fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+            self.0
+                .insert(field.name().to_string(), format!("{value:?}"));
+        }
+    }
+
+    impl tracing::Subscriber for Spans {
+        fn enabled(&self, _metadata: &tracing::Metadata<'_>) -> bool {
+            true
+        }
+
+        fn new_span(&self, attrs: &tracing::span::Attributes<'_>) -> tracing::Id {
+            let mut fields = Fields::new();
+            attrs.record(&mut FieldWriter(&mut fields));
+            let mut recorded = self.recorded.lock().expect("the span lock");
+            recorded.push((attrs.metadata().name().to_string(), fields));
+            tracing::Id::from_u64(recorded.len() as u64)
+        }
+
+        fn record(&self, span: &tracing::Id, values: &tracing::span::Record<'_>) {
+            let mut recorded = self.recorded.lock().expect("the span lock");
+            let index = span.into_u64() as usize - 1;
+            if let Some((_, fields)) = recorded.get_mut(index) {
+                values.record(&mut FieldWriter(fields));
+            }
+        }
+
+        fn record_follows_from(&self, _span: &tracing::Id, _follows: &tracing::Id) {}
+
+        fn event(&self, _event: &tracing::Event<'_>) {}
+
+        fn enter(&self, _span: &tracing::Id) {}
+
+        fn exit(&self, _span: &tracing::Id) {}
+    }
+
+    /// The fields of every Party reading span, one map per span.
+    fn read_spans(spans: &Spans) -> Vec<Fields> {
+        spans
+            .recorded
+            .lock()
+            .expect("the span lock")
+            .iter()
+            .filter(|(name, _)| name == READ_SPAN)
+            .map(|(_, fields)| fields.clone())
+            .collect()
+    }
+
+    /// The only two fields a reading's span may carry: whether it matched and whether the field was masked.
+    fn only(matched: &str, masked: &str) -> Vec<Fields> {
+        let fields: Fields = [("matched", matched), ("masked", masked)]
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value.to_string()))
+            .collect();
+        vec![fields]
+    }
+
+    /// Installs the recording subscriber for the current thread; the test's runtime is single-threaded.
+    fn record_spans() -> (Arc<Spans>, tracing::subscriber::DefaultGuard) {
+        let spans = Arc::new(Spans::default());
+        let guard = tracing::subscriber::set_default(Arc::clone(&spans));
+        (spans, guard)
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_span_of_a_match_says_matched_and_nothing_else() {
+        let (spans, _guard) = record_spans();
+        let rig = rig();
+        rig.device
+            .replace_assignment(Some(assignment(1, "mmcowsh-1")));
+        rig.gateway.script_post_observation([Ok(())]);
+        show(&rig.panel, "PARTY", "MMC⊕WSH-1");
+
+        look_at(&rig).await;
+
+        assert_eq!(
+            read_spans(&spans),
+            only("true", "false"),
+            "matched, not masked"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_span_of_a_masked_field_says_masked_and_nothing_else() {
+        let (spans, _guard) = record_spans();
+        let rig = rig();
+        rig.device
+            .replace_assignment(Some(assignment(1, "mmcowsh-1")));
+        show(&rig.panel, "PARTY", "xxxxxxxxx");
+
+        look_at(&rig).await;
+
+        assert_eq!(
+            read_spans(&spans),
+            only("false", "true"),
+            "masked, not matched"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_span_of_a_closed_panel_says_neither() {
+        let (spans, _guard) = record_spans();
+        let rig = rig();
+        rig.device
+            .replace_assignment(Some(assignment(1, "mmcowsh-1")));
+        show(&rig.panel, "INVENTORY", "mmcowsh-1");
+
+        look_at(&rig).await;
+
+        assert_eq!(
+            read_spans(&spans),
+            only("false", "false"),
+            "nothing read from the field"
+        );
+    }
 }
