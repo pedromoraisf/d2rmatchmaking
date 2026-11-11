@@ -171,11 +171,8 @@ fn apply_reading<G>(
     if !reading.open {
         return None;
     }
+    // A blank field reads as masked (`read_field`): the engine returns nothing for the dots of the masked value.
     let field = reading.field?;
-    if field.text.trim().is_empty() {
-        // An empty reading says nothing about the field: the state stays as it was.
-        return None;
-    }
     let run = RunKey::of(assignment);
     match read_field(&field.text, assignment.expected_game_name.as_str()) {
         FieldRead::Masked => {
@@ -550,20 +547,21 @@ mod look_tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn an_empty_reading_keeps_the_hint() {
+    async fn a_blank_field_with_an_open_panel_reads_as_masked() {
+        // The engine reads nothing from the masked dots (Windows OCR, the CI fixture): with the panel open, a blank field
+        // is the masked value, so the player is asked to reveal the name and nothing is posted.
         let rig = rig();
         rig.device
             .replace_assignment(Some(assignment(1, "mmcowsh-1")));
-        show(&rig.panel, "PARTY", "xxxxxxxxx");
-        look_at(&rig).await;
-
         show(&rig.panel, "PARTY", "   ");
+
         look_at(&rig).await;
 
         assert!(
-            room(&rig).is_some_and(|room| room.needs_reveal),
-            "no reading says nothing"
+            room(&rig).is_some_and(|room| room.needs_reveal && !room.matched),
+            "a blank field asks for the reveal"
         );
+        assert!(posts(&rig.gateway).is_empty(), "nothing is posted");
     }
 
     #[tokio::test(start_paused = true)]

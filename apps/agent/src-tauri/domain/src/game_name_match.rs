@@ -14,12 +14,15 @@ pub enum FieldRead {
     Other,
 }
 
-/// Classifies one reading of the field against the expected game name. An empty reading is `Other`, never a match.
+/// Classifies one reading of the field against the expected game name. The caller reads the field only while the Party
+/// panel is open, so an empty or blank reading means the field shows nothing readable: the masked value is drawn as dots
+/// the engine may not read, so it counts as `Masked` (the player must reveal the name; nothing is posted). A blank
+/// expected name is `Other`, never a match.
 pub fn read_field(read: &str, expected: &str) -> FieldRead {
-    if is_masked(read) {
+    if is_masked(read) || read.trim().is_empty() {
         return FieldRead::Masked;
     }
-    if read.trim().is_empty() || expected.trim().is_empty() {
+    if expected.trim().is_empty() {
         return FieldRead::Other;
     }
     if normalise(read) == normalise(expected) {
@@ -97,7 +100,7 @@ mod tests {
         );
         assert!(is_masked("XXXXXXXX"));
         assert!(!is_masked("xxx1"), "any other character is not masked");
-        assert!(!is_masked(""), "an empty field is not masked");
+        assert!(!is_masked(""), "an empty field is not masked by the x rule");
     }
 
     #[test]
@@ -131,10 +134,22 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_reading_or_expected_name_never_matches() {
-        assert_eq!(read_field("", "mmcowsh-1"), FieldRead::Other);
-        assert_eq!(read_field("   ", "mmcowsh-1"), FieldRead::Other);
-        assert_eq!(read_field("mmcowsh-1", ""), FieldRead::Other);
+    fn an_empty_reading_is_masked_and_a_blank_expected_name_never_matches() {
+        assert_eq!(
+            read_field("", "mmcowsh-1"),
+            FieldRead::Masked,
+            "nothing readable is masked"
+        );
+        assert_eq!(
+            read_field("   ", "mmcowsh-1"),
+            FieldRead::Masked,
+            "blank is masked"
+        );
+        assert_eq!(
+            read_field("mmcowsh-1", ""),
+            FieldRead::Other,
+            "no expected name"
+        );
     }
 
     #[test]
