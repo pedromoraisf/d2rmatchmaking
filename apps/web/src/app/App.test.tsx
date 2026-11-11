@@ -322,6 +322,62 @@ describe('App', () => {
     expect(currentStage()).toBe('Formed');
   });
 
+  describe('class and level of the members after a member change (LBR-12)', () => {
+    // The room as boot reads it has no class or level; every later read has them.
+    function roomReads() {
+      let reads = 0;
+      const marked = { ...room, members: [{ ...member, class: 'sorceress', level: 90 }] };
+      const { fetch } = routeFetch({
+        'GET /api/v1/config': () => jsonResponse(200, config),
+        'GET /api/v1/me': () => jsonResponse(200, player),
+        'GET /api/v1/agents/me': () => jsonResponse(200, { status: 'none' }),
+        'GET /api/v1/me/room': () => {
+          reads += 1;
+          return jsonResponse(200, reads === 1 ? room : marked);
+        },
+      });
+      return { fetch, reads: () => reads };
+    }
+
+    it.each(['left', 'host_changed'] as const)(
+      'a "%s" change reads the room again and shows each member\'s class and level',
+      async (change) => {
+        const { fetch, reads } = roomReads();
+        const stream = fakeStream();
+        renderInLanguage(<App client={createApiClient(fetch)} openStream={stream.openStream} />);
+        await screen.findByText('mmbaalh-12');
+        expect(screen.getByText('Character not shown')).toBeTruthy();
+        const before = reads();
+        await playEvent(stream, {
+          type: 'room.member_changed',
+          data: { roomId: '4821', change, accountId: 'acc-2', members: [member] },
+        });
+        expect(await screen.findByText('Sorceress, level 90')).toBeTruthy();
+        expect(reads()).toBe(before + 1);
+      },
+    );
+
+    it('a "confirmed" change reads nothing and keeps what the room shows', async () => {
+      const { fetch, reads } = roomReads();
+      const stream = fakeStream();
+      renderInLanguage(<App client={createApiClient(fetch)} openStream={stream.openStream} />);
+      await screen.findByText('mmbaalh-12');
+      const before = reads();
+      await playEvent(stream, {
+        type: 'room.member_changed',
+        data: {
+          roomId: '4821',
+          change: 'confirmed',
+          accountId: 'acc-1',
+          members: [{ ...member, confirmed: true }],
+        },
+      });
+      expect(screen.getAllByText('Confirmed by the agent')).toHaveLength(1);
+      expect(reads()).toBe(before);
+      expect(screen.getByText('Character not shown')).toBeTruthy();
+    });
+  });
+
   it('follows the next run, a confirmation and a host that left on the stream (LBR-04, LBR-06, LBR-07)', async () => {
     const { fetch } = routeFetch({
       'GET /api/v1/config': () => jsonResponse(200, config),
