@@ -187,12 +187,21 @@ a {
   background: var(--gold);
 }
 
+/* The account block takes the rest of the header line and wraps inside it, so it never pushes the page sideways. */
 .account {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
-  flex: none;
+  flex: 1 1 auto;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.agent-pill,
+.bnet {
+  max-width: 100%;
 }
 
 .agent-pill {
