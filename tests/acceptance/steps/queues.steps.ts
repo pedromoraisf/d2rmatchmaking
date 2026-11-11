@@ -18,9 +18,6 @@ const KEYBOARD_STOPS = 60;
 const TELEPORTER = 'Tele';
 const BO = 'Bo';
 const KILLERS = ['KillA', 'KillB', 'KillC', 'KillD', 'KillE', 'KillF', 'KillG'] as const;
-/** The pause that lets the API see a closed browser connection before the next request (the stream's close). */
-const CLOSE_SETTLE_MS = 1_500;
-
 /** The answer of the last request a queue step made, for the "API answers" and "API refuses" steps. */
 function record(world: World, status: number, body: unknown): void {
   world.last = { status, body };
@@ -308,7 +305,12 @@ Given(/^(\w+) has closed the site$/, async ({ world }, name: string) => {
   player.stream?.close();
   // Closing the context ends every connection the browser holds, the site's stream included.
   await player.visitor?.context.close();
-  await new Promise((resolve) => setTimeout(resolve, CLOSE_SETTLE_MS));
+  // Chromium can keep the site's stream open after its context closed, so the API may still count it. The API's own
+  // control closes the account's site streams the way a dropped connection does (test-controls.ts), and the step
+  // checks the count: the site is closed at the API before the player joins.
+  expect(player.accountId, `${name} has an account`).toBeDefined();
+  await world.stack.closeSiteStreams(player.accountId ?? '');
+  expect(await world.stack.siteStreamCount(player.accountId ?? ''), `${name}'s site is closed`).toBe(0);
 });
 
 When('Alice leaves the queue', async ({ world }) => {
