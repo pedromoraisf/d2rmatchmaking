@@ -1,3 +1,5 @@
+import type { CharacterClassName } from '../../../../shared-kernel/index.ts';
+
 /** The queue modes (glossary `Mode`). */
 export type QueueMode = 'pvp' | 'leveling';
 
@@ -38,6 +40,8 @@ interface TicketCommon {
   readonly id: string;
   readonly accountId: string;
   readonly characterId: string;
+  /** The character's class, the mark a ready check shows its members (RDY-01). */
+  readonly characterClass: CharacterClassName;
   readonly region: QueueRegion;
   readonly difficulty: QueueDifficulty;
   readonly ladder: QueueLadder;

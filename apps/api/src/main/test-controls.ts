@@ -58,6 +58,8 @@ export interface TestControlDeps {
     readonly queue: ClearableStore;
     /** The joins attempted per account (QUE-18): a scenario starts with no attempt counted. */
     readonly joins: ClearableStore;
+    /** The open ready checks (RDY-09): a scenario starts with none open. */
+    readonly readyChecks: ClearableStore;
   };
   readonly hub: {
     closeAll(): void;
@@ -88,6 +90,7 @@ const TABLES = [
   'lobby.runs',
   'lobby.members',
   'lobby.rooms',
+  'matchmaking.penalties',
   'platform.outbox',
 ] as const;
 
@@ -132,6 +135,7 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
       deps.stores.tokenCache.clear();
       deps.stores.queue.clear();
       deps.stores.joins.clear();
+      deps.stores.readyChecks.clear();
       deps.hub.closeAll();
       // After the close: closing the streams schedules their site-closed drops, and those must not fire in the next scenario.
       deps.siteClosedTimers.clear();

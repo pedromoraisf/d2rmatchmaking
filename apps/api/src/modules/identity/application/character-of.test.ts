@@ -50,6 +50,7 @@ describe('characterOf (QUE-03)', () => {
     const sorcId = await storeSorc(characters, 'alice');
     const characterOf = createCharacterOf({ characters });
     expect(await characterOf('alice', sorcId)).toStrictEqual({
+      characterClass: 'sorceress',
       level: 90,
       hardcore: false,
       ladder: null,

@@ -31,6 +31,9 @@ const SUBSCRIBED_TYPES = [
   'AgentRevoked',
   'CharactersRecorded',
   'QueueUpdated',
+  'ReadyCheckStarted',
+  'ReadyCheckUpdated',
+  'ReadyCheckResolved',
 ] as const;
 
 /** Query parameters that would carry a credential: refused with 400 so tokens never reach a URL (AWS-11). */

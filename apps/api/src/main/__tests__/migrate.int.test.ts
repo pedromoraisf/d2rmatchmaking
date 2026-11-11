@@ -26,6 +26,7 @@ describe('migrate', () => {
       '0006_identity_characters',
       '0007_characters_name_ci',
       '0008_characters_declared_ladder_era',
+      '0009_matchmaking_penalties',
     ]);
 
     const result = await database.pool.query<{ schema_name: string }>(

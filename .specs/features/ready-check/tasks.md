@@ -20,7 +20,7 @@ any route task's gate, no test weakened, `acceptance.feature` not edited; the ho
 - [x] T2 — Domain `ReadyCheck` and the queue re-entry rule (RDY-01 … RDY-05), unit tests on the 60 s boundary (59.999 /
       60.000), decline at once, accepted members ahead of later tickets, penalties of 5 min at the boundary — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/modules/matchmaking/domain`
-- [ ] T3 — Application and adapters: `openReadyCheck`, `answerReadyCheck`, `expireReadyCheck`, penalty store (migration),
+- [x] T3 — Application and adapters: `openReadyCheck`, `answerReadyCheck`, `expireReadyCheck`, penalty store (migration),
       the join refusal for a penalty, routes, stream projection, spans and the outcome metric (AD-087 list and dashboard
       panel); unit and integration tests (a penalty survives a restart); OpenAPI regenerated — gate:
       `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts && pnpm --filter @d2rmm/telemetry exec vitest run && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json && pnpm arch`

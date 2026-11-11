@@ -22,6 +22,7 @@ function ticket(id: string, joinedAt: Date): PvpTicket {
     id,
     accountId: `acc-${id}`,
     characterId: `char-${id}`,
+    characterClass: 'sorceress',
     mode: 'pvp',
     region: 'americas',
     difficulty: 'hell',

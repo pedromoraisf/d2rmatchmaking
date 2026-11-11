@@ -1,9 +1,13 @@
-import type { Era, DeclaredLadder, Difficulty } from '../domain/character/character.ts';
+import type { Era, CharacterClass, DeclaredLadder, Difficulty } from '../domain/character/character.ts';
 import { withSpan } from '../../../shared-kernel/index.ts';
 import type { CharacterRepository } from './character-ports.ts';
 
-/** The facts of one character a queue join reads (QUE-03): its level, mode, declaration and unlocked difficulties. */
+/**
+ * The facts of one character a queue join reads (QUE-03): its class (the ready check's mark, RDY-01), level, mode,
+ * declaration and unlocked difficulties.
+ */
 export interface CharacterFacts {
+  readonly characterClass: CharacterClass;
   readonly level: number;
   readonly hardcore: boolean;
   readonly ladder: DeclaredLadder | null;
@@ -28,6 +32,7 @@ export function createCharacterOf(deps: CharacterOfDeps) {
         return null;
       }
       return {
+        characterClass: character.class,
         level: character.level,
         hardcore: character.hardcore,
         ladder: character.ladder,

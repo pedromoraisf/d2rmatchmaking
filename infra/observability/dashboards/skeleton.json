@@ -172,6 +172,22 @@
           "expr": "histogram_quantile(0.95, sum by (le, d2r_queue_mode) (rate(d2r_queue_wait_seconds_bucket{service_name=\"d2rmm-api\"}[5m])))"
         }
       ]
+    },
+    {
+      "id": 8,
+      "title": "Ready checks by outcome",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "targets": [
+        {
+          "expr": "sum by (d2r_ready_check_outcome) (rate(d2r_ready_check_resolved_total{service_name=\"d2rmm-api\"}[5m]))"
+        }
+      ]
     }
   ]
 }

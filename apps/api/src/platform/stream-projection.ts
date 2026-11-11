@@ -1,6 +1,12 @@
 import type { AgentStreamEvent, SiteStreamEvent } from '@d2rmm/contracts';
 import type { AgentsPort } from '../modules/agents/index.ts';
-import { err, ok, type AnyDomainEvent, type Result } from '../shared-kernel/index.ts';
+import {
+  err,
+  ok,
+  type AnyDomainEvent,
+  type ReadyCheckChangedPayload,
+  type Result,
+} from '../shared-kernel/index.ts';
 
 /** One message for one stream: a site stream of an account, or the agent stream of an agent. */
 export type Delivery =
@@ -81,6 +87,50 @@ export async function projectStreamEvent(
         },
       ];
     }
+    case 'ReadyCheckStarted': {
+      // The open check goes to each member's site and agent (RDY-01).
+      const { payload } = event;
+      const deliveries: Delivery[] = [];
+      for (const member of payload.members) {
+        const data = readyCheckViewFor(payload, member.accountId);
+        deliveries.push({
+          stream: 'site',
+          accountId: member.accountId,
+          event: { type: 'ready_check.started', data },
+        });
+        const agentId = await agents.currentAgentOf(member.accountId);
+        if (agentId !== null) {
+          deliveries.push({ stream: 'agent', agentId, event: { type: 'ready_check.started', data } });
+        }
+      }
+      return deliveries;
+    }
+    case 'ReadyCheckUpdated': {
+      // An acceptance, while the check is open, goes to each member's site only (RDY-02).
+      const { payload } = event;
+      return payload.members.map((member) => ({
+        stream: 'site' as const,
+        accountId: member.accountId,
+        event: {
+          type: 'ready_check.updated' as const,
+          data: readyCheckViewFor(payload, member.accountId),
+        },
+      }));
+    }
+    case 'ReadyCheckResolved': {
+      // The outcome goes to every member's site and agent; the body names no one (RDY-03 … RDY-05).
+      const { payload } = event;
+      const deliveries: Delivery[] = [];
+      for (const accountId of payload.accountIds) {
+        const data = { id: payload.readyCheckId, outcome: payload.outcome };
+        deliveries.push({ stream: 'site', accountId, event: { type: 'ready_check.resolved', data } });
+        const agentId = await agents.currentAgentOf(accountId);
+        if (agentId !== null) {
+          deliveries.push({ stream: 'agent', agentId, event: { type: 'ready_check.resolved', data } });
+        }
+      }
+      return deliveries;
+    }
     case 'CharactersRecorded': {
       // The site refetches its list; the event carries no character (CHR-12, CHR-13).
       return [
@@ -94,6 +144,26 @@ export async function projectStreamEvent(
     default:
       return [];
   }
+}
+
+/**
+ * The open check as one member sees it: the members by position and class mark, and the member's own mark as `you`
+ * (RDY-01, RDY-02). No account id and no name leaves the server.
+ */
+function readyCheckViewFor(payload: ReadyCheckChangedPayload, accountId: string) {
+  return {
+    id: payload.readyCheckId,
+    mode: payload.mode,
+    difficulty: payload.difficulty,
+    deadline: payload.deadline,
+    members: payload.members.map((other) => ({
+      position: other.position,
+      class: other.characterClass,
+      level: other.level,
+      accepted: other.accepted,
+      you: other.accountId === accountId,
+    })),
+  };
 }
 
 /** A stream event id: `<outboxId>` for a durable event, `<outboxId>.<k>` for a transient one (AWS-39). */
