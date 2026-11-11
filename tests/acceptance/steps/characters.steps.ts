@@ -3,7 +3,7 @@
 // (CHR-15), by keyboard or over HTTP. The site shows the screen, the characters and the presence. Black box: the browser
 // and HTTP only. The screen reading of the agent itself is `characters-reading` (split).
 import { MyCharactersResponse } from '@d2rmm/contracts';
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import { Given, Then, When } from '../fixtures.ts';
 import type { HttpAnswer, Screen } from '../support/agent-client.ts';
 import { SESSION_COOKIE, type World } from '../support/world.ts';
@@ -238,9 +238,13 @@ function characterCard(page: Page, characterName: string) {
 }
 
 /** True when the keyboard focus is on a radio button (a declaration's ladder). */
-function focusIsOnRadio(page: Page): Promise<boolean> {
-  return page.evaluate(
-    () => document.activeElement instanceof HTMLInputElement && document.activeElement.type === 'radio',
+/** True when the keyboard focus is on a radio inside `card` (the page holds other radios, such as the queue panel's). */
+function focusIsOnRadioIn(card: Locator): Promise<boolean> {
+  return card.evaluate(
+    (element) =>
+      document.activeElement instanceof HTMLInputElement &&
+      document.activeElement.type === 'radio' &&
+      element.contains(document.activeElement),
   );
 }
 
@@ -409,7 +413,7 @@ When(
       exact: true,
     });
     for (let press = 0; press < KEYBOARD_STOPS; press += 1) {
-      if (await focusIsOnRadio(page)) {
+      if (await focusIsOnRadioIn(card)) {
         break;
       }
       await page.keyboard.press('Tab');
