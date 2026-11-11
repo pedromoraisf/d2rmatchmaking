@@ -122,17 +122,15 @@ jobs:
       - run: pnpm run test:integration
       # Playwright is a dependency of tests/acceptance only: `pnpm exec` at the root cannot find its binary.
       # The browser comes from Playwright's CDN; its system packages come from apt, whose mirrors were unreachable from
-      # the runners for hours on 2026-11-11 (PR #52). Retry apt, then fall back to the runner image's libraries (the image
-      # ships Chrome): a missing library still fails every browser test at launch, so nothing is skipped.
+      # the runners for hours on 2026-11-11 (PR #52), each apt call then waiting about 10 minutes on DNS. One apt call,
+      # bounded to 3 minutes, then the runner image's libraries (the image ships Chrome): a missing library still fails
+      # every browser test at launch, so nothing is skipped.
       - name: Install Chromium for Playwright
         run: |
           pnpm --filter @d2rmm/acceptance exec playwright install chromium
-          for attempt in 1 2 3; do
-            if pnpm --filter @d2rmm/acceptance exec playwright install-deps chromium; then exit 0; fi
-            echo "::warning::apt attempt $attempt for Chromium's system packages failed"
-            sleep 20
-          done
-          echo "::warning::Chromium's system packages could not be installed; using the runner image's libraries"
+          if ! timeout 180 pnpm --filter @d2rmm/acceptance exec playwright install-deps chromium; then
+            echo "::warning::Chromium's system packages could not be installed in 3 minutes; using the runner image's libraries"
+          fi
       - run: pnpm run test:e2e
       - name: Acceptance (BDD scenarios from .specs)
         if: hashFiles('.specs/features/*/acceptance.feature') != ''
