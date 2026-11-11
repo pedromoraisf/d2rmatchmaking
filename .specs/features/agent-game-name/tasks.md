@@ -32,3 +32,18 @@ screenshots are at `/private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaki
       `pnpm exec turbo run test:acceptance -- --grep @AGN-`
 - [x] T7 — Whole-repo sensors — gate:
       `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check && cd apps/agent/src-tauri && cargo clippy --all-targets -- -D warnings`
+
+## Batch 3 — review fixes (PR #48)
+
+- [ ] T8 — Layout model (architecture finding 1): a `PanelRegion` declares its anchor (left, right or centre) and is
+      resolved by scaling x, y, width and height with the client height relative to the 1033 reference (D2R scales its
+      UI with the height), x measured from its anchor edge; the doc comment says exactly that; tests at 1920×1033,
+      1920×1080, 2560×1440 and 1680×1050 assert the Party field's pixel box, not only that it lies inside the frame —
+      gate: `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-domain --lib`
+- [ ] T9 — Party step (findings 2, 3): `look` returns before any OCR once the run has matched; OCR runs through
+      `tokio::task::spawn_blocking`; the claim names the run (`claim(&RunKey)`) and refuses when the followed run
+      differs; core unit tests for each — gate:
+      `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-core --lib && cargo nextest run -p d2rmm-agent-adapters`
+- [ ] T10 — `windows_ocr.rs` scaled sizes with `checked_mul` (security low); a `node:test` file for
+      `scripts/agent/ocr-check.mjs`'s `folderProblems` and `nextestArgs` (finding 4) — gate:
+      `pnpm test:harness && cd apps/agent/src-tauri && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`
