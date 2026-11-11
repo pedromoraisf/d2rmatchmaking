@@ -33,7 +33,7 @@ blocker on the feature that owns it; never commit a game screenshot (the Party f
 
 ## Batch 2
 
-- [ ] T7 — JRN-02 and JRN-03: the J2 steps with eight players (the host and one member on browser pages, six holding
+- [x] T7 — JRN-02 and JRN-03: the J2 steps with eight players (the host and one member on browser pages, six holding
       the site stream as stream clients), a teleporter and a BO, the group of eight, every accept, the teleporter as
       host, all eight Party readings to Active, the next run, the next name of the sequence on every site and agent within 2 s, and
       run 2 Active — gate: `pnpm exec turbo run test:acceptance -- --grep @JRN-02`
