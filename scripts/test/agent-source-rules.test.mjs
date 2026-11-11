@@ -48,6 +48,7 @@ const UNSAFE_ADAPTERS = {
     'DeleteObject',
     'GetDC',
     'GetDIBits',
+    'HDC',
     'HGDIOBJ',
     'ReleaseDC',
     'SelectObject',

@@ -90,7 +90,7 @@ The screen reading (old T8 regions/classifier/parser, T9 Windows OCR on fixtures
       constraint with a unique index on `(account_id, lower(name))`; the upsert matches by lowercased name and stores the
       newest spelling; tests for `Abc` then `abc` (one row) and for a batch with both (400) — gate:
       `pnpm --filter @d2rmm/contracts exec vitest run && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/migrate.int.test.ts src/platform/postgres/migrator.int.test.ts src/main/__tests__/identity-routes.int.test.ts src/modules/identity/adapters/postgres && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json`
-- [ ] T13 — Window choice and device context (security findings 4, 5): among the visible top-level windows of the D2R
+- [x] T13 — Window choice and device context (security findings 4, 5): among the visible top-level windows of the D2R
       processes, capture the one with the largest client area; take the template DC from `GetDC(window)` (released on
       every path) instead of the screen's `GetDC(None)`, and return `None` on a null handle; unit tests on the pure
       window-choice function — gate:
