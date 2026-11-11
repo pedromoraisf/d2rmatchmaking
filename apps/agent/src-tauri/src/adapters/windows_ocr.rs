@@ -10,7 +10,7 @@ use windows::Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap};
 use windows::Media::Ocr::OcrEngine;
 use windows::Storage::Streams::DataWriter;
 
-use crate::adapters::ocr_pixels::scaled_bgra;
+use crate::adapters::ocr_pixels::{padded_region, scaled_bgra};
 
 /// The scale a region is read at: nearest-neighbour, 3×, so the Party panel's text (about 12 px high) reaches the size the
 /// engine reads. A decision of the agent-game-name feature, pinned by the maintainer's screenshots (windows test).
@@ -48,8 +48,12 @@ impl TextReader for WindowsOcr {
     }
 }
 
-/// Copies the region, scaled up by `OCR_SCALE`, into a BGRA8 software bitmap (`ocr_pixels`).
+/// The frame's background kept around each region, in pixels: the engine drops text that touches the crop's edge (T9).
+const OCR_PAD: u32 = 16;
+
+/// Copies the region with its background margin, scaled up by `OCR_SCALE`, into a BGRA8 software bitmap (`ocr_pixels`).
 fn crop_to_bitmap(image: &Rgba, region: Region) -> Result<SoftwareBitmap, ReadError> {
+    let region = padded_region(region, image.width, image.height, OCR_PAD);
     let bgra = scaled_bgra(image, region, OCR_SCALE).ok_or(ReadError::Failed)?;
     // A region is checked against the frame before scaling; the scaled sizes are still checked, so a size that
     // overflows `u32` fails the read instead of wrapping.

@@ -5,6 +5,33 @@
 use d2rmm_agent_core::ports::Rgba;
 use d2rmm_agent_domain::vision::Region;
 
+/// `region` grown by `pad` pixels on every side and clamped to a frame of `width` × `height`. The engine drops text that
+/// touches the edge of what it reads (T9: the character labels are drawn at their boxes' edges and read empty), so the crop
+/// keeps the frame's own background around the text. A region that is not inside the frame is returned unchanged.
+pub fn padded_region(region: Region, width: u32, height: u32, pad: u32) -> Region {
+    let x0 = region.x.saturating_sub(pad);
+    let y0 = region.y.saturating_sub(pad);
+    let x1 = region
+        .x
+        .saturating_add(region.width)
+        .saturating_add(pad)
+        .min(width);
+    let y1 = region
+        .y
+        .saturating_add(region.height)
+        .saturating_add(pad)
+        .min(height);
+    if x1 <= x0 || y1 <= y0 || region.x >= width || region.y >= height {
+        return region;
+    }
+    Region {
+        x: x0,
+        y: y0,
+        width: x1 - x0,
+        height: y1 - y0,
+    }
+}
+
 /// The BGRA rows of `region`, each pixel repeated `scale` times in both directions, with every pixel opaque. `None` when
 /// the scale or the region is empty, the region leaves the frame, or the frame's pixels do not hold exactly its size.
 pub fn scaled_bgra(image: &Rgba, region: Region, scale: u32) -> Option<Vec<u8>> {
@@ -122,6 +149,56 @@ mod tests {
             height: 1,
         };
         assert_eq!(scaled_bgra(&frame(), empty, 1), None, "no width");
+    }
+
+    #[test]
+    fn the_crop_grows_by_the_padding_and_clamps_at_the_frame_edges() {
+        use super::padded_region;
+        let inside = Region {
+            x: 10,
+            y: 20,
+            width: 30,
+            height: 40,
+        };
+        assert_eq!(
+            padded_region(inside, 1920, 1080, 16),
+            Region {
+                x: 0,
+                y: 4,
+                width: 56,
+                height: 72,
+            },
+            "16 px each side, the left one reaching the frame edge at 0 after the clamp"
+        );
+        assert_eq!(padded_region(inside, 1920, 1080, 0), inside, "no padding");
+        let corner = Region {
+            x: 1900,
+            y: 1060,
+            width: 20,
+            height: 20,
+        };
+        assert_eq!(
+            padded_region(corner, 1920, 1080, 16),
+            Region {
+                x: 1884,
+                y: 1044,
+                width: 36,
+                height: 36,
+            },
+            "the right and bottom edges clamp to the frame"
+        );
+    }
+
+    #[test]
+    fn a_region_outside_the_frame_is_returned_unchanged_for_the_scaler_to_refuse() {
+        use super::padded_region;
+        let outside = Region {
+            x: 2000,
+            y: 0,
+            width: 10,
+            height: 10,
+        };
+        assert_eq!(padded_region(outside, 1920, 1080, 16), outside);
     }
 
     #[test]
