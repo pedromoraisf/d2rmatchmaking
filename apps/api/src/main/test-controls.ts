@@ -1,5 +1,6 @@
 // The test controls of the acceptance stack (design.md § Composition roots, AD-045, AD-062): `POST /__test/reset`,
-// `POST /__test/clock` and `POST /__test/redeliver-match-formed` (the at-least-once redelivery of AWS-20). Only `local.ts`
+// `POST /__test/clock`, `POST /__test/redeliver-match-formed` (the at-least-once redelivery of AWS-20) and the site-stream
+// controls of QUE-05 (`GET /__test/site-streams/:accountId`, `POST /__test/site-streams/:accountId/close`). Only `local.ts`
 // registers them, and only when `D2RMM_ACCEPTANCE=true`; `render.ts` never does, and they are never in `openapi.json`.
 import { timingSafeEqual } from 'node:crypto';
 import { ErrorResponse } from '@d2rmm/contracts';
@@ -56,7 +57,13 @@ export interface TestControlDeps {
     /** The waiting queue (queues QUE-01 … QUE-14): a scenario starts with nobody queued. */
     readonly queue: ClearableStore;
   };
-  readonly hub: { closeAll(): void };
+  readonly hub: {
+    closeAll(): void;
+    /** The open site streams of an account (QUE-05): the site-streams control reads it. */
+    siteStreamCount(accountId: string): number;
+    /** Closes the open site streams of an account, as a dropped connection would (QUE-05, QUE-14). */
+    closeSiteStreams(accountId: string): number;
+  };
   readonly relay: { sweep(): Promise<void> };
   /** The bus the redelivery publishes on: the one the relay and the consumers of this process share (AD-062). */
   readonly bus: EventBus;
@@ -90,7 +97,7 @@ function secretMatches(presented: unknown, expected: string): boolean {
   return given.length === wanted.length && timingSafeEqual(given, wanted);
 }
 
-/** Registers the three control routes. Call before the app listens. */
+/** Registers the control routes. Call before the app listens. */
 export function registerTestControls(app: FastifyInstance, deps: TestControlDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
@@ -138,6 +145,36 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
     async (request, reply) => {
       deps.clock.advance(request.body.advanceMs);
       return reply.code(204).send(null);
+    },
+  );
+
+  // QUE-05 (acceptance): the site streams of one account. The browser's own close is not reliable enough to wait on, so a
+  // scenario that says "has closed the site" closes them here, through the same path a dropped connection takes.
+  typed.get(
+    '/__test/site-streams/:accountId',
+    {
+      preHandler: [requireSecret],
+      schema: {
+        params: z.object({ accountId: z.string().min(1) }),
+        response: { 200: z.object({ open: z.number().int().min(0) }), 403: ErrorResponse },
+      },
+    },
+    async (request, reply) => {
+      return reply.code(200).send({ open: deps.hub.siteStreamCount(request.params.accountId) });
+    },
+  );
+
+  typed.post(
+    '/__test/site-streams/:accountId/close',
+    {
+      preHandler: [requireSecret],
+      schema: {
+        params: z.object({ accountId: z.string().min(1) }),
+        response: { 200: z.object({ closed: z.number().int().min(0) }), 403: ErrorResponse },
+      },
+    },
+    async (request, reply) => {
+      return reply.code(200).send({ closed: deps.hub.closeSiteStreams(request.params.accountId) });
     },
   );
 

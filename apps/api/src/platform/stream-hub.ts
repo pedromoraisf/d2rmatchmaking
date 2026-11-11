@@ -227,12 +227,34 @@ export class StreamHub {
 
   /** True when the account has an open site stream now (QUE-05: the site must be open to queue). */
   hasSiteStream(accountId: string): boolean {
-    return [...this.#connections].some(
+    return this.siteStreamCount(accountId) > 0;
+  }
+
+  /** How many site streams of the account are open now (the test controls read it). */
+  siteStreamCount(accountId: string): number {
+    return [...this.#connections].filter(
+      (connection) =>
+        !connection.closed &&
+        connection.principal.kind === 'site' &&
+        connection.principal.accountId === accountId,
+    ).length;
+  }
+
+  /**
+   * Closes every open site stream of the account, exactly as a dropped connection would (the test controls use it): the
+   * last one to close starts the QUE-14 clock through `onSiteStreamsClosed`. Returns how many it closed.
+   */
+  closeSiteStreams(accountId: string): number {
+    const mine = [...this.#connections].filter(
       (connection) =>
         !connection.closed &&
         connection.principal.kind === 'site' &&
         connection.principal.accountId === accountId,
     );
+    for (const connection of mine) {
+      connection.close();
+    }
+    return mine.length;
   }
 
   /**

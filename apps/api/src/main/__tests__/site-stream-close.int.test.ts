@@ -115,4 +115,18 @@ describe('site stream close detection (queues QUE-05)', () => {
 
     expect(await waitForStream(accountId, false, 1_000)).toBe(true);
   });
+
+  it('counts the site streams of the account: one while open, none after the client aborts (queues QUE-05)', async () => {
+    const { cookie, accountId } = await signIn('Alice');
+    const stream = await openSiteStream(cookie);
+    expect(built.hub.siteStreamCount(accountId)).toBe(1);
+
+    stream.abort();
+
+    const deadline = Date.now() + 10_000;
+    while (built.hub.siteStreamCount(accountId) !== 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(built.hub.siteStreamCount(accountId)).toBe(0);
+  });
 });
