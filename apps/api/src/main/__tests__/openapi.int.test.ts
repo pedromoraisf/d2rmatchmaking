@@ -10,7 +10,7 @@ import { NodeRandomSource, RandomUuidGenerator } from '../runtime.ts';
 
 /** Every route buildApp registers with staging on, in Fastify's route syntax (`:id`) and the document's (`{id}`). */
 const ROUTES: readonly {
-  readonly method: 'get' | 'post' | 'delete';
+  readonly method: 'get' | 'post' | 'patch' | 'delete';
   readonly url: string;
   readonly path: string;
 }[] = [
@@ -21,6 +21,9 @@ const ROUTES: readonly {
   { method: 'get', url: '/v1/auth/bnet/callback', path: '/v1/auth/bnet/callback' },
   { method: 'post', url: '/v1/auth/logout', path: '/v1/auth/logout' },
   { method: 'get', url: '/v1/me', path: '/v1/me' },
+  { method: 'post', url: '/v1/me/characters', path: '/v1/me/characters' },
+  { method: 'get', url: '/v1/me/characters', path: '/v1/me/characters' },
+  { method: 'patch', url: '/v1/me/characters/:id', path: '/v1/me/characters/{id}' },
   { method: 'post', url: '/v1/agents/pairing-codes', path: '/v1/agents/pairing-codes' },
   { method: 'post', url: '/v1/agents/pairing-codes/claim', path: '/v1/agents/pairing-codes/claim' },
   { method: 'post', url: '/v1/agents/pair', path: '/v1/agents/pair' },
