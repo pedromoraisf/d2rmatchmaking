@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { createI18n } from '../app/i18n.ts';
 import {
   classKey,
+  classMark,
   difficultyKey,
+  difficultyTone,
   eraKey,
   gameKey,
   ladderKey,
@@ -35,5 +37,17 @@ describe('labels', () => {
     [ladderKey('ladder'), 'Ladder'],
   ])('maps %s to its English text', (key, text) => {
     expect(i18n.t(key)).toBe(text);
+  });
+
+  it('marks every class with its two-letter card mark', () => {
+    expect(classMark('amazon')).toBe('AM');
+    expect(classMark('sorceress')).toBe('SO');
+    expect(classMark('warlock')).toBe('WL');
+  });
+
+  it('colours each difficulty tag as the prototype does: Normal, Nightmare and Hell', () => {
+    expect(difficultyTone('normal')).toBe('d-n');
+    expect(difficultyTone('nightmare')).toBe('d-nm');
+    expect(difficultyTone('hell')).toBe('d-h');
   });
 });
