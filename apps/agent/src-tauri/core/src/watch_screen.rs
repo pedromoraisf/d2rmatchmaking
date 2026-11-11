@@ -52,9 +52,10 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
         device.set_screen(Screen::Unknown);
         return;
     };
+    let frame = Arc::new(frame);
     let reading = read_screen(ports, &frame);
     device.set_screen(reading.screen);
-    party::look(device, &ports.party, &frame).await;
+    party::look(device, &ports.party, Arc::clone(&frame)).await;
     let FrameReading {
         screen: Screen::CharacterSelect,
         cards,

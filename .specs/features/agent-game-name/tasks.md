@@ -40,7 +40,7 @@ screenshots are at `/private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaki
       UI with the height), x measured from its anchor edge; the doc comment says exactly that; tests at 1920×1033,
       1920×1080, 2560×1440 and 1680×1050 assert the Party field's pixel box, not only that it lies inside the frame —
       gate: `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-domain --lib`
-- [ ] T9 — Party step (findings 2, 3): `look` returns before any OCR once the run has matched; OCR runs through
+- [x] T9 — Party step (findings 2, 3): `look` returns before any OCR once the run has matched; OCR runs through
       `tokio::task::spawn_blocking`; the claim names the run (`claim(&RunKey)`) and refuses when the followed run
       differs; core unit tests for each — gate:
       `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-core --lib && cargo nextest run -p d2rmm-agent-adapters`

@@ -3,6 +3,7 @@
 //! checked against the words of the language pack. When the panel is open, the Game Name field is read. The masked value
 //! tells the player to click the eye (AGN-04); the expected name posts one observation for the run (AGN-03, AGN-05). Only
 //! the match leaves the process, and the span carries whether it matched and whether the field was masked (AGN-07).
+//! The OCR runs on a blocking thread; once the run has matched, no further frame is read for it.
 
 use std::num::NonZeroU64;
 use std::sync::Arc;
@@ -16,13 +17,32 @@ use d2rmm_agent_domain::vision::ReadText;
 
 use crate::device_state::DeviceState;
 use crate::groups::ReadPorts;
-use crate::ports::{ApiGateway, Rgba};
+use crate::ports::{ApiGateway, Rgba, TextReader};
 use crate::post_observation;
 
 /// The ports of the Party step: the read and post ports the observation path uses, and the language pack's words.
 pub struct PartyPorts<G> {
     pub read: ReadPorts<G>,
     pub language: Arc<LanguagePack>,
+}
+
+/// The identity of a run (AGN-05): its room, its number and its expected game name. A run is followed, and claimed, by this key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunKey {
+    room: String,
+    run: NonZeroU64,
+    expected: String,
+}
+
+impl RunKey {
+    /// The key of the run an assignment names.
+    pub fn of(assignment: &Assignment) -> Self {
+        Self {
+            room: assignment.room.as_str().to_string(),
+            run: assignment.run,
+            expected: assignment.expected_game_name.as_str().to_string(),
+        }
+    }
 }
 
 /// What the Party step has seen for the held run (AGN-05): the run it follows, whether it has posted for it and whether the
@@ -33,23 +53,6 @@ pub struct PartyProgress {
     run: Option<RunKey>,
     posted: bool,
     masked: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct RunKey {
-    room: String,
-    run: NonZeroU64,
-    expected: String,
-}
-
-impl RunKey {
-    fn of(assignment: &Assignment) -> Self {
-        Self {
-            room: assignment.room.as_str().to_string(),
-            run: assignment.run,
-            expected: assignment.expected_game_name.as_str().to_string(),
-        }
-    }
 }
 
 impl PartyProgress {
@@ -63,6 +66,11 @@ impl PartyProgress {
                 masked: false,
             };
         }
+    }
+
+    /// Whether `run` is the run this progress follows.
+    pub fn follows(&self, run: &RunKey) -> bool {
+        self.run.as_ref() == Some(run)
     }
 
     /// Whether the run's observation has been claimed (posted or dropped after its retries, AD-051).
@@ -85,9 +93,10 @@ impl PartyProgress {
         self.masked = false;
     }
 
-    /// Claims the one observation of this run. `true` the first time only.
-    pub fn claim(&mut self) -> bool {
-        if self.posted {
+    /// Claims the one observation of `run`. `true` the first time, and only while `run` is the followed run: a claim for
+    /// a run that has since been replaced is refused, so a read that started for an old run cannot post for the new one.
+    pub fn claim(&mut self, run: &RunKey) -> bool {
+        if self.posted || !self.follows(run) {
             return false;
         }
         self.posted = true;
@@ -95,33 +104,63 @@ impl PartyProgress {
     }
 }
 
-/// One look at the Party panel of `frame`. Nothing is read without a held assignment, and nothing is posted while the API is
-/// not allowed (no token, or a 426 is pending).
+/// One look at the Party panel of `frame`. Nothing is read without a held assignment, nothing is read once the run has
+/// matched, and nothing is posted while the API is not allowed (no token, or a 426 is pending). The OCR runs on a blocking
+/// thread, so the screen loop and the other loops keep running while it reads.
 pub async fn look<G: ApiGateway + Send + Sync>(
     device: &DeviceState,
     ports: &PartyPorts<G>,
-    frame: &Rgba,
+    frame: Arc<Rgba>,
 ) {
     let assignment = device.assignment.borrow().current().cloned();
     let Some(assignment) = assignment else {
         return;
     };
-    if !device.api_allowed() {
+    if !device.api_allowed() || device.with_party(|progress| progress.matched()) {
         return;
     }
-    let Some(observation) = read_panel(device, ports, frame, &assignment) else {
+    let reader = Arc::clone(&ports.read.reader);
+    let language = Arc::clone(&ports.language);
+    let reading =
+        tokio::task::spawn_blocking(move || read_panel(reader.as_ref(), &language, &frame)).await;
+    let Ok(reading) = reading else {
+        return;
+    };
+    let Some(observation) = apply_reading(device, ports, &assignment, reading) else {
         return;
     };
     post_observation::send(device, &ports.read, &observation).await;
 }
 
-/// The synchronous part of the look: reads the panel, updates the run's state and the room view, and returns the observation
-/// to post when the field matched and the run had not claimed one yet.
-fn read_panel<G>(
+/// What the Party panel shows in one frame: whether it is open (its title and its label read as their words) and the
+/// text of the Game Name field, read only when the panel is open. Plain data, so the OCR can run on a blocking thread.
+#[derive(Debug, Clone, PartialEq)]
+struct PanelReading {
+    open: bool,
+    field: Option<ReadText>,
+}
+
+/// The OCR of one frame's Party panel. Blocking: called on a blocking thread.
+fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba) -> PanelReading {
+    let open = panel_text(reader, frame, PanelRegion::PartyTitle)
+        .is_some_and(|title| language.is_word(&title.text, PARTY))
+        && panel_text(reader, frame, PanelRegion::GameNameLabel)
+            .is_some_and(|label| language.is_word(&label.text, GAME_NAME));
+    let field = if open {
+        panel_text(reader, frame, PanelRegion::GameNameField)
+    } else {
+        None
+    };
+    PanelReading { open, field }
+}
+
+/// The synchronous part of the look: updates the run's state and the room view from one reading, and returns the
+/// observation to post when the field matched and the run had not claimed one yet.
+fn apply_reading<G>(
     device: &DeviceState,
     ports: &PartyPorts<G>,
-    frame: &Rgba,
     assignment: &Assignment,
+    reading: PanelReading,
 ) -> Option<GameNameObservation> {
     let span = tracing::info_span!(
         "agent.vision.read-game-name",
@@ -129,18 +168,15 @@ fn read_panel<G>(
         masked = false,
     );
     let _entered = span.enter();
-    let open = panel_text(ports, frame, PanelRegion::PartyTitle)
-        .is_some_and(|title| ports.language.is_word(&title.text, PARTY))
-        && panel_text(ports, frame, PanelRegion::GameNameLabel)
-            .is_some_and(|label| ports.language.is_word(&label.text, GAME_NAME));
-    if !open {
+    if !reading.open {
         return None;
     }
-    let field = panel_text(ports, frame, PanelRegion::GameNameField)?;
+    let field = reading.field?;
     if field.text.trim().is_empty() {
         // An empty reading says nothing about the field: the state stays as it was.
         return None;
     }
+    let run = RunKey::of(assignment);
     match read_field(&field.text, assignment.expected_game_name.as_str()) {
         FieldRead::Masked => {
             span.record("masked", true);
@@ -156,8 +192,11 @@ fn read_panel<G>(
         FieldRead::Matched => {
             span.record("matched", true);
             let claimed = device.with_party(|progress| {
+                if !progress.follows(&run) {
+                    return false;
+                }
                 progress.saw_shown();
-                progress.claim()
+                progress.claim(&run)
             });
             device.publish_room();
             if !claimed {
@@ -171,9 +210,9 @@ fn read_panel<G>(
 
 /// The text of one panel region, or `None` when the frame has no region for it (an unsupported size, AGN-02) or the reader
 /// fails.
-fn panel_text<G>(ports: &PartyPorts<G>, frame: &Rgba, panel: PanelRegion) -> Option<ReadText> {
+fn panel_text(reader: &dyn TextReader, frame: &Rgba, panel: PanelRegion) -> Option<ReadText> {
     let region = panel_region(panel, frame.width, frame.height)?;
-    ports.read.reader.read(frame, region).ok()
+    reader.read(frame, region).ok()
 }
 
 #[cfg(test)]
@@ -182,9 +221,43 @@ mod tests {
 
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
 
-    use super::PartyProgress;
+    use super::{PartyProgress, RunKey};
 
     const ROOM: &str = "7d9f2c1e-0000-4000-8000-000000000001";
+
+    fn key(run: u64, name: &str) -> RunKey {
+        RunKey::of(&assignment(run, name))
+    }
+
+    #[test]
+    fn a_claim_names_its_run_and_refuses_another() {
+        let mut progress = PartyProgress::default();
+        progress.follow(Some(&assignment(1, "mmbaalh-12")));
+
+        assert!(
+            !progress.claim(&key(2, "mmbaalh-13")),
+            "a run that is not followed cannot claim"
+        );
+        assert!(!progress.matched(), "the refused claim changed nothing");
+        assert!(
+            progress.claim(&key(1, "mmbaalh-12")),
+            "the followed run claims"
+        );
+    }
+
+    #[test]
+    fn a_claim_for_a_replaced_run_is_refused_after_the_switch() {
+        // A read that started for run 1 cannot post once the stream has moved on to run 2.
+        let mut progress = PartyProgress::default();
+        progress.follow(Some(&assignment(1, "mmbaalh-12")));
+        progress.follow(Some(&assignment(2, "mmbaalh-13")));
+
+        assert!(
+            !progress.claim(&key(1, "mmbaalh-12")),
+            "run 1 is no longer followed"
+        );
+        assert!(progress.claim(&key(2, "mmbaalh-13")), "run 2 claims");
+    }
 
     fn assignment(run: u64, name: &str) -> Assignment {
         Assignment {
@@ -200,9 +273,12 @@ mod tests {
         let mut progress = PartyProgress::default();
         progress.follow(Some(&assignment(1, "mmbaalh-12")));
 
-        assert!(progress.claim(), "the first claim is the observation");
         assert!(
-            !progress.claim(),
+            progress.claim(&key(1, "mmbaalh-12")),
+            "the first claim is the observation"
+        );
+        assert!(
+            !progress.claim(&key(1, "mmbaalh-12")),
             "a second claim of the same run is refused"
         );
         assert!(progress.matched());
@@ -212,24 +288,30 @@ mod tests {
     fn a_new_run_claims_again() {
         let mut progress = PartyProgress::default();
         progress.follow(Some(&assignment(1, "mmbaalh-12")));
-        assert!(progress.claim());
+        assert!(progress.claim(&key(1, "mmbaalh-12")));
 
         progress.follow(Some(&assignment(2, "mmbaalh-13")));
 
         assert!(!progress.matched(), "the new run has not matched");
-        assert!(progress.claim(), "the new run posts for itself");
+        assert!(
+            progress.claim(&key(2, "mmbaalh-13")),
+            "the new run posts for itself"
+        );
     }
 
     #[test]
     fn a_repeated_assignment_keeps_the_claim() {
         let mut progress = PartyProgress::default();
         progress.follow(Some(&assignment(1, "mmbaalh-12")));
-        assert!(progress.claim());
+        assert!(progress.claim(&key(1, "mmbaalh-12")));
 
         progress.follow(Some(&assignment(1, "mmbaalh-12")));
 
         assert!(progress.matched(), "the stream repeats the same run");
-        assert!(!progress.claim(), "no second observation for it");
+        assert!(
+            !progress.claim(&key(1, "mmbaalh-12")),
+            "no second observation for it"
+        );
     }
 
     #[test]
@@ -244,7 +326,7 @@ mod tests {
             "a masked field asks for the reveal"
         );
 
-        assert!(progress.claim());
+        assert!(progress.claim(&key(1, "mmbaalh-12")));
         assert!(!progress.needs_reveal(), "a match clears the hint");
     }
 
@@ -252,7 +334,7 @@ mod tests {
     fn forgetting_the_assignment_clears_the_run() {
         let mut progress = PartyProgress::default();
         progress.follow(Some(&assignment(1, "mmbaalh-12")));
-        assert!(progress.claim());
+        assert!(progress.claim(&key(1, "mmbaalh-12")));
 
         progress.follow(None);
 
@@ -292,11 +374,16 @@ mod look_tests {
         label: Mutex<String>,
         field: Mutex<String>,
         reads: AtomicUsize,
+        threads: Mutex<Vec<std::thread::ThreadId>>,
     }
 
     impl TextReader for Panel {
         fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
             self.reads.fetch_add(1, Ordering::SeqCst);
+            self.threads
+                .lock()
+                .expect("the thread lock")
+                .push(std::thread::current().id());
             let at = |panel| panel_region(panel, image.width, image.height);
             let slot = if at(PanelRegion::PartyTitle) == Some(region) {
                 &self.title
@@ -375,7 +462,7 @@ mod look_tests {
     }
 
     async fn look_at(rig: &Rig) {
-        look(&rig.device, &rig.ports, &frame(1920, 1033)).await;
+        look(&rig.device, &rig.ports, Arc::new(frame(1920, 1033))).await;
     }
 
     fn posts(gateway: &FakeApiGateway) -> Vec<GameNameObservation> {
@@ -527,7 +614,7 @@ mod look_tests {
             .replace_assignment(Some(assignment(1, "mmcowsh-1")));
         show(&rig.panel, "PARTY", "mmcowsh-1");
 
-        look(&rig.device, &rig.ports, &frame(1024, 768)).await;
+        look(&rig.device, &rig.ports, Arc::new(frame(1024, 768))).await;
 
         assert_eq!(
             rig.panel.reads.load(Ordering::SeqCst),
@@ -717,6 +804,43 @@ mod look_tests {
             read_spans(&spans),
             only("false", "false"),
             "nothing read from the field"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn after_a_match_the_look_reads_nothing() {
+        let rig = rig();
+        rig.device
+            .replace_assignment(Some(assignment(1, "mmcowsh-1")));
+        rig.gateway.script_post_observation([Ok(())]);
+        show(&rig.panel, "PARTY", "mmcowsh-1");
+        look_at(&rig).await;
+        let reads = rig.panel.reads.load(Ordering::SeqCst);
+
+        look_at(&rig).await;
+
+        assert_eq!(
+            rig.panel.reads.load(Ordering::SeqCst),
+            reads,
+            "a matched run reads no further frame"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_panel_is_read_off_the_runtime_thread() {
+        let rig = rig();
+        rig.device
+            .replace_assignment(Some(assignment(1, "mmcowsh-1")));
+        show(&rig.panel, "INVENTORY", "mmcowsh-1");
+        let here = std::thread::current().id();
+
+        look_at(&rig).await;
+
+        let threads = rig.panel.threads.lock().expect("the thread lock").clone();
+        assert!(!threads.is_empty(), "the panel was read");
+        assert!(
+            threads.iter().all(|thread| *thread != here),
+            "the OCR runs on a blocking thread, not on the loop's thread"
         );
     }
 }
