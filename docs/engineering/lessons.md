@@ -59,6 +59,10 @@ being true.
 
 ## Observability and load
 
+- **Closing a Playwright browser context does not end its `EventSource` connection promptly** (Chromium kept a site
+  stream open > 10 s behind the Pages proxy). A Given that needs "the site is gone" closes the browser and then ends the
+  account's streams through a test control. Why: queues QUE-05 failed four times on sleeps and polls (2026-11-11).
+
 - **Locally, run the traced scenarios (`@OBS-`) alone with `--workers=1`**, never mixed into a broad acceptance gate.
   Why: the traced stack (API, site, telemetry backend per worker) did not become ready within 90 s under 4 workers on
   the 8 GB machine, and the same 22 scenarios passed with one worker (characters, T14).
