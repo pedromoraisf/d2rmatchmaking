@@ -158,6 +158,10 @@ impl ApiGateway for Reporting {
     ) -> Result<Box<dyn EventStream>, ApiError> {
         self.inner.open_stream(token, last_event_id).await
     }
+
+    async fn accept_ready_check(&self, token: &Secret, check_id: &str) -> Result<(), ApiError> {
+        self.inner.accept_ready_check(token, check_id).await
+    }
 }
 
 /// The wall clock of the run.

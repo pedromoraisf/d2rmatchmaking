@@ -5,13 +5,14 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
+use chrono::{DateTime, Utc};
 use d2rmm_agent_domain::paired_device::{DeviceEffect, PairedDevice};
 use d2rmm_agent_domain::room_assignment::{Assignment, RoomAssignment};
 use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
 use crate::hub::Hub;
-use crate::messages::Screen;
+use crate::messages::{ReadyCheckOpen, Screen};
 use crate::party::PartyProgress;
 use crate::ports::{ApiError, StateSink, TokenStore};
 use crate::view::{PairingView, RoomView, UpdateView};
@@ -35,6 +36,8 @@ pub struct DeviceState {
     observations_dropped: AtomicU64,
     /// What the Party step has seen for the held run (AGN-05). It follows the assignment and is forgotten with it.
     party: Mutex<PartyProgress>,
+    /// The ready check the account is in, while the stream says it is open (RDY-07). The hotkey answers it.
+    ready_check: Mutex<Option<ReadyCheckOpen>>,
 }
 
 impl DeviceState {
@@ -50,7 +53,32 @@ impl DeviceState {
             screen: watch::channel(Screen::Unknown).0,
             observations_dropped: AtomicU64::new(0),
             party: Mutex::new(PartyProgress::default()),
+            ready_check: Mutex::new(None),
         }
+    }
+
+    /// Holds a ready check the stream says opened for the account, and shows the hotkey that accepts it (RDY-07).
+    pub fn open_ready_check(&self, check: ReadyCheckOpen) {
+        *lock(&self.ready_check) = Some(check);
+        self.hub.set_ready_check_open(true);
+    }
+
+    /// Forgets the held ready check when the stream says it ended, or the API says it is gone. A different id changes
+    /// nothing, so a late end of an older check never hides the newer one.
+    pub fn close_ready_check(&self, id: &str) {
+        let mut held = lock(&self.ready_check);
+        if held.as_ref().is_some_and(|check| check.id == id) {
+            *held = None;
+            drop(held);
+            self.hub.set_ready_check_open(false);
+        }
+    }
+
+    /// The held ready check, when the hotkey may still answer it at `now`: it is held and its deadline has not passed.
+    pub fn answerable_ready_check(&self, now: DateTime<Utc>) -> Option<ReadyCheckOpen> {
+        lock(&self.ready_check)
+            .clone()
+            .filter(|check| now < check.deadline)
     }
 
     /// Records the screen the last frame showed. Only a change wakes the heartbeat (CHR-05).

@@ -63,6 +63,12 @@ impl<S: ChunkSource> SseEventStream<S> {
                     StreamEffect::SetAssignment(assignment) => {
                         return StreamItem::RoomAssigned(assignment_from_contract(assignment));
                     }
+                    StreamEffect::ReadyCheckStarted(check) => {
+                        return StreamItem::ReadyCheckStarted(check);
+                    }
+                    StreamEffect::ReadyCheckResolved(end) => {
+                        return StreamItem::ReadyCheckResolved(end);
+                    }
                     StreamEffect::Ignore => continue,
                 }
             }

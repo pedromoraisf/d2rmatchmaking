@@ -16,6 +16,7 @@ const view = (overrides: Partial<AgentView> = {}): AgentView => ({
   connectivity: 'connected',
   room: null,
   update: 'idle',
+  readyCheckOpen: false,
   ...overrides,
 });
 

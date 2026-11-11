@@ -97,6 +97,9 @@ async fn read_events(
             // The agent stopped being allowed to call the API: stop reading.
             None => break,
             Some(StreamItem::RoomAssigned(assignment)) => set_assignment(device, Some(assignment)),
+            // A ready check opened or ended for the account (RDY-01, RDY-03 … RDY-05): the hotkey follows it.
+            Some(StreamItem::ReadyCheckStarted(check)) => device.open_ready_check(check),
+            Some(StreamItem::ReadyCheckResolved(end)) => device.close_ready_check(&end.id),
             // The stream ended, failed or went silent: the caller reconnects.
             Some(StreamItem::Ended(_)) => break,
         }

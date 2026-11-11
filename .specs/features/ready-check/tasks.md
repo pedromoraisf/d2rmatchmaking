@@ -28,7 +28,7 @@ any route task's gate, no test weakened, `acceptance.feature` not edited; the ho
       Decline, hotkey hint, the penalty sentence; focus on Accept; Escape does not decline), the penalty message on the
       queue panel; en + pt-BR; component tests — gate:
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
-- [ ] T5 — Agent: the `ready_check.started/resolved` events in the core, the accept call through the gateway, and the
+- [x] T5 — Agent: the `ready_check.started/resolved` events in the core, the accept call through the gateway, and the
       Ctrl+Shift+A global hotkey (Tauri global-shortcut) active only while a check is open; it calls the API only; Rust
       unit tests with fakes; the agent window shows the hotkey while a check is open (en + pt-BR) — gate:
       `pnpm --filter @d2rmm/agent exec vitest run && pnpm --filter @d2rmm/agent lint && cd apps/agent/src-tauri && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`

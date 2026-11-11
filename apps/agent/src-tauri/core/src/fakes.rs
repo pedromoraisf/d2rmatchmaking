@@ -33,6 +33,7 @@ pub enum Call {
     PostObservation(GameNameObservation),
     PostCharacters { cards: Vec<Card> },
     OpenStream { last_event_id: Option<String> },
+    AcceptReadyCheck { check_id: String },
 }
 
 /// Calls a fake answers in one scenario before the loop under test counts as spinning. A legitimate scenario makes a few
@@ -64,6 +65,7 @@ struct Script {
     post_observation: VecDeque<Result<(), ApiError>>,
     post_characters: VecDeque<Result<(), ApiError>>,
     open_stream: VecDeque<Result<Vec<StreamItem>, ApiError>>,
+    accept_ready_check: VecDeque<Result<(), ApiError>>,
     hold_streams: bool,
     calls: Vec<Call>,
     call_limit: usize,
@@ -131,6 +133,13 @@ impl FakeApiGateway {
     }
 
     /// Every stream opened from now on stays open after its scripted items, until the code under test stops reading it.
+    pub fn script_accept_ready_check(
+        &self,
+        answers: impl IntoIterator<Item = Result<(), ApiError>>,
+    ) {
+        self.with(|script| script.accept_ready_check.extend(answers));
+    }
+
     pub fn hold_streams(&self) {
         self.with(|script| script.hold_streams = true);
     }
@@ -213,6 +222,15 @@ impl ApiGateway for FakeApiGateway {
                 cards: cards.to_vec(),
             });
             answer(&mut script.post_characters)
+        })
+    }
+
+    async fn accept_ready_check(&self, _token: &Secret, check_id: &str) -> Result<(), ApiError> {
+        self.with(|script| {
+            script.calls.push(Call::AcceptReadyCheck {
+                check_id: check_id.to_string(),
+            });
+            answer(&mut script.accept_ready_check)
         })
     }
 

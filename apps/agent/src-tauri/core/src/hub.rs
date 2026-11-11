@@ -21,6 +21,7 @@ impl Hub {
                 connectivity: Connectivity::Connected,
                 room: None,
                 update: UpdateView::Idle,
+                ready_check_open: false,
             }),
         }
     }
@@ -48,6 +49,11 @@ impl Hub {
 
     pub fn set_update(&self, update: UpdateView) {
         self.change(|view| view.update = update);
+    }
+
+    /// Shows whether a ready check is open; the app keeps the hotkey registered while it is (RDY-07).
+    pub fn set_ready_check_open(&self, open: bool) {
+        self.change(|view| view.ready_check_open = open);
     }
 
     pub fn snapshot(&self) -> AgentView {

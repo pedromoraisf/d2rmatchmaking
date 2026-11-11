@@ -69,6 +69,10 @@ impl ApiGateway for HttpGateway {
         self.api.post_characters(token, &body).await
     }
 
+    async fn accept_ready_check(&self, token: &Secret, check_id: &str) -> Result<(), ApiError> {
+        self.api.accept_ready_check(token, check_id).await
+    }
+
     async fn open_stream(
         &self,
         token: &Secret,

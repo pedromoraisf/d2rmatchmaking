@@ -28,6 +28,8 @@ export interface AgentView {
   connectivity: Connectivity;
   room: RoomState | null;
   update: UpdateState;
+  // A ready check is open for the account: the hotkey that accepts it is registered (RDY-07).
+  readyCheckOpen: boolean;
 }
 
 export interface Label {
@@ -74,6 +76,11 @@ export function roomLabel(room: RoomState | null): Label | null {
 // match has come for this run (AGN-04).
 export function revealLabel(room: RoomState | null): Label | null {
   return room !== null && room.needsReveal && !room.matched ? { key: 'room.revealHint' } : null;
+}
+
+// The hotkey line while a ready check is open (RDY-07, en and pt-BR): the window names the key, and only while it is open.
+export function readyCheckLabel(open: boolean): Label | null {
+  return open ? { key: 'readyCheck.hotkey' } : null;
 }
 
 export function updateLabel(update: UpdateState): Label | null {

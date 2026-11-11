@@ -12,7 +12,9 @@ use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::{ReadText, Region};
 use uuid::Uuid;
 
-use crate::messages::{FrameReading, GameNameObservation, IssuedCode, Presence};
+use crate::messages::{
+    FrameReading, GameNameObservation, IssuedCode, Presence, ReadyCheckEnd, ReadyCheckOpen,
+};
 use crate::secret::Secret;
 use crate::view::AgentView;
 
@@ -36,6 +38,9 @@ pub enum ApiError {
     Network,
     #[error("the API answered with something the contract does not allow")]
     Invalid,
+    /// The API answered 404 or 409 to an answer to a ready check: the check ended, or the answer was already given (RDY-06).
+    #[error("the ready check is no longer open")]
+    CheckEnded,
 }
 
 /// The credential store refused a write. It carries no detail, so it never leaks the token (AGS-09).
@@ -147,12 +152,21 @@ pub trait ApiGateway {
         token: &Secret,
         last_event_id: Option<&str>,
     ) -> impl Future<Output = Result<Box<dyn EventStream>, ApiError>> + Send;
+    /// Accepts the ready check `check_id` for the token's account (RDY-02, RDY-07). The agent sends nothing else.
+    fn accept_ready_check(
+        &self,
+        token: &Secret,
+        check_id: &str,
+    ) -> impl Future<Output = Result<(), ApiError>> + Send;
 }
 
-/// One item of the room stream: an assignment, or the end of the stream and why it ended.
+/// One item of the room stream: an assignment, a ready check that opened or ended, or the end of the stream and why it
+/// ended.
 #[derive(Debug, Clone, PartialEq)]
 pub enum StreamItem {
     RoomAssigned(Assignment),
+    ReadyCheckStarted(ReadyCheckOpen),
+    ReadyCheckResolved(ReadyCheckEnd),
     Ended(EndReason),
 }
 
@@ -264,6 +278,7 @@ mod tests {
             ApiError::Server,
             ApiError::Network,
             ApiError::Invalid,
+            ApiError::CheckEnded,
         ];
         for error in every_variant {
             let shown = format!("{error:?} {error}");

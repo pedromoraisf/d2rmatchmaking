@@ -13,6 +13,7 @@ const view = (overrides: Partial<AgentView> = {}): AgentView => ({
   connectivity: 'connected',
   room: null,
   update: 'idle',
+  readyCheckOpen: false,
   ...overrides,
 });
 
@@ -133,5 +134,21 @@ describe('status view', () => {
     const { container } = renderStatus({ pairing: 'requesting' });
 
     expect(container.querySelectorAll('li')).toHaveLength(0);
+  });
+
+  it('shows the hotkey line while a ready check is open, in English and Portuguese (RDY-07)', () => {
+    const { unmount } = renderStatus({ readyCheckOpen: true });
+    expect(screen.getByText('A ready check is open: press Ctrl+Shift+A to accept it.')).toBeTruthy();
+    unmount();
+
+    render(<StatusView view={view({ readyCheckOpen: true })} translate={ptBR} />);
+    expect(
+      screen.getByText('Há uma confirmação de partida: pressione Ctrl+Shift+A para aceitar.'),
+    ).toBeTruthy();
+  });
+
+  it('shows no hotkey line once the check is over', () => {
+    renderStatus({ readyCheckOpen: false });
+    expect(screen.queryByText('A ready check is open: press Ctrl+Shift+A to accept it.')).toBeNull();
   });
 });

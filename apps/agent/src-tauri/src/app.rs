@@ -70,7 +70,12 @@ pub use shell::run;
 mod shell {
     use std::sync::Arc;
 
+    use std::sync::atomic::{AtomicBool, Ordering};
+
     use tauri::{AppHandle, Emitter, Manager, State, WebviewWindowBuilder};
+    use tauri_plugin_global_shortcut::{
+        Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
+    };
 
     use d2rmm_agent_adapters::config::ApiBase;
     use d2rmm_agent_adapters::http::api_client::ApiClient;
@@ -87,10 +92,18 @@ mod shell {
         FileConsentStore, app_context, consent_store_in, handle_get_consent, handle_get_new_code,
         handle_set_consent, is_app_url,
     };
+    use crate::adapters::system::SystemClock;
     use crate::adapters::token_store::KeyringTokenStore;
     use crate::config;
     use crate::fixture_read;
     use d2rmm_agent_adapters::http;
+    use d2rmm_agent_core::ports::WallClock;
+
+    /// The global shortcut that accepts the open ready check (RDY-07). Fixed in F1; configurable in F2 (FR-28). The agent
+    /// sends the API one call with it and never sends input to the game or to any window (ADR 010).
+    fn ready_check_hotkey() -> Shortcut {
+        Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyA)
+    }
 
     /// The label of the one window declared in tauri.conf.json. It is created in `setup` so its navigation is restricted.
     const MAIN_WINDOW: &str = "main";
@@ -134,6 +147,8 @@ mod shell {
     /// The state sink of the app: every view goes to the window, and to the fixture trigger in a fixture build.
     struct WindowSink {
         app: AppHandle,
+        /// Whether the hotkey is registered now: it is registered exactly while a ready check is open (RDY-07).
+        hotkey_on: AtomicBool,
         #[cfg(feature = "fixture-read")]
         fixture: Option<fixture_read::FixtureSink>,
     }
@@ -160,10 +175,47 @@ mod shell {
         fn feed_fixture(&self, _view: &AgentView) {}
     }
 
+    impl WindowSink {
+        /// Registers the hotkey while a ready check is open and unregisters it when none is (RDY-07). A refused registration
+        /// (another program holds the keys) leaves the state off, so the next change tries again.
+        fn sync_hotkey(&self, open: bool) {
+            if self.hotkey_on.load(Ordering::SeqCst) == open {
+                return;
+            }
+            let shortcuts = self.app.global_shortcut();
+            let done = if open {
+                shortcuts.register(ready_check_hotkey()).is_ok()
+            } else {
+                shortcuts.unregister(ready_check_hotkey()).is_ok()
+            };
+            if done {
+                self.hotkey_on.store(open, Ordering::SeqCst);
+            }
+        }
+    }
+
     impl StateSink for WindowSink {
         fn publish(&self, view: AgentView) {
             self.feed_fixture(&view);
+            self.sync_hotkey(view.ready_check_open);
             let _ = self.app.emit(AGENT_STATE, view);
+        }
+    }
+
+    /// The hotkey's press: the runtime accepts the held ready check at this instant (RDY-02, RDY-07). Only a press of the
+    /// ready-check combination does anything.
+    fn on_hotkey(
+        app: &AppHandle,
+        shortcut: &Shortcut,
+        event: tauri_plugin_global_shortcut::ShortcutEvent,
+    ) {
+        if event.state != ShortcutState::Pressed
+            || !shortcut.matches(Modifiers::CONTROL | Modifiers::SHIFT, Code::KeyA)
+        {
+            return;
+        }
+        if let Some(handle) = app.try_state::<Arc<Handle<HttpGateway>>>() {
+            handle.accept_ready_check(SystemClock.now_utc());
         }
     }
 
@@ -247,6 +299,11 @@ mod shell {
         let _ = fixture;
 
         tauri::Builder::default()
+            .plugin(
+                tauri_plugin_global_shortcut::Builder::new()
+                    .with_handler(on_hotkey)
+                    .build(),
+            )
             .plugin(tauri_plugin_updater::Builder::new().build())
             .invoke_handler(tauri::generate_handler![
                 get_new_code,
@@ -257,6 +314,7 @@ mod shell {
                 let app_handle = app.handle().clone();
                 let window_sink = Arc::new(WindowSink {
                     app: app_handle.clone(),
+                    hotkey_on: AtomicBool::new(false),
                     #[cfg(feature = "fixture-read")]
                     fixture,
                 });

@@ -24,6 +24,21 @@ pub use d2rmm_agent_domain::fusion::GameNameObservation;
 /// The heartbeat's presence and screen are the domain's value objects (M5).
 pub use d2rmm_agent_domain::presence::{Presence, Screen};
 
+/// A ready check the account's group opened (RDY-01), as the agent needs it: the id to answer and the instant it ends. The
+/// members and their marks stay on the server and the site; the agent holds no names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReadyCheckOpen {
+    pub id: String,
+    pub deadline: DateTime<Utc>,
+}
+
+/// The end of a ready check the agent was told of (RDY-03 … RDY-05): the id it ended with. The outcome is not needed to
+/// stop answering it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReadyCheckEnd {
+    pub id: String,
+}
+
 /// What one frame shows: its screen, and the complete cards when it is the character selection screen (CHR-04, CHR-06).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FrameReading {
