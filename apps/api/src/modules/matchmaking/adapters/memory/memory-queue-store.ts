@@ -33,4 +33,9 @@ export class MemoryQueueStore implements QueueStore {
   async all(): Promise<readonly QueueTicket[]> {
     return [...this.#tickets];
   }
+
+  /** The acceptance stack's reset empties the queue between scenarios (test controls, AD-045). */
+  clear(): void {
+    this.#tickets.length = 0;
+  }
 }

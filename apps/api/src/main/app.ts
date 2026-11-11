@@ -176,6 +176,7 @@ export interface BuiltApp {
     readonly presence: MemoryPresenceStore;
     readonly rateLimits: MemoryRateLimitStore;
     readonly tokenCache: MemoryAgentTokenCache;
+    readonly queue: MemoryQueueStore;
   };
 }
 
@@ -299,8 +300,9 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   hub.subscribe();
 
   // The queue (QUE-01 … QUE-16): in memory (ADR 006). Its ports are the public methods of the other modules and the hub.
+  const queueStore = new MemoryQueueStore();
   const queue = createQueueUseCases({
-    store: new MemoryQueueStore(),
+    store: queueStore,
     characters: { characterOf: characters.characterOf },
     presence: { isOnline: agents.agentOnlineOf },
     links: { isLinked: identity.isLinked },
@@ -409,5 +411,5 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   queueRoutes(app, { useCases: queue, guards });
   hub.register(app);
 
-  return { app, relay, bus, hub, stores };
+  return { app, relay, bus, hub, stores: { ...stores, queue: queueStore } };
 }

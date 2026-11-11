@@ -53,6 +53,8 @@ export interface TestControlDeps {
     readonly presence: ClearableStore;
     readonly rateLimits: ClearableStore;
     readonly tokenCache: ClearableStore;
+    /** The waiting queue (queues QUE-01 … QUE-14): a scenario starts with nobody queued. */
+    readonly queue: ClearableStore;
   };
   readonly hub: { closeAll(): void };
   readonly relay: { sweep(): Promise<void> };
@@ -117,6 +119,7 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
       deps.stores.presence.clear();
       deps.stores.rateLimits.clear();
       deps.stores.tokenCache.clear();
+      deps.stores.queue.clear();
       deps.hub.closeAll();
       await deps.relay.sweep();
       return reply.code(204).send(null);

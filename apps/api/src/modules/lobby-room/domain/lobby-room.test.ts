@@ -68,6 +68,25 @@ describe('LobbyRoom.fromMatch', () => {
     expect(open().hostAccountId).toBe('account-1');
   });
 
+  it('makes the member the match names as host the host, even when another joined first (QUE-12)', () => {
+    const named = LobbyRoom.fromMatch(
+      {
+        ...match(),
+        members: [
+          { accountId: 'account-1', characterId: null, joinOrder: 1, role: 'member' },
+          { accountId: 'account-2', characterId: null, joinOrder: 2, role: 'host' },
+        ],
+      },
+      12,
+      new SequentialIdGenerator('room'),
+    );
+    if (!named.ok) {
+      throw new Error('expected the room to open');
+    }
+    expect(named.value.room.hostAccountId).toBe('account-2');
+    expect(named.value.room.members.map((member) => member.role)).toStrictEqual(['member', 'host']);
+  });
+
   it('keeps the password empty', () => {
     expect(open().password).toBe('');
   });
@@ -222,6 +241,19 @@ describe('LobbyRoom.restore', () => {
     expect(Object.keys(result)).toEqual(['ok', 'value']);
   });
 
+  it('restores the host the match named, even when another member joined first (QUE-12)', () => {
+    const room = restore({
+      hostAccountId: 'account-2',
+      members: [
+        { accountId: 'account-1', characterId: null, joinOrder: 1, role: 'member' },
+        { accountId: 'account-2', characterId: null, joinOrder: 2, role: 'host' },
+      ],
+    });
+
+    expect(room.hostAccountId).toBe('account-2');
+    expect(room.members.map((member) => member.role)).toStrictEqual(['member', 'host']);
+  });
+
   it('keeps the members in join order and the host as the lowest join order', () => {
     const room = restore();
 
@@ -236,11 +268,11 @@ describe('LobbyRoom.restore', () => {
     ['a run that is not an integer', { currentRun: 1.5 }],
     ['a host account that is not among the members', { hostAccountId: 'account-9' }],
     [
-      'a host that is not the lowest join order member',
+      'no member named host',
       {
         members: [
-          { accountId: 'account-1', characterId: null, joinOrder: 2, role: 'host' as const },
-          { accountId: 'account-2', characterId: null, joinOrder: 1, role: 'member' as const },
+          { accountId: 'account-1', characterId: null, joinOrder: 1, role: 'member' as const },
+          { accountId: 'account-2', characterId: null, joinOrder: 2, role: 'member' as const },
         ],
       },
     ],

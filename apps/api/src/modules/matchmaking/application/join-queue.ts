@@ -94,6 +94,8 @@ function entryRequestOf(input: QueueJoinInput): EntryRequest {
  * ladder and the era, never a name (QUE-16).
  */
 export function createJoinQueue(deps: JoinQueueDeps) {
+  /** The instant of the last join, in ms: each join gets a later one, so the join order is never a tie (see below). */
+  let lastJoinMs = Number.NEGATIVE_INFINITY;
   return (input: {
     readonly accountId: string;
     readonly request: QueueJoinInput;
@@ -127,7 +129,11 @@ export function createJoinQueue(deps: JoinQueueDeps) {
           return err(entry.error);
         }
 
-        const now = deps.clock.now();
+        // A clock that stands still (the acceptance stack moves only when a scenario says so) still gives each join its own
+        // instant, so the join order the matcher and the host rule read is the order the players joined (QUE-11, QUE-12).
+        const at = Math.max(deps.clock.now().getTime(), lastJoinMs + 1);
+        lastJoinMs = at;
+        const now = new Date(at);
         const base = {
           id: deps.ids.next(),
           accountId,

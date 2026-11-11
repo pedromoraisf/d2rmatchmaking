@@ -103,6 +103,19 @@ describe('joinQueue: a ready player (QUE-01, QUE-02)', () => {
   });
 });
 
+describe('joinQueue: join order (QUE-11, QUE-12)', () => {
+  it('gives two joins at the same clock instant different instants, the first earlier', async () => {
+    const t = queueSetup();
+    t.readyPlayer('alice', 'c-sorc');
+    t.readyPlayer('cara', 'c-zon');
+    await t.queue.joinQueue({ accountId: 'alice', request: pvp({ rules: 'gm' }) });
+    await t.queue.joinQueue({ accountId: 'cara', request: pvp({ characterId: 'c-zon', rules: 'bm' }) });
+
+    const [first, second] = await t.store.all();
+    expect(first?.joinedAt.getTime()).toBeLessThan(second?.joinedAt.getTime() ?? 0);
+  });
+});
+
 describe('joinQueue: refusals (QUE-03 … QUE-06)', () => {
   it("refuses a character that is not the player's and creates no ticket", async () => {
     const t = queueSetup();
