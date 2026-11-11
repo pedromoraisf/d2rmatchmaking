@@ -18,7 +18,7 @@ blocker on the feature that owns it; never commit a game screenshot (the Party f
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
 - [x] T3 — JRN-07 (unit half): a test that the pt-BR catalogue holds exactly the keys of the English one, for the site
       and the agent window — gate: `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/agent exec vitest run`
-- [ ] T4 — JRN-05 and JRN-07: `@axe-core/playwright` in `tests/acceptance`; a step that reaches each F1 screen by its
+- [x] T4 — JRN-05 and JRN-07: `@axe-core/playwright` in `tests/acceptance`; a step that reaches each F1 screen by its
       name (signed out, signed in home, pairing, characters, queue panel, searching, ready-check overlay, room panel,
       revoke agent); the scan with tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa` and no rule disabled; the pt-BR check
       (no translation key shown, no English catalogue string shown that differs from its pt-BR value); fix every
