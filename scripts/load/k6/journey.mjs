@@ -2,12 +2,18 @@
 // Plain k6 JavaScript, run by the k6 container of the step: the orchestrator copies it into the work directory's in/ next
 // to plan.json and journey-state.mjs, and the container mounts in/ read-only at /work/in.
 //
-// Roles per player: a `site` VU holds the site stream (an explicit Cookie header). On each `room.assigned` frame it settles
-// a stale observation, starts the iteration of the frame and posts the observation with the player's agent token; the
-// `created` frame of the room closes the iteration (journey-state.mjs). An `agent` VU holds the agent stream and counts its
-// `room.assigned` frames. A `heartbeat` scenario (a constant arrival rate of players / 15 per second) posts each player's
-// heartbeat in turn. A `match` scenario posts one test match per player per 60 s, starting when the ramp ends. A `control`
-// VU opens and closes the meters' windows at the plan's offsets, on k6's clock.
+// The real journey (JRN-04): each player registers a level 90 character with the agent token and declares its ladder and
+// era, then the players are queued two by two for a PvP duel, accept the ready check with the agent's token, get a room, and
+// the host's and the member's observations take it to `created` and `active`.
+//
+// Roles per player: a `site` VU registers the character, then holds the site stream (an explicit Cookie header). On each
+// `room.assigned` frame the host settles a stale observation, starts its iteration and posts the observation with the
+// player's agent token; the `created` frame of the room closes the host's iteration (journey-state.mjs). The member starts its
+// iteration at that `created` frame, posts its observation, and the `active` frame closes it; the host then closes the room,
+// which frees both players for their next join. An `agent` VU holds the agent stream, counts its `room.assigned` frames and
+// accepts each ready check it is told about. A `heartbeat` scenario (a constant arrival rate of players / 15 per second)
+// posts each player's heartbeat in turn. A `match` scenario joins the PvP queue once per player per 60 s, starting when the
+// ramp ends. A `control` VU opens and closes the meters' windows at the plan's offsets, on k6's clock.
 //
 // No JavaScript timer runs while a stream is open (AD-121): k6 stops one that a stream handler creates. Every stream ends by
 // its `timeout` argument at the window end plus the tail. The 5 s `created` rule is evaluated where a frame or the end of a
@@ -25,6 +31,7 @@ import { check, sleep } from 'k6';
 import { Counter } from 'k6/metrics';
 import {
   isError,
+  isHostIn,
   kindOf,
   observationKeyOf,
   onAssigned,
@@ -57,11 +64,22 @@ const CLOSE_SECONDS = Math.ceil(CLOSE_MS / 1000);
 // contingency of design.md Revision 1): k6 stops the scenario 5 s after the close.
 const MAX_SCENARIO_SECONDS = CLOSE_SECONDS + 5;
 const MATCH_DURATION_SECONDS = OFFSETS.windowEndSeconds - OFFSETS.rampSeconds;
-const MATCH_RATE = COUNT;
+// An arrival joins a pair of players, so every join has its partner: one arrival per two players per 60 s.
+const MATCH_RATE = Math.ceil(COUNT / 2);
 const MATCH_VUS = Math.max(2, Math.ceil(COUNT / 10));
 const HEARTBEAT_RATE = Math.max(1, Math.ceil(COUNT / 15));
 const STREAM_SLACK_MS = 1000;
 const GAME_WINDOW = 'Diablo II: Resurrected';
+// The character every player registers and queues with: a level 90 sorceress with every difficulty unlocked.
+const CHARACTER = {
+  name: 'Sorc',
+  class: 'sorceress',
+  level: 90,
+  hardcore: false,
+  unlockedDifficulties: ['normal', 'nightmare', 'hell'],
+};
+const DECLARATION = { ladder: 'ladder', era: 'rotw' };
+const DUEL = { mode: 'pvp', difficulty: 'hell', region: 'americas', format: 'duel', rules: 'gm' };
 
 const requests = new Counter('journey_requests');
 const errors = new Counter('journey_errors');
@@ -226,13 +244,70 @@ function heartbeatBody() {
   };
 }
 
+/** The headers of a site call of the player: the session cookie, the origin and a JSON body. */
+function siteHeaders(player) {
+  return {
+    Cookie: player.cookie,
+    Origin: ORIGIN,
+    'Content-Type': 'application/json',
+    'X-Forwarded-For': player.address,
+  };
+}
+
+/**
+ * One journey request of the player: tallied, and counted as an error of its route when the answer is not 2xx. Returns the
+ * answer, or null when it was an error.
+ */
+function journeyCall(index, route, send) {
+  const at = nowMs();
+  const res = send();
+  tally(requests, at);
+  if (isError(res.status)) {
+    fail(statusKind(res.status, route), index, at);
+    return null;
+  }
+  return res;
+}
+
+/**
+ * What a player does before it joins the queue: its agent registers the character, the player declares its ladder and era
+ * and reads its own account id (the host is told from its members). Returns the account id, or null after an error.
+ */
+function prepare(index, player) {
+  const registered = journeyCall(index, 'characters-register', function () {
+    return http.post(BASE + '/v1/me/characters', JSON.stringify({ characters: [CHARACTER] }), {
+      headers: agentHeaders(player),
+    });
+  });
+  if (registered === null) return null;
+  const listed = journeyCall(index, 'characters-list', function () {
+    return http.get(BASE + '/v1/me/characters', { headers: siteHeaders(player) });
+  });
+  if (listed === null) return null;
+  const characters = JSON.parse(listed.body).characters;
+  const declared = journeyCall(index, 'characters-declare', function () {
+    return http.patch(BASE + '/v1/me/characters/' + characters[0].id, JSON.stringify(DECLARATION), {
+      headers: siteHeaders(player),
+    });
+  });
+  if (declared === null) return null;
+  const me = journeyCall(index, 'me', function () {
+    return http.get(BASE + '/v1/me', { headers: siteHeaders(player) });
+  });
+  return me === null ? null : JSON.parse(me.body).accountId;
+}
+
 /** One site stream for one player: the iterations of its assignments, observations and latency. */
 export function site() {
   const index = exec.scenario.iterationInInstance;
   const player = PLAYERS[index];
   waitUntil((RAMP_MS * index) / COUNT);
+  const accountId = prepare(index, player);
 
   let iteration = null;
+  // The room the player is in: its `room.assigned` frame and whether the player hosts it.
+  let assignedFrame = null;
+  let hosting = false;
 
   /**
    * Tallies what a transition added to the iteration: each new error, under the kind the state names, and the iteration once
@@ -265,8 +340,8 @@ export function site() {
     iteration = settle(before, onStatus(onObservationSent(before, sent), res.status, 'observation'));
   }
 
-  /** A `room.assigned` frame: a stale observation is settled first, then the frame starts an iteration and is observed. */
-  function assigned(frame) {
+  /** The iteration of the room starts: a stale observation is settled first, then the frame is observed. */
+  function begin(frame) {
     const at = nowMs();
     if (iteration !== null) {
       const previous = iteration;
@@ -279,9 +354,30 @@ export function site() {
     observe(frame);
   }
 
-  function created(frame) {
-    if (iteration === null) return;
-    if (frame.stage !== 'created' || frame.roomId !== iteration.roomId) return;
+  /** A `room.assigned` frame: the host observes at once, a member waits for the room to be `created`. */
+  function assigned(frame) {
+    assignedFrame = frame;
+    hosting = accountId !== null && isHostIn(frame, accountId);
+    if (hosting) begin(frame);
+  }
+
+  /** The stage of the room changed: the host's iteration ends at `created`, the member's starts there and ends at `active`. */
+  function staged(frame) {
+    if (assignedFrame === null || frame.roomId !== assignedFrame.roomId) return;
+    if (frame.stage === 'created' && !hosting) begin(assignedFrame);
+    if (frame.stage === (hosting ? 'created' : 'active')) finish(frame);
+    // The host frees the room once it is `active`, so both players can queue again.
+    if (frame.stage === 'active' && hosting) {
+      journeyCall(index, 'room-close', function () {
+        return http.post(BASE + '/v1/lobby-rooms/' + encodeURIComponent(frame.roomId) + '/close', '{}', {
+          headers: siteHeaders(player),
+        });
+      });
+    }
+  }
+
+  function finish(frame) {
+    if (iteration === null || frame.roomId !== iteration.roomId) return;
     const at = nowMs();
     const before = iteration;
     iteration = settle(before, onCreated(before, at));
@@ -296,7 +392,7 @@ export function site() {
 
   function onEvent(event) {
     if (event.name === 'room.assigned') assigned(JSON.parse(event.data));
-    else if (event.name === 'room.stage_changed') created(JSON.parse(event.data));
+    else if (event.name === 'room.stage_changed') staged(JSON.parse(event.data));
   }
 
   // The close runs at the `error` event (the `timeout` cut, AD-123), or after sse.open returns when no error comes first.
@@ -351,6 +447,15 @@ export function agent() {
     function (client) {
       client.on('event', function (event) {
         if (event.name === 'room.assigned') tally(agentAssigned, nowMs());
+        // The agent's hotkey: the ready check is accepted with the agent's token (RDY-07).
+        if (event.name === 'ready_check.started') {
+          const check = JSON.parse(event.data);
+          journeyCall(index, 'ready-check-accept', function () {
+            return http.post(BASE + '/v1/ready-checks/' + encodeURIComponent(check.id) + '/accept', '{}', {
+              headers: agentHeaders(player),
+            });
+          });
+        }
       });
       client.on('error', function () {
         closeStream(nowMs());
@@ -372,28 +477,34 @@ export function heartbeat() {
   if (isError(res.status)) fail(statusKind(res.status, 'heartbeat'), index, at);
 }
 
+/** One join of the player into the duel queue. Returns true for a 2xx answer, which is a join. */
+function joinQueue(index) {
+  const player = PLAYERS[index];
+  const listed = journeyCall(index, 'characters-list', function () {
+    return http.get(BASE + '/v1/me/characters', { headers: siteHeaders(player) });
+  });
+  if (listed === null) return false;
+  const characters = JSON.parse(listed.body).characters;
+  const joined = journeyCall(index, 'queue-join', function () {
+    return http.post(
+      BASE + '/v1/queue/tickets',
+      JSON.stringify(Object.assign({ characterId: characters[0].id }, DUEL)),
+      { headers: siteHeaders(player) },
+    );
+  });
+  return joined !== null;
+}
+
 /**
- * One test match of the player in turn (one match per player per 60 s). Only a 2xx answer is a match: a failed post is an
- * error and no match, so a match that never gets an assignment is counted from matchesPosted against iterationsStarted.
+ * One arrival: the next two players in turn join the duel queue, so the matcher pairs them (one join per player per 60 s).
+ * Only a 2xx answer is a join: a failed request is an error and no join, so a join that never gets an assignment is counted
+ * from matchesPosted against iterationsStarted.
  */
 export function match() {
-  const index = exec.scenario.iterationInInstance % COUNT;
-  const player = PLAYERS[index];
-  const at = nowMs();
-  const res = http.post(BASE + '/v1/staging/match-formed', '{}', {
-    headers: {
-      Cookie: player.cookie,
-      Origin: ORIGIN,
-      'Content-Type': 'application/json',
-      'X-Forwarded-For': player.address,
-    },
-  });
-  tally(requests, at);
-  if (isError(res.status)) {
-    fail(statusKind(res.status, 'match-formed'), index, at);
-    return;
+  const first = (2 * exec.scenario.iterationInInstance) % COUNT;
+  for (const index of [first, (first + 1) % COUNT]) {
+    if (joinQueue(index)) matchesPosted.add(1);
   }
-  matchesPosted.add(1);
 }
 
 /** One control call of a meter or the sink. A failure is printed (never a secret) and answers zero. */

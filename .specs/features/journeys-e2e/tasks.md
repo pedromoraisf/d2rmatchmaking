@@ -37,7 +37,7 @@ blocker on the feature that owns it; never commit a game screenshot (the Party f
       the site stream as stream clients), a teleporter and a BO, the group of eight, every accept, the teleporter as
       host, all eight Party readings to Active, the next run, the next name of the sequence on every site and agent within 2 s, and
       run 2 Active — gate: `pnpm exec turbo run test:acceptance -- --grep @JRN-02`
-- [ ] T8 — JRN-04: the k6 journey drives the real journey (queue join, ready-check accept by the agent token, room
+- [x] T8 — JRN-04: the k6 journey drives the real journey (queue join, ready-check accept by the agent token, room
       assignment, host and member observations to `active`) for ≥ 100 players; the existing load unit tests and the
       smoke profile pass — gate: `pnpm test:harness && pnpm test:load:smoke`
 - [ ] T9 — The whole acceptance suite, the traced scenarios alone, then the sensors — gate:

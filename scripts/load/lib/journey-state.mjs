@@ -179,3 +179,19 @@ function checkTime(nowMs) {
     throw new TypeError(`the time of a transition is a finite number of milliseconds, got ${String(nowMs)}`);
   }
 }
+
+/**
+ * Whether the account is the host of the room a `room.assigned` frame announces: only the host's agent reads the game name
+ * first (LBR-03), so the host observes at the assignment and a member observes once the room is `created`.
+ * @param {{ members?: unknown }} frame
+ * @param {string} accountId
+ * @returns {boolean}
+ */
+export function isHostIn(frame, accountId) {
+  const members = frame && Array.isArray(frame.members) ? frame.members : [];
+  for (let position = 0; position < members.length; position += 1) {
+    const member = members[position];
+    if (member && member.role === 'host') return member.accountId === accountId;
+  }
+  return false;
+}
