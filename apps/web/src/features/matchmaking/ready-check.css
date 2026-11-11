@@ -73,11 +73,15 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* A member who has not answered is dimmed on the mark only: dimmed text would fall under the AA contrast (NFR-13). */
+.rc .rc-member .av {
   opacity: 0.45;
   transition: opacity 0.2s;
 }
 
-.rc .rc-member.yes {
+.rc .rc-member.yes .av {
   opacity: 1;
 }
 

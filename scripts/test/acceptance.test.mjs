@@ -94,3 +94,8 @@ test('skipped or focused scenarios, other languages and missing When/Then fail',
 test('a spec without traceability yet does not require scenarios', () => {
   assert.deepEqual(checkAcceptance('x', '# Spec\n', null), []);
 });
+
+test('PRD journey tags @J<n> are foreign IDs, @J1a is not', () => {
+  assert.deepEqual(checkAcceptance('x', SPEC, GOOD.replace('@FR-15 @INV-06', '@J1 @FR-15')), []);
+  assert.ok(checkAcceptance('x', SPEC, GOOD.replace('@FR-15 @INV-06', '@J1a @FR-15')).length > 0);
+});

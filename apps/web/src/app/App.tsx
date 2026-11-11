@@ -134,6 +134,33 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
     }
   }, [client]);
 
+  // A room the stream announces lists its members without class and level (events carry neither, LBR-12): the marks are
+  // read from the room itself and merged in, leaving the stage and everything else the events set untouched.
+  const refreshRoomMarks = useCallback(
+    async (roomId: string) => {
+      const read = await client.myRoom();
+      if (!read.ok || read.value.roomId !== roomId) {
+        return;
+      }
+      const marks = new Map(read.value.members.map((member) => [member.accountId, member]));
+      setBoot((current) =>
+        current.status === 'ready' && current.room?.roomId === roomId
+          ? {
+              ...current,
+              room: {
+                ...current.room,
+                members: current.room.members.map((member) => {
+                  const mark = marks.get(member.accountId);
+                  return mark === undefined ? member : { ...member, class: mark.class, level: mark.level };
+                }),
+              },
+            }
+          : current,
+      );
+    },
+    [client],
+  );
+
   // Re-reads the agent, the room and the queue. A failed read keeps what is on screen; "no room" (404) clears it.
   const refreshSite = useCallback(async () => {
     void refreshCharacters();
@@ -191,9 +218,15 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
         if (event.type === 'characters.updated') {
           void refreshCharacters();
         }
+        if (
+          event.type === 'room.assigned' ||
+          (event.type === 'room.member_changed' && event.data.change !== 'confirmed')
+        ) {
+          void refreshRoomMarks(event.data.roomId);
+        }
       },
     });
-  }, [signedIn, openStream, refreshSite, refreshCharacters]);
+  }, [signedIn, openStream, refreshSite, refreshCharacters, refreshRoomMarks]);
 
   if (boot.status === 'loading') {
     return (

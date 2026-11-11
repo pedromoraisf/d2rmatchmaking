@@ -98,6 +98,8 @@ function cargoEnv(): Record<string, string> {
 export class HeadlessAgent {
   readonly #child: ChildProcess;
   readonly #events: AgentEvent[] = [];
+  /** When each event was read from the process's output, in the same order (the real clock, `Date.now()`). */
+  readonly #times: number[] = [];
   readonly #exited: Promise<number | null>;
   #pending = '';
   #stderr = '';
@@ -110,7 +112,11 @@ export class HeadlessAgent {
       this.#pending += chunk;
       const lines = this.#pending.split('\n');
       this.#pending = lines.pop() ?? '';
-      this.#events.push(...parseEventLines(lines.join('\n')));
+      const arrived = Date.now();
+      for (const event of parseEventLines(lines.join('\n'))) {
+        this.#events.push(event);
+        this.#times.push(arrived);
+      }
     });
     child.stderr?.setEncoding('utf8');
     child.stderr?.on('data', (chunk: string) => {
@@ -176,6 +182,14 @@ export class HeadlessAgent {
   /** Every event printed so far, in order. */
   get events(): readonly AgentEvent[] {
     return this.#events;
+  }
+
+  /**
+   * When each `observed` event was read, on the real clock: the agent prints it as the API accepts the observation, so this
+   * is the moment from which a page has 2 seconds to show the change (NFR-01).
+   */
+  observedTimes(): readonly number[] {
+    return this.#times.filter((_, index) => this.#events[index]?.event === 'observed');
   }
 
   /** The last `lines` lines the example wrote to stderr, for a failure message. */

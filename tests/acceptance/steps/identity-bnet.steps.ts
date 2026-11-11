@@ -56,7 +56,7 @@ function ownerName(world: World): string {
 }
 
 /** The account a visitor's session belongs to, read from the site's own /api/v1/me (as identity.steps.ts reads it). */
-async function accountOfVisitor(visitor: Visitor): Promise<string> {
+export async function accountOfVisitor(visitor: Visitor): Promise<string> {
   const answer = await visitor.page.evaluate(async () => {
     const response = await fetch('/api/v1/me');
     return {
@@ -69,7 +69,7 @@ async function accountOfVisitor(visitor: Visitor): Promise<string> {
 }
 
 /** The session cookie value a visitor's browser holds for the site. Fails the step when there is none. */
-async function sessionValueOf(world: World, visitor: Visitor): Promise<string> {
+export async function sessionValueOf(world: World, visitor: Visitor): Promise<string> {
   const cookie = await world.sessionCookieOf(visitor);
   if (cookie === undefined) {
     throw new Error(`the browser holds no ${SESSION_COOKIE} cookie`);
@@ -108,7 +108,7 @@ async function signInWithBattleNet(visitor: Visitor, keyboard: boolean): Promise
 }
 
 /** Opens a new visitor's page on the site and signs it in with Battle.net (the identity the provider is scripted with). */
-async function newVisitorSignedInWithBattleNet(world: World): Promise<Visitor> {
+export async function newVisitorSignedInWithBattleNet(world: World): Promise<Visitor> {
   const visitor = await world.newVisitor();
   await world.openSite(visitor);
   await signInWithBattleNet(visitor, false);

@@ -176,7 +176,11 @@ export interface QueueCharacter {
 }
 
 /** Registers the character as the player's agent reads it, then declares its ladder and era as the player (CHR-15). */
-async function registerCharacter(world: World, name: string, character: QueueCharacter): Promise<void> {
+export async function registerCharacter(
+  world: World,
+  name: string,
+  character: QueueCharacter,
+): Promise<void> {
   const { ladder, era, ...reading } = character;
   const registered = await world.currentAgentOf(name).send('/v1/me/characters', {
     method: 'POST',
@@ -229,7 +233,7 @@ function characterOfRow(row: Record<string, string>): QueueCharacter {
 }
 
 /** Presses Tab until the control holds the focus. Tab reaches a radio group only at its checked button; use `focus` for others. */
-async function tabUntilFocused(page: Page, control: Locator): Promise<void> {
+export async function tabUntilFocused(page: Page, control: Locator): Promise<void> {
   for (let press = 0; press < KEYBOARD_STOPS; press += 1) {
     if (await control.evaluate((element) => element === document.activeElement)) {
       return;
