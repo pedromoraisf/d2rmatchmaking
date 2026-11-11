@@ -17,7 +17,7 @@ any route task's gate, no test weakened, `acceptance.feature` not edited; the ho
 - [x] T1 — Contracts: ready-check views, answer routes, refusal `ready-check-penalty` with seconds left, the three stream
       events for the site and two for the agent; OpenAPI, AsyncAPI and Rust types regenerated — gate:
       `pnpm --filter @d2rmm/contracts exec vitest run && pnpm contracts:openapi && (cd apps/agent/src-tauri && cargo run -q -p xtask -- contracts && cargo nextest run -p d2rmm-agent-adapters)`
-- [ ] T2 — Domain `ReadyCheck` and the queue re-entry rule (RDY-01 … RDY-05), unit tests on the 60 s boundary (59.999 /
+- [x] T2 — Domain `ReadyCheck` and the queue re-entry rule (RDY-01 … RDY-05), unit tests on the 60 s boundary (59.999 /
       60.000), decline at once, accepted members ahead of later tickets, penalties of 5 min at the boundary — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/modules/matchmaking/domain`
 - [ ] T3 — Application and adapters: `openReadyCheck`, `answerReadyCheck`, `expireReadyCheck`, penalty store (migration),
