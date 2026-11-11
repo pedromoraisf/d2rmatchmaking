@@ -4,7 +4,6 @@
 
 use std::time::Duration;
 
-use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use d2rmm_agent_core::messages::{ReadyCheckEnd, ReadyCheckOpen};
@@ -56,9 +55,12 @@ pub fn ready_check_open_from_body(body: &str) -> Option<ReadyCheckOpen> {
 
 fn ready_check_started_from(data: &str) -> Option<ReadyCheckOpen> {
     let event: ReadyCheckStartedEventData = serde_json::from_str(data).ok()?;
-    let deadline: DateTime<Utc> = event.deadline;
+    // Both instants are the server's clock, so their difference is the time left whatever this PC's clock reads.
+    let remaining = (event.deadline - event.now)
+        .to_std()
+        .unwrap_or(Duration::ZERO);
     let id = String::from(event.id);
-    valid_ready_check_id(&id).then_some(ReadyCheckOpen { id, deadline })
+    valid_ready_check_id(&id).then_some(ReadyCheckOpen { id, remaining })
 }
 
 fn ready_check_resolved_from(data: &str) -> Option<ReadyCheckEnd> {
@@ -200,6 +202,8 @@ impl SseParser {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::{
         MAX_EVENT_BYTES, SseParser, StreamEffect, handle, valid_game_name, valid_last_event_id,
         valid_ready_check_id,
@@ -334,9 +338,7 @@ mod tests {
             panic!("a valid ready_check.started is held");
         };
         assert_eq!(check.id, "rc-1");
-        let deadline: chrono::DateTime<chrono::Utc> =
-            "2026-11-10T12:01:00Z".parse().expect("a valid instant");
-        assert_eq!(check.deadline, deadline);
+        assert_eq!(check.remaining, Duration::from_secs(60));
     }
 
     #[test]

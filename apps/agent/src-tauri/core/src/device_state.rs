@@ -4,9 +4,7 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
-use std::time::Duration;
 
-use chrono::{DateTime, Utc};
 use d2rmm_agent_domain::paired_device::{DeviceEffect, PairedDevice};
 use d2rmm_agent_domain::room_assignment::{Assignment, RoomAssignment};
 use tokio::sync::{Notify, watch};
@@ -15,7 +13,7 @@ use tokio::time::Instant;
 use crate::hub::Hub;
 use crate::messages::{ReadyCheckOpen, Screen};
 use crate::party::PartyProgress;
-use crate::ports::{ApiError, StateSink, TokenStore, WallClock};
+use crate::ports::{ApiError, StateSink, TokenStore};
 use crate::view::{PairingView, RoomView, UpdateView};
 
 /// What the loops share about the device: the aggregate, the room and the signals that wake the loops.
@@ -37,10 +35,15 @@ pub struct DeviceState {
     observations_dropped: AtomicU64,
     /// What the Party step has seen for the held run (AGN-05). It follows the assignment and is forgotten with it.
     party: Mutex<PartyProgress>,
-    /// The ready check the account is in, while the stream says it is open (RDY-07). The hotkey answers it.
-    ready_check: Mutex<Option<ReadyCheckOpen>>,
-    /// The clock a held check's deadline is read from; the runtime installs the platform's clock (RDY-11).
-    clock: Mutex<Option<Arc<dyn WallClock + Send + Sync>>>,
+    /// The ready check the account is in, while its time has not run out (RDY-07). The hotkey answers it.
+    ready_check: Mutex<Option<HeldReadyCheck>>,
+}
+
+/// A held ready check and the monotonic instant its time runs out: the time left came from the server (RDY-11).
+#[derive(Debug, Clone)]
+struct HeldReadyCheck {
+    id: String,
+    until: Instant,
 }
 
 impl DeviceState {
@@ -57,13 +60,7 @@ impl DeviceState {
             observations_dropped: AtomicU64::new(0),
             party: Mutex::new(PartyProgress::default()),
             ready_check: Mutex::new(None),
-            clock: Mutex::new(None),
         }
-    }
-
-    /// Installs the clock the held ready check's deadline is read from (RDY-11). Without one no deadline is armed.
-    pub fn install_clock(&self, clock: Arc<dyn WallClock + Send + Sync>) {
-        *lock(&self.clock) = Some(clock);
     }
 
     /// Forgets the held ready check, when the stream or the API says the account is in none (RDY-11).
@@ -72,31 +69,13 @@ impl DeviceState {
         self.hub.set_ready_check_open(false);
     }
 
-    /// Waits until the held check's deadline and then forgets the check, so the hotkey disarms even when no resolution
-    /// arrives (RDY-11). Waits forever when no check is held or no clock is installed; the select that calls it restarts
-    /// whenever the held check changes.
-    pub async fn disarm_at_deadline(&self) {
-        let Some((id, remaining)) = self.held_deadline() else {
-            std::future::pending::<()>().await;
-            return;
-        };
-        tokio::time::sleep(remaining).await;
-        self.close_ready_check(&id);
-    }
-
-    /// The held check's id and the time left to its deadline, when a check and a clock are held.
-    fn held_deadline(&self) -> Option<(String, Duration)> {
-        let check = lock(&self.ready_check).clone()?;
-        let clock = lock(&self.clock).clone()?;
-        let remaining = (check.deadline - clock.now_utc())
-            .to_std()
-            .unwrap_or(Duration::ZERO);
-        Some((check.id, remaining))
-    }
-
-    /// Holds a ready check the stream says opened for the account, and shows the hotkey that accepts it (RDY-07).
+    /// Holds a ready check the stream or the API says is open, and shows the hotkey that accepts it (RDY-07). Its time is
+    /// counted from now on the monotonic clock, so the agent's own wall clock plays no part (RDY-11).
     pub fn open_ready_check(&self, check: ReadyCheckOpen) {
-        *lock(&self.ready_check) = Some(check);
+        *lock(&self.ready_check) = Some(HeldReadyCheck {
+            id: check.id,
+            until: Instant::now() + check.remaining,
+        });
         self.hub.set_ready_check_open(true);
     }
 
@@ -111,11 +90,32 @@ impl DeviceState {
         }
     }
 
-    /// The held ready check, when the hotkey may still answer it at `now`: it is held and its deadline has not passed.
-    pub fn answerable_ready_check(&self, now: DateTime<Utc>) -> Option<ReadyCheckOpen> {
+    /// The id of the held ready check while the hotkey may still answer it: held, and its time has not run out (RDY-07).
+    pub fn answerable_ready_check(&self) -> Option<String> {
         lock(&self.ready_check)
-            .clone()
-            .filter(|check| now < check.deadline)
+            .as_ref()
+            .filter(|check| Instant::now() < check.until)
+            .map(|check| check.id.clone())
+    }
+
+    /// Waits until the held check's time runs out and then forgets it, so the hotkey disarms even when no resolution
+    /// arrives (RDY-11). Waits forever when no check is held; the select that calls it restarts whenever the held check
+    /// changes.
+    pub async fn disarm_at_deadline(&self) {
+        let Some(until) = lock(&self.ready_check).as_ref().map(|check| check.until) else {
+            std::future::pending::<()>().await;
+            return;
+        };
+        tokio::time::sleep_until(until).await;
+        let mut held = lock(&self.ready_check);
+        if held
+            .as_ref()
+            .is_some_and(|check| Instant::now() >= check.until)
+        {
+            *held = None;
+            drop(held);
+            self.hub.set_ready_check_open(false);
+        }
     }
 
     /// Records the screen the last frame showed. Only a change wakes the heartbeat (CHR-05).

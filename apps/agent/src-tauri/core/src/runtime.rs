@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
 use d2rmm_agent_domain::fusion::fuse;
 use d2rmm_agent_domain::room_assignment::Assignment;
 use tokio::sync::{mpsc, watch};
@@ -65,8 +64,6 @@ fn spawn<G: ApiGateway + Send + Sync + 'static>(
         read,
         screen,
     } = groups;
-    // The held ready check's deadline is read from the platform clock (RDY-11), the same one the pairing loop uses.
-    device.install_clock(Arc::clone(&pairing.clock));
     let (commands, receiver) = mpsc::channel(COMMAND_BUFFER);
     // The hotkey's accept call shares the stream loop's gateway and token store (RDY-07): the same two ports, no more.
     let ready = Arc::new(StreamPorts {
@@ -100,13 +97,13 @@ impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
         let _ = self.commands.try_send(Command::GetNewCode);
     }
 
-    /// The hotkey's answer: accepts the held ready check when it is open at `now` (RDY-02, RDY-07). Runs on its own task, so
-    /// the window's thread never waits for the API.
-    pub fn accept_ready_check(&self, now: DateTime<Utc>) {
+    /// The hotkey's answer: accepts the held ready check while its time has not run out (RDY-02, RDY-07). Runs on its own
+    /// task, so the window's thread never waits for the API.
+    pub fn accept_ready_check(&self) {
         let device = Arc::clone(&self.device);
         let ports = Arc::clone(&self.ready);
         tokio::spawn(async move {
-            let _ = ready_check::accept_held(&device, &ports, now).await;
+            let _ = ready_check::accept_held(&device, &ports).await;
         });
     }
 

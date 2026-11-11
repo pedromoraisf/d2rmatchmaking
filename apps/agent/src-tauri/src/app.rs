@@ -92,12 +92,10 @@ mod shell {
         FileConsentStore, app_context, consent_store_in, handle_get_consent, handle_get_new_code,
         handle_set_consent, is_app_url,
     };
-    use crate::adapters::system::SystemClock;
     use crate::adapters::token_store::KeyringTokenStore;
     use crate::config;
     use crate::fixture_read;
     use d2rmm_agent_adapters::http;
-    use d2rmm_agent_core::ports::WallClock;
 
     /// The global shortcut that accepts the open ready check (RDY-07). Fixed in F1; configurable in F2 (FR-28). The agent
     /// sends the API one call with it and never sends input to the game or to any window (ADR 010).
@@ -215,7 +213,7 @@ mod shell {
             return;
         }
         if let Some(handle) = app.try_state::<Arc<Handle<HttpGateway>>>() {
-            handle.accept_ready_check(SystemClock.now_utc());
+            handle.accept_ready_check();
         }
     }
 

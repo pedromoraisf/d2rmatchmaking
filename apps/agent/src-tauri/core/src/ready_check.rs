@@ -1,8 +1,6 @@
-//! The ready check's answer from the agent (RDY-02, RDY-06, RDY-07). The hotkey accepts the check the stream opened, while it is
-//! open and before its deadline. The agent calls the accept route only: it sends no keystroke, click or other input to the
-//! game or to any window (ADR 010).
-
-use chrono::{DateTime, Utc};
+//! The ready check's answer from the agent (RDY-02, RDY-06, RDY-07). The hotkey accepts the check the stream or the API
+//! opened, while its time has not run out. The agent calls the accept route only: it sends no keystroke, click or other
+//! input to the game or to any window (ADR 010).
 
 use crate::device_state::DeviceState;
 use crate::groups::StreamPorts;
@@ -21,22 +19,21 @@ pub enum AcceptOutcome {
     Failed,
 }
 
-/// Accepts the ready check the agent holds, if it is open at `now`. Nothing else is called.
+/// Accepts the ready check the agent holds, while its time has not run out. Nothing else is called.
 pub async fn accept_held<G: ApiGateway + Send + Sync>(
     device: &DeviceState,
     ports: &StreamPorts<G>,
-    now: DateTime<Utc>,
 ) -> AcceptOutcome {
-    let Some(check) = device.answerable_ready_check(now) else {
+    let Some(id) = device.answerable_ready_check() else {
         return AcceptOutcome::NothingOpen;
     };
     let Some(token) = ports.tokens.load() else {
         return AcceptOutcome::NothingOpen;
     };
-    match ports.gateway.accept_ready_check(&token, &check.id).await {
+    match ports.gateway.accept_ready_check(&token, &id).await {
         Ok(()) => AcceptOutcome::Accepted,
         Err(ApiError::CheckEnded) => {
-            device.close_ready_check(&check.id);
+            device.close_ready_check(&id);
             AcceptOutcome::Ended
         }
         Err(error) => {
@@ -49,8 +46,7 @@ pub async fn accept_held<G: ApiGateway + Send + Sync>(
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-
-    use chrono::{DateTime, TimeDelta, Utc};
+    use std::time::Duration;
 
     use super::{AcceptOutcome, accept_held};
     use crate::device_state::DeviceState;
@@ -62,12 +58,11 @@ mod tests {
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
 
-    fn instant() -> DateTime<Utc> {
-        "2026-11-10T12:00:00Z".parse().expect("a valid instant")
-    }
-
-    /// A paired device with a held ready check that ends at `instant() + 60 s`, and its ports over `gateway`.
-    fn holding(gateway: &Arc<FakeApiGateway>) -> (DeviceState, StreamPorts<FakeApiGateway>) {
+    /// A paired device with a held ready check that has `remaining` left, and its ports over `gateway`.
+    fn holding(
+        gateway: &Arc<FakeApiGateway>,
+        remaining: Duration,
+    ) -> (DeviceState, StreamPorts<FakeApiGateway>) {
         let tokens = Arc::new(MemoryTokens::default());
         tokens
             .save(&Secret::new(TOKEN))
@@ -76,7 +71,7 @@ mod tests {
         device.set_paired(true);
         device.open_ready_check(ReadyCheckOpen {
             id: "rc-1".to_string(),
-            deadline: instant() + TimeDelta::seconds(60),
+            remaining,
         });
         let ports = StreamPorts {
             gateway: Arc::clone(gateway),
@@ -93,15 +88,13 @@ mod tests {
             .collect()
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn an_open_check_is_accepted_by_its_id() {
         let gateway = Arc::new(FakeApiGateway::new());
         gateway.script_accept_ready_check([Ok(())]);
-        let (device, ports) = holding(&gateway);
+        let (device, ports) = holding(&gateway, Duration::from_secs(60));
 
-        let outcome = accept_held(&device, &ports, instant()).await;
-
-        assert_eq!(outcome, AcceptOutcome::Accepted);
+        assert_eq!(accept_held(&device, &ports).await, AcceptOutcome::Accepted);
         assert_eq!(
             accept_calls(&gateway),
             vec![Call::AcceptReadyCheck {
@@ -110,103 +103,89 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn no_held_check_sends_nothing() {
         let gateway = Arc::new(FakeApiGateway::new());
-        let (device, ports) = holding(&gateway);
+        let (device, ports) = holding(&gateway, Duration::from_secs(60));
         device.close_ready_check("rc-1");
 
         assert_eq!(
-            accept_held(&device, &ports, instant()).await,
+            accept_held(&device, &ports).await,
             AcceptOutcome::NothingOpen
         );
         assert!(accept_calls(&gateway).is_empty());
     }
 
-    #[tokio::test]
-    async fn a_check_past_its_deadline_sends_nothing() {
+    #[tokio::test(start_paused = true)]
+    async fn a_check_whose_time_ran_out_sends_nothing() {
         let gateway = Arc::new(FakeApiGateway::new());
-        let (device, ports) = holding(&gateway);
-        let at_deadline = instant() + TimeDelta::seconds(60);
+        let (device, ports) = holding(&gateway, Duration::from_secs(60));
+        tokio::time::advance(Duration::from_secs(60)).await;
 
         assert_eq!(
-            accept_held(&device, &ports, at_deadline).await,
+            accept_held(&device, &ports).await,
             AcceptOutcome::NothingOpen
         );
         assert!(accept_calls(&gateway).is_empty());
     }
 
-    #[tokio::test]
-    async fn accepts_at_59_999_seconds_and_not_at_60() {
+    #[tokio::test(start_paused = true)]
+    async fn accepts_at_59_999_milliseconds_and_not_at_60_seconds() {
         let gateway = Arc::new(FakeApiGateway::new());
         gateway.script_accept_ready_check([Ok(())]);
-        let (device, ports) = holding(&gateway);
+        let (device, ports) = holding(&gateway, Duration::from_secs(60));
 
-        let just_before = instant() + TimeDelta::milliseconds(59_999);
+        tokio::time::advance(Duration::from_millis(59_999)).await;
+        assert_eq!(accept_held(&device, &ports).await, AcceptOutcome::Accepted);
+        tokio::time::advance(Duration::from_millis(1)).await;
         assert_eq!(
-            accept_held(&device, &ports, just_before).await,
-            AcceptOutcome::Accepted
-        );
-        assert_eq!(
-            accept_held(&device, &ports, instant() + TimeDelta::seconds(60)).await,
+            accept_held(&device, &ports).await,
             AcceptOutcome::NothingOpen
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn an_ended_check_is_forgotten_and_not_asked_again() {
         let gateway = Arc::new(FakeApiGateway::new());
         gateway.script_accept_ready_check([Err(ApiError::CheckEnded)]);
-        let (device, ports) = holding(&gateway);
+        let (device, ports) = holding(&gateway, Duration::from_secs(60));
 
+        assert_eq!(accept_held(&device, &ports).await, AcceptOutcome::Ended);
         assert_eq!(
-            accept_held(&device, &ports, instant()).await,
-            AcceptOutcome::Ended
-        );
-        assert_eq!(
-            accept_held(&device, &ports, instant()).await,
+            accept_held(&device, &ports).await,
             AcceptOutcome::NothingOpen
         );
         assert_eq!(accept_calls(&gateway).len(), 1);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn a_network_failure_keeps_the_check_for_the_next_press() {
         let gateway = Arc::new(FakeApiGateway::new());
         gateway.script_accept_ready_check([Err(ApiError::Network), Ok(())]);
-        let (device, ports) = holding(&gateway);
+        let (device, ports) = holding(&gateway, Duration::from_secs(60));
 
-        assert_eq!(
-            accept_held(&device, &ports, instant()).await,
-            AcceptOutcome::Failed
-        );
-        assert_eq!(
-            accept_held(&device, &ports, instant()).await,
-            AcceptOutcome::Accepted
-        );
+        assert_eq!(accept_held(&device, &ports).await, AcceptOutcome::Failed);
+        assert_eq!(accept_held(&device, &ports).await, AcceptOutcome::Accepted);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn an_unauthorized_answer_drops_the_token_as_every_route_does() {
         let gateway = Arc::new(FakeApiGateway::new());
         gateway.script_accept_ready_check([Err(ApiError::Unauthorized)]);
-        let (device, ports) = holding(&gateway);
+        let (device, ports) = holding(&gateway, Duration::from_secs(60));
 
-        assert_eq!(
-            accept_held(&device, &ports, instant()).await,
-            AcceptOutcome::Failed
-        );
+        assert_eq!(accept_held(&device, &ports).await, AcceptOutcome::Failed);
         assert!(ports.tokens.load().is_none());
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn an_unpaired_agent_sends_nothing() {
         let gateway = Arc::new(FakeApiGateway::new());
-        let (device, ports) = holding(&gateway);
+        let (device, ports) = holding(&gateway, Duration::from_secs(60));
         ports.tokens.delete();
 
         assert_eq!(
-            accept_held(&device, &ports, instant()).await,
+            accept_held(&device, &ports).await,
             AcceptOutcome::NothingOpen
         );
         assert!(accept_calls(&gateway).is_empty());

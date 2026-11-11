@@ -24,12 +24,13 @@ pub use d2rmm_agent_domain::fusion::GameNameObservation;
 /// The heartbeat's presence and screen are the domain's value objects (M5).
 pub use d2rmm_agent_domain::presence::{Presence, Screen};
 
-/// A ready check the account's group opened (RDY-01), as the agent needs it: the id to answer and the instant it ends. The
-/// members and their marks stay on the server and the site; the agent holds no names.
+/// A ready check the account's group opened (RDY-01), as the agent needs it: the id to answer and the time left to answer
+/// it, measured on the server's clock when the agent heard of it. The agent counts that time on its own monotonic clock,
+/// so a wrong clock on this PC changes nothing (RDY-11). The members stay on the server and the site.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReadyCheckOpen {
     pub id: String,
-    pub deadline: DateTime<Utc>,
+    pub remaining: std::time::Duration,
 }
 
 /// The end of a ready check the agent was told of (RDY-03 … RDY-05): the id it ended with. The outcome is not needed to

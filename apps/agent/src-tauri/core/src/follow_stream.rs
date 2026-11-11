@@ -324,26 +324,20 @@ mod ready_check_reads {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use chrono::{DateTime, TimeDelta, Utc};
-
     use super::connect_once;
     use crate::device_state::DeviceState;
     use crate::fakes::{FakeApiGateway, MemoryTokens, NullSink};
     use crate::groups::StreamPorts;
     use crate::messages::ReadyCheckOpen;
-    use crate::ports::{ApiError, PausedWallClock, TokenStore};
+    use crate::ports::{ApiError, TokenStore};
     use crate::secret::Secret;
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
 
-    fn start() -> DateTime<Utc> {
-        "2026-11-10T12:00:00Z".parse().expect("a valid instant")
-    }
-
     fn check(id: &str) -> ReadyCheckOpen {
         ReadyCheckOpen {
             id: id.to_string(),
-            deadline: start() + TimeDelta::seconds(60),
+            remaining: Duration::from_secs(60),
         }
     }
 
@@ -361,7 +355,7 @@ mod ready_check_reads {
         (device, ports)
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn a_connection_reads_the_open_check_and_holds_it() {
         let gateway = Arc::new(FakeApiGateway::new());
         gateway.script_assignment([Ok(None)]);
@@ -373,13 +367,10 @@ mod ready_check_reads {
         connect_once(&device, &ports, &mut last_id).await;
 
         assert_eq!(gateway.my_ready_check_reads(), 1);
-        assert_eq!(
-            device.answerable_ready_check(start()).map(|held| held.id),
-            Some("rc-1".to_string())
-        );
+        assert_eq!(device.answerable_ready_check(), Some("rc-1".to_string()));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn a_connection_that_finds_no_check_forgets_a_held_one() {
         let gateway = Arc::new(FakeApiGateway::new());
         gateway.script_assignment([Ok(None)]);
@@ -391,10 +382,10 @@ mod ready_check_reads {
         let mut last_id = None;
         connect_once(&device, &ports, &mut last_id).await;
 
-        assert!(device.answerable_ready_check(start()).is_none());
+        assert!(device.answerable_ready_check().is_none());
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn a_failed_read_keeps_what_the_stream_said() {
         let gateway = Arc::new(FakeApiGateway::new());
         gateway.script_assignment([Ok(None)]);
@@ -406,15 +397,14 @@ mod ready_check_reads {
         let mut last_id = None;
         connect_once(&device, &ports, &mut last_id).await;
 
-        assert!(device.answerable_ready_check(start()).is_some());
+        assert!(device.answerable_ready_check().is_some());
     }
 
     #[tokio::test(start_paused = true)]
-    async fn an_unanswered_check_disarms_at_its_deadline_without_a_resolution() {
+    async fn an_unanswered_check_disarms_at_its_end_without_a_resolution() {
         let gateway = Arc::new(FakeApiGateway::new());
         let (device, _ports) = paired(&gateway);
         let device = Arc::new(device);
-        device.install_clock(Arc::new(PausedWallClock::starting_at(start())));
         device.open_ready_check(check("rc-1"));
         assert!(device.hub.snapshot().ready_check_open);
 
@@ -425,14 +415,14 @@ mod ready_check_reads {
         tokio::time::sleep(Duration::from_secs(59)).await;
         assert!(
             device.hub.snapshot().ready_check_open,
-            "still open before the deadline"
+            "still open before its time runs out"
         );
 
         tokio::time::sleep(Duration::from_secs(2)).await;
         armed.await.expect("the disarm task finishes");
         assert!(
             !device.hub.snapshot().ready_check_open,
-            "disarmed at the deadline"
+            "disarmed when its time ran out"
         );
     }
 }
