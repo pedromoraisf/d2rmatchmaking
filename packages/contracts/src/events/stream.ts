@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import { Assignment } from '../http/lobby.ts';
 import { Id, Member, RoomStage, Screen } from '../http/common.ts';
+import { QueueLeft, QueueTicketView } from '../http/queues.ts';
 
 export const RoomAssignedEvent = z.object({
   type: z.literal('room.assigned'),
@@ -38,12 +39,20 @@ export const CharactersUpdatedEvent = z.object({
 });
 export type CharactersUpdatedEvent = z.infer<typeof CharactersUpdatedEvent>;
 
-// The site stream carries room changes of its account, the presence of its agent and its characters.
+// The account's ticket changed (QUE-14): the waiting view, or `left` with the reason the site shows.
+export const QueueUpdatedEvent = z.object({
+  type: z.literal('queue.updated'),
+  data: z.discriminatedUnion('status', [QueueTicketView, QueueLeft]),
+});
+export type QueueUpdatedEvent = z.infer<typeof QueueUpdatedEvent>;
+
+// The site stream carries room changes of its account, the presence of its agent, its characters and its queue ticket.
 export const SiteStreamEvent = z.discriminatedUnion('type', [
   RoomAssignedEvent,
   RoomStageChangedEvent,
   AgentPresenceChangedEvent,
   CharactersUpdatedEvent,
+  QueueUpdatedEvent,
 ]);
 export type SiteStreamEvent = z.infer<typeof SiteStreamEvent>;
 
