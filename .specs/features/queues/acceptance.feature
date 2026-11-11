@@ -85,13 +85,17 @@ Feature: Queues for PvP and leveling
     Given Alice has joined the PvP queue with "Sorc" on Hell in the Americas for a GM duel
     When Bob joins the PvP queue with "Hammer" on Hell in the Americas for a GM duel
     Then within 2 seconds Alice and Bob are no longer queued
-    And Alice and Bob are members of the same room, with Alice as host
+    And a ready check opens for Alice and Bob
+    When Alice and Bob accept the ready check
+    Then Alice and Bob are members of the same room, with Alice as host
 
   @QUE-10 @FR-11 @api
   Scenario: A leveling group takes the teleporter and the BO when the pool has them
     Given 9 players with Hell characters at level 80 have joined the leveling queue for Baal in the Americas, one as teleporter, one as BO and the rest as killers
     When the matcher runs
-    Then a group of 8 forms with the teleporter as host and the BO in it
+    Then a ready check opens for a group of 8 with the teleporter and the BO in it
+    When the eight members accept the ready check
+    Then their room has the teleporter as host and the BO in it
 
   @QUE-13 @api
   Scenario: A player leaves the queue

@@ -27,8 +27,12 @@ import { OtelRoomMetrics } from '../modules/lobby-room/adapters/telemetry/otel-r
 import { createLobbyRoomUseCases } from '../modules/lobby-room/index.ts';
 import { matchmakingRoutes } from '../modules/matchmaking/adapters/http/routes.ts';
 import { queueRoutes } from '../modules/matchmaking/adapters/http/queue-routes.ts';
+import { readyCheckRoutes } from '../modules/matchmaking/adapters/http/ready-check-routes.ts';
 import { MemoryQueueStore } from '../modules/matchmaking/adapters/memory/memory-queue-store.ts';
 import { MemoryJoinLimitStore } from '../modules/matchmaking/adapters/memory/memory-join-limit-store.ts';
+import { MemoryReadyCheckStore } from '../modules/matchmaking/adapters/memory/memory-ready-check-store.ts';
+import { PostgresPenaltyStore } from '../modules/matchmaking/adapters/postgres/postgres-penalty-store.ts';
+import type { MatchmakingDatabase } from '../modules/matchmaking/adapters/postgres/schema.ts';
 import { JOIN_LIMIT } from '../modules/matchmaking/domain/queue-limits.ts';
 import { OtelQueueMetrics } from '../modules/matchmaking/adapters/telemetry/otel-queue-metrics.ts';
 import { createMatchmakingUseCases, createQueueUseCases } from '../modules/matchmaking/index.ts';
@@ -183,6 +187,8 @@ export interface BuiltApp {
     readonly queue: MemoryQueueStore;
     /** The joins attempted per account (QUE-18): a scenario starts with no attempt counted. */
     readonly joins: MemoryJoinLimitStore;
+    /** The open ready checks (RDY-09): a scenario starts with none open. */
+    readonly readyChecks: MemoryReadyCheckStore;
   };
 }
 
@@ -308,6 +314,8 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   // The queue (QUE-01 … QUE-16): in memory (ADR 006). Its ports are the public methods of the other modules and the hub.
   const queueStore = new MemoryQueueStore();
   const joinLimits = new MemoryJoinLimitStore(JOIN_LIMIT);
+  const readyChecks = new MemoryReadyCheckStore();
+  const penalties = new PostgresPenaltyStore(db as unknown as Kysely<MatchmakingDatabase>);
   const queue = createQueueUseCases({
     store: queueStore,
     joinLimits,
@@ -317,6 +325,12 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     sites: { hasSiteStream: async (accountId) => hub.hasSiteStream(accountId) },
     rooms: { hasOpenRoom: lobby.hasOpenRoom },
     ratings: { ratingOf: async () => INITIAL_RATING },
+    checks: readyChecks,
+    penalties,
+    scheduler,
+    onError: (error) => {
+      app.log.error({ err: error }, 'a ready check deadline failed; the check was not settled');
+    },
     ids,
     clock,
     uow,
@@ -423,6 +437,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   lobbyRoomRoutes(app, { useCases: lobby, guards });
   matchmakingRoutes(app, { useCases: matchmaking, guards, stagingEndpoints: config.stagingEndpoints });
   queueRoutes(app, { useCases: queue, guards });
+  readyCheckRoutes(app, { useCases: queue, guards });
   hub.register(app);
 
   return {
@@ -431,6 +446,6 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     bus,
     hub,
     siteClosedTimers,
-    stores: { ...stores, queue: queueStore, joins: joinLimits },
+    stores: { ...stores, queue: queueStore, joins: joinLimits, readyChecks },
   };
 }

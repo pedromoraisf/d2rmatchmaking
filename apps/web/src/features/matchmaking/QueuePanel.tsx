@@ -6,6 +6,7 @@ import type { CharacterView, QueueRefusalCode, QueueTicketView } from '@d2rmm/co
 import { useTranslation } from 'react-i18next';
 import type { ApiClient } from '../../shared/api-client.ts';
 import { classKey, difficultyKey } from '../../shared/labels.ts';
+import { formatWait } from './SearchingPanel.tsx';
 import { firstEntryReason, LEVEL_FLOORS, type JoinChoice, type QueueDifficulty } from './entry-reason.ts';
 import {
   activityKey,
@@ -65,6 +66,8 @@ export function QueuePanel({
   const [sending, setSending] = useState(false);
   /** Why the last join was not accepted: the API's refusal code, or 'failed' for any other failure. */
   const [failure, setFailure] = useState<QueueRefusalCode | 'failed' | null>(null);
+  /** The seconds a ready-check penalty still holds, with the refusal that says so (RDY-05). */
+  const [penaltySeconds, setPenaltySeconds] = useState<number | null>(null);
 
   // The chosen character, or the first one when the choice is gone (a character list can change under the form).
   const character = characters.find((candidate) => candidate.id === characterId) ?? characters[0];
@@ -96,6 +99,9 @@ export function QueuePanel({
     }
     // The API's reason for a refusal, or the generic failure for anything else.
     setFailure(joined.failure === 'refused' && joined.refusal !== undefined ? joined.refusal : 'failed');
+    setPenaltySeconds(
+      joined.failure === 'refused' && joined.secondsLeft !== undefined ? joined.secondsLeft : null,
+    );
   }
 
   const describedBy = reason === null ? undefined : `${ids}-reason`;
@@ -290,7 +296,9 @@ export function QueuePanel({
         </div>
         {failure !== null ? (
           <p role="alert" className="note">
-            {t(failure === 'failed' ? 'queue.joinFailed' : refusalKey(failure))}
+            {failure === 'ready-check-penalty' && penaltySeconds !== null
+              ? t('queue.penalty', { time: formatWait(penaltySeconds) })
+              : t(failure === 'failed' ? 'queue.joinFailed' : refusalKey(failure))}
           </p>
         ) : null}
       </form>

@@ -1,6 +1,13 @@
 // The queue's metrics on the application meter (QUE-16): the waiting size as an observable gauge, the wait at match as a
 // histogram. Only the bounded attributes of QUE-16 are recorded: no account and no character name.
-import { D2R_DIFFICULTY, D2R_ERA, D2R_LADDER, D2R_QUEUE_MODE, INSTRUMENT_NAMES } from '@d2rmm/telemetry';
+import {
+  D2R_DIFFICULTY,
+  D2R_ERA,
+  D2R_LADDER,
+  D2R_QUEUE_MODE,
+  D2R_READY_CHECK_OUTCOME,
+  INSTRUMENT_NAMES,
+} from '@d2rmm/telemetry';
 import type { Meter } from '@opentelemetry/api';
 import type { QueueAttributes, QueueMetrics } from '../../application/ports.ts';
 
@@ -8,6 +15,8 @@ import type { QueueAttributes, QueueMetrics } from '../../application/ports.ts';
 export const QUEUE_SIZE_METRIC = INSTRUMENT_NAMES.queueSize;
 /** `d2r.queue.wait`: the seconds a ticket waited when it left in a match (histogram). */
 export const QUEUE_WAIT_METRIC = INSTRUMENT_NAMES.queueWait;
+/** `d2r.ready_check.resolved`: the ready checks that ended, by outcome (counter, RDY-10). */
+export const READY_CHECK_RESOLVED_METRIC = INSTRUMENT_NAMES.readyCheckResolved;
 
 function attributesOfPool(attributes: QueueAttributes): Record<string, string> {
   return {
@@ -22,6 +31,7 @@ export class OtelQueueMetrics implements QueueMetrics {
   /** The last size reported for each pool; the gauge reads these when the SDK collects. */
   readonly #sizes = new Map<string, { readonly attributes: QueueAttributes; size: number }>();
   readonly #wait;
+  readonly #resolved;
 
   constructor(meter: Meter) {
     meter
@@ -38,6 +48,10 @@ export class OtelQueueMetrics implements QueueMetrics {
       description: 'Seconds a ticket waited before it left the queue in a match.',
       unit: 's',
     });
+    this.#resolved = meter.createCounter(READY_CHECK_RESOLVED_METRIC, {
+      description: 'Ready checks ended, by outcome: accepted, declined or timed-out.',
+      unit: '{check}',
+    });
   }
 
   queueSize(attributes: QueueAttributes, size: number): void {
@@ -49,5 +63,9 @@ export class OtelQueueMetrics implements QueueMetrics {
 
   waitAtMatch(attributes: QueueAttributes, seconds: number): void {
     this.#wait.record(seconds, attributesOfPool(attributes));
+  }
+
+  readyCheckResolved(outcome: 'accepted' | 'declined' | 'timed-out'): void {
+    this.#resolved.add(1, { [D2R_READY_CHECK_OUTCOME]: outcome });
   }
 }

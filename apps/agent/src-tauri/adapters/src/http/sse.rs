@@ -6,10 +6,18 @@ use std::time::Duration;
 
 use uuid::Uuid;
 
-use crate::contracts::generated::{Assignment, RoomAssignedEventData};
+use d2rmm_agent_core::messages::{ReadyCheckEnd, ReadyCheckOpen};
 
-/// The one stream event the agent acts on.
+use crate::contracts::generated::{
+    Assignment, ReadyCheckResolvedEventData, ReadyCheckStartedEventData, RoomAssignedEventData,
+};
+
+/// The stream event the agent acts on first: the room assignment.
 pub const ROOM_ASSIGNED: &str = "room.assigned";
+/// A ready check opened for the account (RDY-01): the hotkey answers it until it ends.
+pub const READY_CHECK_STARTED: &str = "ready_check.started";
+/// A ready check ended (RDY-03 … RDY-05): the hotkey stops answering it.
+pub const READY_CHECK_RESOLVED: &str = "ready_check.resolved";
 /// The API sends `: ka` every 25 s; a stream silent for a minute is dropped.
 pub const IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 /// The largest line or event the reader accepts before it closes the connection.
@@ -20,19 +28,54 @@ pub const MAX_EVENT_BYTES: usize = 64 * 1024;
 #[derive(Debug, Clone)]
 pub enum StreamEffect {
     SetAssignment(Assignment),
+    ReadyCheckStarted(ReadyCheckOpen),
+    ReadyCheckResolved(ReadyCheckEnd),
     Ignore,
 }
 
 /// Maps one stream event to its effect. Unknown names, data that fails the contract, a game name over 32 characters or
 /// outside `[A-Za-z0-9-]`, and a room id that is not a UUID are all ignored (AGS-15, AD-067).
 pub fn handle(name: &str, data: &str) -> StreamEffect {
-    if name != ROOM_ASSIGNED {
-        return StreamEffect::Ignore;
+    match name {
+        ROOM_ASSIGNED => {
+            assignment_from(data).map_or(StreamEffect::Ignore, StreamEffect::SetAssignment)
+        }
+        READY_CHECK_STARTED => ready_check_started_from(data)
+            .map_or(StreamEffect::Ignore, StreamEffect::ReadyCheckStarted),
+        READY_CHECK_RESOLVED => ready_check_resolved_from(data)
+            .map_or(StreamEffect::Ignore, StreamEffect::ReadyCheckResolved),
+        _ => StreamEffect::Ignore,
     }
-    match assignment_from(data) {
-        Some(assignment) => StreamEffect::SetAssignment(assignment),
-        None => StreamEffect::Ignore,
-    }
+}
+
+/// The open check of `GET /v1/ready-checks/me` (RDY-11): the same view the started event carries, so it parses the same way.
+pub fn ready_check_open_from_body(body: &str) -> Option<ReadyCheckOpen> {
+    ready_check_started_from(body)
+}
+
+fn ready_check_started_from(data: &str) -> Option<ReadyCheckOpen> {
+    let event: ReadyCheckStartedEventData = serde_json::from_str(data).ok()?;
+    // Both instants are the server's clock, so their difference is the time left whatever this PC's clock reads.
+    let remaining = (event.deadline - event.now)
+        .to_std()
+        .unwrap_or(Duration::ZERO);
+    let id = String::from(event.id);
+    valid_ready_check_id(&id).then_some(ReadyCheckOpen { id, remaining })
+}
+
+fn ready_check_resolved_from(data: &str) -> Option<ReadyCheckEnd> {
+    let event: ReadyCheckResolvedEventData = serde_json::from_str(data).ok()?;
+    let id = String::from(event.id);
+    valid_ready_check_id(&id).then_some(ReadyCheckEnd { id })
+}
+
+/// A ready-check id the agent accepts: 1 to 64 characters of `[A-Za-z0-9-]`, the contract's id as the API issues it.
+pub fn valid_ready_check_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 64
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
 }
 
 fn assignment_from(data: &str) -> Option<Assignment> {
@@ -159,8 +202,11 @@ impl SseParser {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::{
         MAX_EVENT_BYTES, SseParser, StreamEffect, handle, valid_game_name, valid_last_event_id,
+        valid_ready_check_id,
     };
 
     const ASSIGNED: &str = r#"{"roomId":"7d9f2c1e-0000-4000-8000-000000000001","run":1,"expectedGameName":"mmbaalh-12","members":[{"accountId":"account-1","characterId":null,"joinOrder":1,"role":"host"}]}"#;
@@ -281,5 +327,54 @@ mod tests {
             handle("room.assigned", "{}"),
             StreamEffect::Ignore
         ));
+    }
+
+    const READY_CHECK: &str = r#"{"id":"rc-1","mode":"pvp","difficulty":"hell","deadline":"2026-11-10T12:01:00.000Z","now":"2026-11-10T12:00:00.000Z","members":[{"position":1,"class":"sorceress","level":91,"accepted":false,"you":true},{"position":2,"class":"barbarian","level":84,"accepted":false,"you":false}]}"#;
+
+    #[test]
+    fn a_ready_check_that_opened_gives_its_id_and_deadline() {
+        let StreamEffect::ReadyCheckStarted(check) = handle("ready_check.started", READY_CHECK)
+        else {
+            panic!("a valid ready_check.started is held");
+        };
+        assert_eq!(check.id, "rc-1");
+        assert_eq!(check.remaining, Duration::from_secs(60));
+    }
+
+    #[test]
+    fn a_ready_check_that_ended_gives_its_id() {
+        let ended = r#"{"id":"rc-1","outcome":"timed-out"}"#;
+        let StreamEffect::ReadyCheckResolved(end) = handle("ready_check.resolved", ended) else {
+            panic!("a valid ready_check.resolved is held");
+        };
+        assert_eq!(end.id, "rc-1");
+    }
+
+    #[test]
+    fn a_ready_check_with_a_bad_id_or_shape_is_ignored() {
+        let long_id = READY_CHECK.replace("rc-1", &"x".repeat(65));
+        let spaced_id = READY_CHECK.replace("rc-1", "rc 1");
+        for data in [long_id.as_str(), spaced_id.as_str(), "{}", "not json"] {
+            assert!(matches!(
+                handle("ready_check.started", data),
+                StreamEffect::Ignore
+            ));
+        }
+        assert!(matches!(
+            handle(
+                "ready_check.resolved",
+                r#"{"id":"rc 1","outcome":"declined"}"#
+            ),
+            StreamEffect::Ignore
+        ));
+    }
+
+    #[test]
+    fn the_ready_check_id_rule_takes_64_characters_and_no_more() {
+        assert!(valid_ready_check_id(&"a".repeat(64)));
+        assert!(!valid_ready_check_id(&"a".repeat(65)));
+        assert!(valid_ready_check_id("7d9f2c1e-0000-4000-8000-000000000001"));
+        assert!(!valid_ready_check_id(""));
+        assert!(!valid_ready_check_id("rc_1"));
     }
 }

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { Assignment } from '../http/lobby.ts';
 import { Id, Member, RoomStage, Screen } from '../http/common.ts';
 import { QueueLeft, QueueTicketView } from '../http/queues.ts';
+import { ReadyCheckResolved, ReadyCheckView } from '../http/ready-checks.ts';
 
 export const RoomAssignedEvent = z.object({
   type: z.literal('room.assigned'),
@@ -46,16 +47,46 @@ export const QueueUpdatedEvent = z.object({
 });
 export type QueueUpdatedEvent = z.infer<typeof QueueUpdatedEvent>;
 
-// The site stream carries room changes of its account, the presence of its agent, its characters and its queue ticket.
+// A ready check opened for the account's group (RDY-01): the view of that member, with the deadline.
+export const ReadyCheckStartedEvent = z.object({
+  type: z.literal('ready_check.started'),
+  data: ReadyCheckView,
+});
+export type ReadyCheckStartedEvent = z.infer<typeof ReadyCheckStartedEvent>;
+
+// A member accepted, or the check changed for the members still in it (RDY-02): the same view, with the new marks.
+export const ReadyCheckUpdatedEvent = z.object({
+  type: z.literal('ready_check.updated'),
+  data: ReadyCheckView,
+});
+export type ReadyCheckUpdatedEvent = z.infer<typeof ReadyCheckUpdatedEvent>;
+
+// The check ended (RDY-03 … RDY-05): accepted, declined or timed out.
+export const ReadyCheckResolvedEvent = z.object({
+  type: z.literal('ready_check.resolved'),
+  data: ReadyCheckResolved,
+});
+export type ReadyCheckResolvedEvent = z.infer<typeof ReadyCheckResolvedEvent>;
+
+// The site stream carries room changes of its account, the presence of its agent, its characters, its queue ticket and
+// its ready check.
 export const SiteStreamEvent = z.discriminatedUnion('type', [
   RoomAssignedEvent,
   RoomStageChangedEvent,
   AgentPresenceChangedEvent,
   CharactersUpdatedEvent,
   QueueUpdatedEvent,
+  ReadyCheckStartedEvent,
+  ReadyCheckUpdatedEvent,
+  ReadyCheckResolvedEvent,
 ]);
 export type SiteStreamEvent = z.infer<typeof SiteStreamEvent>;
 
-// The agent stream carries only the assignment: the agent never receives presence of itself or of others.
-export const AgentStreamEvent = z.discriminatedUnion('type', [RoomAssignedEvent]);
+// The agent stream carries the assignment and the ready check's start and end (the agent answers its hotkey, RDY-07);
+// it never receives presence of itself or of others.
+export const AgentStreamEvent = z.discriminatedUnion('type', [
+  RoomAssignedEvent,
+  ReadyCheckStartedEvent,
+  ReadyCheckResolvedEvent,
+]);
 export type AgentStreamEvent = z.infer<typeof AgentStreamEvent>;

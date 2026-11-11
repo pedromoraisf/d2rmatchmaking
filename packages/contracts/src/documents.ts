@@ -6,6 +6,9 @@ import {
   AgentPresenceChangedEvent,
   CharactersUpdatedEvent,
   QueueUpdatedEvent,
+  ReadyCheckResolvedEvent,
+  ReadyCheckStartedEvent,
+  ReadyCheckUpdatedEvent,
   RoomAssignedEvent,
   RoomStageChangedEvent,
 } from './events/stream.ts';
@@ -41,6 +44,9 @@ const STREAM_MESSAGES = {
   AgentPresenceChanged: { name: 'agent.presence_changed', schema: AgentPresenceChangedEvent },
   CharactersUpdated: { name: 'characters.updated', schema: CharactersUpdatedEvent },
   QueueUpdated: { name: 'queue.updated', schema: QueueUpdatedEvent },
+  ReadyCheckStarted: { name: 'ready_check.started', schema: ReadyCheckStartedEvent },
+  ReadyCheckUpdated: { name: 'ready_check.updated', schema: ReadyCheckUpdatedEvent },
+  ReadyCheckResolved: { name: 'ready_check.resolved', schema: ReadyCheckResolvedEvent },
 } as const;
 
 // One file per agent-facing message (AWS-36). The claim file carries the response, the message that holds the token.
@@ -54,6 +60,8 @@ const JSON_SCHEMA_SOURCES = {
   'observation.json': Observation,
   'agent-event-room-assigned.json': RoomAssignedEvent,
   'record-characters-request.json': RecordCharactersRequest,
+  'agent-event-ready-check-started.json': ReadyCheckStartedEvent,
+  'agent-event-ready-check-resolved.json': ReadyCheckResolvedEvent,
 } as const;
 
 // Agent schemas are draft-07: typify reads that dialect (ADR 009, AD-060).

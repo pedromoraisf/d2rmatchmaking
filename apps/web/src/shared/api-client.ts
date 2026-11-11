@@ -7,6 +7,7 @@ import {
   MyCharactersResponse,
   MyQueueTicketResponse,
   QueueTicketView,
+  ReadyCheckView,
   RoomView,
 } from '@d2rmm/contracts';
 import { QueueRefusal } from '@d2rmm/contracts';
@@ -19,7 +20,8 @@ export interface Parser<T> {
 /** `refused`: the queue answered 409 or 422 with the reason in `refusal` (QUE-03 … QUE-06). */
 export type ApiFailure = 'unauthenticated' | 'not-found' | 'invalid' | 'rate-limited' | 'refused' | 'failed';
 export type ApiResult<T> =
-  { ok: true; value: T } | { ok: false; failure: ApiFailure; refusal?: QueueRefusalCode };
+  | { ok: true; value: T }
+  | { ok: false; failure: ApiFailure; refusal?: QueueRefusalCode; secondsLeft?: number };
 export type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 
 type Sent = { ok: true; response: Response } | { ok: false; failure: ApiFailure };
@@ -56,6 +58,10 @@ export interface ApiClient {
   myQueueTicket(): Promise<ApiResult<MyQueueTicketResponse>>;
   joinQueue(body: JoinQueueRequest): Promise<ApiResult<QueueTicketView>>;
   leaveQueue(ticketId: string): Promise<ApiResult<void>>;
+  acceptReadyCheck(checkId: string): Promise<ApiResult<void>>;
+  /** The account's open ready check, or null when it is in none (RDY-11: the API answers 204). */
+  myReadyCheck(): Promise<ApiResult<ReadyCheckView | null>>;
+  declineReadyCheck(checkId: string): Promise<ApiResult<void>>;
 }
 
 export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, init)): ApiClient {
@@ -134,13 +140,35 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
       try {
         const reason = QueueRefusal.safeParse(await response.json());
         if (reason.success) {
-          return { ok: false, failure: 'refused', refusal: reason.data.error };
+          // A ready-check penalty carries the whole seconds left (RDY-05); the other refusals have none.
+          return {
+            ok: false,
+            failure: 'refused',
+            refusal: reason.data.error,
+            ...(reason.data.secondsLeft === undefined ? {} : { secondsLeft: reason.data.secondsLeft }),
+          };
         }
       } catch {
         return { ok: false, failure: 'failed' };
       }
     }
     return { ok: false, failure: failureFor(response.status) };
+  }
+
+  // A 204 is "no open check" (RDY-11): a successful answer with no body.
+  async function myReadyCheck(): Promise<ApiResult<ReadyCheckView | null>> {
+    const sent = await send('GET', '/v1/ready-checks/me');
+    if (!sent.ok) {
+      return sent;
+    }
+    if (sent.response.status === 204) {
+      return { ok: true, value: null };
+    }
+    try {
+      return { ok: true, value: ReadyCheckView.parse(await sent.response.json()) };
+    } catch {
+      return { ok: false, failure: 'failed' };
+    }
   }
 
   return {
@@ -159,5 +187,8 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
     myQueueTicket: () => read('/v1/queue/tickets/me', MyQueueTicketResponse),
     joinQueue: (body) => joinQueue(body),
     leaveQueue: (ticketId) => write(`/v1/queue/tickets/${encodeURIComponent(ticketId)}`, {}, 'DELETE'),
+    acceptReadyCheck: (checkId) => write(`/v1/ready-checks/${encodeURIComponent(checkId)}/accept`, {}),
+    myReadyCheck: () => myReadyCheck(),
+    declineReadyCheck: (checkId) => write(`/v1/ready-checks/${encodeURIComponent(checkId)}/decline`, {}),
   };
 }

@@ -107,11 +107,16 @@ export const QueueRefusalCode = z.enum([
   'in-room',
   'too-many-joins',
   'queue-full',
+  'ready-check-penalty',
 ]);
 export type QueueRefusalCode = z.infer<typeof QueueRefusalCode>;
 
-/** The body of a refused `POST /v1/queue/tickets`: the reason, and no ticket. */
+/**
+ * The body of a refused `POST /v1/queue/tickets`: the reason, and no ticket. A `ready-check-penalty` refusal carries the
+ * whole seconds left of the 5-minute wait (RDY-05); every other refusal has no `secondsLeft`.
+ */
 export const QueueRefusal = z.object({
   error: QueueRefusalCode,
+  secondsLeft: z.number().int().min(1).optional(),
 });
 export type QueueRefusal = z.infer<typeof QueueRefusal>;

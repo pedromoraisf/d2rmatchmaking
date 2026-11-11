@@ -9,7 +9,12 @@ import {
 } from '@opentelemetry/sdk-metrics';
 import { describe, expect, it } from 'vitest';
 import { APP_METER_NAME } from '@d2rmm/telemetry';
-import { OtelQueueMetrics, QUEUE_SIZE_METRIC, QUEUE_WAIT_METRIC } from './otel-queue-metrics.ts';
+import {
+  OtelQueueMetrics,
+  QUEUE_SIZE_METRIC,
+  QUEUE_WAIT_METRIC,
+  READY_CHECK_RESOLVED_METRIC,
+} from './otel-queue-metrics.ts';
 
 const POOL = {
   mode: 'pvp' as const,
@@ -74,6 +79,23 @@ describe('OtelQueueMetrics', () => {
       'd2r.era',
       'd2r.ladder',
       'd2r.queue.mode',
+    ]);
+  });
+
+  it('counts the ready checks that ended, by outcome, with no name (RDY-10)', async () => {
+    const metrics = await collectMetrics((queue) => {
+      queue.readyCheckResolved('accepted');
+      queue.readyCheckResolved('timed-out');
+      queue.readyCheckResolved('timed-out');
+    });
+
+    const resolved = metrics.find((metric) => metric.descriptor.name === READY_CHECK_RESOLVED_METRIC);
+    expect(resolved?.descriptor.unit).toBe('{check}');
+    const points = (resolved?.dataPoints ?? []) as DataPoint<number>[];
+    const counts = points.map((point) => [point.attributes['d2r.ready_check.outcome'], point.value]);
+    expect(counts).toStrictEqual([
+      ['accepted', 1],
+      ['timed-out', 2],
     ]);
   });
 });

@@ -195,7 +195,24 @@
       "already-queued": "Você já tem um ticket na fila.",
       "in-room": "Você está em uma sala que ainda está aberta.",
       "too-many-joins": "Muitas entradas na fila em um minuto. Aguarde um pouco e tente de novo.",
-      "queue-full": "Esta fila está cheia agora. Tente de novo daqui a pouco."
-    }
+      "queue-full": "Esta fila está cheia agora. Tente de novo daqui a pouco.",
+      "ready-check-penalty": "Você não respondeu a uma confirmação de partida: espere antes de entrar na fila de novo."
+    },
+    "penalty": "Você não respondeu a uma confirmação de partida. Poderá entrar na fila em {{time}}."
+  },
+  "readyCheck": {
+    "subtitle": "Partida encontrada · {{difficulty}}",
+    "heading": "Confirmação de partida",
+    "secondsLeft": "{{seconds}} segundos restantes",
+    "membersLabel": "Jogadores desta partida",
+    "memberLabel": "Jogador {{position}}: {{characterClass}}, nível {{level}}",
+    "accepted": "Aceitou",
+    "waiting": "Aguardando",
+    "you": "VOCÊ",
+    "accept": "Aceitar",
+    "decline": "Recusar",
+    "answerFailed": "Esta resposta não valeu. A confirmação pode ter terminado.",
+    "hotkeyHint": "Também dá para aceitar com <kbd>{{hotkey}}</kbd> sem sair do jogo.",
+    "penaltyNotice": "Recusar não gera penalidade. Não responder gera 5 minutos de espera."
   }
 }
