@@ -30,7 +30,11 @@ const room = {
   run: 1,
   expectedGameName: 'mmbaalh-12',
   password: '',
-  members: [member],
+  you: 'acc-1',
+  runs: [{ run: 1, gameName: 'mmbaalh-12' }],
+  expiresAt: null,
+  serverNow: '2026-11-01T10:00:00.000Z',
+  members: [{ ...member, class: null, level: null }],
 };
 
 // Captures the handlers App hands to the stream, so a test plays the server's events.

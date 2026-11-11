@@ -24,5 +24,7 @@ export const Member = z.object({
   joinOrder: z.number().int().min(1),
   role: Role,
   team: Team.optional(),
+  // Whether this member's agent confirmed the current run's game name (INV-06). Present in a room's members only.
+  confirmed: z.boolean().optional(),
 });
 export type Member = z.infer<typeof Member>;

@@ -1874,6 +1874,9 @@
                               "a",
                               "b"
                             ]
+                          },
+                          "confirmed": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -2016,6 +2019,11 @@
                         ""
                       ]
                     },
+                    "you": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
                     "members": {
                       "minItems": 1,
                       "type": "array",
@@ -2057,16 +2065,94 @@
                               "a",
                               "b"
                             ]
+                          },
+                          "confirmed": {
+                            "type": "boolean"
+                          },
+                          "class": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "amazon",
+                                  "assassin",
+                                  "barbarian",
+                                  "druid",
+                                  "necromancer",
+                                  "paladin",
+                                  "sorceress",
+                                  "warlock"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "level": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 99
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
                           "accountId",
                           "characterId",
                           "joinOrder",
-                          "role"
+                          "role",
+                          "class",
+                          "level"
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "runs": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "run": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 9007199254740991
+                          },
+                          "gameName": {
+                            "type": "string",
+                            "maxLength": 64,
+                            "pattern": "^mm[a-z]+-\\d+$"
+                          }
+                        },
+                        "required": [
+                          "run",
+                          "gameName"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "expiresAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "serverNow": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
                     }
                   },
                   "required": [
@@ -2078,7 +2164,11 @@
                     "run",
                     "expectedGameName",
                     "password",
-                    "members"
+                    "you",
+                    "members",
+                    "runs",
+                    "expiresAt",
+                    "serverNow"
                   ],
                   "additionalProperties": false
                 }

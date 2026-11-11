@@ -11,7 +11,7 @@ committed migrations never edited; no test weakened; `acceptance.feature` not ed
 - [x] T1 — Domain: the full `LobbyRoom` state machine of `design.md`, unit tests on every transition and refusal, the
       3:00 expiry boundary (2:59.999 / 3:00.000), host handover by join order, next-run name and confirmations reset —
       gate: `pnpm --filter @d2rmm/api exec vitest run src/modules/lobby-room/domain`
-- [ ] T2 — Contracts and events: `room.run_opened`, member changes, the new routes' schemas, the extended room view;
+- [x] T2 — Contracts and events: `room.run_opened`, member changes, the new routes' schemas, the extended room view;
       OpenAPI, AsyncAPI and Rust types regenerated — gate:
       `pnpm --filter @d2rmm/contracts exec vitest run && pnpm contracts:openapi && (cd apps/agent/src-tauri && cargo run -q -p xtask -- contracts && cargo nextest run -p d2rmm-agent-adapters)`
 - [ ] T3 — Application, persistence, routes and wiring (migration, timers, drop tolerance, subscribers, projection,
