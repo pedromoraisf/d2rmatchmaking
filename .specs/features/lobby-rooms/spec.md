@@ -30,8 +30,9 @@ way with the host role passing on (FR-32, INV-12). Presence is read in the Party
   `created` and the host SHALL be confirmed for that run (INV-06).
 - **LBR-04** — WHEN another member's agent reports `GAME_NAME_SEEN` with the current run's name after `created` THEN that
   member SHALL be confirmed for the run; WHEN every member is confirmed THEN the room SHALL move to `active`.
-- **LBR-05** — IF the room is still `awaiting_host` 3 minutes after it entered that stage for the current run THEN it
-  SHALL move to `expired`, every member SHALL be released (free to queue) and told why (INV-07).
+- **LBR-05** — IF the room is still `awaiting_host` 3 minutes after it entered that stage for the current run, or still
+  `formed` 3 minutes after it opened, THEN it SHALL move to `expired`, every member SHALL be released (free to queue) and
+  told why (INV-07).
 - **LBR-06** — WHEN the host asks for the next run on the site while the room is `active` THEN the room SHALL open run
   n + 1 with the next name of the sequence, clear the confirmations, return to `awaiting_host` (its 3-minute expiry
   starting again) and tell every member's site and agent (`room.run_opened`).
@@ -94,4 +95,6 @@ way with the host role passing on (FR-32, INV-12). Presence is read in the Party
 - No password: the prototype's password field becomes "No password" and the step says "public game" (ADR 017).
 - Drop tolerance 60 s after the agent is offline (itself 45 s without heartbeat) or the site stream closed; configurable.
 - An expired room releases its members without penalty (the PRD names no penalty for it).
+- A room that never leaves `formed` (the host's agent never fetches the assignment) also expires 3 minutes after it
+  opened, so no member is held by a room nobody can create (stricter on fairness; orchestrator, Batch 1 review).
 - Only the host opens the next run and closes the room; any member leaves.
