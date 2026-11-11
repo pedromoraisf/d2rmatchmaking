@@ -224,7 +224,21 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
     });
   }
 
-  return { onMatchFormed, recordObservation, getCurrentRoom, getAssignment };
+  /**
+   * True when the account is a member of its newest room and that room is still open: neither closed nor expired. The
+   * queues refuse a join while it holds (INV-04, QUE-06).
+   */
+  function hasOpenRoom(accountId: string): Promise<boolean> {
+    return withSpan('lobby.has-open-room', {}, async (): Promise<boolean> => {
+      const room = await deps.rooms.findNewestByAccount(accountId);
+      if (room === null || room.stage === 'closed' || room.stage === 'expired') {
+        return false;
+      }
+      return room.members.some((member) => member.accountId === accountId);
+    });
+  }
+
+  return { onMatchFormed, recordObservation, getCurrentRoom, getAssignment, hasOpenRoom };
 }
 
 export type LobbyRoomUseCases = ReturnType<typeof createLobbyRoomUseCases>;

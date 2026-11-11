@@ -75,6 +75,10 @@ export async function proxyRequest(context: ProxyContext, upstream: Upstream): P
   }
   const method = context.request.method;
   const init: RequestInit = { method, headers, redirect: 'manual' };
+  // The browser leaving (an aborted stream or request) ends the upstream request too; without this the API keeps the stream.
+  if (context.request.signal !== undefined) {
+    init.signal = context.request.signal;
+  }
   if (method !== 'GET' && method !== 'HEAD') {
     init.body = context.request.body;
   }

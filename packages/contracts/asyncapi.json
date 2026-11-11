@@ -19,6 +19,9 @@
         },
         "CharactersUpdated": {
           "$ref": "#/components/messages/CharactersUpdated"
+        },
+        "QueueUpdated": {
+          "$ref": "#/components/messages/QueueUpdated"
         }
       }
     }
@@ -95,6 +98,13 @@
                         "enum": [
                           "host",
                           "member"
+                        ]
+                      },
+                      "team": {
+                        "type": "string",
+                        "enum": [
+                          "a",
+                          "b"
                         ]
                       }
                     },
@@ -187,6 +197,13 @@
                         "enum": [
                           "host",
                           "member"
+                        ]
+                      },
+                      "team": {
+                        "type": "string",
+                        "enum": [
+                          "a",
+                          "b"
                         ]
                       }
                     },
@@ -281,6 +298,243 @@
               "type": "object",
               "properties": {},
               "additionalProperties": false
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "QueueUpdated": {
+        "name": "queue.updated",
+        "contentType": "application/json",
+        "payload": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "queue.updated"
+            },
+            "data": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "status": {
+                      "type": "string",
+                      "const": "waiting"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "pvp",
+                        "leveling"
+                      ]
+                    },
+                    "options": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "const": "pvp"
+                            },
+                            "characterId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "difficulty": {
+                              "type": "string",
+                              "enum": [
+                                "normal",
+                                "nightmare",
+                                "hell"
+                              ]
+                            },
+                            "region": {
+                              "type": "string",
+                              "enum": [
+                                "americas",
+                                "europe",
+                                "asia"
+                              ]
+                            },
+                            "format": {
+                              "type": "string",
+                              "enum": [
+                                "duel",
+                                "2v2",
+                                "arena"
+                              ]
+                            },
+                            "rules": {
+                              "type": "string",
+                              "enum": [
+                                "gm",
+                                "bm"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "characterId",
+                            "difficulty",
+                            "region",
+                            "format",
+                            "rules"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "const": "leveling"
+                            },
+                            "characterId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "difficulty": {
+                              "type": "string",
+                              "enum": [
+                                "normal",
+                                "nightmare",
+                                "hell"
+                              ]
+                            },
+                            "region": {
+                              "type": "string",
+                              "enum": [
+                                "americas",
+                                "europe",
+                                "asia"
+                              ]
+                            },
+                            "activity": {
+                              "type": "string",
+                              "enum": [
+                                "baal",
+                                "chaos",
+                                "cows",
+                                "tz",
+                                "heralds"
+                              ]
+                            },
+                            "role": {
+                              "type": "string",
+                              "enum": [
+                                "teleporter",
+                                "bo",
+                                "killer",
+                                "leech"
+                              ]
+                            },
+                            "minLevel": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 99
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "characterId",
+                            "difficulty",
+                            "region",
+                            "activity",
+                            "role",
+                            "minLevel"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "joinedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "band": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "low": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "high": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "low",
+                            "high"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "poolSize": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status",
+                    "mode",
+                    "options",
+                    "joinedAt",
+                    "band",
+                    "poolSize"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "left"
+                    },
+                    "reason": {
+                      "type": "string",
+                      "enum": [
+                        "left-by-player",
+                        "matched",
+                        "agent-offline",
+                        "agent-revoked",
+                        "site-closed"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "reason"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
             }
           },
           "required": [

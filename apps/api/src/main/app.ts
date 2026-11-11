@@ -26,7 +26,12 @@ import type { LobbyDatabase } from '../modules/lobby-room/adapters/postgres/sche
 import { OtelRoomMetrics } from '../modules/lobby-room/adapters/telemetry/otel-room-metrics.ts';
 import { createLobbyRoomUseCases } from '../modules/lobby-room/index.ts';
 import { matchmakingRoutes } from '../modules/matchmaking/adapters/http/routes.ts';
-import { createMatchmakingUseCases } from '../modules/matchmaking/index.ts';
+import { queueRoutes } from '../modules/matchmaking/adapters/http/queue-routes.ts';
+import { MemoryQueueStore } from '../modules/matchmaking/adapters/memory/memory-queue-store.ts';
+import { MemoryJoinLimitStore } from '../modules/matchmaking/adapters/memory/memory-join-limit-store.ts';
+import { JOIN_LIMIT } from '../modules/matchmaking/domain/queue-limits.ts';
+import { OtelQueueMetrics } from '../modules/matchmaking/adapters/telemetry/otel-queue-metrics.ts';
+import { createMatchmakingUseCases, createQueueUseCases } from '../modules/matchmaking/index.ts';
 import { MemoryAgentTokenCache } from '../modules/agents/adapters/memory/memory-agent-token-cache.ts';
 import { MemoryPresenceStore } from '../modules/agents/adapters/memory/memory-presence-store.ts';
 import { MemoryRateLimitStore } from '../modules/agents/adapters/memory/memory-rate-limit-store.ts';
@@ -62,13 +67,19 @@ import type { PlatformDatabase } from '../platform/postgres/database.ts';
 import { PostgresOutbox } from '../platform/postgres/outbox.ts';
 import { PostgresUnitOfWork } from '../platform/postgres/unit-of-work.ts';
 import { StreamHub } from '../platform/stream-hub.ts';
-import type { Clock, IdGenerator, RandomSource, Scheduler } from '../shared-kernel/index.ts';
+import type { Cancel, Clock, IdGenerator, RandomSource, Scheduler } from '../shared-kernel/index.ts';
 
 /** Every table of the API. One Kysely instance serves every module; each module reads only its own schema. */
 export type AppDatabase = PlatformDatabase & IdentityDatabase & AgentsDatabase & LobbyDatabase;
 
 /** How often the Agents sweep runs: presence offline marks and rate-limit pruning (design.md § Agents module). */
 const SWEEP_EVERY_MS = 1_000;
+/** How often the queue's matcher runs (QUE-11: when a ticket joins and every second). */
+const MATCHER_EVERY_MS = 1_000;
+/** How long a player's site stream may stay closed before the queue drops their ticket (QUE-14). */
+const SITE_CLOSED_DROP_MS = 30_000;
+/** The rating every character is banded on until Ranking exists (ADR 018, the queue's spec decisions). */
+const INITIAL_RATING = 1500;
 
 /** Log fields that may carry a credential: redacted from every log line (design.md § Composition roots). */
 const REDACTED_LOG_PATHS = ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'];
@@ -162,11 +173,16 @@ export interface BuiltApp {
   readonly bus: InMemoryEventBus;
   /** The open event streams. The test controls close them on reset. */
   readonly hub: StreamHub;
+  /** The pending site-closed drops (QUE-14). The test controls cancel them on reset. */
+  readonly siteClosedTimers: { clear(): void };
   /** The in-memory stores of the process (ADR 006): the only state outside Postgres. */
   readonly stores: {
     readonly presence: MemoryPresenceStore;
     readonly rateLimits: MemoryRateLimitStore;
     readonly tokenCache: MemoryAgentTokenCache;
+    readonly queue: MemoryQueueStore;
+    /** The joins attempted per account (QUE-18): a scenario starts with no attempt counted. */
+    readonly joins: MemoryJoinLimitStore;
   };
 }
 
@@ -219,6 +235,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     random,
     ids,
     battleNet,
+    stagingEndpoints: config.stagingEndpoints,
   });
   const characters = createCharacterUseCases({
     characters: new PostgresCharacterRepository(db as unknown as Kysely<IdentityDatabase>),
@@ -288,6 +305,65 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   });
   hub.subscribe();
 
+  // The queue (QUE-01 … QUE-16): in memory (ADR 006). Its ports are the public methods of the other modules and the hub.
+  const queueStore = new MemoryQueueStore();
+  const joinLimits = new MemoryJoinLimitStore(JOIN_LIMIT);
+  const queue = createQueueUseCases({
+    store: queueStore,
+    joinLimits,
+    characters: { characterOf: characters.characterOf },
+    presence: { isOnline: agents.agentOnlineOf },
+    links: { isLinked: identity.isLinked },
+    sites: { hasSiteStream: async (accountId) => hub.hasSiteStream(accountId) },
+    rooms: { hasOpenRoom: lobby.hasOpenRoom },
+    ratings: { ratingOf: async () => INITIAL_RATING },
+    ids,
+    clock,
+    uow,
+    outbox,
+    bus,
+    metrics: new OtelQueueMetrics(metrics.getMeter(APP_METER_NAME)),
+  });
+  // A player's agent going offline or being revoked takes the ticket out of the queue (QUE-14).
+  bus.subscribe('AgentPresenceChanged', async (event) => {
+    if (event.event.type === 'AgentPresenceChanged' && !event.event.payload.online) {
+      await queue.dropTicket({ accountId: event.event.payload.accountId, reason: 'agent-offline' });
+    }
+  });
+  bus.subscribe('AgentRevoked', async (event) => {
+    if (event.event.type === 'AgentRevoked') {
+      await queue.dropTicket({ accountId: event.event.payload.accountId, reason: 'agent-revoked' });
+    }
+  });
+  // A site stream that stays closed for 30 seconds takes the ticket out of the queue; a reconnect in time keeps it (QUE-14).
+  const siteClosedClocks = new Map<string, Cancel>();
+  // Cancels every pending 30-second drop: the test controls' reset calls it so no timer of a scenario fires in the next.
+  const siteClosedTimers = {
+    clear(): void {
+      for (const cancel of siteClosedClocks.values()) {
+        cancel();
+      }
+      siteClosedClocks.clear();
+    },
+  };
+  hub.onSiteStreamsClosed((accountId) => {
+    siteClosedClocks.get(accountId)?.();
+    const cancel = scheduler.at(new Date(clock.now().getTime() + SITE_CLOSED_DROP_MS), () => {
+      siteClosedClocks.delete(accountId);
+      if (!hub.hasSiteStream(accountId)) {
+        queue.dropTicket({ accountId, reason: 'site-closed' }).catch(() => {
+          app.log.error('dropping a queue ticket after the site closed failed');
+        });
+      }
+    });
+    siteClosedClocks.set(accountId, cancel);
+  });
+  const stopMatcher = scheduler.every(MATCHER_EVERY_MS, () => {
+    void queue.runMatcher().catch(() => {
+      app.log.error('queue matcher run failed; it runs again in one second');
+    });
+  });
+
   const stopSweep = scheduler.every(SWEEP_EVERY_MS, () => {
     void agents.sweep().catch(() => {
       app.log.error('agents sweep failed; it runs again in one second');
@@ -301,6 +377,8 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   app.setErrorHandler(answerError);
   app.addHook('onClose', () => {
     stopSweep();
+    stopMatcher();
+    siteClosedTimers.clear();
   });
   await app.register(cookie);
   await app.register(swagger, {
@@ -344,7 +422,15 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   agentsRoutes(app, { useCases: agents, guards });
   lobbyRoomRoutes(app, { useCases: lobby, guards });
   matchmakingRoutes(app, { useCases: matchmaking, guards, stagingEndpoints: config.stagingEndpoints });
+  queueRoutes(app, { useCases: queue, guards });
   hub.register(app);
 
-  return { app, relay, bus, hub, stores };
+  return {
+    app,
+    relay,
+    bus,
+    hub,
+    siteClosedTimers,
+    stores: { ...stores, queue: queueStore, joins: joinLimits },
+  };
 }

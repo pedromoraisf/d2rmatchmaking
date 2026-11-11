@@ -115,5 +115,87 @@
   },
   "testMatch": {
     "start": "Start test match"
+  },
+  "queue": {
+    "heading": "Find a match",
+    "modeLegend": "Queue",
+    "modePvp": "PvP",
+    "modeLeveling": "Leveling",
+    "character": "Character",
+    "characterOption": "{{name}}, {{characterClass}}, level {{level}}",
+    "difficulty": "Difficulty",
+    "region": "Game region",
+    "regions": {
+      "americas": "Americas",
+      "europe": "Europe",
+      "asia": "Asia"
+    },
+    "format": "Format",
+    "formats": {
+      "duel": "Duel",
+      "2v2": "2v2",
+      "arena": "Arena"
+    },
+    "rules": "Rules",
+    "rulesOptions": {
+      "gm": "GM",
+      "bm": "BM"
+    },
+    "activity": "Activity",
+    "activities": {
+      "baal": "Baal",
+      "chaos": "Chaos",
+      "cows": "Cows",
+      "tz": "Terror Zone",
+      "heralds": "Heralds"
+    },
+    "role": "Role",
+    "roles": {
+      "teleporter": "Teleporter",
+      "bo": "BO",
+      "killer": "Killer",
+      "leech": "Leech"
+    },
+    "minLevel": "Minimum level",
+    "findMatch": "Find match",
+    "joinFailed": "The queue did not accept the request. Try again.",
+    "reasons": {
+      "noCharacter": "Read a character first: open the character selection screen with the agent running.",
+      "undeclared": "Declare ladder and era to queue with this character",
+      "difficultyLocked": "Locked on this character",
+      "activityNotAvailable": "Heralds needs Hell and Reign of the Warlock",
+      "belowFloor": "This character is under the level for this difficulty",
+      "minimumBelowFloor": "The minimum level is under the level for this difficulty",
+      "belowMinimum": "This character is under the minimum level you chose"
+    },
+    "left": {
+      "agent-offline": "You left the queue: your agent went offline.",
+      "agent-revoked": "You left the queue: your agent was revoked.",
+      "site-closed": "You left the queue: the site stayed closed for too long."
+    },
+    "searching": {
+      "heading": "Searching for a match",
+      "waited": "Waited {{time}}",
+      "band": "Rating band {{low}} to {{high}}",
+      "pool": "{{players}} players in this pool",
+      "leave": "Leave queue",
+      "leaveFailed": "The queue could not be left. Try again."
+    },
+    "refusals": {
+      "not-your-character": "That character is not on your account. Pick another one.",
+      "undeclared-character": "Declare the ladder and era of this character first.",
+      "difficulty-locked": "This difficulty is locked on this character.",
+      "below-floor": "This character is under the level for this difficulty.",
+      "below-minimum-level": "This character is under the minimum level you chose.",
+      "minimum-below-floor": "The minimum level is under the level for this difficulty.",
+      "activity-not-available": "Heralds needs Hell and Reign of the Warlock.",
+      "agent-offline": "Your agent is offline. Open it on this PC and try again.",
+      "not-linked": "Link a Battle.net account to join the queue.",
+      "site-not-open": "Keep this site open to join the queue.",
+      "already-queued": "You already have a ticket in the queue.",
+      "in-room": "You are in a room that is still open.",
+      "too-many-joins": "Too many joins in a minute. Wait a moment and try again.",
+      "queue-full": "This queue is full right now. Try again in a little while."
+    }
   }
 }

@@ -74,9 +74,9 @@ export class LobbyRoom {
     this.members = props.members;
   }
 
-  /** The account of the host: the member with the lowest join order. */
+  /** The account of the host: the member the room names as host (the lowest join order when none is named). */
   get hostAccountId(): string {
-    const host = this.members[0];
+    const host = this.members.find((member) => member.role === 'host') ?? this.members[0];
     if (host === undefined) {
       throw new Error('a lobby room always has a member');
     }
@@ -84,8 +84,9 @@ export class LobbyRoom {
   }
 
   /**
-   * Opens the room for a match in stage `awaiting_host`, run 1. Roles follow the join order: the lowest join order is
-   * the host. Emits `RoomAssignmentChanged` and `RoomStageChanged` (AD-039).
+   * Opens the room for a match in stage `awaiting_host`, run 1. The match names its host (the teleporter of a leveling
+   * group, the oldest ticket otherwise, queues QUE-12); a match that names none takes the lowest join order as host.
+   * Emits `RoomAssignmentChanged` and `RoomStageChanged` (AD-039).
    */
   static fromMatch(
     match: MatchFormedPayload,
@@ -96,9 +97,13 @@ export class LobbyRoom {
     if (!gameName.ok) {
       return err('unsupported-difficulty');
     }
-    const members = [...match.members]
-      .sort((a, b) => a.joinOrder - b.joinOrder)
-      .map((member, index) => ({ ...member, role: index === 0 ? ('host' as const) : ('member' as const) }));
+    const ordered = [...match.members].sort((a, b) => a.joinOrder - b.joinOrder);
+    const named = ordered.findIndex((member) => member.role === 'host');
+    const hostIndex = named === -1 ? 0 : named;
+    const members = ordered.map((member, index) => ({
+      ...member,
+      role: index === hostIndex ? ('host' as const) : ('member' as const),
+    }));
     const room = new LobbyRoom({
       id: ids.next(),
       matchId: match.matchId,
@@ -136,11 +141,13 @@ export class LobbyRoom {
       return err('invalid-room');
     }
     const members = [...props.members].sort((a, b) => a.joinOrder - b.joinOrder);
-    const host = members[0];
-    if (host === undefined || host.role !== 'host' || host.accountId !== props.hostAccountId) {
+    // The host is the one member the match named (queues QUE-12), whatever its join order; every other member is a member.
+    const hosts = members.filter((member) => member.role === 'host');
+    const host = hosts[0];
+    if (hosts.length !== 1 || host === undefined || host.accountId !== props.hostAccountId) {
       return err('invalid-room');
     }
-    if (members.slice(1).some((member) => member.role !== 'member')) {
+    if (members.some((member) => member !== host && member.role !== 'member')) {
       return err('invalid-room');
     }
     if (new Set(members.map((member) => member.accountId)).size !== members.length) {

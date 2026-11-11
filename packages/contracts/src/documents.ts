@@ -5,6 +5,7 @@ import { z } from 'zod';
 import {
   AgentPresenceChangedEvent,
   CharactersUpdatedEvent,
+  QueueUpdatedEvent,
   RoomAssignedEvent,
   RoomStageChangedEvent,
 } from './events/stream.ts';
@@ -39,6 +40,7 @@ const STREAM_MESSAGES = {
   RoomStageChanged: { name: 'room.stage_changed', schema: RoomStageChangedEvent },
   AgentPresenceChanged: { name: 'agent.presence_changed', schema: AgentPresenceChangedEvent },
   CharactersUpdated: { name: 'characters.updated', schema: CharactersUpdatedEvent },
+  QueueUpdated: { name: 'queue.updated', schema: QueueUpdatedEvent },
 } as const;
 
 // One file per agent-facing message (AWS-36). The claim file carries the response, the message that holds the token.

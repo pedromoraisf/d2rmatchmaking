@@ -49,6 +49,22 @@ describe('Assignment', () => {
   it('rejects a game name outside the mm{activity}{difficulty}-{n} form', () => {
     expect(Assignment.safeParse({ ...assignment, expectedGameName: 'Baal Hell 7' }).success).toBe(false);
   });
+
+  it('keeps the 2v2 team of a member (QUE-12)', () => {
+    const teamed = {
+      ...assignment,
+      members: [
+        { accountId: 'acc-host', characterId: 'c-1', joinOrder: 1, role: 'host', team: 'a' },
+        { accountId: 'acc-guest', characterId: 'c-2', joinOrder: 2, role: 'member', team: 'b' },
+      ],
+    };
+    expect(Assignment.parse(teamed)).toStrictEqual(teamed);
+  });
+
+  it('rejects a team other than a or b', () => {
+    const teamed = { ...assignment, members: [{ ...members[0], team: 'c' }] };
+    expect(Assignment.safeParse(teamed).success).toBe(false);
+  });
 });
 
 describe('RoomView', () => {

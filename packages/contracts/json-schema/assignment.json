@@ -51,6 +51,13 @@
               "host",
               "member"
             ]
+          },
+          "team": {
+            "type": "string",
+            "enum": [
+              "a",
+              "b"
+            ]
           }
         },
         "required": [

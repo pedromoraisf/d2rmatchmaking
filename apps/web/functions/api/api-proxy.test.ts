@@ -175,4 +175,17 @@ describe('Pages Function proxy', () => {
     expect(calls[1]?.init.method).toBe('POST');
     expect(calls[1]?.target.href).toBe('https://api.example.test/v1/staging/match-formed');
   });
+
+  it('aborts the upstream request when the browser aborts its request (the site stream closes)', async () => {
+    const { upstream, calls } = recordingUpstream(() => new Response('', { status: 200 }));
+    const browser = new AbortController();
+    await proxyRequest(
+      { request: new Request('https://site.test/api/v1/stream', { signal: browser.signal }), env },
+      upstream,
+    );
+    const upstreamSignal = calls[0]?.init.signal;
+    expect(upstreamSignal?.aborted).toBe(false);
+    browser.abort();
+    expect(upstreamSignal?.aborted).toBe(true);
+  });
 });

@@ -71,6 +71,16 @@ export async function projectStreamEvent(
         },
       ];
     }
+    case 'QueueUpdated': {
+      // The waiting view, or `left` with its reason (QUE-14, QUE-15). The body carries no account id: the stream routes by owner.
+      return [
+        {
+          stream: 'site',
+          accountId: event.payload.accountId,
+          event: { type: 'queue.updated', data: event.payload.update },
+        },
+      ];
+    }
     case 'CharactersRecorded': {
       // The site refetches its list; the event carries no character (CHR-12, CHR-13).
       return [

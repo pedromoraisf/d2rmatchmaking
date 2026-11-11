@@ -215,6 +215,13 @@ pub const SCHEMAS: &[(&str, &str)] = &[
               "host",
               "member"
             ]
+          },
+          "team": {
+            "type": "string",
+            "enum": [
+              "a",
+              "b"
+            ]
           }
         },
         "required": [
@@ -367,6 +374,13 @@ pub const SCHEMAS: &[(&str, &str)] = &[
                 "enum": [
                   "host",
                   "member"
+                ]
+              },
+              "team": {
+                "type": "string",
+                "enum": [
+                  "a",
+                  "b"
                 ]
               }
             },
