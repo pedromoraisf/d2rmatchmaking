@@ -21,7 +21,7 @@ screenshots are at `/private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaki
 - [x] T4 — App crate: the real Party reader on live frames with Windows OCR and the English pack resource, wired in
       `main.rs` (AGN-06); agent window hint (AGN-04, en + pt-BR) — gate:
       `pnpm --filter @d2rmm/agent exec vitest run && pnpm --filter @d2rmm/agent lint && cd apps/agent/src-tauri && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`
-- [ ] T5 — Fixtures: `xtask draw-fixture party` (revealed name, masked, another name; JSON sidecars), and the
+- [x] T5 — Fixtures: `xtask draw-fixture party` (revealed name, masked, another name; JSON sidecars), and the
       maintainer's Party screenshots with the member rows blurred under `apps/agent/fixtures/party/`; a Windows-only
       test that reads the blurred screenshots' Game Name field with Windows OCR (`DUEL NK LOCKS`, masked) — gate:
       `cd apps/agent/src-tauri && cargo nextest run -p xtask && cargo nextest run && node ../../../scripts/agent/win-check.mjs`

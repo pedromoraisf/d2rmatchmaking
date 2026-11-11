@@ -10,6 +10,12 @@ use windows::Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap};
 use windows::Media::Ocr::OcrEngine;
 use windows::Storage::Streams::DataWriter;
 
+use crate::adapters::ocr_pixels::scaled_bgra;
+
+/// The scale a region is read at: nearest-neighbour, 3×, so the Party panel's text (about 12 px high) reaches the size the
+/// engine reads. A decision of the agent-game-name feature, pinned by the maintainer's screenshots (windows test).
+const OCR_SCALE: u32 = 3;
+
 /// The one language the reader reads. The automap's game name is Latin text in English.
 const LANGUAGE: &str = "en-US";
 
@@ -42,22 +48,11 @@ impl TextReader for WindowsOcr {
     }
 }
 
-/// Copies the region into a BGRA8 software bitmap. The source is RGBA8 with rows of `image.width` pixels.
+/// Copies the region, scaled up by `OCR_SCALE`, into a BGRA8 software bitmap (`ocr_pixels`).
 fn crop_to_bitmap(image: &Rgba, region: Region) -> Result<SoftwareBitmap, ReadError> {
-    let width = region.width as usize;
-    let height = region.height as usize;
-    let row_bytes = image.width as usize * 4;
-    let mut bgra = Vec::with_capacity(width * height * 4);
-    for row in 0..height {
-        let start = (region.y as usize + row) * row_bytes + region.x as usize * 4;
-        let source = image
-            .pixels
-            .get(start..start + width * 4)
-            .ok_or(ReadError::Failed)?;
-        for pixel in source.as_chunks::<4>().0 {
-            bgra.extend_from_slice(&[pixel[2], pixel[1], pixel[0], 255]);
-        }
-    }
+    let bgra = scaled_bgra(image, region, OCR_SCALE).ok_or(ReadError::Failed)?;
+    let width = region.width * OCR_SCALE;
+    let height = region.height * OCR_SCALE;
     let bitmap = SoftwareBitmap::Create(
         BitmapPixelFormat::Bgra8,
         i32::try_from(width).map_err(|_| ReadError::Failed)?,
@@ -75,30 +70,93 @@ fn crop_to_bitmap(image: &Rgba, region: Region) -> Result<SoftwareBitmap, ReadEr
 
 #[cfg(test)]
 mod tests {
-    use d2rmm_agent_core::ports::Rgba;
+    use d2rmm_agent_core::ports::{Rgba, TextReader};
     use d2rmm_agent_core::read_frame::read_game_name;
+    use d2rmm_agent_domain::game_name_match::{FieldRead, read_field};
+    use d2rmm_agent_domain::language::{GAME_NAME, LanguagePack, PARTY};
+    use d2rmm_agent_domain::layout::{PanelRegion, panel_region};
 
     use super::WindowsOcr;
 
     /// The committed F0 reference image (AD-047), decoded to RGBA8.
     fn reference_image() -> Rgba {
-        let path = concat!(
+        decode_png(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../fixtures/automap-game-name.png"
-        );
-        let bytes = std::fs::read(path).expect("the reference image is committed");
+        ))
+    }
+
+    /// A committed PNG, decoded to RGBA8.
+    fn decode_png(path: &str) -> Rgba {
+        let bytes = std::fs::read(path).expect("the committed image is readable");
         let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes))
             .read_info()
-            .expect("the reference image is a PNG");
+            .expect("the committed image is a PNG");
         let mut pixels = vec![0; decoder.output_buffer_size().expect("the image size fits")];
         let info = decoder
             .next_frame(&mut pixels)
-            .expect("the reference image decodes");
+            .expect("the committed image decodes");
         Rgba {
             width: info.width,
             height: info.height,
             pixels,
         }
+    }
+
+    /// A Party screenshot of the maintainer, with the member list blurred (`fixtures/party`), decoded to RGBA8.
+    fn party_screenshot(name: &str) -> Rgba {
+        decode_png(&format!(
+            "{}/../fixtures/party/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+    }
+
+    /// The text of one panel region, read with the en-US engine.
+    fn read_panel(reader: &WindowsOcr, image: &Rgba, panel: PanelRegion) -> String {
+        let region = panel_region(panel, image.width, image.height)
+            .expect("a 1920-wide screenshot has the panel layout");
+        reader.read(image, region).expect("the region reads").text
+    }
+
+    /// Reads a revealed or masked Party screenshot: the panel is open, and the field shows `expected` (revealed) or the
+    /// masked value. Fails, rather than skips, without the engine.
+    fn assert_party_field(name: &str, expected: FieldRead) {
+        let reader = WindowsOcr::new().expect(
+            "the en-US Windows OCR engine is installed (this test fails, it never skips, without it)",
+        );
+        let image = party_screenshot(name);
+        let language = LanguagePack::english();
+        let title = read_panel(&reader, &image, PanelRegion::PartyTitle);
+        let label = read_panel(&reader, &image, PanelRegion::GameNameLabel);
+        assert!(
+            language.is_word(&title, PARTY),
+            "the title reads Party, got {title:?}"
+        );
+        assert!(
+            language.is_word(&label, GAME_NAME),
+            "the label reads Game Name, got {label:?}"
+        );
+        let field = read_panel(&reader, &image, PanelRegion::GameNameField);
+        assert_eq!(
+            read_field(&field, "DUEL NK LOCKS"),
+            expected,
+            "{name}: the field read {field:?}"
+        );
+    }
+
+    #[test]
+    fn ocr_reads_the_revealed_party_game_name() {
+        assert_party_field("maintainer-party-revealed.png", FieldRead::Matched);
+    }
+
+    #[test]
+    fn ocr_reads_the_revealed_party_game_name_with_the_tooltip_open() {
+        assert_party_field("maintainer-party-revealed-tooltip.png", FieldRead::Matched);
+    }
+
+    #[test]
+    fn ocr_reads_the_masked_party_game_name_as_masked() {
+        assert_party_field("maintainer-party-masked.png", FieldRead::Masked);
     }
 
     /// Fails, rather than skips, when the en-US OCR engine is not installed on the machine.
