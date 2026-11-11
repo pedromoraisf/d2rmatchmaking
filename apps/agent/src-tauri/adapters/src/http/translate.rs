@@ -5,7 +5,7 @@
 use d2rmm_agent_core::messages::{
     GameNameObservation, InvalidPairingCode, IssuedCode, PairingCode, Presence, Screen,
 };
-use d2rmm_agent_domain::characters::{Card, Class, Difficulty, Era, LadderFlag, Mode};
+use d2rmm_agent_domain::characters::{Card, Class, Difficulty, Mode};
 use d2rmm_agent_domain::room_assignment::{Assignment, GameName, Member, MemberRole, RoomId};
 use serde_json::json;
 
@@ -111,8 +111,7 @@ fn card_to_json(card: &Card) -> serde_json::Value {
         "name": card.name(),
         "class": class_word(card.class()),
         "level": card.level(),
-        "ladder": ladder_word(card.mode(), card.ladder()),
-        "era": era_word(card.era()),
+        "hardcore": card.mode() == Mode::Hardcore,
         "unlockedDifficulties": card
             .unlocked_difficulties()
             .into_iter()
@@ -131,23 +130,6 @@ fn class_word(class: Class) -> &'static str {
         Class::Paladin => "paladin",
         Class::Sorceress => "sorceress",
         Class::Warlock => "warlock",
-    }
-}
-
-fn era_word(era: Era) -> &'static str {
-    match era {
-        Era::Classic => "classic",
-        Era::Lod => "lod",
-        Era::Rotw => "rotw",
-    }
-}
-
-fn ladder_word(mode: Mode, ladder: LadderFlag) -> &'static str {
-    match (mode, ladder) {
-        (Mode::Softcore, LadderFlag::Ladder) => "sc-ladder",
-        (Mode::Softcore, LadderFlag::NonLadder) => "sc-nonladder",
-        (Mode::Hardcore, LadderFlag::Ladder) => "hc-ladder",
-        (Mode::Hardcore, LadderFlag::NonLadder) => "hc-nonladder",
     }
 }
 
@@ -189,7 +171,7 @@ mod tests {
     use crate::contracts::generated as contract;
     use crate::contracts::schemas::SCHEMAS;
     use d2rmm_agent_core::messages::{GameNameObservation, Presence, Screen};
-    use d2rmm_agent_domain::characters::{Card, Class, Era, LadderFlag, Mode, Title};
+    use d2rmm_agent_domain::characters::{Card, Class, Mode, Title};
     use d2rmm_agent_domain::room_assignment::{Member, MemberRole};
 
     const ROOM: &str = "7d9f2c1e-0000-4000-8000-000000000001";
@@ -316,21 +298,10 @@ mod tests {
                 Class::Sorceress,
                 85,
                 Mode::Softcore,
-                LadderFlag::Ladder,
-                Era::Lod,
                 Some(Title::Lord),
             )
             .expect("the card builds"),
-            Card::new(
-                "Hammer",
-                Class::Paladin,
-                92,
-                Mode::Hardcore,
-                LadderFlag::NonLadder,
-                Era::Rotw,
-                None,
-            )
-            .expect("the card builds"),
+            Card::new("Hammer", Class::Paladin, 92, Mode::Hardcore, None).expect("the card builds"),
         ];
 
         let sent = serde_json::to_value(characters_to_contract(&cards).expect("a contract batch"))
@@ -338,13 +309,14 @@ mod tests {
 
         assert_eq!(sent["characters"][0]["name"], "Sorc");
         assert_eq!(sent["characters"][0]["class"], "sorceress");
-        assert_eq!(sent["characters"][0]["ladder"], "sc-ladder");
-        assert_eq!(sent["characters"][0]["era"], "lod");
+        assert_eq!(sent["characters"][0]["hardcore"], false);
+        assert!(sent["characters"][0].get("ladder").is_none());
+        assert!(sent["characters"][0].get("era").is_none());
         assert_eq!(
             sent["characters"][0]["unlockedDifficulties"],
             json!(["normal", "nightmare", "hell"])
         );
-        assert_eq!(sent["characters"][1]["ladder"], "hc-nonladder");
+        assert_eq!(sent["characters"][1]["hardcore"], true);
         assert_eq!(
             sent["characters"][1]["unlockedDifficulties"],
             json!(["normal"])

@@ -1,6 +1,6 @@
 // Characters the agent reads on the character selection screen (CHR-06) and the site lists (CHR-11).
 import { z } from 'zod';
-import { Difficulty, IsoDateTime } from './common.ts';
+import { Difficulty, Id, IsoDateTime } from './common.ts';
 
 type DifficultyValue = z.infer<typeof Difficulty>;
 
@@ -19,9 +19,14 @@ export type CharacterClass = z.infer<typeof CharacterClass>;
 export const Era = z.enum(['classic', 'lod', 'rotw']);
 export type Era = z.infer<typeof Era>;
 
-// The mode (softcore or hardcore) and the ladder flag of a character, as the game shows them (glossary).
+// The mode (softcore or hardcore) and the ladder flag of a character, as the game shows them (glossary). The queues
+// derive this combined value from `hardcore` and the declared ladder (Batch 4, CHR-15).
 export const Ladder = z.enum(['sc-ladder', 'sc-nonladder', 'hc-ladder', 'hc-nonladder']);
 export type Ladder = z.infer<typeof Ladder>;
+
+// The ladder flag the player declares on the site: the selection screen does not show it (CHR-15).
+export const DeclaredLadder = z.enum(['ladder', 'non-ladder']);
+export type DeclaredLadder = z.infer<typeof DeclaredLadder>;
 
 // D2R's character name rule: 2 to 15 letters, with at most one `-` or `_` that is neither first nor last.
 export const CharacterName = z
@@ -56,12 +61,12 @@ export const UnlockedDifficulties = z
   );
 export type UnlockedDifficulties = z.infer<typeof UnlockedDifficulties>;
 
+// What the agent reads on the selection screen (CHR-06). Ladder and era are not on that screen: the player declares them.
 export const CharacterReading = z.object({
   name: CharacterName,
   class: CharacterClass,
   level: Level,
-  ladder: Ladder,
-  era: Era,
+  hardcore: z.boolean(),
   unlockedDifficulties: UnlockedDifficulties,
 });
 export type CharacterReading = z.infer<typeof CharacterReading>;
@@ -81,10 +86,21 @@ export const RecordCharactersRequest = z
   );
 export type RecordCharactersRequest = z.infer<typeof RecordCharactersRequest>;
 
+// What the site lists (CHR-11). Ladder and era are null until the player declares them (CHR-15).
 export const CharacterView = CharacterReading.extend({
+  id: Id,
+  ladder: DeclaredLadder.nullable(),
+  era: Era.nullable(),
   readAt: IsoDateTime,
 });
 export type CharacterView = z.infer<typeof CharacterView>;
+
+// The player's declaration for one of their characters (`PATCH /v1/me/characters/{id}`, CHR-15).
+export const DeclareCharacterRequest = z.object({
+  ladder: DeclaredLadder,
+  era: Era,
+});
+export type DeclareCharacterRequest = z.infer<typeof DeclareCharacterRequest>;
 
 export const MyCharactersResponse = z.object({
   characters: z.array(CharacterView),

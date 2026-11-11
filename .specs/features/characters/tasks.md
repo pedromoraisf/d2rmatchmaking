@@ -105,7 +105,7 @@ The selection screen shows neither ladder nor era. The agent sends name, class, 
 difficulties; the player declares ladder and era on the site (`spec.md` CHR-09, CHR-10, CHR-11, CHR-15, CHR-16;
 `design.md § Contracts`).
 
-- [ ] T15 — Contracts: `CharacterReading` = `{ name, class, level, hardcore, unlockedDifficulties }`; `CharacterView`
+- [x] T15 — Contracts: `CharacterReading` = `{ name, class, level, hardcore, unlockedDifficulties }`; `CharacterView`
       adds `id`, `ladder: 'ladder' | 'non-ladder' | null`, `era | null`; `DeclareCharacterRequest`; unit tests;
       OpenAPI, AsyncAPI, JSON Schema and Rust types regenerated; the agent core and domain stop carrying ladder and era
       on a card (the title table still uses classic or expansion and softcore or hardcore to pick the title set) —

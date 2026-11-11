@@ -11,21 +11,6 @@ pub enum Mode {
     Hardcore,
 }
 
-/// The ladder flag of a character (glossary). The mode and the flag together make the contract's ladder value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LadderFlag {
-    Ladder,
-    NonLadder,
-}
-
-/// The era a character was created in (glossary).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Era {
-    Classic,
-    Lod,
-    Rotw,
-}
-
 /// The eight classes of D2R (glossary).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Class {
@@ -220,8 +205,6 @@ pub struct Card {
     class: Class,
     level: u8,
     mode: Mode,
-    ladder: LadderFlag,
-    era: Era,
     title: Option<Title>,
 }
 
@@ -261,8 +244,6 @@ impl Card {
         class: Class,
         level: u8,
         mode: Mode,
-        ladder: LadderFlag,
-        era: Era,
         title: Option<Title>,
     ) -> Result<Card, CardError> {
         if !is_character_name(name) {
@@ -279,8 +260,6 @@ impl Card {
             class,
             level,
             mode,
-            ladder,
-            era,
             title,
         })
     }
@@ -301,14 +280,6 @@ impl Card {
         self.mode
     }
 
-    pub fn ladder(&self) -> LadderFlag {
-        self.ladder
-    }
-
-    pub fn era(&self) -> Era {
-        self.era
-    }
-
     pub fn title(&self) -> Option<Title> {
         self.title
     }
@@ -322,8 +293,7 @@ impl Card {
 #[cfg(test)]
 mod tests {
     use super::{
-        Card, CardError, Class, Difficulty, Era, LadderFlag, Mode, Title, is_character_name,
-        unlocked_difficulties,
+        Card, CardError, Class, Difficulty, Mode, Title, is_character_name, unlocked_difficulties,
     };
 
     use Difficulty::{Hell, Nightmare, Normal};
@@ -511,15 +481,7 @@ mod tests {
     }
 
     fn card(name: &str, level: u8, mode: Mode, title: Option<Title>) -> Result<Card, CardError> {
-        Card::new(
-            name,
-            Class::Sorceress,
-            level,
-            mode,
-            LadderFlag::Ladder,
-            Era::Lod,
-            title,
-        )
+        Card::new(name, Class::Sorceress, level, mode, title)
     }
 
     #[test]

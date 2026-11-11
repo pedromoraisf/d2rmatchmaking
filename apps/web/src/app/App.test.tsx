@@ -228,10 +228,12 @@ describe('App', () => {
 
     listed = [
       {
+        id: 'character-sorc',
         name: 'Sorc',
         class: 'sorceress',
         level: 85,
-        ladder: 'sc-ladder',
+        hardcore: false,
+        ladder: 'ladder',
         era: 'lod',
         unlockedDifficulties: ['normal', 'nightmare', 'hell'],
         readAt: '2026-11-10T12:00:00.000Z',

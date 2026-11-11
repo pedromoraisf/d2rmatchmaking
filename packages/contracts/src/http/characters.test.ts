@@ -3,18 +3,19 @@ import {
   CharacterName,
   CharacterReading,
   CharacterView,
+  DeclareCharacterRequest,
   Level,
   MyCharactersResponse,
   RecordCharactersRequest,
   isAllowedDifficultyList,
 } from './characters.ts';
 
+// What the agent reads on the selection screen: no ladder and no era (CHR-06, CHR-15).
 const sorc = {
   name: 'Sorc',
   class: 'sorceress',
   level: 85,
-  ladder: 'sc-ladder',
-  era: 'lod',
+  hardcore: false,
   unlockedDifficulties: ['normal', 'nightmare', 'hell'],
 };
 
@@ -81,12 +82,12 @@ describe('CharacterReading', () => {
     expect(CharacterReading.safeParse({ ...sorc, class: 'necromancer2' }).success).toBe(false);
   });
 
-  it('rejects an unknown era', () => {
-    expect(CharacterReading.safeParse({ ...sorc, era: 'diablo4' }).success).toBe(false);
+  it('rejects a mode that is not a boolean', () => {
+    expect(CharacterReading.safeParse({ ...sorc, hardcore: 'yes' }).success).toBe(false);
   });
 
-  it('rejects an unknown ladder value', () => {
-    expect(CharacterReading.safeParse({ ...sorc, ladder: 'ladder' }).success).toBe(false);
+  it('accepts a hardcore character', () => {
+    expect(CharacterReading.safeParse({ ...sorc, hardcore: true }).success).toBe(true);
   });
 
   it('rejects a difficulty list that is not allowed', () => {
@@ -127,6 +128,13 @@ describe('RecordCharactersRequest', () => {
     ).toBe(false);
   });
 
+  it('accepts a batch of cards read with no ladder and no era', () => {
+    expect(
+      RecordCharactersRequest.safeParse({ characters: [sorc, { ...sorc, name: 'Zon', hardcore: true }] })
+        .success,
+    ).toBe(true);
+  });
+
   it('rejects a batch that holds one card with an unreadable field', () => {
     const broken = { ...sorc, name: 'Bad Name', level: 0 };
     expect(RecordCharactersRequest.safeParse({ characters: [sorc, broken] }).success).toBe(false);
@@ -134,12 +142,49 @@ describe('RecordCharactersRequest', () => {
 });
 
 describe('site character views', () => {
-  it('accepts a listed character with its read time', () => {
-    const view = { ...sorc, readAt: '2026-11-10T12:00:00.000Z' };
-    expect(CharacterView.parse(view)).toStrictEqual(view);
+  const undeclared = { ...sorc, id: 'c-1', ladder: null, era: null, readAt: '2026-11-10T12:00:00.000Z' };
+  const declared = { ...undeclared, ladder: 'non-ladder', era: 'rotw' };
+
+  it('accepts a listed character with its read time and no declaration yet', () => {
+    expect(CharacterView.parse(undeclared)).toStrictEqual(undeclared);
+  });
+
+  it('accepts a listed character with its declared ladder and era', () => {
+    expect(CharacterView.parse(declared)).toStrictEqual(declared);
+  });
+
+  it('rejects a view with a combined ladder value the player never declares', () => {
+    expect(CharacterView.safeParse({ ...undeclared, ladder: 'sc-ladder' }).success).toBe(false);
+  });
+
+  it('rejects a view with an era outside the three eras', () => {
+    expect(CharacterView.safeParse({ ...declared, era: 'diablo4' }).success).toBe(false);
+  });
+
+  it('rejects a view without an id', () => {
+    expect(CharacterView.safeParse({ ...undeclared, id: undefined }).success).toBe(false);
   });
 
   it('accepts the response with no characters', () => {
     expect(MyCharactersResponse.parse({ characters: [] })).toStrictEqual({ characters: [] });
+  });
+});
+
+describe('DeclareCharacterRequest', () => {
+  it.each([
+    ['ladder', 'classic'],
+    ['non-ladder', 'lod'],
+    ['ladder', 'rotw'],
+  ])('accepts %s in the %s era', (ladder, era) => {
+    expect(DeclareCharacterRequest.parse({ ladder, era })).toStrictEqual({ ladder, era });
+  });
+
+  it.each([
+    ['the combined sc-ladder value', { ladder: 'sc-ladder', era: 'lod' }],
+    ['an unknown era', { ladder: 'ladder', era: 'diablo4' }],
+    ['no ladder', { era: 'lod' }],
+    ['no era', { ladder: 'ladder' }],
+  ])('rejects %s', (_label, body) => {
+    expect(DeclareCharacterRequest.safeParse(body).success).toBe(false);
   });
 });

@@ -520,22 +520,8 @@
                           "minimum": 1,
                           "maximum": 99
                         },
-                        "ladder": {
-                          "type": "string",
-                          "enum": [
-                            "sc-ladder",
-                            "sc-nonladder",
-                            "hc-ladder",
-                            "hc-nonladder"
-                          ]
-                        },
-                        "era": {
-                          "type": "string",
-                          "enum": [
-                            "classic",
-                            "lod",
-                            "rotw"
-                          ]
+                        "hardcore": {
+                          "type": "boolean"
                         },
                         "unlockedDifficulties": {
                           "type": "array",
@@ -553,8 +539,7 @@
                         "name",
                         "class",
                         "level",
-                        "ladder",
-                        "era",
+                        "hardcore",
                         "unlockedDifficulties"
                       ]
                     }
@@ -665,22 +650,8 @@
                             "minimum": 1,
                             "maximum": 99
                           },
-                          "ladder": {
-                            "type": "string",
-                            "enum": [
-                              "sc-ladder",
-                              "sc-nonladder",
-                              "hc-ladder",
-                              "hc-nonladder"
-                            ]
-                          },
-                          "era": {
-                            "type": "string",
-                            "enum": [
-                              "classic",
-                              "lod",
-                              "rotw"
-                            ]
+                          "hardcore": {
+                            "type": "boolean"
                           },
                           "unlockedDifficulties": {
                             "type": "array",
@@ -693,6 +664,40 @@
                               ]
                             }
                           },
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "ladder": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ladder",
+                                  "non-ladder"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "era": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "classic",
+                                  "lod",
+                                  "rotw"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "readAt": {
                             "type": "string",
                             "format": "date-time",
@@ -703,9 +708,11 @@
                           "name",
                           "class",
                           "level",
+                          "hardcore",
+                          "unlockedDifficulties",
+                          "id",
                           "ladder",
                           "era",
-                          "unlockedDifficulties",
                           "readAt"
                         ],
                         "additionalProperties": false

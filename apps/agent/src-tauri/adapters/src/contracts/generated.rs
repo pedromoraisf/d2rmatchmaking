@@ -1225,8 +1225,7 @@ pub struct RecordCharactersRequest {
 #[serde(deny_unknown_fields)]
 pub struct RecordCharactersRequestCharactersItem {
     pub class: RecordCharactersRequestCharactersItemClass,
-    pub era: RecordCharactersRequestCharactersItemEra,
-    pub ladder: RecordCharactersRequestCharactersItemLadder,
+    pub hardcore: bool,
     pub level: ::std::num::NonZeroU64,
     pub name: RecordCharactersRequestCharactersItemName,
     #[serde(rename = "unlockedDifficulties")]
@@ -1307,130 +1306,6 @@ impl ::std::convert::TryFrom<&str> for RecordCharactersRequestCharactersItemClas
 }
 impl ::std::convert::TryFrom<::std::string::String>
 for RecordCharactersRequestCharactersItemClass {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-///`RecordCharactersRequestCharactersItemEra`
-#[derive(
-    ::serde::Deserialize,
-    ::serde::Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd
-)]
-pub enum RecordCharactersRequestCharactersItemEra {
-    #[serde(rename = "classic")]
-    Classic,
-    #[serde(rename = "lod")]
-    Lod,
-    #[serde(rename = "rotw")]
-    Rotw,
-}
-impl ::std::fmt::Display for RecordCharactersRequestCharactersItemEra {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::Classic => f.write_str("classic"),
-            Self::Lod => f.write_str("lod"),
-            Self::Rotw => f.write_str("rotw"),
-        }
-    }
-}
-impl ::std::str::FromStr for RecordCharactersRequestCharactersItemEra {
-    type Err = self::error::ConversionError;
-    fn from_str(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "classic" => Ok(Self::Classic),
-            "lod" => Ok(Self::Lod),
-            "rotw" => Ok(Self::Rotw),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for RecordCharactersRequestCharactersItemEra {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String>
-for RecordCharactersRequestCharactersItemEra {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-///`RecordCharactersRequestCharactersItemLadder`
-#[derive(
-    ::serde::Deserialize,
-    ::serde::Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd
-)]
-pub enum RecordCharactersRequestCharactersItemLadder {
-    #[serde(rename = "sc-ladder")]
-    ScLadder,
-    #[serde(rename = "sc-nonladder")]
-    ScNonladder,
-    #[serde(rename = "hc-ladder")]
-    HcLadder,
-    #[serde(rename = "hc-nonladder")]
-    HcNonladder,
-}
-impl ::std::fmt::Display for RecordCharactersRequestCharactersItemLadder {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::ScLadder => f.write_str("sc-ladder"),
-            Self::ScNonladder => f.write_str("sc-nonladder"),
-            Self::HcLadder => f.write_str("hc-ladder"),
-            Self::HcNonladder => f.write_str("hc-nonladder"),
-        }
-    }
-}
-impl ::std::str::FromStr for RecordCharactersRequestCharactersItemLadder {
-    type Err = self::error::ConversionError;
-    fn from_str(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "sc-ladder" => Ok(Self::ScLadder),
-            "sc-nonladder" => Ok(Self::ScNonladder),
-            "hc-ladder" => Ok(Self::HcLadder),
-            "hc-nonladder" => Ok(Self::HcNonladder),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for RecordCharactersRequestCharactersItemLadder {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String>
-for RecordCharactersRequestCharactersItemLadder {
     type Error = self::error::ConversionError;
     fn try_from(
         value: ::std::string::String,

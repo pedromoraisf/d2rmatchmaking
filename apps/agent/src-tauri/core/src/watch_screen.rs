@@ -106,7 +106,7 @@ mod tests {
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-    use d2rmm_agent_domain::characters::{Card, Class, Era, LadderFlag, Mode, Title};
+    use d2rmm_agent_domain::characters::{Card, Class, Mode, Title};
 
     use super::{ScreenPorts, tick};
     use crate::device_state::DeviceState;
@@ -191,8 +191,6 @@ mod tests {
             Class::Sorceress,
             85,
             Mode::Softcore,
-            LadderFlag::Ladder,
-            Era::Lod,
             Some(Title::Lord),
         )
         .expect("the card builds")

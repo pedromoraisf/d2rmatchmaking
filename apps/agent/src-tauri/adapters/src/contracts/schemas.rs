@@ -431,22 +431,8 @@ pub const SCHEMAS: &[(&str, &str)] = &[
             "minimum": 1,
             "maximum": 99
           },
-          "ladder": {
-            "type": "string",
-            "enum": [
-              "sc-ladder",
-              "sc-nonladder",
-              "hc-ladder",
-              "hc-nonladder"
-            ]
-          },
-          "era": {
-            "type": "string",
-            "enum": [
-              "classic",
-              "lod",
-              "rotw"
-            ]
+          "hardcore": {
+            "type": "boolean"
           },
           "unlockedDifficulties": {
             "type": "array",
@@ -464,8 +450,7 @@ pub const SCHEMAS: &[(&str, &str)] = &[
           "name",
           "class",
           "level",
-          "ladder",
-          "era",
+          "hardcore",
           "unlockedDifficulties"
         ],
         "additionalProperties": false
