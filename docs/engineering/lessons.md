@@ -27,6 +27,10 @@ being true.
   pre-push `cargo clippy` needs `apps/agent/dist` (Tauri `frontendDist`) and fails without it, which looks like a code
   failure (characters, Batch 1).
 
+- **A task that adds a Rust crate to the agent runs `cargo deny --locked check` in its gate**, and the security reviewer
+  reads `apps/agent/src-tauri/deny.toml`. Why: `tauri-plugin-global-shortcut` is banned there, and PR #52 passed the
+  worker's gates and both reviews before CI refused it (ready-check, 2026-11-11).
+
 - **A task that adds or changes a route runs the whole API integration suite in its gate**, not only the module's
   tests. Why: `openapi.int.test.ts` pins every route, and three new character routes reached CI unlisted (#44).
 
