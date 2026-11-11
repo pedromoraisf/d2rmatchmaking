@@ -82,6 +82,10 @@ const SWEEP_EVERY_MS = 1_000;
 const MATCHER_EVERY_MS = 1_000;
 /** How long a player's site stream may stay closed before the queue drops their ticket (QUE-14). */
 const SITE_CLOSED_DROP_MS = 30_000;
+/** How often the Lobby Room expires rooms and drops absent members (LBR-05, LBR-08). */
+const ROOM_SWEEP_EVERY_MS = 1_000;
+/** The default drop tolerance of a member whose agent or site stream is away (LBR-08). */
+const DEFAULT_DROP_TOLERANCE_SECONDS = 60;
 /** The rating every character is banded on until Ranking exists (ADR 018, the queue's spec decisions). */
 const INITIAL_RATING = 1500;
 
@@ -143,6 +147,8 @@ export interface AppConfig {
   readonly minAgentVersion: string;
   readonly siteOrigin: string;
   readonly trustProxyHops: number;
+  /** `ROOM_DROP_TOLERANCE_SECONDS`: how long a member may be away before they leave their room. Default 60 (LBR-08). */
+  readonly roomDropToleranceSeconds?: number | undefined;
   /** Battle.net sign-in settings (`BNET_*`, main/config.ts). Undefined: the login and callback routes answer 404. */
   readonly bnet?: BnetSettings | undefined;
 }
@@ -281,6 +287,9 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
 
   bus.subscribe('AgentRevoked', agents.evictRevokedAgent);
 
+  // When each account's last site stream closed (kept while no stream of the account is open): the Lobby Room's drop
+  // tolerance counts from it (LBR-08). `hub` is created below; the connectivity port reads it only when called.
+  const siteClosedAt = new Map<string, Date>();
   // The Lobby Room opens one room per `MatchFormed` it consumes (AWS-19, idempotent by match id).
   const lobby = createLobbyRoomUseCases({
     rooms: new PostgresLobbyRoomRepository(db as unknown as Kysely<LobbyDatabase>, clock),
@@ -293,6 +302,18 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     clock,
     roomMetrics: new OtelRoomMetrics(metrics.getMeter(APP_METER_NAME)),
     traceContexts: new PostgresRoomTraceContexts(db as unknown as Kysely<LobbyDatabase>),
+    connectivity: {
+      agentOfflineSince: agents.agentOfflineSinceOf,
+      siteStreamClosedSince: (accountId) =>
+        hub.hasSiteStream(accountId) ? null : (siteClosedAt.get(accountId) ?? null),
+    },
+    characters: {
+      characterOf: async (accountId, characterId) => {
+        const facts = await characters.characterOf(accountId, characterId);
+        return facts === null ? null : { characterClass: facts.characterClass, level: facts.level };
+      },
+    },
+    dropToleranceMs: (config.roomDropToleranceSeconds ?? DEFAULT_DROP_TOLERANCE_SECONDS) * 1000,
   });
   const matchmaking = createMatchmakingUseCases({ ids, uow, outbox });
   bus.subscribe('MatchFormed', async (event) => {
@@ -310,6 +331,18 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     meter: metrics.getMeter(APP_METER_NAME),
   });
   hub.subscribe();
+  // A host whose agent has a stream open receives `room.assigned` live: the room waits for the host (LBR-02). An agent
+  // that is not connected yet fetches the assignment instead (GET /v1/agents/me/assignment).
+  bus.subscribe('RoomAssignmentChanged', async (event) => {
+    if (event.event.type !== 'RoomAssignmentChanged') {
+      return;
+    }
+    const host = event.event.payload.members.find((member) => member.role === 'host');
+    const agentId = host === undefined ? null : await agentsPort.currentAgentOf(host.accountId);
+    if (host !== undefined && agentId !== null && hub.hasAgentStream(agentId)) {
+      await lobby.onAssignmentDelivered({ accountId: host.accountId });
+    }
+  });
 
   // The queue (QUE-01 … QUE-16): in memory (ADR 006). Its ports are the public methods of the other modules and the hub.
   const queueStore = new MemoryQueueStore();
@@ -361,6 +394,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     },
   };
   hub.onSiteStreamsClosed((accountId) => {
+    siteClosedAt.set(accountId, clock.now());
     siteClosedClocks.get(accountId)?.();
     const cancel = scheduler.at(new Date(clock.now().getTime() + SITE_CLOSED_DROP_MS), () => {
       siteClosedClocks.delete(accountId);
@@ -378,6 +412,26 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     });
   });
 
+  // Rooms expire 3 minutes after they wait for the host, and members who stayed away for the tolerance leave (LBR-05, LBR-08).
+  // One sweep at a time: a tick that finds the previous one still reading the database does nothing, so a clock that
+  // jumps (a test advancing days) never queues thousands of queries.
+  let roomSweepRunning = false;
+  const stopRoomSweep = scheduler.every(ROOM_SWEEP_EVERY_MS, () => {
+    if (roomSweepRunning) {
+      return;
+    }
+    roomSweepRunning = true;
+    void lobby
+      .expireRooms()
+      .then(() => lobby.dropAbsentMembers())
+      .catch(() => {
+        app.log.error('room sweep failed; it runs again in one second');
+      })
+      .finally(() => {
+        roomSweepRunning = false;
+      });
+  });
+
   const stopSweep = scheduler.every(SWEEP_EVERY_MS, () => {
     void agents.sweep().catch(() => {
       app.log.error('agents sweep failed; it runs again in one second');
@@ -392,6 +446,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   app.addHook('onClose', () => {
     stopSweep();
     stopMatcher();
+    stopRoomSweep();
     siteClosedTimers.clear();
   });
   await app.register(cookie);

@@ -15,9 +15,9 @@ import { HEADLESS_START_TIMEOUT_MS, stateOf } from '../support/scenario-state.ts
 import { SESSION_COOKIE, submitPairingCode, type World } from '../support/world.ts';
 
 /** The agents heartbeat this often while the clock moves (a real agent reports every 15 seconds, AWS-15). */
-const HEARTBEAT_EVERY_MS = 15_000;
+export const HEARTBEAT_EVERY_MS = 15_000;
 /** The state a queued player's agent reports: the game open, on the character selection screen. */
-const ONLINE: GameState = { running: true, screen: 'CHARACTER_SELECT' };
+export const ONLINE: GameState = { running: true, screen: 'CHARACTER_SELECT' };
 /** Tab presses a keyboard walk may take before the control must hold the focus. */
 const KEYBOARD_STOPS = 60;
 /** The 9-player leveling scenario's players, in join order: the teleporter, the BO, then the killers. */
@@ -30,7 +30,7 @@ function record(world: World, status: number, body: unknown): void {
 }
 
 /** The session cookie header of the player, for a request the player makes. */
-async function sessionHeader(world: World, name: string): Promise<Record<string, string>> {
+export async function sessionHeader(world: World, name: string): Promise<Record<string, string>> {
   return { Cookie: `${SESSION_COOKIE}=${await world.sessionOf(name)}` };
 }
 
@@ -66,7 +66,7 @@ async function ticketOf(world: World, name: string) {
 }
 
 /** The player's room as the API reads it (`GET /v1/me/room`), or null when the player has none. */
-async function roomOf(world: World, name: string) {
+export async function roomOf(world: World, name: string) {
   const response = await fetch(`${world.site.api}/v1/me/room`, {
     headers: await sessionHeader(world, name),
     signal: AbortSignal.timeout(10_000),
@@ -99,7 +99,7 @@ function joinOptionsOf(mode: 'PvP' | 'leveling', words: string): Record<string, 
 }
 
 /** Sends a join as the player (`POST /v1/queue/tickets`) and keeps the answer for the "API answers" steps. */
-async function joinAs(
+export async function joinAs(
   world: World,
   name: string,
   mode: 'PvP' | 'leveling',
@@ -165,7 +165,7 @@ async function openSiteFor(world: World, name: string): Promise<void> {
 }
 
 /** A character as a scenario states it: the reading the agent sends, and the ladder and era the player declares. */
-interface QueueCharacter {
+export interface QueueCharacter {
   readonly name: string;
   readonly class: string;
   readonly level: number;
@@ -198,7 +198,7 @@ async function registerCharacter(world: World, name: string, character: QueueCha
 }
 
 /** Pairs an agent for the player and has it report online, registers the character, and opens the player's site. */
-async function readyPlayer(
+export async function readyPlayer(
   world: World,
   name: string,
   character: QueueCharacter,
@@ -451,9 +451,29 @@ Then(
 // --- Leaving (QUE-14) ------------------------------------------------------------------------------------------------
 
 // Nothing reports while the clock moves: the presence goes offline, and the ticket leaves the queue (QUE-14).
-When(/^\w+'s agent stops sending heartbeats for (\d+) seconds$/, async ({ world }, seconds: string) => {
-  await world.stack.advanceClock(Number(seconds) * 1_000);
-});
+// The named player's agent is the one that stops: any other paired agent keeps its heartbeat while the clock moves
+// (LBR-08: Bob's agent goes quiet and Alice's does not). With no other agent the clock moves in one jump.
+When(
+  /^(\w+)'s agent stops sending heartbeats for (\d+) seconds$/,
+  async ({ world }, name: string, seconds: string) => {
+    const stopped = world.player(name).agents;
+    const others = world.paired.filter((agent) => !stopped.includes(agent));
+    if (others.length === 0) {
+      await world.stack.advanceClock(Number(seconds) * 1_000);
+      return;
+    }
+    let left = Number(seconds) * 1_000;
+    while (left > 0) {
+      const step = Math.min(HEARTBEAT_EVERY_MS, left);
+      await world.stack.advanceClock(step);
+      left -= step;
+      for (const agent of others) {
+        const answer = await agent.heartbeat(ONLINE);
+        expect(answer.status, 'the heartbeat of an agent that stays online').toBe(204);
+      }
+    }
+  },
+);
 
 Then(/^(\w+)'s site shows "([^"]+)"$/, async ({ world }, name: string, text: string) => {
   await expect(pageOf(world, name).getByText(text, { exact: true }), `"${text}" on the site`).toBeVisible({
@@ -520,7 +540,7 @@ Then('within 2 seconds the site shows the time waited, the band and "Leave queue
 /** The check the scenario's answers name: the id `GET /v1/ready-checks/me` gave when the group's check opened. */
 const checkIds = new WeakMap<World, string>();
 
-const SORC_OF_ALICE: QueueCharacter = {
+export const SORC_OF_ALICE: QueueCharacter = {
   name: 'Sorc',
   class: 'sorceress',
   level: 90,
@@ -529,7 +549,7 @@ const SORC_OF_ALICE: QueueCharacter = {
   ladder: 'ladder',
   era: 'rotw',
 };
-const HAMMER_OF_BOB: QueueCharacter = { ...SORC_OF_ALICE, name: 'Hammer', class: 'warlock' };
+export const HAMMER_OF_BOB: QueueCharacter = { ...SORC_OF_ALICE, name: 'Hammer', class: 'warlock' };
 const ZON_OF_CARA: QueueCharacter = { ...SORC_OF_ALICE, name: 'Zon', class: 'amazon' };
 /** The seconds a ready check's count may lag its start: the page reads the count once a second. */
 const COUNT_TOLERANCE_S = 10;
@@ -537,7 +557,7 @@ const COUNT_TOLERANCE_S = 10;
 const START_TIMEOUT_MS = 180_000;
 
 /** The open ready check of the player, as the API reads it for the player (`GET /v1/ready-checks/me`), or null. */
-async function readyCheckOf(world: World, name: string) {
+export async function readyCheckOf(world: World, name: string) {
   const response = await fetch(`${world.site.api}/v1/ready-checks/me`, {
     headers: await sessionHeader(world, name),
     signal: AbortSignal.timeout(10_000),
@@ -550,7 +570,7 @@ async function readyCheckOf(world: World, name: string) {
 }
 
 /** Keeps the id of the player's open check for the answers that follow, and returns the check. */
-async function rememberCheck(world: World, name: string) {
+export async function rememberCheck(world: World, name: string) {
   const check = await readyCheckOf(world, name);
   expect(check, `${name} is in an open ready check`).not.toBeNull();
   checkIds.set(world, check?.id ?? '');
@@ -567,7 +587,7 @@ function rememberedCheck(world: World): string {
 }
 
 /** The player answers the check: accept or decline, as the API takes it from the player's session (RDY-02, RDY-04). */
-async function answerAs(
+export async function answerAs(
   world: World,
   name: string,
   checkId: string,

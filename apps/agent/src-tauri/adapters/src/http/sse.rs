@@ -10,10 +10,14 @@ use d2rmm_agent_core::messages::{ReadyCheckEnd, ReadyCheckOpen};
 
 use crate::contracts::generated::{
     Assignment, ReadyCheckResolvedEventData, ReadyCheckStartedEventData, RoomAssignedEventData,
+    RoomRunOpenedEventData,
 };
 
 /// The stream event the agent acts on first: the room assignment.
 pub const ROOM_ASSIGNED: &str = "room.assigned";
+/// The host opened the next run (LBR-06): the same assignment shape with the new run and game name. The agent holds it as
+/// its assignment, so the Party step reads for the new name from the next frame on.
+pub const ROOM_RUN_OPENED: &str = "room.run_opened";
 /// A ready check opened for the account (RDY-01): the hotkey answers it until it ends.
 pub const READY_CHECK_STARTED: &str = "ready_check.started";
 /// A ready check ended (RDY-03 … RDY-05): the hotkey stops answering it.
@@ -39,6 +43,9 @@ pub fn handle(name: &str, data: &str) -> StreamEffect {
     match name {
         ROOM_ASSIGNED => {
             assignment_from(data).map_or(StreamEffect::Ignore, StreamEffect::SetAssignment)
+        }
+        ROOM_RUN_OPENED => {
+            run_opened_from(data).map_or(StreamEffect::Ignore, StreamEffect::SetAssignment)
         }
         READY_CHECK_STARTED => ready_check_started_from(data)
             .map_or(StreamEffect::Ignore, StreamEffect::ReadyCheckStarted),
@@ -80,8 +87,18 @@ pub fn valid_ready_check_id(id: &str) -> bool {
 
 fn assignment_from(data: &str) -> Option<Assignment> {
     let event: RoomAssignedEventData = serde_json::from_str(data).ok()?;
-    // The event's data and the assignment carry the same fields, so the contract's assignment type takes them as they are.
-    let assignment: Assignment = serde_json::from_value(serde_json::to_value(&event).ok()?).ok()?;
+    checked_assignment(&event)
+}
+
+fn run_opened_from(data: &str) -> Option<Assignment> {
+    let event: RoomRunOpenedEventData = serde_json::from_str(data).ok()?;
+    checked_assignment(&event)
+}
+
+/// The event's data and the assignment carry the same fields, so the contract's assignment type takes them as they are;
+/// the game name and the room id are then checked as for any assignment.
+fn checked_assignment<E: serde::Serialize>(event: &E) -> Option<Assignment> {
+    let assignment: Assignment = serde_json::from_value(serde_json::to_value(event).ok()?).ok()?;
     let game_name_ok = valid_game_name(assignment.expected_game_name.as_str());
     let room_ok = Uuid::parse_str(assignment.room_id.as_str()).is_ok();
     (game_name_ok && room_ok).then_some(assignment)
@@ -311,6 +328,30 @@ mod tests {
         );
         assert!(!valid_game_name("mmbaalh_12"));
         assert!(!valid_game_name("mm baa"));
+    }
+
+    #[test]
+    fn room_run_opened_sets_the_assignment_with_the_new_name() {
+        let opened = ASSIGNED
+            .replace("mmbaalh-12", "mmbaalh-13")
+            .replace("\"run\":1", "\"run\":2");
+        let StreamEffect::SetAssignment(assignment) = handle("room.run_opened", &opened) else {
+            panic!("a valid room.run_opened sets the assignment");
+        };
+        assert_eq!(assignment.expected_game_name.as_str(), "mmbaalh-13");
+        assert_eq!(assignment.run.get(), 2);
+    }
+
+    #[test]
+    fn room_run_opened_with_a_bad_name_room_or_shape_is_ignored() {
+        let long_name = ASSIGNED.replace("mmbaalh-12", &format!("mmbaalh-{}", "1".repeat(25)));
+        let bad_room = ASSIGNED.replace("7d9f2c1e-0000-4000-8000-000000000001", "not-a-uuid");
+        for data in [long_name.as_str(), bad_room.as_str(), "{}", "not json"] {
+            assert!(
+                matches!(handle("room.run_opened", data), StreamEffect::Ignore),
+                "{data}"
+            );
+        }
     }
 
     #[test]

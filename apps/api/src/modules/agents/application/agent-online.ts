@@ -26,3 +26,23 @@ export function createAgentOnlineOf(deps: AgentOnlineDeps) {
       return !Presence.isOfflineAt(entry.presence, deps.clock.now());
     });
 }
+
+/**
+ * The instant the account's current agent went offline (45 s after its last heartbeat), or null when it is online now,
+ * has never reported, or the account has no agent. The Lobby Room reads it to tell how long a member has been away
+ * (FR-32, LBR-08).
+ */
+export function createAgentOfflineSinceOf(deps: AgentOnlineDeps) {
+  return (accountId: string): Promise<Date | null> =>
+    withSpan('agents.agent-offline-since-of', {}, async (): Promise<Date | null> => {
+      const agent = await deps.agents.findCurrentByAccount(accountId);
+      if (agent === null) {
+        return null;
+      }
+      const entry = deps.presence.get(agent.id);
+      if (entry === undefined || !Presence.isOfflineAt(entry.presence, deps.clock.now())) {
+        return null;
+      }
+      return Presence.offlineSince(entry.presence);
+    });
+}

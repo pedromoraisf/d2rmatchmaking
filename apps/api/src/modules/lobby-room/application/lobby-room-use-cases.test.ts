@@ -18,6 +18,8 @@ import {
 import { createMatchmakingUseCases } from '../../matchmaking/index.ts';
 import { createLobbyRoomUseCases, type ObservationBody } from './lobby-room-use-cases.ts';
 import { FakeAgentsPort } from './testing/fake-agents-port.ts';
+import { FakeRoomCharacters } from './testing/fake-room-characters.ts';
+import { FakeMemberConnectivity } from './testing/in-memory-member-connectivity.ts';
 import { InMemoryGameNameSequence } from './testing/in-memory-game-name-sequence.ts';
 import { FakeRoomMetrics } from './testing/fake-room-metrics.ts';
 import { InMemoryLobbyRoomRepository } from './testing/in-memory-lobby-room-repository.ts';
@@ -61,6 +63,9 @@ function setup() {
     clock,
     roomMetrics,
     traceContexts,
+    connectivity: new FakeMemberConnectivity(),
+    characters: new FakeRoomCharacters(),
+    dropToleranceMs: 60_000,
   });
   agents.pair('agent-1', 'account-1');
   agents.pair('agent-2', 'account-2');
@@ -133,7 +138,7 @@ describe('lobby-room use cases', () => {
     });
     expect(outbox.appended[1]).toMatchObject({
       type: 'RoomStageChanged',
-      payload: { roomId: 'room-1', stage: 'awaiting_host' },
+      payload: { roomId: 'room-1', stage: 'formed' },
     });
   });
 
@@ -221,7 +226,7 @@ describe('lobby-room use cases', () => {
 
     expect(result).toEqual({ ok: true, value: { stored: true } });
     expect(observations.stored).toHaveLength(1);
-    expect(room?.stage).toBe('awaiting_host');
+    expect(room?.stage).toBe('formed');
     expect(outbox.appended).toHaveLength(2);
   });
 
@@ -311,7 +316,14 @@ describe('lobby-room use cases', () => {
       ]),
     );
     const observation = spans.find((span) => span.name === 'lobby.record-observation');
-    expect(observation?.attributes).toEqual({ [D2R_ROOM_ID]: 'room-1' });
+    // The room, its run, difficulty, activity and mode: ids and bounded values only (LBR-13).
+    expect(observation?.attributes).toEqual({
+      [D2R_ROOM_ID]: 'room-1',
+      'd2r.room.run': 1,
+      'd2r.difficulty': 'hell',
+      'd2r.room.activity': 'baal',
+      'd2r.queue.mode': 'leveling',
+    });
     expect(D2R_ROOM_ID).toBe('d2r.room.id');
     for (const span of spans) {
       expect(Object.keys(span.attributes)).not.toContain('accountId');
@@ -376,7 +388,11 @@ describe('the room trace context', () => {
       'run',
       'expectedGameName',
       'password',
+      'you',
       'members',
+      'runs',
+      'expiresAt',
+      'serverNow',
     ]);
     expect(Object.keys(assignment ?? {})).toEqual(['roomId', 'run', 'expectedGameName', 'members']);
     expect(JSON.stringify([outbox.appended, room, assignment])).not.toContain(stored ?? '');

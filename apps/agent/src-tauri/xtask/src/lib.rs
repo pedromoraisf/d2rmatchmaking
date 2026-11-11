@@ -29,6 +29,7 @@ pub const CONTRACTS: &[(&str, &str)] = &[
         "ReadyCheckStartedEvent",
     ),
     ("agent-event-room-assigned.json", "RoomAssignedEvent"),
+    ("agent-event-room-run-opened.json", "RoomRunOpenedEvent"),
     ("record-characters-request.json", "RecordCharactersRequest"),
 ];
 

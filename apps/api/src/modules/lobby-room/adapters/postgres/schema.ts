@@ -12,6 +12,10 @@ export interface LobbyDatabase {
     created_at: Date;
     /** The W3C traceparent of the match that opened the room; null when none was active (RTL-01, RTL-02). */
     trace_context: string | null;
+    /** When the room entered `awaiting_host` for its current run; the 3 minutes of INV-07 count from it. */
+    awaiting_since: Date | null;
+    /** When the room became `closed` or `expired`. */
+    closed_at: Date | null;
   };
   'lobby.members': {
     room_id: string;
@@ -19,6 +23,10 @@ export interface LobbyDatabase {
     character_id: string | null;
     role: 'host' | 'member';
     join_order: number;
+    /** The run this member's agent confirmed (INV-06); null before any confirmation. */
+    confirmed_run: number | null;
+    /** When the member left the room (FR-32); null while they are in it. */
+    left_at: Date | null;
   };
   'lobby.runs': {
     room_id: string;

@@ -22,6 +22,26 @@ export const RoomStageChangedEvent = z.object({
 });
 export type RoomStageChangedEvent = z.infer<typeof RoomStageChangedEvent>;
 
+// The host opened the next run (LBR-06): the same assignment shape with the new run and name. The agent replaces the
+// name it reads for; the site refetches its room.
+export const RoomRunOpenedEvent = z.object({
+  type: z.literal('room.run_opened'),
+  data: Assignment,
+});
+export type RoomRunOpenedEvent = z.infer<typeof RoomRunOpenedEvent>;
+
+// A member confirmed, left, or the host changed (LBR-04, LBR-07, LBR-08): the members after the change.
+export const RoomMemberChangedEvent = z.object({
+  type: z.literal('room.member_changed'),
+  data: z.object({
+    roomId: Id,
+    change: z.enum(['confirmed', 'left', 'host_changed']),
+    accountId: Id,
+    members: z.array(Member),
+  }),
+});
+export type RoomMemberChangedEvent = z.infer<typeof RoomMemberChangedEvent>;
+
 export const AgentPresenceChangedEvent = z.object({
   type: z.literal('agent.presence_changed'),
   data: z.object({
@@ -73,6 +93,8 @@ export type ReadyCheckResolvedEvent = z.infer<typeof ReadyCheckResolvedEvent>;
 export const SiteStreamEvent = z.discriminatedUnion('type', [
   RoomAssignedEvent,
   RoomStageChangedEvent,
+  RoomRunOpenedEvent,
+  RoomMemberChangedEvent,
   AgentPresenceChangedEvent,
   CharactersUpdatedEvent,
   QueueUpdatedEvent,
@@ -86,6 +108,7 @@ export type SiteStreamEvent = z.infer<typeof SiteStreamEvent>;
 // it never receives presence of itself or of others.
 export const AgentStreamEvent = z.discriminatedUnion('type', [
   RoomAssignedEvent,
+  RoomRunOpenedEvent,
   ReadyCheckStartedEvent,
   ReadyCheckResolvedEvent,
 ]);

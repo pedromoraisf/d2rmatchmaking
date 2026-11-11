@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FakeClock } from '../../../shared-kernel/clock.ts';
 import type { Transaction } from '../../../shared-kernel/index.ts';
 import { Agent } from '../domain/agent.ts';
-import { createAgentOnlineOf } from './agent-online.ts';
+import { createAgentOfflineSinceOf, createAgentOnlineOf } from './agent-online.ts';
 import { InMemoryAgentRepository } from './testing/in-memory-agent-repository.ts';
 import { InMemoryPresenceStore } from './testing/in-memory-presence-store.ts';
 
@@ -67,5 +67,50 @@ describe('agentOnlineOf (FR-31)', () => {
       presence: { online: false, gameRunning: false, screen: 'UNKNOWN', lastSeenAt: clock.now() },
     });
     expect(await online('alice')).toBe(false);
+  });
+});
+
+describe('agentOfflineSinceOf (FR-32)', () => {
+  function offlineSetup() {
+    const base = setup();
+    return {
+      ...base,
+      offlineSince: createAgentOfflineSinceOf({
+        agents: base.agents,
+        presence: base.presence,
+        clock: base.clock,
+      }),
+    };
+  }
+
+  it('is null for an account with no agent and for an agent that never reported', async () => {
+    const { agents, offlineSince } = offlineSetup();
+    expect(await offlineSince('alice')).toBeNull();
+    await pairedAgent(agents, 'alice');
+    expect(await offlineSince('alice')).toBeNull();
+  });
+
+  it('is null while the agent reported within 45 seconds', async () => {
+    const { agents, presence, clock, offlineSince } = offlineSetup();
+    const agentId = await pairedAgent(agents, 'alice');
+    presence.set({
+      agentId,
+      accountId: 'alice',
+      presence: { online: true, gameRunning: true, screen: 'IN_GAME', lastSeenAt: clock.now() },
+    });
+    clock.advance(44_999);
+    expect(await offlineSince('alice')).toBeNull();
+  });
+
+  it('is 45 seconds after the last heartbeat once the agent is offline, however long ago', async () => {
+    const { agents, presence, clock, offlineSince } = offlineSetup();
+    const agentId = await pairedAgent(agents, 'alice');
+    presence.set({
+      agentId,
+      accountId: 'alice',
+      presence: { online: true, gameRunning: true, screen: 'IN_GAME', lastSeenAt: clock.now() },
+    });
+    clock.advance(200_000);
+    expect(await offlineSince('alice')).toEqual(new Date(START.getTime() + 45_000));
   });
 });

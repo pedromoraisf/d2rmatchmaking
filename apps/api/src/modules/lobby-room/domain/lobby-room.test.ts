@@ -24,7 +24,7 @@ function match(overrides: Partial<MatchFormedPayload> = {}): MatchFormedPayload 
 }
 
 function open(payload: MatchFormedPayload = match()): LobbyRoom {
-  const result = LobbyRoom.fromMatch(payload, 12, new SequentialIdGenerator('room'));
+  const result = LobbyRoom.fromMatch(payload, 12, new SequentialIdGenerator('room'), CAPTURED_AT);
   if (!result.ok) {
     throw new Error('expected the room to open');
   }
@@ -56,10 +56,10 @@ function observed(type: ObservationType, overrides: Partial<ObservationProps> = 
 }
 
 describe('LobbyRoom.fromMatch', () => {
-  it('fromMatch creates awaiting_host with run 1', () => {
+  it('fromMatch creates formed with run 1', () => {
     const room = open();
 
-    expect(room.stage).toBe('awaiting_host');
+    expect(room.stage).toBe('formed');
     expect(room.currentRun).toBe(1);
     expect(room.gameName.value).toBe('mmbaalh-12');
   });
@@ -104,6 +104,7 @@ describe('LobbyRoom.fromMatch', () => {
       },
       12,
       new SequentialIdGenerator('room'),
+      CAPTURED_AT,
     );
     if (!named.ok) {
       throw new Error('expected the room to open');
@@ -117,7 +118,7 @@ describe('LobbyRoom.fromMatch', () => {
   });
 
   it('emits the assignment and the stage with the members in join order', () => {
-    const change = LobbyRoom.fromMatch(match(), 12, new SequentialIdGenerator('room'));
+    const change = LobbyRoom.fromMatch(match(), 12, new SequentialIdGenerator('room'), CAPTURED_AT);
     if (!change.ok) {
       throw new Error('expected the room to open');
     }
@@ -136,14 +137,19 @@ describe('LobbyRoom.fromMatch', () => {
     });
     expect(stage).toEqual({
       type: 'RoomStageChanged',
-      payload: { roomId: 'room-1', stage: 'awaiting_host', members: change.value.room.members },
+      payload: { roomId: 'room-1', stage: 'formed', members: change.value.room.members },
     });
     expect(change.value.events).toHaveLength(2);
   });
 
   it('answers unsupported-difficulty for a difficulty F0 does not play', () => {
     expect(
-      LobbyRoom.fromMatch(match({ difficulty: 'normal' }), 12, new SequentialIdGenerator('room')),
+      LobbyRoom.fromMatch(
+        match({ difficulty: 'normal' }),
+        12,
+        new SequentialIdGenerator('room'),
+        CAPTURED_AT,
+      ),
     ).toEqual({
       ok: false,
       error: 'unsupported-difficulty',
@@ -213,6 +219,8 @@ function restoredProps(overrides: Partial<RestoredRoomProps> = {}): RestoredRoom
     difficulty: 'hell',
     hostAccountId: 'account-1',
     stage: 'awaiting_host',
+    awaitingSince: new Date('2026-11-01T10:00:00.000Z'),
+    createdAt: CAPTURED_AT,
     currentRun: 1,
     gameName: gameName(),
     members: [
@@ -288,7 +296,7 @@ describe('LobbyRoom.restore', () => {
   });
 
   it.each([
-    ['a stage outside awaiting_host and created', { stage: 'formed' as const }],
+    ['an awaiting_host room without the instant it entered the stage', { awaitingSince: null }],
     ['a run below 1', { currentRun: 0 }],
     ['a run that is not an integer', { currentRun: 1.5 }],
     ['a host account that is not among the members', { hostAccountId: 'account-9' }],
@@ -353,7 +361,12 @@ describe('LobbyRoom.observe for another room', () => {
 
 describe('LobbyRoom.hostAccountId without members', () => {
   it('refuses to name a host when the room has no member', () => {
-    const result = LobbyRoom.fromMatch(match({ members: [] }), 12, new SequentialIdGenerator('room'));
+    const result = LobbyRoom.fromMatch(
+      match({ members: [] }),
+      12,
+      new SequentialIdGenerator('room'),
+      CAPTURED_AT,
+    );
     if (!result.ok) {
       throw new Error('expected the room to open');
     }

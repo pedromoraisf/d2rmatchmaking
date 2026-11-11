@@ -54,6 +54,59 @@ describe('projectStreamEvent', () => {
     ]);
   });
 
+  it('a new run goes to every member site and current agent with the new name (LBR-06)', async () => {
+    const runOpened: AnyDomainEvent = {
+      type: 'RoomRunOpened',
+      payload: { roomId: 'room-1', run: 2, expectedGameName: 'mmbaalh-2', members },
+    };
+
+    const deliveries = await projectStreamEvent(runOpened, agents);
+
+    expect(deliveries.map((delivery) => [delivery.stream, delivery.event.type])).toEqual([
+      ['site', 'room.run_opened'],
+      ['agent', 'room.run_opened'],
+      ['site', 'room.run_opened'],
+      ['agent', 'room.run_opened'],
+    ]);
+    expect(deliveries[1]).toMatchObject({
+      agentId: 'agent-1',
+      event: { data: { run: 2, expectedGameName: 'mmbaalh-2' } },
+    });
+  });
+
+  it('a member change goes to the sites of the members, and to the member who left (LBR-04, LBR-07)', async () => {
+    const confirmed: AnyDomainEvent = {
+      type: 'RoomMemberChanged',
+      payload: { roomId: 'room-1', change: 'confirmed', accountId: 'account-2', members },
+    };
+    const left: AnyDomainEvent = {
+      type: 'RoomMemberChanged',
+      payload: {
+        roomId: 'room-1',
+        change: 'left',
+        accountId: 'account-3',
+        members,
+      },
+    };
+
+    const confirmedTo = await projectStreamEvent(confirmed, agents);
+    const leftTo = await projectStreamEvent(left, agents);
+
+    expect(confirmedTo.map((delivery) => delivery.stream)).toEqual(['site', 'site']);
+    expect(confirmedTo.map((delivery) => ('accountId' in delivery ? delivery.accountId : ''))).toEqual([
+      'account-1',
+      'account-2',
+    ]);
+    expect(leftTo.map((delivery) => ('accountId' in delivery ? delivery.accountId : ''))).toEqual([
+      'account-1',
+      'account-2',
+      'account-3',
+    ]);
+    expect(leftTo[2]).toMatchObject({
+      event: { type: 'room.member_changed', data: { change: 'left', accountId: 'account-3' } },
+    });
+  });
+
   it('presence goes to its owner only', async () => {
     const presence: AnyDomainEvent = {
       type: 'AgentPresenceChanged',
