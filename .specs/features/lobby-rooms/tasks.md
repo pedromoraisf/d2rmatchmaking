@@ -20,7 +20,7 @@ committed migrations never edited; no test weakened; `acceptance.feature` not ed
 - [x] T4 — Agent: `room.run_opened` updates the assignment (new expected name) so the Party step reads the new run;
       core unit tests — gate:
       `cd apps/agent/src-tauri && cargo nextest run && cargo clippy --all-targets -- -D warnings`
-- [ ] T5 — Site: the room panel of `design.md § Site`, en + pt-BR, component tests including keyboard use — gate:
+- [x] T5 — Site: the room panel of `design.md § Site`, en + pt-BR, component tests including keyboard use — gate:
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
 
 ## Batch 2

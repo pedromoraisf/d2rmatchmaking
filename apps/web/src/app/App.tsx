@@ -8,7 +8,6 @@ import type {
   MeResponse,
   QueueTicketView,
   ReadyCheckView,
-  RoomView,
 } from '@d2rmm/contracts';
 import { useTranslation } from 'react-i18next';
 import { AgentPill } from '../features/agents/AgentPill.tsx';
@@ -26,7 +25,7 @@ import { tracingFetcher } from '../shared/telemetry.ts';
 import { openSiteStream, type StreamOpener } from '../shared/stream.ts';
 import { Layout } from './Layout.tsx';
 import { clearSignInFailure, signInFailedIn } from './sign-in-failure.ts';
-import { applyStreamEvent, type SiteNotice } from './site-state.ts';
+import { applyStreamEvent, shownRoom, type SiteNotice } from './site-state.ts';
 
 export interface AppProps {
   client?: ApiClient;
@@ -51,10 +50,6 @@ type Boot = { status: 'loading' } | { status: 'failed' } | Ready;
 
 const defaultClient = createApiClient(tracingFetcher((url, init) => fetch(url, init)));
 const defaultOpenStream: StreamOpener = (handlers) => openSiteStream(handlers);
-
-function shownRoom(view: RoomView): RoomShown {
-  return { roomId: view.roomId, gameName: view.expectedGameName, stage: view.stage };
-}
 
 // A 401 on /v1/me is the signed-out view, not a failure (AWS-03, AWS-04).
 async function loadBoot(client: ApiClient): Promise<Boot> {
@@ -280,7 +275,15 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
       {session !== null && readyCheck !== null ? (
         <ReadyCheckOverlay key={readyCheck.id} readyCheck={readyCheck} client={client} />
       ) : null}
-      {session !== null && room !== null ? <RoomPanel room={room} /> : null}
+      {session !== null && room !== null ? (
+        <RoomPanel
+          key={room.roomId}
+          room={room}
+          you={session.accountId}
+          client={client}
+          onActed={() => void refreshSite()}
+        />
+      ) : null}
       {session !== null && queue !== null ? (
         <SearchingPanel
           ticket={queue}

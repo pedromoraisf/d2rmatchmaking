@@ -101,9 +101,11 @@
     }
   },
   "room": {
+    "heading": "Your room",
     "gameName": "Game name",
     "noPassword": "No password",
     "stage": "Stage",
+    "stagesLabel": "Room stages",
     "stages": {
       "formed": "Formed",
       "awaiting_host": "Awaiting host",
@@ -111,6 +113,38 @@
       "active": "Active",
       "closed": "Closed",
       "expired": "Expired"
+    },
+    "copy": "Copy game name",
+    "copied": "Game name copied.",
+    "copyFailed": "Could not copy. The game name is selected: press Ctrl+C.",
+    "stepsLabel": "What to do",
+    "steps": {
+      "hostCreate": "You create a public game named {{name}} with no password.",
+      "hostParty": "In the game, open the Party panel and click the eye so the agent can read the name.",
+      "memberWait": "The host creates a public game named {{name}} with no password.",
+      "memberJoin": "Join that game from the Game List.",
+      "memberParty": "After joining, open the Party panel and click the eye so the agent can read the name.",
+      "expiry": "If the game is not created within 3 minutes the room expires and everyone is released."
+    },
+    "membersLabel": "Members",
+    "host": "Host",
+    "you": "You",
+    "classLevel": "{{characterClass}}, level {{level}}",
+    "unknownCharacter": "Character not shown",
+    "presence": {
+      "waiting": "Waiting",
+      "confirmed": "Confirmed by the agent"
+    },
+    "runsLabel": "Runs",
+    "run": "Run {{run}}",
+    "runCurrent": "current",
+    "leave": "Leave room",
+    "nextRun": "Next run",
+    "close": "Close room",
+    "actionFailed": "The action did not go through. Try again.",
+    "ended": {
+      "closed": "The host closed the room. You are free to join a queue again.",
+      "expired": "The room expired because the game was not created in time. You are free to join a queue again."
     }
   },
   "testMatch": {
