@@ -28,7 +28,7 @@ committed migrations never edited; no test weakened; `acceptance.feature` not ed
 - [x] T8 — A room still `formed` 3 minutes after it opened expires like `awaiting_host` (LBR-05 as amended): domain unit
       tests on the boundary (2:59.999 / 3:00.000 from `createdAt`), the sweep expires it and releases the members —
       gate: `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts`
-- [ ] T6 — Acceptance steps for every step of `acceptance.feature` (two headless agents with drawn Party fixtures; the
+- [x] T6 — Acceptance steps for every step of `acceptance.feature` (two headless agents with drawn Party fixtures; the
       stack's clock) — gate: `pnpm exec turbo run test:acceptance -- --grep @LBR-`
 - [ ] T7 — The whole existing acceptance suite still passes (rooms changed under F0, queues and ready-check scenarios),
       then the sensors — gate:
