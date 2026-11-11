@@ -24,7 +24,7 @@ function match(overrides: Partial<MatchFormedPayload> = {}): MatchFormedPayload 
 }
 
 function open(payload: MatchFormedPayload = match()): LobbyRoom {
-  const result = LobbyRoom.fromMatch(payload, 12, new SequentialIdGenerator('room'));
+  const result = LobbyRoom.fromMatch(payload, 12, new SequentialIdGenerator('room'), CAPTURED_AT);
   if (!result.ok) {
     throw new Error('expected the room to open');
   }
@@ -104,6 +104,7 @@ describe('LobbyRoom.fromMatch', () => {
       },
       12,
       new SequentialIdGenerator('room'),
+      CAPTURED_AT,
     );
     if (!named.ok) {
       throw new Error('expected the room to open');
@@ -117,7 +118,7 @@ describe('LobbyRoom.fromMatch', () => {
   });
 
   it('emits the assignment and the stage with the members in join order', () => {
-    const change = LobbyRoom.fromMatch(match(), 12, new SequentialIdGenerator('room'));
+    const change = LobbyRoom.fromMatch(match(), 12, new SequentialIdGenerator('room'), CAPTURED_AT);
     if (!change.ok) {
       throw new Error('expected the room to open');
     }
@@ -143,7 +144,12 @@ describe('LobbyRoom.fromMatch', () => {
 
   it('answers unsupported-difficulty for a difficulty F0 does not play', () => {
     expect(
-      LobbyRoom.fromMatch(match({ difficulty: 'normal' }), 12, new SequentialIdGenerator('room')),
+      LobbyRoom.fromMatch(
+        match({ difficulty: 'normal' }),
+        12,
+        new SequentialIdGenerator('room'),
+        CAPTURED_AT,
+      ),
     ).toEqual({
       ok: false,
       error: 'unsupported-difficulty',
@@ -214,6 +220,7 @@ function restoredProps(overrides: Partial<RestoredRoomProps> = {}): RestoredRoom
     hostAccountId: 'account-1',
     stage: 'awaiting_host',
     awaitingSince: new Date('2026-11-01T10:00:00.000Z'),
+    createdAt: CAPTURED_AT,
     currentRun: 1,
     gameName: gameName(),
     members: [
@@ -354,7 +361,12 @@ describe('LobbyRoom.observe for another room', () => {
 
 describe('LobbyRoom.hostAccountId without members', () => {
   it('refuses to name a host when the room has no member', () => {
-    const result = LobbyRoom.fromMatch(match({ members: [] }), 12, new SequentialIdGenerator('room'));
+    const result = LobbyRoom.fromMatch(
+      match({ members: [] }),
+      12,
+      new SequentialIdGenerator('room'),
+      CAPTURED_AT,
+    );
     if (!result.ok) {
       throw new Error('expected the room to open');
     }

@@ -45,7 +45,7 @@ export class PostgresLobbyRoomRepository implements LobbyRoomRepository {
         host_account_id: room.hostAccountId,
         stage: room.stage,
         current_run: room.currentRun,
-        created_at: now,
+        created_at: room.createdAt,
         awaiting_since: room.awaitingSince,
         closed_at: null,
       })
@@ -201,6 +201,7 @@ export class PostgresLobbyRoomRepository implements LobbyRoomRepository {
       currentRun: row.current_run,
       gameName: gameName.value,
       awaitingSince: row.awaiting_since,
+      createdAt: row.created_at,
       members: members.map((member) => ({
         accountId: member.account_id,
         characterId: member.character_id,

@@ -72,7 +72,7 @@ function match(matchId: string = randomUUID()): MatchFormedPayload {
 }
 
 function formed(payload: MatchFormedPayload, n: number): LobbyRoom {
-  const result = LobbyRoom.fromMatch(payload, n, ids);
+  const result = LobbyRoom.fromMatch(payload, n, ids, NOW);
   if (!result.ok) {
     throw new Error('expected the room to open');
   }

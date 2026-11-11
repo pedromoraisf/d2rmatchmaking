@@ -220,7 +220,7 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
           return ok('already-created');
         }
         const n = await deps.sequence.next();
-        const opened = LobbyRoom.fromMatch(match, n, deps.ids);
+        const opened = LobbyRoom.fromMatch(match, n, deps.ids, deps.clock.now());
         if (!opened.ok) {
           return err('unsupported-difficulty');
         }
@@ -347,7 +347,7 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
     );
   }
 
-  /** Expires every room still `awaiting_host` 3 minutes after it entered that stage and releases its members (LBR-05). */
+  /** Expires every room still `awaiting_host` 3 minutes after it entered that stage (or still `formed` 3 minutes after it opened) and releases its members (LBR-05). */
   function expireRooms(): Promise<number> {
     return withSpan('lobby.expire-rooms', {}, async (): Promise<number> => {
       let expired = 0;

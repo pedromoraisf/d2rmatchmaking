@@ -43,6 +43,8 @@ export interface RestoredRoomProps {
   readonly members: readonly MatchMember[];
   /** When the room entered `awaiting_host` for the current run: required in that stage, ignored in the others. */
   readonly awaitingSince?: Date | null;
+  /** When the room opened (LBR-05: a room still `formed` 3 minutes after it opened expires). */
+  readonly createdAt: Date;
 }
 
 export interface LobbyRoomProps {
@@ -56,6 +58,7 @@ export interface LobbyRoomProps {
   readonly gameName: GameName;
   readonly members: readonly RoomMember[];
   readonly awaitingSince: Date | null;
+  readonly createdAt: Date;
 }
 
 function isTerminal(stage: RoomStage): boolean {
@@ -79,6 +82,8 @@ export class LobbyRoom {
   readonly members: readonly RoomMember[];
   /** When the room entered `awaiting_host` for the current run; null in every other stage. */
   readonly awaitingSince: Date | null;
+  /** When the room opened. */
+  readonly createdAt: Date;
   readonly password = '' as const;
 
   private constructor(props: LobbyRoomProps) {
@@ -92,6 +97,7 @@ export class LobbyRoom {
     this.gameName = props.gameName;
     this.members = props.members;
     this.awaitingSince = props.awaitingSince;
+    this.createdAt = props.createdAt;
   }
 
   /** The account of the host: the member the room names as host (the lowest join order when none is named). */
@@ -103,11 +109,15 @@ export class LobbyRoom {
     return host.accountId;
   }
 
-  /** The instant the room expires if the host has not created the game, or null when it is not `awaiting_host`. */
+  /**
+   * The instant the room expires if the host has not created the game: 3 minutes after it entered `awaiting_host`, or
+   * after it opened while it is still `formed` (LBR-05); null in every other stage.
+   */
   get expiresAt(): Date | null {
-    return this.stage === 'awaiting_host' && this.awaitingSince !== null
-      ? new Date(this.awaitingSince.getTime() + AWAITING_HOST_EXPIRY_MS)
-      : null;
+    if (this.stage === 'awaiting_host' && this.awaitingSince !== null) {
+      return new Date(this.awaitingSince.getTime() + AWAITING_HOST_EXPIRY_MS);
+    }
+    return this.stage === 'formed' ? new Date(this.createdAt.getTime() + AWAITING_HOST_EXPIRY_MS) : null;
   }
 
   /**
@@ -119,6 +129,7 @@ export class LobbyRoom {
     match: MatchFormedPayload,
     n: number,
     ids: IdGenerator,
+    now: Date,
   ): Result<RoomChange, 'unsupported-difficulty'> {
     const gameName = GameName.of(match.activity, match.difficulty, n);
     if (!gameName.ok) {
@@ -142,6 +153,7 @@ export class LobbyRoom {
       gameName: gameName.value,
       members: assigned.map((member) => ({ ...member, confirmed: false })),
       awaitingSince: null,
+      createdAt: now,
     });
     return ok({
       room,
@@ -194,6 +206,7 @@ export class LobbyRoom {
         gameName: props.gameName,
         members: members.map((member) => ({ ...member, confirmed: member.confirmed ?? false })),
         awaitingSince: props.stage === 'awaiting_host' ? awaitingSince : null,
+        createdAt: props.createdAt,
       }),
     );
   }
@@ -255,7 +268,10 @@ export class LobbyRoom {
     return { outcome: 'active', room: active, events: [memberEvent, active.#stageEvent()] };
   }
 
-  /** Expires a room that is still `awaiting_host` once 3:00.000 have passed since it entered that stage (LBR-05). */
+  /**
+   * Expires a room that is still `awaiting_host` once 3:00.000 have passed since it entered that stage, or still
+   * `formed` once 3:00.000 have passed since it opened (LBR-05).
+   */
   expireIfDue(now: Date): RoomChange | null {
     const due = this.expiresAt;
     if (due === null || now.getTime() < due.getTime()) {
@@ -402,6 +418,7 @@ export class LobbyRoom {
       gameName: this.gameName,
       members: this.members,
       awaitingSince: this.awaitingSince,
+      createdAt: this.createdAt,
       ...changes,
     });
   }

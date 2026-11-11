@@ -29,7 +29,7 @@ function match(members = 3): MatchFormedPayload {
 }
 
 function formed(members = 3): LobbyRoom {
-  const opened = LobbyRoom.fromMatch(match(members), 12, new SequentialIdGenerator('room'));
+  const opened = LobbyRoom.fromMatch(match(members), 12, new SequentialIdGenerator('room'), T0);
   if (!opened.ok) {
     throw new Error('expected the room to open');
   }
@@ -189,10 +189,31 @@ describe('LobbyRoom.expireIfDue (LBR-05)', () => {
     ]);
   });
 
-  it('never expires a room that is not awaiting_host', () => {
+  it('expires a room still formed at 3:00.000 after it opened and not at 2:59.999', () => {
+    const room = formed();
+
+    expect(room.createdAt).toEqual(T0);
+    expect(room.expiresAt).toEqual(new Date(T0.getTime() + 180_000));
+    expect(room.expireIfDue(new Date(T0.getTime() + 179_999))).toBeNull();
+    const change = room.expireIfDue(new Date(T0.getTime() + 180_000));
+    expect(change?.room.stage).toBe('expired');
+    expect(change?.events).toEqual([
+      { type: 'RoomStageChanged', payload: { roomId: 'room-1', stage: 'expired', members: room.members } },
+    ]);
+  });
+
+  it('counts a formed room from when it opened, not from the delivery of the assignment', () => {
+    const delivered = changed(
+      formed().markAssignmentDelivered('account-1', new Date(T0.getTime() + 100_000)),
+    );
+
+    expect(delivered.expiresAt).toEqual(new Date(T0.getTime() + 280_000));
+    expect(delivered.expireIfDue(new Date(T0.getTime() + 180_000))).toBeNull();
+  });
+
+  it('never expires a room that is created, active or over', () => {
     const late = new Date(T0.getTime() + 3_600_000);
 
-    expect(formed().expireIfDue(late)).toBeNull();
     expect(created().expireIfDue(late)).toBeNull();
     expect(active().expireIfDue(late)).toBeNull();
     expect(created().expiresAt).toBeNull();
@@ -257,6 +278,7 @@ describe('LobbyRoom.leave (LBR-07)', () => {
       },
       12,
       new SequentialIdGenerator('room'),
+      T0,
     );
     if (!opened.ok) {
       throw new Error('expected the room to open');
@@ -371,6 +393,7 @@ describe('LobbyRoom.restore of every stage', () => {
         difficulty: 'hell',
         hostAccountId: 'account-1',
         stage,
+        createdAt: T0,
         currentRun: 2,
         gameName: nextName(),
         members: base.members,

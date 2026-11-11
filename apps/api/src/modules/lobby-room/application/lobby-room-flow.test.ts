@@ -233,11 +233,23 @@ describe('expireRooms (LBR-05)', () => {
     expect(await world.useCases.expireRooms()).toBe(0);
   });
 
-  it('does not expire a room whose host has not fetched the assignment, nor a created room', async () => {
+  it('expires a room still formed 3 minutes after it opened and releases its members', async () => {
     const waiting = await opened();
-    waiting.clock.advance(3_600_000);
-    expect(await waiting.useCases.expireRooms()).toBe(0);
 
+    waiting.clock.advance(179_999);
+    expect(await waiting.useCases.expireRooms()).toBe(0);
+    expect(await stageOf(waiting)).toBe('formed');
+    expect(await waiting.useCases.hasOpenRoom('account-2')).toBe(true);
+    waiting.clock.advance(1);
+    expect(await waiting.useCases.expireRooms()).toBe(1);
+
+    expect(await stageOf(waiting)).toBe('expired');
+    expect(await waiting.useCases.hasOpenRoom('account-1')).toBe(false);
+    expect(await waiting.useCases.hasOpenRoom('account-2')).toBe(false);
+    expect(waiting.roomMetrics.finals).toEqual([{ stage: 'expired', difficulty: 'hell', mode: 'leveling' }]);
+  });
+
+  it('does not expire a created room', async () => {
     const made = await awaitingHost();
     await made.useCases.recordObservation({
       agentId: 'agent-1',
