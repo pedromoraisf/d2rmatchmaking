@@ -297,6 +297,31 @@ describe('App', () => {
     expect(currentStage()).not.toBe('Awaiting host');
   });
 
+  it("shows each member's class and level of a room assigned on the stream (LBR-12)", async () => {
+    const marked = { ...room, members: [{ ...member, class: 'sorceress', level: 90 }] };
+    let reads = 0;
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(200, player),
+      'GET /api/v1/agents/me': () => jsonResponse(200, { status: 'none' }),
+      // No room at boot; once the stream announced one, the read answers it with the members' class and level.
+      'GET /api/v1/me/room': () => {
+        reads += 1;
+        return reads === 1 ? jsonResponse(404) : jsonResponse(200, marked);
+      },
+    });
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={stream.openStream} />);
+    await screen.findByText('Pairing code');
+    await playEvent(stream, {
+      type: 'room.assigned',
+      data: { roomId: '4821', run: 1, expectedGameName: 'mmbaalh-12', members: [member] },
+    });
+    expect(await screen.findByText('Sorceress, level 90')).toBeTruthy();
+    expect(screen.queryByText('Character not shown')).toBeNull();
+    expect(currentStage()).toBe('Formed');
+  });
+
   it('follows the next run, a confirmation and a host that left on the stream (LBR-04, LBR-06, LBR-07)', async () => {
     const { fetch } = routeFetch({
       'GET /api/v1/config': () => jsonResponse(200, config),
