@@ -133,7 +133,7 @@ describe('lobby-room use cases', () => {
     });
     expect(outbox.appended[1]).toMatchObject({
       type: 'RoomStageChanged',
-      payload: { roomId: 'room-1', stage: 'awaiting_host' },
+      payload: { roomId: 'room-1', stage: 'formed' },
     });
   });
 
@@ -221,7 +221,7 @@ describe('lobby-room use cases', () => {
 
     expect(result).toEqual({ ok: true, value: { stored: true } });
     expect(observations.stored).toHaveLength(1);
-    expect(room?.stage).toBe('awaiting_host');
+    expect(room?.stage).toBe('formed');
     expect(outbox.appended).toHaveLength(2);
   });
 

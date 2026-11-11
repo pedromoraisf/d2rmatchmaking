@@ -56,10 +56,10 @@ function observed(type: ObservationType, overrides: Partial<ObservationProps> = 
 }
 
 describe('LobbyRoom.fromMatch', () => {
-  it('fromMatch creates awaiting_host with run 1', () => {
+  it('fromMatch creates formed with run 1', () => {
     const room = open();
 
-    expect(room.stage).toBe('awaiting_host');
+    expect(room.stage).toBe('formed');
     expect(room.currentRun).toBe(1);
     expect(room.gameName.value).toBe('mmbaalh-12');
   });
@@ -136,7 +136,7 @@ describe('LobbyRoom.fromMatch', () => {
     });
     expect(stage).toEqual({
       type: 'RoomStageChanged',
-      payload: { roomId: 'room-1', stage: 'awaiting_host', members: change.value.room.members },
+      payload: { roomId: 'room-1', stage: 'formed', members: change.value.room.members },
     });
     expect(change.value.events).toHaveLength(2);
   });
@@ -213,6 +213,7 @@ function restoredProps(overrides: Partial<RestoredRoomProps> = {}): RestoredRoom
     difficulty: 'hell',
     hostAccountId: 'account-1',
     stage: 'awaiting_host',
+    awaitingSince: new Date('2026-11-01T10:00:00.000Z'),
     currentRun: 1,
     gameName: gameName(),
     members: [
@@ -288,7 +289,7 @@ describe('LobbyRoom.restore', () => {
   });
 
   it.each([
-    ['a stage outside awaiting_host and created', { stage: 'formed' as const }],
+    ['an awaiting_host room without the instant it entered the stage', { awaitingSince: null }],
     ['a run below 1', { currentRun: 0 }],
     ['a run that is not an integer', { currentRun: 1.5 }],
     ['a host account that is not among the members', { hostAccountId: 'account-9' }],

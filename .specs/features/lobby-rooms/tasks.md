@@ -8,7 +8,7 @@ committed migrations never edited; no test weakened; `acceptance.feature` not ed
 
 ## Batch 1
 
-- [ ] T1 — Domain: the full `LobbyRoom` state machine of `design.md`, unit tests on every transition and refusal, the
+- [x] T1 — Domain: the full `LobbyRoom` state machine of `design.md`, unit tests on every transition and refusal, the
       3:00 expiry boundary (2:59.999 / 3:00.000), host handover by join order, next-run name and confirmations reset —
       gate: `pnpm --filter @d2rmm/api exec vitest run src/modules/lobby-room/domain`
 - [ ] T2 — Contracts and events: `room.run_opened`, member changes, the new routes' schemas, the extended room view;
