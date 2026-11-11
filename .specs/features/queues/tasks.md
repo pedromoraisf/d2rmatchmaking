@@ -26,6 +26,12 @@ edited; one Conventional Commit per task (`feat(matchmaking): …`, `feat(web): 
 
 ## Batch 2
 
+- [ ] T8 — Review of Batch 1: the `matchmaking.match` span and metrics run only when the matcher has tickets (no span on
+      an idle tick); `d2r.queue.size` and `d2r.queue.wait` join the AD-087 instrument list in `packages/telemetry` with
+      their dashboard panels, as that list's parity test requires; the site shows a translated message per refusal code
+      (en + pt-BR) instead of one generic message — gate:
+      `pnpm --filter @d2rmm/api exec vitest run src/modules/matchmaking && pnpm --filter @d2rmm/telemetry exec vitest run && pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
+
 - [ ] T6 — Acceptance steps in `tests/acceptance/steps/queues.steps.ts` for every step of `acceptance.feature`, using
       the stack's clock for waits — gate: `pnpm exec turbo run test:acceptance -- --grep @QUE-`
 - [ ] T7 — Whole-repo sensors — gate: `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check`
