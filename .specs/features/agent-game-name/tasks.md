@@ -35,7 +35,7 @@ screenshots are at `/private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaki
 
 ## Batch 3 — review fixes (PR #48)
 
-- [ ] T8 — Layout model (architecture finding 1): a `PanelRegion` declares its anchor (left, right or centre) and is
+- [x] T8 — Layout model (architecture finding 1): a `PanelRegion` declares its anchor (left, right or centre) and is
       resolved by scaling x, y, width and height with the client height relative to the 1033 reference (D2R scales its
       UI with the height), x measured from its anchor edge; the doc comment says exactly that; tests at 1920×1033,
       1920×1080, 2560×1440 and 1680×1050 assert the Party field's pixel box, not only that it lies inside the frame —
