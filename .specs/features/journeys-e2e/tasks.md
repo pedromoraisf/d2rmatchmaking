@@ -27,7 +27,7 @@ blocker on the feature that owns it; never commit a game screenshot (the Party f
       characters, PvP queue, accept on the site and by the agent's hotkey, room with host, `mmpvphell-` name and "No
       password", host's and member's Party readings), each stage on both pages within 2 s of the observation request
       on the real clock — gate: `pnpm exec turbo run test:acceptance -- --grep @JRN-01`
-- [ ] T6 — JRN-06: J1's site steps by keyboard alone with visible focus on every control reached, and the copied game
+- [x] T6 — JRN-06: J1's site steps by keyboard alone with visible focus on every control reached, and the copied game
       name equal to the room's (clipboard permission granted to the browser context) — gate:
       `pnpm exec turbo run test:acceptance -- --grep @JRN-06`
 

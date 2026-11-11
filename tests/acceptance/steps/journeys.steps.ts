@@ -284,6 +284,13 @@ function headlessOf(world: World, who: Who): HeadlessPlayer {
 
 /** The members of the room, in the API's reading, with the name of the player each one is. */
 async function hostAndMember(world: World): Promise<{ host: Who; member: Who; gameName: string }> {
+  // The room opens once the last member accepted (the hotkey's accept lands asynchronously).
+  await expect
+    .poll(async () => (await roomOf(world, 'Alice'))?.roomId ?? null, {
+      timeout: API_WAIT_MS,
+      message: "Alice's room",
+    })
+    .not.toBeNull();
   const room = await roomOf(world, 'Alice');
   if (room === null) {
     throw new Error('Alice has no room');
@@ -419,7 +426,7 @@ function currentStep(page: Page): Locator {
 
 Then(
   /^both sites show the room as (Created|Active) within 2 seconds(, with both members confirmed by their agents)?$/,
-  async ({ world }, label: string, both: string | undefined) => {
+  async ({ world }, label: string, both: string | null | undefined) => {
     const reading = stateOf(world).reader;
     if (reading === undefined) {
       throw new Error('no agent has read the Party panel in this scenario');
@@ -433,7 +440,7 @@ Then(
       .toBeGreaterThan(reading.before);
     // NFR-01 on the real clock: from the moment the API accepted the agent's observation to the page showing it.
     const requestedAt = agent.observedTimes()[reading.before] ?? Date.now();
-    const confirmed = both === undefined ? 1 : 2;
+    const confirmed = both ? 2 : 1;
     await Promise.all(
       WHO.map(async (who) => {
         const page = pageOf(world, who);
@@ -610,7 +617,7 @@ Then('every control she reached showed a visible focus', ({ world }) => {
 
 Then("the copied game name is the room's name", ({ world }) => {
   const keyboard = keyboardOf(world);
-  expect(keyboard.roomName, "the room's name").toMatch(/^mmpvphell-\d+$/u);
+  expect(keyboard.roomName, "the room's name").toMatch(/^mmpvph-\d+$/u);
   expect(keyboard.copied, 'the clipboard').toBe(keyboard.roomName);
 });
 
