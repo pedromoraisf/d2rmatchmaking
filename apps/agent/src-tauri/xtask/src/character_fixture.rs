@@ -26,44 +26,62 @@ const LEVEL_INK: [u8; 3] = [200, 160, 80];
 const POPUP_FILL: [u8; 3] = [34, 30, 26];
 const POPUP_EDGE: [u8; 3] = [120, 100, 60];
 const BUTTON_FILL: [u8; 3] = [70, 62, 52];
+/// An enabled popup label, as bright as the maintainer's (the brightest pixels of Normal, Nightmare and Hell read 246).
+const POPUP_INK: [u8; 3] = [255, 246, 243];
+/// A dimmed popup label: about 40% of `POPUP_INK`, under the 148 that an enabled label reaches (`ENABLED_LABEL_LUMA`).
+const DIMMED_INK: [u8; 3] = [100, 96, 92];
 const HUD_INK: [u8; 3] = [236, 226, 196];
 const AREA_INK: [u8; 3] = [170, 140, 255];
 
-/// One drawn screen: its file stem, and the slot whose card is selected (its top border is gold), if any.
+/// One drawn screen: its file stem, the slot whose card is selected (its top border is gold), if any, and the popup labels
+/// drawn dim (a difficulty the character does not have; their text is drawn too, so only the brightness tells them apart).
 pub struct CharacterFixture {
     pub file: &'static str,
     pub selected: Option<u8>,
+    pub dimmed: &'static [ScreenRegion],
 }
 
 /// The screens `draw-fixture characters` writes. The sidecars are committed next to them.
-pub const CHARACTER_FIXTURES: [CharacterFixture; 7] = [
+pub const CHARACTER_FIXTURES: [CharacterFixture; 8] = [
     CharacterFixture {
         file: "select-normal",
         selected: Some(0),
+        dimmed: &[],
     },
     CharacterFixture {
         file: "select-titles",
         selected: Some(0),
+        dimmed: &[],
     },
     CharacterFixture {
         file: "select-full",
         selected: Some(0),
+        dimmed: &[],
     },
     CharacterFixture {
         file: "select-difficulty",
         selected: Some(0),
+        dimmed: &[],
+    },
+    CharacterFixture {
+        file: "select-difficulty-dimmed",
+        selected: Some(0),
+        dimmed: &[ScreenRegion::PopupNightmare, ScreenRegion::PopupHell],
     },
     CharacterFixture {
         file: "in-game",
         selected: None,
+        dimmed: &[],
     },
     CharacterFixture {
         file: "automap",
         selected: None,
+        dimmed: &[],
     },
     CharacterFixture {
         file: "menu",
         selected: None,
+        dimmed: &[],
     },
 ];
 
@@ -197,6 +215,7 @@ fn draw_popup(
     pixels: &mut [u8],
     font: &FontRef<'_>,
     sidecar: &Map<String, Value>,
+    dimmed: &[ScreenRegion],
 ) -> Result<(), Box<dyn Error>> {
     let title = region(ScreenRegion::SelectDifficulty)?;
     let normal = region(ScreenRegion::PopupNormal)?;
@@ -227,7 +246,19 @@ fn draw_popup(
             BUTTON_FILL,
         );
         if let Some(text) = text_of(sidecar, button) {
-            draw_centred(pixels, font, text, 18.0, area, NAME_INK);
+            let ink = if dimmed.contains(&button) {
+                DIMMED_INK
+            } else {
+                POPUP_INK
+            };
+            // Four passes a pixel apart make the strokes as heavy as the game's bold labels; one thin pass reads too dim.
+            for offset in [0, 1, 2, 3] {
+                let shifted = Region {
+                    x: area.x + offset,
+                    ..area
+                };
+                draw_centred(pixels, font, text, 20.0, shifted, ink);
+            }
         }
     }
     Ok(())
@@ -275,7 +306,7 @@ pub fn render_character_png(fixture: &CharacterFixture) -> Result<Vec<u8>, Box<d
         );
     }
     if sidecar.contains_key(&ScreenRegion::SelectDifficulty.key()) {
-        draw_popup(&mut pixels, &font, &sidecar)?;
+        draw_popup(&mut pixels, &font, &sidecar, fixture.dimmed)?;
     }
     encode(&pixels)
 }

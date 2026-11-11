@@ -36,12 +36,44 @@ pub fn is_gold(red: u8, green: u8, blue: u8) -> bool {
     red >= 70 && red >= blue + 40 && green >= blue + 30
 }
 
+/// The luma an enabled popup label reaches. The brightest 1% of the pixels of the Normal, Nightmare and Hell labels read 246
+/// on the maintainer's popup screenshot of 2026-11-10, where all three are enabled. A label below 60% of that is dimmed,
+/// the look of a difficulty the character does not have (CHR-18).
+pub const ENABLED_LABEL_LUMA: u8 = 148;
+
+/// The luma of a pixel: the BT.709 weights in integers.
+pub fn luma(red: u8, green: u8, blue: u8) -> u8 {
+    let weighted =
+        (2126 * u32::from(red) + 7152 * u32::from(green) + 722 * u32::from(blue)) / 10_000;
+    u8::try_from(weighted).unwrap_or(u8::MAX)
+}
+
+/// The brightness of a label: the luma of its brightest 1% of pixels, which are the strokes of its text rather than its
+/// frame. `None` for a label with no pixels.
+pub fn label_brightness(mut lumas: Vec<u8>) -> Option<u8> {
+    lumas.sort_unstable();
+    let last = lumas.len().checked_sub(1)?;
+    lumas.get(last * 99 / 100).copied()
+}
+
+/// Whether a label is as bright as an enabled one (CHR-18).
+pub fn is_enabled_label(brightness: u8) -> bool {
+    brightness >= ENABLED_LABEL_LUMA
+}
+
 /// Reads a character selection frame. `text` returns the text of a region, or `None` when the region could not be read;
-/// `selected` says whether a card slot shows the gold frame. Each region is asked for once.
-pub fn read_screen<T, S>(pack: &LanguagePack, mut text: T, mut selected: S) -> Reading
+/// `selected` says whether a card slot shows the gold frame; `lit` says whether a popup label is as bright as an enabled
+/// one (`is_enabled_label`). Each region is asked for once.
+pub fn read_screen<T, S, L>(
+    pack: &LanguagePack,
+    mut text: T,
+    mut selected: S,
+    mut lit: L,
+) -> Reading
 where
     T: FnMut(ScreenRegion) -> Option<String>,
     S: FnMut(u8) -> bool,
+    L: FnMut(ScreenRegion) -> bool,
 {
     let automap = text(ScreenRegion::AreaDifficulty)
         .is_some_and(|read| pack.begins_with(&read, DIFFICULTY_LABEL));
@@ -68,7 +100,7 @@ where
         };
     }
     let enabled = if popup {
-        popup_difficulties(pack, &mut text)
+        popup_difficulties(pack, &mut text, &mut lit)
     } else {
         None
     };
@@ -109,10 +141,16 @@ fn filled(field: &Option<String>) -> bool {
     field.as_deref().is_some_and(|read| !read.trim().is_empty())
 }
 
-/// The difficulties the popup shows enabled: a button is enabled when its label reads (CHR-18). `None` when none reads.
-fn popup_difficulties<T>(pack: &LanguagePack, text: &mut T) -> Option<Vec<Difficulty>>
+/// The difficulties the popup shows enabled: a button is enabled when its label reads and is as bright as an enabled label
+/// (CHR-18). A dimmed label may still read, so its brightness decides too. `None` when none is enabled.
+fn popup_difficulties<T, L>(
+    pack: &LanguagePack,
+    text: &mut T,
+    lit: &mut L,
+) -> Option<Vec<Difficulty>>
 where
     T: FnMut(ScreenRegion) -> Option<String>,
+    L: FnMut(ScreenRegion) -> bool,
 {
     let buttons = [
         (
@@ -129,7 +167,9 @@ where
     ];
     let enabled: Vec<Difficulty> = buttons
         .into_iter()
-        .filter(|(region, key, _)| text(*region).is_some_and(|read| pack.is_word(&read, key)))
+        .filter(|(region, key, _)| {
+            text(*region).is_some_and(|read| pack.is_word(&read, key)) && lit(*region)
+        })
         .map(|(_, _, difficulty)| difficulty)
         .collect();
     (!enabled.is_empty()).then_some(enabled)
@@ -214,7 +254,10 @@ fn parse_level(token: &str) -> Option<u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Reading, is_gold, parse_level_and_class, read_name, read_screen, read_title};
+    use super::{
+        ENABLED_LABEL_LUMA, Reading, is_enabled_label, is_gold, label_brightness, luma,
+        parse_level_and_class, read_name, read_screen, read_title,
+    };
     use crate::characters::{Class, Difficulty, Mode, Title};
     use crate::language::LanguagePack;
     use crate::layout::ScreenRegion;
@@ -235,9 +278,21 @@ mod tests {
     }
 
     fn read(pairs: &[(ScreenRegion, &str)], selected: &[u8]) -> Reading {
-        read_screen(&LanguagePack::english(), texts(pairs), |slot| {
-            selected.contains(&slot)
-        })
+        read_dimmed(pairs, selected, &[])
+    }
+
+    /// Reads the frame with the popup labels in `dimmed` as dim (not as bright as an enabled label): the text still reads.
+    fn read_dimmed(
+        pairs: &[(ScreenRegion, &str)],
+        selected: &[u8],
+        dimmed: &[ScreenRegion],
+    ) -> Reading {
+        read_screen(
+            &LanguagePack::english(),
+            texts(pairs),
+            |slot| selected.contains(&slot),
+            |region| !dimmed.contains(&region),
+        )
     }
 
     /// A selection screen with a titled Matriarch (slot 0, gold frame) and an untitled Sorceress (slot 1).
@@ -454,5 +509,64 @@ mod tests {
         assert_eq!(read_name("vukVuka"), Some("vukVuka".to_string()));
         assert_eq!(read_name("a name"), None);
         assert_eq!(read_name("Sorc2"), None);
+    }
+
+    #[test]
+    fn a_dimmed_difficulty_label_is_not_an_enabled_difficulty_even_when_it_reads() {
+        let mut pairs = list();
+        pairs.push((ScreenRegion::SelectDifficulty, "Select Difficulty"));
+        pairs.push((ScreenRegion::PopupNormal, "Normal"));
+        pairs.push((ScreenRegion::PopupNightmare, "Nightmare"));
+        pairs.push((ScreenRegion::PopupHell, "Hell"));
+        let dimmed = [ScreenRegion::PopupNightmare, ScreenRegion::PopupHell];
+        let reading = read_dimmed(&pairs, &[0], &dimmed);
+        assert_eq!(
+            reading.cards[0].unlocked_difficulties(),
+            vec![Normal],
+            "the popup with Nightmare and Hell dimmed enables Normal alone"
+        );
+    }
+
+    #[test]
+    fn a_popup_whose_labels_are_all_dimmed_enables_no_difficulty_and_applies_nothing() {
+        let mut pairs = list();
+        pairs.push((ScreenRegion::SelectDifficulty, "Select Difficulty"));
+        pairs.push((ScreenRegion::PopupNormal, "Normal"));
+        let dimmed = [ScreenRegion::PopupNormal];
+        let reading = read_dimmed(&pairs, &[0], &dimmed);
+        assert_eq!(
+            reading.cards[0].unlocked_difficulties(),
+            vec![Normal, Nightmare, Hell],
+            "no enabled label: the title's difficulties stand"
+        );
+    }
+
+    #[test]
+    fn a_label_is_enabled_from_the_luma_of_an_enabled_label_down_to_60_percent() {
+        assert_eq!(ENABLED_LABEL_LUMA, 148);
+        assert!(!is_enabled_label(ENABLED_LABEL_LUMA - 1));
+        assert!(is_enabled_label(ENABLED_LABEL_LUMA));
+        assert!(is_enabled_label(246), "the maintainer's enabled labels");
+    }
+
+    #[test]
+    fn the_label_brightness_is_the_brightest_percent_of_its_pixels() {
+        assert_eq!(label_brightness(Vec::new()), None);
+        assert_eq!(label_brightness(vec![60; 100]), Some(60));
+        let mut text_and_frame = vec![60; 90];
+        text_and_frame.extend([246; 10]);
+        assert_eq!(
+            label_brightness(text_and_frame),
+            Some(246),
+            "ten bright pixels of a hundred are the text"
+        );
+    }
+
+    #[test]
+    fn the_luma_weights_green_most_and_keeps_the_extremes() {
+        assert_eq!(luma(0, 0, 0), 0);
+        assert_eq!(luma(255, 255, 255), 255);
+        assert_eq!(luma(236, 226, 196), 225);
+        assert!(luma(0, 255, 0) > luma(255, 0, 0));
     }
 }

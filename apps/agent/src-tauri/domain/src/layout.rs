@@ -136,7 +136,7 @@ pub enum ScreenRegion {
     AreaDifficulty,
     /// The "Select Difficulty" title of the popup.
     SelectDifficulty,
-    /// The Normal, Nightmare and Hell buttons of the popup: a difficulty is enabled when its label reads.
+    /// The Normal, Nightmare and Hell buttons of the popup: a difficulty is enabled when its label reads and is bright.
     PopupNormal,
     PopupNightmare,
     PopupHell,

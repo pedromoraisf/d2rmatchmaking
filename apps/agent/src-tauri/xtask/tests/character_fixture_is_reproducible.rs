@@ -51,6 +51,7 @@ fn the_fixtures_cover_the_selection_popup_in_game_automap_and_menu() {
             "select-titles",
             "select-full",
             "select-difficulty",
+            "select-difficulty-dimmed",
             "in-game",
             "automap",
             "menu",

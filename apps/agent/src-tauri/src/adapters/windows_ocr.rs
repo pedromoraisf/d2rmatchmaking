@@ -277,6 +277,25 @@ mod tests {
         );
     }
 
+    /// The popup with Nightmare and Hell drawn dim (CHR-18): their text may read, but their brightness is not an enabled
+    /// label's, so the only enabled difficulty is Normal.
+    #[test]
+    fn ocr_reads_the_dimmed_popup_as_normal_only() {
+        let reader = ScreenReader::new(Arc::new(engine()), Arc::new(LanguagePack::english()));
+        let reading = read_character(&reader, "select-difficulty-dimmed.png");
+        let matriarch = reading.cards.first();
+        assert_eq!(
+            reading.screen,
+            Screen::CharacterSelect,
+            "the screen is the selection screen"
+        );
+        assert_eq!(
+            matriarch.map(|card| card.unlocked_difficulties()),
+            Some(vec![Difficulty::Normal]),
+            "the dimmed popup enables Normal alone: {matriarch:?}"
+        );
+    }
+
     /// The Party fixtures xtask draws (`fixtures/party`, AGN-02, AGN-04): the room's name revealed, the masked field and
     /// another name. Committed drawings only; the maintainer's screenshots are never committed (`ocr_check` below).
     #[test]

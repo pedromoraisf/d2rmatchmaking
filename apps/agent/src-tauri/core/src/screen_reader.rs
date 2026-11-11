@@ -4,7 +4,9 @@
 
 use std::sync::Arc;
 
-use d2rmm_agent_domain::character_screen::{is_gold, read_screen};
+use d2rmm_agent_domain::character_screen::{
+    is_enabled_label, is_gold, label_brightness, luma, read_screen,
+};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{ScreenRegion, screen_region, supported_size};
 use d2rmm_agent_domain::presence::Screen;
@@ -44,7 +46,12 @@ impl FrameReader for ScreenReader {
                     .join(" "),
             )
         };
-        let reading = read_screen(&self.language, text, |slot| is_selected(frame, slot));
+        let reading = read_screen(
+            &self.language,
+            text,
+            |slot| is_selected(frame, slot),
+            |region| is_lit(frame, region),
+        );
         FrameReading {
             screen: reading.screen,
             cards: reading.cards,
@@ -58,15 +65,31 @@ fn is_selected(frame: &Rgba, slot: u8) -> bool {
     else {
         return false;
     };
-    (area.y..area.y + area.height)
-        .any(|y| (area.x..area.x + area.width).any(|x| pixel_is_gold(frame, x, y)))
+    (area.y..area.y + area.height).any(|y| {
+        (area.x..area.x + area.width)
+            .any(|x| pixel(frame, x, y).is_some_and(|[red, green, blue]| is_gold(red, green, blue)))
+    })
 }
 
-fn pixel_is_gold(frame: &Rgba, x: u32, y: u32) -> bool {
+/// Whether a popup label is as bright as an enabled one: the brightness of its pixels (`label_brightness`) reaches an
+/// enabled label's (CHR-18). A label outside the frame is not lit.
+fn is_lit(frame: &Rgba, region: ScreenRegion) -> bool {
+    let Some(area) = screen_region(region, frame.width, frame.height) else {
+        return false;
+    };
+    let lumas: Vec<u8> = (area.y..area.y + area.height)
+        .flat_map(|y| (area.x..area.x + area.width).map(move |x| (x, y)))
+        .filter_map(|(x, y)| pixel(frame, x, y).map(|[red, green, blue]| luma(red, green, blue)))
+        .collect();
+    label_brightness(lumas).is_some_and(is_enabled_label)
+}
+
+/// The red, green and blue of the pixel at `x`, `y`, or `None` outside the frame.
+fn pixel(frame: &Rgba, x: u32, y: u32) -> Option<[u8; 3]> {
     let at = (y as usize * frame.width as usize + x as usize) * 4;
     match frame.pixels.get(at..at + 3) {
-        Some(&[red, green, blue]) => is_gold(red, green, blue),
-        _ => false,
+        Some(&[red, green, blue]) => Some([red, green, blue]),
+        _ => None,
     }
 }
 
@@ -91,6 +114,8 @@ mod tests {
     const SELECT_FULL: &str = include_str!("../../../fixtures/characters/select-full.png.json");
     const SELECT_DIFFICULTY: &str =
         include_str!("../../../fixtures/characters/select-difficulty.png.json");
+    const SELECT_DIFFICULTY_DIMMED: &str =
+        include_str!("../../../fixtures/characters/select-difficulty-dimmed.png.json");
     const IN_GAME: &str = include_str!("../../../fixtures/characters/in-game.png.json");
     const AUTOMAP: &str = include_str!("../../../fixtures/characters/automap.png.json");
     const MENU: &str = include_str!("../../../fixtures/characters/menu.png.json");
@@ -128,18 +153,34 @@ mod tests {
         }
     }
 
-    /// A frame of the size: grey everywhere, with the top border of the selected card drawn gold, as the fixtures are.
-    fn frame(width: u32, height: u32, selected: Option<u8>) -> Rgba {
+    /// A frame of the size: grey everywhere, with the top border of the selected card drawn gold, as the fixtures are. The
+    /// popup labels are drawn bright, as an enabled label is, except the `dimmed` ones, drawn dark.
+    fn frame(width: u32, height: u32, selected: Option<u8>, dimmed: &[ScreenRegion]) -> Rgba {
         let mut pixels = vec![60_u8; (width * height * 4) as usize];
-        if let Some(slot) = selected {
-            let area = screen_region(ScreenRegion::CardSelected(slot), width, height)
-                .expect("the size is supported");
+        let mut paint = |area: Region, colour: [u8; 4]| {
             for y in area.y..area.y + area.height {
                 for x in area.x..area.x + area.width {
                     let at = ((y * width + x) * 4) as usize;
-                    pixels[at..at + 4].copy_from_slice(&[227, 201, 97, 255]);
+                    pixels[at..at + 4].copy_from_slice(&colour);
                 }
             }
+        };
+        for label in [
+            ScreenRegion::PopupNormal,
+            ScreenRegion::PopupNightmare,
+            ScreenRegion::PopupHell,
+        ] {
+            // A size the reader does not support has no regions to paint.
+            let Some(area) = screen_region(label, width, height) else {
+                continue;
+            };
+            let level = if dimmed.contains(&label) { 94 } else { 246 };
+            paint(area, [level, level, level, 255]);
+        }
+        if let Some(slot) = selected {
+            let area = screen_region(ScreenRegion::CardSelected(slot), width, height)
+                .expect("the size is supported");
+            paint(area, [227, 201, 97, 255]);
         }
         Rgba {
             width,
@@ -153,15 +194,58 @@ mod tests {
     }
 
     fn read_at(json: &str, width: u32, height: u32, selected: Option<u8>) -> FrameReading {
+        read_dimmed_at(json, width, height, selected, &[])
+    }
+
+    /// Reads a sidecar's frame with the popup labels in `dimmed` drawn dark: their text still reads (CHR-18).
+    fn read_dimmed(json: &str, selected: Option<u8>, dimmed: &[ScreenRegion]) -> FrameReading {
+        read_dimmed_at(json, 1920, 1080, selected, dimmed)
+    }
+
+    fn read_dimmed_at(
+        json: &str,
+        width: u32,
+        height: u32,
+        selected: Option<u8>,
+        dimmed: &[ScreenRegion],
+    ) -> FrameReading {
         let reader = ScreenReader::new(
             Arc::new(Sidecar::of(json, width, height)),
             Arc::new(LanguagePack::english()),
         );
-        reader.read(&frame(width, height, selected))
+        reader.read(&frame(width, height, selected, dimmed))
     }
 
     fn names(reading: &FrameReading) -> Vec<&str> {
         reading.cards.iter().map(|card| card.name()).collect()
+    }
+
+    #[test]
+    fn a_dimmed_difficulty_label_enables_nothing_even_when_its_text_reads() {
+        // The sidecar reads Nightmare and Hell as text; the frame draws them dark, so only Normal is enabled (CHR-18).
+        let reading = read_dimmed(
+            SELECT_DIFFICULTY_DIMMED,
+            Some(0),
+            &[ScreenRegion::PopupNightmare, ScreenRegion::PopupHell],
+        );
+        let matriarch = reading.cards.first().expect("vukVuka is listed");
+        assert_eq!(matriarch.name(), "vukVuka");
+        assert_eq!(
+            matriarch.unlocked_difficulties(),
+            vec![d2rmm_agent_domain::characters::Difficulty::Normal],
+            "the popup's enabled difficulties are Normal alone"
+        );
+    }
+
+    #[test]
+    fn the_same_popup_with_every_label_bright_enables_all_three() {
+        let reading = read_dimmed(SELECT_DIFFICULTY_DIMMED, Some(0), &[]);
+        let matriarch = reading.cards.first().expect("vukVuka is listed");
+        assert_eq!(
+            matriarch.unlocked_difficulties().len(),
+            3,
+            "the popup's three labels are bright"
+        );
     }
 
     #[test]
@@ -280,7 +364,7 @@ mod tests {
             }
         }
         let reader = ScreenReader::new(Arc::new(Blank), Arc::new(LanguagePack::english()));
-        let reading = reader.read(&frame(1920, 1080, None));
+        let reading = reader.read(&frame(1920, 1080, None, &[]));
         assert_eq!(reading.screen, Screen::Unknown);
     }
 }

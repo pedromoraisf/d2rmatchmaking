@@ -27,7 +27,7 @@ created from `phase/F1` once `characters` has merged. Starts when the screenshot
       unconditional assignment wait; architecture review finding 1, rule 3) and give characters-reading its own step
       "has capture consent and no room" sharing the setup through a helper — gate:
       `pnpm exec turbo run test:acceptance -- --grep "@AGN-|@CHR-"`
-- [ ] T6 — Popup safety (finding 2): a difficulty counts as enabled only when its label reads and the label's pixels
+- [x] T6 — Popup safety (finding 2): a difficulty counts as enabled only when its label reads and the label's pixels
       are as bright as an enabled label (threshold measured on the maintainer's popup screenshot); `xtask` draws a
       popup fixture with Nightmare and Hell disabled (dimmed), and the Windows OCR test and a domain unit test prove it
       reads Normal only — gate:
