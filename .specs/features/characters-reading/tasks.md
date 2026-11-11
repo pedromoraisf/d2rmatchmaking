@@ -17,6 +17,6 @@ created from `phase/F1` once `characters` has merged. Starts when the screenshot
       `cd apps/agent/src-tauri && cargo nextest run -p xtask && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`
 - [x] T3 — Headless example: `--consent`, stdin `consent on|off` and `show <png>`, sidecar `<png>.json` per region;
       acceptance steps for every step of `acceptance.feature` — gate:
-      `pnpm exec turbo run test:acceptance -- --grep "@CHR-(04|06|15|16)"`
+      `pnpm exec turbo run test:acceptance -- --grep "@CHR-(04|06|18|20)"`
 - [x] T4 — Whole-repo sensors — gate:
       `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check && cd apps/agent/src-tauri && cargo clippy --all-targets -- -D warnings`
