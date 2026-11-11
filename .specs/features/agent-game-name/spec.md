@@ -62,7 +62,7 @@ later ("focar inicialmente em inglês… extensível").
 | AGN-02         | Live reading  | Rust unit tests on the regions at 1920×1033 and 1920×1080; Windows OCR test |
 | AGN-03         | Matching      | Rust unit tests (domain) + acceptance `@AGN-03` with the headless agent     |
 | AGN-04         | Masked name   | Rust unit tests + agent window component test + acceptance `@AGN-04`        |
-| AGN-05         | Next run      | Rust unit tests + acceptance `@AGN-05`                                      |
+| AGN-05         | Next run      | Rust unit tests; end to end in lobby-rooms                                  |
 | AGN-06         | Release build | Rust unit test of the app wiring; release build has no `fixture-read`       |
 | AGN-07         | Privacy       | Rust unit tests on the observation and the span                             |
 | AGN-08         | i18n          | agent window i18n lint                                                      |
