@@ -67,6 +67,8 @@ export interface TestControlDeps {
     closeSiteStreams(accountId: string): number;
   };
   readonly relay: { sweep(): Promise<void> };
+  /** The pending site-closed drops: reset cancels them, after the streams close (QUE-14). */
+  readonly siteClosedTimers: ClearableStore;
   /** The bus the redelivery publishes on: the one the relay and the consumers of this process share (AD-062). */
   readonly bus: EventBus;
 }
@@ -131,6 +133,8 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
       deps.stores.queue.clear();
       deps.stores.joins.clear();
       deps.hub.closeAll();
+      // After the close: closing the streams schedules their site-closed drops, and those must not fire in the next scenario.
+      deps.siteClosedTimers.clear();
       await deps.relay.sweep();
       return reply.code(204).send(null);
     },

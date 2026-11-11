@@ -173,6 +173,8 @@ export interface BuiltApp {
   readonly bus: InMemoryEventBus;
   /** The open event streams. The test controls close them on reset. */
   readonly hub: StreamHub;
+  /** The pending site-closed drops (QUE-14). The test controls cancel them on reset. */
+  readonly siteClosedTimers: { clear(): void };
   /** The in-memory stores of the process (ADR 006): the only state outside Postgres. */
   readonly stores: {
     readonly presence: MemoryPresenceStore;
@@ -335,6 +337,15 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   });
   // A site stream that stays closed for 30 seconds takes the ticket out of the queue; a reconnect in time keeps it (QUE-14).
   const siteClosedClocks = new Map<string, Cancel>();
+  // Cancels every pending 30-second drop: the test controls' reset calls it so no timer of a scenario fires in the next.
+  const siteClosedTimers = {
+    clear(): void {
+      for (const cancel of siteClosedClocks.values()) {
+        cancel();
+      }
+      siteClosedClocks.clear();
+    },
+  };
   hub.onSiteStreamsClosed((accountId) => {
     siteClosedClocks.get(accountId)?.();
     const cancel = scheduler.at(new Date(clock.now().getTime() + SITE_CLOSED_DROP_MS), () => {
@@ -367,10 +378,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   app.addHook('onClose', () => {
     stopSweep();
     stopMatcher();
-    for (const cancel of siteClosedClocks.values()) {
-      cancel();
-    }
-    siteClosedClocks.clear();
+    siteClosedTimers.clear();
   });
   await app.register(cookie);
   await app.register(swagger, {
@@ -417,5 +425,12 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   queueRoutes(app, { useCases: queue, guards });
   hub.register(app);
 
-  return { app, relay, bus, hub, stores: { ...stores, queue: queueStore, joins: joinLimits } };
+  return {
+    app,
+    relay,
+    bus,
+    hub,
+    siteClosedTimers,
+    stores: { ...stores, queue: queueStore, joins: joinLimits },
+  };
 }

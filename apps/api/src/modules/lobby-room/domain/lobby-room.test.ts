@@ -76,6 +76,19 @@ describe('LobbyRoom.fromMatch', () => {
     expect(teamed.members.map((member) => member.team)).toStrictEqual(['a', 'b']);
   });
 
+  it('keeps one host when the match marks two members as host: the lower join order (QUE-12)', () => {
+    const marked = open({
+      ...match(),
+      members: [
+        { accountId: 'account-1', characterId: null, joinOrder: 1, role: 'host' },
+        { accountId: 'account-2', characterId: null, joinOrder: 2, role: 'host' },
+      ],
+    });
+
+    expect(marked.hostAccountId).toBe('account-1');
+    expect(marked.members.map((member) => member.role)).toStrictEqual(['host', 'member']);
+  });
+
   it('makes the member with the lowest join order the host', () => {
     expect(open().hostAccountId).toBe('account-1');
   });

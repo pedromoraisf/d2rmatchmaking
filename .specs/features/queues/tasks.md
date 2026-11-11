@@ -48,6 +48,6 @@ edited; one Conventional Commit per task (`feat(matchmaking): …`, `feat(web): 
       with 3,000 unmatchable tickets in one pool asserts the tick does at most O(n·group size) band checks (count them;
       no wall-clock limit) — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/modules/matchmaking && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts`
-- [ ] T11 — Small fixes (architecture findings 2, 3): a Lobby Room unit case for two members marked host; the test
+- [x] T11 — Small fixes (architecture findings 2, 3): a Lobby Room unit case for two members marked host; the test
       controls' reset cancels pending site-closed timers — gate:
       `pnpm --filter @d2rmm/api exec vitest run && pnpm exec turbo run test:acceptance -- --grep @QUE-`
