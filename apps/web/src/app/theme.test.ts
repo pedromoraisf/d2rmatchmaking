@@ -46,7 +46,27 @@ const TEXT_PAIRS: readonly { text: string; surfaces: readonly string[]; min: num
 const CONTROL_PAIRS: readonly { part: string; surfaces: readonly string[] }[] = [
   { part: 'line-2', surfaces: PAGE_SURFACES },
   { part: 'gold', surfaces: ['abyss', 'panel-lo'] },
+  { part: 'gold-dim', surfaces: PAGE_SURFACES },
+  { part: 'bad', surfaces: PAGE_SURFACES },
 ];
+
+/** The tint `.btn:hover` paints, read from the stylesheet: `rgb(r g b / alpha)`. */
+function hoverTint(css: string): { rgb: [number, number, number]; alpha: number } {
+  const rule =
+    /\.btn:hover:not\(:disabled\)\s*\{[^}]*background:\s*rgb\((\d+) (\d+) (\d+) \/ ([0-9.]+)\)/.exec(css);
+  if (!rule) throw new Error('.btn:hover background not found');
+  return { rgb: [Number(rule[1]), Number(rule[2]), Number(rule[3])], alpha: Number(rule[4]) };
+}
+
+/** The colour of a surface under the translucent hover tint, as hex. */
+function underTint(surface: string, tint: { rgb: [number, number, number]; alpha: number }): string {
+  const channels = [1, 3, 5].map((index, position) => {
+    const base = parseInt(surface.slice(index, index + 2), 16);
+    const mixed = Math.round(base * (1 - tint.alpha) + (tint.rgb[position] ?? 0) * tint.alpha);
+    return mixed.toString(16).padStart(2, '0');
+  });
+  return `#${channels.join('')}`;
+}
 
 describe('theme tokens', () => {
   const colours = tokens(themeCss);
@@ -75,6 +95,21 @@ describe('theme tokens', () => {
       expect(ratio, `--${part} on --${surface}`).toBeGreaterThanOrEqual(CONTROL_MIN);
     },
   );
+
+  it.each(['gold-dim', 'bad'].flatMap((part) => PAGE_SURFACES.map((surface) => [part, surface] as const)))(
+    'button border --%s keeps 3:1 on --%s under the hover tint',
+    (part, surface) => {
+      const hovered = underTint(colours.get(surface) ?? '', hoverTint(themeCss));
+      const ratio = contrastRatio(colours.get(part) ?? '', hovered);
+      expect(ratio, `--${part} on hovered --${surface}`).toBeGreaterThanOrEqual(CONTROL_MIN);
+    },
+  );
+
+  it('hides .sr-only content the standard way', () => {
+    const rule = /\.sr-only\s*\{([^}]*)\}/.exec(themeCss)?.[1] ?? '';
+    expect(rule).toMatch(/margin:\s*-1px/);
+    expect(rule).toMatch(/padding:\s*0/);
+  });
 
   it('keeps the page on the dark stone, with the prototype fonts', () => {
     expect(themeCss).toContain("--display: 'Cinzel'");

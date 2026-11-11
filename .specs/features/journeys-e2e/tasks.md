@@ -13,7 +13,7 @@ blocker on the feature that owns it; never commit a game screenshot (the Party f
 - [x] T1 — The scenario checker accepts the PRD journey tags `@J<n>` as foreign IDs (`scripts/lib/acceptance.mjs`,
       exact pattern `^@J\d+$`), with a harness test for an accepted `@J1` and a refused `@J1a` — gate:
       `pnpm test:harness && node scripts/acceptance-check.mjs journeys-e2e`
-- [ ] T2 — JRN-08: `theme.test.ts` checks the `gold-dim` and `bad` button borders and their hover states against AA
+- [x] T2 — JRN-08: `theme.test.ts` checks the `gold-dim` and `bad` button borders and their hover states against AA
       (3:1 for boundaries), and `.sr-only` gets `margin: -1px; padding: 0` — gate:
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
 - [ ] T3 — JRN-07 (unit half): a test that the pt-BR catalogue holds exactly the keys of the English one, for the site
