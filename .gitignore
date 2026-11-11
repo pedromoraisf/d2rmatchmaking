@@ -45,3 +45,6 @@ Thumbs.db
 # python bytecode (TLC scripts)
 __pycache__/
 *.pyc
+
+# The maintainer's game screenshots (Blizzard UI art) never enter the repository (AGENTS.md, never do)
+apps/agent/fixtures/**/maintainer-*

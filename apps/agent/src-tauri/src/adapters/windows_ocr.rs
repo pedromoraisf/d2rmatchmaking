@@ -103,14 +103,6 @@ mod tests {
         }
     }
 
-    /// A Party screenshot of the maintainer, with the member list blurred (`fixtures/party`), decoded to RGBA8.
-    fn party_screenshot(name: &str) -> Rgba {
-        decode_png(&format!(
-            "{}/../fixtures/party/{name}",
-            env!("CARGO_MANIFEST_DIR")
-        ))
-    }
-
     /// The text of one panel region, read with the en-US engine.
     fn read_panel(reader: &WindowsOcr, image: &Rgba, panel: PanelRegion) -> String {
         let region = panel_region(panel, image.width, image.height)
@@ -118,45 +110,106 @@ mod tests {
         reader.read(image, region).expect("the region reads").text
     }
 
-    /// Reads a revealed or masked Party screenshot: the panel is open, and the field shows `expected` (revealed) or the
-    /// masked value. Fails, rather than skips, without the engine.
-    fn assert_party_field(name: &str, expected: FieldRead) {
-        let reader = WindowsOcr::new().expect(
-            "the en-US Windows OCR engine is installed (this test fails, it never skips, without it)",
-        );
-        let image = party_screenshot(name);
+    /// Reads one Party frame: the panel must be open, and the Game Name field must read as `expected` for the room's name
+    /// `expected_name`. The error names what was read, so a failure shows the OCR text.
+    fn check_party(
+        reader: &WindowsOcr,
+        image: &Rgba,
+        expected_name: &str,
+        expected: FieldRead,
+    ) -> Result<(), String> {
         let language = LanguagePack::english();
-        let title = read_panel(&reader, &image, PanelRegion::PartyTitle);
-        let label = read_panel(&reader, &image, PanelRegion::GameNameLabel);
+        let title = read_panel(reader, image, PanelRegion::PartyTitle);
+        let label = read_panel(reader, image, PanelRegion::GameNameLabel);
+        let field = read_panel(reader, image, PanelRegion::GameNameField);
+        let read = format!("title {title:?}, label {label:?}, field {field:?}");
+        if !language.is_word(&title, PARTY) {
+            return Err(format!("the panel is not open: {read}"));
+        }
+        if !language.is_word(&label, GAME_NAME) {
+            return Err(format!("the Game Name label is not read: {read}"));
+        }
+        let got = read_field(&field, expected_name);
+        if got == expected {
+            Ok(())
+        } else {
+            Err(format!(
+                "the field is {got:?}, expected {expected:?}: {read}"
+            ))
+        }
+    }
+
+    /// Fails, rather than skips, without the en-US engine.
+    fn engine() -> WindowsOcr {
+        WindowsOcr::new().expect(
+            "the en-US Windows OCR engine is installed (this test fails, it never skips, without it)",
+        )
+    }
+
+    /// The Party fixtures xtask draws (`fixtures/party`, AGN-02, AGN-04): the room's name revealed, the masked field and
+    /// another name. Committed drawings only; the maintainer's screenshots are never committed (`ocr_check` below).
+    #[test]
+    fn ocr_reads_the_drawn_party_fixtures() {
+        let reader = engine();
+        let cases = [
+            ("party-revealed.png", "mmbaalh-12", FieldRead::Matched),
+            ("party-masked.png", "mmbaalh-12", FieldRead::Masked),
+            ("party-other.png", "mmbaalh-12", FieldRead::Other),
+        ];
+        for (name, expected_name, expected) in cases {
+            let image = decode_png(&format!(
+                "{}/../fixtures/party/{name}",
+                env!("CARGO_MANIFEST_DIR")
+            ));
+            if let Err(error) = check_party(&reader, &image, expected_name, expected) {
+                panic!("{name}: {error}");
+            }
+        }
+    }
+
+    /// The maintainer's Windows check (apps/agent/README.md, `scripts/agent/ocr-check.mjs <dir>`). It reads the three
+    /// screenshots in the folder named by `D2RMM_OCR_CHECK_DIR`, prints one verdict per file with what it read, and fails
+    /// if any file fails. Ignored by default, so the committed suite never reads the maintainer's images.
+    #[test]
+    #[ignore = "the maintainer's Windows check: run scripts/agent/ocr-check.mjs <dir>"]
+    fn ocr_check() {
+        let dir = std::env::var("D2RMM_OCR_CHECK_DIR")
+            .expect("D2RMM_OCR_CHECK_DIR names the screenshot folder");
+        let reader = engine();
+        let cases = [
+            (
+                "maintainer-party-revealed.png",
+                "DUEL NK LOCKS",
+                FieldRead::Matched,
+            ),
+            (
+                "maintainer-party-revealed-tooltip.png",
+                "DUEL NK LOCKS",
+                FieldRead::Matched,
+            ),
+            (
+                "maintainer-party-masked.png",
+                "DUEL NK LOCKS",
+                FieldRead::Masked,
+            ),
+        ];
+        let mut failed = Vec::new();
+        for (name, expected_name, expected) in cases {
+            let path = std::path::Path::new(&dir).join(name);
+            let image = decode_png(path.to_str().expect("the folder path is UTF-8"));
+            match check_party(&reader, &image, expected_name, expected) {
+                Ok(()) => println!("PASS {name}"),
+                Err(error) => {
+                    println!("FAIL {name}: {error}");
+                    failed.push(name);
+                }
+            }
+        }
         assert!(
-            language.is_word(&title, PARTY),
-            "the title reads Party, got {title:?}"
+            failed.is_empty(),
+            "{} file(s) failed: {failed:?}",
+            failed.len()
         );
-        assert!(
-            language.is_word(&label, GAME_NAME),
-            "the label reads Game Name, got {label:?}"
-        );
-        let field = read_panel(&reader, &image, PanelRegion::GameNameField);
-        assert_eq!(
-            read_field(&field, "DUEL NK LOCKS"),
-            expected,
-            "{name}: the field read {field:?}"
-        );
-    }
-
-    #[test]
-    fn ocr_reads_the_revealed_party_game_name() {
-        assert_party_field("maintainer-party-revealed.png", FieldRead::Matched);
-    }
-
-    #[test]
-    fn ocr_reads_the_revealed_party_game_name_with_the_tooltip_open() {
-        assert_party_field("maintainer-party-revealed-tooltip.png", FieldRead::Matched);
-    }
-
-    #[test]
-    fn ocr_reads_the_masked_party_game_name_as_masked() {
-        assert_party_field("maintainer-party-masked.png", FieldRead::Masked);
     }
 
     /// Fails, rather than skips, when the en-US OCR engine is not installed on the machine.
