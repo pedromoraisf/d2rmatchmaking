@@ -45,8 +45,8 @@ const PROVIDER_MOUNT = '/otel-lgtm/grafana/conf/provisioning/dashboards/';
 test('the dashboard holds the listed panels', () => {
   assert.equal(
     dashboard.panels.length,
-    5,
-    'five panels: request rate, error rate, duration, outbox lag, streams',
+    7,
+    'seven panels: request rate, error rate, duration, outbox lag, streams, queue size, queue wait',
   );
   for (const panel of dashboard.panels) {
     assert.ok(panel.title, `panel ${panel.id} has a title`);
@@ -68,6 +68,11 @@ test('the dashboard holds the listed panels', () => {
   );
   assert.ok(queries('outbox_lag_seconds'), 'the outbox lag panel reads outbox_lag');
   assert.ok(queries('sse_connections'), 'the streams panel reads sse_connections');
+  assert.ok(queries('d2r_queue_size'), 'the queue size panel reads d2r_queue_size');
+  assert.ok(
+    queries('d2r_queue_wait_seconds_bucket'),
+    'the queue wait panel reads the wait histogram buckets',
+  );
 
   assert.doesNotMatch(
     dashboardText,
