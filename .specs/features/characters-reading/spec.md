@@ -27,8 +27,11 @@ criteria 4 (characters from the selection screen, EN and PT) and, with `agent-ga
 - **CHR-19** — The reading regions SHALL be defined relative to the game window's client size and SHALL read the
   maintainer's 1920×1033 client (maximized window) as well as 1920×1080; a client size whose aspect ratio is outside
   the supported range SHALL read as `UNKNOWN`.
-- **CHR-08** — The reading of CHR-04, CHR-06 and the title table (CHR-07 in `characters`) SHALL give the same result for
-  the English and the Portuguese game client on the maintainer's fixtures, at every resolution that has fixtures.
+- **CHR-08** — The reading SHALL be driven by a language pack per game-client language (class names, titles, the
+  "Level" word, screen markers and popup labels, as data), with English shipped now; adding Portuguese SHALL need only
+  a new pack and its fixtures, no code change, and the reading of CHR-04, CHR-06 and CHR-18 SHALL give the same result
+  with every shipped pack on its fixtures (maintainer, 2026-11-10: "focar inicialmente em inglês, e depois fazer a
+  parte em português").
 - **CHR-20** — WHILE consent is not given, a character selection screen in front of the agent SHALL leave the site's
   screen `Unknown` and its character list unchanged; WHEN consent is given THEN the next reading SHALL reach the site.
 
@@ -61,11 +64,18 @@ because the repository is public): selection screen with a titled and an untitle
 popup; lobby (Join Game, Create Game with the title carousel: LoD, classic and hardcore titles); in game with the
 automap closed, open, with chat; the character panel; the Party panel (game name masked).
 
-Still needed: the same screens with the Portuguese client; a hardcore character on the selection screen; the Party
-panel with the game name revealed (shared with `agent-game-name`).
+Received later the same day: the Party panel with the game name revealed ("DUEL NK LOCKS"), with and without the
+tooltip. Still needed, later: the Portuguese client (for the Portuguese pack) and a hardcore character on the selection
+screen.
 
 ## Decisions
 
 - **Ladder and era**: declared by the player (maintainer, 2026-11-10); the screen shows neither.
 - The headless agent reads a sidecar `<png>.json` (`{ "<region>": "<text>" }`) instead of OCR on Linux; the Windows CI
   job proves the same regions with Windows OCR on the real images.
+- **Hardcore**: a hardcore title (Count/Countess, Duke/Duchess, King/Queen, Destroyer, Conqueror, Guardian) marks the
+  card hardcore; the red name colour is pinned once a hardcore fixture exists. Until then an untitled card without that
+  evidence reads as softcore: the game itself keeps softcore and hardcore apart, so a wrong value only lets a room
+  expire. (In the Party panel red means hostile, not hardcore — do not reuse that rule there.)
+- **Language packs** (CHR-08): one data file per client language, loaded by the agent; English ships in F1, Portuguese
+  later with its fixtures. A pack is versioned with the agent; F2's remote config may serve it later.
