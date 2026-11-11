@@ -121,6 +121,12 @@ describe('RecordCharactersRequest', () => {
     );
   });
 
+  it('rejects two cards whose names differ only in case', () => {
+    expect(
+      RecordCharactersRequest.safeParse({ characters: [sorc, { ...sorc, name: 'sorc', level: 90 }] }).success,
+    ).toBe(false);
+  });
+
   it('rejects a batch that holds one card with an unreadable field', () => {
     const broken = { ...sorc, name: 'Bad Name', level: 0 };
     expect(RecordCharactersRequest.safeParse({ characters: [sorc, broken] }).success).toBe(false);

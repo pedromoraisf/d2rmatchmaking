@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  characterKey,
   fitsAccountLimit,
   isAllowedDifficultyList,
   isCharacterLevel,
@@ -117,6 +118,18 @@ describe('parseCharacterBatch (CHR-09, CHR-10)', () => {
     });
   });
 
+  it('refuses two cards whose names differ only in case (CHR-10)', () => {
+    expect(parseCharacterBatch([sorc, { ...sorc, name: 'sorc', level: 90 }])).toEqual({
+      ok: false,
+      error: 'invalid-batch',
+    });
+  });
+
+  it('keys a name without its case', () => {
+    expect(characterKey('Abc')).toBe(characterKey('aBC'));
+    expect(characterKey('Abc')).not.toBe(characterKey('Abd'));
+  });
+
   it('refuses the whole batch when one card is invalid', () => {
     expect(parseCharacterBatch([sorc, { ...sorc, name: 'Pally', level: 0 }])).toEqual({
       ok: false,
@@ -148,6 +161,15 @@ describe('account limit (security finding 2)', () => {
 
   it('names the account already holds are replaced, so they do not count', () => {
     expect(fitsAccountLimit(stored(60), batchOf([0, 1, 2]))).toBe(true);
+  });
+
+  it('a name that differs only in case from a held one is replaced, so it does not count', () => {
+    expect(
+      fitsAccountLimit(
+        stored(60).map((name) => name.toUpperCase()),
+        batchOf([0]),
+      ),
+    ).toBe(true);
   });
 
   it('a mixed batch counts only its new names', () => {

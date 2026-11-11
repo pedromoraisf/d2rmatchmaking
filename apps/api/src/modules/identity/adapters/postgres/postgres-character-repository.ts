@@ -1,4 +1,4 @@
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import { parseCharacter, type Character } from '../../domain/character/character.ts';
 import type { CharacterRepository, StoredCharacter } from '../../application/character-ports.ts';
 import type { Transaction } from '../../../../shared-kernel/index.ts';
@@ -12,7 +12,10 @@ function executorOf(tx: Transaction): Kysely<IdentityDatabase> {
   return tx as unknown as Kysely<IdentityDatabase>;
 }
 
-/** Kysely CharacterRepository. A batch is one insert whose conflicts on (account, name) replace the row's fields. */
+/**
+ * Kysely CharacterRepository. A batch is one insert whose conflicts on (account, lower(name)) replace the row's fields
+ * and its spelling.
+ */
 export class PostgresCharacterRepository implements CharacterRepository {
   readonly #db: Kysely<IdentityDatabase>;
 
@@ -63,7 +66,9 @@ export class PostgresCharacterRepository implements CharacterRepository {
         })),
       )
       .onConflict((conflict) =>
-        conflict.columns(['account_id', 'name']).doUpdateSet((eb) => ({
+        // The unique index of migration 0007 is on the name without case; the row keeps the newest spelling.
+        conflict.expression(sql`account_id, lower(name)`).doUpdateSet((eb) => ({
+          name: eb.ref('excluded.name'),
           class: eb.ref('excluded.class'),
           level: eb.ref('excluded.level'),
           ladder: eb.ref('excluded.ladder'),

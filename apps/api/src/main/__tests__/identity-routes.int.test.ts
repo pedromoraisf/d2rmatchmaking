@@ -570,6 +570,16 @@ describe('character routes', () => {
     expect((await listCharacters(cookie)).json().characters).toHaveLength(60);
   });
 
+  it('answers 400 for two names that differ only in case and stores none of the batch', async () => {
+    const { cookie } = await freshSession();
+    const token = await pairedAgentToken(cookie);
+
+    const posted = await postCharacters(token, [SORC, { ...SORC, name: 'sorc', level: 90 }]);
+
+    expect(posted.statusCode).toBe(400);
+    expect((await listCharacters(cookie)).json()).toEqual({ characters: [] });
+  });
+
   it('keeps the characters of one account apart from another', async () => {
     const alice = await freshSession();
     const bob = await freshSession();

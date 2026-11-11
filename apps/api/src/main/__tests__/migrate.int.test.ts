@@ -24,6 +24,7 @@ describe('migrate', () => {
       '0004_account_bnet_sub',
       '0005_battletag_not_unique',
       '0006_identity_characters',
+      '0007_characters_name_ci',
     ]);
 
     const result = await database.pool.query<{ schema_name: string }>(

@@ -127,10 +127,18 @@ export function parseCharacterBatch(
     }
     characters.push(parsed.value);
   }
-  if (new Set(characters.map((character) => character.name)).size !== characters.length) {
+  if (new Set(characters.map((character) => characterKey(character.name))).size !== characters.length) {
     return err('invalid-batch');
   }
   return ok(characters);
+}
+
+/**
+ * The key a name is stored and matched by. D2R compares names without case (CHR-10), so `Abc` and `abc` are one
+ * character; the stored row keeps the newest spelling.
+ */
+export function characterKey(name: string): string {
+  return name.toLowerCase();
 }
 
 /**
@@ -138,7 +146,7 @@ export function parseCharacterBatch(
  * replaced in place, so only the new names count against the limit (security finding 2).
  */
 export function fitsAccountLimit(storedNames: readonly string[], batch: readonly Character[]): boolean {
-  const held = new Set(storedNames);
-  const newNames = batch.filter((character) => !held.has(character.name)).length;
+  const held = new Set(storedNames.map(characterKey));
+  const newNames = batch.filter((character) => !held.has(characterKey(character.name))).length;
   return storedNames.length + newNames <= MAX_CHARACTERS_PER_ACCOUNT;
 }

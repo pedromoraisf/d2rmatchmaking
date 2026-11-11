@@ -1,8 +1,8 @@
-import type { Character } from '../../domain/character/character.ts';
+import { characterKey, type Character } from '../../domain/character/character.ts';
 import type { CharacterRepository, StoredCharacter } from '../character-ports.ts';
 import type { Transaction } from '../../../../shared-kernel/index.ts';
 
-/** In-memory CharacterRepository keyed by account and name, as the Postgres unique key is. */
+/** In-memory CharacterRepository keyed by account and name without case, as the Postgres unique index is. */
 export class InMemoryCharacterRepository implements CharacterRepository {
   readonly #rows = new Map<string, { readonly accountId: string; readonly character: StoredCharacter }>();
 
@@ -24,6 +24,7 @@ export class InMemoryCharacterRepository implements CharacterRepository {
   ): Promise<void> {
     for (const character of characters) {
       this.#rows.set(keyOf(accountId, character.name), {
+        // The row keeps the newest spelling of the name.
         accountId,
         character: {
           ...character,
@@ -43,5 +44,5 @@ export class InMemoryCharacterRepository implements CharacterRepository {
 }
 
 function keyOf(accountId: string, name: string): string {
-  return `${accountId}\u0000${name}`;
+  return `${accountId}\u0000${characterKey(name)}`;
 }

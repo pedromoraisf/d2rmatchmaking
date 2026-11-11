@@ -85,7 +85,7 @@ The screen reading (old T8 regions/classifier/parser, T9 Windows OCR on fixtures
       would take it past 60 new names answers 400 `too-many-characters` and stores nothing; application unit test and a
       route integration test — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/modules/identity && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/identity-routes.int.test.ts`
-- [ ] T12 — Character names are case-insensitive, as in D2R (security finding 3): the contract's unique-name check
+- [x] T12 — Character names are case-insensitive, as in D2R (security finding 3): the contract's unique-name check
       compares lowercased names; a new migration `0007_characters_name_ci` replaces the `(account_id, name)` unique
       constraint with a unique index on `(account_id, lower(name))`; the upsert matches by lowercased name and stores the
       newest spelling; tests for `Abc` then `abc` (one row) and for a batch with both (400) — gate:

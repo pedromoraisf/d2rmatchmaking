@@ -85,6 +85,21 @@ describe('recordCharacters (CHR-09)', () => {
     expect(stored[0]).toMatchObject({ name: 'Sorc', level: 88, readAt: LATER });
   });
 
+  it('stores a name once whatever its case and keeps the newest spelling (CHR-10)', async () => {
+    const { useCases, characters, clock } = setup();
+    await useCases.recordCharacters({ accountId: 'alice', characters: [sorc] });
+    clock.advance(LATER.getTime() - START.getTime());
+
+    await useCases.recordCharacters({
+      accountId: 'alice',
+      characters: [{ ...sorc, name: 'sorc', level: 88 }],
+    });
+
+    const stored = await characters.listByAccount('alice');
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({ name: 'sorc', level: 88, readAt: LATER });
+  });
+
   it('keeps a character of another account apart from the same name', async () => {
     const { useCases, characters } = setup();
     await useCases.recordCharacters({ accountId: 'alice', characters: [sorc] });

@@ -66,16 +66,17 @@ export const CharacterReading = z.object({
 });
 export type CharacterReading = z.infer<typeof CharacterReading>;
 
-// The agent's batch: 1 to 24 cards of one screen, each name once (CHR-09, CHR-10).
+// The agent's batch: 1 to 24 cards of one screen, each name once, ignoring case as D2R does (CHR-09, CHR-10).
 export const RecordCharactersRequest = z
   .object({
     characters: z.array(CharacterReading).min(1).max(24),
   })
   .refine(
     (request) =>
-      new Set(request.characters.map((character) => character.name)).size === request.characters.length,
+      new Set(request.characters.map((character) => character.name.toLowerCase())).size ===
+      request.characters.length,
     {
-      message: 'character names must be unique within one request',
+      message: 'character names must be unique within one request, ignoring case',
     },
   );
 export type RecordCharactersRequest = z.infer<typeof RecordCharactersRequest>;
