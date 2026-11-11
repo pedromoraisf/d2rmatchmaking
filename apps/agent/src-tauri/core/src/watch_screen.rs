@@ -6,7 +6,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use d2rmm_agent_domain::characters::Card;
+use d2rmm_agent_domain::characters::{Card, reconcile_names};
 use d2rmm_agent_domain::presence::game_running;
 
 use crate::device_state::DeviceState;
@@ -63,7 +63,8 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
     else {
         return;
     };
-    let cards = in_name_order(cards);
+    // A name the screen misread (I, l and 1 are one glyph to it) keeps the spelling the account already has (CHR-10).
+    let cards = in_name_order(reconcile_names(cards, posted.as_deref().unwrap_or(&[])));
     // The API takes 1 to 24 cards; an empty reading sends nothing, and a set the API already has is not sent again.
     if cards.is_empty() || posted.as_ref() == Some(&cards) || !device.api_allowed() {
         return;
@@ -341,6 +342,48 @@ mod tests {
         look(&rig, &mut posted).await;
 
         assert_eq!(posts(&rig.gateway).len(), 2, "the new card set is sent");
+    }
+
+    #[tokio::test]
+    async fn a_misread_name_of_a_posted_character_keeps_the_posted_spelling() {
+        let rig = rig(true, true, frame(), selecting(vec![card("Illusion")]));
+        rig.gateway.script_post_characters([Ok(()), Ok(())]);
+        let mut posted = None;
+        look(&rig, &mut posted).await;
+
+        *rig.reader.reading.lock().expect("the reading lock") =
+            selecting(vec![card("lllusion"), card("Hammer")]);
+        look(&rig, &mut posted).await;
+
+        assert_eq!(
+            posts(&rig.gateway),
+            vec![
+                Call::PostCharacters {
+                    cards: vec![card("Illusion")],
+                },
+                Call::PostCharacters {
+                    cards: vec![card("Hammer"), card("Illusion")],
+                },
+            ],
+            "the second set keeps the account's spelling of Illusion"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_misread_alone_is_the_same_card_set_and_is_not_sent_again() {
+        let rig = rig(true, true, frame(), selecting(vec![card("Illusion")]));
+        rig.gateway.script_post_characters([Ok(())]);
+        let mut posted = None;
+        look(&rig, &mut posted).await;
+
+        *rig.reader.reading.lock().expect("the reading lock") = selecting(vec![card("lllusion")]);
+        look(&rig, &mut posted).await;
+
+        assert_eq!(
+            posts(&rig.gateway).len(),
+            1,
+            "the reconciled set is unchanged"
+        );
     }
 
     #[tokio::test]

@@ -32,7 +32,7 @@ created from `phase/F1` once `characters` has merged. Starts when the screenshot
       popup fixture with Nightmare and Hell disabled (dimmed), and the Windows OCR test and a domain unit test prove it
       reads Normal only — gate:
       `cd apps/agent/src-tauri && cargo nextest run -p xtask && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`
-- [ ] T7 — Name reconciliation (finding 3): a read name that equals a character the agent already posted for this
+- [x] T7 — Name reconciliation (finding 3): a read name that equals a character the agent already posted for this
       account when `I`/`l`/`1` are treated as one glyph (and `0`/`o`) keeps the stored spelling; spec decision recorded;
       core unit tests — gate: `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-core --lib`
 - [ ] T8 — Loop cost (security low 3): the card regions are read only when the screen classified as character

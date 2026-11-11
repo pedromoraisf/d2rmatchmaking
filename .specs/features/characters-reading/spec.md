@@ -79,3 +79,7 @@ screen.
   expire. (In the Party panel red means hostile, not hardcore — do not reuse that rule there.)
 - **Language packs** (CHR-08): one data file per client language, loaded by the agent; English ships in F1, Portuguese
   later with its fixtures. A pack is versioned with the agent; F2's remote config may serve it later.
+- **Name reconciliation** (PR #50 review, finding 3): the screen reads `I`, `l` and `1` as one glyph and `0` and `o`
+  as one, so a read name that equals a character the agent already posted for the account under that folding keeps the
+  posted spelling, with every other field of the card as read (`reconcile_names`). A name with no posted twin is sent as
+  read. Maintainer to confirm: the account's spelling wins over the screen's.
