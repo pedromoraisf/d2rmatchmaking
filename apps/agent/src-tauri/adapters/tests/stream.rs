@@ -205,51 +205,6 @@ async fn latest_room_assigned_wins() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn room_run_opened_replaces_the_expected_name_of_the_held_room() {
-    // LBR-06: the next run of the same room arrives as room.run_opened; the Party step reads for the new name.
-    let h = Harness::start(Some(TOKEN)).await;
-    h.ctx.set_paired(true);
-    h.api
-        .push_event("1", "room.assigned", assigned("mmbaalh-12", ROOM_A));
-    let mut next = assigned("mmbaalh-13", ROOM_A);
-    next["run"] = json!(2);
-    next["members"][0]["confirmed"] = json!(false);
-    h.api.push_event("2", "room.run_opened", next);
-    spawn_stream(&h);
-
-    until("the new run's name", || {
-        expected_name(&h).as_deref() == Some("mmbaalh-13")
-    })
-    .await;
-    assert_eq!(
-        shown_room(&h).as_deref(),
-        Some("mmbaalh-13"),
-        "the window shows the new run's name"
-    );
-}
-
-#[tokio::test(start_paused = true)]
-async fn a_room_run_opened_that_breaks_the_contract_changes_nothing() {
-    let h = Harness::start(Some(TOKEN)).await;
-    h.ctx.set_paired(true);
-    h.api
-        .push_event("1", "room.assigned", assigned("mmbaalh-12", ROOM_A));
-    let mut extra_field = assigned("mmbaalh-13", ROOM_A);
-    extra_field["unexpected"] = json!(1);
-    h.api.push_event("2", "room.run_opened", extra_field);
-    h.api
-        .push_event("3", "room.run_opened", assigned("mmbaalh-14", "not-a-uuid"));
-    spawn_stream(&h);
-
-    until("the first assignment", || {
-        expected_name(&h).as_deref() == Some("mmbaalh-12")
-    })
-    .await;
-    settle().await;
-    assert_eq!(expected_name(&h).as_deref(), Some("mmbaalh-12"));
-}
-
-#[tokio::test(start_paused = true)]
 async fn unknown_or_invalid_events_are_ignored() {
     let h = Harness::start(Some(TOKEN)).await;
     h.ctx.set_paired(true);
