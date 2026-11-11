@@ -18,7 +18,7 @@ Feature: The F1 journeys from sign-in to a confirmed room
     And the ready check opens for both
     And Alice accepts on the site
     And Bob accepts with the agent's hotkey
-    Then both sites show a room with a host, a game name starting with "mmpvphell-" and "No password"
+    Then both sites show a room with a host, a game name starting with "mmpvph-" and "No password"
     When the host's agent reads the game name in the Party panel
     Then both sites show the room as Created within 2 seconds
     When the other member's agent reads the game name in the Party panel
@@ -34,7 +34,7 @@ Feature: The F1 journeys from sign-in to a confirmed room
     When the host's agent and then every member's agent read the game name in the Party panel
     Then the host's and a member's sites show the room as Active within 2 seconds of the last reading
     When the host opens the next run on the site
-    Then every member's site and agent get a new game name ending in "-2" within 2 seconds
+    Then every member's site and agent get the next game name of the room within 2 seconds
     When every agent reads the new game name in the Party panel
     Then the room is Active again for run 2
 
