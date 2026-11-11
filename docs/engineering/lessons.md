@@ -46,6 +46,12 @@ being true.
 
 ## Observability and load
 
+- **Locally, run the traced scenarios (`@OBS-`) alone with `--workers=1`**, never mixed into a broad acceptance gate.
+  Why: the traced stack (API, site, telemetry backend per worker) did not become ready within 90 s under 4 workers on
+  the 8 GB machine, and the same 22 scenarios passed with one worker (characters, T14).
+- **`instrument.int.test.ts` failed in CI on two PRs in a row (#43, #44).** If it fails a third time, fix the wait on the
+  fake OTLP backend instead of rerunning.
+
 - **Read traces from Tempo by trace id, not by search.** The search index of `grafana/otel-lgtm:0.39.0` lags ingest by
   about 30 s.
 - **Load-test idempotency keys must be unique across virtual users.** `<name>-<per-VU sequence>` collided and showed up
