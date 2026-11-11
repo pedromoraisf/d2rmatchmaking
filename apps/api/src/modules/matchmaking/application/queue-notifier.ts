@@ -1,7 +1,7 @@
 // What the queue tells the site and the metrics (QUE-14, QUE-15, QUE-16). Transient `QueueUpdated` events go to the bus
 // only; the site stream turns them into `queue.updated` (the stream projection, platform).
-import { poolSizeOf } from '../domain/matcher.ts';
-import type { QueueTicket } from '../domain/queue-ticket/queue-ticket.ts';
+import { poolCounts } from '../domain/matcher.ts';
+import { poolKey, type QueueTicket } from '../domain/queue-ticket/queue-ticket.ts';
 import type { EventBus, QueueLeaveReason, QueueTicketSnapshot } from '../../../shared-kernel/index.ts';
 import { attributeKey, attributesOf, snapshotOf } from './queue-view.ts';
 import type { QueueAttributes, QueueMetrics } from './ports.ts';
@@ -56,8 +56,10 @@ export function createQueueNotifier(deps: QueueNotifierDeps): QueueNotifier {
           told.delete(id);
         }
       }
+      // Every pool's size is counted once for the whole tick, not once per ticket.
+      const counts = poolCounts(remaining);
       for (const ticket of remaining) {
-        const snapshot = snapshotOf(ticket, now, poolSizeOf(ticket, remaining));
+        const snapshot = snapshotOf(ticket, now, counts.get(poolKey(ticket)) ?? 0);
         const signature = signatureOf(snapshot);
         if (told.get(ticket.id) !== signature) {
           told.set(ticket.id, signature);

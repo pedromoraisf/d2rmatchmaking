@@ -2592,7 +2592,9 @@
                         "not-linked",
                         "site-not-open",
                         "already-queued",
-                        "in-room"
+                        "in-room",
+                        "too-many-joins",
+                        "queue-full"
                       ]
                     }
                   },
@@ -2625,7 +2627,44 @@
                         "not-linked",
                         "site-not-open",
                         "already-queued",
-                        "in-room"
+                        "in-room",
+                        "too-many-joins",
+                        "queue-full"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "not-your-character",
+                        "undeclared-character",
+                        "difficulty-locked",
+                        "below-floor",
+                        "below-minimum-level",
+                        "minimum-below-floor",
+                        "activity-not-available",
+                        "agent-offline",
+                        "not-linked",
+                        "site-not-open",
+                        "already-queued",
+                        "in-room",
+                        "too-many-joins",
+                        "queue-full"
                       ]
                     }
                   },

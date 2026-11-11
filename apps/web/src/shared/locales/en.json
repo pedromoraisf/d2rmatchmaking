@@ -193,7 +193,9 @@
       "not-linked": "Link a Battle.net account to join the queue.",
       "site-not-open": "Keep this site open to join the queue.",
       "already-queued": "You already have a ticket in the queue.",
-      "in-room": "You are in a room that is still open."
+      "in-room": "You are in a room that is still open.",
+      "too-many-joins": "Too many joins in a minute. Wait a moment and try again.",
+      "queue-full": "This queue is full right now. Try again in a little while."
     }
   }
 }

@@ -11,6 +11,13 @@ export interface QueueStore {
   all(): Promise<readonly QueueTicket[]>;
 }
 
+/** The times each account's joins were attempted, for the joins-per-minute limit (QUE-18). */
+export interface JoinLimitStore {
+  timestamps(accountId: string): Promise<readonly Date[]>;
+  /** Records one attempt that was allowed; the store keeps only what the window still counts. */
+  record(accountId: string, at: Date): Promise<void>;
+}
+
 /** Identity's character of an account (CHR-09, CHR-15). Null when the character is not the account's (QUE-03). */
 export interface CharactersPort {
   characterOf(accountId: string, characterId: string): Promise<EntryCharacter | null>;

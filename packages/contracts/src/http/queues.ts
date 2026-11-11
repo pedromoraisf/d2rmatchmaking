@@ -105,6 +105,8 @@ export const QueueRefusalCode = z.enum([
   'site-not-open',
   'already-queued',
   'in-room',
+  'too-many-joins',
+  'queue-full',
 ]);
 export type QueueRefusalCode = z.infer<typeof QueueRefusalCode>;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formGroups, levelingCompatible, poolSizeOf, snakeTeams } from './matcher.ts';
+import { formGroups, levelingCompatible, poolSizeOf, snakeTeams, type MatchProbe } from './matcher.ts';
 import type {
   LevelingRole,
   LevelingTicket,
@@ -429,3 +429,31 @@ function levelingPool(
     leveling({ id: `${prefix}${index + 1}`, activity, joinedAt: ago(100 - index), ...overrides }),
   );
 }
+
+describe('formGroups: the cost of a run (QUE-08)', () => {
+  // The cost is bounded by the candidates a seed's band reaches, never by the square of the pool: 3,000 tickets in one
+  // pool cost at most the pool size times the group size in band checks. Counted, not timed (no wall-clock limit).
+  it('compares each seed with the ratings its band reaches only, so 3,000 unmatchable tickets cost O(n · group size)', () => {
+    // Ratings 60 apart with every band at ±50: no two are within reach of each other, so nothing forms.
+    const pool = Array.from({ length: 3000 }, (_, index) => pvp({ id: `s${index}`, rating: 60 * index }));
+    const probe: MatchProbe = { bandChecks: 0 };
+
+    const result = formGroups(pool, NOW, probe);
+
+    expect(result.groups).toHaveLength(0);
+    expect(result.remaining).toHaveLength(3000);
+    expect(probe.bandChecks).toBeLessThanOrEqual(3000 * 2);
+  });
+
+  it('still pairs two tickets exactly on the band edge among 3,000 others', () => {
+    const spaced = Array.from({ length: 3000 }, (_, index) => pvp({ id: `s${index}`, rating: 60 * index }));
+    // 50 apart, far from the spaced ratings: each is the other's band edge.
+    const pair = [pvp({ id: 'edge-a', rating: 300_000 }), pvp({ id: 'edge-b', rating: 300_050 })];
+
+    const result = formGroups([...spaced, ...pair], NOW);
+
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0]?.members.map((ticket) => ticket.id)).toStrictEqual(['edge-a', 'edge-b']);
+    expect(result.remaining).toHaveLength(3000);
+  });
+});

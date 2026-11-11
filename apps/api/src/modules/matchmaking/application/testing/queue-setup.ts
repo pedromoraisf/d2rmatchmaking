@@ -1,12 +1,14 @@
 // Wires the queue use cases over the in-memory doubles, with a fake clock the test moves.
 import { FakeClock, SequentialIdGenerator } from '../../../../shared-kernel/index.ts';
 import type { EntryCharacter } from '../../domain/entry-rules.ts';
+import { JOIN_LIMIT } from '../../domain/queue-limits.ts';
 import { createQueueUseCases } from '../queue-use-cases.ts';
 import { InMemoryUnitOfWork } from './in-memory-unit-of-work.ts';
 import { RecordingOutbox } from './recording-outbox.ts';
 import {
   FakeAccountFacts,
   FakeCharacters,
+  InMemoryJoinLimits,
   FixedRatings,
   InMemoryQueueStore,
   RecordingEventBus,
@@ -33,8 +35,10 @@ export function queueSetup() {
   const bus = new RecordingEventBus();
   const metrics = new RecordingQueueMetrics();
   const outbox = new RecordingOutbox();
+  const joins = new InMemoryJoinLimits(JOIN_LIMIT);
   const queue = createQueueUseCases({
     store,
+    joinLimits: joins,
     characters,
     presence: facts,
     links: facts,
@@ -57,7 +61,7 @@ export function queueSetup() {
     facts.readyToQueue(accountId);
     characters.set(accountId, characterId, character);
   };
-  return { clock, store, characters, facts, ratings, bus, metrics, outbox, queue, readyPlayer };
+  return { clock, store, joins, characters, facts, ratings, bus, metrics, outbox, queue, readyPlayer };
 }
 
 export type QueueSetup = ReturnType<typeof queueSetup>;

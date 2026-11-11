@@ -109,6 +109,19 @@ describe('queue routes', () => {
     expect(response.json()).toStrictEqual({ error: 'agent-offline' });
   });
 
+  it('answers 429 too-many-joins to the eleventh join in a minute, and stores nothing (QUE-18)', async () => {
+    const cookie = await signedInCookie('Alice');
+    for (let attempt = 1; attempt <= 10; attempt += 1) {
+      const refused = await join(cookie, pvpJoin);
+      expect(refused.statusCode).toBe(422);
+    }
+    const limited = await join(cookie, pvpJoin);
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json()).toStrictEqual({ error: 'too-many-joins' });
+    const ticket = await app.app.inject({ method: 'GET', url: '/v1/queue/tickets/me', headers: { cookie } });
+    expect(ticket.json()).toStrictEqual({ ticket: null });
+  });
+
   it('answers the waiting ticket of a signed-in player as null, when none is queued', async () => {
     const cookie = await signedInCookie('Alice');
     const response = await app.app.inject({

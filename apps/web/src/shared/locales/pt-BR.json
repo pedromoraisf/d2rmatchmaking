@@ -193,7 +193,9 @@
       "not-linked": "Vincule uma conta Battle.net para entrar na fila.",
       "site-not-open": "Mantenha este site aberto para entrar na fila.",
       "already-queued": "Você já tem um ticket na fila.",
-      "in-room": "Você está em uma sala que ainda está aberta."
+      "in-room": "Você está em uma sala que ainda está aberta.",
+      "too-many-joins": "Muitas entradas na fila em um minuto. Aguarde um pouco e tente de novo.",
+      "queue-full": "Esta fila está cheia agora. Tente de novo daqui a pouco."
     }
   }
 }

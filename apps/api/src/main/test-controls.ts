@@ -56,6 +56,8 @@ export interface TestControlDeps {
     readonly tokenCache: ClearableStore;
     /** The waiting queue (queues QUE-01 … QUE-14): a scenario starts with nobody queued. */
     readonly queue: ClearableStore;
+    /** The joins attempted per account (QUE-18): a scenario starts with no attempt counted. */
+    readonly joins: ClearableStore;
   };
   readonly hub: {
     closeAll(): void;
@@ -127,6 +129,7 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
       deps.stores.rateLimits.clear();
       deps.stores.tokenCache.clear();
       deps.stores.queue.clear();
+      deps.stores.joins.clear();
       deps.hub.closeAll();
       await deps.relay.sweep();
       return reply.code(204).send(null);

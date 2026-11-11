@@ -28,6 +28,8 @@ import { createLobbyRoomUseCases } from '../modules/lobby-room/index.ts';
 import { matchmakingRoutes } from '../modules/matchmaking/adapters/http/routes.ts';
 import { queueRoutes } from '../modules/matchmaking/adapters/http/queue-routes.ts';
 import { MemoryQueueStore } from '../modules/matchmaking/adapters/memory/memory-queue-store.ts';
+import { MemoryJoinLimitStore } from '../modules/matchmaking/adapters/memory/memory-join-limit-store.ts';
+import { JOIN_LIMIT } from '../modules/matchmaking/domain/queue-limits.ts';
 import { OtelQueueMetrics } from '../modules/matchmaking/adapters/telemetry/otel-queue-metrics.ts';
 import { createMatchmakingUseCases, createQueueUseCases } from '../modules/matchmaking/index.ts';
 import { MemoryAgentTokenCache } from '../modules/agents/adapters/memory/memory-agent-token-cache.ts';
@@ -177,6 +179,8 @@ export interface BuiltApp {
     readonly rateLimits: MemoryRateLimitStore;
     readonly tokenCache: MemoryAgentTokenCache;
     readonly queue: MemoryQueueStore;
+    /** The joins attempted per account (QUE-18): a scenario starts with no attempt counted. */
+    readonly joins: MemoryJoinLimitStore;
   };
 }
 
@@ -301,8 +305,10 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
 
   // The queue (QUE-01 … QUE-16): in memory (ADR 006). Its ports are the public methods of the other modules and the hub.
   const queueStore = new MemoryQueueStore();
+  const joinLimits = new MemoryJoinLimitStore(JOIN_LIMIT);
   const queue = createQueueUseCases({
     store: queueStore,
+    joinLimits,
     characters: { characterOf: characters.characterOf },
     presence: { isOnline: agents.agentOnlineOf },
     links: { isLinked: identity.isLinked },
@@ -411,5 +417,5 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   queueRoutes(app, { useCases: queue, guards });
   hub.register(app);
 
-  return { app, relay, bus, hub, stores: { ...stores, queue: queueStore } };
+  return { app, relay, bus, hub, stores: { ...stores, queue: queueStore, joins: joinLimits } };
 }

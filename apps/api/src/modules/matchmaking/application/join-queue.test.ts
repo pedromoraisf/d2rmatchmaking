@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MatchFormedEvent } from '../../../shared-kernel/index.ts';
 import type { QueueJoinInput } from './join-queue.ts';
-import { queueSetup, READY_CHARACTER } from './testing/queue-setup.ts';
+import { queueSetup, READY_CHARACTER, START } from './testing/queue-setup.ts';
 
 const pvp = (overrides: Partial<Extract<QueueJoinInput, { mode: 'pvp' }>> = {}): QueueJoinInput => ({
   mode: 'pvp',
@@ -277,5 +277,109 @@ describe('joinQueue: the matcher runs on a join (QUE-11, QUE-12)', () => {
     expect(formed).toHaveLength(1);
     expect(formed[0]?.payload.members.map((member) => member.accountId)).toStrictEqual(['alice', 'bob']);
     expect(formed[0]?.payload.members[0]?.role).toBe('host');
+  });
+});
+
+describe('joinQueue: the limits (QUE-18, QUE-19)', () => {
+  it('refuses the eleventh attempt in a minute with too-many-joins, and changes nothing (QUE-18)', async () => {
+    const t = queueSetup();
+    // Attempts count whatever they answer: an account with no Battle.net link is refused with not-linked each time.
+    for (let attempt = 1; attempt <= 10; attempt += 1) {
+      expect(await t.queue.joinQueue({ accountId: 'alice', request: pvp() })).toStrictEqual({
+        ok: false,
+        error: 'not-linked',
+      });
+    }
+    expect(await t.queue.joinQueue({ accountId: 'alice', request: pvp() })).toStrictEqual({
+      ok: false,
+      error: 'too-many-joins',
+    });
+    expect(await t.store.all()).toHaveLength(0);
+    expect(t.bus.published).toHaveLength(0);
+  });
+
+  it('keeps refusing until a full minute has passed since the oldest attempt (QUE-18)', async () => {
+    const t = queueSetup();
+    for (let attempt = 1; attempt <= 10; attempt += 1) {
+      await t.queue.joinQueue({ accountId: 'alice', request: pvp() });
+    }
+    t.clock.advance(59_999);
+    expect(await t.queue.joinQueue({ accountId: 'alice', request: pvp() })).toStrictEqual({
+      ok: false,
+      error: 'too-many-joins',
+    });
+    t.clock.advance(1);
+    expect(await t.queue.joinQueue({ accountId: 'alice', request: pvp() })).toStrictEqual({
+      ok: false,
+      error: 'not-linked',
+    });
+  });
+
+  it('limits each account on its own, so another player is not refused (QUE-18)', async () => {
+    const t = queueSetup();
+    for (let attempt = 1; attempt <= 10; attempt += 1) {
+      await t.queue.joinQueue({ accountId: 'alice', request: pvp() });
+    }
+    expect(await t.queue.joinQueue({ accountId: 'bob', request: pvp() })).toStrictEqual({
+      ok: false,
+      error: 'not-linked',
+    });
+  });
+
+  /** A waiting duel ticket, `60` ratings from the next, so no two are in each other's band (QUE-08). */
+  const spacedTicket = (index: number) => ({
+    id: `w${index}`,
+    accountId: `w-account-${index}`,
+    characterId: `w-char-${index}`,
+    mode: 'pvp' as const,
+    region: 'americas' as const,
+    difficulty: 'hell' as const,
+    ladder: 'sc-ladder' as const,
+    era: 'rotw' as const,
+    rating: 1500 + 60 * (index + 1),
+    level: 90,
+    joinedAt: new Date(START),
+    pvp: { format: 'duel' as const, rules: 'gm' as const },
+  });
+
+  it('refuses a join into a pool that holds 2,000 waiting tickets with queue-full, and leaves the queue as it was (QUE-19)', async () => {
+    const t = queueSetup();
+    t.readyPlayer('alice', 'c-sorc');
+    for (let index = 0; index < 2000; index += 1) {
+      await t.store.add(spacedTicket(index));
+    }
+
+    expect(await t.queue.joinQueue({ accountId: 'alice', request: pvp() })).toStrictEqual({
+      ok: false,
+      error: 'queue-full',
+    });
+    expect(await t.store.all()).toHaveLength(2000);
+    expect(await t.store.byAccount('alice')).toBeUndefined();
+    expect(t.bus.published).toHaveLength(0);
+  });
+
+  it('admits the join that makes a pool 2,000 tickets (QUE-19)', async () => {
+    const t = queueSetup();
+    t.readyPlayer('alice', 'c-sorc');
+    for (let index = 0; index < 1999; index += 1) {
+      await t.store.add(spacedTicket(index));
+    }
+
+    const joined = await t.queue.joinQueue({ accountId: 'alice', request: pvp() });
+
+    expect(joined.ok).toBe(true);
+    expect(await t.store.all()).toHaveLength(2000);
+  });
+
+  it('does not count a full pool against a join into another pool (QUE-19)', async () => {
+    const t = queueSetup();
+    t.readyPlayer('alice', 'c-sorc');
+    for (let index = 0; index < 2000; index += 1) {
+      await t.store.add(spacedTicket(index));
+    }
+
+    const joined = await t.queue.joinQueue({ accountId: 'alice', request: pvp({ rules: 'bm' }) });
+
+    expect(joined.ok).toBe(true);
   });
 });

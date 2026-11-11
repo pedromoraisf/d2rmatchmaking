@@ -28,6 +28,14 @@ export interface QueueRouteDeps {
 /** The refusals that answer 409: the player already has a ticket or a room. Every other refusal answers 422. */
 const CONFLICT_REFUSALS: ReadonlySet<string> = new Set(['already-queued', 'in-room']);
 
+/** The status of a refused join (QUE-18): 429 for the joins limit, 409 for a ticket or room already held, else 422. */
+export function joinRefusalStatus(refusal: string): 409 | 422 | 429 {
+  if (refusal === 'too-many-joins') {
+    return 429;
+  }
+  return CONFLICT_REFUSALS.has(refusal) ? 409 : 422;
+}
+
 /**
  * Registers `POST /v1/queue/tickets` (201 with the ticket, or 409/422 with the refusal), `DELETE /v1/queue/tickets/:id`
  * (204, or 404 for a ticket that is not the player's) and `GET /v1/queue/tickets/me` (200 with the ticket or null). The
@@ -48,6 +56,7 @@ export function queueRoutes(app: FastifyInstance, deps: QueueRouteDeps): void {
           401: ErrorResponse,
           409: QueueRefusal,
           422: QueueRefusal,
+          429: QueueRefusal,
         },
       },
     },
@@ -57,8 +66,7 @@ export function queueRoutes(app: FastifyInstance, deps: QueueRouteDeps): void {
       }
       const joined = await useCases.joinQueue({ accountId: request.accountId, request: request.body });
       if (!joined.ok) {
-        const status = CONFLICT_REFUSALS.has(joined.error) ? 409 : 422;
-        return reply.code(status).send({ error: joined.error });
+        return reply.code(joinRefusalStatus(joined.error)).send({ error: joined.error });
       }
       return reply.code(201).send(joined.value);
     },

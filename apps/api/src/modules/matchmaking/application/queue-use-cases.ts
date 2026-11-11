@@ -19,6 +19,7 @@ import type {
   AccountLinkPort,
   AgentPresencePort,
   CharactersPort,
+  JoinLimitStore,
   QueueMetrics,
   QueueStore,
   RatingsPort,
@@ -28,6 +29,7 @@ import type {
 
 export interface QueueUseCaseDeps {
   readonly store: QueueStore;
+  readonly joinLimits: JoinLimitStore;
   readonly characters: CharactersPort;
   readonly presence: AgentPresencePort;
   readonly links: AccountLinkPort;

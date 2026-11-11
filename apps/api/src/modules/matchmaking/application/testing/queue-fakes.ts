@@ -2,10 +2,12 @@
 import type { EntryCharacter } from '../../domain/entry-rules.ts';
 import type { QueueTicket } from '../../domain/queue-ticket/queue-ticket.ts';
 import type { BusEvent, EventBus, QueueLeaveReason } from '../../../../shared-kernel/index.ts';
+import type { SlidingWindowLimit } from '../../../../shared-kernel/sliding-window.ts';
 import type {
   AccountLinkPort,
   AgentPresencePort,
   CharactersPort,
+  JoinLimitStore,
   QueueAttributes,
   QueueMetrics,
   QueueStore,
@@ -13,6 +15,27 @@ import type {
   RoomsPort,
   SiteConnectionsPort,
 } from '../ports.ts';
+
+/** The attempts per account, kept in full: the tests of the joins limit read the window they set (QUE-18). */
+export class InMemoryJoinLimits implements JoinLimitStore {
+  readonly #attempts = new Map<string, Date[]>();
+  readonly #window: SlidingWindowLimit;
+
+  constructor(window: SlidingWindowLimit) {
+    this.#window = window;
+  }
+
+  async timestamps(accountId: string): Promise<readonly Date[]> {
+    return [...(this.#attempts.get(accountId) ?? [])];
+  }
+
+  async record(accountId: string, at: Date): Promise<void> {
+    const kept = (this.#attempts.get(accountId) ?? []).filter(
+      (time) => at.getTime() - time.getTime() < this.#window.windowMs,
+    );
+    this.#attempts.set(accountId, [...kept, new Date(at.getTime())]);
+  }
+}
 
 /** The queue as a list in the order tickets joined. */
 export class InMemoryQueueStore implements QueueStore {

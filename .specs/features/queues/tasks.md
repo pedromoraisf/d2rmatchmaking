@@ -42,7 +42,7 @@ edited; one Conventional Commit per task (`feat(matchmaking): …`, `feat(web): 
       set by the matcher's snake teams in 2v2; contract and AsyncAPI regenerated; Lobby Room stores nothing new yet
       (teams are read in F3) but keeps the field in the room's members view — gate:
       `pnpm --filter @d2rmm/contracts exec vitest run && pnpm --filter @d2rmm/api exec vitest run && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json`
-- [ ] T10 — Matcher cost (security finding 1, QUE-18, QUE-19): the store indexes tickets by id and by account (Maps);
+- [x] T10 — Matcher cost (security finding 1, QUE-18, QUE-19): the store indexes tickets by id and by account (Maps);
       each tick buckets tickets by pool once and computes pool sizes per bucket; a pool holds at most 2,000 waiting
       tickets; joins are limited to 10 per account per minute (reuse the existing rate-limit store pattern), 429; a test
       with 3,000 unmatchable tickets in one pool asserts the tick does at most O(n·group size) band checks (count them;

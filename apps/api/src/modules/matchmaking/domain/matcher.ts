@@ -1,6 +1,6 @@
 // The matcher (QUE-07 … QUE-12). Pure and deterministic: `now` is a parameter, tickets are ordered by join order, and
 // the same input always forms the same groups.
-import { bandsMatch } from './band.ts';
+import { bandAt, bandsMatch } from './band.ts';
 import {
   compareJoinOrder,
   isLevelingTicket,
@@ -43,8 +43,20 @@ export interface MatchResult {
   readonly remaining: readonly QueueTicket[];
 }
 
+/**
+ * Counts the band comparisons of a run (QUE-08), for the matcher's cost tests. A seed compares only the candidates its
+ * band reaches, so the count is bounded by the candidates in reach times the group size, never by the square of the pool.
+ */
+export interface MatchProbe {
+  bandChecks: number;
+}
+
 /** Forms every group the pool holds now. Tickets of different pool keys never meet (QUE-07). */
-export function formGroups(tickets: readonly QueueTicket[], now: Date): MatchResult {
+export function formGroups(
+  tickets: readonly QueueTicket[],
+  now: Date,
+  probe: MatchProbe = { bandChecks: 0 },
+): MatchResult {
   const buckets = new Map<string, QueueTicket[]>();
   for (const ticket of [...tickets].sort(compareJoinOrder)) {
     const key = poolKey(ticket);
@@ -55,7 +67,7 @@ export function formGroups(tickets: readonly QueueTicket[], now: Date): MatchRes
   const groups: FormedGroup[] = [];
   const remaining: QueueTicket[] = [];
   for (const bucket of buckets.values()) {
-    const result = formInBucket(bucket, now);
+    const result = formInBucket(bucket, now, probe);
     groups.push(...result.groups);
     remaining.push(...result.remaining);
   }
@@ -68,27 +80,48 @@ export function poolSizeOf(ticket: QueueTicket, tickets: readonly QueueTicket[])
   return tickets.filter((other) => poolKey(other) === key).length;
 }
 
+/** The waiting count of every pool that holds a ticket, counted in one pass (the matcher's per-tick sizes). */
+export function poolCounts(tickets: readonly QueueTicket[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const ticket of tickets) {
+    const key = poolKey(ticket);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
 function formInBucket(
   bucket: readonly QueueTicket[],
   now: Date,
+  probe: MatchProbe,
 ): { groups: FormedGroup[]; remaining: QueueTicket[] } {
   const groups: FormedGroup[] = [];
+  // The bucket's tickets by rating, kept in step with `pool`: a PvP seed reads only the ratings its band reaches.
+  let byRating = [...bucket].sort((a, b) => a.rating - b.rating || compareJoinOrder(a, b));
   let pool = bucket;
   for (;;) {
-    const members = findGroup(pool, now);
+    const members = findGroup(pool, byRating, now, probe);
     if (members === null) {
       return { groups, remaining: [...pool] };
     }
     groups.push(toFormedGroup(members));
     const taken = new Set(members.map((member) => member.id));
     pool = pool.filter((ticket) => !taken.has(ticket.id));
+    byRating = byRating.filter((ticket) => !taken.has(ticket.id));
   }
 }
 
 /** The first seed, oldest first, that fills a group from the pool. */
-function findGroup(pool: readonly QueueTicket[], now: Date): QueueTicket[] | null {
+function findGroup(
+  pool: readonly QueueTicket[],
+  byRating: readonly QueueTicket[],
+  now: Date,
+  probe: MatchProbe,
+): QueueTicket[] | null {
   for (const seed of pool) {
-    const members = isPvpTicket(seed) ? fillPvp(seed, pool, now) : fillLeveling(seed, pool);
+    const members = isPvpTicket(seed)
+      ? fillPvp(seed, reachableBy(seed, byRating, now), now, probe)
+      : fillLeveling(seed, pool);
     if (members !== null) {
       return members;
     }
@@ -96,17 +129,52 @@ function findGroup(pool: readonly QueueTicket[], now: Date): QueueTicket[] | nul
   return null;
 }
 
-function fillPvp(seed: PvpTicket, pool: readonly QueueTicket[], now: Date): QueueTicket[] | null {
+/**
+ * The PvP tickets a seed can match at all, in join order: a candidate matches only when its rating lies in the seed's
+ * band (QUE-08), so the ratings outside that band are never compared. Found by binary search over the ratings.
+ */
+function reachableBy(seed: PvpTicket, byRating: readonly QueueTicket[], now: Date): PvpTicket[] {
+  const { low, high } = bandAt(seed.rating, seed.joinedAt, now);
+  let lo = 0;
+  let hi = byRating.length;
+  while (lo < hi) {
+    const middle = (lo + hi) >> 1;
+    if ((byRating[middle]?.rating ?? Number.POSITIVE_INFINITY) < low) {
+      lo = middle + 1;
+    } else {
+      hi = middle;
+    }
+  }
+  const reach: PvpTicket[] = [];
+  for (let index = lo; index < byRating.length; index += 1) {
+    const candidate = byRating[index];
+    if (candidate === undefined || candidate.rating > high) {
+      break;
+    }
+    if (isPvpTicket(candidate) && candidate.id !== seed.id) {
+      reach.push(candidate);
+    }
+  }
+  return reach.sort(compareJoinOrder);
+}
+
+function fillPvp(
+  seed: PvpTicket,
+  candidates: readonly PvpTicket[],
+  now: Date,
+  probe: MatchProbe,
+): PvpTicket[] | null {
   const size = PVP_GROUP_SIZE[seed.pvp.format];
   const members: PvpTicket[] = [seed];
-  for (const candidate of pool) {
+  for (const candidate of candidates) {
     if (members.length === size) {
       break;
     }
-    if (!isPvpTicket(candidate) || members.some((member) => member.id === candidate.id)) {
-      continue;
-    }
-    if (members.every((member) => bandsMatch(member, candidate, now))) {
+    const fits = members.every((member) => {
+      probe.bandChecks += 1;
+      return bandsMatch(member, candidate, now);
+    });
+    if (fits) {
       members.push(candidate);
     }
   }
