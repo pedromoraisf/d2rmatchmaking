@@ -17,7 +17,7 @@ committed migrations never edited; no test weakened; `acceptance.feature` not ed
 - [x] T3 — Application, persistence, routes and wiring (migration, timers, drop tolerance, subscribers, projection,
       spans, metrics in the AD-087 list with dashboard panels); unit and integration tests — gate:
       `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts && pnpm --filter @d2rmm/telemetry exec vitest run && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json && pnpm arch`
-- [ ] T4 — Agent: `room.run_opened` updates the assignment (new expected name) so the Party step reads the new run;
+- [x] T4 — Agent: `room.run_opened` updates the assignment (new expected name) so the Party step reads the new run;
       core unit tests — gate:
       `cd apps/agent/src-tauri && cargo nextest run && cargo clippy --all-targets -- -D warnings`
 - [ ] T5 — Site: the room panel of `design.md § Site`, en + pt-BR, component tests including keyboard use — gate:
