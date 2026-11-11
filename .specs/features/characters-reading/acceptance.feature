@@ -3,6 +3,7 @@
 # tests in the Windows CI job.
 #
 # not-scenario: CHR-08 — Rust tests that read the English and Portuguese fixtures with Windows OCR in the Windows CI job
+# not-scenario: CHR-19 — Rust unit tests of the relative regions at 1920x1033 and 1920x1080
 
 Feature: The agent reads the character selection screen
   A player opens the character selection screen with the agent running and the site learns their characters.
@@ -10,7 +11,7 @@ Feature: The agent reads the character selection screen
   Background:
     Given "Alice" is signed in and has a paired agent
 
-  @CHR-15 @NFR-04 @NFR-05 @agent
+  @CHR-20 @NFR-04 @NFR-05 @agent
   Scenario: Without consent the agent reads nothing; with consent it does
     Given Alice's agent has no capture consent
     When the game shows the character selection screen fixture "select-titles"
@@ -44,3 +45,10 @@ Feature: The agent reads the character selection screen
     When the game shows the character selection screen fixture "select-full" with one card's level unreadable
     Then the site lists every other character of that fixture
     And the site does not list the character whose level was unreadable
+
+  @CHR-18 @FR-02 @FR-09 @agent
+  Scenario: The difficulty popup sets the character's unlocked difficulties
+    Given Alice's agent has capture consent
+    And the game showed the character selection screen fixture "select-titles"
+    When the game shows the difficulty popup fixture "select-difficulty" for the selected character
+    Then the site shows that character with the difficulties of that fixture unlocked
