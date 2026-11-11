@@ -21,6 +21,13 @@ playwright-report/
 test-results/
 .harness-score.report.json
 
+# game screenshots — never commit (AGENTS.md "Never do"; scripts/check-images.mjs)
+**/maintainer-*.png
+**/maintainer-*.webp
+**/Screenshot*.png
+**/Screenshot*.webp
+**/Prints*/
+
 # environment and secrets — never commit
 .env
 .env.*

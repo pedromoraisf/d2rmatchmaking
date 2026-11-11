@@ -78,6 +78,8 @@ repeat until nothing is runnable. Runnable features run in parallel.
    ```
 
    Run each gate command once before writing it (see lessons). Mutation never appears in a task gate (ADR 029).
+   A task that needs real game screenshots reads them from a local path (an `xtask` command on the maintainer's
+   machine) and commits only fixtures drawn by `xtask`; never plan a task that commits a capture (lessons, 2026-11-11).
 
 4. **execute** — dispatch one `feature-worker` per feature with `isolation: "worktree"` and a prompt that names the
    feature, the batch, the phase branch and the feature branch `feat/<F>-<f>`. The worker checks out or creates that

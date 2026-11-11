@@ -153,4 +153,8 @@ the five phases. Before planning, read `docs/engineering/lessons.md`.
 - Add a provider SDK outside `main/` (e.g. Datadog SDK — use OTLP, ADR 013).
 - Edit `.claude/skills/tlc-spec-driven/**` (vendored) or an already-committed migration.
 - Publish Blizzard logos/assets; the site shows a non-affiliation notice.
+- Commit or push a game screenshot, blurred or not, to any branch: the repository is public and a push cannot be
+  undone without a force push. Real screenshots stay outside the repository (read from a local path by an `xtask`
+  command on the maintainer's machine); committed fixtures are drawn by `xtask`. `scripts/check-images.mjs` enforces it
+  at commit time and in CI.
 - Store prints longer than 30 days or capture without consent (NFR-04, NFR-05).

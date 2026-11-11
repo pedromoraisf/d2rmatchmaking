@@ -30,6 +30,12 @@ being true.
 - **A task that adds or changes a route runs the whole API integration suite in its gate**, not only the module's
   tests. Why: `openapi.int.test.ts` pins every route, and three new character routes reached CI unlisted (#44).
 
+- **Never commit a game screenshot, not even blurred, not even on a feature branch.** Why: on 2026-11-11 three of the
+  maintainer's D2R screenshots (other players' names blurred) were committed as OCR fixtures and pushed to the public
+  `feat/F1-agent-game-name` (commit 614337d). The repository is public and the runner may not force push, so they stay
+  in that branch's history (the maintainer chose to keep the record). Real screenshots are read from a local path by an
+  `xtask` command; fixtures are drawn. `scripts/check-images.mjs` now refuses captures at commit time and in CI.
+
 ## Tests
 
 - **No tight wall-clock limits in unit tests.** The maintainer's machine has 8 GB and runs the suites in parallel; a test

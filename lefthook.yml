@@ -27,6 +27,10 @@ pre-commit:
     specs:
       glob: '.specs/**/*.md'
       run: node scripts/specs-check.mjs
+    images:
+      # No game screenshot is ever committed (AGENTS.md "Never do"); CI proves the same in the harness tests.
+      glob: '*.{png,jpg,jpeg,webp,gif,bmp,tif,tiff,avif,heic,PNG,JPG,JPEG,WEBP}'
+      run: node scripts/check-images.mjs {staged_files}
 
 commit-msg:
   commands:
