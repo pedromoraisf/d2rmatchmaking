@@ -121,6 +121,6 @@ difficulties; the player declares ladder and era on the site (`spec.md` CHR-09, 
       character", and a keyboard-usable declaration control (ladder / non-ladder, Classic / Expansion / Reign of the
       Warlock) that saves through the PATCH and refreshes the list; en + pt-BR; component tests — gate:
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
-- [ ] T18 — Acceptance steps for the new and changed steps of `acceptance.feature` (reuse "the answer is ..." from
+- [x] T18 — Acceptance steps for the new and changed steps of `acceptance.feature` (reuse "the answer is ..." from
       identity-bnet), then both gates and the sensors — gate:
       `pnpm exec turbo run test:acceptance -- --grep "@CHR-|@AWS-|@IDB-" && pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check`
