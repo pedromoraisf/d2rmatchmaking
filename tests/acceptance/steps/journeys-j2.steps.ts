@@ -204,11 +204,15 @@ Then(
       })
       .toBe(2);
     const next = (await roomOf(world, TELEPORTER))?.expectedGameName ?? '';
-    // The game name's number is the room's sequence, not the run's: the next name is another name of the same room kind.
-    expect(next, 'a new game name').not.toBe(state.oldName);
-    expect(next.replace(/\d+$/u, ''), 'the same activity and difficulty').toBe(
-      (state.oldName ?? '').replace(/\d+$/u, ''),
-    );
+    // LBR-06, ADR 017: the next name keeps the activity and difficulty and its number comes from the shared room sequence, so
+    // it is greater than the previous one (mmbaalh-12 then mmbaalh-13 when nothing else opens a room in between). The name is
+    // the one the API reports for a member, and the pages and the eight agents below must show exactly that name.
+    const previous = /^(.*-)(\d+)$/u.exec(state.oldName ?? '');
+    const following = /^(.*-)(\d+)$/u.exec(next);
+    expect(previous, 'the first name ends in a number').not.toBeNull();
+    expect(following?.[1], 'the same activity and difficulty').toBe(previous?.[1]);
+    expect(Number(following?.[2]), 'a greater number in the sequence').toBeGreaterThan(Number(previous?.[2]));
+    expect((await roomOf(world, BO))?.expectedGameName, "a member's room reports the same name").toBe(next);
     state.nextName = next;
     const left = () => Math.max(1, since + SITE_LIMIT_MS - Date.now());
     for (const name of [TELEPORTER, BO]) {
