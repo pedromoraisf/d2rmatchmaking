@@ -16,11 +16,13 @@ use d2rmm_agent_core::groups::{
     Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
 };
 use d2rmm_agent_core::pair::{self, Command};
+use d2rmm_agent_core::party::PartyPorts;
 use d2rmm_agent_core::ports::{
     IdGenerator, PausedWallClock, ProcessSource, SequentialIds, TextReader, TokenStore, WallClock,
 };
 use d2rmm_agent_core::runtime::Probe;
 use d2rmm_agent_core::watch_screen::ScreenPorts;
+use d2rmm_agent_domain::language::LanguagePack;
 use tokio::sync::mpsc;
 
 use super::fake_api::{Answer, FakeApi, Operation, WALL_START};
@@ -154,6 +156,18 @@ fn fake_groups(
             tokens: Arc::clone(&tokens_port),
         },
         screen: ScreenPorts {
+            party: PartyPorts {
+                read: ReadPorts {
+                    reader: Arc::clone(reader) as Arc<dyn TextReader + Send + Sync>,
+                    ids: Arc::new(SequentialIds::new()),
+                    clock: Arc::new(PausedWallClock::starting_at(
+                        START.parse().expect("a valid instant"),
+                    )),
+                    gateway: Arc::clone(&gateway),
+                    tokens: Arc::clone(&tokens_port),
+                },
+                language: Arc::new(LanguagePack::english()),
+            },
             gateway,
             tokens: tokens_port,
             processes: Arc::clone(&processes_port),

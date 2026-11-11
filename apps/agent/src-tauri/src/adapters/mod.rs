@@ -10,6 +10,10 @@ pub mod consent_store;
 #[cfg(any(windows, test))]
 pub mod window_capture;
 
+// The OCR pixels are copied on every platform, so their rule is tested everywhere; the engine is Windows only.
+#[cfg(any(windows, test))]
+pub mod ocr_pixels;
+
 #[cfg(windows)]
 pub mod system;
 

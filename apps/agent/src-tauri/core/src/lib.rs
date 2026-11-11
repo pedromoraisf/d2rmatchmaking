@@ -11,6 +11,7 @@ pub mod groups;
 pub mod hub;
 pub mod messages;
 pub mod pair;
+pub mod party;
 pub mod ports;
 pub mod post_observation;
 pub mod read_frame;

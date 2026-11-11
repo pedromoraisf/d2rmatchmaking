@@ -166,6 +166,7 @@ mod tests {
     use std::num::NonZeroU64;
     use std::sync::Arc;
 
+    use d2rmm_agent_domain::language::LanguagePack;
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
 
     use super::Probe;
@@ -177,6 +178,7 @@ mod tests {
     use crate::groups::{
         Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
     };
+    use crate::party::PartyPorts;
     use crate::ports::{SequentialIds, TokenStore, WallClock};
     use crate::watch_screen::ScreenPorts;
 
@@ -259,6 +261,16 @@ mod tests {
                 frames: Arc::new(NoFrames),
                 reader: Arc::new(NoFrameReader),
                 consent: Arc::new(NoConsent),
+                party: PartyPorts {
+                    read: ReadPorts {
+                        reader: Arc::new(NoText),
+                        ids: Arc::new(SequentialIds::new()),
+                        clock: Arc::new(FixedClock),
+                        gateway: Arc::clone(&gateway),
+                        tokens: tokens.clone(),
+                    },
+                    language: Arc::new(LanguagePack::english()),
+                },
             },
         };
         let device = DeviceState::new(Arc::new(NullSink));

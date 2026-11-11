@@ -1,0 +1,28 @@
+# Agent reads the game name — Design
+
+Relies on ADR 010 (read-only agent), 017 (game names), 027 (agent crates), and on `characters`' capture (`FrameSource`,
+`ConsentStore`, `watch_screen`, `window_capture.rs`).
+
+## Agent (ADR 027 crates)
+
+| Crate     | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| domain    | `layout.rs`: regions as fractions of the client size (`RelRegion { x, y, w, h }` in 0..1, anchored to the left edge for the Party panel, which keeps its size), resolved for a client size, with a supported aspect-ratio range; replaces F0's fixed `AUTOMAP_NAME_1080P` (kept only for the fixture path until it is removed); `language.rs`: `LanguagePack` (labels: `PARTY`, `GAME NAME`, `PASSWORD`; later class names, titles, `LEVEL`), parsed from data, English built in; `game_name_match.rs`: AGN-03 normalisation and match, AGN-04 masked detection; `fusion.rs` keeps building the observation |
+| core      | `watch_screen` gains the Party step: when an assignment is held, read the panel title and the Game Name field through `FrameReader`; match; post through the existing `post_observation` path once per run; expose "needs reveal" to the agent view                                                                                                                                                                                                                                                                                                                                                         |
+| app crate | `WindowsOcr` reads the relative regions of the live frame; the language pack ships as a JSON resource (`resources/lang/en.json`); `main.rs` wires the real reader instead of `NoScreenReader` for the Party step                                                                                                                                                                                                                                                                                                                                                                                            |
+| ui        | the hint of AGN-04 in the status view (en + pt-BR)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| xtask     | `draw-fixture party` draws Party panel fixtures (revealed name, masked, another name) with JSON sidecars                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| adapters  | the headless example reads the drawn fixtures through the sidecar reader, as F0 does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+
+The Party panel title and field labels are matched with the pack's words, case-insensitively and with `⊕`/`Ø`/`0`→`O` in
+labels, so a Portuguese pack only adds words.
+
+## Fixtures
+
+`apps/agent/fixtures/party/`: drawn fixtures (committed) and the maintainer's screenshots with the member list blurred
+(committed only after the blur; the worker blurs the rows under "Game Name / Password" with a fixed rectangle and
+checks the result by eye in the PR).
+
+## Telemetry
+
+`agent.vision.read-game-name` with `matched: bool` and `masked: bool`; no text.
