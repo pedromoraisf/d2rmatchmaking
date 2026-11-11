@@ -35,3 +35,19 @@ edited; one Conventional Commit per task (`feat(matchmaking): …`, `feat(web): 
 - [x] T6 — Acceptance steps in `tests/acceptance/steps/queues.steps.ts` for every step of `acceptance.feature`, using
       the stack's clock for waits — gate: `pnpm exec turbo run test:acceptance -- --grep @QUE-`
 - [x] T7 — Whole-repo sensors — gate: `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check`
+
+## Batch 3 — review fixes (PR #51)
+
+- [ ] T9 — 2v2 teams reach the room (architecture finding 1, QUE-12): `MatchMember` gains an optional `team: 'a' | 'b'`
+      set by the matcher's snake teams in 2v2; contract and AsyncAPI regenerated; Lobby Room stores nothing new yet
+      (teams are read in F3) but keeps the field in the room's members view — gate:
+      `pnpm --filter @d2rmm/contracts exec vitest run && pnpm --filter @d2rmm/api exec vitest run && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json`
+- [ ] T10 — Matcher cost (security finding 1, QUE-18, QUE-19): the store indexes tickets by id and by account (Maps);
+      each tick buckets tickets by pool once and computes pool sizes per bucket; a pool holds at most 2,000 waiting
+      tickets; joins are limited to 10 per account per minute (reuse the existing rate-limit store pattern), 429; a test
+      with 3,000 unmatchable tickets in one pool asserts the tick does at most O(n·group size) band checks (count them;
+      no wall-clock limit) — gate:
+      `pnpm --filter @d2rmm/api exec vitest run src/modules/matchmaking && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts`
+- [ ] T11 — Small fixes (architecture findings 2, 3): a Lobby Room unit case for two members marked host; the test
+      controls' reset cancels pending site-closed timers — gate:
+      `pnpm --filter @d2rmm/api exec vitest run && pnpm exec turbo run test:acceptance -- --grep @QUE-`

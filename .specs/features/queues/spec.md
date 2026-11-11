@@ -75,6 +75,10 @@ Site
   and the wait at match, with mode, difficulty, ladder and era as attributes and no account or character name.
 - **QUE-17** — Every new user-facing string SHALL come from the translation files in English and pt-BR, and the queue
   controls SHALL be usable by keyboard (NFR-12, NFR-13).
+- **QUE-18** — IF an account joins the queue more than 10 times within one minute THEN the API SHALL refuse with 429
+  `too-many-joins` and change nothing.
+- **QUE-19** — IF a pool (the filters of QUE-07) already holds 2,000 waiting tickets THEN the API SHALL refuse a new
+  ticket for it with `queue-full`.
 
 ## Sources
 
@@ -97,6 +101,8 @@ Site
 | QUE-15 | FR-06, FR-07, FR-09; NFR-01; prototype (maintainer, 2026-11-10)            |
 | QUE-16 | AGENTS.md rule 10; Design Doc § Observabilidade                            |
 | QUE-17 | NFR-12, NFR-13                                                             |
+| QUE-18 | NFR-06, NFR-14; security review of #51                                     |
+| QUE-19 | NFR-14; security review of #51                                             |
 
 ## Requirement Traceability
 
@@ -119,6 +125,8 @@ Site
 | QUE-15         | Site      | acceptance `@QUE-15` + component tests                     |
 | QUE-16         | Telemetry | unit tests with in-memory exporters                        |
 | QUE-17         | Access    | i18n lint + keyboard steps in `@QUE-15`                    |
+| QUE-18         | Entry     | application unit tests + route integration test            |
+| QUE-19         | Entry     | application unit tests                                     |
 
 ## Decisions (conservative defaults)
 

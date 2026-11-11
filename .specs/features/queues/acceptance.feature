@@ -4,6 +4,8 @@
 # not-scenario: QUE-09 — domain unit tests of the matcher (every member's level ≥ every member's minimum)
 # not-scenario: QUE-16 — unit tests with in-memory span and metric exporters
 # not-scenario: QUE-17 — the i18n lint; keyboard use is exercised in @QUE-15
+# not-scenario: QUE-18 — application unit tests and a route integration test
+# not-scenario: QUE-19 — application unit tests
 
 Feature: Queues for PvP and leveling
   Players queue with a character and are grouped only with players they can actually play with.
