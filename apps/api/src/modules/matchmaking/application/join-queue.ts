@@ -29,11 +29,14 @@ import type {
   AgentPresencePort,
   CharactersPort,
   JoinLimitStore,
+  PenaltyStore,
   QueueStore,
   RatingsPort,
+  ReadyCheckStore,
   RoomsPort,
   SiteConnectionsPort,
 } from './ports.ts';
+import { isPenalized, penaltySecondsLeft } from '../domain/ready-check/penalty.ts';
 
 /** The body of a join, after the contract validated it (QUE-01, QUE-02). */
 export type QueueJoinInput =
@@ -70,8 +73,16 @@ export type JoinRefusal =
   | 'in-room'
   | 'queue-full';
 
+/** The refusal of a join by a ready-check penalty: the reason and the whole seconds left (RDY-05). */
+export interface PenaltyRefusal {
+  readonly error: 'ready-check-penalty';
+  readonly secondsLeft: number;
+}
+
 export interface JoinQueueDeps {
   readonly store: QueueStore;
+  readonly checks: ReadyCheckStore;
+  readonly penalties: PenaltyStore;
   readonly joinLimits: JoinLimitStore;
   readonly characters: CharactersPort;
   readonly presence: AgentPresencePort;
@@ -108,11 +119,11 @@ export function createJoinQueue(deps: JoinQueueDeps) {
   return (input: {
     readonly accountId: string;
     readonly request: QueueJoinInput;
-  }): Promise<Result<QueueTicketSnapshot, JoinRefusal>> =>
+  }): Promise<Result<QueueTicketSnapshot, JoinRefusal | PenaltyRefusal>> =>
     withRecordingSpan(
       'matchmaking.join',
       { [D2R_QUEUE_MODE]: input.request.mode, [D2R_DIFFICULTY]: input.request.difficulty },
-      async (span): Promise<Result<QueueTicketSnapshot, JoinRefusal>> => {
+      async (span): Promise<Result<QueueTicketSnapshot, JoinRefusal | PenaltyRefusal>> => {
         const { accountId, request } = input;
         // Every attempt counts toward the limit, whatever it answers (QUE-18); a refused attempt records nothing.
         const attempted = deps.clock.now();
@@ -124,8 +135,20 @@ export function createJoinQueue(deps: JoinQueueDeps) {
         if ((await deps.store.byAccount(accountId)) !== undefined) {
           return err('already-queued');
         }
+        // A member of an open ready check is in a group already: no second ticket while the check is open (INV-04).
+        if ((await deps.checks.openOf(accountId)) !== undefined) {
+          return err('already-queued');
+        }
         if (await deps.rooms.hasOpenRoom(accountId)) {
           return err('in-room');
+        }
+        // A player who did not answer a ready check waits five minutes (RDY-05), with the whole seconds left shown.
+        const penalty = await deps.penalties.untilOf(accountId);
+        if (penalty !== undefined && isPenalized(penalty, attempted)) {
+          return err({
+            error: 'ready-check-penalty',
+            secondsLeft: penaltySecondsLeft(penalty, attempted),
+          });
         }
         if (!(await deps.links.isLinked(accountId))) {
           return err('not-linked');
@@ -152,6 +175,7 @@ export function createJoinQueue(deps: JoinQueueDeps) {
         const base = {
           accountId,
           characterId: request.characterId,
+          characterClass: character.characterClass,
           region: request.region,
           difficulty: request.difficulty,
           ladder: entry.value.ladder,

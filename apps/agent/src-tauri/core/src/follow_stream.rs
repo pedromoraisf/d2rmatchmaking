@@ -64,6 +64,15 @@ async fn connect_once<G: ApiGateway + Send + Sync>(
     if !device.api_allowed() {
         return Duration::ZERO;
     }
+    // The open ready check is read on every connection, since its events are not replayed (RDY-11).
+    match ports.gateway.my_ready_check(&token).await {
+        Ok(Some(check)) => device.open_ready_check(check),
+        Ok(None) => device.forget_ready_check(),
+        Err(error) => on_error(device, ports, error),
+    }
+    if !device.api_allowed() {
+        return Duration::ZERO;
+    }
     let mut stream = match ports.gateway.open_stream(&token, last_id.as_deref()).await {
         Ok(stream) => stream,
         Err(error) => {
@@ -91,14 +100,22 @@ async fn read_events(
     loop {
         let next = tokio::select! {
             () = device.wait_until_closed(DeviceState::api_allowed) => None,
-            item = stream.next() => Some(item),
+            // The held check reached its deadline: the hotkey disarms and the loop waits for the next event (RDY-11).
+            () = device.disarm_at_deadline() => Some(None),
+            item = stream.next() => Some(Some(item)),
         };
         match next {
             // The agent stopped being allowed to call the API: stop reading.
             None => break,
-            Some(StreamItem::RoomAssigned(assignment)) => set_assignment(device, Some(assignment)),
+            Some(None) => {}
+            Some(Some(StreamItem::RoomAssigned(assignment))) => {
+                set_assignment(device, Some(assignment));
+            }
+            // A ready check opened or ended for the account (RDY-01, RDY-03 … RDY-05): the hotkey follows it.
+            Some(Some(StreamItem::ReadyCheckStarted(check))) => device.open_ready_check(check),
+            Some(Some(StreamItem::ReadyCheckResolved(end))) => device.close_ready_check(&end.id),
             // The stream ended, failed or went silent: the caller reconnects.
-            Some(StreamItem::Ended(_)) => break,
+            Some(Some(StreamItem::Ended(_))) => break,
         }
     }
     if let Some(id) = stream.last_event_id() {
@@ -162,6 +179,30 @@ mod tests {
 
     fn calls(gateway: &FakeApiGateway) -> Vec<Call> {
         gateway.calls()
+    }
+
+    #[test]
+    fn a_later_run_of_the_same_room_replaces_the_held_name_and_run() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            let mut next_run = assignment("mmbaalh-13");
+            next_run.run = NonZeroU64::new(2).expect("2 is not zero");
+            gateway.script_assignment([Ok(Some(assignment("mmbaalh-12")))]);
+            gateway.script_open_stream([Ok(vec![StreamItem::RoomAssigned(next_run)])]);
+            let (device, _tokens, ports) = paired(&gateway);
+            tokio::spawn(run(Arc::clone(&device), ports));
+
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            let held = device.assignment.borrow().current().cloned();
+            let held = held.expect("an assignment is held");
+            assert_eq!(held.expected_game_name.as_str(), "mmbaalh-13");
+            assert_eq!(held.run.get(), 2, "the Party step reads for run 2");
+            assert_eq!(
+                held.room.as_str(),
+                "7d9f2c1e-0000-4000-8000-000000000001",
+                "the same room"
+            );
+        });
     }
 
     #[test]
@@ -299,5 +340,113 @@ mod tests {
             assert!(*device.update_required.borrow(), "a 426 raises the gate");
             assert!(!device.api_allowed(), "the API loops stop");
         });
+    }
+}
+
+#[cfg(test)]
+mod ready_check_reads {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use super::connect_once;
+    use crate::device_state::DeviceState;
+    use crate::fakes::{FakeApiGateway, MemoryTokens, NullSink};
+    use crate::groups::StreamPorts;
+    use crate::messages::ReadyCheckOpen;
+    use crate::ports::{ApiError, TokenStore};
+    use crate::secret::Secret;
+
+    const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
+
+    fn check(id: &str) -> ReadyCheckOpen {
+        ReadyCheckOpen {
+            id: id.to_string(),
+            remaining: Duration::from_secs(60),
+        }
+    }
+
+    fn paired(gateway: &Arc<FakeApiGateway>) -> (DeviceState, StreamPorts<FakeApiGateway>) {
+        let tokens = Arc::new(MemoryTokens::default());
+        tokens
+            .save(&Secret::new(TOKEN))
+            .expect("the memory store accepts a write");
+        let device = DeviceState::new(Arc::new(NullSink));
+        device.set_paired(true);
+        let ports = StreamPorts {
+            gateway: Arc::clone(gateway),
+            tokens,
+        };
+        (device, ports)
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_connection_reads_the_open_check_and_holds_it() {
+        let gateway = Arc::new(FakeApiGateway::new());
+        gateway.script_assignment([Ok(None)]);
+        gateway.script_open_stream([Ok(Vec::new())]);
+        gateway.script_my_ready_check([Ok(Some(check("rc-1")))]);
+        let (device, ports) = paired(&gateway);
+
+        let mut last_id = None;
+        connect_once(&device, &ports, &mut last_id).await;
+
+        assert_eq!(gateway.my_ready_check_reads(), 1);
+        assert_eq!(device.answerable_ready_check(), Some("rc-1".to_string()));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_connection_that_finds_no_check_forgets_a_held_one() {
+        let gateway = Arc::new(FakeApiGateway::new());
+        gateway.script_assignment([Ok(None)]);
+        gateway.script_open_stream([Ok(Vec::new())]);
+        gateway.script_my_ready_check([Ok(None)]);
+        let (device, ports) = paired(&gateway);
+        device.open_ready_check(check("rc-old"));
+
+        let mut last_id = None;
+        connect_once(&device, &ports, &mut last_id).await;
+
+        assert!(device.answerable_ready_check().is_none());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_failed_read_keeps_what_the_stream_said() {
+        let gateway = Arc::new(FakeApiGateway::new());
+        gateway.script_assignment([Ok(None)]);
+        gateway.script_open_stream([Ok(Vec::new())]);
+        gateway.script_my_ready_check([Err(ApiError::Network)]);
+        let (device, ports) = paired(&gateway);
+        device.open_ready_check(check("rc-1"));
+
+        let mut last_id = None;
+        connect_once(&device, &ports, &mut last_id).await;
+
+        assert!(device.answerable_ready_check().is_some());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn an_unanswered_check_disarms_at_its_end_without_a_resolution() {
+        let gateway = Arc::new(FakeApiGateway::new());
+        let (device, _ports) = paired(&gateway);
+        let device = Arc::new(device);
+        device.open_ready_check(check("rc-1"));
+        assert!(device.hub.snapshot().ready_check_open);
+
+        let armed = tokio::spawn({
+            let device = Arc::clone(&device);
+            async move { device.disarm_at_deadline().await }
+        });
+        tokio::time::sleep(Duration::from_secs(59)).await;
+        assert!(
+            device.hub.snapshot().ready_check_open,
+            "still open before its time runs out"
+        );
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        armed.await.expect("the disarm task finishes");
+        assert!(
+            !device.hub.snapshot().ready_check_open,
+            "disarmed when its time ran out"
+        );
     }
 }

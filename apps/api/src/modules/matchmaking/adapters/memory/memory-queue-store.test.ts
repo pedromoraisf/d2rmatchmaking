@@ -6,6 +6,7 @@ const ticket = (id: string, accountId: string): QueueTicket => ({
   id,
   accountId,
   characterId: `char-${accountId}`,
+  characterClass: 'sorceress',
   mode: 'pvp',
   region: 'americas',
   difficulty: 'hell',

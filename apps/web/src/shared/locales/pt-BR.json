@@ -101,9 +101,11 @@
     }
   },
   "room": {
+    "heading": "Sua sala",
     "gameName": "Nome do jogo",
     "noPassword": "Sem senha",
     "stage": "Etapa",
+    "stagesLabel": "Etapas da sala",
     "stages": {
       "formed": "Formada",
       "awaiting_host": "Aguardando anfitrião",
@@ -111,6 +113,38 @@
       "active": "Ativa",
       "closed": "Fechada",
       "expired": "Expirada"
+    },
+    "copy": "Copiar nome do jogo",
+    "copied": "Nome do jogo copiado.",
+    "copyFailed": "Não foi possível copiar. O nome do jogo está selecionado: pressione Ctrl+C.",
+    "stepsLabel": "O que fazer",
+    "steps": {
+      "hostCreate": "Você cria um jogo público chamado {{name}} sem senha.",
+      "hostParty": "No jogo, abra o painel Party e clique no olho para o agente conseguir ler o nome.",
+      "memberWait": "O anfitrião cria um jogo público chamado {{name}} sem senha.",
+      "memberJoin": "Entre nesse jogo pela Lista de Jogos.",
+      "memberParty": "Depois de entrar, abra o painel Party e clique no olho para o agente conseguir ler o nome.",
+      "expiry": "Se o jogo não for criado em 3 minutos, a sala expira e todos são liberados."
+    },
+    "membersLabel": "Membros",
+    "host": "Anfitrião",
+    "you": "Você",
+    "classLevel": "{{characterClass}}, nível {{level}}",
+    "unknownCharacter": "Personagem não exibido",
+    "presence": {
+      "waiting": "Aguardando",
+      "confirmed": "Confirmado pelo agente"
+    },
+    "runsLabel": "Corridas",
+    "run": "Corrida {{run}}",
+    "runCurrent": "atual",
+    "leave": "Sair da sala",
+    "nextRun": "Próxima corrida",
+    "close": "Fechar sala",
+    "actionFailed": "A ação não foi concluída. Tente de novo.",
+    "ended": {
+      "closed": "O anfitrião fechou a sala. Você já pode entrar em uma fila de novo.",
+      "expired": "A sala expirou porque o jogo não foi criado a tempo. Você já pode entrar em uma fila de novo."
     }
   },
   "testMatch": {
@@ -195,7 +229,24 @@
       "already-queued": "Você já tem um ticket na fila.",
       "in-room": "Você está em uma sala que ainda está aberta.",
       "too-many-joins": "Muitas entradas na fila em um minuto. Aguarde um pouco e tente de novo.",
-      "queue-full": "Esta fila está cheia agora. Tente de novo daqui a pouco."
-    }
+      "queue-full": "Esta fila está cheia agora. Tente de novo daqui a pouco.",
+      "ready-check-penalty": "Você não respondeu a uma confirmação de partida: espere antes de entrar na fila de novo."
+    },
+    "penalty": "Você não respondeu a uma confirmação de partida. Poderá entrar na fila em {{time}}."
+  },
+  "readyCheck": {
+    "subtitle": "Partida encontrada · {{difficulty}}",
+    "heading": "Confirmação de partida",
+    "secondsLeft": "{{seconds}} segundos restantes",
+    "membersLabel": "Jogadores desta partida",
+    "memberLabel": "Jogador {{position}}: {{characterClass}}, nível {{level}}",
+    "accepted": "Aceitou",
+    "waiting": "Aguardando",
+    "you": "VOCÊ",
+    "accept": "Aceitar",
+    "decline": "Recusar",
+    "answerFailed": "Esta resposta não valeu. A confirmação pode ter terminado.",
+    "hotkeyHint": "Também dá para aceitar com <kbd>{{hotkey}}</kbd> sem sair do jogo.",
+    "penaltyNotice": "Recusar não gera penalidade. Não responder gera 5 minutos de espera."
   }
 }

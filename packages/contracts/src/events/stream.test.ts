@@ -3,6 +3,8 @@ import {
   AgentPresenceChangedEvent,
   AgentStreamEvent,
   RoomAssignedEvent,
+  RoomMemberChangedEvent,
+  RoomRunOpenedEvent,
   RoomStageChangedEvent,
   SiteStreamEvent,
 } from './stream.ts';
@@ -100,5 +102,38 @@ describe('stream events', () => {
 
   it('does not accept characters.updated on the agent stream', () => {
     expect(AgentStreamEvent.safeParse({ type: 'characters.updated', data: {} }).success).toBe(false);
+  });
+});
+
+describe('room.run_opened and room.member_changed', () => {
+  const runOpened = {
+    type: 'room.run_opened',
+    data: { roomId: '4821', run: 8, expectedGameName: 'mmbaalh-08', members },
+  };
+  const memberChanged = {
+    type: 'room.member_changed',
+    data: {
+      roomId: '4821',
+      change: 'left',
+      accountId: 'acc-host',
+      members: [{ ...members[1], confirmed: true }],
+    },
+  };
+
+  it('accepts the room.run_opened example on the site and the agent streams', () => {
+    expect(RoomRunOpenedEvent.parse(runOpened)).toStrictEqual(runOpened);
+    expect(SiteStreamEvent.parse(runOpened)).toStrictEqual(runOpened);
+    expect(AgentStreamEvent.parse(runOpened)).toStrictEqual(runOpened);
+  });
+
+  it('accepts the room.member_changed example on the site stream only', () => {
+    expect(RoomMemberChangedEvent.parse(memberChanged)).toStrictEqual(memberChanged);
+    expect(SiteStreamEvent.parse(memberChanged)).toStrictEqual(memberChanged);
+    expect(AgentStreamEvent.safeParse(memberChanged).success).toBe(false);
+  });
+
+  it('rejects a member change of an unknown kind', () => {
+    const unknown = { ...memberChanged, data: { ...memberChanged.data, change: 'kicked' } };
+    expect(RoomMemberChangedEvent.safeParse(unknown).success).toBe(false);
   });
 });

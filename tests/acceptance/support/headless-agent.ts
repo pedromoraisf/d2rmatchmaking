@@ -212,6 +212,11 @@ export class HeadlessAgent {
     this.#child.stdin?.write('read\n');
   }
 
+  /** Sends one `hotkey` line: the example presses the agent's accept hotkey (RDY-07), as the global shortcut does. */
+  hotkey(): void {
+    this.#child.stdin?.write('hotkey\n');
+  }
+
   /**
    * Closes the example's input, so it runs its shutdown (the span exporter flushes, the stream closes), and waits for the
    * exit. A process that does not exit in time is killed with its group.

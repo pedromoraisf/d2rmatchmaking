@@ -32,11 +32,17 @@ const ROUTES: readonly {
   { method: 'get', url: '/v1/agents/me/assignment', path: '/v1/agents/me/assignment' },
   { method: 'delete', url: '/v1/agents/:id', path: '/v1/agents/{id}' },
   { method: 'post', url: '/v1/lobby-rooms/:id/observations', path: '/v1/lobby-rooms/{id}/observations' },
+  { method: 'post', url: '/v1/lobby-rooms/:id/runs', path: '/v1/lobby-rooms/{id}/runs' },
+  { method: 'post', url: '/v1/lobby-rooms/:id/leave', path: '/v1/lobby-rooms/{id}/leave' },
+  { method: 'post', url: '/v1/lobby-rooms/:id/close', path: '/v1/lobby-rooms/{id}/close' },
   { method: 'get', url: '/v1/me/room', path: '/v1/me/room' },
   { method: 'post', url: '/v1/staging/match-formed', path: '/v1/staging/match-formed' },
   { method: 'post', url: '/v1/queue/tickets', path: '/v1/queue/tickets' },
   { method: 'get', url: '/v1/queue/tickets/me', path: '/v1/queue/tickets/me' },
   { method: 'delete', url: '/v1/queue/tickets/:id', path: '/v1/queue/tickets/{id}' },
+  { method: 'get', url: '/v1/ready-checks/me', path: '/v1/ready-checks/me' },
+  { method: 'post', url: '/v1/ready-checks/:id/accept', path: '/v1/ready-checks/{id}/accept' },
+  { method: 'post', url: '/v1/ready-checks/:id/decline', path: '/v1/ready-checks/{id}/decline' },
   { method: 'post', url: '/v1/telemetry/traces', path: '/v1/telemetry/traces' },
   { method: 'get', url: '/v1/stream', path: '/v1/stream' },
 ];
@@ -98,6 +104,18 @@ describe('openapi document', () => {
     const observation = document.paths['/v1/lobby-rooms/{id}/observations']?.['post'];
     expect(observation?.requestBody).toBeDefined();
     expect(Object.keys(observation?.responses ?? {}).sort()).toStrictEqual(['202', '400', '401', '403']);
+    // The room actions take an empty JSON body and answer 204, or 401, 403, 404 or 409 (LBR-06, LBR-07, LBR-09).
+    for (const action of ['runs', 'leave', 'close']) {
+      const operation = document.paths[`/v1/lobby-rooms/{id}/${action}`]?.['post'];
+      expect(operation?.requestBody, action).toBeDefined();
+      expect(Object.keys(operation?.responses ?? {}).sort(), action).toStrictEqual([
+        '204',
+        '401',
+        '403',
+        '404',
+        '409',
+      ]);
+    }
     expect(document.paths['/v1/agents/heartbeat']?.['post']?.requestBody).toBeDefined();
     // Sign-out declares no body (an unauthenticated request must answer 401 before any body is checked).
     expect(document.paths['/v1/auth/logout']?.['post']?.requestBody).toBeUndefined();

@@ -35,5 +35,8 @@
     "allowed": "A captura está permitida neste PC.",
     "withdrawn": "A captura está desligada. O agente não lê nada.",
     "notSaved": "Não foi possível salvar sua escolha. Tente novamente."
+  },
+  "readyCheck": {
+    "hotkey": "Há uma confirmação de partida: pressione Ctrl+Shift+A para aceitar."
   }
 }

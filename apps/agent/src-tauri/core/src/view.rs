@@ -47,6 +47,8 @@ pub struct AgentView {
     pub connectivity: Connectivity,
     pub room: Option<RoomView>,
     pub update: UpdateView,
+    /// A ready check is open for the account: the window shows the hotkey that accepts it (RDY-07).
+    pub ready_check_open: bool,
 }
 
 #[cfg(test)]
@@ -69,6 +71,7 @@ mod tests {
                 matched: false,
             }),
             update: UpdateView::Idle,
+            ready_check_open: true,
         };
 
         assert_eq!(
@@ -78,6 +81,7 @@ mod tests {
                 "connectivity": "connected",
                 "room": { "gameName": "mmbaalh-12", "needsReveal": true, "matched": false },
                 "update": "idle",
+                "readyCheckOpen": true,
             })
         );
     }
@@ -89,6 +93,7 @@ mod tests {
             connectivity: Connectivity::Unreachable,
             room: None,
             update: UpdateView::Required,
+            ready_check_open: false,
         };
 
         assert_eq!(
@@ -98,6 +103,7 @@ mod tests {
                 "connectivity": "unreachable",
                 "room": null,
                 "update": "required",
+                "readyCheckOpen": false,
             })
         );
     }

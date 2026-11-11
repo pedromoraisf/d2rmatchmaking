@@ -261,7 +261,7 @@ describe('joinQueue: refusals (QUE-03 … QUE-06)', () => {
 });
 
 describe('joinQueue: the matcher runs on a join (QUE-11, QUE-12)', () => {
-  it('forms a duel the moment the second compatible player joins', async () => {
+  it('opens a ready check the moment the second compatible player joins, and forms the duel once both accept', async () => {
     const t = queueSetup();
     t.readyPlayer('alice', 'c-sorc');
     t.readyPlayer('bob', 'c-hammer');
@@ -271,6 +271,20 @@ describe('joinQueue: the matcher runs on a join (QUE-11, QUE-12)', () => {
 
     expect(bob.ok).toBe(true);
     expect(await t.store.all()).toHaveLength(0);
+    const check = t.bus.readyChecksStarted();
+    expect(check.map((started) => started.members.map((member) => member.accountId))).toStrictEqual([
+      ['alice', 'bob'],
+    ]);
+    expect(t.outbox.appended.filter((event) => event.type === 'MatchFormed')).toHaveLength(0);
+
+    for (const accountId of ['alice', 'bob']) {
+      const answered = await t.queue.answerReadyCheck({
+        accountId,
+        checkId: check[0]?.readyCheckId ?? '',
+        answer: 'accept',
+      });
+      expect(answered.ok).toBe(true);
+    }
     const formed = t.outbox.appended.filter(
       (event): event is MatchFormedEvent => event.type === 'MatchFormed',
     );
@@ -331,6 +345,7 @@ describe('joinQueue: the limits (QUE-18, QUE-19)', () => {
     id: `w${index}`,
     accountId: `w-account-${index}`,
     characterId: `w-char-${index}`,
+    characterClass: 'sorceress' as const,
     mode: 'pvp' as const,
     region: 'americas' as const,
     difficulty: 'hell' as const,

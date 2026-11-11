@@ -45,8 +45,8 @@ const PROVIDER_MOUNT = '/otel-lgtm/grafana/conf/provisioning/dashboards/';
 test('the dashboard holds the listed panels', () => {
   assert.equal(
     dashboard.panels.length,
-    7,
-    'seven panels: request rate, error rate, duration, outbox lag, streams, queue size, queue wait',
+    10,
+    'ten panels: request rate, error rate, duration, outbox lag, streams, queue size, queue wait, ready checks, room final stage, room time to active',
   );
   for (const panel of dashboard.panels) {
     assert.ok(panel.title, `panel ${panel.id} has a title`);
@@ -72,6 +72,15 @@ test('the dashboard holds the listed panels', () => {
   assert.ok(
     queries('d2r_queue_wait_seconds_bucket'),
     'the queue wait panel reads the wait histogram buckets',
+  );
+  assert.ok(
+    queries('d2r_ready_check_resolved_total'),
+    'the ready check panel reads the outcome counter by its outcome',
+  );
+  assert.ok(queries('d2r_room_final_stage_total'), 'the room panel reads the final stage counter');
+  assert.ok(
+    queries('d2r_room_time_to_active_seconds_bucket'),
+    'the time to active panel reads the histogram buckets',
   );
 
   assert.doesNotMatch(

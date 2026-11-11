@@ -10,23 +10,31 @@ describe('contract documents', () => {
     });
   });
 
-  it('builds an AsyncAPI 3.0 document with the stream channel and its five messages', () => {
+  it('builds an AsyncAPI 3.0 document with the stream channel and its ten messages', () => {
     const document = buildAsyncApiDocument();
     expect(document.asyncapi).toBe('3.0.0');
     expect(document.channels.stream.address).toBe('/v1/stream');
     expect(Object.keys(document.channels.stream.messages)).toStrictEqual([
       'RoomAssigned',
       'RoomStageChanged',
+      'RoomRunOpened',
+      'RoomMemberChanged',
       'AgentPresenceChanged',
       'CharactersUpdated',
       'QueueUpdated',
+      'ReadyCheckStarted',
+      'ReadyCheckUpdated',
+      'ReadyCheckResolved',
     ]);
     expect(document.components.messages['RoomStageChanged']?.name).toBe('room.stage_changed');
   });
 
   it('writes one JSON Schema per agent message', () => {
     expect(Object.keys(buildJsonSchemaFiles()).sort()).toStrictEqual([
+      'agent-event-ready-check-resolved.json',
+      'agent-event-ready-check-started.json',
       'agent-event-room-assigned.json',
+      'agent-event-room-run-opened.json',
       'assignment.json',
       'claim-request.json',
       'claim.json',

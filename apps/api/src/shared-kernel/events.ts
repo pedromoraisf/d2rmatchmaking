@@ -15,6 +15,8 @@ export interface MatchMember {
   readonly role: MemberRole;
   /** The team of a 2v2 member (QUE-12); absent in every other group. */
   readonly team?: 'a' | 'b';
+  /** Whether this member's agent confirmed the current run's game name (INV-06); present in a room's members only. */
+  readonly confirmed?: boolean;
 }
 
 /** A domain event: its type name and its payload. */
@@ -44,6 +46,26 @@ export interface RoomAssignmentChangedPayload {
 export interface RoomStageChangedPayload {
   readonly roomId: string;
   readonly stage: RoomStage;
+  readonly members: readonly MatchMember[];
+}
+
+/** The new run of an active room: its name and the cleared confirmations (LBR-06). */
+export interface RoomRunOpenedPayload {
+  readonly roomId: string;
+  readonly run: number;
+  readonly expectedGameName: string;
+  readonly members: readonly MatchMember[];
+}
+
+/** What changed about a member of a room: confirmed, left (and the room's members after it), or the host changed. */
+export type RoomMemberChange = 'confirmed' | 'left' | 'host_changed';
+
+export interface RoomMemberChangedPayload {
+  readonly roomId: string;
+  readonly change: RoomMemberChange;
+  /** The member the change is about. */
+  readonly accountId: string;
+  /** The members after the change; a member who left is not among them (the projection also tells that member). */
   readonly members: readonly MatchMember[];
 }
 
@@ -104,26 +126,68 @@ export interface QueueUpdatedPayload {
   readonly update: QueueTicketSnapshot | { readonly status: 'left'; readonly reason: QueueLeaveReason };
 }
 
+/** One member of an open ready check, as the transient events carry it (RDY-01, RDY-02): the marks, never a name. */
+export interface ReadyCheckMemberSnapshot {
+  readonly accountId: string;
+  /** The member's place in the join order, from 1 (RDY-02: by position, not name). */
+  readonly position: number;
+  readonly characterClass: CharacterClassName;
+  readonly level: number;
+  readonly accepted: boolean;
+}
+
+/** The character classes of D2R (the contract's `CharacterClass`). */
+export type CharacterClassName =
+  'amazon' | 'assassin' | 'barbarian' | 'druid' | 'necromancer' | 'paladin' | 'sorceress' | 'warlock';
+
+/** The state of an open ready check, sent to each member's streams with the member's own `you` flag (RDY-01, RDY-02). */
+export interface ReadyCheckChangedPayload {
+  readonly readyCheckId: string;
+  readonly mode: 'pvp' | 'leveling';
+  readonly difficulty: 'normal' | 'nightmare' | 'hell';
+  readonly deadline: string;
+  /** The server's clock when the state was read or changed: the site counts down from it, not from its own clock (RDY-11). */
+  readonly serverNow: string;
+  readonly members: readonly ReadyCheckMemberSnapshot[];
+}
+
+/** How a ready check ended, and the accounts it was for (RDY-03 … RDY-05). */
+export interface ReadyCheckResolvedPayload {
+  readonly readyCheckId: string;
+  readonly outcome: 'accepted' | 'declined' | 'timed-out';
+  readonly accountIds: readonly string[];
+}
+
 /** Durable events, written to the outbox in the same transaction as the state change (ADR 008). */
 export type MatchFormedEvent = DomainEvent<'MatchFormed', MatchFormedPayload>;
 export type RoomAssignmentChangedEvent = DomainEvent<'RoomAssignmentChanged', RoomAssignmentChangedPayload>;
 export type RoomStageChangedEvent = DomainEvent<'RoomStageChanged', RoomStageChangedPayload>;
+export type RoomRunOpenedEvent = DomainEvent<'RoomRunOpened', RoomRunOpenedPayload>;
+export type RoomMemberChangedEvent = DomainEvent<'RoomMemberChanged', RoomMemberChangedPayload>;
 export type CharactersRecordedEvent = DomainEvent<'CharactersRecorded', CharactersRecordedPayload>;
 
 /** Transient events, published on the bus only and never stored. */
 export type AgentPresenceChangedEvent = DomainEvent<'AgentPresenceChanged', AgentPresenceChangedPayload>;
 export type AgentRevokedEvent = DomainEvent<'AgentRevoked', AgentRevokedPayload>;
 export type QueueUpdatedEvent = DomainEvent<'QueueUpdated', QueueUpdatedPayload>;
+export type ReadyCheckStartedEvent = DomainEvent<'ReadyCheckStarted', ReadyCheckChangedPayload>;
+export type ReadyCheckUpdatedEvent = DomainEvent<'ReadyCheckUpdated', ReadyCheckChangedPayload>;
+export type ReadyCheckResolvedEvent = DomainEvent<'ReadyCheckResolved', ReadyCheckResolvedPayload>;
 
 /** Every event type of the feature. */
 export type AnyDomainEvent =
   | MatchFormedEvent
   | RoomAssignmentChangedEvent
   | RoomStageChangedEvent
+  | RoomRunOpenedEvent
+  | RoomMemberChangedEvent
   | CharactersRecordedEvent
   | AgentPresenceChangedEvent
   | AgentRevokedEvent
-  | QueueUpdatedEvent;
+  | QueueUpdatedEvent
+  | ReadyCheckStartedEvent
+  | ReadyCheckUpdatedEvent
+  | ReadyCheckResolvedEvent;
 
 /** What the bus carries: durable events keep their outbox id, transient events have none. */
 export type BusEvent =

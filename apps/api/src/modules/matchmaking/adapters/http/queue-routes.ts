@@ -66,7 +66,11 @@ export function queueRoutes(app: FastifyInstance, deps: QueueRouteDeps): void {
       }
       const joined = await useCases.joinQueue({ accountId: request.accountId, request: request.body });
       if (!joined.ok) {
-        return reply.code(joinRefusalStatus(joined.error)).send({ error: joined.error });
+        // A ready-check penalty carries the whole seconds left (RDY-05); every other refusal is its code alone.
+        if (typeof joined.error === 'string') {
+          return reply.code(joinRefusalStatus(joined.error)).send({ error: joined.error });
+        }
+        return reply.code(422).send({ error: joined.error.error, secondsLeft: joined.error.secondsLeft });
       }
       return reply.code(201).send(joined.value);
     },

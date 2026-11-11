@@ -14,7 +14,9 @@ use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::{ReadText, Region};
 
 use crate::check_update::Updater;
-use crate::messages::{FrameReading, GameNameObservation, IssuedCode, Presence, Screen};
+use crate::messages::{
+    FrameReading, GameNameObservation, IssuedCode, Presence, ReadyCheckOpen, Screen,
+};
 use crate::ports::{
     ApiError, ApiGateway, ConsentStore, EndReason, EventStream, FrameReader, FrameSource,
     ProcessSource, ReadError, Rgba, StateSink, StoreError, StreamItem, TextReader, TokenStore,
@@ -33,6 +35,7 @@ pub enum Call {
     PostObservation(GameNameObservation),
     PostCharacters { cards: Vec<Card> },
     OpenStream { last_event_id: Option<String> },
+    AcceptReadyCheck { check_id: String },
 }
 
 /// Calls a fake answers in one scenario before the loop under test counts as spinning. A legitimate scenario makes a few
@@ -64,6 +67,10 @@ struct Script {
     post_observation: VecDeque<Result<(), ApiError>>,
     post_characters: VecDeque<Result<(), ApiError>>,
     open_stream: VecDeque<Result<Vec<StreamItem>, ApiError>>,
+    accept_ready_check: VecDeque<Result<(), ApiError>>,
+    my_ready_check: VecDeque<Result<Option<ReadyCheckOpen>, ApiError>>,
+    /// The reads of the account's open check. Kept apart from `calls`, which counts the stream's requests (RDY-11).
+    my_ready_check_reads: usize,
     hold_streams: bool,
     calls: Vec<Call>,
     call_limit: usize,
@@ -131,6 +138,26 @@ impl FakeApiGateway {
     }
 
     /// Every stream opened from now on stays open after its scripted items, until the code under test stops reading it.
+    pub fn script_accept_ready_check(
+        &self,
+        answers: impl IntoIterator<Item = Result<(), ApiError>>,
+    ) {
+        self.with(|script| script.accept_ready_check.extend(answers));
+    }
+
+    /// Answers of `my_ready_check`; with none scripted the account holds no open check.
+    pub fn script_my_ready_check(
+        &self,
+        answers: impl IntoIterator<Item = Result<Option<ReadyCheckOpen>, ApiError>>,
+    ) {
+        self.with(|script| script.my_ready_check.extend(answers));
+    }
+
+    /// How many times the account's open check was read.
+    pub fn my_ready_check_reads(&self) -> usize {
+        self.with(|script| script.my_ready_check_reads)
+    }
+
     pub fn hold_streams(&self) {
         self.with(|script| script.hold_streams = true);
     }
@@ -213,6 +240,22 @@ impl ApiGateway for FakeApiGateway {
                 cards: cards.to_vec(),
             });
             answer(&mut script.post_characters)
+        })
+    }
+
+    async fn my_ready_check(&self, _token: &Secret) -> Result<Option<ReadyCheckOpen>, ApiError> {
+        self.with(|script| {
+            script.my_ready_check_reads += 1;
+            script.my_ready_check.pop_front().unwrap_or(Ok(None))
+        })
+    }
+
+    async fn accept_ready_check(&self, _token: &Secret, check_id: &str) -> Result<(), ApiError> {
+        self.with(|script| {
+            script.calls.push(Call::AcceptReadyCheck {
+                check_id: check_id.to_string(),
+            });
+            answer(&mut script.accept_ready_check)
         })
     }
 

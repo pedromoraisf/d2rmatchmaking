@@ -8,6 +8,8 @@ import * as battletagNotUnique from '../../../migrations/0005_battletag_not_uniq
 import * as identityCharacters from '../../../migrations/0006_identity_characters.ts';
 import * as charactersNameCi from '../../../migrations/0007_characters_name_ci.ts';
 import * as charactersDeclaredLadderEra from '../../../migrations/0008_characters_declared_ladder_era.ts';
+import * as matchmakingPenalties from '../../../migrations/0009_matchmaking_penalties.ts';
+import * as lobbyRoomStages from '../../../migrations/0010_lobby_room_stages.ts';
 
 /**
  * Every migration of the API, by name. Kysely applies them in name order. The list lives here, not in `main/`, so the
@@ -22,6 +24,8 @@ const MIGRATIONS: Readonly<Record<string, Migration>> = {
   '0006_identity_characters': identityCharacters,
   '0007_characters_name_ci': charactersNameCi,
   '0008_characters_declared_ladder_era': charactersDeclaredLadderEra,
+  '0009_matchmaking_penalties': matchmakingPenalties,
+  '0010_lobby_room_stages': lobbyRoomStages,
 };
 
 const provider: MigrationProvider = {

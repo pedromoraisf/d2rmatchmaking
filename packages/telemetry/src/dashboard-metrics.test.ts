@@ -31,6 +31,10 @@ const PROMETHEUS_NAMES: Record<string, string> = {
   // A gauge with a curly-brace unit has no suffix; the histogram's unit `s` is `seconds`.
   [INSTRUMENT_NAMES.queueSize]: 'd2r_queue_size',
   [INSTRUMENT_NAMES.queueWait]: 'd2r_queue_wait_seconds',
+  // A counter is queried with its `_total` suffix (the OpenTelemetry-to-Prometheus rule for monotonic sums).
+  [INSTRUMENT_NAMES.readyCheckResolved]: 'd2r_ready_check_resolved_total',
+  [INSTRUMENT_NAMES.roomFinalStage]: 'd2r_room_final_stage_total',
+  [INSTRUMENT_NAMES.roomTimeToActive]: 'd2r_room_time_to_active_seconds',
 };
 
 /** PromQL words that are functions or keywords, not metric names. */

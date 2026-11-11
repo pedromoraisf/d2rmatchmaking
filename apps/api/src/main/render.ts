@@ -46,6 +46,7 @@ async function main(): Promise<void> {
       minAgentVersion: config.agentMinVersion,
       siteOrigin: config.siteOrigin,
       trustProxyHops: config.trustProxyHops,
+      roomDropToleranceSeconds: config.roomDropToleranceSeconds,
       bnet: config.bnet,
     },
     clock,

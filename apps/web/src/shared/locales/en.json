@@ -101,9 +101,11 @@
     }
   },
   "room": {
+    "heading": "Your room",
     "gameName": "Game name",
     "noPassword": "No password",
     "stage": "Stage",
+    "stagesLabel": "Room stages",
     "stages": {
       "formed": "Formed",
       "awaiting_host": "Awaiting host",
@@ -111,6 +113,38 @@
       "active": "Active",
       "closed": "Closed",
       "expired": "Expired"
+    },
+    "copy": "Copy game name",
+    "copied": "Game name copied.",
+    "copyFailed": "Could not copy. The game name is selected: press Ctrl+C.",
+    "stepsLabel": "What to do",
+    "steps": {
+      "hostCreate": "You create a public game named {{name}} with no password.",
+      "hostParty": "In the game, open the Party panel and click the eye so the agent can read the name.",
+      "memberWait": "The host creates a public game named {{name}} with no password.",
+      "memberJoin": "Join that game from the Game List.",
+      "memberParty": "After joining, open the Party panel and click the eye so the agent can read the name.",
+      "expiry": "If the game is not created within 3 minutes the room expires and everyone is released."
+    },
+    "membersLabel": "Members",
+    "host": "Host",
+    "you": "You",
+    "classLevel": "{{characterClass}}, level {{level}}",
+    "unknownCharacter": "Character not shown",
+    "presence": {
+      "waiting": "Waiting",
+      "confirmed": "Confirmed by the agent"
+    },
+    "runsLabel": "Runs",
+    "run": "Run {{run}}",
+    "runCurrent": "current",
+    "leave": "Leave room",
+    "nextRun": "Next run",
+    "close": "Close room",
+    "actionFailed": "The action did not go through. Try again.",
+    "ended": {
+      "closed": "The host closed the room. You are free to join a queue again.",
+      "expired": "The room expired because the game was not created in time. You are free to join a queue again."
     }
   },
   "testMatch": {
@@ -195,7 +229,24 @@
       "already-queued": "You already have a ticket in the queue.",
       "in-room": "You are in a room that is still open.",
       "too-many-joins": "Too many joins in a minute. Wait a moment and try again.",
-      "queue-full": "This queue is full right now. Try again in a little while."
-    }
+      "queue-full": "This queue is full right now. Try again in a little while.",
+      "ready-check-penalty": "You did not answer a ready check: wait before you queue again."
+    },
+    "penalty": "You did not answer a ready check. You can queue again in {{time}}."
+  },
+  "readyCheck": {
+    "subtitle": "Match found · {{difficulty}}",
+    "heading": "Ready check",
+    "secondsLeft": "{{seconds}} seconds left",
+    "membersLabel": "Members of this match",
+    "memberLabel": "Member {{position}}: {{characterClass}}, level {{level}}",
+    "accepted": "Accepted",
+    "waiting": "Waiting",
+    "you": "YOU",
+    "accept": "Accept",
+    "decline": "Decline",
+    "answerFailed": "This answer did not count. The check may have ended.",
+    "hotkeyHint": "You can also accept with <kbd>{{hotkey}}</kbd> without leaving the game.",
+    "penaltyNotice": "Declining has no penalty. Not answering gives a 5-minute wait."
   }
 }

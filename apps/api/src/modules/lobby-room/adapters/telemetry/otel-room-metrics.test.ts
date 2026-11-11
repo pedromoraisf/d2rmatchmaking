@@ -46,4 +46,34 @@ describe('OtelRoomMetrics', () => {
     });
     expect(points[0]?.value.sum).toBe(90);
   });
+
+  it('counts a room by its final stage and records the time to active, with bounded attributes', async () => {
+    const reader = new PeriodicExportingMetricReader({
+      exporter: new InMemoryMetricExporter(AggregationTemporality.CUMULATIVE),
+      exportIntervalMillis: 60_000,
+    });
+    const provider = new MeterProvider({ readers: [reader] });
+    const metrics = new OtelRoomMetrics(provider.getMeter(APP_METER_NAME));
+
+    metrics.finalStage('expired', 'hell', 'pvp');
+    metrics.finalStage('expired', 'hell', 'pvp');
+    metrics.timeToActive('hell', 'pvp', 42);
+    const collected = await reader.collect();
+    await provider.shutdown();
+
+    const byName = (name: string) =>
+      collected.resourceMetrics.scopeMetrics
+        .flatMap((scope) => scope.metrics)
+        .find((candidate) => candidate.descriptor.name === name);
+    const counter = byName(INSTRUMENT_NAMES.roomFinalStage);
+    expect(counter?.dataPoints.map((point) => [point.attributes, point.value])).toEqual([
+      [{ 'd2r.room.stage': 'expired', 'd2r.difficulty': 'hell', 'd2r.queue.mode': 'pvp' }, 2],
+    ]);
+    const histogram = byName(INSTRUMENT_NAMES.roomTimeToActive);
+    expect(histogram?.descriptor.unit).toBe('s');
+    const points = (histogram?.dataPoints ?? []) as DataPoint<Histogram>[];
+    expect(points.map((point) => [point.attributes, point.value.sum])).toEqual([
+      [{ 'd2r.difficulty': 'hell', 'd2r.queue.mode': 'pvp' }, 42],
+    ]);
+  });
 });

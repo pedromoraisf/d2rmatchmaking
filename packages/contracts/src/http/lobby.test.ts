@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Assignment, Observation, RoomView } from './lobby.ts';
+import { Assignment, Observation, RoomActionRequest, RoomView } from './lobby.ts';
 
 const observation = {
   idempotencyKey: 'obs-1',
@@ -77,11 +77,32 @@ describe('RoomView', () => {
     run: 1,
     expectedGameName: 'mmbaalh-12',
     password: '',
-    members,
+    you: 'acc-guest',
+    members: members.map((member) => ({ ...member, confirmed: false, class: 'sorceress', level: 88 })),
+    runs: [{ run: 1, gameName: 'mmbaalh-12' }],
+    expiresAt: '2026-11-01T10:03:00.000Z',
+    serverNow: '2026-11-01T10:00:00.000Z',
   };
 
   it('accepts the room view of a freshly formed match', () => {
     expect(RoomView.parse(room)).toStrictEqual(room);
+  });
+
+  it('accepts a room with no expiry and members whose character is unknown', () => {
+    const open = {
+      ...room,
+      expiresAt: null,
+      members: room.members.map((member) => ({ ...member, class: null, level: null })),
+    };
+    expect(RoomView.parse(open)).toStrictEqual(open);
+  });
+
+  it('rejects a room with no run in its history', () => {
+    expect(RoomView.safeParse({ ...room, runs: [] }).success).toBe(false);
+  });
+
+  it('accepts the empty body of the room actions', () => {
+    expect(RoomActionRequest.parse({})).toStrictEqual({});
   });
 
   it('rejects an unknown stage', () => {

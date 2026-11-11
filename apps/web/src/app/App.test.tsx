@@ -10,6 +10,11 @@ import { App } from './App.tsx';
 
 afterEach(cleanup);
 
+/** The stage the room panel marks as current in its stepper, or null when no room is shown. */
+function currentStage(): string | null {
+  return document.querySelector('.stepper [aria-current="step"]')?.textContent ?? null;
+}
+
 const config = { stagingEndpoints: true, minAgentVersion: '0.0.1', bnetSignIn: false };
 const player = { accountId: 'acc-1', displayName: 'PlayerOne' };
 const pairedAgent = {
@@ -30,7 +35,11 @@ const room = {
   run: 1,
   expectedGameName: 'mmbaalh-12',
   password: '',
-  members: [member],
+  you: 'acc-1',
+  runs: [{ run: 1, gameName: 'mmbaalh-12' }],
+  expiresAt: null,
+  serverNow: '2026-11-01T10:00:00.000Z',
+  members: [{ ...member, class: null, level: null }],
 };
 
 // Captures the handlers App hands to the stream, so a test plays the server's events.
@@ -254,10 +263,10 @@ describe('App', () => {
     renderInLanguage(<App client={createApiClient(fetch)} openStream={fakeStream().openStream} />);
     expect(await screen.findByText('mmbaalh-12')).toBeTruthy();
     expect(screen.getByText('No password')).toBeTruthy();
-    expect(screen.getByText('Awaiting host')).toBeTruthy();
+    expect(currentStage()).toBe('Awaiting host');
   });
 
-  it('shows a room assigned on the stream as "Awaiting host" and then "Created" when its stage changes', async () => {
+  it('shows a room assigned on the stream as "Formed", then "Awaiting host" and "Created" as its stage changes', async () => {
     const { fetch } = routeFetch({
       'GET /api/v1/config': () => jsonResponse(200, config),
       'GET /api/v1/me': () => jsonResponse(200, player),
@@ -272,14 +281,97 @@ describe('App', () => {
       data: { roomId: '4821', run: 1, expectedGameName: 'mmbaalh-12', members: [member] },
     });
     expect(screen.getByText('mmbaalh-12')).toBeTruthy();
-    expect(screen.getByText('Awaiting host')).toBeTruthy();
+    expect(currentStage()).toBe('Formed');
+
+    await playEvent(stream, {
+      type: 'room.stage_changed',
+      data: { roomId: '4821', stage: 'awaiting_host', members: [member] },
+    });
+    expect(currentStage()).toBe('Awaiting host');
 
     await playEvent(stream, {
       type: 'room.stage_changed',
       data: { roomId: '4821', stage: 'created', members: [member] },
     });
-    expect(screen.getByText('Created')).toBeTruthy();
-    expect(screen.queryByText('Awaiting host')).toBeNull();
+    expect(currentStage()).toBe('Created');
+    expect(currentStage()).not.toBe('Awaiting host');
+  });
+
+  it('follows the next run, a confirmation and a host that left on the stream (LBR-04, LBR-06, LBR-07)', async () => {
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(200, player),
+      'GET /api/v1/agents/me': () => jsonResponse(200, { status: 'none' }),
+      'GET /api/v1/me/room': () => jsonResponse(404),
+    });
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={stream.openStream} />);
+    await screen.findByText('Pairing code');
+    const guest: Member = { accountId: 'acc-2', characterId: null, joinOrder: 2, role: 'member' };
+    await playEvent(stream, {
+      type: 'room.assigned',
+      data: { roomId: '4821', run: 1, expectedGameName: 'mmbaalh-12', members: [member, guest] },
+    });
+
+    await playEvent(stream, {
+      type: 'room.member_changed',
+      data: {
+        roomId: '4821',
+        change: 'confirmed',
+        accountId: 'acc-2',
+        members: [member, { ...guest, confirmed: true }],
+      },
+    });
+    expect(screen.getAllByText('Confirmed by the agent')).toHaveLength(1);
+
+    await playEvent(stream, {
+      type: 'room.run_opened',
+      data: {
+        roomId: '4821',
+        run: 2,
+        expectedGameName: 'mmbaalh-13',
+        members: [member, guest],
+      },
+    });
+    expect(screen.getByText('mmbaalh-13', { selector: 'code' })).toBeTruthy();
+    expect(screen.queryByText('mmbaalh-12', { selector: 'code' })).toBeNull();
+    expect(screen.getAllByText('Waiting')).toHaveLength(2);
+
+    await playEvent(stream, {
+      type: 'room.member_changed',
+      data: {
+        roomId: '4821',
+        change: 'host_changed',
+        accountId: 'acc-2',
+        members: [{ ...guest, role: 'host' }],
+      },
+    });
+    expect(screen.getAllByRole('listitem').some((row) => row.textContent?.includes('Host'))).toBe(true);
+    expect(screen.getAllByText('Host')).toHaveLength(1);
+  });
+
+  it('clears the room when the player leaves it, on this site or another (LBR-07)', async () => {
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(200, player),
+      'GET /api/v1/agents/me': () => jsonResponse(200, { status: 'none' }),
+      'GET /api/v1/me/room': () => jsonResponse(404),
+    });
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={stream.openStream} />);
+    await screen.findByText('Pairing code');
+    await playEvent(stream, {
+      type: 'room.assigned',
+      data: { roomId: '4821', run: 1, expectedGameName: 'mmbaalh-12', members: [member] },
+    });
+    expect(screen.getByText('mmbaalh-12')).toBeTruthy();
+
+    await playEvent(stream, {
+      type: 'room.member_changed',
+      data: { roomId: '4821', change: 'left', accountId: 'acc-1', members: [] },
+    });
+
+    expect(screen.queryByText('mmbaalh-12')).toBeNull();
   });
 
   it('a newer room replaces the room on screen', async () => {
@@ -352,7 +444,7 @@ describe('App', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Start test match' }));
     expect(await screen.findByText('mmbaalh-12')).toBeTruthy();
-    expect(screen.getByText('Awaiting host')).toBeTruthy();
+    expect(currentStage()).toBe('Awaiting host');
   });
 
   it('ignores a read that answers after a stream event', async () => {
@@ -366,11 +458,11 @@ describe('App', () => {
       type: 'room.stage_changed',
       data: { roomId: '4821', stage: 'created', members: [member] },
     });
-    expect(screen.getByText('Created')).toBeTruthy();
+    expect(currentStage()).toBe('Created');
 
     await reads.release(jsonResponse(200, room));
-    expect(screen.getByText('Created')).toBeTruthy();
-    expect(screen.queryByText('Awaiting host')).toBeNull();
+    expect(currentStage()).toBe('Created');
+    expect(currentStage()).not.toBe('Awaiting host');
   });
 
   it('reads again after ignoring a read', async () => {
@@ -388,8 +480,8 @@ describe('App', () => {
 
     await vi.waitFor(() => expect(reads.reads()).toBe(3));
     await reads.release(roomReply('created'));
-    expect(screen.getByText('Created')).toBeTruthy();
-    expect(screen.queryByText('Awaiting host')).toBeNull();
+    expect(currentStage()).toBe('Created');
+    expect(currentStage()).not.toBe('Awaiting host');
   });
 
   it('reads again when a read fails after a stream event', async () => {
@@ -407,7 +499,7 @@ describe('App', () => {
     await reads.release(jsonResponse(500));
     await vi.waitFor(() => expect(reads.reads()).toBe(3));
     await reads.release(roomReply('created'));
-    expect(screen.getByText('Created')).toBeTruthy();
+    expect(currentStage()).toBe('Created');
   });
 
   it('ignores a test match read that answers after a stream event', async () => {
@@ -428,11 +520,11 @@ describe('App', () => {
       type: 'room.stage_changed',
       data: { roomId: '4821', stage: 'created', members: [member] },
     });
-    expect(screen.getByText('Created')).toBeTruthy();
+    expect(currentStage()).toBe('Created');
 
     await reads.release(roomReply('awaiting_host'));
-    expect(screen.getByText('Created')).toBeTruthy();
-    expect(screen.queryByText('Awaiting host')).toBeNull();
+    expect(currentStage()).toBe('Created');
+    expect(currentStage()).not.toBe('Awaiting host');
   });
 
   it('a presence event during a read also makes the site read again', async () => {
@@ -469,13 +561,13 @@ describe('App', () => {
       type: 'room.stage_changed',
       data: { roomId: '4821', stage: 'created', members: [member] },
     });
-    expect(screen.getByText('Created')).toBeTruthy();
+    expect(currentStage()).toBe('Created');
 
     await reads.release(roomReply('awaiting_host'));
     await vi.waitFor(() => expect(reads.reads()).toBe(3));
     await reads.release(roomReply('created'));
-    expect(screen.getByText('Created')).toBeTruthy();
-    expect(screen.queryByText('Awaiting host')).toBeNull();
+    expect(currentStage()).toBe('Created');
+    expect(currentStage()).not.toBe('Awaiting host');
     expect(reads.reads()).toBe(3);
   });
 
@@ -488,7 +580,7 @@ describe('App', () => {
     await vi.waitFor(() => expect(reads.reads()).toBe(2));
 
     await reads.release(roomReply('created'));
-    expect(screen.getByText('Created')).toBeTruthy();
+    expect(currentStage()).toBe('Created');
     expect(reads.reads()).toBe(2);
   });
 
@@ -502,7 +594,7 @@ describe('App', () => {
 
     await reads.release(jsonResponse(404));
     expect(screen.queryByText('mmbaalh-12')).toBeNull();
-    expect(screen.queryByText('Awaiting host')).toBeNull();
+    expect(currentStage()).toBeNull();
   });
 
   it('keeps the stage from the stream when the new read fails', async () => {
@@ -520,8 +612,8 @@ describe('App', () => {
     await reads.release(roomReply('awaiting_host'));
     await vi.waitFor(() => expect(reads.reads()).toBe(3));
     await reads.release(jsonResponse(500));
-    expect(screen.getByText('Created')).toBeTruthy();
-    expect(screen.queryByText('Awaiting host')).toBeNull();
+    expect(currentStage()).toBe('Created');
+    expect(currentStage()).not.toBe('Awaiting host');
   });
 
   it('offers the Battle.net sign-in when the API has the credentials', async () => {
@@ -602,5 +694,41 @@ describe('App', () => {
     expect(await screen.findByText('Sign in with a test account')).toBeTruthy();
     expect(screen.queryByText('Signed in as PlayerOne')).toBeNull();
     expect(screen.queryByLabelText('Pairing code')).toBeNull();
+  });
+
+  it('shows an open ready check the site reads on load, with the overlay focused on Accept (RDY-11)', async () => {
+    const deadline = new Date(Date.now() + 60_000).toISOString();
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(200, player),
+      'GET /api/v1/agents/me': () => jsonResponse(200, { status: 'none' }),
+      'GET /api/v1/ready-checks/me': () =>
+        jsonResponse(200, {
+          id: 'rc-1',
+          mode: 'pvp',
+          difficulty: 'hell',
+          deadline,
+          now: new Date().toISOString(),
+          members: [
+            { position: 1, class: 'sorceress', level: 91, accepted: false, you: true },
+            { position: 2, class: 'barbarian', level: 84, accepted: false, you: false },
+          ],
+        }),
+    });
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={fakeStream().openStream} />);
+    expect(await screen.findByRole('dialog', { name: 'Ready check' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Accept' })).toBeTruthy();
+  });
+
+  it('shows no overlay when the read answers 204 (no open check)', async () => {
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(200, player),
+      'GET /api/v1/agents/me': () => jsonResponse(200, { status: 'none' }),
+      'GET /api/v1/ready-checks/me': () => new Response(null, { status: 204 }),
+    });
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={fakeStream().openStream} />);
+    expect(await screen.findByText('Pairing code')).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'Ready check' })).toBeNull();
   });
 });

@@ -229,7 +229,8 @@ fn claim_outcome(answer: &Result<Secret, ApiError>) -> Option<ClaimOutcome> {
             retry_after: *retry_after,
         }),
         Err(ApiError::UpgradeRequired) => None,
-        Err(ApiError::Network | ApiError::Server | ApiError::Invalid) => {
+        // A claim never answers a ready-check refusal; it counts as an unreachable answer if it ever did.
+        Err(ApiError::Network | ApiError::Server | ApiError::Invalid | ApiError::CheckEnded) => {
             Some(ClaimOutcome::Unreachable)
         }
     }

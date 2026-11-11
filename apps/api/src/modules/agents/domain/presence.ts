@@ -31,6 +31,11 @@ export const Presence = {
     return now.getTime() - presence.lastSeenAt.getTime() >= OFFLINE_AFTER_MS;
   },
 
+  /** The instant the agent counts as offline: 45 s after its last heartbeat. */
+  offlineSince(presence: Presence): Date {
+    return new Date(presence.lastSeenAt.getTime() + OFFLINE_AFTER_MS);
+  },
+
   /** True when `online`, `gameRunning` or `screen` differ. `lastSeenAt` does not count. */
   differs(a: Presence, b: Presence): boolean {
     return a.online !== b.online || a.gameRunning !== b.gameRunning || a.screen !== b.screen;

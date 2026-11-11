@@ -1,6 +1,12 @@
 import type { AgentStreamEvent, SiteStreamEvent } from '@d2rmm/contracts';
 import type { AgentsPort } from '../modules/agents/index.ts';
-import { err, ok, type AnyDomainEvent, type Result } from '../shared-kernel/index.ts';
+import {
+  err,
+  ok,
+  type AnyDomainEvent,
+  type ReadyCheckChangedPayload,
+  type Result,
+} from '../shared-kernel/index.ts';
 
 /** One message for one stream: a site stream of an account, or the agent stream of an agent. */
 export type Delivery =
@@ -12,7 +18,8 @@ export type CurrentAgentLookup = Pick<AgentsPort, 'currentAgentOf'>;
 /**
  * Maps a domain event to the stream messages it produces (design.md § Platform, stream projection):
  * `RoomAssignmentChanged` → `room.assigned` to each member's site and to each member's current agent;
- * `RoomStageChanged` → `room.stage_changed` to each member's site; `AgentPresenceChanged` → `agent.presence_changed`
+ * `RoomStageChanged` → `room.stage_changed` to each member's site; `RoomRunOpened` → `room.run_opened` to each member's
+ * site and agent; `RoomMemberChanged` → `room.member_changed` to each member's site (and the member who left); `AgentPresenceChanged` → `agent.presence_changed`
  * to the owner's site. `MatchFormed` and `AgentRevoked` are not streamed (AgentRevoked closes streams instead).
  */
 export async function projectStreamEvent(
@@ -53,6 +60,51 @@ export async function projectStreamEvent(
         },
       }));
     }
+    case 'RoomRunOpened': {
+      // The next run (LBR-06): every member's site and current agent get the new name; the agent reads for it from now on.
+      const { payload } = event;
+      const data = {
+        roomId: payload.roomId,
+        run: payload.run,
+        expectedGameName: payload.expectedGameName,
+        members: [...payload.members],
+      };
+      const deliveries: Delivery[] = [];
+      for (const member of payload.members) {
+        deliveries.push({
+          stream: 'site',
+          accountId: member.accountId,
+          event: { type: 'room.run_opened', data },
+        });
+        const agentId = await agents.currentAgentOf(member.accountId);
+        if (agentId !== null) {
+          deliveries.push({ stream: 'agent', agentId, event: { type: 'room.run_opened', data } });
+        }
+      }
+      return deliveries;
+    }
+    case 'RoomMemberChanged': {
+      // A confirmation, a departure or a new host (LBR-04, LBR-07, LBR-08): the remaining members' sites, and the member
+      // who left, who is no longer among the members.
+      const { payload } = event;
+      const accountIds = payload.members.map((member) => member.accountId);
+      if (payload.change === 'left' && !accountIds.includes(payload.accountId)) {
+        accountIds.push(payload.accountId);
+      }
+      return accountIds.map((accountId) => ({
+        stream: 'site' as const,
+        accountId,
+        event: {
+          type: 'room.member_changed' as const,
+          data: {
+            roomId: payload.roomId,
+            change: payload.change,
+            accountId: payload.accountId,
+            members: [...payload.members],
+          },
+        },
+      }));
+    }
     case 'AgentPresenceChanged': {
       const { payload } = event;
       return [
@@ -81,6 +133,50 @@ export async function projectStreamEvent(
         },
       ];
     }
+    case 'ReadyCheckStarted': {
+      // The open check goes to each member's site and agent (RDY-01).
+      const { payload } = event;
+      const deliveries: Delivery[] = [];
+      for (const member of payload.members) {
+        const data = readyCheckViewFor(payload, member.accountId);
+        deliveries.push({
+          stream: 'site',
+          accountId: member.accountId,
+          event: { type: 'ready_check.started', data },
+        });
+        const agentId = await agents.currentAgentOf(member.accountId);
+        if (agentId !== null) {
+          deliveries.push({ stream: 'agent', agentId, event: { type: 'ready_check.started', data } });
+        }
+      }
+      return deliveries;
+    }
+    case 'ReadyCheckUpdated': {
+      // An acceptance, while the check is open, goes to each member's site only (RDY-02).
+      const { payload } = event;
+      return payload.members.map((member) => ({
+        stream: 'site' as const,
+        accountId: member.accountId,
+        event: {
+          type: 'ready_check.updated' as const,
+          data: readyCheckViewFor(payload, member.accountId),
+        },
+      }));
+    }
+    case 'ReadyCheckResolved': {
+      // The outcome goes to every member's site and agent; the body names no one (RDY-03 … RDY-05).
+      const { payload } = event;
+      const deliveries: Delivery[] = [];
+      for (const accountId of payload.accountIds) {
+        const data = { id: payload.readyCheckId, outcome: payload.outcome };
+        deliveries.push({ stream: 'site', accountId, event: { type: 'ready_check.resolved', data } });
+        const agentId = await agents.currentAgentOf(accountId);
+        if (agentId !== null) {
+          deliveries.push({ stream: 'agent', agentId, event: { type: 'ready_check.resolved', data } });
+        }
+      }
+      return deliveries;
+    }
     case 'CharactersRecorded': {
       // The site refetches its list; the event carries no character (CHR-12, CHR-13).
       return [
@@ -94,6 +190,27 @@ export async function projectStreamEvent(
     default:
       return [];
   }
+}
+
+/**
+ * The open check as one member sees it: the members by position and class mark, and the member's own mark as `you`
+ * (RDY-01, RDY-02). No account id and no name leaves the server.
+ */
+function readyCheckViewFor(payload: ReadyCheckChangedPayload, accountId: string) {
+  return {
+    id: payload.readyCheckId,
+    mode: payload.mode,
+    difficulty: payload.difficulty,
+    deadline: payload.deadline,
+    now: payload.serverNow,
+    members: payload.members.map((other) => ({
+      position: other.position,
+      class: other.characterClass,
+      level: other.level,
+      accepted: other.accepted,
+      you: other.accountId === accountId,
+    })),
+  };
 }
 
 /** A stream event id: `<outboxId>` for a durable event, `<outboxId>.<k>` for a transient one (AWS-39). */
