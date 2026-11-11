@@ -25,6 +25,8 @@ export const ReadyCheckView = z.object({
   mode: Mode,
   difficulty: Difficulty,
   deadline: IsoDateTime,
+  // The server's clock when this view was made: a site counts down from it, so its own clock may be wrong (RDY-11).
+  now: IsoDateTime,
   members: z.array(ReadyCheckMember).min(2).max(8),
 });
 export type ReadyCheckView = z.infer<typeof ReadyCheckView>;

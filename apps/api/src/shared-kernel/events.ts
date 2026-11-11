@@ -124,6 +124,8 @@ export interface ReadyCheckChangedPayload {
   readonly mode: 'pvp' | 'leveling';
   readonly difficulty: 'normal' | 'nightmare' | 'hell';
   readonly deadline: string;
+  /** The server's clock when the state was read or changed: the site counts down from it, not from its own clock (RDY-11). */
+  readonly serverNow: string;
   readonly members: readonly ReadyCheckMemberSnapshot[];
 }
 

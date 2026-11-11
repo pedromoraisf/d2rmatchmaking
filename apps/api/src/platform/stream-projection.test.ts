@@ -192,6 +192,7 @@ describe('projectStreamEvent: ready checks (RDY-01, RDY-02, RDY-03)', () => {
       mode: 'pvp',
       difficulty: 'hell',
       deadline: '2026-11-10T12:01:00.000Z',
+      serverNow: '2026-11-10T12:00:00.000Z',
       members: [
         { accountId: 'account-1', position: 1, characterClass: 'sorceress', level: 90, accepted: false },
         { accountId: 'account-2', position: 2, characterClass: 'barbarian', level: 84, accepted: false },
@@ -211,6 +212,7 @@ describe('projectStreamEvent: ready checks (RDY-01, RDY-02, RDY-03)', () => {
         mode: 'pvp',
         difficulty: 'hell',
         deadline: '2026-11-10T12:01:00.000Z',
+        now: '2026-11-10T12:00:00.000Z',
         members: [
           { position: 1, class: 'sorceress', level: 90, accepted: false, you: true },
           { position: 2, class: 'barbarian', level: 84, accepted: false, you: false },

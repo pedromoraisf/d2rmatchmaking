@@ -1,7 +1,7 @@
 // The ready check (RDY-08, prototype "ready check"): a modal over the site shell with a countdown ring, the members by
 // position and class mark, Accept and Decline. Accept takes the focus when the check opens and Enter accepts; Escape does
 // nothing, so a stray key never declines (RDY-08). Declining has no penalty; not answering gives a 5-minute wait.
-import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import './ready-check.css';
 import type { ReadyCheckView } from '@d2rmm/contracts';
 import { Trans, useTranslation } from 'react-i18next';
@@ -29,7 +29,7 @@ export function ReadyCheckOverlay({
   const { t } = useTranslation();
   const titleId = useId();
   const acceptRef = useRef<HTMLButtonElement>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const [clock, setClock] = useState(() => Date.now());
   const [sending, setSending] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -40,14 +40,17 @@ export function ReadyCheckOverlay({
 
   useEffect(() => {
     const clock = setInterval(() => {
-      setNow(Date.now());
+      setClock(Date.now());
     }, 250);
     return () => {
       clearInterval(clock);
     };
   }, []);
 
-  const left = secondsUntil(readyCheck.deadline, now);
+  // The countdown runs on the server's clock (RDY-11): the offset is read when this view arrives, so a browser clock that
+  // is wrong by hours still counts the minute the server gave.
+  const offset = useMemo(() => Date.parse(readyCheck.now) - Date.now(), [readyCheck]);
+  const left = secondsUntil(readyCheck.deadline, clock + offset);
   const me = readyCheck.members.find((member) => member.you);
   const answered = me?.accepted === true;
 

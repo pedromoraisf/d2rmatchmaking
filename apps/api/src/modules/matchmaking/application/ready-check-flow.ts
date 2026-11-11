@@ -67,12 +67,13 @@ export interface ReadyCheckFlow extends ReadyCheckOpener {
 }
 
 /** The state of an open check as the members' streams carry it: the marks, the accepted and the deadline (RDY-01, RDY-02). */
-export function changedPayloadOf(check: ReadyCheck): ReadyCheckChangedPayload {
+export function changedPayloadOf(check: ReadyCheck, now: Date): ReadyCheckChangedPayload {
   return {
     readyCheckId: check.id,
     mode: check.group.mode,
     difficulty: check.group.difficulty,
     deadline: check.deadline.toISOString(),
+    serverNow: now.toISOString(),
     members: check.group.members.map((member, index) => ({
       accountId: member.accountId,
       position: index + 1,
@@ -157,7 +158,7 @@ export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
           await deps.checks.pruneEndedBefore(new Date(now.getTime() - ENDED_CHECK_KEEP_MS));
           await deps.bus.publish({
             kind: 'transient',
-            event: { type: 'ReadyCheckStarted', payload: changedPayloadOf(check) },
+            event: { type: 'ReadyCheckStarted', payload: changedPayloadOf(check, now) },
           });
           const cancel = deps.scheduler.at(check.deadline, () => {
             deps.exclusive(() => expireCheck(check.id)).catch(deps.onError);
@@ -172,7 +173,7 @@ export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
       if (check === undefined || !isOpenAt(check, deps.clock.now())) {
         return null;
       }
-      return changedPayloadOf(check);
+      return changedPayloadOf(check, deps.clock.now());
     },
 
     answer(input) {
@@ -197,7 +198,7 @@ export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
             await deps.checks.put(next);
             await deps.bus.publish({
               kind: 'transient',
-              event: { type: 'ReadyCheckUpdated', payload: changedPayloadOf(next) },
+              event: { type: 'ReadyCheckUpdated', payload: changedPayloadOf(next, now) },
             });
             return ok(undefined);
           }

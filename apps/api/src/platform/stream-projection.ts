@@ -156,6 +156,7 @@ function readyCheckViewFor(payload: ReadyCheckChangedPayload, accountId: string)
     mode: payload.mode,
     difficulty: payload.difficulty,
     deadline: payload.deadline,
+    now: payload.serverNow,
     members: payload.members.map((other) => ({
       position: other.position,
       class: other.characterClass,

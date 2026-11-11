@@ -7,6 +7,7 @@ const check: ReadyCheckView = {
   mode: 'pvp',
   difficulty: 'hell',
   deadline: '2026-11-10T12:01:00.000Z',
+  now: '2026-11-10T12:00:00.000Z',
   members: [
     { position: 1, class: 'sorceress', level: 91, accepted: false, you: true },
     { position: 2, class: 'barbarian', level: 84, accepted: false, you: false },

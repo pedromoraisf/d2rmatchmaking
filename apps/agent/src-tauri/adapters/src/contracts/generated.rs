@@ -1420,6 +1420,7 @@ pub struct ReadyCheckStartedEventData {
     pub id: ReadyCheckStartedEventDataId,
     pub members: ::std::vec::Vec<ReadyCheckStartedEventDataMembersItem>,
     pub mode: ReadyCheckStartedEventDataMode,
+    pub now: ::chrono::DateTime<::chrono::offset::Utc>,
 }
 ///`ReadyCheckStartedEventDataDifficulty`
 #[derive(

@@ -6,6 +6,7 @@ const view = {
   mode: 'pvp',
   difficulty: 'hell',
   deadline: '2026-11-10T12:01:00.000Z',
+  now: '2026-11-10T12:00:00.000Z',
   members: [
     { position: 1, class: 'sorceress', level: 91, accepted: true, you: true },
     { position: 2, class: 'barbarian', level: 84, accepted: false, you: false },
@@ -29,6 +30,11 @@ describe('ReadyCheckView', () => {
   it('rejects a member level outside 1 to 99', () => {
     const members = [{ ...view.members[0], level: 100 }, view.members[1]];
     expect(ReadyCheckView.safeParse({ ...view, members }).success).toBe(false);
+  });
+
+  it('requires the server time the countdown starts from', () => {
+    const withoutNow = Object.fromEntries(Object.entries(view).filter(([key]) => key !== 'now'));
+    expect(ReadyCheckView.safeParse(withoutNow).success).toBe(false);
   });
 
   it('rejects a deadline that is not an ISO instant', () => {

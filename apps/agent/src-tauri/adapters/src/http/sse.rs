@@ -325,7 +325,7 @@ mod tests {
         ));
     }
 
-    const READY_CHECK: &str = r#"{"id":"rc-1","mode":"pvp","difficulty":"hell","deadline":"2026-11-10T12:01:00.000Z","members":[{"position":1,"class":"sorceress","level":91,"accepted":false,"you":true},{"position":2,"class":"barbarian","level":84,"accepted":false,"you":false}]}"#;
+    const READY_CHECK: &str = r#"{"id":"rc-1","mode":"pvp","difficulty":"hell","deadline":"2026-11-10T12:01:00.000Z","now":"2026-11-10T12:00:00.000Z","members":[{"position":1,"class":"sorceress","level":91,"accepted":false,"you":true},{"position":2,"class":"barbarian","level":84,"accepted":false,"you":false}]}"#;
 
     #[test]
     fn a_ready_check_that_opened_gives_its_id_and_deadline() {

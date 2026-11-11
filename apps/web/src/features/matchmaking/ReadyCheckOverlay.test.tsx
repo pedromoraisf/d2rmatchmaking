@@ -10,6 +10,7 @@ import { ReadyCheckOverlay, secondsUntil } from './ReadyCheckOverlay.tsx';
 afterEach(cleanup);
 
 const DEADLINE = new Date(Date.now() + 60_000).toISOString();
+const SERVER_NOW = new Date().toISOString();
 
 function check(overrides: Partial<ReadyCheckView> = {}): ReadyCheckView {
   return {
@@ -17,6 +18,7 @@ function check(overrides: Partial<ReadyCheckView> = {}): ReadyCheckView {
     mode: 'pvp',
     difficulty: 'hell',
     deadline: DEADLINE,
+    now: SERVER_NOW,
     members: [
       { position: 1, class: 'sorceress', level: 91, accepted: false, you: true },
       { position: 2, class: 'barbarian', level: 84, accepted: false, you: false },
@@ -36,6 +38,26 @@ describe('secondsUntil', () => {
   ])('%i ms before the deadline reads as %i whole seconds', (ms, seconds) => {
     const now = 1_000_000;
     expect(secondsUntil(new Date(now + ms).toISOString(), now)).toBe(seconds);
+  });
+});
+
+describe('ReadyCheckOverlay: the countdown (RDY-11)', () => {
+  it('counts the minute from the server time, whatever the browser clock reads', () => {
+    // The server says it is 12:00:00 and the check ends at 12:01:00; the browser's clock is years behind.
+    const serverNow = '2026-11-10T12:00:00.000Z';
+    const deadline = '2026-11-10T12:01:00.000Z';
+    const skewed = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2019-03-04T08:00:00.000Z'));
+    try {
+      renderInLanguage(
+        <ReadyCheckOverlay
+          readyCheck={check({ deadline, now: serverNow })}
+          client={createApiClient(routeFetch({}).fetch)}
+        />,
+      );
+      expect(screen.getByText('60 seconds left')).toBeTruthy();
+    } finally {
+      skewed.mockRestore();
+    }
   });
 });
 

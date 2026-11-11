@@ -616,6 +616,7 @@ describe('App', () => {
           mode: 'pvp',
           difficulty: 'hell',
           deadline,
+          now: new Date().toISOString(),
           members: [
             { position: 1, class: 'sorceress', level: 91, accepted: false, you: true },
             { position: 2, class: 'barbarian', level: 84, accepted: false, you: false },

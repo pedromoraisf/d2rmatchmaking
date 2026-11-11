@@ -21,6 +21,7 @@ describe('readyCheckViewOf (RDY-11)', () => {
     mode: 'pvp' as const,
     difficulty: 'hell' as const,
     deadline: '2026-11-10T12:01:00.000Z',
+    serverNow: '2026-11-10T12:00:00.000Z',
     members: [
       { accountId: 'alice', position: 1, characterClass: 'sorceress' as const, level: 91, accepted: true },
       { accountId: 'bob', position: 2, characterClass: 'barbarian' as const, level: 84, accepted: false },
