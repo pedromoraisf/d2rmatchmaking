@@ -35,7 +35,7 @@ any route task's gate, no test weakened, `acceptance.feature` not edited; the ho
 
 ## Batch 2
 
-- [ ] T8 — Review of Batch 1: the agent accept path applies `requireAgentVersion` (426); `GET /v1/ready-checks/me`
+- [x] T8 — Review of Batch 1: the agent accept path applies `requireAgentVersion` (426); `GET /v1/ready-checks/me`
       (RDY-11) with the site re-reading it on load and on stream reopen and the agent on stream reconnect; the agent
       disarms the hotkey at the deadline; OpenAPI regenerated; unit, component, Rust and route tests — gate:
       `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts && pnpm --filter @d2rmm/web exec vitest run && cd apps/agent/src-tauri && cargo nextest run && cargo clippy --all-targets -- -D warnings`

@@ -49,6 +49,11 @@ pub fn handle(name: &str, data: &str) -> StreamEffect {
     }
 }
 
+/// The open check of `GET /v1/ready-checks/me` (RDY-11): the same view the started event carries, so it parses the same way.
+pub fn ready_check_open_from_body(body: &str) -> Option<ReadyCheckOpen> {
+    ready_check_started_from(body)
+}
+
 fn ready_check_started_from(data: &str) -> Option<ReadyCheckOpen> {
     let event: ReadyCheckStartedEventData = serde_json::from_str(data).ok()?;
     let deadline: DateTime<Utc> = event.deadline;

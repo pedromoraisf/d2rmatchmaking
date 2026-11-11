@@ -6,6 +6,7 @@ import {
   accept,
   decline,
   expire,
+  isOpenAt,
   openReadyCheck,
   rejoinQueue,
   unansweredOf,
@@ -61,6 +62,8 @@ export interface ReadyCheckFlow extends ReadyCheckOpener {
     readonly checkId: string;
     readonly answer: 'accept' | 'decline';
   }): Promise<Result<void, ReadyCheckAnswerRefusal>>;
+  /** The account's open check as its members see it, or null when the account is in no open check (RDY-11). */
+  openFor(accountId: string): Promise<ReadyCheckChangedPayload | null>;
 }
 
 /** The state of an open check as the members' streams carry it: the marks, the accepted and the deadline (RDY-01, RDY-02). */
@@ -162,6 +165,14 @@ export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
           deadlines.set(check.id, cancel);
         },
       );
+    },
+
+    async openFor(accountId: string): Promise<ReadyCheckChangedPayload | null> {
+      const check = await deps.checks.openOf(accountId);
+      if (check === undefined || !isOpenAt(check, deps.clock.now())) {
+        return null;
+      }
+      return changedPayloadOf(check);
     },
 
     answer(input) {

@@ -2,14 +2,14 @@
 //! through the anti-corruption layer (design.md § Adapters, `http/gateway.rs`; AHM-16). It holds no rule of its own beyond
 //! the protocol check of the resume id.
 
-use d2rmm_agent_core::messages::{GameNameObservation, IssuedCode, Presence};
+use d2rmm_agent_core::messages::{GameNameObservation, IssuedCode, Presence, ReadyCheckOpen};
 use d2rmm_agent_core::ports::{ApiError, ApiGateway, EventStream};
 use d2rmm_agent_core::secret::Secret;
 use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::room_assignment::Assignment;
 
 use crate::http::api_client::ApiClient;
-use crate::http::sse::valid_last_event_id;
+use crate::http::sse::{ready_check_open_from_body, valid_last_event_id};
 use crate::http::sse_stream::SseEventStream;
 use crate::http::translate::{
     assignment_from_contract, characters_to_contract, heartbeat_from_presence,
@@ -71,6 +71,15 @@ impl ApiGateway for HttpGateway {
 
     async fn accept_ready_check(&self, token: &Secret, check_id: &str) -> Result<(), ApiError> {
         self.api.accept_ready_check(token, check_id).await
+    }
+
+    async fn my_ready_check(&self, token: &Secret) -> Result<Option<ReadyCheckOpen>, ApiError> {
+        match self.api.my_ready_check(token).await? {
+            None => Ok(None),
+            Some(body) => ready_check_open_from_body(&body)
+                .map(Some)
+                .ok_or(ApiError::Invalid),
+        }
     }
 
     async fn open_stream(

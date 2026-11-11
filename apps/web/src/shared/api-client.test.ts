@@ -154,4 +154,24 @@ describe('api client', () => {
       secondsLeft: 42,
     });
   });
+
+  it('reads the open ready check, or null on 204 (RDY-11)', async () => {
+    const check = {
+      id: 'rc-1',
+      mode: 'pvp',
+      difficulty: 'hell',
+      deadline: '2026-11-10T12:01:00.000Z',
+      members: [
+        { position: 1, class: 'sorceress', level: 91, accepted: false, you: true },
+        { position: 2, class: 'barbarian', level: 84, accepted: false, you: false },
+      ],
+    };
+    const { fetch } = routeFetch({
+      'GET /api/v1/ready-checks/me': () => jsonResponse(200, check),
+    });
+    expect(await createApiClient(fetch).myReadyCheck()).toStrictEqual({ ok: true, value: check });
+
+    const none = routeFetch({ 'GET /api/v1/ready-checks/me': () => new Response(null, { status: 204 }) });
+    expect(await createApiClient(none.fetch).myReadyCheck()).toStrictEqual({ ok: true, value: null });
+  });
 });

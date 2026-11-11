@@ -4,25 +4,65 @@ import {
   ErrorResponse,
   Id,
   ReadyCheckAnswerRefusal,
+  ReadyCheckView,
   type ReadyCheckAnswerRefusalCode,
 } from '@d2rmm/contracts';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import type { QueueUseCases } from '../../application/queue-use-cases.ts';
+import type { ReadyCheckChangedPayload } from '../../../../shared-kernel/index.ts';
 
 type Guard = (request: FastifyRequest, reply: FastifyReply) => Promise<FastifyReply | undefined>;
 
 export interface ReadyCheckRouteGuards {
   /** A bearer token of an active agent, or the site's session cookie on the site's origin (the relay's guard). */
   readonly requireAgentOrSite: Guard;
+  /** The minimum agent version (426, ADR 011) for an agent's request; every agent route applies it. */
+  readonly requireAgentVersion: Guard;
   readonly requireSameOrigin: Guard;
   readonly requireSession: Guard;
 }
 
 export interface ReadyCheckRouteDeps {
-  readonly useCases: Pick<QueueUseCases, 'answerReadyCheck'>;
+  readonly useCases: Pick<QueueUseCases, 'answerReadyCheck' | 'openReadyCheckOf'>;
   readonly guards: ReadyCheckRouteGuards;
+}
+
+/**
+ * The check as one member sees it: the members by position and class mark, the member's own mark as `you`, and no account
+ * id (RDY-01, RDY-02). Pure, so the mapping has its own unit tests.
+ */
+export function readyCheckViewOf(payload: ReadyCheckChangedPayload, accountId: string) {
+  return {
+    id: payload.readyCheckId,
+    mode: payload.mode,
+    difficulty: payload.difficulty,
+    deadline: payload.deadline,
+    members: payload.members.map((member) => ({
+      position: member.position,
+      class: member.characterClass,
+      level: member.level,
+      accepted: member.accepted,
+      you: member.accountId === accountId,
+    })),
+  };
+}
+
+/**
+ * The accept route's guard: an agent's bearer token must meet the minimum agent version (426) before the agent check; the
+ * site's session passes through to the relay's origin check (RDY-07, RDY-11).
+ */
+function versionedAgentOrSite(guards: ReadyCheckRouteGuards): Guard {
+  return async (request, reply) => {
+    if (request.headers.authorization !== undefined) {
+      const versioned = await guards.requireAgentVersion(request, reply);
+      if (versioned !== undefined) {
+        return versioned;
+      }
+    }
+    return guards.requireAgentOrSite(request, reply);
+  };
 }
 
 /**
@@ -42,10 +82,35 @@ export function readyCheckRoutes(app: FastifyInstance, deps: ReadyCheckRouteDeps
   const { useCases, guards } = deps;
   const params = z.object({ id: Id });
 
+  // The open check of the caller: the agent's (bearer token, version gated) or the site's (session cookie).
+  typed.get(
+    '/v1/ready-checks/me',
+    {
+      preHandler: [
+        async (request, reply) =>
+          request.headers.authorization !== undefined
+            ? versionedAgentOrSite(guards)(request, reply)
+            : guards.requireSession(request, reply),
+      ],
+      schema: { response: { 200: ReadyCheckView, 204: z.null(), 401: ErrorResponse, 426: ErrorResponse } },
+    },
+    async (request, reply) => {
+      const accountId = request.agentAccountId ?? request.accountId;
+      if (accountId === undefined) {
+        return reply.code(401).send({ error: 'unauthenticated' });
+      }
+      const open = await useCases.openReadyCheckOf({ accountId });
+      if (open === null) {
+        return reply.code(204).send(null);
+      }
+      return reply.code(200).send(readyCheckViewOf(open, accountId));
+    },
+  );
+
   typed.post(
     '/v1/ready-checks/:id/accept',
     {
-      preHandler: [guards.requireAgentOrSite],
+      preHandler: [versionedAgentOrSite(guards)],
       schema: {
         params,
         response: {

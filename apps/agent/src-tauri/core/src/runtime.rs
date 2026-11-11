@@ -65,6 +65,8 @@ fn spawn<G: ApiGateway + Send + Sync + 'static>(
         read,
         screen,
     } = groups;
+    // The held ready check's deadline is read from the platform clock (RDY-11), the same one the pairing loop uses.
+    device.install_clock(Arc::clone(&pairing.clock));
     let (commands, receiver) = mpsc::channel(COMMAND_BUFFER);
     // The hotkey's accept call shares the stream loop's gateway and token store (RDY-07): the same two ports, no more.
     let ready = Arc::new(StreamPorts {

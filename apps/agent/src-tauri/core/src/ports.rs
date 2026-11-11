@@ -158,6 +158,11 @@ pub trait ApiGateway {
         token: &Secret,
         check_id: &str,
     ) -> impl Future<Output = Result<(), ApiError>> + Send;
+    /// The account's open ready check, or `None` when it is in none (RDY-11). Read on every stream connection.
+    fn my_ready_check(
+        &self,
+        token: &Secret,
+    ) -> impl Future<Output = Result<Option<ReadyCheckOpen>, ApiError>> + Send;
 }
 
 /// One item of the room stream: an assignment, a ready check that opened or ended, or the end of the stream and why it

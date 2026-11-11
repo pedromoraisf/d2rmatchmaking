@@ -7,6 +7,7 @@ import {
   MyCharactersResponse,
   MyQueueTicketResponse,
   QueueTicketView,
+  ReadyCheckView,
   RoomView,
 } from '@d2rmm/contracts';
 import { QueueRefusal } from '@d2rmm/contracts';
@@ -58,6 +59,8 @@ export interface ApiClient {
   joinQueue(body: JoinQueueRequest): Promise<ApiResult<QueueTicketView>>;
   leaveQueue(ticketId: string): Promise<ApiResult<void>>;
   acceptReadyCheck(checkId: string): Promise<ApiResult<void>>;
+  /** The account's open ready check, or null when it is in none (RDY-11: the API answers 204). */
+  myReadyCheck(): Promise<ApiResult<ReadyCheckView | null>>;
   declineReadyCheck(checkId: string): Promise<ApiResult<void>>;
 }
 
@@ -152,6 +155,22 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
     return { ok: false, failure: failureFor(response.status) };
   }
 
+  // A 204 is "no open check" (RDY-11): a successful answer with no body.
+  async function myReadyCheck(): Promise<ApiResult<ReadyCheckView | null>> {
+    const sent = await send('GET', '/v1/ready-checks/me');
+    if (!sent.ok) {
+      return sent;
+    }
+    if (sent.response.status === 204) {
+      return { ok: true, value: null };
+    }
+    try {
+      return { ok: true, value: ReadyCheckView.parse(await sent.response.json()) };
+    } catch {
+      return { ok: false, failure: 'failed' };
+    }
+  }
+
   return {
     config: () => read('/v1/config', ConfigResponse),
     me: () => read('/v1/me', MeResponse),
@@ -169,6 +188,7 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
     joinQueue: (body) => joinQueue(body),
     leaveQueue: (ticketId) => write(`/v1/queue/tickets/${encodeURIComponent(ticketId)}`, {}, 'DELETE'),
     acceptReadyCheck: (checkId) => write(`/v1/ready-checks/${encodeURIComponent(checkId)}/accept`, {}),
+    myReadyCheck: () => myReadyCheck(),
     declineReadyCheck: (checkId) => write(`/v1/ready-checks/${encodeURIComponent(checkId)}/decline`, {}),
   };
 }

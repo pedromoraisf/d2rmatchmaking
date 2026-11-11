@@ -162,6 +162,13 @@ impl ApiGateway for Reporting {
     async fn accept_ready_check(&self, token: &Secret, check_id: &str) -> Result<(), ApiError> {
         self.inner.accept_ready_check(token, check_id).await
     }
+
+    async fn my_ready_check(
+        &self,
+        token: &Secret,
+    ) -> Result<Option<d2rmm_agent_core::messages::ReadyCheckOpen>, ApiError> {
+        self.inner.my_ready_check(token).await
+    }
 }
 
 /// The wall clock of the run.

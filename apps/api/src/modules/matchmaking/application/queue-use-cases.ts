@@ -100,6 +100,9 @@ export function createQueueUseCases(deps: QueueUseCaseDeps) {
     /** One matcher run; the platform calls it every second (the timer in `main/`). */
     runMatcher: (): Promise<void> => lock.run(() => matchNow()),
 
+    /** The account's open ready check as its members see it, or null (RDY-11). Read only: it takes no lock. */
+    openReadyCheckOf: (input: { readonly accountId: string }) => readyChecks.openFor(input.accountId),
+
     /** A member's answer to a ready check: accept or decline (RDY-02, RDY-04, RDY-06). */
     answerReadyCheck: (input: {
       readonly accountId: string;

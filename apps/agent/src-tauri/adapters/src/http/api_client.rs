@@ -163,6 +163,26 @@ impl ApiClient {
         .await
     }
 
+    /// `GET /v1/ready-checks/me` (RDY-11): the account's open check as its body, or `None` on `204` (no open check).
+    pub async fn my_ready_check(&self, token: &Secret) -> Result<Option<String>, ApiError> {
+        let span = info_span!("agent.http.my_ready_check", status = Empty);
+        async {
+            let request = self.authorized(Method::GET, "/v1/ready-checks/me", token)?;
+            let response = self.send(request).await?;
+            match response.status() {
+                StatusCode::OK => response
+                    .text()
+                    .await
+                    .map(Some)
+                    .map_err(|_| ApiError::Invalid),
+                StatusCode::NO_CONTENT => Ok(None),
+                _ => Err(failure(&response)),
+            }
+        }
+        .instrument(span)
+        .await
+    }
+
     /// `POST /v1/me/characters` (CHR-09): the complete cards of one character selection screen. `204` is stored.
     pub async fn post_characters(
         &self,

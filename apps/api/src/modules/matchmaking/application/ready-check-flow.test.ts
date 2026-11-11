@@ -236,3 +236,26 @@ describe('the ready check: late, repeated and foreign answers (RDY-06)', () => {
     ).toStrictEqual({ ok: false, error: 'not-found' });
   });
 });
+
+describe('the ready check: reading the open check (RDY-11)', () => {
+  it('shows an open check to each member and to no one else', async () => {
+    const t = queueSetup();
+    await openDuel(t);
+    expect((await t.queue.openReadyCheckOf({ accountId: 'alice' }))?.members).toHaveLength(2);
+    expect(await t.queue.openReadyCheckOf({ accountId: 'cara' })).toBeNull();
+  });
+
+  it('shows nothing once the check has ended', async () => {
+    const t = queueSetup();
+    const checkId = await openDuel(t);
+    await t.queue.answerReadyCheck({ accountId: 'bob', checkId, answer: 'decline' });
+    expect(await t.queue.openReadyCheckOf({ accountId: 'alice' })).toBeNull();
+  });
+
+  it('shows nothing at the deadline, even before the timer has settled it', async () => {
+    const t = queueSetup();
+    await openDuel(t);
+    t.clock.advance(60 * SECOND);
+    expect(await t.queue.openReadyCheckOf({ accountId: 'alice' })).toBeNull();
+  });
+});

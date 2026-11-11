@@ -79,11 +79,12 @@ async function loadBoot(client: ApiClient): Promise<Boot> {
         }
       : { status: 'failed' };
   }
-  const [agent, room, characters, queue] = await Promise.all([
+  const [agent, room, characters, queue, readyCheck] = await Promise.all([
     client.myAgent(),
     client.myRoom(),
     client.myCharacters(),
     client.myQueueTicket(),
+    client.myReadyCheck(),
   ]);
   return {
     status: 'ready',
@@ -95,7 +96,7 @@ async function loadBoot(client: ApiClient): Promise<Boot> {
     pairedNotice: false,
     queue: queue.ok ? queue.value.ticket : null,
     queueNotice: null,
-    readyCheck: null,
+    readyCheck: readyCheck.ok ? readyCheck.value : null,
   };
 }
 
@@ -144,10 +145,11 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
     let overtaken = true;
     while (overtaken) {
       const seen = streamEvents.current;
-      const [agent, room, queue] = await Promise.all([
+      const [agent, room, queue, readyCheck] = await Promise.all([
         client.myAgent(),
         client.myRoom(),
         client.myQueueTicket(),
+        client.myReadyCheck(),
       ]);
       overtaken = streamEvents.current !== seen;
       if (!overtaken) {
@@ -158,6 +160,8 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
                 agent: agent.ok ? agent.value : current.agent,
                 room: room.ok ? shownRoom(room.value) : room.failure === 'not-found' ? null : current.room,
                 queue: queue.ok ? queue.value.ticket : current.queue,
+                // The open check is read again on every load and stream reopen (RDY-11); a failed read keeps what is shown.
+                readyCheck: readyCheck.ok ? readyCheck.value : current.readyCheck,
               }
             : current,
         );
