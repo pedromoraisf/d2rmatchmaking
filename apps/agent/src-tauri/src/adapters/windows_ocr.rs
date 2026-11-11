@@ -78,11 +78,17 @@ fn crop_to_bitmap(image: &Rgba, region: Region) -> Result<SoftwareBitmap, ReadEr
 
 #[cfg(test)]
 mod tests {
-    use d2rmm_agent_core::ports::{Rgba, TextReader};
+    use std::sync::Arc;
+
+    use d2rmm_agent_core::messages::FrameReading;
+    use d2rmm_agent_core::ports::{FrameReader, Rgba, TextReader};
     use d2rmm_agent_core::read_frame::read_game_name;
+    use d2rmm_agent_core::screen_reader::ScreenReader;
+    use d2rmm_agent_domain::characters::{Class, Difficulty, Title};
     use d2rmm_agent_domain::game_name_match::{FieldRead, read_field};
     use d2rmm_agent_domain::language::{GAME_NAME, LanguagePack, PARTY};
     use d2rmm_agent_domain::layout::{PanelRegion, panel_region};
+    use d2rmm_agent_domain::presence::Screen;
 
     use super::WindowsOcr;
 
@@ -154,6 +160,123 @@ mod tests {
         )
     }
 
+    /// A card as the character checks compare it: name, class, level and title.
+    type Card = (&'static str, Class, u8, Option<Title>);
+
+    /// The first two cards of the maintainer's selection screen (2026-11-10): a titled Matriarch and an untitled Sorceress.
+    const MAINTAINER_CARDS: [Card; 2] = [
+        ("vukVuka", Class::Sorceress, 88, Some(Title::Matriarch)),
+        ("vukaDao", Class::Sorceress, 11, None),
+    ];
+
+    /// Checks one character frame: its screen, and its cards in order. The error names what was read.
+    fn check_screen(reading: &FrameReading, screen: Screen, cards: &[Card]) -> Result<(), String> {
+        if reading.screen != screen {
+            return Err(format!(
+                "the screen is {:?}, expected {screen:?}",
+                reading.screen
+            ));
+        }
+        let listed: Vec<String> = reading
+            .cards
+            .iter()
+            .map(|card| {
+                format!(
+                    "{} {:?} {} {:?}",
+                    card.name(),
+                    card.class(),
+                    card.level(),
+                    card.title()
+                )
+            })
+            .collect();
+        let wanted: Vec<String> = cards
+            .iter()
+            .map(|(name, class, level, title)| format!("{name} {class:?} {level} {title:?}"))
+            .collect();
+        if listed == wanted {
+            Ok(())
+        } else {
+            Err(format!("the cards are {listed:?}, expected {wanted:?}"))
+        }
+    }
+
+    /// Reads a committed character fixture (`fixtures/characters`) with the screen reader and the en-US engine.
+    fn read_character(reader: &ScreenReader, name: &str) -> FrameReading {
+        let image = decode_png(&format!(
+            "{}/../fixtures/characters/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        ));
+        reader.read(&image)
+    }
+
+    /// The character fixtures xtask draws (CHR-04, CHR-06, CHR-08, CHR-18): every screen, read with the en-US engine. The
+    /// selection screen's cards, the popup's difficulties, the in-game and automap markers and the unknown menu. Every
+    /// fixture is read before the test fails, so one run shows every mismatch.
+    #[test]
+    fn ocr_reads_the_drawn_character_fixtures() {
+        let reader = ScreenReader::new(Arc::new(engine()), Arc::new(LanguagePack::english()));
+        let full: Vec<Card> = vec![
+            ("Aldric", Class::Paladin, 12, Some(Title::Sir)),
+            ("Morrow", Class::Druid, 40, Some(Title::Lady)),
+            ("Vexa", Class::Assassin, 7, None),
+            ("Tharn", Class::Necromancer, 73, Some(Title::Destroyer)),
+            ("Kessa", Class::Warlock, 55, Some(Title::Slayer)),
+            ("Orrin", Class::Barbarian, 99, None),
+            ("Liora", Class::Amazon, 81, Some(Title::Baroness)),
+            ("Dresk", Class::Paladin, 66, Some(Title::Guardian)),
+            ("Nyx", Class::Druid, 2, None),
+        ];
+        let titles: Vec<Card> = MAINTAINER_CARDS
+            .into_iter()
+            .chain([("Ember", Class::Barbarian, 45, Some(Title::Countess))])
+            .collect();
+        let cases: [(&str, Screen, Vec<Card>); 6] = [
+            (
+                "select-normal.png",
+                Screen::CharacterSelect,
+                MAINTAINER_CARDS.to_vec(),
+            ),
+            ("select-titles.png", Screen::CharacterSelect, titles.clone()),
+            ("select-full.png", Screen::CharacterSelect, full),
+            ("select-difficulty.png", Screen::CharacterSelect, titles),
+            ("in-game.png", Screen::InGame, Vec::new()),
+            ("automap.png", Screen::AutomapOpen, Vec::new()),
+        ];
+        let mut mismatches: Vec<String> = cases
+            .into_iter()
+            .filter_map(|(name, screen, cards)| {
+                let reading = read_character(&reader, name);
+                check_screen(&reading, screen, &cards)
+                    .err()
+                    .map(|error| format!("{name}: {error}"))
+            })
+            .collect();
+        let menu = read_character(&reader, "menu.png");
+        if let Err(error) = check_screen(&menu, Screen::Unknown, &[]) {
+            mismatches.push(format!("menu.png: {error}"));
+        }
+        let popup = read_character(&reader, "select-difficulty.png");
+        let matriarch = popup.cards.first();
+        if matriarch.map(|card| card.unlocked_difficulties())
+            != Some(vec![
+                Difficulty::Normal,
+                Difficulty::Nightmare,
+                Difficulty::Hell,
+            ])
+        {
+            mismatches.push(format!(
+                "select-difficulty.png: the popup's difficulties are not on vukVuka: {matriarch:?}"
+            ));
+        }
+        assert!(
+            mismatches.is_empty(),
+            "{} of 8 drawn character fixtures mismatch:\n{}",
+            mismatches.len(),
+            mismatches.join("\n")
+        );
+    }
+
     /// The Party fixtures xtask draws (`fixtures/party`, AGN-02, AGN-04): the room's name revealed, the masked field and
     /// another name. Committed drawings only; the maintainer's screenshots are never committed (`ocr_check` below).
     #[test]
@@ -216,6 +339,48 @@ mod tests {
             let path = std::path::Path::new(&dir).join(name);
             let image = decode_png(path.to_str().expect("the folder path is UTF-8"));
             match check_party(&reader, &image, expected_name, expected) {
+                Ok(()) => println!("PASS {name}"),
+                Err(error) => {
+                    println!("FAIL {name}: {error}");
+                    failed.push(name);
+                }
+            }
+        }
+        // The selection screen and its difficulty popup (CHR-06, CHR-18): the maintainer's two screenshots of 2026-11-10.
+        let screens = ScreenReader::new(Arc::new(engine()), Arc::new(LanguagePack::english()));
+        let character_cases: [(&str, Screen, Vec<Card>); 2] = [
+            (
+                "maintainer-select-screen.png",
+                Screen::CharacterSelect,
+                MAINTAINER_CARDS.to_vec(),
+            ),
+            (
+                "maintainer-select-difficulty.png",
+                Screen::CharacterSelect,
+                MAINTAINER_CARDS.to_vec(),
+            ),
+        ];
+        for (name, screen, cards) in character_cases {
+            let path = std::path::Path::new(&dir).join(name);
+            let image = decode_png(path.to_str().expect("the folder path is UTF-8"));
+            let reading = screens.read(&image);
+            let mut verdict = check_screen(&reading, screen, &cards);
+            if name == "maintainer-select-difficulty.png" && verdict.is_ok() {
+                let matriarch = reading
+                    .cards
+                    .first()
+                    .map(|card| card.unlocked_difficulties());
+                if matriarch
+                    != Some(vec![
+                        Difficulty::Normal,
+                        Difficulty::Nightmare,
+                        Difficulty::Hell,
+                    ])
+                {
+                    verdict = Err(format!("the popup's difficulties are {matriarch:?}"));
+                }
+            }
+            match verdict {
                 Ok(()) => println!("PASS {name}"),
                 Err(error) => {
                     println!("FAIL {name}: {error}");

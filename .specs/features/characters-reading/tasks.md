@@ -10,7 +10,7 @@ created from `phase/F1` once `characters` has merged. Starts when the screenshot
       (CHR-06: title, name, "Level N Class", hardcore by red name; CHR-08: English and Portuguese dictionaries, diacritic-insensitive) and the difficulty popup (CHR-18), unit tests on the sidecar text of
       every fixture — gate:
       `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-domain --lib && cargo nextest run -p d2rmm-agent-core --lib`
-- [ ] T2 — Fixtures and OCR: `xtask draw-fixture characters` draws the selection screen (titled, untitled, hardcore
+- [x] T2 — Fixtures and OCR: `xtask draw-fixture characters` draws the selection screen (titled, untitled, hardcore
       title, a full list), the difficulty popup, in game, automap and menu, with JSON sidecars; a Windows test reads the
       drawn fixtures with Windows OCR (CI's Windows job); `scripts/agent/ocr-check.mjs` gains the maintainer's
       selection-screen and popup screenshots (read from the folder it is given, never committed) — gate:
