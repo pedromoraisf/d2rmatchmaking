@@ -6,7 +6,7 @@ created from `phase/F1` once `characters` has merged. Starts when the screenshot
 
 ## Batch 1
 
-- [ ] T1 — Reading regions relative to the client size (CHR-19), the screen classifier (CHR-04), the card parser
+- [x] T1 — Reading regions relative to the client size (CHR-19), the screen classifier (CHR-04), the card parser
       (CHR-06: title, name, "Level N Class", hardcore by red name; CHR-08: English and Portuguese dictionaries, diacritic-insensitive) and the difficulty popup (CHR-18), unit tests on the sidecar text of
       every fixture — gate:
       `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-domain --lib && cargo nextest run -p d2rmm-agent-core --lib`

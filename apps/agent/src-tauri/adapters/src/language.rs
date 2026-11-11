@@ -35,10 +35,8 @@ mod tests {
 
     use super::{PackFileError, parse_pack};
 
-    const ENGLISH_JSON: &str = r#"{
-        "language": "en",
-        "words": { "party": "Party", "gameName": "Game Name", "password": "Password" }
-    }"#;
+    /// The shipped English file: the built-in pack must be the same words (AGN-08, CHR-08).
+    const ENGLISH_JSON: &str = include_str!("../../resources/lang/en.json");
 
     #[test]
     fn the_english_file_parses_to_the_built_in_pack() {

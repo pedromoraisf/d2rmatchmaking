@@ -196,6 +196,8 @@ pub enum CardError {
     LevelOutOfRange,
     #[error("the title belongs to the other mode")]
     TitleOfOtherMode,
+    #[error("the difficulties are not the first one, two or three of Normal, Nightmare and Hell")]
+    NotADifficultyPrefix,
 }
 
 /// A character as the screen shows it, with every field read and every rule met.
@@ -206,6 +208,8 @@ pub struct Card {
     level: u8,
     mode: Mode,
     title: Option<Title>,
+    /// The difficulties the popup showed enabled for this card (CHR-18). They take precedence over the title's.
+    popup: Option<Vec<Difficulty>>,
 }
 
 const NAME_MIN: usize = 2;
@@ -261,7 +265,23 @@ impl Card {
             level,
             mode,
             title,
+            popup: None,
         })
+    }
+
+    /// The card with the difficulties the popup showed enabled (CHR-18). The enabled set must be the first one, two or
+    /// three of Normal, Nightmare and Hell: the contract's three shapes. Any other set is refused and the card keeps the
+    /// difficulties of its title.
+    pub fn with_popup_difficulties(mut self, enabled: &[Difficulty]) -> Result<Card, CardError> {
+        const ORDER: [Difficulty; 3] =
+            [Difficulty::Normal, Difficulty::Nightmare, Difficulty::Hell];
+        let is_prefix =
+            (1..=ORDER.len()).contains(&enabled.len()) && enabled == &ORDER[..enabled.len()];
+        if !is_prefix {
+            return Err(CardError::NotADifficultyPrefix);
+        }
+        self.popup = Some(enabled.to_vec());
+        Ok(self)
     }
 
     pub fn name(&self) -> &str {
@@ -284,9 +304,12 @@ impl Card {
         self.title
     }
 
-    /// The difficulties this card's title unlocks (CHR-07).
+    /// The difficulties this card may enter: the popup's, when it showed some (CHR-18), else the title's (CHR-07).
     pub fn unlocked_difficulties(&self) -> Vec<Difficulty> {
-        unlocked_difficulties(self.title)
+        match &self.popup {
+            Some(enabled) => enabled.clone(),
+            None => unlocked_difficulties(self.title),
+        }
     }
 }
 
