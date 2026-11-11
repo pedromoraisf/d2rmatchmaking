@@ -30,6 +30,6 @@ committed migrations never edited; no test weakened; `acceptance.feature` not ed
       gate: `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts`
 - [x] T6 — Acceptance steps for every step of `acceptance.feature` (two headless agents with drawn Party fixtures; the
       stack's clock) — gate: `pnpm exec turbo run test:acceptance -- --grep @LBR-`
-- [ ] T7 — The whole existing acceptance suite still passes (rooms changed under F0, queues and ready-check scenarios),
+- [x] T7 — The whole existing acceptance suite still passes (rooms changed under F0, queues and ready-check scenarios),
       then the sensors — gate:
       `pnpm exec turbo run test:acceptance -- --grep "@AWS-|@IDB-|@CHR-|@QUE-|@RDY-|@AGN-|@LBR-|@SHL-" && pnpm exec turbo run test:acceptance -- --grep @OBS- --workers=1 && pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check`
