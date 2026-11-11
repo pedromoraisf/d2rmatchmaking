@@ -4,6 +4,8 @@
 
 pub mod characters;
 pub mod fusion;
+pub mod language;
+pub mod layout;
 pub mod observation_retry;
 pub mod paired_device;
 pub mod pairing;

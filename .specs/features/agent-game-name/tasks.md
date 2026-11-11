@@ -9,7 +9,7 @@ screenshots are at `/private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaki
 
 ## Batch 1
 
-- [ ] T1 — Domain `layout.rs` (relative regions, aspect-ratio range) and `language.rs` (pack type, English built in,
+- [x] T1 — Domain `layout.rs` (relative regions, aspect-ratio range) and `language.rs` (pack type, English built in,
       parsed from JSON), unit tests at 1920×1033 and 1920×1080 and outside the range — gate:
       `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-domain --lib`
 - [ ] T2 — Domain `game_name_match.rs`: AGN-03 (trim, no case; before the last `-` `0`/`Ø`/`⊕` → `o`; after it
