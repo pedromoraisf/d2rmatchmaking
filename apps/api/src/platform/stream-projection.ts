@@ -18,7 +18,8 @@ export type CurrentAgentLookup = Pick<AgentsPort, 'currentAgentOf'>;
 /**
  * Maps a domain event to the stream messages it produces (design.md § Platform, stream projection):
  * `RoomAssignmentChanged` → `room.assigned` to each member's site and to each member's current agent;
- * `RoomStageChanged` → `room.stage_changed` to each member's site; `AgentPresenceChanged` → `agent.presence_changed`
+ * `RoomStageChanged` → `room.stage_changed` to each member's site; `RoomRunOpened` → `room.run_opened` to each member's
+ * site and agent; `RoomMemberChanged` → `room.member_changed` to each member's site (and the member who left); `AgentPresenceChanged` → `agent.presence_changed`
  * to the owner's site. `MatchFormed` and `AgentRevoked` are not streamed (AgentRevoked closes streams instead).
  */
 export async function projectStreamEvent(
@@ -56,6 +57,51 @@ export async function projectStreamEvent(
         event: {
           type: 'room.stage_changed' as const,
           data: { roomId: payload.roomId, stage: payload.stage, members: [...payload.members] },
+        },
+      }));
+    }
+    case 'RoomRunOpened': {
+      // The next run (LBR-06): every member's site and current agent get the new name; the agent reads for it from now on.
+      const { payload } = event;
+      const data = {
+        roomId: payload.roomId,
+        run: payload.run,
+        expectedGameName: payload.expectedGameName,
+        members: [...payload.members],
+      };
+      const deliveries: Delivery[] = [];
+      for (const member of payload.members) {
+        deliveries.push({
+          stream: 'site',
+          accountId: member.accountId,
+          event: { type: 'room.run_opened', data },
+        });
+        const agentId = await agents.currentAgentOf(member.accountId);
+        if (agentId !== null) {
+          deliveries.push({ stream: 'agent', agentId, event: { type: 'room.run_opened', data } });
+        }
+      }
+      return deliveries;
+    }
+    case 'RoomMemberChanged': {
+      // A confirmation, a departure or a new host (LBR-04, LBR-07, LBR-08): the remaining members' sites, and the member
+      // who left, who is no longer among the members.
+      const { payload } = event;
+      const accountIds = payload.members.map((member) => member.accountId);
+      if (payload.change === 'left' && !accountIds.includes(payload.accountId)) {
+        accountIds.push(payload.accountId);
+      }
+      return accountIds.map((accountId) => ({
+        stream: 'site' as const,
+        accountId,
+        event: {
+          type: 'room.member_changed' as const,
+          data: {
+            roomId: payload.roomId,
+            change: payload.change,
+            accountId: payload.accountId,
+            members: [...payload.members],
+          },
         },
       }));
     }

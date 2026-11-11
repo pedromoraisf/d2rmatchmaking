@@ -33,6 +33,10 @@ export function applyStreamEvent<S extends SiteView>(state: S, event: SiteStream
       return state.room !== null && state.room.roomId === event.data.roomId
         ? { ...state, room: { ...state.room, stage: event.data.stage } }
         : state;
+    // The room panel re-reads the room on these (lobby-rooms); the state here does not change.
+    case 'room.run_opened':
+    case 'room.member_changed':
+      return state;
     // The character list refetches on this event; the presence and room state do not change.
     case 'characters.updated':
       return state;

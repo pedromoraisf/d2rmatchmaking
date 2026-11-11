@@ -21,12 +21,20 @@ export const KEEP_ALIVE_MS = 25_000;
 export const MAX_STREAMS_PER_KEY = 5;
 
 /** The durable events a stream can carry; replay reads only these rows. */
-const STREAMED_DURABLE_TYPES = ['RoomAssignmentChanged', 'RoomStageChanged', 'CharactersRecorded'] as const;
+const STREAMED_DURABLE_TYPES = [
+  'RoomAssignmentChanged',
+  'RoomStageChanged',
+  'RoomRunOpened',
+  'RoomMemberChanged',
+  'CharactersRecorded',
+] as const;
 
 /** The events the hub subscribes to on the bus. */
 const SUBSCRIBED_TYPES = [
   'RoomAssignmentChanged',
   'RoomStageChanged',
+  'RoomRunOpened',
+  'RoomMemberChanged',
   'AgentPresenceChanged',
   'AgentRevoked',
   'CharactersRecorded',
@@ -231,6 +239,16 @@ export class StreamHub {
   /** True when the account has an open site stream now (QUE-05: the site must be open to queue). */
   hasSiteStream(accountId: string): boolean {
     return this.siteStreamCount(accountId) > 0;
+  }
+
+  /** True when the agent has an open stream now: it receives `room.assigned` live (LBR-02). */
+  hasAgentStream(agentId: string): boolean {
+    return [...this.#connections].some(
+      (connection) =>
+        !connection.closed &&
+        connection.principal.kind === 'agent' &&
+        connection.principal.agentId === agentId,
+    );
   }
 
   /** How many site streams of the account are open now (the test controls read it). */

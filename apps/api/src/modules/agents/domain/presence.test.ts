@@ -15,6 +15,10 @@ describe('Presence', () => {
     expect(Presence.isOfflineAt(base, new Date(T0.getTime() + 45_000))).toBe(true);
   });
 
+  it('counts as offline from 45 s after the last heartbeat', () => {
+    expect(Presence.offlineSince(base)).toEqual(new Date(T0.getTime() + 45_000));
+  });
+
   it('differs on online, gameRunning and screen', () => {
     expect(Presence.differs(base, { ...base, online: false })).toBe(true);
     expect(Presence.differs(base, { ...base, gameRunning: false })).toBe(true);

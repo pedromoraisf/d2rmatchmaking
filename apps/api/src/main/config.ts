@@ -21,6 +21,8 @@ export interface Config {
   readonly agentMinVersion: string;
   /** `TRUST_PROXY_HOPS`, default 1 (Render has one proxy in front of the API). */
   readonly trustProxyHops: number;
+  /** `ROOM_DROP_TOLERANCE_SECONDS`, default 60: how long a member's agent or site stream may be away before they leave their room (FR-32). */
+  readonly roomDropToleranceSeconds: number;
   /** `D2RMM_ACCEPTANCE` is exactly `true`: the acceptance stack asked for the test controls. */
   readonly acceptance: boolean;
   /** `D2RMM_ACCEPTANCE` is set at all, to any value. The Render root refuses any such value (AD-045). */
@@ -31,6 +33,9 @@ export interface Config {
   /** Battle.net sign-in settings: defined only when both `BNET_CLIENT_ID` and `BNET_CLIENT_SECRET` are set (IDB-06). */
   readonly bnet: BnetSettings | undefined;
 }
+
+/** The default of `ROOM_DROP_TOLERANCE_SECONDS` (LBR-08). */
+export const DEFAULT_ROOM_DROP_TOLERANCE_SECONDS = 60;
 
 export interface BnetSettings {
   /** `BNET_CLIENT_ID`. */
@@ -200,6 +205,12 @@ export function loadConfig(env: Environment = process.env): Config {
     environment: rawEnvironment as DeployEnvironment,
     agentMinVersion,
     trustProxyHops: integer('TRUST_PROXY_HOPS', env['TRUST_PROXY_HOPS'], 1, 0),
+    roomDropToleranceSeconds: integer(
+      'ROOM_DROP_TOLERANCE_SECONDS',
+      env['ROOM_DROP_TOLERANCE_SECONDS'],
+      DEFAULT_ROOM_DROP_TOLERANCE_SECONDS,
+      1,
+    ),
     acceptance: acceptanceRaw === 'true',
     acceptanceSet: acceptanceRaw !== undefined,
     testControlSecret: env['TEST_CONTROL_SECRET'],

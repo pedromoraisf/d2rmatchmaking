@@ -6,7 +6,7 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createMigratedTestDatabase,
   type MigratedTestDatabase,
@@ -143,6 +143,7 @@ interface RoomBody {
   readonly password: string;
   readonly members: readonly {
     readonly accountId: string;
+    readonly characterId: string | null;
     readonly role: string;
     readonly joinOrder: number;
   }[];
@@ -186,7 +187,7 @@ function observe(token: string, roomId: string, payload: unknown) {
 }
 
 describe('lobby routes', () => {
-  it('the test match opens a room that awaits the host, with an empty password', async () => {
+  it('the test match opens a formed room with an empty password', async () => {
     const cookie = await sessionFor(uniquePlayerName());
     await formTestMatch(cookie);
 
@@ -197,7 +198,7 @@ describe('lobby routes', () => {
       mode: 'leveling',
       activity: 'baal',
       difficulty: 'hell',
-      stage: 'awaiting_host',
+      stage: 'formed',
       run: 1,
       password: '',
     });
@@ -221,7 +222,13 @@ describe('lobby routes', () => {
       roomId: room.roomId,
       run: 1,
       expectedGameName: room.expectedGameName,
-      members: room.members,
+      // The agent reads the members as the match gave them: no confirmation flag, class or level.
+      members: room.members.map(({ accountId, characterId, joinOrder, role }) => ({
+        accountId,
+        characterId,
+        joinOrder,
+        role,
+      })),
     });
   });
 
@@ -302,5 +309,167 @@ describe('lobby routes', () => {
     const owner = await sessionFor(uniquePlayerName());
     await formTestMatch(owner);
     expect((await myRoom(lonely)).statusCode).toBe(404);
+  });
+
+  describe('the room actions and the timers', () => {
+    interface Seated {
+      readonly cookies: readonly string[];
+      readonly accountIds: readonly string[];
+      readonly roomId: string;
+    }
+
+    /** The account id behind a session. */
+    async function accountOf(cookie: string): Promise<string> {
+      const response = await app.app.inject({ method: 'GET', url: '/v1/me', headers: { cookie } });
+      return bodyOf<{ accountId: string }>(response).accountId;
+    }
+
+    /** A room of `count` signed-in members in `stage`, written as the Lobby Room stores it; member 1 is the host. */
+    async function seatRoom(stage: string, count: number, confirmed = false): Promise<Seated> {
+      const cookies: string[] = [];
+      const accountIds: string[] = [];
+      for (let order = 0; order < count; order += 1) {
+        const cookie = await sessionFor(uniquePlayerName());
+        cookies.push(cookie);
+        accountIds.push(await accountOf(cookie));
+      }
+      const roomId = randomUUID();
+      const gameNumber = 100_000 + (Number.parseInt(randomUUID().slice(0, 6), 16) % 800_000);
+      await database.db
+        .insertInto('lobby.rooms')
+        .values({
+          id: roomId,
+          match_id: randomUUID(),
+          mode: 'leveling',
+          activity: 'baal',
+          difficulty: 'hell',
+          host_account_id: accountIds[0] ?? '',
+          stage: stage as 'formed',
+          current_run: 1,
+          created_at: START,
+          trace_context: null,
+          awaiting_since: stage === 'awaiting_host' ? START : null,
+          closed_at: null,
+        })
+        .execute();
+      await database.db
+        .insertInto('lobby.members')
+        .values(
+          accountIds.map((accountId, index) => ({
+            room_id: roomId,
+            account_id: accountId,
+            character_id: null,
+            role: index === 0 ? ('host' as const) : ('member' as const),
+            join_order: index + 1,
+            confirmed_run: confirmed ? 1 : null,
+            left_at: null,
+          })),
+        )
+        .execute();
+      await database.db
+        .insertInto('lobby.runs')
+        .values({ room_id: roomId, number: 1, game_name: `mmbaalh-${gameNumber}`, opened_at: START })
+        .execute();
+      return { cookies, accountIds, roomId };
+    }
+
+    function act(cookie: string, roomId: string, action: 'runs' | 'leave' | 'close', origin = SITE_ORIGIN) {
+      return app.app.inject({
+        method: 'POST',
+        url: `/v1/lobby-rooms/${roomId}/${action}`,
+        headers: { origin, 'content-type': 'application/json', cookie },
+        payload: {},
+      });
+    }
+
+    it('the host opens the next run of an active room (LBR-06)', async () => {
+      const room = await seatRoom('active', 2, true);
+      const [host, guest] = room.cookies as [string, string];
+
+      const response = await act(host, room.roomId, 'runs');
+
+      expect(response.statusCode).toBe(204);
+      const seen = bodyOf<RoomBody & { runs: unknown[]; expiresAt: string | null; you: string }>(
+        await myRoom(guest),
+      );
+      expect(seen).toMatchObject({ stage: 'awaiting_host', run: 2, expiresAt: '2026-10-31T12:03:00.000Z' });
+      expect(seen.runs).toHaveLength(2);
+      expect(seen.you).toBe(room.accountIds[1]);
+      expect(seen.expectedGameName).toMatch(/^mmbaalh-\d+$/);
+    });
+
+    it('answers 403 to a member who is not the host, 409 to a room that is not active, 404 to a stranger', async () => {
+      const room = await seatRoom('active', 2, true);
+      const [host, guest] = room.cookies as [string, string];
+      const stranger = await sessionFor(uniquePlayerName());
+
+      expect((await act(guest, room.roomId, 'runs')).statusCode).toBe(403);
+      expect((await act(guest, room.roomId, 'close')).statusCode).toBe(403);
+      expect((await act(stranger, room.roomId, 'runs')).statusCode).toBe(404);
+      expect((await act(stranger, room.roomId, 'leave')).statusCode).toBe(404);
+      expect((await act(host, randomUUID(), 'close')).statusCode).toBe(404);
+      const waiting = await seatRoom('awaiting_host', 2);
+      expect((await act(waiting.cookies[0] ?? '', waiting.roomId, 'runs')).statusCode).toBe(409);
+    });
+
+    it('requires a session and the site origin on every room action', async () => {
+      const room = await seatRoom('active', 2, true);
+      const [host] = room.cookies as [string, string];
+
+      const noSession = await app.app.inject({
+        method: 'POST',
+        url: `/v1/lobby-rooms/${room.roomId}/close`,
+        headers: { origin: SITE_ORIGIN, 'content-type': 'application/json' },
+        payload: {},
+      });
+      expect(noSession.statusCode).toBe(401);
+      expect((await act(host, room.roomId, 'close', 'https://evil.example')).statusCode).toBe(403);
+      expect((await myRoom(host)).statusCode).toBe(200);
+    });
+
+    it('a member leaves and the host role passes on (LBR-07)', async () => {
+      const room = await seatRoom('active', 3, true);
+      const [host, second, third] = room.cookies as [string, string, string];
+
+      expect((await act(host, room.roomId, 'leave')).statusCode).toBe(204);
+
+      expect((await myRoom(host)).statusCode).toBe(404);
+      const seen = bodyOf<RoomBody>(await myRoom(third));
+      expect(seen.members.map((member) => [member.accountId, member.role])).toEqual([
+        [room.accountIds[1], 'host'],
+        [room.accountIds[2], 'member'],
+      ]);
+      expect((await act(second, room.roomId, 'close')).statusCode).toBe(204);
+    });
+
+    it('the host closes the room and the members are released (LBR-09, LBR-10)', async () => {
+      const room = await seatRoom('created', 2);
+      const [host, guest] = room.cookies as [string, string];
+
+      expect((await act(host, room.roomId, 'close')).statusCode).toBe(204);
+
+      expect(bodyOf<RoomBody>(await myRoom(guest)).stage).toBe('closed');
+      expect((await act(host, room.roomId, 'close')).statusCode).toBe(409);
+      expect((await act(guest, room.roomId, 'leave')).statusCode).toBe(409);
+    });
+
+    it("the host's agent fetching the assignment starts the 3 minutes, and the room expires after them (LBR-02, LBR-05)", async () => {
+      const host = await sessionFor(uniquePlayerName());
+      const token = await pairNewAgent(host);
+      await formTestMatch(host);
+      expect(bodyOf<RoomBody>(await myRoom(host)).stage).toBe('formed');
+
+      expect((await assignmentOf(token)).statusCode).toBe(200);
+      expect(bodyOf<RoomBody>(await myRoom(host)).stage).toBe('awaiting_host');
+
+      clock.advance(180_000);
+      // The fake scheduler runs the one-second sweep for each of the 180 seconds; the last of them expires the room.
+      await vi.waitFor(
+        async () => {
+          expect(bodyOf<RoomBody>(await myRoom(host)).stage).toBe('expired');
+        },
+        { timeout: 15_000, interval: 250 },
+      );
+    });
   });
 });

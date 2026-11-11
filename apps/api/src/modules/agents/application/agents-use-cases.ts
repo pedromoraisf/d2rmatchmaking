@@ -1,7 +1,7 @@
 import type { Clock, EventBus, IdGenerator, RandomSource, UnitOfWork } from '../../../shared-kernel/index.ts';
 import { createAuthenticateAgent } from './authenticate-agent.ts';
 import { createAccountOfAgent, createCurrentAgentOf } from './agent-lookups.ts';
-import { createAgentOnlineOf } from './agent-online.ts';
+import { createAgentOfflineSinceOf, createAgentOnlineOf } from './agent-online.ts';
 import { createClaimToken } from './claim-token.ts';
 import { createEvictRevokedAgent } from './evict-revoked-agent.ts';
 import { createGetMyAgent } from './get-my-agent.ts';
@@ -61,6 +61,7 @@ export function createAgentsUseCases(deps: AgentsRuntimeDeps) {
     accountOfAgent: createAccountOfAgent(deps),
     currentAgentOf: createCurrentAgentOf(deps),
     agentOnlineOf: createAgentOnlineOf(deps),
+    agentOfflineSinceOf: createAgentOfflineSinceOf(deps),
   };
 }
 

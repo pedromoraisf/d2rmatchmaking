@@ -169,3 +169,15 @@ describe('loadConfig Battle.net settings (IDB-06, IDB-11)', () => {
     expect(() => loadConfig({ BNET_OAUTH_BASE_URL: 'not a url' })).toThrow('BNET_OAUTH_BASE_URL');
   });
 });
+
+describe('loadConfig room drop tolerance (LBR-08)', () => {
+  it('defaults to 60 seconds', () => {
+    expect(loadConfig({}).roomDropToleranceSeconds).toBe(60);
+  });
+
+  it('reads ROOM_DROP_TOLERANCE_SECONDS and refuses zero and text', () => {
+    expect(loadConfig({ ROOM_DROP_TOLERANCE_SECONDS: '90' }).roomDropToleranceSeconds).toBe(90);
+    expect(() => loadConfig({ ROOM_DROP_TOLERANCE_SECONDS: '0' })).toThrow('ROOM_DROP_TOLERANCE_SECONDS');
+    expect(() => loadConfig({ ROOM_DROP_TOLERANCE_SECONDS: 'soon' })).toThrow('ROOM_DROP_TOLERANCE_SECONDS');
+  });
+});
