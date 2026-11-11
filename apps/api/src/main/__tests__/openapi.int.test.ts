@@ -34,6 +34,12 @@ const ROUTES: readonly {
   { method: 'post', url: '/v1/lobby-rooms/:id/observations', path: '/v1/lobby-rooms/{id}/observations' },
   { method: 'get', url: '/v1/me/room', path: '/v1/me/room' },
   { method: 'post', url: '/v1/staging/match-formed', path: '/v1/staging/match-formed' },
+  { method: 'post', url: '/v1/queue/tickets', path: '/v1/queue/tickets' },
+  { method: 'get', url: '/v1/queue/tickets/me', path: '/v1/queue/tickets/me' },
+  { method: 'delete', url: '/v1/queue/tickets/:id', path: '/v1/queue/tickets/{id}' },
+  { method: 'get', url: '/v1/ready-checks/me', path: '/v1/ready-checks/me' },
+  { method: 'post', url: '/v1/ready-checks/:id/accept', path: '/v1/ready-checks/{id}/accept' },
+  { method: 'post', url: '/v1/ready-checks/:id/decline', path: '/v1/ready-checks/{id}/decline' },
   { method: 'post', url: '/v1/telemetry/traces', path: '/v1/telemetry/traces' },
   { method: 'get', url: '/v1/stream', path: '/v1/stream' },
 ];

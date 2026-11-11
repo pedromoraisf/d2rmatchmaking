@@ -30,6 +30,10 @@ const SUBSCRIBED_TYPES = [
   'AgentPresenceChanged',
   'AgentRevoked',
   'CharactersRecorded',
+  'QueueUpdated',
+  'ReadyCheckStarted',
+  'ReadyCheckUpdated',
+  'ReadyCheckResolved',
 ] as const;
 
 /** Query parameters that would carry a credential: refused with 400 so tokens never reach a URL (AWS-11). */
@@ -208,6 +212,7 @@ export class StreamHub {
   readonly #deps: StreamHubDeps;
   readonly #connections = new Set<Connection>();
   readonly #sseConnections: UpDownCounter;
+  readonly #siteClosedListeners: Array<(accountId: string) => void> = [];
 
   constructor(deps: StreamHubDeps) {
     this.#deps = deps;
@@ -221,6 +226,46 @@ export class StreamHub {
     for (const type of SUBSCRIBED_TYPES) {
       this.#deps.bus.subscribe(type, (event) => this.#dispatch(event));
     }
+  }
+
+  /** True when the account has an open site stream now (QUE-05: the site must be open to queue). */
+  hasSiteStream(accountId: string): boolean {
+    return this.siteStreamCount(accountId) > 0;
+  }
+
+  /** How many site streams of the account are open now (the test controls read it). */
+  siteStreamCount(accountId: string): number {
+    return [...this.#connections].filter(
+      (connection) =>
+        !connection.closed &&
+        connection.principal.kind === 'site' &&
+        connection.principal.accountId === accountId,
+    ).length;
+  }
+
+  /**
+   * Closes every open site stream of the account, exactly as a dropped connection would (the test controls use it): the
+   * last one to close starts the QUE-14 clock through `onSiteStreamsClosed`. Returns how many it closed.
+   */
+  closeSiteStreams(accountId: string): number {
+    const mine = [...this.#connections].filter(
+      (connection) =>
+        !connection.closed &&
+        connection.principal.kind === 'site' &&
+        connection.principal.accountId === accountId,
+    );
+    for (const connection of mine) {
+      connection.close();
+    }
+    return mine.length;
+  }
+
+  /**
+   * Calls `listener` with the account when its last site stream closes (QUE-14): `main/` starts the 30-second clock from
+   * it. Reconnecting in time is seen through `hasSiteStream` when the clock ends.
+   */
+  onSiteStreamsClosed(listener: (accountId: string) => void): void {
+    this.#siteClosedListeners.push(listener);
   }
 
   /** Closes every open stream (the test controls' reset). Each closed stream leaves the set through its `onClose`. */
@@ -270,6 +315,7 @@ export class StreamHub {
       onClose: (closing) => {
         if (this.#connections.delete(closing)) {
           this.#sseConnections.add(-1, { [D2R_STREAM_KIND]: closing.principal.kind });
+          this.#noteSiteClosed(closing.principal);
         }
       },
     });
@@ -294,6 +340,16 @@ export class StreamHub {
       await this.#replay(connection, afterId);
     }
     return reply;
+  }
+
+  /** Tells the listeners when the last site stream of an account has closed. */
+  #noteSiteClosed(principal: Principal): void {
+    if (principal.kind !== 'site' || this.hasSiteStream(principal.accountId)) {
+      return;
+    }
+    for (const listener of this.#siteClosedListeners) {
+      listener(principal.accountId);
+    }
   }
 
   /** The agent or site principal of the request, or undefined after the guard has answered. */

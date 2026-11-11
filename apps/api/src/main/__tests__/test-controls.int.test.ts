@@ -85,6 +85,7 @@ async function startApp(
       stores: built.stores,
       hub: built.hub,
       relay: built.relay,
+      siteClosedTimers: built.siteClosedTimers,
       bus: built.bus,
     });
   }
@@ -227,5 +228,82 @@ describe('the match-formed redelivery control (AD-062)', () => {
     const response = await redeliver(app, SECRET);
 
     expect(response.statusCode).toBe(404);
+  });
+});
+
+describe('the site-streams controls (queues QUE-05)', () => {
+  /** The account of a session, read the way the site reads it. */
+  async function accountOf(app: BuiltApp, cookie: string): Promise<string> {
+    const me = await app.app.inject({ method: 'GET', url: '/v1/me', headers: { cookie } });
+    return (me.json() as { accountId: string }).accountId;
+  }
+
+  /** The count control, with the given secret (or none). */
+  function countOf(app: BuiltApp, accountId: string, secret?: string) {
+    return app.app.inject({
+      method: 'GET',
+      url: `/__test/site-streams/${accountId}`,
+      headers: secret === undefined ? {} : { [TEST_CONTROL_HEADER]: secret },
+    });
+  }
+
+  it('counts the open site streams, closes them as a dropped connection would, and the client sees the end', async () => {
+    const { db, name } = await openAcceptanceDatabase();
+    const app = await startApp(db, { name, host: '127.0.0.1' });
+    const baseUrl = await app.app.listen({ host: '127.0.0.1', port: 0 });
+    const cookie = await sessionFor(app);
+    const accountId = await accountOf(app, cookie);
+    const stream = await fetch(`${baseUrl}/v1/stream`, { headers: { cookie } });
+    expect(stream.status).toBe(200);
+
+    const before = await countOf(app, accountId, SECRET);
+    expect(JSON.parse(before.body)).toStrictEqual({ open: 1 });
+
+    const closed = await app.app.inject({
+      method: 'POST',
+      url: `/__test/site-streams/${accountId}/close`,
+      headers: { [TEST_CONTROL_HEADER]: SECRET },
+    });
+    expect(closed.statusCode).toBe(200);
+    expect(JSON.parse(closed.body)).toStrictEqual({ closed: 1 });
+    // The response ends on the client, which is what a closed stream looks like from the site.
+    await stream.text();
+
+    expect(JSON.parse((await countOf(app, accountId, SECRET)).body)).toStrictEqual({ open: 0 });
+    expect(app.hub.hasSiteStream(accountId)).toBe(false);
+  });
+
+  it('answers 403 to the count and the close without the secret or with a wrong one', async () => {
+    const { db, name } = await openAcceptanceDatabase();
+    const app = await startApp(db, { name, host: '127.0.0.1' });
+    const accountId = 'some-account';
+
+    const count = await countOf(app, accountId);
+    const countWrong = await countOf(app, accountId, `${SECRET}x`);
+    const close = await app.app.inject({ method: 'POST', url: `/__test/site-streams/${accountId}/close` });
+    const closeWrong = await app.app.inject({
+      method: 'POST',
+      url: `/__test/site-streams/${accountId}/close`,
+      headers: { [TEST_CONTROL_HEADER]: `${SECRET}x` },
+    });
+
+    for (const answer of [count, countWrong, close, closeWrong]) {
+      expect(answer.statusCode).toBe(403);
+      expect(JSON.parse(answer.body)).toStrictEqual({ error: 'forbidden' });
+    }
+  });
+
+  it('the app built the way render.ts builds it has no site-streams routes', async () => {
+    const app = await startApp(migrated.db);
+
+    const count = await countOf(app, 'some-account', SECRET);
+    const close = await app.app.inject({
+      method: 'POST',
+      url: '/__test/site-streams/some-account/close',
+      headers: { [TEST_CONTROL_HEADER]: SECRET },
+    });
+
+    expect(count.statusCode).toBe(404);
+    expect(close.statusCode).toBe(404);
   });
 });

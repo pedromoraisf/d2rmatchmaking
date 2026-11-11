@@ -58,6 +58,7 @@ export async function startLocal(config: Config): Promise<LocalServer> {
         database: { name: databaseUrl.pathname.replace(/^\//, ''), host: databaseUrl.hostname },
         stores: built.stores,
         hub: built.hub,
+        siteClosedTimers: built.siteClosedTimers,
         relay: built.relay,
         bus: built.bus,
       });

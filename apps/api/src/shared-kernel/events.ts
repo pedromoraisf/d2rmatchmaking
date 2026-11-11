@@ -13,6 +13,8 @@ export interface MatchMember {
   readonly characterId: string | null;
   readonly joinOrder: number;
   readonly role: MemberRole;
+  /** The team of a 2v2 member (QUE-12); absent in every other group. */
+  readonly team?: 'a' | 'b';
 }
 
 /** A domain event: its type name and its payload. */
@@ -62,6 +64,78 @@ export interface CharactersRecordedPayload {
   readonly accountId: string;
 }
 
+/** Why a ticket left the queue without a match (QUE-13, QUE-14); a match is `matched`. */
+export type QueueLeaveReason =
+  'left-by-player' | 'matched' | 'agent-offline' | 'agent-revoked' | 'site-closed';
+
+/** The options a ticket was joined with (QUE-01, QUE-02), as the site shows them. */
+export type QueueOptionsSnapshot =
+  | {
+      readonly mode: 'pvp';
+      readonly characterId: string;
+      readonly difficulty: 'normal' | 'nightmare' | 'hell';
+      readonly region: 'americas' | 'europe' | 'asia';
+      readonly format: 'duel' | '2v2' | 'arena';
+      readonly rules: 'gm' | 'bm';
+    }
+  | {
+      readonly mode: 'leveling';
+      readonly characterId: string;
+      readonly difficulty: 'normal' | 'nightmare' | 'hell';
+      readonly region: 'americas' | 'europe' | 'asia';
+      readonly activity: 'baal' | 'chaos' | 'cows' | 'tz' | 'heralds';
+      readonly role: 'teleporter' | 'bo' | 'killer' | 'leech';
+      readonly minLevel: number;
+    };
+
+/** A waiting ticket as the site shows it (contract `QueueTicketView`). */
+export interface QueueTicketSnapshot {
+  readonly id: string;
+  readonly status: 'waiting';
+  readonly mode: 'pvp' | 'leveling';
+  readonly options: QueueOptionsSnapshot;
+  readonly joinedAt: string;
+  readonly band: { readonly low: number; readonly high: number } | null;
+  readonly poolSize: number;
+}
+
+export interface QueueUpdatedPayload {
+  readonly accountId: string;
+  readonly update: QueueTicketSnapshot | { readonly status: 'left'; readonly reason: QueueLeaveReason };
+}
+
+/** One member of an open ready check, as the transient events carry it (RDY-01, RDY-02): the marks, never a name. */
+export interface ReadyCheckMemberSnapshot {
+  readonly accountId: string;
+  /** The member's place in the join order, from 1 (RDY-02: by position, not name). */
+  readonly position: number;
+  readonly characterClass: CharacterClassName;
+  readonly level: number;
+  readonly accepted: boolean;
+}
+
+/** The character classes of D2R (the contract's `CharacterClass`). */
+export type CharacterClassName =
+  'amazon' | 'assassin' | 'barbarian' | 'druid' | 'necromancer' | 'paladin' | 'sorceress' | 'warlock';
+
+/** The state of an open ready check, sent to each member's streams with the member's own `you` flag (RDY-01, RDY-02). */
+export interface ReadyCheckChangedPayload {
+  readonly readyCheckId: string;
+  readonly mode: 'pvp' | 'leveling';
+  readonly difficulty: 'normal' | 'nightmare' | 'hell';
+  readonly deadline: string;
+  /** The server's clock when the state was read or changed: the site counts down from it, not from its own clock (RDY-11). */
+  readonly serverNow: string;
+  readonly members: readonly ReadyCheckMemberSnapshot[];
+}
+
+/** How a ready check ended, and the accounts it was for (RDY-03 … RDY-05). */
+export interface ReadyCheckResolvedPayload {
+  readonly readyCheckId: string;
+  readonly outcome: 'accepted' | 'declined' | 'timed-out';
+  readonly accountIds: readonly string[];
+}
+
 /** Durable events, written to the outbox in the same transaction as the state change (ADR 008). */
 export type MatchFormedEvent = DomainEvent<'MatchFormed', MatchFormedPayload>;
 export type RoomAssignmentChangedEvent = DomainEvent<'RoomAssignmentChanged', RoomAssignmentChangedPayload>;
@@ -71,6 +145,10 @@ export type CharactersRecordedEvent = DomainEvent<'CharactersRecorded', Characte
 /** Transient events, published on the bus only and never stored. */
 export type AgentPresenceChangedEvent = DomainEvent<'AgentPresenceChanged', AgentPresenceChangedPayload>;
 export type AgentRevokedEvent = DomainEvent<'AgentRevoked', AgentRevokedPayload>;
+export type QueueUpdatedEvent = DomainEvent<'QueueUpdated', QueueUpdatedPayload>;
+export type ReadyCheckStartedEvent = DomainEvent<'ReadyCheckStarted', ReadyCheckChangedPayload>;
+export type ReadyCheckUpdatedEvent = DomainEvent<'ReadyCheckUpdated', ReadyCheckChangedPayload>;
+export type ReadyCheckResolvedEvent = DomainEvent<'ReadyCheckResolved', ReadyCheckResolvedPayload>;
 
 /** Every event type of the feature. */
 export type AnyDomainEvent =
@@ -79,7 +157,11 @@ export type AnyDomainEvent =
   | RoomStageChangedEvent
   | CharactersRecordedEvent
   | AgentPresenceChangedEvent
-  | AgentRevokedEvent;
+  | AgentRevokedEvent
+  | QueueUpdatedEvent
+  | ReadyCheckStartedEvent
+  | ReadyCheckUpdatedEvent
+  | ReadyCheckResolvedEvent;
 
 /** What the bus carries: durable events keep their outbox id, transient events have none. */
 export type BusEvent =

@@ -109,4 +109,70 @@ describe('api client', () => {
     const result = await createApiClient(fetch).myRoom();
     expect(result.ok && result.value.expectedGameName).toBe('mmbaalh-12');
   });
+
+  it('answers a ready check with a JSON POST to its accept and decline routes (RDY-02, RDY-04)', async () => {
+    const { fetch, calls } = routeFetch({
+      'POST /api/v1/ready-checks/rc-1/accept': () => jsonResponse(204),
+      'POST /api/v1/ready-checks/rc-1/decline': () => jsonResponse(204),
+    });
+    const client = createApiClient(fetch);
+    expect(await client.acceptReadyCheck('rc-1')).toStrictEqual({ ok: true, value: undefined });
+    expect(await client.declineReadyCheck('rc-1')).toStrictEqual({ ok: true, value: undefined });
+    expect(calls.map((call) => call.init.headers)).toStrictEqual([
+      { 'Content-Type': 'application/json' },
+      { 'Content-Type': 'application/json' },
+    ]);
+  });
+
+  it('maps a 409 on an answer to failed, so the site says the answer did not count', async () => {
+    const { fetch } = routeFetch({
+      'POST /api/v1/ready-checks/rc-1/accept': () => jsonResponse(409, { error: 'ready-check-ended' }),
+    });
+    expect(await createApiClient(fetch).acceptReadyCheck('rc-1')).toStrictEqual({
+      ok: false,
+      failure: 'failed',
+    });
+  });
+
+  it('keeps the seconds left of a ready-check penalty refusal', async () => {
+    const { fetch } = routeFetch({
+      'POST /api/v1/queue/tickets': () =>
+        jsonResponse(422, { error: 'ready-check-penalty', secondsLeft: 42 }),
+    });
+    const body = {
+      mode: 'pvp' as const,
+      characterId: 'c-1',
+      difficulty: 'normal' as const,
+      region: 'americas' as const,
+      format: 'duel' as const,
+      rules: 'gm' as const,
+    };
+    expect(await createApiClient(fetch).joinQueue(body)).toStrictEqual({
+      ok: false,
+      failure: 'refused',
+      refusal: 'ready-check-penalty',
+      secondsLeft: 42,
+    });
+  });
+
+  it('reads the open ready check, or null on 204 (RDY-11)', async () => {
+    const check = {
+      id: 'rc-1',
+      mode: 'pvp',
+      difficulty: 'hell',
+      deadline: '2026-11-10T12:01:00.000Z',
+      now: '2026-11-10T12:00:00.000Z',
+      members: [
+        { position: 1, class: 'sorceress', level: 91, accepted: false, you: true },
+        { position: 2, class: 'barbarian', level: 84, accepted: false, you: false },
+      ],
+    };
+    const { fetch } = routeFetch({
+      'GET /api/v1/ready-checks/me': () => jsonResponse(200, check),
+    });
+    expect(await createApiClient(fetch).myReadyCheck()).toStrictEqual({ ok: true, value: check });
+
+    const none = routeFetch({ 'GET /api/v1/ready-checks/me': () => new Response(null, { status: 204 }) });
+    expect(await createApiClient(none.fetch).myReadyCheck()).toStrictEqual({ ok: true, value: null });
+  });
 });

@@ -166,6 +166,17 @@ impl ApiGateway for Reporting {
     ) -> Result<Box<dyn EventStream>, ApiError> {
         self.inner.open_stream(token, last_event_id).await
     }
+
+    async fn accept_ready_check(&self, token: &Secret, check_id: &str) -> Result<(), ApiError> {
+        self.inner.accept_ready_check(token, check_id).await
+    }
+
+    async fn my_ready_check(
+        &self,
+        token: &Secret,
+    ) -> Result<Option<d2rmm_agent_core::messages::ReadyCheckOpen>, ApiError> {
+        self.inner.my_ready_check(token).await
+    }
 }
 
 /// The wall clock of the run.
@@ -584,6 +595,10 @@ where
             },
             Command::Consent(given) => consent.store(given, Ordering::SeqCst),
             Command::Other => {}
+        }
+        // The agent's accept hotkey (RDY-07): the same accept path the Tauri global shortcut takes.
+        if line.trim() == "hotkey" {
+            handle.accept_ready_check();
         }
     }
     let _ = guard.shutdown();

@@ -1,37 +1,9 @@
-/** Outcome of checking one more submission against a window. */
-export type WindowOutcome =
-  { readonly outcome: 'allowed' } | { readonly outcome: 'limited'; readonly retryAt: Date };
+import { SlidingWindowLimit } from '../../../shared-kernel/sliding-window.ts';
+
+export { SlidingWindowLimit } from '../../../shared-kernel/sliding-window.ts';
+export type { WindowOutcome } from '../../../shared-kernel/sliding-window.ts';
 
 const MS_PER_MINUTE = 60 * 1000;
-
-/**
- * At most `limit` submissions in any `windowMs` span. A submission is in the window while `now - t < windowMs`, so a
- * limited caller is allowed again at exactly `oldest in-window submission + windowMs`. The caller records the
- * timestamps of the submissions it allowed.
- */
-export class SlidingWindowLimit {
-  readonly limit: number;
-  readonly windowMs: number;
-
-  constructor(limit: number, windowMs: number) {
-    this.limit = limit;
-    this.windowMs = windowMs;
-  }
-
-  check(timestamps: readonly Date[], now: Date): WindowOutcome {
-    const nowMs = now.getTime();
-    const inWindow = timestamps
-      .map((t) => t.getTime())
-      .filter((t) => nowMs - t < this.windowMs)
-      .sort((a, b) => a - b);
-    if (inWindow.length < this.limit) {
-      return { outcome: 'allowed' };
-    }
-    // The submission that must leave the window before one more is allowed.
-    const blocking = inWindow[inWindow.length - this.limit] ?? nowMs;
-    return { outcome: 'limited', retryAt: new Date(blocking + this.windowMs) };
-  }
-}
 
 /** Account pairing-code submissions: 10 per 5 minutes (AD-032). */
 export const ACCOUNT_CODE_SUBMISSIONS = new SlidingWindowLimit(10, 5 * MS_PER_MINUTE);

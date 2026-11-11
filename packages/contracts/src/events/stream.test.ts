@@ -58,6 +58,46 @@ describe('stream events', () => {
     expect(SiteStreamEvent.parse(updated)).toStrictEqual(updated);
   });
 
+  it('accepts queue.updated with a waiting ticket on the site stream', () => {
+    const queued = {
+      type: 'queue.updated',
+      data: {
+        id: 'q-1',
+        status: 'waiting',
+        mode: 'pvp',
+        options: {
+          mode: 'pvp',
+          characterId: 'c-1',
+          difficulty: 'hell',
+          region: 'americas',
+          format: 'duel',
+          rules: 'gm',
+        },
+        joinedAt: '2026-11-10T12:00:00.000Z',
+        band: { low: 1400, high: 1600 },
+        poolSize: 3,
+      },
+    };
+    expect(SiteStreamEvent.parse(queued)).toStrictEqual(queued);
+  });
+
+  it('accepts queue.updated with the left reason on the site stream', () => {
+    const left = { type: 'queue.updated', data: { status: 'left', reason: 'agent-offline' } };
+    expect(SiteStreamEvent.parse(left)).toStrictEqual(left);
+  });
+
+  it('rejects queue.updated with an unknown leave reason', () => {
+    const left = { type: 'queue.updated', data: { status: 'left', reason: 'bored' } };
+    expect(SiteStreamEvent.safeParse(left).success).toBe(false);
+  });
+
+  it('does not accept queue.updated on the agent stream', () => {
+    expect(
+      AgentStreamEvent.safeParse({ type: 'queue.updated', data: { status: 'left', reason: 'matched' } })
+        .success,
+    ).toBe(false);
+  });
+
   it('does not accept characters.updated on the agent stream', () => {
     expect(AgentStreamEvent.safeParse({ type: 'characters.updated', data: {} }).success).toBe(false);
   });

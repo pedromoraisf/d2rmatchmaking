@@ -35,5 +35,8 @@
     "allowed": "Capture is allowed on this PC.",
     "withdrawn": "Capture is off. The agent reads nothing.",
     "notSaved": "Could not save your choice. Try again."
+  },
+  "readyCheck": {
+    "hotkey": "A ready check is open: press Ctrl+Shift+A to accept it."
   }
 }

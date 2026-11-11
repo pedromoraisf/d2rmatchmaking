@@ -115,5 +115,104 @@
   },
   "testMatch": {
     "start": "Iniciar partida de teste"
+  },
+  "queue": {
+    "heading": "Encontrar partida",
+    "modeLegend": "Fila",
+    "modePvp": "PvP",
+    "modeLeveling": "Leveling",
+    "character": "Personagem",
+    "characterOption": "{{name}}, {{characterClass}}, nível {{level}}",
+    "difficulty": "Dificuldade",
+    "region": "Região do jogo",
+    "regions": {
+      "americas": "Américas",
+      "europe": "Europa",
+      "asia": "Ásia"
+    },
+    "format": "Formato",
+    "formats": {
+      "duel": "Duelo",
+      "2v2": "2v2",
+      "arena": "Arena"
+    },
+    "rules": "Regras",
+    "rulesOptions": {
+      "gm": "GM",
+      "bm": "BM"
+    },
+    "activity": "Atividade",
+    "activities": {
+      "baal": "Baal",
+      "chaos": "Chaos",
+      "cows": "Vacas",
+      "tz": "Zona de Terror",
+      "heralds": "Arautos"
+    },
+    "role": "Função",
+    "roles": {
+      "teleporter": "Teleportador",
+      "bo": "BO",
+      "killer": "Killer",
+      "leech": "Leech"
+    },
+    "minLevel": "Nível mínimo",
+    "findMatch": "Encontrar partida",
+    "joinFailed": "A fila não aceitou o pedido. Tente de novo.",
+    "reasons": {
+      "noCharacter": "Leia um personagem primeiro: abra a tela de seleção de personagens com o agente aberto.",
+      "undeclared": "Declare a escada e a era para entrar na fila com este personagem",
+      "difficultyLocked": "Bloqueada neste personagem",
+      "activityNotAvailable": "Arautos exige Inferno e Reign of the Warlock",
+      "belowFloor": "Este personagem está abaixo do nível desta dificuldade",
+      "minimumBelowFloor": "O nível mínimo está abaixo do nível desta dificuldade",
+      "belowMinimum": "Este personagem está abaixo do nível mínimo escolhido"
+    },
+    "left": {
+      "agent-offline": "Você saiu da fila: seu agente ficou offline.",
+      "agent-revoked": "Você saiu da fila: seu agente foi revogado.",
+      "site-closed": "Você saiu da fila: o site ficou fechado por tempo demais."
+    },
+    "searching": {
+      "heading": "Procurando partida",
+      "waited": "Esperando há {{time}}",
+      "band": "Faixa de rating de {{low}} a {{high}}",
+      "pool": "{{players}} jogadores nesta fila",
+      "leave": "Sair da fila",
+      "leaveFailed": "Não foi possível sair da fila. Tente de novo."
+    },
+    "refusals": {
+      "not-your-character": "Este personagem não está na sua conta. Escolha outro.",
+      "undeclared-character": "Declare a escada e a era deste personagem primeiro.",
+      "difficulty-locked": "Esta dificuldade está bloqueada neste personagem.",
+      "below-floor": "Este personagem está abaixo do nível desta dificuldade.",
+      "below-minimum-level": "Este personagem está abaixo do nível mínimo escolhido.",
+      "minimum-below-floor": "O nível mínimo está abaixo do nível desta dificuldade.",
+      "activity-not-available": "Arautos exige Inferno e Reign of the Warlock.",
+      "agent-offline": "Seu agente está offline. Abra-o neste PC e tente de novo.",
+      "not-linked": "Vincule uma conta Battle.net para entrar na fila.",
+      "site-not-open": "Mantenha este site aberto para entrar na fila.",
+      "already-queued": "Você já tem um ticket na fila.",
+      "in-room": "Você está em uma sala que ainda está aberta.",
+      "too-many-joins": "Muitas entradas na fila em um minuto. Aguarde um pouco e tente de novo.",
+      "queue-full": "Esta fila está cheia agora. Tente de novo daqui a pouco.",
+      "ready-check-penalty": "Você não respondeu a uma confirmação de partida: espere antes de entrar na fila de novo."
+    },
+    "penalty": "Você não respondeu a uma confirmação de partida. Poderá entrar na fila em {{time}}."
+  },
+  "readyCheck": {
+    "subtitle": "Partida encontrada · {{difficulty}}",
+    "heading": "Confirmação de partida",
+    "secondsLeft": "{{seconds}} segundos restantes",
+    "membersLabel": "Jogadores desta partida",
+    "memberLabel": "Jogador {{position}}: {{characterClass}}, nível {{level}}",
+    "accepted": "Aceitou",
+    "waiting": "Aguardando",
+    "you": "VOCÊ",
+    "accept": "Aceitar",
+    "decline": "Recusar",
+    "answerFailed": "Esta resposta não valeu. A confirmação pode ter terminado.",
+    "hotkeyHint": "Também dá para aceitar com <kbd>{{hotkey}}</kbd> sem sair do jogo.",
+    "penaltyNotice": "Recusar não gera penalidade. Não responder gera 5 minutos de espera."
   }
 }

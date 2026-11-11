@@ -15,10 +15,14 @@ export const GameName = z
   .regex(/^mm[a-z]+-\d+$/)
   .max(64);
 
+// The 2v2 team of a member (QUE-12); absent in every other group. Lobby Room keeps it in its members view (F3 reads it).
+export const Team = z.enum(['a', 'b']);
+
 export const Member = z.object({
   accountId: Id,
   characterId: Id.nullable(),
   joinOrder: z.number().int().min(1),
   role: Role,
+  team: Team.optional(),
 });
 export type Member = z.infer<typeof Member>;

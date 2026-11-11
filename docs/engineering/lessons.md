@@ -27,6 +27,10 @@ being true.
   pre-push `cargo clippy` needs `apps/agent/dist` (Tauri `frontendDist`) and fails without it, which looks like a code
   failure (characters, Batch 1).
 
+- **A task that adds a Rust crate to the agent runs `cargo deny --locked check` in its gate**, and the security reviewer
+  reads `apps/agent/src-tauri/deny.toml`. Why: `tauri-plugin-global-shortcut` is banned there, and PR #52 passed the
+  worker's gates and both reviews before CI refused it (ready-check, 2026-11-11).
+
 - **A task that adds or changes a route runs the whole API integration suite in its gate**, not only the module's
   tests. Why: `openapi.int.test.ts` pins every route, and three new character routes reached CI unlisted (#44).
 
@@ -51,9 +55,17 @@ being true.
   the spec names. Why: observability-e2e, verification finding 1.
 - **Read OpenTelemetry metrics in tests with `reader.collect()` on a non-exporting `MetricReader`**, not from an
   in-memory exporter after `forceFlush()`. Why: the exporter returned more series than the view kept (T8).
-- **`instrument.int.test.ts` can time out on the fake OTLP backend in CI.** Rerun once; if it fails again, fix it.
+- **Work done before the first request spends the sampler's shared budget.** Every root span (a statement with no
+  parent, a timer job, a boot query) takes a token from the 40-token burst (AD-100). Migrating a fresh database inside the
+  traced process records about 47 roots before the first request, and a request that arrives after the budget is spent
+  loses its server span. Migrate in an untraced process before the traced one starts. Why: the CI failure of
+  `instrument.int.test.ts` (run 42965570821) showed the migration statements and no server span.
 
 ## Observability and load
+
+- **Closing a Playwright browser context does not end its `EventSource` connection promptly** (Chromium kept a site
+  stream open > 10 s behind the Pages proxy). A Given that needs "the site is gone" closes the browser and then ends the
+  account's streams through a test control. Why: queues QUE-05 failed four times on sleeps and polls (2026-11-11).
 
 - **Locally, run the traced scenarios (`@OBS-`) alone with `--workers=1`**, never mixed into a broad acceptance gate.
   Why: the traced stack (API, site, telemetry backend per worker) did not become ready within 90 s under 4 workers on

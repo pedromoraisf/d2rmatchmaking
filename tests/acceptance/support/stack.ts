@@ -65,6 +65,16 @@ export interface Stack {
    * would (AD-062). Resolves once the consumers have run.
    */
   redeliverMatchFormed(): Promise<void>;
+  /**
+   * The open site streams of an account on the staging API (QUE-05), as the API's hub counts them. The site is served by
+   * the staging API, so its streams are there.
+   */
+  siteStreamCount(accountId: string): Promise<number>;
+  /**
+   * Closes every open site stream of an account on the staging API, as a dropped connection would (QUE-05, QUE-14).
+   * Answers how many it closed.
+   */
+  closeSiteStreams(accountId: string): Promise<number>;
   /** Estimated API clock in epoch ms: the start of the API processes plus every advance so far. */
   apiClockMs(): number;
   /** Stops every child process and returns when they have exited. */
@@ -454,6 +464,27 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
       if (answer.status !== 204) {
         throw new Error(`redelivery of ${origins.stagingApi} answered ${answer.status}`);
       }
+    },
+    async siteStreamCount(accountId: string) {
+      const answer = await fetch(`${origins.stagingApi}/__test/site-streams/${accountId}`, {
+        headers: { [CONTROL_HEADER]: controlSecret },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (answer.status !== 200) {
+        throw new Error(`site-stream count of ${origins.stagingApi} answered ${answer.status}`);
+      }
+      return ((await answer.json()) as { open: number }).open;
+    },
+    async closeSiteStreams(accountId: string) {
+      const answer = await fetch(`${origins.stagingApi}/__test/site-streams/${accountId}/close`, {
+        method: 'POST',
+        headers: { [CONTROL_HEADER]: controlSecret },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (answer.status !== 200) {
+        throw new Error(`site-stream close of ${origins.stagingApi} answered ${answer.status}`);
+      }
+      return ((await answer.json()) as { closed: number }).closed;
     },
     apiClockMs() {
       return startedAt + advanced;
