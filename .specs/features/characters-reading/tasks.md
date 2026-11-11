@@ -15,7 +15,7 @@ created from `phase/F1` once `characters` has merged. Starts when the screenshot
       drawn fixtures with Windows OCR (CI's Windows job); `scripts/agent/ocr-check.mjs` gains the maintainer's
       selection-screen and popup screenshots (read from the folder it is given, never committed) — gate:
       `cd apps/agent/src-tauri && cargo nextest run -p xtask && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`
-- [ ] T3 — Headless example: `--consent`, stdin `consent on|off` and `show <png>`, sidecar `<png>.json` per region;
+- [x] T3 — Headless example: `--consent`, stdin `consent on|off` and `show <png>`, sidecar `<png>.json` per region;
       acceptance steps for every step of `acceptance.feature` — gate:
       `pnpm exec turbo run test:acceptance -- --grep "@CHR-(04|06|15|16)"`
 - [ ] T4 — Whole-repo sensors — gate:
