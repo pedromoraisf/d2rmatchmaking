@@ -22,7 +22,7 @@ Feature: The agent reads the character selection screen
 
   @CHR-04 @FR-05 @agent
   Scenario Outline: The agent reports the screen it sees
-    Given Alice's agent has capture consent
+    Given Alice's agent has capture consent and no room
     When the game shows the fixture "<shot>"
     Then the site shows the agent's screen as "<label>"
 
@@ -35,20 +35,20 @@ Feature: The agent reads the character selection screen
 
   @CHR-06 @FR-02 @agent
   Scenario: Every complete card on the screen is registered
-    Given Alice's agent has capture consent
+    Given Alice's agent has capture consent and no room
     When the game shows the character selection screen fixture "select-full"
     Then the site lists every character of that fixture with its fields
 
   @CHR-06 @FR-02 @agent
   Scenario: A card the agent could not read completely is not registered
-    Given Alice's agent has capture consent
+    Given Alice's agent has capture consent and no room
     When the game shows the character selection screen fixture "select-full" with one card's level unreadable
     Then the site lists every other character of that fixture
     And the site does not list the character whose level was unreadable
 
   @CHR-18 @FR-02 @FR-09 @agent
   Scenario: The difficulty popup sets the character's unlocked difficulties
-    Given Alice's agent has capture consent
+    Given Alice's agent has capture consent and no room
     And the game showed the character selection screen fixture "select-titles"
     When the game shows the difficulty popup fixture "select-difficulty" for the selected character
     Then the site shows that character with the difficulties of that fixture unlocked

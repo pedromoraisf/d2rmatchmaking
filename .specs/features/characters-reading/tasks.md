@@ -20,3 +20,21 @@ created from `phase/F1` once `characters` has merged. Starts when the screenshot
       `pnpm exec turbo run test:acceptance -- --grep "@CHR-(04|06|18|20)"`
 - [x] T4 — Whole-repo sensors — gate:
       `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check && cd apps/agent/src-tauri && cargo clippy --all-targets -- -D warnings`
+
+## Batch 2 — review fixes (PR #50)
+
+- [ ] T5 — Restore agent-game-name's "has capture consent" step exactly as merged (its `expect(room)` and the
+      unconditional assignment wait; architecture review finding 1, rule 3) and give characters-reading its own step
+      "has capture consent and no room" sharing the setup through a helper — gate:
+      `pnpm exec turbo run test:acceptance -- --grep "@AGN-|@CHR-"`
+- [ ] T6 — Popup safety (finding 2): a difficulty counts as enabled only when its label reads and the label's pixels
+      are as bright as an enabled label (threshold measured on the maintainer's popup screenshot); `xtask` draws a
+      popup fixture with Nightmare and Hell disabled (dimmed), and the Windows OCR test and a domain unit test prove it
+      reads Normal only — gate:
+      `cd apps/agent/src-tauri && cargo nextest run -p xtask && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`
+- [ ] T7 — Name reconciliation (finding 3): a read name that equals a character the agent already posted for this
+      account when `I`/`l`/`1` are treated as one glyph (and `0`/`o`) keeps the stored spelling; spec decision recorded;
+      core unit tests — gate: `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-core --lib`
+- [ ] T8 — Loop cost (security low 3): the card regions are read only when the screen classified as character
+      selection, and the frame's OCR runs through `tokio::task::spawn_blocking` as the Party step does; core unit tests
+      — gate: `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-core --lib && cargo nextest run -p d2rmm-agent-adapters`
