@@ -148,9 +148,7 @@ Then(/^the site shows the room's game name and the stage "(.+)"$/, async ({ worl
   const page = world.currentVisitor.page;
   const room = roomOf(world, hostOf(world));
   await expect(page.getByText(room.gameName, { exact: true }), 'the game name').toBeVisible();
-  // AWS-21 has no agent, so by LBR-02 its room is still Formed while the scenario says "Awaiting host": the check stays the
-  // original one (the label is listed by the stepper) until the scenario is reconciled with the lobby-rooms spec.
-  await expect(page.getByText(stage, { exact: true }), `the stage ${stage}`).toBeVisible();
+  await expect(currentStage(page), `the stage ${stage}`).toHaveText(stage);
 });
 
 Then(

@@ -246,7 +246,7 @@ Feature: A test room becomes Created
     Given "PlayerOne" is signed in on the site
     And "PlayerOne" has started a test match
     When "PlayerOne" reloads the site
-    Then the site shows the room's game name and the stage "Awaiting host"
+    Then the site shows the room's game name and the stage "Formed"
 
   @AWS-21 @web
   Scenario: A newer test match replaces the room on the site
