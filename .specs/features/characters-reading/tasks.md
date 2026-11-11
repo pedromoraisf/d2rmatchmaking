@@ -51,3 +51,23 @@ created from `phase/F1` once `characters` has merged. Starts when the screenshot
       file, names missing files, says when the en-US OCR language is not installed, exits non-zero on any failure; CI
       `agent-build` builds it with static CRT and uploads `ocr-check-windows` (14 days); the README lists the no-install path first and the Node path second —
       gate: `cd apps/agent/src-tauri && cargo build --example ocr-check && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs` and `pnpm test:harness`
+
+## Batch 4 — the maintainer's Windows evidence (2026-11-11)
+
+The maintainer ran `ocr-check.exe` on the real screenshots: the Party regions are right, but the game's small caps come back
+as mixed case with spaces ("GA m E N A me"), the field reads "OUEL NK LBCKS" for "DUEL NK LOCKS", and the select-screen
+regions read nothing (the tool printed no raw text for them).
+
+- [ ] T11 — Smooth upscale before OCR: the shared `scaled_bgra` (used by the agent and by `ocr-check`) enlarges every
+      crop 3× with bilinear interpolation (integer weights, clamped to the region) instead of repeating pixels; unit
+      tests on dimensions, boundaries and interpolated pixels —
+      gate: `cd apps/agent/src-tauri && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`
+- [x] T12 — Small-caps tolerant Party matching: the label matches "GAME NAME" ignoring case and all whitespace; the panel
+      is open when the title is the pack's title or a prefix of at least 3 letters (a tooltip leaves "PAR") — the Party step
+      reads the title alone, as before — or, for the check tool, when the label matches; the field compare is unchanged
+      (exact after normalisation: "OUEL NK LBCKS" is refused, masked stays masked) —
+      gate: same as T11
+- [ ] T13 — Diagnostics in `ocr-check`: per file, the image size and, per reading region (Party title/label/field,
+      select-screen card name, class/level line and title line, difficulty popup labels), the pixel rectangle and the raw
+      OCR text, before the PASS/FAIL line; what counts as PASS is unchanged —
+      gate: `cd apps/agent/src-tauri && cargo build --example ocr-check && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs` and `pnpm test:harness`

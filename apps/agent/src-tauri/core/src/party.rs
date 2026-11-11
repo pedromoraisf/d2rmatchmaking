@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use d2rmm_agent_domain::fusion::{GameNameObservation, fuse};
 use d2rmm_agent_domain::game_name_match::{FieldRead, read_field};
-use d2rmm_agent_domain::language::{GAME_NAME, LanguagePack, PARTY};
+use d2rmm_agent_domain::language::{LanguagePack, PARTY};
 use d2rmm_agent_domain::layout::{PanelRegion, panel_region};
 use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::ReadText;
@@ -142,10 +142,10 @@ struct PanelReading {
 
 /// The OCR of one frame's Party panel. Blocking: called on a blocking thread.
 fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba) -> PanelReading {
+    // The title decides: the label is not read, so a closed panel costs one read. The title may be a prefix of the word
+    // (a tooltip over it leaves "PAR"); the game's small-caps label reads unreliably and is no longer asked for.
     let open = panel_text(reader, frame, PanelRegion::PartyTitle)
-        .is_some_and(|title| language.is_word(&title.text, PARTY))
-        && panel_text(reader, frame, PanelRegion::GameNameLabel)
-            .is_some_and(|label| language.is_word(&label.text, GAME_NAME));
+        .is_some_and(|title| language.is_title_prefix(&title.text, PARTY));
     let field = if open {
         panel_text(reader, frame, PanelRegion::GameNameField)
     } else {

@@ -157,4 +157,24 @@ mod tests {
         assert_eq!(read_field("mmcowsh-2", "mmcowsh-1"), FieldRead::Other);
         assert_eq!(read_field("mmcowsh-1x", "mmcowsh-1"), FieldRead::Other);
     }
+
+    /// The maintainer's Windows OCR read "OUEL NK LBCKS" for the room "DUEL NK LOCKS" (2026-11-11). The compare is exact
+    /// after normalisation, so a field with two wrong glyphs is refused; the threshold is not loosened to accept it (a
+    /// wrong game name must stay refused). The upscale before the OCR is what fixes glyph accuracy.
+    #[test]
+    fn a_field_with_two_misread_glyphs_is_refused_at_the_current_threshold() {
+        assert_eq!(
+            read_field("OUEL NK LBCKS", "DUEL NK LOCKS"),
+            FieldRead::Other
+        );
+        assert_eq!(
+            read_field("DUEL NK LOCKS", "DUEL NK LOCKS"),
+            FieldRead::Matched
+        );
+        assert_eq!(
+            read_field("xxxxxxxxx", "DUEL NK LOCKS"),
+            FieldRead::Masked,
+            "the masked value is not a name"
+        );
+    }
 }

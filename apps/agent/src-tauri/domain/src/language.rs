@@ -181,6 +181,29 @@ impl LanguagePack {
         self.word(key).is_some_and(|word| same_label(text, word))
     }
 
+    /// Whether `text` is the word of `key` once case, diacritics and all whitespace are ignored. D2R draws its labels in
+    /// small caps, and OCR returns them as mixed case with stray spaces ("GA m E N A me" for "Game Name"). `false` for a
+    /// key the pack lacks.
+    pub fn is_squashed_word(&self, text: &str, key: &str) -> bool {
+        self.word(key)
+            .is_some_and(|word| squashed_key(text) == squashed_key(word))
+    }
+
+    /// Whether the Party panel is open, from the text read at its title and at its Game Name label: the label is the
+    /// pack's (whitespace and case ignored), or the title is the pack's title or a prefix of it of at least
+    /// `MIN_TITLE_PREFIX` letters (a tooltip over the title leaves "PAR"). Both words come from the pack.
+    pub fn party_panel_open(&self, title: &str, label: &str) -> bool {
+        self.is_squashed_word(label, GAME_NAME) || self.is_title_prefix(title, PARTY)
+    }
+
+    /// Whether `text` is the word of `key` or a prefix of it at least `MIN_TITLE_PREFIX` letters long.
+    pub fn is_title_prefix(&self, text: &str, key: &str) -> bool {
+        let read = squashed_key(text);
+        self.word(key).is_some_and(|word| {
+            read.chars().count() >= MIN_TITLE_PREFIX && squashed_key(word).starts_with(&read)
+        })
+    }
+
     /// Whether `text` starts with the word of `key` (a label followed by its value, such as "Life: 925 / 925").
     pub fn begins_with(&self, text: &str, key: &str) -> bool {
         self.word(key)
@@ -193,6 +216,17 @@ impl LanguagePack {
 /// tell them apart in a label (ADR 017, the screenshots of 2026-11-10).
 pub fn same_label(read: &str, word: &str) -> bool {
     label_key(read) == label_key(word)
+}
+
+/// The fewest letters of a title that count as the title when the rest is covered.
+pub const MIN_TITLE_PREFIX: usize = 3;
+
+/// `label_key` with every whitespace removed, so "GA m E N A me" and "Game Name" have the same key.
+fn squashed_key(text: &str) -> String {
+    label_key(text)
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect()
 }
 
 fn label_key(text: &str) -> String {
@@ -223,6 +257,43 @@ mod tests {
             .iter()
             .map(|(key, word)| ((*key).to_string(), (*word).to_string()))
             .collect()
+    }
+
+    /// The Party panel as the maintainer's Windows OCR returned it (2026-11-11).
+    #[test]
+    fn small_caps_label_read_with_stray_spaces_is_the_game_name_label() {
+        let english = LanguagePack::english();
+        assert!(english.is_squashed_word("GA m E N A me", GAME_NAME));
+        assert!(!english.is_squashed_word("PASSWORD", GAME_NAME));
+        assert!(!english.is_squashed_word("", GAME_NAME));
+        assert!(!english.is_squashed_word("GAME", "missing-key"));
+    }
+
+    #[test]
+    fn the_panel_is_open_when_the_label_reads_even_if_a_tooltip_covers_the_title() {
+        let english = LanguagePack::english();
+        assert!(
+            english.party_panel_open("PARTY", "GA m E N A me"),
+            "title and label"
+        );
+        assert!(
+            english.party_panel_open("PAR", "GA m E N A me"),
+            "a tooltip over the title"
+        );
+        assert!(
+            english.party_panel_open("PAR", ""),
+            "a title prefix of 3 letters"
+        );
+        assert!(
+            !english.party_panel_open("PA", ""),
+            "2 letters are not enough"
+        );
+        assert!(!english.party_panel_open("PARTYS", ""), "not a prefix");
+        assert!(!english.party_panel_open("", ""), "nothing read");
+        assert!(
+            !english.party_panel_open("Life: 9", "Password"),
+            "another screen"
+        );
     }
 
     #[test]

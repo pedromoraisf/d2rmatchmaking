@@ -10,7 +10,7 @@ use d2rmm_agent_core::ports::{FrameReader, ReadError, Rgba, TextReader};
 use d2rmm_agent_core::screen_reader::ScreenReader;
 use d2rmm_agent_domain::characters::{Class, Difficulty, Title};
 use d2rmm_agent_domain::game_name_match::{FieldRead, read_field};
-use d2rmm_agent_domain::language::{GAME_NAME, LanguagePack, PARTY};
+use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{PanelRegion, panel_region};
 use d2rmm_agent_domain::presence::Screen;
 
@@ -90,11 +90,8 @@ pub fn check_party(
     let label = read_panel(reader, image, PanelRegion::GameNameLabel)?;
     let field = read_panel(reader, image, PanelRegion::GameNameField)?;
     let read = format!("title {title:?}, label {label:?}, field {field:?}");
-    if !language.is_word(&title, PARTY) {
+    if !language.party_panel_open(&title, &label) {
         return Err(format!("the panel is not open: {read}"));
-    }
-    if !language.is_word(&label, GAME_NAME) {
-        return Err(format!("the Game Name label is not read: {read}"));
     }
     let got = read_field(&field, expected_name);
     if got == expected {
