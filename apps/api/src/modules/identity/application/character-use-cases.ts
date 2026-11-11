@@ -1,4 +1,5 @@
 import type { Clock, Outbox, UnitOfWork } from '../../../shared-kernel/index.ts';
+import { createCharacterOf } from './character-of.ts';
 import { createDeclareCharacter } from './declare-character.ts';
 import { createListMyCharacters } from './list-my-characters.ts';
 import type { CharacterRepository } from './character-ports.ts';
@@ -17,6 +18,7 @@ export function createCharacterUseCases(deps: CharacterUseCasesDeps) {
     recordCharacters: createRecordCharacters(deps),
     listMyCharacters: createListMyCharacters(deps),
     declareCharacter: createDeclareCharacter(deps),
+    characterOf: createCharacterOf(deps),
   };
 }
 

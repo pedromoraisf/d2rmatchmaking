@@ -484,3 +484,24 @@ describe('the observation span link', () => {
     }
   });
 });
+
+describe('hasOpenRoom (INV-04)', () => {
+  it('is false for an account with no room', async () => {
+    const { useCases } = setup();
+    expect(await useCases.hasOpenRoom('account-1')).toBe(false);
+  });
+
+  it('is true for a member of a room that is still open', async () => {
+    const { useCases } = setup();
+    await useCases.onMatchFormed(match());
+
+    expect(await useCases.hasOpenRoom('account-1')).toBe(true);
+  });
+
+  it('is false for an account that is in no room', async () => {
+    const { useCases } = setup();
+    await useCases.onMatchFormed(match());
+
+    expect(await useCases.hasOpenRoom('account-3')).toBe(false);
+  });
+});

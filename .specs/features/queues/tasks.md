@@ -17,7 +17,7 @@ edited; one Conventional Commit per task (`feat(matchmaking): …`, `feat(web): 
 - [x] T3 — Application: ports, `joinQueue` (every refusal of QUE-03 … QUE-06), `leaveQueue`, `runMatcher` (one unit of
       work: tickets out, `MatchFormed` in the outbox), `dropTicket`, `queue.updated` events, spans and metrics (QUE-16);
       unit tests with fakes — gate: `pnpm --filter @d2rmm/api exec vitest run src/modules/matchmaking/application`
-- [ ] T4 — Adapters and wiring: in-memory store, routes, the public port methods on Identity and Lobby Room, the stream
+- [x] T4 — Adapters and wiring: in-memory store, routes, the public port methods on Identity and Lobby Room, the stream
       hub's site-stream presence, the 1 s matcher timer and the drop subscribers in `main/`; route integration tests;
       OpenAPI regenerated — gate:
       `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__ && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json && pnpm arch`

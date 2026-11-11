@@ -88,6 +88,53 @@ describe('projectStreamEvent', () => {
     ]);
   });
 
+  it('QueueUpdated goes to the owner site only, as queue.updated with the view or the left reason', async () => {
+    const waiting: AnyDomainEvent = {
+      type: 'QueueUpdated',
+      payload: {
+        accountId: 'account-1',
+        update: {
+          id: 'ticket-1',
+          status: 'waiting',
+          mode: 'pvp',
+          options: {
+            mode: 'pvp',
+            characterId: 'char-1',
+            difficulty: 'hell',
+            region: 'americas',
+            format: 'duel',
+            rules: 'gm',
+          },
+          joinedAt: '2026-11-10T12:00:00.000Z',
+          band: { low: 1400, high: 1600 },
+          poolSize: 2,
+        },
+      },
+    };
+    const left: AnyDomainEvent = {
+      type: 'QueueUpdated',
+      payload: { accountId: 'account-1', update: { status: 'left', reason: 'agent-offline' } },
+    };
+
+    expect(await projectStreamEvent(waiting, agents)).toEqual([
+      {
+        stream: 'site',
+        accountId: 'account-1',
+        event: {
+          type: 'queue.updated',
+          data: (waiting as Extract<AnyDomainEvent, { type: 'QueueUpdated' }>).payload.update,
+        },
+      },
+    ]);
+    expect(await projectStreamEvent(left, agents)).toEqual([
+      {
+        stream: 'site',
+        accountId: 'account-1',
+        event: { type: 'queue.updated', data: { status: 'left', reason: 'agent-offline' } },
+      },
+    ]);
+  });
+
   it('AgentRevoked and MatchFormed project to nothing', async () => {
     const revoked: AnyDomainEvent = {
       type: 'AgentRevoked',
