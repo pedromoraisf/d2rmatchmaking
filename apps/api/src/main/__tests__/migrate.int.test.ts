@@ -23,6 +23,9 @@ describe('migrate', () => {
       '0003_room_trace_context',
       '0004_account_bnet_sub',
       '0005_battletag_not_unique',
+      '0006_identity_characters',
+      '0007_characters_name_ci',
+      '0008_characters_declared_ladder_era',
     ]);
 
     const result = await database.pool.query<{ schema_name: string }>(

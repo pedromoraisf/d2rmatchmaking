@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { openSiteStream } from './stream.ts';
+import { SiteStreamEvent } from '@d2rmm/contracts';
+import { openSiteStream, type StreamSource } from './stream.ts';
 import { fakeSource } from '../test/fake-api.ts';
 
 const assigned = {
@@ -53,6 +54,28 @@ describe('site stream', () => {
     fake.emit('room.assigned', JSON.stringify({ ...assigned, expectedGameName: undefined }));
     fake.emit('room.assigned', 'not json');
     expect(events).toStrictEqual([]);
+  });
+
+  it('listens to every event type of the contract site stream', () => {
+    const listened: string[] = [];
+    const source: StreamSource = {
+      addEventListener(type) {
+        listened.push(type);
+      },
+      close() {},
+    };
+    openSiteStream(handlers().handlers, () => source);
+    const contract = SiteStreamEvent.options.map((option) => option.shape.type.value);
+    expect(contract).toContain('characters.updated');
+    expect(listened).toStrictEqual(expect.arrayContaining(contract));
+  });
+
+  it('delivers characters.updated to onEvent (CHR-12)', () => {
+    const fake = fakeSource();
+    const { handlers: h, events } = handlers();
+    openSiteStream(h, fake.connect);
+    fake.emit('characters.updated', '{}');
+    expect(events).toStrictEqual([{ type: 'characters.updated', data: {} }]);
   });
 
   it('closes the connection when the closer runs', () => {

@@ -23,5 +23,16 @@
   "update": {
     "failed": "Falha na atualização — tentará novamente",
     "required": "Atualização necessária"
+  },
+  "consent": {
+    "heading": "Captura de tela",
+    "captured": "O agente captura apenas a janela do jogo Diablo II: Resurrected, e somente enquanto o jogo estiver aberto e você tiver permitido. Ele nunca captura a área de trabalho nem outra janela.",
+    "sent": "O agente envia os personagens da tela de seleção de personagens (nome, classe, nível, modo, ladder, era e dificuldades desbloqueadas) e a tela que o jogo mostra.",
+    "neverLeaves": "As imagens capturadas nunca saem deste PC. Elas ficam apenas na memória.",
+    "allow": "Permitir captura",
+    "withdraw": "Retirar consentimento",
+    "allowed": "A captura está permitida neste PC.",
+    "withdrawn": "A captura está desligada. O agente não lê nada.",
+    "notSaved": "Não foi possível salvar sua escolha. Tente novamente."
   }
 }

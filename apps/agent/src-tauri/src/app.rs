@@ -5,9 +5,14 @@
 //! item is left dead on another target.
 #![cfg(any(windows, test))]
 
+use std::path::PathBuf;
+
 use d2rmm_agent_adapters::http::gateway::HttpGateway;
+use d2rmm_agent_core::ports::{ConsentStore, StoreError};
 use d2rmm_agent_core::runtime::Handle;
 use tauri::Url;
+
+use crate::adapters::consent_store::FileConsentStore;
 
 /// What the command handler needs from the runtime: a request for one new pairing code.
 pub trait CodeRequester {
@@ -23,6 +28,25 @@ impl CodeRequester for Handle<HttpGateway> {
 /// The "Get a new code" command: one request to the runtime. The runtime honours it only while the code is paused (AGS-34).
 pub fn handle_get_new_code(requester: &impl CodeRequester) {
     requester.request_new_code();
+}
+
+/// The file that holds the consent, in the app's configuration directory (CHR-02).
+pub const SETTINGS_FILE: &str = "settings.json";
+
+/// The consent store over the settings file of `directory`. With no directory the store never consents (CHR-01).
+pub fn consent_store_in(directory: Option<PathBuf>) -> FileConsentStore {
+    FileConsentStore::new(directory.map(|directory| directory.join(SETTINGS_FILE)))
+}
+
+/// Whether the player consented to capture (CHR-01). The screen loop reads the same store before every frame.
+pub fn handle_get_consent(store: &dyn ConsentStore) -> bool {
+    store.load()
+}
+
+/// The player's "Allow" or "Withdraw" (CHR-02): stored at once, so the next frame already follows it.
+pub fn handle_set_consent(store: &dyn ConsentStore, consent: bool) -> Result<bool, StoreError> {
+    store.save(consent)?;
+    Ok(consent)
 }
 
 /// The window may navigate only to the bundled app (AGS-04): the custom protocol of each platform.
@@ -59,7 +83,10 @@ mod shell {
     use d2rmm_agent_core::secret::Secret;
     use d2rmm_agent_core::view::AgentView;
 
-    use super::{app_context, handle_get_new_code, is_app_url};
+    use super::{
+        FileConsentStore, app_context, consent_store_in, handle_get_consent, handle_get_new_code,
+        handle_set_consent, is_app_url,
+    };
     use crate::adapters::token_store::KeyringTokenStore;
     use crate::config;
     use crate::fixture_read;
@@ -74,6 +101,24 @@ mod shell {
     #[tauri::command]
     fn get_new_code(handle: State<'_, Arc<Handle<HttpGateway>>>) {
         handle_get_new_code(&**handle);
+    }
+
+    /// The consent store of this app: the settings file in its configuration directory.
+    fn consent_store(app: &AppHandle) -> FileConsentStore {
+        consent_store_in(app.path().app_config_dir().ok())
+    }
+
+    /// Whether the player consented to capture (CHR-01).
+    #[tauri::command]
+    fn get_consent(app: AppHandle) -> bool {
+        handle_get_consent(&consent_store(&app))
+    }
+
+    /// Stores the player's answer. A refusal is one fixed word, never the path or the cause (AGS-09).
+    #[tauri::command]
+    fn set_consent(app: AppHandle, consent: bool) -> Result<bool, String> {
+        handle_set_consent(&consent_store(&app), consent)
+            .map_err(|_| "consent-not-saved".to_string())
     }
 
     /// Logs the location of a panic and never its payload, which can carry secrets (AGS-09).
@@ -203,7 +248,11 @@ mod shell {
 
         tauri::Builder::default()
             .plugin(tauri_plugin_updater::Builder::new().build())
-            .invoke_handler(tauri::generate_handler![get_new_code])
+            .invoke_handler(tauri::generate_handler![
+                get_new_code,
+                get_consent,
+                set_consent
+            ])
             .setup(move |app| {
                 let app_handle = app.handle().clone();
                 let window_sink = Arc::new(WindowSink {
@@ -250,7 +299,10 @@ mod tests {
 
     use tauri::Url;
 
-    use super::{CodeRequester, app_context, handle_get_new_code, is_app_url};
+    use super::{
+        CodeRequester, app_context, consent_store_in, handle_get_consent, handle_get_new_code,
+        handle_set_consent, is_app_url,
+    };
     use crate::config;
 
     #[test]
@@ -312,5 +364,27 @@ mod tests {
         };
         handle_get_new_code(&requester);
         assert_eq!(requester.requests.get(), 1, "one command, one request");
+    }
+
+    #[test]
+    fn the_consent_is_stored_and_read_back_through_the_settings_file() {
+        let directory =
+            std::env::temp_dir().join(format!("d2rmm-app-consent-{}", uuid::Uuid::new_v4()));
+        let store = consent_store_in(Some(directory.clone()));
+
+        assert!(!handle_get_consent(&store), "no answer yet is no consent");
+        assert_eq!(handle_set_consent(&store, true), Ok(true));
+        assert!(handle_get_consent(&store));
+        assert_eq!(handle_set_consent(&store, false), Ok(false));
+        assert!(!handle_get_consent(&store), "a withdrawal is read back");
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn with_no_configuration_directory_consent_is_refused() {
+        let store = consent_store_in(None);
+        assert!(!handle_get_consent(&store));
+        assert!(handle_set_consent(&store, true).is_err());
     }
 }

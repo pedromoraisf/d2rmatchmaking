@@ -1,4 +1,4 @@
-export type AgentScreen = 'UNKNOWN' | 'AUTOMAP_OPEN';
+export type AgentScreen = 'UNKNOWN' | 'CHARACTER_SELECT' | 'IN_GAME' | 'AUTOMAP_OPEN';
 
 const OFFLINE_AFTER_MS = 45 * 1000;
 

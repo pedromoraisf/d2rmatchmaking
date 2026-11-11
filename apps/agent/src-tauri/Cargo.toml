@@ -28,7 +28,7 @@ uuid = { version = "1", features = ["v4"] }
 
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
-windows = { version = "0.62", features = ["Foundation", "Globalization", "Graphics_Imaging", "Media_Ocr", "Storage_Streams", "Win32_Foundation", "Win32_System_Diagnostics_ToolHelp"] }
+windows = { version = "0.62", features = ["Foundation", "Globalization", "Graphics_Imaging", "Media_Ocr", "Storage_Streams", "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Storage_Xps", "Win32_System_Diagnostics_ToolHelp", "Win32_UI_WindowsAndMessaging"] }
 
 [features]
 # The F0 fixture-read trigger (AGS-33, AD-057). Never a default feature; release-agent.yml never enables it.

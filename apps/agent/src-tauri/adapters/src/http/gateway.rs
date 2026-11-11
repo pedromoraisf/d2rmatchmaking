@@ -5,14 +5,15 @@
 use d2rmm_agent_core::messages::{GameNameObservation, IssuedCode, Presence};
 use d2rmm_agent_core::ports::{ApiError, ApiGateway, EventStream};
 use d2rmm_agent_core::secret::Secret;
+use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::room_assignment::Assignment;
 
 use crate::http::api_client::ApiClient;
 use crate::http::sse::valid_last_event_id;
 use crate::http::sse_stream::SseEventStream;
 use crate::http::translate::{
-    assignment_from_contract, heartbeat_from_presence, issued_code_from_contract,
-    observation_to_contract,
+    assignment_from_contract, characters_to_contract, heartbeat_from_presence,
+    issued_code_from_contract, observation_to_contract,
 };
 
 /// The agent's API calls over HTTP. The client is built by the app and already configured (HTTPS, timeouts).
@@ -61,6 +62,11 @@ impl ApiGateway for HttpGateway {
         self.api
             .post_observation(token, observation.room, &body)
             .await
+    }
+
+    async fn post_characters(&self, token: &Secret, cards: &[Card]) -> Result<(), ApiError> {
+        let body = characters_to_contract(cards).map_err(|_| ApiError::Invalid)?;
+        self.api.post_characters(token, &body).await
     }
 
     async fn open_stream(

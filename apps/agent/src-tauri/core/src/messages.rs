@@ -24,6 +24,13 @@ pub use d2rmm_agent_domain::fusion::GameNameObservation;
 /// The heartbeat's presence and screen are the domain's value objects (M5).
 pub use d2rmm_agent_domain::presence::{Presence, Screen};
 
+/// What one frame shows: its screen, and the complete cards when it is the character selection screen (CHR-04, CHR-06).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FrameReading {
+    pub screen: Screen,
+    pub cards: Vec<d2rmm_agent_domain::characters::Card>,
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, Utc};

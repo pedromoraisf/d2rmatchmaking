@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use crate::check_update::Updater;
 use crate::ports::{IdGenerator, ProcessSource, TextReader, TokenStore, WallClock};
+use crate::watch_screen::ScreenPorts;
 
 /// The ports the pairing loop uses (AHM-17): exactly three.
 pub struct PairingPorts<G> {
@@ -40,11 +41,12 @@ pub struct ReadPorts<G> {
     pub tokens: Arc<dyn TokenStore + Send + Sync>,
 }
 
-/// The five port groups the composition root builds, one per loop (AHM-17).
+/// The six port groups the composition root builds, one per loop (AHM-17).
 pub struct Groups<G> {
     pub pairing: PairingPorts<G>,
     pub heartbeat: HeartbeatPorts<G>,
     pub stream: StreamPorts<G>,
     pub update: UpdatePorts,
     pub read: ReadPorts<G>,
+    pub screen: ScreenPorts<G>,
 }

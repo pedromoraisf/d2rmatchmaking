@@ -1,10 +1,11 @@
 // Site root: reads the configuration, the signed-in player, the agent and the room, then keeps them current from the
 // stream. Every stream open and every action re-reads what it may have changed.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentView, ConfigResponse, MeResponse, RoomView } from '@d2rmm/contracts';
+import type { AgentView, CharacterView, ConfigResponse, MeResponse, RoomView } from '@d2rmm/contracts';
 import { useTranslation } from 'react-i18next';
 import { PairingForm } from '../features/agents/PairingForm.tsx';
 import { PresencePanel } from '../features/agents/PresencePanel.tsx';
+import { CharacterList } from '../features/identity/CharacterList.tsx';
 import { SignInPanel } from '../features/identity/SignInPanel.tsx';
 import { type RoomShown, RoomPanel } from '../features/lobby-room/RoomPanel.tsx';
 import { StartTestMatchButton } from '../features/lobby-room/StartTestMatchButton.tsx';
@@ -26,6 +27,7 @@ interface Ready {
   session: MeResponse | null;
   agent: AgentView | null;
   room: RoomShown | null;
+  characters: CharacterView[];
   pairedNotice: boolean;
 }
 
@@ -47,16 +49,29 @@ async function loadBoot(client: ApiClient): Promise<Boot> {
   const me = await client.me();
   if (!me.ok) {
     return me.failure === 'unauthenticated'
-      ? { status: 'ready', config: config.value, session: null, agent: null, room: null, pairedNotice: false }
+      ? {
+          status: 'ready',
+          config: config.value,
+          session: null,
+          agent: null,
+          room: null,
+          characters: [],
+          pairedNotice: false,
+        }
       : { status: 'failed' };
   }
-  const [agent, room] = await Promise.all([client.myAgent(), client.myRoom()]);
+  const [agent, room, characters] = await Promise.all([
+    client.myAgent(),
+    client.myRoom(),
+    client.myCharacters(),
+  ]);
   return {
     status: 'ready',
     config: config.value,
     session: me.value,
     agent: agent.ok ? agent.value : null,
     room: room.ok ? shownRoom(room.value) : null,
+    characters: characters.ok ? characters.value.characters : [],
     pairedNotice: false,
   };
 }
@@ -76,8 +91,23 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
   // ignored and the site reads again.
   const streamEvents = useRef(0);
 
+  // The characters are read again on every `characters.updated` (CHR-12). Only the latest read may update the list, so
+  // a slow answer to an older read never shows over a newer one. A failed read keeps what is on screen.
+  const characterReads = useRef(0);
+  const refreshCharacters = useCallback(async () => {
+    characterReads.current += 1;
+    const read = characterReads.current;
+    const listed = await client.myCharacters();
+    if (read === characterReads.current && listed.ok) {
+      setBoot((current) =>
+        current.status === 'ready' ? { ...current, characters: listed.value.characters } : current,
+      );
+    }
+  }, [client]);
+
   // Re-reads the agent and the room. A failed read keeps what is on screen; "no room" (404) clears it.
   const refreshSite = useCallback(async () => {
+    void refreshCharacters();
     let overtaken = true;
     while (overtaken) {
       const seen = streamEvents.current;
@@ -95,7 +125,7 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
         );
       }
     }
-  }, [client]);
+  }, [client, refreshCharacters]);
 
   useEffect(() => {
     let current = true;
@@ -121,9 +151,12 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
       onEvent: (event) => {
         streamEvents.current += 1;
         setBoot((current) => (current.status === 'ready' ? applyStreamEvent(current, event) : current));
+        if (event.type === 'characters.updated') {
+          void refreshCharacters();
+        }
       },
     });
-  }, [signedIn, openStream, refreshSite]);
+  }, [signedIn, openStream, refreshSite, refreshCharacters]);
 
   if (boot.status === 'loading') {
     return (
@@ -187,6 +220,13 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
         />
       ) : null}
       {session !== null && room !== null ? <RoomPanel room={room} /> : null}
+      {session !== null ? (
+        <CharacterList
+          characters={boot.characters}
+          client={client}
+          onDeclared={() => void refreshCharacters()}
+        />
+      ) : null}
       {session !== null && boot.config.stagingEndpoints ? (
         <StartTestMatchButton client={client} onStarted={() => void refreshSite()} />
       ) : null}

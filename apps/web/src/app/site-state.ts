@@ -24,5 +24,8 @@ export function applyStreamEvent<S extends SiteView>(state: S, event: SiteStream
       return state.room !== null && state.room.roomId === event.data.roomId
         ? { ...state, room: { ...state.room, stage: event.data.stage } }
         : state;
+    // The character list refetches on this event; the presence and room state do not change.
+    case 'characters.updated':
+      return state;
   }
 }

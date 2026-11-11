@@ -480,6 +480,443 @@
         }
       }
     },
+    "/v1/me/characters": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "characters": {
+                    "minItems": 1,
+                    "maxItems": 24,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 15,
+                          "pattern": "^[A-Za-z]+(?:[-_][A-Za-z]+)?$"
+                        },
+                        "class": {
+                          "type": "string",
+                          "enum": [
+                            "amazon",
+                            "assassin",
+                            "barbarian",
+                            "druid",
+                            "necromancer",
+                            "paladin",
+                            "sorceress",
+                            "warlock"
+                          ]
+                        },
+                        "level": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 99
+                        },
+                        "hardcore": {
+                          "type": "boolean"
+                        },
+                        "unlockedDifficulties": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "normal",
+                              "nightmare",
+                              "hell"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "class",
+                        "level",
+                        "hardcore",
+                        "unlockedDifficulties"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "characters"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "characters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 15,
+                            "pattern": "^[A-Za-z]+(?:[-_][A-Za-z]+)?$"
+                          },
+                          "class": {
+                            "type": "string",
+                            "enum": [
+                              "amazon",
+                              "assassin",
+                              "barbarian",
+                              "druid",
+                              "necromancer",
+                              "paladin",
+                              "sorceress",
+                              "warlock"
+                            ]
+                          },
+                          "level": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 99
+                          },
+                          "hardcore": {
+                            "type": "boolean"
+                          },
+                          "unlockedDifficulties": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "normal",
+                                "nightmare",
+                                "hell"
+                              ]
+                            }
+                          },
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "ladder": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ladder",
+                                  "non-ladder"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "era": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "classic",
+                                  "lod",
+                                  "rotw"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "readAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "class",
+                          "level",
+                          "hardcore",
+                          "unlockedDifficulties",
+                          "id",
+                          "ladder",
+                          "era",
+                          "readAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "characters"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/characters/{id}": {
+      "patch": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ladder": {
+                    "type": "string",
+                    "enum": [
+                      "ladder",
+                      "non-ladder"
+                    ]
+                  },
+                  "era": {
+                    "type": "string",
+                    "enum": [
+                      "classic",
+                      "lod",
+                      "rotw"
+                    ]
+                  }
+                },
+                "required": [
+                  "ladder",
+                  "era"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/agents/pairing-codes": {
       "post": {
         "responses": {
@@ -708,6 +1145,8 @@
                           "type": "string",
                           "enum": [
                             "UNKNOWN",
+                            "CHARACTER_SELECT",
+                            "IN_GAME",
                             "AUTOMAP_OPEN"
                           ]
                         },
@@ -859,6 +1298,8 @@
                         "type": "string",
                         "enum": [
                           "UNKNOWN",
+                          "CHARACTER_SELECT",
+                          "IN_GAME",
                           "AUTOMAP_OPEN"
                         ]
                       }
@@ -1108,6 +1549,8 @@
                           "type": "string",
                           "enum": [
                             "UNKNOWN",
+                            "CHARACTER_SELECT",
+                            "IN_GAME",
                             "AUTOMAP_OPEN"
                           ]
                         },

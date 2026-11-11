@@ -23,5 +23,16 @@
   "update": {
     "failed": "Update failed — will retry",
     "required": "Update required"
+  },
+  "consent": {
+    "heading": "Screen capture",
+    "captured": "The agent captures only the Diablo II: Resurrected game window, and only while the game runs and you have allowed it. It never captures the desktop or another window.",
+    "sent": "The agent sends the characters on the character selection screen (name, class, level, mode, ladder, era and unlocked difficulties) and the screen the game shows.",
+    "neverLeaves": "The captured images never leave this PC. They are kept in memory only.",
+    "allow": "Allow capture",
+    "withdraw": "Withdraw consent",
+    "allowed": "Capture is allowed on this PC.",
+    "withdrawn": "Capture is off. The agent reads nothing.",
+    "notSaved": "Could not save your choice. Try again."
   }
 }

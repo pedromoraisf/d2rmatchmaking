@@ -4,8 +4,10 @@ import {
   createMigratedTestDatabase,
   type MigratedTestDatabase,
 } from '../../../../../test/support/migrated-database.ts';
-import { FakeClock, SeededRandomSource } from '../../../../shared-kernel/index.ts';
+import { FakeClock, SeededRandomSource, type Transaction } from '../../../../shared-kernel/index.ts';
 import type { Account } from '../../domain/account.ts';
+import type { Character } from '../../domain/character/character.ts';
+import { PostgresCharacterRepository } from './postgres-character-repository.ts';
 import { createSignInWithBattleNet } from '../../application/sign-in-with-battle-net.ts';
 import { FakeBattleNetOAuth } from '../../application/testing/fake-battle-net-oauth.ts';
 import { PostgresAccountRepository } from './postgres-account-repository.ts';
@@ -29,6 +31,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await database.pool.query('delete from identity.sessions');
+  await database.pool.query('delete from identity.characters');
   await database.pool.query('delete from identity.accounts');
   accounts = new PostgresAccountRepository(database.db, new FakeClock(NOW));
   sessions = new PostgresSessionRepository(database.db);
@@ -201,5 +204,60 @@ describe('Identity Postgres repositories', () => {
     }
     expect(second.value.accountId).toBe(first.value.accountId);
     expect(await accounts.findByBnetSub('sub-race')).toMatchObject({ id: first.value.accountId });
+  });
+});
+
+describe('the character repository (CHR-10, migration 0007)', () => {
+  /** The adapter takes the opaque token the unit of work hands out; a Kysely transaction is that token. */
+  const asToken = (trx: unknown): Transaction => trx as Transaction;
+
+  function card(name: string, level: number): Character {
+    return {
+      name,
+      class: 'sorceress',
+      level,
+      hardcore: false,
+      unlockedDifficulties: ['normal'],
+    };
+  }
+
+  it('stores Abc then abc as one row that keeps the newest spelling', async () => {
+    const account = testAccount('CharacterOwner');
+    await accounts.insertTestAccount(account);
+    const characters = new PostgresCharacterRepository(database.db);
+
+    await database.db
+      .transaction()
+      .execute((trx) => characters.upsertMany(asToken(trx), account.id, [card('Abc', 10)], NOW));
+    await database.db
+      .transaction()
+      .execute((trx) =>
+        characters.upsertMany(asToken(trx), account.id, [card('abc', 20)], new Date(NOW.getTime() + 1000)),
+      );
+
+    const rows = await database.pool.query<{ name: string }>(
+      'select name from identity.characters where account_id = $1',
+      [account.id],
+    );
+    expect(rows.rows).toEqual([{ name: 'abc' }]);
+    expect(await characters.listByAccount(account.id)).toMatchObject([{ name: 'abc', level: 20 }]);
+  });
+
+  it('refuses a second row whose name differs only in case', async () => {
+    const account = testAccount('CaseOwner');
+    await accounts.insertTestAccount(account);
+    await database.pool.query(
+      `insert into identity.characters (account_id, name, class, level, hardcore, unlocked_difficulties, read_at)
+       values ($1, 'Abc', 'sorceress', 10, false, '{normal}', $2)`,
+      [account.id, NOW],
+    );
+
+    const duplicate = database.pool.query(
+      `insert into identity.characters (account_id, name, class, level, hardcore, unlocked_difficulties, read_at)
+       values ($1, 'ABC', 'sorceress', 10, false, '{normal}', $2)`,
+      [account.id, NOW],
+    );
+
+    await expect(duplicate).rejects.toMatchObject({ code: '23505' });
   });
 });

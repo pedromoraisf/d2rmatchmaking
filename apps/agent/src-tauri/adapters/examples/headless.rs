@@ -19,7 +19,7 @@ use d2rmm_agent_adapters::http::gateway::HttpGateway;
 use d2rmm_agent_adapters::telemetry::relay_client::HeaderSource;
 use d2rmm_agent_adapters::telemetry::{self, ExportConfig, Mode, TelemetryGuard};
 use d2rmm_agent_core::config::Config;
-use d2rmm_agent_core::fakes::{MemoryTokens, NoUpdates};
+use d2rmm_agent_core::fakes::{MemoryTokens, NoConsent, NoFrameReader, NoFrames, NoUpdates};
 use d2rmm_agent_core::groups::{
     Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
 };
@@ -131,6 +131,14 @@ impl ApiGateway for Reporting {
             let _ = self.events.send(json!({ "event": "observed" }));
         }
         result
+    }
+
+    async fn post_characters(
+        &self,
+        token: &Secret,
+        cards: &[d2rmm_agent_domain::characters::Card],
+    ) -> Result<(), ApiError> {
+        self.inner.post_characters(token, cards).await
     }
 
     async fn open_stream(
@@ -281,8 +289,16 @@ fn start(
             reader: std::sync::Arc::new(Sidecar(sidecar)),
             ids: std::sync::Arc::new(SequentialIds::new()),
             clock,
+            gateway: std::sync::Arc::clone(&gateway),
+            tokens: std::sync::Arc::clone(&tokens),
+        },
+        screen: d2rmm_agent_core::watch_screen::ScreenPorts {
             gateway,
             tokens,
+            processes: std::sync::Arc::new(GameOpen),
+            frames: std::sync::Arc::new(NoFrames),
+            reader: std::sync::Arc::new(NoFrameReader),
+            consent: std::sync::Arc::new(NoConsent),
         },
     };
     let config = Config {

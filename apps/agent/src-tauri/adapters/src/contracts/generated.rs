@@ -661,6 +661,10 @@ pub struct HeartbeatGame {
 pub enum HeartbeatGameScreen {
     #[serde(rename = "UNKNOWN")]
     Unknown,
+    #[serde(rename = "CHARACTER_SELECT")]
+    CharacterSelect,
+    #[serde(rename = "IN_GAME")]
+    InGame,
     #[serde(rename = "AUTOMAP_OPEN")]
     AutomapOpen,
 }
@@ -668,6 +672,8 @@ impl ::std::fmt::Display for HeartbeatGameScreen {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
             Self::Unknown => f.write_str("UNKNOWN"),
+            Self::CharacterSelect => f.write_str("CHARACTER_SELECT"),
+            Self::InGame => f.write_str("IN_GAME"),
             Self::AutomapOpen => f.write_str("AUTOMAP_OPEN"),
         }
     }
@@ -679,6 +685,8 @@ impl ::std::str::FromStr for HeartbeatGameScreen {
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
             "UNKNOWN" => Ok(Self::Unknown),
+            "CHARACTER_SELECT" => Ok(Self::CharacterSelect),
+            "IN_GAME" => Ok(Self::InGame),
             "AUTOMAP_OPEN" => Ok(Self::AutomapOpen),
             _ => Err("invalid value".into()),
         }
@@ -1204,6 +1212,232 @@ impl<'de> ::serde::Deserialize<'de> for PairingCodeResponseCode {
             .map_err(|e: self::error::ConversionError| {
                 <D::Error as ::serde::de::Error>::custom(e.to_string())
             })
+    }
+}
+///`RecordCharactersRequest`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RecordCharactersRequest {
+    pub characters: ::std::vec::Vec<RecordCharactersRequestCharactersItem>,
+}
+///`RecordCharactersRequestCharactersItem`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RecordCharactersRequestCharactersItem {
+    pub class: RecordCharactersRequestCharactersItemClass,
+    pub hardcore: bool,
+    pub level: ::std::num::NonZeroU64,
+    pub name: RecordCharactersRequestCharactersItemName,
+    #[serde(rename = "unlockedDifficulties")]
+    pub unlocked_difficulties: ::std::vec::Vec<
+        RecordCharactersRequestCharactersItemUnlockedDifficultiesItem,
+    >,
+}
+///`RecordCharactersRequestCharactersItemClass`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum RecordCharactersRequestCharactersItemClass {
+    #[serde(rename = "amazon")]
+    Amazon,
+    #[serde(rename = "assassin")]
+    Assassin,
+    #[serde(rename = "barbarian")]
+    Barbarian,
+    #[serde(rename = "druid")]
+    Druid,
+    #[serde(rename = "necromancer")]
+    Necromancer,
+    #[serde(rename = "paladin")]
+    Paladin,
+    #[serde(rename = "sorceress")]
+    Sorceress,
+    #[serde(rename = "warlock")]
+    Warlock,
+}
+impl ::std::fmt::Display for RecordCharactersRequestCharactersItemClass {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Amazon => f.write_str("amazon"),
+            Self::Assassin => f.write_str("assassin"),
+            Self::Barbarian => f.write_str("barbarian"),
+            Self::Druid => f.write_str("druid"),
+            Self::Necromancer => f.write_str("necromancer"),
+            Self::Paladin => f.write_str("paladin"),
+            Self::Sorceress => f.write_str("sorceress"),
+            Self::Warlock => f.write_str("warlock"),
+        }
+    }
+}
+impl ::std::str::FromStr for RecordCharactersRequestCharactersItemClass {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "amazon" => Ok(Self::Amazon),
+            "assassin" => Ok(Self::Assassin),
+            "barbarian" => Ok(Self::Barbarian),
+            "druid" => Ok(Self::Druid),
+            "necromancer" => Ok(Self::Necromancer),
+            "paladin" => Ok(Self::Paladin),
+            "sorceress" => Ok(Self::Sorceress),
+            "warlock" => Ok(Self::Warlock),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for RecordCharactersRequestCharactersItemClass {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for RecordCharactersRequestCharactersItemClass {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///`RecordCharactersRequestCharactersItemName`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct RecordCharactersRequestCharactersItemName(::std::string::String);
+impl ::std::ops::Deref for RecordCharactersRequestCharactersItemName {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<RecordCharactersRequestCharactersItemName>
+for ::std::string::String {
+    fn from(value: RecordCharactersRequestCharactersItemName) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for RecordCharactersRequestCharactersItemName {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 15usize {
+            return Err("longer than 15 characters".into());
+        }
+        if value.chars().count() < 2usize {
+            return Err("shorter than 2 characters".into());
+        }
+        static PATTERN: ::std::sync::LazyLock<::regress::Regex> = ::std::sync::LazyLock::new(||
+        { ::regress::Regex::new("^[A-Za-z]+(?:[-_][A-Za-z]+)?$").unwrap() });
+        if PATTERN.find(value).is_none() {
+            return Err("doesn't match pattern \"^[A-Za-z]+(?:[-_][A-Za-z]+)?$\"".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for RecordCharactersRequestCharactersItemName {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for RecordCharactersRequestCharactersItemName {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for RecordCharactersRequestCharactersItemName {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`RecordCharactersRequestCharactersItemUnlockedDifficultiesItem`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum RecordCharactersRequestCharactersItemUnlockedDifficultiesItem {
+    #[serde(rename = "normal")]
+    Normal,
+    #[serde(rename = "nightmare")]
+    Nightmare,
+    #[serde(rename = "hell")]
+    Hell,
+}
+impl ::std::fmt::Display
+for RecordCharactersRequestCharactersItemUnlockedDifficultiesItem {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Normal => f.write_str("normal"),
+            Self::Nightmare => f.write_str("nightmare"),
+            Self::Hell => f.write_str("hell"),
+        }
+    }
+}
+impl ::std::str::FromStr
+for RecordCharactersRequestCharactersItemUnlockedDifficultiesItem {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "normal" => Ok(Self::Normal),
+            "nightmare" => Ok(Self::Nightmare),
+            "hell" => Ok(Self::Hell),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str>
+for RecordCharactersRequestCharactersItemUnlockedDifficultiesItem {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for RecordCharactersRequestCharactersItemUnlockedDifficultiesItem {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
     }
 }
 ///`RoomAssignedEvent`

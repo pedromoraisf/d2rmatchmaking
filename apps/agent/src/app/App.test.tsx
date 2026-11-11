@@ -55,4 +55,26 @@ describe('App', () => {
 
     expect(invoke).toHaveBeenCalledWith('get_new_code');
   });
+
+  it('shows the consent the store holds, and asks the store to change it on a press', async () => {
+    vi.mocked(invoke).mockImplementation(async (command: string) =>
+      command === 'get_consent' ? true : undefined,
+    );
+    render(<App translate={en} />);
+
+    expect(await screen.findByRole('button', { name: 'Withdraw consent' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Withdraw consent' }));
+
+    expect(invoke).toHaveBeenCalledWith('set_consent', { consent: false });
+    expect(await screen.findByRole('button', { name: 'Allow capture' })).toBeTruthy();
+    vi.mocked(invoke).mockImplementation(async () => undefined);
+  });
+
+  it('shows no consent when the store does not answer true', async () => {
+    vi.mocked(invoke).mockImplementation(async () => undefined);
+    render(<App translate={en} />);
+
+    expect(await screen.findByRole('button', { name: 'Allow capture' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Withdraw consent' })).toBeNull();
+  });
 });

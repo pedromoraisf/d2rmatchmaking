@@ -210,6 +210,40 @@ describe('App', () => {
     expect(screen.getByText('Screen: Automap open')).toBeTruthy();
   });
 
+  it('lists a character the agent registers without a reload, on the characters.updated event', async () => {
+    let listed: unknown[] = [];
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(200, player),
+      'GET /api/v1/agents/me': () => jsonResponse(200, { status: 'none' }),
+      'GET /api/v1/me/characters': () => jsonResponse(200, { characters: listed }),
+    });
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={stream.openStream} />);
+    expect(
+      await screen.findByText(
+        'Open the character selection screen in the game with the agent running to add your characters.',
+      ),
+    ).toBeTruthy();
+
+    listed = [
+      {
+        id: 'character-sorc',
+        name: 'Sorc',
+        class: 'sorceress',
+        level: 85,
+        hardcore: false,
+        ladder: 'ladder',
+        era: 'lod',
+        unlockedDifficulties: ['normal', 'nightmare', 'hell'],
+        readAt: '2026-11-10T12:00:00.000Z',
+      },
+    ];
+    await playEvent(stream, { type: 'characters.updated', data: {} });
+
+    expect(await screen.findByText('Sorc')).toBeTruthy();
+  });
+
   it('shows the room the player was assigned, with its game name, "No password" and stage', async () => {
     const { fetch } = routeFetch({
       'GET /api/v1/config': () => jsonResponse(200, config),

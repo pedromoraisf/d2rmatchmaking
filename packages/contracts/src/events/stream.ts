@@ -31,11 +31,19 @@ export const AgentPresenceChangedEvent = z.object({
 });
 export type AgentPresenceChangedEvent = z.infer<typeof AgentPresenceChangedEvent>;
 
-// The site stream carries room changes of its account and the presence of its agent.
+// The account's characters changed (CHR-12). The body is empty: the site refetches GET /v1/me/characters.
+export const CharactersUpdatedEvent = z.object({
+  type: z.literal('characters.updated'),
+  data: z.object({}),
+});
+export type CharactersUpdatedEvent = z.infer<typeof CharactersUpdatedEvent>;
+
+// The site stream carries room changes of its account, the presence of its agent and its characters.
 export const SiteStreamEvent = z.discriminatedUnion('type', [
   RoomAssignedEvent,
   RoomStageChangedEvent,
   AgentPresenceChangedEvent,
+  CharactersUpdatedEvent,
 ]);
 export type SiteStreamEvent = z.infer<typeof SiteStreamEvent>;
 

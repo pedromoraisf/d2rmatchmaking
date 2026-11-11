@@ -37,7 +37,52 @@
     "gameClosed": "Game closed",
     "screen": {
       "UNKNOWN": "Screen: Unknown",
+      "CHARACTER_SELECT": "Screen: Character selection",
+      "IN_GAME": "Screen: In game",
       "AUTOMAP_OPEN": "Screen: Automap open"
+    }
+  },
+  "characters": {
+    "heading": "Your characters",
+    "empty": "Open the character selection screen in the game with the agent running to add your characters.",
+    "level": "Level {{level}}",
+    "readAt": "Last read {{time}}",
+    "unlocked": "Unlocked: {{difficulties}}",
+    "classes": {
+      "amazon": "Amazon",
+      "assassin": "Assassin",
+      "barbarian": "Barbarian",
+      "druid": "Druid",
+      "necromancer": "Necromancer",
+      "paladin": "Paladin",
+      "sorceress": "Sorceress",
+      "warlock": "Warlock"
+    },
+    "modes": {
+      "softcore": "Softcore",
+      "hardcore": "Hardcore"
+    },
+    "ladders": {
+      "ladder": "Ladder",
+      "nonLadder": "Non-ladder"
+    },
+    "eras": {
+      "classic": "Classic",
+      "lod": "Expansion",
+      "rotw": "Reign of the Warlock"
+    },
+    "difficulties": {
+      "normal": "Normal",
+      "nightmare": "Nightmare",
+      "hell": "Hell"
+    },
+    "declare": {
+      "prompt": "Declare ladder and era to queue with this character",
+      "formLabel": "Declare ladder and era for {{name}}",
+      "ladderLegend": "Ladder or non-ladder",
+      "eraLegend": "Era",
+      "submit": "Save ladder and era",
+      "failed": "The ladder and era were not saved. Try again."
     }
   },
   "room": {
