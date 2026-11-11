@@ -236,14 +236,63 @@ function isStatementChildOf(server: OtlpSpan): (span: OtlpSpan) => boolean {
     span.parentSpanId === server.spanId && isPostgresClient(span) && statementOf(span) !== undefined;
 }
 
-/** Polls until the backend holds what `ready` asks for, or fails after `timeoutMs`. */
-async function waitForBackend(ready: () => boolean, timeoutMs = 25_000): Promise<void> {
+/** The conditions the wait needs, each named as the timeout message names it. */
+const CONDITION_SERVER = 'the server span of the DB route';
+const CONDITION_STATEMENT = 'a postgresql statement span that is a direct child of that server span';
+const CONDITION_METRIC = 'any metric';
+const CONDITION_LOG = "a log record with the server span's trace id";
+
+/** The conditions of the wait that are not met yet, plus a description of what the backend has received. */
+function checkBackend(): { unmet: string[]; report: string } {
+  const traceBodies = receivedFor('/v1/traces');
+  const metricBodies = receivedFor('/v1/metrics');
+  const logBodies = receivedFor('/v1/logs');
+  const spans = spansOf(traceBodies);
+  const server = spans.find(isServerSpanFor(DB_ROUTE));
+  const metricNames = metricNamesOf(metricBodies);
+  const logTraceIds = logTraceIdsOf(logBodies);
+  const unmet: string[] = [];
+  if (server === undefined) {
+    unmet.push(CONDITION_SERVER);
+  }
+  if (server === undefined || !spans.some(isStatementChildOf(server))) {
+    unmet.push(CONDITION_STATEMENT);
+  }
+  if (metricNames.length === 0) {
+    unmet.push(CONDITION_METRIC);
+  }
+  if (server === undefined || !logTraceIds.includes(server.traceId)) {
+    unmet.push(CONDITION_LOG);
+  }
+  const lines = [
+    `received: ${traceBodies.length} trace request(s) with ${spans.length} span(s), ${metricBodies.length} metric request(s) with ${metricNames.length} metric(s) [${metricNames.slice(0, 10).join(', ')}], ${logBodies.length} log request(s) with ${logTraceIds.length} record(s) carrying a trace id`,
+    `spans (name kind parentSpanId): ${spans.map((span) => `${span.name} ${String(span.kind)} parent=${span.parentSpanId ?? '-'}`).join('; ') || 'none'}`,
+  ];
+  if (server === undefined) {
+    lines.push('server span of the DB route: not received');
+  } else {
+    lines.push(`server span of the DB route: spanId=${server.spanId} traceId=${server.traceId}`);
+    const pgSpans = spans.filter(isPostgresClient);
+    lines.push(
+      `postgresql spans: ${pgSpans.map((span) => `parent=${span.parentSpanId ?? '-'} trace=${span.traceId} statement=${statementOf(span) === undefined ? 'none' : 'set'}`).join('; ') || 'none'}`,
+    );
+    lines.push(`log trace ids: ${logTraceIds.join(', ') || 'none'}`);
+  }
+  return { unmet, report: lines.join('\n') };
+}
+
+/** Polls the backend until every condition is met, or fails after `timeoutMs` naming the conditions still unmet. */
+async function waitForBackend(timeoutMs = 25_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
-  while (!ready()) {
+  let state = checkBackend();
+  while (state.unmet.length > 0) {
     if (Date.now() > deadline) {
-      throw new Error('the fake OTLP backend did not receive the expected export in time');
+      throw new Error(
+        `the fake OTLP backend did not receive the expected export in time; unmet: ${state.unmet.join('; ')}\n${state.report}`,
+      );
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
+    state = checkBackend();
   }
 }
 
@@ -263,16 +312,7 @@ function runInstrumentedApi(): Promise<Captured> {
       headers: { 'x-test-control': SECRET },
     });
     expect(dbRequest.status).toBe(404);
-    await waitForBackend(() => {
-      const spans = spansOf(receivedFor('/v1/traces'));
-      const server = spans.find(isServerSpanFor(DB_ROUTE));
-      return (
-        server !== undefined &&
-        spans.some(isStatementChildOf(server)) &&
-        metricNamesOf(receivedFor('/v1/metrics')).length > 0 &&
-        logTraceIdsOf(receivedFor('/v1/logs')).includes(server.traceId)
-      );
-    });
+    await waitForBackend();
     const traces = receivedFor('/v1/traces');
     return {
       spans: spansOf(traces),
