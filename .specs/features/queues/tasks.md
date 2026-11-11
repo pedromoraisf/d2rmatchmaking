@@ -32,6 +32,6 @@ edited; one Conventional Commit per task (`feat(matchmaking): …`, `feat(web): 
       (en + pt-BR) instead of one generic message — gate:
       `pnpm --filter @d2rmm/api exec vitest run src/modules/matchmaking && pnpm --filter @d2rmm/telemetry exec vitest run && pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
 
-- [ ] T6 — Acceptance steps in `tests/acceptance/steps/queues.steps.ts` for every step of `acceptance.feature`, using
+- [x] T6 — Acceptance steps in `tests/acceptance/steps/queues.steps.ts` for every step of `acceptance.feature`, using
       the stack's clock for waits — gate: `pnpm exec turbo run test:acceptance -- --grep @QUE-`
 - [x] T7 — Whole-repo sensors — gate: `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check`
