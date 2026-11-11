@@ -164,15 +164,25 @@ mod tests {
             ("party-masked.png", "mmbaalh-12", FieldRead::Masked),
             ("party-other.png", "mmbaalh-12", FieldRead::Other),
         ];
-        for (name, expected_name, expected) in cases {
-            let image = decode_png(&format!(
-                "{}/../fixtures/party/{name}",
-                env!("CARGO_MANIFEST_DIR")
-            ));
-            if let Err(error) = check_party(&reader, &image, expected_name, expected) {
-                panic!("{name}: {error}");
-            }
-        }
+        // Every fixture is read before the test fails, so one run shows every mismatch, not only the first.
+        let mismatches: Vec<String> = cases
+            .into_iter()
+            .filter_map(|(name, expected_name, expected)| {
+                let image = decode_png(&format!(
+                    "{}/../fixtures/party/{name}",
+                    env!("CARGO_MANIFEST_DIR")
+                ));
+                check_party(&reader, &image, expected_name, expected)
+                    .err()
+                    .map(|error| format!("{name}: {error}"))
+            })
+            .collect();
+        assert!(
+            mismatches.is_empty(),
+            "{} of 3 drawn fixtures mismatch:\n{}",
+            mismatches.len(),
+            mismatches.join("\n")
+        );
     }
 
     /// The maintainer's Windows check (apps/agent/README.md, `scripts/agent/ocr-check.mjs <dir>`). It reads the three
