@@ -27,6 +27,9 @@ being true.
   pre-push `cargo clippy` needs `apps/agent/dist` (Tauri `frontendDist`) and fails without it, which looks like a code
   failure (characters, Batch 1).
 
+- **A task that adds or changes a route runs the whole API integration suite in its gate**, not only the module's
+  tests. Why: `openapi.int.test.ts` pins every route, and three new character routes reached CI unlisted (#44).
+
 ## Tests
 
 - **No tight wall-clock limits in unit tests.** The maintainer's machine has 8 GB and runs the suites in parallel; a test
