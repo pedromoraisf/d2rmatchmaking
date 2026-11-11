@@ -67,7 +67,7 @@ regions read nothing (the tool printed no raw text for them).
       reads the title alone, as before — or, for the check tool, when the label matches; the field compare is unchanged
       (exact after normalisation: "OUEL NK LBCKS" is refused, masked stays masked) —
       gate: same as T11
-- [ ] T13 — Diagnostics in `ocr-check`: per file, the image size and, per reading region (Party title/label/field,
+- [x] T13 — Diagnostics in `ocr-check`: per file, the image size and, per reading region (Party title/label/field,
       select-screen card name, class/level line and title line, difficulty popup labels), the pixel rectangle and the raw
       OCR text, before the PASS/FAIL line; what counts as PASS is unchanged —
       gate: `cd apps/agent/src-tauri && cargo build --example ocr-check && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs` and `pnpm test:harness`

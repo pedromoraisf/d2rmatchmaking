@@ -11,8 +11,9 @@ use d2rmm_agent_core::screen_reader::ScreenReader;
 use d2rmm_agent_domain::characters::{Class, Difficulty, Title};
 use d2rmm_agent_domain::game_name_match::{FieldRead, read_field};
 use d2rmm_agent_domain::language::LanguagePack;
-use d2rmm_agent_domain::layout::{PanelRegion, panel_region};
+use d2rmm_agent_domain::layout::{PanelRegion, ScreenRegion, panel_region, screen_region};
 use d2rmm_agent_domain::presence::Screen;
+use d2rmm_agent_domain::vision::Region;
 
 /// The five screenshots the check reads, in the order it prints them: three Party frames, then the selection screen and its
 /// difficulty popup. `scripts/agent/ocr-check.mjs` names the same five files.
@@ -135,6 +136,79 @@ pub fn check_screen(reading: &FrameReading, screen: Screen, cards: &[Card]) -> R
     }
 }
 
+/// A region the check reads, for the diagnostics: its name and its rectangle in the screenshot (`None` when the layout has
+/// none for that size).
+type Spot = (String, Option<Region>);
+
+/// The regions a screenshot's check reads, by file name: the Party title, label and field for a Party frame; for the
+/// selection screen the "Create New" marker and, for each of the first two cards, the title line, the name and the
+/// "Level N Class" line; the difficulty popup also its title and three labels.
+fn spots(name: &str, width: u32, height: u32) -> Vec<Spot> {
+    let panel = |label: &str, region| (label.to_string(), panel_region(region, width, height));
+    let screen = |label: String, region| (label, screen_region(region, width, height));
+    if name.starts_with("maintainer-party") {
+        return vec![
+            panel("Party title", PanelRegion::PartyTitle),
+            panel("Game Name label", PanelRegion::GameNameLabel),
+            panel("Game Name field", PanelRegion::GameNameField),
+        ];
+    }
+    let mut regions = vec![screen("Create New".to_string(), ScreenRegion::CreateNew)];
+    for slot in 0..2u8 {
+        regions.push(screen(
+            format!("card {slot} title line"),
+            ScreenRegion::CardTitle(slot),
+        ));
+        regions.push(screen(
+            format!("card {slot} name"),
+            ScreenRegion::CardName(slot),
+        ));
+        regions.push(screen(
+            format!("card {slot} class/level line"),
+            ScreenRegion::CardLevel(slot),
+        ));
+    }
+    if name == "maintainer-select-difficulty.png" {
+        regions.push(screen(
+            "popup title".to_string(),
+            ScreenRegion::SelectDifficulty,
+        ));
+        regions.push(screen(
+            "popup Normal".to_string(),
+            ScreenRegion::PopupNormal,
+        ));
+        regions.push(screen(
+            "popup Nightmare".to_string(),
+            ScreenRegion::PopupNightmare,
+        ));
+        regions.push(screen("popup Hell".to_string(), ScreenRegion::PopupHell));
+    }
+    regions
+}
+
+/// The diagnostic lines of one screenshot, printed before its verdict: the image size, then for each region it reads the
+/// rectangle (`x,y WxH`) and the raw text the engine returned. They never change what counts as PASS.
+pub fn diagnostics(name: &str, reader: &dyn TextReader, image: &Rgba) -> Vec<String> {
+    let mut lines = vec![format!("  {name}: image {}x{}", image.width, image.height)];
+    for (label, region) in spots(name, image.width, image.height) {
+        let line = match region {
+            None => format!("  {label}: no region for this image size"),
+            Some(area) => {
+                let text = match reader.read(image, area) {
+                    Ok(read) => format!("{:?}", read.text),
+                    Err(error) => format!("does not read: {error:?}"),
+                };
+                format!(
+                    "  {label}: at {},{} size {}x{}: {text}",
+                    area.x, area.y, area.width, area.height
+                )
+            }
+        };
+        lines.push(line);
+    }
+    lines
+}
+
 /// The verdict of one screenshot, by its file name. A file the check does not know has no verdict.
 fn verdict(
     name: &str,
@@ -193,7 +267,12 @@ pub fn check_folder(
     for name in SCREENSHOTS {
         let path = dir.join(name);
         let result = if path.is_file() {
-            read_screenshot(&path).and_then(|image| verdict(name, &*reader, &screens, &image))
+            read_screenshot(&path).and_then(|image| {
+                for line in diagnostics(name, &*reader, &image) {
+                    println!("{line}");
+                }
+                verdict(name, &*reader, &screens, &image)
+            })
         } else {
             Err(format!("is missing from {}", dir.display()))
         };
@@ -209,5 +288,93 @@ pub fn check_folder(
         Ok(())
     } else {
         Err(failed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use d2rmm_agent_core::ports::{ReadError, Rgba, TextReader};
+    use d2rmm_agent_domain::vision::{ReadText, Region};
+
+    use super::diagnostics;
+
+    /// Returns the region's own x as the text, so a line shows which region it came from.
+    struct EchoReader;
+
+    impl TextReader for EchoReader {
+        fn read(&self, _image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            Ok(ReadText {
+                text: format!("x{}", region.x),
+                confidence: 1.0,
+            })
+        }
+    }
+
+    fn frame() -> Rgba {
+        Rgba {
+            width: 1920,
+            height: 1033,
+            pixels: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn a_party_file_lists_its_size_and_three_regions_with_their_text() {
+        let lines = diagnostics("maintainer-party-revealed.png", &EchoReader, &frame());
+        assert_eq!(lines.len(), 4, "size and three regions: {lines:?}");
+        assert_eq!(lines[0], "  maintainer-party-revealed.png: image 1920x1033");
+        assert!(lines[1].starts_with("  Party title: at "), "{}", lines[1]);
+        assert!(
+            lines[2].starts_with("  Game Name label: at "),
+            "{}",
+            lines[2]
+        );
+        assert!(
+            lines[3].starts_with("  Game Name field: at "),
+            "{}",
+            lines[3]
+        );
+        assert!(
+            lines
+                .iter()
+                .skip(1)
+                .all(|line| line.contains(" size ") && line.contains(": \"x"))
+        );
+    }
+
+    #[test]
+    fn the_selection_screen_lists_the_marker_and_each_card_line_and_the_popup_adds_its_labels() {
+        let select = diagnostics("maintainer-select-screen.png", &EchoReader, &frame());
+        assert_eq!(
+            select.len(),
+            1 + 1 + 6,
+            "size, marker, two cards of three lines"
+        );
+        let popup = diagnostics("maintainer-select-difficulty.png", &EchoReader, &frame());
+        assert_eq!(
+            popup.len(),
+            select.len() + 4,
+            "the popup title and three labels"
+        );
+        assert!(
+            popup
+                .iter()
+                .any(|line| line.starts_with("  popup Hell: at "))
+        );
+    }
+
+    #[test]
+    fn a_size_without_a_layout_says_so() {
+        let tiny = Rgba {
+            width: 100,
+            height: 100,
+            pixels: Vec::new(),
+        };
+        let lines = diagnostics("maintainer-party-masked.png", &EchoReader, &tiny);
+        assert!(
+            lines[1].ends_with("no region for this image size"),
+            "{}",
+            lines[1]
+        );
     }
 }
