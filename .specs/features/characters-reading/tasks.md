@@ -58,7 +58,7 @@ The maintainer ran `ocr-check.exe` on the real screenshots: the Party regions ar
 as mixed case with spaces ("GA m E N A me"), the field reads "OUEL NK LBCKS" for "DUEL NK LOCKS", and the select-screen
 regions read nothing (the tool printed no raw text for them).
 
-- [ ] T11 — Smooth upscale before OCR: the shared `scaled_bgra` (used by the agent and by `ocr-check`) enlarges every
+- [x] T11 — Smooth upscale before OCR: the shared `scaled_bgra` (used by the agent and by `ocr-check`) enlarges every
       crop 3× with bilinear interpolation (integer weights, clamped to the region) instead of repeating pixels; unit
       tests on dimensions, boundaries and interpolated pixels —
       gate: `cd apps/agent/src-tauri && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs`

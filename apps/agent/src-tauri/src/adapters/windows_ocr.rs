@@ -12,7 +12,7 @@ use windows::Storage::Streams::DataWriter;
 
 use crate::adapters::ocr_pixels::{padded_region, scaled_bgra};
 
-/// The scale a region is read at: nearest-neighbour, 3×, so the Party panel's text (about 12 px high) reaches the size the
+/// The scale a region is read at: bilinear, 3×, so the Party panel's text (about 12 px high) reaches the size the
 /// engine reads. A decision of the agent-game-name feature, pinned by the maintainer's screenshots (windows test).
 const OCR_SCALE: u32 = 3;
 
