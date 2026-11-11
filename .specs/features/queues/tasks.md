@@ -21,7 +21,7 @@ edited; one Conventional Commit per task (`feat(matchmaking): …`, `feat(web): 
       hub's site-stream presence, the 1 s matcher timer and the drop subscribers in `main/`; route integration tests;
       OpenAPI regenerated — gate:
       `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__ && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json && pnpm arch`
-- [ ] T5 — Site: `QueuePanel` and `SearchingPanel` per `design.md § Site`, en + pt-BR, component tests including
+- [x] T5 — Site: `QueuePanel` and `SearchingPanel` per `design.md § Site`, en + pt-BR, component tests including
       keyboard use — gate: `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
 
 ## Batch 2

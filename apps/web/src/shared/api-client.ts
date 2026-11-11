@@ -1,7 +1,15 @@
 // The site's only way to call the API: same origin, through the /api/* Pages Function (ADR 012, AWS-29). Every POST
 // carries a JSON body and the JSON content type. A 401 is `unauthenticated`, so the site shows its signed-out view.
-import { AgentView, ConfigResponse, MeResponse, MyCharactersResponse, RoomView } from '@d2rmm/contracts';
-import type { DeclareCharacterRequest } from '@d2rmm/contracts';
+import {
+  AgentView,
+  ConfigResponse,
+  MeResponse,
+  MyCharactersResponse,
+  MyQueueTicketResponse,
+  QueueTicketView,
+  RoomView,
+} from '@d2rmm/contracts';
+import type { DeclareCharacterRequest, JoinQueueRequest } from '@d2rmm/contracts';
 
 export interface Parser<T> {
   parse(input: unknown): T;
@@ -42,6 +50,9 @@ export interface ApiClient {
   pair(code: string): Promise<ApiResult<void>>;
   revokeAgent(agentId: string): Promise<ApiResult<void>>;
   declareCharacter(characterId: string, body: DeclareCharacterRequest): Promise<ApiResult<void>>;
+  myQueueTicket(): Promise<ApiResult<MyQueueTicketResponse>>;
+  joinQueue(body: JoinQueueRequest): Promise<ApiResult<QueueTicketView>>;
+  leaveQueue(ticketId: string): Promise<ApiResult<void>>;
 }
 
 export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, init)): ApiClient {
@@ -90,6 +101,18 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
     return sent.ok ? { ok: true, value: undefined } : sent;
   }
 
+  async function writeAndRead<T>(path: string, body: unknown, parser: Parser<T>): Promise<ApiResult<T>> {
+    const sent = await send('POST', path, body);
+    if (!sent.ok) {
+      return sent;
+    }
+    try {
+      return { ok: true, value: parser.parse(await sent.response.json()) };
+    } catch {
+      return { ok: false, failure: 'failed' };
+    }
+  }
+
   return {
     config: () => read('/v1/config', ConfigResponse),
     me: () => read('/v1/me', MeResponse),
@@ -103,5 +126,8 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
     revokeAgent: (agentId) => write(`/v1/agents/${encodeURIComponent(agentId)}`, {}, 'DELETE'),
     declareCharacter: (characterId, body) =>
       write(`/v1/me/characters/${encodeURIComponent(characterId)}`, body, 'PATCH'),
+    myQueueTicket: () => read('/v1/queue/tickets/me', MyQueueTicketResponse),
+    joinQueue: (body) => writeAndRead('/v1/queue/tickets', body, QueueTicketView),
+    leaveQueue: (ticketId) => write(`/v1/queue/tickets/${encodeURIComponent(ticketId)}`, {}, 'DELETE'),
   };
 }

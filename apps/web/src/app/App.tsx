@@ -1,20 +1,29 @@
 // Site root: reads the configuration, the signed-in player, the agent and the room, then keeps them current from the
 // stream. Every stream open and every action re-reads what it may have changed.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentView, CharacterView, ConfigResponse, MeResponse, RoomView } from '@d2rmm/contracts';
+import type {
+  AgentView,
+  CharacterView,
+  ConfigResponse,
+  MeResponse,
+  QueueTicketView,
+  RoomView,
+} from '@d2rmm/contracts';
 import { useTranslation } from 'react-i18next';
 import { PairingForm } from '../features/agents/PairingForm.tsx';
 import { PresencePanel } from '../features/agents/PresencePanel.tsx';
 import { CharacterList } from '../features/identity/CharacterList.tsx';
 import { SignInPanel } from '../features/identity/SignInPanel.tsx';
 import { type RoomShown, RoomPanel } from '../features/lobby-room/RoomPanel.tsx';
+import { QueuePanel } from '../features/matchmaking/QueuePanel.tsx';
+import { SearchingPanel } from '../features/matchmaking/SearchingPanel.tsx';
 import { StartTestMatchButton } from '../features/lobby-room/StartTestMatchButton.tsx';
 import { type ApiClient, createApiClient } from '../shared/api-client.ts';
 import { tracingFetcher } from '../shared/telemetry.ts';
 import { openSiteStream, type StreamOpener } from '../shared/stream.ts';
 import { Layout } from './Layout.tsx';
 import { clearSignInFailure, signInFailedIn } from './sign-in-failure.ts';
-import { applyStreamEvent } from './site-state.ts';
+import { applyStreamEvent, type SiteNotice } from './site-state.ts';
 
 export interface AppProps {
   client?: ApiClient;
@@ -29,6 +38,8 @@ interface Ready {
   room: RoomShown | null;
   characters: CharacterView[];
   pairedNotice: boolean;
+  queue: QueueTicketView | null;
+  queueNotice: SiteNotice;
 }
 
 type Boot = { status: 'loading' } | { status: 'failed' } | Ready;
@@ -57,13 +68,16 @@ async function loadBoot(client: ApiClient): Promise<Boot> {
           room: null,
           characters: [],
           pairedNotice: false,
+          queue: null,
+          queueNotice: null,
         }
       : { status: 'failed' };
   }
-  const [agent, room, characters] = await Promise.all([
+  const [agent, room, characters, queue] = await Promise.all([
     client.myAgent(),
     client.myRoom(),
     client.myCharacters(),
+    client.myQueueTicket(),
   ]);
   return {
     status: 'ready',
@@ -73,6 +87,8 @@ async function loadBoot(client: ApiClient): Promise<Boot> {
     room: room.ok ? shownRoom(room.value) : null,
     characters: characters.ok ? characters.value.characters : [],
     pairedNotice: false,
+    queue: queue.ok ? queue.value.ticket : null,
+    queueNotice: null,
   };
 }
 
@@ -105,13 +121,27 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
     }
   }, [client]);
 
-  // Re-reads the agent and the room. A failed read keeps what is on screen; "no room" (404) clears it.
+  // The player's waiting ticket is read again after every queue change (QUE-15). A failed read keeps what is on screen.
+  const refreshQueue = useCallback(async () => {
+    const read = await client.myQueueTicket();
+    if (read.ok) {
+      setBoot((current) =>
+        current.status === 'ready' ? { ...current, queue: read.value.ticket, queueNotice: null } : current,
+      );
+    }
+  }, [client]);
+
+  // Re-reads the agent, the room and the queue. A failed read keeps what is on screen; "no room" (404) clears it.
   const refreshSite = useCallback(async () => {
     void refreshCharacters();
     let overtaken = true;
     while (overtaken) {
       const seen = streamEvents.current;
-      const [agent, room] = await Promise.all([client.myAgent(), client.myRoom()]);
+      const [agent, room, queue] = await Promise.all([
+        client.myAgent(),
+        client.myRoom(),
+        client.myQueueTicket(),
+      ]);
       overtaken = streamEvents.current !== seen;
       if (!overtaken) {
         setBoot((current) =>
@@ -120,6 +150,7 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
                 ...current,
                 agent: agent.ok ? agent.value : current.agent,
                 room: room.ok ? shownRoom(room.value) : room.failure === 'not-found' ? null : current.room,
+                queue: queue.ok ? queue.value.ticket : current.queue,
               }
             : current,
         );
@@ -173,7 +204,7 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
     );
   }
 
-  const { session, agent, room, pairedNotice } = boot;
+  const { session, agent, room, pairedNotice, queue, queueNotice } = boot;
   return (
     <Layout>
       <SignInPanel
@@ -220,6 +251,30 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
         />
       ) : null}
       {session !== null && room !== null ? <RoomPanel room={room} /> : null}
+      {session !== null && queue !== null ? (
+        <SearchingPanel
+          ticket={queue}
+          client={client}
+          onLeft={() => {
+            setBoot((current) =>
+              current.status === 'ready' ? { ...current, queue: null, queueNotice: null } : current,
+            );
+          }}
+        />
+      ) : null}
+      {session !== null && queue === null ? (
+        <QueuePanel
+          characters={boot.characters}
+          client={client}
+          notice={queueNotice}
+          onJoined={(ticket) => {
+            setBoot((current) =>
+              current.status === 'ready' ? { ...current, queue: ticket, queueNotice: null } : current,
+            );
+            void refreshQueue();
+          }}
+        />
+      ) : null}
       {session !== null ? (
         <CharacterList
           characters={boot.characters}
