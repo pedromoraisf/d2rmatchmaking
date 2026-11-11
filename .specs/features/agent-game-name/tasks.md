@@ -12,7 +12,7 @@ screenshots are at `/private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaki
 - [x] T1 — Domain `layout.rs` (relative regions, aspect-ratio range) and `language.rs` (pack type, English built in,
       parsed from JSON), unit tests at 1920×1033 and 1920×1080 and outside the range — gate:
       `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-domain --lib`
-- [ ] T2 — Domain `game_name_match.rs`: AGN-03 (trim, no case; before the last `-` `0`/`Ø`/`⊕` → `o`; after it
+- [x] T2 — Domain `game_name_match.rs`: AGN-03 (trim, no case; before the last `-` `0`/`Ø`/`⊕` → `o`; after it
       `O`/`o`/`Ø`/`⊕` → `0`) and AGN-04 (masked), unit tests including `mmcowsh-1` vs `MMC⊕WSH-1`, `mmchaosn-10` vs
       `MMCHA⊕SN-1Ø`, `mmcowsh-10` vs `MMCOWSH-1O`, `mmcowsh-1` vs `mmcowsh-7` (no match), `xxxxxxxxx` (masked) — gate: `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-domain --lib`
 - [ ] T3 — Core: the Party step in `watch_screen` (AGN-01, AGN-03, AGN-05; once per run; "needs reveal" state), span of
