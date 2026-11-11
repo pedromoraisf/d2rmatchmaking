@@ -10,7 +10,7 @@ blocker on the feature that owns it; never commit a game screenshot (the Party f
 
 ## Batch 1
 
-- [ ] T1 — The scenario checker accepts the PRD journey tags `@J<n>` as foreign IDs (`scripts/lib/acceptance.mjs`,
+- [x] T1 — The scenario checker accepts the PRD journey tags `@J<n>` as foreign IDs (`scripts/lib/acceptance.mjs`,
       exact pattern `^@J\d+$`), with a harness test for an accepted `@J1` and a refused `@J1a` — gate:
       `pnpm test:harness && node scripts/acceptance-check.mjs journeys-e2e`
 - [ ] T2 — JRN-08: `theme.test.ts` checks the `gold-dim` and `bad` button borders and their hover states against AA
