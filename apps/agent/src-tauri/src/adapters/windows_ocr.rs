@@ -10,11 +10,13 @@ use windows::Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap};
 use windows::Media::Ocr::OcrEngine;
 use windows::Storage::Streams::DataWriter;
 
-use crate::adapters::ocr_pixels::{padded_region, scaled_bgra};
+use crate::adapters::ocr_pixels::{Upscale, padded_region, upscaled_bgra};
 
 /// The scale a region is read at: bilinear, 3×, so the Party panel's text (about 12 px high) reaches the size the
-/// engine reads. A decision of the agent-game-name feature, pinned by the maintainer's screenshots (windows test).
+/// engine reads. A decision of the agent-game-name feature, pinned by the maintainer's screenshots (windows test); T11's
+/// bilinear blur lost the drawn fixtures' text in CI, so production stays nearest (T14).
 const OCR_SCALE: u32 = 3;
+const OCR_FILTER: Upscale = Upscale::Nearest;
 
 /// The one language the reader reads. The automap's game name is Latin text in English.
 const LANGUAGE: &str = "en-US";
@@ -22,21 +24,32 @@ const LANGUAGE: &str = "en-US";
 /// The Windows OCR engine for `en-US`. `new` fails when the engine is not installed; it never falls back to another.
 pub struct WindowsOcr {
     engine: OcrEngine,
+    scale: u32,
+    filter: Upscale,
 }
 
 impl WindowsOcr {
     pub fn new() -> Result<Self, ReadError> {
+        Self::with_upscale(OCR_SCALE, OCR_FILTER)
+    }
+
+    /// The engine reading at another scale and filter: the `ocr-check` comparison only; the agent uses `new`.
+    pub fn with_upscale(scale: u32, filter: Upscale) -> Result<Self, ReadError> {
         let language =
             Language::CreateLanguage(&LANGUAGE.into()).map_err(|_| ReadError::EngineUnavailable)?;
         let engine = OcrEngine::TryCreateFromLanguage(&language)
             .map_err(|_| ReadError::EngineUnavailable)?;
-        Ok(Self { engine })
+        Ok(Self {
+            engine,
+            scale,
+            filter,
+        })
     }
 }
 
 impl TextReader for WindowsOcr {
     fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
-        let bitmap = crop_to_bitmap(image, region)?;
+        let bitmap = crop_to_bitmap(image, region, self.scale, self.filter)?;
         let result = self
             .engine
             .RecognizeAsync(&bitmap)
@@ -48,24 +61,40 @@ impl TextReader for WindowsOcr {
     }
 }
 
+/// The four readings `ocr-check` prints for every region, labelled: nearest and bilinear, at 3× and at 4× (T14). They only
+/// feed the diagnostics; the verdict is the production reader's. A variant whose engine cannot be created is left out.
+pub fn comparison_readers() -> Vec<(String, std::sync::Arc<dyn TextReader + Send + Sync>)> {
+    let mut readers: Vec<(String, std::sync::Arc<dyn TextReader + Send + Sync>)> = Vec::new();
+    for (filter, name) in [
+        (Upscale::Nearest, "nearest"),
+        (Upscale::Bilinear, "bilinear"),
+    ] {
+        for scale in [3, 4] {
+            if let Ok(reader) = WindowsOcr::with_upscale(scale, filter) {
+                readers.push((format!("{name} {scale}x"), std::sync::Arc::new(reader)));
+            }
+        }
+    }
+    readers
+}
+
 /// The frame's background kept beside each region, in pixels: the engine drops text that touches the crop's left or right
 /// edge (T9). Rows are not padded: a crop that reaches the next row reads that row's text too.
 const OCR_PAD_X: u32 = 16;
 
-/// Copies the region with its background margin, scaled up by `OCR_SCALE`, into a BGRA8 software bitmap (`ocr_pixels`).
-fn crop_to_bitmap(image: &Rgba, region: Region) -> Result<SoftwareBitmap, ReadError> {
+/// Copies the region with its background margin, scaled up by `scale`, into a BGRA8 software bitmap (`ocr_pixels`).
+fn crop_to_bitmap(
+    image: &Rgba,
+    region: Region,
+    scale: u32,
+    filter: Upscale,
+) -> Result<SoftwareBitmap, ReadError> {
     let region = padded_region(region, image.width, image.height, OCR_PAD_X, 0);
-    let bgra = scaled_bgra(image, region, OCR_SCALE).ok_or(ReadError::Failed)?;
+    let bgra = upscaled_bgra(image, region, scale, filter).ok_or(ReadError::Failed)?;
     // A region is checked against the frame before scaling; the scaled sizes are still checked, so a size that
     // overflows `u32` fails the read instead of wrapping.
-    let width = region
-        .width
-        .checked_mul(OCR_SCALE)
-        .ok_or(ReadError::Failed)?;
-    let height = region
-        .height
-        .checked_mul(OCR_SCALE)
-        .ok_or(ReadError::Failed)?;
+    let width = region.width.checked_mul(scale).ok_or(ReadError::Failed)?;
+    let height = region.height.checked_mul(scale).ok_or(ReadError::Failed)?;
     let bitmap = SoftwareBitmap::Create(
         BitmapPixelFormat::Bgra8,
         i32::try_from(width).map_err(|_| ReadError::Failed)?,
@@ -96,7 +125,7 @@ mod tests {
     use d2rmm_agent_domain::layout::{ScreenRegion, screen_region};
     use d2rmm_agent_domain::presence::Screen;
 
-    use super::WindowsOcr;
+    use super::{WindowsOcr, comparison_readers};
     use crate::ocr_check::{
         Card, MAINTAINER_CARDS, check_folder, check_party, check_screen, decode_png,
     };
@@ -306,7 +335,7 @@ mod tests {
         let dir = std::env::var("D2RMM_OCR_CHECK_DIR")
             .expect("D2RMM_OCR_CHECK_DIR names the screenshot folder");
         let reader: Arc<dyn TextReader + Send + Sync> = Arc::new(engine());
-        if let Err(failed) = check_folder(Path::new(&dir), reader) {
+        if let Err(failed) = check_folder(Path::new(&dir), reader, comparison_readers()) {
             panic!("{} file(s) failed: {failed:?}", failed.len());
         }
     }

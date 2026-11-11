@@ -91,7 +91,7 @@ pub fn check_party(
     let label = read_panel(reader, image, PanelRegion::GameNameLabel)?;
     let field = read_panel(reader, image, PanelRegion::GameNameField)?;
     let read = format!("title {title:?}, label {label:?}, field {field:?}");
-    if !language.party_panel_open(&title, &label) {
+    if !language.party_panel_open(&title) {
         return Err(format!("the panel is not open: {read}"));
     }
     let got = read_field(&field, expected_name);
@@ -186,25 +186,30 @@ fn spots(name: &str, width: u32, height: u32) -> Vec<Spot> {
     regions
 }
 
+/// The readers whose text the diagnostics print for each region, by label (nearest 3x, bilinear 3x, nearest 4x, bilinear 4x).
+pub type Variants = Vec<(String, Arc<dyn TextReader + Send + Sync>)>;
+
 /// The diagnostic lines of one screenshot, printed before its verdict: the image size, then for each region it reads the
-/// rectangle (`x,y WxH`) and the raw text the engine returned. They never change what counts as PASS.
-pub fn diagnostics(name: &str, reader: &dyn TextReader, image: &Rgba) -> Vec<String> {
+/// rectangle (`x,y WxH`) and, one line per variant, the raw text that variant's engine returned. They never change what
+/// counts as PASS.
+pub fn diagnostics(name: &str, variants: &Variants, image: &Rgba) -> Vec<String> {
     let mut lines = vec![format!("  {name}: image {}x{}", image.width, image.height)];
     for (label, region) in spots(name, image.width, image.height) {
-        let line = match region {
-            None => format!("  {label}: no region for this image size"),
-            Some(area) => {
-                let text = match reader.read(image, area) {
-                    Ok(read) => format!("{:?}", read.text),
-                    Err(error) => format!("does not read: {error:?}"),
-                };
-                format!(
-                    "  {label}: at {},{} size {}x{}: {text}",
-                    area.x, area.y, area.width, area.height
-                )
-            }
+        let Some(area) = region else {
+            lines.push(format!("  {label}: no region for this image size"));
+            continue;
         };
-        lines.push(line);
+        lines.push(format!(
+            "  {label}: at {},{} size {}x{}",
+            area.x, area.y, area.width, area.height
+        ));
+        for (variant, reader) in variants {
+            let text = match reader.read(image, area) {
+                Ok(read) => format!("{:?}", read.text),
+                Err(error) => format!("does not read: {error:?}"),
+            };
+            lines.push(format!("    {variant}: {text}"));
+        }
     }
     lines
 }
@@ -251,12 +256,14 @@ fn verdict(
     }
 }
 
-/// Reads the five screenshots in `dir` with `reader`, prints one PASS or FAIL line per file with what the engine read, and
+/// Reads the five screenshots in `dir` with `reader` (the production reader: it alone decides PASS or FAIL) and prints, per
+/// region, the text of each of `variants` (T14); prints one PASS or FAIL line per file with what the engine read, and
 /// returns the failed file names. A missing file is a failure that names the file. Every file is read before the result is
 /// returned, so one run shows every mismatch.
 pub fn check_folder(
     dir: &Path,
     reader: Arc<dyn TextReader + Send + Sync>,
+    variants: Variants,
 ) -> Result<(), Vec<String>> {
     if !dir.is_dir() {
         println!("FAIL {}: is not a folder", dir.display());
@@ -268,7 +275,7 @@ pub fn check_folder(
         let path = dir.join(name);
         let result = if path.is_file() {
             read_screenshot(&path).and_then(|image| {
-                for line in diagnostics(name, &*reader, &image) {
+                for line in diagnostics(name, &variants, &image) {
                     println!("{line}");
                 }
                 verdict(name, &*reader, &screens, &image)
@@ -293,21 +300,30 @@ pub fn check_folder(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use d2rmm_agent_core::ports::{ReadError, Rgba, TextReader};
     use d2rmm_agent_domain::vision::{ReadText, Region};
 
-    use super::diagnostics;
+    use super::{Variants, diagnostics};
 
-    /// Returns the region's own x as the text, so a line shows which region it came from.
-    struct EchoReader;
+    /// Returns its own tag and the region's x as the text, so a line shows which variant and region it came from.
+    struct EchoReader(&'static str);
 
     impl TextReader for EchoReader {
         fn read(&self, _image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
             Ok(ReadText {
-                text: format!("x{}", region.x),
+                text: format!("{}{}", self.0, region.x),
                 confidence: 1.0,
             })
         }
+    }
+
+    fn variants() -> Variants {
+        vec![
+            ("nearest 3x".to_string(), Arc::new(EchoReader("n"))),
+            ("bilinear 3x".to_string(), Arc::new(EchoReader("b"))),
+        ]
     }
 
     fn frame() -> Rgba {
@@ -319,41 +335,42 @@ mod tests {
     }
 
     #[test]
-    fn a_party_file_lists_its_size_and_three_regions_with_their_text() {
-        let lines = diagnostics("maintainer-party-revealed.png", &EchoReader, &frame());
-        assert_eq!(lines.len(), 4, "size and three regions: {lines:?}");
+    fn a_party_file_lists_its_size_and_each_region_with_a_line_per_variant() {
+        let lines = diagnostics("maintainer-party-revealed.png", &variants(), &frame());
+        assert_eq!(
+            lines.len(),
+            1 + 3 * 3,
+            "size, then region + 2 variants, three times: {lines:?}"
+        );
         assert_eq!(lines[0], "  maintainer-party-revealed.png: image 1920x1033");
         assert!(lines[1].starts_with("  Party title: at "), "{}", lines[1]);
+        assert!(lines[2].starts_with("    nearest 3x: \"n"), "{}", lines[2]);
+        assert!(lines[3].starts_with("    bilinear 3x: \"b"), "{}", lines[3]);
         assert!(
-            lines[2].starts_with("  Game Name label: at "),
+            lines[4].starts_with("  Game Name label: at "),
             "{}",
-            lines[2]
+            lines[4]
         );
         assert!(
-            lines[3].starts_with("  Game Name field: at "),
+            lines[7].starts_with("  Game Name field: at "),
             "{}",
-            lines[3]
+            lines[7]
         );
-        assert!(
-            lines
-                .iter()
-                .skip(1)
-                .all(|line| line.contains(" size ") && line.contains(": \"x"))
-        );
+        assert!(lines[1].contains(" size "));
     }
 
     #[test]
     fn the_selection_screen_lists_the_marker_and_each_card_line_and_the_popup_adds_its_labels() {
-        let select = diagnostics("maintainer-select-screen.png", &EchoReader, &frame());
+        let select = diagnostics("maintainer-select-screen.png", &variants(), &frame());
         assert_eq!(
             select.len(),
-            1 + 1 + 6,
-            "size, marker, two cards of three lines"
+            1 + (1 + 6) * 3,
+            "size, marker and two cards of three lines"
         );
-        let popup = diagnostics("maintainer-select-difficulty.png", &EchoReader, &frame());
+        let popup = diagnostics("maintainer-select-difficulty.png", &variants(), &frame());
         assert_eq!(
             popup.len(),
-            select.len() + 4,
+            select.len() + 4 * 3,
             "the popup title and three labels"
         );
         assert!(
@@ -370,7 +387,7 @@ mod tests {
             height: 100,
             pixels: Vec::new(),
         };
-        let lines = diagnostics("maintainer-party-masked.png", &EchoReader, &tiny);
+        let lines = diagnostics("maintainer-party-masked.png", &variants(), &tiny);
         assert!(
             lines[1].ends_with("no region for this image size"),
             "{}",

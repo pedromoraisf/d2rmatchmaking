@@ -10,7 +10,7 @@ fn main() -> std::process::ExitCode {
     use std::process::ExitCode;
     use std::sync::Arc;
 
-    use d2rmm_agent::adapters::windows_ocr::WindowsOcr;
+    use d2rmm_agent::adapters::windows_ocr::{WindowsOcr, comparison_readers};
     use d2rmm_agent::ocr_check::{SCREENSHOTS, check_folder};
 
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -31,7 +31,7 @@ fn main() -> std::process::ExitCode {
             return ExitCode::from(1);
         }
     };
-    match check_folder(Path::new(folder), Arc::new(reader)) {
+    match check_folder(Path::new(folder), Arc::new(reader), comparison_readers()) {
         Ok(()) => {
             println!("All {} files PASS.", SCREENSHOTS.len());
             ExitCode::SUCCESS

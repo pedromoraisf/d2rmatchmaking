@@ -70,6 +70,53 @@ fn tap(out: usize, scale: usize, len: usize) -> Tap {
     }
 }
 
+/// How a region is enlarged before the engine reads it. `Nearest` repeats each pixel and reads the drawn fixtures and the
+/// game's hard-edged text (T9); `Bilinear` blends neighbours and is kept for the `ocr-check` comparison (T14).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Upscale {
+    Nearest,
+    Bilinear,
+}
+
+/// The BGRA rows of `region` enlarged `scale` times with `filter`; see `nearest_bgra` and `scaled_bgra`.
+pub fn upscaled_bgra(image: &Rgba, region: Region, scale: u32, filter: Upscale) -> Option<Vec<u8>> {
+    match filter {
+        Upscale::Nearest => nearest_bgra(image, region, scale),
+        Upscale::Bilinear => scaled_bgra(image, region, scale),
+    }
+}
+
+/// The BGRA rows of `region`, each pixel repeated `scale` times in both directions, every pixel opaque. `None` when the
+/// scale or the region is empty, the region leaves the frame, or the frame's pixels do not hold exactly its size.
+pub fn nearest_bgra(image: &Rgba, region: Region, scale: u32) -> Option<Vec<u8>> {
+    if scale == 0 || region.width == 0 || region.height == 0 {
+        return None;
+    }
+    if region.x.checked_add(region.width)? > image.width
+        || region.y.checked_add(region.height)? > image.height
+    {
+        return None;
+    }
+    let frame_row = (image.width as usize).checked_mul(4)?;
+    if image.pixels.len() != frame_row.checked_mul(image.height as usize)? {
+        return None;
+    }
+    let scale = scale as usize;
+    let out_width = (region.width as usize).checked_mul(scale)?;
+    let out_height = (region.height as usize).checked_mul(scale)?;
+    let mut out = Vec::with_capacity(out_width.checked_mul(out_height)?.checked_mul(4)?);
+    for out_y in 0..out_height {
+        let source_y = region.y as usize + out_y / scale;
+        let row = &image.pixels[source_y * frame_row..(source_y + 1) * frame_row];
+        for out_x in 0..out_width {
+            let source_x = region.x as usize + out_x / scale;
+            let pixel = &row[source_x * 4..source_x * 4 + 4];
+            out.extend_from_slice(&[pixel[2], pixel[1], pixel[0], u8::MAX]);
+        }
+    }
+    Some(out)
+}
+
 /// The BGRA rows of `region`, enlarged `scale` times in both directions with bilinear interpolation, every pixel opaque. `None` when
 /// the scale or the region is empty, the region leaves the frame, or the frame's pixels do not hold exactly its size.
 pub fn scaled_bgra(image: &Rgba, region: Region, scale: u32) -> Option<Vec<u8>> {
@@ -123,7 +170,7 @@ mod tests {
     use d2rmm_agent_core::ports::Rgba;
     use d2rmm_agent_domain::vision::Region;
 
-    use super::scaled_bgra;
+    use super::{Upscale, nearest_bgra, scaled_bgra, upscaled_bgra};
 
     /// A 2×2 frame: red, green on the top row; blue, white on the bottom row (RGBA).
     fn frame() -> Rgba {
@@ -165,6 +212,56 @@ mod tests {
         assert_eq!(at(1, 0), &[0, 64, 191, 255], "between red and green");
         // Output (1, 1) is a quarter of the way both ways from red: 9/16 red, 3/16 green, 3/16 blue, 1/16 white.
         assert_eq!(at(1, 1), &[64, 64, 159, 255], "blended from all four");
+    }
+
+    #[test]
+    fn nearest_repeats_each_pixel_in_bgra_order() {
+        let bgra = nearest_bgra(&frame(), whole(), 2).expect("inside");
+        assert_eq!(bgra.len(), 4 * 4 * 4);
+        let at = |x: usize, y: usize| bgra[(y * 4 + x) * 4..(y * 4 + x) * 4 + 4].to_vec();
+        assert_eq!(at(0, 0), [0, 0, 255, 255], "red, as BGRA");
+        assert_eq!(at(1, 1), [0, 0, 255, 255], "the same pixel again");
+        assert_eq!(at(2, 0), [0, 255, 0, 255], "green");
+        assert_eq!(at(0, 2), [255, 0, 0, 255], "blue");
+        assert_eq!(at(3, 3), [255, 255, 255, 255], "white");
+        assert_eq!(
+            upscaled_bgra(&frame(), whole(), 2, Upscale::Nearest),
+            Some(bgra),
+            "the filter selects nearest"
+        );
+        assert_eq!(
+            upscaled_bgra(&frame(), whole(), 2, Upscale::Bilinear),
+            scaled_bgra(&frame(), whole(), 2),
+            "the filter selects bilinear"
+        );
+    }
+
+    #[test]
+    fn bilinear_of_an_offset_region_uses_the_frame_stride() {
+        // A 4x3 frame whose pixel (x, y) has red = 10 * (4 * y + x); the region is the 2x2 block at (1, 1).
+        let pixels = (0..12u8)
+            .flat_map(|i| [10 * i, 0, 0, 255])
+            .collect::<Vec<_>>();
+        let frame = Rgba {
+            width: 4,
+            height: 3,
+            pixels,
+        };
+        let region = Region {
+            x: 1,
+            y: 1,
+            width: 2,
+            height: 2,
+        };
+        let bgra = scaled_bgra(&frame, region, 2).expect("inside");
+        let red = |x: usize, y: usize| bgra[(y * 4 + x) * 4 + 2];
+        // The block's pixels hold 50, 60 / 90, 100; the corners are the block's own pixels.
+        assert_eq!(red(0, 0), 50);
+        assert_eq!(red(3, 0), 60);
+        assert_eq!(red(0, 3), 90);
+        assert_eq!(red(3, 3), 100);
+        // A quarter along x from 50 to 60 is 52.5, rounded to 53.
+        assert_eq!(red(1, 0), 53);
     }
 
     #[test]

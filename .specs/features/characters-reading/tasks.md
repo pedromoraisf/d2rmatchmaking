@@ -71,3 +71,9 @@ regions read nothing (the tool printed no raw text for them).
       select-screen card name, class/level line and title line, difficulty popup labels), the pixel rectangle and the raw
       OCR text, before the PASS/FAIL line; what counts as PASS is unchanged —
       gate: `cd apps/agent/src-tauri && cargo build --example ocr-check && cargo nextest run && cargo clippy --all-targets -- -D warnings && node ../../../scripts/agent/win-check.mjs` and `pnpm test:harness`
+- [x] T14 — Production back to nearest 3× (the reading that read the drawn fixtures; T11's bilinear blur lost them in CI):
+      `Upscale::{Nearest, Bilinear}` in `ocr_pixels`, bilinear kept and unit-tested but unused by the agent; `ocr-check`
+      prints, for every region, the raw text of nearest 3×, bilinear 3×, nearest 4× and bilinear 4× (PASS/FAIL from the
+      production reader only); one shared panel-open rule (`LanguagePack::party_panel_open`, the title or 3+ letters of
+      it) for the agent and the tool —
+      gate: `cd apps/agent/src-tauri && cargo build --example ocr-check && cargo nextest run && cargo clippy --all-targets -- -D warnings` and `pnpm test:harness` (win-check by CI's Windows clippy)
