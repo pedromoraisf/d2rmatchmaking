@@ -21,10 +21,14 @@ site:  GET /v1/me/characters on load and on `characters.updated`
 - `CharacterClass`: `amazon | assassin | barbarian | druid | necromancer | paladin | sorceress | warlock`.
 - `Era`: `classic | lod | rotw` (glossary). `Ladder`: `sc-ladder | sc-nonladder | hc-ladder | hc-nonladder` (glossary).
 - `CharacterName`: 2 to 15 characters, letters with at most one `-` or `_`, not first or last (D2R's rule).
-- `CharacterReading`: `{ name, class, level (1..99), ladder, era, unlockedDifficulties }`, where
+- `CharacterReading` (what the agent sends, Batch 4): `{ name, class, level (1..99), hardcore, unlockedDifficulties }`, where
   `unlockedDifficulties` is exactly `[normal]`, `[normal, nightmare]` or `[normal, nightmare, hell]`.
 - `RecordCharactersRequest`: `{ characters: CharacterReading[] }`, 1 to 24 items, names unique within the request.
-- `CharacterView`: a `CharacterReading` plus `readAt`. `MyCharactersResponse`: `{ characters: CharacterView[] }`.
+- `CharacterView`: `{ id, ...CharacterReading, ladder: 'ladder' | 'non-ladder' | null, era: Era | null, readAt }`;
+  `MyCharactersResponse`: `{ characters: CharacterView[] }`. The glossary's combined `Ladder` (`sc-ladder` …) is derived
+  from `hardcore` + `ladder` when a character queues.
+- `DeclareCharacterRequest`: `{ ladder: 'ladder' | 'non-ladder', era: Era }` for
+  `PATCH /v1/me/characters/{id}` (session + same origin; 204, 404 for a character that is not the player's).
 - Site stream event `characters.updated` (no body beyond the type; the site refetches). AsyncAPI regenerated.
 
 ## API (Identity module)

@@ -98,3 +98,29 @@ The screen reading (old T8 regions/classifier/parser, T9 Windows OCR on fixtures
 - [x] T14 — The shared acceptance step "the API answers <status>" throws a clear error when the scenario made no
       request (neither the relay answer nor `world.last`) — gate:
       `pnpm exec turbo run test:acceptance -- --grep "@CHR-|@AWS-|@IDB-" && pnpm exec turbo run test:acceptance -- --grep @OBS- --workers=1`
+
+## Batch 4 — ladder and era declared by the player (maintainer, 2026-11-10: "Jogador declara")
+
+The selection screen shows neither ladder nor era. The agent sends name, class, level, hardcore and unlocked
+difficulties; the player declares ladder and era on the site (`spec.md` CHR-09, CHR-10, CHR-11, CHR-15, CHR-16;
+`design.md § Contracts`).
+
+- [ ] T15 — Contracts: `CharacterReading` = `{ name, class, level, hardcore, unlockedDifficulties }`; `CharacterView`
+      adds `id`, `ladder: 'ladder' | 'non-ladder' | null`, `era | null`; `DeclareCharacterRequest`; unit tests;
+      OpenAPI, AsyncAPI, JSON Schema and Rust types regenerated; the agent core and domain stop carrying ladder and era
+      on a card (the title table still uses classic or expansion and softcore or hardcore to pick the title set) —
+      gate:
+      `pnpm --filter @d2rmm/contracts exec vitest run && pnpm contracts:openapi && (cd apps/agent/src-tauri && cargo run -q -p xtask -- contracts && cargo nextest run && cargo clippy --all-targets -- -D warnings)`
+- [ ] T16 — API: migration `0008_characters_declared_ladder_era` (adds `hardcore boolean not null default false`, makes
+      `ladder` and `era` nullable with `ladder in ('ladder', 'non-ladder')`; no committed migration edited); a reading
+      never changes the declared ladder and era; use case `declareCharacter` and `PATCH /v1/me/characters/:id` (session +
+      same origin; 204; 404 when not the player's); span `identity.declare-character` with no name; migration-list
+      tests; OpenAPI regenerated — gate:
+      `pnpm --filter @d2rmm/api exec vitest run src/modules/identity && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts src/main/__tests__/migrate.int.test.ts src/platform/postgres/migrator.int.test.ts src/main/__tests__/identity-routes.int.test.ts src/modules/identity/adapters/postgres && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json`
+- [ ] T17 — Site: each card shows softcore or hardcore, ladder and era or "Declare ladder and era to queue with this
+      character", and a keyboard-usable declaration control (ladder / non-ladder, Classic / Expansion / Reign of the
+      Warlock) that saves through the PATCH and refreshes the list; en + pt-BR; component tests — gate:
+      `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
+- [ ] T18 — Acceptance steps for the new and changed steps of `acceptance.feature` (reuse "the answer is ..." from
+      identity-bnet), then both gates and the sensors — gate:
+      `pnpm exec turbo run test:acceptance -- --grep "@CHR-|@AWS-|@IDB-" && pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check`

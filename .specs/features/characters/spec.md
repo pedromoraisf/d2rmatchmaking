@@ -55,18 +55,26 @@ agent is on (FR-05).
   expansion, softcore and hardcore titles of either gender.
 - **CHR-08** — moved to `characters-reading` (split).
 - **CHR-09** — WHEN the API receives characters from a paired agent THEN it SHALL store each one under the agent's account,
-  keyed by account and name, creating it or replacing its fields with the newest reading, and SHALL answer 204.
-- **CHR-10** — IF a character in the request breaks the contract (unknown class, level outside 1 to 99, unknown era,
-  ladder or difficulty value, a name outside D2R's rules, more than 24 characters in one request) THEN the API SHALL
-  answer 400 and store none of the request.
-- **CHR-11** — WHEN a signed-in player opens the site THEN it SHALL list their characters with name, class, level, mode,
-  ladder, era and unlocked difficulties, and the time of the last reading; with none, it SHALL tell the player to open
-  the character selection screen with the agent running.
+  keyed by account and name (case-insensitive), creating it or replacing the read fields (class, level, softcore or
+  hardcore, unlocked difficulties) with the newest reading, keeping the ladder and era the player declared, and SHALL
+  answer 204; an account holds at most 60 characters.
+- **CHR-10** — IF a character in the request breaks the contract (unknown class, level outside 1 to 99, an unknown
+  difficulty list, a name outside D2R's rules, more than 24 characters in one request, or more than 60 for the account)
+  THEN the API SHALL answer 400 and store none of the request.
+- **CHR-11** — WHEN a signed-in player opens the site THEN it SHALL list their characters with name, class, level,
+  softcore or hardcore, ladder and era (or "not declared"), unlocked difficulties and the time of the last reading;
+  with none, it SHALL tell the player to open the character selection screen with the agent running.
 - **CHR-12** — WHEN the API stores characters THEN the player's site SHALL show the new list within 2 seconds without a
   reload.
 - **CHR-13** — The agent and the API SHALL keep character names out of logs and span attributes (Design Doc §
   Observabilidade); the reading runs in an `agent.vision.read-characters` span and the request in
   `identity.record-characters`, with counts and the screen as attributes.
+- **CHR-15** — WHEN a signed-in player declares, for one of their characters, ladder or non-ladder and the era (classic,
+  expansion, Reign of the Warlock) on the site THEN the API SHALL store both and answer 204, and the site SHALL show
+  them; a character without both declared SHALL show "Declare ladder and era to queue with this character"
+  (maintainer, 2026-11-10: the selection screen shows neither, the player declares them).
+- **CHR-16** — IF the character is not the player's THEN the declaration SHALL answer 404 and change nothing; IF the
+  request has no session or comes from another origin THEN it SHALL answer 401 or 403.
 - **CHR-14** — Every new user-facing string, on the site and in the agent window, SHALL come from the translation files
   in English and pt-BR, and the new controls SHALL be usable by keyboard (NFR-12, NFR-13).
 
@@ -85,6 +93,8 @@ agent is on (FR-05).
 | CHR-12 | FR-02; NFR-01; ADR 007 (SSE)                                             |
 | CHR-13 | AGENTS.md rule 10; Design Doc § Observabilidade (never a character name) |
 | CHR-14 | NFR-12, NFR-13; AGENTS.md rule 9                                         |
+| CHR-15 | FR-02, FR-08; maintainer, 2026-11-10 ("Jogador declara")                 |
+| CHR-16 | NFR-06; ADR 012 (same origin)                                            |
 
 ## Requirement Traceability
 
@@ -100,7 +110,9 @@ agent is on (FR-05).
 | CHR-11         | Characters on the site | acceptance `@CHR-11` + component tests                                    |
 | CHR-12         | Characters on the site | acceptance `@CHR-12`                                                      |
 | CHR-13         | Telemetry and privacy  | unit tests with in-memory span exporters (TypeScript and Rust)            |
-| CHR-14         | Accessibility and i18n | i18n lint (site and agent window) + keyboard steps in `@CHR-02`/`@CHR-11` |
+| CHR-14         | Accessibility and i18n | i18n lint (site and agent window) + keyboard steps in `@CHR-11`/`@CHR-15` |
+| CHR-15         | Ladder and era         | acceptance `@CHR-15` + component tests                                    |
+| CHR-16         | Ladder and era         | acceptance `@CHR-16`                                                      |
 
 ## Fixtures needed from the maintainer (brief, "What I need from you" item 1)
 
