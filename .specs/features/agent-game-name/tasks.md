@@ -15,7 +15,7 @@ screenshots are at `/private/tmp/claude-501/-Users-pedromoraisf-www-d2rmatchmaki
 - [x] T2 — Domain `game_name_match.rs`: AGN-03 (trim, no case; before the last `-` `0`/`Ø`/`⊕` → `o`; after it
       `O`/`o`/`Ø`/`⊕` → `0`) and AGN-04 (masked), unit tests including `mmcowsh-1` vs `MMC⊕WSH-1`, `mmchaosn-10` vs
       `MMCHA⊕SN-1Ø`, `mmcowsh-10` vs `MMCOWSH-1O`, `mmcowsh-1` vs `mmcowsh-7` (no match), `xxxxxxxxx` (masked) — gate: `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-domain --lib`
-- [ ] T3 — Core: the Party step in `watch_screen` (AGN-01, AGN-03, AGN-05; once per run; "needs reveal" state), span of
+- [x] T3 — Core: the Party step in `watch_screen` (AGN-01, AGN-03, AGN-05; once per run; "needs reveal" state), span of
       AGN-07; unit tests with fakes — gate:
       `cd apps/agent/src-tauri && cargo nextest run -p d2rmm-agent-core --lib && cargo nextest run -p d2rmm-agent-adapters`
 - [ ] T4 — App crate: the real Party reader on live frames with Windows OCR and the English pack resource, wired in

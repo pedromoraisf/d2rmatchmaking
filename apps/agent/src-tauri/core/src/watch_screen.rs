@@ -11,14 +11,15 @@ use d2rmm_agent_domain::presence::game_running;
 
 use crate::device_state::DeviceState;
 use crate::messages::{FrameReading, Screen};
+use crate::party::{self, PartyPorts};
 use crate::ports::{
-    ApiError, ApiGateway, ConsentStore, FrameReader, FrameSource, ProcessSource, TokenStore,
+    ApiError, ApiGateway, ConsentStore, FrameReader, FrameSource, ProcessSource, Rgba, TokenStore,
 };
 
 /// The interval between two looks at the game (CHR-03: at most once per second).
 pub const TICK: Duration = Duration::from_secs(1);
 
-/// The ports the screen loop uses (AHM-17): five trait objects and the gateway.
+/// The ports the screen loop uses (AHM-17): five trait objects and the gateway, and the Party step's group (AGN-01).
 pub struct ScreenPorts<G> {
     pub gateway: Arc<G>,
     pub tokens: Arc<dyn TokenStore + Send + Sync>,
@@ -26,6 +27,7 @@ pub struct ScreenPorts<G> {
     pub frames: Arc<dyn FrameSource + Send + Sync>,
     pub reader: Arc<dyn FrameReader + Send + Sync>,
     pub consent: Arc<dyn ConsentStore + Send + Sync>,
+    pub party: PartyPorts<G>,
 }
 
 /// Looks at the game for the life of the agent, one tick at a time.
@@ -46,12 +48,17 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
     ports: &ScreenPorts<G>,
     posted: &mut Option<Vec<Card>>,
 ) {
-    let reading = observe(ports);
-    device.set_screen(reading.as_ref().map_or(Screen::Unknown, |read| read.screen));
-    let Some(FrameReading {
+    let Some(frame) = capture(ports) else {
+        device.set_screen(Screen::Unknown);
+        return;
+    };
+    let reading = read_screen(ports, &frame);
+    device.set_screen(reading.screen);
+    party::look(device, &ports.party, &frame).await;
+    let FrameReading {
         screen: Screen::CharacterSelect,
         cards,
-    }) = reading
+    } = reading
     else {
         return;
     };
@@ -73,26 +80,30 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
     }
 }
 
-/// What the game shows now. `None` when the player has not consented, the game is not running, or no frame came: in each
-/// case nothing is captured past the check that failed (CHR-01, CHR-02, CHR-03).
-fn observe<G>(ports: &ScreenPorts<G>) -> Option<FrameReading> {
+/// The game window's frame, when the player has consented, the game runs and a frame came. `None` otherwise: in each case
+/// nothing is captured past the check that failed (CHR-01, CHR-02, CHR-03).
+fn capture<G>(ports: &ScreenPorts<G>) -> Option<Rgba> {
     if !ports.consent.load() {
         return None;
     }
     if !game_running(&ports.processes.names()) {
         return None;
     }
-    let frame = ports.frames.capture()?;
+    ports.frames.capture()
+}
+
+/// What the frame shows: its screen, and its cards on the character selection screen.
+fn read_screen<G>(ports: &ScreenPorts<G>, frame: &Rgba) -> FrameReading {
     let span = tracing::info_span!(
         "agent.vision.read-characters",
         screen = tracing::field::Empty,
         cards = tracing::field::Empty,
     );
     let _entered = span.enter();
-    let reading = ports.reader.read(&frame);
+    let reading = ports.reader.read(frame);
     span.record("screen", tracing::field::debug(&reading.screen));
     span.record("cards", reading.cards.len());
-    Some(reading)
+    reading
 }
 
 fn in_name_order(mut cards: Vec<Card>) -> Vec<Card> {
@@ -110,13 +121,16 @@ mod tests {
 
     use super::{ScreenPorts, tick};
     use crate::device_state::DeviceState;
-    use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NullSink};
+    use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NoText, NullSink};
+    use crate::groups::ReadPorts;
     use crate::messages::{FrameReading, Screen};
+    use crate::party::PartyPorts;
     use crate::ports::{
-        ApiError, ConsentStore, FrameReader, FrameSource, ProcessSource, Rgba, StoreError,
-        TokenStore,
+        ApiError, ConsentStore, FrameReader, FrameSource, PausedWallClock, ProcessSource, Rgba,
+        SequentialIds, StoreError, TokenStore,
     };
     use crate::secret::Secret;
+    use d2rmm_agent_domain::language::LanguagePack;
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
 
@@ -220,6 +234,18 @@ mod tests {
             frames: Arc::clone(&frames) as Arc<dyn FrameSource + Send + Sync>,
             reader: Arc::clone(&reader) as Arc<dyn FrameReader + Send + Sync>,
             consent: Arc::clone(&consent) as Arc<dyn ConsentStore + Send + Sync>,
+            party: PartyPorts {
+                read: ReadPorts {
+                    reader: Arc::new(NoText),
+                    ids: Arc::new(SequentialIds::new()),
+                    clock: Arc::new(PausedWallClock::starting_at(
+                        "2026-11-10T10:00:00Z".parse().expect("a valid instant"),
+                    )),
+                    gateway: Arc::clone(&gateway),
+                    tokens: Arc::clone(&tokens) as Arc<dyn TokenStore + Send + Sync>,
+                },
+                language: Arc::new(LanguagePack::english()),
+            },
         };
         Rig {
             device,

@@ -1,12 +1,14 @@
-//! Fusion (AHM-12, AHM-15; AD-052). A read game name becomes a `GAME_NAME_SEEN` observation only when it names the assigned
-//! room exactly, after trimming and lower-casing. Any other name yields nothing. The rule reads no clock and draws no
-//! idempotency key unless the name matches: the caller passes the capture time and a key source.
+//! Fusion (AHM-12, AHM-15; AD-052; AGN-03). A read game name becomes a `GAME_NAME_SEEN` observation only when it names the
+//! assigned room: trimmed, without case, and with the D2R glyph rules of `game_name_match`. Any other name, and a masked
+//! field, yields nothing. The rule reads no clock and draws no idempotency key unless the name matches: the caller passes
+//! the capture time and a key source.
 
 use std::num::NonZeroU64;
 
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+use crate::game_name_match::{FieldRead, read_field};
 use crate::room_assignment::Assignment;
 use crate::vision::ReadText;
 
@@ -21,17 +23,17 @@ pub struct GameNameObservation {
     pub captured_at: DateTime<Utc>,
 }
 
-/// Accepts the read only when its text, trimmed and lower-cased, equals the expected game name lower-cased (AD-052). The
-/// observation carries that normalised text, the assignment's run and room, a confidence clamped to [0, 1] (NaN counts as
-/// 0), the key from `key` and the capture time. A room id that is not a UUID yields nothing.
+/// Accepts the read only when `read_field` matches it to the expected game name (AD-052, AGN-03). The observation carries
+/// the expected name in its normal form (trimmed, lower-cased), the assignment's run and room, a confidence clamped to
+/// [0, 1] (NaN counts as 0), the key from `key` and the capture time. A room id that is not a UUID yields nothing.
 pub fn fuse(
     read: &ReadText,
     assignment: &Assignment,
     now_utc: DateTime<Utc>,
     key: impl FnOnce() -> Uuid,
 ) -> Option<GameNameObservation> {
-    let seen = read.text.trim().to_lowercase();
-    if seen != assignment.expected_game_name.as_str().to_lowercase() {
+    let expected = assignment.expected_game_name.as_str();
+    if read_field(&read.text, expected) != FieldRead::Matched {
         return None;
     }
     let room = Uuid::parse_str(assignment.room.as_str()).ok()?;
@@ -44,7 +46,7 @@ pub fn fuse(
         room,
         run: assignment.run,
         key: key(),
-        game_name: seen,
+        game_name: expected.trim().to_lowercase(),
         confidence,
         captured_at: now_utc,
     })
@@ -146,6 +148,49 @@ mod tests {
             None,
             "a room id that is not a UUID yields nothing"
         );
+    }
+
+    #[test]
+    fn fuse_reads_the_d2r_glyphs_and_reports_the_expected_name() {
+        let observation = fuse(
+            &read("MMC⊕WSH-1", 0.93),
+            &assignment_named("mmcowsh-1"),
+            now(),
+            key,
+        )
+        .expect("the O drawn as ⊕ matches the expected name");
+        assert_eq!(
+            observation.game_name, "mmcowsh-1",
+            "the expected name, not the glyphs"
+        );
+
+        assert!(
+            fuse(
+                &read("MMCOWSH-1O", 0.93),
+                &assignment_named("mmcowsh-10"),
+                now(),
+                key
+            )
+            .is_some(),
+            "the letter O after the dash reads as zero"
+        );
+        assert_eq!(
+            fuse(
+                &read("xxxxxxxxx", 0.93),
+                &assignment_named("mmcowsh-1"),
+                now(),
+                key
+            ),
+            None,
+            "a masked field is never a match"
+        );
+    }
+
+    fn assignment_named(name: &str) -> Assignment {
+        Assignment {
+            expected_game_name: GameName::new(name),
+            ..assignment()
+        }
     }
 
     #[test]

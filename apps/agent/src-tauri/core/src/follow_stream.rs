@@ -15,7 +15,6 @@ use tracing::Instrument;
 use crate::device_state::DeviceState;
 use crate::groups::StreamPorts;
 use crate::ports::{ApiError, ApiGateway, EventStream, StreamItem};
-use crate::view::RoomView;
 
 /// Runs for the life of the agent, whenever it is paired and not waiting for an update. The reconnect delay is the
 /// domain's `Reconnect` (AHM-11): a stream that stayed open for a minute starts the backoff again.
@@ -109,11 +108,8 @@ async fn read_events(
 
 /// Sets or clears the current assignment and shows the room it names.
 fn set_assignment(device: &DeviceState, assignment: Option<Assignment>) {
-    let room = assignment.as_ref().map(|assignment| RoomView {
-        game_name: assignment.expected_game_name.as_str().to_string(),
-    });
     device.replace_assignment(assignment);
-    device.hub.set_room(room);
+    device.publish_room();
 }
 
 #[cfg(test)]
@@ -193,6 +189,8 @@ mod tests {
                 device.hub.snapshot().room,
                 Some(RoomView {
                     game_name: "mmbaalh-13".to_string(),
+                    needs_reveal: false,
+                    matched: false,
                 }),
                 "the latest room.assigned wins"
             );

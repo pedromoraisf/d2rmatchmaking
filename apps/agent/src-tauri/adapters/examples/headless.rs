@@ -293,6 +293,17 @@ fn start(
             tokens: std::sync::Arc::clone(&tokens),
         },
         screen: d2rmm_agent_core::watch_screen::ScreenPorts {
+            // The Party panel reads nothing in this build until the headless example reads the drawn Party fixtures.
+            party: d2rmm_agent_core::party::PartyPorts {
+                read: ReadPorts {
+                    reader: std::sync::Arc::new(Sidecar(String::new())),
+                    ids: std::sync::Arc::new(SequentialIds::new()),
+                    clock: std::sync::Arc::new(WallTime),
+                    gateway: std::sync::Arc::clone(&gateway),
+                    tokens: std::sync::Arc::clone(&tokens),
+                },
+                language: std::sync::Arc::new(d2rmm_agent_domain::language::LanguagePack::english()),
+            },
             gateway,
             tokens,
             processes: std::sync::Arc::new(GameOpen),

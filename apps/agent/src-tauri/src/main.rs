@@ -22,11 +22,15 @@ use d2rmm_agent_core::groups::{
 #[cfg(windows)]
 use d2rmm_agent_core::messages::{FrameReading, Screen};
 #[cfg(windows)]
+use d2rmm_agent_core::party::PartyPorts;
+#[cfg(windows)]
 use d2rmm_agent_core::ports::{
     ConsentStore, FrameReader, ProcessSource, ReadError, Rgba, TextReader, TokenStore, WallClock,
 };
 #[cfg(windows)]
 use d2rmm_agent_core::watch_screen::ScreenPorts;
+#[cfg(windows)]
+use d2rmm_agent_domain::language::LanguagePack;
 #[cfg(windows)]
 use d2rmm_agent_domain::vision::{ReadText, Region};
 #[cfg(windows)]
@@ -82,6 +86,16 @@ fn ports(app: AppHandle, gateway: Arc<HttpGateway>) -> Groups<HttpGateway> {
             frames: Arc::new(WindowFrames),
             reader: Arc::new(NoScreenReader),
             consent,
+            party: PartyPorts {
+                read: ReadPorts {
+                    reader: Arc::clone(&reader),
+                    ids: Arc::new(RandomIds),
+                    clock: Arc::clone(&clock),
+                    gateway: Arc::clone(&gateway),
+                    tokens: Arc::clone(&tokens),
+                },
+                language: Arc::new(LanguagePack::english()),
+            },
         },
         stream: StreamPorts {
             gateway: Arc::clone(&gateway),

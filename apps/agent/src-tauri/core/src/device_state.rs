@@ -12,8 +12,9 @@ use tokio::time::Instant;
 
 use crate::hub::Hub;
 use crate::messages::Screen;
+use crate::party::PartyProgress;
 use crate::ports::{ApiError, StateSink, TokenStore};
-use crate::view::{PairingView, UpdateView};
+use crate::view::{PairingView, RoomView, UpdateView};
 
 /// What the loops share about the device: the aggregate, the room and the signals that wake the loops.
 pub struct DeviceState {
@@ -32,6 +33,8 @@ pub struct DeviceState {
     pub screen: watch::Sender<Screen>,
     /// Observations dropped after their retries ran out or were overtaken (AD-051).
     observations_dropped: AtomicU64,
+    /// What the Party step has seen for the held run (AGN-05). It follows the assignment and is forgotten with it.
+    party: Mutex<PartyProgress>,
 }
 
 impl DeviceState {
@@ -46,6 +49,7 @@ impl DeviceState {
             assignment: watch::channel(RoomAssignment::empty()).0,
             screen: watch::channel(Screen::Unknown).0,
             observations_dropped: AtomicU64::new(0),
+            party: Mutex::new(PartyProgress::default()),
         }
     }
 
@@ -83,12 +87,34 @@ impl DeviceState {
     /// Stores the assignment the API states (`Some`) or forgets the current one (`None`). A newer assignment replaces the
     /// older one.
     pub fn replace_assignment(&self, assignment: Option<Assignment>) {
+        lock(&self.party).follow(assignment.as_ref());
         self.assignment.send_modify(|slot| match assignment {
             Some(assignment) => {
                 slot.receive(assignment);
             }
             None => slot.clear(),
         });
+    }
+
+    /// Runs `apply` on the Party progress of the held run (AGN-05). Publish the room after a change with `publish_room`.
+    pub fn with_party<T>(&self, apply: impl FnOnce(&mut PartyProgress) -> T) -> T {
+        apply(&mut lock(&self.party))
+    }
+
+    /// Shows the held room with the Party progress: the name, the reveal hint (AGN-04) and the match (AGN-03). Publishes only
+    /// a change, so a reading that changes nothing sends nothing to the window.
+    pub fn publish_room(&self) {
+        let room = self.assignment.borrow().current().map(|assignment| {
+            let progress = lock(&self.party);
+            RoomView {
+                game_name: assignment.expected_game_name.as_str().to_string(),
+                needs_reveal: progress.needs_reveal(),
+                matched: progress.matched(),
+            }
+        });
+        if self.hub.snapshot().room != room {
+            self.hub.set_room(room);
+        }
     }
 
     /// A 401 on any request: the token goes, the room goes, and the pairing loop shows a new code (AGS-08).
@@ -207,6 +233,7 @@ impl DeviceState {
                 DeviceEffect::ForgetToken => tokens.delete(),
                 DeviceEffect::ClearRoom => {
                     self.assignment.send_modify(RoomAssignment::clear);
+                    lock(&self.party).follow(None);
                     self.hub.set_room(None);
                 }
                 // The retry epoch moved with the aggregate; a waiting retry compares it and drops its observation.
@@ -265,6 +292,8 @@ mod tests {
         device.replace_assignment(Some(assignment()));
         device.hub.set_room(Some(RoomView {
             game_name: "mmbaalh-12".to_string(),
+            needs_reveal: false,
+            matched: false,
         }));
         let epoch = device.epoch();
 
