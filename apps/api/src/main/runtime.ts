@@ -25,17 +25,34 @@ export class RandomUuidGenerator implements IdGenerator {
   }
 }
 
-/** How often the `at` timers compare their instant with the clock. */
-const AT_POLL_MS = 100;
+/** How often the timers compare their instant with the clock. */
+const POLL_MS = 100;
+
+interface ClockTimer {
+  due: number;
+  /** Set for `every`: the timer re-arms after each run. */
+  readonly interval: number | undefined;
+  readonly fn: () => void;
+}
 
 /**
- * The production scheduler (design.md § Composition roots): `every` runs on a timer, and `at` fires once the injected
- * clock reaches its instant. Reading the clock, not the timer, makes `at` follow the controllable clock of the
- * acceptance stack too (AD-045).
+ * The next due instant of a repeating timer that ran at `now`: one interval after the last due instant, or one interval
+ * from now when the clock jumped past more than a whole interval (one run per jump, never a burst).
+ */
+export function nextDue(due: number, interval: number, now: number): number {
+  const next = due + interval;
+  return next > now ? next : now + interval;
+}
+
+/**
+ * The production scheduler (design.md § Composition roots): `every` and `at` both follow the injected clock, not a
+ * timer of their own. In production the clock is the wall clock, so they fire on time. In the acceptance stack the clock
+ * moves only when a step moves it (AD-045), so the matcher and the sweeps tick when a scenario passes time, never in the
+ * middle of a step: a ready check's decliner is back in the queue and must be seen there, not already matched (RDY-04).
  */
 export class ClockScheduler implements Scheduler {
   readonly #clock: Clock;
-  readonly #pending = new Set<{ readonly due: number; readonly fn: () => void }>();
+  readonly #pending = new Set<ClockTimer>();
   #poll: ReturnType<typeof setInterval> | undefined;
 
   constructor(clock: Clock) {
@@ -46,31 +63,41 @@ export class ClockScheduler implements Scheduler {
     if (!(ms > 0)) {
       throw new RangeError('every needs a positive interval');
     }
-    const handle = setInterval(fn, ms);
-    return () => {
-      clearInterval(handle);
-    };
+    return this.#add({ due: this.#clock.now().getTime() + ms, interval: ms, fn });
   }
 
   at(time: Date, fn: () => void): Cancel {
-    const timer = { due: time.getTime(), fn };
+    return this.#add({ due: time.getTime(), interval: undefined, fn });
+  }
+
+  #add(timer: ClockTimer): Cancel {
     this.#pending.add(timer);
     this.#poll ??= setInterval(() => {
       this.#tick();
-    }, AT_POLL_MS);
+    }, POLL_MS);
     return () => {
       this.#pending.delete(timer);
+      this.#stopWhenIdle();
     };
   }
 
   #tick(): void {
     const now = this.#clock.now().getTime();
     for (const timer of [...this.#pending]) {
-      if (timer.due <= now) {
-        this.#pending.delete(timer);
-        timer.fn();
+      if (timer.due > now || !this.#pending.has(timer)) {
+        continue;
       }
+      if (timer.interval === undefined) {
+        this.#pending.delete(timer);
+      } else {
+        timer.due = nextDue(timer.due, timer.interval, now);
+      }
+      timer.fn();
     }
+    this.#stopWhenIdle();
+  }
+
+  #stopWhenIdle(): void {
     if (this.#pending.size === 0 && this.#poll !== undefined) {
       clearInterval(this.#poll);
       this.#poll = undefined;

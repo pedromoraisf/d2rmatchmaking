@@ -47,8 +47,9 @@ any route task's gate, no test weakened, `acceptance.feature` not edited; the ho
 - [x] T9 — Countdown from server time (decision 3): the ready-check view carries the server's `now` with the deadline;
       the site counts down from `deadline − serverNow` at receipt, independent of the browser clock; component test
       with a skewed browser clock — gate: `pnpm --filter @d2rmm/contracts exec vitest run && pnpm --filter @d2rmm/web exec vitest run && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json`
-- [ ] T10 — RDY-04 flake (a site missed a ready-check event 1 in 3 full runs): find the cause with evidence (log the
+- [x] T10 — RDY-04 flake (a site missed a ready-check event 1 in 3 full runs): find the cause with evidence (log the
       hub's deliveries and the site's received events in the failing scenario, run it 10× in the full set), fix it in
       the product if events can be lost (e.g. make `ready_check.resolved`/`updated` durable through the outbox so a
       reconnect replays them, or re-read on the site after each answer) — gate: 3 consecutive full runs of
       `pnpm exec turbo run test:acceptance -- --grep "@RDY-|@QUE-"` with 26/26
+      Cause: no event was lost. The API's matcher timer (`ClockScheduler.every`) ran on a real 1-second `setInterval` while the acceptance clock is frozen, so about 1 time in 3 it re-matched Alice (back in the queue after Bob's decline) with Cara between two steps and opened a new ready check (RDY-04 steps saw no waiting ticket, or an overlay again); `every` now follows the injected clock like `at`. The RDY-07 flake was the agent comparing the check's absolute deadline with its own wall clock; it now counts the time left from the server's `now`.
