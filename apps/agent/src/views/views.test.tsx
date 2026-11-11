@@ -91,9 +91,33 @@ describe('status view', () => {
   });
 
   it('shows the room line with the game name', () => {
-    renderStatus({ room: { gameName: 'mmbaalh-12' } });
+    renderStatus({ room: { gameName: 'mmbaalh-12', needsReveal: false, matched: false } });
 
     expect(screen.getByText('Room mmbaalh-12 — waiting for the game')).toBeTruthy();
+  });
+
+  it('tells the player to reveal the game name while it is masked (AGN-04)', () => {
+    const { unmount } = renderStatus({
+      room: { gameName: 'mmbaalh-12', needsReveal: true, matched: false },
+    });
+    expect(
+      screen.getByText('Open the Party panel (P) and click the eye to show the game name.'),
+    ).toBeTruthy();
+    unmount();
+
+    renderStatus({ room: { gameName: 'mmbaalh-12', needsReveal: true, matched: true } });
+    expect(
+      screen.queryByText('Open the Party panel (P) and click the eye to show the game name.'),
+    ).toBeNull();
+  });
+
+  it('shows the reveal hint in pt-BR', () => {
+    const masked = view({ room: { gameName: 'mmbaalh-12', needsReveal: true, matched: false } });
+    render(<StatusView view={masked} translate={ptBR} />);
+
+    expect(
+      screen.getByText('Abra o painel Party (P) e clique no olho para mostrar o nome do jogo.'),
+    ).toBeTruthy();
   });
 
   it('shows the update failure and the update requirement', () => {

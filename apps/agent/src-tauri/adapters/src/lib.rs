@@ -5,6 +5,7 @@
 pub mod config;
 pub mod contracts;
 pub mod http;
+pub mod language;
 pub mod telemetry;
 
 #[cfg(test)]
