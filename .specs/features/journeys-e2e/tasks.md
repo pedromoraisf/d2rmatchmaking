@@ -23,7 +23,7 @@ blocker on the feature that owns it; never commit a game screenshot (the Party f
       revoke agent); the scan with tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa` and no rule disabled; the pt-BR check
       (no translation key shown, no English catalogue string shown that differs from its pt-BR value); fix every
       violation in the screen — gate: `pnpm exec turbo run test:acceptance -- --grep "@JRN-05|@JRN-07"`
-- [ ] T5 — JRN-01 and JRN-03: the J1 steps (sign-in through the fake Battle.net server, agents paired and registering
+- [x] T5 — JRN-01 and JRN-03: the J1 steps (sign-in through the fake Battle.net server, agents paired and registering
       characters, PvP queue, accept on the site and by the agent's hotkey, room with host, `mmpvph-` name (ADR 017) and "No
       password", host's and member's Party readings), each stage on both pages within 2 s of the observation request
       on the real clock — gate: `pnpm exec turbo run test:acceptance -- --grep @JRN-01`

@@ -36,9 +36,9 @@ const SORCERESS: QueueCharacter = { ...SORC_OF_ALICE, name: 'Sorc' };
 /** The field of a masked Party panel: nothing the agent reads as a game name. */
 const MASKED = 'xxxxxxxxx';
 /** A page shows a room change within this long of the agent's observation (JRN-03, NFR-01). */
-const SITE_LIMIT_MS = 2_000;
+export const SITE_LIMIT_MS = 2_000;
 /** What the headless agents take to appear online, and the room and ready check to appear on a page. */
-const API_WAIT_MS = 15_000;
+export const API_WAIT_MS = 15_000;
 /** Tab presses a keyboard walk may take before the control must hold the focus. */
 const KEYBOARD_STOPS = 80;
 
@@ -243,16 +243,16 @@ Then('the screen shows no untranslated key and no English source string', async 
 
 // --- J1 (JRN-01, JRN-03) ---------------------------------------------------------------------------------------------
 
-interface HeadlessPlayer {
+export interface HeadlessPlayer {
   readonly agent: HeadlessAgent;
   readonly png: string;
 }
 
 interface JourneyState {
   dir?: string;
-  headless: Map<Who, HeadlessPlayer>;
+  headless: Map<string, HeadlessPlayer>;
   /** The reading under way: whose agent read, and how many observations it had sent before. */
-  reader?: { readonly who: Who; readonly before: number };
+  reader?: { readonly who: string; readonly before: number };
 }
 
 const states = new WeakMap<World, JourneyState>();
@@ -266,7 +266,7 @@ function stateOf(world: World): JourneyState {
   return state;
 }
 
-function pageOf(world: World, who: Who): Page {
+export function pageOf(world: World, who: string): Page {
   const page = world.player(who).visitor?.page;
   if (page === undefined) {
     throw new Error(`${who} has no site open in this scenario`);
@@ -274,7 +274,7 @@ function pageOf(world: World, who: Who): Page {
   return page;
 }
 
-function headlessOf(world: World, who: Who): HeadlessPlayer {
+export function headlessOf(world: World, who: string): HeadlessPlayer {
   const found = stateOf(world).headless.get(who);
   if (found === undefined) {
     throw new Error(`${who}'s headless agent is not running in this scenario`);
@@ -321,40 +321,47 @@ Given(
   async ({ world }) => {
     test.setTimeout(HEADLESS_START_TIMEOUT_MS);
     await HeadlessAgent.build();
-    const state = stateOf(world);
-    state.dir = mkdtempSync(path.join(tmpdir(), 'd2rmm-journey-'));
     for (const who of WHO) {
-      // The headless example reads the Party panel only: the character selection reading is posted by the agent contract's
-      // simulated agent, which the headless agent then replaces as the player's paired agent (a second pairing revokes it).
-      const simulated = await world.pairAgent(who);
-      expect((await simulated.heartbeat(ONLINE)).status, 'the first heartbeat is accepted').toBe(204);
-      await registerCharacter(world, who, SORCERESS);
-      const fixture = preparePartyFixture(mkdtempSync(path.join(state.dir, `${who}-`)), {
-        gameNameField: MASKED,
-      });
-      const agent = HeadlessAgent.start({
-        apiBase: world.site.api,
-        fixture: fixture.png,
-        party: true,
-        agentVersion: AGENT_VERSION,
-      });
-      state.headless.set(who, { agent, png: fixture.png });
-      const shown = await agent.waitFor('code', HEADLESS_START_TIMEOUT_MS);
-      const paired = await submitPairingCode(world.site, await world.sessionOf(who), String(shown['code']));
-      expect(paired.status, `pairing the headless agent of ${who}`).toBe(200);
-      await agent.waitFor('paired');
-      const replaced = world.player(who).agents;
-      world.paired.splice(0, world.paired.length, ...world.paired.filter((item) => !replaced.includes(item)));
-      // The queue needs the agent online: the headless agent heartbeats from its first seconds.
-      await expect
-        .poll(async () => (await world.presenceOf(who)).body, {
-          timeout: API_WAIT_MS,
-          message: `the headless agent of ${who} is online`,
-        })
-        .toMatchObject({ status: 'paired', online: true });
+      await pairHeadless(world, who, SORCERESS);
     }
   },
 );
+
+/**
+ * Registers the player's character through the agent contract's simulated agent, then pairs a headless agent, which replaces
+ * it as the player's paired agent (a second pairing revokes the first). The headless example reads the Party panel only, so
+ * the character reading comes from the simulated agent.
+ */
+export async function pairHeadless(world: World, who: string, character: QueueCharacter): Promise<void> {
+  const state = stateOf(world);
+  state.dir ??= mkdtempSync(path.join(tmpdir(), 'd2rmm-journey-'));
+  const simulated = await world.pairAgent(who);
+  expect((await simulated.heartbeat(ONLINE)).status, 'the first heartbeat is accepted').toBe(204);
+  await registerCharacter(world, who, character);
+  const fixture = preparePartyFixture(mkdtempSync(path.join(state.dir, `${who}-`)), {
+    gameNameField: MASKED,
+  });
+  const agent = HeadlessAgent.start({
+    apiBase: world.site.api,
+    fixture: fixture.png,
+    party: true,
+    agentVersion: AGENT_VERSION,
+  });
+  state.headless.set(who, { agent, png: fixture.png });
+  const shown = await agent.waitFor('code', HEADLESS_START_TIMEOUT_MS);
+  const paired = await submitPairingCode(world.site, await world.sessionOf(who), String(shown['code']));
+  expect(paired.status, `pairing the headless agent of ${who}`).toBe(200);
+  await agent.waitFor('paired');
+  const replaced = world.player(who).agents;
+  world.paired.splice(0, world.paired.length, ...world.paired.filter((item) => !replaced.includes(item)));
+  // The queue needs the agent online: the headless agent heartbeats from its first seconds.
+  await expect
+    .poll(async () => (await world.presenceOf(who)).body, {
+      timeout: API_WAIT_MS,
+      message: `the headless agent of ${who} is online`,
+    })
+    .toMatchObject({ status: 'paired', online: true });
+}
 
 When('Alice and Bob join the PvP queue for a GM duel on Hell in the Americas', async ({ world }) => {
   // Alice joins first, so she is the oldest ticket and hosts (QUE-12).
@@ -401,7 +408,7 @@ Then(
 );
 
 /** A reader's agent shows the room's name in its Party panel; the agent reads it on its next capture. */
-async function reveal(world: World, who: Who): Promise<void> {
+async function reveal(world: World, who: string): Promise<void> {
   const { gameName } = await hostAndMember(world);
   const { agent, png } = headlessOf(world, who);
   // The agent holds the assignment before its Party step reads for the room.
@@ -420,7 +427,7 @@ When("the other member's agent reads the game name in the Party panel", async ({
 });
 
 /** The step of the stepper the room is in. */
-function currentStep(page: Page): Locator {
+export function currentStep(page: Page): Locator {
   return page.getByRole('list', { name: 'Room stages', exact: true }).locator('li[aria-current="step"]');
 }
 
@@ -458,7 +465,7 @@ Then(
   },
 );
 
-After({ tags: '@JRN-01' }, async ({ world }) => {
+After({ tags: '@JRN-01 or @JRN-02' }, async ({ world }) => {
   const state = states.get(world);
   for (const player of state?.headless.values() ?? []) {
     await player.agent.stop();
