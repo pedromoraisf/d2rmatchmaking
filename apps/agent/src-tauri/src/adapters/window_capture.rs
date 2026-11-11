@@ -2,7 +2,8 @@
 //! of the D2R game window only, in memory, and never the screen, another window or the desktop. The capture is a
 //! `PrintWindow` of that one window with `PW_CLIENTONLY | PW_RENDERFULLCONTENT`; the pixels stay in this process (AGS-20).
 //! The pure parts (the client size, the channel order) are compiled and tested everywhere; the Win32 calls exist on Windows
-//! only. This file and `windows_ocr.rs` are the only ones that may allow `unsafe_code` (the policy of the agent rules).
+//! only. This file, `toolhelp.rs` and `windows_ocr.rs` are the only three that may allow `unsafe_code` (the policy of the
+//! agent rules).
 #![allow(unsafe_code)]
 
 use d2rmm_agent_core::ports::Rgba;

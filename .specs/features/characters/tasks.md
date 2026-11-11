@@ -74,7 +74,7 @@ The screen reading (old T8 regions/classifier/parser, T9 Windows OCR on fixtures
 
 ## Batch 3 — review fixes (PR #44)
 
-- [ ] T10 — Tighten the agent's FFI sensor (both reviews): in `scripts/test/agent-source-rules.test.mjs`, the
+- [x] T10 — Tighten the agent's FFI sensor (both reviews): in `scripts/test/agent-source-rules.test.mjs`, the
       `window_capture.rs` entry lists the exact symbols the file uses (as the `toolhelp.rs` entry does) instead of whole
       module paths; add a test that a `PostMessageW`, `SendMessageW`, `SetWindowsHookExW`, `BitBlt` or `GetPixel` use in
       that file fails the rule; add those and `SetWindowsHookExA`, `SetWinEventHook`, `StretchBlt`, `GetWindowDC` to
