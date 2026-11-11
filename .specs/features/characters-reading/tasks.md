@@ -23,7 +23,7 @@ created from `phase/F1` once `characters` has merged. Starts when the screenshot
 
 ## Batch 2 — review fixes (PR #50)
 
-- [ ] T5 — Restore agent-game-name's "has capture consent" step exactly as merged (its `expect(room)` and the
+- [x] T5 — Restore agent-game-name's "has capture consent" step exactly as merged (its `expect(room)` and the
       unconditional assignment wait; architecture review finding 1, rule 3) and give characters-reading its own step
       "has capture consent and no room" sharing the setup through a helper — gate:
       `pnpm exec turbo run test:acceptance -- --grep "@AGN-|@CHR-"`

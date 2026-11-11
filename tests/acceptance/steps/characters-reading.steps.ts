@@ -12,7 +12,27 @@ import { After, Given, Then, When, test } from '../fixtures.ts';
 import { AGENT_VERSION, type Screen } from '../support/agent-client.ts';
 import { HeadlessAgent, characterFixture, preparePartyFixture } from '../support/headless-agent.ts';
 import { SESSION_COOKIE, submitPairingCode, type World } from '../support/world.ts';
-import { stateOf } from './agent-game-name.steps.ts';
+
+/** What the headless agent of one scenario is: the example, its fixture directory, the frame it started with and its player. */
+interface HeadlessState {
+  agent?: HeadlessAgent;
+  dir?: string;
+  png?: string;
+  /** The player whose agent the example is (the Background's "Alice"). */
+  player?: string;
+}
+
+const headlessStates = new WeakMap<World, HeadlessState>();
+
+/** The headless agent state of a scenario. Its own store: the Party steps (agent-game-name) keep theirs. */
+function stateOf(world: World): HeadlessState {
+  let state = headlessStates.get(world);
+  if (state === undefined) {
+    state = {};
+    headlessStates.set(world, state);
+  }
+  return state;
+}
 
 /** The example builds on first use, which takes minutes on a cold cache, and pairs within the code's lifetime after it. */
 const START_TIMEOUT_MS = 180_000;
@@ -62,7 +82,7 @@ function agentOf(world: World): HeadlessAgent {
   const agent = stateOf(world).agent;
   if (agent === undefined) {
     throw new Error(
-      'the headless agent is not running: "Alice\'s agent has capture consent" or "has no capture consent" was not given',
+      'the headless agent is not running: "Alice\'s agent has capture consent and no room" or "has no capture consent" was not given',
     );
   }
   return agent;
@@ -134,6 +154,13 @@ function showFixture(world: World, fixture: string, unreadable?: string): void {
   agentOf(world).show(png);
   lastShown.set(world, unreadable === undefined ? { fixture } : { fixture, unreadable });
 }
+
+// The player has consent and no room: the agent reads the character screens of the scenario (CHR-04, CHR-06, CHR-18).
+// Its own step, not agent-game-name's: that one expects the player to hold a room (AGN-01).
+Given(/^(.+)'s agent has capture consent and no room$/, async ({ world }, name: string) => {
+  expect(world.player(name).room, `the room of "${name}"`).toBeUndefined();
+  await startHeadless(world, name, true);
+});
 
 // CHR-20: a player's agent reads nothing until the player gives consent in the agent's window.
 Given(/^(.+)'s agent has no capture consent$/, async ({ world }, name: string) => {
@@ -269,10 +296,11 @@ function playerOf(world: World): string {
 
 // Closes the example and removes its fixture directory after each character screen scenario.
 After({ tags: '@CHR-04 or @CHR-06 or @CHR-18 or @CHR-20' }, async ({ world }) => {
-  const state = stateOf(world);
-  await state.agent?.stop();
-  if (state.dir !== undefined) {
+  const state = headlessStates.get(world);
+  await state?.agent?.stop();
+  if (state?.dir !== undefined) {
     rmSync(state.dir, { recursive: true, force: true });
   }
+  headlessStates.delete(world);
   lastShown.delete(world);
 });

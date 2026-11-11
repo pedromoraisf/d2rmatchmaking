@@ -157,8 +157,9 @@ export class HeadlessAgent {
 
   /**
    * Starts the example against `apiBase` with `fixture` as the first frame it captures. Its events are read from then on.
-   * `consent` gives the example the player's capture consent from the start (CHR-01); without it the example reads nothing
-   * until a `consent on` line arrives.
+   * `consent` gives the example the player's capture consent from the start (CHR-01). It defaults to given: the Party steps
+   * (agent-game-name) start a paired agent that reads, and only the consent scenarios pass `consent: false`, so the example
+   * reads nothing until a `consent on` line arrives.
    */
   static start(options: {
     apiBase: string;
@@ -168,7 +169,7 @@ export class HeadlessAgent {
     agentVersion?: string;
   }): HeadlessAgent {
     const versionArgs = options.agentVersion === undefined ? [] : ['--agent-version', options.agentVersion];
-    const consentArgs = options.consent === true ? ['--consent'] : [];
+    const consentArgs = options.consent === false ? [] : ['--consent'];
     const child = spawn(
       'cargo',
       [

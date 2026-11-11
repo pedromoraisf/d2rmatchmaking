@@ -15,19 +15,15 @@ const START_TIMEOUT_MS = 180_000;
 /** The field of a masked Party panel (AGN-04). */
 const MASKED = 'xxxxxxxxx';
 
-/** What the headless agent of one scenario is: the example, its fixture directory and the frame it started with. */
-export interface PartyState {
+interface PartyState {
   agent?: HeadlessAgent;
   dir?: string;
   png?: string;
-  /** The player whose agent the example is (its display name in the scenario). */
-  player?: string;
 }
 
 const states = new WeakMap<World, PartyState>();
 
-/** The headless agent state of a scenario. The character screen steps (characters-reading) share it. */
-export function stateOf(world: World): PartyState {
+function stateOf(world: World): PartyState {
   let state = states.get(world);
   if (state === undefined) {
     state = {};
@@ -71,14 +67,12 @@ function showPanel(world: World, field: string): void {
 }
 
 // Scenario set: the agent gives the host's agent capture consent and pairs the example as that agent (AGN-01).
-// The headless agent with the player's capture consent, paired as the player's agent (CHR-01, AGN-01). Its first frame is the
-// Party fixture; the character screens are shown over it by the characters-reading steps.
 Given(/^(.+)'s agent has capture consent$/, async ({ world }, name: string) => {
   test.setTimeout(START_TIMEOUT_MS);
   const room = world.player(name).room;
+  expect(room, `the room of "${name}"`).toBeDefined();
   const session = await world.sessionOf(name);
   const state = stateOf(world);
-  state.player = name;
   state.dir = mkdtempSync(path.join(tmpdir(), 'd2rmm-party-'));
   const fixture = preparePartyFixture(state.dir, { gameNameField: MASKED });
   state.png = fixture.png;
@@ -89,16 +83,13 @@ Given(/^(.+)'s agent has capture consent$/, async ({ world }, name: string) => {
     apiBase: world.site.api,
     fixture: fixture.png,
     party: true,
-    consent: true,
     agentVersion: AGENT_VERSION,
   });
   const shown = await state.agent.waitFor('code', START_TIMEOUT_MS);
   const paired = await submitPairingCode(world.site, session, String(shown['code']));
   expect(paired.status, 'pairing the headless agent').toBe(200);
   await state.agent.waitFor('paired');
-  if (room !== undefined) {
-    await state.agent.waitFor('assignment', 45_000, (item) => item['room'] === room.gameName);
-  }
+  await state.agent.waitFor('assignment', 45_000, (item) => item['room'] === room?.gameName);
 });
 
 // AGN-01, AGN-03: the panel shows the room's name; the room becomes Created.
