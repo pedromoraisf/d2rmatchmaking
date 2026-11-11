@@ -80,8 +80,7 @@
       "prompt": "Declare ladder e era para entrar na fila com este personagem",
       "formLabel": "Declarar ladder e era de {{name}}",
       "ladderLegend": "Ladder ou sem ladder",
-      "eraLabel": "Era",
-      "eraPlaceholder": "Escolha a era",
+      "eraLegend": "Era",
       "submit": "Salvar ladder e era",
       "failed": "Não foi possível salvar o ladder e a era. Tente de novo."
     }

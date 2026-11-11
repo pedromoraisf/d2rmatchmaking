@@ -80,8 +80,7 @@
       "prompt": "Declare ladder and era to queue with this character",
       "formLabel": "Declare ladder and era for {{name}}",
       "ladderLegend": "Ladder or non-ladder",
-      "eraLabel": "Era",
-      "eraPlaceholder": "Choose an era",
+      "eraLegend": "Era",
       "submit": "Save ladder and era",
       "failed": "The ladder and era were not saved. Try again."
     }

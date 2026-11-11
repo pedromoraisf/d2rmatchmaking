@@ -1,6 +1,6 @@
 // The characters the agent read for the player (CHR-11). The list is one labelled region, so a keyboard user reaches it
 // with Tab and reads its entries in order; with no characters it says how to add them. A character whose ladder and era
-// the player has not declared shows a form to declare them (CHR-15): native radio buttons and a select, usable with the
+// the player has not declared shows a form to declare them (CHR-15): two groups of native radio buttons, usable with the
 // keyboard alone.
 import { useState, type FormEvent } from 'react';
 import type { CharacterView, DeclaredLadder, Era } from '@d2rmm/contracts';
@@ -10,11 +10,6 @@ import { classKey, difficultyKey, eraKey, ladderKey, modeKey } from '../../share
 
 const LADDERS: readonly DeclaredLadder[] = ['ladder', 'non-ladder'];
 const ERAS: readonly Era[] = ['classic', 'lod', 'rotw'];
-
-/** The value of a form field as an era, or none for the placeholder or any other text. */
-function eraOf(value: string): Era | null {
-  return ERAS.find((era) => era === value) ?? null;
-}
 
 export function CharacterList({
   characters,
@@ -92,6 +87,7 @@ function DeclareForm({
   const [sending, setSending] = useState(false);
   const [failed, setFailed] = useState(false);
   const groupName = `declare-${characterId}-ladder`;
+  const eraGroupName = `declare-${characterId}-era`;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -128,19 +124,21 @@ function DeclareForm({
           </label>
         ))}
       </fieldset>
-      <label>
-        {t('characters.declare.eraLabel')}{' '}
-        <select value={era ?? ''} onChange={(event) => setEra(eraOf(event.target.value))}>
-          <option value="" disabled>
-            {t('characters.declare.eraPlaceholder')}
-          </option>
-          {ERAS.map((value) => (
-            <option key={value} value={value}>
-              {t(eraKey(value))}
-            </option>
-          ))}
-        </select>
-      </label>{' '}
+      <fieldset>
+        <legend>{t('characters.declare.eraLegend')}</legend>
+        {ERAS.map((value) => (
+          <label key={value}>
+            <input
+              type="radio"
+              name={eraGroupName}
+              value={value}
+              checked={era === value}
+              onChange={() => setEra(value)}
+            />{' '}
+            {t(eraKey(value))}
+          </label>
+        ))}
+      </fieldset>
       <button type="submit" disabled={ladder === null || era === null || sending}>
         {t('characters.declare.submit')}
       </button>

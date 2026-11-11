@@ -110,7 +110,7 @@ describe('CharacterList', () => {
     await userEvent.click(screen.getByRole('radio', { name: 'Non-ladder' }));
     expect(save.disabled).toBe(true);
 
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Era' }), 'rotw');
+    await userEvent.click(screen.getByRole('radio', { name: 'Reign of the Warlock' }));
     expect(save.disabled).toBe(false);
     expect(sent).toEqual([]);
   });
@@ -123,7 +123,9 @@ describe('CharacterList', () => {
     const nonLadder = screen.getByRole('radio', { name: 'Non-ladder' });
     nonLadder.focus();
     await userEvent.keyboard(' ');
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Era' }), 'rotw');
+    const reignOfTheWarlock = screen.getByRole('radio', { name: 'Reign of the Warlock' });
+    reignOfTheWarlock.focus();
+    await userEvent.keyboard(' ');
     screen.getByRole('button', { name: 'Save ladder and era' }).focus();
     await userEvent.keyboard('{Enter}');
 
@@ -140,7 +142,7 @@ describe('CharacterList', () => {
     renderInLanguage(<CharacterList characters={[zon]} client={client} onDeclared={onDeclared} />);
 
     await userEvent.click(screen.getByRole('radio', { name: 'Ladder' }));
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Era' }), 'classic');
+    await userEvent.click(screen.getByRole('radio', { name: 'Classic' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save ladder and era' }));
 
     expect(await screen.findByRole('alert')).toBeTruthy();
