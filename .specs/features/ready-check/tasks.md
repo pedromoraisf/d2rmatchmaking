@@ -42,5 +42,5 @@ any route task's gate, no test weakened, `acceptance.feature` not edited; the ho
 - [x] T6 — Headless example: a `hotkey` stdin command that triggers the same accept path; acceptance steps for every
       step of `acceptance.feature` (ready-check and the changed queues steps) — gate:
       `pnpm exec turbo run test:acceptance -- --grep "@RDY-|@QUE-"`
-- [ ] T7 — Whole-repo sensors — gate:
+- [x] T7 — Whole-repo sensors — gate:
       `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check && cd apps/agent/src-tauri && cargo clippy --all-targets -- -D warnings`
