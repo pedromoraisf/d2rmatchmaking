@@ -12,10 +12,10 @@ export interface RoomShown {
 export function RoomPanel({ room }: { room: RoomShown }) {
   const { t } = useTranslation();
   return (
-    <section>
+    <section className="panel">
       <dl>
         <dt>{t('room.gameName')}</dt>
-        <dd>{room.gameName}</dd>
+        <dd className="credential">{room.gameName}</dd>
         <dd>{t('room.noPassword')}</dd>
         <dt>{t('room.stage')}</dt>
         <dd>{t(stageKey(room.stage))}</dd>

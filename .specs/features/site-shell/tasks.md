@@ -13,7 +13,7 @@ Spec: `spec.md` · Scenarios: `acceptance.feature` · Branch: `feat/F1-site-shel
       agent state pill, Battle.net name with sign-out, or the sign-in controls), the two-column home with the agent
       panel in the status column, the footer notice and agent download; en + pt-BR strings; component tests — gate:
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
-- [ ] T3 — Restyle the existing components to the prototype (sign-in, pairing form, presence/agent panel, revoke,
+- [x] T3 — Restyle the existing components to the prototype (sign-in, pairing form, presence/agent panel, revoke,
       character cards with difficulty tags, room panel, start-test-match), keeping their visible texts and roles so
       the existing acceptance scenarios still pass; component tests — gate:
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`

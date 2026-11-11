@@ -82,6 +82,17 @@ describe('CharacterList', () => {
     expect(screen.queryByText(PROMPT)).toBeNull();
   });
 
+  it('shows each unlocked difficulty as a tag in its colour (SHL-04)', () => {
+    const { client } = clientAnswering(204);
+    const { container } = renderInLanguage(
+      <CharacterList characters={[sorc]} client={client} onDeclared={() => {}} />,
+    );
+
+    expect(container.querySelector('.tag.d-n')?.textContent).toBe('Normal');
+    expect(container.querySelector('.tag.d-nm')?.textContent).toBe('Nightmare');
+    expect(container.querySelector('.tag.d-h')).toBeNull();
+  });
+
   it('names a non-ladder hardcore character as such', () => {
     const { client } = clientAnswering(204);
     renderInLanguage(<CharacterList characters={[hammer]} client={client} onDeclared={() => {}} />);

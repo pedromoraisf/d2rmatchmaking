@@ -404,6 +404,12 @@ legend {
   align-items: center;
 }
 
+ul.tags {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
 .tag {
   display: inline-flex;
   align-items: center;
@@ -471,9 +477,17 @@ legend {
   overflow-wrap: anywhere;
 }
 
-.char-id span {
+.char-id > div > span {
   display: block;
   font-size: 12.5px;
+  color: var(--ash);
+}
+
+.char-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 13.5px;
   color: var(--ash);
 }
 
@@ -491,12 +505,6 @@ legend {
   font-size: 13px;
   letter-spacing: 0.04em;
   color: var(--gold);
-}
-
-.char-facts {
-  margin: 0;
-  font-size: 14px;
-  color: var(--ash);
 }
 
 /* facts and descriptions in the status column and the room */
@@ -540,6 +548,39 @@ dd {
 
 [role='status'] {
   color: var(--ok);
+}
+
+/* the header's sign-in controls and the agent panel's forms: stacked fields that wrap, never wider than the screen */
+
+.sign-in form,
+.pairing form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.sign-in label,
+.pairing label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--ash);
+}
+
+.sign-in input,
+.pairing input {
+  width: 100%;
+  min-width: 0;
+}
+
+.sign-in h2 {
+  margin-bottom: 8px;
+}
+
+.presence p {
+  margin: 0 0 6px;
 }
 
 /* footer: the non-affiliation notice, on every page */
