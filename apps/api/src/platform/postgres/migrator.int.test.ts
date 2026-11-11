@@ -36,6 +36,7 @@ describe('the outbox migrations', () => {
       '0005_battletag_not_unique',
       '0006_identity_characters',
       '0007_characters_name_ci',
+      '0008_characters_declared_ladder_era',
     ]);
     expect(await traceContextColumn()).toEqual({ data_type: 'text', is_nullable: 'YES' });
 
@@ -49,6 +50,7 @@ describe('the outbox migrations', () => {
       '0005_battletag_not_unique',
       '0006_identity_characters',
       '0007_characters_name_ci',
+      '0008_characters_declared_ladder_era',
     ]);
     expect(await traceContextColumn()).toEqual({ data_type: 'text', is_nullable: 'YES' });
   });

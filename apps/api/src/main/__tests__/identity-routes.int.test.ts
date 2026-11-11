@@ -453,12 +453,12 @@ async function pairedAgentToken(cookie: string): Promise<string> {
   return claimed.json().token;
 }
 
+// What the agent reads on the selection screen: no ladder and no era (CHR-06, CHR-15).
 const SORC = {
   name: 'Sorc',
   class: 'sorceress',
   level: 85,
-  ladder: 'sc-ladder',
-  era: 'lod',
+  hardcore: false,
   unlockedDifficulties: ['normal', 'nightmare', 'hell'],
 };
 
@@ -492,6 +492,30 @@ function listCharacters(cookie: string) {
   return app.app.inject({ method: 'GET', url: '/v1/me/characters', headers: { cookie } });
 }
 
+/** The player's declaration of ladder and era for one character (CHR-15), from the site's origin unless told otherwise. */
+function declareCharacter(
+  id: string,
+  body: { readonly ladder: string; readonly era: string },
+  { cookie, origin = SITE_ORIGIN }: { readonly cookie?: string; readonly origin?: string },
+) {
+  return app.app.inject({
+    method: 'PATCH',
+    url: `/v1/me/characters/${id}`,
+    headers: {
+      origin,
+      'content-type': 'application/json',
+      ...(cookie === undefined ? {} : { cookie }),
+    },
+    payload: body,
+  });
+}
+
+/** The id of the first character the session's account lists. */
+async function firstCharacterId(cookie: string): Promise<string> {
+  const listed = await listCharacters(cookie);
+  return listed.json().characters[0].id;
+}
+
 describe('character routes', () => {
   it('stores the agent batch and lists it to the owner with the read time', async () => {
     const { cookie } = await freshSession();
@@ -503,7 +527,13 @@ describe('character routes', () => {
     const listed = await listCharacters(cookie);
     expect(listed.statusCode).toBe(200);
     expect(listed.json().characters).toEqual([
-      { ...SORC, readAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/) },
+      {
+        ...SORC,
+        id: expect.any(String),
+        ladder: null,
+        era: null,
+        readAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+      },
     ]);
   });
 
@@ -578,6 +608,66 @@ describe('character routes', () => {
 
     expect(posted.statusCode).toBe(400);
     expect((await listCharacters(cookie)).json()).toEqual({ characters: [] });
+  });
+
+  it('lets the player declare ladder and era, and keeps them through the next reading (CHR-15)', async () => {
+    const { cookie } = await freshSession();
+    const token = await pairedAgentToken(cookie);
+    await postCharacters(token, [SORC]);
+    const id = await firstCharacterId(cookie);
+
+    const declared = await declareCharacter(id, { ladder: 'non-ladder', era: 'rotw' }, { cookie });
+    expect(declared.statusCode).toBe(204);
+    expect((await postCharacters(token, [{ ...SORC, level: 86 }])).statusCode).toBe(204);
+
+    const [listed] = (await listCharacters(cookie)).json().characters;
+    expect(listed).toMatchObject({ id, level: 86, ladder: 'non-ladder', era: 'rotw' });
+  });
+
+  it('answers 404 to a declaration of another player character and changes nothing (CHR-16)', async () => {
+    const alice = await freshSession();
+    const bob = await freshSession();
+    await postCharacters(await pairedAgentToken(alice.cookie), [SORC]);
+    const aliceId = await firstCharacterId(alice.cookie);
+
+    const refused = await declareCharacter(
+      aliceId,
+      { ladder: 'ladder', era: 'classic' },
+      { cookie: bob.cookie },
+    );
+
+    expect(refused.statusCode).toBe(404);
+    expect((await listCharacters(alice.cookie)).json().characters[0]).toMatchObject({
+      ladder: null,
+      era: null,
+    });
+  });
+
+  it('answers 401 to a declaration without a session and 403 from another origin (CHR-16)', async () => {
+    const { cookie } = await freshSession();
+    await postCharacters(await pairedAgentToken(cookie), [SORC]);
+    const id = await firstCharacterId(cookie);
+    const body = { ladder: 'ladder', era: 'lod' };
+
+    expect((await declareCharacter(id, body, {})).statusCode).toBe(401);
+    expect((await declareCharacter(id, body, { cookie, origin: 'https://evil.example' })).statusCode).toBe(
+      403,
+    );
+    expect((await listCharacters(cookie)).json().characters[0]).toMatchObject({ ladder: null, era: null });
+  });
+
+  it('answers 400 to a declaration outside the ladder flags and eras', async () => {
+    const { cookie } = await freshSession();
+    await postCharacters(await pairedAgentToken(cookie), [SORC]);
+    const id = await firstCharacterId(cookie);
+
+    expect((await declareCharacter(id, { ladder: 'sc-ladder', era: 'lod' }, { cookie })).statusCode).toBe(
+      400,
+    );
+    expect((await declareCharacter(id, { ladder: 'ladder', era: 'diablo4' }, { cookie })).statusCode).toBe(
+      400,
+    );
+    expect((await listCharacters(cookie)).json().characters[0]).toMatchObject({ ladder: null, era: null });
   });
 
   it('keeps the characters of one account apart from another', async () => {

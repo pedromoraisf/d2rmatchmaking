@@ -7,6 +7,7 @@ import * as accountBnetSub from '../../../migrations/0004_account_bnet_sub.ts';
 import * as battletagNotUnique from '../../../migrations/0005_battletag_not_unique.ts';
 import * as identityCharacters from '../../../migrations/0006_identity_characters.ts';
 import * as charactersNameCi from '../../../migrations/0007_characters_name_ci.ts';
+import * as charactersDeclaredLadderEra from '../../../migrations/0008_characters_declared_ladder_era.ts';
 
 /**
  * Every migration of the API, by name. Kysely applies them in name order. The list lives here, not in `main/`, so the
@@ -20,6 +21,7 @@ const MIGRATIONS: Readonly<Record<string, Migration>> = {
   '0005_battletag_not_unique': battletagNotUnique,
   '0006_identity_characters': identityCharacters,
   '0007_characters_name_ci': charactersNameCi,
+  '0008_characters_declared_ladder_era': charactersDeclaredLadderEra,
 };
 
 const provider: MigrationProvider = {

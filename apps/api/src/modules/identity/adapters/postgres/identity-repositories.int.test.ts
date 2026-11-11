@@ -216,8 +216,7 @@ describe('the character repository (CHR-10, migration 0007)', () => {
       name,
       class: 'sorceress',
       level,
-      ladder: 'sc-ladder',
-      era: 'lod',
+      hardcore: false,
       unlockedDifficulties: ['normal'],
     };
   }
@@ -248,14 +247,14 @@ describe('the character repository (CHR-10, migration 0007)', () => {
     const account = testAccount('CaseOwner');
     await accounts.insertTestAccount(account);
     await database.pool.query(
-      `insert into identity.characters (account_id, name, class, level, ladder, era, unlocked_difficulties, read_at)
-       values ($1, 'Abc', 'sorceress', 10, 'sc-ladder', 'lod', '{normal}', $2)`,
+      `insert into identity.characters (account_id, name, class, level, hardcore, unlocked_difficulties, read_at)
+       values ($1, 'Abc', 'sorceress', 10, false, '{normal}', $2)`,
       [account.id, NOW],
     );
 
     const duplicate = database.pool.query(
-      `insert into identity.characters (account_id, name, class, level, ladder, era, unlocked_difficulties, read_at)
-       values ($1, 'ABC', 'sorceress', 10, 'sc-ladder', 'lod', '{normal}', $2)`,
+      `insert into identity.characters (account_id, name, class, level, hardcore, unlocked_difficulties, read_at)
+       values ($1, 'ABC', 'sorceress', 10, false, '{normal}', $2)`,
       [account.id, NOW],
     );
 

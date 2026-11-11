@@ -13,13 +13,16 @@ export const CHARACTER_CLASSES = [
 ] as const;
 export type CharacterClass = (typeof CHARACTER_CLASSES)[number];
 
-/** Expansion eras (glossary): classic, Lord of Destruction, Reign of the Warlock. */
+/** Expansion eras (glossary): classic, Lord of Destruction, Reign of the Warlock. The player declares the era (CHR-15). */
 export const ERAS = ['classic', 'lod', 'rotw'] as const;
 export type Era = (typeof ERAS)[number];
 
-/** Mode and ladder flag together, as the game shows them (glossary). */
-export const LADDERS = ['sc-ladder', 'sc-nonladder', 'hc-ladder', 'hc-nonladder'] as const;
-export type Ladder = (typeof LADDERS)[number];
+/**
+ * The ladder flag the player declares on the site (CHR-15). The selection screen does not show it; the mode (softcore or
+ * hardcore) comes from the reading and the queues combine the two into the glossary's ladder value.
+ */
+export const DECLARED_LADDERS = ['ladder', 'non-ladder'] as const;
+export type DeclaredLadder = (typeof DECLARED_LADDERS)[number];
 
 export type Difficulty = 'normal' | 'nightmare' | 'hell';
 
@@ -46,19 +49,23 @@ export interface CharacterInput {
   readonly name: string;
   readonly class: string;
   readonly level: number;
-  readonly ladder: string;
-  readonly era: string;
+  readonly hardcore: boolean;
   readonly unlockedDifficulties: readonly string[];
 }
 
-/** A character that passed every rule of CHR-10. */
+/** A character that passed every rule of CHR-10. Ladder and era are not part of a reading (CHR-15). */
 export interface Character {
   readonly name: string;
   readonly class: CharacterClass;
   readonly level: number;
-  readonly ladder: Ladder;
-  readonly era: Era;
+  readonly hardcore: boolean;
   readonly unlockedDifficulties: readonly Difficulty[];
+}
+
+/** The player's declaration of ladder and era for one character (CHR-15). */
+export interface Declaration {
+  readonly ladder: DeclaredLadder;
+  readonly era: Era;
 }
 
 /** True when the value is one of `values`. Narrows the type without a cast. */
@@ -87,14 +94,11 @@ export function isAllowedDifficultyList(list: readonly string[]): list is readon
 /** Validates one card. Every field must pass; a card with any failing field is refused as a whole. */
 export function parseCharacter(input: CharacterInput): Result<Character, 'invalid-character'> {
   const characterClass = oneOf(CHARACTER_CLASSES, input.class);
-  const ladder = oneOf(LADDERS, input.ladder);
-  const era = oneOf(ERAS, input.era);
   if (
     !isCharacterName(input.name) ||
     characterClass === undefined ||
     !isCharacterLevel(input.level) ||
-    ladder === undefined ||
-    era === undefined ||
+    typeof input.hardcore !== 'boolean' ||
     !isAllowedDifficultyList(input.unlockedDifficulties)
   ) {
     return err('invalid-character');
@@ -103,10 +107,22 @@ export function parseCharacter(input: CharacterInput): Result<Character, 'invali
     name: input.name,
     class: characterClass,
     level: input.level,
-    ladder,
-    era,
+    hardcore: input.hardcore,
     unlockedDifficulties: [...input.unlockedDifficulties],
   });
+}
+
+/** Validates the player's declaration: one of the two ladder flags and one of the three eras (CHR-15). */
+export function parseDeclaration(input: {
+  readonly ladder: string;
+  readonly era: string;
+}): Result<Declaration, 'invalid-declaration'> {
+  const ladder = oneOf(DECLARED_LADDERS, input.ladder);
+  const era = oneOf(ERAS, input.era);
+  if (ladder === undefined || era === undefined) {
+    return err('invalid-declaration');
+  }
+  return ok({ ladder, era });
 }
 
 /**

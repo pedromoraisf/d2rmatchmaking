@@ -27,12 +27,12 @@ beforeEach(() => {
   exporter.reset();
 });
 
+// What the agent reads on the selection screen: no ladder and no era (CHR-06, CHR-15).
 const sorc: CharacterInput = {
   name: 'Sorc',
   class: 'sorceress',
   level: 85,
-  ladder: 'sc-ladder',
-  era: 'lod',
+  hardcore: false,
   unlockedDifficulties: ['normal', 'nightmare', 'hell'],
 };
 
@@ -55,7 +55,7 @@ describe('recordCharacters (CHR-09)', () => {
 
     const result = await useCases.recordCharacters({
       accountId: 'alice',
-      characters: [sorc, { ...sorc, name: 'Hammer', class: 'paladin', ladder: 'hc-ladder' }],
+      characters: [sorc, { ...sorc, name: 'Hammer', class: 'paladin', hardcore: true }],
     });
 
     expect(result).toEqual({ ok: true, value: { count: 2 } });
@@ -67,7 +67,9 @@ describe('recordCharacters (CHR-09)', () => {
     const result = await useCases.recordCharacters({ accountId: 'alice', characters: [sorc] });
 
     expect(result).toEqual({ ok: true, value: { count: 1 } });
-    expect(await characters.listByAccount('alice')).toEqual([{ ...sorc, readAt: START }]);
+    expect(await characters.listByAccount('alice')).toEqual([
+      { ...sorc, id: expect.any(String), ladder: null, era: null, readAt: START },
+    ]);
   });
 
   it('replaces the fields of a character with the newest reading', async () => {
@@ -244,12 +246,113 @@ describe('account limit of 60 characters (security finding 2)', () => {
   });
 });
 
+describe('a reading keeps what the player declared (CHR-09, CHR-15)', () => {
+  it('replaces the reading and keeps the declared ladder and era', async () => {
+    const { useCases, characters, clock } = setup();
+    await useCases.recordCharacters({ accountId: 'alice', characters: [sorc] });
+    const [stored] = await characters.listByAccount('alice');
+    await useCases.declareCharacter({
+      accountId: 'alice',
+      characterId: stored?.id ?? '',
+      ladder: 'ladder',
+      era: 'rotw',
+    });
+    clock.advance(LATER.getTime() - START.getTime());
+
+    await useCases.recordCharacters({
+      accountId: 'alice',
+      characters: [{ ...sorc, name: 'sorc', level: 86 }],
+    });
+
+    expect(await characters.listByAccount('alice')).toMatchObject([
+      { id: stored?.id, name: 'sorc', level: 86, ladder: 'ladder', era: 'rotw', readAt: LATER },
+    ]);
+  });
+});
+
+describe('declareCharacter (CHR-15, CHR-16)', () => {
+  async function recordedSorc() {
+    const fixture = setup();
+    await fixture.useCases.recordCharacters({ accountId: 'alice', characters: [sorc] });
+    const [stored] = await fixture.characters.listByAccount('alice');
+    return { ...fixture, characterId: stored?.id ?? '' };
+  }
+
+  it('stores the declared ladder and era for the player character', async () => {
+    const { useCases, characters, characterId } = await recordedSorc();
+
+    const result = await useCases.declareCharacter({
+      accountId: 'alice',
+      characterId,
+      ladder: 'non-ladder',
+      era: 'lod',
+    });
+
+    expect(result).toEqual({ ok: true, value: undefined });
+    expect(await characters.listByAccount('alice')).toMatchObject([{ ladder: 'non-ladder', era: 'lod' }]);
+  });
+
+  it('answers not-found for a character of another account and changes nothing', async () => {
+    const { useCases, characters, characterId } = await recordedSorc();
+
+    const result = await useCases.declareCharacter({
+      accountId: 'bob',
+      characterId,
+      ladder: 'ladder',
+      era: 'classic',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'not-found' });
+    expect(await characters.listByAccount('alice')).toMatchObject([{ ladder: null, era: null }]);
+  });
+
+  it('answers not-found for an id the account does not hold', async () => {
+    const { useCases } = await recordedSorc();
+
+    expect(
+      await useCases.declareCharacter({
+        accountId: 'alice',
+        characterId: 'missing',
+        ladder: 'ladder',
+        era: 'lod',
+      }),
+    ).toEqual({ ok: false, error: 'not-found' });
+  });
+
+  it('refuses a declaration outside the ladder flags and eras and changes nothing', async () => {
+    const { useCases, characters, characterId } = await recordedSorc();
+
+    const result = await useCases.declareCharacter({
+      accountId: 'alice',
+      characterId,
+      ladder: 'sc-ladder',
+      era: 'lod',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'invalid-declaration' });
+    expect(await characters.listByAccount('alice')).toMatchObject([{ ladder: null, era: null }]);
+  });
+
+  it('records the span with no character name', async () => {
+    const { useCases, characterId } = await recordedSorc();
+    exporter.reset();
+
+    await useCases.declareCharacter({ accountId: 'alice', characterId, ladder: 'ladder', era: 'lod' });
+
+    const span = exporter
+      .getFinishedSpans()
+      .find((finished) => finished.name === 'identity.declare-character');
+    expect(span).toBeDefined();
+    expect(JSON.stringify(span?.attributes ?? {})).not.toContain('Sorc');
+  });
+});
+
 describe('listMyCharacters (CHR-11)', () => {
   it('lists only the signed-in account characters, ordered by name', async () => {
     const { useCases } = setup();
     await useCases.recordCharacters({
       accountId: 'alice',
-      characters: [sorc, { ...sorc, name: 'Amy', class: 'amazon', era: 'classic', ladder: 'hc-nonladder' }],
+      characters: [sorc, { ...sorc, name: 'Amy', class: 'amazon', hardcore: true }],
     });
     await useCases.recordCharacters({ accountId: 'bob', characters: [{ ...sorc, name: 'Bobby' }] });
 

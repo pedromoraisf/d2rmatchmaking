@@ -1,8 +1,12 @@
-import { characterKey, type Character } from '../../domain/character/character.ts';
+import { randomUUID } from 'node:crypto';
+import { characterKey, type Character, type Declaration } from '../../domain/character/character.ts';
 import type { CharacterRepository, StoredCharacter } from '../character-ports.ts';
 import type { Transaction } from '../../../../shared-kernel/index.ts';
 
-/** In-memory CharacterRepository keyed by account and name without case, as the Postgres unique index is. */
+/**
+ * In-memory CharacterRepository keyed by account and name without case, as the Postgres unique index is. A replaced
+ * reading keeps the row's id and the ladder and era the player declared, as the upsert does.
+ */
 export class InMemoryCharacterRepository implements CharacterRepository {
   readonly #rows = new Map<string, { readonly accountId: string; readonly character: StoredCharacter }>();
 
@@ -23,16 +27,37 @@ export class InMemoryCharacterRepository implements CharacterRepository {
     readAt: Date,
   ): Promise<void> {
     for (const character of characters) {
-      this.#rows.set(keyOf(accountId, character.name), {
-        // The row keeps the newest spelling of the name.
+      const key = keyOf(accountId, character.name);
+      const existing = this.#rows.get(key)?.character;
+      this.#rows.set(key, {
         accountId,
         character: {
-          ...character,
+          id: existing?.id ?? randomUUID(),
+          // The row keeps the newest spelling of the name, and the declaration the player made.
+          name: character.name,
+          class: character.class,
+          level: character.level,
+          hardcore: character.hardcore,
           unlockedDifficulties: [...character.unlockedDifficulties],
+          ladder: existing?.ladder ?? null,
+          era: existing?.era ?? null,
           readAt: new Date(readAt),
         },
       });
     }
+  }
+
+  async declare(accountId: string, characterId: string, declaration: Declaration): Promise<boolean> {
+    for (const [key, row] of this.#rows) {
+      if (row.accountId === accountId && row.character.id === characterId) {
+        this.#rows.set(key, {
+          accountId,
+          character: { ...row.character, ladder: declaration.ladder, era: declaration.era },
+        });
+        return true;
+      }
+    }
+    return false;
   }
 
   async listByAccount(accountId: string): Promise<StoredCharacter[]> {

@@ -21,8 +21,9 @@ export interface IdentityDatabase {
     name: string;
     class: string;
     level: number;
-    ladder: string;
-    era: string;
+    hardcore: boolean;
+    ladder: string | null;
+    era: string | null;
     unlocked_difficulties: string[];
     read_at: Date;
   };

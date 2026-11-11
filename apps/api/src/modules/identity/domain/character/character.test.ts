@@ -7,15 +7,16 @@ import {
   isCharacterName,
   parseCharacter,
   parseCharacterBatch,
+  parseDeclaration,
   type CharacterInput,
 } from './character.ts';
 
+// What the agent reads on the selection screen: no ladder and no era (CHR-06, CHR-15).
 const sorc: CharacterInput = {
   name: 'Sorc',
   class: 'sorceress',
   level: 85,
-  ladder: 'sc-ladder',
-  era: 'lod',
+  hardcore: false,
   unlockedDifficulties: ['normal', 'nightmare', 'hell'],
 };
 
@@ -81,14 +82,39 @@ describe('parseCharacter (CHR-10)', () => {
 
   it.each([
     ['class', { class: 'necromancer2' }],
-    ['era', { era: 'diablo4' }],
-    ['ladder', { ladder: 'ladder' }],
     ['level', { level: 0 }],
     ['level', { level: 100 }],
     ['name', { name: 'a name with spaces' }],
+    ['mode', { hardcore: 'yes' as unknown as boolean }],
     ['difficulties', { unlockedDifficulties: ['normal', 'hell'] }],
   ])('refuses a card whose %s is not allowed', (_field, change) => {
     expect(parseCharacter({ ...sorc, ...change })).toEqual({ ok: false, error: 'invalid-character' });
+  });
+
+  it('reads a hardcore card as hardcore', () => {
+    expect(parseCharacter({ ...sorc, hardcore: true })).toEqual({
+      ok: true,
+      value: { ...sorc, hardcore: true },
+    });
+  });
+});
+
+describe('parseDeclaration (CHR-15)', () => {
+  it.each([
+    ['ladder', 'classic'],
+    ['non-ladder', 'lod'],
+    ['ladder', 'rotw'],
+  ])('accepts %s in the %s era', (ladder, era) => {
+    expect(parseDeclaration({ ladder, era })).toEqual({ ok: true, value: { ladder, era } });
+  });
+
+  it.each([
+    ['the combined sc-ladder value', { ladder: 'sc-ladder', era: 'lod' }],
+    ['an unknown era', { ladder: 'ladder', era: 'diablo4' }],
+    ['an empty ladder', { ladder: '', era: 'lod' }],
+    ['an empty era', { ladder: 'ladder', era: '' }],
+  ])('refuses %s', (_label, declaration) => {
+    expect(parseDeclaration(declaration)).toEqual({ ok: false, error: 'invalid-declaration' });
   });
 });
 

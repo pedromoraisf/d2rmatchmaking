@@ -111,7 +111,7 @@ difficulties; the player declares ladder and era on the site (`spec.md` CHR-09, 
       on a card (the title table still uses classic or expansion and softcore or hardcore to pick the title set) —
       gate:
       `pnpm --filter @d2rmm/contracts exec vitest run && pnpm contracts:openapi && (cd apps/agent/src-tauri && cargo run -q -p xtask -- contracts && cargo nextest run && cargo clippy --all-targets -- -D warnings)`
-- [ ] T16 — API: migration `0008_characters_declared_ladder_era` (adds `hardcore boolean not null default false`, makes
+- [x] T16 — API: migration `0008_characters_declared_ladder_era` (adds `hardcore boolean not null default false`, makes
       `ladder` and `era` nullable with `ladder in ('ladder', 'non-ladder')`; no committed migration edited); a reading
       never changes the declared ladder and era; use case `declareCharacter` and `PATCH /v1/me/characters/:id` (session +
       same origin; 204; 404 when not the player's); span `identity.declare-character` with no name; migration-list
