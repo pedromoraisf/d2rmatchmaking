@@ -31,17 +31,17 @@ Feature: Ready check before a room opens
     When Alice accepts on the site
     And Bob declines
     Then the ready check ends as failed
-    And Bob holds no ticket and can join the queue again at once
     And Alice is waiting in the queue ahead of Cara
+    And Bob holds no ticket and can join the queue again at once
 
   @RDY-05 @FR-13 @INV-05 @api
   Scenario: Not answering gives a five-minute wait
     When Alice accepts on the site
     And 60 seconds pass
     Then the ready check ends as failed
+    And Alice is waiting in the queue
     And Bob cannot join the queue, refused with "ready-check-penalty"
     And after 5 more minutes Bob can join the queue again
-    And Alice is waiting in the queue
 
   @RDY-06 @api
   Scenario Outline: A late, repeated or foreign answer changes nothing

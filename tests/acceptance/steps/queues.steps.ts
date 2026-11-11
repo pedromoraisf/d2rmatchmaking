@@ -586,15 +586,6 @@ async function answerAs(
   record(world, response.status, await response.json().catch(() => undefined));
 }
 
-/** The players' ticket or check: a member of a group in a check is not waiting, so "waiting" is the ticket or the check. */
-async function waitingOrInCheck(world: World, name: string): Promise<'waiting' | 'in-check'> {
-  if ((await ticketOf(world, name))?.status === 'waiting') {
-    return 'waiting';
-  }
-  expect(await readyCheckOf(world, name), `${name} waits in the queue or in a check`).not.toBeNull();
-  return 'in-check';
-}
-
 /** The answer buttons of the player's overlay, by their accessible names, and the overlay itself. */
 function overlayOf(world: World, name: string) {
   return pageOf(world, name).getByRole('dialog', { name: 'Ready check', exact: true });
@@ -697,17 +688,15 @@ Then(/^(\w+) holds no ticket and can join the queue again at once$/, async ({ wo
   expect(world.last?.status, `${name} can join again`).toBe(201);
 });
 
-// RDY-04: the accepted member is ahead of the later join. The matcher may already have grouped her with Cara, which
-// is also being ahead of her.
+// RDY-04: the accepted member is waiting ahead of the later join: a waiting ticket, joined before Cara's.
 Then(/^(\w+) is waiting in the queue ahead of Cara$/, async ({ world }, name: string) => {
-  if ((await waitingOrInCheck(world, name)) === 'waiting') {
-    const mine = await ticketOf(world, name);
-    const cara = await ticketOf(world, 'Cara');
-    expect(cara, 'Cara is still waiting').not.toBeNull();
-    expect(Date.parse(mine?.joinedAt ?? ''), `${name} joined before Cara`).toBeLessThan(
-      Date.parse(cara?.joinedAt ?? ''),
-    );
-  }
+  const mine = await ticketOf(world, name);
+  const cara = await ticketOf(world, 'Cara');
+  expect(mine?.status, `${name} waits`).toBe('waiting');
+  expect(cara, 'Cara is still waiting').not.toBeNull();
+  expect(Date.parse(mine?.joinedAt ?? ''), `${name} joined before Cara`).toBeLessThan(
+    Date.parse(cara?.joinedAt ?? ''),
+  );
 });
 
 // RDY-05: a member who did not answer waits five minutes; the accepted member stays in the queue.
@@ -730,7 +719,7 @@ Then(
 );
 
 Then(/^(\w+) is waiting in the queue$/, async ({ world }, name: string) => {
-  await waitingOrInCheck(world, name);
+  expect((await ticketOf(world, name))?.status, `${name} waits`).toBe('waiting');
 });
 
 // RDY-06: the answers that come too late, twice, or from outside the check.
