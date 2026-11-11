@@ -34,4 +34,4 @@ edited; one Conventional Commit per task (`feat(matchmaking): …`, `feat(web): 
 
 - [ ] T6 — Acceptance steps in `tests/acceptance/steps/queues.steps.ts` for every step of `acceptance.feature`, using
       the stack's clock for waits — gate: `pnpm exec turbo run test:acceptance -- --grep @QUE-`
-- [ ] T7 — Whole-repo sensors — gate: `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check`
+- [x] T7 — Whole-repo sensors — gate: `pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check`
