@@ -17,7 +17,7 @@ Spec: `spec.md` · Scenarios: `acceptance.feature` · Branch: `feat/F1-site-shel
       character cards with difficulty tags, room panel, start-test-match), keeping their visible texts and roles so
       the existing acceptance scenarios still pass; component tests — gate:
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
-- [ ] T4 — Acceptance steps in `tests/acceptance/steps/site-shell.steps.ts` for every step of `acceptance.feature`,
+- [x] T4 — Acceptance steps in `tests/acceptance/steps/site-shell.steps.ts` for every step of `acceptance.feature`,
       reusing existing steps — gate: `pnpm exec turbo run test:acceptance -- --grep @SHL-`
 - [ ] T5 — The existing site scenarios still pass on the new markup, and the whole-repo sensors — gate:
       `pnpm exec turbo run test:acceptance -- --grep "@AWS-|@IDB-|@CHR-" && pnpm typecheck && pnpm lint && pnpm arch && pnpm specs:check`
