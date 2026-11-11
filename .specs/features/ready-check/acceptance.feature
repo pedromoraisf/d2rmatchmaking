@@ -3,6 +3,7 @@
 #
 # not-scenario: RDY-09 — integration test: a penalty survives an API restart
 # not-scenario: RDY-10 — unit tests with in-memory exporters and the i18n lint
+# not-scenario: RDY-11 — route integration test, site component tests and agent core unit tests
 
 Feature: Ready check before a room opens
   Every member confirms within a minute, on the site or with the agent's hotkey, before the room is created.

@@ -30,13 +30,16 @@ API and never sends input to the game (brief notes, ADR 010).
   409 or 404 and change nothing.
 - **RDY-07** — The agent SHALL register one global hotkey (Ctrl+Shift+A, shown in its window and on the site) that, only
   while its account has an open ready check, calls the accept route with the agent token; it SHALL send no keystroke,
-  click or other input to the game or any window.
+  click or other input to the game or any window. The accept route SHALL apply the minimum agent version (426, ADR 011) to the agent like every agent route.
 - **RDY-08** — The site SHALL show the ready check as the prototype's overlay (countdown ring, members' marks, Accept and
   Decline, the hotkey hint), with focus moved to Accept, usable by keyboard, and SHALL state that declining has no
   penalty and that not answering gives a 5-minute wait.
 - **RDY-09** — The penalties SHALL persist across an API restart (`matchmaking.penalties`); open checks live in memory.
 - **RDY-10** — Matchmaking SHALL record spans for opening, answering and resolving a check, and a metric of checks by
   outcome (accepted, declined, timed out), with no names; every new string in en and pt-BR (NFR-12).
+- **RDY-11** — WHEN a site loads or its stream reopens, or an agent's stream reconnects, THEN it SHALL read the
+  account's open ready check (`GET /v1/ready-checks/me`, session or agent token; 204 when none) and show the overlay or
+  arm the hotkey accordingly; the agent SHALL disarm the hotkey at the check's deadline even if no resolution arrives.
 
 ## Sources
 
@@ -52,6 +55,7 @@ API and never sends input to the game (brief notes, ADR 010).
 | RDY-08 | FR-12; NFR-13; prototype (maintainer 2026-11-10)                      |
 | RDY-09 | Design Doc § Modelo de dados (`matchmaking.penalties`)                |
 | RDY-10 | AGENTS.md rules 9, 10                                                 |
+| RDY-11 | FR-12; ADR 007 (stream reconnects)                                    |
 
 ## Requirement Traceability
 
@@ -67,6 +71,7 @@ API and never sends input to the game (brief notes, ADR 010).
 | RDY-08         | Site      | acceptance `@RDY-08` + component tests                   |
 | RDY-09         | Penalties | integration test (restart keeps a penalty)               |
 | RDY-10         | Telemetry | unit tests with in-memory exporters; i18n lint           |
+| RDY-11         | Answer    | route integration test + component and Rust unit tests   |
 
 ## Decisions (conservative defaults)
 
