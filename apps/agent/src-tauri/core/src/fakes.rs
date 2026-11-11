@@ -9,14 +9,16 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Mutex, PoisonError};
 
+use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::{ReadText, Region};
 
 use crate::check_update::Updater;
-use crate::messages::{GameNameObservation, IssuedCode, Presence};
+use crate::messages::{FrameReading, GameNameObservation, IssuedCode, Presence, Screen};
 use crate::ports::{
-    ApiError, ApiGateway, EndReason, EventStream, ProcessSource, ReadError, Rgba, StateSink,
-    StoreError, StreamItem, TextReader, TokenStore, UpdateOutcome,
+    ApiError, ApiGateway, ConsentStore, EndReason, EventStream, FrameReader, FrameSource,
+    ProcessSource, ReadError, Rgba, StateSink, StoreError, StreamItem, TextReader, TokenStore,
+    UpdateOutcome,
 };
 use crate::secret::Secret;
 use crate::view::AgentView;
@@ -29,6 +31,7 @@ pub enum Call {
     Heartbeat { presence: Presence, version: String },
     Assignment,
     PostObservation(GameNameObservation),
+    PostCharacters { cards: Vec<Card> },
     OpenStream { last_event_id: Option<String> },
 }
 
@@ -59,6 +62,7 @@ struct Script {
     heartbeat: VecDeque<Result<(), ApiError>>,
     assignment: VecDeque<Result<Option<Assignment>, ApiError>>,
     post_observation: VecDeque<Result<(), ApiError>>,
+    post_characters: VecDeque<Result<(), ApiError>>,
     open_stream: VecDeque<Result<Vec<StreamItem>, ApiError>>,
     hold_streams: bool,
     calls: Vec<Call>,
@@ -112,6 +116,10 @@ impl FakeApiGateway {
 
     pub fn script_post_observation(&self, answers: impl IntoIterator<Item = Result<(), ApiError>>) {
         self.with(|script| script.post_observation.extend(answers));
+    }
+
+    pub fn script_post_characters(&self, answers: impl IntoIterator<Item = Result<(), ApiError>>) {
+        self.with(|script| script.post_characters.extend(answers));
     }
 
     /// Each answer opens one stream that yields these items in order and then ends with `Closed`.
@@ -199,6 +207,15 @@ impl ApiGateway for FakeApiGateway {
         })
     }
 
+    async fn post_characters(&self, _token: &Secret, cards: &[Card]) -> Result<(), ApiError> {
+        self.with(|script| {
+            script.calls.push(Call::PostCharacters {
+                cards: cards.to_vec(),
+            });
+            answer(&mut script.post_characters)
+        })
+    }
+
     async fn open_stream(
         &self,
         _token: &Secret,
@@ -283,6 +300,40 @@ pub struct NoText;
 impl TextReader for NoText {
     fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
         Err(ReadError::EngineUnavailable)
+    }
+}
+
+/// A frame source with no game window: every capture finds nothing.
+pub struct NoFrames;
+
+impl FrameSource for NoFrames {
+    fn capture(&self) -> Option<Rgba> {
+        None
+    }
+}
+
+/// A consent store where the player never consented; saving is refused without a store.
+pub struct NoConsent;
+
+impl ConsentStore for NoConsent {
+    fn load(&self) -> bool {
+        false
+    }
+
+    fn save(&self, _consent: bool) -> Result<(), StoreError> {
+        Err(StoreError)
+    }
+}
+
+/// A frame reader that places every frame on no screen and reads no card.
+pub struct NoFrameReader;
+
+impl FrameReader for NoFrameReader {
+    fn read(&self, _frame: &Rgba) -> FrameReading {
+        FrameReading {
+            screen: Screen::Unknown,
+            cards: Vec::new(),
+        }
     }
 }
 

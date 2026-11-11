@@ -25,10 +25,43 @@ const WINDOWS_FEATURE_ALLOW_LIST = [
   'Globalization',
   'Foundation',
   'Storage_Streams',
+  // The window capture (CHR-03): GDI for the client bitmap, PrintWindow (Storage::Xps) and the window lookup.
+  'Win32_Graphics_Gdi',
+  'Win32_Storage_Xps',
+  'Win32_UI_WindowsAndMessaging',
 ];
 
-// The only two files that may allow unsafe_code, each with the windows:: paths it may name.
+// The only three files that may allow unsafe_code, each with the windows:: paths it may name.
 const UNSAFE_ADAPTERS = {
+  'src/adapters/window_capture.rs': [
+    'HWND',
+    'LPARAM',
+    'RECT',
+    'BOOL',
+    'BI_RGB',
+    'BITMAPINFO',
+    'BITMAPINFOHEADER',
+    'CreateCompatibleBitmap',
+    'CreateCompatibleDC',
+    'DIB_RGB_COLORS',
+    'DeleteDC',
+    'DeleteObject',
+    'GetDC',
+    'GetDIBits',
+    'HDC',
+    'HGDIOBJ',
+    'ReleaseDC',
+    'SelectObject',
+    'PRINT_WINDOW_FLAGS',
+    'PW_CLIENTONLY',
+    'PrintWindow',
+    'EnumWindows',
+    'GetClientRect',
+    'GetWindowThreadProcessId',
+    'IsIconic',
+    'IsWindowVisible',
+    'PW_RENDERFULLCONTENT',
+  ],
   'src/adapters/toolhelp.rs': [
     'CreateToolhelp32Snapshot',
     'Process32FirstW',
@@ -102,7 +135,7 @@ const windowsFeatureViolations = (base) => {
 const unsafeLocationViolations = (base) =>
   rustFiles(base)
     .filter(({ rel, text }) => /allow\(\s*unsafe_code\s*\)/.test(text) && !(rel in UNSAFE_ADAPTERS))
-    .map(({ rel }) => `${rel} allows unsafe_code outside the two adapters`);
+    .map(({ rel }) => `${rel} allows unsafe_code outside the three adapters`);
 
 const adapterPathViolations = (base) =>
   Object.entries(UNSAFE_ADAPTERS).flatMap(([rel, allowed]) => {
@@ -136,7 +169,7 @@ test('windows features stay on the allow-list', () => {
   assert.deepEqual(windowsFeatureViolations(root), []);
 });
 
-test('unsafe is allowed only in the two adapters', () => {
+test('unsafe is allowed only in the three adapters', () => {
   assert.deepEqual(unsafeLocationViolations(root), []);
 });
 
@@ -190,7 +223,7 @@ test('the windows feature rule rejects a feature off the list', () => {
 test('the unsafe location rule rejects an allow outside the adapters', () => {
   assert.match(
     unsafeLocationViolations(fixtureBase('unsafe-outside-adapters')).join('\n'),
-    /src\/adapters\/http\.rs allows unsafe_code outside the two adapters/,
+    /src\/adapters\/http\.rs allows unsafe_code outside the three adapters/,
   );
 });
 
@@ -199,6 +232,17 @@ test('the adapter path rule rejects a windows path off the list', () => {
     adapterPathViolations(fixtureBase('adapter-path')).join('\n'),
     /references windows::Win32::System::Threading::OpenProcess, which is not on its allow-list/,
   );
+});
+
+test('the window capture rule rejects input, hook and blit calls', () => {
+  const violations = adapterPathViolations(fixtureBase('window-capture-ffi')).join('\n');
+  for (const name of ['PostMessageW', 'SendMessageW', 'SetWindowsHookExW', 'BitBlt', 'GetPixel']) {
+    assert.match(
+      violations,
+      new RegExp(`references windows::Win32::[\\w:]+::${name}, which is not on its allow-list`),
+      `${name} must fail the window capture allow-list`,
+    );
+  }
 });
 
 test('the instrument rule rejects arguments without skip_all', () => {
@@ -397,6 +441,16 @@ const REQUIRED_DISALLOWED_METHODS = [
   'windows::Win32::System::Diagnostics::Debug::ReadProcessMemory',
   'windows::Win32::System::Diagnostics::Debug::WriteProcessMemory',
   'windows::Win32::UI::Input::KeyboardAndMouse::SendInput',
+  // Input to other windows and screen-hook calls the capture never needs (ADR 010, AGS-20).
+  'windows::Win32::UI::WindowsAndMessaging::PostMessageW',
+  'windows::Win32::UI::WindowsAndMessaging::SendMessageW',
+  'windows::Win32::UI::WindowsAndMessaging::SetWindowsHookExW',
+  'windows::Win32::UI::WindowsAndMessaging::SetWindowsHookExA',
+  'windows::Win32::UI::Accessibility::SetWinEventHook',
+  'windows::Win32::Graphics::Gdi::BitBlt',
+  'windows::Win32::Graphics::Gdi::StretchBlt',
+  'windows::Win32::Graphics::Gdi::GetPixel',
+  'windows::Win32::Graphics::Gdi::GetWindowDC',
   'reqwest::ClientBuilder::danger_accept_invalid_certs',
   'reqwest::ClientBuilder::danger_accept_invalid_hostnames',
 ];
@@ -458,8 +512,17 @@ test('removing any banned crate from deny.toml fails', () => {
   ]);
 });
 
-test('clippy.toml disallows every boundary type and method', () => {
-  assert.deepEqual(clippyViolations(readText(`${agentTauri}/clippy.toml`)), []);
+// Clippy reads only the nearest clippy.toml, so every agent config repeats the boundary list (AGS-22, AHM-04).
+const AGENT_CLIPPY_FILES = [
+  `${agentTauri}/clippy.toml`,
+  `${agentTauri}/domain/clippy.toml`,
+  `${agentTauri}/boundary-fixtures/domain-clock/clippy.toml`,
+];
+
+test('every agent clippy.toml disallows every boundary type and method', () => {
+  for (const file of AGENT_CLIPPY_FILES) {
+    assert.deepEqual(clippyViolations(readText(file)), [], `${file} must disallow the whole boundary list`);
+  }
 });
 
 test('removing any disallowed type or method from clippy.toml fails', () => {

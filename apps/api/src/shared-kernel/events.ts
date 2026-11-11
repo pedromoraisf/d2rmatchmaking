@@ -50,7 +50,7 @@ export interface AgentPresenceChangedPayload {
   readonly accountId: string;
   readonly online: boolean;
   readonly gameRunning: boolean;
-  readonly screen: 'UNKNOWN' | 'AUTOMAP_OPEN';
+  readonly screen: 'UNKNOWN' | 'CHARACTER_SELECT' | 'IN_GAME' | 'AUTOMAP_OPEN';
 }
 
 export interface AgentRevokedPayload {
@@ -58,10 +58,15 @@ export interface AgentRevokedPayload {
   readonly accountId: string;
 }
 
+export interface CharactersRecordedPayload {
+  readonly accountId: string;
+}
+
 /** Durable events, written to the outbox in the same transaction as the state change (ADR 008). */
 export type MatchFormedEvent = DomainEvent<'MatchFormed', MatchFormedPayload>;
 export type RoomAssignmentChangedEvent = DomainEvent<'RoomAssignmentChanged', RoomAssignmentChangedPayload>;
 export type RoomStageChangedEvent = DomainEvent<'RoomStageChanged', RoomStageChangedPayload>;
+export type CharactersRecordedEvent = DomainEvent<'CharactersRecorded', CharactersRecordedPayload>;
 
 /** Transient events, published on the bus only and never stored. */
 export type AgentPresenceChangedEvent = DomainEvent<'AgentPresenceChanged', AgentPresenceChangedPayload>;
@@ -72,6 +77,7 @@ export type AnyDomainEvent =
   | MatchFormedEvent
   | RoomAssignmentChangedEvent
   | RoomStageChangedEvent
+  | CharactersRecordedEvent
   | AgentPresenceChangedEvent
   | AgentRevokedEvent;
 

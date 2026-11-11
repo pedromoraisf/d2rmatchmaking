@@ -27,6 +27,15 @@ being true.
   pre-push `cargo clippy` needs `apps/agent/dist` (Tauri `frontendDist`) and fails without it, which looks like a code
   failure (characters, Batch 1).
 
+- **A task that adds or changes a route runs the whole API integration suite in its gate**, not only the module's
+  tests. Why: `openapi.int.test.ts` pins every route, and three new character routes reached CI unlisted (#44).
+
+- **Never commit a game screenshot, not even blurred, not even on a feature branch.** Why: on 2026-11-11 three of the
+  maintainer's D2R screenshots (other players' names blurred) were committed as OCR fixtures and pushed to the public
+  `feat/F1-agent-game-name` (commit 614337d). The repository is public and the runner may not force push, so they stay
+  in that branch's history (the maintainer chose to keep the record). Real screenshots are read from a local path by an
+  `xtask` command; fixtures are drawn. `scripts/check-images.mjs` now refuses captures at commit time and in CI.
+
 ## Tests
 
 - **No tight wall-clock limits in unit tests.** The maintainer's machine has 8 GB and runs the suites in parallel; a test
@@ -45,6 +54,12 @@ being true.
 - **`instrument.int.test.ts` can time out on the fake OTLP backend in CI.** Rerun once; if it fails again, fix it.
 
 ## Observability and load
+
+- **Locally, run the traced scenarios (`@OBS-`) alone with `--workers=1`**, never mixed into a broad acceptance gate.
+  Why: the traced stack (API, site, telemetry backend per worker) did not become ready within 90 s under 4 workers on
+  the 8 GB machine, and the same 22 scenarios passed with one worker (characters, T14).
+- **`instrument.int.test.ts` failed in CI on two PRs in a row (#43, #44).** If it fails a third time, fix the wait on the
+  fake OTLP backend instead of rerunning.
 
 - **Read traces from Tempo by trace id, not by search.** The search index of `grafana/otel-lgtm:0.39.0` lags ingest by
   about 30 s.

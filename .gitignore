@@ -21,6 +21,13 @@ playwright-report/
 test-results/
 .harness-score.report.json
 
+# game screenshots — never commit (AGENTS.md "Never do"; scripts/check-images.mjs)
+**/maintainer-*.png
+**/maintainer-*.webp
+**/Screenshot*.png
+**/Screenshot*.webp
+**/Prints*/
+
 # environment and secrets — never commit
 .env
 .env.*
@@ -45,3 +52,6 @@ Thumbs.db
 # python bytecode (TLC scripts)
 __pycache__/
 *.pyc
+
+# The maintainer's game screenshots (Blizzard UI art) never enter the repository (AGENTS.md, never do)
+apps/agent/fixtures/**/maintainer-*

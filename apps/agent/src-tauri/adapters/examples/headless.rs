@@ -19,18 +19,19 @@ use d2rmm_agent_adapters::http::gateway::HttpGateway;
 use d2rmm_agent_adapters::telemetry::relay_client::HeaderSource;
 use d2rmm_agent_adapters::telemetry::{self, ExportConfig, Mode, TelemetryGuard};
 use d2rmm_agent_core::config::Config;
-use d2rmm_agent_core::fakes::{MemoryTokens, NoUpdates};
+use d2rmm_agent_core::fakes::{MemoryTokens, NoConsent, NoFrameReader, NoFrames, NoUpdates};
 use d2rmm_agent_core::groups::{
     Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
 };
 use d2rmm_agent_core::messages::{GameNameObservation, IssuedCode, Presence};
 use d2rmm_agent_core::ports::{
-    ApiError, ApiGateway, EventStream, ProcessSource, ReadError, Rgba, SequentialIds, StateSink,
-    TextReader, TokenStore, WallClock,
+    ApiError, ApiGateway, ConsentStore, EventStream, FrameSource, ProcessSource, ReadError, Rgba,
+    SequentialIds, StateSink, StoreError, TextReader, TokenStore, WallClock,
 };
 use d2rmm_agent_core::runtime::{Handle, Runtime};
 use d2rmm_agent_core::secret::Secret;
-use d2rmm_agent_core::view::{AgentView, PairingView};
+use d2rmm_agent_core::view::{AgentView, PairingView, RoomView};
+use d2rmm_agent_domain::layout::{PanelRegion, panel_region};
 use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::{ReadText, Region};
 use serde_json::{Value, json};
@@ -81,6 +82,15 @@ impl StateSink for Lines {
             .is_some_and(|previous| previous.pairing == PairingView::Paired);
         if view.pairing == PairingView::Paired && !was_paired {
             let _ = self.events.send(json!({ "event": "paired" }));
+        }
+        let hinted =
+            |room: Option<&RoomView>| room.is_some_and(|room| room.needs_reveal && !room.matched);
+        if hinted(view.room.as_ref())
+            && !hinted(before.as_ref().and_then(|previous| previous.room.as_ref()))
+        {
+            let _ = self
+                .events
+                .send(json!({ "event": "reveal", "text": REVEAL_TEXT }));
         }
         if let Some(room) = &view.room {
             let held = before.as_ref().and_then(|previous| previous.room.as_ref());
@@ -133,6 +143,14 @@ impl ApiGateway for Reporting {
         result
     }
 
+    async fn post_characters(
+        &self,
+        token: &Secret,
+        cards: &[d2rmm_agent_domain::characters::Card],
+    ) -> Result<(), ApiError> {
+        self.inner.post_characters(token, cards).await
+    }
+
     async fn open_stream(
         &self,
         token: &Secret,
@@ -176,9 +194,70 @@ impl TextReader for Sidecar {
     }
 }
 
+/// The text the window shows when the Party panel shows the masked game name (AGN-04). The example prints it as the `reveal`
+/// event, so the acceptance steps read what the player would be told.
+const REVEAL_TEXT: &str = "Open the Party panel (P) and click the eye to show the game name.";
+
+/// The text of each Party panel region of a fixture, read from its sidecar (`<png>.json`: `partyTitle`, `gameNameLabel` and
+/// `gameNameField`). The sidecar is read again on every call, so the acceptance steps change the panel while the agent runs.
+struct PanelSidecar(PathBuf);
+
+impl TextReader for PanelSidecar {
+    fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+        let text = std::fs::read_to_string(&self.0).map_err(|_| ReadError::Failed)?;
+        let value: Value = serde_json::from_str(&text).map_err(|_| ReadError::Failed)?;
+        let key = [
+            (PanelRegion::PartyTitle, "partyTitle"),
+            (PanelRegion::GameNameLabel, "gameNameLabel"),
+            (PanelRegion::GameNameField, "gameNameField"),
+        ]
+        .into_iter()
+        .find(|(panel, _)| panel_region(*panel, image.width, image.height) == Some(region))
+        .map(|(_, key)| key)
+        .ok_or(ReadError::Failed)?;
+        let read = value
+            .get(key)
+            .and_then(Value::as_str)
+            .ok_or(ReadError::Failed)?;
+        Ok(ReadText {
+            text: read.to_string(),
+            confidence: 1.0,
+        })
+    }
+}
+
+/// The frame of a Party fixture: the same picture on every capture (the panel text comes from the sidecar).
+struct FixtureFrame(Rgba);
+
+impl FrameSource for FixtureFrame {
+    fn capture(&self) -> Option<Rgba> {
+        Some(self.0.clone())
+    }
+}
+
+/// The player consented to capture: the Party fixture is the game window the consent covers (CHR-01).
+struct AlwaysConsent;
+
+impl ConsentStore for AlwaysConsent {
+    fn load(&self) -> bool {
+        true
+    }
+
+    fn save(&self, _consent: bool) -> Result<(), StoreError> {
+        Ok(())
+    }
+}
+
+/// What the example reads: the F0 fixture (`read` lines, one sidecar text), or a Party fixture the screen loop reads.
+enum ScreenMode {
+    Read(String),
+    Party { frame: Rgba, sidecar: PathBuf },
+}
+
 /// The agent's token and version for each relay request, read from the store (AD-101).
 struct TokenHeaders {
     tokens: std::sync::Arc<dyn TokenStore + Send + Sync>,
+    version: String,
 }
 
 impl HeaderSource for TokenHeaders {
@@ -187,31 +266,51 @@ impl HeaderSource for TokenHeaders {
     }
 
     fn agent_version(&self) -> String {
-        VERSION.to_string()
+        self.version.clone()
     }
 }
 
 struct Arguments {
     api_base: String,
     fixture: PathBuf,
+    party: bool,
+    /// The version the example declares in `X-Agent-Version`. The API refuses an agent below its minimum (426), so a
+    /// stack with a minimum above the crate version needs the version to be declared (`--agent-version`).
+    agent_version: String,
 }
 
 fn parse_arguments(args: &[String]) -> Result<Arguments, String> {
     let mut api_base = None;
     let mut fixture = None;
+    let mut party = false;
+    let mut agent_version = None;
     let mut rest = args.iter();
     while let Some(flag) = rest.next() {
         let value = rest.next().ok_or_else(|| format!("{flag} needs a value"))?;
         match flag.as_str() {
             "--api-base" => api_base = Some(value.clone()),
+            "--agent-version" => agent_version = Some(value.clone()),
             "--read-fixture" => fixture = Some(PathBuf::from(value)),
+            "--party-fixture" => {
+                fixture = Some(PathBuf::from(value));
+                party = true;
+            }
             other => return Err(format!("unknown argument {other}")),
         }
     }
     Ok(Arguments {
         api_base: api_base.ok_or("--api-base is required")?,
-        fixture: fixture.ok_or("--read-fixture is required")?,
+        fixture: fixture.ok_or("--read-fixture or --party-fixture is required")?,
+        party,
+        agent_version: agent_version.unwrap_or_else(|| VERSION.to_string()),
     })
+}
+
+/// The Party fixture's sidecar: `<png>.json`, next to the image.
+fn party_sidecar_path(fixture: &Path) -> PathBuf {
+    let mut name = fixture.as_os_str().to_os_string();
+    name.push(".json");
+    PathBuf::from(name)
 }
 
 fn decode_png(path: &Path) -> Result<Rgba, String> {
@@ -236,26 +335,47 @@ fn sidecar_path(fixture: &Path) -> PathBuf {
 /// Starts telemetry and the core runtime. Runs inside a tokio runtime, so the exporter and the loops attach to it.
 fn start(
     api_base: &ApiBase,
-    sidecar: String,
+    mode: ScreenMode,
+    version: &str,
     events: UnboundedSender<Value>,
 ) -> Result<(Handle<Reporting>, TelemetryGuard), String> {
     let base = api_base.url().as_str().trim_end_matches('/').to_string();
+    // The F0 read path reads the sidecar text; the Party path reads the panel's regions from its sidecar and captures the
+    // fixture frame with consent, so the screen loop runs as it does for the game window.
+    type TextPort = std::sync::Arc<dyn TextReader + Send + Sync>;
+    type FramePort = std::sync::Arc<dyn FrameSource + Send + Sync>;
+    type ConsentPort = std::sync::Arc<dyn ConsentStore + Send + Sync>;
+    let (text, frames, consent, panel): (TextPort, FramePort, ConsentPort, TextPort) = match mode {
+        ScreenMode::Read(sidecar) => (
+            std::sync::Arc::new(Sidecar(sidecar)),
+            std::sync::Arc::new(NoFrames),
+            std::sync::Arc::new(NoConsent),
+            std::sync::Arc::new(Sidecar(String::new())),
+        ),
+        ScreenMode::Party { frame, sidecar } => (
+            std::sync::Arc::new(PanelSidecar(sidecar.clone())),
+            std::sync::Arc::new(FixtureFrame(frame)),
+            std::sync::Arc::new(AlwaysConsent),
+            std::sync::Arc::new(PanelSidecar(sidecar)),
+        ),
+    };
     let tokens: std::sync::Arc<dyn TokenStore + Send + Sync> =
         std::sync::Arc::new(MemoryTokens::default());
     let export = ExportConfig {
         endpoint: format!("{base}/v1/telemetry/traces"),
         headers: std::sync::Arc::new(TokenHeaders {
             tokens: std::sync::Arc::clone(&tokens),
+            version: version.to_string(),
         }),
         ratio: EXPORT_RATIO,
-        agent_version: VERSION.to_string(),
+        agent_version: version.to_string(),
         environment: "headless".to_string(),
     };
     let guard = telemetry::init(Mode::Release, Some(export)).map_err(|error| error.to_string())?;
 
     let http = client(api_base).map_err(|error| error.to_string())?;
     let gateway = std::sync::Arc::new(Reporting {
-        inner: HttpGateway::new(ApiClient::new(VERSION, api_base, http)),
+        inner: HttpGateway::new(ApiClient::new(version, api_base, http)),
         events: events.clone(),
     });
     let clock: std::sync::Arc<dyn WallClock + Send + Sync> = std::sync::Arc::new(WallTime);
@@ -278,15 +398,33 @@ fn start(
             updater: std::sync::Arc::new(NoUpdates),
         },
         read: ReadPorts {
-            reader: std::sync::Arc::new(Sidecar(sidecar)),
+            reader: text,
             ids: std::sync::Arc::new(SequentialIds::new()),
             clock,
+            gateway: std::sync::Arc::clone(&gateway),
+            tokens: std::sync::Arc::clone(&tokens),
+        },
+        screen: d2rmm_agent_core::watch_screen::ScreenPorts {
+            party: d2rmm_agent_core::party::PartyPorts {
+                read: ReadPorts {
+                    reader: panel,
+                    ids: std::sync::Arc::new(SequentialIds::new()),
+                    clock: std::sync::Arc::new(WallTime),
+                    gateway: std::sync::Arc::clone(&gateway),
+                    tokens: std::sync::Arc::clone(&tokens),
+                },
+                language: std::sync::Arc::new(d2rmm_agent_domain::language::LanguagePack::english()),
+            },
             gateway,
             tokens,
+            processes: std::sync::Arc::new(GameOpen),
+            frames,
+            reader: std::sync::Arc::new(NoFrameReader),
+            consent,
         },
     };
     let config = Config {
-        version: VERSION.to_string(),
+        version: version.to_string(),
     };
     let sink: std::sync::Arc<dyn StateSink + Send + Sync> = std::sync::Arc::new(Lines {
         events,
@@ -316,15 +454,23 @@ where
     let api_base = ApiBase::parse(&arguments.api_base, AllowLoopbackHttp::Yes)
         .map_err(|error| failure(1, error.to_string()))?;
     let frame = decode_png(&arguments.fixture).map_err(|message| failure(1, message))?;
-    let sidecar = std::fs::read_to_string(sidecar_path(&arguments.fixture))
-        .map_err(|error| failure(1, format!("cannot read the sidecar text: {error}")))?
-        .trim()
-        .to_string();
+    let mode = if arguments.party {
+        ScreenMode::Party {
+            frame: frame.clone(),
+            sidecar: party_sidecar_path(&arguments.fixture),
+        }
+    } else {
+        let sidecar = std::fs::read_to_string(sidecar_path(&arguments.fixture))
+            .map_err(|error| failure(1, format!("cannot read the sidecar text: {error}")))?
+            .trim()
+            .to_string();
+        ScreenMode::Read(sidecar)
+    };
 
     let (events, received) = mpsc::unbounded_channel();
     let writer = tokio::spawn(write_lines(output, received));
-    let (handle, guard) =
-        start(&api_base, sidecar, events).map_err(|message| failure(1, message))?;
+    let (handle, guard) = start(&api_base, mode, &arguments.agent_version, events)
+        .map_err(|message| failure(1, message))?;
 
     let mut lines = BufReader::new(input).lines();
     while let Some(line) = lines
@@ -470,6 +616,43 @@ mod tests {
                 return;
             }
         }
+    }
+
+    /// The API answers 426 to an agent below its minimum version, and then the agent shows no code. The example therefore
+    /// declares the version it is given, and the stack's minimum decides whether that version is enough.
+    #[test]
+    fn the_declared_agent_version_is_the_default_and_can_be_set() {
+        use super::{VERSION, parse_arguments};
+
+        let base = [
+            "--api-base",
+            "http://127.0.0.1:1",
+            "--read-fixture",
+            "frame.png",
+        ]
+        .map(str::to_string);
+        let default = parse_arguments(&base).expect("the arguments parse");
+        assert_eq!(
+            default.agent_version, VERSION,
+            "without the flag, the crate version"
+        );
+
+        let mut declared = base.to_vec();
+        declared.extend(["--agent-version".to_string(), "0.1.0".to_string()]);
+        let declared = parse_arguments(&declared).expect("the arguments parse");
+        assert_eq!(declared.agent_version, "0.1.0", "the flag's version");
+    }
+
+    #[test]
+    fn the_token_headers_send_the_declared_version_on_every_relay_request() {
+        use super::TokenHeaders;
+        use d2rmm_agent_adapters::telemetry::relay_client::HeaderSource;
+
+        let headers = TokenHeaders {
+            tokens: Arc::new(d2rmm_agent_core::fakes::MemoryTokens::default()),
+            version: "0.1.0".to_string(),
+        };
+        assert_eq!(headers.agent_version(), "0.1.0");
     }
 
     #[tokio::test]

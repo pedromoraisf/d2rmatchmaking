@@ -35,13 +35,16 @@ import { PostgresPairingCodeRepository } from '../modules/agents/adapters/postgr
 import type { AgentsDatabase } from '../modules/agents/adapters/postgres/schema.ts';
 import { createAgentsUseCases } from '../modules/agents/application/agents-use-cases.ts';
 import type { IdentityPort } from '../modules/identity/index.ts';
+import { characterRoutes } from '../modules/identity/adapters/http/character-routes.ts';
 import { identityRoutes } from '../modules/identity/adapters/http/routes.ts';
 import { PostgresAccountRepository } from '../modules/identity/adapters/postgres/postgres-account-repository.ts';
+import { PostgresCharacterRepository } from '../modules/identity/adapters/postgres/postgres-character-repository.ts';
 import { PostgresSessionRepository } from '../modules/identity/adapters/postgres/postgres-session-repository.ts';
 import { Sha256SecretHasher } from '../modules/identity/adapters/postgres/sha256-secret-hasher.ts';
 import type { IdentityDatabase } from '../modules/identity/adapters/postgres/schema.ts';
 import { FetchBattleNetOAuth } from '../modules/identity/adapters/bnet/fetch-battle-net-oauth.ts';
 import { UnconfiguredBattleNetOAuth } from '../modules/identity/adapters/bnet/unconfigured-battle-net-oauth.ts';
+import { createCharacterUseCases } from '../modules/identity/application/character-use-cases.ts';
 import { createIdentityUseCases } from '../modules/identity/application/identity-use-cases.ts';
 import type { BnetSettings } from './config.ts';
 import { atMostOnePerMinute } from '../platform/error-log.ts';
@@ -217,6 +220,12 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     ids,
     battleNet,
   });
+  const characters = createCharacterUseCases({
+    characters: new PostgresCharacterRepository(db as unknown as Kysely<IdentityDatabase>),
+    uow,
+    outbox,
+    clock,
+  });
   const agents = createAgentsUseCases({
     agents: new PostgresAgentRepository(db as unknown as Kysely<AgentsDatabase>, clock),
     codes: new PostgresPairingCodeRepository(db as unknown as Kysely<AgentsDatabase>, clock),
@@ -331,6 +340,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     clock,
     random,
   });
+  characterRoutes(app, { useCases: characters, agents: agentsPort, guards });
   agentsRoutes(app, { useCases: agents, guards });
   lobbyRoomRoutes(app, { useCases: lobby, guards });
   matchmakingRoutes(app, { useCases: matchmaking, guards, stagingEndpoints: config.stagingEndpoints });

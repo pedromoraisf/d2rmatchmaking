@@ -7,11 +7,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
+use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::{ReadText, Region};
 use uuid::Uuid;
 
-use crate::messages::{GameNameObservation, IssuedCode, Presence};
+use crate::messages::{FrameReading, GameNameObservation, IssuedCode, Presence};
 use crate::secret::Secret;
 use crate::view::AgentView;
 
@@ -75,6 +76,24 @@ pub trait TextReader {
     fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError>;
 }
 
+/// Captures the client area of the D2R game window in memory (CHR-03). `None` when no game window is found or it is
+/// minimized. Only the app crate's window adapter implements it.
+pub trait FrameSource {
+    fn capture(&self) -> Option<Rgba>;
+}
+
+/// Whether the player consented to screen capture, kept on this PC (CHR-01, CHR-02). The store holds no secret.
+pub trait ConsentStore {
+    fn load(&self) -> bool;
+    fn save(&self, consent: bool) -> Result<(), StoreError>;
+}
+
+/// Reads the screen a frame shows and, on the character selection screen, every complete card on it (CHR-04, CHR-06).
+/// A card with any field it could not read is left out. The reader holds no state between frames.
+pub trait FrameReader {
+    fn read(&self, frame: &Rgba) -> FrameReading;
+}
+
 /// Why an update check did not install a version (AGS-26).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpdateFailure {
@@ -115,6 +134,12 @@ pub trait ApiGateway {
         &self,
         token: &Secret,
         observation: &GameNameObservation,
+    ) -> impl Future<Output = Result<(), ApiError>> + Send;
+    /// Sends the complete cards of one character selection screen, 1 to 24 of them (CHR-09).
+    fn post_characters(
+        &self,
+        token: &Secret,
+        cards: &[Card],
     ) -> impl Future<Output = Result<(), ApiError>> + Send;
     /// Opens the room stream, resuming after `last_event_id` when the caller has one.
     fn open_stream(

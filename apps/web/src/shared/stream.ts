@@ -15,7 +15,8 @@ export interface StreamSource {
 export type StreamOpener = (handlers: SiteStreamHandlers) => () => void;
 
 export const STREAM_URL = '/api/v1/stream';
-const EVENT_TYPES = ['room.assigned', 'room.stage_changed', 'agent.presence_changed'] as const;
+// Every event of the contract's site stream is listened to: a type missing here would never reach the site (CHR-12).
+const EVENT_TYPES = SiteStreamEvent.options.map((option) => option.shape.type.value);
 
 function parseEvent(type: string, data: string): SiteStreamEvent | null {
   try {

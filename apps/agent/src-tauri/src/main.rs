@@ -9,6 +9,8 @@ mod app;
 mod config;
 #[cfg(any(windows, test))]
 mod fixture_read;
+#[cfg(any(windows, test))]
+mod language_pack;
 
 #[cfg(windows)]
 use std::sync::Arc;
@@ -20,11 +22,21 @@ use d2rmm_agent_core::groups::{
     Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
 };
 #[cfg(windows)]
-use d2rmm_agent_core::ports::{ProcessSource, ReadError, Rgba, TextReader, TokenStore, WallClock};
+use d2rmm_agent_core::messages::{FrameReading, Screen};
+#[cfg(windows)]
+use d2rmm_agent_core::party::PartyPorts;
+#[cfg(windows)]
+use d2rmm_agent_core::ports::{
+    ConsentStore, FrameReader, ProcessSource, ReadError, Rgba, TextReader, TokenStore, WallClock,
+};
+#[cfg(windows)]
+use d2rmm_agent_core::watch_screen::ScreenPorts;
+#[cfg(windows)]
+use d2rmm_agent_domain::language::LanguagePack;
 #[cfg(windows)]
 use d2rmm_agent_domain::vision::{ReadText, Region};
 #[cfg(windows)]
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 #[cfg(windows)]
 use adapters::system::{RandomIds, SystemClock};
@@ -34,6 +46,8 @@ use adapters::token_store::KeyringTokenStore;
 use adapters::toolhelp::ToolhelpProcessSource;
 #[cfg(windows)]
 use adapters::updater::TauriUpdater;
+#[cfg(windows)]
+use adapters::window_capture::WindowFrames;
 #[cfg(windows)]
 use adapters::windows_ocr::WindowsOcr;
 
@@ -54,6 +68,11 @@ fn ports(app: AppHandle, gateway: Arc<HttpGateway>) -> Groups<HttpGateway> {
     let tokens: Arc<dyn TokenStore + Send + Sync> = Arc::new(KeyringTokenStore::new());
     let processes: Arc<dyn ProcessSource + Send + Sync> = Arc::new(ToolhelpProcessSource);
     let clock: Arc<dyn WallClock + Send + Sync> = Arc::new(SystemClock);
+    // The shipped English file; the domain's built-in pack is the same words, so a file that fails to parse changes nothing.
+    let language =
+        Arc::new(language_pack::shipped_english().unwrap_or_else(|_| LanguagePack::english()));
+    let consent: Arc<dyn ConsentStore + Send + Sync> =
+        Arc::new(app::consent_store_in(app.path().app_config_dir().ok()));
     Groups {
         pairing: PairingPorts {
             gateway: Arc::clone(&gateway),
@@ -63,7 +82,25 @@ fn ports(app: AppHandle, gateway: Arc<HttpGateway>) -> Groups<HttpGateway> {
         heartbeat: HeartbeatPorts {
             gateway: Arc::clone(&gateway),
             tokens: Arc::clone(&tokens),
+            processes: Arc::clone(&processes),
+        },
+        screen: ScreenPorts {
+            gateway: Arc::clone(&gateway),
+            tokens: Arc::clone(&tokens),
             processes,
+            frames: Arc::new(WindowFrames),
+            reader: Arc::new(NoScreenReader),
+            consent,
+            party: PartyPorts {
+                read: ReadPorts {
+                    reader: Arc::clone(&reader),
+                    ids: Arc::new(RandomIds),
+                    clock: Arc::clone(&clock),
+                    gateway: Arc::clone(&gateway),
+                    tokens: Arc::clone(&tokens),
+                },
+                language: Arc::clone(&language),
+            },
         },
         stream: StreamPorts {
             gateway: Arc::clone(&gateway),
@@ -79,6 +116,21 @@ fn ports(app: AppHandle, gateway: Arc<HttpGateway>) -> Groups<HttpGateway> {
             gateway,
             tokens,
         },
+    }
+}
+
+/// The screen reader of this build. The reader of the character screens ships with its reading regions (F1 batch 2), so
+/// until then every frame is on no screen: the heartbeat reports `UNKNOWN` and no card is sent (CHR-04, CHR-06).
+#[cfg(windows)]
+struct NoScreenReader;
+
+#[cfg(windows)]
+impl FrameReader for NoScreenReader {
+    fn read(&self, _frame: &Rgba) -> FrameReading {
+        FrameReading {
+            screen: Screen::Unknown,
+            cards: Vec::new(),
+        }
     }
 }
 

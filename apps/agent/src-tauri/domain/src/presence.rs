@@ -1,12 +1,14 @@
 //! The presence the heartbeat reports (AHM-12, AHM-15; AD-055): whether the game process runs and which screen the game
-//! shows. Only process names are read, never handles. The screen is unknown until F2 reads it (AGS-10).
+//! shows. Only process names are read, never handles. The screen comes from the frames the agent reads (CHR-04).
 
 use crate::timings::GAME_PROCESS;
 
-/// The screen the game shows, as far as the agent knows it.
+/// The screen the game shows, as far as the agent knows it (CHR-04). Any frame the agent cannot place is `Unknown`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
     Unknown,
+    CharacterSelect,
+    InGame,
     AutomapOpen,
 }
 

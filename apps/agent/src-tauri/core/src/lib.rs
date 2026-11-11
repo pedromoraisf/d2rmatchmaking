@@ -11,12 +11,14 @@ pub mod groups;
 pub mod hub;
 pub mod messages;
 pub mod pair;
+pub mod party;
 pub mod ports;
 pub mod post_observation;
 pub mod read_frame;
 pub mod runtime;
 pub mod secret;
 pub mod view;
+pub mod watch_screen;
 
 #[cfg(test)]
 mod tests {

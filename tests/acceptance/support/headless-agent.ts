@@ -62,6 +62,31 @@ export function prepareFixture(dir: string, gameName: string): { png: string; si
   return { png, sidecar };
 }
 
+/** The Party panel fixture the example reads, drawn by `xtask draw-fixture party` (committed, AGN-02). */
+export const PARTY_FIXTURE = path.join(repoRoot, 'apps', 'agent', 'fixtures', 'party', 'party-revealed.png');
+
+/** The text of the Party panel the example reads: the Game Name field (the title and label are fixed). */
+export interface PartyPanel {
+  readonly gameNameField: string;
+}
+
+/** Writes a Party fixture into `dir`: the picture, and its sidecar with the panel text the example reads on each capture. */
+export function preparePartyFixture(dir: string, panel: PartyPanel): { png: string; sidecar: string } {
+  const png = path.join(dir, 'party-panel.png');
+  copyFileSync(PARTY_FIXTURE, png);
+  return { png, sidecar: setPartyPanel(png, panel) };
+}
+
+/** Rewrites the panel text of a Party fixture: the example reads it again on its next capture. */
+export function setPartyPanel(png: string, panel: PartyPanel): string {
+  const sidecar = `${png}.json`;
+  writeFileSync(
+    sidecar,
+    `${JSON.stringify({ partyTitle: 'Party', gameNameLabel: 'Game Name', gameNameField: panel.gameNameField }, null, 2)}\n`,
+  );
+  return sidecar;
+}
+
 /** The `cargo` that runs the example: the rustup toolchain lives in `~/.cargo/bin`, which the shell may not have. */
 function cargoEnv(): Record<string, string> {
   return {
@@ -122,7 +147,13 @@ export class HeadlessAgent {
   }
 
   /** Starts the example against `apiBase` with the fixture screen at `fixture`. Its events are read from then on. */
-  static start(options: { apiBase: string; fixture: string }): HeadlessAgent {
+  static start(options: {
+    apiBase: string;
+    fixture: string;
+    party?: boolean;
+    agentVersion?: string;
+  }): HeadlessAgent {
+    const versionArgs = options.agentVersion === undefined ? [] : ['--agent-version', options.agentVersion];
     const child = spawn(
       'cargo',
       [
@@ -133,8 +164,9 @@ export class HeadlessAgent {
         '--',
         '--api-base',
         options.apiBase,
-        '--read-fixture',
+        options.party === true ? '--party-fixture' : '--read-fixture',
         options.fixture,
+        ...versionArgs,
       ],
       { cwd: repoRoot, env: cargoEnv(), detached: true, stdio: ['pipe', 'pipe', 'pipe'] },
     );

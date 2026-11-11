@@ -52,4 +52,13 @@ describe('stream events', () => {
   it('accepts agent.presence_changed on the site stream', () => {
     expect(SiteStreamEvent.parse(presence)).toStrictEqual(presence);
   });
+
+  it('accepts characters.updated on the site stream', () => {
+    const updated = { type: 'characters.updated', data: {} };
+    expect(SiteStreamEvent.parse(updated)).toStrictEqual(updated);
+  });
+
+  it('does not accept characters.updated on the agent stream', () => {
+    expect(AgentStreamEvent.safeParse({ type: 'characters.updated', data: {} }).success).toBe(false);
+  });
 });

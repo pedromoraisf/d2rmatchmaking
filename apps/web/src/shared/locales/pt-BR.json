@@ -7,6 +7,21 @@
     "downloadAgent": "Baixar o agente",
     "smartScreenNote": "O instalador ainda não tem assinatura de código, por isso o Windows SmartScreen pode avisar antes de executá-lo."
   },
+  "nav": {
+    "label": "Seções",
+    "play": "Partida"
+  },
+  "header": {
+    "agent": {
+      "none": "Nenhum agente pareado",
+      "offline": "Agente não conectado",
+      "gameClosed": "Agente online · jogo fechado",
+      "gameOpen": "Agente online · jogo aberto"
+    }
+  },
+  "status": {
+    "label": "Situação"
+  },
   "signIn": {
     "heading": "Entrar com uma conta de teste",
     "playerName": "Nome do jogador",
@@ -37,7 +52,52 @@
     "gameClosed": "Jogo fechado",
     "screen": {
       "UNKNOWN": "Tela: desconhecida",
+      "CHARACTER_SELECT": "Tela: seleção de personagem",
+      "IN_GAME": "Tela: em jogo",
       "AUTOMAP_OPEN": "Tela: mapa automático aberto"
+    }
+  },
+  "characters": {
+    "heading": "Seus personagens",
+    "empty": "Abra a tela de seleção de personagens no jogo com o agente em execução para adicionar seus personagens.",
+    "level": "Nível {{level}}",
+    "readAt": "Última leitura {{time}}",
+    "unlocked": "Desbloqueadas: {{difficulties}}",
+    "classes": {
+      "amazon": "Amazona",
+      "assassin": "Assassina",
+      "barbarian": "Bárbaro",
+      "druid": "Druida",
+      "necromancer": "Necromante",
+      "paladin": "Paladino",
+      "sorceress": "Feiticeira",
+      "warlock": "Bruxo"
+    },
+    "modes": {
+      "softcore": "Softcore",
+      "hardcore": "Hardcore"
+    },
+    "ladders": {
+      "ladder": "Ladder",
+      "nonLadder": "Sem ladder"
+    },
+    "eras": {
+      "classic": "Clássico",
+      "lod": "Expansão",
+      "rotw": "Reign of the Warlock"
+    },
+    "difficulties": {
+      "normal": "Normal",
+      "nightmare": "Pesadelo",
+      "hell": "Inferno"
+    },
+    "declare": {
+      "prompt": "Declare ladder e era para entrar na fila com este personagem",
+      "formLabel": "Declarar ladder e era de {{name}}",
+      "ladderLegend": "Ladder ou sem ladder",
+      "eraLegend": "Era",
+      "submit": "Salvar ladder e era",
+      "failed": "Não foi possível salvar o ladder e a era. Tente de novo."
     }
   },
   "room": {
