@@ -45,11 +45,18 @@ preview service match (#57).
 
 - Live: the label `render-preview` is on #41. Site `https://phase-f1.d2rmatchmaking.pages.dev` proxies to the API
   `https://d2rmm-api-pr-41.onrender.com`, which has its own Neon branch `preview/pr-41` (run 43140520497 green).
-- Battle.net sign-in is off (`bnetSignIn: false`) until the keys exist. The maintainer creates the OAuth client at
-  develop.battle.net with the redirect URLs `https://d2rmatchmaking.pages.dev/api/v1/auth/bnet/callback` and
-  `https://phase-f1.d2rmatchmaking.pages.dev/api/v1/auth/bnet/callback`, then sets `BNET_CLIENT_ID` and
-  `BNET_CLIENT_SECRET` on the Render services `d2rmm-api` and "d2rmm-api PR #41".
-- Then add both keys with `sync: false` to `render.yaml` (names only, no values).
+- Battle.net sign-in works on the preview (maintainer, 2026-11-12): the OAuth client exists at develop.battle.net
+  with the redirect URLs `https://d2rmatchmaking.pages.dev/api/v1/auth/bnet/callback` and
+  `https://phase-f1.d2rmatchmaking.pages.dev/api/v1/auth/bnet/callback`; `BNET_CLIENT_ID` and `BNET_CLIENT_SECRET` are
+  set on the Render services `d2rmm-api` and "d2rmm-api PR #41". New previews inherit them from the base service.
+  Staging (`main`) shows no sign-in until F1 merges into `main`: identity-bnet is F1 code.
+- To do (maintainer accepted, 2026-11-12):
+  1. Publish the preview site under one fixed Pages alias (e.g. `preview.d2rmatchmaking.pages.dev`) instead of one per
+     branch, so a single redirect URL registered once at Blizzard serves every phase preview (one preview at a time,
+     which is the phase-PR use). Update `preview.mjs` (site origin), `preview-api.yml`, `deploy-web.yml`'s bake, the
+     tests and ADR 030's consequences; the maintainer then adds that redirect URL at Blizzard.
+  2. Add `BNET_CLIENT_ID` and `BNET_CLIENT_SECRET` with `sync: false` to `render.yaml` (names only, no values).
+  Keep the keys in Render for now; centralising them in GitHub secrets waits for a real production environment.
 
 ### `feat/F0-parallel-cloud-spike`
 
