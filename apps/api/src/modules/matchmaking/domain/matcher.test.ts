@@ -459,3 +459,182 @@ describe('formGroups: the cost of a run (QUE-08)', () => {
     expect(result.remaining).toHaveLength(3000);
   });
 });
+
+describe('formGroups: what the matcher must not disturb or reorder', () => {
+  it('does not reorder or modify the tickets it is given', () => {
+    const input = Object.freeze([
+      pvp({ id: 'c', joinedAt: ago(10) }),
+      pvp({ id: 'a', joinedAt: ago(30) }),
+      pvp({ id: 'b', joinedAt: ago(20) }),
+    ]);
+    expect(() => formGroups(input, NOW)).not.toThrow();
+    expect(idsOf(input)).toStrictEqual(['c', 'a', 'b']);
+  });
+
+  it('returns the unmatched tickets of every pool together in join order', () => {
+    const pool = [
+      pvp({ id: 'a1', region: 'europe', format: '2v2', joinedAt: ago(30) }),
+      pvp({ id: 'b1', region: 'asia', format: '2v2', joinedAt: ago(20) }),
+      pvp({ id: 'a2', region: 'europe', format: '2v2', joinedAt: ago(10) }),
+    ];
+    expect(idsOf(formGroups(pool, NOW).remaining)).toStrictEqual(['a1', 'b1', 'a2']);
+  });
+
+  it('tries the next seed when the oldest one cannot fill a group', () => {
+    const pool = [
+      pvp({ id: 'lonely', rating: 2500, joinedAt: ago(20) }),
+      pvp({ id: 'x', rating: 1000, joinedAt: ago(10) }),
+      pvp({ id: 'y', rating: 1000, joinedAt: ago(9) }),
+    ];
+    const result = formGroups(pool, NOW);
+    expect(result.groups).toHaveLength(1);
+    expect(idsOf(result.groups[0]?.members ?? [])).toStrictEqual(['x', 'y']);
+    expect(idsOf(result.remaining)).toStrictEqual(['lonely']);
+  });
+});
+
+describe('formGroups: the band edges (QUE-08)', () => {
+  it('reaches a candidate rated exactly at the low edge of the seed band', () => {
+    const pool = [pvp({ id: 'seed', rating: 1500, joinedAt: ago(5) }), pvp({ id: 'low', rating: 1450 })];
+    expect(formGroups(pool, NOW).groups).toHaveLength(1);
+  });
+
+  it('reaches a candidate rated exactly at the high edge of the seed band', () => {
+    const pool = [pvp({ id: 'seed', rating: 1500, joinedAt: ago(5) }), pvp({ id: 'high', rating: 1550 })];
+    expect(formGroups(pool, NOW).groups).toHaveLength(1);
+  });
+
+  it('fills a group with the oldest tickets in reach, not the lowest rated', () => {
+    const pool = [
+      pvp({ id: 'seed', rating: 1500, format: '2v2', joinedAt: ago(9) }),
+      pvp({ id: 'old', rating: 1510, format: '2v2', joinedAt: ago(8) }),
+      pvp({ id: 'mid', rating: 1500, format: '2v2', joinedAt: ago(7) }),
+      pvp({ id: 'newer', rating: 1490, format: '2v2', joinedAt: ago(6) }),
+      pvp({ id: 'newest', rating: 1480, format: '2v2', joinedAt: ago(5) }),
+    ];
+    const result = formGroups(pool, NOW);
+    expect(idsOf(result.groups[0]?.members ?? [])).toStrictEqual(['seed', 'old', 'mid', 'newer']);
+    expect(idsOf(result.remaining)).toStrictEqual(['newest']);
+  });
+
+  it('refuses a candidate that matches the seed but not another member', () => {
+    const pool = [
+      pvp({ id: 'a', rating: 1500, format: '2v2', joinedAt: ago(600) }),
+      pvp({ id: 'wide', rating: 1700, format: '2v2', joinedAt: ago(599) }),
+      pvp({ id: 'm', rating: 1500, format: '2v2' }),
+      pvp({ id: 'n', rating: 1500, format: '2v2' }),
+    ];
+    const result = formGroups(pool, NOW);
+    expect(result.groups).toHaveLength(0);
+    expect(result.remaining).toHaveLength(4);
+  });
+
+  it('counts one band check per member compared with each candidate', () => {
+    const probe: MatchProbe = { bandChecks: 0 };
+    formGroups(duelists(2), NOW, probe);
+    expect(probe.bandChecks).toBe(1);
+    const probe2x2: MatchProbe = { bandChecks: 0 };
+    formGroups(
+      Array.from({ length: 4 }, (_, index) => pvp({ id: `q${index}`, format: '2v2' })),
+      NOW,
+      probe2x2,
+    );
+    expect(probe2x2.bandChecks).toBe(1 + 2 + 3);
+  });
+});
+
+describe('formGroups: the teleporter and the BO are taken once (QUE-10)', () => {
+  it('does not take a second teleporter before the killers when the seed is a teleporter', () => {
+    const pool = [
+      leveling({ id: 'tp1', role: 'teleporter', joinedAt: ago(100) }),
+      ...Array.from({ length: 7 }, (_, index) =>
+        leveling({ id: `k${index + 1}`, role: 'killer', joinedAt: ago(90 - index) }),
+      ),
+      leveling({ id: 'tp2', role: 'teleporter', joinedAt: ago(10) }),
+    ];
+    const result = formGroups(pool, NOW);
+    expect(idsOf(result.groups[0]?.members ?? [])).toStrictEqual([
+      'tp1',
+      'k1',
+      'k2',
+      'k3',
+      'k4',
+      'k5',
+      'k6',
+      'k7',
+    ]);
+    expect(idsOf(result.remaining)).toStrictEqual(['tp2']);
+  });
+
+  it('does not take a second BO when the group already holds one', () => {
+    const pool = [
+      leveling({ id: 'bo1', role: 'bo', joinedAt: ago(100) }),
+      leveling({ id: 'tp', role: 'teleporter', joinedAt: ago(95) }),
+      ...Array.from({ length: 6 }, (_, index) =>
+        leveling({ id: `k${index + 1}`, role: 'killer', joinedAt: ago(90 - index) }),
+      ),
+      leveling({ id: 'bo2', role: 'bo', joinedAt: ago(10) }),
+    ];
+    const result = formGroups(pool, NOW);
+    expect(idsOf(result.groups[0]?.members ?? [])).toStrictEqual([
+      'bo1',
+      'tp',
+      'k1',
+      'k2',
+      'k3',
+      'k4',
+      'k5',
+      'k6',
+    ]);
+    expect(idsOf(result.remaining)).toStrictEqual(['bo2']);
+  });
+});
+
+describe('snakeTeams: ordering and the draft pattern (QUE-12)', () => {
+  it('does not reorder the members it is given', () => {
+    const members = Object.freeze([
+      pvp({ id: 'm1', rating: 1300, joinedAt: ago(4) }),
+      pvp({ id: 'm2', rating: 1600, joinedAt: ago(3) }),
+      pvp({ id: 'm3', rating: 1400, joinedAt: ago(2) }),
+      pvp({ id: 'm4', rating: 1500, joinedAt: ago(1) }),
+    ]);
+    expect(() => snakeTeams(members)).not.toThrow();
+    expect(idsOf(members)).toStrictEqual(['m1', 'm2', 'm3', 'm4']);
+  });
+
+  it('drafts by rating whatever the input order, strongest first', () => {
+    const members = [
+      pvp({ id: 'm1', rating: 1300, joinedAt: ago(4) }),
+      pvp({ id: 'm2', rating: 1600, joinedAt: ago(3) }),
+      pvp({ id: 'm3', rating: 1400, joinedAt: ago(2) }),
+      pvp({ id: 'm4', rating: 1500, joinedAt: ago(1) }),
+    ];
+    expect(snakeTeams(members)).toStrictEqual([
+      ['m1', 'm2'],
+      ['m3', 'm4'],
+    ]);
+  });
+
+  it('breaks equal ratings by join order', () => {
+    const members = [
+      pvp({ id: 'late', rating: 1500, joinedAt: ago(1) }),
+      pvp({ id: 'second', rating: 1500, joinedAt: ago(3) }),
+      pvp({ id: 'first', rating: 1500, joinedAt: ago(4) }),
+      pvp({ id: 'third', rating: 1500, joinedAt: ago(2) }),
+    ];
+    expect(snakeTeams(members)).toStrictEqual([
+      ['first', 'late'],
+      ['second', 'third'],
+    ]);
+  });
+
+  it('keeps the pattern A, B, B, A for every block of four', () => {
+    const members = Array.from({ length: 8 }, (_, index) =>
+      pvp({ id: `r${index}`, rating: 2000 - index * 10, joinedAt: ago(100 - index) }),
+    );
+    expect(snakeTeams(members)).toStrictEqual([
+      ['r0', 'r3', 'r4', 'r7'],
+      ['r1', 'r2', 'r5', 'r6'],
+    ]);
+  });
+});

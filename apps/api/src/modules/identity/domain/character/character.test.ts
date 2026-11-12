@@ -154,6 +154,7 @@ describe('parseCharacterBatch (CHR-09, CHR-10)', () => {
   it('keys a name without its case', () => {
     expect(characterKey('Abc')).toBe(characterKey('aBC'));
     expect(characterKey('Abc')).not.toBe(characterKey('Abd'));
+    expect(characterKey('AbC')).toBe('abc');
   });
 
   it('refuses the whole batch when one card is invalid', () => {
