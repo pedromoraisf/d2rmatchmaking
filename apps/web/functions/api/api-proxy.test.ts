@@ -189,3 +189,59 @@ describe('Pages Function proxy', () => {
     expect(upstreamSignal?.aborted).toBe(true);
   });
 });
+
+describe('preview API upstream (ADR 030)', () => {
+  const previewApi = {
+    origin: 'https://d2rmm-api-pr-7.onrender.com',
+    siteOrigin: 'https://d2rmatchmaking.pages.dev',
+  };
+
+  it('proxies to the baked preview API and presents the origin it accepts', async () => {
+    const { upstream, calls } = recordingUpstream();
+    await proxyRequest(
+      {
+        request: new Request('https://feat.site.test/api/v1/me?x=1', {
+          headers: { Origin: 'https://feat.site.test' },
+        }),
+        env,
+        previewApi,
+      },
+      upstream,
+    );
+    expect(calls[0]?.target.href).toBe('https://d2rmm-api-pr-7.onrender.com/v1/me?x=1');
+    expect(new Headers(calls[0]?.init.headers).get('origin')).toBe('https://d2rmatchmaking.pages.dev');
+  });
+
+  it('adds no Origin header when the request had none', async () => {
+    const { upstream, calls } = recordingUpstream();
+    await proxyRequest(
+      { request: new Request('https://feat.site.test/api/v1/me'), env, previewApi },
+      upstream,
+    );
+    expect(new Headers(calls[0]?.init.headers).has('origin')).toBe(false);
+  });
+
+  it('falls back to API_ORIGIN when the preview API is absent or malformed', async () => {
+    const malformed = [
+      undefined,
+      { ...previewApi, origin: 'https://evil.test' },
+      { ...previewApi, origin: 'https://d2rmm-api-pr-7.onrender.com.evil.test' },
+      { ...previewApi, origin: 'http://d2rmm-api-pr-7.onrender.com' },
+      { ...previewApi, siteOrigin: 'https://site.test/path' },
+      { ...previewApi, siteOrigin: 'javascript:alert(1)' },
+    ];
+    for (const candidate of malformed) {
+      const { upstream, calls } = recordingUpstream();
+      await proxyRequest(
+        {
+          request: new Request('https://site.test/api/v1/me', { headers: { Origin: 'https://site.test' } }),
+          env,
+          previewApi: candidate,
+        },
+        upstream,
+      );
+      expect(calls[0]?.target.href, JSON.stringify(candidate)).toBe('https://api.example.test/v1/me');
+      expect(new Headers(calls[0]?.init.headers).get('origin')).toBe('https://site.test');
+    }
+  });
+});
