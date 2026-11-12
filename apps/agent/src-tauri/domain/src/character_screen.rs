@@ -691,6 +691,21 @@ mod tests {
     }
 
     #[test]
+    fn a_confusable_letter_maps_only_as_documented_and_any_other_letter_stays_unknown() {
+        // Documented map: I l | -> 1, O D Q Ø ø ⊕ -> 0, B -> 8, S -> 5, Z -> 2, G -> 6.
+        assert_eq!(read_level("S0"), Some(50));
+        assert_eq!(read_level("|0"), Some(10));
+        // Letters outside the map never become a digit.
+        for token in ["X8", "8X", "A8", "T5", "E8", "K1", "8 8", " 8", "8 ", "８8"] {
+            assert_eq!(read_level(token), None, "{token:?}");
+        }
+        // A map that lands outside 1 to 99 is unknown.
+        for token in ["0", "00", "O", "OO", "100", "1OO", "S00", "B88"] {
+            assert_eq!(read_level(token), None, "{token:?}");
+        }
+    }
+
+    #[test]
     fn the_real_reads_of_the_level_line_parse() {
         let pack = LanguagePack::english();
         for (read, expected) in [

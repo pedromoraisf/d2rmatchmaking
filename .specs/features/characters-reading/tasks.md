@@ -140,7 +140,7 @@ prints what the real screenshots show into the public Actions log.
       explicit local flag (`--show-reads`) the workflow never passes; vocabulary reads (class/level line, titles,
       popup and panel labels) stay printed — gate: `cargo nextest run`, `cargo clippy --all-targets -- -D warnings`,
       `node --test scripts/test/agent-ocr-check.test.mjs`
-- [ ] T29 — A level read with a confusable letter outside the map, or that maps out of 1..=99, stays unknown; unit
+- [x] T29 — A level read with a confusable letter outside the map, or that maps out of 1..=99, stays unknown; unit
       tests ("S0" maps to 50 only as documented, "X8", "0", "100", "8 8") and the digit map listed in the PR
       description — same gate
 - [ ] T30 — `.github/workflows/ocr-real.yml` pins `actions/checkout` to a commit SHA like the other actions —
