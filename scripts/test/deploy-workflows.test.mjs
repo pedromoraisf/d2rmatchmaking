@@ -154,7 +154,8 @@ test('pull-requests write is granted only on the comment job', () => {
     if (jobName === 'comment') {
       assert.equal(granted, 'write');
     } else {
-      assert.equal(granted, undefined, `${jobName} must not write pull requests`);
+      // The deploy job reads pull requests to bake the preview API (ADR 030); no job but the comment writes them.
+      assert.ok(granted === undefined || granted === 'read', `${jobName} must not write pull requests`);
     }
   }
 });

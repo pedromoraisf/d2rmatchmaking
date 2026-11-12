@@ -33,3 +33,4 @@ Format: Context · Decision · Alternatives · Consequences. Only the maintainer
 | [027](027-agent-hexagonal-architecture.md) | The desktop agent is hexagonal, like the Agents context of the backend     | Accepted                          |
 | [028](028-autonomous-delivery.md)          | Autonomous delivery and a self-maintained harness                          | Accepted; § 3–4 superseded by 029 |
 | [029](029-lean-harness.md)                 | Lean harness: CI is the gate, the hooks only guard what cannot be undone   | Accepted                          |
+| [030](030-api-pull-request-previews.md)    | API pull request previews on Render, each with its own Neon branch         | Accepted                          |
