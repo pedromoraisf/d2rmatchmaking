@@ -98,7 +98,7 @@ combine several readings.
       The language pack supplies the vocabularies (classes, titles, "Level", the three difficulties); unit tests with
       the real reads and the near-misses that must be refused —
       gate: `cd apps/agent/src-tauri && cargo nextest run && cargo clippy --all-targets -- -D warnings`
-- [ ] T20 — Numbers: the level token with the digit confusion map (I/l/| → 1, O/D/Q → 0, B → 8, S → 5, Z → 2, G → 6),
+- [x] T20 — Numbers: the level token with the digit confusion map (I/l/| → 1, O/D/Q → 0, B → 8, S → 5, Z → 2, G → 6),
       range 1..=99, anything else unknown; unit tests ("88", "8B", "II", "1I", "B8", "100", "") — same gate
 - [x] T21 — Several readings per region: `TextReader::read_variants` (default: the one reading); Windows OCR reads
       nearest 3x, bilinear 3x, nearest 4x and bilinear 4x (the real reads: the field matches only in bilinear 3x, the
