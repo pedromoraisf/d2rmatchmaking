@@ -34,17 +34,22 @@ impl FrameReader for ScreenReader {
                 cards: Vec::new(),
             };
         }
-        let text = |region: ScreenRegion| -> Option<String> {
+        let text = |region: ScreenRegion| -> Option<Vec<String>> {
             let area = screen_region(region, frame.width, frame.height)?;
-            let read = self.reader.read(frame, area).ok()?;
-            Some(
-                read.text
-                    .lines()
-                    .map(str::trim)
-                    .filter(|line| !line.is_empty())
-                    .collect::<Vec<_>>()
-                    .join(" "),
-            )
+            let readings: Vec<String> = self
+                .reader
+                .read_variants(frame, area)
+                .into_iter()
+                .map(|read| {
+                    read.text
+                        .lines()
+                        .map(str::trim)
+                        .filter(|line| !line.is_empty())
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                })
+                .collect();
+            (!readings.is_empty()).then_some(readings)
         };
         let reading = read_screen(
             &self.language,

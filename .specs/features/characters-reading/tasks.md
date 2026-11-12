@@ -100,7 +100,7 @@ combine several readings.
       gate: `cd apps/agent/src-tauri && cargo nextest run && cargo clippy --all-targets -- -D warnings`
 - [ ] T20 — Numbers: the level token with the digit confusion map (I/l/| → 1, O/D/Q → 0, B → 8, S → 5, Z → 2, G → 6),
       range 1..=99, anything else unknown; unit tests ("88", "8B", "II", "1I", "B8", "100", "") — same gate
-- [ ] T21 — Several readings per region: `TextReader::read_variants` (default: the one reading); Windows OCR reads
+- [x] T21 — Several readings per region: `TextReader::read_variants` (default: the one reading); Windows OCR reads
       nearest 3x, bilinear 3x, nearest 4x and bilinear 4x (the real reads: the field matches only in bilinear 3x, the
       popup's Normal only in bilinear 4x, a name pair agrees only at 4x); the game-name field is Matched if any variant
       matches exactly, Masked if any is the mask; names, class/level and titles by majority of agreeing variants (a

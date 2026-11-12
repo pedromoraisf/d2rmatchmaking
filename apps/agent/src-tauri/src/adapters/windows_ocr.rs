@@ -18,6 +18,16 @@ use crate::adapters::ocr_pixels::{Upscale, padded_region, upscaled_bgra};
 const OCR_SCALE: u32 = 3;
 const OCR_FILTER: Upscale = Upscale::Nearest;
 
+/// The other ways the agent reads a region besides nearest 3x (characters-reading T21). The engine's text is noisy and the
+/// ways err differently on the maintainer's real screenshots (`ocr-real`, 2026-11-11): the Game Name field matches only in
+/// bilinear 3x; the popup's "Normal" reads only in bilinear 4x; a card name's two agreeing readings only at 4x. The set is
+/// the four combinations the check tool printed.
+const EXTRA_VARIANTS: [(u32, Upscale); 3] = [
+    (3, Upscale::Bilinear),
+    (4, Upscale::Nearest),
+    (4, Upscale::Bilinear),
+];
+
 /// The one language the reader reads. The automap's game name is Latin text in English.
 const LANGUAGE: &str = "en-US";
 
@@ -26,11 +36,16 @@ pub struct WindowsOcr {
     engine: OcrEngine,
     scale: u32,
     filter: Upscale,
+    /// The other ways `read_variants` reads a region besides `scale` and `filter`.
+    extra: Vec<(u32, Upscale)>,
 }
 
 impl WindowsOcr {
+    /// The agent's reader: nearest 3x, with the extra variants for `read_variants`.
     pub fn new() -> Result<Self, ReadError> {
-        Self::with_upscale(OCR_SCALE, OCR_FILTER)
+        let mut ocr = Self::with_upscale(OCR_SCALE, OCR_FILTER)?;
+        ocr.extra = EXTRA_VARIANTS.to_vec();
+        Ok(ocr)
     }
 
     /// The engine reading at another scale and filter: the `ocr-check` comparison only; the agent uses `new`.
@@ -43,13 +58,19 @@ impl WindowsOcr {
             engine,
             scale,
             filter,
+            extra: Vec::new(),
         })
     }
-}
 
-impl TextReader for WindowsOcr {
-    fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
-        let bitmap = crop_to_bitmap(image, region, self.scale, self.filter)?;
+    /// The text of the region read at `scale` and `filter`.
+    fn read_at(
+        &self,
+        image: &Rgba,
+        region: Region,
+        scale: u32,
+        filter: Upscale,
+    ) -> Result<ReadText, ReadError> {
+        let bitmap = crop_to_bitmap(image, region, scale, filter)?;
         let result = self
             .engine
             .RecognizeAsync(&bitmap)
@@ -61,7 +82,21 @@ impl TextReader for WindowsOcr {
     }
 }
 
-/// The four readings `ocr-check` prints for every region, labelled: nearest and bilinear, at 3× and at 4× (T14). They only
+impl TextReader for WindowsOcr {
+    fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+        self.read_at(image, region, self.scale, self.filter)
+    }
+
+    /// The region read nearest 3x first, then each extra variant; a variant that fails is left out.
+    fn read_variants(&self, image: &Rgba, region: Region) -> Vec<ReadText> {
+        std::iter::once((self.scale, self.filter))
+            .chain(self.extra.iter().copied())
+            .filter_map(|(scale, filter)| self.read_at(image, region, scale, filter).ok())
+            .collect()
+    }
+}
+
+/// The readings `ocr-check` prints for every region, labelled: nearest and bilinear, at 2× to 5× (T14, T21). They only
 /// feed the diagnostics; the verdict is the production reader's. A variant whose engine cannot be created is left out.
 pub fn comparison_readers() -> Vec<(String, std::sync::Arc<dyn TextReader + Send + Sync>)> {
     let mut readers: Vec<(String, std::sync::Arc<dyn TextReader + Send + Sync>)> = Vec::new();
@@ -69,7 +104,7 @@ pub fn comparison_readers() -> Vec<(String, std::sync::Arc<dyn TextReader + Send
         (Upscale::Nearest, "nearest"),
         (Upscale::Bilinear, "bilinear"),
     ] {
-        for scale in [3, 4] {
+        for scale in [2, 3, 4, 5] {
             if let Ok(reader) = WindowsOcr::with_upscale(scale, filter) {
                 readers.push((format!("{name} {scale}x"), std::sync::Arc::new(reader)));
             }

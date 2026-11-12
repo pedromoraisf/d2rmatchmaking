@@ -79,6 +79,13 @@ pub enum ReadError {
 /// Reads the text of a region on this machine (AGS-20).
 pub trait TextReader {
     fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError>;
+
+    /// Several readings of the region, each the engine's text for the same pixels read in another way (another scale or
+    /// filter), the first being `read`'s. The screen readers combine them: the engine's text is noisy and the variants err
+    /// differently. A reader with one way to read returns its one reading; a failed region returns none.
+    fn read_variants(&self, image: &Rgba, region: Region) -> Vec<ReadText> {
+        self.read(image, region).into_iter().collect()
+    }
 }
 
 /// Captures the client area of the D2R game window in memory (CHR-03). `None` when no game window is found or it is

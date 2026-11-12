@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use crate::characters::{Class, Difficulty, Title};
-use crate::vocabulary::nearest;
+use crate::vocabulary::{edit_distance, nearest, squash, threshold};
 
 /// The Party panel's title word.
 pub const PARTY: &str = "party";
@@ -242,10 +242,18 @@ impl LanguagePack {
             .is_some_and(|word| nearest(text, &[((), word)]).is_some())
     }
 
-    /// Whether `text` starts with the word of `key` (a label followed by its value, such as "Life: 925 / 925").
+    /// Whether `text` starts with the word of `key` (a label followed by its value, such as "Life: 925 / 925"). The start
+    /// may be misread within the vocabulary threshold ("Lite:" for "Life:", characters-reading T21).
     pub fn begins_with(&self, text: &str, key: &str) -> bool {
-        self.word(key)
-            .is_some_and(|word| label_key(text).starts_with(&label_key(word)))
+        self.word(key).is_some_and(|word| {
+            if label_key(text).starts_with(&label_key(word)) {
+                return true;
+            }
+            let word = squash(word);
+            let length = word.chars().count();
+            let start: String = squash(text).chars().take(length).collect();
+            start.chars().count() == length && edit_distance(&start, &word) <= threshold(length)
+        })
     }
 }
 
@@ -296,6 +304,18 @@ mod tests {
             .iter()
             .map(|(key, word)| ((*key).to_string(), (*word).to_string()))
             .collect()
+    }
+
+    #[test]
+    fn a_label_followed_by_its_value_is_found_even_when_its_start_is_misread() {
+        let pack = LanguagePack::english();
+        assert!(pack.begins_with("Life: 925 / 925", "life"));
+        assert!(pack.begins_with("Lite:", "life"), "the real read of Life:");
+        assert!(pack.begins_with("Difficulty: Hell", "difficultyLabel"));
+        assert!(pack.begins_with("Diffrculty: Hell", "difficultyLabel"));
+        assert!(!pack.begins_with("Mana: 90", "life"));
+        assert!(!pack.begins_with("Li", "life"));
+        assert!(!pack.begins_with("", "life"));
     }
 
     /// The Party panel as the maintainer's Windows OCR returned it (2026-11-11).

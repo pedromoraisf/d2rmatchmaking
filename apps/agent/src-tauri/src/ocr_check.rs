@@ -6,10 +6,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 use d2rmm_agent_core::messages::FrameReading;
-use d2rmm_agent_core::ports::{FrameReader, ReadError, Rgba, TextReader};
+use d2rmm_agent_core::ports::{FrameReader, Rgba, TextReader};
 use d2rmm_agent_core::screen_reader::ScreenReader;
 use d2rmm_agent_domain::characters::{Class, Difficulty, Title};
-use d2rmm_agent_domain::game_name_match::{FieldRead, read_field};
+use d2rmm_agent_domain::game_name_match::{FieldRead, read_field_variants};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{PanelRegion, ScreenRegion, panel_region, screen_region};
 use d2rmm_agent_domain::presence::Screen;
@@ -64,22 +64,28 @@ pub fn decode_png(path: &str) -> Rgba {
     read_screenshot(Path::new(path)).expect("the committed image decodes")
 }
 
-/// The text of one Party panel region, read with `reader`.
-fn read_panel(reader: &dyn TextReader, image: &Rgba, panel: PanelRegion) -> Result<String, String> {
+/// Every reading (OCR variant) of one Party panel region, read with `reader`.
+fn read_panel(
+    reader: &dyn TextReader,
+    image: &Rgba,
+    panel: PanelRegion,
+) -> Result<Vec<String>, String> {
     let region = panel_region(panel, image.width, image.height).ok_or_else(|| {
         format!(
             "the Party panel layout is unknown for a {}x{} screenshot",
             image.width, image.height
         )
     })?;
-    reader
-        .read(image, region)
+    Ok(reader
+        .read_variants(image, region)
+        .into_iter()
         .map(|read| read.text)
-        .map_err(|error: ReadError| format!("the region does not read: {error:?}"))
+        .collect())
 }
 
 /// Reads one Party frame: the panel must be open, and the Game Name field must read as `expected` for the room's name
-/// `expected_name`. The error names what was read, so a failure shows the OCR text.
+/// `expected_name`, with the readings combined as the agent combines them (`read_field_variants`). The error names what was
+/// read, so a failure shows the OCR text.
 pub fn check_party(
     reader: &dyn TextReader,
     image: &Rgba,
@@ -91,10 +97,11 @@ pub fn check_party(
     let label = read_panel(reader, image, PanelRegion::GameNameLabel)?;
     let field = read_panel(reader, image, PanelRegion::GameNameField)?;
     let read = format!("title {title:?}, label {label:?}, field {field:?}");
-    if !language.party_panel_open(&title) {
+    if !title.iter().any(|read| language.party_panel_open(read)) {
         return Err(format!("the panel is not open: {read}"));
     }
-    let got = read_field(&field, expected_name);
+    let fields: Vec<&str> = field.iter().map(String::as_str).collect();
+    let got = read_field_variants(&fields, expected_name);
     if got == expected {
         Ok(())
     } else {
@@ -104,7 +111,8 @@ pub fn check_party(
     }
 }
 
-/// Checks one character frame: its screen, and its cards in order. The error names what was read.
+/// Checks one character frame: its screen, and its cards in order. Names are compared without case: the game draws them in
+/// small caps, so the case of a name is not on the screen (decisions.md, 2026-11-12). The error names what was read.
 pub fn check_screen(reading: &FrameReading, screen: Screen, cards: &[Card]) -> Result<(), String> {
     if reading.screen != screen {
         return Err(format!(
@@ -118,7 +126,7 @@ pub fn check_screen(reading: &FrameReading, screen: Screen, cards: &[Card]) -> R
         .map(|card| {
             format!(
                 "{} {:?} {} {:?}",
-                card.name(),
+                card.name().to_lowercase(),
                 card.class(),
                 card.level(),
                 card.title()
@@ -127,7 +135,9 @@ pub fn check_screen(reading: &FrameReading, screen: Screen, cards: &[Card]) -> R
         .collect();
     let wanted: Vec<String> = cards
         .iter()
-        .map(|(name, class, level, title)| format!("{name} {class:?} {level} {title:?}"))
+        .map(|(name, class, level, title)| {
+            format!("{} {class:?} {level} {title:?}", name.to_lowercase())
+        })
         .collect();
     if listed == wanted {
         Ok(())
