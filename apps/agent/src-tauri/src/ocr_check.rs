@@ -196,7 +196,8 @@ fn spots(name: &str, width: u32, height: u32) -> Vec<Spot> {
     regions
 }
 
-/// The readers whose text the diagnostics print for each region, by label (nearest 3x, bilinear 3x, nearest 4x, bilinear 4x).
+/// The readers whose text the diagnostics print for each region, by label (nearest and bilinear at 2x, 3x, 4x and 5x); the agent
+/// reads the six of 3x, 4x and 5x (characters-reading T24).
 pub type Variants = Vec<(String, Arc<dyn TextReader + Send + Sync>)>;
 
 /// The diagnostic lines of one screenshot, printed before its verdict: the image size, then for each region it reads the

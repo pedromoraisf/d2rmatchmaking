@@ -116,7 +116,7 @@ The real screenshots read 4 of 5: the selection screen's first name reads "VI-JK
 readings, a one-to-one tie that is refused; the 5x readings read "VUKVUKA" again. The drawn fixtures read empty
 levels and popup labels because their lettering is not the game's.
 
-- [ ] T24 — Six readings per region (nearest and bilinear at 3x, 4x, 5x). A character name settles only when at least
+- [x] T24 — Six readings per region (nearest and bilinear at 3x, 4x, 5x). A character name settles only when at least
       two readings agree and outnumber every rival reading (a single-reading reader keeps its reading); the
       single-distinct-name fallback goes. Unit tests with the exact reads of `maintainer-select-screen.png` and
       `maintainer-select-difficulty.png` (both cards), and a tie that stays unknown —

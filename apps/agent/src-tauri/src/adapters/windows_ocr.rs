@@ -20,12 +20,14 @@ const OCR_FILTER: Upscale = Upscale::Nearest;
 
 /// The other ways the agent reads a region besides nearest 3x (characters-reading T21). The engine's text is noisy and the
 /// ways err differently on the maintainer's real screenshots (`ocr-real`, 2026-11-11): the Game Name field matches only in
-/// bilinear 3x; the popup's "Normal" reads only in bilinear 4x; a card name's two agreeing readings only at 4x. The set is
-/// the four combinations the check tool printed.
-const EXTRA_VARIANTS: [(u32, Upscale); 3] = [
+/// bilinear 3x; the popup's "Normal" reads only in bilinear 4x; a card name's two agreeing readings only at 4x or 5x. The
+/// set is the six combinations of nearest and bilinear at 3x, 4x and 5x (T24: a name settles on two agreeing readings).
+const EXTRA_VARIANTS: [(u32, Upscale); 5] = [
     (3, Upscale::Bilinear),
     (4, Upscale::Nearest),
     (4, Upscale::Bilinear),
+    (5, Upscale::Nearest),
+    (5, Upscale::Bilinear),
 ];
 
 /// The one language the reader reads. The automap's game name is Latin text in English.

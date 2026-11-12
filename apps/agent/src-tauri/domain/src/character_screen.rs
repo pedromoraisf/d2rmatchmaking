@@ -244,23 +244,16 @@ fn read_title_readings(pack: &LanguagePack, readings: &[String]) -> Option<Optio
 
 /// The name the readings of a name line settle on: the spelling of the first reading among those that agree, compared in
 /// upper case (the game draws names in small caps, so the case is not on the screen). Readings that are not a name (noise
-/// such as "VI-JK VUKA") settle nothing; when no two agree but the readings that are a name are all one name, that name
-/// stands, since noise is not a competing name. `None` when two different names compete, or when none reads.
+/// such as "VI-JK VUKA") settle nothing. A name settles only when at least two readings agree on it and no rival name has
+/// as many readings (a single-reading reader keeps its reading); `None` when names compete without a winner, or when none
+/// reads (characters-reading T24).
 fn read_name_readings(readings: &[String]) -> Option<String> {
     let names: Vec<Option<String>> = readings.iter().map(|read| read_name_line(read)).collect();
     let upper: Vec<Option<String>> = names
         .iter()
         .map(|name| name.as_ref().map(|name| name.to_uppercase()))
         .collect();
-    let settled = majority(upper.clone()).or_else(|| {
-        let mut distinct: Vec<&String> = upper.iter().flatten().collect();
-        distinct.sort();
-        distinct.dedup();
-        match distinct.as_slice() {
-            [only] => Some((*only).clone()),
-            _ => None,
-        }
-    })?;
+    let settled = majority(upper)?;
     names
         .into_iter()
         .flatten()
@@ -884,6 +877,220 @@ mod tests {
         assert_eq!(
             reading.cards[0].unlocked_difficulties(),
             vec![Normal, Nightmare, Hell]
+        );
+    }
+
+    fn card_strings(reading: &Reading) -> Vec<String> {
+        reading
+            .cards
+            .iter()
+            .map(|card| {
+                format!(
+                    "{} {:?} {} {:?}",
+                    card.name().to_uppercase(),
+                    card.class(),
+                    card.level(),
+                    card.title()
+                )
+            })
+            .collect()
+    }
+
+    /// The second `ocr-real` run (2026-11-12), six readings per region (nearest 3x, 4x, 5x, bilinear 3x, 4x, 5x): the
+    /// first card's name has two agreeing readings against one of each rival, so it settles (characters-reading T24).
+    #[test]
+    fn the_real_selection_screen_reads_both_cards_from_six_readings() {
+        let sets: [(ScreenRegion, &[&str]); 8] = [
+            (ScreenRegion::CreateNew, &["CREATE NEW"; 6]),
+            (
+                ScreenRegion::CardTitle(0),
+                &[
+                    "m ATRIARCH",
+                    "m ATRIARCH",
+                    "TRIARCH",
+                    "m A TRIARCH",
+                    "m ATRIA RCH",
+                    "TRIARCH",
+                ],
+            ),
+            (
+                ScreenRegion::CardName(0),
+                &["VI-JK VUKA", "i vuKVUKA", "", "", "", "VUKVUKA"],
+            ),
+            (
+                ScreenRegion::CardLevel(0),
+                &[
+                    "LEWEL 88 Sa RCERESS",
+                    "LEVEL 88 SBRCERESS",
+                    "LEVEL 88 SBRCERESS",
+                    "LEVEL 88 SeRCERESS",
+                    "LEVEL 88 SBRCERESS",
+                    "LEVEL 88 SBRCERESS",
+                ],
+            ),
+            (ScreenRegion::CardTitle(1), &[""; 6]),
+            (
+                ScreenRegion::CardName(1),
+                &[
+                    "VUKA DAO", "VUKA DAO", "VUKA DAO", "VUKA DAO", "VUKADAO", "VUKA DAO",
+                ],
+            ),
+            (
+                ScreenRegion::CardLevel(1),
+                &[
+                    "LEWEL II SBRCERESS",
+                    "LEVEL II SBRCERESS",
+                    "LEVEL II SBRCERESS",
+                    "LEVEL II SGRCERESS",
+                    "LEVEL II SeRCERESS",
+                    "LEVEL II SBRCERESS",
+                ],
+            ),
+            (ScreenRegion::Life, &[""; 6]),
+        ];
+        let reading = read_variants(&sets, &[]);
+        assert_eq!(reading.screen, Screen::CharacterSelect);
+        assert_eq!(
+            card_strings(&reading),
+            [
+                "VUKVUKA Sorceress 88 Some(Matriarch)",
+                "VUKADAO Sorceress 11 None"
+            ]
+        );
+    }
+
+    /// The same run's popup screenshot, six readings per region.
+    #[test]
+    fn the_real_popup_screen_reads_both_cards_from_six_readings() {
+        let sets: [(ScreenRegion, &[&str]); 12] = [
+            (ScreenRegion::CreateNew, &["CREATE NEW"; 6]),
+            (
+                ScreenRegion::SelectDifficulty,
+                &[
+                    "S CT D TY",
+                    "S c T CULT Y",
+                    "S c T CULT Y",
+                    "S CT D CULT Y",
+                    "S CT D CU LTY",
+                    "S CT DIFFI CULT Y",
+                ],
+            ),
+            (
+                ScreenRegion::PopupNormal,
+                &[
+                    "NeRtTIAL", "NeRfTIAL", "NeR(TlAL", "NeRrTIAL", "NeRrnAL", "NeRrTIAL",
+                ],
+            ),
+            (
+                ScreenRegion::PopupNightmare,
+                &[
+                    "NIGHTmARE",
+                    "N IGHTrnARE",
+                    "N HTrnARE",
+                    "N HTTTIARE",
+                    "NIG",
+                    "N HTTTIARE",
+                ],
+            ),
+            (ScreenRegion::PopupHell, &["HELL"; 6]),
+            (
+                ScreenRegion::CardTitle(0),
+                &[
+                    "m ATRIA RCH",
+                    "",
+                    "[TIA TRIARCH",
+                    "m ATRIA RCH",
+                    "m ATRIA RCH",
+                    "m A TRIARCH",
+                ],
+            ),
+            (
+                ScreenRegion::CardName(0),
+                &[
+                    "U K VUKA",
+                    "VUKVUKA",
+                    "ID vuKVUKA",
+                    "VI-JK VUKA",
+                    "VUKVUKA",
+                    "I VUKVUKA",
+                ],
+            ),
+            (
+                ScreenRegion::CardLevel(0),
+                &[
+                    "LEVEL 8B RCERESS",
+                    "LEVEL 88 S*acEREss",
+                    "LEVEL 88 S*acEREss",
+                    "LEVEL 88 SBRCERESS",
+                    "LEVEL 88 SBRCERESS",
+                    "LEVEL 88 SBRCERESS",
+                ],
+            ),
+            (ScreenRegion::CardTitle(1), &[""; 6]),
+            (
+                ScreenRegion::CardName(1),
+                &[
+                    "I VUKA DAO",
+                    "VUKA DAO",
+                    "U KA DAO",
+                    "V I.J KA D A",
+                    "VUKA DAO",
+                    "VUKA DAO",
+                ],
+            ),
+            (
+                ScreenRegion::CardLevel(1),
+                &[
+                    "LEVEL II S*RCERESS",
+                    "LEVEL II S*RCERESS",
+                    "LEVEL II S*RCERESS",
+                    "LEVEL II SBRCERESS",
+                    "LEVEL II SBRCERESS",
+                    "LEVEL II SBRCERESS",
+                ],
+            ),
+            (ScreenRegion::Life, &[""; 6]),
+        ];
+        let reading = read_variants(&sets, &[0]);
+        assert_eq!(reading.screen, Screen::CharacterSelect);
+        assert_eq!(
+            card_strings(&reading),
+            [
+                "VUKVUKA Sorceress 88 Some(Matriarch)",
+                "VUKADAO Sorceress 11 None"
+            ]
+        );
+        assert_eq!(
+            reading.cards[0].unlocked_difficulties(),
+            vec![Normal, Nightmare, Hell]
+        );
+    }
+
+    #[test]
+    fn a_name_needs_two_agreeing_readings_that_outnumber_every_rival() {
+        let names = |reads: &[&str]| {
+            super::read_name_readings(&reads.iter().map(|r| (*r).to_string()).collect::<Vec<_>>())
+        };
+        assert_eq!(names(&["VUKVUKA"]), Some("VUKVUKA".to_string()));
+        assert_eq!(
+            names(&["VUKVUKA", "", "vukvuka", "VUKADAO"]),
+            Some("VUKVUKA".to_string()),
+            "two agree, one rival"
+        );
+        assert_eq!(
+            names(&["VUKVUKA", "VUKVUKA", "VUKADAO", "VUKADAO"]),
+            None,
+            "two against two"
+        );
+        assert_eq!(
+            names(&["VUKVUKA", "", "", "VUKADAO"]),
+            None,
+            "one against one"
+        );
+        assert_eq!(
+            names(&["VUKVUKA", "", "", ""]),
+            None,
+            "a lone reading among several is not an agreement"
         );
     }
 
