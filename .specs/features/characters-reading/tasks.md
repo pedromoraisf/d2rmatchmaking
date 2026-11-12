@@ -109,3 +109,22 @@ combine several readings.
 - [x] T22 — Names are compared case-insensitively (the game draws names in small caps): `glyph_key`/`reconcile_names`
       and `ocr_check`'s expectation; recorded in `phases/F1/decisions.md → To confirm` — same gate
 - [ ] T23 — Real proof: push and read the PR's `ocr-real` job ("0 of 5 files FAIL") and the `agent` job
+
+## Batch 6 — agreement across more readings and drawn fixtures in the game's lettering (`ocr-real` run 43213637656, 2026-11-12)
+
+The real screenshots read 4 of 5: the selection screen's first name reads "VI-JK VUKA" and "i vuKVUKA" in the four
+readings, a one-to-one tie that is refused; the 5x readings read "VUKVUKA" again. The drawn fixtures read empty
+levels and popup labels because their lettering is not the game's.
+
+- [ ] T24 — Six readings per region (nearest and bilinear at 3x, 4x, 5x). A character name settles only when at least
+      two readings agree and outnumber every rival reading (a single-reading reader keeps its reading); the
+      single-distinct-name fallback goes. Unit tests with the exact reads of `maintainer-select-screen.png` and
+      `maintainer-select-difficulty.png` (both cards), and a tie that stays unknown —
+      gate: `cargo nextest run` and `cargo clippy --all-targets -- -D warnings`
+- [ ] T25 — The drawn fixtures imitate the game's lettering: upper-case small caps, bold, sizes and inks close to the
+      real screenshots ("LEVEL 88 SORCERESS", "MATRIARCH", "SELECT DIFFICULTY", "NORMAL" / "NIGHTMARE" / "HELL", the
+      Life label, the automap's area difficulty); regenerated with the xtask; every expectation unchanged — same gate,
+      plus `node scripts/check-images.mjs`
+- [ ] T26 — `phases/F1/decisions.md → To confirm`: names compared without case (T22) and the agreement rule (T24) —
+      gate: `pnpm specs:check` and `pnpm format:check`
+- [ ] T27 — Real proof: the PR's `ocr-real` job prints "0 of 5 files FAIL" and the `agent` job is green
