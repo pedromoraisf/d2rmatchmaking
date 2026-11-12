@@ -163,4 +163,10 @@ helper lesson).
 
 ## Approval
 
-<!-- **Approved**: <date> - user: "<maintainer's words>" -->
+**Approved**: 2026-11-12 - user: "aprovo tudo, porém, vai funcionar assim: a gente segue com o merge da f1 agora, faz o
+teste do J1 em produção. vamos encarar isso como um incidente grave. não vamos gerar postmortem, mas com o 12 factor app,
+nunca mais isso vai acontecer. essa pipeline do agent é desenvolvida nos primeiros momentos da fase 2"
+
+Conditions of the approval: real J1 runs on production after the merge, with the released F1 agent, and is treated as
+a severe incident if it fails (no postmortem; ADR 032 is the prevention). The production Battle.net sign-in repeats
+once after the deploy. The agent's per-branch pipeline (preview channels) is the first work of F2.
