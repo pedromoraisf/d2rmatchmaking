@@ -36,6 +36,10 @@ describe('displayNameOf', () => {
   it('is the whole value when there is no number to cut', () => {
     expect(displayNameOf('NoNumber')).toBe('NoNumber');
   });
+
+  it('is empty when the BattleTag starts at its number', () => {
+    expect(displayNameOf('#1234')).toBe('');
+  });
 });
 
 describe('newBattleNetAccount', () => {
