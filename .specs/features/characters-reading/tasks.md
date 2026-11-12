@@ -77,3 +77,11 @@ regions read nothing (the tool printed no raw text for them).
       production reader only); one shared panel-open rule (`LanguagePack::party_panel_open`, the title or 3+ letters of
       it) for the agent and the tool —
       gate: `cd apps/agent/src-tauri && cargo build --example ocr-check && cargo nextest run && cargo clippy --all-targets -- -D warnings` and `pnpm test:harness` (win-check by CI's Windows clippy)
+- [x] T15 — Encryption sensor `scripts/check-encrypted-zip.mjs` (+ Lefthook `ocr-lab`, harness test): only an AES-256 encrypted zip and a README under `apps/agent/ocr-lab/` —
+      gate: `pnpm test:harness`
+- [x] T16 — Workflow `.github/workflows/ocr-real.yml` (Windows, same-repo PRs only, secret on the extract step only, cleanup always) + static harness test —
+      gate: `pnpm test:harness`
+- [x] T17 — Docs: `apps/agent/ocr-lab/README.md`, `apps/agent/README.md` (CI path first), `decisions.md` row —
+      gate: `pnpm format:check && pnpm specs:check`
+- [ ] T18 — With `real-prints.zip` in place, push and report the `ocr-real` job's full output (evidence for the next fix round) —
+      gate: PR #50's `ocr-real` job ran

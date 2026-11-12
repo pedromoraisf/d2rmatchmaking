@@ -23,7 +23,15 @@ exactly:
 - `maintainer-select-screen.png`: the character selection screen
 - `maintainer-select-difficulty.png`: the selection screen with the difficulty popup open
 
-### Without installing anything (recommended)
+### In CI (recommended)
+
+The five screenshots live in the repository as one AES-256 encrypted zip, `apps/agent/ocr-lab/real-prints.zip`
+(`apps/agent/ocr-lab/README.md`: the exception, its limits, how to replace it). On every pull request that changes the
+agent, the `ocr-real` workflow opens it on a Windows runner with the repository secret `OCR_PRINTS_PASSWORD`, runs
+`ocr-check.exe` on it and deletes the extracted files. Read its log in the pull request's checks: PASS or FAIL per file,
+the diagnostics for every region, and the job's status is the tool's exit code. Fork pull requests do not run it.
+
+### Without installing anything
 
 The Windows CI build of the agent makes a standalone `ocr-check.exe` (statically linked, no Node, Rust or build tools).
 
