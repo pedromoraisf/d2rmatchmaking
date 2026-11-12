@@ -44,6 +44,11 @@ being true.
   in that branch's history (the maintainer chose to keep the record). Real screenshots are read from a local path by an
   `xtask` command; fixtures are drawn. `scripts/check-images.mjs` now refuses captures at commit time and in CI.
 
+- **When `docker pull` (or a Testcontainers start) hangs with no output, look for a stuck `docker-credential-desktop
+get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding {}> docker pull postgres:17-alpine`,
+  same for `testcontainers/ryuk`) and run the suite with the same `DOCKER_CONFIG`; never touch `~/.docker`. Why: on
+  2026-11-12 the room-view fix waited more than 10 minutes twice on the macOS credential helper before any test ran.
+
 ## Tests
 
 - **No tight wall-clock limits in unit tests.** The maintainer's machine has 8 GB and runs the suites in parallel; a test
