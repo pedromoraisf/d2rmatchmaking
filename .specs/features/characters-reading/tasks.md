@@ -143,7 +143,7 @@ prints what the real screenshots show into the public Actions log.
 - [x] T29 — A level read with a confusable letter outside the map, or that maps out of 1..=99, stays unknown; unit
       tests ("S0" maps to 50 only as documented, "X8", "0", "100", "8 8") and the digit map listed in the PR
       description — same gate
-- [ ] T30 — `.github/workflows/ocr-real.yml` pins `actions/checkout` to a commit SHA like the other actions —
+- [x] T30 — `.github/workflows/ocr-real.yml` pins `actions/checkout` to a commit SHA like the other actions —
       gate: `pnpm test:harness`
 - [ ] T31 — `phases/F1/decisions.md → Blocked`: the Windows OCR on the drawn fixtures — gate: `pnpm specs:check`,
       `pnpm format:check`
