@@ -56,7 +56,7 @@ preview service match (#57).
      which is the phase-PR use). Update `preview.mjs` (site origin), `preview-api.yml`, `deploy-web.yml`'s bake, the
      tests and ADR 030's consequences; the maintainer then adds that redirect URL at Blizzard.
   2. Add `BNET_CLIENT_ID` and `BNET_CLIENT_SECRET` with `sync: false` to `render.yaml` (names only, no values).
-  Keep the keys in Render for now; centralising them in GitHub secrets waits for a real production environment.
+     Keep the keys in Render for now; centralising them in GitHub secrets waits for a real production environment.
 
 ### `feat/F0-parallel-cloud-spike`
 
