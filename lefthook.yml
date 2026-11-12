@@ -31,6 +31,11 @@ pre-commit:
       # No game screenshot is ever committed (AGENTS.md "Never do"); CI proves the same in the harness tests.
       glob: '*.{png,jpg,jpeg,webp,gif,bmp,tif,tiff,avif,heic,PNG,JPG,JPEG,WEBP}'
       run: node scripts/check-images.mjs {staged_files}
+    ocr-lab:
+      # The one exception: an AES-256 encrypted zip of real screenshots (scripts/check-encrypted-zip.mjs); CI proves the
+      # same in the harness tests.
+      glob: 'apps/agent/ocr-lab/**'
+      run: node scripts/check-encrypted-zip.mjs {staged_files}
 
 commit-msg:
   commands:
