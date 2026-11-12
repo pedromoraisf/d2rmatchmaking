@@ -336,20 +336,22 @@ impl Card {
     }
 }
 
-/// The key a name is compared by when the screen's glyphs are ambiguous: `I`, `l` and `1` are one glyph, and `0` and `o`
-/// are one (CHR-10). Every other letter is compared as it is.
+/// The key a name is compared by when the screen's glyphs are ambiguous: case is not observable (the game draws names in
+/// small caps), `I`, `i`, `l` and `1` are one glyph, and `0` and `o` are one (CHR-10). Every other letter is compared as it
+/// is, in lower case.
 pub fn glyph_key(name: &str) -> String {
     name.chars()
+        .flat_map(char::to_lowercase)
         .map(|character| match character {
-            'I' | 'l' | '1' => 'l',
+            'i' | 'l' | '1' => 'l',
             '0' | 'o' => 'o',
             other => other,
         })
         .collect()
 }
 
-/// The cards with the spelling the account already has: a read name that equals a posted name once the ambiguous glyphs
-/// are folded (`glyph_key`) keeps the posted spelling, since the screen misread the glyph and the account has the name.
+/// The cards with the spelling the account already has: a read name that equals a posted name once case and the ambiguous
+/// glyphs are folded (`glyph_key`) keeps the posted spelling, since the screen misread the glyph and the account has the name.
 /// Every other card, and every field of the cards, is kept as read.
 pub fn reconcile_names(cards: Vec<Card>, posted: &[Card]) -> Vec<Card> {
     cards
@@ -630,7 +632,7 @@ mod tests {
 
     #[test]
     fn a_read_name_with_no_posted_twin_is_kept_as_read() {
-        let read = vec![named("Lllusion")];
+        let read = vec![named("Illusiox")];
         assert_eq!(reconcile_names(read.clone(), &[named("Illusion")]), read);
         assert_eq!(reconcile_names(read.clone(), &[]), read);
     }
@@ -653,5 +655,21 @@ mod tests {
         assert_eq!(reconciled[0].name(), "Illusion");
         assert_eq!(reconciled[0].level(), 40);
         assert_eq!(reconciled[0].title(), Some(Title::Lord));
+    }
+
+    #[test]
+    fn names_are_compared_without_case() {
+        assert_eq!(glyph_key("VUKVUKA"), glyph_key("vukVuka"));
+        assert_eq!(glyph_key("Illusion"), glyph_key("ILLUSION"));
+        assert_ne!(glyph_key("VUKVUKA"), glyph_key("VUKAVUK"));
+    }
+
+    #[test]
+    fn a_read_name_that_differs_only_in_case_keeps_the_posted_spelling() {
+        let posted = vec![named("vukVuka"), named("vukaDao")];
+        let read = vec![named("VUKVUKA"), named("VUKADAO")];
+        let reconciled = reconcile_names(read, &posted);
+        let names: Vec<&str> = reconciled.iter().map(Card::name).collect();
+        assert_eq!(names, ["vukVuka", "vukaDao"]);
     }
 }

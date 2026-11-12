@@ -106,6 +106,6 @@ combine several readings.
       matches exactly, Masked if any is the mask; names, class/level and titles by majority of agreeing variants (a
       single-reading reader keeps its reading); the difficulty popup is recognised by 2 of 3 difficulty labels —
       same gate
-- [ ] T22 — Names are compared case-insensitively (the game draws names in small caps): `glyph_key`/`reconcile_names`
+- [x] T22 — Names are compared case-insensitively (the game draws names in small caps): `glyph_key`/`reconcile_names`
       and `ocr_check`'s expectation; recorded in `phases/F1/decisions.md → To confirm` — same gate
 - [ ] T23 — Real proof: push and read the PR's `ocr-real` job ("0 of 5 files FAIL") and the `agent` job
