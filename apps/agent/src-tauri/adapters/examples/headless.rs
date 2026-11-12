@@ -2,13 +2,17 @@
 //! and the agent's span exporter, with an in-memory token store, a process source that reports the game open and a text
 //! reader that returns the sidecar `<png>.txt` (Linux has no OCR). It is built only with the `fixture-read` feature.
 //!
-//! Arguments: `--api-base <url>` (loopback HTTP allowed) and `--read-fixture <png>`. Output: one JSON object per line with
-//! the event `code`, `paired`, `assignment` or `observed`. Input: each `read` line calls `Handle::read_once` once for the
-//! room the agent holds. The composition runs in `run`, over injected input and output; `main` wraps it over stdin and
-//! stdout. The server trusts the token and nothing else (ADR 010): this process only sends data.
+//! Arguments: `--api-base <url>` (loopback HTTP allowed), `--read-fixture <png>` or `--party-fixture <png>` (the first frame
+//! the agent captures), and `--consent` (the player has given capture consent, CHR-01). Output: one JSON object per line with
+//! the event `code`, `paired`, `assignment`, `observed`, `reveal` or `assignment`. Input, one command per line: `read` calls
+//! `Handle::read_once` once for the room the agent holds; `show <png>` makes the agent capture that picture from now on, with
+//! its sidecar `<png>.json` as the text of its regions (CHR-04, CHR-06, CHR-18); `consent on|off` gives or withdraws the
+//! player's consent in the agent's window (CHR-01). The composition runs in `run`, over injected input and output; `main`
+//! wraps it over stdin and stdout. The server trusts the token and nothing else (ADR 010): this process only sends data.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use chrono::{DateTime, Utc};
@@ -19,7 +23,7 @@ use d2rmm_agent_adapters::http::gateway::HttpGateway;
 use d2rmm_agent_adapters::telemetry::relay_client::HeaderSource;
 use d2rmm_agent_adapters::telemetry::{self, ExportConfig, Mode, TelemetryGuard};
 use d2rmm_agent_core::config::Config;
-use d2rmm_agent_core::fakes::{MemoryTokens, NoConsent, NoFrameReader, NoFrames, NoUpdates};
+use d2rmm_agent_core::fakes::{MemoryTokens, NoConsent, NoFrames, NoUpdates};
 use d2rmm_agent_core::groups::{
     Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
 };
@@ -29,9 +33,13 @@ use d2rmm_agent_core::ports::{
     SequentialIds, StateSink, StoreError, TextReader, TokenStore, WallClock,
 };
 use d2rmm_agent_core::runtime::{Handle, Runtime};
+use d2rmm_agent_core::screen_reader::ScreenReader;
 use d2rmm_agent_core::secret::Secret;
 use d2rmm_agent_core::view::{AgentView, PairingView, RoomView};
-use d2rmm_agent_domain::layout::{PanelRegion, panel_region};
+use d2rmm_agent_domain::language::LanguagePack;
+use d2rmm_agent_domain::layout::{
+    PanelRegion, ScreenRegion, panel_region, screen_region, screen_text_regions,
+};
 use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::{ReadText, Region};
 use serde_json::{Value, json};
@@ -209,60 +217,120 @@ impl TextReader for Sidecar {
 /// event, so the acceptance steps read what the player would be told.
 const REVEAL_TEXT: &str = "Open the Party panel (P) and click the eye to show the game name.";
 
-/// The text of each Party panel region of a fixture, read from its sidecar (`<png>.json`: `partyTitle`, `gameNameLabel` and
-/// `gameNameField`). The sidecar is read again on every call, so the acceptance steps change the panel while the agent runs.
-struct PanelSidecar(PathBuf);
+/// The frame the agent captures and the sidecar (`<png>.json`) its text comes from. `show <png>` and the first fixture replace
+/// both; `None` until a frame is shown, so a capture before then is no capture (the game window is not there).
+pub struct Shot {
+    frame: Rgba,
+    sidecar: PathBuf,
+}
 
-impl TextReader for PanelSidecar {
+/// The shown frame, shared by the capture, the text reader and the input loop of one run.
+type SharedShot = std::sync::Arc<Mutex<Option<Shot>>>;
+
+/// The key of the sidecar that holds the text of `region` in `image`: a Party panel region (`partyTitle`, `gameNameLabel`,
+/// `gameNameField`, AGN-02) or a character screen region (`cardName3`, `createNew`…, CHR-06). `None` for any other region.
+pub fn region_key(image: &Rgba, region: Region) -> Option<String> {
+    let panel = [
+        (PanelRegion::PartyTitle, "partyTitle"),
+        (PanelRegion::GameNameLabel, "gameNameLabel"),
+        (PanelRegion::GameNameField, "gameNameField"),
+    ]
+    .into_iter()
+    .find(|(panel, _)| panel_region(*panel, image.width, image.height) == Some(region))
+    .map(|(_, key)| key.to_string());
+    panel.or_else(|| {
+        screen_text_regions()
+            .into_iter()
+            .find(|screen| screen_region(*screen, image.width, image.height) == Some(region))
+            .map(ScreenRegion::key)
+    })
+}
+
+/// The text of `region` in the sidecar of a shown frame, or `None` when the sidecar holds no text for it.
+fn sidecar_text(sidecar: &Path, image: &Rgba, region: Region) -> Option<String> {
+    let key = region_key(image, region)?;
+    let text = std::fs::read_to_string(sidecar).ok()?;
+    let value: Value = serde_json::from_str(&text).ok()?;
+    value.get(key).and_then(Value::as_str).map(str::to_string)
+}
+
+/// The text of each region of the shown frame, read from its sidecar. The sidecar is read again on every call, so the
+/// acceptance steps change what the game shows while the agent runs.
+struct ShownText(SharedShot);
+
+impl TextReader for ShownText {
     fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
-        let text = std::fs::read_to_string(&self.0).map_err(|_| ReadError::Failed)?;
-        let value: Value = serde_json::from_str(&text).map_err(|_| ReadError::Failed)?;
-        let key = [
-            (PanelRegion::PartyTitle, "partyTitle"),
-            (PanelRegion::GameNameLabel, "gameNameLabel"),
-            (PanelRegion::GameNameField, "gameNameField"),
-        ]
-        .into_iter()
-        .find(|(panel, _)| panel_region(*panel, image.width, image.height) == Some(region))
-        .map(|(_, key)| key)
-        .ok_or(ReadError::Failed)?;
-        let read = value
-            .get(key)
-            .and_then(Value::as_str)
-            .ok_or(ReadError::Failed)?;
+        let sidecar = {
+            let shown = self.0.lock().map_err(|_| ReadError::Failed)?;
+            shown
+                .as_ref()
+                .map(|shot| shot.sidecar.clone())
+                .ok_or(ReadError::Failed)?
+        };
+        let text = sidecar_text(&sidecar, image, region).ok_or(ReadError::Failed)?;
         Ok(ReadText {
-            text: read.to_string(),
+            text,
             confidence: 1.0,
         })
     }
 }
 
-/// The frame of a Party fixture: the same picture on every capture (the panel text comes from the sidecar).
-struct FixtureFrame(Rgba);
+/// The frame the example captures: the shown picture, or none before the first `show` (the game window is not there).
+struct ShownFrame(SharedShot);
 
-impl FrameSource for FixtureFrame {
+impl FrameSource for ShownFrame {
     fn capture(&self) -> Option<Rgba> {
-        Some(self.0.clone())
+        let shown = self.0.lock().ok()?;
+        shown.as_ref().map(|shot| shot.frame.clone())
     }
 }
 
-/// The player consented to capture: the Party fixture is the game window the consent covers (CHR-01).
-struct AlwaysConsent;
+/// The player's capture consent, switched by the `consent on|off` lines (CHR-01, CHR-02): nothing is captured without it.
+struct SwitchConsent(std::sync::Arc<AtomicBool>);
 
-impl ConsentStore for AlwaysConsent {
+impl ConsentStore for SwitchConsent {
     fn load(&self) -> bool {
-        true
+        self.0.load(Ordering::SeqCst)
     }
 
-    fn save(&self, _consent: bool) -> Result<(), StoreError> {
+    fn save(&self, consent: bool) -> Result<(), StoreError> {
+        self.0.store(consent, Ordering::SeqCst);
         Ok(())
     }
 }
 
-/// What the example reads: the F0 fixture (`read` lines, one sidecar text), or a Party fixture the screen loop reads.
+/// What the example reads: the F0 fixture (`read` lines, one sidecar text), or the shown frames the screen loop reads.
 enum ScreenMode {
     Read(String),
-    Party { frame: Rgba, sidecar: PathBuf },
+    Screens {
+        shared: SharedShot,
+        consent: std::sync::Arc<AtomicBool>,
+    },
+}
+
+/// One line of the example's input (module docs). Any other line is `Other` and changes nothing.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Command {
+    Read,
+    Show(PathBuf),
+    Consent(bool),
+    Other,
+}
+
+/// Reads one input line as a command.
+pub fn parse_command(line: &str) -> Command {
+    let line = line.trim();
+    if line == "read" {
+        return Command::Read;
+    }
+    if let Some(path) = line.strip_prefix("show ") {
+        return Command::Show(PathBuf::from(path.trim()));
+    }
+    match line {
+        "consent on" => Command::Consent(true),
+        "consent off" => Command::Consent(false),
+        _ => Command::Other,
+    }
 }
 
 /// The agent's token and version for each relay request, read from the store (AD-101).
@@ -288,6 +356,8 @@ struct Arguments {
     /// The version the example declares in `X-Agent-Version`. The API refuses an agent below its minimum (426), so a
     /// stack with a minimum above the crate version needs the version to be declared (`--agent-version`).
     agent_version: String,
+    /// The player has given capture consent before the run starts (`--consent`, CHR-01).
+    consent: bool,
 }
 
 fn parse_arguments(args: &[String]) -> Result<Arguments, String> {
@@ -295,8 +365,13 @@ fn parse_arguments(args: &[String]) -> Result<Arguments, String> {
     let mut fixture = None;
     let mut party = false;
     let mut agent_version = None;
+    let mut consent = false;
     let mut rest = args.iter();
     while let Some(flag) = rest.next() {
+        if flag == "--consent" {
+            consent = true;
+            continue;
+        }
         let value = rest.next().ok_or_else(|| format!("{flag} needs a value"))?;
         match flag.as_str() {
             "--api-base" => api_base = Some(value.clone()),
@@ -314,6 +389,7 @@ fn parse_arguments(args: &[String]) -> Result<Arguments, String> {
         fixture: fixture.ok_or("--read-fixture or --party-fixture is required")?,
         party,
         agent_version: agent_version.unwrap_or_else(|| VERSION.to_string()),
+        consent,
     })
 }
 
@@ -351,8 +427,9 @@ fn start(
     events: UnboundedSender<Value>,
 ) -> Result<(Handle<Reporting>, TelemetryGuard), String> {
     let base = api_base.url().as_str().trim_end_matches('/').to_string();
-    // The F0 read path reads the sidecar text; the Party path reads the panel's regions from its sidecar and captures the
-    // fixture frame with consent, so the screen loop runs as it does for the game window.
+    // The F0 read path reads the sidecar text. The screen mode captures the shown frames with the player's consent and reads
+    // their regions from the sidecars, so the screen loop (the Party panel, the character screens) runs as it does for the
+    // game window.
     type TextPort = std::sync::Arc<dyn TextReader + Send + Sync>;
     type FramePort = std::sync::Arc<dyn FrameSource + Send + Sync>;
     type ConsentPort = std::sync::Arc<dyn ConsentStore + Send + Sync>;
@@ -363,13 +440,18 @@ fn start(
             std::sync::Arc::new(NoConsent),
             std::sync::Arc::new(Sidecar(String::new())),
         ),
-        ScreenMode::Party { frame, sidecar } => (
-            std::sync::Arc::new(PanelSidecar(sidecar.clone())),
-            std::sync::Arc::new(FixtureFrame(frame)),
-            std::sync::Arc::new(AlwaysConsent),
-            std::sync::Arc::new(PanelSidecar(sidecar)),
+        ScreenMode::Screens { shared, consent } => (
+            std::sync::Arc::new(ShownText(std::sync::Arc::clone(&shared))),
+            std::sync::Arc::new(ShownFrame(std::sync::Arc::clone(&shared))),
+            std::sync::Arc::new(SwitchConsent(consent)),
+            std::sync::Arc::new(ShownText(shared)),
         ),
     };
+    let screen_reader: std::sync::Arc<dyn d2rmm_agent_core::ports::FrameReader + Send + Sync> =
+        std::sync::Arc::new(ScreenReader::new(
+            std::sync::Arc::clone(&panel),
+            std::sync::Arc::new(LanguagePack::english()),
+        ));
     let tokens: std::sync::Arc<dyn TokenStore + Send + Sync> =
         std::sync::Arc::new(MemoryTokens::default());
     let export = ExportConfig {
@@ -430,7 +512,7 @@ fn start(
             tokens,
             processes: std::sync::Arc::new(GameOpen),
             frames,
-            reader: std::sync::Arc::new(NoFrameReader),
+            reader: screen_reader,
             consent,
         },
     };
@@ -465,10 +547,19 @@ where
     let api_base = ApiBase::parse(&arguments.api_base, AllowLoopbackHttp::Yes)
         .map_err(|error| failure(1, error.to_string()))?;
     let frame = decode_png(&arguments.fixture).map_err(|message| failure(1, message))?;
+    let shared: SharedShot = std::sync::Arc::new(Mutex::new(None));
+    let consent = std::sync::Arc::new(AtomicBool::new(arguments.consent));
     let mode = if arguments.party {
-        ScreenMode::Party {
+        // The first frame is the fixture picture, shown from the start; `show <png>` replaces it.
+        *shared
+            .lock()
+            .map_err(|_| failure(1, "the shown frame is poisoned"))? = Some(Shot {
             frame: frame.clone(),
             sidecar: party_sidecar_path(&arguments.fixture),
+        });
+        ScreenMode::Screens {
+            shared: std::sync::Arc::clone(&shared),
+            consent: std::sync::Arc::clone(&consent),
         }
     } else {
         let sidecar = std::fs::read_to_string(sidecar_path(&arguments.fixture))
@@ -489,8 +580,21 @@ where
         .await
         .map_err(|error| failure(1, error.to_string()))?
     {
-        if line.trim() == "read" {
-            handle.read_once(frame.clone());
+        match parse_command(&line) {
+            Command::Read => handle.read_once(frame.clone()),
+            Command::Show(path) => match decode_png(&path) {
+                Ok(shown) => {
+                    if let Ok(mut slot) = shared.lock() {
+                        *slot = Some(Shot {
+                            frame: shown,
+                            sidecar: party_sidecar_path(&path),
+                        });
+                    }
+                }
+                Err(message) => eprintln!("{message}"),
+            },
+            Command::Consent(given) => consent.store(given, Ordering::SeqCst),
+            Command::Other => {}
         }
         // The agent's accept hotkey (RDY-07): the same accept path the Tauri global shortcut takes.
         if line.trim() == "hotkey" {
@@ -712,5 +816,75 @@ mod tests {
             "one read posts one observation"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The input lines of the example: `read`, `show <png>`, `consent on|off`; any other line changes nothing.
+    #[test]
+    fn the_input_lines_are_commands() {
+        use super::{Command, parse_command};
+        use std::path::PathBuf;
+
+        assert_eq!(parse_command("read"), Command::Read);
+        assert_eq!(
+            parse_command("show /tmp/select-titles.png"),
+            Command::Show(PathBuf::from("/tmp/select-titles.png"))
+        );
+        assert_eq!(parse_command("consent on"), Command::Consent(true));
+        assert_eq!(parse_command("consent off"), Command::Consent(false));
+        assert_eq!(parse_command("consent maybe"), Command::Other);
+        assert_eq!(parse_command(""), Command::Other);
+    }
+
+    /// The sidecar key of a region is the key of the Party panel or of the character screen that owns it (AGN-02, CHR-06).
+    #[test]
+    fn a_region_names_its_sidecar_key() {
+        use super::region_key;
+        use d2rmm_agent_core::ports::Rgba;
+        use d2rmm_agent_domain::layout::{PanelRegion, ScreenRegion, panel_region, screen_region};
+
+        let frame = Rgba {
+            width: 1920,
+            height: 1080,
+            pixels: Vec::new(),
+        };
+        let field = panel_region(PanelRegion::GameNameField, 1920, 1080).expect("the panel");
+        assert_eq!(region_key(&frame, field).as_deref(), Some("gameNameField"));
+        let name = screen_region(ScreenRegion::CardName(3), 1920, 1080).expect("the card");
+        assert_eq!(region_key(&frame, name).as_deref(), Some("cardName3"));
+        let unknown = d2rmm_agent_domain::vision::Region {
+            x: 0,
+            y: 0,
+            width: 10,
+            height: 10,
+        };
+        assert_eq!(
+            region_key(&frame, unknown),
+            None,
+            "no region of the screens"
+        );
+    }
+
+    /// `--consent` gives the player's consent before the run; without it the example reads nothing.
+    #[test]
+    fn consent_is_a_flag_that_takes_no_value() {
+        use super::parse_arguments;
+
+        let base = [
+            "--api-base",
+            "http://127.0.0.1:1",
+            "--party-fixture",
+            "frame.png",
+        ]
+        .map(str::to_string);
+        assert!(
+            !parse_arguments(&base).expect("parses").consent,
+            "no flag, no consent"
+        );
+        let mut given = base.to_vec();
+        given.push("--consent".to_string());
+        assert!(
+            parse_arguments(&given).expect("parses").consent,
+            "the flag gives consent"
+        );
     }
 }

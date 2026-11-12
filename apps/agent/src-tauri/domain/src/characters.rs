@@ -24,6 +24,20 @@ pub enum Class {
     Warlock,
 }
 
+impl Class {
+    /// Every class, in the order of the glossary.
+    pub const ALL: [Class; 8] = [
+        Class::Amazon,
+        Class::Assassin,
+        Class::Barbarian,
+        Class::Druid,
+        Class::Necromancer,
+        Class::Paladin,
+        Class::Sorceress,
+        Class::Warlock,
+    ];
+}
+
 /// A difficulty a character may enter (glossary).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Difficulty {
@@ -196,6 +210,8 @@ pub enum CardError {
     LevelOutOfRange,
     #[error("the title belongs to the other mode")]
     TitleOfOtherMode,
+    #[error("the difficulties are not the first one, two or three of Normal, Nightmare and Hell")]
+    NotADifficultyPrefix,
 }
 
 /// A character as the screen shows it, with every field read and every rule met.
@@ -206,6 +222,8 @@ pub struct Card {
     level: u8,
     mode: Mode,
     title: Option<Title>,
+    /// The difficulties the popup showed enabled for this card (CHR-18). They take precedence over the title's.
+    popup: Option<Vec<Difficulty>>,
 }
 
 const NAME_MIN: usize = 2;
@@ -261,7 +279,32 @@ impl Card {
             level,
             mode,
             title,
+            popup: None,
         })
+    }
+
+    /// The card with the difficulties the popup showed enabled (CHR-18). The enabled set must be the first one, two or
+    /// three of Normal, Nightmare and Hell: the contract's three shapes. Any other set is refused and the card keeps the
+    /// difficulties of its title.
+    pub fn with_popup_difficulties(mut self, enabled: &[Difficulty]) -> Result<Card, CardError> {
+        const ORDER: [Difficulty; 3] =
+            [Difficulty::Normal, Difficulty::Nightmare, Difficulty::Hell];
+        let is_prefix =
+            (1..=ORDER.len()).contains(&enabled.len()) && enabled == &ORDER[..enabled.len()];
+        if !is_prefix {
+            return Err(CardError::NotADifficultyPrefix);
+        }
+        self.popup = Some(enabled.to_vec());
+        Ok(self)
+    }
+
+    /// The card under another spelling of its name, every other field kept (CHR-10). The name must meet the name rule.
+    pub fn with_name(mut self, name: &str) -> Result<Card, CardError> {
+        if !is_character_name(name) {
+            return Err(CardError::InvalidName);
+        }
+        self.name = name.to_owned();
+        Ok(self)
     }
 
     pub fn name(&self) -> &str {
@@ -284,16 +327,52 @@ impl Card {
         self.title
     }
 
-    /// The difficulties this card's title unlocks (CHR-07).
+    /// The difficulties this card may enter: the popup's, when it showed some (CHR-18), else the title's (CHR-07).
     pub fn unlocked_difficulties(&self) -> Vec<Difficulty> {
-        unlocked_difficulties(self.title)
+        match &self.popup {
+            Some(enabled) => enabled.clone(),
+            None => unlocked_difficulties(self.title),
+        }
     }
+}
+
+/// The key a name is compared by when the screen's glyphs are ambiguous: case is not observable (the game draws names in
+/// small caps), `I`, `i`, `l` and `1` are one glyph, and `0` and `o` are one (CHR-10). Every other letter is compared as it
+/// is, in lower case.
+pub fn glyph_key(name: &str) -> String {
+    name.chars()
+        .flat_map(char::to_lowercase)
+        .map(|character| match character {
+            'i' | 'l' | '1' => 'l',
+            '0' | 'o' => 'o',
+            other => other,
+        })
+        .collect()
+}
+
+/// The cards with the spelling the account already has: a read name that equals a posted name once case and the ambiguous
+/// glyphs are folded (`glyph_key`) keeps the posted spelling, since the screen misread the glyph and the account has the name.
+/// Every other card, and every field of the cards, is kept as read.
+pub fn reconcile_names(cards: Vec<Card>, posted: &[Card]) -> Vec<Card> {
+    cards
+        .into_iter()
+        .map(|card| {
+            let stored = posted.iter().find(|stored| {
+                stored.name() != card.name() && glyph_key(stored.name()) == glyph_key(card.name())
+            });
+            match stored {
+                Some(stored) => card.clone().with_name(stored.name()).unwrap_or(card),
+                None => card,
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        Card, CardError, Class, Difficulty, Mode, Title, is_character_name, unlocked_difficulties,
+        Card, CardError, Class, Difficulty, Mode, Title, glyph_key, is_character_name,
+        reconcile_names, unlocked_difficulties,
     };
 
     use Difficulty::{Hell, Nightmare, Normal};
@@ -521,5 +600,76 @@ mod tests {
             Err(CardError::TitleOfOtherMode)
         );
         assert!(card("Sorc", 85, Mode::Hardcore, Some(Title::Count)).is_ok());
+    }
+
+    fn named(name: &str) -> Card {
+        card(name, 85, Mode::Softcore, None).expect("the card builds")
+    }
+
+    #[test]
+    fn i_l_and_one_are_one_glyph_and_zero_and_o_are_one() {
+        assert_eq!(glyph_key("Il1"), glyph_key("lIl"));
+        assert_eq!(glyph_key("Il1"), "lll");
+        assert_eq!(glyph_key("00o"), "ooo");
+        assert_ne!(
+            glyph_key("Ilo"),
+            glyph_key("Ilx"),
+            "other letters stay apart"
+        );
+        assert_ne!(glyph_key("Vuka"), glyph_key("Vuke"));
+    }
+
+    #[test]
+    fn a_read_name_that_folds_to_a_posted_name_keeps_the_posted_spelling() {
+        let posted = vec![named("Illusion")];
+        let read = vec![named("lllusion")];
+        let reconciled = reconcile_names(read, &posted);
+        assert_eq!(
+            reconciled, posted,
+            "the stored spelling wins, every field kept"
+        );
+    }
+
+    #[test]
+    fn a_read_name_with_no_posted_twin_is_kept_as_read() {
+        let read = vec![named("Illusiox")];
+        assert_eq!(reconcile_names(read.clone(), &[named("Illusion")]), read);
+        assert_eq!(reconcile_names(read.clone(), &[]), read);
+    }
+
+    #[test]
+    fn a_name_equal_to_a_posted_one_is_not_changed_and_others_are_reconciled_alone() {
+        let posted = vec![named("Illusion"), named("vukVuka")];
+        let read = vec![named("Illusion"), named("vukVuka"), named("vukVukx")];
+        let reconciled = reconcile_names(read, &posted);
+        let names: Vec<&str> = reconciled.iter().map(Card::name).collect();
+        assert_eq!(names, ["Illusion", "vukVuka", "vukVukx"]);
+    }
+
+    #[test]
+    fn the_stored_spelling_keeps_the_card_fields_of_the_reading() {
+        let read =
+            card("lllusion", 40, Mode::Softcore, Some(Title::Lord)).expect("the card builds");
+        let posted = vec![named("Illusion")];
+        let reconciled = reconcile_names(vec![read], &posted);
+        assert_eq!(reconciled[0].name(), "Illusion");
+        assert_eq!(reconciled[0].level(), 40);
+        assert_eq!(reconciled[0].title(), Some(Title::Lord));
+    }
+
+    #[test]
+    fn names_are_compared_without_case() {
+        assert_eq!(glyph_key("VUKVUKA"), glyph_key("vukVuka"));
+        assert_eq!(glyph_key("Illusion"), glyph_key("ILLUSION"));
+        assert_ne!(glyph_key("VUKVUKA"), glyph_key("VUKAVUK"));
+    }
+
+    #[test]
+    fn a_read_name_that_differs_only_in_case_keeps_the_posted_spelling() {
+        let posted = vec![named("vukVuka"), named("vukaDao")];
+        let read = vec![named("VUKVUKA"), named("VUKADAO")];
+        let reconciled = reconcile_names(read, &posted);
+        let names: Vec<&str> = reconciled.iter().map(Card::name).collect();
+        assert_eq!(names, ["vukVuka", "vukaDao"]);
     }
 }

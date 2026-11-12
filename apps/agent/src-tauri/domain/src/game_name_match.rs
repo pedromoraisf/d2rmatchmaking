@@ -32,6 +32,26 @@ pub fn read_field(read: &str, expected: &str) -> FieldRead {
     }
 }
 
+/// Classifies several readings of the field (the OCR variants, characters-reading T21) against the expected game name. The
+/// name is matched when any reading matches exactly after the normalisation above (no edit distance: a wrong name stays
+/// refused); otherwise the field is masked when any reading is the mask, or when every reading is blank; otherwise it shows
+/// another name. No reading at all is a blank field.
+pub fn read_field_variants(reads: &[&str], expected: &str) -> FieldRead {
+    let each: Vec<FieldRead> = reads
+        .iter()
+        .map(|read| read_field(read, expected))
+        .collect();
+    if each.contains(&FieldRead::Matched) {
+        return FieldRead::Matched;
+    }
+    if reads.iter().any(|read| is_masked(read))
+        || each.iter().all(|read| *read == FieldRead::Masked)
+    {
+        return FieldRead::Masked;
+    }
+    FieldRead::Other
+}
+
 /// Whether a reading is the masked value: one or more `x` characters and nothing else, after trimming (AGN-04).
 pub fn is_masked(read: &str) -> bool {
     let trimmed = read.trim();
@@ -74,7 +94,7 @@ fn digits_of(part: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{FieldRead, is_masked, normalise, read_field};
+    use super::{FieldRead, is_masked, normalise, read_field, read_field_variants};
 
     #[test]
     fn the_crowded_glyph_pairs_match_their_expected_names() {
@@ -156,5 +176,95 @@ mod tests {
     fn a_reading_one_character_off_does_not_match() {
         assert_eq!(read_field("mmcowsh-2", "mmcowsh-1"), FieldRead::Other);
         assert_eq!(read_field("mmcowsh-1x", "mmcowsh-1"), FieldRead::Other);
+    }
+
+    /// The maintainer's Windows OCR read "OUEL NK LBCKS" for the room "DUEL NK LOCKS" (2026-11-11). The compare is exact
+    /// after normalisation, so a field with two wrong glyphs is refused; the threshold is not loosened to accept it (a
+    /// wrong game name must stay refused). The upscale before the OCR is what fixes glyph accuracy.
+    #[test]
+    fn a_field_with_two_misread_glyphs_is_refused_at_the_current_threshold() {
+        assert_eq!(
+            read_field("OUEL NK LBCKS", "DUEL NK LOCKS"),
+            FieldRead::Other
+        );
+        assert_eq!(
+            read_field("DUEL NK LOCKS", "DUEL NK LOCKS"),
+            FieldRead::Matched
+        );
+        assert_eq!(
+            read_field("xxxxxxxxx", "DUEL NK LOCKS"),
+            FieldRead::Masked,
+            "the masked value is not a name"
+        );
+    }
+
+    /// The first `ocr-real` run on the maintainer's Party screenshot (2026-11-11): the name is exact in one variant only.
+    #[test]
+    fn the_name_matches_when_any_variant_reads_it_exactly() {
+        let reads = [
+            "OUEL NK LBCKS",
+            "OUEL NK L BCCS",
+            "DUEL NK LOCKS",
+            "DUEL NK LBCKS",
+        ];
+        assert_eq!(
+            read_field_variants(&reads, "DUEL NK LOCKS"),
+            FieldRead::Matched
+        );
+        let wrong = [reads[0], reads[1], reads[3]];
+        assert_eq!(
+            read_field_variants(&wrong, "DUEL NK LOCKS"),
+            FieldRead::Other,
+            "no edit distance: a near name is refused"
+        );
+    }
+
+    #[test]
+    fn the_field_is_masked_when_any_variant_is_the_mask_or_all_are_blank() {
+        let mask = "xxxxxxxxx";
+        assert_eq!(
+            read_field_variants(&[mask, mask, mask, mask], "mmcowsh-1"),
+            FieldRead::Masked
+        );
+        assert_eq!(
+            read_field_variants(&["", mask, "", ""], "mmcowsh-1"),
+            FieldRead::Masked
+        );
+        assert_eq!(
+            read_field_variants(&["", " "], "mmcowsh-1"),
+            FieldRead::Masked
+        );
+        assert_eq!(
+            read_field_variants(&[], "mmcowsh-1"),
+            FieldRead::Masked,
+            "nothing read is a blank field"
+        );
+        assert_eq!(
+            read_field_variants(&["", "mmcowsh-7"], "mmcowsh-1"),
+            FieldRead::Other
+        );
+    }
+
+    #[test]
+    fn a_name_one_letter_off_in_every_variant_is_never_matched() {
+        let reads = [
+            "DUEL NK LOCKX",
+            "DUEL NK LOCKX",
+            "DUEL NK LOCKX",
+            "DUEL NK LOCKX",
+        ];
+        assert_ne!(
+            read_field_variants(&reads, "DUEL NK LOCKS"),
+            FieldRead::Matched
+        );
+        assert_eq!(
+            read_field_variants(&reads, "DUEL NK LOCKS"),
+            FieldRead::Other
+        );
+    }
+
+    #[test]
+    fn a_blank_expected_name_never_matches_in_any_variant() {
+        assert_eq!(read_field_variants(&["abc", "abd"], " "), FieldRead::Other);
     }
 }

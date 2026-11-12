@@ -10,15 +10,17 @@ const folder = path.join('/shots', 'party');
 const everyFileExists = () => true;
 const isFolder = () => true;
 
-test('the check names the three screenshots it reads', () => {
+test('the check names the three Party screenshots and the two character screenshots it reads', () => {
   assert.deepEqual(SCREENSHOTS, [
     'maintainer-party-revealed.png',
     'maintainer-party-revealed-tooltip.png',
     'maintainer-party-masked.png',
+    'maintainer-select-screen.png',
+    'maintainer-select-difficulty.png',
   ]);
 });
 
-test('a folder with the three screenshots has no problem', () => {
+test('a folder with the five screenshots has no problem', () => {
   assert.deepEqual(folderProblems(folder, everyFileExists, isFolder), []);
 });
 
@@ -48,6 +50,8 @@ test('each missing screenshot is named, so the maintainer knows which file to co
   assert.deepEqual(folderProblems(folder, onlyRevealed, isFolder), [
     `maintainer-party-revealed-tooltip.png is missing from ${folder}`,
     `maintainer-party-masked.png is missing from ${folder}`,
+    `maintainer-select-screen.png is missing from ${folder}`,
+    `maintainer-select-difficulty.png is missing from ${folder}`,
   ]);
 });
 

@@ -3,14 +3,8 @@
 #![deny(unsafe_code)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod adapters;
-mod app;
-#[cfg(any(windows, test))]
-mod config;
-#[cfg(any(windows, test))]
-mod fixture_read;
-#[cfg(any(windows, test))]
-mod language_pack;
+#[cfg(windows)]
+use d2rmm_agent::{adapters, app, language_pack};
 
 #[cfg(windows)]
 use std::sync::Arc;
@@ -22,13 +16,13 @@ use d2rmm_agent_core::groups::{
     Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
 };
 #[cfg(windows)]
-use d2rmm_agent_core::messages::{FrameReading, Screen};
-#[cfg(windows)]
 use d2rmm_agent_core::party::PartyPorts;
 #[cfg(windows)]
 use d2rmm_agent_core::ports::{
-    ConsentStore, FrameReader, ProcessSource, ReadError, Rgba, TextReader, TokenStore, WallClock,
+    ConsentStore, ProcessSource, ReadError, Rgba, TextReader, TokenStore, WallClock,
 };
+#[cfg(windows)]
+use d2rmm_agent_core::screen_reader::ScreenReader;
 #[cfg(windows)]
 use d2rmm_agent_core::watch_screen::ScreenPorts;
 #[cfg(windows)]
@@ -89,7 +83,10 @@ fn ports(app: AppHandle, gateway: Arc<HttpGateway>) -> Groups<HttpGateway> {
             tokens: Arc::clone(&tokens),
             processes,
             frames: Arc::new(WindowFrames),
-            reader: Arc::new(NoScreenReader),
+            reader: Arc::new(ScreenReader::new(
+                Arc::clone(&reader),
+                Arc::clone(&language),
+            )),
             consent,
             party: PartyPorts {
                 read: ReadPorts {
@@ -116,21 +113,6 @@ fn ports(app: AppHandle, gateway: Arc<HttpGateway>) -> Groups<HttpGateway> {
             gateway,
             tokens,
         },
-    }
-}
-
-/// The screen reader of this build. The reader of the character screens ships with its reading regions (F1 batch 2), so
-/// until then every frame is on no screen: the heartbeat reports `UNKNOWN` and no card is sent (CHR-04, CHR-06).
-#[cfg(windows)]
-struct NoScreenReader;
-
-#[cfg(windows)]
-impl FrameReader for NoScreenReader {
-    fn read(&self, _frame: &Rgba) -> FrameReading {
-        FrameReading {
-            screen: Screen::Unknown,
-            cards: Vec::new(),
-        }
     }
 }
 

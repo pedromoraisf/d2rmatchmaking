@@ -5,6 +5,7 @@ use std::error::Error;
 use std::fs;
 use std::process::ExitCode;
 
+use xtask::character_fixture::draw_character_fixtures;
 use xtask::fixture::{draw_party_fixtures, fixture_path, render_png};
 use xtask::{generate, generate_schema_module, generated_path, schema_dir, schema_module_path};
 
@@ -36,6 +37,13 @@ fn draw_party() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn draw_characters() -> Result<(), Box<dyn Error>> {
+    for path in draw_character_fixtures()? {
+        println!("wrote {}", path.display());
+    }
+    Ok(())
+}
+
 fn main() -> ExitCode {
     match std::env::args().nth(1).as_deref() {
         Some("contracts") => match contracts() {
@@ -60,13 +68,20 @@ fn main() -> ExitCode {
                     ExitCode::FAILURE
                 }
             },
+            Some("characters") => match draw_characters() {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("xtask draw-fixture characters: {error}");
+                    ExitCode::FAILURE
+                }
+            },
             Some(_) => {
-                eprintln!("usage: cargo run -p xtask -- draw-fixture [party]");
+                eprintln!("usage: cargo run -p xtask -- draw-fixture [party | characters]");
                 ExitCode::from(2)
             }
         },
         _ => {
-            eprintln!("usage: cargo run -p xtask -- contracts | draw-fixture [party]");
+            eprintln!("usage: cargo run -p xtask -- contracts | draw-fixture [party | characters]");
             ExitCode::from(2)
         }
     }

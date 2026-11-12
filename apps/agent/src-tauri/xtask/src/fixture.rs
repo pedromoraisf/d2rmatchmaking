@@ -16,7 +16,7 @@ pub const WIDTH: u32 = 1920;
 pub const HEIGHT: u32 = 1080;
 
 /// Source Sans 3, SIL Open Font License 1.1 (`apps/agent/fixtures/fonts/OFL.txt`).
-const FONT: &[u8] = include_bytes!("../../../fixtures/fonts/SourceSans3-VF.ttf");
+pub(crate) const FONT: &[u8] = include_bytes!("../../../fixtures/fonts/SourceSans3-VF.ttf");
 const BACKGROUND: [u8; 3] = [18, 16, 14];
 const INK: [u8; 3] = [236, 226, 196];
 const GAME_NAME: &str = "mmbaalh-12";
@@ -60,6 +60,19 @@ pub fn render_png() -> Result<Vec<u8>, Box<dyn Error>> {
 }
 
 fn draw_line(pixels: &mut [u8], font: &FontRef<'_>, text: &str, size: f32, x: f32, baseline: f32) {
+    draw_line_in(pixels, font, text, size, x, baseline, INK);
+}
+
+/// `draw_line` in `colour`: the character screens draw gold titles and levels as well as the ink of the party panel.
+pub(crate) fn draw_line_in(
+    pixels: &mut [u8],
+    font: &FontRef<'_>,
+    text: &str,
+    size: f32,
+    x: f32,
+    baseline: f32,
+    colour: [u8; 3],
+) {
     let scale = PxScale::from(size);
     let scaled = font.as_scaled(scale);
     let mut caret = x;
@@ -75,7 +88,7 @@ fn draw_line(pixels: &mut [u8], font: &FontRef<'_>, text: &str, size: f32, x: f3
                     return;
                 }
                 let at = ((py as u32 * WIDTH + px as u32) * 4) as usize;
-                for (channel, ink) in INK.iter().enumerate() {
+                for (channel, ink) in colour.iter().enumerate() {
                     let back = f32::from(pixels[at + channel]);
                     let front = f32::from(*ink);
                     pixels[at + channel] = (back + (front - back) * coverage).round() as u8;
@@ -141,8 +154,8 @@ pub fn render_party_png(field: &str) -> Result<Vec<u8>, Box<dyn Error>> {
         .ok_or("the 1920×1080 frame has the Game Name label region")?;
     let entry = panel_region(PanelRegion::GameNameField, WIDTH, HEIGHT)
         .ok_or("the 1920×1080 frame has the Game Name field region")?;
-    draw_centred(&mut pixels, &font, "Party", 26.0, title);
-    draw_centred(&mut pixels, &font, "Game Name", 16.0, label);
+    draw_centred(&mut pixels, &font, "Party", 26.0, title, INK);
+    draw_centred(&mut pixels, &font, "Game Name", 16.0, label, INK);
     draw_line(
         &mut pixels,
         &font,
@@ -171,12 +184,19 @@ pub fn draw_party_fixtures() -> Result<Vec<PathBuf>, Box<dyn Error>> {
 }
 
 /// The baseline that centres a line of `size` pixels vertically in `region` (a cap height of about 0.7 em).
-fn baseline_of(region: Region, size: f32) -> f32 {
+pub(crate) fn baseline_of(region: Region, size: f32) -> f32 {
     region.y as f32 + (region.height as f32 + size * 0.7) / 2.0
 }
 
 /// Draws `text` centred horizontally and vertically in `region`.
-fn draw_centred(pixels: &mut [u8], font: &FontRef<'_>, text: &str, size: f32, region: Region) {
+pub(crate) fn draw_centred(
+    pixels: &mut [u8],
+    font: &FontRef<'_>,
+    text: &str,
+    size: f32,
+    region: Region,
+    colour: [u8; 3],
+) {
     let scale = PxScale::from(size);
     let scaled = font.as_scaled(scale);
     let width: f32 = text
@@ -184,10 +204,18 @@ fn draw_centred(pixels: &mut [u8], font: &FontRef<'_>, text: &str, size: f32, re
         .map(|c| scaled.h_advance(font.glyph_id(c)))
         .sum();
     let left = region.x as f32 + (region.width as f32 - width) / 2.0;
-    draw_line(pixels, font, text, size, left, baseline_of(region, size));
+    draw_line_in(
+        pixels,
+        font,
+        text,
+        size,
+        left,
+        baseline_of(region, size),
+        colour,
+    );
 }
 
-fn encode(pixels: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+pub(crate) fn encode(pixels: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut out = Vec::new();
     let mut encoder = png::Encoder::new(&mut out, WIDTH, HEIGHT);
     encoder.set_color(png::ColorType::Rgba);

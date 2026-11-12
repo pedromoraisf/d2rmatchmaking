@@ -17,6 +17,7 @@ pub mod post_observation;
 pub mod read_frame;
 pub mod ready_check;
 pub mod runtime;
+pub mod screen_reader;
 pub mod secret;
 pub mod view;
 pub mod watch_screen;

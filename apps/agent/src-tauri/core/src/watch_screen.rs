@@ -6,7 +6,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use d2rmm_agent_domain::characters::Card;
+use d2rmm_agent_domain::characters::{Card, reconcile_names};
 use d2rmm_agent_domain::presence::game_running;
 
 use crate::device_state::DeviceState;
@@ -53,7 +53,7 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
         return;
     };
     let frame = Arc::new(frame);
-    let reading = read_screen(ports, &frame);
+    let reading = read_screen(ports, &frame).await;
     device.set_screen(reading.screen);
     party::look(device, &ports.party, Arc::clone(&frame)).await;
     let FrameReading {
@@ -63,7 +63,8 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
     else {
         return;
     };
-    let cards = in_name_order(cards);
+    // A name the screen misread (I, l and 1 are one glyph to it) keeps the spelling the account already has (CHR-10).
+    let cards = in_name_order(reconcile_names(cards, posted.as_deref().unwrap_or(&[])));
     // The API takes 1 to 24 cards; an empty reading sends nothing, and a set the API already has is not sent again.
     if cards.is_empty() || posted.as_ref() == Some(&cards) || !device.api_allowed() {
         return;
@@ -93,15 +94,23 @@ fn capture<G>(ports: &ScreenPorts<G>) -> Option<Rgba> {
     ports.frames.capture()
 }
 
-/// What the frame shows: its screen, and its cards on the character selection screen.
-fn read_screen<G>(ports: &ScreenPorts<G>, frame: &Rgba) -> FrameReading {
+/// What the frame shows: its screen, and its cards on the character selection screen. The OCR runs on a blocking thread, as
+/// the Party step's does, so a read never holds the async worker. The reader reads the card regions only for the selection
+/// screen (`domain::character_screen::read_screen`). A reader that panics shows nothing (`Unknown`).
+async fn read_screen<G>(ports: &ScreenPorts<G>, frame: &Arc<Rgba>) -> FrameReading {
     let span = tracing::info_span!(
         "agent.vision.read-characters",
         screen = tracing::field::Empty,
         cards = tracing::field::Empty,
     );
-    let _entered = span.enter();
-    let reading = ports.reader.read(frame);
+    let reader = Arc::clone(&ports.reader);
+    let frame = Arc::clone(frame);
+    let reading = tokio::task::spawn_blocking(move || reader.read(&frame))
+        .await
+        .unwrap_or(FrameReading {
+            screen: Screen::Unknown,
+            cards: Vec::new(),
+        });
     span.record("screen", tracing::field::debug(&reading.screen));
     span.record("cards", reading.cards.len());
     reading
@@ -341,6 +350,48 @@ mod tests {
         look(&rig, &mut posted).await;
 
         assert_eq!(posts(&rig.gateway).len(), 2, "the new card set is sent");
+    }
+
+    #[tokio::test]
+    async fn a_misread_name_of_a_posted_character_keeps_the_posted_spelling() {
+        let rig = rig(true, true, frame(), selecting(vec![card("Illusion")]));
+        rig.gateway.script_post_characters([Ok(()), Ok(())]);
+        let mut posted = None;
+        look(&rig, &mut posted).await;
+
+        *rig.reader.reading.lock().expect("the reading lock") =
+            selecting(vec![card("lllusion"), card("Hammer")]);
+        look(&rig, &mut posted).await;
+
+        assert_eq!(
+            posts(&rig.gateway),
+            vec![
+                Call::PostCharacters {
+                    cards: vec![card("Illusion")],
+                },
+                Call::PostCharacters {
+                    cards: vec![card("Hammer"), card("Illusion")],
+                },
+            ],
+            "the second set keeps the account's spelling of Illusion"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_misread_alone_is_the_same_card_set_and_is_not_sent_again() {
+        let rig = rig(true, true, frame(), selecting(vec![card("Illusion")]));
+        rig.gateway.script_post_characters([Ok(())]);
+        let mut posted = None;
+        look(&rig, &mut posted).await;
+
+        *rig.reader.reading.lock().expect("the reading lock") = selecting(vec![card("lllusion")]);
+        look(&rig, &mut posted).await;
+
+        assert_eq!(
+            posts(&rig.gateway).len(),
+            1,
+            "the reconciled set is unchanged"
+        );
     }
 
     #[tokio::test]

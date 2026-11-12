@@ -9,8 +9,8 @@ use std::num::NonZeroU64;
 use std::sync::Arc;
 
 use d2rmm_agent_domain::fusion::{GameNameObservation, fuse};
-use d2rmm_agent_domain::game_name_match::{FieldRead, read_field};
-use d2rmm_agent_domain::language::{GAME_NAME, LanguagePack, PARTY};
+use d2rmm_agent_domain::game_name_match::{FieldRead, read_field, read_field_variants};
+use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{PanelRegion, panel_region};
 use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::ReadText;
@@ -137,19 +137,20 @@ pub async fn look<G: ApiGateway + Send + Sync>(
 #[derive(Debug, Clone, PartialEq)]
 struct PanelReading {
     open: bool,
-    field: Option<ReadText>,
+    /// The readings of the field, one per OCR variant; empty when the panel is closed or the field did not read.
+    field: Vec<ReadText>,
 }
 
 /// The OCR of one frame's Party panel. Blocking: called on a blocking thread.
 fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba) -> PanelReading {
+    // The title decides: the label is not read, so a closed panel costs one read. The title may be a prefix of the word
+    // (a tooltip over it leaves "PAR"); the game's small-caps label reads unreliably and is no longer asked for.
     let open = panel_text(reader, frame, PanelRegion::PartyTitle)
-        .is_some_and(|title| language.is_word(&title.text, PARTY))
-        && panel_text(reader, frame, PanelRegion::GameNameLabel)
-            .is_some_and(|label| language.is_word(&label.text, GAME_NAME));
+        .is_some_and(|title| language.party_panel_open(&title.text));
     let field = if open {
-        panel_text(reader, frame, PanelRegion::GameNameField)
+        panel_texts(reader, frame, PanelRegion::GameNameField)
     } else {
-        None
+        Vec::new()
     };
     PanelReading { open, field }
 }
@@ -172,9 +173,17 @@ fn apply_reading<G>(
         return None;
     }
     // A blank field reads as masked (`read_field`): the engine returns nothing for the dots of the masked value.
-    let field = reading.field?;
+    if reading.field.is_empty() {
+        return None;
+    }
+    let expected = assignment.expected_game_name.as_str();
+    let texts: Vec<&str> = reading
+        .field
+        .iter()
+        .map(|read| read.text.as_str())
+        .collect();
     let run = RunKey::of(assignment);
-    match read_field(&field.text, assignment.expected_game_name.as_str()) {
+    match read_field_variants(&texts, expected) {
         FieldRead::Masked => {
             span.record("masked", true);
             device.with_party(|progress| progress.saw_masked());
@@ -200,7 +209,12 @@ fn apply_reading<G>(
                 return None;
             }
             let now = ports.read.clock.now_utc();
-            fuse(&field, assignment, now, || ports.read.ids.idempotency_key())
+            // The variant that matched is the reading the observation carries.
+            let field = reading
+                .field
+                .iter()
+                .find(|read| read_field(&read.text, expected) == FieldRead::Matched)?;
+            fuse(field, assignment, now, || ports.read.ids.idempotency_key())
         }
     }
 }
@@ -210,6 +224,13 @@ fn apply_reading<G>(
 fn panel_text(reader: &dyn TextReader, frame: &Rgba, panel: PanelRegion) -> Option<ReadText> {
     let region = panel_region(panel, frame.width, frame.height)?;
     reader.read(frame, region).ok()
+}
+
+/// Every reading (OCR variant) of one panel region; empty when the frame has no region for it or every reading fails.
+fn panel_texts(reader: &dyn TextReader, frame: &Rgba, panel: PanelRegion) -> Vec<ReadText> {
+    panel_region(panel, frame.width, frame.height)
+        .map(|region| reader.read_variants(frame, region))
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

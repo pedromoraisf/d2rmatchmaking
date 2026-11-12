@@ -2,6 +2,7 @@
 //! Time and identifiers enter as arguments.
 #![forbid(unsafe_code)]
 
+pub mod character_screen;
 pub mod characters;
 pub mod fusion;
 pub mod game_name_match;
@@ -15,6 +16,7 @@ pub mod reconnect;
 pub mod room_assignment;
 pub mod timings;
 pub mod vision;
+pub mod vocabulary;
 
 #[cfg(test)]
 mod tests {

@@ -4,6 +4,9 @@
 
 use std::collections::BTreeMap;
 
+use crate::characters::{Class, Difficulty, Title};
+use crate::vocabulary::{edit_distance, nearest, squash, threshold};
+
 /// The Party panel's title word.
 pub const PARTY: &str = "party";
 /// The label above the Game Name field.
@@ -11,15 +14,105 @@ pub const GAME_NAME: &str = "gameName";
 /// The label above the Password field.
 pub const PASSWORD: &str = "password";
 
+/// The word of the level on a card ("Level 88 Sorceress"), CHR-06.
+pub const CHARACTER_LEVEL: &str = "characterLevel";
+/// The "Create New" button of the character list (the selection screen's marker, CHR-04).
+pub const CREATE_NEW: &str = "createNew";
+/// The label that starts the health line in game (the in-game marker, CHR-04).
+pub const LIFE: &str = "life";
+/// The label that starts the difficulty line of the automap's area block (the automap's marker, CHR-04).
+pub const DIFFICULTY_LABEL: &str = "difficultyLabel";
+/// The title of the difficulty popup (CHR-18).
+pub const SELECT_DIFFICULTY: &str = "selectDifficulty";
+/// The popup's three difficulty buttons (CHR-18).
+pub const DIFFICULTY_NORMAL: &str = "difficultyNormal";
+pub const DIFFICULTY_NIGHTMARE: &str = "difficultyNightmare";
+pub const DIFFICULTY_HELL: &str = "difficultyHell";
+
 /// The keys a pack must hold for the Party reading. A pack without one of them is refused.
 pub const REQUIRED_KEYS: [&str; 3] = [PARTY, GAME_NAME, PASSWORD];
 
-/// The English words, the built-in pack (AGN-08 names the English strings as the source).
-const ENGLISH: [(&str, &str); 3] = [
+/// The English words, the built-in pack (AGN-08 names the English strings as the source). The character keys are read
+/// by the character screens; a pack lacking one of them reads no card that needs it.
+const ENGLISH: &[(&str, &str)] = &[
     (PARTY, "Party"),
     (GAME_NAME, "Game Name"),
     (PASSWORD, "Password"),
+    (CHARACTER_LEVEL, "Level"),
+    ("classAmazon", "Amazon"),
+    ("classAssassin", "Assassin"),
+    ("classBarbarian", "Barbarian"),
+    ("classDruid", "Druid"),
+    ("classNecromancer", "Necromancer"),
+    ("classPaladin", "Paladin"),
+    ("classSorceress", "Sorceress"),
+    ("classWarlock", "Warlock"),
+    ("titleSir", "Sir"),
+    ("titleDame", "Dame"),
+    ("titleLord", "Lord"),
+    ("titleLady", "Lady"),
+    ("titleBaron", "Baron"),
+    ("titleBaroness", "Baroness"),
+    ("titleCount", "Count"),
+    ("titleCountess", "Countess"),
+    ("titleDuke", "Duke"),
+    ("titleDuchess", "Duchess"),
+    ("titleKing", "King"),
+    ("titleQueen", "Queen"),
+    ("titleSlayer", "Slayer"),
+    ("titleChampion", "Champion"),
+    ("titlePatriarch", "Patriarch"),
+    ("titleMatriarch", "Matriarch"),
+    ("titleDestroyer", "Destroyer"),
+    ("titleConqueror", "Conqueror"),
+    ("titleGuardian", "Guardian"),
+    (CREATE_NEW, "Create New"),
+    (LIFE, "Life:"),
+    (DIFFICULTY_LABEL, "Difficulty:"),
+    (SELECT_DIFFICULTY, "Select Difficulty"),
+    (DIFFICULTY_NORMAL, "Normal"),
+    (DIFFICULTY_NIGHTMARE, "Nightmare"),
+    (DIFFICULTY_HELL, "Hell"),
 ];
+
+/// The pack key of a class name.
+pub fn class_key(class: Class) -> &'static str {
+    match class {
+        Class::Amazon => "classAmazon",
+        Class::Assassin => "classAssassin",
+        Class::Barbarian => "classBarbarian",
+        Class::Druid => "classDruid",
+        Class::Necromancer => "classNecromancer",
+        Class::Paladin => "classPaladin",
+        Class::Sorceress => "classSorceress",
+        Class::Warlock => "classWarlock",
+    }
+}
+
+/// The pack key of a title.
+pub fn title_key(title: Title) -> &'static str {
+    match title {
+        Title::Sir => "titleSir",
+        Title::Dame => "titleDame",
+        Title::Lord => "titleLord",
+        Title::Lady => "titleLady",
+        Title::Baron => "titleBaron",
+        Title::Baroness => "titleBaroness",
+        Title::Count => "titleCount",
+        Title::Countess => "titleCountess",
+        Title::Duke => "titleDuke",
+        Title::Duchess => "titleDuchess",
+        Title::King => "titleKing",
+        Title::Queen => "titleQueen",
+        Title::Slayer => "titleSlayer",
+        Title::Champion => "titleChampion",
+        Title::Patriarch => "titlePatriarch",
+        Title::Matriarch => "titleMatriarch",
+        Title::Destroyer => "titleDestroyer",
+        Title::Conqueror => "titleConqueror",
+        Title::Guardian => "titleGuardian",
+    }
+}
 
 /// A language's words by key, with the tag that names the language (`en`, `pt-BR`).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,13 +181,98 @@ impl LanguagePack {
     pub fn is_word(&self, text: &str, key: &str) -> bool {
         self.word(key).is_some_and(|word| same_label(text, word))
     }
+
+    /// Whether `text` is the word of `key` once case, diacritics and all whitespace are ignored. D2R draws its labels in
+    /// small caps, and OCR returns them as mixed case with stray spaces ("GA m E N A me" for "Game Name"). `false` for a
+    /// key the pack lacks.
+    pub fn is_squashed_word(&self, text: &str, key: &str) -> bool {
+        self.word(key)
+            .is_some_and(|word| squashed_key(text) == squashed_key(word))
+    }
+
+    /// Whether the Party panel is open, from the text read at its title: the pack's title or a prefix of it of at least
+    /// `MIN_TITLE_PREFIX` letters (a tooltip over the title leaves "PAR"). The one rule of the agent and of `ocr-check`;
+    /// the word comes from the pack.
+    pub fn party_panel_open(&self, title: &str) -> bool {
+        self.is_title_prefix(title, PARTY)
+    }
+
+    /// Whether `text` is the word of `key` or a prefix of it at least `MIN_TITLE_PREFIX` letters long.
+    pub fn is_title_prefix(&self, text: &str, key: &str) -> bool {
+        let read = squashed_key(text);
+        self.word(key).is_some_and(|word| {
+            read.chars().count() >= MIN_TITLE_PREFIX && squashed_key(word).starts_with(&read)
+        })
+    }
+
+    /// The class a noisy read of a class word names: the pack's nearest class word, or `None` when none is the single nearest.
+    pub fn read_class(&self, text: &str) -> Option<Class> {
+        let words: Vec<(Class, &str)> = Class::ALL
+            .into_iter()
+            .filter_map(|class| Some((class, self.word(class_key(class))?)))
+            .collect();
+        nearest(text, &words)
+    }
+
+    /// The title a noisy read of a title word names (see `read_class`).
+    pub fn read_title_word(&self, text: &str) -> Option<Title> {
+        let words: Vec<(Title, &str)> = Title::ALL
+            .into_iter()
+            .filter_map(|title| Some((title, self.word(title_key(title))?)))
+            .collect();
+        nearest(text, &words)
+    }
+
+    /// The difficulty a noisy read of a popup label names (see `read_class`).
+    pub fn read_difficulty(&self, text: &str) -> Option<Difficulty> {
+        let words: Vec<(Difficulty, &str)> = [
+            (Difficulty::Normal, DIFFICULTY_NORMAL),
+            (Difficulty::Nightmare, DIFFICULTY_NIGHTMARE),
+            (Difficulty::Hell, DIFFICULTY_HELL),
+        ]
+        .into_iter()
+        .filter_map(|(difficulty, key)| Some((difficulty, self.word(key)?)))
+        .collect();
+        nearest(text, &words)
+    }
+
+    /// Whether a noisy read is the pack's "Level" word.
+    pub fn is_level_word(&self, text: &str) -> bool {
+        self.word(CHARACTER_LEVEL)
+            .is_some_and(|word| nearest(text, &[((), word)]).is_some())
+    }
+
+    /// Whether `text` starts with the word of `key` (a label followed by its value, such as "Life: 925 / 925"). The start
+    /// may be misread within the vocabulary threshold ("Lite:" for "Life:", characters-reading T21).
+    pub fn begins_with(&self, text: &str, key: &str) -> bool {
+        self.word(key).is_some_and(|word| {
+            if label_key(text).starts_with(&label_key(word)) {
+                return true;
+            }
+            let word = squash(word);
+            let length = word.chars().count();
+            let start: String = squash(text).chars().take(length).collect();
+            start.chars().count() == length && edit_distance(&start, &word) <= threshold(length)
+        })
+    }
 }
 
 /// Whether a text read from a label is the word it names. The comparison trims, collapses runs of whitespace, ignores case
-/// and reads the glyphs D2R draws for the letter O (`⊕`, `Ø`) and for zero as `o`, since OCR cannot tell them apart in a
-/// label (ADR 017, the screenshots of 2026-11-10).
+/// and diacritics (CHR-08), and reads the glyphs D2R draws for the letter O (`⊕`, `Ø`) and for zero as `o`, since OCR cannot
+/// tell them apart in a label (ADR 017, the screenshots of 2026-11-10).
 pub fn same_label(read: &str, word: &str) -> bool {
     label_key(read) == label_key(word)
+}
+
+/// The fewest letters of a title that count as the title when the rest is covered.
+pub const MIN_TITLE_PREFIX: usize = 3;
+
+/// `label_key` with every whitespace removed, so "GA m E N A me" and "Game Name" have the same key.
+fn squashed_key(text: &str) -> String {
+    label_key(text)
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect()
 }
 
 fn label_key(text: &str) -> String {
@@ -105,6 +283,12 @@ fn label_key(text: &str) -> String {
         .chars()
         .map(|c| match c {
             '0' | 'ø' | '⊕' => 'o',
+            'á' | 'à' | 'â' | 'ã' | 'ä' => 'a',
+            'é' | 'è' | 'ê' | 'ë' => 'e',
+            'í' | 'ì' | 'î' | 'ï' => 'i',
+            'ó' | 'ò' | 'ô' | 'õ' | 'ö' => 'o',
+            'ú' | 'ù' | 'û' | 'ü' => 'u',
+            'ç' => 'c',
             other => other,
         })
         .collect()
@@ -113,12 +297,78 @@ fn label_key(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{GAME_NAME, LanguagePack, PARTY, PASSWORD, PackError, same_label};
+    use crate::characters::{Class, Difficulty, Title};
 
     fn words(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
         pairs
             .iter()
             .map(|(key, word)| ((*key).to_string(), (*word).to_string()))
             .collect()
+    }
+
+    #[test]
+    fn a_label_followed_by_its_value_is_found_even_when_its_start_is_misread() {
+        let pack = LanguagePack::english();
+        assert!(pack.begins_with("Life: 925 / 925", "life"));
+        assert!(pack.begins_with("Lite:", "life"), "the real read of Life:");
+        assert!(pack.begins_with("Difficulty: Hell", "difficultyLabel"));
+        assert!(pack.begins_with("Diffrculty: Hell", "difficultyLabel"));
+        assert!(!pack.begins_with("Mana: 90", "life"));
+        assert!(!pack.begins_with("Li", "life"));
+        assert!(!pack.begins_with("", "life"));
+    }
+
+    /// The Party panel as the maintainer's Windows OCR returned it (2026-11-11).
+    #[test]
+    fn small_caps_label_read_with_stray_spaces_is_the_game_name_label() {
+        let english = LanguagePack::english();
+        assert!(english.is_squashed_word("GA m E N A me", GAME_NAME));
+        assert!(!english.is_squashed_word("PASSWORD", GAME_NAME));
+        assert!(!english.is_squashed_word("", GAME_NAME));
+        assert!(!english.is_squashed_word("GAME", "missing-key"));
+    }
+
+    #[test]
+    fn the_panel_is_open_when_the_title_or_three_letters_of_it_read() {
+        let english = LanguagePack::english();
+        assert!(english.party_panel_open("PARTY"), "the title");
+        assert!(english.party_panel_open("PAR"), "a tooltip over the title");
+        assert!(!english.party_panel_open("PA"), "2 letters are not enough");
+        assert!(!english.party_panel_open("PARTYS"), "not a prefix");
+        assert!(!english.party_panel_open(""), "nothing read");
+        assert!(!english.party_panel_open("Life: 9"), "another screen");
+    }
+
+    #[test]
+    fn the_real_reads_find_their_class_title_difficulty_and_level_word() {
+        let english = LanguagePack::english();
+        assert_eq!(english.read_class("SBRCERESS"), Some(Class::Sorceress));
+        assert_eq!(english.read_class("Wizard"), None);
+        assert_eq!(
+            english.read_title_word("m ATRIA RCH"),
+            Some(Title::Matriarch)
+        );
+        assert_eq!(english.read_title_word("Marshal"), None);
+        assert_eq!(english.read_difficulty("NeRrnAL"), Some(Difficulty::Normal));
+        assert_eq!(english.read_difficulty("HELL"), Some(Difficulty::Hell));
+        assert!(english.is_level_word("LEWEL"));
+        assert!(english.is_level_word("LEVEL"));
+        assert!(!english.is_level_word("Lvl"));
+        assert!(!english.is_level_word(""));
+    }
+
+    #[test]
+    fn a_pack_without_a_word_reads_nothing_for_it() {
+        let words = words(&[
+            (PARTY, "Party"),
+            (GAME_NAME, "Game Name"),
+            (PASSWORD, "Password"),
+        ]);
+        let pack = LanguagePack::from_words("xx", words).expect("the pack builds");
+        assert_eq!(pack.read_class("Sorceress"), None);
+        assert_eq!(pack.read_title_word("Matriarch"), None);
+        assert_eq!(pack.read_difficulty("Hell"), None);
+        assert!(!pack.is_level_word("Level"));
     }
 
     #[test]

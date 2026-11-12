@@ -11,6 +11,8 @@ export const SCREENSHOTS = [
   'maintainer-party-revealed.png',
   'maintainer-party-revealed-tooltip.png',
   'maintainer-party-masked.png',
+  'maintainer-select-screen.png',
+  'maintainer-select-difficulty.png',
 ];
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');

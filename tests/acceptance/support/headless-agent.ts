@@ -95,6 +95,15 @@ function cargoEnv(): Record<string, string> {
   };
 }
 
+/** The drawn character screens (`xtask draw-fixture characters`): a picture and its sidecar with the text of each region. */
+export const CHARACTER_FIXTURE_DIR = path.join(repoRoot, 'apps', 'agent', 'fixtures', 'characters');
+
+/** A character screen fixture's picture and its sidecar, by the fixture's name (`select-titles`, `in-game`…). */
+export function characterFixture(name: string): { png: string; sidecar: string } {
+  const png = path.join(CHARACTER_FIXTURE_DIR, `${name}.png`);
+  return { png, sidecar: `${png}.json` };
+}
+
 export class HeadlessAgent {
   readonly #child: ChildProcess;
   readonly #events: AgentEvent[] = [];
@@ -152,14 +161,21 @@ export class HeadlessAgent {
     }
   }
 
-  /** Starts the example against `apiBase` with the fixture screen at `fixture`. Its events are read from then on. */
+  /**
+   * Starts the example against `apiBase` with `fixture` as the first frame it captures. Its events are read from then on.
+   * `consent` gives the example the player's capture consent from the start (CHR-01). It defaults to given: the Party steps
+   * (agent-game-name) start a paired agent that reads, and only the consent scenarios pass `consent: false`, so the example
+   * reads nothing until a `consent on` line arrives.
+   */
   static start(options: {
     apiBase: string;
     fixture: string;
     party?: boolean;
+    consent?: boolean;
     agentVersion?: string;
   }): HeadlessAgent {
     const versionArgs = options.agentVersion === undefined ? [] : ['--agent-version', options.agentVersion];
+    const consentArgs = options.consent === false ? [] : ['--consent'];
     const child = spawn(
       'cargo',
       [
@@ -173,6 +189,7 @@ export class HeadlessAgent {
         options.party === true ? '--party-fixture' : '--read-fixture',
         options.fixture,
         ...versionArgs,
+        ...consentArgs,
       ],
       { cwd: repoRoot, env: cargoEnv(), detached: true, stdio: ['pipe', 'pipe', 'pipe'] },
     );
@@ -224,6 +241,16 @@ export class HeadlessAgent {
   /** Sends one `read` line: the example reads the fixture screen once and posts what it sees. */
   read(): void {
     this.#child.stdin?.write('read\n');
+  }
+
+  /** Sends `show <png>`: the example captures that picture from now on, with its sidecar (`<png>.json`) as the text. */
+  show(png: string): void {
+    this.#child.stdin?.write(`show ${png}\n`);
+  }
+
+  /** Sends `consent on` or `consent off`: the player gives or withdraws capture consent in the agent's window (CHR-01). */
+  consent(given: boolean): void {
+    this.#child.stdin?.write(`consent ${given ? 'on' : 'off'}\n`);
   }
 
   /** Sends one `hotkey` line: the example presses the agent's accept hotkey (RDY-07), as the global shortcut does. */

@@ -10,11 +10,25 @@ use windows::Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap};
 use windows::Media::Ocr::OcrEngine;
 use windows::Storage::Streams::DataWriter;
 
-use crate::adapters::ocr_pixels::scaled_bgra;
+use crate::adapters::ocr_pixels::{Upscale, padded_region, upscaled_bgra};
 
-/// The scale a region is read at: nearest-neighbour, 3×, so the Party panel's text (about 12 px high) reaches the size the
-/// engine reads. A decision of the agent-game-name feature, pinned by the maintainer's screenshots (windows test).
+/// The scale a region is read at: bilinear, 3×, so the Party panel's text (about 12 px high) reaches the size the
+/// engine reads. A decision of the agent-game-name feature, pinned by the maintainer's screenshots (windows test); T11's
+/// bilinear blur lost the drawn fixtures' text in CI, so production stays nearest (T14).
 const OCR_SCALE: u32 = 3;
+const OCR_FILTER: Upscale = Upscale::Nearest;
+
+/// The other ways the agent reads a region besides nearest 3x (characters-reading T21). The engine's text is noisy and the
+/// ways err differently on the maintainer's real screenshots (`ocr-real`, 2026-11-11): the Game Name field matches only in
+/// bilinear 3x; the popup's "Normal" reads only in bilinear 4x; a card name's two agreeing readings only at 4x or 5x. The
+/// set is the six combinations of nearest and bilinear at 3x, 4x and 5x (T24: a name settles on two agreeing readings).
+const EXTRA_VARIANTS: [(u32, Upscale); 5] = [
+    (3, Upscale::Bilinear),
+    (4, Upscale::Nearest),
+    (4, Upscale::Bilinear),
+    (5, Upscale::Nearest),
+    (5, Upscale::Bilinear),
+];
 
 /// The one language the reader reads. The automap's game name is Latin text in English.
 const LANGUAGE: &str = "en-US";
@@ -22,21 +36,43 @@ const LANGUAGE: &str = "en-US";
 /// The Windows OCR engine for `en-US`. `new` fails when the engine is not installed; it never falls back to another.
 pub struct WindowsOcr {
     engine: OcrEngine,
+    scale: u32,
+    filter: Upscale,
+    /// The other ways `read_variants` reads a region besides `scale` and `filter`.
+    extra: Vec<(u32, Upscale)>,
 }
 
 impl WindowsOcr {
+    /// The agent's reader: nearest 3x, with the extra variants for `read_variants`.
     pub fn new() -> Result<Self, ReadError> {
+        let mut ocr = Self::with_upscale(OCR_SCALE, OCR_FILTER)?;
+        ocr.extra = EXTRA_VARIANTS.to_vec();
+        Ok(ocr)
+    }
+
+    /// The engine reading at another scale and filter: the `ocr-check` comparison only; the agent uses `new`.
+    pub fn with_upscale(scale: u32, filter: Upscale) -> Result<Self, ReadError> {
         let language =
             Language::CreateLanguage(&LANGUAGE.into()).map_err(|_| ReadError::EngineUnavailable)?;
         let engine = OcrEngine::TryCreateFromLanguage(&language)
             .map_err(|_| ReadError::EngineUnavailable)?;
-        Ok(Self { engine })
+        Ok(Self {
+            engine,
+            scale,
+            filter,
+            extra: Vec::new(),
+        })
     }
-}
 
-impl TextReader for WindowsOcr {
-    fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
-        let bitmap = crop_to_bitmap(image, region)?;
+    /// The text of the region read at `scale` and `filter`.
+    fn read_at(
+        &self,
+        image: &Rgba,
+        region: Region,
+        scale: u32,
+        filter: Upscale,
+    ) -> Result<ReadText, ReadError> {
+        let bitmap = crop_to_bitmap(image, region, scale, filter)?;
         let result = self
             .engine
             .RecognizeAsync(&bitmap)
@@ -48,19 +84,54 @@ impl TextReader for WindowsOcr {
     }
 }
 
-/// Copies the region, scaled up by `OCR_SCALE`, into a BGRA8 software bitmap (`ocr_pixels`).
-fn crop_to_bitmap(image: &Rgba, region: Region) -> Result<SoftwareBitmap, ReadError> {
-    let bgra = scaled_bgra(image, region, OCR_SCALE).ok_or(ReadError::Failed)?;
+impl TextReader for WindowsOcr {
+    fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+        self.read_at(image, region, self.scale, self.filter)
+    }
+
+    /// The region read nearest 3x first, then each extra variant; a variant that fails is left out.
+    fn read_variants(&self, image: &Rgba, region: Region) -> Vec<ReadText> {
+        std::iter::once((self.scale, self.filter))
+            .chain(self.extra.iter().copied())
+            .filter_map(|(scale, filter)| self.read_at(image, region, scale, filter).ok())
+            .collect()
+    }
+}
+
+/// The readings `ocr-check` prints for every region, labelled: nearest and bilinear, at 2× to 5× (T14, T21). They only
+/// feed the diagnostics; the verdict is the production reader's. A variant whose engine cannot be created is left out.
+pub fn comparison_readers() -> Vec<(String, std::sync::Arc<dyn TextReader + Send + Sync>)> {
+    let mut readers: Vec<(String, std::sync::Arc<dyn TextReader + Send + Sync>)> = Vec::new();
+    for (filter, name) in [
+        (Upscale::Nearest, "nearest"),
+        (Upscale::Bilinear, "bilinear"),
+    ] {
+        for scale in [2, 3, 4, 5] {
+            if let Ok(reader) = WindowsOcr::with_upscale(scale, filter) {
+                readers.push((format!("{name} {scale}x"), std::sync::Arc::new(reader)));
+            }
+        }
+    }
+    readers
+}
+
+/// The frame's background kept beside each region, in pixels: the engine drops text that touches the crop's left or right
+/// edge (T9). Rows are not padded: a crop that reaches the next row reads that row's text too.
+const OCR_PAD_X: u32 = 16;
+
+/// Copies the region with its background margin, scaled up by `scale`, into a BGRA8 software bitmap (`ocr_pixels`).
+fn crop_to_bitmap(
+    image: &Rgba,
+    region: Region,
+    scale: u32,
+    filter: Upscale,
+) -> Result<SoftwareBitmap, ReadError> {
+    let region = padded_region(region, image.width, image.height, OCR_PAD_X, 0);
+    let bgra = upscaled_bgra(image, region, scale, filter).ok_or(ReadError::Failed)?;
     // A region is checked against the frame before scaling; the scaled sizes are still checked, so a size that
     // overflows `u32` fails the read instead of wrapping.
-    let width = region
-        .width
-        .checked_mul(OCR_SCALE)
-        .ok_or(ReadError::Failed)?;
-    let height = region
-        .height
-        .checked_mul(OCR_SCALE)
-        .ok_or(ReadError::Failed)?;
+    let width = region.width.checked_mul(scale).ok_or(ReadError::Failed)?;
+    let height = region.height.checked_mul(scale).ok_or(ReadError::Failed)?;
     let bitmap = SoftwareBitmap::Create(
         BitmapPixelFormat::Bgra8,
         i32::try_from(width).map_err(|_| ReadError::Failed)?,
@@ -78,13 +149,33 @@ fn crop_to_bitmap(image: &Rgba, region: Region) -> Result<SoftwareBitmap, ReadEr
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+    use std::sync::Arc;
+
     use d2rmm_agent_core::ports::{Rgba, TextReader};
     use d2rmm_agent_core::read_frame::read_game_name;
-    use d2rmm_agent_domain::game_name_match::{FieldRead, read_field};
-    use d2rmm_agent_domain::language::{GAME_NAME, LanguagePack, PARTY};
-    use d2rmm_agent_domain::layout::{PanelRegion, panel_region};
+    use d2rmm_agent_domain::game_name_match::FieldRead;
 
-    use super::WindowsOcr;
+    use super::{WindowsOcr, comparison_readers};
+    use crate::ocr_check::{check_folder, check_party, decode_png};
+
+    // What only the drawn-fixture OCR tests use (characters-reading T32).
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    use crate::ocr_check::{Card, MAINTAINER_CARDS, check_screen};
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    use d2rmm_agent_core::messages::FrameReading;
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    use d2rmm_agent_core::ports::FrameReader;
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    use d2rmm_agent_core::screen_reader::ScreenReader;
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    use d2rmm_agent_domain::characters::{Class, Difficulty, Title};
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    use d2rmm_agent_domain::language::LanguagePack;
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    use d2rmm_agent_domain::layout::{ScreenRegion, screen_region};
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    use d2rmm_agent_domain::presence::Screen;
 
     /// The committed F0 reference image (AD-047), decoded to RGBA8.
     fn reference_image() -> Rgba {
@@ -94,64 +185,164 @@ mod tests {
         ))
     }
 
-    /// A committed PNG, decoded to RGBA8.
-    fn decode_png(path: &str) -> Rgba {
-        let bytes = std::fs::read(path).expect("the committed image is readable");
-        let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes))
-            .read_info()
-            .expect("the committed image is a PNG");
-        let mut pixels = vec![0; decoder.output_buffer_size().expect("the image size fits")];
-        let info = decoder
-            .next_frame(&mut pixels)
-            .expect("the committed image decodes");
-        Rgba {
-            width: info.width,
-            height: info.height,
-            pixels,
-        }
-    }
-
-    /// The text of one panel region, read with the en-US engine.
-    fn read_panel(reader: &WindowsOcr, image: &Rgba, panel: PanelRegion) -> String {
-        let region = panel_region(panel, image.width, image.height)
-            .expect("a 1920-wide screenshot has the panel layout");
-        reader.read(image, region).expect("the region reads").text
-    }
-
-    /// Reads one Party frame: the panel must be open, and the Game Name field must read as `expected` for the room's name
-    /// `expected_name`. The error names what was read, so a failure shows the OCR text.
-    fn check_party(
-        reader: &WindowsOcr,
-        image: &Rgba,
-        expected_name: &str,
-        expected: FieldRead,
-    ) -> Result<(), String> {
-        let language = LanguagePack::english();
-        let title = read_panel(reader, image, PanelRegion::PartyTitle);
-        let label = read_panel(reader, image, PanelRegion::GameNameLabel);
-        let field = read_panel(reader, image, PanelRegion::GameNameField);
-        let read = format!("title {title:?}, label {label:?}, field {field:?}");
-        if !language.is_word(&title, PARTY) {
-            return Err(format!("the panel is not open: {read}"));
-        }
-        if !language.is_word(&label, GAME_NAME) {
-            return Err(format!("the Game Name label is not read: {read}"));
-        }
-        let got = read_field(&field, expected_name);
-        if got == expected {
-            Ok(())
-        } else {
-            Err(format!(
-                "the field is {got:?}, expected {expected:?}: {read}"
-            ))
-        }
-    }
-
     /// Fails, rather than skips, without the en-US engine.
     fn engine() -> WindowsOcr {
         WindowsOcr::new().expect(
             "the en-US Windows OCR engine is installed (this test fails, it never skips, without it)",
         )
+    }
+
+    /// Reads a committed character fixture (`fixtures/characters`) with the screen reader and the en-US engine.
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    fn read_character(reader: &ScreenReader, name: &str) -> FrameReading {
+        let image = decode_png(&format!(
+            "{}/../fixtures/characters/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        ));
+        reader.read(&image)
+    }
+
+    /// Prints what the engine reads of each marker, popup and first-card region of a drawn fixture, with the region's box
+    /// (T9 diagnostic). The CI log shows which region reads nothing, and what the engine returned for it.
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    fn print_marker_regions(engine: &WindowsOcr, name: &str) {
+        let image = decode_png(&format!(
+            "{}/../fixtures/characters/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        ));
+        let regions = [
+            ScreenRegion::CreateNew,
+            ScreenRegion::Life,
+            ScreenRegion::AreaDifficulty,
+            ScreenRegion::SelectDifficulty,
+            ScreenRegion::PopupNormal,
+            ScreenRegion::PopupNightmare,
+            ScreenRegion::PopupHell,
+            ScreenRegion::CardTitle(0),
+            ScreenRegion::CardName(0),
+            ScreenRegion::CardLevel(0),
+        ];
+        for region in regions {
+            let Some(area) = screen_region(region, image.width, image.height) else {
+                println!(
+                    "{name} {region:?}: no region in {}x{}",
+                    image.width, image.height
+                );
+                continue;
+            };
+            let text = match engine.read(&image, area) {
+                Ok(read) => format!("{:?}", read.text),
+                Err(_) => "the engine failed".to_string(),
+            };
+            println!(
+                "{name} {region:?} box {}x{} at {},{} in {}x{}: {text}",
+                area.width, area.height, area.x, area.y, image.width, image.height
+            );
+        }
+    }
+
+    /// The character fixtures xtask draws (CHR-04, CHR-06, CHR-08, CHR-18): every screen, read with the en-US engine. The
+    /// selection screen's cards, the popup's difficulties, the in-game and automap markers and the unknown menu. Every
+    /// fixture is read before the test fails, so one run shows every mismatch.
+    #[test]
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    fn ocr_reads_the_drawn_character_fixtures() {
+        let engine = Arc::new(engine());
+        for name in [
+            "select-normal.png",
+            "select-titles.png",
+            "select-full.png",
+            "select-difficulty.png",
+            "select-difficulty-dimmed.png",
+            "in-game.png",
+            "automap.png",
+            "menu.png",
+        ] {
+            print_marker_regions(&engine, name);
+        }
+        let reader = ScreenReader::new(
+            Arc::clone(&engine) as Arc<dyn TextReader + Send + Sync>,
+            Arc::new(LanguagePack::english()),
+        );
+        let full: Vec<Card> = vec![
+            ("Aldric", Class::Paladin, 12, Some(Title::Sir)),
+            ("Morrow", Class::Druid, 40, Some(Title::Lady)),
+            ("Vexa", Class::Assassin, 7, None),
+            ("Tharn", Class::Necromancer, 73, Some(Title::Destroyer)),
+            ("Kessa", Class::Warlock, 55, Some(Title::Slayer)),
+            ("Orrin", Class::Barbarian, 99, None),
+            ("Liora", Class::Amazon, 81, Some(Title::Baroness)),
+            ("Dresk", Class::Paladin, 66, Some(Title::Guardian)),
+            ("Nyx", Class::Druid, 2, None),
+        ];
+        let titles: Vec<Card> = MAINTAINER_CARDS
+            .into_iter()
+            .chain([("Ember", Class::Barbarian, 45, Some(Title::Countess))])
+            .collect();
+        let cases: [(&str, Screen, Vec<Card>); 6] = [
+            (
+                "select-normal.png",
+                Screen::CharacterSelect,
+                MAINTAINER_CARDS.to_vec(),
+            ),
+            ("select-titles.png", Screen::CharacterSelect, titles.clone()),
+            ("select-full.png", Screen::CharacterSelect, full),
+            ("select-difficulty.png", Screen::CharacterSelect, titles),
+            ("in-game.png", Screen::InGame, Vec::new()),
+            ("automap.png", Screen::AutomapOpen, Vec::new()),
+        ];
+        let mut mismatches: Vec<String> = cases
+            .into_iter()
+            .filter_map(|(name, screen, cards)| {
+                let reading = read_character(&reader, name);
+                check_screen(&reading, screen, &cards)
+                    .err()
+                    .map(|error| format!("{name}: {error}"))
+            })
+            .collect();
+        let menu = read_character(&reader, "menu.png");
+        if let Err(error) = check_screen(&menu, Screen::Unknown, &[]) {
+            mismatches.push(format!("menu.png: {error}"));
+        }
+        let popup = read_character(&reader, "select-difficulty.png");
+        let matriarch = popup.cards.first();
+        if matriarch.map(|card| card.unlocked_difficulties())
+            != Some(vec![
+                Difficulty::Normal,
+                Difficulty::Nightmare,
+                Difficulty::Hell,
+            ])
+        {
+            mismatches.push(format!(
+                "select-difficulty.png: the popup's difficulties are not on vukVuka: {matriarch:?}"
+            ));
+        }
+        assert!(
+            mismatches.is_empty(),
+            "{} of 8 drawn character fixtures mismatch:\n{}",
+            mismatches.len(),
+            mismatches.join("\n")
+        );
+    }
+
+    /// The popup with Nightmare and Hell drawn dim (CHR-18): their text may read, but their brightness is not an enabled
+    /// label's, so the only enabled difficulty is Normal.
+    #[test]
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    fn ocr_reads_the_dimmed_popup_as_normal_only() {
+        let reader = ScreenReader::new(Arc::new(engine()), Arc::new(LanguagePack::english()));
+        let reading = read_character(&reader, "select-difficulty-dimmed.png");
+        let matriarch = reading.cards.first();
+        assert_eq!(
+            reading.screen,
+            Screen::CharacterSelect,
+            "the screen is the selection screen"
+        );
+        assert_eq!(
+            matriarch.map(|card| card.unlocked_difficulties()),
+            Some(vec![Difficulty::Normal]),
+            "the dimmed popup enables Normal alone: {matriarch:?}"
+        );
     }
 
     /// The Party fixtures xtask draws (`fixtures/party`, AGN-02, AGN-04): the room's name revealed, the masked field and
@@ -185,49 +376,22 @@ mod tests {
         );
     }
 
-    /// The maintainer's Windows check (apps/agent/README.md, `scripts/agent/ocr-check.mjs <dir>`). It reads the three
-    /// screenshots in the folder named by `D2RMM_OCR_CHECK_DIR`, prints one verdict per file with what it read, and fails
-    /// if any file fails. Ignored by default, so the committed suite never reads the maintainer's images.
+    /// The maintainer's Windows check (apps/agent/README.md, `scripts/agent/ocr-check.mjs <dir>`): the shared check of
+    /// `crate::ocr_check` reads the five screenshots in the folder named by `D2RMM_OCR_CHECK_DIR`, prints one verdict per
+    /// file with what it read, and fails if any file fails. Ignored by default, so the committed suite never reads the
+    /// maintainer's images.
     #[test]
     #[ignore = "the maintainer's Windows check: run scripts/agent/ocr-check.mjs <dir>"]
     fn ocr_check() {
         let dir = std::env::var("D2RMM_OCR_CHECK_DIR")
             .expect("D2RMM_OCR_CHECK_DIR names the screenshot folder");
-        let reader = engine();
-        let cases = [
-            (
-                "maintainer-party-revealed.png",
-                "DUEL NK LOCKS",
-                FieldRead::Matched,
-            ),
-            (
-                "maintainer-party-revealed-tooltip.png",
-                "DUEL NK LOCKS",
-                FieldRead::Matched,
-            ),
-            (
-                "maintainer-party-masked.png",
-                "DUEL NK LOCKS",
-                FieldRead::Masked,
-            ),
-        ];
-        let mut failed = Vec::new();
-        for (name, expected_name, expected) in cases {
-            let path = std::path::Path::new(&dir).join(name);
-            let image = decode_png(path.to_str().expect("the folder path is UTF-8"));
-            match check_party(&reader, &image, expected_name, expected) {
-                Ok(()) => println!("PASS {name}"),
-                Err(error) => {
-                    println!("FAIL {name}: {error}");
-                    failed.push(name);
-                }
-            }
+        // Local runs only: the names the engine read are printed when D2RMM_OCR_SHOW_READS is set.
+        let show_reads = std::env::var_os("D2RMM_OCR_SHOW_READS").is_some();
+        let reader: Arc<dyn TextReader + Send + Sync> = Arc::new(engine());
+        if let Err(failed) = check_folder(Path::new(&dir), reader, comparison_readers(), show_reads)
+        {
+            panic!("{} file(s) failed: {failed:?}", failed.len());
         }
-        assert!(
-            failed.is_empty(),
-            "{} file(s) failed: {failed:?}",
-            failed.len()
-        );
     }
 
     /// Fails, rather than skips, when the en-US OCR engine is not installed on the machine.

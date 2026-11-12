@@ -116,6 +116,281 @@ pub fn panel_region(panel: PanelRegion, width: u32, height: u32) -> Option<Regio
     panel_box(panel).resolve(width, height)
 }
 
+/// The client's regions the character screens read (CHR-04, CHR-06, CHR-18, CHR-19), measured on the maintainer's
+/// 1920×1033 screenshots of 2026-11-10. A card slot is one row of the character list: slot `n` starts `CARD_PITCH` px
+/// below slot `n - 1`, its frame's top border at `CARD_TOP` for slot 0. The list is anchored to the right edge, the
+/// "Select Difficulty" popup to the centre line, the HUD markers to the left and the top-right corner.
+pub const CARD_SLOTS: u8 = 9;
+const CARD_TOP: u32 = 46;
+const CARD_PITCH: u32 = 90;
+
+/// A region of a character screen. The text regions are read with the language pack's words; `CardSelected` is sampled
+/// for the gold frame of the selected card and is never sent to the OCR engine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScreenRegion {
+    /// The "Create New" button, bottom right of the character list (the selection screen's marker).
+    CreateNew,
+    /// The "Life:" label above the health globe (the in-game marker).
+    Life,
+    /// The "Difficulty:" line of the automap's area block, top right (the automap's marker).
+    AreaDifficulty,
+    /// The "Select Difficulty" title of the popup.
+    SelectDifficulty,
+    /// The Normal, Nightmare and Hell buttons of the popup: a difficulty is enabled when its label reads and is bright.
+    PopupNormal,
+    PopupNightmare,
+    PopupHell,
+    /// The title line, the name and the "Level N Class" line of a card.
+    CardTitle(u8),
+    CardName(u8),
+    CardLevel(u8),
+    /// The top border of a card: gold when the card is the selected one.
+    CardSelected(u8),
+}
+
+fn card_top(slot: u8) -> u32 {
+    CARD_TOP + CARD_PITCH * u32::from(slot)
+}
+
+/// The box of a screen region in pixels of the reference client.
+pub fn screen_box(region: ScreenRegion) -> PanelBox {
+    use Anchor::{Centre, Left, Right};
+    match region {
+        ScreenRegion::CreateNew => PanelBox::new(Right, 130, 882, 140, 22),
+        ScreenRegion::Life => PanelBox::new(Left, 400, 826, 160, 22),
+        ScreenRegion::AreaDifficulty => PanelBox::new(Right, 20, 52, 150, 16),
+        ScreenRegion::SelectDifficulty => PanelBox::new(Centre, -108, 344, 216, 18),
+        ScreenRegion::PopupNormal => PanelBox::new(Centre, -100, 412, 200, 20),
+        ScreenRegion::PopupNightmare => PanelBox::new(Centre, -100, 476, 200, 20),
+        ScreenRegion::PopupHell => PanelBox::new(Centre, -100, 540, 200, 20),
+        ScreenRegion::CardTitle(slot) => PanelBox::new(Right, 108, card_top(slot) + 6, 236, 18),
+        ScreenRegion::CardName(slot) => PanelBox::new(Right, 108, card_top(slot) + 36, 236, 18),
+        ScreenRegion::CardLevel(slot) => PanelBox::new(Right, 108, card_top(slot) + 58, 236, 18),
+        ScreenRegion::CardSelected(slot) => PanelBox::new(Right, 210, card_top(slot) - 1, 20, 3),
+    }
+}
+
+/// The pixels of a screen region in a client of `width` × `height`, or `None` when the size is not supported or the
+/// region does not resolve on it (CHR-19: an unsupported aspect ratio reads nothing).
+pub fn screen_region(region: ScreenRegion, width: u32, height: u32) -> Option<Region> {
+    if !supported_size(width, height) {
+        return None;
+    }
+    screen_box(region).resolve(width, height)
+}
+
+impl ScreenRegion {
+    /// The key of the region in a fixture's sidecar (`<png>.json`), camelCase, as the drawn fixtures name it.
+    pub fn key(self) -> String {
+        match self {
+            ScreenRegion::CreateNew => "createNew".to_string(),
+            ScreenRegion::Life => "life".to_string(),
+            ScreenRegion::AreaDifficulty => "areaDifficulty".to_string(),
+            ScreenRegion::SelectDifficulty => "selectDifficulty".to_string(),
+            ScreenRegion::PopupNormal => "popupNormal".to_string(),
+            ScreenRegion::PopupNightmare => "popupNightmare".to_string(),
+            ScreenRegion::PopupHell => "popupHell".to_string(),
+            ScreenRegion::CardTitle(slot) => format!("cardTitle{slot}"),
+            ScreenRegion::CardName(slot) => format!("cardName{slot}"),
+            ScreenRegion::CardLevel(slot) => format!("cardLevel{slot}"),
+            ScreenRegion::CardSelected(slot) => format!("cardSelected{slot}"),
+        }
+    }
+}
+
+/// The regions the OCR engine reads on a character screen, in a fixed order: the markers, the popup and the card fields
+/// of every slot. `CardSelected` is not among them: it is a pixel sample.
+pub fn screen_text_regions() -> Vec<ScreenRegion> {
+    let mut regions = vec![
+        ScreenRegion::CreateNew,
+        ScreenRegion::Life,
+        ScreenRegion::AreaDifficulty,
+        ScreenRegion::SelectDifficulty,
+        ScreenRegion::PopupNormal,
+        ScreenRegion::PopupNightmare,
+        ScreenRegion::PopupHell,
+    ];
+    for slot in 0..CARD_SLOTS {
+        regions.push(ScreenRegion::CardTitle(slot));
+        regions.push(ScreenRegion::CardName(slot));
+        regions.push(ScreenRegion::CardLevel(slot));
+    }
+    regions
+}
+
+#[cfg(test)]
+mod screen_tests {
+    use super::{CARD_SLOTS, ScreenRegion, screen_region, screen_text_regions};
+    use crate::vision::Region;
+
+    fn at(region: ScreenRegion, width: u32, height: u32) -> Region {
+        screen_region(region, width, height).expect("the size is supported and the region resolves")
+    }
+
+    #[test]
+    fn the_markers_are_pinned_at_1920x1033() {
+        assert_eq!(
+            at(ScreenRegion::CreateNew, 1920, 1033),
+            Region {
+                x: 1650,
+                y: 882,
+                width: 140,
+                height: 22
+            }
+        );
+        assert_eq!(
+            at(ScreenRegion::Life, 1920, 1033),
+            Region {
+                x: 400,
+                y: 826,
+                width: 160,
+                height: 22
+            }
+        );
+        assert_eq!(
+            at(ScreenRegion::AreaDifficulty, 1920, 1033),
+            Region {
+                x: 1750,
+                y: 52,
+                width: 150,
+                height: 16
+            }
+        );
+    }
+
+    #[test]
+    fn the_popup_is_pinned_at_1920x1033_around_the_centre_line() {
+        assert_eq!(
+            at(ScreenRegion::SelectDifficulty, 1920, 1033),
+            Region {
+                x: 852,
+                y: 344,
+                width: 216,
+                height: 18
+            }
+        );
+        assert_eq!(
+            at(ScreenRegion::PopupNormal, 1920, 1033),
+            Region {
+                x: 860,
+                y: 412,
+                width: 200,
+                height: 20
+            }
+        );
+        assert_eq!(
+            at(ScreenRegion::PopupHell, 1920, 1033),
+            Region {
+                x: 860,
+                y: 540,
+                width: 200,
+                height: 20
+            }
+        );
+    }
+
+    #[test]
+    fn the_card_rows_are_pinned_at_1920x1033() {
+        assert_eq!(
+            at(ScreenRegion::CardTitle(0), 1920, 1033),
+            Region {
+                x: 1576,
+                y: 52,
+                width: 236,
+                height: 18
+            }
+        );
+        assert_eq!(
+            at(ScreenRegion::CardName(0), 1920, 1033),
+            Region {
+                x: 1576,
+                y: 82,
+                width: 236,
+                height: 18
+            }
+        );
+        assert_eq!(
+            at(ScreenRegion::CardLevel(0), 1920, 1033),
+            Region {
+                x: 1576,
+                y: 104,
+                width: 236,
+                height: 18
+            }
+        );
+        // The second slot is 90 px lower: its name is at 172, where the second card's name is drawn.
+        assert_eq!(at(ScreenRegion::CardName(1), 1920, 1033).y, 172);
+        assert_eq!(
+            at(ScreenRegion::CardSelected(0), 1920, 1033),
+            Region {
+                x: 1690,
+                y: 45,
+                width: 20,
+                height: 3
+            }
+        );
+    }
+
+    #[test]
+    fn the_card_fields_of_a_row_sit_top_to_bottom_and_the_rows_do_not_overlap() {
+        for (width, height) in [(1920, 1033), (1920, 1080), (2560, 1440), (1680, 1050)] {
+            for slot in 0..CARD_SLOTS {
+                let title = at(ScreenRegion::CardTitle(slot), width, height);
+                let name = at(ScreenRegion::CardName(slot), width, height);
+                let level = at(ScreenRegion::CardLevel(slot), width, height);
+                assert!(
+                    title.y + title.height <= name.y,
+                    "title above name at {height}"
+                );
+                assert!(
+                    name.y + name.height <= level.y,
+                    "name above level at {height}"
+                );
+                if slot + 1 < CARD_SLOTS {
+                    let next = at(ScreenRegion::CardTitle(slot + 1), width, height);
+                    assert!(
+                        level.y + level.height <= next.y,
+                        "rows do not overlap at {height}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn every_text_region_resolves_inside_the_frame_at_each_supported_size() {
+        for (width, height) in [(1920, 1033), (1920, 1080), (2560, 1440), (1680, 1050)] {
+            for region in screen_text_regions() {
+                let pixels = at(region, width, height);
+                assert!(
+                    pixels.x + pixels.width <= width && pixels.y + pixels.height <= height,
+                    "{region:?} at {width}×{height} lies inside the frame"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_unsupported_aspect_ratio_resolves_no_screen_region() {
+        assert_eq!(screen_region(ScreenRegion::CardName(0), 1280, 1024), None);
+        assert_eq!(screen_region(ScreenRegion::Life, 2560, 1080), None);
+    }
+
+    #[test]
+    fn the_keys_name_each_region_once() {
+        let keys: Vec<String> = screen_text_regions()
+            .into_iter()
+            .map(ScreenRegion::key)
+            .collect();
+        let mut unique = keys.clone();
+        unique.sort();
+        unique.dedup();
+        assert_eq!(unique.len(), keys.len());
+        assert_eq!(keys[0], "createNew");
+        assert_eq!(keys.last().map(String::as_str), Some("cardLevel8"));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Anchor, PanelBox, PanelRegion, panel_region, supported_size};
