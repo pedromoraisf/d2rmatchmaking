@@ -128,3 +128,22 @@ levels and popup labels because their lettering is not the game's.
 - [x] T26 — `phases/F1/decisions.md → To confirm`: names compared without case (T22) and the agreement rule (T24) —
       gate: `pnpm specs:check` and `pnpm format:check`
 - [ ] T27 — Real proof: the PR's `ocr-real` job prints "0 of 5 files FAIL" and the `agent` job is green
+
+## Batch 7 — review findings of PR #50 (2026-11-12)
+
+`ocr-real` run 43217172981 printed "0 of 5 files FAIL". The architecture and security reviews found that the job
+prints what the real screenshots show into the public Actions log.
+
+- [ ] T28 — `ocr-check` prints no personal reading by default: per file `PASS`/`FAIL` with a non-textual reason (screen
+      kind expected/read, number of cards, which card fields settled or not, game-name field Matched/Masked/Other,
+      number of difficulties); the raw reads of character names and of the game-name field are printed only with an
+      explicit local flag (`--show-reads`) the workflow never passes; vocabulary reads (class/level line, titles,
+      popup and panel labels) stay printed — gate: `cargo nextest run`, `cargo clippy --all-targets -- -D warnings`,
+      `node --test scripts/test/agent-ocr-check.test.mjs`
+- [ ] T29 — A level read with a confusable letter outside the map, or that maps out of 1..=99, stays unknown; unit
+      tests ("S0" maps to 50 only as documented, "X8", "0", "100", "8 8") and the digit map listed in the PR
+      description — same gate
+- [ ] T30 — `.github/workflows/ocr-real.yml` pins `actions/checkout` to a commit SHA like the other actions —
+      gate: `pnpm test:harness`
+- [ ] T31 — `phases/F1/decisions.md → Blocked`: the Windows OCR on the drawn fixtures — gate: `pnpm specs:check`,
+      `pnpm format:check`
