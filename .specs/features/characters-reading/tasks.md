@@ -125,6 +125,6 @@ levels and popup labels because their lettering is not the game's.
       real screenshots ("LEVEL 88 SORCERESS", "MATRIARCH", "SELECT DIFFICULTY", "NORMAL" / "NIGHTMARE" / "HELL", the
       Life label, the automap's area difficulty); regenerated with the xtask; every expectation unchanged — same gate,
       plus `node scripts/check-images.mjs`
-- [ ] T26 — `phases/F1/decisions.md → To confirm`: names compared without case (T22) and the agreement rule (T24) —
+- [x] T26 — `phases/F1/decisions.md → To confirm`: names compared without case (T22) and the agreement rule (T24) —
       gate: `pnpm specs:check` and `pnpm format:check`
 - [ ] T27 — Real proof: the PR's `ocr-real` job prints "0 of 5 files FAIL" and the `agent` job is green
