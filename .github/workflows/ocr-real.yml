@@ -60,7 +60,7 @@ jobs:
         env:
           PW: ${{ secrets.OCR_PRINTS_PASSWORD }}
         run: |
-          "/c/Program Files/7-Zip/7z.exe" x -y -bso0 -bsp0 -p"$PW" -o"$RUNNER_TEMP/real-prints" apps/agent/ocr-lab/real-prints.zip
+          "/c/Program Files/7-Zip/7z.exe" e -y -bso0 -bsp0 -p"$PW" -o"$RUNNER_TEMP/real-prints" apps/agent/ocr-lab/real-prints.zip
       - name: Read them with Windows OCR
         if: steps.zip.outputs.present == 'true'
         run: apps/agent/src-tauri/target/release/examples/ocr-check.exe "$RUNNER_TEMP/real-prints"

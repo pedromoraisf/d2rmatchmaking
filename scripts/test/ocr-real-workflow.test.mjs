@@ -60,7 +60,7 @@ test('the password reaches the extract step only, through an env var, and nothin
   );
   const withSecret = steps.filter((s) => JSON.stringify(s).includes('secrets.'));
   assert.equal(withSecret.length, 1);
-  assert.match(withSecret[0].run, /7z\.exe" x .*-p"\$PW"/);
+  assert.match(withSecret[0].run, /7z\.exe" e .*-p"\$PW"/);
   assert.equal(withSecret[0].env.PW, '${{ secrets.OCR_PRINTS_PASSWORD }}');
   assert.doesNotMatch(text, /set -x|set -o xtrace|echo .*\$PW|ACTIONS_STEP_DEBUG/);
   assert.doesNotMatch(JSON.stringify(wf.env ?? {}) + JSON.stringify(job.env ?? {}), /secrets\./);
