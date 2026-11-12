@@ -6,6 +6,7 @@ import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
 import { buildApp, type AppDatabase } from './app.ts';
 import { loadConfig, type Config } from './config.ts';
+import { previewRefusal } from './preview-guard.ts';
 import { ClockScheduler, NodeRandomSource, RandomUuidGenerator, SystemClock } from './runtime.ts';
 import { shutdownTelemetry } from './telemetry-lifecycle.ts';
 
@@ -25,6 +26,11 @@ export function refusalOf(config: Config): string | undefined {
 
 /** Starts the Render API. Exits non-zero, before any connection, when the configuration is refused. */
 async function main(): Promise<void> {
+  const previewReason = previewRefusal(process.env);
+  if (previewReason !== undefined) {
+    process.stderr.write(`render: refusing to start: ${previewReason}\n`);
+    process.exit(1);
+  }
   const config = loadConfig();
   const refusal = refusalOf(config);
   if (refusal !== undefined) {
