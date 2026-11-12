@@ -121,7 +121,7 @@ levels and popup labels because their lettering is not the game's.
       single-distinct-name fallback goes. Unit tests with the exact reads of `maintainer-select-screen.png` and
       `maintainer-select-difficulty.png` (both cards), and a tie that stays unknown —
       gate: `cargo nextest run` and `cargo clippy --all-targets -- -D warnings`
-- [ ] T25 — The drawn fixtures imitate the game's lettering: upper-case small caps, bold, sizes and inks close to the
+- [x] T25 — The drawn fixtures imitate the game's lettering: upper-case small caps, bold, sizes and inks close to the
       real screenshots ("LEVEL 88 SORCERESS", "MATRIARCH", "SELECT DIFFICULTY", "NORMAL" / "NIGHTMARE" / "HELL", the
       Life label, the automap's area difficulty); regenerated with the xtask; every expectation unchanged — same gate,
       plus `node scripts/check-images.mjs`

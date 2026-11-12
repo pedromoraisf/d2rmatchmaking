@@ -139,6 +139,11 @@ fn fill_region(pixels: &mut [u8], area: Region, colour: [u8; 3]) {
     );
 }
 
+/// The four passes a pixel apart that make a stroke as heavy as the game's bold lettering.
+const BOLD_PASSES: [(u32, u32); 4] = [(0, 0), (1, 0), (0, 1), (1, 1)];
+
+/// Draws `text` in the game's lettering: upper case and bold (the game draws names, titles and labels in bold small caps,
+/// which Windows OCR reads well; thin mixed-case lettering at 15 px it reads as noise). Left-aligned in `area`.
 fn draw_left(
     pixels: &mut [u8],
     font: &FontRef<'_>,
@@ -147,15 +152,38 @@ fn draw_left(
     area: Region,
     colour: [u8; 3],
 ) {
-    draw_line_in(
-        pixels,
-        font,
-        text,
-        size,
-        area.x as f32,
-        baseline_of(area, size),
-        colour,
-    );
+    let text = text.to_uppercase();
+    for (dx, dy) in BOLD_PASSES {
+        draw_line_in(
+            pixels,
+            font,
+            &text,
+            size,
+            (area.x + dx) as f32,
+            baseline_of(area, size) + dy as f32,
+            colour,
+        );
+    }
+}
+
+/// `draw_left`'s lettering, centred in `area`.
+fn draw_bold_centred(
+    pixels: &mut [u8],
+    font: &FontRef<'_>,
+    text: &str,
+    size: f32,
+    area: Region,
+    colour: [u8; 3],
+) {
+    let text = text.to_uppercase();
+    for (dx, dy) in BOLD_PASSES {
+        let shifted = Region {
+            x: area.x + dx,
+            y: area.y + dy,
+            ..area
+        };
+        draw_centred(pixels, font, &text, size, shifted, colour);
+    }
 }
 
 /// The selection screen's cards: each occupied slot is a frame with its title, name and level, and the selected frame's
@@ -195,7 +223,7 @@ fn draw_cards(
                 pixels,
                 font,
                 title,
-                15.0,
+                18.0,
                 region(ScreenRegion::CardTitle(slot))?,
                 TITLE_INK,
             );
@@ -204,7 +232,7 @@ fn draw_cards(
             draw_left(pixels, font, text, 19.0, name, NAME_INK);
         }
         if let Some(text) = text_of(sidecar, ScreenRegion::CardLevel(slot)) {
-            draw_left(pixels, font, text, 15.0, level, LEVEL_INK);
+            draw_left(pixels, font, text, 18.0, level, LEVEL_INK);
         }
     }
     Ok(())
@@ -227,7 +255,7 @@ fn draw_popup(
     fill(pixels, x0, y0, x1, y1, POPUP_EDGE);
     fill(pixels, x0 + 2, y0 + 2, x1 - 2, y1 - 2, POPUP_FILL);
     if let Some(text) = text_of(sidecar, ScreenRegion::SelectDifficulty) {
-        draw_centred(pixels, font, text, 17.0, title, GOLD_BORDER);
+        draw_bold_centred(pixels, font, text, 18.0, title, GOLD_BORDER);
     }
     for button in [
         ScreenRegion::PopupNormal,
@@ -251,14 +279,7 @@ fn draw_popup(
             } else {
                 POPUP_INK
             };
-            // Four passes a pixel apart make the strokes as heavy as the game's bold labels; one thin pass reads too dim.
-            for offset in [0, 1, 2, 3] {
-                let shifted = Region {
-                    x: area.x + offset,
-                    ..area
-                };
-                draw_centred(pixels, font, text, 20.0, shifted, ink);
-            }
+            draw_bold_centred(pixels, font, text, 19.0, area, ink);
         }
     }
     Ok(())
@@ -276,11 +297,11 @@ pub fn render_character_png(fixture: &CharacterFixture) -> Result<Vec<u8>, Box<d
         FontRef::try_from_slice(FONT).map_err(|_| "the fixture font is not a readable font")?;
     draw_cards(&mut pixels, &font, &sidecar, fixture.selected)?;
     if let Some(text) = text_of(&sidecar, ScreenRegion::CreateNew) {
-        draw_centred(
+        draw_bold_centred(
             &mut pixels,
             &font,
             text,
-            17.0,
+            18.0,
             region(ScreenRegion::CreateNew)?,
             NAME_INK,
         );
@@ -290,7 +311,7 @@ pub fn render_character_png(fixture: &CharacterFixture) -> Result<Vec<u8>, Box<d
             &mut pixels,
             &font,
             text,
-            16.0,
+            17.0,
             region(ScreenRegion::Life)?,
             HUD_INK,
         );
@@ -300,7 +321,7 @@ pub fn render_character_png(fixture: &CharacterFixture) -> Result<Vec<u8>, Box<d
             &mut pixels,
             &font,
             text,
-            13.0,
+            14.0,
             region(ScreenRegion::AreaDifficulty)?,
             AREA_INK,
         );
