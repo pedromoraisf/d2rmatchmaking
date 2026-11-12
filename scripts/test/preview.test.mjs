@@ -7,6 +7,7 @@ import {
   pickPreviewService,
   previewApiOriginFor,
   previewSiteOrigin,
+  verifiedPreview,
   validPreviewOrigin,
 } from '../preview/preview.mjs';
 
@@ -26,12 +27,47 @@ test('the preview site origin is the alias under the project, and malformed inpu
   assert.equal(previewSiteOrigin('phase/F1', 'Upper'), undefined);
 });
 
+const OWNER = 'pedromoraisf';
+const own = (number) => ({ number, headRepositoryOwner: { login: OWNER } });
+
+test('a fork pull request from a branch of the same name is ignored, even without an owner to compare', () => {
+  const fork = { number: 5, headRepositoryOwner: { login: 'someone-else' } };
+  assert.equal(previewApiOriginFor([fork], OWNER), undefined);
+  assert.equal(previewApiOriginFor([fork, own(8)], OWNER), 'https://d2rmm-api-pr-8.onrender.com');
+  assert.equal(previewApiOriginFor([own(8)], undefined), undefined);
+  assert.equal(previewApiOriginFor([own(8)], ''), undefined);
+  assert.equal(previewApiOriginFor([{ number: 8 }], OWNER), undefined);
+});
+
+test('an alias over 28 characters is refused, 28 is accepted', () => {
+  assert.equal(previewSiteOrigin('a'.repeat(28), 'proj'), `https://${'a'.repeat(28)}.proj.pages.dev`);
+  assert.equal(previewSiteOrigin('a'.repeat(29), 'proj'), undefined);
+});
+
+test('a found service is the preview only with the derived url and an id other than its parent', () => {
+  const ok = svc('d2rmm-api-pr-7', 'd2rmm-api').service;
+  assert.equal(verifiedPreview(ok, 7), true);
+  assert.equal(
+    verifiedPreview(
+      { ...ok, serviceDetails: { ...ok.serviceDetails, url: 'https://d2rmm-api-pr-8.onrender.com' } },
+      7,
+    ),
+    false,
+  );
+  assert.equal(verifiedPreview({ ...ok, id: 'srv-base' }, 7), false);
+  assert.equal(
+    verifiedPreview({ ...ok, serviceDetails: { ...ok.serviceDetails, parentServer: undefined } }, 7),
+    false,
+  );
+  assert.equal(verifiedPreview(undefined, 7), false);
+});
+
 test('a labelled open pull request gives its preview API origin, none gives none', () => {
-  assert.equal(previewApiOriginFor([{ number: 12 }]), 'https://d2rmm-api-pr-12.onrender.com');
-  assert.equal(previewApiOriginFor([{ number: 12 }, { number: 9 }]), 'https://d2rmm-api-pr-9.onrender.com');
-  assert.equal(previewApiOriginFor([]), undefined);
-  assert.equal(previewApiOriginFor(undefined), undefined);
-  assert.equal(previewApiOriginFor([{ number: 0 }, { number: '7' }, {}]), undefined);
+  assert.equal(previewApiOriginFor([own(12)], OWNER), 'https://d2rmm-api-pr-12.onrender.com');
+  assert.equal(previewApiOriginFor([own(12), own(9)], OWNER), 'https://d2rmm-api-pr-9.onrender.com');
+  assert.equal(previewApiOriginFor([], OWNER), undefined);
+  assert.equal(previewApiOriginFor(undefined, OWNER), undefined);
+  assert.equal(previewApiOriginFor([own(0), own('7'), {}], OWNER), undefined);
 });
 
 test('baking replaces only the committed default and refuses anything else', () => {

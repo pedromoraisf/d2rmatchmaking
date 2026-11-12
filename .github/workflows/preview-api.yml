@@ -38,7 +38,6 @@ jobs:
       api_origin: ${{ steps.service.outputs.api_origin }}
     env:
       PR: ${{ github.event.pull_request.number }}
-      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
     steps:
       - name: Check out the pull request head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -82,6 +81,8 @@ jobs:
       - name: Wait for the Render preview service
         id: service
         shell: bash
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
           set -euo pipefail
           deadline=$(( $(date +%s) + 600 ))
@@ -92,7 +93,8 @@ jobs:
               url="https://api.render.com/v1/services?includePreviews=true&limit=100"
               if [ -n "$cursor" ]; then url="$url&cursor=$cursor"; fi
               page=$(curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" "$url")
-              found=$(printf '%s' "$page" | node scripts/preview/preview.mjs find "$PR")
+              # Pull request code (the script) never sees the key: it is dropped from its environment.
+              found=$(printf '%s' "$page" | env -u RENDER_API_KEY node scripts/preview/preview.mjs find "$PR")
               if [ -n "$found" ]; then break; fi
               cursor=$(printf '%s' "$page" | jq -r 'if length == 100 then .[-1].cursor else "" end')
               if [ -z "$cursor" ]; then break; fi
@@ -112,17 +114,26 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "Preview API: $api_origin" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Point the preview at its database and mark it ready
+      - name: Compute the preview site origin
+        id: site
+        # The preview site is the Pages alias of the head branch. The API's same-origin check and its sign-in
+        # redirects use SITE_ORIGIN, so the preview gets that site's own origin (the proxy forwards Origin untouched).
+        # Runs pull request code, so it holds no Render key.
         env:
-          SERVICE_ID: ${{ steps.service.outputs.service_id }}
-          DATABASE_URL: ${{ steps.neon.outputs.db_url }}
           DEPLOY_BRANCH: ${{ github.event.pull_request.head.ref }}
           CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
         run: |
           set -euo pipefail
-          # The preview site is the Pages alias of the head branch. The API's same-origin check and its sign-in
-          # redirects use SITE_ORIGIN, so the preview gets that site's own origin (the proxy forwards Origin untouched).
-          site_origin=$(node scripts/preview/preview.mjs site-origin "$DEPLOY_BRANCH" "$CLOUDFLARE_PAGES_PROJECT")
+          echo "origin=$(node scripts/preview/preview.mjs site-origin "$DEPLOY_BRANCH" "$CLOUDFLARE_PAGES_PROJECT")" >> "$GITHUB_OUTPUT"
+
+      - name: Point the preview at its database and mark it ready
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ steps.service.outputs.service_id }}
+          DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+          SITE_ORIGIN: ${{ steps.site.outputs.origin }}
+        run: |
+          set -euo pipefail
           # The single-variable endpoint: PUT /services/{id}/env-vars (no key) would replace every variable.
           # DATABASE_URL first: the ready marker must never exist next to the staging database.
           put() {
@@ -132,11 +143,12 @@ jobs:
                 "https://api.render.com/v1/services/$SERVICE_ID/env-vars/$1"
           }
           put DATABASE_URL "$DATABASE_URL"
-          put SITE_ORIGIN "$site_origin"
+          put SITE_ORIGIN "$SITE_ORIGIN"
           put D2RMM_PREVIEW_DATABASE ready
 
       - name: Redeploy the preview
         env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           SERVICE_ID: ${{ steps.service.outputs.service_id }}
         run: |
           curl -fsS -o /dev/null -X POST -H "Authorization: Bearer $RENDER_API_KEY" \
@@ -252,16 +264,24 @@ jobs:
     name: preview-api-down
     if: >-
       github.event.action == 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(github.event.pull_request.labels.*.name, 'render-preview')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Delete the Neon branch
-        # Always cleans up, label or not. It tolerates a missing branch (the label was never added) and a missing secret
-        # (Dependabot pull requests see none); Render deletes the preview service itself.
+        # Runs only for a labelled pull request (nothing to delete otherwise); Render deletes the preview service itself.
+        # A failed delete does not fail the closed pull request, but the next step says so.
+        id: delete
         continue-on-error: true
         uses: neondatabase/delete-branch-action@4468d825d5a88ef4012f1705a82f02ec3072f776 # v3
         with:
           project_id: ${{ vars.NEON_PROJECT_ID }}
           branch: preview/pr-${{ github.event.pull_request.number }}
           api_key: ${{ secrets.NEON_API_KEY }}
+
+      - name: Warn when the Neon branch was not deleted
+        if: steps.delete.outcome == 'failure'
+        env:
+          BRANCH: preview/pr-${{ github.event.pull_request.number }}
+        run: echo "::warning::The Neon branch $BRANCH was not deleted; delete it by hand (Neon Free allows 10 branches)"

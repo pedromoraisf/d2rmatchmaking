@@ -36,7 +36,7 @@ test('up and the site run only for this repository and the render-preview label;
     assert.ok(condition.includes("contains(github.event.pull_request.labels.*.name, 'render-preview')"));
   }
   assert.ok(wf.jobs.down.if.includes("github.event.action == 'closed'"));
-  assert.ok(!wf.jobs.down.if.includes('render-preview'));
+  assert.ok(wf.jobs.down.if.includes("contains(github.event.pull_request.labels.*.name, 'render-preview')"));
   assert.deepEqual(wf.jobs.site.needs, ['up', 'site-build']);
 });
 
@@ -56,7 +56,9 @@ test('SITE_ORIGIN is set between DATABASE_URL and the ready marker', () => {
     step.run.indexOf(x),
   );
   assert.ok(order[0] >= 0 && order[0] < order[1] && order[1] < order[2], String(order));
-  assert.ok(step.run.includes('preview.mjs site-origin'));
+  const siteStep = stepsOf(wf.jobs.up).find((s) => s.run?.includes('preview.mjs site-origin'));
+  assert.ok(siteStep, 'the site origin is computed in its own step');
+  assert.equal(siteStep.env?.RENDER_API_KEY, undefined, 'pull request code runs without the Render key');
 });
 
 test('preview-api and deploy-web bake the upstream with the same script, and deploy-web only reads pull requests', () => {
@@ -66,9 +68,29 @@ test('preview-api and deploy-web bake the upstream with the same script, and dep
   const web = parse(readFileSync(path.join(root, '.github/workflows/deploy-web.yml'), 'utf8'));
   const bake = bakeOf(web.jobs.deploy);
   assert.ok(bake);
-  assert.equal(bake.run, bakeOf(wf.jobs.site).run.replace('$DEPLOY_BRANCH', '$DEPLOY_BRANCH'));
+  assert.equal(bake.run, bakeOf(wf.jobs.site).run);
   assert.deepEqual(web.jobs.deploy.permissions, { contents: 'read', 'pull-requests': 'read' });
   assert.ok(!JSON.stringify(bake).includes('secrets.'), 'the bake step holds no secret');
+});
+
+test('the Render key is on the Render steps only, never job-wide or next to pull request code', () => {
+  assert.equal(wf.jobs.up.env.RENDER_API_KEY, undefined);
+  for (const step of stepsOf(wf.jobs.up)) {
+    const holds = step.env?.RENDER_API_KEY !== undefined;
+    assert.equal(holds, step.run?.includes('api.render.com') ?? false, step.name);
+    if (step.run?.includes('pnpm') || step.run?.includes('preview.mjs site-origin'))
+      assert.equal(holds, false, step.name);
+  }
+  const wait = stepsOf(wf.jobs.up).find((s) => s.id === 'service');
+  assert.ok(wait.run.includes('env -u RENDER_API_KEY node scripts/preview/preview.mjs find'));
+});
+
+test('a failed Neon delete warns by name', () => {
+  const steps = stepsOf(wf.jobs.down);
+  assert.equal(steps[0].id, 'delete');
+  assert.ok(
+    steps[1].if.includes("steps.delete.outcome == 'failure'") && steps[1].run.includes('::warning::'),
+  );
 });
 
 test('render.yaml turns previews on manually for the API only', () => {

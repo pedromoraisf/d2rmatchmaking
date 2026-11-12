@@ -23,10 +23,31 @@ export function pickPreviewService(services, n) {
     );
 }
 
+/**
+ * Whether a service found for pull request `n` is the one to bake: its url is exactly the origin derived from the number,
+ * and it is a preview, not the base service itself (its id differs from its parent's).
+ */
+export function verifiedPreview(service, n) {
+  const parentId = service?.serviceDetails?.parentServer?.id;
+  return (
+    typeof service?.id === 'string' &&
+    service.id !== '' &&
+    typeof parentId === 'string' &&
+    parentId !== service.id &&
+    service.serviceDetails.url === `https://${BASE_SERVICE}-pr-${n}.onrender.com`
+  );
+}
+
 /** The origin when it is exactly `https://d2rmm-api-pr-<digits>.onrender.com`, else undefined. */
 export function validPreviewOrigin(value) {
   return typeof value === 'string' && PREVIEW_ORIGIN.test(value) ? value : undefined;
 }
+
+/**
+ * Cloudflare shortens long branch aliases and the exact rule is unverified, so a longer alias is refused rather than
+ * guessed: a wrong SITE_ORIGIN would break the preview's same-origin check silently.
+ */
+export const MAX_ALIAS_LENGTH = 28;
 
 /**
  * The Cloudflare Pages branch alias: lowercase, every character outside [a-z0-9] becomes '-', then leading and trailing
@@ -44,7 +65,9 @@ export function previewSiteOrigin(branch, project) {
   if (typeof project !== 'string' || !/^[a-z0-9-]+$/.test(project)) return undefined;
   const alias = branchAlias(branch);
   const origin = `https://${alias}.${project}.pages.dev`;
-  return alias !== '' && new RegExp(`^https://[a-z0-9-]+\\.${project}\\.pages\\.dev$`).test(origin)
+  return alias !== '' &&
+    alias.length <= MAX_ALIAS_LENGTH &&
+    new RegExp(`^https://[a-z0-9-]+\\.${project}\\.pages\\.dev$`).test(origin)
     ? origin
     : undefined;
 }
@@ -53,9 +76,13 @@ export function previewSiteOrigin(branch, project) {
  * The preview API origin for the open pull requests into main from a branch that carry the `render-preview` label (the
  * JSON of `gh pr list --json number`), or undefined. The lowest number wins when there are several.
  */
-export function previewApiOriginFor(pullRequests) {
+export function previewApiOriginFor(pullRequests, owner) {
   if (!Array.isArray(pullRequests)) return undefined;
-  const numbers = pullRequests.map((pr) => pr?.number).filter((n) => Number.isInteger(n) && n > 0);
+  // A fork can open a pull request from a branch of the same name; only this repository's own branches count.
+  const numbers = pullRequests
+    .filter((pr) => typeof owner === 'string' && owner !== '' && pr?.headRepositoryOwner?.login === owner)
+    .map((pr) => pr?.number)
+    .filter((n) => Number.isInteger(n) && n > 0);
   if (numbers.length === 0) return undefined;
   return validPreviewOrigin(`https://${BASE_SERVICE}-pr-${Math.min(...numbers)}.onrender.com`);
 }
@@ -75,7 +102,12 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (command === 'site-origin') {
     // `site-origin <branch> <project>`: the Pages origin of the branch, or exit 1.
     const origin = previewSiteOrigin(args[0], args[1]);
-    if (origin === undefined) process.exit(1);
+    if (origin === undefined) {
+      process.stderr.write(
+        `::error::No usable Pages preview origin for branch "${args[0]}" (empty, or an alias over ${MAX_ALIAS_LENGTH} characters that Cloudflare shortens by a rule not verified here)\n`,
+      );
+      process.exit(1);
+    }
     process.stdout.write(`${origin}\n`);
   } else if (command === 'bake') {
     // `bake <branch> <module file>`: needs GH_TOKEN and GH_REPO. Bakes the origin only when an open pull request into
@@ -94,11 +126,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         '--state',
         'open',
         '--json',
-        'number',
+        'number,headRepositoryOwner',
       ],
       { encoding: 'utf8' },
     );
-    const origin = previewApiOriginFor(JSON.parse(json));
+    const origin = previewApiOriginFor(JSON.parse(json), (process.env.GH_REPO ?? '').split('/')[0]);
     if (origin === undefined) {
       process.stdout.write('no preview API for this branch\n');
     } else {
@@ -110,8 +142,16 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     let text = '';
     for await (const chunk of process.stdin) text += chunk;
     const service = pickPreviewService(JSON.parse(text), Number(args[0]));
-    const origin = validPreviewOrigin(service?.serviceDetails?.url);
-    if (service && origin) process.stdout.write(`${service.id} ${origin}\n`);
+    if (service) {
+      const origin = validPreviewOrigin(service.serviceDetails?.url);
+      if (origin === undefined || !verifiedPreview(service, Number(args[0]))) {
+        process.stderr.write(
+          `::error::The service d2rmm-api-pr-${args[0]} is not the preview of this pull request\n`,
+        );
+        process.exit(3);
+      }
+      process.stdout.write(`${service.id} ${origin}\n`);
+    }
   } else {
     process.stderr.write(
       'usage: preview.mjs find <n> | site-origin <branch> <project> | bake <branch> <file>\n',
