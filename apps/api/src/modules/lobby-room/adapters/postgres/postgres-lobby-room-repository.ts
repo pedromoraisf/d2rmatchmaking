@@ -96,21 +96,11 @@ export class PostgresLobbyRoomRepository implements LobbyRoomRepository {
   }
 
   async findById(roomId: string): Promise<LobbyRoom | null> {
-    const row = await this.#db
-      .selectFrom('lobby.rooms')
-      .selectAll()
-      .where('id', '=', roomId)
-      .executeTakeFirst();
-    return row === undefined ? null : this.#load(row);
+    return this.#load('id', roomId);
   }
 
   async findByMatchId(matchId: string): Promise<LobbyRoom | null> {
-    const row = await this.#db
-      .selectFrom('lobby.rooms')
-      .selectAll()
-      .where('match_id', '=', matchId)
-      .executeTakeFirst();
-    return row === undefined ? null : this.#load(row);
+    return this.#load('match_id', matchId);
   }
 
   /** The room with the highest game name number among the rooms the account is a member of (AWS-25). */
@@ -141,10 +131,11 @@ export class PostgresLobbyRoomRepository implements LobbyRoomRepository {
   async findOpen(): Promise<LobbyRoom[]> {
     const rows = await this.#db
       .selectFrom('lobby.rooms')
-      .selectAll()
+      .select('id')
       .where('stage', 'not in', ['closed', 'expired'])
       .execute();
-    return Promise.all(rows.map((row) => this.#load(row)));
+    const loaded = await Promise.all(rows.map((row) => this.#load('id', row.id)));
+    return loaded.filter((room): room is LobbyRoom => room !== null);
   }
 
   async runsOf(roomId: string): Promise<readonly RoomRunRecord[]> {
@@ -170,14 +161,33 @@ export class PostgresLobbyRoomRepository implements LobbyRoomRepository {
       .execute();
   }
 
-  async #load(row: RoomRow): Promise<LobbyRoom> {
-    const members = await this.#db
+  /**
+   * Reads the room, its members and its current run in one repeatable-read transaction: a save that commits between
+   * the statements (a host who leaves hands the role on) must not show a host row without its member, or the restore
+   * refuses the room and the read answers 500.
+   */
+  async #load(column: 'id' | 'match_id', value: string): Promise<LobbyRoom | null> {
+    return this.#db
+      .transaction()
+      .setIsolationLevel('repeatable read')
+      .execute(async (trx) => {
+        const row = await trx
+          .selectFrom('lobby.rooms')
+          .selectAll()
+          .where(column, '=', value)
+          .executeTakeFirst();
+        return row === undefined ? null : this.#restore(trx, row);
+      });
+  }
+
+  async #restore(db: Kysely<LobbyDatabase>, row: RoomRow): Promise<LobbyRoom> {
+    const members = await db
       .selectFrom('lobby.members')
       .select(['account_id', 'character_id', 'role', 'join_order', 'confirmed_run'])
       .where('room_id', '=', row.id)
       .where('left_at', 'is', null)
       .execute();
-    const run = await this.#db
+    const run = await db
       .selectFrom('lobby.runs')
       .select('game_name')
       .where('room_id', '=', row.id)

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { KyselyPlugin } from 'kysely';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   createMigratedTestDatabase,
@@ -315,6 +316,39 @@ describe('the room stages in Postgres (lobby-rooms)', () => {
       [room.id, host],
     );
     expect(row.rows[0]?.left_at).toEqual(NOW);
+  });
+
+  it('reads a consistent room when the host leaves between its statements (LBR-07)', async () => {
+    const room = trio();
+    await inTransaction((tx) => rooms.insert(tx, room));
+    const host = room.members[0]?.accountId as string;
+    const left = room.leave(host);
+    if (!left.ok) {
+      throw new Error('expected a leave');
+    }
+    // Commits the leave right after the read of the room row, before the read of its members.
+    let fired = false;
+    const interleaving: KyselyPlugin = {
+      transformQuery: (args) => args.node,
+      transformResult: async (args) => {
+        const first = (args.result.rows[0] ?? {}) as { host_account_id?: string };
+        if (!fired && first.host_account_id === host) {
+          fired = true;
+          await save(left.value.room);
+        }
+        return args.result;
+      },
+    };
+    const reader = new PostgresLobbyRoomRepository(database.db.withPlugin(interleaving), new FakeClock(NOW));
+
+    const found = await reader.findById(room.id);
+
+    expect(fired).toBe(true);
+    expect(found?.members.map((member) => member.accountId)).toContain(found?.hostAccountId);
+    // The route's read (GET /v1/me/room) goes through findNewestByAccount, then findById: the new host sees the room.
+    // The host who stays (found is the snapshot before the leave, so its host is the one who left).
+    const newHost = left.value.room.hostAccountId;
+    expect((await reader.findNewestByAccount(newHost))?.id).toBe(room.id);
   });
 
   it('keeps the last member to leave listed in the closed room', async () => {
