@@ -48,6 +48,9 @@ being true.
 get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding {}> docker pull postgres:17-alpine`,
   same for `testcontainers/ryuk`) and run the suite with the same `DOCKER_CONFIG`; never touch `~/.docker`. Why: on
   2026-11-12 the room-view fix waited more than 10 minutes twice on the macOS credential helper before any test ran.
+  An empty config also hides `buildx` (the legacy builder then fails on `--platform`), so for image builds such as
+  `pnpm test:load` write `{ "cliPluginsExtraDirs": ["/Applications/Docker.app/Contents/Resources/cli-plugins"] }`
+  instead of `{}` (F1 review, 2026-11-12).
 
 - **Format and commit a worktree's files from inside that worktree, after `pnpm install` there.** `.prettierignore`
   skips `.claude/worktrees/`, so `prettier --write <worktree path>` run from the main checkout changes nothing and
