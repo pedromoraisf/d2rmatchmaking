@@ -1,0 +1,69 @@
+name: ocr-real
+
+# The Windows OCR check on the maintainer's real screenshots (apps/agent/ocr-lab/README.md). The screenshots are one
+# AES-256 encrypted zip in the repository; the password is the secret OCR_PRINTS_PASSWORD, reachable only on the extract
+# step, and never for a fork's pull request. The extracted folder is deleted at the end and never uploaded.
+# The job's PASS or FAIL is the exit code of ocr-check.exe.
+on:
+  pull_request:
+    paths:
+      - 'apps/agent/**'
+      - 'scripts/agent/**'
+      - '.github/workflows/ocr-real.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ocr-real:
+    name: ocr-real
+    # Fork pull requests never receive the secret.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - id: zip
+        name: Is the encrypted zip in the repository?
+        run: |
+          if [ -f apps/agent/ocr-lab/real-prints.zip ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; echo "No apps/agent/ocr-lab/real-prints.zip yet; nothing to check."; fi
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        if: steps.zip.outputs.present == 'true'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        if: steps.zip.outputs.present == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install the workspace
+        if: steps.zip.outputs.present == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Build the UI (Tauri reads frontendDist)
+        if: steps.zip.outputs.present == 'true'
+        run: pnpm --filter @d2rmm/agent build
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        if: steps.zip.outputs.present == 'true'
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        if: steps.zip.outputs.present == 'true'
+        with:
+          workspaces: apps/agent/src-tauri
+      - name: Build the OCR check
+        if: steps.zip.outputs.present == 'true'
+        working-directory: apps/agent/src-tauri
+        run: cargo build --locked --release --example ocr-check
+      - name: Extract the real screenshots
+        if: steps.zip.outputs.present == 'true'
+        env:
+          PW: ${{ secrets.OCR_PRINTS_PASSWORD }}
+        run: |
+          "/c/Program Files/7-Zip/7z.exe" x -y -bso0 -bsp0 -p"$PW" -o"$RUNNER_TEMP/real-prints" apps/agent/ocr-lab/real-prints.zip
+      - name: Read them with Windows OCR
+        if: steps.zip.outputs.present == 'true'
+        run: apps/agent/src-tauri/target/release/examples/ocr-check.exe "$RUNNER_TEMP/real-prints"
+      - name: Delete the extracted screenshots
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/real-prints"
