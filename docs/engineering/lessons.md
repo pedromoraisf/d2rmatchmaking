@@ -49,6 +49,11 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
   same for `testcontainers/ryuk`) and run the suite with the same `DOCKER_CONFIG`; never touch `~/.docker`. Why: on
   2026-11-12 the room-view fix waited more than 10 minutes twice on the macOS credential helper before any test ran.
 
+- **Format and commit a worktree's files from inside that worktree, after `pnpm install` there.** `.prettierignore`
+  skips `.claude/worktrees/`, so `prettier --write <worktree path>` run from the main checkout changes nothing and
+  says nothing, and without `node_modules` Lefthook does not run. Why: the merge of `phase/F1` into PR #50 reached CI
+  unformatted and `verify` failed (2026-11-12).
+
 ## Tests
 
 - **No tight wall-clock limits in unit tests.** The maintainer's machine has 8 GB and runs the suites in parallel; a test
