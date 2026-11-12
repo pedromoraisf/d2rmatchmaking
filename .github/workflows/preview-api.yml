@@ -87,21 +87,24 @@ jobs:
           set -euo pipefail
           deadline=$(( $(date +%s) + 600 ))
           while true; do
+            # The base service and the preview may sit on different pages, so all pages are gathered before matching.
             cursor=""
-            found=""
+            all="[]"
             while true; do
               url="https://api.render.com/v1/services?includePreviews=true&limit=100"
               if [ -n "$cursor" ]; then url="$url&cursor=$cursor"; fi
               page=$(curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" "$url")
-              # Pull request code (the script) never sees the key: it is dropped from its environment.
-              found=$(printf '%s' "$page" | env -u RENDER_API_KEY node scripts/preview/preview.mjs find "$PR")
-              if [ -n "$found" ]; then break; fi
+              all=$(printf '%s\n%s' "$all" "$page" | jq -s 'add')
+              # A full page continues from the cursor of its last item.
               cursor=$(printf '%s' "$page" | jq -r 'if length == 100 then .[-1].cursor else "" end')
               if [ -z "$cursor" ]; then break; fi
             done
+            # Pull request code (the script) never sees the key: it is dropped from its environment.
+            found=$(printf '%s' "$all" | env -u RENDER_API_KEY node scripts/preview/preview.mjs find "$PR")
             if [ -n "$found" ]; then break; fi
             if [ "$(date +%s)" -ge "$deadline" ]; then
-              echo "::error::The Render preview service d2rmm-api-pr-$PR did not appear within 10 minutes"
+              echo "::error::The Render preview service for PR $PR did not appear within 10 minutes. Services seen (type name url parent-name parent-id):"
+              printf '%s' "$all" | env -u RENDER_API_KEY node scripts/preview/preview.mjs describe
               exit 1
             fi
             sleep 15

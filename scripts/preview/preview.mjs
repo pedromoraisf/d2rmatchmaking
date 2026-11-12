@@ -9,18 +9,43 @@ export const BASE_SERVICE = 'd2rmm-api';
 const PREVIEW_ORIGIN = /^https:\/\/d2rmm-api-pr-[0-9]+\.onrender\.com$/;
 const DEFAULT_LINE = 'export const PREVIEW_API_ORIGIN: string | undefined = undefined;';
 
+const flatten = (services) => services.map((entry) => entry?.service ?? entry);
+
 /**
  * The preview service of pull request `n` in a Render list-services answer (array of `{ service }` entries or of bare
- * services), or undefined. A preview is matched by its parent service name and its own name, never by name alone.
+ * services), or undefined. Render names a preview "d2rmm-api PR #<n>", so the name is not used: a preview is the service
+ * whose url is exactly `https://d2rmm-api-pr-<n>.onrender.com` and whose parent is the base service. The base is the
+ * service named exactly `d2rmm-api` with no parent; its id must equal the parent's id, and when either id is absent the
+ * parent's name must be `d2rmm-api`.
  */
 export function pickPreviewService(services, n) {
   if (!Array.isArray(services) || !Number.isInteger(n) || n < 1) return undefined;
-  const name = `${BASE_SERVICE}-pr-${n}`;
-  return services
-    .map((entry) => entry?.service ?? entry)
-    .find(
-      (service) => service?.name === name && service?.serviceDetails?.parentServer?.name === BASE_SERVICE,
-    );
+  const all = flatten(services);
+  const baseId = all.find((s) => s?.name === BASE_SERVICE && !s?.serviceDetails?.parentServer)?.id;
+  const url = `https://${BASE_SERVICE}-pr-${n}.onrender.com`;
+  return all.find((service) => {
+    const parent = service?.serviceDetails?.parentServer;
+    if (service?.serviceDetails?.url !== url || !parent) return false;
+    return typeof baseId === 'string' && typeof parent.id === 'string'
+      ? parent.id === baseId
+      : parent.name === BASE_SERVICE;
+  });
+}
+
+/** One line per service (type, name, url, parent name, parent id), to show the real shape when nothing matches. */
+export function describeServices(services) {
+  if (!Array.isArray(services)) return [];
+  return flatten(services).map((s) =>
+    [
+      s?.type,
+      JSON.stringify(s?.name),
+      s?.serviceDetails?.url,
+      s?.serviceDetails?.parentServer?.name,
+      s?.serviceDetails?.parentServer?.id,
+    ]
+      .map((x) => x ?? '-')
+      .join(' '),
+  );
 }
 
 /**
@@ -137,6 +162,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       writeFileSync(args[1], bakeOrigin(readFileSync(args[1], 'utf8'), origin));
       process.stdout.write(`baked ${origin}\n`);
     }
+  } else if (command === 'describe') {
+    // `describe`: reads a list-services answer on stdin, prints one line per service (never env vars).
+    let text = '';
+    for await (const chunk of process.stdin) text += chunk;
+    for (const line of describeServices(JSON.parse(text))) process.stdout.write(`${line}\n`);
   } else if (command === 'find') {
     // `find <n>`: reads a list-services page on stdin, prints "<id> <origin>" of the preview, or nothing when absent.
     let text = '';
@@ -154,7 +184,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     }
   } else {
     process.stderr.write(
-      'usage: preview.mjs find <n> | site-origin <branch> <project> | bake <branch> <file>\n',
+      'usage: preview.mjs find <n> | describe | site-origin <branch> <project> | bake <branch> <file>\n',
     );
     process.exit(2);
   }

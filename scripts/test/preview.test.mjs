@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   bakeOrigin,
+  describeServices,
   branchAlias,
   pickPreviewService,
   previewApiOriginFor,
@@ -87,37 +88,92 @@ const svc = (name, parent, url = `https://${name}.onrender.com`) => ({
   },
 });
 
-test('picks the preview of the pull request by parent and name', () => {
-  const list = [
-    svc('d2rmm-api', undefined),
-    svc('d2rmm-api-pr-12', 'd2rmm-api'),
-    svc('d2rmm-api-pr-7', 'd2rmm-api'),
-  ];
-  assert.equal(pickPreviewService(list, 7)?.id, 'srv-d2rmm-api-pr-7');
-  assert.equal(pickPreviewService(list, 12)?.id, 'srv-d2rmm-api-pr-12');
+// Shapes of a Render list-services page. The real preview of PR #41 is named "d2rmm-api PR #41".
+const base = {
+  id: 'srv-base',
+  name: 'd2rmm-api',
+  type: 'web_service',
+  serviceDetails: { url: 'https://d2rmm-api.onrender.com' },
+};
+const preview = (n, name = `d2rmm-api PR #${n}`, parent = { id: 'srv-base', name: 'd2rmm-api' }) => ({
+  id: `srv-pr-${n}`,
+  name,
+  type: 'web_service',
+  serviceDetails: { url: `https://d2rmm-api-pr-${n}.onrender.com`, parentServer: parent },
+});
+const wrapped = (...services) => services.map((service) => ({ cursor: `c-${service.id}`, service }));
+
+test('picks a preview named "d2rmm-api PR #41" by url and parent id', () => {
+  const list = wrapped(base, preview(12), preview(41));
+  assert.equal(pickPreviewService(list, 41)?.id, 'srv-pr-41');
+  assert.equal(pickPreviewService(list, 12)?.id, 'srv-pr-12');
 });
 
-test('returns undefined when the preview is absent', () => {
-  assert.equal(pickPreviewService([svc('d2rmm-api', undefined)], 7), undefined);
-  assert.equal(pickPreviewService([], 7), undefined);
-  assert.equal(pickPreviewService(undefined, 7), undefined);
+test('still picks a preview with the old d2rmm-api-pr-<n> naming', () => {
+  assert.equal(pickPreviewService(wrapped(base, preview(7, 'd2rmm-api-pr-7')), 7)?.id, 'srv-pr-7');
 });
 
-test('does not match a prefix of the number, another parent, or a missing parent', () => {
-  assert.equal(pickPreviewService([svc('d2rmm-api-pr-12', 'd2rmm-api')], 1), undefined);
-  assert.equal(pickPreviewService([svc('d2rmm-api-pr-7', 'other')], 7), undefined);
-  assert.equal(pickPreviewService([svc('d2rmm-api-pr-7', undefined)], 7), undefined);
+test('the base service alone, or an empty or malformed list, has no preview', () => {
+  assert.equal(pickPreviewService(wrapped(base), 41), undefined);
+  assert.equal(pickPreviewService([], 41), undefined);
+  assert.equal(pickPreviewService(undefined, 41), undefined);
+});
+
+test('a foreign service at a look-alike url, another parent id, or another number is not the preview', () => {
+  const foreign = preview(41);
+  const lookAlike = (url) => ({ ...foreign, serviceDetails: { ...foreign.serviceDetails, url } });
+  for (const url of [
+    'https://d2rmm-api-pr-41.onrender.com.evil.test',
+    'https://d2rmm-api-pr-410.onrender.com',
+    'http://d2rmm-api-pr-41.onrender.com',
+    'https://other-pr-41.onrender.com',
+  ]) {
+    assert.equal(pickPreviewService(wrapped(base, lookAlike(url)), 41), undefined, url);
+  }
+  const stranger = preview(41, 'x PR #41', { id: 'srv-other', name: 'other' });
+  assert.equal(pickPreviewService(wrapped(base, stranger), 41), undefined);
+  assert.equal(pickPreviewService(wrapped(base, preview(41, 'x', null)), 41), undefined);
+  assert.equal(pickPreviewService(wrapped(base, preview(12)), 41), undefined);
+});
+
+test('without ids it falls back to the parent name, and with a base listed the parent id must match', () => {
+  const noIds = preview(41, 'x', { name: 'd2rmm-api' });
+  assert.equal(pickPreviewService(wrapped(noIds), 41)?.id, 'srv-pr-41');
+  const otherName = {
+    ...noIds,
+    serviceDetails: { ...noIds.serviceDetails, parentServer: { name: 'other' } },
+  };
+  assert.equal(pickPreviewService(wrapped(otherName), 41), undefined);
+  const wrongId = preview(41, 'x', { id: 'srv-zzz', name: 'd2rmm-api' });
+  assert.equal(pickPreviewService(wrapped(base, wrongId), 41), undefined);
+});
+
+test('the base is the service named exactly d2rmm-api with no parent, not a preview of the same name', () => {
+  const impostor = { ...preview(3), id: 'srv-imp', name: 'd2rmm-api' };
+  const child = preview(41, 'x', { id: 'srv-imp', name: 'd2rmm-api' });
+  // The impostor has a parent, so it is no base; with no base listed the fallback is the parent name, which matches.
+  assert.equal(pickPreviewService(wrapped(impostor, child), 41)?.id, 'srv-pr-41');
+  assert.equal(pickPreviewService(wrapped(impostor, base, child), 41), undefined);
 });
 
 test('rejects an invalid pull request number', () => {
-  const list = [svc('d2rmm-api-pr-7', 'd2rmm-api')];
+  const list = wrapped(base, preview(7));
   assert.equal(pickPreviewService(list, 0), undefined);
   assert.equal(pickPreviewService(list, 7.5), undefined);
   assert.equal(pickPreviewService(list, Number.NaN), undefined);
 });
 
 test('accepts bare services as well as wrapped entries', () => {
-  assert.equal(pickPreviewService([svc('d2rmm-api-pr-7', 'd2rmm-api').service], 7)?.id, 'srv-d2rmm-api-pr-7');
+  assert.equal(pickPreviewService([base, preview(7)], 7)?.id, 'srv-pr-7');
+});
+
+test('describeServices prints one line per service with no env vars', () => {
+  const lines = describeServices(wrapped(base, { ...preview(41), envVars: [{ key: 'X', value: 'secret' }] }));
+  assert.equal(lines.length, 2);
+  assert.ok(lines[1].includes('web_service') && lines[1].includes('d2rmm-api PR #41'));
+  assert.ok(lines[1].includes('https://d2rmm-api-pr-41.onrender.com') && lines[1].includes('srv-base'));
+  assert.ok(!lines.join('\n').includes('secret'));
+  assert.deepEqual(describeServices(undefined), []);
 });
 
 test('accepts only https://d2rmm-api-pr-<digits>.onrender.com', () => {
