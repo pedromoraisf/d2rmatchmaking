@@ -345,6 +345,10 @@ describe('the room stages in Postgres (lobby-rooms)', () => {
 
     expect(fired).toBe(true);
     expect(found?.members.map((member) => member.accountId)).toContain(found?.hostAccountId);
+    // The route's read (GET /v1/me/room) goes through findNewestByAccount, then findById: the new host sees the room.
+    // The host who stays (found is the snapshot before the leave, so its host is the one who left).
+    const newHost = left.value.room.hostAccountId;
+    expect((await reader.findNewestByAccount(newHost))?.id).toBe(room.id);
   });
 
   it('keeps the last member to leave listed in the closed room', async () => {
