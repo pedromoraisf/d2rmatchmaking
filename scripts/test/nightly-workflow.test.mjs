@@ -82,7 +82,7 @@ test('the nightly agent mutation runs on Linux', () => {
   assert.deepEqual(
     agent.steps.map((step) => step.run).filter((run) => String(run ?? '').startsWith('cargo mutants')),
     [
-      'cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --output reports/mutation/agent-core -- --lib',
+      'cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --in-place --output reports/mutation/agent-core -- --lib',
       'cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain --output reports/mutation/agent-domain -- --lib',
       'cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib',
     ],

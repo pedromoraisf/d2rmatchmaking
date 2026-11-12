@@ -68,8 +68,8 @@ export const SITE_ORIGIN = `http://127.0.0.1:${METER_PORT}`;
 export const PROVISION_BASE = `http://127.0.0.1:${METER_PORT}`;
 /** The SSE extension the k6 image is built with (k6.Dockerfile, pinned by commit). */
 export const SSE_EXTENSION = 'xk6-sse v0.2.0';
-/** The constant query that counts the rooms in `created` at the end of a step (design.md § Integration Points). */
-export const ROOMS_QUERY = "select count(*) from lobby.rooms where stage = 'created'";
+/** The constant query that counts the rooms whose game exists (`created` or `active`) at the end of a step (design.md § Integration Points). */
+export const ROOMS_QUERY = "select count(*) from lobby.rooms where stage in ('created', 'active')";
 
 const LABEL_KEY = 'd2rmm-load';
 const SAMPLE_INTERVAL_MS = 5000;
