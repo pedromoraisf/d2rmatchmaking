@@ -57,6 +57,11 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
   says nothing, and without `node_modules` Lefthook does not run. Why: the merge of `phase/F1` into PR #50 reached CI
   unformatted and `verify` failed (2026-11-12).
 
+- **A task that changes the load journey (`scripts/load/k6/`) runs `pnpm test:load` and
+  `node --test scripts/load/check/full-summary.check.mjs` before its PR.** Why: journeys-e2e made the k6 journey close
+  each room within its iteration, and "rooms open at the step end" silently became 0. Only the phase review's full run
+  saw it (F1 review, 2026-11-12).
+
 ## Tests
 
 - **No tight wall-clock limits in unit tests.** The maintainer's machine has 8 GB and runs the suites in parallel; a test
