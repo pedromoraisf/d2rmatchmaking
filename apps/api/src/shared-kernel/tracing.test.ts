@@ -7,7 +7,7 @@ import {
 } from '@opentelemetry/sdk-trace-base';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { err, ok, type Result } from './result.ts';
-import { activeTraceparent, linkActiveSpan, withSpan } from './tracing.ts';
+import { activeTraceparent, annotateActiveSpan, linkActiveSpan, withSpan } from './tracing.ts';
 
 const exporter = new InMemorySpanExporter();
 
@@ -204,5 +204,21 @@ describe('linkActiveSpan', () => {
 
   it('does not throw when no span is active', () => {
     expect(() => linkActiveSpan(`00-${traceId}-${spanId}-01`)).not.toThrow();
+  });
+});
+
+describe('annotateActiveSpan', () => {
+  it('adds the attributes to the active span', async () => {
+    await withSpan('lobby.leave-room', { first: 1 }, () => {
+      annotateActiveSpan({ second: 'two' });
+    });
+
+    expect(exporter.getFinishedSpans()[0]?.attributes).toEqual({ first: 1, second: 'two' });
+  });
+
+  it('does nothing outside a span', () => {
+    expect(() => {
+      annotateActiveSpan({ second: 'two' });
+    }).not.toThrow();
   });
 });

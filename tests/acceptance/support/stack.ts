@@ -75,6 +75,12 @@ export interface Stack {
    * Answers how many it closed.
    */
   closeSiteStreams(accountId: string): Promise<number>;
+  /**
+   * Adds the account to the room as its next member (the highest join order plus one). A duel group has two players and
+   * joining a room past the queue is F3, so a room of three can only be seeded: LBR-07 needs a third member to hand the
+   * host role to. The rows are the ones the room's own use cases write; the API reads them as any other member's.
+   */
+  seedRoomMember(roomId: string, accountId: string): Promise<void>;
   /** Estimated API clock in epoch ms: the start of the API processes plus every advance so far. */
   apiClockMs(): number;
   /** Stops every child process and returns when they have exited. */
@@ -485,6 +491,23 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
         throw new Error(`site-stream close of ${origins.stagingApi} answered ${answer.status}`);
       }
       return ((await answer.json()) as { closed: number }).closed;
+    },
+    async seedRoomMember(roomId: string, accountId: string) {
+      const client = new pg.Client({ connectionString: databaseUrl });
+      await client.connect();
+      try {
+        const seeded = await client.query(
+          `insert into lobby.members (room_id, account_id, character_id, role, join_order)
+           select $1::uuid, $2::uuid, null, 'member', coalesce(max(join_order), 0) + 1
+           from lobby.members where room_id = $1::uuid`,
+          [roomId, accountId],
+        );
+        if (seeded.rowCount !== 1) {
+          throw new Error(`seeding a member of room ${roomId} added ${seeded.rowCount} rows`);
+        }
+      } finally {
+        await client.end();
+      }
     },
     apiClockMs() {
       return startedAt + advanced;

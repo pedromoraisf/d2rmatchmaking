@@ -1,11 +1,12 @@
 import type { Clock, Transaction } from '../../../../shared-kernel/index.ts';
 import type { LobbyRoom } from '../../domain/lobby-room.ts';
-import type { LobbyRoomRepository } from '../ports.ts';
+import type { LobbyRoomRepository, RoomRunRecord } from '../ports.ts';
 
 /** In-memory LobbyRoomRepository. The transaction token is ignored; the opening instant is the clock's on insert. */
 export class InMemoryLobbyRoomRepository implements LobbyRoomRepository {
   readonly #rooms = new Map<string, LobbyRoom>();
   readonly #openedAt = new Map<string, Date>();
+  readonly #runs = new Map<string, RoomRunRecord[]>();
   readonly #clock: Clock;
 
   constructor(clock: Clock) {
@@ -15,6 +16,23 @@ export class InMemoryLobbyRoomRepository implements LobbyRoomRepository {
   async insert(_tx: Transaction, room: LobbyRoom): Promise<void> {
     this.#rooms.set(room.id, room);
     this.#openedAt.set(room.id, this.#clock.now());
+    this.#recordRun(room);
+  }
+
+  #recordRun(room: LobbyRoom): void {
+    const runs = this.#runs.get(room.id) ?? [];
+    if (!runs.some((run) => run.run === room.currentRun)) {
+      runs.push({ run: room.currentRun, gameName: room.gameName.value });
+    }
+    this.#runs.set(room.id, runs);
+  }
+
+  async findOpen(): Promise<LobbyRoom[]> {
+    return [...this.#rooms.values()].filter((room) => room.stage !== 'closed' && room.stage !== 'expired');
+  }
+
+  async runsOf(roomId: string): Promise<readonly RoomRunRecord[]> {
+    return [...(this.#runs.get(roomId) ?? [])];
   }
 
   async openedAt(roomId: string): Promise<Date | undefined> {
@@ -24,6 +42,7 @@ export class InMemoryLobbyRoomRepository implements LobbyRoomRepository {
 
   async save(_tx: Transaction, room: LobbyRoom): Promise<void> {
     this.#rooms.set(room.id, room);
+    this.#recordRun(room);
   }
 
   async findById(roomId: string): Promise<LobbyRoom | null> {

@@ -6,7 +6,8 @@ import { parseFeature } from './gherkin.mjs';
 const ID = /^[A-Z][A-Z0-9]*-\d+$/;
 export const FORBIDDEN_TAGS = ['@only', '@skip', '@fixme', '@fail', '@wip', '@ignore', '@todo'];
 // Traceability and routing tags that are not the feature's own requirement IDs.
-const FOREIGN_ID = /^@(FR|NFR|INV|ADR|AD)-\d+$/;
+// PRD journeys are tagged @J<n>.
+const FOREIGN_ID = /^@((FR|NFR|INV|ADR|AD)-\d+|J\d+)$/;
 const ROUTING = /^@(web|api|agent|smoke|slow|serial|chromium|firefox|webkit|mobile)$/;
 
 /** Requirement IDs from the spec's "## Requirement Traceability" table (first column). */

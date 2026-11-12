@@ -58,6 +58,9 @@
               "a",
               "b"
             ]
+          },
+          "confirmed": {
+            "type": "boolean"
           }
         },
         "required": [

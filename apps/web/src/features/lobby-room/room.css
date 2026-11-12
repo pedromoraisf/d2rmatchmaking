@@ -1,0 +1,91 @@
+/* The room panel (prototype room panel, LBR-12). Scoped to `.room-panel`; every colour comes from the theme's variables. */
+
+.room-panel .room-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.room-panel .stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+}
+
+.room-panel .step {
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  padding: 4px 12px;
+  color: var(--ash);
+}
+
+.room-panel .step.now {
+  border-color: var(--gold);
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.room-panel .cred {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.room-panel .nopass {
+  color: var(--ash);
+}
+
+.room-panel .steps,
+.room-panel .runlog {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+
+.room-panel .players {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.room-panel .pl {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px 10px;
+  background: var(--panel-2);
+}
+
+.room-panel .pos {
+  font-family: var(--mono);
+  color: var(--gold);
+}
+
+.room-panel .who {
+  flex: 1 1 auto;
+}
+
+.room-panel .pres.ok {
+  color: var(--ok);
+}
+
+.room-panel .pres.wait {
+  color: var(--warn);
+}
+
+.room-panel .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}

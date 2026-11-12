@@ -29,6 +29,16 @@ describe('translation files', () => {
     }
   });
 
+  it('every pt-BR key has a non-empty text', () => {
+    for (const path of keyPaths(ptBR)) {
+      const value = path
+        .split('.')
+        .reduce<unknown>((node, key) => (node as Record<string, unknown>)[key], ptBR);
+      expect(value, path).toBeTypeOf('string');
+      expect(value, path).not.toBe('');
+    }
+  });
+
   it('pt-BR translates the agent download action', () => {
     expect(ptBR.app.downloadAgent).toBe('Baixar o agente');
   });

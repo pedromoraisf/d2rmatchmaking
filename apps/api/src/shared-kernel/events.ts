@@ -15,6 +15,8 @@ export interface MatchMember {
   readonly role: MemberRole;
   /** The team of a 2v2 member (QUE-12); absent in every other group. */
   readonly team?: 'a' | 'b';
+  /** Whether this member's agent confirmed the current run's game name (INV-06); present in a room's members only. */
+  readonly confirmed?: boolean;
 }
 
 /** A domain event: its type name and its payload. */
@@ -44,6 +46,26 @@ export interface RoomAssignmentChangedPayload {
 export interface RoomStageChangedPayload {
   readonly roomId: string;
   readonly stage: RoomStage;
+  readonly members: readonly MatchMember[];
+}
+
+/** The new run of an active room: its name and the cleared confirmations (LBR-06). */
+export interface RoomRunOpenedPayload {
+  readonly roomId: string;
+  readonly run: number;
+  readonly expectedGameName: string;
+  readonly members: readonly MatchMember[];
+}
+
+/** What changed about a member of a room: confirmed, left (and the room's members after it), or the host changed. */
+export type RoomMemberChange = 'confirmed' | 'left' | 'host_changed';
+
+export interface RoomMemberChangedPayload {
+  readonly roomId: string;
+  readonly change: RoomMemberChange;
+  /** The member the change is about. */
+  readonly accountId: string;
+  /** The members after the change; a member who left is not among them (the projection also tells that member). */
   readonly members: readonly MatchMember[];
 }
 
@@ -140,6 +162,8 @@ export interface ReadyCheckResolvedPayload {
 export type MatchFormedEvent = DomainEvent<'MatchFormed', MatchFormedPayload>;
 export type RoomAssignmentChangedEvent = DomainEvent<'RoomAssignmentChanged', RoomAssignmentChangedPayload>;
 export type RoomStageChangedEvent = DomainEvent<'RoomStageChanged', RoomStageChangedPayload>;
+export type RoomRunOpenedEvent = DomainEvent<'RoomRunOpened', RoomRunOpenedPayload>;
+export type RoomMemberChangedEvent = DomainEvent<'RoomMemberChanged', RoomMemberChangedPayload>;
 export type CharactersRecordedEvent = DomainEvent<'CharactersRecorded', CharactersRecordedPayload>;
 
 /** Transient events, published on the bus only and never stored. */
@@ -155,6 +179,8 @@ export type AnyDomainEvent =
   | MatchFormedEvent
   | RoomAssignmentChangedEvent
   | RoomStageChangedEvent
+  | RoomRunOpenedEvent
+  | RoomMemberChangedEvent
   | CharactersRecordedEvent
   | AgentPresenceChangedEvent
   | AgentRevokedEvent

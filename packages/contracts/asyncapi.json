@@ -14,6 +14,12 @@
         "RoomStageChanged": {
           "$ref": "#/components/messages/RoomStageChanged"
         },
+        "RoomRunOpened": {
+          "$ref": "#/components/messages/RoomRunOpened"
+        },
+        "RoomMemberChanged": {
+          "$ref": "#/components/messages/RoomMemberChanged"
+        },
         "AgentPresenceChanged": {
           "$ref": "#/components/messages/AgentPresenceChanged"
         },
@@ -115,6 +121,9 @@
                           "a",
                           "b"
                         ]
+                      },
+                      "confirmed": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -214,6 +223,9 @@
                           "a",
                           "b"
                         ]
+                      },
+                      "confirmed": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -229,6 +241,210 @@
               "required": [
                 "roomId",
                 "stage",
+                "members"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "RoomRunOpened": {
+        "name": "room.run_opened",
+        "contentType": "application/json",
+        "payload": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "room.run_opened"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "roomId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "run": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "expectedGameName": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "pattern": "^mm[a-z]+-\\d+$"
+                },
+                "members": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "accountId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "characterId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "joinOrder": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "role": {
+                        "type": "string",
+                        "enum": [
+                          "host",
+                          "member"
+                        ]
+                      },
+                      "team": {
+                        "type": "string",
+                        "enum": [
+                          "a",
+                          "b"
+                        ]
+                      },
+                      "confirmed": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "accountId",
+                      "characterId",
+                      "joinOrder",
+                      "role"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "roomId",
+                "run",
+                "expectedGameName",
+                "members"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "RoomMemberChanged": {
+        "name": "room.member_changed",
+        "contentType": "application/json",
+        "payload": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "room.member_changed"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "roomId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "change": {
+                  "type": "string",
+                  "enum": [
+                    "confirmed",
+                    "left",
+                    "host_changed"
+                  ]
+                },
+                "accountId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "members": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "accountId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "characterId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "joinOrder": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "role": {
+                        "type": "string",
+                        "enum": [
+                          "host",
+                          "member"
+                        ]
+                      },
+                      "team": {
+                        "type": "string",
+                        "enum": [
+                          "a",
+                          "b"
+                        ]
+                      },
+                      "confirmed": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "accountId",
+                      "characterId",
+                      "joinOrder",
+                      "role"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "roomId",
+                "change",
+                "accountId",
                 "members"
               ],
               "additionalProperties": false

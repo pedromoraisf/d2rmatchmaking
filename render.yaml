@@ -12,6 +12,9 @@ services:
     startCommand: node --import ./apps/api/src/main/instrument.ts apps/api/src/main/render.ts
     healthCheckPath: /healthz
     autoDeploy: false
+    # Pull request previews only with the `render-preview` label on a PR into main (ADR 030, preview-api.yml).
+    previews:
+      generation: manual
     envVars:
       - key: D2RMM_ENV
         value: staging

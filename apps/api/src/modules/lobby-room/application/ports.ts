@@ -1,4 +1,4 @@
-import type { RoomStage, Transaction } from '../../../shared-kernel/index.ts';
+import type { CharacterClassName, RoomStage, Transaction } from '../../../shared-kernel/index.ts';
 import type { GameDifficulty } from '../domain/game-name.ts';
 import type { LobbyRoom } from '../domain/lobby-room.ts';
 import type { Observation } from '../domain/observation.ts';
@@ -10,8 +10,38 @@ export interface LobbyRoomRepository {
   findByMatchId(matchId: string): Promise<LobbyRoom | null>;
   /** The room of the account with the highest game name number: the newest one (AWS-25, design.md § Lobby Room). */
   findNewestByAccount(accountId: string): Promise<LobbyRoom | null>;
-  /** The instant the room opened in `awaiting_host` (`lobby.rooms.created_at`), or undefined for an unknown room. */
+  /** The instant the room opened (`lobby.rooms.created_at`), or undefined for an unknown room. */
   openedAt(roomId: string): Promise<Date | undefined>;
+  /** Every room that is neither `closed` nor `expired`: the timers' sweep (LBR-05, LBR-08). */
+  findOpen(): Promise<LobbyRoom[]>;
+  /** The room's runs, oldest first (the run history of the site's panel). */
+  runsOf(roomId: string): Promise<readonly RoomRunRecord[]>;
+}
+
+/** One run of a room: its number and game name. */
+export interface RoomRunRecord {
+  readonly run: number;
+  readonly gameName: string;
+}
+
+/**
+ * Whether a member is still there, as the Lobby Room reads it from the Agents module and the stream hub (FR-32): since
+ * when the member's agent has been offline and since when the member's site stream has been closed. Implemented in
+ * `main/`.
+ */
+export interface MemberConnectivity {
+  /** The instant the account's agent went offline, or null when it is online or the account has no agent. */
+  agentOfflineSince(accountId: string): Promise<Date | null>;
+  /** The instant the account's last site stream closed, or null when one is open or none was ever opened. */
+  siteStreamClosedSince(accountId: string): Date | null;
+}
+
+/** The class and level of a member's character, for the room panel. Implemented in `main/` over Identity. */
+export interface RoomCharacters {
+  characterOf(
+    accountId: string,
+    characterId: string,
+  ): Promise<{ readonly characterClass: CharacterClassName; readonly level: number } | null>;
 }
 
 /**
@@ -40,4 +70,8 @@ export interface GameNameSequence {
 export interface RoomMetrics {
   /** The seconds a room spent in `stage` before it left it, with the bounded attributes of the room (`room.stage_duration`). */
   stageLeft(stage: RoomStage, difficulty: GameDifficulty, mode: 'pvp' | 'leveling', seconds: number): void;
+  /** A room reached `closed` or `expired` (`d2r.room.final_stage`). */
+  finalStage(stage: 'closed' | 'expired', difficulty: GameDifficulty, mode: 'pvp' | 'leveling'): void;
+  /** The seconds a room took from opening to its first `active` (`d2r.room.time_to_active`). */
+  timeToActive(difficulty: GameDifficulty, mode: 'pvp' | 'leveling', seconds: number): void;
 }

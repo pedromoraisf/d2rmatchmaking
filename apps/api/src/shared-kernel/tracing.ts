@@ -5,6 +5,11 @@ export type SpanAttributes = Record<string, string | number | boolean>;
 
 const TRACER_NAME = 'd2rmm-api';
 
+/** Adds attributes to the active span once a use case knows them (the room it loaded). Nothing happens outside a span. */
+export function annotateActiveSpan(attributes: SpanAttributes): void {
+  trace.getActiveSpan()?.setAttributes(attributes);
+}
+
 /** A W3C `traceparent` of version 00: lowercase hex ids and flags, nothing else (RTL-05). */
 const TRACEPARENT = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/;
 const ZERO_TRACE_ID = '0'.repeat(32);

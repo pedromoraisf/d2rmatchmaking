@@ -182,6 +182,30 @@ mod tests {
     }
 
     #[test]
+    fn a_later_run_of_the_same_room_replaces_the_held_name_and_run() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            let mut next_run = assignment("mmbaalh-13");
+            next_run.run = NonZeroU64::new(2).expect("2 is not zero");
+            gateway.script_assignment([Ok(Some(assignment("mmbaalh-12")))]);
+            gateway.script_open_stream([Ok(vec![StreamItem::RoomAssigned(next_run)])]);
+            let (device, _tokens, ports) = paired(&gateway);
+            tokio::spawn(run(Arc::clone(&device), ports));
+
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            let held = device.assignment.borrow().current().cloned();
+            let held = held.expect("an assignment is held");
+            assert_eq!(held.expected_game_name.as_str(), "mmbaalh-13");
+            assert_eq!(held.run.get(), 2, "the Party step reads for run 2");
+            assert_eq!(
+                held.room.as_str(),
+                "7d9f2c1e-0000-4000-8000-000000000001",
+                "the same room"
+            );
+        });
+    }
+
+    #[test]
     fn follow_fetches_assignment_then_streams() {
         fails_fast(|| async {
             let gateway = Arc::new(FakeApiGateway::new());

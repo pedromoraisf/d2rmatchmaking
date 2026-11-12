@@ -82,6 +82,8 @@ pub struct AssignmentMembersItem {
         deserialize_with = "::std::option::Option::deserialize"
     )]
     pub character_id: ::std::option::Option<AssignmentMembersItemCharacterId>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub confirmed: ::std::option::Option<bool>,
     #[serde(rename = "joinOrder")]
     pub join_order: ::std::num::NonZeroU64,
     pub role: AssignmentMembersItemRole,
@@ -2001,6 +2003,8 @@ pub struct RoomAssignedEventDataMembersItem {
         deserialize_with = "::std::option::Option::deserialize"
     )]
     pub character_id: ::std::option::Option<RoomAssignedEventDataMembersItemCharacterId>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub confirmed: ::std::option::Option<bool>,
     #[serde(rename = "joinOrder")]
     pub join_order: ::std::num::NonZeroU64,
     pub role: RoomAssignedEventDataMembersItemRole,
@@ -2283,6 +2287,394 @@ impl ::std::convert::TryFrom<::std::string::String> for RoomAssignedEventDataRoo
     }
 }
 impl<'de> ::serde::Deserialize<'de> for RoomAssignedEventDataRoomId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`RoomRunOpenedEvent`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RoomRunOpenedEvent {
+    pub data: RoomRunOpenedEventData,
+    #[serde(rename = "type")]
+    pub type_: ::std::string::String,
+}
+///`RoomRunOpenedEventData`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RoomRunOpenedEventData {
+    #[serde(rename = "expectedGameName")]
+    pub expected_game_name: RoomRunOpenedEventDataExpectedGameName,
+    pub members: ::std::vec::Vec<RoomRunOpenedEventDataMembersItem>,
+    #[serde(rename = "roomId")]
+    pub room_id: RoomRunOpenedEventDataRoomId,
+    pub run: ::std::num::NonZeroU64,
+}
+///`RoomRunOpenedEventDataExpectedGameName`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct RoomRunOpenedEventDataExpectedGameName(::std::string::String);
+impl ::std::ops::Deref for RoomRunOpenedEventDataExpectedGameName {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<RoomRunOpenedEventDataExpectedGameName>
+for ::std::string::String {
+    fn from(value: RoomRunOpenedEventDataExpectedGameName) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for RoomRunOpenedEventDataExpectedGameName {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        static PATTERN: ::std::sync::LazyLock<::regress::Regex> = ::std::sync::LazyLock::new(||
+        { ::regress::Regex::new("^mm[a-z]+-\\d+$").unwrap() });
+        if PATTERN.find(value).is_none() {
+            return Err("doesn't match pattern \"^mm[a-z]+-\\d+$\"".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for RoomRunOpenedEventDataExpectedGameName {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for RoomRunOpenedEventDataExpectedGameName {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for RoomRunOpenedEventDataExpectedGameName {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`RoomRunOpenedEventDataMembersItem`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RoomRunOpenedEventDataMembersItem {
+    #[serde(rename = "accountId")]
+    pub account_id: RoomRunOpenedEventDataMembersItemAccountId,
+    #[serde(
+        rename = "characterId",
+        deserialize_with = "::std::option::Option::deserialize"
+    )]
+    pub character_id: ::std::option::Option<
+        RoomRunOpenedEventDataMembersItemCharacterId,
+    >,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub confirmed: ::std::option::Option<bool>,
+    #[serde(rename = "joinOrder")]
+    pub join_order: ::std::num::NonZeroU64,
+    pub role: RoomRunOpenedEventDataMembersItemRole,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub team: ::std::option::Option<RoomRunOpenedEventDataMembersItemTeam>,
+}
+///`RoomRunOpenedEventDataMembersItemAccountId`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct RoomRunOpenedEventDataMembersItemAccountId(::std::string::String);
+impl ::std::ops::Deref for RoomRunOpenedEventDataMembersItemAccountId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<RoomRunOpenedEventDataMembersItemAccountId>
+for ::std::string::String {
+    fn from(value: RoomRunOpenedEventDataMembersItemAccountId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for RoomRunOpenedEventDataMembersItemAccountId {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for RoomRunOpenedEventDataMembersItemAccountId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for RoomRunOpenedEventDataMembersItemAccountId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for RoomRunOpenedEventDataMembersItemAccountId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`RoomRunOpenedEventDataMembersItemCharacterId`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct RoomRunOpenedEventDataMembersItemCharacterId(::std::string::String);
+impl ::std::ops::Deref for RoomRunOpenedEventDataMembersItemCharacterId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<RoomRunOpenedEventDataMembersItemCharacterId>
+for ::std::string::String {
+    fn from(value: RoomRunOpenedEventDataMembersItemCharacterId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for RoomRunOpenedEventDataMembersItemCharacterId {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for RoomRunOpenedEventDataMembersItemCharacterId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for RoomRunOpenedEventDataMembersItemCharacterId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for RoomRunOpenedEventDataMembersItemCharacterId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`RoomRunOpenedEventDataMembersItemRole`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum RoomRunOpenedEventDataMembersItemRole {
+    #[serde(rename = "host")]
+    Host,
+    #[serde(rename = "member")]
+    Member,
+}
+impl ::std::fmt::Display for RoomRunOpenedEventDataMembersItemRole {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Host => f.write_str("host"),
+            Self::Member => f.write_str("member"),
+        }
+    }
+}
+impl ::std::str::FromStr for RoomRunOpenedEventDataMembersItemRole {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "host" => Ok(Self::Host),
+            "member" => Ok(Self::Member),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for RoomRunOpenedEventDataMembersItemRole {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for RoomRunOpenedEventDataMembersItemRole {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///`RoomRunOpenedEventDataMembersItemTeam`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum RoomRunOpenedEventDataMembersItemTeam {
+    #[serde(rename = "a")]
+    A,
+    #[serde(rename = "b")]
+    B,
+}
+impl ::std::fmt::Display for RoomRunOpenedEventDataMembersItemTeam {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::A => f.write_str("a"),
+            Self::B => f.write_str("b"),
+        }
+    }
+}
+impl ::std::str::FromStr for RoomRunOpenedEventDataMembersItemTeam {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "a" => Ok(Self::A),
+            "b" => Ok(Self::B),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for RoomRunOpenedEventDataMembersItemTeam {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for RoomRunOpenedEventDataMembersItemTeam {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///`RoomRunOpenedEventDataRoomId`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct RoomRunOpenedEventDataRoomId(::std::string::String);
+impl ::std::ops::Deref for RoomRunOpenedEventDataRoomId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<RoomRunOpenedEventDataRoomId> for ::std::string::String {
+    fn from(value: RoomRunOpenedEventDataRoomId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for RoomRunOpenedEventDataRoomId {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for RoomRunOpenedEventDataRoomId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for RoomRunOpenedEventDataRoomId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for RoomRunOpenedEventDataRoomId {
     fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
     where
         D: ::serde::Deserializer<'de>,

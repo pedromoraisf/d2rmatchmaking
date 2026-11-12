@@ -38,6 +38,7 @@ describe('the outbox migrations', () => {
       '0007_characters_name_ci',
       '0008_characters_declared_ladder_era',
       '0009_matchmaking_penalties',
+      '0010_lobby_room_stages',
     ]);
     expect(await traceContextColumn()).toEqual({ data_type: 'text', is_nullable: 'YES' });
 
@@ -53,7 +54,30 @@ describe('the outbox migrations', () => {
       '0007_characters_name_ci',
       '0008_characters_declared_ladder_era',
       '0009_matchmaking_penalties',
+      '0010_lobby_room_stages',
     ]);
     expect(await traceContextColumn()).toEqual({ data_type: 'text', is_nullable: 'YES' });
+  });
+});
+
+describe('the lobby room stages migration', () => {
+  async function lobbyColumns(): Promise<string[]> {
+    const result = await database.pool.query<{ column_name: string }>(
+      `select column_name from information_schema.columns
+       where table_schema = 'lobby' and column_name in ('awaiting_since', 'closed_at', 'confirmed_run', 'left_at')
+       order by column_name`,
+    );
+    return result.rows.map((row) => row.column_name);
+  }
+
+  it('adds the stage, confirmation and departure columns and removes them going back', async () => {
+    await migrateToLatest(db);
+    expect(await lobbyColumns()).toEqual(['awaiting_since', 'closed_at', 'confirmed_run', 'left_at']);
+
+    await migrateTo(db, '0009_matchmaking_penalties');
+    expect(await lobbyColumns()).toEqual([]);
+
+    await migrateToLatest(db);
+    expect(await lobbyColumns()).toHaveLength(4);
   });
 });

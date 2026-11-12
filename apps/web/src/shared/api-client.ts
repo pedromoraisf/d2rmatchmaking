@@ -62,6 +62,12 @@ export interface ApiClient {
   /** The account's open ready check, or null when it is in none (RDY-11: the API answers 204). */
   myReadyCheck(): Promise<ApiResult<ReadyCheckView | null>>;
   declineReadyCheck(checkId: string): Promise<ApiResult<void>>;
+  /** The host opens the next run of an active room (LBR-06). */
+  openNextRun(roomId: string): Promise<ApiResult<void>>;
+  /** The player leaves the room (LBR-07). */
+  leaveRoom(roomId: string): Promise<ApiResult<void>>;
+  /** The host closes the room (LBR-09). */
+  closeRoom(roomId: string): Promise<ApiResult<void>>;
 }
 
 export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, init)): ApiClient {
@@ -190,5 +196,8 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
     acceptReadyCheck: (checkId) => write(`/v1/ready-checks/${encodeURIComponent(checkId)}/accept`, {}),
     myReadyCheck: () => myReadyCheck(),
     declineReadyCheck: (checkId) => write(`/v1/ready-checks/${encodeURIComponent(checkId)}/decline`, {}),
+    openNextRun: (roomId) => write(`/v1/lobby-rooms/${encodeURIComponent(roomId)}/runs`, {}),
+    leaveRoom: (roomId) => write(`/v1/lobby-rooms/${encodeURIComponent(roomId)}/leave`, {}),
+    closeRoom: (roomId) => write(`/v1/lobby-rooms/${encodeURIComponent(roomId)}/close`, {}),
   };
 }

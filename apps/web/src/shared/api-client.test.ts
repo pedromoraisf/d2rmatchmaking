@@ -11,7 +11,11 @@ const room = {
   run: 1,
   expectedGameName: 'mmbaalh-12',
   password: '',
-  members: [{ accountId: 'acc-1', characterId: null, joinOrder: 1, role: 'host' }],
+  you: 'acc-1',
+  runs: [{ run: 1, gameName: 'mmbaalh-12' }],
+  expiresAt: null,
+  serverNow: '2026-11-01T10:00:00.000Z',
+  members: [{ accountId: 'acc-1', characterId: null, joinOrder: 1, role: 'host', class: null, level: null }],
 };
 
 describe('api client', () => {

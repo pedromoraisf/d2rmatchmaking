@@ -27,6 +27,10 @@ being true.
   pre-push `cargo clippy` needs `apps/agent/dist` (Tauri `frontendDist`) and fails without it, which looks like a code
   failure (characters, Batch 1).
 
+- **Remove a worker's worktree once its branch is pushed and its report is read.** Each worktree holds 5–7 GB of Rust
+  `target/`. Why: on 2026-11-11 six finished worktrees filled the maintainer's disk; a worker could not build, and
+  Docker and Postgres failed with I/O errors until Docker Desktop was restarted (characters-reading, lobby-rooms).
+
 - **A task that adds a Rust crate to the agent runs `cargo deny --locked check` in its gate**, and the security reviewer
   reads `apps/agent/src-tauri/deny.toml`. Why: `tauri-plugin-global-shortcut` is banned there, and PR #52 passed the
   worker's gates and both reviews before CI refused it (ready-check, 2026-11-11).
@@ -39,6 +43,11 @@ being true.
   `feat/F1-agent-game-name` (commit 614337d). The repository is public and the runner may not force push, so they stay
   in that branch's history (the maintainer chose to keep the record). Real screenshots are read from a local path by an
   `xtask` command; fixtures are drawn. `scripts/check-images.mjs` now refuses captures at commit time and in CI.
+
+- **When `docker pull` (or a Testcontainers start) hangs with no output, look for a stuck `docker-credential-desktop
+get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding {}> docker pull postgres:17-alpine`,
+  same for `testcontainers/ryuk`) and run the suite with the same `DOCKER_CONFIG`; never touch `~/.docker`. Why: on
+  2026-11-12 the room-view fix waited more than 10 minutes twice on the macOS credential helper before any test ran.
 
 ## Tests
 
