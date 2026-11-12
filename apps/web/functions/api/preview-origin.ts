@@ -1,25 +1,13 @@
-// The preview API a Pages preview proxies to (ADR 030). The committed value is `undefined`: production and the staging
-// previews use API_ORIGIN. preview-api.yml overwrites this file in its own workspace, before `wrangler pages deploy`,
-// with the preview API of the pull request; it is never committed.
+// The preview API a Pages preview proxies to (ADR 030). The committed value is `undefined`: production and previews of
+// branches without the `render-preview` label use API_ORIGIN. preview-api.yml and deploy-web.yml both run
+// `scripts/preview/preview.mjs bake` in their own workspace before `wrangler pages deploy`, which rewrites this line
+// when an open pull request into main from the branch carries the label. It is never committed.
 
-export interface PreviewApi {
-  /** `https://d2rmm-api-pr-<digits>.onrender.com`. */
-  readonly origin: string;
-  /** The origin the preview API accepts in `Origin` (its SITE_ORIGIN, inherited from the base service). */
-  readonly siteOrigin: string;
-}
+export const PREVIEW_API_ORIGIN: string | undefined = undefined;
 
-export const PREVIEW_API: PreviewApi | undefined = undefined;
+const PREVIEW_API_ORIGIN_PATTERN = /^https:\/\/d2rmm-api-pr-[0-9]+\.onrender\.com$/;
 
-const PREVIEW_API_ORIGIN = /^https:\/\/d2rmm-api-pr-[0-9]+\.onrender\.com$/;
-const SITE_ORIGIN = /^https:\/\/[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]+)?$/;
-
-/** The preview API when both of its origins are well formed, else undefined (the proxy then uses API_ORIGIN). */
-export function validPreviewApi(candidate: PreviewApi | undefined): PreviewApi | undefined {
-  if (candidate === undefined) {
-    return undefined;
-  }
-  return PREVIEW_API_ORIGIN.test(candidate.origin) && SITE_ORIGIN.test(candidate.siteOrigin)
-    ? candidate
-    : undefined;
+/** The origin when it is exactly a Render preview origin, else undefined (the proxy then uses API_ORIGIN). */
+export function validPreviewApiOrigin(candidate: string | undefined): string | undefined {
+  return candidate !== undefined && PREVIEW_API_ORIGIN_PATTERN.test(candidate) ? candidate : undefined;
 }

@@ -2,7 +2,7 @@
 // allow-listed headers to the API origin from the environment, streams the body and keeps Set-Cookie. A browser can
 // never reach /__test/*, nor act as an agent through the site: Authorization and X-Agent-Version are dropped.
 
-import { PREVIEW_API, validPreviewApi, type PreviewApi } from './preview-origin.ts';
+import { PREVIEW_API_ORIGIN, validPreviewApiOrigin } from './preview-origin.ts';
 
 export interface ProxyEnv {
   API_ORIGIN: string;
@@ -11,8 +11,8 @@ export interface ProxyEnv {
 export interface ProxyContext {
   request: Request;
   env: ProxyEnv;
-  /** The preview API baked at build time by preview-api.yml (ADR 030); absent everywhere else. */
-  previewApi?: PreviewApi | undefined;
+  /** The preview API origin baked at build time (ADR 030); absent everywhere else. */
+  previewApiOrigin?: string | undefined;
 }
 
 export type Upstream = (target: URL, init: RequestInit) => Promise<Response>;
@@ -67,8 +67,7 @@ export async function proxyRequest(context: ProxyContext, upstream: Upstream): P
   }
 
   // A baked preview API replaces API_ORIGIN only when it is well formed; anything else falls back to the environment.
-  const preview = validPreviewApi(context.previewApi);
-  const target = new URL(preview?.origin ?? context.env.API_ORIGIN);
+  const target = new URL(validPreviewApiOrigin(context.previewApiOrigin) ?? context.env.API_ORIGIN);
   target.pathname = path;
   target.search = url.search;
 
@@ -78,10 +77,6 @@ export async function proxyRequest(context: ProxyContext, upstream: Upstream): P
     if (value !== null && forwardable(name, value)) {
       headers.set(name, value);
     }
-  }
-  // The preview API accepts the origin of its own SITE_ORIGIN; the preview site has another one.
-  if (preview !== undefined && headers.has('origin')) {
-    headers.set('origin', preview.siteOrigin);
   }
   const method = context.request.method;
   const init: RequestInit = { method, headers, redirect: 'manual' };
@@ -101,5 +96,7 @@ export async function proxyRequest(context: ProxyContext, upstream: Upstream): P
 }
 
 export function onRequest(context: ProxyContext): Promise<Response> {
-  return proxyRequest({ ...context, previewApi: PREVIEW_API }, (target, init) => fetch(target, init));
+  return proxyRequest({ ...context, previewApiOrigin: PREVIEW_API_ORIGIN }, (target, init) =>
+    fetch(target, init),
+  );
 }
