@@ -28,3 +28,21 @@ Hard limits the design must respect. A change that breaks one needs an ADR.
 ## Portability
 
 - NFR-08: changing host touches only `apps/api/src/main/` and workflow files.
+
+## API previews
+
+ADR 030. To try a pull request into `main` (a phase PR) on its own API and data, add the `render-preview` label.
+
+- What it creates: the Render preview service `d2rmm-api-pr-<n>`, a Neon branch `preview/pr-<n>` of the default branch
+  migrated with the PR's migrations, and the Pages preview of the PR's head branch with `/api/*` proxied to that
+  preview API. `preview-api.yml` waits for `/healthz` (up to 10 minutes; the first boot of a preview builds the
+  service) and writes both URLs in its step summary. Push more commits and it migrates and redeploys again.
+- Until the workflow has set the preview's own `DATABASE_URL`, the API refuses to start (`IS_PULL_REQUEST=true` without
+  `D2RMM_PREVIEW_DATABASE=ready`), so a preview never touches the staging database.
+- Cleanup: closing the PR deletes the Neon branch (workflow) and the preview service (Render).
+- Cost: free plans only. Neon Free allows 10 branches (one is the default, so keep at most nine labelled PRs open);
+  a preview sleeps after 15 minutes idle and takes about a minute to wake. Dependabot PRs are not labelled, so they
+  get no preview.
+- Setup (maintainer): secrets `NEON_API_KEY`, `RENDER_API_KEY`; variable `NEON_PROJECT_ID`. Until `render.yaml` reaches
+  `main`, enable previews (manual) on `d2rmm-api` in the Render dashboard.
+- A preview site signs in nowhere new: OAuth redirects still go to the staging site's origin.
