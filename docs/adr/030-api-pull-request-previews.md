@@ -40,3 +40,9 @@ plan allows 10 per project (neon.com/docs/introduction/plans).
   verified on the first real run.
 - The `render.yaml` change applies when it reaches `main` (Blueprint sync); until then the maintainer enables the same
   setting in the dashboard.
+- A preview is a temporary, non-production instance of the same service; it does not amend ADR 006 (no second
+  instance in the MVP means no second production instance).
+- A preview inherits staging's other secrets (Battle.net client secret, session secret, OTLP token) and is publicly
+  reachable. This is accepted at staging grade.
+- The `render-preview` label can be applied by anyone with triage rights, and it makes jobs that hold secrets run the
+  pull request head's code. Only same-repository pull requests are served, so a fork never gets a preview.

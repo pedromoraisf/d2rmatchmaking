@@ -27,7 +27,8 @@ Hard limits the design must respect. A change that breaks one needs an ADR.
 
 ## Portability
 
-- NFR-08: changing host touches only `apps/api/src/main/` and workflow files.
+- NFR-08: changing host touches only `apps/api/src/main/` and workflow files. Exception: the API previews also touch
+  `scripts/preview/` and `apps/web/functions/api/preview-origin.ts` (see API previews).
 
 ## API previews
 
