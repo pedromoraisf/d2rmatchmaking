@@ -371,8 +371,11 @@ mod tests {
     fn ocr_check() {
         let dir = std::env::var("D2RMM_OCR_CHECK_DIR")
             .expect("D2RMM_OCR_CHECK_DIR names the screenshot folder");
+        // Local runs only: the names the engine read are printed when D2RMM_OCR_SHOW_READS is set.
+        let show_reads = std::env::var_os("D2RMM_OCR_SHOW_READS").is_some();
         let reader: Arc<dyn TextReader + Send + Sync> = Arc::new(engine());
-        if let Err(failed) = check_folder(Path::new(&dir), reader, comparison_readers()) {
+        if let Err(failed) = check_folder(Path::new(&dir), reader, comparison_readers(), show_reads)
+        {
             panic!("{} file(s) failed: {failed:?}", failed.len());
         }
     }

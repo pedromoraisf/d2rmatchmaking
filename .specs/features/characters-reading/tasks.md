@@ -134,7 +134,7 @@ levels and popup labels because their lettering is not the game's.
 `ocr-real` run 43217172981 printed "0 of 5 files FAIL". The architecture and security reviews found that the job
 prints what the real screenshots show into the public Actions log.
 
-- [ ] T28 — `ocr-check` prints no personal reading by default: per file `PASS`/`FAIL` with a non-textual reason (screen
+- [x] T28 — `ocr-check` prints no personal reading by default: per file `PASS`/`FAIL` with a non-textual reason (screen
       kind expected/read, number of cards, which card fields settled or not, game-name field Matched/Masked/Other,
       number of difficulties); the raw reads of character names and of the game-name field are printed only with an
       explicit local flag (`--show-reads`) the workflow never passes; vocabulary reads (class/level line, titles,

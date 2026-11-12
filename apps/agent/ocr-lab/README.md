@@ -21,6 +21,10 @@ exception on 2026-11-11 (`.specs/phases/F1/decisions.md`): the encrypted zip, an
 - No PNG/JPG capture is ever committed; `check-images.mjs` is unchanged.
 - The workflow never runs for a fork's pull request, gives the password to the extract step only, never uploads the
   extracted folder and deletes it at the end.
+- The Actions log is public: `ocr-check` prints, per file, `PASS` or `FAIL` with a reason that names no character name
+  and no game name (counts, and whether each card field settled). `--show-reads` prints those reads too; it is for
+  local runs only (`ocr-check.exe --show-reads <folder>`, or `D2RMM_OCR_SHOW_READS=1` with `scripts/agent/ocr-check.mjs`)
+  and the workflow never passes it.
 - Never decrypt the zip into the repository or paste a screenshot, or what it shows, in an issue or a PR.
 
 ## Replacing the zip (maintainer)
