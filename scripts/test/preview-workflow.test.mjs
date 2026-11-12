@@ -50,6 +50,27 @@ test('the connection strings are masked before the migration, and the single-var
   assert.ok(!/set -x|echo "?\$(DATABASE_URL|DB_URL)/.test(text));
 });
 
+test('SITE_ORIGIN is set between DATABASE_URL and the ready marker', () => {
+  const step = stepsOf(wf.jobs.up).find((s) => s.run?.includes('put D2RMM_PREVIEW_DATABASE ready'));
+  const order = ['put DATABASE_URL', 'put SITE_ORIGIN', 'put D2RMM_PREVIEW_DATABASE'].map((x) =>
+    step.run.indexOf(x),
+  );
+  assert.ok(order[0] >= 0 && order[0] < order[1] && order[1] < order[2], String(order));
+  assert.ok(step.run.includes('preview.mjs site-origin'));
+});
+
+test('preview-api and deploy-web bake the upstream with the same script, and deploy-web only reads pull requests', () => {
+  const bakeOf = (job) => stepsOf(job).find((s) => s.run?.includes('scripts/preview/preview.mjs bake'));
+  assert.ok(bakeOf(wf.jobs.site));
+  assert.equal(wf.jobs.site.permissions['pull-requests'], 'read');
+  const web = parse(readFileSync(path.join(root, '.github/workflows/deploy-web.yml'), 'utf8'));
+  const bake = bakeOf(web.jobs.deploy);
+  assert.ok(bake);
+  assert.equal(bake.run, bakeOf(wf.jobs.site).run.replace('$DEPLOY_BRANCH', '$DEPLOY_BRANCH'));
+  assert.deepEqual(web.jobs.deploy.permissions, { contents: 'read', 'pull-requests': 'read' });
+  assert.ok(!JSON.stringify(bake).includes('secrets.'), 'the bake step holds no secret');
+});
+
 test('render.yaml turns previews on manually for the API only', () => {
   const blueprint = parse(readFileSync(path.join(root, 'render.yaml'), 'utf8'));
   assert.deepEqual(blueprint.services[0].previews, { generation: 'manual' });

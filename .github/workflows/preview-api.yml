@@ -36,7 +36,6 @@ jobs:
     timeout-minutes: 40
     outputs:
       api_origin: ${{ steps.service.outputs.api_origin }}
-      site_origin: ${{ steps.service.outputs.site_origin }}
     env:
       PR: ${{ github.event.pull_request.number }}
       RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
@@ -107,17 +106,9 @@ jobs:
           done
           service_id="${found%% *}"
           api_origin="${found#* }"
-          # The preview inherits SITE_ORIGIN from the base service; the preview site presents it as its Origin.
-          site_origin=$(curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" \
-            "https://api.render.com/v1/services/$service_id/env-vars/SITE_ORIGIN" | jq -r '.value')
-          if ! [[ "$site_origin" =~ ^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]+)?$ ]]; then
-            echo "::error::The preview service has no usable SITE_ORIGIN"
-            exit 1
-          fi
           {
             echo "service_id=$service_id"
             echo "api_origin=$api_origin"
-            echo "site_origin=$site_origin"
           } >> "$GITHUB_OUTPUT"
           echo "Preview API: $api_origin" >> "$GITHUB_STEP_SUMMARY"
 
@@ -125,8 +116,13 @@ jobs:
         env:
           SERVICE_ID: ${{ steps.service.outputs.service_id }}
           DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+          DEPLOY_BRANCH: ${{ github.event.pull_request.head.ref }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
         run: |
           set -euo pipefail
+          # The preview site is the Pages alias of the head branch. The API's same-origin check and its sign-in
+          # redirects use SITE_ORIGIN, so the preview gets that site's own origin (the proxy forwards Origin untouched).
+          site_origin=$(node scripts/preview/preview.mjs site-origin "$DEPLOY_BRANCH" "$CLOUDFLARE_PAGES_PROJECT")
           # The single-variable endpoint: PUT /services/{id}/env-vars (no key) would replace every variable.
           # DATABASE_URL first: the ready marker must never exist next to the staging database.
           put() {
@@ -136,6 +132,7 @@ jobs:
                 "https://api.render.com/v1/services/$SERVICE_ID/env-vars/$1"
           }
           put DATABASE_URL "$DATABASE_URL"
+          put SITE_ORIGIN "$site_origin"
           put D2RMM_PREVIEW_DATABASE ready
 
       - name: Redeploy the preview
@@ -203,6 +200,9 @@ jobs:
     needs: [up, site-build]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Check out the pull request head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -229,25 +229,12 @@ jobs:
           path: apps/web/dist
 
       - name: Bake the preview API into the proxy Function
+        # The same script deploy-web runs, so whichever workflow finishes last publishes the same upstream.
         env:
-          API_ORIGIN: ${{ needs.up.outputs.api_origin }}
-          SITE_ORIGIN: ${{ needs.up.outputs.site_origin }}
-        run: |
-          set -euo pipefail
-          if ! [[ "$API_ORIGIN" =~ ^https://d2rmm-api-pr-[0-9]+\.onrender\.com$ ]]; then
-            echo "::error::The preview API origin is not a Render preview origin"
-            exit 1
-          fi
-          node --input-type=module -e "
-            import { readFileSync, writeFileSync } from 'node:fs';
-            const file = 'apps/web/functions/api/preview-origin.ts';
-            const from = 'export const PREVIEW_API: PreviewApi | undefined = undefined;';
-            const to = 'export const PREVIEW_API: PreviewApi | undefined = ' +
-              JSON.stringify({ origin: process.env.API_ORIGIN, siteOrigin: process.env.SITE_ORIGIN }) + ';';
-            const text = readFileSync(file, 'utf8');
-            if (!text.includes(from)) throw new Error('preview-origin.ts has no PREVIEW_API default to replace');
-            writeFileSync(file, text.replace(from, () => to));
-          "
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DEPLOY_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: node scripts/preview/preview.mjs bake "$DEPLOY_BRANCH" apps/web/functions/api/preview-origin.ts
 
       - name: Publish the preview site to Cloudflare Pages
         working-directory: apps/web

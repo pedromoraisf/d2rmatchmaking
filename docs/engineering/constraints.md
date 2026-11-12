@@ -45,4 +45,6 @@ ADR 030. To try a pull request into `main` (a phase PR) on its own API and data,
   get no preview.
 - Setup (maintainer): secrets `NEON_API_KEY`, `RENDER_API_KEY`; variable `NEON_PROJECT_ID`. Until `render.yaml` reaches
   `main`, enable previews (manual) on `d2rmm-api` in the Render dashboard.
-- A preview site signs in nowhere new: OAuth redirects still go to the staging site's origin.
+- The preview API gets the preview site's own `SITE_ORIGIN` (the Pages alias of the head branch: `phase/F1` becomes
+  `https://phase-f1.<project>.pages.dev`), so its same-origin check and sign-in redirects stay on the preview.
+  `deploy-web.yml` and `preview-api.yml` bake the same upstream, so the last one to publish changes nothing.

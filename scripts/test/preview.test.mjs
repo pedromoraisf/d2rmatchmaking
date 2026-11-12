@@ -1,7 +1,46 @@
 // ADR 030: the preview service of a pull request is found by parent and name; only a Render preview origin is trusted.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { pickPreviewService, validPreviewOrigin } from '../preview/preview.mjs';
+import {
+  bakeOrigin,
+  branchAlias,
+  pickPreviewService,
+  previewApiOriginFor,
+  previewSiteOrigin,
+  validPreviewOrigin,
+} from '../preview/preview.mjs';
+
+test('the branch alias lowercases and turns every character outside [a-z0-9] into a dash, trimmed', () => {
+  assert.equal(branchAlias('phase/F1'), 'phase-f1');
+  assert.equal(branchAlias('feat/F1-Room_x'), 'feat-f1-room-x');
+  assert.equal(branchAlias('chore/F1-api-previews'), 'chore-f1-api-previews');
+  assert.equal(branchAlias('/-Odd..Name-/'), 'odd--name');
+  assert.equal(branchAlias(undefined), '');
+});
+
+test('the preview site origin is the alias under the project, and malformed inputs give nothing', () => {
+  assert.equal(previewSiteOrigin('phase/F1', 'd2rmatchmaking'), 'https://phase-f1.d2rmatchmaking.pages.dev');
+  assert.equal(previewSiteOrigin('///', 'd2rmatchmaking'), undefined);
+  assert.equal(previewSiteOrigin('phase/F1', undefined), undefined);
+  assert.equal(previewSiteOrigin('phase/F1', 'x.evil.test/'), undefined);
+  assert.equal(previewSiteOrigin('phase/F1', 'Upper'), undefined);
+});
+
+test('a labelled open pull request gives its preview API origin, none gives none', () => {
+  assert.equal(previewApiOriginFor([{ number: 12 }]), 'https://d2rmm-api-pr-12.onrender.com');
+  assert.equal(previewApiOriginFor([{ number: 12 }, { number: 9 }]), 'https://d2rmm-api-pr-9.onrender.com');
+  assert.equal(previewApiOriginFor([]), undefined);
+  assert.equal(previewApiOriginFor(undefined), undefined);
+  assert.equal(previewApiOriginFor([{ number: 0 }, { number: '7' }, {}]), undefined);
+});
+
+test('baking replaces only the committed default and refuses anything else', () => {
+  const text = 'a\nexport const PREVIEW_API_ORIGIN: string | undefined = undefined;\nb\n';
+  const baked = bakeOrigin(text, 'https://d2rmm-api-pr-3.onrender.com');
+  assert.ok(baked.includes("= 'https://d2rmm-api-pr-3.onrender.com';"));
+  assert.throws(() => bakeOrigin(text, 'https://evil.test'));
+  assert.throws(() => bakeOrigin(baked, 'https://d2rmm-api-pr-4.onrender.com'));
+});
 
 const svc = (name, parent, url = `https://${name}.onrender.com`) => ({
   cursor: `c-${name}`,
