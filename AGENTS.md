@@ -114,7 +114,7 @@ phase, at the brief and at the review:
    covers every spec of the phase.
 2. **Run** — `/phase-run F<n>`. Per feature: `spec.md` (EARS requirements traced to the PRD) with its
    `acceptance.feature`; `design.md` only for Large or Complex features; `tasks.md` as a checklist. `feature-worker`s
-   (Haiku, ADR 025) implement batches in their own worktrees, runnable features in parallel, one Conventional Commit
+   (Sonnet by default; the maintainer switches the model in chat, ADR 031) implement batches in their own worktrees, runnable features in parallel, one Conventional Commit
    per task on `feat/F<n>-<feature>`. Each feature becomes one PR into `phase/F<n>`, reviewed once by the architecture
    (and, when relevant, security) reviewer, and merged when CI is green. Gray areas take the conservative default,
    written in the PR description; what the maintainer should confirm goes to the phase `decisions.md`.

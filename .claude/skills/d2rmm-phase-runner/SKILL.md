@@ -24,11 +24,13 @@ KICKOFF (maintainer approves)  →  RUN (agents, CI-gated PRs)  →  REVIEW (mai
 | Role         | Who                                                   | Does                                                                     |
 | ------------ | ----------------------------------------------------- | ------------------------------------------------------------------------ |
 | Orchestrator | this session (Opus)                                   | writes spec, design and tasks; dispatches; opens and merges PRs; reviews |
-| Implementer  | `feature-worker` (Haiku), one per feature             | executes a task batch in its own worktree, commits, pushes               |
+| Implementer  | `feature-worker` (Sonnet, ADR 031), one per feature   | executes a task batch in its own worktree, commits, pushes               |
 | Reviewers    | `architecture-reviewer`, `security-reviewer` (Sonnet) | comment once on a feature PR's diff                                      |
 
-Hypothesis H-001 (ADR 029): if workers still need many fix rounds, try Sonnet workers. Record fix rounds per feature
-in the PR description so the review can measure it.
+Worker model (ADR 031): Sonnet by default. When the maintainer names another model in the conversation, pass it as
+the dispatch's `model` override from then on, until they change it again, and write one line in `decisions.md` with
+their words. Never switch on your own judgement; propose it with the fix-round evidence. Record fix rounds per feature
+in the PR description so the review can compare models.
 
 ## When something fails
 

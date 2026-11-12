@@ -10,9 +10,9 @@
   prompt. Read `docs/engineering/lessons.md` first.
 - Roles and models (ADR 025): this session is the **orchestrator** — Opus 5.5 at medium effort, pinned in
   `.claude/settings.json` — and plans, reviews and integrates; it never writes feature code. `feature-worker` subagents
-  (**Haiku**) implement task batches in their own worktrees (`isolation: "worktree"`); `architecture-reviewer` and
-  `security-reviewer` (**Sonnet**) review each feature PR once. Hypothesis H-001: Sonnet workers, if Haiku keeps needing
-  many fix rounds.
+  (**Sonnet** by default, ADR 031) implement task batches in their own worktrees (`isolation: "worktree"`);
+  `architecture-reviewer` and `security-reviewer` (**Sonnet**) review each feature PR once. The maintainer can switch the
+  worker model at any time by saying so in chat; pass it as the dispatch's `model` override until they change it again.
 - Commands: `/phase-kickoff`, `/phase-run`, `/phase-review`, `/check`, `/adr`.
 - Failures: fix the cause and rerun; after three failures of the same thing, record the blocker and move on (rule 11).
 - Resume: run `pnpm phase:status` first; it is the only source of "what's next".

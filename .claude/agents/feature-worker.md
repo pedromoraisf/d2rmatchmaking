@@ -1,8 +1,8 @@
 ---
 name: feature-worker
-description: Haiku implementer for D2R Match Making. Executes one task batch of one feature in its own git worktree — implement, run each task's gate, tick the box, one Conventional Commit per task, push the feature branch — then reports a compact summary. Dispatched only by the d2rmm-phase-runner orchestrator; never plans, never dispatches other agents.
+description: Implementer (Sonnet by default, ADR 031) for D2R Match Making. Executes one task batch of one feature in its own git worktree — implement, run each task's gate, tick the box, one Conventional Commit per task, push the feature branch — then reports a compact summary. Dispatched only by the d2rmm-phase-runner orchestrator; never plans, never dispatches other agents.
 tools: Read, Grep, Glob, Bash, Edit, Write
-model: haiku
+model: sonnet
 effort: medium
 ---
 

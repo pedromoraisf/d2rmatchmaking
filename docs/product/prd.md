@@ -76,7 +76,7 @@ Prioridade: **Must** entra no MVP, **Should** entra se couber antes do beta, **C
 | ID | Contexto | Requisito | Prioridade |
 | --- | --- | --- | --- |
 | FR-01 | Identidade | Entrar com Battle.net (OAuth) e manter sessão da plataforma em cookie | Must |
-| FR-02 | Identidade | Cadastrar personagens pelo agente, lendo a tela de seleção de personagem (nome, classe, nível, ladder ou HC, e o título, que indica as dificuldades liberadas) | Must |
+| FR-02 | Identidade | Cadastrar personagens pelo agente, lendo a tela de seleção de personagem (nome, classe, nível, HC e o título, que indica as dificuldades liberadas); ladder e era são declarados pelo jogador no site, uma vez por personagem | Must |
 | FR-03 | Agentes | Parear o agente digitando no site um código de 6 dígitos exibido no agente | Must |
 | FR-04 | Agentes | Revogar um agente pareado | Must |
 | FR-05 | Agentes | Exibir presença do agente: online, jogo aberto, tela atual | Must |
@@ -101,7 +101,7 @@ Prioridade: **Must** entra no MVP, **Should** entra se couber antes do beta, **C
 | FR-24 | Ranking | Patentes com nome de runa por faixa de ELO | Should |
 | FR-25 | Salas ao vivo | Listar salas com vaga, filtrar por modo e dificuldade e indicar a compatibilidade do personagem | Must |
 | FR-26 | Salas ao vivo | Entrar numa sala com vaga pulando a fila | Should |
-| FR-27 | Agente | Ler o nome da partida no automapa e as mensagens de entrada e saída do chat | Must |
+| FR-27 | Agente | Ler o nome da partida no painel Party (revelado pelo jogador) e as mensagens de entrada e saída do chat | Must |
 | FR-28 | Agente | Preencher o nome da partida no Game Creator por atalho, sem confirmar | Should |
 | FR-29 | Agente | Atualizar-se automaticamente a partir da última release | Must |
 | FR-30 | Lobby Room | Moderação hierárquica: o host modera a sala e resolve disputas vendo os prints e o histórico de rounds; na falta dele, o papel passa aos demais membros por ordem de entrada | Should |
