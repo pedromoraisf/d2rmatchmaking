@@ -74,10 +74,18 @@ test('a mutation run without the domain or --lib fails', () => {
 
 // CRF-09, CRF-10, CRF-11 (ci-and-review-fixes): `pnpm test:mutation:agent` runs the same three crates as the nightly.
 const packageScripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts ?? {};
-const agentCommands = (packageScripts['test:mutation:agent'] ?? '')
-  .split('&&')
-  .map((command) => command.trim())
-  .filter((command) => command.length > 0);
+// The script runs every crate even when one fails, so the commands live in scripts/mutation-agent.mjs.
+const mutationScript = readFileSync('scripts/mutation-agent.mjs', 'utf8');
+const agentCommands = [
+  ...(/mkdirSync\('reports\/mutation'/u.test(mutationScript) ? ['mkdir -p reports/mutation'] : []),
+  ...[...mutationScript.matchAll(/^\s*`(cargo mutants [^`]*)`,$/gmu)].map((match) =>
+    match[1].replace('${MANIFEST}', '--manifest-path apps/agent/src-tauri/Cargo.toml'),
+  ),
+];
+test('pnpm test:mutation:agent runs the script that measures all three crates', () => {
+  assert.equal(packageScripts['test:mutation:agent'], 'node scripts/mutation-agent.mjs');
+});
+
 const flagOf = (command, flag) => new RegExp(`(?:^|\\s)${flag}\\s+(\\S+)`).exec(command)?.[1];
 const packageOf = (commands, crate) =>
   commands.find(
