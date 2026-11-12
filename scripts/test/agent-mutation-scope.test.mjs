@@ -74,18 +74,10 @@ test('a mutation run without the domain or --lib fails', () => {
 
 // CRF-09, CRF-10, CRF-11 (ci-and-review-fixes): `pnpm test:mutation:agent` runs the same three crates as the nightly.
 const packageScripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts ?? {};
-// The script runs every crate even when one fails, so the commands live in scripts/mutation-agent.mjs.
-const mutationScript = readFileSync('scripts/mutation-agent.mjs', 'utf8');
-const agentCommands = [
-  ...(/mkdirSync\('reports\/mutation'/u.test(mutationScript) ? ['mkdir -p reports/mutation'] : []),
-  ...[...mutationScript.matchAll(/^\s*`(cargo mutants [^`]*)`,$/gmu)].map((match) =>
-    match[1].replace('${MANIFEST}', '--manifest-path apps/agent/src-tauri/Cargo.toml'),
-  ),
-];
-test('pnpm test:mutation:agent runs the script that measures all three crates', () => {
-  assert.equal(packageScripts['test:mutation:agent'], 'node scripts/mutation-agent.mjs');
-});
-
+const agentCommands = (packageScripts['test:mutation:agent'] ?? '')
+  .split('&&')
+  .map((command) => command.trim())
+  .filter((command) => command.length > 0);
 const flagOf = (command, flag) => new RegExp(`(?:^|\\s)${flag}\\s+(\\S+)`).exec(command)?.[1];
 const packageOf = (commands, crate) =>
   commands.find(
@@ -131,6 +123,14 @@ test('the agent mutation command creates the reports directory first', () => {
   assert.notEqual(mkdir, -1, 'the command creates reports/mutation');
   assert.notEqual(firstMutants, -1, 'the command runs cargo-mutants');
   assert.ok(mkdir < firstMutants, 'mkdir comes before the first cargo mutants');
+});
+
+// The core crate's tests read files outside the crate directory, so cargo-mutants mutates it in place.
+test('the agent mutation command mutates the core crate in place, as the nightly does', () => {
+  const ours = packageOf(agentCommands, 'core');
+  const theirs = nightlyCommands.find((line) => flagOf(line, '--package') === 'd2rmm-agent-core');
+  assert.match(ours, /\s--in-place(\s|$)/u, 'test:mutation:agent passes --in-place for core');
+  assert.match(theirs, /\s--in-place(\s|$)/u, 'the nightly passes --in-place for core');
 });
 
 // CRF-27 (ci-and-review-fixes): the shared sampler vector lives in the adapters crate, so cargo-mutants copies it with
