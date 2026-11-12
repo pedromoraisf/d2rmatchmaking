@@ -3,7 +3,7 @@ name: ocr-real
 # The Windows OCR check on the maintainer's real screenshots (apps/agent/ocr-lab/README.md). The screenshots are one
 # AES-256 encrypted zip in the repository; the password is the secret OCR_PRINTS_PASSWORD, reachable only on the extract
 # step, and never for a fork's pull request. The extracted folder is deleted at the end and never uploaded.
-# The job's PASS or FAIL is the exit code of ocr-check.exe.
+# The job's PASS or FAIL is the exit code of ocr-check.exe; the drawn-fixture tests after it are informational.
 on:
   pull_request:
     paths:
@@ -64,6 +64,13 @@ jobs:
       - name: Read them with Windows OCR
         if: steps.zip.outputs.present == 'true'
         run: apps/agent/src-tauri/target/release/examples/ocr-check.exe "$RUNNER_TEMP/real-prints"
+      # Informational (characters-reading T32): the real screenshots above are the Windows OCR proof. The two tests read the
+      # xtask-drawn fixtures, which the engine does not read like the game's lettering; they never fail this job.
+      - name: Read the drawn fixtures with Windows OCR (informational)
+        if: steps.zip.outputs.present == 'true'
+        continue-on-error: true
+        working-directory: apps/agent/src-tauri
+        run: cargo test --locked --features drawn-fixtures-ocr -p d2rmm-agent --lib -- ocr_reads_the_drawn_character_fixtures ocr_reads_the_dimmed_popup_as_normal_only --nocapture
       - name: Delete the extracted screenshots
         if: always()
         run: rm -rf "$RUNNER_TEMP/real-prints"

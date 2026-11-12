@@ -147,7 +147,7 @@ prints what the real screenshots show into the public Actions log.
       gate: `pnpm test:harness`
 - [x] T31 — `phases/F1/decisions.md → Blocked`: the Windows OCR on the drawn fixtures — gate: `pnpm specs:check`,
       `pnpm format:check`
-- [ ] T32 — The real screenshots are the Windows OCR proof (maintainer, 2026-11-12): the two Windows-OCR-on-drawn-fixtures
+- [x] T32 — The real screenshots are the Windows OCR proof (maintainer, 2026-11-12): the two Windows-OCR-on-drawn-fixtures
       tests (`ocr_reads_the_drawn_character_fixtures`, `ocr_reads_the_dimmed_popup_as_normal_only`) run only behind a
       cargo feature `drawn-fixtures-ocr`, off by default, so the required `agent` job no longer runs them;
       `.github/workflows/ocr-real.yml` runs them in a separate step with that feature and `continue-on-error: true`

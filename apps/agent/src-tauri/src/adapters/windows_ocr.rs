@@ -152,20 +152,30 @@ mod tests {
     use std::path::Path;
     use std::sync::Arc;
 
-    use d2rmm_agent_core::messages::FrameReading;
-    use d2rmm_agent_core::ports::{FrameReader, Rgba, TextReader};
+    use d2rmm_agent_core::ports::{Rgba, TextReader};
     use d2rmm_agent_core::read_frame::read_game_name;
-    use d2rmm_agent_core::screen_reader::ScreenReader;
-    use d2rmm_agent_domain::characters::{Class, Difficulty, Title};
     use d2rmm_agent_domain::game_name_match::FieldRead;
-    use d2rmm_agent_domain::language::LanguagePack;
-    use d2rmm_agent_domain::layout::{ScreenRegion, screen_region};
-    use d2rmm_agent_domain::presence::Screen;
 
     use super::{WindowsOcr, comparison_readers};
-    use crate::ocr_check::{
-        Card, MAINTAINER_CARDS, check_folder, check_party, check_screen, decode_png,
-    };
+    use crate::ocr_check::{check_folder, check_party, decode_png};
+
+    // What only the drawn-fixture OCR tests use (characters-reading T32).
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    use crate::ocr_check::{Card, MAINTAINER_CARDS, check_screen};
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    use d2rmm_agent_core::messages::FrameReading;
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    use d2rmm_agent_core::ports::FrameReader;
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    use d2rmm_agent_core::screen_reader::ScreenReader;
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    use d2rmm_agent_domain::characters::{Class, Difficulty, Title};
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    use d2rmm_agent_domain::language::LanguagePack;
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    use d2rmm_agent_domain::layout::{ScreenRegion, screen_region};
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    use d2rmm_agent_domain::presence::Screen;
 
     /// The committed F0 reference image (AD-047), decoded to RGBA8.
     fn reference_image() -> Rgba {
@@ -183,6 +193,7 @@ mod tests {
     }
 
     /// Reads a committed character fixture (`fixtures/characters`) with the screen reader and the en-US engine.
+    #[cfg(feature = "drawn-fixtures-ocr")]
     fn read_character(reader: &ScreenReader, name: &str) -> FrameReading {
         let image = decode_png(&format!(
             "{}/../fixtures/characters/{name}",
@@ -193,6 +204,7 @@ mod tests {
 
     /// Prints what the engine reads of each marker, popup and first-card region of a drawn fixture, with the region's box
     /// (T9 diagnostic). The CI log shows which region reads nothing, and what the engine returned for it.
+    #[cfg(feature = "drawn-fixtures-ocr")]
     fn print_marker_regions(engine: &WindowsOcr, name: &str) {
         let image = decode_png(&format!(
             "{}/../fixtures/characters/{name}",
@@ -233,6 +245,7 @@ mod tests {
     /// selection screen's cards, the popup's difficulties, the in-game and automap markers and the unknown menu. Every
     /// fixture is read before the test fails, so one run shows every mismatch.
     #[test]
+    #[cfg(feature = "drawn-fixtures-ocr")]
     fn ocr_reads_the_drawn_character_fixtures() {
         let engine = Arc::new(engine());
         for name in [
@@ -315,6 +328,7 @@ mod tests {
     /// The popup with Nightmare and Hell drawn dim (CHR-18): their text may read, but their brightness is not an enabled
     /// label's, so the only enabled difficulty is Normal.
     #[test]
+    #[cfg(feature = "drawn-fixtures-ocr")]
     fn ocr_reads_the_dimmed_popup_as_normal_only() {
         let reader = ScreenReader::new(Arc::new(engine()), Arc::new(LanguagePack::english()));
         let reading = read_character(&reader, "select-difficulty-dimmed.png");
