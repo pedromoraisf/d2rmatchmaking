@@ -199,6 +199,15 @@ importers:
       '@d2rmm/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
+      '@fontsource/alegreya-sans':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/cinzel':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/ibm-plex-mono':
+        specifier: ^5.3.0
+        version: 5.3.0
       i18next:
         specifier: ^26.5.12
         version: 26.5.12(typescript@5.9.3)
@@ -975,6 +984,15 @@ packages:
 
   '@fastify/swagger@9.9.2':
     resolution: {integrity: sha512-ayxItVgf/1axBvw33lqsA5ns02YMpT1r59G/HCJraRNWWBzvLgN+oiCBPhuzTiN67TvctlCYkG0+40WLKYuusQ==}
+
+  '@fontsource/alegreya-sans@5.3.0':
+    resolution: {integrity: sha512-Uf0RbuwzhSS3NQrBFcRzEUm7TxDQW3qdAbQ6JIOhsIW6V+YN2dqlR99lhfEE38R3GHgMCMJBzqSp7aJxhNXSOw==}
+
+  '@fontsource/cinzel@5.3.0':
+    resolution: {integrity: sha512-KEOYTsrRppW0uRIPWBDPrQgunCS6f8u4nzZxYRBfo9SCknKojLYjK7B0ZoVmJhyVLefz271ZQRF9EOpHZlfhRw==}
+
+  '@fontsource/ibm-plex-mono@5.3.0':
+    resolution: {integrity: sha512-eTgnZjZEGk1QtD3ZstF+Vclo2HLAni8YMy34/DxllwZvyz1lR/1RF/xTiAquOBO7MvqBx8D2Ig2WCPMVfdZu7Q==}
 
   '@grpc/grpc-js@1.14.7':
     resolution: {integrity: sha512-W4W/fcBMGRVtG6dW2c7cw2mnpS3hvbBd+oQXjh2iYFTZDk1JJmcNqkM5KSaPubQpamlUUurrlb7G1s9NJeERmQ==}
@@ -4797,6 +4815,12 @@ snapshots:
       yaml: 2.9.1
     transitivePeerDependencies:
       - supports-color
+
+  '@fontsource/alegreya-sans@5.3.0': {}
+
+  '@fontsource/cinzel@5.3.0': {}
+
+  '@fontsource/ibm-plex-mono@5.3.0': {}
 
   '@grpc/grpc-js@1.14.7':
     dependencies:
