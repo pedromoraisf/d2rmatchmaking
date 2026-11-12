@@ -49,6 +49,7 @@ export class EventStream {
   readonly events: StreamEvent[] = [];
   readonly #abort: AbortController;
   #closed = false;
+  #ended = false;
 
   private constructor(status: number, abort: AbortController) {
     this.status = status;
@@ -73,6 +74,11 @@ export class EventStream {
 
   get closed(): boolean {
     return this.#closed;
+  }
+
+  /** True once the server ended the stream (for example after a revoke), or the connection failed. Not set by `close()`. */
+  get ended(): boolean {
+    return this.#ended;
   }
 
   /** The id of the last event that carries one: what a reconnect sends as `Last-Event-ID`. */
@@ -132,6 +138,8 @@ export class EventStream {
       }
     } catch {
       // The connection was closed (close(), a reset of the stack, or the end of the scenario). Nothing else to read.
+    } finally {
+      this.#ended = true;
     }
   }
 }

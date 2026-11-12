@@ -7,11 +7,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
+use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::{ReadText, Region};
 use uuid::Uuid;
 
-use crate::messages::{GameNameObservation, IssuedCode, Presence};
+use crate::messages::{
+    FrameReading, GameNameObservation, IssuedCode, Presence, ReadyCheckEnd, ReadyCheckOpen,
+};
 use crate::secret::Secret;
 use crate::view::AgentView;
 
@@ -35,6 +38,9 @@ pub enum ApiError {
     Network,
     #[error("the API answered with something the contract does not allow")]
     Invalid,
+    /// The API answered 404 or 409 to an answer to a ready check: the check ended, or the answer was already given (RDY-06).
+    #[error("the ready check is no longer open")]
+    CheckEnded,
 }
 
 /// The credential store refused a write. It carries no detail, so it never leaks the token (AGS-09).
@@ -73,6 +79,31 @@ pub enum ReadError {
 /// Reads the text of a region on this machine (AGS-20).
 pub trait TextReader {
     fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError>;
+
+    /// Several readings of the region, each the engine's text for the same pixels read in another way (another scale or
+    /// filter), the first being `read`'s. The screen readers combine them: the engine's text is noisy and the variants err
+    /// differently. A reader with one way to read returns its one reading; a failed region returns none.
+    fn read_variants(&self, image: &Rgba, region: Region) -> Vec<ReadText> {
+        self.read(image, region).into_iter().collect()
+    }
+}
+
+/// Captures the client area of the D2R game window in memory (CHR-03). `None` when no game window is found or it is
+/// minimized. Only the app crate's window adapter implements it.
+pub trait FrameSource {
+    fn capture(&self) -> Option<Rgba>;
+}
+
+/// Whether the player consented to screen capture, kept on this PC (CHR-01, CHR-02). The store holds no secret.
+pub trait ConsentStore {
+    fn load(&self) -> bool;
+    fn save(&self, consent: bool) -> Result<(), StoreError>;
+}
+
+/// Reads the screen a frame shows and, on the character selection screen, every complete card on it (CHR-04, CHR-06).
+/// A card with any field it could not read is left out. The reader holds no state between frames.
+pub trait FrameReader {
+    fn read(&self, frame: &Rgba) -> FrameReading;
 }
 
 /// Why an update check did not install a version (AGS-26).
@@ -116,18 +147,38 @@ pub trait ApiGateway {
         token: &Secret,
         observation: &GameNameObservation,
     ) -> impl Future<Output = Result<(), ApiError>> + Send;
+    /// Sends the complete cards of one character selection screen, 1 to 24 of them (CHR-09).
+    fn post_characters(
+        &self,
+        token: &Secret,
+        cards: &[Card],
+    ) -> impl Future<Output = Result<(), ApiError>> + Send;
     /// Opens the room stream, resuming after `last_event_id` when the caller has one.
     fn open_stream(
         &self,
         token: &Secret,
         last_event_id: Option<&str>,
     ) -> impl Future<Output = Result<Box<dyn EventStream>, ApiError>> + Send;
+    /// Accepts the ready check `check_id` for the token's account (RDY-02, RDY-07). The agent sends nothing else.
+    fn accept_ready_check(
+        &self,
+        token: &Secret,
+        check_id: &str,
+    ) -> impl Future<Output = Result<(), ApiError>> + Send;
+    /// The account's open ready check, or `None` when it is in none (RDY-11). Read on every stream connection.
+    fn my_ready_check(
+        &self,
+        token: &Secret,
+    ) -> impl Future<Output = Result<Option<ReadyCheckOpen>, ApiError>> + Send;
 }
 
-/// One item of the room stream: an assignment, or the end of the stream and why it ended.
+/// One item of the room stream: an assignment, a ready check that opened or ended, or the end of the stream and why it
+/// ended.
 #[derive(Debug, Clone, PartialEq)]
 pub enum StreamItem {
     RoomAssigned(Assignment),
+    ReadyCheckStarted(ReadyCheckOpen),
+    ReadyCheckResolved(ReadyCheckEnd),
     Ended(EndReason),
 }
 
@@ -239,6 +290,7 @@ mod tests {
             ApiError::Server,
             ApiError::Network,
             ApiError::Invalid,
+            ApiError::CheckEnded,
         ];
         for error in every_variant {
             let shown = format!("{error:?} {error}");

@@ -17,6 +17,10 @@ export type UpdateState = 'idle' | 'failed' | 'required';
 
 export interface RoomState {
   gameName: string;
+  // The Party panel showed the masked game name and no match has come yet (AGN-04).
+  needsReveal: boolean;
+  // The Party panel showed the expected game name in this run (AGN-03).
+  matched: boolean;
 }
 
 export interface AgentView {
@@ -24,6 +28,8 @@ export interface AgentView {
   connectivity: Connectivity;
   room: RoomState | null;
   update: UpdateState;
+  // A ready check is open for the account: the hotkey that accepts it is registered (RDY-07).
+  readyCheckOpen: boolean;
 }
 
 export interface Label {
@@ -64,6 +70,17 @@ export function connectivityLabel(connectivity: Connectivity): Label {
 
 export function roomLabel(room: RoomState | null): Label | null {
   return room === null ? null : { key: 'room.waiting', values: { gameName: room.gameName } };
+}
+
+// The hint to reveal the game name: shown while the agent holds the room, the Party panel showed the masked name and no
+// match has come for this run (AGN-04).
+export function revealLabel(room: RoomState | null): Label | null {
+  return room !== null && room.needsReveal && !room.matched ? { key: 'room.revealHint' } : null;
+}
+
+// The hotkey line while a ready check is open (RDY-07, en and pt-BR): the window names the key, and only while it is open.
+export function readyCheckLabel(open: boolean): Label | null {
+  return open ? { key: 'readyCheck.hotkey' } : null;
 }
 
 export function updateLabel(update: UpdateState): Label | null {

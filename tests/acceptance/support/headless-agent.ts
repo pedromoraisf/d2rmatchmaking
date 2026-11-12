@@ -62,6 +62,31 @@ export function prepareFixture(dir: string, gameName: string): { png: string; si
   return { png, sidecar };
 }
 
+/** The Party panel fixture the example reads, drawn by `xtask draw-fixture party` (committed, AGN-02). */
+export const PARTY_FIXTURE = path.join(repoRoot, 'apps', 'agent', 'fixtures', 'party', 'party-revealed.png');
+
+/** The text of the Party panel the example reads: the Game Name field (the title and label are fixed). */
+export interface PartyPanel {
+  readonly gameNameField: string;
+}
+
+/** Writes a Party fixture into `dir`: the picture, and its sidecar with the panel text the example reads on each capture. */
+export function preparePartyFixture(dir: string, panel: PartyPanel): { png: string; sidecar: string } {
+  const png = path.join(dir, 'party-panel.png');
+  copyFileSync(PARTY_FIXTURE, png);
+  return { png, sidecar: setPartyPanel(png, panel) };
+}
+
+/** Rewrites the panel text of a Party fixture: the example reads it again on its next capture. */
+export function setPartyPanel(png: string, panel: PartyPanel): string {
+  const sidecar = `${png}.json`;
+  writeFileSync(
+    sidecar,
+    `${JSON.stringify({ partyTitle: 'Party', gameNameLabel: 'Game Name', gameNameField: panel.gameNameField }, null, 2)}\n`,
+  );
+  return sidecar;
+}
+
 /** The `cargo` that runs the example: the rustup toolchain lives in `~/.cargo/bin`, which the shell may not have. */
 function cargoEnv(): Record<string, string> {
   return {
@@ -70,9 +95,20 @@ function cargoEnv(): Record<string, string> {
   };
 }
 
+/** The drawn character screens (`xtask draw-fixture characters`): a picture and its sidecar with the text of each region. */
+export const CHARACTER_FIXTURE_DIR = path.join(repoRoot, 'apps', 'agent', 'fixtures', 'characters');
+
+/** A character screen fixture's picture and its sidecar, by the fixture's name (`select-titles`, `in-game`…). */
+export function characterFixture(name: string): { png: string; sidecar: string } {
+  const png = path.join(CHARACTER_FIXTURE_DIR, `${name}.png`);
+  return { png, sidecar: `${png}.json` };
+}
+
 export class HeadlessAgent {
   readonly #child: ChildProcess;
   readonly #events: AgentEvent[] = [];
+  /** When each event was read from the process's output, in the same order (the real clock, `Date.now()`). */
+  readonly #times: number[] = [];
   readonly #exited: Promise<number | null>;
   #pending = '';
   #stderr = '';
@@ -85,7 +121,11 @@ export class HeadlessAgent {
       this.#pending += chunk;
       const lines = this.#pending.split('\n');
       this.#pending = lines.pop() ?? '';
-      this.#events.push(...parseEventLines(lines.join('\n')));
+      const arrived = Date.now();
+      for (const event of parseEventLines(lines.join('\n'))) {
+        this.#events.push(event);
+        this.#times.push(arrived);
+      }
     });
     child.stderr?.setEncoding('utf8');
     child.stderr?.on('data', (chunk: string) => {
@@ -121,8 +161,21 @@ export class HeadlessAgent {
     }
   }
 
-  /** Starts the example against `apiBase` with the fixture screen at `fixture`. Its events are read from then on. */
-  static start(options: { apiBase: string; fixture: string }): HeadlessAgent {
+  /**
+   * Starts the example against `apiBase` with `fixture` as the first frame it captures. Its events are read from then on.
+   * `consent` gives the example the player's capture consent from the start (CHR-01). It defaults to given: the Party steps
+   * (agent-game-name) start a paired agent that reads, and only the consent scenarios pass `consent: false`, so the example
+   * reads nothing until a `consent on` line arrives.
+   */
+  static start(options: {
+    apiBase: string;
+    fixture: string;
+    party?: boolean;
+    consent?: boolean;
+    agentVersion?: string;
+  }): HeadlessAgent {
+    const versionArgs = options.agentVersion === undefined ? [] : ['--agent-version', options.agentVersion];
+    const consentArgs = options.consent === false ? [] : ['--consent'];
     const child = spawn(
       'cargo',
       [
@@ -133,8 +186,10 @@ export class HeadlessAgent {
         '--',
         '--api-base',
         options.apiBase,
-        '--read-fixture',
+        options.party === true ? '--party-fixture' : '--read-fixture',
         options.fixture,
+        ...versionArgs,
+        ...consentArgs,
       ],
       { cwd: repoRoot, env: cargoEnv(), detached: true, stdio: ['pipe', 'pipe', 'pipe'] },
     );
@@ -144,6 +199,14 @@ export class HeadlessAgent {
   /** Every event printed so far, in order. */
   get events(): readonly AgentEvent[] {
     return this.#events;
+  }
+
+  /**
+   * When each `observed` event was read, on the real clock: the agent prints it as the API accepts the observation, so this
+   * is the moment from which a page has 2 seconds to show the change (NFR-01).
+   */
+  observedTimes(): readonly number[] {
+    return this.#times.filter((_, index) => this.#events[index]?.event === 'observed');
   }
 
   /** The last `lines` lines the example wrote to stderr, for a failure message. */
@@ -178,6 +241,21 @@ export class HeadlessAgent {
   /** Sends one `read` line: the example reads the fixture screen once and posts what it sees. */
   read(): void {
     this.#child.stdin?.write('read\n');
+  }
+
+  /** Sends `show <png>`: the example captures that picture from now on, with its sidecar (`<png>.json`) as the text. */
+  show(png: string): void {
+    this.#child.stdin?.write(`show ${png}\n`);
+  }
+
+  /** Sends `consent on` or `consent off`: the player gives or withdraws capture consent in the agent's window (CHR-01). */
+  consent(given: boolean): void {
+    this.#child.stdin?.write(`consent ${given ? 'on' : 'off'}\n`);
+  }
+
+  /** Sends one `hotkey` line: the example presses the agent's accept hotkey (RDY-07), as the global shortcut does. */
+  hotkey(): void {
+    this.#child.stdin?.write('hotkey\n');
   }
 
   /**

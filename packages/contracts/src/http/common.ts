@@ -5,7 +5,7 @@ import { z } from 'zod';
 export const Id = z.string().min(1).max(64);
 export const IsoDateTime = z.iso.datetime();
 export const SemVer = z.string().regex(/^\d+\.\d+\.\d+$/);
-export const Screen = z.enum(['UNKNOWN', 'AUTOMAP_OPEN']);
+export const Screen = z.enum(['UNKNOWN', 'CHARACTER_SELECT', 'IN_GAME', 'AUTOMAP_OPEN']);
 export const Mode = z.enum(['pvp', 'leveling']);
 export const Difficulty = z.enum(['normal', 'nightmare', 'hell']);
 export const RoomStage = z.enum(['formed', 'awaiting_host', 'created', 'active', 'closed', 'expired']);
@@ -15,10 +15,16 @@ export const GameName = z
   .regex(/^mm[a-z]+-\d+$/)
   .max(64);
 
+// The 2v2 team of a member (QUE-12); absent in every other group. Lobby Room keeps it in its members view (F3 reads it).
+export const Team = z.enum(['a', 'b']);
+
 export const Member = z.object({
   accountId: Id,
   characterId: Id.nullable(),
   joinOrder: z.number().int().min(1),
   role: Role,
+  team: Team.optional(),
+  // Whether this member's agent confirmed the current run's game name (INV-06). Present in a room's members only.
+  confirmed: z.boolean().optional(),
 });
 export type Member = z.infer<typeof Member>;

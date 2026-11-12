@@ -125,6 +125,14 @@ test('the agent mutation command creates the reports directory first', () => {
   assert.ok(mkdir < firstMutants, 'mkdir comes before the first cargo mutants');
 });
 
+// The core crate's tests read files outside the crate directory, so cargo-mutants mutates it in place.
+test('the agent mutation command mutates the core crate in place, as the nightly does', () => {
+  const ours = packageOf(agentCommands, 'core');
+  const theirs = nightlyCommands.find((line) => flagOf(line, '--package') === 'd2rmm-agent-core');
+  assert.match(ours, /\s--in-place(\s|$)/u, 'test:mutation:agent passes --in-place for core');
+  assert.match(theirs, /\s--in-place(\s|$)/u, 'the nightly passes --in-place for core');
+});
+
 // CRF-27 (ci-and-review-fixes): the shared sampler vector lives in the adapters crate, so cargo-mutants copies it with
 // the crate, and the telemetry package keeps no copy.
 test('the shared sampler vector lives in the adapters crate', () => {

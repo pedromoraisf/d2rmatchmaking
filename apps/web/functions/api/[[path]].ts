@@ -2,6 +2,8 @@
 // allow-listed headers to the API origin from the environment, streams the body and keeps Set-Cookie. A browser can
 // never reach /__test/*, nor act as an agent through the site: Authorization and X-Agent-Version are dropped.
 
+import { PREVIEW_API_ORIGIN, validPreviewApiOrigin } from './preview-origin.ts';
+
 export interface ProxyEnv {
   API_ORIGIN: string;
 }
@@ -9,6 +11,8 @@ export interface ProxyEnv {
 export interface ProxyContext {
   request: Request;
   env: ProxyEnv;
+  /** The preview API origin baked at build time (ADR 030); absent everywhere else. */
+  previewApiOrigin?: string | undefined;
 }
 
 export type Upstream = (target: URL, init: RequestInit) => Promise<Response>;
@@ -62,7 +66,8 @@ export async function proxyRequest(context: ProxyContext, upstream: Upstream): P
     return new Response(null, { status: 404, headers: { 'Cache-Control': 'no-store' } });
   }
 
-  const target = new URL(context.env.API_ORIGIN);
+  // A baked preview API replaces API_ORIGIN only when it is well formed; anything else falls back to the environment.
+  const target = new URL(validPreviewApiOrigin(context.previewApiOrigin) ?? context.env.API_ORIGIN);
   target.pathname = path;
   target.search = url.search;
 
@@ -75,6 +80,10 @@ export async function proxyRequest(context: ProxyContext, upstream: Upstream): P
   }
   const method = context.request.method;
   const init: RequestInit = { method, headers, redirect: 'manual' };
+  // The browser leaving (an aborted stream or request) ends the upstream request too; without this the API keeps the stream.
+  if (context.request.signal !== undefined) {
+    init.signal = context.request.signal;
+  }
   if (method !== 'GET' && method !== 'HEAD') {
     init.body = context.request.body;
   }
@@ -87,5 +96,7 @@ export async function proxyRequest(context: ProxyContext, upstream: Upstream): P
 }
 
 export function onRequest(context: ProxyContext): Promise<Response> {
-  return proxyRequest(context, (target, init) => fetch(target, init));
+  return proxyRequest({ ...context, previewApiOrigin: PREVIEW_API_ORIGIN }, (target, init) =>
+    fetch(target, init),
+  );
 }

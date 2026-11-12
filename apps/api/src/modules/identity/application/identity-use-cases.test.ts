@@ -14,6 +14,7 @@ import { createIdentityUseCases } from './identity-use-cases.ts';
 import { InMemoryAccountRepository } from './testing/in-memory-account-repository.ts';
 import { InMemorySessionRepository } from './testing/in-memory-session-repository.ts';
 import { FakeSecretHasher } from './testing/fake-secret-hasher.ts';
+import { FakeBattleNetOAuth } from './testing/fake-battle-net-oauth.ts';
 
 const START = new Date('2026-10-30T12:00:00.000Z');
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -43,6 +44,7 @@ function setup() {
     clock,
     random: new SeededRandomSource(42),
     ids: new SequentialIdGenerator('account'),
+    battleNet: new FakeBattleNetOAuth(),
   });
   return { clock, accounts, sessions, hasher, useCases };
 }

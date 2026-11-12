@@ -34,6 +34,10 @@ pub enum UpdateView {
 #[serde(rename_all = "camelCase")]
 pub struct RoomView {
     pub game_name: String,
+    /// The Party panel showed the masked game name, so the player must click the eye (AGN-04). Cleared by a match.
+    pub needs_reveal: bool,
+    /// The Party panel showed the expected game name in this run, so the room's observation is sent (AGN-03).
+    pub matched: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -43,6 +47,8 @@ pub struct AgentView {
     pub connectivity: Connectivity,
     pub room: Option<RoomView>,
     pub update: UpdateView,
+    /// A ready check is open for the account: the window shows the hotkey that accepts it (RDY-07).
+    pub ready_check_open: bool,
 }
 
 #[cfg(test)]
@@ -61,8 +67,11 @@ mod tests {
             connectivity: Connectivity::Connected,
             room: Some(RoomView {
                 game_name: "mmbaalh-12".to_string(),
+                needs_reveal: true,
+                matched: false,
             }),
             update: UpdateView::Idle,
+            ready_check_open: true,
         };
 
         assert_eq!(
@@ -70,8 +79,9 @@ mod tests {
             json!({
                 "pairing": { "showingCode": { "code": "123456", "minutesLeft": 5 } },
                 "connectivity": "connected",
-                "room": { "gameName": "mmbaalh-12" },
+                "room": { "gameName": "mmbaalh-12", "needsReveal": true, "matched": false },
                 "update": "idle",
+                "readyCheckOpen": true,
             })
         );
     }
@@ -83,6 +93,7 @@ mod tests {
             connectivity: Connectivity::Unreachable,
             room: None,
             update: UpdateView::Required,
+            ready_check_open: false,
         };
 
         assert_eq!(
@@ -92,6 +103,7 @@ mod tests {
                 "connectivity": "unreachable",
                 "room": null,
                 "update": "required",
+                "readyCheckOpen": false,
             })
         );
     }

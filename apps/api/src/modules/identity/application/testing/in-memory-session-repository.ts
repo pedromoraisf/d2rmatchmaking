@@ -18,6 +18,10 @@ export class InMemorySessionRepository implements SessionRepository {
       : { accountId: record.accountId, expiresAt: new Date(record.expiresAt.getTime()) };
   }
 
+  async delete(tokenHash: string): Promise<void> {
+    this.#rows.delete(tokenHash);
+  }
+
   /** Test helper: the hashes that are stored, never the tokens. */
   storedHashes(): string[] {
     return [...this.#rows.keys()];

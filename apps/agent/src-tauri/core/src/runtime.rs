@@ -10,11 +10,13 @@ use tokio::sync::{mpsc, watch};
 
 use crate::config::Config;
 use crate::device_state::DeviceState;
+use crate::groups::StreamPorts;
 use crate::groups::{Groups, ReadPorts};
 use crate::pair::{self, Command};
 use crate::ports::{ApiGateway, Rgba, StateSink, TokenStore};
 use crate::post_observation;
-use crate::{beat, check_update, follow_stream, read_frame};
+use crate::ready_check;
+use crate::{beat, check_update, follow_stream, read_frame, watch_screen};
 
 const COMMAND_BUFFER: usize = 8;
 
@@ -60,15 +62,23 @@ fn spawn<G: ApiGateway + Send + Sync + 'static>(
         stream,
         update,
         read,
+        screen,
     } = groups;
     let (commands, receiver) = mpsc::channel(COMMAND_BUFFER);
+    // The hotkey's accept call shares the stream loop's gateway and token store (RDY-07): the same two ports, no more.
+    let ready = Arc::new(StreamPorts {
+        gateway: Arc::clone(&stream.gateway),
+        tokens: Arc::clone(&stream.tokens),
+    });
     tokio::spawn(pair::run(Arc::clone(&device), pairing, receiver));
     tokio::spawn(beat::run(Arc::clone(&device), heartbeat, version));
     tokio::spawn(follow_stream::run(Arc::clone(&device), stream));
     tokio::spawn(check_update::run(Arc::clone(&device), update));
+    tokio::spawn(watch_screen::run(Arc::clone(&device), screen));
     Handle {
         device,
         read: Arc::new(read),
+        ready,
         commands,
     }
 }
@@ -77,6 +87,7 @@ fn spawn<G: ApiGateway + Send + Sync + 'static>(
 pub struct Handle<G> {
     device: Arc<DeviceState>,
     read: Arc<ReadPorts<G>>,
+    ready: Arc<StreamPorts<G>>,
     commands: mpsc::Sender<Command>,
 }
 
@@ -84,6 +95,16 @@ impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
     /// "Get a new code": honoured only while the pairing loop is paused (AGS-34).
     pub fn get_new_code(&self) {
         let _ = self.commands.try_send(Command::GetNewCode);
+    }
+
+    /// The hotkey's answer: accepts the held ready check while its time has not run out (RDY-02, RDY-07). Runs on its own
+    /// task, so the window's thread never waits for the API.
+    pub fn accept_ready_check(&self) {
+        let device = Arc::clone(&self.device);
+        let ports = Arc::clone(&self.ready);
+        tokio::spawn(async move {
+            let _ = ready_check::accept_held(&device, &ports).await;
+        });
     }
 
     /// Reads the game name from one frame and posts an observation when it names the held room. Without a held assignment
@@ -164,15 +185,21 @@ mod tests {
     use std::num::NonZeroU64;
     use std::sync::Arc;
 
+    use d2rmm_agent_domain::language::LanguagePack;
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
 
     use super::Probe;
     use crate::device_state::DeviceState;
-    use crate::fakes::{FakeApiGateway, MemoryTokens, NoProcesses, NoText, NoUpdates, NullSink};
+    use crate::fakes::{
+        FakeApiGateway, MemoryTokens, NoConsent, NoFrameReader, NoFrames, NoProcesses, NoText,
+        NoUpdates, NullSink,
+    };
     use crate::groups::{
         Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
     };
+    use crate::party::PartyPorts;
     use crate::ports::{SequentialIds, TokenStore, WallClock};
+    use crate::watch_screen::ScreenPorts;
 
     use chrono::{DateTime, Utc};
 
@@ -245,6 +272,24 @@ mod tests {
                 clock,
                 gateway: Arc::clone(&gateway),
                 tokens: tokens.clone(),
+            },
+            screen: ScreenPorts {
+                gateway: Arc::clone(&gateway),
+                tokens: tokens.clone(),
+                processes: Arc::new(NoProcesses),
+                frames: Arc::new(NoFrames),
+                reader: Arc::new(NoFrameReader),
+                consent: Arc::new(NoConsent),
+                party: PartyPorts {
+                    read: ReadPorts {
+                        reader: Arc::new(NoText),
+                        ids: Arc::new(SequentialIds::new()),
+                        clock: Arc::new(FixedClock),
+                        gateway: Arc::clone(&gateway),
+                        tokens: tokens.clone(),
+                    },
+                    language: Arc::new(LanguagePack::english()),
+                },
             },
         };
         let device = DeviceState::new(Arc::new(NullSink));

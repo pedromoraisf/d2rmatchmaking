@@ -16,6 +16,7 @@ use d2rmm_agent_core::secret::Secret;
 use crate::config::ApiBase;
 use crate::contracts::generated::{
     Assignment, ClaimRequest, ClaimResponse, Heartbeat, Observation, PairingCodeResponse,
+    RecordCharactersRequest,
 };
 use crate::telemetry::traceparent_for;
 
@@ -144,6 +145,65 @@ impl ApiClient {
         .await
     }
 
+    /// `POST /v1/ready-checks/{id}/accept` (RDY-02, RDY-07): the agent's accept, with the token and no body. `204` is taken;
+    /// `404` or `409` means the check is over or was answered, and the caller forgets it.
+    pub async fn accept_ready_check(&self, token: &Secret, check_id: &str) -> Result<(), ApiError> {
+        let span = info_span!("agent.http.ready_check", status = Empty);
+        async {
+            let path = format!("/v1/ready-checks/{check_id}/accept");
+            let request = self.authorized(Method::POST, &path, token)?;
+            let response = self.send(request).await?;
+            match reading(Route::ReadyCheck, response.status()) {
+                Reading::Success => Ok(()),
+                Reading::Ended => Err(ApiError::CheckEnded),
+                _ => Err(failure(&response)),
+            }
+        }
+        .instrument(span)
+        .await
+    }
+
+    /// `GET /v1/ready-checks/me` (RDY-11): the account's open check as its body, or `None` on `204` (no open check).
+    pub async fn my_ready_check(&self, token: &Secret) -> Result<Option<String>, ApiError> {
+        let span = info_span!("agent.http.my_ready_check", status = Empty);
+        async {
+            let request = self.authorized(Method::GET, "/v1/ready-checks/me", token)?;
+            let response = self.send(request).await?;
+            match response.status() {
+                StatusCode::OK => response
+                    .text()
+                    .await
+                    .map(Some)
+                    .map_err(|_| ApiError::Invalid),
+                StatusCode::NO_CONTENT => Ok(None),
+                _ => Err(failure(&response)),
+            }
+        }
+        .instrument(span)
+        .await
+    }
+
+    /// `POST /v1/me/characters` (CHR-09): the complete cards of one character selection screen. `204` is stored.
+    pub async fn post_characters(
+        &self,
+        token: &Secret,
+        body: &RecordCharactersRequest,
+    ) -> Result<(), ApiError> {
+        let span = info_span!("agent.http.characters", status = Empty);
+        async {
+            let request = self
+                .authorized(Method::POST, "/v1/me/characters", token)?
+                .json(body);
+            let response = self.send(request).await?;
+            match reading(Route::Characters, response.status()) {
+                Reading::Success => Ok(()),
+                _ => Err(failure(&response)),
+            }
+        }
+        .instrument(span)
+        .await
+    }
+
     /// `GET /v1/stream`. The response is handed to the stream reader, which parses the events (AGS-13).
     pub async fn open_stream(
         &self,
@@ -226,7 +286,9 @@ enum Route {
     Heartbeat,
     Assignment,
     Observation,
+    Characters,
     Stream,
+    ReadyCheck,
 }
 
 /// What a route makes of the status it answered with. Only `Success` reads a body.
@@ -236,6 +298,8 @@ enum Reading {
     Success,
     /// `202` on the claim route: the code is not claimed yet.
     Pending,
+    /// `404` or `409` on the ready-check answer route: the check is over, or the answer was given (RDY-06).
+    Ended,
     /// `404` on the assignment route: the agent holds no room.
     NoRoom,
     /// Any other status: `failure_for` maps it to an error.
@@ -250,8 +314,11 @@ fn reading(route: Route, status: StatusCode) -> Reading {
         | (Route::Heartbeat, StatusCode::NO_CONTENT)
         | (Route::Assignment, StatusCode::OK)
         | (Route::Observation, StatusCode::ACCEPTED)
+        | (Route::Characters, StatusCode::NO_CONTENT)
+        | (Route::ReadyCheck, StatusCode::NO_CONTENT)
         | (Route::Stream, StatusCode::OK) => Reading::Success,
         (Route::Claim, StatusCode::ACCEPTED) => Reading::Pending,
+        (Route::ReadyCheck, StatusCode::NOT_FOUND | StatusCode::CONFLICT) => Reading::Ended,
         (Route::Assignment, StatusCode::NOT_FOUND) => Reading::NoRoom,
         _ => Reading::Error,
     }
@@ -352,6 +419,7 @@ mod tests {
             (Route::Assignment, StatusCode::OK, Reading::Success),
             (Route::Assignment, StatusCode::NOT_FOUND, Reading::NoRoom),
             (Route::Observation, StatusCode::ACCEPTED, Reading::Success),
+            (Route::Characters, StatusCode::NO_CONTENT, Reading::Success),
             (Route::Stream, StatusCode::OK, Reading::Success),
         ];
         for (route, status, expected) in table {
@@ -374,6 +442,8 @@ mod tests {
             (Route::Heartbeat, StatusCode::ACCEPTED),
             (Route::Assignment, StatusCode::ACCEPTED),
             (Route::Observation, StatusCode::OK),
+            (Route::Characters, StatusCode::OK),
+            (Route::Characters, StatusCode::UNAUTHORIZED),
             (Route::Stream, StatusCode::CREATED),
             (Route::Stream, StatusCode::NO_CONTENT),
         ];
@@ -416,5 +486,29 @@ mod tests {
         for (status, retry_after, expected) in table {
             assert_eq!(failure_for(status, retry_after), expected, "{status}");
         }
+    }
+
+    #[test]
+    fn the_ready_check_answer_takes_204_and_ends_on_404_or_409() {
+        assert_eq!(
+            reading(Route::ReadyCheck, StatusCode::NO_CONTENT),
+            Reading::Success
+        );
+        assert_eq!(
+            reading(Route::ReadyCheck, StatusCode::NOT_FOUND),
+            Reading::Ended
+        );
+        assert_eq!(
+            reading(Route::ReadyCheck, StatusCode::CONFLICT),
+            Reading::Ended
+        );
+        assert_eq!(
+            reading(Route::ReadyCheck, StatusCode::UNAUTHORIZED),
+            Reading::Error
+        );
+        assert_eq!(
+            reading(Route::ReadyCheck, StatusCode::UPGRADE_REQUIRED),
+            Reading::Error
+        );
     }
 }

@@ -6,7 +6,9 @@ import {
   D2R_LADDER,
   D2R_OUTBOX_EVENT_TYPE,
   D2R_QUEUE_MODE,
+  D2R_ROOM_ACTIVITY,
   D2R_ROOM_ID,
+  D2R_ROOM_RUN,
   D2R_ROOM_STAGE,
   D2R_STREAM_KIND,
 } from './attributes.ts';
@@ -23,6 +25,8 @@ describe('standardized d2r attributes', () => {
       streamKind: D2R_STREAM_KIND,
       roomStage: D2R_ROOM_STAGE,
       outboxEventType: D2R_OUTBOX_EVENT_TYPE,
+      roomRun: D2R_ROOM_RUN,
+      roomActivity: D2R_ROOM_ACTIVITY,
     }).toStrictEqual({
       roomId: 'd2r.room.id',
       queueMode: 'd2r.queue.mode',
@@ -33,6 +37,8 @@ describe('standardized d2r attributes', () => {
       streamKind: 'd2r.stream.kind',
       roomStage: 'd2r.room.stage',
       outboxEventType: 'd2r.outbox.event_type',
+      roomRun: 'd2r.room.run',
+      roomActivity: 'd2r.room.activity',
     });
   });
 });

@@ -20,6 +20,8 @@ export type MeResponse = z.infer<typeof MeResponse>;
 export const ConfigResponse = z.object({
   stagingEndpoints: z.boolean(),
   minAgentVersion: SemVer,
+  // True when Battle.net sign-in is configured: the site offers its button only then (IDB-06).
+  bnetSignIn: z.boolean(),
 });
 export type ConfigResponse = z.infer<typeof ConfigResponse>;
 

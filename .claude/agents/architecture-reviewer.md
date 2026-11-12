@@ -22,10 +22,14 @@ Check:
    single contract source with OpenAPI generated (009, 020), OTLP only (013), room-name pattern (017), ELO per
    character × difficulty × season (018). A deviation needs a new ADR — FAIL until it exists.
 4. **Free-tier constraints.** No per-heartbeat DB writes (Neon CU-hours), payload size and SSE egress within the
-   5 GB/month budget (NFR-14: ~70 KB per player-hour), single instance memory (512 MB).
+   5 GB/month budget (`load.bytes_per_player_hour` in `.quality-baseline.json`), single instance memory (512 MB).
 5. **Contracts.** Route/schema changes regenerate `openapi.json`/`asyncapi.json`; breaking changes bump the contract
    version; the agent's `X-Agent-Version`/`426` path stays intact.
 6. **Testability.** Each port has a fake; domain rules are reachable by unit tests (TLC rule 6).
+7. **Twelve-Factor** (ADR 032, `AGENTS.md` rule 13). Config only from the environment and read in `main/` (no URL,
+   credential or deploy name in code or committed files); backing services by URL; no state kept only in memory across
+   requests that a restart would lose; one build per release, migrations as a release step; logs to stdout/OTLP; one-off
+   tasks as repository scripts. Name the factor in a finding; a deliberate break needs a new ADR — FAIL until it exists.
 
 If a command or read you need fails three times (1 attempt + 2 retries, ADR 022), stop and report it as a
 `BLOCKER` finding instead of retrying.

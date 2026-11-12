@@ -1,6 +1,6 @@
 # ADR 025 — Agent roles and models: Opus orchestrates, Haiku implements, Sonnet judges
 
-**Status**: Accepted
+**Status**: Accepted; the implementer model (Haiku) is superseded by [ADR 031](031-worker-model-switchable.md)
 **Date**: 2026-10-30
 **Deciders**: maintainer
 

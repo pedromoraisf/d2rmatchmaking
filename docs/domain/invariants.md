@@ -9,7 +9,7 @@ IDs are stable — cite them in specs (`INV-03`).
 | INV-02 | A character only queues for a difficulty unlocked on it and, in leveling, with level ≥ that difficulty's floor.                                                                     | Matchmaking              | FR-09                     |
 | INV-03 | Only accounts with a paired and online agent, a linked Battle.net account and a connected site can queue. No manual confirmation.                                                   | Matchmaking              | FR-31                     |
 | INV-04 | An account has at most one active queue ticket or room at a time.                                                                                                                   | Matchmaking + Lobby Room | Design Doc                |
-| INV-05 | Ready check lasts 1 minute. Declining or not answering gives a 5-minute wait; members who accepted return to the top of the queue.                                                  | Matchmaking              | FR-12, FR-13              |
+| INV-05 | Ready check lasts 1 minute. Not answering gives a 5-minute wait; declining carries no penalty, for now; members who accepted return to the top of the queue.                        | Matchmaking              | FR-12, FR-13              |
 | INV-06 | A `LobbyRoom` reaches `created` only with a valid host observation of the expected game name, and `active` only when every member is confirmed by their agent.                      | Lobby Room               | FR-15, FR-16              |
 | INV-07 | A room expires if the host does not create the game within 3 minutes.                                                                                                               | Lobby Room               | FR-17                     |
 | INV-08 | Game names follow `mm{activity}{difficulty}-{n}`; the password is always empty.                                                                                                     | Lobby Room               | FR-14, ADR 017            |
@@ -21,6 +21,7 @@ IDs are stable — cite them in specs (`INV-03`).
 | INV-14 | ELO changes only with a result confirmed by both sides or decided by a moderator.                                                                                                   | Ranking                  | FR-22                     |
 | INV-15 | Ratings are per character × difficulty × season.                                                                                                                                    | Ranking                  | ADR 018                   |
 
-Open (pending the maintainer): whether a player who declines a ready check always takes the 5-minute penalty (INV-05),
-and how step 2 of INV-11 avoids a 1v1 host deciding their own dispute. Until answered, specs that touch them take the
+Decided 2026-11-10 by the maintainer: declining a ready check carries no penalty for now (INV-05, "Não. Hoje não deve
+acontecer nada"). Open (pending the maintainer, before F3): how step 2 of INV-11 avoids a 1v1 host deciding their own
+dispute. Until answered, specs that touch them take the
 conservative default and record an assumed decision.

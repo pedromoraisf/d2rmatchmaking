@@ -13,6 +13,7 @@ const view = (overrides: Partial<AgentView> = {}): AgentView => ({
   connectivity: 'connected',
   room: null,
   update: 'idle',
+  readyCheckOpen: false,
   ...overrides,
 });
 
@@ -91,9 +92,33 @@ describe('status view', () => {
   });
 
   it('shows the room line with the game name', () => {
-    renderStatus({ room: { gameName: 'mmbaalh-12' } });
+    renderStatus({ room: { gameName: 'mmbaalh-12', needsReveal: false, matched: false } });
 
     expect(screen.getByText('Room mmbaalh-12 — waiting for the game')).toBeTruthy();
+  });
+
+  it('tells the player to reveal the game name while it is masked (AGN-04)', () => {
+    const { unmount } = renderStatus({
+      room: { gameName: 'mmbaalh-12', needsReveal: true, matched: false },
+    });
+    expect(
+      screen.getByText('Open the Party panel (P) and click the eye to show the game name.'),
+    ).toBeTruthy();
+    unmount();
+
+    renderStatus({ room: { gameName: 'mmbaalh-12', needsReveal: true, matched: true } });
+    expect(
+      screen.queryByText('Open the Party panel (P) and click the eye to show the game name.'),
+    ).toBeNull();
+  });
+
+  it('shows the reveal hint in pt-BR', () => {
+    const masked = view({ room: { gameName: 'mmbaalh-12', needsReveal: true, matched: false } });
+    render(<StatusView view={masked} translate={ptBR} />);
+
+    expect(
+      screen.getByText('Abra o painel Party (P) e clique no olho para mostrar o nome do jogo.'),
+    ).toBeTruthy();
   });
 
   it('shows the update failure and the update requirement', () => {
@@ -109,5 +134,21 @@ describe('status view', () => {
     const { container } = renderStatus({ pairing: 'requesting' });
 
     expect(container.querySelectorAll('li')).toHaveLength(0);
+  });
+
+  it('shows the hotkey line while a ready check is open, in English and Portuguese (RDY-07)', () => {
+    const { unmount } = renderStatus({ readyCheckOpen: true });
+    expect(screen.getByText('A ready check is open: press Ctrl+Shift+A to accept it.')).toBeTruthy();
+    unmount();
+
+    render(<StatusView view={view({ readyCheckOpen: true })} translate={ptBR} />);
+    expect(
+      screen.getByText('Há uma confirmação de partida: pressione Ctrl+Shift+A para aceitar.'),
+    ).toBeTruthy();
+  });
+
+  it('shows no hotkey line once the check is over', () => {
+    renderStatus({ readyCheckOpen: false });
+    expect(screen.queryByText('A ready check is open: press Ctrl+Shift+A to accept it.')).toBeNull();
   });
 });

@@ -99,6 +99,9 @@ else (secret scanning, Playwright, Lefthook…) comes from `pnpm install`; no ot
     service (integration, e2e, acceptance, load) never run once per mutation. A rule that only the assembled service
     can observe is extracted into a pure function and unit-tested. Mutation runs in the nightly only, never on a PR or in
     a task gate (ADR 029).
+13. **Twelve-Factor App** (ADR 032). The API, the site and their pipelines follow the twelve factors
+    (https://12factor.net/pt_br/): config only from the environment and read in `main/`, stateless processes, one build
+    per release, logs as streams, admin tasks as scripts. Breaking a factor needs a new ADR that names it.
 
 The Claude Code gate hook (`.claude/hooks/gate.mjs`) guards the irreversible ones (force pushes, deletions, secrets,
 the production database, skipped hooks, vendored files, committed migrations, sensors); CI and the reviewers check the
@@ -114,7 +117,7 @@ phase, at the brief and at the review:
    covers every spec of the phase.
 2. **Run** — `/phase-run F<n>`. Per feature: `spec.md` (EARS requirements traced to the PRD) with its
    `acceptance.feature`; `design.md` only for Large or Complex features; `tasks.md` as a checklist. `feature-worker`s
-   (Haiku, ADR 025) implement batches in their own worktrees, runnable features in parallel, one Conventional Commit
+   (Sonnet by default; the maintainer switches the model in chat, ADR 031) implement batches in their own worktrees, runnable features in parallel, one Conventional Commit
    per task on `feat/F<n>-<feature>`. Each feature becomes one PR into `phase/F<n>`, reviewed once by the architecture
    (and, when relevant, security) reviewer, and merged when CI is green. Gray areas take the conservative default,
    written in the PR description; what the maintainer should confirm goes to the phase `decisions.md`.
@@ -153,4 +156,8 @@ the five phases. Before planning, read `docs/engineering/lessons.md`.
 - Add a provider SDK outside `main/` (e.g. Datadog SDK — use OTLP, ADR 013).
 - Edit `.claude/skills/tlc-spec-driven/**` (vendored) or an already-committed migration.
 - Publish Blizzard logos/assets; the site shows a non-affiliation notice.
+- Commit or push a game screenshot, blurred or not, to any branch: the repository is public and a push cannot be
+  undone without a force push. Real screenshots stay outside the repository (read from a local path by an `xtask`
+  command on the maintainer's machine); committed fixtures are drawn by `xtask`. `scripts/check-images.mjs` enforces it
+  at commit time and in CI.
 - Store prints longer than 30 days or capture without consent (NFR-04, NFR-05).

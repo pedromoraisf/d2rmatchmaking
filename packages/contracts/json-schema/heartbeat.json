@@ -29,6 +29,8 @@
           "type": "string",
           "enum": [
             "UNKNOWN",
+            "CHARACTER_SELECT",
+            "IN_GAME",
             "AUTOMAP_OPEN"
           ]
         }

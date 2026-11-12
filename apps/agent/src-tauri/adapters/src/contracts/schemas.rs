@@ -93,6 +93,8 @@ pub const SCHEMAS: &[(&str, &str)] = &[
           "type": "string",
           "enum": [
             "UNKNOWN",
+            "CHARACTER_SELECT",
+            "IN_GAME",
             "AUTOMAP_OPEN"
           ]
         }
@@ -213,6 +215,16 @@ pub const SCHEMAS: &[(&str, &str)] = &[
               "host",
               "member"
             ]
+          },
+          "team": {
+            "type": "string",
+            "enum": [
+              "a",
+              "b"
+            ]
+          },
+          "confirmed": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -306,6 +318,152 @@ pub const SCHEMAS: &[(&str, &str)] = &[
   "additionalProperties": false
 }
 "##),
+    ("agent-event-ready-check-resolved.json", r##"{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "ready_check.resolved"
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "accepted",
+            "declined",
+            "timed-out"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "outcome"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "type",
+    "data"
+  ],
+  "additionalProperties": false
+}
+"##),
+    ("agent-event-ready-check-started.json", r##"{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "ready_check.started"
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "pvp",
+            "leveling"
+          ]
+        },
+        "difficulty": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "nightmare",
+            "hell"
+          ]
+        },
+        "deadline": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "now": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "members": {
+          "minItems": 2,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "position": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 8
+              },
+              "class": {
+                "type": "string",
+                "enum": [
+                  "amazon",
+                  "assassin",
+                  "barbarian",
+                  "druid",
+                  "necromancer",
+                  "paladin",
+                  "sorceress",
+                  "warlock"
+                ]
+              },
+              "level": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 99
+              },
+              "accepted": {
+                "type": "boolean"
+              },
+              "you": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "position",
+              "class",
+              "level",
+              "accepted",
+              "you"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "id",
+        "mode",
+        "difficulty",
+        "deadline",
+        "now",
+        "members"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "type",
+    "data"
+  ],
+  "additionalProperties": false
+}
+"##),
     ("agent-event-room-assigned.json", r##"{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
@@ -366,6 +524,16 @@ pub const SCHEMAS: &[(&str, &str)] = &[
                   "host",
                   "member"
                 ]
+              },
+              "team": {
+                "type": "string",
+                "enum": [
+                  "a",
+                  "b"
+                ]
+              },
+              "confirmed": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -390,6 +558,171 @@ pub const SCHEMAS: &[(&str, &str)] = &[
   "required": [
     "type",
     "data"
+  ],
+  "additionalProperties": false
+}
+"##),
+    ("agent-event-room-run-opened.json", r##"{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "room.run_opened"
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "roomId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "run": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "expectedGameName": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^mm[a-z]+-\\d+$"
+        },
+        "members": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "accountId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "characterId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "joinOrder": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "host",
+                  "member"
+                ]
+              },
+              "team": {
+                "type": "string",
+                "enum": [
+                  "a",
+                  "b"
+                ]
+              },
+              "confirmed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "accountId",
+              "characterId",
+              "joinOrder",
+              "role"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "roomId",
+        "run",
+        "expectedGameName",
+        "members"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "type",
+    "data"
+  ],
+  "additionalProperties": false
+}
+"##),
+    ("record-characters-request.json", r##"{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "characters": {
+      "minItems": 1,
+      "maxItems": 24,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 15,
+            "pattern": "^[A-Za-z]+(?:[-_][A-Za-z]+)?$"
+          },
+          "class": {
+            "type": "string",
+            "enum": [
+              "amazon",
+              "assassin",
+              "barbarian",
+              "druid",
+              "necromancer",
+              "paladin",
+              "sorceress",
+              "warlock"
+            ]
+          },
+          "level": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 99
+          },
+          "hardcore": {
+            "type": "boolean"
+          },
+          "unlockedDifficulties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "normal",
+                "nightmare",
+                "hell"
+              ]
+            }
+          }
+        },
+        "required": [
+          "name",
+          "class",
+          "level",
+          "hardcore",
+          "unlockedDifficulties"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "characters"
   ],
   "additionalProperties": false
 }

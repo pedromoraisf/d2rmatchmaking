@@ -1,0 +1,290 @@
+# API preview for a pull request into main (ADR 030, amends ADR 012). Adding the `render-preview` label makes Render create
+# the preview service d2rmm-api-pr-<n> (render.yaml `previews.generation: manual`). This workflow gives it its own data:
+# a Neon branch `preview/pr-<n>` of the default branch, migrated with this pull request's migrations; it points the
+# preview's DATABASE_URL at it, marks it ready (until then the API refuses to start: apps/api/src/main/preview-guard.ts),
+# redeploys, waits for /healthz, and publishes the Pages preview of the head branch with its /api/* proxy aimed at the
+# preview API. Closing the pull request deletes the Neon branch; Render deletes the preview service itself.
+# Same-repository pull requests only, so a fork never reaches the secrets. Secrets: NEON_API_KEY, RENDER_API_KEY,
+# CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID. Variables: NEON_PROJECT_ID, CLOUDFLARE_PAGES_PROJECT.
+# No connection string is printed: every one is masked before use. Actions are pinned by commit SHA (ADR 019).
+name: preview-api
+
+on:
+  pull_request:
+    types: [labeled, synchronize, reopened, closed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-api-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  TURBO_TELEMETRY_DISABLED: '1'
+
+jobs:
+  up:
+    name: preview-api-up
+    if: >-
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(github.event.pull_request.labels.*.name, 'render-preview') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'render-preview')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      api_origin: ${{ steps.service.outputs.api_origin }}
+    env:
+      PR: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Check out the pull request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Create or reuse the Neon branch
+        id: neon
+        uses: neondatabase/create-branch-action@fb620d43d4c565abaf088b848a4e28e5c4ea4d9c # v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch_name: preview/pr-${{ github.event.pull_request.number }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - name: Mask the connection strings
+        env:
+          DB_URL: ${{ steps.neon.outputs.db_url }}
+          DB_URL_POOLED: ${{ steps.neon.outputs.db_url_pooled }}
+        run: |
+          echo "::add-mask::$DB_URL"
+          echo "::add-mask::$DB_URL_POOLED"
+
+      - name: Migrate the preview database
+        env:
+          DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+        run: pnpm --filter @d2rmm/api db:migrate
+
+      - name: Wait for the Render preview service
+        id: service
+        shell: bash
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          deadline=$(( $(date +%s) + 600 ))
+          while true; do
+            # The base service and the preview may sit on different pages, so all pages are gathered before matching.
+            cursor=""
+            all="[]"
+            while true; do
+              url="https://api.render.com/v1/services?includePreviews=true&limit=100"
+              if [ -n "$cursor" ]; then url="$url&cursor=$cursor"; fi
+              page=$(curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" "$url")
+              all=$(printf '%s\n%s' "$all" "$page" | jq -s 'add')
+              # A full page continues from the cursor of its last item.
+              cursor=$(printf '%s' "$page" | jq -r 'if length == 100 then .[-1].cursor else "" end')
+              if [ -z "$cursor" ]; then break; fi
+            done
+            # Pull request code (the script) never sees the key: it is dropped from its environment.
+            found=$(printf '%s' "$all" | env -u RENDER_API_KEY node scripts/preview/preview.mjs find "$PR")
+            if [ -n "$found" ]; then break; fi
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::The Render preview service for PR $PR did not appear within 10 minutes. Services seen (type name url parent-name parent-id):"
+              printf '%s' "$all" | env -u RENDER_API_KEY node scripts/preview/preview.mjs describe
+              exit 1
+            fi
+            sleep 15
+          done
+          service_id="${found%% *}"
+          api_origin="${found#* }"
+          {
+            echo "service_id=$service_id"
+            echo "api_origin=$api_origin"
+          } >> "$GITHUB_OUTPUT"
+          echo "Preview API: $api_origin" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Compute the preview site origin
+        id: site
+        # The preview site is the Pages alias of the head branch. The API's same-origin check and its sign-in
+        # redirects use SITE_ORIGIN, so the preview gets that site's own origin (the proxy forwards Origin untouched).
+        # Runs pull request code, so it holds no Render key.
+        env:
+          DEPLOY_BRANCH: ${{ github.event.pull_request.head.ref }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+        run: |
+          set -euo pipefail
+          echo "origin=$(node scripts/preview/preview.mjs site-origin "$DEPLOY_BRANCH" "$CLOUDFLARE_PAGES_PROJECT")" >> "$GITHUB_OUTPUT"
+
+      - name: Point the preview at its database and mark it ready
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ steps.service.outputs.service_id }}
+          DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+          SITE_ORIGIN: ${{ steps.site.outputs.origin }}
+        run: |
+          set -euo pipefail
+          # The single-variable endpoint: PUT /services/{id}/env-vars (no key) would replace every variable.
+          # DATABASE_URL first: the ready marker must never exist next to the staging database.
+          put() {
+            jq -n --arg value "$2" '{value: $value}' |
+              curl -fsS -o /dev/null -X PUT -H "Authorization: Bearer $RENDER_API_KEY" \
+                -H 'Content-Type: application/json' --data @- \
+                "https://api.render.com/v1/services/$SERVICE_ID/env-vars/$1"
+          }
+          put DATABASE_URL "$DATABASE_URL"
+          put SITE_ORIGIN "$SITE_ORIGIN"
+          put D2RMM_PREVIEW_DATABASE ready
+
+      - name: Redeploy the preview
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ steps.service.outputs.service_id }}
+        run: |
+          curl -fsS -o /dev/null -X POST -H "Authorization: Bearer $RENDER_API_KEY" \
+            "https://api.render.com/v1/services/$SERVICE_ID/deploys"
+
+      - name: Wait for /healthz (10 minutes)
+        env:
+          API_ORIGIN: ${{ steps.service.outputs.api_origin }}
+        run: |
+          deadline=$(( $(date +%s) + 600 ))
+          until curl -fsS "$API_ORIGIN/healthz" > /dev/null; do
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::GET /healthz did not answer 200 within 10 minutes"
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "GET /healthz answered 200"
+
+  site-build:
+    name: preview-site-build
+    if: >-
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(github.event.pull_request.labels.*.name, 'render-preview') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'render-preview')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the pull request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build the site
+        run: pnpm --filter @d2rmm/web build
+
+      - name: Upload the site
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: preview-web-dist
+          path: apps/web/dist
+          if-no-files-found: error
+          retention-days: 7
+
+  site:
+    name: preview-site
+    needs: [up, site-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out the pull request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Download the site
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: preview-web-dist
+          path: apps/web/dist
+
+      - name: Bake the preview API into the proxy Function
+        # The same script deploy-web runs, so whichever workflow finishes last publishes the same upstream.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DEPLOY_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: node scripts/preview/preview.mjs bake "$DEPLOY_BRANCH" apps/web/functions/api/preview-origin.ts
+
+      - name: Publish the preview site to Cloudflare Pages
+        working-directory: apps/web
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+          DEPLOY_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          pnpm exec wrangler pages deploy dist --project-name "$CLOUDFLARE_PAGES_PROJECT" --branch "$DEPLOY_BRANCH" | tee deploy.log
+          echo "Preview site: $(grep -Eo 'https://[^ ]+' deploy.log | tail -n 1)" >> "$GITHUB_STEP_SUMMARY"
+
+  down:
+    name: preview-api-down
+    if: >-
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(github.event.pull_request.labels.*.name, 'render-preview')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Delete the Neon branch
+        # Runs only for a labelled pull request (nothing to delete otherwise); Render deletes the preview service itself.
+        # A failed delete does not fail the closed pull request, but the next step says so.
+        id: delete
+        continue-on-error: true
+        uses: neondatabase/delete-branch-action@4468d825d5a88ef4012f1705a82f02ec3072f776 # v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch: preview/pr-${{ github.event.pull_request.number }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - name: Warn when the Neon branch was not deleted
+        if: steps.delete.outcome == 'failure'
+        env:
+          BRANCH: preview/pr-${{ github.event.pull_request.number }}
+        run: echo "::warning::The Neon branch $BRANCH was not deleted; delete it by hand (Neon Free allows 10 branches)"

@@ -10,3 +10,48 @@ The agent window does not show its version. On Windows, open Settings â†’ Apps â
 
 The agent looks for an update when it starts and every 6 hours (AD-049). With an older version installed and a newer
 release published, restart the agent, wait a moment, and check the installed version again.
+
+## The Party panel check (maintainer, Windows)
+
+The Windows OCR reading of the Party panel and the selection screen is checked on the maintainer's own screenshots. They
+are not in the repository (the game's UI art, and other players' names): copy the five files into one folder, named
+exactly:
+
+- `maintainer-party-revealed.png`: the Party panel with the game name revealed (the room's name is `DUEL NK LOCKS`)
+- `maintainer-party-revealed-tooltip.png`: the same, with the eye's tooltip open
+- `maintainer-party-masked.png`: the panel with the masked name (`xxxxxxxxx`)
+- `maintainer-select-screen.png`: the character selection screen
+- `maintainer-select-difficulty.png`: the selection screen with the difficulty popup open
+
+### In CI (recommended)
+
+The five screenshots live in the repository as one AES-256 encrypted zip, `apps/agent/ocr-lab/real-prints.zip`
+(`apps/agent/ocr-lab/README.md`: the exception, its limits, how to replace it). On every pull request that changes the
+agent, the `ocr-real` workflow opens it on a Windows runner with the repository secret `OCR_PRINTS_PASSWORD`, runs
+`ocr-check.exe` on it and deletes the extracted files. Read its log in the pull request's checks: PASS or FAIL per file,
+the diagnostics for every region, and the job's status is the tool's exit code. Fork pull requests do not run it.
+
+### Without installing anything
+
+The Windows CI build of the agent makes a standalone `ocr-check.exe` (statically linked, no Node, Rust or build tools).
+
+1. Open the pull request's CI run on GitHub (Actions), and under Artifacts download `ocr-check-windows`. It is kept for 14 days.
+2. Unzip it into its own new folder.
+3. Put the five screenshots in another folder, then open a terminal in the unzipped folder and run:
+
+```text
+ocr-check.exe C:\d2r-prints
+```
+
+The check prints `PASS` or `FAIL` for each file, with what the engine read, names any file that is missing, and exits
+non-zero when a file fails. If the en-US Windows OCR language is not installed, it says so and says how to add it.
+
+### With Node (a repository checkout on Windows)
+
+From the repository root on Windows, with Node and the Rust toolchain installed:
+
+```text
+node scripts/agent/ocr-check.mjs <folder>
+```
+
+It runs the same check (the `ocr_check` test). It needs the en-US Windows OCR engine.

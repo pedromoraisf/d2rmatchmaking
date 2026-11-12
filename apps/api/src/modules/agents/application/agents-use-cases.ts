@@ -1,6 +1,7 @@
 import type { Clock, EventBus, IdGenerator, RandomSource, UnitOfWork } from '../../../shared-kernel/index.ts';
 import { createAuthenticateAgent } from './authenticate-agent.ts';
 import { createAccountOfAgent, createCurrentAgentOf } from './agent-lookups.ts';
+import { createAgentOfflineSinceOf, createAgentOnlineOf } from './agent-online.ts';
 import { createClaimToken } from './claim-token.ts';
 import { createEvictRevokedAgent } from './evict-revoked-agent.ts';
 import { createGetMyAgent } from './get-my-agent.ts';
@@ -15,6 +16,7 @@ import type {
 } from './ports.ts';
 import { createRecordHeartbeat } from './record-heartbeat.ts';
 import { createRequestPairingCode } from './request-pairing-code.ts';
+import { createRevokeAgent } from './revoke-agent.ts';
 import { createSweep } from './sweep.ts';
 
 export interface AgentsDeps {
@@ -54,9 +56,12 @@ export function createAgentsUseCases(deps: AgentsRuntimeDeps) {
     recordHeartbeat: createRecordHeartbeat(deps),
     sweep: createSweep(deps),
     getMyAgent: createGetMyAgent(deps),
+    revokeAgent: createRevokeAgent(deps),
     evictRevokedAgent: createEvictRevokedAgent(deps),
     accountOfAgent: createAccountOfAgent(deps),
     currentAgentOf: createCurrentAgentOf(deps),
+    agentOnlineOf: createAgentOnlineOf(deps),
+    agentOfflineSinceOf: createAgentOfflineSinceOf(deps),
   };
 }
 

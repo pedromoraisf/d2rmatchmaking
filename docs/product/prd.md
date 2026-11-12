@@ -49,7 +49,7 @@ As metas abaixo são hipóteses iniciais, para calibrar com os dados do beta.
 
 - Login com Battle.net (OAuth) e cadastro dos personagens do jogador, lidos pelo agente na tela de seleção de personagem.
 - Matchmaking de PvP (Duelo 1v1, 2v2, Arena de 6; regras GM ou BM) e de leveling (Baal, Chaos, Cows, Terror Zone, Heralds), sempre filtrado por região do jogo, dificuldade, ladder e era.
-- Ready check com tempo limite e penalidade para quem recusa.
+- Ready check com tempo limite e penalidade para quem não responde.
 - Lobby Room com nome gerado e sem senha, host definido, estados (Formada, Aguardando host, Criada, Ativa) e runs em sequência.
 - Experiência completa obrigatória: agente desktop instalado e pareado, conta vinculada à Battle.net e site conectado.
 - Presença confirmada pelo agente
@@ -76,7 +76,7 @@ Prioridade: **Must** entra no MVP, **Should** entra se couber antes do beta, **C
 | ID | Contexto | Requisito | Prioridade |
 | --- | --- | --- | --- |
 | FR-01 | Identidade | Entrar com Battle.net (OAuth) e manter sessão da plataforma em cookie | Must |
-| FR-02 | Identidade | Cadastrar personagens pelo agente, lendo a tela de seleção de personagem (nome, classe, nível, ladder ou HC, e o título, que indica as dificuldades liberadas) | Must |
+| FR-02 | Identidade | Cadastrar personagens pelo agente, lendo a tela de seleção de personagem (nome, classe, nível, HC e o título, que indica as dificuldades liberadas); ladder e era são declarados pelo jogador no site, uma vez por personagem | Must |
 | FR-03 | Agentes | Parear o agente digitando no site um código de 6 dígitos exibido no agente | Must |
 | FR-04 | Agentes | Revogar um agente pareado | Must |
 | FR-05 | Agentes | Exibir presença do agente: online, jogo aberto, tela atual | Must |
@@ -87,7 +87,7 @@ Prioridade: **Must** entra no MVP, **Should** entra se couber antes do beta, **C
 | FR-10 | Matchmaking | No PvP, ampliar a faixa de ELO conforme o tempo de espera | Must |
 | FR-11 | Matchmaking | No leveling, garantir um teleportador e um BO quando houver na fila | Should |
 | FR-12 | Matchmaking | Ready check de 1 minuto; aceitar pelo site ou pelo atalho do agente | Must |
-| FR-13 | Matchmaking | Recusar ou não responder gera espera de 5 min; os demais voltam ao topo da fila | Must |
+| FR-13 | Matchmaking | Não responder gera espera de 5 min; recusar não gera penalidade, por ora; os demais voltam ao topo da fila | Must |
 | FR-14 | Lobby Room | Criar a sala a partir do grupo formado, com host, nome no padrão `mm{atividade}{dificuldade}-{n}` e senha sempre vazia (partida pública) | Must |
 | FR-15 | Lobby Room | Transitar pelos estados Formada, Aguardando host, Criada, Ativa, Encerrada e Expirada | Must |
 | FR-16 | Lobby Room | Confirmar presença por observação do agente | Must |
@@ -101,7 +101,7 @@ Prioridade: **Must** entra no MVP, **Should** entra se couber antes do beta, **C
 | FR-24 | Ranking | Patentes com nome de runa por faixa de ELO | Should |
 | FR-25 | Salas ao vivo | Listar salas com vaga, filtrar por modo e dificuldade e indicar a compatibilidade do personagem | Must |
 | FR-26 | Salas ao vivo | Entrar numa sala com vaga pulando a fila | Should |
-| FR-27 | Agente | Ler o nome da partida no automapa e as mensagens de entrada e saída do chat | Must |
+| FR-27 | Agente | Ler o nome da partida no painel Party (revelado pelo jogador) e as mensagens de entrada e saída do chat | Must |
 | FR-28 | Agente | Preencher o nome da partida no Game Creator por atalho, sem confirmar | Should |
 | FR-29 | Agente | Atualizar-se automaticamente a partir da última release | Must |
 | FR-30 | Lobby Room | Moderação hierárquica: o host modera a sala e resolve disputas vendo os prints e o histórico de rounds; na falta dele, o papel passa aos demais membros por ordem de entrada | Should |
@@ -122,7 +122,7 @@ Prioridade: **Must** entra no MVP, **Should** entra se couber antes do beta, **C
 | NFR-08 | Portabilidade | Trocar de provedor de hospedagem muda só a camada de montagem do app |
 | NFR-09 | Observabilidade | Traces, métricas e logs em OpenTelemetry desde o dia 0, nos três apps |
 | NFR-10 | Qualidade | Pirâmide de testes com testes de mutação no domínio e na aplicação |
-| NFR-11 | Harness | Repositório em L4 no harness-score, verificado no CI |
+| NFR-11 | Harness | Harness enxuto (ADR 029): o CI é o gate de qualidade e os hooks barram só o irreversível; o harness-score é relatório, não gate |
 | NFR-12 | Idiomas | Interface nasce em inglês, com i18n para português do Brasil desde o dia 0 (textos em arquivos de tradução, nada fixo no código); leitura do agente com cliente do jogo em inglês e português |
 | NFR-13 | Acessibilidade | Site navegável por teclado e com contraste AA |
 | NFR-14 | Capacidade | No mínimo 100 jogadores simultâneos na jornada principal, dentro do NFR-01, na infraestrutura gratuita; verificado por teste de carga |

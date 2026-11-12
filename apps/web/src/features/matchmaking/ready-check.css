@@ -1,0 +1,129 @@
+/* The ready-check overlay (prototype "ready check"). Scoped to the overlay so the shell's theme stays the only global
+   styling; every colour comes from the theme's variables. */
+
+.rc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(6, 4, 3, 0.82);
+  backdrop-filter: blur(5px);
+}
+
+.rc {
+  width: min(520px, 100%);
+  text-align: center;
+  padding: 30px 24px;
+  border: 1px solid var(--gold-dim);
+  border-radius: 4px;
+  background: radial-gradient(420px 200px at 50% 0, rgba(163, 35, 26, 0.35), transparent 70%), var(--panel);
+}
+
+.rc .rc-sub {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ash);
+}
+
+.rc .rc-title {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(28px, 6vw, 38px);
+  letter-spacing: 0.06em;
+  color: var(--parch);
+  margin: 6px 0 0;
+}
+
+.rc .rc-ring {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  margin: 20px auto;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(var(--gold) calc(var(--p) * 1%), var(--line) 0);
+}
+
+.rc .rc-ring > span:first-child {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: var(--panel);
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 36px;
+  color: var(--gold);
+}
+
+.rc .rc-members {
+  list-style: none;
+  margin: 0 0 22px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.rc .rc-member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* A member who has not answered is dimmed on the mark only: dimmed text would fall under the AA contrast (NFR-13). */
+.rc .rc-member .av {
+  opacity: 0.45;
+  transition: opacity 0.2s;
+}
+
+.rc .rc-member.yes .av {
+  opacity: 1;
+}
+
+.rc .rc-member.yes .av {
+  border-color: var(--ok);
+}
+
+.rc .rc-member-text {
+  display: grid;
+  text-align: left;
+  font-size: 13px;
+}
+
+.rc .you {
+  font-family: var(--display);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--abyss);
+  background: var(--gold);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+.rc .rc-acts {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rc .rc-notes {
+  font-size: 13px;
+  margin: 16px 0 0;
+}
+
+.rc kbd {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  color: var(--parch);
+  white-space: nowrap;
+}

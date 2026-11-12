@@ -1,4 +1,4 @@
-export type AgentScreen = 'UNKNOWN' | 'AUTOMAP_OPEN';
+export type AgentScreen = 'UNKNOWN' | 'CHARACTER_SELECT' | 'IN_GAME' | 'AUTOMAP_OPEN';
 
 const OFFLINE_AFTER_MS = 45 * 1000;
 
@@ -29,6 +29,11 @@ export const Presence = {
   /** Offline from exactly 45 s after the last heartbeat. */
   isOfflineAt(presence: Presence, now: Date): boolean {
     return now.getTime() - presence.lastSeenAt.getTime() >= OFFLINE_AFTER_MS;
+  },
+
+  /** The instant the agent counts as offline: 45 s after its last heartbeat. */
+  offlineSince(presence: Presence): Date {
+    return new Date(presence.lastSeenAt.getTime() + OFFLINE_AFTER_MS);
   },
 
   /** True when `online`, `gameRunning` or `screen` differ. `lastSeenAt` does not count. */

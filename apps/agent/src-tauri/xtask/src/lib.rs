@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use syn::{Fields, Item, parse_quote};
 use typify::{TypeSpace, TypeSpaceSettings};
 
+pub mod character_fixture;
 pub mod fixture;
 
 /// Each agent schema file and the Rust type it generates. The directory must hold exactly these files.
@@ -20,7 +21,17 @@ pub const CONTRACTS: &[(&str, &str)] = &[
     ("heartbeat.json", "Heartbeat"),
     ("assignment.json", "Assignment"),
     ("observation.json", "Observation"),
+    (
+        "agent-event-ready-check-resolved.json",
+        "ReadyCheckResolvedEvent",
+    ),
+    (
+        "agent-event-ready-check-started.json",
+        "ReadyCheckStartedEvent",
+    ),
     ("agent-event-room-assigned.json", "RoomAssignedEvent"),
+    ("agent-event-room-run-opened.json", "RoomRunOpenedEvent"),
+    ("record-characters-request.json", "RecordCharactersRequest"),
 ];
 
 /// Fields holding a claim secret or the token. The generator types them as `d2rmm_agent_core::secret::Secret` (AGS-09).

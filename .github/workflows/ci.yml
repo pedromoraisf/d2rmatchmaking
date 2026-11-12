@@ -121,7 +121,16 @@ jobs:
         run: cargo build --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --example headless --features fixture-read
       - run: pnpm run test:integration
       # Playwright is a dependency of tests/acceptance only: `pnpm exec` at the root cannot find its binary.
-      - run: pnpm --filter @d2rmm/acceptance exec playwright install --with-deps chromium
+      # The browser comes from Playwright's CDN; its system packages come from apt, whose mirrors were unreachable from
+      # the runners for hours on 2026-11-11 (PR #52), each apt call then waiting about 10 minutes on DNS. One apt call,
+      # bounded to 3 minutes, then the runner image's libraries (the image ships Chrome): a missing library still fails
+      # every browser test at launch, so nothing is skipped.
+      - name: Install Chromium for Playwright
+        run: |
+          pnpm --filter @d2rmm/acceptance exec playwright install chromium
+          if ! timeout 180 pnpm --filter @d2rmm/acceptance exec playwright install-deps chromium; then
+            echo "::warning::Chromium's system packages could not be installed in 3 minutes; using the runner image's libraries"
+          fi
       - run: pnpm run test:e2e
       - name: Acceptance (BDD scenarios from .specs)
         if: hashFiles('.specs/features/*/acceptance.feature') != ''
@@ -291,6 +300,22 @@ jobs:
         if: steps.changed.outputs.changed == 'true'
         working-directory: apps/agent
         run: pnpm exec tauri build --ci --config '{"bundle":{"createUpdaterArtifacts":false}}' -- --locked
+      # The maintainer's OCR check as one .exe (apps/agent/README.md). The CRT is linked statically so it runs on a clean
+      # Windows 10/11 with no runtime installed. RUSTFLAGS is set on this step only: the rest of the job stays dynamic.
+      - name: Build the standalone OCR check (static CRT)
+        if: steps.changed.outputs.changed == 'true'
+        working-directory: apps/agent/src-tauri
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+        run: cargo build --locked --release --example ocr-check
+      - name: Upload the standalone OCR check
+        if: steps.changed.outputs.changed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ocr-check-windows
+          path: apps/agent/src-tauri/target/release/examples/ocr-check.exe
+          if-no-files-found: error
+          retention-days: 14
 
   secrets:
     name: secrets # gitleaks; required check in .github/rulesets/main.json

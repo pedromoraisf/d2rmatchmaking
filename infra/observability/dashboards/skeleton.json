@@ -5,7 +5,10 @@
   "schemaVersion": 39,
   "version": 1,
   "editable": false,
-  "time": { "from": "now-1h", "to": "now" },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
   "tags": ["d2rmm", "skeleton"],
   "panels": [
     {
@@ -13,12 +16,23 @@
       "type": "timeseries",
       "title": "Request rate by route",
       "unit": "reqps",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sum by (http_route) (rate(http_server_request_duration_seconds_count{service_name=\"d2rmm-api\"}[5m]))"
         }
       ]
@@ -28,12 +42,23 @@
       "type": "timeseries",
       "title": "Error rate (5xx share)",
       "unit": "percentunit",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sum(rate(http_server_request_duration_seconds_count{service_name=\"d2rmm-api\", http_response_status_class=\"5xx\"}[5m])) / sum(rate(http_server_request_duration_seconds_count{service_name=\"d2rmm-api\"}[5m]))"
         }
       ]
@@ -43,12 +68,23 @@
       "type": "timeseries",
       "title": "Request duration p95 by route",
       "unit": "s",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "histogram_quantile(0.95, sum by (le, http_route) (rate(http_server_request_duration_seconds_bucket{service_name=\"d2rmm-api\"}[5m])))"
         }
       ]
@@ -58,12 +94,23 @@
       "type": "stat",
       "title": "Outbox lag (oldest unpublished row)",
       "unit": "s",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 8 },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 8
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "max(outbox_lag_seconds{service_name=\"d2rmm-api\"})"
         }
       ]
@@ -73,13 +120,104 @@
       "type": "timeseries",
       "title": "Open event streams",
       "unit": "short",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 8
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sum by (d2r_stream_kind) (sse_connections{service_name=\"d2rmm-api\"})"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Queue size by pool",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "sum by (d2r_queue_mode, d2r_difficulty) (d2r_queue_size{service_name=\"d2rmm-api\"})"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Queue wait at match p95 by mode",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, d2r_queue_mode) (rate(d2r_queue_wait_seconds_bucket{service_name=\"d2rmm-api\"}[5m])))"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Ready checks by outcome",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "targets": [
+        {
+          "expr": "sum by (d2r_ready_check_outcome) (rate(d2r_ready_check_resolved_total{service_name=\"d2rmm-api\"}[5m]))"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Rooms by final stage",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "targets": [
+        {
+          "expr": "sum by (d2r_room_stage) (rate(d2r_room_final_stage_total{service_name=\"d2rmm-api\"}[5m]))"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Time to active p95 by mode",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, d2r_queue_mode) (rate(d2r_room_time_to_active_seconds_bucket{service_name=\"d2rmm-api\"}[5m])))"
         }
       ]
     }

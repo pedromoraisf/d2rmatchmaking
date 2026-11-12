@@ -1,9 +1,14 @@
-import { isSpanContextValid, SpanStatusCode, trace } from '@opentelemetry/api';
+import { isSpanContextValid, type Span, SpanStatusCode, trace } from '@opentelemetry/api';
 
 /** Span attributes: ids and bounded enums only, never codes, secrets, tokens, IP addresses or names (AWS-35). */
 export type SpanAttributes = Record<string, string | number | boolean>;
 
 const TRACER_NAME = 'd2rmm-api';
+
+/** Adds attributes to the active span once a use case knows them (the room it loaded). Nothing happens outside a span. */
+export function annotateActiveSpan(attributes: SpanAttributes): void {
+  trace.getActiveSpan()?.setAttributes(attributes);
+}
 
 /** A W3C `traceparent` of version 00: lowercase hex ids and flags, nothing else (RTL-05). */
 const TRACEPARENT = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/;
@@ -48,6 +53,35 @@ export function linkActiveSpan(traceparent: string): void {
 
 function isErrResult(value: unknown): boolean {
   return typeof value === 'object' && value !== null && 'ok' in value && value.ok === false;
+}
+
+/**
+ * Runs `fn` inside an active span named `name`, and hands `fn` the span, so the caller can record an outcome attribute
+ * that is known only at the end (IDB-12). The span is ended on every path. A throw records the exception and sets status
+ * error before the error is rethrown.
+ */
+export function withRecordingSpan<T>(
+  name: string,
+  attributes: SpanAttributes,
+  fn: (span: Span) => Promise<T> | T,
+): Promise<T> {
+  const tracer = trace.getTracer(TRACER_NAME);
+  return tracer.startActiveSpan(name, { attributes }, async (span) => {
+    try {
+      const result = await fn(span);
+      if (isErrResult(result)) {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: 'err result' });
+      }
+      return result;
+    } catch (error) {
+      const exception = error instanceof Error ? error : new Error(String(error));
+      span.recordException(exception);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: exception.name });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }
 
 /**

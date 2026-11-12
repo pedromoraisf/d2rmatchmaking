@@ -7,7 +7,13 @@ import {
 } from '@opentelemetry/sdk-trace-base';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { err, ok, type Result } from './result.ts';
-import { activeTraceparent, linkActiveSpan, withSpan } from './tracing.ts';
+import {
+  activeTraceparent,
+  annotateActiveSpan,
+  linkActiveSpan,
+  withRecordingSpan,
+  withSpan,
+} from './tracing.ts';
 
 const exporter = new InMemorySpanExporter();
 
@@ -111,6 +117,77 @@ describe('withSpan', () => {
   });
 });
 
+describe('withRecordingSpan', () => {
+  it('opens a span with the name and attributes, and hands the span to fn', async () => {
+    let handed: unknown = null;
+
+    await withRecordingSpan('lobby.record-observation', { roomId: 'room-1' }, (span) => {
+      handed = span;
+    });
+
+    const [span] = exporter.getFinishedSpans();
+    expect(span?.name).toBe('lobby.record-observation');
+    expect(span?.attributes).toEqual({ roomId: 'room-1' });
+    expect(span?.ended).toBe(true);
+    expect(handed).toBeDefined();
+    expect(handed).not.toBeNull();
+  });
+
+  it('lets fn record an attribute known only at the end', async () => {
+    await withRecordingSpan('lobby.record-observation', {}, (span) => {
+      span.setAttribute('outcome', 'applied');
+    });
+
+    expect(exporter.getFinishedSpans()[0]?.attributes).toEqual({ outcome: 'applied' });
+  });
+
+  it('returns the value unchanged and leaves status unset for an ok Result', async () => {
+    const outcome = ok('paired');
+
+    const returned = await withRecordingSpan('agents.pair', {}, () => outcome);
+
+    expect(returned).toBe(outcome);
+    expect(exporter.getFinishedSpans()[0]?.status.code).toBe(SpanStatusCode.UNSET);
+  });
+
+  it('sets status error with the message err result for an err Result and returns it unchanged', async () => {
+    const outcome: Result<string, 'invalid-code'> = err('invalid-code');
+
+    const returned = await withRecordingSpan('agents.pair', {}, () => outcome);
+
+    const [span] = exporter.getFinishedSpans();
+    expect(returned).toBe(outcome);
+    expect(span?.status).toEqual({ code: SpanStatusCode.ERROR, message: 'err result' });
+  });
+
+  it('records the exception, sets status error with its name and rethrows when fn throws', async () => {
+    const failure = new TypeError('bad input');
+
+    await expect(
+      withRecordingSpan('agents.heartbeat', {}, () => {
+        throw failure;
+      }),
+    ).rejects.toBe(failure);
+
+    const [span] = exporter.getFinishedSpans();
+    expect(span?.status).toEqual({ code: SpanStatusCode.ERROR, message: 'TypeError' });
+    expect(span?.events.map((event) => event.name)).toContain('exception');
+    expect(span?.ended).toBe(true);
+  });
+
+  it('records a thrown value that is not an Error as an exception and rethrows it as thrown', async () => {
+    await expect(
+      withRecordingSpan('agents.heartbeat', {}, () => {
+        throw 'plain text';
+      }),
+    ).rejects.toBe('plain text');
+
+    const [span] = exporter.getFinishedSpans();
+    expect(span?.events.map((event) => event.name)).toContain('exception');
+    expect(span?.status.code).toBe(SpanStatusCode.ERROR);
+  });
+});
+
 describe('activeTraceparent', () => {
   it('returns the traceparent of the active span', async () => {
     let read: string | null = null;
@@ -204,5 +281,21 @@ describe('linkActiveSpan', () => {
 
   it('does not throw when no span is active', () => {
     expect(() => linkActiveSpan(`00-${traceId}-${spanId}-01`)).not.toThrow();
+  });
+});
+
+describe('annotateActiveSpan', () => {
+  it('adds the attributes to the active span', async () => {
+    await withSpan('lobby.leave-room', { first: 1 }, () => {
+      annotateActiveSpan({ second: 'two' });
+    });
+
+    expect(exporter.getFinishedSpans()[0]?.attributes).toEqual({ first: 1, second: 'two' });
+  });
+
+  it('does nothing outside a span', () => {
+    expect(() => {
+      annotateActiveSpan({ second: 'two' });
+    }).not.toThrow();
   });
 });

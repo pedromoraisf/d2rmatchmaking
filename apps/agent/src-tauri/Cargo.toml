@@ -25,19 +25,31 @@ tauri = "2"
 tauri-plugin-updater = "2"
 thiserror = "2"
 uuid = { version = "1", features = ["v4"] }
+# The PNG decoder of the maintainer's OCR check (`ocr_check`, examples/ocr-check.rs) and of its test (AGN-02, AGS-16).
+png = "0.18"
 
 [target.'cfg(windows)'.dependencies]
+# The ready-check hotkey (RDY-07): registers the key combination with the OS (RegisterHotKey), no keyboard hook, no input.
+global-hotkey = "0.8"
 keyring = { version = "3", features = ["windows-native"] }
-windows = { version = "0.62", features = ["Foundation", "Globalization", "Graphics_Imaging", "Media_Ocr", "Storage_Streams", "Win32_Foundation", "Win32_System_Diagnostics_ToolHelp"] }
+windows = { version = "0.62", features = ["Foundation", "Globalization", "Graphics_Imaging", "Media_Ocr", "Storage_Streams", "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Storage_Xps", "Win32_System_Diagnostics_ToolHelp", "Win32_UI_WindowsAndMessaging"] }
 
 [features]
 # The F0 fixture-read trigger (AGS-33, AD-057). Never a default feature; release-agent.yml never enables it.
 # The adapters crate has its own `fixture-read` (the headless example, AD-096, adapters/Cargo.toml); both stay off by default.
 fixture-read = ["dep:image"]
+# Windows OCR on the xtask-drawn character fixtures (characters-reading T32). Off by default: the real screenshots (`ocr-real`) are
+# the Windows OCR proof, and the `ocr-real` workflow runs these two tests informationally with this feature.
+drawn-fixtures-ocr = []
 
 [build-dependencies]
 tauri-build = "2"
 
 [dev-dependencies]
-png = "0.18"
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt"] }
+
+# The maintainer's standalone Windows OCR check: `ocr-check.exe <folder>` (apps/agent/README.md). An example, so the
+# installer never ships it and `tauri build` keeps its default run target. CI builds it on windows-latest (ci.yml agent-build).
+[[example]]
+name = "ocr-check"
+path = "examples/ocr-check.rs"

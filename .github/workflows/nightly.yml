@@ -79,9 +79,12 @@ jobs:
       - shell: bash
         run: mkdir -p reports/mutation
       # ADR 026 (AHM-23): mutants are caught by the unit tests (--lib) of each crate, never by tests/ or the app crate.
-      - run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --output reports/mutation/agent-core -- --lib
-      - run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain --output reports/mutation/agent-domain -- --lib
-      - run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib
+      # core runs --in-place: its tests include_str! sidecars from apps/agent/fixtures, outside the workspace cargo-mutants copies.
+      - run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --in-place --output reports/mutation/agent-core -- --lib
+      - if: ${{ !cancelled() }}
+        run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain --output reports/mutation/agent-domain -- --lib
+      - if: ${{ !cancelled() }}
+        run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib
       - uses: actions/upload-artifact@v4
         if: always()
         with:

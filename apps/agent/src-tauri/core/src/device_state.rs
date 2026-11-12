@@ -11,8 +11,10 @@ use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
 use crate::hub::Hub;
+use crate::messages::{ReadyCheckOpen, Screen};
+use crate::party::PartyProgress;
 use crate::ports::{ApiError, StateSink, TokenStore};
-use crate::view::{PairingView, UpdateView};
+use crate::view::{PairingView, RoomView, UpdateView};
 
 /// What the loops share about the device: the aggregate, the room and the signals that wake the loops.
 pub struct DeviceState {
@@ -27,8 +29,21 @@ pub struct DeviceState {
     pub update_now: Notify,
     /// The current room assignment (AGS-14). Latest `room.assigned` wins.
     pub assignment: watch::Sender<RoomAssignment>,
+    /// The screen the last frame showed (CHR-04). The heartbeat reports it and beats at once when it changes.
+    pub screen: watch::Sender<Screen>,
     /// Observations dropped after their retries ran out or were overtaken (AD-051).
     observations_dropped: AtomicU64,
+    /// What the Party step has seen for the held run (AGN-05). It follows the assignment and is forgotten with it.
+    party: Mutex<PartyProgress>,
+    /// The ready check the account is in, while its time has not run out (RDY-07). The hotkey answers it.
+    ready_check: Mutex<Option<HeldReadyCheck>>,
+}
+
+/// A held ready check and the monotonic instant its time runs out: the time left came from the server (RDY-11).
+#[derive(Debug, Clone)]
+struct HeldReadyCheck {
+    id: String,
+    until: Instant,
 }
 
 impl DeviceState {
@@ -41,8 +56,78 @@ impl DeviceState {
             update_required: watch::channel(false).0,
             update_now: Notify::new(),
             assignment: watch::channel(RoomAssignment::empty()).0,
+            screen: watch::channel(Screen::Unknown).0,
             observations_dropped: AtomicU64::new(0),
+            party: Mutex::new(PartyProgress::default()),
+            ready_check: Mutex::new(None),
         }
+    }
+
+    /// Forgets the held ready check, when the stream or the API says the account is in none (RDY-11).
+    pub fn forget_ready_check(&self) {
+        *lock(&self.ready_check) = None;
+        self.hub.set_ready_check_open(false);
+    }
+
+    /// Holds a ready check the stream or the API says is open, and shows the hotkey that accepts it (RDY-07). Its time is
+    /// counted from now on the monotonic clock, so the agent's own wall clock plays no part (RDY-11).
+    pub fn open_ready_check(&self, check: ReadyCheckOpen) {
+        *lock(&self.ready_check) = Some(HeldReadyCheck {
+            id: check.id,
+            until: Instant::now() + check.remaining,
+        });
+        self.hub.set_ready_check_open(true);
+    }
+
+    /// Forgets the held ready check when the stream says it ended, or the API says it is gone. A different id changes
+    /// nothing, so a late end of an older check never hides the newer one.
+    pub fn close_ready_check(&self, id: &str) {
+        let mut held = lock(&self.ready_check);
+        if held.as_ref().is_some_and(|check| check.id == id) {
+            *held = None;
+            drop(held);
+            self.hub.set_ready_check_open(false);
+        }
+    }
+
+    /// The id of the held ready check while the hotkey may still answer it: held, and its time has not run out (RDY-07).
+    pub fn answerable_ready_check(&self) -> Option<String> {
+        lock(&self.ready_check)
+            .as_ref()
+            .filter(|check| Instant::now() < check.until)
+            .map(|check| check.id.clone())
+    }
+
+    /// Waits until the held check's time runs out and then forgets it, so the hotkey disarms even when no resolution
+    /// arrives (RDY-11). Waits forever when no check is held; the select that calls it restarts whenever the held check
+    /// changes.
+    pub async fn disarm_at_deadline(&self) {
+        let Some(until) = lock(&self.ready_check).as_ref().map(|check| check.until) else {
+            std::future::pending::<()>().await;
+            return;
+        };
+        tokio::time::sleep_until(until).await;
+        let mut held = lock(&self.ready_check);
+        if held
+            .as_ref()
+            .is_some_and(|check| Instant::now() >= check.until)
+        {
+            *held = None;
+            drop(held);
+            self.hub.set_ready_check_open(false);
+        }
+    }
+
+    /// Records the screen the last frame showed. Only a change wakes the heartbeat (CHR-05).
+    pub fn set_screen(&self, screen: Screen) {
+        self.screen.send_if_modified(|current| {
+            if *current == screen {
+                false
+            } else {
+                *current = screen;
+                true
+            }
+        });
     }
 
     /// Whether a token is held.
@@ -67,12 +152,34 @@ impl DeviceState {
     /// Stores the assignment the API states (`Some`) or forgets the current one (`None`). A newer assignment replaces the
     /// older one.
     pub fn replace_assignment(&self, assignment: Option<Assignment>) {
+        lock(&self.party).follow(assignment.as_ref());
         self.assignment.send_modify(|slot| match assignment {
             Some(assignment) => {
                 slot.receive(assignment);
             }
             None => slot.clear(),
         });
+    }
+
+    /// Runs `apply` on the Party progress of the held run (AGN-05). Publish the room after a change with `publish_room`.
+    pub fn with_party<T>(&self, apply: impl FnOnce(&mut PartyProgress) -> T) -> T {
+        apply(&mut lock(&self.party))
+    }
+
+    /// Shows the held room with the Party progress: the name, the reveal hint (AGN-04) and the match (AGN-03). Publishes only
+    /// a change, so a reading that changes nothing sends nothing to the window.
+    pub fn publish_room(&self) {
+        let room = self.assignment.borrow().current().map(|assignment| {
+            let progress = lock(&self.party);
+            RoomView {
+                game_name: assignment.expected_game_name.as_str().to_string(),
+                needs_reveal: progress.needs_reveal(),
+                matched: progress.matched(),
+            }
+        });
+        if self.hub.snapshot().room != room {
+            self.hub.set_room(room);
+        }
     }
 
     /// A 401 on any request: the token goes, the room goes, and the pairing loop shows a new code (AGS-08).
@@ -191,6 +298,7 @@ impl DeviceState {
                 DeviceEffect::ForgetToken => tokens.delete(),
                 DeviceEffect::ClearRoom => {
                     self.assignment.send_modify(RoomAssignment::clear);
+                    lock(&self.party).follow(None);
                     self.hub.set_room(None);
                 }
                 // The retry epoch moved with the aggregate; a waiting retry compares it and drops its observation.
@@ -249,6 +357,8 @@ mod tests {
         device.replace_assignment(Some(assignment()));
         device.hub.set_room(Some(RoomView {
             game_name: "mmbaalh-12".to_string(),
+            needs_reveal: false,
+            matched: false,
         }));
         let epoch = device.epoch();
 

@@ -1,0 +1,270 @@
+//! Matching the game name the Party panel shows against the room's expected name (AGN-03, AGN-04). D2R draws the letter O as
+//! `⊕` and zero as `Ø`, and OCR reads both as zero or as O, so each side is normalised the same way before the comparison:
+//! before the last `-` the glyphs `0`, `Ø` and `⊕` mean the letter `o` (`mmcowsh`, `mmchaosn`), and after it `O`, `o`, `Ø`
+//! and `⊕` mean the digit `0` (the level number, `mmchaosn-10`). A masked field (only `x` characters) is never compared.
+
+/// What one reading of the Game Name field says about the room's game name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldRead {
+    /// The field shows the masked value: the player has not clicked the eye (AGN-04).
+    Masked,
+    /// The field shows the expected game name, after normalisation (AGN-03).
+    Matched,
+    /// The field shows a name that is not the expected one, or nothing readable (AGN-03: nothing is posted).
+    Other,
+}
+
+/// Classifies one reading of the field against the expected game name. The caller reads the field only while the Party
+/// panel is open, so an empty or blank reading means the field shows nothing readable: the masked value is drawn as dots
+/// the engine may not read, so it counts as `Masked` (the player must reveal the name; nothing is posted). A blank
+/// expected name is `Other`, never a match.
+pub fn read_field(read: &str, expected: &str) -> FieldRead {
+    if is_masked(read) || read.trim().is_empty() {
+        return FieldRead::Masked;
+    }
+    if expected.trim().is_empty() {
+        return FieldRead::Other;
+    }
+    if normalise(read) == normalise(expected) {
+        FieldRead::Matched
+    } else {
+        FieldRead::Other
+    }
+}
+
+/// Classifies several readings of the field (the OCR variants, characters-reading T21) against the expected game name. The
+/// name is matched when any reading matches exactly after the normalisation above (no edit distance: a wrong name stays
+/// refused); otherwise the field is masked when any reading is the mask, or when every reading is blank; otherwise it shows
+/// another name. No reading at all is a blank field.
+pub fn read_field_variants(reads: &[&str], expected: &str) -> FieldRead {
+    let each: Vec<FieldRead> = reads
+        .iter()
+        .map(|read| read_field(read, expected))
+        .collect();
+    if each.contains(&FieldRead::Matched) {
+        return FieldRead::Matched;
+    }
+    if reads.iter().any(|read| is_masked(read))
+        || each.iter().all(|read| *read == FieldRead::Masked)
+    {
+        return FieldRead::Masked;
+    }
+    FieldRead::Other
+}
+
+/// Whether a reading is the masked value: one or more `x` characters and nothing else, after trimming (AGN-04).
+pub fn is_masked(read: &str) -> bool {
+    let trimmed = read.trim();
+    !trimmed.is_empty() && trimmed.chars().all(|c| c == 'x' || c == 'X')
+}
+
+/// The normal form of a game name: trimmed, lower-cased, with the glyph rules of the module doc applied on each side of the
+/// last `-`. A name without `-` is all letters.
+pub fn normalise(name: &str) -> String {
+    let lower = name.trim().to_lowercase();
+    match lower.rfind('-') {
+        Some(at) => {
+            let letters = &lower[..at];
+            let number = &lower[at + 1..];
+            format!("{}-{}", letters_of(letters), digits_of(number))
+        }
+        None => letters_of(&lower),
+    }
+}
+
+/// The part of a name before its last `-`: the glyphs of zero and the slashed zero and the O drawn as `⊕` read as `o`.
+fn letters_of(part: &str) -> String {
+    part.chars()
+        .map(|c| match c {
+            '0' | 'ø' | '⊕' => 'o',
+            other => other,
+        })
+        .collect()
+}
+
+/// The part of a name after its last `-`: the letter O in every drawing reads as zero.
+fn digits_of(part: &str) -> String {
+    part.chars()
+        .map(|c| match c {
+            'o' | 'ø' | '⊕' => '0',
+            other => other,
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FieldRead, is_masked, normalise, read_field, read_field_variants};
+
+    #[test]
+    fn the_crowded_glyph_pairs_match_their_expected_names() {
+        // The glyph pairs of the design: the O of `cows` drawn as ⊕, the zero of `10` drawn as Ø or read as O.
+        assert_eq!(read_field("MMC⊕WSH-1", "mmcowsh-1"), FieldRead::Matched);
+        assert_eq!(read_field("MMCHA⊕SN-1Ø", "mmchaosn-10"), FieldRead::Matched);
+        assert_eq!(read_field("MMCOWSH-1O", "mmcowsh-10"), FieldRead::Matched);
+    }
+
+    #[test]
+    fn another_number_does_not_match() {
+        assert_eq!(read_field("mmcowsh-7", "mmcowsh-1"), FieldRead::Other);
+        assert_eq!(read_field("mmbaalh-999", "mmbaalh-12"), FieldRead::Other);
+    }
+
+    #[test]
+    fn the_masked_field_is_masked_and_never_matched() {
+        assert_eq!(read_field("xxxxxxxxx", "mmcowsh-1"), FieldRead::Masked);
+        assert_eq!(
+            read_field("  xxxx ", "mmcowsh-1"),
+            FieldRead::Masked,
+            "trimmed first"
+        );
+        assert!(is_masked("XXXXXXXX"));
+        assert!(!is_masked("xxx1"), "any other character is not masked");
+        assert!(!is_masked(""), "an empty field is not masked by the x rule");
+    }
+
+    #[test]
+    fn the_match_trims_and_ignores_case() {
+        assert_eq!(read_field("  MMCOWSH-1 ", "mmcowsh-1"), FieldRead::Matched);
+        assert_eq!(read_field("MmBaAlH-12", "mmbaalh-12"), FieldRead::Matched);
+    }
+
+    #[test]
+    fn letters_before_the_dash_read_zero_and_slashed_zero_as_o() {
+        assert_eq!(normalise("mm0wsh-1"), "mmowsh-1");
+        assert_eq!(normalise("mmØwsh-1"), "mmowsh-1");
+        assert_eq!(normalise("mm⊕wsh-1"), "mmowsh-1");
+    }
+
+    #[test]
+    fn digits_after_the_dash_read_every_o_glyph_as_zero() {
+        assert_eq!(normalise("mmbaalh-1O"), "mmbaalh-10");
+        assert_eq!(normalise("mmbaalh-1o"), "mmbaalh-10");
+        assert_eq!(normalise("mmbaalh-1Ø"), "mmbaalh-10");
+        assert_eq!(normalise("mmbaalh-1⊕"), "mmbaalh-10");
+    }
+
+    #[test]
+    fn a_name_without_a_dash_is_all_letters() {
+        assert_eq!(normalise("DUEL NK L⊕CKS"), "duel nk locks");
+        assert_eq!(
+            read_field("DUEL NK L⊕CKS", "duel nk locks"),
+            FieldRead::Matched
+        );
+    }
+
+    #[test]
+    fn an_empty_reading_is_masked_and_a_blank_expected_name_never_matches() {
+        assert_eq!(
+            read_field("", "mmcowsh-1"),
+            FieldRead::Masked,
+            "nothing readable is masked"
+        );
+        assert_eq!(
+            read_field("   ", "mmcowsh-1"),
+            FieldRead::Masked,
+            "blank is masked"
+        );
+        assert_eq!(
+            read_field("mmcowsh-1", ""),
+            FieldRead::Other,
+            "no expected name"
+        );
+    }
+
+    #[test]
+    fn a_reading_one_character_off_does_not_match() {
+        assert_eq!(read_field("mmcowsh-2", "mmcowsh-1"), FieldRead::Other);
+        assert_eq!(read_field("mmcowsh-1x", "mmcowsh-1"), FieldRead::Other);
+    }
+
+    /// The maintainer's Windows OCR read "OUEL NK LBCKS" for the room "DUEL NK LOCKS" (2026-11-11). The compare is exact
+    /// after normalisation, so a field with two wrong glyphs is refused; the threshold is not loosened to accept it (a
+    /// wrong game name must stay refused). The upscale before the OCR is what fixes glyph accuracy.
+    #[test]
+    fn a_field_with_two_misread_glyphs_is_refused_at_the_current_threshold() {
+        assert_eq!(
+            read_field("OUEL NK LBCKS", "DUEL NK LOCKS"),
+            FieldRead::Other
+        );
+        assert_eq!(
+            read_field("DUEL NK LOCKS", "DUEL NK LOCKS"),
+            FieldRead::Matched
+        );
+        assert_eq!(
+            read_field("xxxxxxxxx", "DUEL NK LOCKS"),
+            FieldRead::Masked,
+            "the masked value is not a name"
+        );
+    }
+
+    /// The first `ocr-real` run on the maintainer's Party screenshot (2026-11-11): the name is exact in one variant only.
+    #[test]
+    fn the_name_matches_when_any_variant_reads_it_exactly() {
+        let reads = [
+            "OUEL NK LBCKS",
+            "OUEL NK L BCCS",
+            "DUEL NK LOCKS",
+            "DUEL NK LBCKS",
+        ];
+        assert_eq!(
+            read_field_variants(&reads, "DUEL NK LOCKS"),
+            FieldRead::Matched
+        );
+        let wrong = [reads[0], reads[1], reads[3]];
+        assert_eq!(
+            read_field_variants(&wrong, "DUEL NK LOCKS"),
+            FieldRead::Other,
+            "no edit distance: a near name is refused"
+        );
+    }
+
+    #[test]
+    fn the_field_is_masked_when_any_variant_is_the_mask_or_all_are_blank() {
+        let mask = "xxxxxxxxx";
+        assert_eq!(
+            read_field_variants(&[mask, mask, mask, mask], "mmcowsh-1"),
+            FieldRead::Masked
+        );
+        assert_eq!(
+            read_field_variants(&["", mask, "", ""], "mmcowsh-1"),
+            FieldRead::Masked
+        );
+        assert_eq!(
+            read_field_variants(&["", " "], "mmcowsh-1"),
+            FieldRead::Masked
+        );
+        assert_eq!(
+            read_field_variants(&[], "mmcowsh-1"),
+            FieldRead::Masked,
+            "nothing read is a blank field"
+        );
+        assert_eq!(
+            read_field_variants(&["", "mmcowsh-7"], "mmcowsh-1"),
+            FieldRead::Other
+        );
+    }
+
+    #[test]
+    fn a_name_one_letter_off_in_every_variant_is_never_matched() {
+        let reads = [
+            "DUEL NK LOCKX",
+            "DUEL NK LOCKX",
+            "DUEL NK LOCKX",
+            "DUEL NK LOCKX",
+        ];
+        assert_ne!(
+            read_field_variants(&reads, "DUEL NK LOCKS"),
+            FieldRead::Matched
+        );
+        assert_eq!(
+            read_field_variants(&reads, "DUEL NK LOCKS"),
+            FieldRead::Other
+        );
+    }
+
+    #[test]
+    fn a_blank_expected_name_never_matches_in_any_variant() {
+        assert_eq!(read_field_variants(&["abc", "abd"], " "), FieldRead::Other);
+    }
+}

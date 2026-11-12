@@ -18,6 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { POSTGRES_URL_ENV } from './global-setup.ts';
+import { BNET_CLIENT_ID, BNET_CLIENT_SECRET, FakeBattleNet } from './fake-battle-net.ts';
 
 /** The repository root: this file is in tests/acceptance/support. */
 const repoRoot = path.resolve(fileURLToPath(new URL('../../..', import.meta.url)));
@@ -50,7 +51,12 @@ export interface Stack {
   readonly staging: Endpoint;
   /** The API with staging endpoints off (AWS-03). */
   readonly plain: Endpoint;
-  /** Resets both APIs: truncates the worker database and clears their memory stores and streams (AD-045). */
+  /** The fake Battle.net provider the staging API signs in with (IDB-01 to IDB-04). Scripted per scenario. */
+  readonly battleNet: FakeBattleNet;
+  /**
+   * Resets both APIs: truncates the worker database and clears their memory stores and streams (AD-045). Also clears the
+   * fake Battle.net provider's script and records.
+   */
   reset(): Promise<void>;
   /** Moves the controllable clock of both APIs forward by `ms`. */
   advanceClock(ms: number): Promise<void>;
@@ -59,6 +65,22 @@ export interface Stack {
    * would (AD-062). Resolves once the consumers have run.
    */
   redeliverMatchFormed(): Promise<void>;
+  /**
+   * The open site streams of an account on the staging API (QUE-05), as the API's hub counts them. The site is served by
+   * the staging API, so its streams are there.
+   */
+  siteStreamCount(accountId: string): Promise<number>;
+  /**
+   * Closes every open site stream of an account on the staging API, as a dropped connection would (QUE-05, QUE-14).
+   * Answers how many it closed.
+   */
+  closeSiteStreams(accountId: string): Promise<number>;
+  /**
+   * Adds the account to the room as its next member (the highest join order plus one). A duel group has two players and
+   * joining a room past the queue is F3, so a room of three can only be seeded: LBR-07 needs a third member to hand the
+   * host role to. The rows are the ones the room's own use cases write; the API reads them as any other member's.
+   */
+  seedRoomMember(roomId: string, accountId: string): Promise<void>;
   /** Estimated API clock in epoch ms: the start of the API processes plus every advance so far. */
   apiClockMs(): number;
   /** Stops every child process and returns when they have exited. */
@@ -188,11 +210,20 @@ interface ApiEnvInput {
   readonly staging: boolean;
   readonly controlSecret: string;
   readonly telemetry?: { readonly otlpEndpoint: string };
+  /** The Battle.net settings of the API: its client and the provider's base URL. Absent: Battle.net sign-in is off (IDB-06). */
+  readonly bnet?: { readonly baseUrl: string };
 }
 
 /** Builds the minimal environment of an API process; the telemetry variables are added only when the stack asks for them. */
 function apiEnv(input: ApiEnvInput): Record<string, string> {
   return {
+    ...(input.bnet === undefined
+      ? {}
+      : {
+          BNET_CLIENT_ID,
+          BNET_CLIENT_SECRET,
+          BNET_OAUTH_BASE_URL: input.bnet.baseUrl,
+        }),
     PATH: process.env['PATH'] ?? '',
     HOME: process.env['HOME'] ?? '',
     DATABASE_URL: input.databaseUrl,
@@ -321,6 +352,8 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
   const managed: Managed[] = [];
   const startedAt = Date.now();
   let advanced = 0;
+  // The fake Battle.net provider of this worker: it listens before the staging API starts, which is given its base URL.
+  const battleNet = new FakeBattleNet();
 
   const ports = {
     stagingApi: await freePort(),
@@ -339,6 +372,7 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
     apiEnv({ port, databaseUrl, site, staging, controlSecret });
 
   try {
+    await battleNet.start();
     // The staging API migrates the database first; the plain API starts after it, so the two never migrate at once.
     const staging = launch(
       'staging api',
@@ -346,7 +380,14 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
       ['--import', './src/main/instrument.ts', 'src/main/local.ts'],
       {
         cwd: path.join(repoRoot, 'apps', 'api'),
-        env: envOf(ports.stagingApi, true, origins.stagingSite),
+        env: apiEnv({
+          port: ports.stagingApi,
+          databaseUrl,
+          site: origins.stagingSite,
+          staging: true,
+          controlSecret,
+          bnet: { baseUrl: battleNet.baseUrl },
+        }),
       },
     );
     managed.push(staging);
@@ -386,6 +427,7 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
     }
   } catch (error) {
     await Promise.all(managed.map(stop));
+    await battleNet.stop();
     rmSync(stateDir, { recursive: true, force: true });
     throw error;
   }
@@ -404,7 +446,9 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
   return {
     staging: { api: origins.stagingApi, site: origins.stagingSite },
     plain: { api: origins.plainApi, site: origins.plainSite },
+    battleNet,
     async reset() {
+      battleNet.reset();
       for (const api of apis) {
         const answer = await controls(`${api}/__test/reset`);
         if (answer.status !== 204) {
@@ -427,11 +471,50 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
         throw new Error(`redelivery of ${origins.stagingApi} answered ${answer.status}`);
       }
     },
+    async siteStreamCount(accountId: string) {
+      const answer = await fetch(`${origins.stagingApi}/__test/site-streams/${accountId}`, {
+        headers: { [CONTROL_HEADER]: controlSecret },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (answer.status !== 200) {
+        throw new Error(`site-stream count of ${origins.stagingApi} answered ${answer.status}`);
+      }
+      return ((await answer.json()) as { open: number }).open;
+    },
+    async closeSiteStreams(accountId: string) {
+      const answer = await fetch(`${origins.stagingApi}/__test/site-streams/${accountId}/close`, {
+        method: 'POST',
+        headers: { [CONTROL_HEADER]: controlSecret },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (answer.status !== 200) {
+        throw new Error(`site-stream close of ${origins.stagingApi} answered ${answer.status}`);
+      }
+      return ((await answer.json()) as { closed: number }).closed;
+    },
+    async seedRoomMember(roomId: string, accountId: string) {
+      const client = new pg.Client({ connectionString: databaseUrl });
+      await client.connect();
+      try {
+        const seeded = await client.query(
+          `insert into lobby.members (room_id, account_id, character_id, role, join_order)
+           select $1::uuid, $2::uuid, null, 'member', coalesce(max(join_order), 0) + 1
+           from lobby.members where room_id = $1::uuid`,
+          [roomId, accountId],
+        );
+        if (seeded.rowCount !== 1) {
+          throw new Error(`seeding a member of room ${roomId} added ${seeded.rowCount} rows`);
+        }
+      } finally {
+        await client.end();
+      }
+    },
     apiClockMs() {
       return startedAt + advanced;
     },
     async close() {
       await Promise.all(managed.map(stop));
+      await battleNet.stop();
       rmSync(stateDir, { recursive: true, force: true });
     },
   };

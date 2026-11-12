@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   isError,
+  isHostIn,
   kindOf,
   observationKeyOf,
   onAssigned,
@@ -220,4 +221,18 @@ test('an observation key is per room, so a player reused by a later step never r
   const longest = observationKeyOf('Abcdefghijklmnop', 'a1b2c3d4-0000-4000-8000-00000000000f');
   assert.ok(longest.length <= 64, 'a 16-character name and a UUID room fit the 64-character key limit');
   assert.match(longest, /^[A-Za-z0-9-]+$/u, 'the key holds only the name, a dash and the room id');
+});
+
+test('the host of an assignment is the member with the host role, and only that account', () => {
+  const frame = {
+    members: [
+      { accountId: 'a', role: 'member' },
+      { accountId: 'b', role: 'host' },
+    ],
+  };
+  assert.equal(isHostIn(frame, 'b'), true);
+  assert.equal(isHostIn(frame, 'a'), false);
+  assert.equal(isHostIn({ members: [] }, 'a'), false);
+  assert.equal(isHostIn({}, 'a'), false);
+  assert.equal(isHostIn(null, 'a'), false);
 });

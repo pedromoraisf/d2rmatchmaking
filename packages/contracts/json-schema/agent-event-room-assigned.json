@@ -58,6 +58,16 @@
                   "host",
                   "member"
                 ]
+              },
+              "team": {
+                "type": "string",
+                "enum": [
+                  "a",
+                  "b"
+                ]
+              },
+              "confirmed": {
+                "type": "boolean"
               }
             },
             "required": [

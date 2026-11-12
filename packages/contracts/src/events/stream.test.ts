@@ -3,6 +3,8 @@ import {
   AgentPresenceChangedEvent,
   AgentStreamEvent,
   RoomAssignedEvent,
+  RoomMemberChangedEvent,
+  RoomRunOpenedEvent,
   RoomStageChangedEvent,
   SiteStreamEvent,
 } from './stream.ts';
@@ -51,5 +53,87 @@ describe('stream events', () => {
 
   it('accepts agent.presence_changed on the site stream', () => {
     expect(SiteStreamEvent.parse(presence)).toStrictEqual(presence);
+  });
+
+  it('accepts characters.updated on the site stream', () => {
+    const updated = { type: 'characters.updated', data: {} };
+    expect(SiteStreamEvent.parse(updated)).toStrictEqual(updated);
+  });
+
+  it('accepts queue.updated with a waiting ticket on the site stream', () => {
+    const queued = {
+      type: 'queue.updated',
+      data: {
+        id: 'q-1',
+        status: 'waiting',
+        mode: 'pvp',
+        options: {
+          mode: 'pvp',
+          characterId: 'c-1',
+          difficulty: 'hell',
+          region: 'americas',
+          format: 'duel',
+          rules: 'gm',
+        },
+        joinedAt: '2026-11-10T12:00:00.000Z',
+        band: { low: 1400, high: 1600 },
+        poolSize: 3,
+      },
+    };
+    expect(SiteStreamEvent.parse(queued)).toStrictEqual(queued);
+  });
+
+  it('accepts queue.updated with the left reason on the site stream', () => {
+    const left = { type: 'queue.updated', data: { status: 'left', reason: 'agent-offline' } };
+    expect(SiteStreamEvent.parse(left)).toStrictEqual(left);
+  });
+
+  it('rejects queue.updated with an unknown leave reason', () => {
+    const left = { type: 'queue.updated', data: { status: 'left', reason: 'bored' } };
+    expect(SiteStreamEvent.safeParse(left).success).toBe(false);
+  });
+
+  it('does not accept queue.updated on the agent stream', () => {
+    expect(
+      AgentStreamEvent.safeParse({ type: 'queue.updated', data: { status: 'left', reason: 'matched' } })
+        .success,
+    ).toBe(false);
+  });
+
+  it('does not accept characters.updated on the agent stream', () => {
+    expect(AgentStreamEvent.safeParse({ type: 'characters.updated', data: {} }).success).toBe(false);
+  });
+});
+
+describe('room.run_opened and room.member_changed', () => {
+  const runOpened = {
+    type: 'room.run_opened',
+    data: { roomId: '4821', run: 8, expectedGameName: 'mmbaalh-08', members },
+  };
+  const memberChanged = {
+    type: 'room.member_changed',
+    data: {
+      roomId: '4821',
+      change: 'left',
+      accountId: 'acc-host',
+      members: [{ ...members[1], confirmed: true }],
+    },
+  };
+
+  it('accepts the room.run_opened example on the site and the agent streams', () => {
+    expect(RoomRunOpenedEvent.parse(runOpened)).toStrictEqual(runOpened);
+    expect(SiteStreamEvent.parse(runOpened)).toStrictEqual(runOpened);
+    expect(AgentStreamEvent.parse(runOpened)).toStrictEqual(runOpened);
+  });
+
+  it('accepts the room.member_changed example on the site stream only', () => {
+    expect(RoomMemberChangedEvent.parse(memberChanged)).toStrictEqual(memberChanged);
+    expect(SiteStreamEvent.parse(memberChanged)).toStrictEqual(memberChanged);
+    expect(AgentStreamEvent.safeParse(memberChanged).success).toBe(false);
+  });
+
+  it('rejects a member change of an unknown kind', () => {
+    const unknown = { ...memberChanged, data: { ...memberChanged.data, change: 'kicked' } };
+    expect(RoomMemberChangedEvent.safeParse(unknown).success).toBe(false);
   });
 });

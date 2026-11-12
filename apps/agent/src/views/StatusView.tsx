@@ -2,6 +2,8 @@
 // the update line. Nothing is shown for an idle update.
 import {
   connectivityLabel,
+  readyCheckLabel,
+  revealLabel,
   roomLabel,
   translateLabel,
   updateLabel,
@@ -24,9 +26,17 @@ export function StatusView({ view, translate }: StatusViewProps) {
   if (room !== null) {
     labels.push(room);
   }
+  const reveal = revealLabel(view.room);
+  if (reveal !== null) {
+    labels.push(reveal);
+  }
   const update = updateLabel(view.update);
   if (update !== null) {
     labels.push(update);
+  }
+  const readyCheck = readyCheckLabel(view.readyCheckOpen);
+  if (readyCheck !== null) {
+    labels.push(readyCheck);
   }
 
   return (

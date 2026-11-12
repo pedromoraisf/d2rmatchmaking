@@ -58,7 +58,7 @@ function documentOf(summary) {
     '| Measure | Value |',
     '| --- | --- |',
     `| Most simultaneous players held (\`maxConcurrentPlayers\`) | ${numberText(summary.maxConcurrentPlayers)} |`,
-    `| Most rooms in \`created\` at the end of that step (\`maxConcurrentRooms\`) | ${numberText(summary.maxConcurrentRooms)} |`,
+    `| Most rooms in \`created\` or \`active\` at the end of that step (\`maxConcurrentRooms\`) | ${numberText(summary.maxConcurrentRooms)} |`,
     `| p95 state latency at 100 players, ms (\`p95StateLatencyMs\`) | ${numberText(summary.p95StateLatencyMs)} |`,
     `| Bytes per player-hour at 100 players (\`bytesPerPlayerHour\`) | ${numberText(summary.bytesPerPlayerHour)} |`,
     `| Within the 70 000 bytes per player-hour budget (\`withinEgressBudget\`) | ${yesNo(summary.withinEgressBudget)} |`,

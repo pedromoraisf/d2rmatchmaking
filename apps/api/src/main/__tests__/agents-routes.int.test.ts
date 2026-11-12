@@ -325,4 +325,63 @@ describe('agents routes', () => {
     expect((await heartbeat(first.token)).statusCode).toBe(401);
     expect((await heartbeat(second.token)).statusCode).toBe(204);
   });
+
+  it('revokes the paired agent on the site: its next heartbeat answers 401 and the site reads no agent', async () => {
+    const cookie = await sessionFor(uniquePlayerName());
+    const { token } = await pairNewAgent(cookie);
+    const agentId = bodyOf<{ agentId: string }>(await myAgent(cookie)).agentId;
+    // A heartbeat first: the token is cached, so the revoke has to evict it, not just the repository row.
+    expect((await heartbeat(token)).statusCode).toBe(204);
+
+    expect((await revokeAgent(agentId, cookie)).statusCode).toBe(204);
+
+    expect((await heartbeat(token)).statusCode).toBe(401);
+    expect(bodyOf(await myAgent(cookie))).toEqual({ status: 'none' });
+  });
+
+  it('answers 404 for an agent of another account and leaves it paired', async () => {
+    const ownerCookie = await sessionFor(uniquePlayerName());
+    const { token } = await pairNewAgent(ownerCookie);
+    const agentId = bodyOf<{ agentId: string }>(await myAgent(ownerCookie)).agentId;
+    const otherCookie = await sessionFor(uniquePlayerName());
+
+    expect((await revokeAgent(agentId, otherCookie)).statusCode).toBe(404);
+
+    expect((await heartbeat(token)).statusCode).toBe(204);
+  });
+
+  it('answers 401 without a session and 403 from another origin, and revokes nothing', async () => {
+    const cookie = await sessionFor(uniquePlayerName());
+    const { token } = await pairNewAgent(cookie);
+    const agentId = bodyOf<{ agentId: string }>(await myAgent(cookie)).agentId;
+    const url = `/v1/agents/${agentId}`;
+
+    const withoutSession = await app.app.inject({
+      method: 'DELETE',
+      url,
+      headers: { origin: SITE_ORIGIN, 'content-type': 'application/json' },
+      payload: {},
+    });
+    expect(withoutSession.statusCode).toBe(401);
+
+    const crossOrigin = await app.app.inject({
+      method: 'DELETE',
+      url,
+      headers: { origin: 'https://evil.example', cookie, 'content-type': 'application/json' },
+      payload: {},
+    });
+    expect(crossOrigin.statusCode).toBe(403);
+
+    expect((await heartbeat(token)).statusCode).toBe(204);
+  });
 });
+
+/** The site revokes one of its agents (FR-04): the JSON body is the empty object the same-origin guard needs. */
+function revokeAgent(agentId: string, cookie: string) {
+  return app.app.inject({
+    method: 'DELETE',
+    url: `/v1/agents/${agentId}`,
+    headers: { origin: SITE_ORIGIN, cookie, 'content-type': 'application/json' },
+    payload: {},
+  });
+}

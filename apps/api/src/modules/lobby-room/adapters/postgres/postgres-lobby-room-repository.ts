@@ -2,8 +2,8 @@ import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
 import type { Clock, MatchMember, Transaction } from '../../../../shared-kernel/index.ts';
 import { GameName } from '../../domain/game-name.ts';
-import { LobbyRoom } from '../../domain/lobby-room.ts';
-import type { LobbyRoomRepository } from '../../application/ports.ts';
+import { LobbyRoom, type RoomMember } from '../../domain/lobby-room.ts';
+import type { LobbyRoomRepository, RoomRunRecord } from '../../application/ports.ts';
 import { executorOf } from './executor.ts';
 import type { LobbyDatabase } from './schema.ts';
 
@@ -45,41 +45,62 @@ export class PostgresLobbyRoomRepository implements LobbyRoomRepository {
         host_account_id: room.hostAccountId,
         stage: room.stage,
         current_run: room.currentRun,
-        created_at: now,
+        created_at: room.createdAt,
+        awaiting_since: room.awaitingSince,
+        closed_at: null,
       })
       .execute();
     await executor
       .insertInto('lobby.members')
-      .values(room.members.map((member) => toMemberRow(room.id, member)))
+      .values(room.members.map((member) => toMemberRow(room.id, member, room.currentRun)))
       .execute();
     await this.#insertRun(tx, room, now);
   }
 
   async save(tx: Transaction, room: LobbyRoom): Promise<void> {
-    await executorOf(tx)
+    const executor = executorOf(tx);
+    const now = this.#clock.now();
+    const over = room.stage === 'closed' || room.stage === 'expired';
+    await executor
       .updateTable('lobby.rooms')
-      .set({ stage: room.stage, current_run: room.currentRun })
+      .set({
+        stage: room.stage,
+        current_run: room.currentRun,
+        host_account_id: room.hostAccountId,
+        awaiting_since: room.awaitingSince,
+        closed_at: over ? now : null,
+      })
       .where('id', '=', room.id)
       .execute();
-    await this.#insertRun(tx, room, this.#clock.now());
+    for (const member of room.members) {
+      await executor
+        .updateTable('lobby.members')
+        .set({ role: member.role, confirmed_run: member.confirmed ? room.currentRun : null })
+        .where('room_id', '=', room.id)
+        .where('account_id', '=', member.accountId)
+        .execute();
+    }
+    // A stored member the room no longer lists has left it (FR-32); the last one to leave stays listed.
+    await executor
+      .updateTable('lobby.members')
+      .set({ left_at: now })
+      .where('room_id', '=', room.id)
+      .where('left_at', 'is', null)
+      .where(
+        'account_id',
+        'not in',
+        room.members.map((member) => member.accountId),
+      )
+      .execute();
+    await this.#insertRun(tx, room, now);
   }
 
   async findById(roomId: string): Promise<LobbyRoom | null> {
-    const row = await this.#db
-      .selectFrom('lobby.rooms')
-      .selectAll()
-      .where('id', '=', roomId)
-      .executeTakeFirst();
-    return row === undefined ? null : this.#load(row);
+    return this.#load('id', roomId);
   }
 
   async findByMatchId(matchId: string): Promise<LobbyRoom | null> {
-    const row = await this.#db
-      .selectFrom('lobby.rooms')
-      .selectAll()
-      .where('match_id', '=', matchId)
-      .executeTakeFirst();
-    return row === undefined ? null : this.#load(row);
+    return this.#load('match_id', matchId);
   }
 
   /** The room with the highest game name number among the rooms the account is a member of (AWS-25). */
@@ -92,6 +113,7 @@ export class PostgresLobbyRoomRepository implements LobbyRoomRepository {
       )
       .select(['r.id'])
       .where('m.account_id', '=', accountId)
+      .where('m.left_at', 'is', null)
       .orderBy(sql`cast(substring(u.game_name from '[0-9]+$') as int)`, 'desc')
       .executeTakeFirst();
     return row === undefined ? null : this.findById(row.id);
@@ -104,6 +126,26 @@ export class PostgresLobbyRoomRepository implements LobbyRoomRepository {
       .where('id', '=', roomId)
       .executeTakeFirst();
     return row?.created_at;
+  }
+
+  async findOpen(): Promise<LobbyRoom[]> {
+    const rows = await this.#db
+      .selectFrom('lobby.rooms')
+      .select('id')
+      .where('stage', 'not in', ['closed', 'expired'])
+      .execute();
+    const loaded = await Promise.all(rows.map((row) => this.#load('id', row.id)));
+    return loaded.filter((room): room is LobbyRoom => room !== null);
+  }
+
+  async runsOf(roomId: string): Promise<readonly RoomRunRecord[]> {
+    const rows = await this.#db
+      .selectFrom('lobby.runs')
+      .select(['number', 'game_name'])
+      .where('room_id', '=', roomId)
+      .orderBy('number', 'asc')
+      .execute();
+    return rows.map((row) => ({ run: row.number, gameName: row.game_name }));
   }
 
   async #insertRun(tx: Transaction, room: LobbyRoom, openedAt: Date): Promise<void> {
@@ -119,13 +161,33 @@ export class PostgresLobbyRoomRepository implements LobbyRoomRepository {
       .execute();
   }
 
-  async #load(row: RoomRow): Promise<LobbyRoom> {
-    const members = await this.#db
+  /**
+   * Reads the room, its members and its current run in one repeatable-read transaction: a save that commits between
+   * the statements (a host who leaves hands the role on) must not show a host row without its member, or the restore
+   * refuses the room and the read answers 500.
+   */
+  async #load(column: 'id' | 'match_id', value: string): Promise<LobbyRoom | null> {
+    return this.#db
+      .transaction()
+      .setIsolationLevel('repeatable read')
+      .execute(async (trx) => {
+        const row = await trx
+          .selectFrom('lobby.rooms')
+          .selectAll()
+          .where(column, '=', value)
+          .executeTakeFirst();
+        return row === undefined ? null : this.#restore(trx, row);
+      });
+  }
+
+  async #restore(db: Kysely<LobbyDatabase>, row: RoomRow): Promise<LobbyRoom> {
+    const members = await db
       .selectFrom('lobby.members')
-      .select(['account_id', 'character_id', 'role', 'join_order'])
+      .select(['account_id', 'character_id', 'role', 'join_order', 'confirmed_run'])
       .where('room_id', '=', row.id)
+      .where('left_at', 'is', null)
       .execute();
-    const run = await this.#db
+    const run = await db
       .selectFrom('lobby.runs')
       .select('game_name')
       .where('room_id', '=', row.id)
@@ -148,11 +210,14 @@ export class PostgresLobbyRoomRepository implements LobbyRoomRepository {
       stage: row.stage,
       currentRun: row.current_run,
       gameName: gameName.value,
+      awaitingSince: row.awaiting_since,
+      createdAt: row.created_at,
       members: members.map((member) => ({
         accountId: member.account_id,
         characterId: member.character_id,
         joinOrder: member.join_order,
         role: member.role,
+        confirmed: member.confirmed_run === row.current_run,
       })),
     });
     if (!restored.ok) {
@@ -162,12 +227,14 @@ export class PostgresLobbyRoomRepository implements LobbyRoomRepository {
   }
 }
 
-function toMemberRow(roomId: string, member: MatchMember) {
+function toMemberRow(roomId: string, member: MatchMember | RoomMember, run: number) {
   return {
     room_id: roomId,
     account_id: member.accountId,
     character_id: member.characterId,
     role: member.role,
     join_order: member.joinOrder,
+    confirmed_run: member.confirmed === true ? run : null,
+    left_at: null,
   };
 }

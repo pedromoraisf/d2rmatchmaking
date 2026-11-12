@@ -175,4 +175,69 @@ describe('Pages Function proxy', () => {
     expect(calls[1]?.init.method).toBe('POST');
     expect(calls[1]?.target.href).toBe('https://api.example.test/v1/staging/match-formed');
   });
+
+  it('aborts the upstream request when the browser aborts its request (the site stream closes)', async () => {
+    const { upstream, calls } = recordingUpstream(() => new Response('', { status: 200 }));
+    const browser = new AbortController();
+    await proxyRequest(
+      { request: new Request('https://site.test/api/v1/stream', { signal: browser.signal }), env },
+      upstream,
+    );
+    const upstreamSignal = calls[0]?.init.signal;
+    expect(upstreamSignal?.aborted).toBe(false);
+    browser.abort();
+    expect(upstreamSignal?.aborted).toBe(true);
+  });
+});
+
+describe('preview API upstream (ADR 030)', () => {
+  const previewApiOrigin = 'https://d2rmm-api-pr-7.onrender.com';
+
+  it('proxies to the baked preview API and passes Origin through untouched', async () => {
+    const { upstream, calls } = recordingUpstream();
+    await proxyRequest(
+      {
+        request: new Request('https://feat.site.test/api/v1/me?x=1', {
+          headers: { Origin: 'https://feat.site.test' },
+        }),
+        env,
+        previewApiOrigin,
+      },
+      upstream,
+    );
+    expect(calls[0]?.target.href).toBe('https://d2rmm-api-pr-7.onrender.com/v1/me?x=1');
+    expect(new Headers(calls[0]?.init.headers).get('origin')).toBe('https://feat.site.test');
+  });
+
+  it('adds no Origin header when the request had none', async () => {
+    const { upstream, calls } = recordingUpstream();
+    await proxyRequest(
+      { request: new Request('https://feat.site.test/api/v1/me'), env, previewApiOrigin },
+      upstream,
+    );
+    expect(new Headers(calls[0]?.init.headers).has('origin')).toBe(false);
+  });
+
+  it('falls back to API_ORIGIN when the preview API origin is absent or malformed', async () => {
+    const candidates = [
+      undefined,
+      'https://evil.test',
+      'https://d2rmm-api-pr-7.onrender.com.evil.test',
+      'http://d2rmm-api-pr-7.onrender.com',
+      'https://d2rmm-api-pr-7.onrender.com/path',
+    ];
+    for (const candidate of candidates) {
+      const { upstream, calls } = recordingUpstream();
+      await proxyRequest(
+        {
+          request: new Request('https://site.test/api/v1/me', { headers: { Origin: 'https://site.test' } }),
+          env,
+          previewApiOrigin: candidate,
+        },
+        upstream,
+      );
+      expect(calls[0]?.target.href, String(candidate)).toBe('https://api.example.test/v1/me');
+      expect(new Headers(calls[0]?.init.headers).get('origin')).toBe('https://site.test');
+    }
+  });
 });

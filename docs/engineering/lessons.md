@@ -19,6 +19,49 @@ being true.
 - **Format files before the format check runs.** Files written by an agent or a tool (reports, `verification.md`) fail
   `pnpm format:check` until Prettier runs on them. Why: a verification gate was spent on formatting alone.
 
+- **A feature's `acceptance.feature` reaches the phase branch together with its steps, in the feature PR.** Why:
+  playwright-bdd runs with `missingSteps: 'fail-on-gen'`, so a spec committed to `phase/F1` before its steps would
+  fail generation in every other PR's acceptance run (found before the first F1 dispatch).
+
+- **In a fresh worktree, build the agent window once (`pnpm --filter @d2rmm/agent build`) before pushing.** Why: the
+  pre-push `cargo clippy` needs `apps/agent/dist` (Tauri `frontendDist`) and fails without it, which looks like a code
+  failure (characters, Batch 1).
+
+- **Remove a worker's worktree once its branch is pushed and its report is read.** Each worktree holds 5–7 GB of Rust
+  `target/`. Why: on 2026-11-11 six finished worktrees filled the maintainer's disk; a worker could not build, and
+  Docker and Postgres failed with I/O errors until Docker Desktop was restarted (characters-reading, lobby-rooms).
+
+- **A task that adds a Rust crate to the agent runs `cargo deny --locked check` in its gate**, and the security reviewer
+  reads `apps/agent/src-tauri/deny.toml`. Why: `tauri-plugin-global-shortcut` is banned there, and PR #52 passed the
+  worker's gates and both reviews before CI refused it (ready-check, 2026-11-11).
+
+- **A task that adds or changes a route runs the whole API integration suite in its gate**, not only the module's
+  tests. Why: `openapi.int.test.ts` pins every route, and three new character routes reached CI unlisted (#44).
+
+- **Never commit a game screenshot, not even blurred, not even on a feature branch.** Why: on 2026-11-11 three of the
+  maintainer's D2R screenshots (other players' names blurred) were committed as OCR fixtures and pushed to the public
+  `feat/F1-agent-game-name` (commit 614337d). The repository is public and the runner may not force push, so they stay
+  in that branch's history (the maintainer chose to keep the record). Real screenshots are read from a local path by an
+  `xtask` command; fixtures are drawn. `scripts/check-images.mjs` now refuses captures at commit time and in CI.
+
+- **When `docker pull` (or a Testcontainers start) hangs with no output, look for a stuck `docker-credential-desktop
+get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding {}> docker pull postgres:17-alpine`,
+  same for `testcontainers/ryuk`) and run the suite with the same `DOCKER_CONFIG`; never touch `~/.docker`. Why: on
+  2026-11-12 the room-view fix waited more than 10 minutes twice on the macOS credential helper before any test ran.
+  An empty config also hides `buildx` (the legacy builder then fails on `--platform`), so for image builds such as
+  `pnpm test:load` write `{ "cliPluginsExtraDirs": ["/Applications/Docker.app/Contents/Resources/cli-plugins"] }`
+  instead of `{}` (F1 review, 2026-11-12).
+
+- **Format and commit a worktree's files from inside that worktree, after `pnpm install` there.** `.prettierignore`
+  skips `.claude/worktrees/`, so `prettier --write <worktree path>` run from the main checkout changes nothing and
+  says nothing, and without `node_modules` Lefthook does not run. Why: the merge of `phase/F1` into PR #50 reached CI
+  unformatted and `verify` failed (2026-11-12).
+
+- **A task that changes the load journey (`scripts/load/k6/`) runs `pnpm test:load` and
+  `node --test scripts/load/check/full-summary.check.mjs` before its PR.** Why: journeys-e2e made the k6 journey close
+  each room within its iteration, and "rooms open at the step end" silently became 0. Only the phase review's full run
+  saw it (F1 review, 2026-11-12).
+
 ## Tests
 
 - **No tight wall-clock limits in unit tests.** The maintainer's machine has 8 GB and runs the suites in parallel; a test
@@ -34,9 +77,23 @@ being true.
   the spec names. Why: observability-e2e, verification finding 1.
 - **Read OpenTelemetry metrics in tests with `reader.collect()` on a non-exporting `MetricReader`**, not from an
   in-memory exporter after `forceFlush()`. Why: the exporter returned more series than the view kept (T8).
-- **`instrument.int.test.ts` can time out on the fake OTLP backend in CI.** Rerun once; if it fails again, fix it.
+- **Work done before the first request spends the sampler's shared budget.** Every root span (a statement with no
+  parent, a timer job, a boot query) takes a token from the 40-token burst (AD-100). Migrating a fresh database inside the
+  traced process records about 47 roots before the first request, and a request that arrives after the budget is spent
+  loses its server span. Migrate in an untraced process before the traced one starts. Why: the CI failure of
+  `instrument.int.test.ts` (run 42965570821) showed the migration statements and no server span.
 
 ## Observability and load
+
+- **Closing a Playwright browser context does not end its `EventSource` connection promptly** (Chromium kept a site
+  stream open > 10 s behind the Pages proxy). A Given that needs "the site is gone" closes the browser and then ends the
+  account's streams through a test control. Why: queues QUE-05 failed four times on sleeps and polls (2026-11-11).
+
+- **Locally, run the traced scenarios (`@OBS-`) alone with `--workers=1`**, never mixed into a broad acceptance gate.
+  Why: the traced stack (API, site, telemetry backend per worker) did not become ready within 90 s under 4 workers on
+  the 8 GB machine, and the same 22 scenarios passed with one worker (characters, T14).
+- **`instrument.int.test.ts` failed in CI on two PRs in a row (#43, #44).** If it fails a third time, fix the wait on the
+  fake OTLP backend instead of rerunning.
 
 - **Read traces from Tempo by trace id, not by search.** The search index of `grafana/otel-lgtm:0.39.0` lags ingest by
   about 30 s.
