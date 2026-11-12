@@ -1,5 +1,71 @@
 # Changelog
 
+## [0.1.0](https://github.com/pedromoraisf/d2rmatchmaking/compare/agent-v0.0.3...agent-v0.1.0) (2026-11-12)
+
+
+### Features
+
+* **agent-domain:** closed-vocabulary matching of noisy reads (T19) ([c345869](https://github.com/pedromoraisf/d2rmatchmaking/commit/c345869a40de496c6eeafcbcf5562a82326d0c95))
+* **agent-domain:** compare character names without case (T22) ([3070037](https://github.com/pedromoraisf/d2rmatchmaking/commit/30700372f02686893b26bd53a9c31eea6c67fc5c))
+* **agent:** add the panel layout and the language pack ([e22f2de](https://github.com/pedromoraisf/d2rmatchmaking/commit/e22f2de6d8ec0c35ab5bf21da902484d8aa4e656))
+* **agent:** character cards and the title table ([a577fda](https://github.com/pedromoraisf/d2rmatchmaking/commit/a577fdadf996387b7bcdea60c9e010248545b812))
+* **agent:** consent, window capture and the consent view ([8c0b65c](https://github.com/pedromoraisf/d2rmatchmaking/commit/8c0b65c274273c0e87b4d38c58133463f3d30ee6))
+* **agent:** draw party fixtures and read the blurred screenshots ([614337d](https://github.com/pedromoraisf/d2rmatchmaking/commit/614337d1a4d672271e2f1a14ef0a5e5af42c8010))
+* **agent:** draw the character fixtures and read them with Windows OCR (CHR-04, CHR-06, CHR-08, CHR-18) ([e4c661e](https://github.com/pedromoraisf/d2rmatchmaking/commit/e4c661ea054805e7b2f08e49f36f396959af827e))
+* **agent:** draw the character fixtures in the game's bold upper-case lettering ([90d4f3d](https://github.com/pedromoraisf/d2rmatchmaking/commit/90d4f3dda7b17c3c0206607d750d47ca54861929))
+* **agent:** drive the party panel through the headless acceptance run ([0c19e99](https://github.com/pedromoraisf/d2rmatchmaking/commit/0c19e999234d9e340a68eeee8826e921f18a9530))
+* **agent:** follow room.run_opened as the held assignment ([0c5095f](https://github.com/pedromoraisf/d2rmatchmaking/commit/0c5095f1b2744344b4e4dc75474df83341f2a0bd))
+* **agent:** match the party game name with the glyph rules ([51197c3](https://github.com/pedromoraisf/d2rmatchmaking/commit/51197c3ea8fb721894a452ac40f0410cee8c8950))
+* **agent:** ocr-check prints image size, region rectangles and raw OCR text (T13) ([71cca65](https://github.com/pedromoraisf/d2rmatchmaking/commit/71cca65cb541860f9903e5d46fcd3dcbcb3f0fd6))
+* **agent:** ocr-check prints no personal reading by default ([3d6bebf](https://github.com/pedromoraisf/d2rmatchmaking/commit/3d6bebffd78ee72d020b6e8c26b6e86f8db8da58))
+* **agent:** read each region several ways and combine the readings (T21) ([1e2394b](https://github.com/pedromoraisf/d2rmatchmaking/commit/1e2394bc454de31ca8256b44e6db9fe93a19555e))
+* **agent:** read the character screen regions, cards and popup (CHR-04, CHR-06, CHR-18, CHR-19) ([b4fad45](https://github.com/pedromoraisf/d2rmatchmaking/commit/b4fad4571e9339e30a198a5655603c3464f04c97))
+* **agent:** read the character selection screen (F1) ([14ee06e](https://github.com/pedromoraisf/d2rmatchmaking/commit/14ee06e9f36fd2f4f233c0f89a14a727e9b19f24))
+* **agent:** read the game name in the Party panel to confirm presence (F1) ([4619480](https://github.com/pedromoraisf/d2rmatchmaking/commit/46194805e214ecdbbb3812364ddf30065cdb47af))
+* **agent:** read the party panel in the screen loop ([0736ae0](https://github.com/pedromoraisf/d2rmatchmaking/commit/0736ae0994452e86cc8e0cd7e7fde1850c2b2d1f))
+* **agent:** ready-check events, accept call and Ctrl+Shift+A hotkey ([693d412](https://github.com/pedromoraisf/d2rmatchmaking/commit/693d412f1335cc6f49069ff6621a86f70e2461bd))
+* **agent:** screen loop, consent gate and card posting in core ([25f0524](https://github.com/pedromoraisf/d2rmatchmaking/commit/25f05240167ef8db6951b0eadcf0b4e9f635c9ea))
+* **agent:** ship the english pack and the reveal hint ([035712d](https://github.com/pedromoraisf/d2rmatchmaking/commit/035712dafc7836b55a2e6212b16fe6307bf3ce3a))
+* **agent:** six readings per region, a name settles on two agreeing readings ([69bc7ee](https://github.com/pedromoraisf/d2rmatchmaking/commit/69bc7ee7eed5c319db9f7aae93f89dc14902d538))
+* **agent:** standalone Windows OCR check as an example binary (T10) ([27dd4ee](https://github.com/pedromoraisf/d2rmatchmaking/commit/27dd4ee6ff7258d2c1510a3515f0bd8d49bac991))
+* **agent:** the headless agent shows the character screens and takes consent (CHR-01, CHR-04, CHR-06, CHR-18, CHR-20) ([06e6081](https://github.com/pedromoraisf/d2rmatchmaking/commit/06e6081182e5676f5c9c1713681377ad2ed67ba9))
+* **contracts:** characters schemas, Screen values and characters.updated event ([f06a39a](https://github.com/pedromoraisf/d2rmatchmaking/commit/f06a39a2ad7622ea6521092ea5606ee50d3af57f))
+* **contracts:** read characters without ladder and era ([f75cb96](https://github.com/pedromoraisf/d2rmatchmaking/commit/f75cb966efdc380941c07943ed67b4de1c37546b))
+* **contracts:** ready-check views, answers, refusal and stream events ([29c4340](https://github.com/pedromoraisf/d2rmatchmaking/commit/29c4340a403f08947e633285174eeede3cfc89a1))
+* **contracts:** room run, member change and extended room view ([2e34601](https://github.com/pedromoraisf/d2rmatchmaking/commit/2e3460169fab411c077427955fe67205925ede43))
+* **identity:** characters registered by the agent, screen presence and capture consent (F1) ([ffe4929](https://github.com/pedromoraisf/d2rmatchmaking/commit/ffe49295824e0fe4483bf90bf41ee33d015298d4))
+* **lobby-room:** rooms from formed group to finished runs (F1) ([5e35927](https://github.com/pedromoraisf/d2rmatchmaking/commit/5e35927d8cfc7c220e48c9c3243be651ed960df0))
+* **matchmaking:** carry the 2v2 team of each member to the room (QUE-12) ([1a2f6f4](https://github.com/pedromoraisf/d2rmatchmaking/commit/1a2f6f424a15ac36575c7b14248269be87fcf04c))
+* **matchmaking:** pvp and leveling queues (F1) ([a5e68e2](https://github.com/pedromoraisf/d2rmatchmaking/commit/a5e68e2c86354b69011a23bcd939671f19bb6e6c))
+* **matchmaking:** read the open ready check and gate the agent accept by version ([03ae679](https://github.com/pedromoraisf/d2rmatchmaking/commit/03ae67946809f3e6c812668583e1b8efee431a1c))
+* **matchmaking:** ready check before the room (F1) ([a07754b](https://github.com/pedromoraisf/d2rmatchmaking/commit/a07754bffbace7574db98c18b28072cfdff313a5))
+* **web:** count the ready check down on server time ([8e3184d](https://github.com/pedromoraisf/d2rmatchmaking/commit/8e3184dc903819e3da849ae758986ba33ef60d43))
+
+
+### Bug Fixes
+
+* **agent:** a dimmed popup label enables no difficulty (CHR-18, review finding 2) ([5f2b32c](https://github.com/pedromoraisf/d2rmatchmaking/commit/5f2b32c2ee60b60f07ebdbbf26f360bb5e2561bb))
+* **agent:** a misread name keeps the spelling the account has (CHR-10, review finding 3) ([eb4dd64](https://github.com/pedromoraisf/d2rmatchmaking/commit/eb4dd644f19bcef26b55993232ddd384f63b6276))
+* **agent:** bilinear upscale before Windows OCR (T11) ([1f738e6](https://github.com/pedromoraisf/d2rmatchmaking/commit/1f738e64e3c656a3d305b3dad6f0ddce8b390e9d))
+* **agent:** capture the largest D2R window with its own device context ([18076a4](https://github.com/pedromoraisf/d2rmatchmaking/commit/18076a4245c9805e0a7dd4027c931d29ac83f61d))
+* **agent:** check the scaled OCR sizes and test the ocr check ([3593a8d](https://github.com/pedromoraisf/d2rmatchmaking/commit/3593a8dbeba8a553291bda0fb6e8de3cd32f37fa))
+* **agent:** count the ready check on the time left, not on the PC's clock (RDY-07, RDY-11) ([a460092](https://github.com/pedromoraisf/d2rmatchmaking/commit/a460092b8c3cdc2dc01202ad863943a76f9dbca5))
+* **agent:** keep the maintainer's screenshots out of the repository ([ee4f44b](https://github.com/pedromoraisf/d2rmatchmaking/commit/ee4f44bacdffe8b7cad205e01c47e03d3694a1f9))
+* **agent:** keep the party step off the loop and tied to its run ([93b4bf6](https://github.com/pedromoraisf/d2rmatchmaking/commit/93b4bf68a2fd043ce9c026169daaa4c1b459fb1b))
+* **agent:** pad the OCR crop beside the text, not above or below (T9, round 2) ([2aa6943](https://github.com/pedromoraisf/d2rmatchmaking/commit/2aa694388f7f4bec4705c8717ce8f61c0e122ec5))
+* **agent:** pad the OCR crop so Windows OCR reads text at the box edge (T9, round 1) ([6df3bf4](https://github.com/pedromoraisf/d2rmatchmaking/commit/6df3bf4c7cba390bcd0424b9345cb02e9afd6fb9))
+* **agent:** production reads at nearest 3x again; ocr-check compares four upscales (T14) ([ce4e7c5](https://github.com/pedromoraisf/d2rmatchmaking/commit/ce4e7c58586b2f45b0174de28efc01a36b5c5af5))
+* **agent:** read an empty game name field as masked ([debfbee](https://github.com/pedromoraisf/d2rmatchmaking/commit/debfbee625c376546955b19eacdf630f2a6abafb))
+* **agent:** register the ready-check hotkey with global-hotkey, not the banned plugin (RDY-07) ([0f17170](https://github.com/pedromoraisf/d2rmatchmaking/commit/0f17170e16ba94aab3c3e61c9ae5ad5e7c816c96))
+* **agent:** scale the party layout by client height ([8221dd1](https://github.com/pedromoraisf/d2rmatchmaking/commit/8221dd18e6e8c5809bf01964154ea180d04360d4))
+* **agent:** small-caps tolerant Party matching (T12) ([6cd8d97](https://github.com/pedromoraisf/d2rmatchmaking/commit/6cd8d97f20b9bf7a1d4020d77fc821b78b79dc00))
+* **agent:** tighten the window capture FFI sensor ([67070e4](https://github.com/pedromoraisf/d2rmatchmaking/commit/67070e48497eec36f815fc0d99046479a43e5804))
+
+
+### Performance Improvements
+
+* **agent:** the screen loop reads off the async worker and only the selection screen's cards (CHR-06, security low 3) ([656ff0f](https://github.com/pedromoraisf/d2rmatchmaking/commit/656ff0fedea0072ac3b2a62f73d1e2a2a7efbe57))
+
 ## [0.0.3](https://github.com/pedromoraisf/d2rmatchmaking/compare/agent-v0.0.2...agent-v0.0.3) (2026-11-07)
 
 
