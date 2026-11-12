@@ -24,6 +24,20 @@ pub enum Class {
     Warlock,
 }
 
+impl Class {
+    /// Every class, in the order of the glossary.
+    pub const ALL: [Class; 8] = [
+        Class::Amazon,
+        Class::Assassin,
+        Class::Barbarian,
+        Class::Druid,
+        Class::Necromancer,
+        Class::Paladin,
+        Class::Sorceress,
+        Class::Warlock,
+    ];
+}
+
 /// A difficulty a character may enter (glossary).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Difficulty {

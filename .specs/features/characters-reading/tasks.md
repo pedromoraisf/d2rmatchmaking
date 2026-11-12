@@ -85,3 +85,27 @@ regions read nothing (the tool printed no raw text for them).
       gate: `pnpm format:check && pnpm specs:check`
 - [ ] T18 — With `real-prints.zip` in place, push and report the `ocr-real` job's full output (evidence for the next fix round) —
       gate: PR #50's `ocr-real` job ran
+
+## Batch 5 — parsing tolerant to the real reads (first `ocr-real` run, 2026-11-12)
+
+The regions are right on the maintainer's real screenshots; the engine's raw reads are noisy ("LEWEL II SBRCERESS",
+"m ATRIARCH", "NeRrnAL", "OUEL NK LBCKS" against "DUEL NK LOCKS"), so the parsing must read a closed vocabulary and
+combine several readings.
+
+- [x] T19 — Closed-vocabulary matching in the domain (`vocabulary.rs`): uppercase, drop spaces and punctuation, try the
+      "RN"/"RT"/"RF" → "M" collapses as extra candidates, then the unique nearest vocabulary entry by edit distance
+      (0 for words of 3 letters or fewer, 1 up to 5, 2 beyond); a tie or nothing within the threshold is unknown.
+      The language pack supplies the vocabularies (classes, titles, "Level", the three difficulties); unit tests with
+      the real reads and the near-misses that must be refused —
+      gate: `cd apps/agent/src-tauri && cargo nextest run && cargo clippy --all-targets -- -D warnings`
+- [ ] T20 — Numbers: the level token with the digit confusion map (I/l/| → 1, O/D/Q → 0, B → 8, S → 5, Z → 2, G → 6),
+      range 1..=99, anything else unknown; unit tests ("88", "8B", "II", "1I", "B8", "100", "") — same gate
+- [ ] T21 — Several readings per region: `TextReader::read_variants` (default: the one reading); Windows OCR reads
+      nearest 3x, bilinear 3x, nearest 4x and bilinear 4x (the real reads: the field matches only in bilinear 3x, the
+      popup's Normal only in bilinear 4x, a name pair agrees only at 4x); the game-name field is Matched if any variant
+      matches exactly, Masked if any is the mask; names, class/level and titles by majority of agreeing variants (a
+      single-reading reader keeps its reading); the difficulty popup is recognised by 2 of 3 difficulty labels —
+      same gate
+- [ ] T22 — Names are compared case-insensitively (the game draws names in small caps): `glyph_key`/`reconcile_names`
+      and `ocr_check`'s expectation; recorded in `phases/F1/decisions.md → To confirm` — same gate
+- [ ] T23 — Real proof: push and read the PR's `ocr-real` job ("0 of 5 files FAIL") and the `agent` job

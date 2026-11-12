@@ -4,7 +4,8 @@
 
 use std::collections::BTreeMap;
 
-use crate::characters::{Class, Title};
+use crate::characters::{Class, Difficulty, Title};
+use crate::vocabulary::nearest;
 
 /// The Party panel's title word.
 pub const PARTY: &str = "party";
@@ -204,6 +205,43 @@ impl LanguagePack {
         })
     }
 
+    /// The class a noisy read of a class word names: the pack's nearest class word, or `None` when none is the single nearest.
+    pub fn read_class(&self, text: &str) -> Option<Class> {
+        let words: Vec<(Class, &str)> = Class::ALL
+            .into_iter()
+            .filter_map(|class| Some((class, self.word(class_key(class))?)))
+            .collect();
+        nearest(text, &words)
+    }
+
+    /// The title a noisy read of a title word names (see `read_class`).
+    pub fn read_title_word(&self, text: &str) -> Option<Title> {
+        let words: Vec<(Title, &str)> = Title::ALL
+            .into_iter()
+            .filter_map(|title| Some((title, self.word(title_key(title))?)))
+            .collect();
+        nearest(text, &words)
+    }
+
+    /// The difficulty a noisy read of a popup label names (see `read_class`).
+    pub fn read_difficulty(&self, text: &str) -> Option<Difficulty> {
+        let words: Vec<(Difficulty, &str)> = [
+            (Difficulty::Normal, DIFFICULTY_NORMAL),
+            (Difficulty::Nightmare, DIFFICULTY_NIGHTMARE),
+            (Difficulty::Hell, DIFFICULTY_HELL),
+        ]
+        .into_iter()
+        .filter_map(|(difficulty, key)| Some((difficulty, self.word(key)?)))
+        .collect();
+        nearest(text, &words)
+    }
+
+    /// Whether a noisy read is the pack's "Level" word.
+    pub fn is_level_word(&self, text: &str) -> bool {
+        self.word(CHARACTER_LEVEL)
+            .is_some_and(|word| nearest(text, &[((), word)]).is_some())
+    }
+
     /// Whether `text` starts with the word of `key` (a label followed by its value, such as "Life: 925 / 925").
     pub fn begins_with(&self, text: &str, key: &str) -> bool {
         self.word(key)
@@ -251,6 +289,7 @@ fn label_key(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{GAME_NAME, LanguagePack, PARTY, PASSWORD, PackError, same_label};
+    use crate::characters::{Class, Difficulty, Title};
 
     fn words(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
         pairs
@@ -278,6 +317,38 @@ mod tests {
         assert!(!english.party_panel_open("PARTYS"), "not a prefix");
         assert!(!english.party_panel_open(""), "nothing read");
         assert!(!english.party_panel_open("Life: 9"), "another screen");
+    }
+
+    #[test]
+    fn the_real_reads_find_their_class_title_difficulty_and_level_word() {
+        let english = LanguagePack::english();
+        assert_eq!(english.read_class("SBRCERESS"), Some(Class::Sorceress));
+        assert_eq!(english.read_class("Wizard"), None);
+        assert_eq!(
+            english.read_title_word("m ATRIA RCH"),
+            Some(Title::Matriarch)
+        );
+        assert_eq!(english.read_title_word("Marshal"), None);
+        assert_eq!(english.read_difficulty("NeRrnAL"), Some(Difficulty::Normal));
+        assert_eq!(english.read_difficulty("HELL"), Some(Difficulty::Hell));
+        assert!(english.is_level_word("LEWEL"));
+        assert!(english.is_level_word("LEVEL"));
+        assert!(!english.is_level_word("Lvl"));
+        assert!(!english.is_level_word(""));
+    }
+
+    #[test]
+    fn a_pack_without_a_word_reads_nothing_for_it() {
+        let words = words(&[
+            (PARTY, "Party"),
+            (GAME_NAME, "Game Name"),
+            (PASSWORD, "Password"),
+        ]);
+        let pack = LanguagePack::from_words("xx", words).expect("the pack builds");
+        assert_eq!(pack.read_class("Sorceress"), None);
+        assert_eq!(pack.read_title_word("Matriarch"), None);
+        assert_eq!(pack.read_difficulty("Hell"), None);
+        assert!(!pack.is_level_word("Level"));
     }
 
     #[test]

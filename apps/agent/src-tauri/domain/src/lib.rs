@@ -16,6 +16,7 @@ pub mod reconnect;
 pub mod room_assignment;
 pub mod timings;
 pub mod vision;
+pub mod vocabulary;
 
 #[cfg(test)]
 mod tests {
