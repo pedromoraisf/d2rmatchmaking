@@ -99,6 +99,9 @@ else (secret scanning, Playwright, Lefthook…) comes from `pnpm install`; no ot
     service (integration, e2e, acceptance, load) never run once per mutation. A rule that only the assembled service
     can observe is extracted into a pure function and unit-tested. Mutation runs in the nightly only, never on a PR or in
     a task gate (ADR 029).
+13. **Twelve-Factor App** (ADR 032). The API, the site and their pipelines follow the twelve factors
+    (https://12factor.net/pt_br/): config only from the environment and read in `main/`, stateless processes, one build
+    per release, logs as streams, admin tasks as scripts. Breaking a factor needs a new ADR that names it.
 
 The Claude Code gate hook (`.claude/hooks/gate.mjs`) guards the irreversible ones (force pushes, deletions, secrets,
 the production database, skipped hooks, vendored files, committed migrations, sensors); CI and the reviewers check the

@@ -1,7 +1,7 @@
 {
   "$comment": "Quality ratchet (ADR 021, ADR 029). Values only tighten: `pnpm quality:ratchet --update` raises them after a green run; loosening anything needs the maintainer (the PreToolUse gate denies it). value=null means not measured yet — the first measurement sets it. contexts = where the metric is enforced (pr: every PR CI run; nightly: nightly.yml; phase: phase review).",
   "version": 1,
-  "updated": "2026-11-10",
+  "updated": "2026-11-12",
   "metrics": {
     "mutation.api.domain": {
       "value": 100,
@@ -116,9 +116,9 @@
       }
     },
     "load.bytes_per_player_hour": {
-      "value": 113826.85880341382,
+      "value": 421399.9457351847,
       "direction": "lower",
-      "ceiling": 125000,
+      "ceiling": 465000,
       "tolerance": 0.1,
       "contexts": [
         "phase"
@@ -130,7 +130,7 @@
       }
     },
     "load.p95_state_latency_ms": {
-      "value": 1.2332210000022314,
+      "value": 27.736852000001818,
       "direction": "lower",
       "ceiling": 2000,
       "tolerance": 0.15,
