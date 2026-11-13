@@ -49,10 +49,41 @@ pub fn is_tab_line(pack: &LanguagePack, text: &str) -> bool {
 /// Where the lines of one character card sit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CardAnchor {
-    /// The title line, only when it is a known title of the pack.
-    pub title: Option<Region>,
+    pub title: TitleLine,
     pub name: Region,
     pub level: Region,
+}
+
+/// What sits directly above a card's name line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TitleLine {
+    /// No line within a card's height, or the ONLINE / OFFLINE tab, or another card's level line: the card has no title.
+    None,
+    /// A line that reads as a title of the pack.
+    Known(Region),
+    /// A line that is there but is none of the above: a title the engine garbled. The card is refused (a hardcore card
+    /// would otherwise read as softcore and land on the wrong ladder).
+    Unknown,
+}
+
+impl TitleLine {
+    /// The region of a known title line.
+    pub fn known(self) -> Option<Region> {
+        match self {
+            Self::Known(region) => Some(region),
+            Self::None | Self::Unknown => None,
+        }
+    }
+
+    /// How much a variant's view of the title line is trusted when variants disagree: a known title over an unknown line
+    /// over none (a refusal is safer than a card without its title).
+    fn rank(self) -> u8 {
+        match self {
+            Self::Known(_) => 2,
+            Self::Unknown => 1,
+            Self::None => 0,
+        }
+    }
 }
 
 /// The cards in the lines read from the character list, top to bottom. A card is found by its "Level N <Class>" line (the
@@ -81,13 +112,18 @@ pub fn find_cards(pack: &LanguagePack, lines: &[TextLine], frame_height: u32) ->
         if !near(level, name) || is_level(name) || is_tab_line(pack, &name.text) {
             continue;
         }
-        let title = index
+        let above = index
             .checked_sub(2)
             .map(|above| sorted[above])
-            .filter(|line| near(name, line))
-            .filter(|line| !is_tab_line(pack, &line.text) && !is_level(line))
-            .filter(|line| pack.read_title_word(&line.text).is_some())
-            .map(|line| line.region);
+            .filter(|line| near(name, line));
+        let title = match above {
+            None => TitleLine::None,
+            Some(line) if is_tab_line(pack, &line.text) || is_level(line) => TitleLine::None,
+            Some(line) if pack.read_title_word(&line.text).is_some() => {
+                TitleLine::Known(line.region)
+            }
+            Some(_) => TitleLine::Unknown,
+        };
         cards.push(CardAnchor {
             title,
             name: name.region,
@@ -95,6 +131,84 @@ pub fn find_cards(pack: &LanguagePack, lines: &[TextLine], frame_height: u32) ->
         });
     }
     cards
+}
+
+/// The cards found in any variant's lines. A card is the same card in two variants when their level lines overlap
+/// vertically; the first variant that found it gives its regions, except that the title line of the most trusted view wins
+/// (`TitleLine::rank`). Top to bottom.
+pub fn find_cards_in_variants(
+    pack: &LanguagePack,
+    variants: &[Vec<TextLine>],
+    frame_height: u32,
+) -> Vec<CardAnchor> {
+    let mut cards: Vec<CardAnchor> = Vec::new();
+    for lines in variants {
+        for found in find_cards(pack, lines, frame_height) {
+            match cards
+                .iter_mut()
+                .find(|card| overlap_vertically(card.level, found.level))
+            {
+                Some(card) if found.title.rank() > card.title.rank() => {
+                    card.title = found.title;
+                }
+                Some(_) => {}
+                None => cards.push(found),
+            }
+        }
+    }
+    cards.sort_by_key(|card| card.level.middle_y());
+    cards
+}
+
+/// Whether two boxes share rows.
+fn overlap_vertically(a: Region, b: Region) -> bool {
+    a.y < b.bottom() && b.y < a.bottom()
+}
+
+/// The popup's options found in any variant's lines: the first variant that found a difficulty gives its line.
+pub fn popup_options_in_variants(
+    pack: &LanguagePack,
+    variants: &[Vec<TextLine>],
+) -> Vec<(Difficulty, Region)> {
+    DIFFICULTIES
+        .into_iter()
+        .filter_map(|difficulty| {
+            variants
+                .iter()
+                .flat_map(|lines| popup_options(pack, lines))
+                .find(|(found, _)| *found == difficulty)
+        })
+        .collect()
+}
+
+/// Whether any variant's lines show the popup's title.
+pub fn popup_title_in_variants(pack: &LanguagePack, variants: &[Vec<TextLine>]) -> bool {
+    variants
+        .iter()
+        .flatten()
+        .any(|line| is_popup_title(pack, &line.text))
+}
+
+/// The Party panel in any variant's lines: open when any variant shows the title; the label and field of the first variant
+/// that found the label with a field under it, else of the first that found the label.
+pub fn find_party_in_variants(
+    pack: &LanguagePack,
+    variants: &[Vec<TextLine>],
+    frame_height: u32,
+) -> PartyAnchors {
+    let found: Vec<PartyAnchors> = variants
+        .iter()
+        .map(|lines| find_party(pack, lines, frame_height))
+        .collect();
+    let chosen = found
+        .iter()
+        .find(|party| party.label.is_some() && party.field.is_some())
+        .or_else(|| found.iter().find(|party| party.label.is_some()));
+    PartyAnchors {
+        open: found.iter().any(|party| party.open),
+        label: chosen.and_then(|party| party.label),
+        field: chosen.and_then(|party| party.field),
+    }
 }
 
 /// Whether a line of the popup area is the popup's title.
@@ -292,7 +406,7 @@ mod tests {
             .iter()
             .map(|card| {
                 (
-                    card.title.map(centre),
+                    card.title.known().map(centre),
                     centre(card.name),
                     centre(card.level),
                 )
@@ -335,13 +449,37 @@ mod tests {
     }
 
     #[test]
-    fn a_line_that_is_not_a_known_title_is_not_a_title() {
+    fn a_line_above_the_name_that_is_no_known_title_is_an_unknown_title() {
         let lines = vec![
             column("Marshal", 87),
             column("vukVuka", 118),
             column("Level 88 Sorceress", 141),
         ];
-        assert_eq!(rows(&find_cards(&pack(), &lines, 1080)), [(None, 118, 141)]);
+        let cards = find_cards(&pack(), &lines, 1080);
+        assert_eq!(cards.len(), 1);
+        assert_eq!(cards[0].title, super::TitleLine::Unknown);
+        // A line farther than a card's height above the name is no title line at all.
+        let far = vec![
+            column("Marshal", 40),
+            column("vukVuka", 118),
+            column("Level 88 Sorceress", 141),
+        ];
+        assert_eq!(
+            find_cards(&pack(), &far, 1080)[0].title,
+            super::TitleLine::None
+        );
+    }
+
+    #[test]
+    fn the_previous_cards_level_line_right_above_a_name_is_no_title() {
+        let lines = vec![
+            column("Level 88 Sorceress", 100),
+            column("vukaDao", 130),
+            column("Level 11 Sorceress", 153),
+        ];
+        let cards = find_cards(&pack(), &lines, 1080);
+        assert_eq!(cards.len(), 1);
+        assert_eq!(cards[0].title, super::TitleLine::None);
     }
 
     #[test]

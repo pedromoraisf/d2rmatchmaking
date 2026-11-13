@@ -178,10 +178,12 @@ where
     {
         let slot = u8::try_from(slot).unwrap_or(u8::MAX);
         slots_read += 1;
-        // A card with no title line has a blank title; a title line found is read like any other field.
+        // A card with no title line has a blank title; a known title line is read like any other field; a line that is
+        // there but is no title (the engine garbled it) settles nothing, so the card is refused with `title-unread`.
         let title = match anchor.title {
-            Some(region) => field(region),
-            None => Some(vec![String::new()]),
+            anchors::TitleLine::Known(region) => field(region),
+            anchors::TitleLine::None => Some(vec![String::new()]),
+            anchors::TitleLine::Unknown => None,
         };
         let name = field(anchor.name);
         let level = field(anchor.level);
@@ -681,14 +683,18 @@ mod tests {
     }
 
     #[test]
-    fn a_title_line_that_is_not_a_known_title_is_not_a_title() {
+    fn a_title_line_that_reads_no_title_refuses_the_card() {
         let mut pairs = list();
         pairs.retain(|(region, _)| *region != ScreenRegion::CardTitle(1));
         pairs.push((ScreenRegion::CardTitle(1), "Marshal"));
         let reading = read(&pairs, &[]);
-        assert_eq!(reading.cards.len(), 2, "the card is kept, without a title");
-        assert_eq!(reading.cards[1].title(), None);
-        assert_eq!(reading.cards[1].mode(), Mode::Softcore);
+        assert_eq!(
+            reading.cards.len(),
+            1,
+            "a title line that is not of the pack refuses its card"
+        );
+        assert_eq!(reading.rejected.len(), 1);
+        assert_eq!(reading.rejected[0].reason.code(), "title-unread");
     }
 
     #[test]
@@ -722,7 +728,10 @@ mod tests {
 
         assert_eq!(reasons(&list()), []);
         assert_eq!(read(&list(), &[]).slots_read, 2);
-        assert_eq!(reasons(&with(ScreenRegion::CardTitle(1), "Marshal")), []);
+        assert_eq!(
+            reasons(&with(ScreenRegion::CardTitle(1), "Marshal")),
+            [(1, "title-unread")]
+        );
         assert_eq!(
             reasons(&with(ScreenRegion::CardName(1), "12-34")),
             [(1, "name-unread")]
