@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0](https://github.com/pedromoraisf/d2rmatchmaking/compare/agent-v0.1.1...agent-v0.2.0) (2026-11-13)
+
+
+### Features
+
+* **agent:** local read diagnostics in the agent window ([744b821](https://github.com/pedromoraisf/d2rmatchmaking/commit/744b8211dfed2949a7fcc9714f27668b7f6bb151))
+
+
+### Bug Fixes
+
+* **agent:** paired view on start and local read diagnostics (incident) ([7620945](https://github.com/pedromoraisf/d2rmatchmaking/commit/76209454c28b5097516d81f213eda118bfd87ed7))
+* **agent:** show paired when the agent starts with a stored token ([d63f10b](https://github.com/pedromoraisf/d2rmatchmaking/commit/d63f10b3cab9884694ca1376952cb078c0a884fc))
+
 ## [0.1.1](https://github.com/pedromoraisf/d2rmatchmaking/compare/agent-v0.1.0...agent-v0.1.1) (2026-11-13)
 
 
