@@ -6,6 +6,7 @@ import { listen } from '@tauri-apps/api/event';
 import type { AgentView, PairingState, Translate } from '../shared/labels.ts';
 import { ConsentView } from '../views/ConsentView.tsx';
 import { PairingView } from '../views/PairingView.tsx';
+import { DiagnosticsView } from '../views/DiagnosticsView.tsx';
 import { StatusView } from '../views/StatusView.tsx';
 
 const AGENT_STATE_EVENT = 'agent-state';
@@ -74,6 +75,7 @@ export function App({ translate }: AppProps) {
       <ConsentView consent={consent} failed={consentFailed} translate={translate} onChange={changeConsent} />
       <PairingView pairing={pairing} translate={translate} onNewCode={requestNewCode} />
       {view === null ? null : <StatusView view={view} translate={translate} />}
+      {view === null ? null : <DiagnosticsView diagnostics={view.diagnostics} translate={translate} />}
     </main>
   );
 }

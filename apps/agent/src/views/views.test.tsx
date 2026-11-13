@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createAgentI18n, translatorFor } from '../shared/i18n.ts';
-import type { AgentView, PairingState } from '../shared/labels.ts';
+import type { AgentView, Diagnostics, PairingState } from '../shared/labels.ts';
+import { DiagnosticsView } from './DiagnosticsView.tsx';
 import { PairingView } from './PairingView.tsx';
 import { StatusView } from './StatusView.tsx';
 
@@ -14,6 +15,7 @@ const view = (overrides: Partial<AgentView> = {}): AgentView => ({
   room: null,
   update: 'idle',
   readyCheckOpen: false,
+  diagnostics: null,
   ...overrides,
 });
 
@@ -150,5 +152,42 @@ describe('status view', () => {
   it('shows no hotkey line once the check is over', () => {
     renderStatus({ readyCheckOpen: false });
     expect(screen.queryByText('A ready check is open: press Ctrl+Shift+A to accept it.')).toBeNull();
+  });
+});
+
+describe('diagnostics view', () => {
+  const diagnostics: Diagnostics = {
+    screen: 'characterSelect',
+    frameWidth: 1920,
+    frameHeight: 1080,
+    cardsRead: 2,
+    cardsSettled: 1,
+    rejected: [{ slot: 1, reason: 'name-disagree' }],
+    post: 'not-sent',
+  };
+
+  it('shows nothing before the first look', () => {
+    const { container } = render(<DiagnosticsView diagnostics={null} translate={en} />);
+
+    expect(container.innerHTML).toBe('');
+  });
+
+  it('shows the screen, the frame size, the counts, each reason code and the last send', () => {
+    render(<DiagnosticsView diagnostics={diagnostics} translate={en} />);
+
+    expect(screen.getByText('Diagnostics')).toBeTruthy();
+    expect(screen.getByText('Screen: Character selection')).toBeTruthy();
+    expect(screen.getByText('Frame: 1920×1080')).toBeTruthy();
+    expect(screen.getByText('Cards read: 2, settled: 1')).toBeTruthy();
+    expect(screen.getByText('Card 2 not settled: name-disagree')).toBeTruthy();
+    expect(screen.getByText('Last send: not-sent')).toBeTruthy();
+  });
+
+  it('is translated to pt-BR', () => {
+    render(<DiagnosticsView diagnostics={diagnostics} translate={ptBR} />);
+
+    expect(screen.getByText('Diagnóstico')).toBeTruthy();
+    expect(screen.getByText('Tela: Seleção de personagem')).toBeTruthy();
+    expect(screen.getByText('Último envio: not-sent')).toBeTruthy();
   });
 });

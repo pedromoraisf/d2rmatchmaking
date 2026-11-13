@@ -19,6 +19,60 @@ use crate::presence::Screen;
 pub struct Reading {
     pub screen: Screen,
     pub cards: Vec<Card>,
+    /// How many card slots held any text (the regions the reader tried to settle into a card).
+    pub slots_read: u8,
+    /// The slots that held text but settled no card, each with the field that refused it. Local diagnostics only.
+    pub rejected: Vec<Rejection>,
+}
+
+/// Why a card slot with text settled no card (CHR-06). A short code, never any text the screen showed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RejectReason {
+    /// The title line was not read, or its readings neither agree nor read blank.
+    TitleUnread,
+    /// The name line was not read at all, or no reading is a name.
+    NameUnread,
+    /// Names were read but the readings do not agree on one.
+    NameDisagree,
+    /// The level word or the level of the level line is not settled.
+    LevelUnread,
+    /// The level is settled but the class is not.
+    ClassUnread,
+    /// The fields settled but together are not a card.
+    CardInvalid,
+}
+
+impl RejectReason {
+    /// The code the window shows.
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::TitleUnread => "title-unread",
+            Self::NameUnread => "name-unread",
+            Self::NameDisagree => "name-disagree",
+            Self::LevelUnread => "level-unread",
+            Self::ClassUnread => "class-unread",
+            Self::CardInvalid => "card-invalid",
+        }
+    }
+}
+
+/// A refused card slot and the reason.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Rejection {
+    pub slot: u8,
+    pub reason: RejectReason,
+}
+
+impl Reading {
+    /// A reading of a screen that shows no card slot.
+    fn without_cards(screen: Screen) -> Self {
+        Self {
+            screen,
+            cards: Vec::new(),
+            slots_read: 0,
+            rejected: Vec::new(),
+        }
+    }
 }
 
 /// Whether a sampled pixel is the gold of a selected card's top border (CHR-06). The popup dims the list, so the gold of
@@ -81,19 +135,13 @@ where
         pack.begins_with(read, DIFFICULTY_LABEL)
     });
     if automap {
-        return Reading {
-            screen: Screen::AutomapOpen,
-            cards: Vec::new(),
-        };
+        return Reading::without_cards(Screen::AutomapOpen);
     }
     let in_game = any_reading(&text(ScreenRegion::Life), |read| {
         pack.begins_with(read, LIFE)
     });
     if in_game {
-        return Reading {
-            screen: Screen::InGame,
-            cards: Vec::new(),
-        };
+        return Reading::without_cards(Screen::InGame);
     }
     let list = any_reading(&text(ScreenRegion::CreateNew), |read| {
         pack.is_word(read, CREATE_NEW) || pack.is_squashed_word(read, CREATE_NEW)
@@ -103,13 +151,12 @@ where
     });
     let popup = popup_difficulties(pack, &mut text, &mut lit);
     if !list && !popup_title && popup.is_none() {
-        return Reading {
-            screen: Screen::Unknown,
-            cards: Vec::new(),
-        };
+        return Reading::without_cards(Screen::Unknown);
     }
     let enabled = popup.filter(|difficulties| !difficulties.is_empty());
     let mut cards = Vec::new();
+    let mut rejected = Vec::new();
+    let mut slots_read = 0;
     let mut popup_applied = false;
     for slot in 0..CARD_SLOTS {
         let title = text(ScreenRegion::CardTitle(slot));
@@ -118,13 +165,18 @@ where
         if ![&title, &name, &level].into_iter().any(filled) {
             continue;
         }
+        slots_read += 1;
         // The popup belongs to the selected card: the first occupied slot with the gold frame (CHR-18).
         let is_selected = enabled.is_some() && !popup_applied && selected(slot);
         if is_selected {
             popup_applied = true;
         }
-        let Some(card) = read_card(pack, title, name, level) else {
-            continue;
+        let card = match read_card(pack, title, name, level) {
+            Ok(card) => card,
+            Err(reason) => {
+                rejected.push(Rejection { slot, reason });
+                continue;
+            }
         };
         let card = match (&enabled, is_selected) {
             (Some(difficulties), true) => card
@@ -138,6 +190,8 @@ where
     Reading {
         screen: Screen::CharacterSelect,
         cards,
+        slots_read,
+        rejected,
     }
 }
 
@@ -212,17 +266,59 @@ fn read_card(
     title: Readings,
     name: Readings,
     level: Readings,
-) -> Option<Card> {
-    let title = read_title_readings(pack, &title?)?;
-    let name = read_name_readings(&name?)?;
-    let (level, class) = majority(
-        level?
+) -> Result<Card, RejectReason> {
+    let title = title
+        .as_deref()
+        .and_then(|readings| read_title_readings(pack, readings))
+        .ok_or(RejectReason::TitleUnread)?;
+    let name = name_or_reason(name.as_deref())?;
+    let (level, class) = level_and_class(pack, level.as_deref())?;
+    let mode = title.map_or(Mode::Softcore, Title::mode);
+    Card::new(&name, class, level, mode, title).map_err(|_| RejectReason::CardInvalid)
+}
+
+/// The name a name line settles on, or why it does not.
+fn name_or_reason(readings: Option<&[String]>) -> Result<String, RejectReason> {
+    let readings = readings.ok_or(RejectReason::NameUnread)?;
+    if let Some(name) = read_name_readings(readings) {
+        return Ok(name);
+    }
+    if readings.iter().any(|read| read_name_line(read).is_some()) {
+        Err(RejectReason::NameDisagree)
+    } else {
+        Err(RejectReason::NameUnread)
+    }
+}
+
+/// The level and class a level line settles on, or which of the two is missing.
+fn level_and_class(
+    pack: &LanguagePack,
+    readings: Option<&[String]>,
+) -> Result<(u8, Class), RejectReason> {
+    let readings = readings.ok_or(RejectReason::LevelUnread)?;
+    let settled = majority(
+        readings
             .iter()
             .map(|read| parse_level_and_class(read, pack))
             .collect(),
-    )?;
-    let mode = title.map_or(Mode::Softcore, Title::mode);
-    Card::new(&name, class, level, mode, title).ok()
+    );
+    if let Some(found) = settled {
+        return Ok(found);
+    }
+    let level_read = readings.iter().any(|read| level_of(read, pack).is_some());
+    Err(if level_read {
+        RejectReason::ClassUnread
+    } else {
+        RejectReason::LevelUnread
+    })
+}
+
+/// The level of a level line, whatever follows it.
+fn level_of(text: &str, pack: &LanguagePack) -> Option<u8> {
+    let mut words = text.split_whitespace();
+    pack.is_level_word(words.next()?)
+        .then(|| words.next().and_then(read_level))
+        .flatten()
 }
 
 /// The title the readings of a title line settle on: `Some(None)` when they agree it is blank, `Some(Some(title))` for a
@@ -490,6 +586,84 @@ mod tests {
             1,
             "a missing title is not a blank title"
         );
+    }
+
+    #[test]
+    fn a_refused_slot_is_reported_with_the_field_that_refused_it() {
+        let reasons = |pairs: &[(ScreenRegion, &str)]| -> Vec<(u8, &'static str)> {
+            read(pairs, &[])
+                .rejected
+                .iter()
+                .map(|rejection| (rejection.slot, rejection.reason.code()))
+                .collect()
+        };
+        let without = |region: ScreenRegion| -> Vec<(ScreenRegion, &'static str)> {
+            let mut pairs = list();
+            pairs.retain(|(found, _)| *found != region);
+            pairs
+        };
+        let with = |region: ScreenRegion, text: &'static str| {
+            let mut pairs = without(region);
+            pairs.push((region, text));
+            pairs
+        };
+
+        assert_eq!(reasons(&list()), []);
+        assert_eq!(read(&list(), &[]).slots_read, 2);
+        assert_eq!(
+            reasons(&without(ScreenRegion::CardTitle(1))),
+            [(1, "title-unread")]
+        );
+        assert_eq!(
+            reasons(&with(ScreenRegion::CardTitle(1), "Marshal")),
+            [(1, "title-unread")]
+        );
+        assert_eq!(
+            reasons(&without(ScreenRegion::CardName(1))),
+            [(1, "name-unread")]
+        );
+        assert_eq!(
+            reasons(&with(ScreenRegion::CardName(1), "12-34")),
+            [(1, "name-unread")]
+        );
+        assert_eq!(
+            reasons(&without(ScreenRegion::CardLevel(1))),
+            [(1, "level-unread")]
+        );
+        assert_eq!(
+            reasons(&with(ScreenRegion::CardLevel(1), "Level 88 Zzzz")),
+            [(1, "class-unread")]
+        );
+    }
+
+    #[test]
+    fn readings_that_name_two_different_characters_refuse_with_name_disagree() {
+        let pack = LanguagePack::english();
+        let rejected = read_screen(
+            &pack,
+            |region| match region {
+                ScreenRegion::CreateNew => Some(vec!["Create New".to_string()]),
+                ScreenRegion::CardTitle(0) => Some(vec![String::new(), String::new()]),
+                ScreenRegion::CardName(0) => Some(vec!["Alpha".to_string(), "Bravo".to_string()]),
+                ScreenRegion::CardLevel(0) => Some(vec![
+                    "Level 88 Sorceress".to_string(),
+                    "Level 88 Sorceress".to_string(),
+                ]),
+                _ => None,
+            },
+            |_| false,
+            |_| false,
+        )
+        .rejected;
+        assert_eq!(rejected.len(), 1);
+        assert_eq!(rejected[0].reason.code(), "name-disagree");
+    }
+
+    #[test]
+    fn a_screen_without_card_slots_reports_no_slot_and_no_rejection() {
+        let reading = read(&[(ScreenRegion::Life, "Life: 925 / 925")], &[]);
+        assert_eq!(reading.slots_read, 0);
+        assert!(reading.rejected.is_empty());
     }
 
     #[test]

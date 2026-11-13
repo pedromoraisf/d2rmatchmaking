@@ -17,6 +17,7 @@ const view = (overrides: Partial<AgentView> = {}): AgentView => ({
   room: null,
   update: 'idle',
   readyCheckOpen: false,
+  diagnostics: null,
   ...overrides,
 });
 

@@ -45,6 +45,21 @@ pub struct ReadyCheckEnd {
 pub struct FrameReading {
     pub screen: Screen,
     pub cards: Vec<d2rmm_agent_domain::characters::Card>,
+    /// How many card slots held text, and why each slot that settled no card did not. Local diagnostics only.
+    pub slots_read: u8,
+    pub rejected: Vec<d2rmm_agent_domain::character_screen::Rejection>,
+}
+
+impl FrameReading {
+    /// A frame that shows no card.
+    pub fn without_cards(screen: Screen) -> Self {
+        Self {
+            screen,
+            cards: Vec::new(),
+            slots_read: 0,
+            rejected: Vec::new(),
+        }
+    }
 }
 
 #[cfg(test)]
