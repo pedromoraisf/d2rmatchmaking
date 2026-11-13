@@ -1,6 +1,12 @@
 {
   "identifier": "main",
-  "description": "The agent window: listen to agent-state and ask for a new pairing code. Nothing else.",
+  "description": "The agent window: listen to agent-state, ask for a new pairing code, and read and save the capture consent (allow-get-consent, allow-set-consent). Nothing else.",
   "windows": ["main"],
-  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten", "allow-get-new-code"]
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-get-new-code",
+    "allow-get-consent",
+    "allow-set-consent"
+  ]
 }

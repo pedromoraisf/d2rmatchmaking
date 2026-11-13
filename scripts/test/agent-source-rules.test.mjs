@@ -318,14 +318,97 @@ test('tauri.conf.json keeps the hardened shell', () => {
   );
 });
 
-test('the window gets only listen, unlisten and get_new_code', () => {
+test('the window gets exactly listen, unlisten, get_new_code, get_consent and set_consent', () => {
   const capability = readJson(`${agentTauri}/capabilities/main.json`);
   assert.deepEqual(capability.windows, ['main']);
   assert.deepEqual(
     [...capability.permissions].sort(),
-    ['allow-get-new-code', 'core:event:allow-listen', 'core:event:allow-unlisten'],
+    [
+      'allow-get-consent',
+      'allow-get-new-code',
+      'allow-set-consent',
+      'core:event:allow-listen',
+      'core:event:allow-unlisten',
+    ],
     'no updater, shell, fs or http permission reaches the window',
   );
+});
+
+// The IPC permissions: a command the window calls needs a handler, a manifest entry and an allow-* permission, or Tauri 2
+// refuses the call at run time (the capture consent button failed that way). Pure functions, checked on the sources.
+const kebab = (name) => name.replaceAll('_', '-');
+
+export function handlerCommands(appRs) {
+  const body = /generate_handler!\s*\[([^\]]*)\]/.exec(appRs)?.[1] ?? '';
+  return body
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .sort();
+}
+
+export function manifestCommands(buildRs) {
+  const body = /\.commands\(\s*&\[([^\]]*)\]/.exec(buildRs)?.[1] ?? '';
+  return [...body.matchAll(/"([^"]+)"/g)].map((match) => match[1]).sort();
+}
+
+export function uiCommands(sources) {
+  const found = new Set();
+  for (const source of sources) {
+    for (const match of source.matchAll(/_COMMAND\s*=\s*'([a-z0-9_]+)'/g)) found.add(match[1]);
+    for (const match of source.matchAll(/\binvoke(?:<[^>]*>)?\(\s*'([a-z0-9_]+)'/g)) found.add(match[1]);
+  }
+  return [...found].sort();
+}
+
+export function commandPermissionProblems({ handlers, manifest, permissions, ui }) {
+  const problems = [];
+  const allowed = permissions.filter((name) => name.startsWith('allow-'));
+  for (const command of handlers) {
+    if (!manifest.includes(command))
+      problems.push(`${command} is a handler but not in the app manifest (build.rs)`);
+    if (!allowed.includes(`allow-${kebab(command)}`))
+      problems.push(`${command} is a handler but allow-${kebab(command)} is not in capabilities/main.json`);
+  }
+  for (const command of manifest)
+    if (!handlers.includes(command)) problems.push(`${command} is in the app manifest but not a handler`);
+  for (const permission of allowed)
+    if (!handlers.some((command) => permission === `allow-${kebab(command)}`))
+      problems.push(`${permission} is allowed but no handler matches it`);
+  for (const command of ui)
+    if (!handlers.includes(command))
+      problems.push(`the UI invokes ${command}, which is not a registered handler`);
+  return problems;
+}
+
+const uiSourceFiles = (dir) =>
+  readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap((entry) => {
+    const relative = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) return uiSourceFiles(relative);
+    return /\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) ? [relative] : [];
+  });
+
+test('every window command has a handler, a manifest entry and an IPC permission', () => {
+  const capability = readJson(`${agentTauri}/capabilities/main.json`);
+  const input = {
+    handlers: handlerCommands(readText(`${agentTauri}/src/app.rs`)),
+    manifest: manifestCommands(readText(`${agentTauri}/build.rs`)),
+    permissions: capability.permissions,
+    ui: uiCommands(uiSourceFiles('apps/agent/src').map(readText)),
+  };
+  assert.ok(input.handlers.length >= 3, 'the handler list is read');
+  assert.ok(input.ui.length >= 3, 'the UI commands are read');
+  assert.deepEqual(commandPermissionProblems(input), []);
+});
+
+test('the command permission check rejects a handler without manifest entry or permission', () => {
+  const problems = commandPermissionProblems({
+    handlers: ['get_consent', 'get_new_code', 'set_consent'],
+    manifest: ['get_new_code'],
+    permissions: ['allow-get-new-code', 'allow-stale', 'core:event:allow-listen'],
+    ui: ['get_consent', 'unknown_command'],
+  });
+  assert.equal(problems.length, 6, problems.join('\n'));
 });
 
 // AGS-01: core declares no Cargo features. A `features = [...]` list on a dependency is not a feature of core; a
