@@ -28,6 +28,9 @@ pub const SELECT_DIFFICULTY: &str = "selectDifficulty";
 pub const DIFFICULTY_NORMAL: &str = "difficultyNormal";
 pub const DIFFICULTY_NIGHTMARE: &str = "difficultyNightmare";
 pub const DIFFICULTY_HELL: &str = "difficultyHell";
+/// The ONLINE / OFFLINE tabs over the character list: the strip is never a card line.
+pub const TAB_ONLINE: &str = "tabOnline";
+pub const TAB_OFFLINE: &str = "tabOffline";
 
 /// The keys a pack must hold for the Party reading. A pack without one of them is refused.
 pub const REQUIRED_KEYS: [&str; 3] = [PARTY, GAME_NAME, PASSWORD];
@@ -73,6 +76,8 @@ const ENGLISH: &[(&str, &str)] = &[
     (DIFFICULTY_NORMAL, "Normal"),
     (DIFFICULTY_NIGHTMARE, "Nightmare"),
     (DIFFICULTY_HELL, "Hell"),
+    (TAB_ONLINE, "Online"),
+    (TAB_OFFLINE, "Offline"),
 ];
 
 /// The pack key of a class name.

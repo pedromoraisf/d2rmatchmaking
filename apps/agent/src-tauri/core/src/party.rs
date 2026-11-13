@@ -1,6 +1,7 @@
 //! The Party step (design.md § Agent, core; AGN-01, AGN-03, AGN-05, AGN-07). While the agent holds a room assignment, each
-//! captured frame is looked at for the Party panel: its title and its Game Name label are read at the panel's regions and
-//! checked against the words of the language pack. When the panel is open, the Game Name field is read. The masked value
+//! captured frame is looked at for the Party panel: the lines of the panel's area are read and its title and its Game Name
+//! label are found by their text, against the words of the language pack. When the panel is open, the Game Name field, the
+//! line just under the label, is read. The masked value
 //! tells the player to click the eye (AGN-04); the expected name posts one observation for the run (AGN-03, AGN-05). Only
 //! the match leaves the process, and the span carries whether it matched and whether the field was masked (AGN-07).
 //! The OCR runs on a blocking thread; once the run has matched, no further frame is read for it.
@@ -8,6 +9,7 @@
 use std::num::NonZeroU64;
 use std::sync::Arc;
 
+use d2rmm_agent_domain::anchors;
 use d2rmm_agent_domain::fusion::{GameNameObservation, fuse};
 use d2rmm_agent_domain::game_name_match::{FieldRead, read_field, read_field_variants};
 use d2rmm_agent_domain::language::LanguagePack;
@@ -135,24 +137,48 @@ pub async fn look<G: ApiGateway + Send + Sync>(
 /// What the Party panel shows in one frame: whether it is open (its title and its label read as their words) and the
 /// text of the Game Name field, read only when the panel is open. Plain data, so the OCR can run on a blocking thread.
 #[derive(Debug, Clone, PartialEq)]
-struct PanelReading {
-    open: bool,
-    /// The readings of the field, one per OCR variant; empty when the panel is closed or the field did not read.
-    field: Vec<ReadText>,
+pub struct PanelReading {
+    pub open: bool,
+    /// Whether the "Game Name" label was found, the anchor of the field (`ocr-check` counts it).
+    pub label_found: bool,
+    /// The readings of the field, one per OCR variant; empty when the panel is closed, the label was not found or the field
+    /// did not read.
+    pub field: Vec<ReadText>,
 }
 
-/// The OCR of one frame's Party panel. Blocking: called on a blocking thread.
-fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba) -> PanelReading {
-    // The title decides: the label is not read, so a closed panel costs one read. The title may be a prefix of the word
-    // (a tooltip over it leaves "PAR"); the game's small-caps label reads unreliably and is no longer asked for.
-    let open = panel_text(reader, frame, PanelRegion::PartyTitle)
-        .is_some_and(|title| language.party_panel_open(&title.text));
-    let field = if open {
-        panel_texts(reader, frame, PanelRegion::GameNameField)
-    } else {
-        Vec::new()
+/// The OCR of one frame's Party panel, anchored on its content (the full-screen incident, 0.1.3: the panel sits at other
+/// offsets in a full-screen client): the lines of the panel's area are read once; the panel is open when a line is its title
+/// (the whole word or a prefix of it: a tooltip over the title leaves "PAR"), the "Game Name" label is the line that reads as
+/// that word, and the game name is the line just under the label. A field with no line under the label (the masked value's
+/// dots, which the engine does not read) is read in the box under the label and reads blank. The "Password" field is never
+/// read. Blocking: called on a blocking thread.
+pub fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba) -> PanelReading {
+    let lines = panel_region(PanelRegion::PartyPanel, frame.width, frame.height)
+        .map(|area| reader.read_lines(frame, area))
+        .unwrap_or_default();
+    let found = anchors::find_party(language, &lines, frame.height);
+    let field_area = found.field.or_else(|| {
+        found
+            .label
+            .map(|label| anchors::field_below(label, frame.height))
+    });
+    let field = match field_area {
+        Some(area) if found.open => reader.read_variants(
+            frame,
+            anchors::padded(
+                area,
+                anchors::line_pad(frame.height),
+                frame.width,
+                frame.height,
+            ),
+        ),
+        _ => Vec::new(),
     };
-    PanelReading { open, field }
+    PanelReading {
+        open: found.open,
+        label_found: found.label.is_some(),
+        field,
+    }
 }
 
 /// The synchronous part of the look: updates the run's state and the room view from one reading, and returns the
@@ -217,20 +243,6 @@ fn apply_reading<G>(
             fuse(field, assignment, now, || ports.read.ids.idempotency_key())
         }
     }
-}
-
-/// The text of one panel region, or `None` when the frame has no region for it (an unsupported size, AGN-02) or the reader
-/// fails.
-fn panel_text(reader: &dyn TextReader, frame: &Rgba, panel: PanelRegion) -> Option<ReadText> {
-    let region = panel_region(panel, frame.width, frame.height)?;
-    reader.read(frame, region).ok()
-}
-
-/// Every reading (OCR variant) of one panel region; empty when the frame has no region for it or every reading fails.
-fn panel_texts(reader: &dyn TextReader, frame: &Rgba, panel: PanelRegion) -> Vec<ReadText> {
-    panel_region(panel, frame.width, frame.height)
-        .map(|region| reader.read_variants(frame, region))
-        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -370,7 +382,7 @@ mod look_tests {
     use d2rmm_agent_domain::language::LanguagePack;
     use d2rmm_agent_domain::layout::{PanelRegion, panel_region};
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
-    use d2rmm_agent_domain::vision::{ReadText, Region};
+    use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 
     use super::{PartyPorts, look};
     use crate::device_state::DeviceState;
@@ -395,27 +407,48 @@ mod look_tests {
         threads: Mutex<Vec<std::thread::ThreadId>>,
     }
 
-    impl TextReader for Panel {
-        fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+    impl Panel {
+        fn counted(&self) {
             self.reads.fetch_add(1, Ordering::SeqCst);
             self.threads
                 .lock()
                 .expect("the thread lock")
                 .push(std::thread::current().id());
-            let at = |panel| panel_region(panel, image.width, image.height);
-            let slot = if at(PanelRegion::PartyTitle) == Some(region) {
-                &self.title
-            } else if at(PanelRegion::GameNameLabel) == Some(region) {
-                &self.label
-            } else if at(PanelRegion::GameNameField) == Some(region) {
-                &self.field
-            } else {
+        }
+    }
+
+    impl TextReader for Panel {
+        /// The field is the only thing read again: the box a found line, or the box under the label, is read at.
+        fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            self.counted();
+            let area = panel_region(PanelRegion::PartyPanel, image.width, image.height)
+                .ok_or(ReadError::Failed)?;
+            if region.x < area.x || region.bottom() > area.bottom() + area.height {
                 return Err(ReadError::Failed);
-            };
+            }
             Ok(ReadText {
-                text: slot.lock().expect("the panel lock").clone(),
+                text: self.field.lock().expect("the panel lock").clone(),
                 confidence: 1.0,
             })
+        }
+
+        /// The panel's lines, drawn where the layout's boxes sit on the reference client; a blank text is no line.
+        fn read_lines(&self, image: &Rgba, region: Region) -> Vec<TextLine> {
+            self.counted();
+            let at = |panel| panel_region(panel, image.width, image.height);
+            [
+                (PanelRegion::PartyTitle, &self.title),
+                (PanelRegion::GameNameLabel, &self.label),
+                (PanelRegion::GameNameField, &self.field),
+            ]
+            .into_iter()
+            .filter_map(|(panel, text)| {
+                let text = text.lock().expect("the panel lock").clone();
+                let line = at(panel)?;
+                (!text.trim().is_empty() && region.x <= line.x && line.bottom() <= region.bottom())
+                    .then_some(TextLine { text, region: line })
+            })
+            .collect()
         }
     }
 
@@ -860,6 +893,129 @@ mod look_tests {
         assert!(
             threads.iter().all(|thread| *thread != here),
             "the OCR runs on a blocking thread, not on the loop's thread"
+        );
+    }
+}
+
+#[cfg(test)]
+mod anchored_tests {
+    use d2rmm_agent_domain::language::LanguagePack;
+    use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
+
+    use super::read_panel;
+    use crate::ports::{ReadError, Rgba, TextReader};
+
+    /// A Party panel as the lines pass finds it, with its lines where a client of this height draws them; the field is read
+    /// again by the text of the line whose middle its box holds.
+    struct Lines(Vec<TextLine>);
+
+    fn line(text: &str, x: u32, middle: u32, width: u32) -> TextLine {
+        TextLine {
+            text: text.to_string(),
+            region: Region {
+                x,
+                y: middle - 8,
+                width,
+                height: 16,
+            },
+        }
+    }
+
+    impl TextReader for Lines {
+        fn read(&self, _image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            let found = self.0.iter().find(|line| {
+                region.y <= line.region.middle_y() && line.region.middle_y() < region.bottom()
+            });
+            Ok(ReadText {
+                text: found.map(|line| line.text.clone()).unwrap_or_default(),
+                confidence: 1.0,
+            })
+        }
+
+        fn read_lines(&self, _image: &Rgba, area: Region) -> Vec<TextLine> {
+            self.0
+                .iter()
+                .filter(|line| {
+                    area.y <= line.region.middle_y() && line.region.middle_y() < area.bottom()
+                })
+                .cloned()
+                .collect()
+        }
+    }
+
+    fn frame(height: u32) -> Rgba {
+        Rgba {
+            width: 1920,
+            height,
+            pixels: Vec::new(),
+        }
+    }
+
+    fn panel(title: u32, label: u32, field: Option<(&str, u32)>) -> Lines {
+        let mut lines = vec![
+            line("PARTY", 366, title, 60),
+            line("GAME NAME", 280, label, 90),
+            line("PASSWORD", 285, label + 70, 80),
+        ];
+        if let Some((text, middle)) = field {
+            lines.push(line(text, 255, middle, 140));
+        }
+        Lines(lines)
+    }
+
+    fn fields(reading: &super::PanelReading) -> Vec<&str> {
+        reading
+            .field
+            .iter()
+            .map(|read| read.text.as_str())
+            .collect()
+    }
+
+    #[test]
+    fn the_revealed_game_name_is_the_line_under_the_label_in_both_clients() {
+        let pack = LanguagePack::english();
+        // The maintainer's full-screen print: PARTY 153, the label 192, the revealed name 220. And the maximized client.
+        for (height, reader) in [
+            (1080, panel(153, 192, Some(("MF-FAST-RUN-O1", 220)))),
+            (1033, panel(146, 183, Some(("MF-FAST-RUN-O1", 210)))),
+        ] {
+            let reading = read_panel(&reader, &pack, &frame(height));
+            assert!(reading.open && reading.label_found, "{height}");
+            assert_eq!(fields(&reading), ["MF-FAST-RUN-O1"], "{height}");
+        }
+    }
+
+    #[test]
+    fn a_masked_field_without_a_line_is_read_in_the_box_under_the_label_and_reads_blank() {
+        let pack = LanguagePack::english();
+        let reader = panel(153, 192, None);
+        let reading = read_panel(&reader, &pack, &frame(1080));
+        assert!(reading.open && reading.label_found);
+        assert_eq!(fields(&reading), [""], "blank, which means masked");
+    }
+
+    #[test]
+    fn a_panel_without_its_label_reads_no_field_and_a_closed_one_reads_none_at_all() {
+        let pack = LanguagePack::english();
+        let no_label = Lines(vec![
+            line("PARTY", 366, 153, 60),
+            line("MF-FAST-RUN-O1", 255, 220, 140),
+        ]);
+        let reading = read_panel(&no_label, &pack, &frame(1080));
+        assert!(reading.open && !reading.label_found);
+        assert!(
+            reading.field.is_empty(),
+            "no label, no anchor for the field"
+        );
+        let closed = Lines(vec![
+            line("INVENTORY", 366, 153, 90),
+            line("GAME NAME", 280, 192, 90),
+        ]);
+        let reading = read_panel(&closed, &pack, &frame(1080));
+        assert!(!reading.open && reading.field.is_empty());
+        assert!(
+            !read_panel(&closed, &pack, &frame(768)).open,
+            "an unsupported size reads nothing"
         );
     }
 }

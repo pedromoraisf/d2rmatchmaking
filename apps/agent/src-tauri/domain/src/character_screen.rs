@@ -7,12 +7,12 @@
 //! the readings that agree, and a field the readings do not settle is unknown, so the card is not sent (CHR-06). A reader
 //! that gives one reading per region is the case of one variant.
 
+use crate::anchors;
 use crate::characters::{Card, Class, Difficulty, Mode, Title, is_character_name};
-use crate::language::{
-    CREATE_NEW, DIFFICULTY_LABEL, LIFE, LanguagePack, SELECT_DIFFICULTY, title_key,
-};
+use crate::language::{CREATE_NEW, DIFFICULTY_LABEL, LIFE, LanguagePack, title_key};
 use crate::layout::{CARD_SLOTS, ScreenRegion};
 use crate::presence::Screen;
+use crate::vision::{Region, TextLine};
 
 /// What one frame shows: its screen, and the complete cards when it is the character selection screen (CHR-04, CHR-06).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,19 +117,30 @@ fn any_reading(readings: &Readings, test: impl Fn(&str) -> bool) -> bool {
         .is_some_and(|all| all.iter().any(|read| test(read)))
 }
 
-/// Reads a character selection frame. `text` returns the readings of a region, or `None` when the region could not be
-/// read; `selected` says whether a card slot shows the gold frame; `lit` says whether a popup label is as bright as an
-/// enabled one (`is_enabled_label`). Each region is asked for once.
-pub fn read_screen<T, S, L>(
+/// Reads a character selection frame, anchored on what the screen shows (the full-screen incident, 0.1.3): the panels sit at
+/// other offsets in a full-screen client than in a maximized one, so the cards and the popup's options are found by the text
+/// of the lines read in their search areas (`anchors`), not at fixed offsets.
+///
+/// `text` returns the readings of a marker region (or `None` when it could not be read); `lines` returns the lines of a
+/// search area (`ScreenRegion::PopupArea`, `ScreenRegion::CardColumn`) with where each sits; `field` returns the readings of
+/// a region found that way, one per OCR variant, and settles under the same agreement rules as before; `selected` says
+/// whether the card whose name line is that region shows the gold frame; `lit` says whether a popup option (the region of
+/// its line) is as bright as an enabled one (`is_enabled_label`). `frame_height` scales the distances between lines.
+pub fn read_screen<T, A, F, S, L>(
     pack: &LanguagePack,
+    frame_height: u32,
     mut text: T,
+    mut lines: A,
+    mut field: F,
     mut selected: S,
     mut lit: L,
 ) -> Reading
 where
     T: FnMut(ScreenRegion) -> Readings,
-    S: FnMut(u8) -> bool,
-    L: FnMut(ScreenRegion) -> bool,
+    A: FnMut(ScreenRegion) -> Vec<TextLine>,
+    F: FnMut(Region) -> Readings,
+    S: FnMut(Region) -> bool,
+    L: FnMut(Region) -> bool,
 {
     let automap = any_reading(&text(ScreenRegion::AreaDifficulty), |read| {
         pack.begins_with(read, DIFFICULTY_LABEL)
@@ -146,10 +157,11 @@ where
     let list = any_reading(&text(ScreenRegion::CreateNew), |read| {
         pack.is_word(read, CREATE_NEW) || pack.is_squashed_word(read, CREATE_NEW)
     });
-    let popup_title = any_reading(&text(ScreenRegion::SelectDifficulty), |read| {
-        pack.is_word(read, SELECT_DIFFICULTY) || pack.is_squashed_word(read, SELECT_DIFFICULTY)
-    });
-    let popup = popup_difficulties(pack, &mut text, &mut lit);
+    let popup_lines = lines(ScreenRegion::PopupArea);
+    let popup_title = popup_lines
+        .iter()
+        .any(|line| anchors::is_popup_title(pack, &line.text));
+    let popup = popup_difficulties(pack, &popup_lines, &mut field, &mut lit);
     if !list && !popup_title && popup.is_none() {
         return Reading::without_cards(Screen::Unknown);
     }
@@ -158,16 +170,23 @@ where
     let mut rejected = Vec::new();
     let mut slots_read = 0;
     let mut popup_applied = false;
-    for slot in 0..CARD_SLOTS {
-        let title = text(ScreenRegion::CardTitle(slot));
-        let name = text(ScreenRegion::CardName(slot));
-        let level = text(ScreenRegion::CardLevel(slot));
-        if ![&title, &name, &level].into_iter().any(filled) {
-            continue;
-        }
+    let column = lines(ScreenRegion::CardColumn);
+    for (slot, anchor) in anchors::find_cards(pack, &column, frame_height)
+        .into_iter()
+        .take(usize::from(CARD_SLOTS))
+        .enumerate()
+    {
+        let slot = u8::try_from(slot).unwrap_or(u8::MAX);
         slots_read += 1;
-        // The popup belongs to the selected card: the first occupied slot with the gold frame (CHR-18).
-        let is_selected = enabled.is_some() && !popup_applied && selected(slot);
+        // A card with no title line has a blank title; a title line found is read like any other field.
+        let title = match anchor.title {
+            Some(region) => field(region),
+            None => Some(vec![String::new()]),
+        };
+        let name = field(anchor.name);
+        let level = field(anchor.level);
+        // The popup belongs to the selected card: the first card with the gold frame (CHR-18).
+        let is_selected = enabled.is_some() && !popup_applied && selected(anchor.name);
         if is_selected {
             popup_applied = true;
         }
@@ -195,46 +214,46 @@ where
     }
 }
 
-/// Whether a field holds text: a region that was read, in any variant, and is not blank.
-fn filled(field: &Readings) -> bool {
-    any_reading(field, |read| !read.trim().is_empty())
-}
-
 /// How many of the popup's three difficulty words must read for the popup to count as open.
 const POPUP_LABELS_TO_OPEN: usize = 2;
 
-/// The popup, from its labels (CHR-18): it is open when at least two of the three difficulty words read (in any variant; the
-/// title reads too poorly to decide). Then `Some` holds the difficulties whose label is also as bright as an enabled one: a
-/// dimmed label may still read, so its brightness decides too. `None` when the popup is not open.
-fn popup_difficulties<T, L>(
+/// The popup, from its options (CHR-18): it is open when at least two of the three difficulty words are found (the title
+/// reads too poorly to decide). An option is found by its word in the lines of the popup's area; one the lines missed is
+/// looked for at the pitch of the other two and counts when any variant reading of that place shows its word. Then `Some`
+/// holds the difficulties whose label is also as bright as an enabled one: a dimmed label may still read, so its brightness
+/// decides too. `None` when the popup is not open.
+fn popup_difficulties<F, L>(
     pack: &LanguagePack,
-    text: &mut T,
+    lines: &[TextLine],
+    field: &mut F,
     lit: &mut L,
 ) -> Option<Vec<Difficulty>>
 where
-    T: FnMut(ScreenRegion) -> Readings,
-    L: FnMut(ScreenRegion) -> bool,
+    F: FnMut(Region) -> Readings,
+    L: FnMut(Region) -> bool,
 {
-    let buttons = [
-        (ScreenRegion::PopupNormal, Difficulty::Normal),
-        (ScreenRegion::PopupNightmare, Difficulty::Nightmare),
-        (ScreenRegion::PopupHell, Difficulty::Hell),
-    ];
-    let read: Vec<(ScreenRegion, Difficulty)> = buttons
-        .into_iter()
-        .filter(|(region, difficulty)| {
-            any_reading(&text(*region), |read| {
-                pack.read_difficulty(read) == Some(*difficulty)
-            })
-        })
-        .collect();
-    if read.len() < POPUP_LABELS_TO_OPEN {
+    let found = anchors::popup_options(pack, lines);
+    let mut options = found.clone();
+    for (difficulty, region) in anchors::missing_options(&found) {
+        if any_reading(&field(region), |read| {
+            pack.read_difficulty(read) == Some(difficulty)
+        }) {
+            options.push((difficulty, region));
+        }
+    }
+    if options.len() < POPUP_LABELS_TO_OPEN {
         return None;
     }
+    options.sort_by_key(|(difficulty, _)| {
+        anchors::DIFFICULTIES
+            .iter()
+            .position(|listed| listed == difficulty)
+    });
     Some(
-        read.into_iter()
-            .filter(|(region, _)| lit(*region))
-            .map(|(_, difficulty)| difficulty)
+        options
+            .into_iter()
+            .filter(|(_, region)| lit(*region))
+            .map(|(difficulty, _)| difficulty)
             .collect(),
     )
 }
@@ -314,7 +333,7 @@ fn level_and_class(
 }
 
 /// The level of a level line, whatever follows it.
-fn level_of(text: &str, pack: &LanguagePack) -> Option<u8> {
+pub(crate) fn level_of(text: &str, pack: &LanguagePack) -> Option<u8> {
     let mut words = text.split_whitespace();
     pack.is_level_word(words.next()?)
         .then(|| words.next().and_then(read_level))
@@ -446,20 +465,123 @@ mod tests {
     };
     use crate::characters::{Class, Difficulty, Mode, Title};
     use crate::language::LanguagePack;
-    use crate::layout::ScreenRegion;
+    use crate::layout::{CARD_SLOTS, ScreenRegion, screen_region};
     use crate::presence::Screen;
+    use crate::vision::{Region, TextLine};
 
     use Difficulty::{Hell, Nightmare, Normal};
 
-    /// The text of each region a test fixture shows; a region not listed reads as not read.
-    fn texts<'a>(
-        pairs: &'a [(ScreenRegion, &'a str)],
-    ) -> impl FnMut(ScreenRegion) -> Readings + 'a {
-        move |region| {
-            pairs
+    /// The height of the client the scenes are drawn on: the 1920×1033 reference, where each region is a line's box.
+    const HEIGHT: u32 = 1033;
+
+    fn area(region: ScreenRegion) -> Region {
+        screen_region(region, 1920, HEIGHT).expect("the reference client resolves every region")
+    }
+
+    /// The region a box of the reference client is, by name: the line a scene draws there.
+    fn key_of(region: Region) -> Option<ScreenRegion> {
+        let cards = (0..CARD_SLOTS).flat_map(|slot| {
+            [
+                ScreenRegion::CardTitle(slot),
+                ScreenRegion::CardName(slot),
+                ScreenRegion::CardLevel(slot),
+            ]
+        });
+        cards
+            .chain([
+                ScreenRegion::PopupNormal,
+                ScreenRegion::PopupNightmare,
+                ScreenRegion::PopupHell,
+            ])
+            .find(|key| area(*key) == region)
+    }
+
+    /// A screen as the OCR shows it: the readings of each region, one per variant. The first reading of a card field or a
+    /// popup option is the line the lines pass found there (a blank reading is no line); the readings are what the same
+    /// place reads when it is read again, once per variant.
+    struct Scene {
+        sets: Vec<(ScreenRegion, Vec<String>)>,
+    }
+
+    impl Scene {
+        fn of(sets: &[(ScreenRegion, &[&str])]) -> Self {
+            Self {
+                sets: sets
+                    .iter()
+                    .map(|(region, texts)| {
+                        (
+                            *region,
+                            texts.iter().map(|text| (*text).to_string()).collect(),
+                        )
+                    })
+                    .collect(),
+            }
+        }
+
+        fn readings(&self, region: ScreenRegion) -> Readings {
+            self.sets
                 .iter()
                 .find(|(listed, _)| *listed == region)
-                .map(|(_, text)| vec![(*text).to_string()])
+                .map(|(_, texts)| texts.clone())
+        }
+
+        /// The lines of a search area: one per listed region of it whose first reading is not blank.
+        fn lines(&self, search: ScreenRegion) -> Vec<TextLine> {
+            let in_search = |region: &ScreenRegion| {
+                matches!(
+                    (search, region),
+                    (
+                        ScreenRegion::PopupArea,
+                        ScreenRegion::SelectDifficulty
+                            | ScreenRegion::PopupNormal
+                            | ScreenRegion::PopupNightmare
+                            | ScreenRegion::PopupHell,
+                    ) | (
+                        ScreenRegion::CardColumn,
+                        ScreenRegion::CardTitle(_)
+                            | ScreenRegion::CardName(_)
+                            | ScreenRegion::CardLevel(_),
+                    )
+                )
+            };
+            self.sets
+                .iter()
+                .filter(|(region, _)| in_search(region))
+                .filter_map(|(region, texts)| {
+                    let text = texts.first().filter(|text| !text.trim().is_empty())?;
+                    Some(TextLine {
+                        text: text.clone(),
+                        region: area(*region),
+                    })
+                })
+                .collect()
+        }
+
+        fn field(&self, region: Region) -> Readings {
+            self.readings(key_of(region)?)
+        }
+
+        /// Reads the scene; the cards in `selected` show the gold frame, the popup options in `dimmed` are drawn dim.
+        fn read(&self, selected: &[u8], dimmed: &[ScreenRegion]) -> Reading {
+            read_screen(
+                &LanguagePack::english(),
+                HEIGHT,
+                |region| self.readings(region),
+                |search| self.lines(search),
+                |region| self.field(region),
+                |name| matches!(key_of(name), Some(ScreenRegion::CardName(slot)) if selected.contains(&slot)),
+                |region| key_of(region).is_some_and(|key| !dimmed.contains(&key)),
+            )
+        }
+    }
+
+    /// The scene of a list of `(region, text)` pairs, one reading each.
+    fn single(pairs: &[(ScreenRegion, &str)]) -> Scene {
+        Scene {
+            sets: pairs
+                .iter()
+                .map(|(region, text)| (*region, vec![(*text).to_string()]))
+                .collect(),
         }
     }
 
@@ -473,12 +595,7 @@ mod tests {
         selected: &[u8],
         dimmed: &[ScreenRegion],
     ) -> Reading {
-        read_screen(
-            &LanguagePack::english(),
-            texts(pairs),
-            |slot| selected.contains(&slot),
-            |region| !dimmed.contains(&region),
-        )
+        single(pairs).read(selected, dimmed)
     }
 
     /// A selection screen with a titled Matriarch (slot 0, gold frame) and an untitled Sorceress (slot 1).
@@ -564,32 +681,27 @@ mod tests {
     }
 
     #[test]
-    fn a_title_line_that_reads_no_title_refuses_the_card() {
+    fn a_title_line_that_is_not_a_known_title_is_not_a_title() {
         let mut pairs = list();
         pairs.retain(|(region, _)| *region != ScreenRegion::CardTitle(1));
         pairs.push((ScreenRegion::CardTitle(1), "Marshal"));
         let reading = read(&pairs, &[]);
-        assert_eq!(
-            reading.cards.len(),
-            1,
-            "a title that is not of the pack refuses its card"
-        );
+        assert_eq!(reading.cards.len(), 2, "the card is kept, without a title");
+        assert_eq!(reading.cards[1].title(), None);
+        assert_eq!(reading.cards[1].mode(), Mode::Softcore);
     }
 
     #[test]
-    fn a_card_whose_title_line_was_not_read_is_refused() {
+    fn a_card_without_a_title_line_has_no_title() {
         let mut pairs = list();
         pairs.retain(|(region, _)| *region != ScreenRegion::CardTitle(1));
         let reading = read(&pairs, &[]);
-        assert_eq!(
-            reading.cards.len(),
-            1,
-            "a missing title is not a blank title"
-        );
+        assert_eq!(reading.cards.len(), 2);
+        assert_eq!(reading.cards[1].title(), None);
     }
 
     #[test]
-    fn a_refused_slot_is_reported_with_the_field_that_refused_it() {
+    fn a_refused_card_is_reported_with_the_field_that_refused_it() {
         let reasons = |pairs: &[(ScreenRegion, &str)]| -> Vec<(u8, &'static str)> {
             read(pairs, &[])
                 .rejected
@@ -610,51 +722,37 @@ mod tests {
 
         assert_eq!(reasons(&list()), []);
         assert_eq!(read(&list(), &[]).slots_read, 2);
-        assert_eq!(
-            reasons(&without(ScreenRegion::CardTitle(1))),
-            [(1, "title-unread")]
-        );
-        assert_eq!(
-            reasons(&with(ScreenRegion::CardTitle(1), "Marshal")),
-            [(1, "title-unread")]
-        );
-        assert_eq!(
-            reasons(&without(ScreenRegion::CardName(1))),
-            [(1, "name-unread")]
-        );
+        assert_eq!(reasons(&with(ScreenRegion::CardTitle(1), "Marshal")), []);
         assert_eq!(
             reasons(&with(ScreenRegion::CardName(1), "12-34")),
             [(1, "name-unread")]
         );
         assert_eq!(
-            reasons(&without(ScreenRegion::CardLevel(1))),
-            [(1, "level-unread")]
-        );
-        assert_eq!(
             reasons(&with(ScreenRegion::CardLevel(1), "Level 88 Zzzz")),
             [(1, "class-unread")]
         );
+        // A card is found by its level line: without a name line above it, or without a level line, there is no card to
+        // refuse, and the other card is read all the same.
+        for card_without in [ScreenRegion::CardName(1), ScreenRegion::CardLevel(1)] {
+            let reading = read(&without(card_without), &[]);
+            assert!(reading.rejected.is_empty());
+            assert_eq!(reading.slots_read, 1);
+            assert_eq!(reading.cards.len(), 1);
+        }
     }
 
     #[test]
     fn readings_that_name_two_different_characters_refuse_with_name_disagree() {
-        let pack = LanguagePack::english();
-        let rejected = read_screen(
-            &pack,
-            |region| match region {
-                ScreenRegion::CreateNew => Some(vec!["Create New".to_string()]),
-                ScreenRegion::CardTitle(0) => Some(vec![String::new(), String::new()]),
-                ScreenRegion::CardName(0) => Some(vec!["Alpha".to_string(), "Bravo".to_string()]),
-                ScreenRegion::CardLevel(0) => Some(vec![
-                    "Level 88 Sorceress".to_string(),
-                    "Level 88 Sorceress".to_string(),
-                ]),
-                _ => None,
-            },
-            |_| false,
-            |_| false,
-        )
-        .rejected;
+        let scene = Scene::of(&[
+            (ScreenRegion::CreateNew, &["Create New"]),
+            (ScreenRegion::CardTitle(0), &["", ""]),
+            (ScreenRegion::CardName(0), &["Alpha", "Bravo"]),
+            (
+                ScreenRegion::CardLevel(0),
+                &["Level 88 Sorceress", "Level 88 Sorceress"],
+            ),
+        ]);
+        let rejected = scene.read(&[], &[]).rejected;
         assert_eq!(rejected.len(), 1);
         assert_eq!(rejected[0].reason.code(), "name-disagree");
     }
@@ -901,24 +999,8 @@ mod tests {
         assert_eq!(parse_level_and_class("LVL 88 SORCERESS", &pack), None);
     }
 
-    /// The readings of each region, by variant; a region not listed reads as not read.
-    fn variants<'a>(
-        sets: &'a [(ScreenRegion, &'a [&'a str])],
-    ) -> impl FnMut(ScreenRegion) -> Readings + 'a {
-        move |region| {
-            sets.iter()
-                .find(|(listed, _)| *listed == region)
-                .map(|(_, texts)| texts.iter().map(|text| (*text).to_string()).collect())
-        }
-    }
-
     fn read_variants(sets: &[(ScreenRegion, &[&str])], selected: &[u8]) -> Reading {
-        read_screen(
-            &LanguagePack::english(),
-            variants(sets),
-            |slot| selected.contains(&slot),
-            |_| true,
-        )
+        Scene::of(sets).read(selected, &[])
     }
 
     /// The first `ocr-real` run on the maintainer's selection screen (2026-11-11): the variants of each region. The first
@@ -1307,7 +1389,7 @@ mod tests {
     fn a_title_that_readings_split_between_blank_and_a_title_refuses_the_card() {
         let sets: [(ScreenRegion, &[&str]); 5] = [
             (ScreenRegion::CreateNew, &["CREATE NEW", "CREATE NEW"]),
-            (ScreenRegion::CardTitle(0), &["", "MATRIARCH"]),
+            (ScreenRegion::CardTitle(0), &["MATRIARCH", ""]),
             (ScreenRegion::CardName(0), &["VUKVUKA", "VUKVUKA"]),
             (
                 ScreenRegion::CardLevel(0),

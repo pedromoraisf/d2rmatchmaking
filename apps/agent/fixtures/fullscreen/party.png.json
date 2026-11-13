@@ -1,0 +1,8 @@
+{
+  "lines": [
+    { "text": "Party", "x": 366, "y": 145, "width": 70, "height": 16 },
+    { "text": "Game Name", "x": 280, "y": 184, "width": 90, "height": 16 },
+    { "text": "mmbaalh-12", "x": 255, "y": 212, "width": 140, "height": 16 },
+    { "text": "Password", "x": 285, "y": 254, "width": 80, "height": 16 }
+  ]
+}
