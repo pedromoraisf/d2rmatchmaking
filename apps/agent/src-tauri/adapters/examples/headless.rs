@@ -41,7 +41,7 @@ use d2rmm_agent_domain::layout::{
     PanelRegion, ScreenRegion, panel_region, screen_region, screen_text_regions,
 };
 use d2rmm_agent_domain::room_assignment::Assignment;
-use d2rmm_agent_domain::vision::{ReadText, Region};
+use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
@@ -258,20 +258,95 @@ fn sidecar_text(sidecar: &Path, image: &Rgba, region: Region) -> Option<String> 
 /// acceptance steps change what the game shows while the agent runs.
 struct ShownText(SharedShot);
 
+impl ShownText {
+    fn sidecar(&self) -> Result<PathBuf, ReadError> {
+        let shown = self.0.lock().map_err(|_| ReadError::Failed)?;
+        shown
+            .as_ref()
+            .map(|shot| shot.sidecar.clone())
+            .ok_or(ReadError::Failed)
+    }
+}
+
+/// The sidecar keys that are markers: read at their region, never found as lines.
+const MARKER_KEYS: [&str; 3] = ["createNew", "life", "areaDifficulty"];
+
+/// The lines a sidecar shows: every key that names a Party panel or a character screen region, with the text it holds and
+/// the box of its region in `image` (the drawn fixtures put each text in the box of its region). Markers are not lines.
+fn sidecar_lines(sidecar: &Path, image: &Rgba) -> Vec<TextLine> {
+    let Some(value) = std::fs::read_to_string(sidecar)
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+    else {
+        return Vec::new();
+    };
+    let panels = [
+        (PanelRegion::PartyTitle, "partyTitle"),
+        (PanelRegion::GameNameLabel, "gameNameLabel"),
+        (PanelRegion::GameNameField, "gameNameField"),
+    ]
+    .into_iter()
+    .filter_map(|(panel, key)| {
+        Some((
+            key.to_string(),
+            panel_region(panel, image.width, image.height)?,
+        ))
+    });
+    let screens = screen_text_regions().into_iter().filter_map(|screen| {
+        Some((
+            screen.key(),
+            screen_region(screen, image.width, image.height)?,
+        ))
+    });
+    panels
+        .chain(screens)
+        .filter(|(key, _)| !MARKER_KEYS.contains(&key.as_str()))
+        .filter_map(|(key, region)| {
+            let text = value.get(&key)?.as_str()?;
+            (!text.trim().is_empty()).then(|| TextLine {
+                text: text.to_string(),
+                region,
+            })
+        })
+        .collect()
+}
+
+fn holds(area: Region, line: &TextLine) -> bool {
+    let (x, y) = (line.region.middle_x(), line.region.middle_y());
+    area.x <= x && x < area.right() && area.y <= y && y < area.bottom()
+}
+
 impl TextReader for ShownText {
+    /// A marker answers its own text; any other region answers the lines whose middle it holds, and blank when it holds none
+    /// (the masked value's dots read as nothing).
     fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
-        let sidecar = {
-            let shown = self.0.lock().map_err(|_| ReadError::Failed)?;
-            shown
-                .as_ref()
-                .map(|shot| shot.sidecar.clone())
-                .ok_or(ReadError::Failed)?
-        };
-        let text = sidecar_text(&sidecar, image, region).ok_or(ReadError::Failed)?;
+        let sidecar = self.sidecar()?;
+        if let Some(text) = sidecar_text(&sidecar, image, region) {
+            return Ok(ReadText {
+                text,
+                confidence: 1.0,
+            });
+        }
+        let text = sidecar_lines(&sidecar, image)
+            .iter()
+            .filter(|line| holds(region, line))
+            .map(|line| line.text.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
         Ok(ReadText {
             text,
             confidence: 1.0,
         })
+    }
+
+    fn read_lines(&self, image: &Rgba, area: Region) -> Vec<TextLine> {
+        let Ok(sidecar) = self.sidecar() else {
+            return Vec::new();
+        };
+        sidecar_lines(&sidecar, image)
+            .into_iter()
+            .filter(|line| holds(area, line))
+            .collect()
     }
 }
 

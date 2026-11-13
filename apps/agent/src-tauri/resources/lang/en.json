@@ -38,6 +38,8 @@
     "selectDifficulty": "Select Difficulty",
     "difficultyNormal": "Normal",
     "difficultyNightmare": "Nightmare",
-    "difficultyHell": "Hell"
+    "difficultyHell": "Hell",
+    "tabOnline": "Online",
+    "tabOffline": "Offline"
   }
 }

@@ -64,13 +64,13 @@ jobs:
       - name: Read them with Windows OCR
         if: steps.zip.outputs.present == 'true'
         run: apps/agent/src-tauri/target/release/examples/ocr-check.exe "$RUNNER_TEMP/real-prints"
-      # Informational (characters-reading T32): the real screenshots above are the Windows OCR proof. The two tests read the
+      # Informational (characters-reading T32): the real screenshots above are the Windows OCR proof. The tests read the
       # xtask-drawn fixtures, which the engine does not read like the game's lettering; they never fail this job.
       - name: Read the drawn fixtures with Windows OCR (informational)
         if: steps.zip.outputs.present == 'true'
         continue-on-error: true
         working-directory: apps/agent/src-tauri
-        run: cargo test --locked --features drawn-fixtures-ocr -p d2rmm-agent --lib -- ocr_reads_the_drawn_character_fixtures ocr_reads_the_dimmed_popup_as_normal_only --nocapture
+        run: cargo test --locked --features drawn-fixtures-ocr -p d2rmm-agent --lib -- ocr_reads_the_drawn_character_fixtures ocr_reads_the_dimmed_popup_as_normal_only ocr_reads_the_drawn_full_screen_fixtures --nocapture
       - name: Delete the extracted screenshots
         if: always()
         run: rm -rf "$RUNNER_TEMP/real-prints"

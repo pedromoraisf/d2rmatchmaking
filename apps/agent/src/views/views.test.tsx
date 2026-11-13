@@ -162,6 +162,7 @@ describe('diagnostics view', () => {
     frameHeight: 1080,
     cardsRead: 2,
     cardsSettled: 1,
+    popupOptionsFound: 2,
     rejected: [{ slot: 1, reason: 'name-disagree' }],
     post: 'not-sent',
   };
@@ -179,6 +180,7 @@ describe('diagnostics view', () => {
     expect(screen.getByText('Screen: Character selection')).toBeTruthy();
     expect(screen.getByText('Frame: 1920×1080')).toBeTruthy();
     expect(screen.getByText('Cards read: 2, settled: 1')).toBeTruthy();
+    expect(screen.getByText('Popup options found: 2')).toBeTruthy();
     expect(screen.getByText('Card 2 not settled: name-disagree')).toBeTruthy();
     expect(screen.getByText('Last send: not-sent')).toBeTruthy();
   });

@@ -79,12 +79,17 @@ impl PanelBox {
 /// same in every language.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PanelRegion {
-    /// The title of the Party panel ("Party").
+    /// The title of the Party panel ("Party"). Fixtures and sidecars only: the agent reads `PartyPanel`.
     PartyTitle,
-    /// The label above the Game Name field.
+    /// The label above the Game Name field. Fixtures and sidecars only.
     GameNameLabel,
-    /// The Game Name field, which shows the game name or its masked form.
+    /// The Game Name field, which shows the game name or its masked form. Fixtures and sidecars only.
     GameNameField,
+    /// The area the Party panel's lines are searched in (`anchors::find_party`): the title, the Game Name label and its
+    /// field, in the maximized and in the full-screen client. The area may also include the "Password" label; its text is never
+    /// used, matched, returned, logged or sent (the lines are read once, and only the title, the Game Name label and the
+    /// field are looked for). The three boxes above are where the drawn fixtures put the text; the agent does not read them.
+    PartyPanel,
 }
 
 /// The box of `panel` in pixels of the reference client. The Party panel is anchored at the left edge.
@@ -93,6 +98,7 @@ pub fn panel_box(panel: PanelRegion) -> PanelBox {
         PanelRegion::PartyTitle => PanelBox::new(Anchor::Left, 350, 108, 100, 34),
         PanelRegion::GameNameLabel => PanelBox::new(Anchor::Left, 268, 152, 100, 18),
         PanelRegion::GameNameField => PanelBox::new(Anchor::Left, 238, 172, 156, 38),
+        PanelRegion::PartyPanel => PanelBox::new(Anchor::Left, 230, 100, 250, 170),
     }
 }
 
@@ -134,18 +140,27 @@ pub enum ScreenRegion {
     Life,
     /// The "Difficulty:" line of the automap's area block, top right (the automap's marker).
     AreaDifficulty,
-    /// The "Select Difficulty" title of the popup.
+    /// The "Select Difficulty" title of the popup. Fixtures and sidecars only: the agent reads `PopupArea` and finds the
+    /// title by its text.
     SelectDifficulty,
     /// The Normal, Nightmare and Hell buttons of the popup: a difficulty is enabled when its label reads and is bright.
+    /// Fixtures and sidecars only: the agent finds the options by their words in `PopupArea` (and samples the brightness
+    /// of the box it found).
     PopupNormal,
     PopupNightmare,
     PopupHell,
-    /// The title line, the name and the "Level N Class" line of a card.
+    /// The title line, the name and the "Level N Class" line of a card. Fixtures and sidecars only: the agent finds a card's
+    /// lines by the text of the lines in `CardColumn`.
     CardTitle(u8),
     CardName(u8),
     CardLevel(u8),
     /// The top border of a card: gold when the card is the selected one.
     CardSelected(u8),
+    /// The right-hand column the character list sits in, from under the top edge to above "Create New": the area the card
+    /// lines are searched in (`anchors::find_cards`), whatever the client's mode (maximized or full screen).
+    CardColumn,
+    /// The area of the popup's title and options, around the centre line (`anchors::popup_options`).
+    PopupArea,
 }
 
 fn card_top(slot: u8) -> u32 {
@@ -167,7 +182,31 @@ pub fn screen_box(region: ScreenRegion) -> PanelBox {
         ScreenRegion::CardName(slot) => PanelBox::new(Right, 108, card_top(slot) + 36, 236, 18),
         ScreenRegion::CardLevel(slot) => PanelBox::new(Right, 108, card_top(slot) + 58, 236, 18),
         ScreenRegion::CardSelected(slot) => PanelBox::new(Right, 210, card_top(slot) - 1, 20, 3),
+        ScreenRegion::CardColumn => PanelBox::new(Right, 40, 30, 340, 850),
+        ScreenRegion::PopupArea => PanelBox::new(Centre, -130, 320, 260, 290),
     }
+}
+
+/// The band to sample for the gold frame of the card whose name line is `name`: the card's top border sits 44.5 px above
+/// the middle of its name on the reference client, so the band spans 52 to 38 px above it (scaled with the client height).
+/// A card's other lines are at least 38 px from that band's rows of the card above. `None` when the size is not supported
+/// or the band leaves the frame.
+pub fn selection_band(name: Region, width: u32, height: u32) -> Option<Region> {
+    if !supported_size(width, height) {
+        return None;
+    }
+    let above = |reference: f64| {
+        (reference * f64::from(height) / f64::from(REFERENCE_HEIGHT)).round() as u32
+    };
+    let top = name.middle_y().checked_sub(above(52.0))?;
+    let band = above(14.0).max(1);
+    let border = screen_region(ScreenRegion::CardSelected(0), width, height)?;
+    (top + band <= height).then_some(Region {
+        x: border.x,
+        y: top,
+        width: border.width,
+        height: band,
+    })
 }
 
 /// The pixels of a screen region in a client of `width` × `height`, or `None` when the size is not supported or the
@@ -194,6 +233,8 @@ impl ScreenRegion {
             ScreenRegion::CardName(slot) => format!("cardName{slot}"),
             ScreenRegion::CardLevel(slot) => format!("cardLevel{slot}"),
             ScreenRegion::CardSelected(slot) => format!("cardSelected{slot}"),
+            ScreenRegion::CardColumn => "cardColumn".to_string(),
+            ScreenRegion::PopupArea => "popupArea".to_string(),
         }
     }
 }
@@ -220,7 +261,7 @@ pub fn screen_text_regions() -> Vec<ScreenRegion> {
 
 #[cfg(test)]
 mod screen_tests {
-    use super::{CARD_SLOTS, ScreenRegion, screen_region, screen_text_regions};
+    use super::{CARD_SLOTS, ScreenRegion, screen_region, screen_text_regions, selection_band};
     use crate::vision::Region;
 
     fn at(region: ScreenRegion, width: u32, height: u32) -> Region {
@@ -374,6 +415,62 @@ mod screen_tests {
     fn an_unsupported_aspect_ratio_resolves_no_screen_region() {
         assert_eq!(screen_region(ScreenRegion::CardName(0), 1280, 1024), None);
         assert_eq!(screen_region(ScreenRegion::Life, 2560, 1080), None);
+    }
+
+    #[test]
+    fn the_search_areas_hold_the_measured_lines_of_both_clients() {
+        let holds = |area: Region, x: u32, y: u32| {
+            area.x <= x && x < area.x + area.width && area.y <= y && y < area.y + area.height
+        };
+        // The full-screen 1920×1080 print: tabs, titled card, the second card's level line; the popup's title and Hell.
+        let column = at(ScreenRegion::CardColumn, 1920, 1080);
+        for (x, y) in [(1560, 53), (1700, 87), (1860, 141), (1700, 233)] {
+            assert!(holds(column, x, y), "({x}, {y}) is in the card column");
+        }
+        let popup = at(ScreenRegion::PopupArea, 1920, 1080);
+        for (x, y) in [(960, 385), (960, 455), (960, 586)] {
+            assert!(holds(popup, x, y), "({x}, {y}) is in the popup area");
+        }
+        // The reference 1920×1033 client: the first card's title, the last slot's level line, the popup's Hell.
+        let column = at(ScreenRegion::CardColumn, 1920, 1033);
+        assert!(holds(column, 1700, 61) && holds(column, 1700, 90 * 8 + 104));
+        assert!(holds(at(ScreenRegion::PopupArea, 1920, 1033), 960, 550));
+        // The column ends above "Create New", at every supported size.
+        for (width, height) in [(1920, 1033), (1920, 1080), (2560, 1440)] {
+            let column = at(ScreenRegion::CardColumn, width, height);
+            let create = at(ScreenRegion::CreateNew, width, height);
+            assert!(column.y + column.height <= create.y);
+        }
+    }
+
+    #[test]
+    fn the_gold_band_follows_the_name_line_not_a_fixed_slot() {
+        // The reference client: the border of slot 0 is at 45..48 and its name line is centred on 91.
+        let name = Region {
+            x: 1576,
+            y: 82,
+            width: 236,
+            height: 18,
+        };
+        let band = selection_band(name, 1920, 1033).expect("inside the frame");
+        assert_eq!((band.y, band.height), (39, 14));
+        assert!(
+            band.y <= 45 && 48 <= band.y + band.height,
+            "the border is in the band"
+        );
+        assert_eq!((band.x, band.width), (1690, 20));
+        // The same card in the full-screen client, its name line centred on 118.
+        let name = Region {
+            x: 1560,
+            y: 109,
+            width: 120,
+            height: 18,
+        };
+        let band = selection_band(name, 1920, 1080).expect("inside the frame");
+        assert_eq!((band.y, band.height), (118 - 54, 15));
+        assert_eq!(selection_band(name, 1280, 1024), None, "unsupported size");
+        let high = Region { y: 10, ..name };
+        assert_eq!(selection_band(high, 1920, 1080), None, "above the frame");
     }
 
     #[test]

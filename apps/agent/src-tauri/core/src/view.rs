@@ -61,6 +61,8 @@ pub struct DiagnosticsView {
     pub cards_read: u8,
     /// How many of them settled into a complete card.
     pub cards_settled: u8,
+    /// How many popup options were found by their word (0 to 3). A count, never a text.
+    pub popup_options_found: u8,
     pub rejected: Vec<RejectedSlot>,
     /// The outcome of the last character post: `not-sent`, `ok` or the kind of the error it carried.
     pub post: &'static str,
@@ -150,6 +152,7 @@ mod tests {
             frame_height: 1080,
             cards_read: 2,
             cards_settled: 1,
+            popup_options_found: 2,
             rejected: vec![RejectedSlot {
                 slot: 1,
                 reason: "name-disagree",
@@ -165,6 +168,7 @@ mod tests {
                 "frameHeight": 1080,
                 "cardsRead": 2,
                 "cardsSettled": 1,
+                "popupOptionsFound": 2,
                 "rejected": [{ "slot": 1, "reason": "name-disagree" }],
                 "post": "not-sent",
             })

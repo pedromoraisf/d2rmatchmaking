@@ -7,6 +7,7 @@ use std::process::ExitCode;
 
 use xtask::character_fixture::draw_character_fixtures;
 use xtask::fixture::{draw_party_fixtures, fixture_path, render_png};
+use xtask::fullscreen_fixture::draw_fullscreen_fixtures;
 use xtask::{generate, generate_schema_module, generated_path, schema_dir, schema_module_path};
 
 fn contracts() -> Result<(), Box<dyn Error>> {
@@ -44,6 +45,13 @@ fn draw_characters() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn draw_fullscreen() -> Result<(), Box<dyn Error>> {
+    for path in draw_fullscreen_fixtures()? {
+        println!("wrote {}", path.display());
+    }
+    Ok(())
+}
+
 fn main() -> ExitCode {
     match std::env::args().nth(1).as_deref() {
         Some("contracts") => match contracts() {
@@ -75,13 +83,24 @@ fn main() -> ExitCode {
                     ExitCode::FAILURE
                 }
             },
+            Some("fullscreen") => match draw_fullscreen() {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("xtask draw-fixture fullscreen: {error}");
+                    ExitCode::FAILURE
+                }
+            },
             Some(_) => {
-                eprintln!("usage: cargo run -p xtask -- draw-fixture [party | characters]");
+                eprintln!(
+                    "usage: cargo run -p xtask -- draw-fixture [party | characters | fullscreen]"
+                );
                 ExitCode::from(2)
             }
         },
         _ => {
-            eprintln!("usage: cargo run -p xtask -- contracts | draw-fixture [party | characters]");
+            eprintln!(
+                "usage: cargo run -p xtask -- contracts | draw-fixture [party | characters | fullscreen]"
+            );
             ExitCode::from(2)
         }
     }

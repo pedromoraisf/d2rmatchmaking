@@ -2,6 +2,7 @@
 //! Time and identifiers enter as arguments.
 #![forbid(unsafe_code)]
 
+pub mod anchors;
 pub mod character_screen;
 pub mod characters;
 pub mod fusion;

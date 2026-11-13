@@ -47,6 +47,8 @@ pub struct FrameReading {
     pub cards: Vec<d2rmm_agent_domain::characters::Card>,
     /// How many card slots held text, and why each slot that settled no card did not. Local diagnostics only.
     pub slots_read: u8,
+    /// How many popup options the popup's lines showed by their word. Local diagnostics only.
+    pub popup_options: u8,
     pub rejected: Vec<d2rmm_agent_domain::character_screen::Rejection>,
 }
 
@@ -57,6 +59,7 @@ impl FrameReading {
             screen,
             cards: Vec::new(),
             slots_read: 0,
+            popup_options: 0,
             rejected: Vec::new(),
         }
     }

@@ -4,13 +4,13 @@
 #![allow(unsafe_code)]
 
 use d2rmm_agent_core::ports::{ReadError, Rgba, TextReader};
-use d2rmm_agent_domain::vision::{ReadText, Region};
+use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 use windows::Globalization::Language;
 use windows::Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap};
 use windows::Media::Ocr::OcrEngine;
 use windows::Storage::Streams::DataWriter;
 
-use crate::adapters::ocr_pixels::{Upscale, padded_region, upscaled_bgra};
+use crate::adapters::ocr_pixels::{Upscale, frame_region_of_boxes, padded_region, upscaled_bgra};
 
 /// The scale a region is read at: bilinear, 3×, so the Party panel's text (about 12 px high) reaches the size the
 /// engine reads. A decision of the agent-game-name feature, pinned by the maintainer's screenshots (windows test); T11's
@@ -82,11 +82,61 @@ impl WindowsOcr {
         let confidence = if text.trim().is_empty() { 0.0 } else { 1.0 };
         Ok(ReadText { text, confidence })
     }
+
+    /// The lines of the region read at `scale` and `filter`: one per OCR line, placed in the frame by the union of its words'
+    /// boxes (the engine measures them in the padded, enlarged crop it read).
+    fn lines_at(
+        &self,
+        image: &Rgba,
+        region: Region,
+        scale: u32,
+        filter: Upscale,
+    ) -> Result<Vec<TextLine>, ReadError> {
+        let bitmap = crop_to_bitmap(image, region, scale, filter)?;
+        let result = self
+            .engine
+            .RecognizeAsync(&bitmap)
+            .and_then(|operation| operation.join())
+            .map_err(|_| ReadError::Failed)?;
+        let crop = padded_region(region, image.width, image.height, OCR_PAD_X, 0);
+        let mut lines = Vec::new();
+        for line in result.Lines().map_err(|_| ReadError::Failed)? {
+            let text = line.Text().map_err(|_| ReadError::Failed)?.to_string();
+            let mut boxes = Vec::new();
+            for word in line.Words().map_err(|_| ReadError::Failed)? {
+                let rect = word.BoundingRect().map_err(|_| ReadError::Failed)?;
+                boxes.push((rect.X, rect.Y, rect.Width, rect.Height));
+            }
+            if text.trim().is_empty() {
+                continue;
+            }
+            if let Some(found) = frame_region_of_boxes(crop, scale, &boxes) {
+                lines.push(TextLine {
+                    text,
+                    region: found,
+                });
+            }
+        }
+        Ok(lines)
+    }
 }
 
 impl TextReader for WindowsOcr {
     fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
         self.read_at(image, region, self.scale, self.filter)
+    }
+
+    fn read_lines(&self, image: &Rgba, region: Region) -> Vec<TextLine> {
+        self.lines_at(image, region, self.scale, self.filter)
+            .unwrap_or_default()
+    }
+
+    /// The lines of the region read nearest 3x first, then at each extra variant; a variant that fails is left out.
+    fn read_line_variants(&self, image: &Rgba, region: Region) -> Vec<Vec<TextLine>> {
+        std::iter::once((self.scale, self.filter))
+            .chain(self.extra.iter().copied())
+            .filter_map(|(scale, filter)| self.lines_at(image, region, scale, filter).ok())
+            .collect()
     }
 
     /// The region read nearest 3x first, then each extra variant; a variant that fails is left out.
@@ -320,6 +370,41 @@ mod tests {
         assert!(
             mismatches.is_empty(),
             "{} of 8 drawn character fixtures mismatch:\n{}",
+            mismatches.len(),
+            mismatches.join("\n")
+        );
+    }
+
+    /// The full-screen fixtures xtask draws (`fixtures/fullscreen`, 0.1.3): the cards, the popup and the Party panel at the
+    /// offsets of a full-screen 1920×1080 client, read by their content. Informational with the other drawn-fixture tests.
+    #[test]
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    fn ocr_reads_the_drawn_full_screen_fixtures() {
+        let engine = Arc::new(engine());
+        let reader = ScreenReader::new(
+            Arc::clone(&engine) as Arc<dyn TextReader + Send + Sync>,
+            Arc::new(LanguagePack::english()),
+        );
+        let load = |name: &str| {
+            decode_png(&format!(
+                "{}/../fixtures/fullscreen/{name}",
+                env!("CARGO_MANIFEST_DIR")
+            ))
+        };
+        let mut mismatches = Vec::new();
+        for name in ["select.png", "difficulty.png"] {
+            let reading = reader.read(&load(name));
+            if let Err(error) = check_screen(&reading, Screen::CharacterSelect, &MAINTAINER_CARDS) {
+                mismatches.push(format!("{name}: {error}"));
+            }
+        }
+        let party = load("party.png");
+        if let Err(error) = check_party(&*engine, &party, "mmbaalh-12", FieldRead::Matched) {
+            mismatches.push(format!("party.png: {error}"));
+        }
+        assert!(
+            mismatches.is_empty(),
+            "{} of 3 full-screen fixtures mismatch:\n{}",
             mismatches.len(),
             mismatches.join("\n")
         );

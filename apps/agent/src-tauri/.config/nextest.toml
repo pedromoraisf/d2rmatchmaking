@@ -1,5 +1,5 @@
-# The two Windows-OCR-on-drawn-fixtures tests are informational (characters-reading T32, maintainer 2026-11-12): the real
+# The three Windows-OCR-on-drawn-fixtures tests are informational (characters-reading T32, maintainer 2026-11-12): the real
 # screenshots (`ocr-real`) are the Windows OCR proof. They are behind the cargo feature `drawn-fixtures-ocr`; this filter keeps
 # them out of `cargo nextest run --all-features` too (the agent job). The `ocr-real` workflow runs them with `cargo test`.
 [profile.default]
-default-filter = "not (test(ocr_reads_the_drawn_character_fixtures) or test(ocr_reads_the_dimmed_popup_as_normal_only))"
+default-filter = "not (test(ocr_reads_the_drawn_character_fixtures) or test(ocr_reads_the_dimmed_popup_as_normal_only) or test(ocr_reads_the_drawn_full_screen_fixtures))"

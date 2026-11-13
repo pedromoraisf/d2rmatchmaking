@@ -6,8 +6,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 use d2rmm_agent_core::messages::FrameReading;
+use d2rmm_agent_core::party::read_panel;
 use d2rmm_agent_core::ports::{FrameReader, Rgba, TextReader};
 use d2rmm_agent_core::screen_reader::ScreenReader;
+use d2rmm_agent_domain::anchors;
 use d2rmm_agent_domain::characters::{Class, Difficulty, Title};
 use d2rmm_agent_domain::game_name_match::{FieldRead, read_field_variants};
 use d2rmm_agent_domain::language::LanguagePack;
@@ -64,25 +66,6 @@ pub fn decode_png(path: &str) -> Rgba {
     read_screenshot(Path::new(path)).expect("the committed image decodes")
 }
 
-/// Every reading (OCR variant) of one Party panel region, read with `reader`.
-fn read_panel(
-    reader: &dyn TextReader,
-    image: &Rgba,
-    panel: PanelRegion,
-) -> Result<Vec<String>, String> {
-    let region = panel_region(panel, image.width, image.height).ok_or_else(|| {
-        format!(
-            "the Party panel layout is unknown for a {}x{} screenshot",
-            image.width, image.height
-        )
-    })?;
-    Ok(reader
-        .read_variants(image, region)
-        .into_iter()
-        .map(|read| read.text)
-        .collect())
-}
-
 /// Reads one Party frame: the panel must be open, and the Game Name field must read as `expected` for the room's name
 /// `expected_name`, with the readings combined as the agent combines them (`read_field_variants`). The error names what was
 /// read, so a failure shows the OCR text.
@@ -105,19 +88,26 @@ pub fn check_party_reads(
     show_reads: bool,
 ) -> Result<(), String> {
     let language = LanguagePack::english();
-    let title = read_panel(reader, image, PanelRegion::PartyTitle)?;
-    let label = read_panel(reader, image, PanelRegion::GameNameLabel)?;
-    let field = read_panel(reader, image, PanelRegion::GameNameField)?;
-    let open = title.iter().any(|read| language.party_panel_open(read));
+    if panel_region(PanelRegion::PartyPanel, image.width, image.height).is_none() {
+        return Err(format!(
+            "the Party panel layout is unknown for a {}x{} screenshot",
+            image.width, image.height
+        ));
+    }
+    // The panel is read as the agent reads it: by the lines of its area, the field being the line under the label.
+    let panel = read_panel(reader, &language, image);
+    let field: Vec<String> = panel.field.iter().map(|read| read.text.clone()).collect();
     let field_text = if show_reads {
         format!(", field {field:?}")
     } else {
         String::new()
     };
-    if !open {
-        return Err(format!(
-            "the panel is not open: title {title:?}, label {label:?}{field_text}"
-        ));
+    let anchors = format!(
+        "title found: {}, label found: {}",
+        panel.open, panel.label_found
+    );
+    if !panel.open {
+        return Err(format!("the panel is not open: {anchors}{field_text}"));
     }
     let fields: Vec<&str> = field.iter().map(String::as_str).collect();
     let got = read_field_variants(&fields, expected_name);
@@ -125,7 +115,7 @@ pub fn check_party_reads(
         Ok(())
     } else {
         Err(format!(
-            "the field is {got:?}, expected {expected:?}: title {title:?}, label {label:?}{field_text}"
+            "the field is {got:?}, expected {expected:?}: {anchors}{field_text}"
         ))
     }
 }
@@ -261,6 +251,59 @@ fn spots(name: &str, width: u32, height: u32) -> Vec<Spot> {
     regions
 }
 
+/// The anchors the agent finds in a screenshot, as one line of counts: the cards found by their level line and the popup
+/// options found by their word for a selection screen; whether the panel's title and the "Game Name" label were found, and
+/// whether the field was read, for a Party frame. Counts and yes/no only: no line of text, no pixel, so the CI log stays free
+/// of other players' names.
+pub fn anchor_line(
+    name: &str,
+    reader: &dyn TextReader,
+    screens: &ScreenReader,
+    image: &Rgba,
+) -> String {
+    let yes = |found: bool| if found { "yes" } else { "no" };
+    if name.starts_with("maintainer-party") {
+        let panel = read_panel(reader, &LanguagePack::english(), image);
+        return format!(
+            "  anchors: title found {}, game-name label found {}, game-name field read {}",
+            yes(panel.open),
+            yes(panel.label_found),
+            yes(!panel.field.is_empty())
+        );
+    }
+    let counts = screens.anchor_counts(image);
+    format!(
+        "  anchors: cards found {}, popup options found {}",
+        counts.cards, counts.popup_options
+    )
+}
+
+/// What the line pass found in a Party frame's panel area, per variant, with no text: the number of lines and, per line, its
+/// y and height and the anchor it matched (title, label, password or none). Tells whether the pass returned the label as a
+/// line of its own.
+pub fn party_line_diagnostics(reader: &dyn TextReader, image: &Rgba) -> Vec<String> {
+    let Some(area) = panel_region(PanelRegion::PartyPanel, image.width, image.height) else {
+        return Vec::new();
+    };
+    let pack = LanguagePack::english();
+    let mut out = Vec::new();
+    for (index, lines) in reader.read_line_variants(image, area).iter().enumerate() {
+        out.push(format!(
+            "  line pass, variant {index}: {} lines",
+            lines.len()
+        ));
+        for line in lines {
+            out.push(format!(
+                "    y {} height {}: {}",
+                line.region.y,
+                line.region.height,
+                anchors::party_line_anchor(&pack, &line.text)
+            ));
+        }
+    }
+    out
+}
+
 /// The readers whose text the diagnostics print for each region, by label (nearest and bilinear at 2x, 3x, 4x and 5x); the agent
 /// reads the six of 3x, 4x and 5x (characters-reading T24).
 pub type Variants = Vec<(String, Arc<dyn TextReader + Send + Sync>)>;
@@ -380,6 +423,12 @@ pub fn check_folder(
             read_screenshot(&path).and_then(|image| {
                 for line in diagnostics(name, &variants, &image, show_reads) {
                     println!("{line}");
+                }
+                println!("{}", anchor_line(name, &*reader, &screens, &image));
+                if name.starts_with("maintainer-party") {
+                    for line in party_line_diagnostics(&*reader, &image) {
+                        println!("{line}");
+                    }
                 }
                 verdict(name, &*reader, &screens, &image, show_reads)
             })
@@ -584,6 +633,7 @@ mod tests {
         FrameReading {
             screen: Screen::CharacterSelect,
             slots_read: 0,
+            popup_options: 0,
             rejected: Vec::new(),
             cards,
         }
@@ -624,6 +674,132 @@ mod tests {
         assert!(
             error.contains("vukvuka"),
             "show_reads restores the full error: {error}"
+        );
+    }
+
+    /// Answers the lines it was built with that sit in the area, and blank text for any region read again.
+    struct LinesReader(Vec<d2rmm_agent_domain::vision::TextLine>);
+
+    impl TextReader for LinesReader {
+        fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
+            Ok(ReadText {
+                text: String::new(),
+                confidence: 0.0,
+            })
+        }
+
+        fn read_lines(
+            &self,
+            _image: &Rgba,
+            area: Region,
+        ) -> Vec<d2rmm_agent_domain::vision::TextLine> {
+            self.0
+                .iter()
+                .filter(|line| {
+                    area.y <= line.region.middle_y() && line.region.middle_y() < area.bottom()
+                })
+                .cloned()
+                .collect()
+        }
+    }
+
+    fn line(text: &str, middle: u32) -> d2rmm_agent_domain::vision::TextLine {
+        d2rmm_agent_domain::vision::TextLine {
+            text: text.to_string(),
+            region: Region {
+                x: 1560,
+                y: middle - 8,
+                width: 200,
+                height: 16,
+            },
+        }
+    }
+
+    #[test]
+    fn the_anchor_line_counts_what_it_found_and_names_no_text() {
+        use d2rmm_agent_core::screen_reader::ScreenReader;
+        use d2rmm_agent_domain::language::LanguagePack;
+
+        let image = Rgba {
+            width: 1920,
+            height: 1080,
+            pixels: Vec::new(),
+        };
+        let reader: Arc<dyn TextReader + Send + Sync> = Arc::new(LinesReader(vec![
+            line("ONLINE OFFLINE", 53),
+            line("MATRIARCH", 87),
+            line("vukVuka", 118),
+            line("Level 88 Sorceress", 141),
+            line("vukaDao", 210),
+            line("Level 11 Sorceress", 233),
+            line("Normal", 455),
+            line("Hell", 586),
+        ]));
+        let screens = ScreenReader::new(Arc::clone(&reader), Arc::new(LanguagePack::english()));
+        let shown = super::anchor_line(
+            "maintainer-select-difficulty.png",
+            &*reader,
+            &screens,
+            &image,
+        );
+        assert_eq!(shown, "  anchors: cards found 2, popup options found 2");
+        assert!(!shown.to_lowercase().contains("vuk"));
+    }
+
+    #[test]
+    fn the_line_pass_diagnostics_name_the_anchor_of_each_line_and_never_its_text() {
+        let image = Rgba {
+            width: 1920,
+            height: 1080,
+            pixels: Vec::new(),
+        };
+        let reader = LinesReader(vec![
+            line("PARTY", 153),
+            line("GA me N AllTE", 170),
+            line("PA SS W ORD", 230),
+            line("mmbaalh-12", 190),
+        ]);
+        let lines = super::party_line_diagnostics(&reader, &image);
+        assert_eq!(
+            lines,
+            [
+                "  line pass, variant 0: 4 lines",
+                "    y 145 height 16: title",
+                "    y 162 height 16: label",
+                "    y 222 height 16: password",
+                "    y 182 height 16: none",
+            ]
+        );
+        assert!(!lines.join("\n").contains("mmbaalh"));
+    }
+
+    #[test]
+    fn the_anchor_line_of_a_party_frame_says_what_was_found_and_nothing_else() {
+        use d2rmm_agent_core::screen_reader::ScreenReader;
+        use d2rmm_agent_domain::language::LanguagePack;
+
+        let image = Rgba {
+            width: 1920,
+            height: 1080,
+            pixels: Vec::new(),
+        };
+        let party = |lines: Vec<d2rmm_agent_domain::vision::TextLine>| {
+            let reader: Arc<dyn TextReader + Send + Sync> = Arc::new(LinesReader(lines));
+            let screens = ScreenReader::new(Arc::clone(&reader), Arc::new(LanguagePack::english()));
+            super::anchor_line("maintainer-party-revealed.png", &*reader, &screens, &image)
+        };
+        let mut open = vec![line("PARTY", 153), line("GAME NAME", 192)];
+        for l in &mut open {
+            l.region.x = 280;
+        }
+        assert_eq!(
+            party(open),
+            "  anchors: title found yes, game-name label found yes, game-name field read yes",
+            "a label with nothing under it is still read in the box under it"
+        );
+        assert_eq!(
+            party(vec![line("INVENTORY", 153)]),
+            "  anchors: title found no, game-name label found no, game-name field read no"
         );
     }
 }
