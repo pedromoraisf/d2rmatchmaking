@@ -318,12 +318,18 @@ test('tauri.conf.json keeps the hardened shell', () => {
   );
 });
 
-test('the window gets only listen, unlisten and get_new_code', () => {
+test('the window gets exactly listen, unlisten, get_new_code, get_consent and set_consent', () => {
   const capability = readJson(`${agentTauri}/capabilities/main.json`);
   assert.deepEqual(capability.windows, ['main']);
   assert.deepEqual(
     [...capability.permissions].sort(),
-    ['allow-get-new-code', 'core:event:allow-listen', 'core:event:allow-unlisten'],
+    [
+      'allow-get-consent',
+      'allow-get-new-code',
+      'allow-set-consent',
+      'core:event:allow-listen',
+      'core:event:allow-unlisten',
+    ],
     'no updater, shell, fs or http permission reaches the window',
   );
 });
