@@ -19,9 +19,9 @@
   "devDependencies": {
     "@d2rmm/config": "workspace:*",
     "@types/node": "^26.6.6",
-    "eslint": "^9.39.0",
-    "typescript": "^5.9.3",
-    "vitest": "^5.0.5"
+    "eslint": "^10.12.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   },
   "dependencies": {
     "@opentelemetry/api": "1.9.1",
