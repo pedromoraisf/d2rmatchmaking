@@ -18,7 +18,7 @@
   "devDependencies": {
     "@d2rmm/config": "workspace:*",
     "@types/node": "^26.6.6",
-    "eslint": "^9.39.0",
+    "eslint": "^10.12.0",
     "typescript": "^5.9.3",
     "vitest": "^5.0.5"
   },
