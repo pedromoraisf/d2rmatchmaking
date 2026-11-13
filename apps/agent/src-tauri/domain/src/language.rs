@@ -247,6 +247,16 @@ impl LanguagePack {
             .is_some_and(|word| nearest(text, &[((), word)]).is_some())
     }
 
+    /// Whether a noisy read is, or is within the vocabulary threshold of, the word of `key` (digits and punctuation dropped,
+    /// so "PA55WORD" is near "Password"). Used to keep a garbled label from being taken for a value; `false` for a key the
+    /// pack lacks.
+    pub fn is_near_word(&self, text: &str, key: &str) -> bool {
+        self.is_squashed_word(text, key)
+            || self
+                .word(key)
+                .is_some_and(|word| nearest(text, &[((), word)]).is_some())
+    }
+
     /// Whether `text` starts with the word of `key` (a label followed by its value, such as "Life: 925 / 925"). The start
     /// may be misread within the vocabulary threshold ("Lite:" for "Life:", characters-reading T21).
     pub fn begins_with(&self, text: &str, key: &str) -> bool {
@@ -451,6 +461,18 @@ mod tests {
             !same_label("P⊕RTY", "Party"),
             "a different word stays different"
         );
+    }
+
+    #[test]
+    fn a_garbled_read_is_near_its_word_but_not_another() {
+        let english = LanguagePack::english();
+        for read in ["Password", "PA55WORD", "PASSVVORD", "P A S S W O R D"] {
+            assert!(english.is_near_word(read, PASSWORD), "{read}");
+        }
+        for read in ["MF-FAST-RUN-O1", "GAME NAME", ""] {
+            assert!(!english.is_near_word(read, PASSWORD), "{read}");
+        }
+        assert!(!english.is_near_word("Password", "missingKey"));
     }
 
     #[test]

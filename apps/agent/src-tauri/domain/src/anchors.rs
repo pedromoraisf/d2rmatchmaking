@@ -301,7 +301,7 @@ pub fn find_party(pack: &LanguagePack, lines: &[TextLine], frame_height: u32) ->
                     && line.region.x < label.region.right() + scaled(30, frame_height)
                     && line.region.right() + scaled(30, frame_height) > label.region.x
                     && !pack.is_word(&line.text, PASSWORD)
-                    && !pack.is_squashed_word(&line.text, PASSWORD)
+                    && !pack.is_near_word(&line.text, PASSWORD)
             })
             .map(|line| line.region)
     });
@@ -699,6 +699,138 @@ mod tests {
         );
         assert_eq!(two.len(), 2);
         assert!(centre(two[0].level) < centre(two[1].level));
+    }
+
+    fn level_card(name: u32, level: u32) -> Vec<TextLine> {
+        vec![column("vukVuka", name), column("Level 88 Sorceress", level)]
+    }
+
+    #[test]
+    fn two_card_lines_are_one_card_up_to_four_percent_of_the_height_apart() {
+        // At 1080 the gap is 43 px, measured from the middle of one line to the middle of the other.
+        assert_eq!(find_cards(&pack(), &level_card(98, 141), 1080).len(), 1);
+        assert!(
+            find_cards(&pack(), &level_card(97, 141), 1080).is_empty(),
+            "44 px apart is another card"
+        );
+        // The same edge for the title above the name.
+        let title = |y| {
+            let mut lines = vec![column("MATRIARCH", y)];
+            lines.extend(level_card(118, 141));
+            find_cards(&pack(), &lines, 1080)
+        };
+        assert!(title(75).first().is_some_and(|c| c.title.known().is_some()));
+        assert_eq!(title(74)[0].title, super::TitleLine::None);
+        // A line on the very same row is not above.
+        assert!(find_cards(&pack(), &level_card(141, 141), 1080).is_empty());
+        assert_eq!(find_cards(&pack(), &level_card(140, 141), 1080).len(), 1);
+    }
+
+    #[test]
+    fn an_unreadable_title_in_any_variant_outranks_no_title_line() {
+        use super::{TitleLine, find_cards_in_variants};
+        let untitled = level_card(118, 141);
+        let mut unknown = vec![column("QZXWVKJ", 87)];
+        unknown.extend(level_card(118, 141));
+        for variants in [
+            [untitled.clone(), unknown.clone()],
+            [unknown.clone(), untitled.clone()],
+        ] {
+            let cards = find_cards_in_variants(&pack(), &variants, 1080);
+            assert_eq!(cards.len(), 1);
+            assert_eq!(cards[0].title, TitleLine::Unknown, "the card is refused");
+        }
+        let cards = find_cards_in_variants(&pack(), &[untitled.clone(), untitled], 1080);
+        assert_eq!(cards[0].title, TitleLine::None);
+        // A known title still outranks an unknown one, in either order.
+        let mut known = vec![column("MATRIARCH", 87)];
+        known.extend(level_card(118, 141));
+        for variants in [[known.clone(), unknown.clone()], [unknown, known]] {
+            let cards = find_cards_in_variants(&pack(), &variants, 1080);
+            assert!(matches!(cards[0].title, TitleLine::Known(_)));
+        }
+    }
+
+    #[test]
+    fn boxes_that_only_touch_do_not_share_rows() {
+        use super::overlap_vertically;
+        let at = |y, height| Region {
+            x: 0,
+            y,
+            width: 10,
+            height,
+        };
+        // Rows 10..20 and 20..30: the first box ends where the second begins, so they are two lines (two cards), not one.
+        assert!(!overlap_vertically(at(10, 10), at(20, 10)));
+        assert!(!overlap_vertically(at(20, 10), at(10, 10)));
+        assert!(overlap_vertically(at(10, 11), at(20, 10)), "one row shared");
+        assert!(overlap_vertically(at(20, 10), at(10, 11)));
+        assert!(overlap_vertically(at(10, 30), at(15, 5)), "one inside");
+    }
+
+    #[test]
+    fn the_field_is_within_five_percent_of_the_height_under_the_label() {
+        // At 1080 the gap is 54 px, from the middle of the label to the middle of the line.
+        let panel = |y| {
+            vec![
+                line("GAME NAME", 280, 192, 90),
+                line("MF-FAST-RUN-O1", 255, y, 140),
+            ]
+        };
+        assert_eq!(
+            find_party(&pack(), &panel(246), 1080).field.map(centre),
+            Some(246)
+        );
+        assert_eq!(find_party(&pack(), &panel(247), 1080).field, None);
+        // A line on the label's own row is beside it, not under it.
+        assert_eq!(find_party(&pack(), &panel(192), 1080).field, None);
+        assert_eq!(
+            find_party(&pack(), &panel(193), 1080).field.map(centre),
+            Some(193)
+        );
+    }
+
+    #[test]
+    fn the_field_may_start_up_to_the_margin_beyond_the_label_on_either_side() {
+        // The label spans x 280..370; the margin at 1080 is 31 px (the same as `field_below`).
+        let at = |x, width| {
+            vec![
+                line("GAME NAME", 280, 192, 90),
+                line("MF-FAST-RUN-O1", x, 220, width),
+            ]
+        };
+        let field = |lines: Vec<TextLine>| find_party(&pack(), &lines, 1080).field;
+        assert!(field(at(400, 140)).is_some(), "starts 30 px past the end");
+        assert!(field(at(401, 140)).is_none(), "starts 31 px past the end");
+        assert!(
+            field(at(110, 140)).is_some(),
+            "ends at 250, 30 px before the label"
+        );
+        assert!(field(at(109, 140)).is_none(), "ends at 249, 31 px before");
+    }
+
+    #[test]
+    fn a_garbled_password_label_under_the_game_name_is_never_the_field() {
+        // The game name is masked, so there is no field line; the Password label sits 48 px under the Game Name label.
+        for garbled in ["PASSW0RD", "PA55WORD", "PASSVVORD", "PASSWORD"] {
+            let lines = vec![
+                line("PARTY", 350, 153, 70),
+                line("GAME NAME", 280, 192, 90),
+                line(garbled, 285, 240, 80),
+            ];
+            let found = find_party(&pack(), &lines, 1080);
+            assert_eq!(found.field, None, "{garbled} is the Password label");
+        }
+        // A real game name under the label is still the field.
+        let lines = vec![
+            line("GAME NAME", 280, 192, 90),
+            line("MF-FAST-RUN-O1", 255, 220, 140),
+            line("PA55WORD", 285, 262, 80),
+        ];
+        assert_eq!(
+            find_party(&pack(), &lines, 1080).field.map(centre),
+            Some(220)
+        );
     }
 
     #[test]
