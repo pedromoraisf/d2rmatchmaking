@@ -10,6 +10,36 @@ pub struct Region {
     pub height: u32,
 }
 
+impl Region {
+    /// The row of pixels through the middle of the region.
+    pub fn middle_y(self) -> u32 {
+        self.y + self.height / 2
+    }
+
+    /// The column of pixels through the middle of the region.
+    pub fn middle_x(self) -> u32 {
+        self.x + self.width / 2
+    }
+
+    /// One past the last column of the region.
+    pub fn right(self) -> u32 {
+        self.x + self.width
+    }
+
+    /// One past the last row of the region.
+    pub fn bottom(self) -> u32 {
+        self.y + self.height
+    }
+}
+
+/// One line of text the reader found in a region, with where the line sits in the frame (coordinates of the frame, not of
+/// the region that was read). The screen readers anchor on the lines' content instead of on fixed offsets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextLine {
+    pub text: String,
+    pub region: Region,
+}
+
 /// Text read from a region, with the reader's confidence.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReadText {

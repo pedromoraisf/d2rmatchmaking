@@ -4,13 +4,13 @@
 #![allow(unsafe_code)]
 
 use d2rmm_agent_core::ports::{ReadError, Rgba, TextReader};
-use d2rmm_agent_domain::vision::{ReadText, Region};
+use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 use windows::Globalization::Language;
 use windows::Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap};
 use windows::Media::Ocr::OcrEngine;
 use windows::Storage::Streams::DataWriter;
 
-use crate::adapters::ocr_pixels::{Upscale, padded_region, upscaled_bgra};
+use crate::adapters::ocr_pixels::{Upscale, frame_region_of_boxes, padded_region, upscaled_bgra};
 
 /// The scale a region is read at: bilinear, 3×, so the Party panel's text (about 12 px high) reaches the size the
 /// engine reads. A decision of the agent-game-name feature, pinned by the maintainer's screenshots (windows test); T11's
@@ -82,11 +82,53 @@ impl WindowsOcr {
         let confidence = if text.trim().is_empty() { 0.0 } else { 1.0 };
         Ok(ReadText { text, confidence })
     }
+
+    /// The lines of the region read at `scale` and `filter`: one per OCR line, placed in the frame by the union of its words'
+    /// boxes (the engine measures them in the padded, enlarged crop it read).
+    fn lines_at(
+        &self,
+        image: &Rgba,
+        region: Region,
+        scale: u32,
+        filter: Upscale,
+    ) -> Result<Vec<TextLine>, ReadError> {
+        let bitmap = crop_to_bitmap(image, region, scale, filter)?;
+        let result = self
+            .engine
+            .RecognizeAsync(&bitmap)
+            .and_then(|operation| operation.join())
+            .map_err(|_| ReadError::Failed)?;
+        let crop = padded_region(region, image.width, image.height, OCR_PAD_X, 0);
+        let mut lines = Vec::new();
+        for line in result.Lines().map_err(|_| ReadError::Failed)? {
+            let text = line.Text().map_err(|_| ReadError::Failed)?.to_string();
+            let mut boxes = Vec::new();
+            for word in line.Words().map_err(|_| ReadError::Failed)? {
+                let rect = word.BoundingRect().map_err(|_| ReadError::Failed)?;
+                boxes.push((rect.X, rect.Y, rect.Width, rect.Height));
+            }
+            if text.trim().is_empty() {
+                continue;
+            }
+            if let Some(found) = frame_region_of_boxes(crop, scale, &boxes) {
+                lines.push(TextLine {
+                    text,
+                    region: found,
+                });
+            }
+        }
+        Ok(lines)
+    }
 }
 
 impl TextReader for WindowsOcr {
     fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
         self.read_at(image, region, self.scale, self.filter)
+    }
+
+    fn read_lines(&self, image: &Rgba, region: Region) -> Vec<TextLine> {
+        self.lines_at(image, region, self.scale, self.filter)
+            .unwrap_or_default()
     }
 
     /// The region read nearest 3x first, then each extra variant; a variant that fails is left out.

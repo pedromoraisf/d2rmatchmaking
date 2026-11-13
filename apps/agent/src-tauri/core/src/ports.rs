@@ -9,7 +9,7 @@ use std::time::Duration;
 use chrono::{DateTime, TimeDelta, Utc};
 use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::room_assignment::Assignment;
-use d2rmm_agent_domain::vision::{ReadText, Region};
+use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 use uuid::Uuid;
 
 use crate::messages::{
@@ -85,6 +85,36 @@ pub trait TextReader {
     /// differently. A reader with one way to read returns its one reading; a failed region returns none.
     fn read_variants(&self, image: &Rgba, region: Region) -> Vec<ReadText> {
         self.read(image, region).into_iter().collect()
+    }
+
+    /// The lines of text in the region with where each sits in the frame, top to bottom. The screen readers find a card, a
+    /// popup option or the Party panel's field by the text of a line, not by a fixed offset. A reader that does not know
+    /// where its lines sit returns the lines of `read` with the region cut into equal rows, one per line.
+    fn read_lines(&self, image: &Rgba, region: Region) -> Vec<TextLine> {
+        let Ok(read) = self.read(image, region) else {
+            return Vec::new();
+        };
+        let lines: Vec<&str> = read
+            .text
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .collect();
+        let count = u32::try_from(lines.len()).unwrap_or(u32::MAX).max(1);
+        let row = (region.height / count).max(1);
+        lines
+            .into_iter()
+            .zip(0u32..)
+            .map(|(text, index)| TextLine {
+                text: text.to_string(),
+                region: Region {
+                    x: region.x,
+                    y: region.y + row * index,
+                    width: region.width,
+                    height: row,
+                },
+            })
+            .collect()
     }
 }
 
@@ -308,5 +338,68 @@ mod tests {
         assert_eq!(clock.now_utc(), start);
         tokio::time::advance(std::time::Duration::from_secs(5)).await;
         assert_eq!(clock.now_utc(), start + TimeDelta::seconds(5));
+    }
+}
+
+#[cfg(test)]
+mod read_lines_tests {
+    use d2rmm_agent_domain::vision::{ReadText, Region};
+
+    use super::{ReadError, Rgba, TextReader};
+
+    struct Fixed(&'static str);
+
+    impl TextReader for Fixed {
+        fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
+            Ok(ReadText {
+                text: self.0.to_string(),
+                confidence: 1.0,
+            })
+        }
+    }
+
+    const REGION: Region = Region {
+        x: 100,
+        y: 200,
+        width: 300,
+        height: 90,
+    };
+
+    fn frame() -> Rgba {
+        Rgba {
+            width: 1,
+            height: 1,
+            pixels: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn the_default_cuts_the_region_into_one_row_per_non_blank_line() {
+        let lines =
+            Fixed("Matriarch\n\n vukVuka \nLevel 88 Sorceress").read_lines(&frame(), REGION);
+        let texts: Vec<&str> = lines.iter().map(|line| line.text.as_str()).collect();
+        assert_eq!(texts, ["Matriarch", "vukVuka", "Level 88 Sorceress"]);
+        let rows: Vec<(u32, u32)> = lines
+            .iter()
+            .map(|line| (line.region.y, line.region.height))
+            .collect();
+        assert_eq!(rows, [(200, 30), (230, 30), (260, 30)]);
+        assert!(
+            lines
+                .iter()
+                .all(|line| line.region.x == 100 && line.region.width == 300)
+        );
+    }
+
+    #[test]
+    fn the_default_of_a_blank_or_failed_read_has_no_lines() {
+        assert!(Fixed("  \n ").read_lines(&frame(), REGION).is_empty());
+        struct Broken;
+        impl TextReader for Broken {
+            fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
+                Err(ReadError::Failed)
+            }
+        }
+        assert!(Broken.read_lines(&frame(), REGION).is_empty());
     }
 }

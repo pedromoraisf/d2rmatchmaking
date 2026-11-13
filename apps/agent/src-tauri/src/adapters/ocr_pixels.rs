@@ -165,12 +165,92 @@ pub fn scaled_bgra(image: &Rgba, region: Region, scale: u32) -> Option<Vec<u8>> 
     Some(out)
 }
 
+/// The frame region a line of OCR words covers: the union of the words' boxes, which the engine measures in pixels of the
+/// image it read (the crop `read`, enlarged `scale` times), mapped back to pixels of the frame. A box is `(x, y, width,
+/// height)`. `None` for a line without a usable box or a zero scale.
+pub fn frame_region_of_boxes(
+    read: Region,
+    scale: u32,
+    boxes: &[(f32, f32, f32, f32)],
+) -> Option<Region> {
+    if scale == 0 {
+        return None;
+    }
+    let scale = scale as f32;
+    let mut union: Option<(f32, f32, f32, f32)> = None;
+    for &(x, y, width, height) in boxes {
+        if !(x.is_finite() && y.is_finite() && width.is_finite() && height.is_finite()) {
+            continue;
+        }
+        let (left, top, right, bottom) = (x, y, x + width, y + height);
+        union = Some(match union {
+            None => (left, top, right, bottom),
+            Some((l, t, r, b)) => (l.min(left), t.min(top), r.max(right), b.max(bottom)),
+        });
+    }
+    let (left, top, right, bottom) = union?;
+    let x0 = (left / scale).floor().max(0.0) as u32;
+    let y0 = (top / scale).floor().max(0.0) as u32;
+    let x1 = (right / scale).ceil().max(0.0) as u32;
+    let y1 = (bottom / scale).ceil().max(0.0) as u32;
+    (x1 > x0 && y1 > y0).then(|| Region {
+        x: read.x.saturating_add(x0),
+        y: read.y.saturating_add(y0),
+        width: x1 - x0,
+        height: y1 - y0,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use d2rmm_agent_core::ports::Rgba;
     use d2rmm_agent_domain::vision::Region;
 
-    use super::{Upscale, nearest_bgra, scaled_bgra, upscaled_bgra};
+    use super::{Upscale, frame_region_of_boxes, nearest_bgra, scaled_bgra, upscaled_bgra};
+
+    #[test]
+    fn a_line_maps_back_to_the_frame_as_the_union_of_its_words() {
+        let read = Region {
+            x: 1544,
+            y: 100,
+            width: 300,
+            height: 40,
+        };
+        // Two words in a 3x image: x 48..96 and 120..210, y 30..60.
+        let region = frame_region_of_boxes(
+            read,
+            3,
+            &[(48.0, 30.0, 48.0, 30.0), (120.0, 33.0, 90.0, 27.0)],
+        );
+        assert_eq!(
+            region,
+            Some(Region {
+                x: 1544 + 16,
+                y: 100 + 10,
+                width: 70 - 16,
+                height: 20 - 10
+            })
+        );
+    }
+
+    #[test]
+    fn a_line_without_a_box_or_a_zero_scale_has_no_region() {
+        let read = Region {
+            x: 0,
+            y: 0,
+            width: 10,
+            height: 10,
+        };
+        assert_eq!(frame_region_of_boxes(read, 3, &[]), None);
+        assert_eq!(
+            frame_region_of_boxes(read, 0, &[(0.0, 0.0, 9.0, 9.0)]),
+            None
+        );
+        assert_eq!(
+            frame_region_of_boxes(read, 3, &[(f32::NAN, 0.0, 9.0, 9.0)]),
+            None
+        );
+    }
 
     /// A 2×2 frame: red, green on the top row; blue, white on the bottom row (RGBA).
     fn frame() -> Rgba {
