@@ -32,7 +32,7 @@ png = "0.18"
 # The ready-check hotkey (RDY-07): registers the key combination with the OS (RegisterHotKey), no keyboard hook, no input.
 global-hotkey = "0.8"
 keyring = { version = "3", features = ["windows-native"] }
-windows = { version = "0.62", features = ["Foundation", "Foundation_Collections", "Globalization", "Graphics_Imaging", "Media_Ocr", "Storage_Streams", "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Storage_Xps", "Win32_System_Diagnostics_ToolHelp", "Win32_UI_WindowsAndMessaging"] }
+windows = { version = "0.62", features = ["Foundation", "Globalization", "Graphics_Imaging", "Media_Ocr", "Storage_Streams", "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Storage_Xps", "Win32_System_Diagnostics_ToolHelp", "Win32_UI_WindowsAndMessaging"] }
 
 [features]
 # The F0 fixture-read trigger (AGS-33, AD-057). Never a default feature; release-agent.yml never enables it.
