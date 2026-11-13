@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.1](https://github.com/pedromoraisf/d2rmatchmaking/compare/agent-v0.1.0...agent-v0.1.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **agent:** allow the window to read and save the capture consent ([0948abc](https://github.com/pedromoraisf/d2rmatchmaking/commit/0948abcbd0dde28f67a5a23f81e1bf4d3908318f))
+* **agent:** allow the window to read and save the capture consent (incident) ([1ed55f8](https://github.com/pedromoraisf/d2rmatchmaking/commit/1ed55f800c67c5debfb0cafcbe053594fb497eb9))
+
 ## [0.1.0](https://github.com/pedromoraisf/d2rmatchmaking/compare/agent-v0.0.3...agent-v0.1.0) (2026-11-12)
 
 

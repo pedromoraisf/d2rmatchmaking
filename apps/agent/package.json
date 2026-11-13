@@ -1,6 +1,6 @@
 {
   "name": "@d2rmm/agent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Read-only desktop agent UI (TypeScript side of the Tauri 2 app).",
   "license": "MIT",
