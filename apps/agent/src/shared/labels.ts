@@ -36,6 +36,8 @@ export interface Diagnostics {
   frameHeight: number;
   cardsRead: number;
   cardsSettled: number;
+  // How many popup options were found by their word (0 to 3): a count, never a text.
+  popupOptionsFound: number;
   rejected: RejectedSlot[];
   // `not-sent`, `ok` or the kind of the error the last post carried.
   post: string;
@@ -111,6 +113,7 @@ export function diagnosticsLabels(diagnostics: Diagnostics): Label[] {
       values: { width: diagnostics.frameWidth, height: diagnostics.frameHeight },
     },
     { key: 'diagnostics.cards', values: { read: diagnostics.cardsRead, settled: diagnostics.cardsSettled } },
+    { key: 'diagnostics.popup', values: { found: diagnostics.popupOptionsFound } },
     ...diagnostics.rejected.map((rejected) => ({
       key: 'diagnostics.rejected',
       values: { slot: rejected.slot + 1, reason: rejected.reason },

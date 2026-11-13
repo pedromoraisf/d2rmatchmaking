@@ -138,6 +138,7 @@ fn diagnostics_of(reading: &FrameReading, frame: &Rgba, post: &'static str) -> D
         frame_height: frame.height,
         cards_read: reading.slots_read,
         cards_settled: u8::try_from(reading.cards.len()).unwrap_or(u8::MAX),
+        popup_options_found: reading.popup_options,
         rejected: reading
             .rejected
             .iter()
@@ -348,6 +349,7 @@ mod tests {
         FrameReading {
             screen: Screen::CharacterSelect,
             slots_read: u8::try_from(cards.len()).expect("a few cards"),
+            popup_options: 0,
             rejected: Vec::new(),
             cards,
         }
@@ -582,6 +584,7 @@ mod tests {
             screen: Screen::CharacterSelect,
             cards: Vec::new(),
             slots_read: 2,
+            popup_options: 3,
             rejected: vec![
                 Rejection {
                     slot: 0,
@@ -605,6 +608,7 @@ mod tests {
                 frame_height: 1080,
                 cards_read: 2,
                 cards_settled: 0,
+                popup_options_found: 3,
                 rejected: vec![
                     RejectedSlot {
                         slot: 0,

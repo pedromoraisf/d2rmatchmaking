@@ -49,6 +49,7 @@
     },
     "frame": "Quadro: {{width}}×{{height}}",
     "cards": "Cartões lidos: {{read}}, confirmados: {{settled}}",
+    "popup": "Opções do pop-up encontradas: {{found}}",
     "rejected": "Cartão {{slot}} não confirmado: {{reason}}",
     "post": "Último envio: {{outcome}}"
   }

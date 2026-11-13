@@ -601,6 +601,7 @@ mod tests {
         FrameReading {
             screen: Screen::CharacterSelect,
             slots_read: 0,
+            popup_options: 0,
             rejected: Vec::new(),
             cards,
         }

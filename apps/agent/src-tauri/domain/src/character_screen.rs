@@ -21,6 +21,9 @@ pub struct Reading {
     pub cards: Vec<Card>,
     /// How many card slots held any text (the regions the reader tried to settle into a card).
     pub slots_read: u8,
+    /// How many popup options the popup's lines showed by their word (0 to 3). Local diagnostics only: with `slots_read`,
+    /// the anchor counts that tell "nothing was found" from "found but refused".
+    pub popup_options: u8,
     /// The slots that held text but settled no card, each with the field that refused it. Local diagnostics only.
     pub rejected: Vec<Rejection>,
 }
@@ -70,6 +73,7 @@ impl Reading {
             screen,
             cards: Vec::new(),
             slots_read: 0,
+            popup_options: 0,
             rejected: Vec::new(),
         }
     }
@@ -159,6 +163,8 @@ where
     });
     let popup_lines = lines(ScreenRegion::PopupArea);
     let popup_title = anchors::popup_title_in_variants(pack, &popup_lines);
+    let popup_options = u8::try_from(anchors::popup_options_in_variants(pack, &popup_lines).len())
+        .unwrap_or(u8::MAX);
     let popup = popup_difficulties(pack, &popup_lines, &mut field, &mut lit);
     if !list && !popup_title && popup.is_none() {
         return Reading::without_cards(Screen::Unknown);
@@ -210,6 +216,7 @@ where
         screen: Screen::CharacterSelect,
         cards,
         slots_read,
+        popup_options,
         rejected,
     }
 }

@@ -111,6 +111,7 @@ impl FrameReader for ScreenReader {
             screen: reading.screen,
             cards: reading.cards,
             slots_read: reading.slots_read,
+            popup_options: reading.popup_options,
             rejected: reading.rejected,
         }
     }
@@ -511,6 +512,12 @@ mod tests {
             vec![Difficulty::Normal, Difficulty::Nightmare, Difficulty::Hell],
             "the popup's three, not the Countess title's two"
         );
+    }
+
+    #[test]
+    fn the_reading_counts_the_popup_options_found_and_none_without_a_popup() {
+        assert_eq!(read(SELECT_DIFFICULTY, None).popup_options, 3);
+        assert_eq!(read(SELECT_NORMAL, None).popup_options, 0);
     }
 
     #[test]

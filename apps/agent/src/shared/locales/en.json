@@ -49,6 +49,7 @@
     },
     "frame": "Frame: {{width}}×{{height}}",
     "cards": "Cards read: {{read}}, settled: {{settled}}",
+    "popup": "Popup options found: {{found}}",
     "rejected": "Card {{slot}} not settled: {{reason}}",
     "post": "Last send: {{outcome}}"
   }
