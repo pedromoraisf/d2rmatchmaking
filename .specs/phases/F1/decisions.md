@@ -62,3 +62,13 @@ What the maintainer should see in the review. Routine decisions live in each fea
 | ----------------------------------- | ----------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------ |
 | characters-reading, agent-game-name | Screenshots of the character selection screen and automap   | 2026-11-10 | split chosen 2026-11-10; screenshots still needed for `characters-reading`                             |
 | identity-bnet                       | Battle.net OAuth client id and secret (staging, production) | 2026-11-10 | Already set on Render `d2rmm-api` since staging (maintainer, 2026-11-12); sign-in works on the preview |
+
+## After the merge into main
+
+Proofs the maintainer ran in production after PR #41 merged (d1edd95).
+
+| Item                          | Result                                                                                                                                       | Date       |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| Battle.net sign-in (real)     | Passed on the preview and in production (`d2rmatchmaking.pages.dev`)                                                                         | 2026-11-12 |
+| FR-04 in production           | Passed: revoking the agent cut its token; the agent paired again with the Battle.net account                                                 | 2026-11-12 |
+| J1 in production, full screen | **Serious incident** (maintainer's call, no postmortem; ADR 032 is the prevention). Fixes: agent 0.1.1 (#64), 0.1.2 (#66), 0.1.3 in progress | 2026-11-12 |
