@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/pedromoraisf/d2rmatchmaking/compare/agent-v0.2.0...agent-v0.2.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **agent:** match the small-caps Game Name label by its noisy read, log the Party line pass without text ([301f0bb](https://github.com/pedromoraisf/d2rmatchmaking/commit/301f0bb7add326188e59e7dcd1034051b73bdd6d))
+* **agent:** read the selection screen, popup and Party panel anchored on their text (incident) ([7f5d345](https://github.com/pedromoraisf/d2rmatchmaking/commit/7f5d34526a138f1108b01f1360a17e9ceb63c86f))
+
 ## [0.2.0](https://github.com/pedromoraisf/d2rmatchmaking/compare/agent-v0.1.1...agent-v0.2.0) (2026-11-13)
 
 
