@@ -90,6 +90,13 @@ pub trait TextReader {
     /// The lines of text in the region with where each sits in the frame, top to bottom. The screen readers find a card, a
     /// popup option or the Party panel's field by the text of a line, not by a fixed offset. A reader that does not know
     /// where its lines sit returns the lines of `read` with the region cut into equal rows, one per line.
+    /// The lines of the region as each variant reads them (the ways `read_variants` reads the region), the first being
+    /// `read_lines`'. The engine's lines are noisy and the variants err differently, so the screen readers take an anchor
+    /// found in any of them. A reader with one way to read returns one set.
+    fn read_line_variants(&self, image: &Rgba, region: Region) -> Vec<Vec<TextLine>> {
+        vec![self.read_lines(image, region)]
+    }
+
     fn read_lines(&self, image: &Rgba, region: Region) -> Vec<TextLine> {
         let Ok(read) = self.read(image, region) else {
             return Vec::new();
@@ -388,6 +395,15 @@ mod read_lines_tests {
             lines
                 .iter()
                 .all(|line| line.region.x == 100 && line.region.width == 300)
+        );
+    }
+
+    #[test]
+    fn the_default_line_variants_are_the_one_set_of_read_lines() {
+        let reader = Fixed("Matriarch\nvukVuka");
+        assert_eq!(
+            reader.read_line_variants(&frame(), REGION),
+            vec![reader.read_lines(&frame(), REGION)]
         );
     }
 

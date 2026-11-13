@@ -671,6 +671,64 @@ mod tests {
     }
 
     #[test]
+    fn a_card_found_in_any_variant_is_merged_by_its_level_line_and_a_known_title_wins() {
+        use super::{TitleLine, find_cards_in_variants};
+        let garbled = vec![
+            column("QZXWVKJ", 87),
+            column("vukVuka", 118),
+            column("Level 88 Sorceress", 141),
+        ];
+        let nothing = vec![column("vukVuka", 119)];
+        let clean = vec![
+            column("MATRIARCH", 87),
+            column("vukVuka", 120),
+            column("Level 88 Sorceress", 143),
+        ];
+        let cards = find_cards_in_variants(&pack(), &[garbled.clone(), nothing, clean], 1080);
+        assert_eq!(cards.len(), 1, "one card, its level lines overlap");
+        assert!(matches!(cards[0].title, TitleLine::Known(_)));
+        // The card is found from a later variant alone, and a garbled title alone refuses.
+        let only_later = find_cards_in_variants(&pack(), &[vec![], garbled], 1080);
+        assert_eq!(only_later.len(), 1);
+        assert_eq!(only_later[0].title, TitleLine::Unknown);
+        // Two cards of two variants stay two, top to bottom.
+        let two = find_cards_in_variants(
+            &pack(),
+            &[full_screen_column()[3..].to_vec(), full_screen_column()],
+            1080,
+        );
+        assert_eq!(two.len(), 2);
+        assert!(centre(two[0].level) < centre(two[1].level));
+    }
+
+    #[test]
+    fn a_popup_option_or_label_found_in_one_variant_counts() {
+        use super::{find_party_in_variants, popup_options_in_variants, popup_title_in_variants};
+        let full = popup(385, 455, 521, 586);
+        let found =
+            popup_options_in_variants(&pack(), &[full[2..3].to_vec(), vec![], full[1..2].to_vec()]);
+        let words: Vec<Difficulty> = found.iter().map(|(d, _)| *d).collect();
+        assert_eq!(words, [Difficulty::Normal, Difficulty::Nightmare]);
+        assert!(popup_title_in_variants(
+            &pack(),
+            &[vec![], full[..1].to_vec()]
+        ));
+        let panel = party(153, 192, Some(220), 262);
+        let label_only: Vec<TextLine> = panel[1..2].to_vec();
+        let found = find_party_in_variants(
+            &pack(),
+            &[panel[..1].to_vec(), label_only, panel.clone()],
+            1080,
+        );
+        assert!(found.open && found.label.is_some());
+        assert_eq!(
+            found.field.map(centre),
+            Some(220),
+            "the label and field of the first variant that has both"
+        );
+    }
+
+    #[test]
     fn the_tab_strip_is_told_from_a_card_line() {
         use super::is_tab_line;
         for tab in ["ONLINE OFFLINE", "Online", "OFFLINE", "O NLINE OFFLINE"] {

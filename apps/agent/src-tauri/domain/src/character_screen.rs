@@ -137,7 +137,7 @@ pub fn read_screen<T, A, F, S, L>(
 ) -> Reading
 where
     T: FnMut(ScreenRegion) -> Readings,
-    A: FnMut(ScreenRegion) -> Vec<TextLine>,
+    A: FnMut(ScreenRegion) -> Vec<Vec<TextLine>>,
     F: FnMut(Region) -> Readings,
     S: FnMut(Region) -> bool,
     L: FnMut(Region) -> bool,
@@ -158,9 +158,7 @@ where
         pack.is_word(read, CREATE_NEW) || pack.is_squashed_word(read, CREATE_NEW)
     });
     let popup_lines = lines(ScreenRegion::PopupArea);
-    let popup_title = popup_lines
-        .iter()
-        .any(|line| anchors::is_popup_title(pack, &line.text));
+    let popup_title = anchors::popup_title_in_variants(pack, &popup_lines);
     let popup = popup_difficulties(pack, &popup_lines, &mut field, &mut lit);
     if !list && !popup_title && popup.is_none() {
         return Reading::without_cards(Screen::Unknown);
@@ -171,7 +169,7 @@ where
     let mut slots_read = 0;
     let mut popup_applied = false;
     let column = lines(ScreenRegion::CardColumn);
-    for (slot, anchor) in anchors::find_cards(pack, &column, frame_height)
+    for (slot, anchor) in anchors::find_cards_in_variants(pack, &column, frame_height)
         .into_iter()
         .take(usize::from(CARD_SLOTS))
         .enumerate()
@@ -226,7 +224,7 @@ const POPUP_LABELS_TO_OPEN: usize = 2;
 /// decides too. `None` when the popup is not open.
 fn popup_difficulties<F, L>(
     pack: &LanguagePack,
-    lines: &[TextLine],
+    lines: &[Vec<TextLine>],
     field: &mut F,
     lit: &mut L,
 ) -> Option<Vec<Difficulty>>
@@ -234,7 +232,7 @@ where
     F: FnMut(Region) -> Readings,
     L: FnMut(Region) -> bool,
 {
-    let found = anchors::popup_options(pack, lines);
+    let found = anchors::popup_options_in_variants(pack, lines);
     let mut options = found.clone();
     for (difficulty, region) in anchors::missing_options(&found) {
         if any_reading(&field(region), |read| {
@@ -527,8 +525,8 @@ mod tests {
                 .map(|(_, texts)| texts.clone())
         }
 
-        /// The lines of a search area: one per listed region of it whose first reading is not blank.
-        fn lines(&self, search: ScreenRegion) -> Vec<TextLine> {
+        /// The lines of a search area, one set per variant: each listed region of it whose reading in that variant is not blank.
+        fn lines(&self, search: ScreenRegion) -> Vec<Vec<TextLine>> {
             let in_search = |region: &ScreenRegion| {
                 matches!(
                     (search, region),
@@ -546,15 +544,25 @@ mod tests {
                     )
                 )
             };
-            self.sets
+            let variants = self
+                .sets
                 .iter()
-                .filter(|(region, _)| in_search(region))
-                .filter_map(|(region, texts)| {
-                    let text = texts.first().filter(|text| !text.trim().is_empty())?;
-                    Some(TextLine {
-                        text: text.clone(),
-                        region: area(*region),
-                    })
+                .map(|(_, texts)| texts.len())
+                .max()
+                .unwrap_or(0);
+            (0..variants)
+                .map(|variant| {
+                    self.sets
+                        .iter()
+                        .filter(|(region, _)| in_search(region))
+                        .filter_map(|(region, texts)| {
+                            let text = texts.get(variant).filter(|text| !text.trim().is_empty())?;
+                            Some(TextLine {
+                                text: text.clone(),
+                                region: area(*region),
+                            })
+                        })
+                        .collect()
                 })
                 .collect()
         }
@@ -1372,6 +1380,76 @@ mod tests {
             None,
             "a lone reading among several is not an agreement"
         );
+    }
+
+    #[test]
+    fn a_level_line_garbled_in_the_first_variants_still_yields_the_card_from_a_later_one() {
+        let sets: [(ScreenRegion, &[&str]); 4] = [
+            (ScreenRegion::CreateNew, &["CREATE NEW"]),
+            (ScreenRegion::CardTitle(0), &["", "", "", ""]),
+            (
+                ScreenRegion::CardName(0),
+                &["VUKVUKA", "VUKVUKA", "VUKVUKA", "VUKVUKA"],
+            ),
+            (
+                ScreenRegion::CardLevel(0),
+                &[
+                    "LXXX 8B SQRCERESS",
+                    "ZZZ",
+                    "LEVEL 88 SORCERESS",
+                    "LEVEL 88 SORCERESS",
+                ],
+            ),
+        ];
+        let reading = read_variants(&sets, &[]);
+        assert_eq!(names_of(&reading), ["VUKVUKA"]);
+        assert_eq!(reading.cards[0].level(), 88);
+    }
+
+    #[test]
+    fn a_level_line_no_variant_reads_yields_no_card() {
+        let sets: [(ScreenRegion, &[&str]); 3] = [
+            (ScreenRegion::CreateNew, &["CREATE NEW"]),
+            (ScreenRegion::CardName(0), &["VUKVUKA", "VUKVUKA"]),
+            (ScreenRegion::CardLevel(0), &["LXXX 8B", "ZZZ"]),
+        ];
+        assert!(read_variants(&sets, &[]).cards.is_empty());
+    }
+
+    #[test]
+    fn a_popup_word_found_in_one_variant_only_counts() {
+        // Normal reads only in the second variant, Nightmare in both, Hell in none: two words are found, so the popup is
+        // open, and its enabled difficulties are Normal and Nightmare.
+        let sets: [(ScreenRegion, &[&str]); 6] = [
+            (ScreenRegion::CreateNew, &["CREATE NEW", "CREATE NEW"]),
+            (ScreenRegion::PopupNormal, &["", "NORMAL"]),
+            (ScreenRegion::PopupNightmare, &["NIGHTMARE", "NIGHTMARE"]),
+            (ScreenRegion::CardTitle(0), &["MATRIARCH", "MATRIARCH"]),
+            (ScreenRegion::CardName(0), &["VUKVUKA", "VUKVUKA"]),
+            (
+                ScreenRegion::CardLevel(0),
+                &["LEVEL 88 SORCERESS", "LEVEL 88 SORCERESS"],
+            ),
+        ];
+        let reading = read_variants(&sets, &[0]);
+        assert_eq!(
+            reading.cards[0].unlocked_difficulties(),
+            vec![Normal, Nightmare]
+        );
+        // The first variant alone finds one word: no popup, the title's difficulties stand.
+        let first_only: Vec<(ScreenRegion, &[&str])> = sets
+            .iter()
+            .map(|(region, texts)| (*region, &texts[..1]))
+            .collect();
+        let reading = read_variants(&first_only, &[0]);
+        assert_eq!(
+            reading.cards[0].unlocked_difficulties(),
+            vec![Normal, Nightmare, Hell]
+        );
+    }
+
+    fn names_of(reading: &Reading) -> Vec<&str> {
+        reading.cards.iter().map(|card| card.name()).collect()
     }
 
     #[test]

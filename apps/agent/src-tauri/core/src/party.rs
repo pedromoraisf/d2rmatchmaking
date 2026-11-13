@@ -154,9 +154,9 @@ pub struct PanelReading {
 /// read. Blocking: called on a blocking thread.
 pub fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba) -> PanelReading {
     let lines = panel_region(PanelRegion::PartyPanel, frame.width, frame.height)
-        .map(|area| reader.read_lines(frame, area))
+        .map(|area| reader.read_line_variants(frame, area))
         .unwrap_or_default();
-    let found = anchors::find_party(language, &lines, frame.height);
+    let found = anchors::find_party_in_variants(language, &lines, frame.height);
     let field_area = found.field.or_else(|| {
         found
             .label

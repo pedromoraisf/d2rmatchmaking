@@ -38,10 +38,10 @@ impl ScreenReader {
         Self { reader, language }
     }
 
-    /// The lines of a search area, top to bottom as the reader returns them.
-    fn lines_of(&self, frame: &Rgba, search: ScreenRegion) -> Vec<TextLine> {
+    /// The lines of a search area as each variant of the reader reads them.
+    fn lines_of(&self, frame: &Rgba, search: ScreenRegion) -> Vec<Vec<TextLine>> {
         screen_region(search, frame.width, frame.height)
-            .map(|area| self.reader.read_lines(frame, area))
+            .map(|area| self.reader.read_line_variants(frame, area))
             .unwrap_or_default()
     }
 
@@ -51,13 +51,13 @@ impl ScreenReader {
             return AnchorCounts::default();
         }
         AnchorCounts {
-            cards: anchors::find_cards(
+            cards: anchors::find_cards_in_variants(
                 &self.language,
                 &self.lines_of(frame, ScreenRegion::CardColumn),
                 frame.height,
             )
             .len(),
-            popup_options: anchors::popup_options(
+            popup_options: anchors::popup_options_in_variants(
                 &self.language,
                 &self.lines_of(frame, ScreenRegion::PopupArea),
             )

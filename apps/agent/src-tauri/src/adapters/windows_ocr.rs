@@ -131,6 +131,14 @@ impl TextReader for WindowsOcr {
             .unwrap_or_default()
     }
 
+    /// The lines of the region read nearest 3x first, then at each extra variant; a variant that fails is left out.
+    fn read_line_variants(&self, image: &Rgba, region: Region) -> Vec<Vec<TextLine>> {
+        std::iter::once((self.scale, self.filter))
+            .chain(self.extra.iter().copied())
+            .filter_map(|(scale, filter)| self.lines_at(image, region, scale, filter).ok())
+            .collect()
+    }
+
     /// The region read nearest 3x first, then each extra variant; a variant that fails is left out.
     fn read_variants(&self, image: &Rgba, region: Region) -> Vec<ReadText> {
         std::iter::once((self.scale, self.filter))
