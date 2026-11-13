@@ -49,10 +49,11 @@ pub fn edit_distance(a: &str, b: &str) -> usize {
     previous[b.len()]
 }
 
-/// The glyph pairs the engine reads as two letters for the game's `M`.
-const COLLAPSES: [&str; 3] = ["RN", "RT", "RF"];
+/// The glyph runs the engine reads as several letters for the game's `M`: two strokes and a foot (`RN`, `RT`, `RF`), or the
+/// three vertical strokes of the small-caps `M` read as bars (`LLT`, `IIT`; the real read "GA me N AllTE" of "Game Name").
+const COLLAPSES: [&str; 5] = ["RN", "RT", "RF", "LLT", "IIT"];
 
-/// The forms of a squashed read to compare: itself, each single collapse of `RN`/`RT`/`RF` to `M`, and all of them at once.
+/// The forms of a squashed read to compare: itself, each single collapse of a `COLLAPSES` run to `M`, and all of them at once.
 fn candidates(squashed: &str) -> Vec<String> {
     let mut forms = vec![squashed.to_string()];
     for pair in COLLAPSES {

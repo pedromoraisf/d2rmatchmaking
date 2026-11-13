@@ -257,6 +257,13 @@ impl LanguagePack {
                 .is_some_and(|word| nearest(text, &[((), word)]).is_some())
     }
 
+    /// Whether a line of the Party panel is the label of `key`: the word, or a noisy read of it (spaces, case and stray
+    /// punctuation dropped, `RN` read for `M`, within the vocabulary threshold; `is_near_word`), and not also near any of the
+    /// `others` (the panel's other words): a line that reads as both is not a label.
+    pub fn is_label(&self, text: &str, key: &str, others: &[&str]) -> bool {
+        self.is_near_word(text, key) && !others.iter().any(|other| self.is_near_word(text, other))
+    }
+
     /// Whether `text` starts with the word of `key` (a label followed by its value, such as "Life: 925 / 925"). The start
     /// may be misread within the vocabulary threshold ("Lite:" for "Life:", characters-reading T21).
     pub fn begins_with(&self, text: &str, key: &str) -> bool {
@@ -460,6 +467,39 @@ mod tests {
         assert!(
             !same_label("P⊕RTY", "Party"),
             "a different word stays different"
+        );
+    }
+
+    /// The reads of the small-caps "Game Name" label by the maintainer's Windows OCR (2026-11-12, 1920x1033 print), per variant.
+    #[test]
+    fn the_real_reads_of_the_game_name_label_are_the_label_and_values_and_password_are_not() {
+        let english = LanguagePack::english();
+        let label = |text: &str| english.is_label(text, GAME_NAME, &[PASSWORD]);
+        for read in [
+            "GA m E N A me",    // spaces and case: the squashed word
+            "GA me' N Arne",    // `rn` for `m`
+            "G A TE-• N A rnE", // one letter and punctuation
+            "(3 Arne' N Arne",  // the first letter lost, 1 edit
+            "GA me N AllTE",    // `llT` for `m`
+            "GAME NAME",
+        ] {
+            assert!(label(read), "{read}");
+        }
+        for read in [
+            "",
+            "GA m E",
+            "PASSWORD",
+            "PA SS W ORD",
+            "MF-FAST-RUN-O1",
+            "mmbaalh-12",
+            "PARTY",
+        ] {
+            assert!(!label(read), "{read}");
+        }
+        assert!(!english.is_label("GAME NAME", "missing-key", &[PASSWORD]));
+        assert!(
+            !english.is_label("GAME NAME", GAME_NAME, &[GAME_NAME]),
+            "a line near an excluded word is no label"
         );
     }
 

@@ -284,9 +284,7 @@ pub fn find_party(pack: &LanguagePack, lines: &[TextLine], frame_height: u32) ->
     let open = sorted.iter().any(|line| pack.party_panel_open(&line.text));
     let label = sorted
         .iter()
-        .find(|line| {
-            pack.is_word(&line.text, GAME_NAME) || pack.is_squashed_word(&line.text, GAME_NAME)
-        })
+        .find(|line| pack.is_label(&line.text, GAME_NAME, &[PASSWORD]))
         .copied();
     let field = label.and_then(|label| {
         sorted
@@ -309,6 +307,20 @@ pub fn find_party(pack: &LanguagePack, lines: &[TextLine], frame_height: u32) ->
         open,
         label: label.map(|label| label.region),
         field,
+    }
+}
+
+/// Which anchor of the Party panel a line of its area matches, for the diagnostics (no text is ever printed): `title`,
+/// `label` (the same rule as `find_party`), `password` or `none`.
+pub fn party_line_anchor(pack: &LanguagePack, text: &str) -> &'static str {
+    if pack.party_panel_open(text) {
+        "title"
+    } else if pack.is_label(text, GAME_NAME, &[PASSWORD]) {
+        "label"
+    } else if pack.is_near_word(text, PASSWORD) {
+        "password"
+    } else {
+        "none"
     }
 }
 
@@ -347,7 +359,7 @@ pub fn line_pad(frame_height: u32) -> u32 {
 mod tests {
     use super::{
         CardAnchor, field_below, find_cards, find_party, line_pad, missing_options, padded,
-        popup_options,
+        party_line_anchor, popup_options,
     };
     use crate::characters::Difficulty;
     use crate::language::LanguagePack;
@@ -603,6 +615,22 @@ mod tests {
             lines.push(line("MF-FAST-RUN-O1", 255, y, 140));
         }
         lines
+    }
+
+    #[test]
+    fn the_label_read_with_the_windows_ocr_noise_still_anchors_the_field() {
+        for noisy in ["GA m E N A me", "GA me' N Arne", "GA me N AllTE"] {
+            let mut lines = party(146, 183, Some(210), 250);
+            lines[1].text = noisy.to_string();
+            let found = find_party(&pack(), &lines, 1033);
+            assert_eq!(found.label.map(centre), Some(183), "{noisy}");
+            assert_eq!(found.field.map(centre), Some(210), "{noisy}");
+        }
+        assert_eq!(
+            party_line_anchor(&pack(), "PA SS W ORD"),
+            "password",
+            "spaces do not hide the Password label"
+        );
     }
 
     #[test]

@@ -9,6 +9,7 @@ use d2rmm_agent_core::messages::FrameReading;
 use d2rmm_agent_core::party::read_panel;
 use d2rmm_agent_core::ports::{FrameReader, Rgba, TextReader};
 use d2rmm_agent_core::screen_reader::ScreenReader;
+use d2rmm_agent_domain::anchors;
 use d2rmm_agent_domain::characters::{Class, Difficulty, Title};
 use d2rmm_agent_domain::game_name_match::{FieldRead, read_field_variants};
 use d2rmm_agent_domain::language::LanguagePack;
@@ -277,6 +278,32 @@ pub fn anchor_line(
     )
 }
 
+/// What the line pass found in a Party frame's panel area, per variant, with no text: the number of lines and, per line, its
+/// y and height and the anchor it matched (title, label, password or none). Tells whether the pass returned the label as a
+/// line of its own.
+pub fn party_line_diagnostics(reader: &dyn TextReader, image: &Rgba) -> Vec<String> {
+    let Some(area) = panel_region(PanelRegion::PartyPanel, image.width, image.height) else {
+        return Vec::new();
+    };
+    let pack = LanguagePack::english();
+    let mut out = Vec::new();
+    for (index, lines) in reader.read_line_variants(image, area).iter().enumerate() {
+        out.push(format!(
+            "  line pass, variant {index}: {} lines",
+            lines.len()
+        ));
+        for line in lines {
+            out.push(format!(
+                "    y {} height {}: {}",
+                line.region.y,
+                line.region.height,
+                anchors::party_line_anchor(&pack, &line.text)
+            ));
+        }
+    }
+    out
+}
+
 /// The readers whose text the diagnostics print for each region, by label (nearest and bilinear at 2x, 3x, 4x and 5x); the agent
 /// reads the six of 3x, 4x and 5x (characters-reading T24).
 pub type Variants = Vec<(String, Arc<dyn TextReader + Send + Sync>)>;
@@ -398,6 +425,11 @@ pub fn check_folder(
                     println!("{line}");
                 }
                 println!("{}", anchor_line(name, &*reader, &screens, &image));
+                if name.starts_with("maintainer-party") {
+                    for line in party_line_diagnostics(&*reader, &image) {
+                        println!("{line}");
+                    }
+                }
                 verdict(name, &*reader, &screens, &image, show_reads)
             })
         } else {
@@ -712,6 +744,33 @@ mod tests {
         );
         assert_eq!(shown, "  anchors: cards found 2, popup options found 2");
         assert!(!shown.to_lowercase().contains("vuk"));
+    }
+
+    #[test]
+    fn the_line_pass_diagnostics_name_the_anchor_of_each_line_and_never_its_text() {
+        let image = Rgba {
+            width: 1920,
+            height: 1080,
+            pixels: Vec::new(),
+        };
+        let reader = LinesReader(vec![
+            line("PARTY", 153),
+            line("GA me N AllTE", 170),
+            line("PA SS W ORD", 230),
+            line("mmbaalh-12", 190),
+        ]);
+        let lines = super::party_line_diagnostics(&reader, &image);
+        assert_eq!(
+            lines,
+            [
+                "  line pass, variant 0: 4 lines",
+                "    y 145 height 16: title",
+                "    y 162 height 16: label",
+                "    y 222 height 16: password",
+                "    y 182 height 16: none",
+            ]
+        );
+        assert!(!lines.join("\n").contains("mmbaalh"));
     }
 
     #[test]
