@@ -79,15 +79,16 @@ impl PanelBox {
 /// same in every language.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PanelRegion {
-    /// The title of the Party panel ("Party").
+    /// The title of the Party panel ("Party"). Fixtures and sidecars only: the agent reads `PartyPanel`.
     PartyTitle,
-    /// The label above the Game Name field.
+    /// The label above the Game Name field. Fixtures and sidecars only.
     GameNameLabel,
-    /// The Game Name field, which shows the game name or its masked form.
+    /// The Game Name field, which shows the game name or its masked form. Fixtures and sidecars only.
     GameNameField,
     /// The area the Party panel's lines are searched in (`anchors::find_party`): the title, the Game Name label and its
-    /// field, in the maximized and in the full-screen client. The three boxes above are where the drawn fixtures put the
-    /// text; the agent does not read them.
+    /// field, in the maximized and in the full-screen client. The area may also include the "Password" label; its text is never
+    /// used, matched, returned, logged or sent (the lines are read once, and only the title, the Game Name label and the
+    /// field are looked for). The three boxes above are where the drawn fixtures put the text; the agent does not read them.
     PartyPanel,
 }
 
@@ -139,13 +140,17 @@ pub enum ScreenRegion {
     Life,
     /// The "Difficulty:" line of the automap's area block, top right (the automap's marker).
     AreaDifficulty,
-    /// The "Select Difficulty" title of the popup.
+    /// The "Select Difficulty" title of the popup. Fixtures and sidecars only: the agent reads `PopupArea` and finds the
+    /// title by its text.
     SelectDifficulty,
     /// The Normal, Nightmare and Hell buttons of the popup: a difficulty is enabled when its label reads and is bright.
+    /// Fixtures and sidecars only: the agent finds the options by their words in `PopupArea` (and samples the brightness
+    /// of the box it found).
     PopupNormal,
     PopupNightmare,
     PopupHell,
-    /// The title line, the name and the "Level N Class" line of a card.
+    /// The title line, the name and the "Level N Class" line of a card. Fixtures and sidecars only: the agent finds a card's
+    /// lines by the text of the lines in `CardColumn`.
     CardTitle(u8),
     CardName(u8),
     CardLevel(u8),

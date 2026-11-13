@@ -150,8 +150,9 @@ pub struct PanelReading {
 /// offsets in a full-screen client): the lines of the panel's area are read once; the panel is open when a line is its title
 /// (the whole word or a prefix of it: a tooltip over the title leaves "PAR"), the "Game Name" label is the line that reads as
 /// that word, and the game name is the line just under the label. A field with no line under the label (the masked value's
-/// dots, which the engine does not read) is read in the box under the label and reads blank. The "Password" field is never
-/// read. Blocking: called on a blocking thread.
+/// dots, which the engine does not read) is read in the box under the label and reads blank. The panel area may include
+/// the "Password" label (and its field); that text is never used, matched, returned, logged or sent, and a line that reads
+/// like it is never taken for the game name. Blocking: called on a blocking thread.
 pub fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba) -> PanelReading {
     let lines = panel_region(PanelRegion::PartyPanel, frame.width, frame.height)
         .map(|area| reader.read_line_variants(frame, area))
