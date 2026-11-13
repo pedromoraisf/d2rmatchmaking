@@ -16,18 +16,18 @@ use serde_json::{Map, Value};
 use crate::fixture::{FONT, HEIGHT, WIDTH, baseline_of, draw_centred, draw_line_in, encode};
 use crate::repo_root;
 
-const BACKGROUND: [u8; 4] = [30, 28, 26, 255];
+pub(crate) const BACKGROUND: [u8; 4] = [30, 28, 26, 255];
 const CARD_INTERIOR: [u8; 3] = [38, 36, 33];
 const GREY_BORDER: [u8; 3] = [108, 108, 105];
-const GOLD_BORDER: [u8; 3] = [227, 201, 97];
-const NAME_INK: [u8; 3] = [236, 226, 196];
+pub(crate) const GOLD_BORDER: [u8; 3] = [227, 201, 97];
+pub(crate) const NAME_INK: [u8; 3] = [236, 226, 196];
 const TITLE_INK: [u8; 3] = [196, 166, 96];
 const LEVEL_INK: [u8; 3] = [200, 160, 80];
 const POPUP_FILL: [u8; 3] = [34, 30, 26];
 const POPUP_EDGE: [u8; 3] = [120, 100, 60];
 const BUTTON_FILL: [u8; 3] = [70, 62, 52];
 /// An enabled popup label, as bright as the maintainer's (the brightest pixels of Normal, Nightmare and Hell read 246).
-const POPUP_INK: [u8; 3] = [255, 246, 243];
+pub(crate) const POPUP_INK: [u8; 3] = [255, 246, 243];
 /// A dimmed popup label: about 40% of `POPUP_INK`, under the 148 that an enabled label reaches (`ENABLED_LABEL_LUMA`).
 const DIMMED_INK: [u8; 3] = [100, 96, 92];
 const HUD_INK: [u8; 3] = [236, 226, 196];
@@ -118,7 +118,7 @@ fn region(region: ScreenRegion) -> Result<Region, Box<dyn Error>> {
         .ok_or_else(|| format!("{region:?} has no region in the 1920×1080 frame").into())
 }
 
-fn fill(pixels: &mut [u8], x0: u32, y0: u32, x1: u32, y1: u32, colour: [u8; 3]) {
+pub(crate) fn fill(pixels: &mut [u8], x0: u32, y0: u32, x1: u32, y1: u32, colour: [u8; 3]) {
     for y in y0..y1.min(HEIGHT) {
         for x in x0..x1.min(WIDTH) {
             let at = ((y * WIDTH + x) * 4) as usize;
@@ -144,7 +144,7 @@ const BOLD_PASSES: [(u32, u32); 4] = [(0, 0), (1, 0), (0, 1), (1, 1)];
 
 /// Draws `text` in the game's lettering: upper case and bold (the game draws names, titles and labels in bold small caps,
 /// which Windows OCR reads well; thin mixed-case lettering at 15 px it reads as noise). Left-aligned in `area`.
-fn draw_left(
+pub(crate) fn draw_left(
     pixels: &mut [u8],
     font: &FontRef<'_>,
     text: &str,

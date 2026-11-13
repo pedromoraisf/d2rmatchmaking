@@ -367,6 +367,41 @@ mod tests {
         );
     }
 
+    /// The full-screen fixtures xtask draws (`fixtures/fullscreen`, 0.1.3): the cards, the popup and the Party panel at the
+    /// offsets of a full-screen 1920×1080 client, read by their content. Informational with the other drawn-fixture tests.
+    #[test]
+    #[cfg(feature = "drawn-fixtures-ocr")]
+    fn ocr_reads_the_drawn_full_screen_fixtures() {
+        let engine = Arc::new(engine());
+        let reader = ScreenReader::new(
+            Arc::clone(&engine) as Arc<dyn TextReader + Send + Sync>,
+            Arc::new(LanguagePack::english()),
+        );
+        let load = |name: &str| {
+            decode_png(&format!(
+                "{}/../fixtures/fullscreen/{name}",
+                env!("CARGO_MANIFEST_DIR")
+            ))
+        };
+        let mut mismatches = Vec::new();
+        for name in ["select.png", "difficulty.png"] {
+            let reading = reader.read(&load(name));
+            if let Err(error) = check_screen(&reading, Screen::CharacterSelect, &MAINTAINER_CARDS) {
+                mismatches.push(format!("{name}: {error}"));
+            }
+        }
+        let party = load("party.png");
+        if let Err(error) = check_party(&*engine, &party, "mmbaalh-12", FieldRead::Matched) {
+            mismatches.push(format!("party.png: {error}"));
+        }
+        assert!(
+            mismatches.is_empty(),
+            "{} of 3 full-screen fixtures mismatch:\n{}",
+            mismatches.len(),
+            mismatches.join("\n")
+        );
+    }
+
     /// The popup with Nightmare and Hell drawn dim (CHR-18): their text may read, but their brightness is not an enabled
     /// label's, so the only enabled difficulty is Normal.
     #[test]
