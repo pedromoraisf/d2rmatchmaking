@@ -56,7 +56,7 @@ jobs:
         run: |
           pnpm run quality:collect
           pnpm run quality:ratchet -- --context nightly --current reports/quality.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: nightly-quality
@@ -85,7 +85,7 @@ jobs:
         run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain --output reports/mutation/agent-domain -- --lib
       - if: ${{ !cancelled() }}
         run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: agent-mutation
