@@ -373,10 +373,7 @@ pub struct NoFrameReader;
 
 impl FrameReader for NoFrameReader {
     fn read(&self, _frame: &Rgba) -> FrameReading {
-        FrameReading {
-            screen: Screen::Unknown,
-            cards: Vec::new(),
-        }
+        FrameReading::without_cards(Screen::Unknown)
     }
 }
 

@@ -56,6 +56,7 @@ pub async fn run<G: ApiGateway + Send + Sync + 'static>(
 ) {
     if ports.tokens.load().is_some() {
         device.set_paired(true);
+        device.hub.set_pairing(PairingView::Paired);
     }
     loop {
         device.wait_until_allowed(unpaired_and_allowed).await;
@@ -395,6 +396,24 @@ mod tests {
             );
         }
         assert_eq!(claim_outcome(&Err(ApiError::UpgradeRequired)), None);
+    }
+
+    #[test]
+    fn a_stored_token_shows_paired_and_requests_no_code() {
+        fails_fast(|| async {
+            let gateway = Arc::new(FakeApiGateway::new());
+            let tokens = Arc::new(MemoryTokens::default());
+            tokens
+                .save(&Secret::new("stored-token"))
+                .expect("the memory store accepts the token");
+            let (device, ports) = context(&gateway, &tokens);
+            let (_commands, receiver) = mpsc::channel(8);
+            tokio::spawn(run(Arc::clone(&device), ports, receiver));
+
+            tokio::time::sleep(Duration::from_secs(10)).await;
+            assert_eq!(device.hub.snapshot().pairing, PairingView::Paired);
+            assert_eq!(requests(&gateway), 0, "a paired agent requests no code");
+        });
     }
 
     #[test]

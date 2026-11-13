@@ -15,6 +15,7 @@ use crate::party::{self, PartyPorts};
 use crate::ports::{
     ApiError, ApiGateway, ConsentStore, FrameReader, FrameSource, ProcessSource, Rgba, TokenStore,
 };
+use crate::view::{DiagnosticsView, RejectedSlot};
 
 /// The interval between two looks at the game (CHR-03: at most once per second).
 pub const TICK: Duration = Duration::from_secs(1);
@@ -56,29 +57,96 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
     let reading = read_screen(ports, &frame).await;
     device.set_screen(reading.screen);
     party::look(device, &ports.party, Arc::clone(&frame)).await;
+    let mut diagnostics = diagnostics_of(&reading, &frame, previous_post(device));
     let FrameReading {
         screen: Screen::CharacterSelect,
         cards,
+        ..
     } = reading
     else {
+        device.hub.set_diagnostics(diagnostics);
         return;
     };
     // A name the screen misread (I, l and 1 are one glyph to it) keeps the spelling the account already has (CHR-10).
     let cards = in_name_order(reconcile_names(cards, posted.as_deref().unwrap_or(&[])));
     // The API takes 1 to 24 cards; an empty reading sends nothing, and a set the API already has is not sent again.
     if cards.is_empty() || posted.as_ref() == Some(&cards) || !device.api_allowed() {
+        device.hub.set_diagnostics(diagnostics);
         return;
     }
     let Some(token) = ports.tokens.load() else {
+        device.hub.set_diagnostics(diagnostics);
         return;
     };
-    match ports.gateway.post_characters(&token, &cards).await {
+    let answer = ports.gateway.post_characters(&token, &cards).await;
+    diagnostics.post = match &answer {
+        Ok(()) => POST_OK,
+        Err(error) => error_kind(error),
+    };
+    device.hub.set_diagnostics(diagnostics);
+    match answer {
         Ok(()) => *posted = Some(cards),
         Err(error @ (ApiError::Unauthorized | ApiError::UpgradeRequired)) => {
             device.handle_api_error(&error, ports.tokens.as_ref());
         }
         // Any other failure keeps the set unsent, so the next tick sends it again.
         Err(_) => {}
+    }
+}
+
+const POST_NOT_SENT: &str = "not-sent";
+const POST_OK: &str = "ok";
+
+/// The outcome of the last post, kept while no new post is made.
+fn previous_post(device: &DeviceState) -> &'static str {
+    device
+        .hub
+        .snapshot()
+        .diagnostics
+        .map_or(POST_NOT_SENT, |diagnostics| diagnostics.post)
+}
+
+/// The kind of an error, as a short code. No status line, body, header or URL: `ApiError` carries none.
+fn error_kind(error: &ApiError) -> &'static str {
+    match error {
+        ApiError::Unauthorized => "unauthorized",
+        ApiError::UpgradeRequired => "upgrade-required",
+        ApiError::RateLimited { .. } => "rate-limited",
+        ApiError::Gone => "gone",
+        ApiError::Pending => "pending",
+        ApiError::Server => "server",
+        ApiError::Network => "network",
+        ApiError::Invalid => "invalid",
+        ApiError::CheckEnded => "check-ended",
+    }
+}
+
+fn screen_code(screen: Screen) -> &'static str {
+    match screen {
+        Screen::Unknown => "unknown",
+        Screen::CharacterSelect => "characterSelect",
+        Screen::InGame => "inGame",
+        Screen::AutomapOpen => "automapOpen",
+    }
+}
+
+/// What the window shows of one read: counts, the frame size and reason codes, never a name or a line of text.
+fn diagnostics_of(reading: &FrameReading, frame: &Rgba, post: &'static str) -> DiagnosticsView {
+    DiagnosticsView {
+        screen: screen_code(reading.screen),
+        frame_width: frame.width,
+        frame_height: frame.height,
+        cards_read: reading.slots_read,
+        cards_settled: u8::try_from(reading.cards.len()).unwrap_or(u8::MAX),
+        rejected: reading
+            .rejected
+            .iter()
+            .map(|rejection| RejectedSlot {
+                slot: rejection.slot,
+                reason: rejection.reason.code(),
+            })
+            .collect(),
+        post,
     }
 }
 
@@ -107,10 +175,7 @@ async fn read_screen<G>(ports: &ScreenPorts<G>, frame: &Arc<Rgba>) -> FrameReadi
     let frame = Arc::clone(frame);
     let reading = tokio::task::spawn_blocking(move || reader.read(&frame))
         .await
-        .unwrap_or(FrameReading {
-            screen: Screen::Unknown,
-            cards: Vec::new(),
-        });
+        .unwrap_or_else(|_| FrameReading::without_cards(Screen::Unknown));
     span.record("screen", tracing::field::debug(&reading.screen));
     span.record("cards", reading.cards.len());
     reading
@@ -129,6 +194,8 @@ mod tests {
 
     use d2rmm_agent_domain::characters::{Card, Class, Mode, Title};
 
+    use d2rmm_agent_domain::character_screen::{RejectReason, Rejection};
+
     use super::{ScreenPorts, tick};
     use crate::device_state::DeviceState;
     use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NoText, NullSink};
@@ -140,6 +207,7 @@ mod tests {
         SequentialIds, StoreError, TokenStore,
     };
     use crate::secret::Secret;
+    use crate::view::{DiagnosticsView, RejectedSlot};
     use d2rmm_agent_domain::language::LanguagePack;
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
@@ -279,6 +347,8 @@ mod tests {
     fn selecting(cards: Vec<Card>) -> FrameReading {
         FrameReading {
             screen: Screen::CharacterSelect,
+            slots_read: u8::try_from(cards.len()).expect("a few cards"),
+            rejected: Vec::new(),
             cards,
         }
     }
@@ -443,10 +513,7 @@ mod tests {
             true,
             true,
             frame(),
-            FrameReading {
-                screen: Screen::InGame,
-                cards: Vec::new(),
-            },
+            FrameReading::without_cards(Screen::InGame),
         );
 
         look(&rig, &mut None).await;
@@ -499,5 +566,98 @@ mod tests {
 
         assert!(rig.tokens.load().is_none(), "a 401 forgets the token");
         assert!(!rig.device.is_paired());
+    }
+
+    fn diagnostics(rig: &Rig) -> DiagnosticsView {
+        rig.device
+            .hub
+            .snapshot()
+            .diagnostics
+            .expect("a look was taken")
+    }
+
+    #[tokio::test]
+    async fn zero_settled_cards_show_the_reasons_and_the_frame_size() {
+        let reading = FrameReading {
+            screen: Screen::CharacterSelect,
+            cards: Vec::new(),
+            slots_read: 2,
+            rejected: vec![
+                Rejection {
+                    slot: 0,
+                    reason: RejectReason::NameDisagree,
+                },
+                Rejection {
+                    slot: 1,
+                    reason: RejectReason::LevelUnread,
+                },
+            ],
+        };
+        let rig = rig(true, true, frame(), reading);
+
+        look(&rig, &mut None).await;
+
+        assert_eq!(
+            diagnostics(&rig),
+            DiagnosticsView {
+                screen: "characterSelect",
+                frame_width: 1920,
+                frame_height: 1080,
+                cards_read: 2,
+                cards_settled: 0,
+                rejected: vec![
+                    RejectedSlot {
+                        slot: 0,
+                        reason: "name-disagree",
+                    },
+                    RejectedSlot {
+                        slot: 1,
+                        reason: "level-unread",
+                    },
+                ],
+                post: "not-sent",
+            }
+        );
+        assert!(rig.gateway.calls().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_failed_post_shows_the_error_kind_and_a_taken_one_shows_ok() {
+        let rig = rig(true, true, frame(), selecting(vec![card("Sorc")]));
+        rig.gateway
+            .script_post_characters([Err(ApiError::Server), Ok(())]);
+        let mut posted = None;
+
+        look(&rig, &mut posted).await;
+        let failed = diagnostics(&rig);
+        assert_eq!(failed.post, "server");
+        assert_eq!((failed.cards_read, failed.cards_settled), (1, 1));
+
+        look(&rig, &mut posted).await;
+        assert_eq!(diagnostics(&rig).post, "ok");
+
+        look(&rig, &mut posted).await;
+        assert_eq!(
+            diagnostics(&rig).post,
+            "ok",
+            "no new post keeps the outcome"
+        );
+    }
+
+    #[tokio::test]
+    async fn another_screen_shows_its_name_and_no_cards() {
+        let rig = rig(
+            true,
+            true,
+            frame(),
+            FrameReading::without_cards(Screen::InGame),
+        );
+
+        look(&rig, &mut None).await;
+
+        let shown = diagnostics(&rig);
+        assert_eq!(shown.screen, "inGame");
+        assert_eq!((shown.cards_read, shown.cards_settled), (0, 0));
+        assert_eq!(shown.post, "not-sent");
     }
 }

@@ -29,10 +29,7 @@ impl ScreenReader {
 impl FrameReader for ScreenReader {
     fn read(&self, frame: &Rgba) -> FrameReading {
         if !supported_size(frame.width, frame.height) {
-            return FrameReading {
-                screen: Screen::Unknown,
-                cards: Vec::new(),
-            };
+            return FrameReading::without_cards(Screen::Unknown);
         }
         let text = |region: ScreenRegion| -> Option<Vec<String>> {
             let area = screen_region(region, frame.width, frame.height)?;
@@ -60,6 +57,8 @@ impl FrameReader for ScreenReader {
         FrameReading {
             screen: reading.screen,
             cards: reading.cards,
+            slots_read: reading.slots_read,
+            rejected: reading.rejected,
         }
     }
 }

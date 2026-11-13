@@ -40,6 +40,32 @@ pub struct RoomView {
     pub matched: bool,
 }
 
+/// One card slot that held text but settled no card, and the short code of the field that refused it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RejectedSlot {
+    pub slot: u8,
+    pub reason: &'static str,
+}
+
+/// What the last look at the game window read, for the player to see in the window and nowhere else (CHR-03, NFR-04).
+/// Counts, sizes and codes only: never a character name, a line of game text or any pixel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticsView {
+    /// The screen the frame was placed on: `unknown`, `characterSelect`, `inGame` or `automapOpen`.
+    pub screen: &'static str,
+    pub frame_width: u32,
+    pub frame_height: u32,
+    /// How many card slots held text.
+    pub cards_read: u8,
+    /// How many of them settled into a complete card.
+    pub cards_settled: u8,
+    pub rejected: Vec<RejectedSlot>,
+    /// The outcome of the last character post: `not-sent`, `ok` or the kind of the error it carried.
+    pub post: &'static str,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentView {
@@ -49,13 +75,17 @@ pub struct AgentView {
     pub update: UpdateView,
     /// A ready check is open for the account: the window shows the hotkey that accepts it (RDY-07).
     pub ready_check_open: bool,
+    /// The last look at the game window, once the agent has looked at one.
+    pub diagnostics: Option<DiagnosticsView>,
 }
 
 #[cfg(test)]
 mod tests {
     use serde_json::json;
 
-    use super::{AgentView, Connectivity, PairingView, RoomView, UpdateView};
+    use super::{
+        AgentView, Connectivity, DiagnosticsView, PairingView, RejectedSlot, RoomView, UpdateView,
+    };
 
     #[test]
     fn agent_view_serialises_in_camel_case() {
@@ -72,6 +102,7 @@ mod tests {
             }),
             update: UpdateView::Idle,
             ready_check_open: true,
+            diagnostics: None,
         };
 
         assert_eq!(
@@ -82,6 +113,7 @@ mod tests {
                 "room": { "gameName": "mmbaalh-12", "needsReveal": true, "matched": false },
                 "update": "idle",
                 "readyCheckOpen": true,
+                "diagnostics": null,
             })
         );
     }
@@ -94,6 +126,7 @@ mod tests {
             room: None,
             update: UpdateView::Required,
             ready_check_open: false,
+            diagnostics: None,
         };
 
         assert_eq!(
@@ -104,6 +137,36 @@ mod tests {
                 "room": null,
                 "update": "required",
                 "readyCheckOpen": false,
+                "diagnostics": null,
+            })
+        );
+    }
+
+    #[test]
+    fn diagnostics_serialise_as_camel_case_counts_and_codes() {
+        let diagnostics = DiagnosticsView {
+            screen: "characterSelect",
+            frame_width: 1920,
+            frame_height: 1080,
+            cards_read: 2,
+            cards_settled: 1,
+            rejected: vec![RejectedSlot {
+                slot: 1,
+                reason: "name-disagree",
+            }],
+            post: "not-sent",
+        };
+
+        assert_eq!(
+            serde_json::to_value(&diagnostics).expect("the diagnostics serialize"),
+            json!({
+                "screen": "characterSelect",
+                "frameWidth": 1920,
+                "frameHeight": 1080,
+                "cardsRead": 2,
+                "cardsSettled": 1,
+                "rejected": [{ "slot": 1, "reason": "name-disagree" }],
+                "post": "not-sent",
             })
         );
     }

@@ -38,5 +38,18 @@
   },
   "readyCheck": {
     "hotkey": "Há uma confirmação de partida: pressione Ctrl+Shift+A para aceitar."
+  },
+  "diagnostics": {
+    "heading": "Diagnóstico",
+    "screen": {
+      "unknown": "Tela: não reconhecida",
+      "characterSelect": "Tela: Seleção de personagem",
+      "inGame": "Tela: Em jogo",
+      "automapOpen": "Tela: Em jogo (automapa)"
+    },
+    "frame": "Quadro: {{width}}×{{height}}",
+    "cards": "Cartões lidos: {{read}}, confirmados: {{settled}}",
+    "rejected": "Cartão {{slot}} não confirmado: {{reason}}",
+    "post": "Último envio: {{outcome}}"
   }
 }

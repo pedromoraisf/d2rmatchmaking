@@ -4,7 +4,7 @@
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use crate::ports::StateSink;
-use crate::view::{AgentView, Connectivity, PairingView, RoomView, UpdateView};
+use crate::view::{AgentView, Connectivity, DiagnosticsView, PairingView, RoomView, UpdateView};
 
 /// Owns the agent view and publishes every change through the state sink (AGS-34).
 pub struct Hub {
@@ -22,6 +22,7 @@ impl Hub {
                 room: None,
                 update: UpdateView::Idle,
                 ready_check_open: false,
+                diagnostics: None,
             }),
         }
     }
@@ -54,6 +55,15 @@ impl Hub {
     /// Shows whether a ready check is open; the app keeps the hotkey registered while it is (RDY-07).
     pub fn set_ready_check_open(&self, open: bool) {
         self.change(|view| view.ready_check_open = open);
+    }
+
+    /// Shows what the last look at the game read. An unchanged reading publishes nothing, so a once-a-second look does not
+    /// publish once a second.
+    pub fn set_diagnostics(&self, diagnostics: DiagnosticsView) {
+        let unchanged = lock(&self.view).diagnostics.as_ref() == Some(&diagnostics);
+        if !unchanged {
+            self.change(|view| view.diagnostics = Some(diagnostics));
+        }
     }
 
     pub fn snapshot(&self) -> AgentView {

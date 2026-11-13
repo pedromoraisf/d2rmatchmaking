@@ -38,5 +38,18 @@
   },
   "readyCheck": {
     "hotkey": "A ready check is open: press Ctrl+Shift+A to accept it."
+  },
+  "diagnostics": {
+    "heading": "Diagnostics",
+    "screen": {
+      "unknown": "Screen: not recognised",
+      "characterSelect": "Screen: Character selection",
+      "inGame": "Screen: In game",
+      "automapOpen": "Screen: In game (automap)"
+    },
+    "frame": "Frame: {{width}}×{{height}}",
+    "cards": "Cards read: {{read}}, settled: {{settled}}",
+    "rejected": "Card {{slot}} not settled: {{reason}}",
+    "post": "Last send: {{outcome}}"
   }
 }

@@ -583,6 +583,8 @@ mod tests {
     fn reading(cards: Vec<Character>) -> FrameReading {
         FrameReading {
             screen: Screen::CharacterSelect,
+            slots_read: 0,
+            rejected: Vec::new(),
             cards,
         }
     }
