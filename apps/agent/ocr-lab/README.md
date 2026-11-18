@@ -27,6 +27,24 @@ exception on 2026-11-11 (`.specs/phases/F1/decisions.md`): the encrypted zip, an
   and the workflow never passes it.
 - Never decrypt the zip into the repository or paste a screenshot, or what it shows, in an issue or a PR.
 
+## The variations job
+
+The second job of the workflow, `ocr-variations`, measures how robust the reading is. For each of the five screenshots it
+makes about 150 deterministic variations in memory (seed fixed in `ocr_variations::run::SEED`), reads each one with the same
+production reading and verdict rules as the check above, and classifies the result: **correct**, **refused** (the agent said
+it could not read it, so it posts nothing) or **wrong** (a false read, the worst outcome). The families are: `scale` (ten
+heights from 720 to 2160), `aspect` (4:3 crop, 21:9 pad), `tone` (gamma, brightness, contrast, saturation, colour
+temperature), `blur` (gaussian and unsharp), `jpeg` (quality 90 to 30), `noise`, `quantise` (RGB565), `shift` (1 to 3 px),
+`border` (cropped or added edges) and `combo` (seeded mixes of two or three families). Run locally on Windows with
+`ocr-check.exe --variations [--combos N] [--summary out.md] [--json out.json] <folder>`.
+
+- It is informational: the job does not fail on a wrong read, and the five-file `ocr-real` check is untouched.
+- Privacy limits: a variation lives in memory only while it is read, then it is dropped; none is written to disk, uploaded or
+  committed. The log, the job summary and the JSON hold counts, family names, variant ids (`gamma-0.8`, `combo-017`),
+  screenshot file names and outcome classes only: no character name, no game name, no pixel.
+- The only artifact is `ocr-variations.json` (14 days). The extracted screenshots are never uploaded and are deleted at the
+  end of the job.
+
 ## Replacing the zip (maintainer)
 
 1. Put the five screenshots, named as in `apps/agent/README.md`, in a folder (no subfolders).
