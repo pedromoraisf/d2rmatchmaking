@@ -79,27 +79,94 @@ fn without_whitespace(text: &str) -> String {
     text.chars().filter(|c| !c.is_whitespace()).collect()
 }
 
-/// Why a field that showed another name is not the expected one: how close the closest of its readings is.
-fn other_reason(reads: &[&str], expected_name: &str) -> &'static str {
+/// A character of a normalised read as it may be printed: `[a-z0-9 ]` as is, anything else as `?`.
+fn printable(c: char) -> char {
+    if c.is_ascii_lowercase() || c.is_ascii_digit() || c == ' ' {
+        c
+    } else {
+        '?'
+    }
+}
+
+/// The edit operations that turn `read` into `expected` (a Levenshtein backtrace), in order of position in `expected`:
+/// `sub(r>e)@i`, `del(r)@i`, `ins(e)@i`, where `i` indexes `expected`. Characters print through `printable`.
+fn edit_operations(read: &str, expected: &str) -> Vec<String> {
+    let a: Vec<char> = read.chars().collect();
+    let b: Vec<char> = expected.chars().collect();
+    let mut d = vec![vec![0usize; b.len() + 1]; a.len() + 1];
+    for (i, row) in d.iter_mut().enumerate() {
+        row[0] = i;
+    }
+    for (j, cell) in d[0].iter_mut().enumerate() {
+        *cell = j;
+    }
+    for i in 1..=a.len() {
+        for j in 1..=b.len() {
+            d[i][j] = (d[i - 1][j - 1] + usize::from(a[i - 1] != b[j - 1]))
+                .min(d[i][j - 1] + 1)
+                .min(d[i - 1][j] + 1);
+        }
+    }
+    let (mut i, mut j) = (a.len(), b.len());
+    let mut operations = Vec::new();
+    while i > 0 || j > 0 {
+        if i > 0 && j > 0 && a[i - 1] == b[j - 1] && d[i][j] == d[i - 1][j - 1] {
+            i -= 1;
+            j -= 1;
+        } else if i > 0 && j > 0 && d[i][j] == d[i - 1][j - 1] + 1 {
+            operations.push(format!(
+                "sub({}>{})@{}",
+                printable(a[i - 1]),
+                printable(b[j - 1]),
+                j - 1
+            ));
+            i -= 1;
+            j -= 1;
+        } else if i > 0 && d[i][j] == d[i - 1][j] + 1 {
+            operations.push(format!("del({})@{j}", printable(a[i - 1])));
+            i -= 1;
+        } else {
+            operations.push(format!("ins({})@{}", printable(b[j - 1]), j - 1));
+            j -= 1;
+        }
+    }
+    operations.reverse();
+    operations
+}
+
+/// Why a field that showed another name is not the expected one: how close the closest of its readings is. For one or two
+/// edits against the public Party room name, the operations are appended (`field-other-1-edit:sub(o>0)@9`).
+fn other_reason(reads: &[&str], expected_name: &str) -> Cow<'static, str> {
     let expected = normalise(expected_name);
     let closest = reads
         .iter()
         .filter(|read| !read.trim().is_empty())
         .map(|read| normalise(read))
         .map(|read| {
-            if without_whitespace(&read) == without_whitespace(&expected) {
+            let distance = if without_whitespace(&read) == without_whitespace(&expected) {
                 0
             } else {
                 edit_distance(&read, &expected).max(1)
-            }
+            };
+            (distance, read)
         })
-        .min();
-    match closest {
-        None => "field-other-blank",
-        Some(0) => "field-other-spacing",
-        Some(1) => "field-other-1-edit",
-        Some(2) => "field-other-2-edits",
-        Some(_) => "field-other-far",
+        .min_by_key(|(distance, _)| *distance);
+    let Some((distance, read)) = closest else {
+        return Cow::Borrowed("field-other-blank");
+    };
+    let class = match distance {
+        0 => return Cow::Borrowed("field-other-spacing"),
+        1 => "field-other-1-edit",
+        2 => "field-other-2-edits",
+        _ => return Cow::Borrowed("field-other-far"),
+    };
+    if expected_name == PARTY_ROOM_NAME {
+        Cow::Owned(format!(
+            "{class}:{}",
+            edit_operations(&read, &expected).join(",")
+        ))
+    } else {
+        Cow::Borrowed(class)
     }
 }
 
@@ -128,7 +195,10 @@ pub fn classify_party(
         (FieldRead::Matched, FieldRead::Masked) => {
             verdict(Outcome::Wrong, "matched-read-for-masked")
         }
-        _ => verdict(Outcome::Refused, other_reason(reads, expected_name)),
+        _ => Verdict {
+            outcome: Outcome::Refused,
+            reason: other_reason(reads, expected_name),
+        },
     }
 }
 
@@ -347,18 +417,21 @@ mod tests {
         let check = |reads: &[&str]| party(reads, FieldRead::Matched).reason;
         assert_eq!(check(&["DUELNK LOCKS"]), "field-other-spacing");
         assert_eq!(check(&["DUEL NK  LOCKS"]), "field-other-spacing");
-        assert_eq!(check(&["DUEL NK LOCK"]), "field-other-1-edit");
-        assert_eq!(check(&["DUEL NK LOC"]), "field-other-2-edits");
+        assert_eq!(check(&["DUEL NK LOCK"]), "field-other-1-edit:ins(s)@12");
+        assert_eq!(
+            check(&["DUEL NK LOC"]),
+            "field-other-2-edits:ins(k)@11,ins(s)@12"
+        );
         assert_eq!(check(&["something else"]), "field-other-far");
         // The closest of all the readings counts; a blank reading does not.
         assert_eq!(
             check(&["something else", "", "DUEL NK LOCK"]),
-            "field-other-1-edit"
+            "field-other-1-edit:ins(s)@12"
         );
         // Expecting masked, another name is refused the same way.
         assert_eq!(
             party(&["DUEL NK LOCK"], FieldRead::Masked),
-            verdict(Outcome::Refused, "field-other-1-edit")
+            verdict(Outcome::Refused, "field-other-1-edit:ins(s)@12")
         );
     }
 
@@ -383,6 +456,35 @@ mod tests {
         assert_eq!(edit_distance("abcd", "abc"), 1);
         assert_eq!(edit_distance("kitten", "sitting"), 3);
         assert_eq!(edit_distance("ab", "ba"), 2);
+    }
+
+    #[test]
+    fn the_backtrace_names_each_edit_by_its_position_in_the_expected_string() {
+        let ops = |read: &str, expected: &str| edit_operations(read, expected);
+        assert!(ops("abc", "abc").is_empty());
+        assert_eq!(ops("duel nk l0cks", "duel nk locks"), ["sub(0>o)@9"]);
+        assert_eq!(ops("duelnk locks", "duel nk locks"), ["ins( )@4"]);
+        assert_eq!(ops("duel  nk locks", "duel nk locks"), ["del( )@4"]);
+        assert_eq!(ops("duel nk lock", "duel nk locks"), ["ins(s)@12"]);
+        assert_eq!(ops("xduel nk locks", "duel nk locks"), ["del(x)@0"]);
+        assert_eq!(ops("", "ab"), ["ins(a)@0", "ins(b)@1"]);
+        assert_eq!(ops("ab", ""), ["del(a)@0", "del(b)@0"]);
+        // Two edits come in order of position.
+        assert_eq!(ops("axcyd", "abcd"), ["sub(x>b)@1", "del(y)@3"]);
+        // A character outside [a-z0-9 ] prints as ?.
+        assert_eq!(ops("a-c", "abc"), ["sub(?>b)@1"]);
+        assert_eq!(ops("aéc", "abc"), ["sub(?>b)@1"]);
+        assert_eq!(printable('Z'), '?');
+    }
+
+    #[test]
+    fn the_operations_are_only_printed_against_the_party_room_name() {
+        let reasons = |expected: &str| other_reason(&["secret nam"], expected);
+        assert_eq!(reasons("secret name"), "field-other-1-edit");
+        assert_eq!(
+            other_reason(&["DUEL NK LACKS"], PARTY_ROOM_NAME),
+            "field-other-1-edit:sub(a>o)@9"
+        );
     }
 
     #[test]
