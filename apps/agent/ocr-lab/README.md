@@ -30,7 +30,7 @@ exception on 2026-11-11 (`.specs/phases/F1/decisions.md`): the encrypted zip, an
 ## The variations job
 
 The second job of the workflow, `ocr-variations`, measures how robust the reading is. For each of the five screenshots it
-makes about 150 deterministic variations in memory (seed fixed in `ocr_variations::run::SEED`), reads each one with the same
+makes about 500 deterministic variations in memory (seed fixed in `ocr_variations::run::SEED`), reads each one with the same
 production reading and verdict rules as the check above, and classifies the result: **correct**, **refused** (the agent said
 it could not read it, so it posts nothing) or **wrong** (a false read, the worst outcome). The families are: `scale` (ten
 heights from 720 to 2160), `aspect` (4:3 crop, 21:9 pad), `tone` (gamma, brightness, contrast, saturation, colour
@@ -41,7 +41,9 @@ temperature), `blur` (gaussian and unsharp), `jpeg` (quality 90 to 30), `noise`,
 - It is informational: the job does not fail on a wrong read, and the five-file `ocr-real` check is untouched.
 - Privacy limits: a variation lives in memory only while it is read, then it is dropped; none is written to disk, uploaded or
   committed. The log, the job summary and the JSON hold counts, family names, variant ids (`gamma-0.8`, `combo-017`),
-  screenshot file names and outcome classes only: no character name, no game name, no pixel.
+  screenshot file names and outcome classes and reason classes only (fixed words, field names and numbers such as `field-other-1-edit`, `card0-level`,
+  `cards-refused-1of2-slots2-title-unread`): no character name, no game name, no read text, no pixel. The summary lists the
+  reason classes of the refused and of the wrong reads per screenshot, most frequent first.
 - The only artifact is `ocr-variations.json` (14 days). The extracted screenshots are never uploaded and are deleted at the
   end of the job.
 

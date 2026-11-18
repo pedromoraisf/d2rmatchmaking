@@ -12,8 +12,9 @@ pub const FAMILIES: [&str; 9] = [
 /// The family of the seeded combinations.
 pub const COMBO_FAMILY: &str = "combo";
 
-/// How many combinations make about 150 variations per screenshot with the singles.
-pub const DEFAULT_COMBOS: usize = 94;
+/// How many combinations make about 500 variations per screenshot with the 56 singles. The combinations come after the
+/// singles and are drawn in order from the seed, so the singles and the first combinations keep their ids and images.
+pub const DEFAULT_COMBOS: usize = 444;
 
 /// The heights of the "scale" family; the width follows the 1920:1033 aspect.
 const SCALE_HEIGHTS: [u32; 10] = [720, 768, 864, 900, 1050, 1080, 1200, 1440, 1600, 2160];
@@ -296,8 +297,16 @@ mod tests {
         assert_eq!(counts["shift"], 12);
         assert_eq!(counts["border"], 5);
         assert_eq!(counts["combo"], DEFAULT_COMBOS);
-        assert_eq!(all.len(), 150);
+        assert_eq!(all.len(), 500);
         assert_eq!(catalogue(1, 0).len(), 56);
+    }
+
+    #[test]
+    fn more_combinations_keep_the_singles_and_the_earlier_combinations() {
+        let few = catalogue(7, 94);
+        let many = catalogue(7, DEFAULT_COMBOS);
+        assert_eq!(many[..few.len()], few[..]);
+        assert_eq!(few.len(), 150);
     }
 
     #[test]
