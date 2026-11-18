@@ -68,13 +68,17 @@ pub enum FieldSource {
 
 /// Classifies the readings of the Game Name field by where they were read. A field located by its label (`Label`,
 /// `LabelLine`) follows `read_field_variants`, so a blank or `x`-only reading is `Masked`. A reading from the layout box
-/// may only be `Matched`: an exact match of the room's expected name (after normalisation) is self-validating wherever it
-/// is read, whereas "masked" needs the field to have been located, since a blank box may be any part of the panel. So
-/// from the layout box a blank, an `x`-only or a different reading, or no reading at all, is `Other`: nothing is posted
-/// and the player is not told to reveal a name that may be revealed already.
+/// may only be `Matched` or, with positive evidence, `Masked`: an exact match of the room's expected name (after
+/// normalisation) is self-validating wherever it is read, and a reading that is the mask itself (`x` characters only,
+/// `is_masked`) shows the field is masked, so the player is asked to reveal the name. A blank box proves nothing, since
+/// the box may be any part of the panel: from the layout box a blank or different reading, or no reading at all, is
+/// `Other`, and nothing is posted. A match in any variant wins over a mask in another, as on the label path.
 pub fn read_panel_field(source: FieldSource, reads: &[&str], expected: &str) -> FieldRead {
     match (source, read_field_variants(reads, expected)) {
         (FieldSource::LayoutBox, FieldRead::Matched) => FieldRead::Matched,
+        (FieldSource::LayoutBox, _) if reads.iter().any(|read| is_masked(read)) => {
+            FieldRead::Masked
+        }
         (FieldSource::LayoutBox, _) => FieldRead::Other,
         (_, got) => got,
     }
@@ -142,7 +146,8 @@ mod tests {
         let layout = FieldSource::LayoutBox;
         assert_eq!(at(layout, &["", "mmcowsh-1"]), FieldRead::Matched);
         assert_eq!(at(layout, &["", " "]), FieldRead::Other, "layout + blank");
-        assert_eq!(at(layout, &["", mask]), FieldRead::Other, "layout + mask");
+        assert_eq!(at(layout, &["", mask]), FieldRead::Masked, "layout + mask");
+        assert_eq!(at(layout, &[mask, "mmcowsh-1"]), FieldRead::Matched);
         assert_eq!(at(layout, &["mmcowsh-7"]), FieldRead::Other);
         assert_eq!(at(layout, &[]), FieldRead::Other, "no field area at all");
     }

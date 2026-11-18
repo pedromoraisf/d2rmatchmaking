@@ -153,7 +153,7 @@ pub struct PanelReading {
 /// (the whole word or a prefix of it: a tooltip over the title leaves "PAR"), the "Game Name" label is the line that reads as
 /// that word, and the game name is the line just under the label. A field with no line under the label (the masked value's
 /// dots, which the engine does not read) is read in the box under the label and reads blank. When no variant found the label,
-/// the field's fixed layout box is read instead, and only an exact match counts (`read_panel_field`). The panel area may include
+/// the field's fixed layout box is read instead, and only an exact match or the mask itself counts (`read_panel_field`). The panel area may include
 /// the "Password" label (and its field); that text is never used, matched, returned, logged or sent, and a line that reads
 /// like it is never taken for the game name. Blocking: called on a blocking thread.
 pub fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba) -> PanelReading {
@@ -167,7 +167,7 @@ pub fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba
             Some(anchors::field_below(label, frame.height)),
             FieldSource::Label,
         ),
-        // No variant found the label: the field's fixed layout box, which can only prove a match (`read_panel_field`).
+        // No variant found the label: the field's fixed layout box, which proves a match, or a masked field only when the mask is read (`read_panel_field`).
         (None, None) => (
             panel_region(PanelRegion::GameNameField, frame.width, frame.height),
             FieldSource::LayoutBox,
@@ -211,7 +211,7 @@ fn apply_reading<G>(
         return None;
     }
     // A blank field under a found label reads as masked (`read_field`): the engine returns nothing for the dots of the
-    // masked value. A field read in the layout box never reads as masked (`read_panel_field`).
+    // masked value. A field read in the layout box reads as masked only when the mask itself is read (`read_panel_field`).
     if reading.field.is_empty() {
         return None;
     }
@@ -629,6 +629,20 @@ mod look_tests {
             "a blank field asks for the reveal"
         );
         assert!(posts(&rig.gateway).is_empty(), "nothing is posted");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn no_label_and_the_mask_read_in_the_layout_box_asks_for_the_reveal() {
+        let rig = rig();
+        rig.device
+            .replace_assignment(Some(assignment(1, "mmcowsh-1")));
+        show(&rig.panel, "PARTY", "xxxxxxxx");
+        *rig.panel.label.lock().expect("the panel lock") = String::new();
+
+        look_at(&rig).await;
+
+        assert!(posts(&rig.gateway).is_empty(), "nothing is posted");
+        assert!(room(&rig).is_some_and(|room| room.needs_reveal && !room.matched));
     }
 
     #[tokio::test(start_paused = true)]

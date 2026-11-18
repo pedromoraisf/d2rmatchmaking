@@ -185,9 +185,11 @@ pub fn classify_party(
 }
 
 /// `classify_party` for a field read from `source`. When no variant found the label (`LayoutBox`), the agent only accepts an
-/// exact match and never asks the player to reveal the name (`read_panel_field`): a match is Correct
-/// (`label-not-found-layout-match`), a match where the field is masked is Wrong, and anything else is Refused
-/// (`label-not-found-layout-other`). `blank-read-as-masked` is therefore only a label-found reason.
+/// exact match or the mask itself (`read_panel_field`): a match is Correct (`label-not-found-layout-match`), a match where
+/// the field is masked is Wrong, the mask read where the field is masked is Correct (`label-not-found-layout-mask`), the
+/// mask read where the name is shown is Refused (`label-not-found-layout-mask-for-revealed`: the player is asked to
+/// reveal, nothing is posted), and anything else is Refused (`label-not-found-layout-other`). `blank-read-as-masked` is
+/// therefore only a label-found reason.
 pub fn classify_party_field(
     open: bool,
     source: FieldSource,
@@ -205,6 +207,12 @@ pub fn classify_party_field(
                 verdict(Outcome::Correct, "label-not-found-layout-match")
             }
             (FieldRead::Matched, _) => verdict(Outcome::Wrong, "matched-read-for-masked"),
+            (FieldRead::Masked, FieldRead::Masked) => {
+                verdict(Outcome::Correct, "label-not-found-layout-mask")
+            }
+            (FieldRead::Masked, _) => {
+                verdict(Outcome::Refused, "label-not-found-layout-mask-for-revealed")
+            }
             _ => verdict(Outcome::Refused, "label-not-found-layout-other"),
         };
     }
@@ -482,7 +490,7 @@ mod tests {
     }
 
     #[test]
-    fn a_field_read_in_the_layout_box_never_reads_as_masked() {
+    fn a_field_read_in_the_layout_box_reads_as_masked_only_when_the_mask_is_read() {
         let layout = |reads: &[&str], expected| {
             classify_party_field(
                 true,
@@ -496,7 +504,7 @@ mod tests {
             layout(&["", "DUEL NK LOCKS"], FieldRead::Matched),
             verdict(Outcome::Correct, "label-not-found-layout-match")
         );
-        for reads in [&["", " "][..], &["xxx"], &["other"], &[]] {
+        for reads in [&["", " "][..], &["other"], &[]] {
             assert_eq!(
                 layout(reads, FieldRead::Matched),
                 verdict(Outcome::Refused, "label-not-found-layout-other"),
@@ -509,7 +517,16 @@ mod tests {
         );
         assert_eq!(
             layout(&[""], FieldRead::Masked),
-            verdict(Outcome::Refused, "label-not-found-layout-other")
+            verdict(Outcome::Refused, "label-not-found-layout-other"),
+            "a blank box is not the mask"
+        );
+        assert_eq!(
+            layout(&["", "xxxxxxxx"], FieldRead::Masked),
+            verdict(Outcome::Correct, "label-not-found-layout-mask")
+        );
+        assert_eq!(
+            layout(&["xxxxxxxx"], FieldRead::Matched),
+            verdict(Outcome::Refused, "label-not-found-layout-mask-for-revealed")
         );
     }
 
