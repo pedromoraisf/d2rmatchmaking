@@ -35,6 +35,9 @@ pub const BORDER_ROW_PERCENT: usize = 60;
 /// holds none).
 pub const MIN_INK_PIXELS: usize = 12;
 
+/// Fewer text-like pixels than this in the band is no ink; from here up to the `Ink` criterion the band is doubtful.
+pub const MIN_DOUBT_PIXELS: usize = 4;
+
 /// The band has ink when its count times this reaches the name line's count: a title is drawn as large as a name.
 pub const INK_RATIO: usize = 4;
 
@@ -144,25 +147,28 @@ pub fn read_band(frame: &Rgba, band: Region, name: Region) -> InkRead {
     match contrast(frame, name) {
         Some(found) if found >= MIN_INK_DELTA => {
             let delta = ink_delta(found);
-            let in_band = ink_pixels_above(frame, band, delta);
-            if in_band >= MIN_INK_PIXELS
-                && in_band * INK_RATIO >= ink_pixels_above(frame, name, delta)
-            {
-                InkRead::Ink
-            } else {
-                InkRead::NoInk
-            }
+            judge(
+                ink_pixels_above(frame, band, delta),
+                Some(ink_pixels_above(frame, name, delta)),
+            )
         }
         // The name line has no contrast to calibrate against (its p95 equals its median when thin lettering fills under 5% of
-        // the line, as in the drawn fixtures). An empty band stays empty at the absolute floor; only lettering in the band
-        // that the name cannot calibrate is unclear.
-        _ => {
-            if ink_pixels_above(frame, band, MIN_INK_DELTA) >= MIN_INK_PIXELS {
-                InkRead::Unclear
-            } else {
-                InkRead::NoInk
-            }
+        // the line, as in the drawn fixtures). An empty band stays empty at the absolute floor; lettering in the band that
+        // the name cannot calibrate is unclear.
+        _ => judge(ink_pixels_above(frame, band, MIN_INK_DELTA), None),
+    }
+}
+
+/// The verdict on a band's text-like pixel count (`in_band`), against the name line's (`name_count`, when it could
+/// calibrate): fewer than `MIN_DOUBT_PIXELS` is no ink; the `Ink` criterion is `MIN_INK_PIXELS` and a quarter of the name's
+/// count; between the two is doubtful, and a doubtful band is unclear, never untitled.
+fn judge(in_band: usize, name_count: Option<usize>) -> InkRead {
+    match name_count {
+        Some(name_count) if in_band >= MIN_INK_PIXELS && in_band * INK_RATIO >= name_count => {
+            InkRead::Ink
         }
+        _ if in_band >= MIN_DOUBT_PIXELS => InkRead::Unclear,
+        _ => InkRead::NoInk,
     }
 }
 
@@ -175,7 +181,7 @@ pub fn band_has_ink(frame: &Rgba, band: Region, name: Region) -> bool {
 mod tests {
     use d2rmm_agent_domain::vision::Region;
 
-    use super::{InkRead, band_has_ink, ink_pixels, read_band};
+    use super::{InkRead, band_has_ink, ink_pixels, judge, read_band};
     use crate::ports::Rgba;
 
     const WIDTH: u32 = 200;
@@ -362,5 +368,31 @@ mod tests {
         write(&mut image, region(20, 50, 54, 16), [220, 220, 220]);
         assert_eq!(read_band(&image, BAND, NAME), InkRead::Unclear);
         assert!(!band_has_ink(&image, BAND, NAME));
+    }
+
+    #[test]
+    fn the_verdict_has_a_margin_between_no_ink_and_ink() {
+        assert_eq!(judge(0, Some(100)), InkRead::NoInk);
+        assert_eq!(judge(3, Some(100)), InkRead::NoInk);
+        assert_eq!(judge(4, Some(100)), InkRead::Unclear);
+        assert_eq!(judge(11, Some(100)), InkRead::Unclear);
+        assert_eq!(judge(12, Some(48)), InkRead::Ink);
+        assert_eq!(judge(25, Some(100)), InkRead::Ink);
+        // A dim title below a quarter of the name's ink.
+        assert_eq!(judge(24, Some(100)), InkRead::Unclear);
+        // No name calibration: the same margin, never `Ink`.
+        assert_eq!(judge(3, None), InkRead::NoInk);
+        assert_eq!(judge(4, None), InkRead::Unclear);
+        assert_eq!(judge(40, None), InkRead::Unclear);
+    }
+
+    #[test]
+    fn a_few_pixels_in_the_band_are_unclear_and_a_flat_frame_is_not() {
+        for (width, expected) in [(3, InkRead::NoInk), (4, InkRead::Unclear)] {
+            let mut image = frame([20, 20, 22]);
+            write(&mut image, NAME, [220, 220, 220]);
+            paint(&mut image, region(20, 52, width, 1), [220, 220, 220]);
+            assert_eq!(read_band(&image, BAND, NAME), expected, "{width}");
+        }
     }
 }
