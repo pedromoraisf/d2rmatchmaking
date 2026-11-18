@@ -114,11 +114,66 @@ pub fn is_enabled_label(brightness: u8) -> bool {
 /// The readings of one region: one text per OCR variant, or `None` when the region could not be read at all.
 pub type Readings = Option<Vec<String>>;
 
+/// What the pixels of the band where a card's title would be drawn show (T13), when no line was read there.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BandRead {
+    /// No text-like pixels: the card has no title.
+    NoInk,
+    /// Text-like pixels: the band, read again once per OCR variant.
+    Ink(Readings),
+}
+
+/// What an unread title line amounts to once its band was checked (T13).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UnseenTitle {
+    /// The card has no title.
+    NoTitle,
+    /// The band reads as a title of the pack: these are the readings of the title line.
+    Title(Vec<String>),
+    /// There is ink the readings do not explain: the card is refused (an unread title must never be dropped).
+    Unread,
+}
+
+/// The rule for a title line no variant read (T13): no ink is no title; ink that reads as a known title of the pack is that
+/// title; ink that reads as the ONLINE / OFFLINE tab or as a level line is no title; any other ink is unread.
+pub fn settle_unseen_title(pack: &LanguagePack, band: BandRead) -> UnseenTitle {
+    let BandRead::Ink(readings) = band else {
+        return UnseenTitle::NoTitle;
+    };
+    let Some(readings) = readings else {
+        return UnseenTitle::Unread;
+    };
+    if readings
+        .iter()
+        .any(|read| pack.read_title_word(read).is_some())
+    {
+        return UnseenTitle::Title(readings);
+    }
+    if readings
+        .iter()
+        .any(|read| anchors::is_tab_line(pack, read) || level_of(read, pack).is_some())
+    {
+        return UnseenTitle::NoTitle;
+    }
+    UnseenTitle::Unread
+}
+
 /// Whether any reading of a region satisfies `test`.
 fn any_reading(readings: &Readings, test: impl Fn(&str) -> bool) -> bool {
     readings
         .as_deref()
         .is_some_and(|all| all.iter().any(|read| test(read)))
+}
+
+/// What `read_screen` asks of the pixels of the frame (the text it asks of the OCR): `selected` says whether the card whose
+/// name line is that region shows the gold frame; `lit` says whether a popup option (the region of its line) is as bright as
+/// an enabled one (`is_enabled_label`); `title_ink` checks the pixels of the band (its first argument) where a title would
+/// be drawn above a name line (its second argument) and reads the band again when there is ink, for a card whose title line
+/// no variant read (`BandRead`, `settle_unseen_title`).
+pub struct Probes<S, L, I> {
+    pub selected: S,
+    pub lit: L,
+    pub title_ink: I,
 }
 
 /// Reads a character selection frame, anchored on what the screen shows (the full-screen incident, 0.1.3): the panels sit at
@@ -127,17 +182,15 @@ fn any_reading(readings: &Readings, test: impl Fn(&str) -> bool) -> bool {
 ///
 /// `text` returns the readings of a marker region (or `None` when it could not be read); `lines` returns the lines of a
 /// search area (`ScreenRegion::PopupArea`, `ScreenRegion::CardColumn`) with where each sits; `field` returns the readings of
-/// a region found that way, one per OCR variant, and settles under the same agreement rules as before; `selected` says
-/// whether the card whose name line is that region shows the gold frame; `lit` says whether a popup option (the region of
-/// its line) is as bright as an enabled one (`is_enabled_label`). `frame_height` scales the distances between lines.
-pub fn read_screen<T, A, F, S, L>(
+/// a region found that way, one per OCR variant, and settles under the same agreement rules as before;
+/// the pixels it asks about are `probes`. `frame_height` scales the distances between lines.
+pub fn read_screen<T, A, F, S, L, I>(
     pack: &LanguagePack,
     frame_height: u32,
     mut text: T,
     mut lines: A,
     mut field: F,
-    mut selected: S,
-    mut lit: L,
+    mut probes: Probes<S, L, I>,
 ) -> Reading
 where
     T: FnMut(ScreenRegion) -> Readings,
@@ -145,6 +198,7 @@ where
     F: FnMut(Region) -> Readings,
     S: FnMut(Region) -> bool,
     L: FnMut(Region) -> bool,
+    I: FnMut(Region, Region) -> BandRead,
 {
     let automap = any_reading(&text(ScreenRegion::AreaDifficulty), |read| {
         pack.begins_with(read, DIFFICULTY_LABEL)
@@ -165,7 +219,7 @@ where
     let popup_title = anchors::popup_title_in_variants(pack, &popup_lines);
     let popup_options = u8::try_from(anchors::popup_options_in_variants(pack, &popup_lines).len())
         .unwrap_or(u8::MAX);
-    let popup = popup_difficulties(pack, &popup_lines, &mut field, &mut lit);
+    let popup = popup_difficulties(pack, &popup_lines, &mut field, &mut probes.lit);
     if !list && !popup_title && popup.is_none() {
         return Reading::without_cards(Screen::Unknown);
     }
@@ -186,13 +240,25 @@ where
         // there but is no title (the engine garbled it) settles nothing, so the card is refused with `title-unread`.
         let title = match anchor.title {
             anchors::TitleLine::Known(region) => field(region),
+            anchors::TitleLine::None if anchor.title_unseen => {
+                match anchors::title_band(anchor.name, frame_height) {
+                    None => Some(vec![String::new()]),
+                    Some(band) => {
+                        match settle_unseen_title(pack, (probes.title_ink)(band, anchor.name)) {
+                            UnseenTitle::NoTitle => Some(vec![String::new()]),
+                            UnseenTitle::Title(readings) => Some(readings),
+                            UnseenTitle::Unread => None,
+                        }
+                    }
+                }
+            }
             anchors::TitleLine::None => Some(vec![String::new()]),
             anchors::TitleLine::Unknown => None,
         };
         let name = field(anchor.name);
         let level = field(anchor.level);
         // The popup belongs to the selected card: the first card with the gold frame (CHR-18).
-        let is_selected = enabled.is_some() && !popup_applied && selected(anchor.name);
+        let is_selected = enabled.is_some() && !popup_applied && (probes.selected)(anchor.name);
         if is_selected {
             popup_applied = true;
         }
@@ -467,8 +533,8 @@ pub fn read_level(token: &str) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ENABLED_LABEL_LUMA, Reading, Readings, is_enabled_label, is_gold, label_brightness, luma,
-        majority, parse_level_and_class, read_level, read_name, read_screen, read_title,
+        ENABLED_LABEL_LUMA, Probes, Reading, Readings, is_enabled_label, is_gold, label_brightness,
+        luma, majority, parse_level_and_class, read_level, read_name, read_screen, read_title,
     };
     use crate::characters::{Class, Difficulty, Mode, Title};
     use crate::language::LanguagePack;
@@ -580,14 +646,27 @@ mod tests {
 
         /// Reads the scene; the cards in `selected` show the gold frame, the popup options in `dimmed` are drawn dim.
         fn read(&self, selected: &[u8], dimmed: &[ScreenRegion]) -> Reading {
+            self.read_with_ink(selected, dimmed, |_, _| super::BandRead::NoInk)
+        }
+
+        /// Reads the scene; `ink` answers for the band where the title of a card with no title line would be.
+        fn read_with_ink(
+            &self,
+            selected: &[u8],
+            dimmed: &[ScreenRegion],
+            ink: impl FnMut(Region, Region) -> super::BandRead,
+        ) -> Reading {
             read_screen(
                 &LanguagePack::english(),
                 HEIGHT,
                 |region| self.readings(region),
                 |search| self.lines(search),
                 |region| self.field(region),
-                |name| matches!(key_of(name), Some(ScreenRegion::CardName(slot)) if selected.contains(&slot)),
-                |region| key_of(region).is_some_and(|key| !dimmed.contains(&key)),
+                Probes {
+                    selected: |name| matches!(key_of(name), Some(ScreenRegion::CardName(slot)) if selected.contains(&slot)),
+                    lit: |region| key_of(region).is_some_and(|key| !dimmed.contains(&key)),
+                    title_ink: ink,
+                },
             )
         }
     }
@@ -710,6 +789,78 @@ mod tests {
         );
         assert_eq!(reading.rejected.len(), 1);
         assert_eq!(reading.rejected[0].reason.code(), "title-unread");
+    }
+
+    #[test]
+    fn an_unseen_title_is_settled_by_its_band() {
+        use super::{BandRead, UnseenTitle, settle_unseen_title};
+        let pack = LanguagePack::english();
+        let ink = |reads: &[&str]| {
+            BandRead::Ink(Some(reads.iter().map(|read| (*read).to_string()).collect()))
+        };
+        // No ink: no title.
+        assert_eq!(
+            settle_unseen_title(&pack, BandRead::NoInk),
+            UnseenTitle::NoTitle
+        );
+        // Ink that reads as a title of the pack, in any variant: that title.
+        assert_eq!(
+            settle_unseen_title(&pack, ink(&["", "Matriarch"])),
+            UnseenTitle::Title(vec![String::new(), "Matriarch".to_string()])
+        );
+        // The tab strip and a level line are no title.
+        assert_eq!(
+            settle_unseen_title(&pack, ink(&["ONLINE"])),
+            UnseenTitle::NoTitle
+        );
+        assert_eq!(
+            settle_unseen_title(&pack, ink(&["Level 88 Sorceress"])),
+            UnseenTitle::NoTitle
+        );
+        // Ink nothing explains, or that could not be read at all: refused.
+        assert_eq!(
+            settle_unseen_title(&pack, ink(&["q%z", ""])),
+            UnseenTitle::Unread
+        );
+        assert_eq!(
+            settle_unseen_title(&pack, BandRead::Ink(None)),
+            UnseenTitle::Unread
+        );
+    }
+
+    #[test]
+    fn a_card_whose_title_line_was_not_read_is_refused_or_titled_by_its_band() {
+        use super::BandRead;
+        let mut pairs = list();
+        pairs[1] = (ScreenRegion::CardTitle(0), "");
+        let scene = single(&pairs);
+        let read_with = |band: BandRead| {
+            let asked = std::cell::RefCell::new(Vec::new());
+            let reading = scene.read_with_ink(&[0], &[], |_, name| {
+                asked.borrow_mut().push(name);
+                band.clone()
+            });
+            (reading, asked.into_inner().len())
+        };
+        // Ink the readings do not explain: the Matriarch card is refused, not read as untitled. Only the cards with no
+        // line above (both here) ask.
+        let (reading, asked) = read_with(BandRead::Ink(Some(vec!["q%z".to_string()])));
+        assert_eq!(asked, 2);
+        assert_eq!(reading.cards.len(), 0);
+        assert!(
+            reading
+                .rejected
+                .iter()
+                .all(|rejection| rejection.reason == super::RejectReason::TitleUnread)
+        );
+        assert_eq!(reading.rejected.len(), 2);
+        // The band reads as a title: the card has it.
+        let (reading, _) = read_with(BandRead::Ink(Some(vec!["Matriarch".to_string()])));
+        assert_eq!(reading.cards[0].title(), Some(Title::Matriarch));
+        // No ink: untitled, as before.
+        let (reading, _) = read_with(BandRead::NoInk);
+        assert_eq!(reading.cards.len(), 2);
+        assert_eq!(reading.cards[0].title(), None);
     }
 
     #[test]
