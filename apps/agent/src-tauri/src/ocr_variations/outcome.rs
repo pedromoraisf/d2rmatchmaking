@@ -2,12 +2,14 @@
 //! it: it posts nothing) or read WRONG (a false read, the worst outcome: the agent would act on text that is not there).
 //! The rules are pure functions over a reading, tested without OCR; `classify_image` runs the production reading and applies
 //! them. Reasons are short classes that name no character name and no game name.
+use std::borrow::Cow;
+
 use d2rmm_agent_core::messages::FrameReading;
 use d2rmm_agent_core::party::read_panel;
 use d2rmm_agent_core::ports::{FrameReader, Rgba, TextReader};
 use d2rmm_agent_core::screen_reader::ScreenReader;
 use d2rmm_agent_domain::characters::Difficulty;
-use d2rmm_agent_domain::game_name_match::{FieldRead, read_field_variants};
+use d2rmm_agent_domain::game_name_match::{FieldRead, is_masked, normalise, read_field_variants};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::supported_size;
 use d2rmm_agent_domain::presence::Screen;
@@ -31,34 +33,102 @@ impl Outcome {
     }
 }
 
-/// An outcome and the class of reason behind it (a fixed word, never text read from the screen).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// An outcome and the class of reason behind it: fixed words, field names and numbers, never text read from the screen.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Verdict {
     pub outcome: Outcome,
-    pub reason: &'static str,
+    pub reason: Cow<'static, str>,
 }
 
 const fn verdict(outcome: Outcome, reason: &'static str) -> Verdict {
-    Verdict { outcome, reason }
+    Verdict {
+        outcome,
+        reason: Cow::Borrowed(reason),
+    }
+}
+
+fn verdict_owned(outcome: Outcome, reason: String) -> Verdict {
+    Verdict {
+        outcome,
+        reason: Cow::Owned(reason),
+    }
 }
 
 /// The verdict of an image whose size the layout does not support.
 pub const UNSUPPORTED_SIZE: Verdict = verdict(Outcome::Refused, "unsupported-size");
 
-/// A Party frame: `open` is whether the panel was found, `got` the field's kind when it was read.
-pub fn classify_party(open: bool, got: Option<FieldRead>, expected: FieldRead) -> Verdict {
+/// The Levenshtein distance between two strings, in characters.
+fn edit_distance(a: &str, b: &str) -> usize {
+    let b: Vec<char> = b.chars().collect();
+    let mut row: Vec<usize> = (0..=b.len()).collect();
+    for (i, ca) in a.chars().enumerate() {
+        let mut diagonal = row[0];
+        row[0] = i + 1;
+        for (j, cb) in b.iter().enumerate() {
+            let above = row[j + 1];
+            row[j + 1] = (diagonal + usize::from(ca != *cb))
+                .min(row[j] + 1)
+                .min(above + 1);
+            diagonal = above;
+        }
+    }
+    row[b.len()]
+}
+
+fn without_whitespace(text: &str) -> String {
+    text.chars().filter(|c| !c.is_whitespace()).collect()
+}
+
+/// Why a field that showed another name is not the expected one: how close the closest of its readings is.
+fn other_reason(reads: &[&str], expected_name: &str) -> &'static str {
+    let expected = normalise(expected_name);
+    let closest = reads
+        .iter()
+        .filter(|read| !read.trim().is_empty())
+        .map(|read| normalise(read))
+        .map(|read| {
+            if without_whitespace(&read) == without_whitespace(&expected) {
+                0
+            } else {
+                edit_distance(&read, &expected).max(1)
+            }
+        })
+        .min();
+    match closest {
+        None => "field-other-blank",
+        Some(0) => "field-other-spacing",
+        Some(1) => "field-other-1-edit",
+        Some(2) => "field-other-2-edits",
+        Some(_) => "field-other-far",
+    }
+}
+
+/// A Party frame: `open` is whether the panel was found, `reads` the readings of the Game Name field. The agent treats a
+/// blank or `x`-only field as masked and only asks the player to reveal the name, so a masked read where the name is shown
+/// is Refused; the worst outcome is a name read where the field is masked.
+pub fn classify_party(
+    open: bool,
+    reads: &[&str],
+    expected_name: &str,
+    expected: FieldRead,
+) -> Verdict {
     if !open {
         return verdict(Outcome::Refused, "panel-not-open");
     }
+    let got = read_field_variants(reads, expected_name);
     match (got, expected) {
-        (Some(got), expected) if got == expected => verdict(Outcome::Correct, "field-as-expected"),
-        (Some(FieldRead::Masked), FieldRead::Matched) => {
-            verdict(Outcome::Wrong, "masked-read-for-matched")
+        (got, expected) if got == expected => verdict(Outcome::Correct, "field-as-expected"),
+        (FieldRead::Masked, FieldRead::Matched) => {
+            if reads.iter().any(|read| is_masked(read)) {
+                verdict(Outcome::Refused, "mask-read-for-revealed")
+            } else {
+                verdict(Outcome::Refused, "blank-read-as-masked")
+            }
         }
-        (Some(FieldRead::Matched), FieldRead::Masked) => {
+        (FieldRead::Matched, FieldRead::Masked) => {
             verdict(Outcome::Wrong, "matched-read-for-masked")
         }
-        _ => verdict(Outcome::Refused, "field-other"),
+        _ => verdict(Outcome::Refused, other_reason(reads, expected_name)),
     }
 }
 
@@ -78,13 +148,43 @@ pub fn classify_select(reading: &FrameReading, cards: &[Card]) -> Verdict {
             || card.level() != *level
             || card.title() != *title
         {
-            return verdict(Outcome::Wrong, "card-differs");
+            let mut fields = Vec::new();
+            if card.name().to_lowercase() != name.to_lowercase() {
+                fields.push("name");
+            }
+            if card.class() != *class {
+                fields.push("class");
+            }
+            if card.level() != *level {
+                fields.push("level");
+            }
+            if card.title() != *title {
+                fields.push("title");
+            }
+            return verdict_owned(Outcome::Wrong, format!("card{slot}-{}", fields.join("+")));
         }
     }
     if reading.cards.len() < cards.len() {
-        return verdict(Outcome::Refused, "cards-refused");
+        return verdict_owned(Outcome::Refused, cards_refused_reason(reading, cards.len()));
     }
     verdict(Outcome::Correct, "cards-as-expected")
+}
+
+/// `cards-refused-{read}of{expected}-slots{n}` and the rejection kinds (sorted, joined by `+`) when some slot was refused.
+fn cards_refused_reason(reading: &FrameReading, expected: usize) -> String {
+    let mut kinds: Vec<&str> = reading.rejected.iter().map(|r| r.reason.code()).collect();
+    kinds.sort_unstable();
+    kinds.dedup();
+    let mut reason = format!(
+        "cards-refused-{}of{expected}-slots{}",
+        reading.cards.len(),
+        reading.slots_read
+    );
+    if !kinds.is_empty() {
+        reason.push('-');
+        reason.push_str(&kinds.join("+"));
+    }
+    reason
 }
 
 /// The difficulty popup: the selection screen's rules, then the first card's unlocked difficulties, which must be Normal,
@@ -92,6 +192,10 @@ pub fn classify_select(reading: &FrameReading, cards: &[Card]) -> Verdict {
 pub fn classify_popup(reading: &FrameReading, cards: &[Card]) -> Verdict {
     let cards_verdict = classify_select(reading, cards);
     if cards_verdict.outcome != Outcome::Correct {
+        if cards_verdict.reason.starts_with("cards-refused") {
+            let reason = format!("{}-options{}", cards_verdict.reason, reading.popup_options);
+            return verdict_owned(Outcome::Refused, reason);
+        }
         return cards_verdict;
     }
     let read = reading
@@ -104,7 +208,15 @@ pub fn classify_popup(reading: &FrameReading, cards: &[Card]) -> Verdict {
     } else if read == [Difficulty::Normal, Difficulty::Nightmare, Difficulty::Hell] {
         verdict(Outcome::Correct, "difficulties-as-expected")
     } else {
-        verdict(Outcome::Wrong, "difficulties-differ")
+        let names: Vec<&str> = read
+            .iter()
+            .map(|difficulty| match difficulty {
+                Difficulty::Normal => "normal",
+                Difficulty::Nightmare => "nightmare",
+                Difficulty::Hell => "hell",
+            })
+            .collect();
+        verdict_owned(Outcome::Wrong, format!("difficulties-{}", names.join("+")))
     }
 }
 
@@ -134,13 +246,8 @@ pub fn classify_image(
 
 fn classify_party_image(reader: &dyn TextReader, image: &Rgba, expected: FieldRead) -> Verdict {
     let panel = read_panel(reader, &LanguagePack::english(), image);
-    let got = if panel.open {
-        let field: Vec<&str> = panel.field.iter().map(|read| read.text.as_str()).collect();
-        Some(read_field_variants(&field, PARTY_ROOM_NAME))
-    } else {
-        None
-    };
-    classify_party(panel.open, got, expected)
+    let field: Vec<&str> = panel.field.iter().map(|read| read.text.as_str()).collect();
+    classify_party(panel.open, &field, PARTY_ROOM_NAME, expected)
 }
 
 #[cfg(test)]
@@ -171,45 +278,105 @@ mod tests {
         ]
     }
 
+    fn party(reads: &[&str], expected: FieldRead) -> Verdict {
+        classify_party(true, reads, PARTY_ROOM_NAME, expected)
+    }
+
     #[test]
     fn a_party_frame_expecting_matched() {
-        let check = |open, got| classify_party(open, got, FieldRead::Matched);
+        let check = |reads: &[&str]| party(reads, FieldRead::Matched);
         assert_eq!(
-            check(true, Some(FieldRead::Matched)).outcome,
-            Outcome::Correct
+            check(&["noise", "DUEL NK LOCKS"]),
+            verdict(Outcome::Correct, "field-as-expected")
         );
-        assert_eq!(check(true, Some(FieldRead::Masked)).outcome, Outcome::Wrong);
         assert_eq!(
-            check(true, Some(FieldRead::Other)).outcome,
-            Outcome::Refused
+            classify_party(
+                false,
+                &["DUEL NK LOCKS"],
+                PARTY_ROOM_NAME,
+                FieldRead::Matched
+            ),
+            verdict(Outcome::Refused, "panel-not-open")
         );
-        assert_eq!(check(true, None).outcome, Outcome::Refused);
-        assert_eq!(check(false, None).reason, "panel-not-open");
+    }
+
+    /// A deliberate re-classification: a masked read where the name is shown was Wrong, now Refused, because the agent
+    /// treats a blank or x-only field as masked and only asks the player to reveal the name; nothing is posted.
+    #[test]
+    fn a_masked_read_for_a_revealed_name_is_refused_with_its_reason() {
+        let check = |reads: &[&str]| party(reads, FieldRead::Matched);
         assert_eq!(
-            check(false, Some(FieldRead::Matched)).outcome,
-            Outcome::Refused
+            check(&["xxxxxxxx"]),
+            verdict(Outcome::Refused, "mask-read-for-revealed")
+        );
+        assert_eq!(
+            check(&["", "xxx"]),
+            verdict(Outcome::Refused, "mask-read-for-revealed")
+        );
+        assert_eq!(
+            check(&["", "  "]),
+            verdict(Outcome::Refused, "blank-read-as-masked")
+        );
+        assert_eq!(
+            check(&[]),
+            verdict(Outcome::Refused, "blank-read-as-masked")
         );
     }
 
     #[test]
+    fn another_name_is_refused_by_how_close_the_closest_reading_is() {
+        let check = |reads: &[&str]| party(reads, FieldRead::Matched).reason;
+        assert_eq!(check(&["DUELNK LOCKS"]), "field-other-spacing");
+        assert_eq!(check(&["DUEL NK  LOCKS"]), "field-other-spacing");
+        assert_eq!(check(&["DUEL NK LOCK"]), "field-other-1-edit");
+        assert_eq!(check(&["DUEL NK LOC"]), "field-other-2-edits");
+        assert_eq!(check(&["something else"]), "field-other-far");
+        // The closest of all the readings counts; a blank reading does not.
+        assert_eq!(
+            check(&["something else", "", "DUEL NK LOCK"]),
+            "field-other-1-edit"
+        );
+        // Expecting masked, another name is refused the same way.
+        assert_eq!(
+            party(&["DUEL NK LOCK"], FieldRead::Masked),
+            verdict(Outcome::Refused, "field-other-1-edit")
+        );
+    }
+
+    #[test]
+    fn a_field_with_nothing_but_blank_readings_that_is_not_masked_is_other_blank() {
+        // Unreachable through `read_field_variants`, so the reason function is checked directly.
+        assert_eq!(
+            other_reason(&["", " "], PARTY_ROOM_NAME),
+            "field-other-blank"
+        );
+        assert_eq!(other_reason(&[], PARTY_ROOM_NAME), "field-other-blank");
+    }
+
+    #[test]
+    fn edit_distance_counts_insertions_deletions_and_substitutions() {
+        assert_eq!(edit_distance("", ""), 0);
+        assert_eq!(edit_distance("abc", ""), 3);
+        assert_eq!(edit_distance("", "abc"), 3);
+        assert_eq!(edit_distance("abc", "abc"), 0);
+        assert_eq!(edit_distance("abc", "abd"), 1);
+        assert_eq!(edit_distance("abc", "abcd"), 1);
+        assert_eq!(edit_distance("abcd", "abc"), 1);
+        assert_eq!(edit_distance("kitten", "sitting"), 3);
+        assert_eq!(edit_distance("ab", "ba"), 2);
+    }
+
+    #[test]
     fn a_party_frame_expecting_masked() {
-        let check = |open, got| classify_party(open, got, FieldRead::Masked);
+        let check = |reads: &[&str]| party(reads, FieldRead::Masked);
         assert_eq!(
-            check(true, Some(FieldRead::Masked)).outcome,
-            Outcome::Correct
+            check(&["xxxx"]),
+            verdict(Outcome::Correct, "field-as-expected")
         );
+        assert_eq!(check(&[""]).outcome, Outcome::Correct);
         assert_eq!(
-            check(true, Some(FieldRead::Matched)).outcome,
-            Outcome::Wrong
-        );
-        assert_eq!(
-            check(true, Some(FieldRead::Other)).outcome,
-            Outcome::Refused
-        );
-        assert_eq!(check(false, None).outcome, Outcome::Refused);
-        assert_eq!(
-            check(true, Some(FieldRead::Matched)).reason,
-            "matched-read-for-masked"
+            check(&["DUEL NK LOCKS"]),
+            verdict(Outcome::Wrong, "matched-read-for-masked")
         );
     }
 
@@ -243,7 +410,7 @@ mod tests {
         );
         assert_eq!(
             classify_select(&select(expected_cards()[..1].to_vec()), &cards).reason,
-            "cards-refused"
+            "cards-refused-1of2-slots0"
         );
         // Each field that differs is Wrong.
         let differ = |index: usize, other: Character| {
@@ -251,24 +418,53 @@ mod tests {
             read[index] = other;
             classify_select(&select(read), &cards)
         };
-        let wrong = |verdict: Verdict| assert_eq!(verdict.outcome, Outcome::Wrong, "{verdict:?}");
-        wrong(differ(
-            0,
-            card("vukVukb", Class::Sorceress, 88, Some(Title::Matriarch)),
-        ));
-        wrong(differ(
-            0,
-            card("vukVuka", Class::Amazon, 88, Some(Title::Matriarch)),
-        ));
-        wrong(differ(
-            0,
-            card("vukVuka", Class::Sorceress, 87, Some(Title::Matriarch)),
-        ));
-        wrong(differ(0, card("vukVuka", Class::Sorceress, 88, None)));
-        wrong(differ(
-            1,
-            card("vukaDao", Class::Sorceress, 11, Some(Title::Matriarch)),
-        ));
+        let wrong = |verdict: Verdict, reason: &str| {
+            assert_eq!(verdict.outcome, Outcome::Wrong, "{verdict:?}");
+            assert_eq!(verdict.reason, reason);
+        };
+        wrong(
+            differ(
+                0,
+                card("vukVukb", Class::Sorceress, 88, Some(Title::Matriarch)),
+            ),
+            "card0-name",
+        );
+        wrong(
+            differ(
+                0,
+                card("vukVuka", Class::Amazon, 88, Some(Title::Matriarch)),
+            ),
+            "card0-class",
+        );
+        wrong(
+            differ(
+                0,
+                card("vukVuka", Class::Sorceress, 87, Some(Title::Matriarch)),
+            ),
+            "card0-level",
+        );
+        wrong(
+            differ(0, card("vukVuka", Class::Sorceress, 88, None)),
+            "card0-title",
+        );
+        wrong(
+            differ(
+                1,
+                card("vukaDao", Class::Sorceress, 11, Some(Title::Matriarch)),
+            ),
+            "card1-title",
+        );
+        wrong(
+            differ(1, card("other", Class::Amazon, 11, Some(Title::Matriarch))),
+            "card1-name+class+title",
+        );
+        wrong(
+            differ(
+                0,
+                card("other", Class::Sorceress, 1, Some(Title::Matriarch)),
+            ),
+            "card0-name+level",
+        );
         // A wrong card is Wrong even when the other card was refused.
         assert_eq!(
             classify_select(
@@ -287,6 +483,54 @@ mod tests {
         let mut extra = expected_cards();
         extra.push(card("third", Class::Druid, 3, None));
         assert_eq!(classify_select(&select(extra), &cards).reason, "extra-card");
+    }
+
+    #[test]
+    fn refused_cards_say_how_many_were_read_and_why_the_others_were_not() {
+        use d2rmm_agent_domain::character_screen::{RejectReason, Rejection};
+
+        let cards = [
+            crate::ocr_check::MAINTAINER_CARDS[0],
+            crate::ocr_check::MAINTAINER_CARDS[1],
+        ];
+        let mut read = reading(Screen::CharacterSelect, expected_cards()[..1].to_vec());
+        read.slots_read = 2;
+        read.rejected = vec![Rejection {
+            slot: 1,
+            reason: RejectReason::TitleUnread,
+        }];
+        assert_eq!(
+            classify_select(&read, &cards).reason,
+            "cards-refused-1of2-slots2-title-unread"
+        );
+        // The kinds are sorted and listed once.
+        read.cards.clear();
+        read.rejected = vec![
+            Rejection {
+                slot: 1,
+                reason: RejectReason::NameUnread,
+            },
+            Rejection {
+                slot: 0,
+                reason: RejectReason::LevelUnread,
+            },
+            Rejection {
+                slot: 2,
+                reason: RejectReason::NameUnread,
+            },
+        ];
+        assert_eq!(
+            classify_select(&read, &cards).reason,
+            "cards-refused-0of2-slots2-level-unread+name-unread"
+        );
+        // The popup adds how many of its options were found.
+        read.popup_options = 3;
+        let verdict = classify_popup(&read, &cards);
+        assert_eq!(verdict.outcome, Outcome::Refused);
+        assert_eq!(
+            verdict.reason,
+            "cards-refused-0of2-slots2-level-unread+name-unread-options3"
+        );
     }
 
     #[test]
@@ -314,7 +558,14 @@ mod tests {
             .unwrap();
         assert_eq!(
             popup(dimmed),
-            verdict(Outcome::Wrong, "difficulties-differ")
+            verdict(Outcome::Wrong, "difficulties-normal")
+        );
+        let two = matriarch()
+            .with_popup_difficulties(&[Difficulty::Normal, Difficulty::Nightmare])
+            .unwrap();
+        assert_eq!(
+            popup(two),
+            verdict(Outcome::Wrong, "difficulties-normal+nightmare")
         );
         // The cards' own rules come first.
         assert_eq!(

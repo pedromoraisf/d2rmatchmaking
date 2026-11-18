@@ -294,10 +294,12 @@ mod tests {
         let masked = "maintainer-party-masked.png";
         assert_eq!(report.totals(Some(masked)).correct, 2);
         assert_eq!(report.totals(Some(masked)).refused, 1);
-        // The revealed frame also reads masked: that is a false read, wrong twice.
+        // The revealed frame also reads masked: the agent only asks to reveal the name and posts nothing, so all three are
+        // refused, none wrong.
         let revealed = "maintainer-party-revealed.png";
-        assert_eq!(report.totals(Some(revealed)).wrong, 2);
-        assert_eq!(report.wrong_ids()[revealed], ["identity", "shift-right-1"]);
+        assert_eq!(report.totals(Some(revealed)).refused, 3);
+        assert_eq!(report.totals(Some(revealed)).wrong, 0);
+        assert!(report.wrong_ids().is_empty());
         // The selection screen reads no card: refused.
         assert_eq!(
             report.totals(Some("maintainer-select-screen.png")).refused,

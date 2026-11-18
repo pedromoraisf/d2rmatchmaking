@@ -151,6 +151,56 @@ impl Report {
             .collect()
     }
 
+    /// How many variations of each screenshot ended `outcome` for each reason class, most frequent first (then by reason).
+    pub fn reason_counts(&self, outcome: Outcome) -> Vec<(String, BTreeMap<String, usize>, usize)> {
+        let mut by_reason: BTreeMap<String, BTreeMap<String, usize>> = BTreeMap::new();
+        for result in &self.results {
+            if result.verdict.outcome == outcome {
+                *by_reason
+                    .entry(result.verdict.reason.to_string())
+                    .or_default()
+                    .entry(result.screenshot.clone())
+                    .or_insert(0) += 1;
+            }
+        }
+        let mut rows: Vec<(String, BTreeMap<String, usize>, usize)> = by_reason
+            .into_iter()
+            .map(|(reason, per)| {
+                let total = per.values().sum();
+                (reason, per, total)
+            })
+            .collect();
+        rows.sort_by(|a, b| b.2.cmp(&a.2).then_with(|| a.0.cmp(&b.0)));
+        rows
+    }
+
+    /// A table of reason class by screenshot for `outcome`, or nothing when no variation ended so.
+    fn reason_table(&self, outcome: Outcome) -> String {
+        let rows = self.reason_counts(outcome);
+        if rows.is_empty() {
+            return String::new();
+        }
+        let screenshots = self.screenshots();
+        let mut text = format!("Reasons for the {} reads:\n\n| reason |", outcome.name());
+        for name in &screenshots {
+            text.push_str(&format!(" {} |", short_name(name)));
+        }
+        text.push_str(" all |\n|---|");
+        for _ in 0..=screenshots.len() {
+            text.push_str("---|");
+        }
+        text.push('\n');
+        for (reason, per, total) in rows {
+            text.push_str(&format!("| {reason} |"));
+            for name in &screenshots {
+                text.push_str(&format!(" {} |", per.get(*name).copied().unwrap_or(0)));
+            }
+            text.push_str(&format!(" {total} |\n"));
+        }
+        text.push('\n');
+        text
+    }
+
     /// The markdown for the job summary: a family by screenshot table of `correct/refused/wrong`, the totals and the ids of
     /// the variants that read wrong.
     pub fn markdown(&self) -> String {
@@ -192,6 +242,8 @@ impl Report {
             all.refused,
             all.wrong
         ));
+        text.push_str(&self.reason_table(Outcome::Refused));
+        text.push_str(&self.reason_table(Outcome::Wrong));
         let wrong = self.wrong_ids();
         if wrong.is_empty() {
             text.push_str("No variant read wrong.\n");
@@ -247,7 +299,7 @@ impl Report {
                     "id": result.id,
                     "family": result.family,
                     "outcome": result.verdict.outcome.name(),
-                    "reason_class": result.verdict.reason,
+                    "reason_class": result.verdict.reason.as_ref(),
                 })
             })
             .collect();
@@ -274,7 +326,7 @@ mod tests {
             family,
             verdict: Verdict {
                 outcome,
-                reason: "reason",
+                reason: "reason".into(),
             },
         }
     }
@@ -400,6 +452,85 @@ mod tests {
             ..Report::default()
         };
         assert!(clean.markdown().contains("No variant read wrong."));
+    }
+
+    #[test]
+    fn the_reason_tables_count_by_screenshot_most_frequent_first() {
+        let with = |screenshot: &str, id: &str, outcome, reason: &'static str| VariantResult {
+            verdict: Verdict {
+                outcome,
+                reason: reason.into(),
+            },
+            ..result(screenshot, id, "tone", outcome)
+        };
+        let report = Report {
+            results: vec![
+                with(
+                    "maintainer-party-revealed.png",
+                    "a",
+                    Outcome::Refused,
+                    "b-rare",
+                ),
+                with(
+                    "maintainer-party-revealed.png",
+                    "b",
+                    Outcome::Refused,
+                    "a-common",
+                ),
+                with(
+                    "maintainer-select-screen.png",
+                    "c",
+                    Outcome::Refused,
+                    "a-common",
+                ),
+                with(
+                    "maintainer-select-screen.png",
+                    "d",
+                    Outcome::Refused,
+                    "a-common",
+                ),
+                with(
+                    "maintainer-select-screen.png",
+                    "e",
+                    Outcome::Wrong,
+                    "card0-level",
+                ),
+                with(
+                    "maintainer-select-screen.png",
+                    "f",
+                    Outcome::Correct,
+                    "fine",
+                ),
+            ],
+            ..Report::default()
+        };
+        let rows = report.reason_counts(Outcome::Refused);
+        assert_eq!(
+            rows.iter()
+                .map(|(reason, _, total)| (reason.as_str(), *total))
+                .collect::<Vec<_>>(),
+            [("a-common", 3), ("b-rare", 1)]
+        );
+        let text = report.markdown();
+        assert!(text.contains("Reasons for the refused reads:"), "{text}");
+        assert!(
+            text.contains("| reason | party-revealed | select-screen | all |"),
+            "{text}"
+        );
+        assert!(text.contains("| a-common | 1 | 2 | 3 |"), "{text}");
+        assert!(text.contains("| b-rare | 1 | 0 | 1 |"), "{text}");
+        assert!(text.contains("Reasons for the wrong reads:"), "{text}");
+        assert!(text.contains("| card0-level | 0 | 1 | 1 |"), "{text}");
+        let clean = Report {
+            results: vec![with(
+                "maintainer-select-screen.png",
+                "f",
+                Outcome::Correct,
+                "fine",
+            )],
+            ..Report::default()
+        };
+        assert!(!clean.markdown().contains("Reasons for the"));
     }
 
     #[test]
