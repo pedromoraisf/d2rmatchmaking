@@ -67,6 +67,29 @@ impl ScreenReader {
     }
 }
 
+/// Every OCR variant's reading of the band, each kept as its lines (the title and the tab strip can share a band), the
+/// region grown like a title field. `None` when no variant read anything.
+fn lines_of_variants(
+    reader: &(dyn TextReader + Send + Sync),
+    frame: &Rgba,
+    band: Region,
+) -> Option<Vec<Vec<String>>> {
+    let area = anchors::padded(band, line_pad(frame.height), frame.width, frame.height);
+    let variants: Vec<Vec<String>> = reader
+        .read_variants(frame, area)
+        .into_iter()
+        .map(|read| {
+            read.text
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .collect();
+    (!variants.is_empty()).then_some(variants)
+}
+
 /// Every reading of a region, the lines of each joined with a space.
 pub fn readings_of(reader: &dyn TextReader, frame: &Rgba, area: Region) -> Vec<String> {
     reader
@@ -112,7 +135,7 @@ impl FrameReader for ScreenReader {
                 // with ink, the band is read again like a title field (T13).
                 title_ink: |band, name| {
                     if band_has_ink(frame, band, name) {
-                        BandRead::Ink(field(band))
+                        BandRead::Ink(lines_of_variants(self.reader.as_ref(), frame, band))
                     } else {
                         BandRead::NoInk
                     }
@@ -732,9 +755,13 @@ mod tests {
     /// so the line above the name is the tab (T15): `readable` says whether reading the title's place finds it, `ink`
     /// whether the frame draws something there.
     fn read_under_the_tab(readable: bool, ink: bool) -> FrameReading {
+        read_under_the_tab_at(readable, ink, 43)
+    }
+
+    fn read_under_the_tab_at(readable: bool, ink: bool, above: u32) -> FrameReading {
         let sidecar = Sidecar::of(FULLSCREEN_SELECT, 1920, 1080)
             .without_line("MATRIARCH", readable)
-            .with_tab_over_the_name(43);
+            .with_tab_over_the_name(above);
         let mut image = frame(&sidecar, Some(0), &[]);
         if ink {
             for stroke in 0..20 {
@@ -771,6 +798,46 @@ mod tests {
         assert_eq!(names(&reading), ["vukVuka", "vukaDao"]);
         assert_eq!(reading.cards[0].title(), None);
         assert!(reading.rejected.is_empty());
+    }
+
+    #[test]
+    fn a_tab_line_inside_the_re_read_band_neither_hides_nor_replaces_the_title() {
+        // The tab 38 to 42 px over the name falls in the padded band: the band reads as two lines, settled one by one.
+        for above in 38..=42 {
+            let reading = read_under_the_tab_at(true, true, above);
+            assert_eq!(reading.cards[0].title(), Some(Title::Matriarch), "{above}");
+            assert!(reading.rejected.is_empty(), "{above}");
+            // The tab line alone beside an unread title is explained ink: no title (the tab is not what is refused).
+            let reading = read_under_the_tab_at(false, true, above);
+            assert_eq!(reading.cards[0].title(), None, "{above}");
+        }
+    }
+
+    #[test]
+    fn a_garbled_line_beside_the_tab_line_in_the_band_refuses_the_card() {
+        for above in [38, 42, 43] {
+            let mut sidecar = Sidecar::of(FULLSCREEN_SELECT, 1920, 1080)
+                .without_line("MATRIARCH", true)
+                .with_tab_over_the_name(above);
+            sidecar.unlisted[0].text = "q%z".to_string();
+            let mut image = frame(&sidecar, Some(0), &[]);
+            for stroke in 0..20 {
+                for y in 81..93 {
+                    for x in 1612 + stroke * 6..1614 + stroke * 6 {
+                        let at = ((y * image.width + x) * 4) as usize;
+                        image.pixels[at..at + 3].copy_from_slice(&[230, 230, 230]);
+                    }
+                }
+            }
+            let reading = ScreenReader::new(Arc::new(sidecar), Arc::new(LanguagePack::english()))
+                .read(&image);
+            assert_eq!(names(&reading), ["vukaDao"], "{above}");
+            assert_eq!(
+                reading.rejected[0].reason,
+                RejectReason::TitleUnread,
+                "{above}"
+            );
+        }
     }
 
     #[test]

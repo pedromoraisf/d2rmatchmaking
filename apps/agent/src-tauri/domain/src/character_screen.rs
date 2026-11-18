@@ -119,8 +119,9 @@ pub type Readings = Option<Vec<String>>;
 pub enum BandRead {
     /// No text-like pixels: the card has no title.
     NoInk,
-    /// Text-like pixels: the band, read again once per OCR variant.
-    Ink(Readings),
+    /// Text-like pixels: the band, read again once per OCR variant, each variant's lines apart (`None` when it could not
+    /// be read at all).
+    Ink(Option<Vec<Vec<String>>>),
 }
 
 /// What an unread title line amounts to once its band was checked (T13).
@@ -134,25 +135,37 @@ pub enum UnseenTitle {
     Unread,
 }
 
-/// The rule for a title line no variant read (T13): no ink is no title; ink that reads as a known title of the pack is that
-/// title; ink that reads as the ONLINE / OFFLINE tab or as a level line is no title; any other ink is unread.
+/// The rule for a title line no variant read, settled line by line over every line of every variant: no ink is no title;
+/// any line that reads as a known title of the pack gives that title (the tab strip beside it does not hide it); else the
+/// lines that are the ONLINE / OFFLINE tab or a level line are dropped, and when none is left the card has no title; any
+/// other line is unread.
 pub fn settle_unseen_title(pack: &LanguagePack, band: BandRead) -> UnseenTitle {
-    let BandRead::Ink(readings) = band else {
+    let BandRead::Ink(variants) = band else {
         return UnseenTitle::NoTitle;
     };
-    let Some(readings) = readings else {
+    let Some(variants) = variants else {
         return UnseenTitle::Unread;
     };
-    if readings
-        .iter()
-        .any(|read| pack.read_title_word(read).is_some())
-    {
+    let is_title = |line: &String| pack.read_title_word(line).is_some();
+    if variants.iter().flatten().any(is_title) {
+        // One reading per variant: its title line, or blank when that variant saw none.
+        let readings = variants
+            .iter()
+            .map(|lines| {
+                lines
+                    .iter()
+                    .filter(|line| is_title(line))
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .collect();
         return UnseenTitle::Title(readings);
     }
-    if readings
-        .iter()
-        .any(|read| anchors::is_tab_line(pack, read) || level_of(read, pack).is_some())
-    {
+    let explained = |line: &String| {
+        line.trim().is_empty() || anchors::is_tab_line(pack, line) || level_of(line, pack).is_some()
+    };
+    if variants.iter().flatten().all(explained) {
         return UnseenTitle::NoTitle;
     }
     UnseenTitle::Unread
@@ -795,8 +808,14 @@ mod tests {
     fn an_unseen_title_is_settled_by_its_band() {
         use super::{BandRead, UnseenTitle, settle_unseen_title};
         let pack = LanguagePack::english();
-        let ink = |reads: &[&str]| {
-            BandRead::Ink(Some(reads.iter().map(|read| (*read).to_string()).collect()))
+        // One slice per OCR variant, each the lines that variant read.
+        let ink = |variants: &[&[&str]]| {
+            BandRead::Ink(Some(
+                variants
+                    .iter()
+                    .map(|lines| lines.iter().map(|line| (*line).to_string()).collect())
+                    .collect(),
+            ))
         };
         // No ink: no title.
         assert_eq!(
@@ -805,25 +824,48 @@ mod tests {
         );
         // Ink that reads as a title of the pack, in any variant: that title.
         assert_eq!(
-            settle_unseen_title(&pack, ink(&["", "Matriarch"])),
+            settle_unseen_title(&pack, ink(&[&[], &["Matriarch"]])),
             UnseenTitle::Title(vec![String::new(), "Matriarch".to_string()])
         );
         // The tab strip and a level line are no title.
         assert_eq!(
-            settle_unseen_title(&pack, ink(&["ONLINE"])),
+            settle_unseen_title(&pack, ink(&[&["ONLINE"]])),
             UnseenTitle::NoTitle
         );
         assert_eq!(
-            settle_unseen_title(&pack, ink(&["Level 88 Sorceress"])),
+            settle_unseen_title(&pack, ink(&[&["Level 88 Sorceress"]])),
             UnseenTitle::NoTitle
         );
         // Ink nothing explains, or that could not be read at all: refused.
         assert_eq!(
-            settle_unseen_title(&pack, ink(&["q%z", ""])),
+            settle_unseen_title(&pack, ink(&[&["q%z"], &[]])),
             UnseenTitle::Unread
         );
         assert_eq!(
             settle_unseen_title(&pack, BandRead::Ink(None)),
+            UnseenTitle::Unread
+        );
+        // The tab line beside the title line: the title (the tab does not hide it).
+        assert_eq!(
+            settle_unseen_title(&pack, ink(&[&["ONLINE OFFLINE", "MATRIARCH"]])),
+            UnseenTitle::Title(vec!["MATRIARCH".to_string()])
+        );
+        // The tab line beside a garbled line: unread, never untitled.
+        assert_eq!(
+            settle_unseen_title(&pack, ink(&[&["ONLINE OFFLINE", "q%z"]])),
+            UnseenTitle::Unread
+        );
+        // The tab line alone, or with a level line and blanks: no title.
+        assert_eq!(
+            settle_unseen_title(
+                &pack,
+                ink(&[&["ONLINE OFFLINE"], &["", "Level 88 Sorceress"]])
+            ),
+            UnseenTitle::NoTitle
+        );
+        // A variant that read nothing does not hide a garbled line of another.
+        assert_eq!(
+            settle_unseen_title(&pack, ink(&[&[], &["ONLINE OFFLINE", "q%z"]])),
             UnseenTitle::Unread
         );
     }
@@ -844,7 +886,7 @@ mod tests {
         };
         // Ink the readings do not explain: the Matriarch card is refused, not read as untitled. Only the cards with no
         // line above (both here) ask.
-        let (reading, asked) = read_with(BandRead::Ink(Some(vec!["q%z".to_string()])));
+        let (reading, asked) = read_with(BandRead::Ink(Some(vec![vec!["q%z".to_string()]])));
         assert_eq!(asked, 2);
         assert_eq!(reading.cards.len(), 0);
         assert!(
@@ -855,7 +897,7 @@ mod tests {
         );
         assert_eq!(reading.rejected.len(), 2);
         // The band reads as a title: the card has it.
-        let (reading, _) = read_with(BandRead::Ink(Some(vec!["Matriarch".to_string()])));
+        let (reading, _) = read_with(BandRead::Ink(Some(vec![vec!["Matriarch".to_string()]])));
         assert_eq!(reading.cards[0].title(), Some(Title::Matriarch));
         // No ink: untitled, as before.
         let (reading, _) = read_with(BandRead::NoInk);
