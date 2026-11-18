@@ -202,48 +202,60 @@ pub fn classify_party(
     }
 }
 
-/// The selection screen: its cards in order against the expected ones. A card read that differs in name (without case),
-/// class, level or title is Wrong, as is a card more than the screen shows; fewer cards than expected (the others refused)
-/// is Refused.
+/// The selection screen: each card read is matched to the expected card with the same name (without case), not by its
+/// position: the agent picks the selected card by its gold frame, so a card the screen shows first but the reader missed
+/// is a missing card, not a wrong one. A card with an expected name and another class, level or title is Wrong
+/// (`card{expected}-{fields}`); a card whose name is none of the expected ones is Wrong (`card{slot}-name=other:{edits}`),
+/// or `extra-card` when the screen has no such slot; an expected card never read is Refused.
 pub fn classify_select(reading: &FrameReading, cards: &[Card]) -> Verdict {
     if reading.screen != Screen::CharacterSelect {
         return verdict(Outcome::Refused, "not-the-select-screen");
     }
+    let mut matched = vec![false; cards.len()];
     for (slot, card) in reading.cards.iter().enumerate() {
-        let Some((name, class, level, title)) = cards.get(slot) else {
-            return verdict(Outcome::Wrong, "extra-card");
-        };
-        if card.name().to_lowercase() != name.to_lowercase()
-            || card.class() != *class
-            || card.level() != *level
-            || card.title() != *title
-        {
-            let fields = differing_fields(card, cards, slot);
+        let read_name = card.name().to_lowercase();
+        let expected = cards
+            .iter()
+            .position(|(name, ..)| name.to_lowercase() == read_name);
+        let Some(index) = expected else {
+            if slot >= cards.len() {
+                return verdict(Outcome::Wrong, "extra-card");
+            }
+            let fields = differing_fields(card, cards[slot], Some(name_edits(&read_name, cards)));
             return verdict_owned(Outcome::Wrong, format!("card{slot}-{}", fields.join("+")));
+        };
+        matched[index] = true;
+        let fields = differing_fields(card, cards[index], None);
+        if !fields.is_empty() {
+            return verdict_owned(Outcome::Wrong, format!("card{index}-{}", fields.join("+")));
         }
     }
-    if reading.cards.len() < cards.len() {
+    if matched.contains(&false) {
         return verdict_owned(Outcome::Refused, cards_refused_reason(reading, cards.len()));
     }
     verdict(Outcome::Correct, "cards-as-expected")
 }
 
+/// `name=other:{operations}`: the edits that turn the read name into the closest expected one. Characters outside
+/// `[a-z0-9]` print as `?`; the expected names are public (`ocr_check`).
+fn name_edits(read_name: &str, cards: &[Card]) -> String {
+    let closest = cards
+        .iter()
+        .map(|(name, ..)| name.to_lowercase())
+        .min_by_key(|name| edit_distance(read_name, name))
+        .unwrap_or_default();
+    format!(
+        "name=other:{}",
+        edit_operations(read_name, &closest).join(",")
+    )
+}
+
 /// The fields of a card read that differ from the expected one, each with the value read: a title, a class and a level are
-/// game vocabulary; a name is only `card{n}` when it is one of the expected cards' names (public in `ocr_check`) and
-/// `other` otherwise, so the text read is never printed.
-fn differing_fields(card: &Character, cards: &[Card], slot: usize) -> Vec<String> {
-    let (name, class, level, title) = cards[slot];
-    let mut fields = Vec::new();
-    let read_name = card.name().to_lowercase();
-    if read_name != name.to_lowercase() {
-        let which = cards
-            .iter()
-            .position(|(other, ..)| other.to_lowercase() == read_name);
-        fields.push(match which {
-            Some(index) => format!("name=card{index}"),
-            None => "name=other".to_string(),
-        });
-    }
+/// game vocabulary. `name` is the name field already worded (a card whose name matched no expected one), or none when the
+/// name matched.
+fn differing_fields(card: &Character, expected: Card, name: Option<String>) -> Vec<String> {
+    let (_, class, level, title) = expected;
+    let mut fields: Vec<String> = name.into_iter().collect();
     if card.class() != class {
         fields.push(format!("class={:?}", card.class()));
     }
@@ -616,7 +628,7 @@ mod tests {
                 0,
                 card("vukVukb", Class::Sorceress, 88, Some(Title::Matriarch)),
             ),
-            "card0-name=other",
+            "card0-name=other:sub(b>a)@6",
         );
         wrong(
             differ(
@@ -645,30 +657,38 @@ mod tests {
         );
         wrong(
             differ(1, card("other", Class::Amazon, 11, Some(Title::Matriarch))),
-            "card1-name=other+class=Amazon+title=Matriarch",
+            "card1-name=other:ins(v)@0,ins(u)@1,sub(o>k)@2,sub(t>v)@3,sub(h>u)@4,sub(e>k)@5,sub(r>a)@6+class=Amazon+title=Matriarch",
         );
         wrong(
             differ(
                 0,
                 card("other", Class::Sorceress, 1, Some(Title::Matriarch)),
             ),
-            "card0-name=other+level=1",
+            "card0-name=other:ins(v)@0,ins(u)@1,sub(o>k)@2,sub(t>v)@3,sub(h>u)@4,sub(e>k)@5,sub(r>a)@6+level=1",
         );
-        // A name that is the other expected card's is named by its slot, without case; the text read is never printed.
+        // A card is matched to the expected one with its name, without case, wherever it sits (deliberate: it was
+        // `card0-name=card1+level=11`): the other fields are then compared with that card's, and the text is never printed.
         wrong(
             differ(
                 0,
                 card("VUKADAO", Class::Sorceress, 11, Some(Title::Matriarch)),
             ),
-            "card0-name=card1+level=11",
+            "card1-title=Matriarch",
         );
         wrong(
             differ(
                 1,
                 card("vukvuka", Class::Sorceress, 11, Some(Title::Slayer)),
             ),
-            "card1-name=card0+title=Slayer",
+            "card0-level=11+title=Slayer",
         );
+        // The first card missing and the second read first is a missing card (Refused), not a wrong one.
+        let missing_first = classify_select(
+            &select(vec![card("vukaDao", Class::Sorceress, 11, None)]),
+            &cards,
+        );
+        assert_eq!(missing_first.outcome, Outcome::Refused);
+        assert_eq!(missing_first.reason, "cards-refused-1of2-slots0");
         // A wrong card is Wrong even when the other card was refused.
         assert_eq!(
             classify_select(
