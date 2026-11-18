@@ -139,7 +139,8 @@ pub fn find_cards(pack: &LanguagePack, lines: &[TextLine], frame_height: u32) ->
             .checked_sub(2)
             .map(|above| sorted[above])
             .filter(|line| near(name, line));
-        let title_unseen = above.is_none();
+        // Under the tab strip the title may be there unread too: the band is checked for ink.
+        let title_unseen = above.is_none_or(|line| is_tab_line(pack, &line.text));
         let title = match above {
             None => TitleLine::None,
             Some(line) if is_tab_line(pack, &line.text) || is_level(line) => TitleLine::None,
@@ -519,16 +520,15 @@ mod tests {
         // Nothing within a card's height above the name: the title may be there unread.
         assert!(unseen(&card));
         // The tab strip, a level line or a garbled line right above the name explain what is above it.
-        for above in [
-            "ONLINE OFFLINE",
-            "Level 88 Sorceress",
-            "Marshal",
-            "MATRIARCH",
-        ] {
+        for above in ["Level 88 Sorceress", "Marshal", "MATRIARCH"] {
             let mut lines = vec![column(above, 96)];
             lines.extend(card.clone());
             assert!(!unseen(&lines), "{above}");
         }
+        // The tab strip right above the name hides a title that was not read: the band is checked.
+        let mut under_tab = vec![column("ONLINE OFFLINE", 96)];
+        under_tab.extend(card.clone());
+        assert!(unseen(&under_tab));
     }
 
     #[test]
@@ -540,8 +540,12 @@ mod tests {
         let bare = card.to_vec();
         let merged = |variants: &[Vec<TextLine>]| find_cards_in_variants(&pack(), variants, 1080);
         assert!(merged(&[bare.clone(), bare.clone()])[0].title_unseen);
-        assert!(!merged(&[bare.clone(), with_tab.clone()])[0].title_unseen);
-        assert!(!merged(&[with_tab, bare.clone()])[0].title_unseen);
+        assert!(merged(&[bare.clone(), with_tab.clone()])[0].title_unseen);
+        assert!(merged(&[with_tab.clone(), bare.clone()])[0].title_unseen);
+        let mut with_level = vec![column("Level 88 Sorceress", 96)];
+        with_level.extend(card.clone());
+        assert!(!merged(&[with_tab.clone(), with_level.clone()])[0].title_unseen);
+        assert!(!merged(&[with_level, with_tab])[0].title_unseen);
         // A title line found in one view wins over the bare one.
         let mut titled = vec![column("MATRIARCH", 87)];
         titled.extend(card);

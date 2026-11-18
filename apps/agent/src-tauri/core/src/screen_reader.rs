@@ -302,6 +302,24 @@ mod tests {
             self
         }
 
+        /// This sidecar with the ONLINE / OFFLINE tab line moved to sit `above` px over the first card's name (middle to
+        /// middle), where the lines pass of a real frame finds it when it misses the title line.
+        fn with_tab_over_the_name(mut self, above: u32) -> Self {
+            let name = self
+                .lines
+                .iter()
+                .find(|line| line.text == "vukVuka")
+                .expect("the sidecar has the first name")
+                .region;
+            let tab = self
+                .lines
+                .iter_mut()
+                .find(|line| line.text.starts_with("ONLINE"))
+                .expect("the sidecar has the tab line");
+            tab.region.y = (name.middle_y() - above).saturating_sub(tab.region.height / 2);
+            self
+        }
+
         fn inside(area: Region, line: &TextLine) -> bool {
             let (x, y) = (line.region.middle_x(), line.region.middle_y());
             area.x <= x && x < area.right() && area.y <= y && y < area.bottom()
@@ -705,6 +723,51 @@ mod tests {
     fn an_untitled_card_with_a_dark_band_stays_untitled() {
         // No ink where the title would be: the card has no title, as before (and the second card is untitled too).
         let reading = read_without_title_line(false, false);
+        assert_eq!(names(&reading), ["vukVuka", "vukaDao"]);
+        assert_eq!(reading.cards[0].title(), None);
+        assert!(reading.rejected.is_empty());
+    }
+
+    /// The full-screen list with the Matriarch title line missing from the lines pass and the tab line right over the name,
+    /// so the line above the name is the tab (T15): `readable` says whether reading the title's place finds it, `ink`
+    /// whether the frame draws something there.
+    fn read_under_the_tab(readable: bool, ink: bool) -> FrameReading {
+        let sidecar = Sidecar::of(FULLSCREEN_SELECT, 1920, 1080)
+            .without_line("MATRIARCH", readable)
+            .with_tab_over_the_name(43);
+        let mut image = frame(&sidecar, Some(0), &[]);
+        if ink {
+            for stroke in 0..20 {
+                for y in 81..93 {
+                    for x in 1612 + stroke * 6..1614 + stroke * 6 {
+                        let at = ((y * image.width + x) * 4) as usize;
+                        image.pixels[at..at + 3].copy_from_slice(&[230, 230, 230]);
+                    }
+                }
+            }
+        }
+        ScreenReader::new(Arc::new(sidecar), Arc::new(LanguagePack::english())).read(&image)
+    }
+
+    #[test]
+    fn the_top_card_with_the_tab_over_its_name_and_an_inked_readable_band_has_its_title() {
+        let reading = read_under_the_tab(true, true);
+        assert_eq!(reading.cards[0].title(), Some(Title::Matriarch));
+        assert!(reading.rejected.is_empty());
+    }
+
+    #[test]
+    fn the_top_card_with_the_tab_over_its_name_and_an_inked_unreadable_band_is_refused() {
+        let reading = read_under_the_tab(false, true);
+        assert_eq!(names(&reading), ["vukaDao"]);
+        assert_eq!(reading.rejected.len(), 1);
+        assert_eq!(reading.rejected[0].slot, 0);
+        assert_eq!(reading.rejected[0].reason, RejectReason::TitleUnread);
+    }
+
+    #[test]
+    fn the_top_card_with_the_tab_over_its_name_and_a_dark_band_stays_untitled() {
+        let reading = read_under_the_tab(false, false);
         assert_eq!(names(&reading), ["vukVuka", "vukaDao"]);
         assert_eq!(reading.cards[0].title(), None);
         assert!(reading.rejected.is_empty());
