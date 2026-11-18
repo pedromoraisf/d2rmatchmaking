@@ -17,7 +17,7 @@ use d2rmm_agent_domain::vision::{Region, TextLine};
 
 use crate::messages::FrameReading;
 use crate::ports::{FrameReader, Rgba, TextReader};
-use crate::title_ink::band_has_ink;
+use crate::title_ink::{InkRead, read_band};
 
 /// Reads the character screens of a frame: the markers, the popup and the cards, with the language pack's words.
 pub struct ScreenReader {
@@ -133,12 +133,12 @@ impl FrameReader for ScreenReader {
                 lit: |region| is_lit(frame, region),
                 // A title line no variant read: the card is untitled only when the band where it would be holds no ink;
                 // with ink, the band is read again like a title field (T13).
-                title_ink: |band, name| {
-                    if band_has_ink(frame, band, name) {
+                title_ink: |band, name| match read_band(frame, band, name) {
+                    InkRead::Ink => {
                         BandRead::Ink(lines_of_variants(self.reader.as_ref(), frame, band))
-                    } else {
-                        BandRead::NoInk
                     }
+                    InkRead::NoInk => BandRead::NoInk,
+                    InkRead::Unclear => BandRead::Unclear,
                 },
             },
         );
@@ -415,6 +415,30 @@ mod tests {
                 246
             };
             paint(line.region, [level, level, level, 255]);
+        }
+        // The lettering of the card names: strokes 2 px wide every 6 px, so that the name line has the contrast the ink test
+        // measures the title band against (a flat frame would leave it `Unclear`, and every unseen title refused).
+        for line in sidecar.lines.iter().filter(|line| {
+            let text = line.text.trim();
+            !text.is_empty()
+                && text.chars().all(char::is_alphabetic)
+                && pack.read_title_word(text).is_none()
+                && pack.read_difficulty(text).is_none()
+        }) {
+            let area = line.region;
+            let mut x = area.x + 1;
+            while x + 2 <= area.right() {
+                paint(
+                    Region {
+                        x,
+                        y: area.y + 2,
+                        width: 2,
+                        height: area.height.saturating_sub(4),
+                    },
+                    [230, 230, 230, 255],
+                );
+                x += 6;
+            }
         }
         if let Some(slot) = selected {
             let area = sidecar.gold.unwrap_or_else(|| {

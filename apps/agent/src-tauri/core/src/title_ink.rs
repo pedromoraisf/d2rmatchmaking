@@ -3,19 +3,30 @@
 //! pixel test of that band: it counts the text-like pixels of the band and of the name line itself and compares them. Pure
 //! over `Rgba` and `Region`; the frame never leaves the process (AGS-20).
 //!
-//! A pixel is text-like when its luma is `INK_LUMA_ABOVE_MEDIAN` or more above the median luma of its own region (so an
-//! empty band of any background is quiet), or when it is saturated gold or red (the colours of the titles and of the
-//! hardcore ones). A row where more than `BORDER_ROW_PERCENT` of the pixels are text-like is a frame border or a rule, not
-//! lettering (a line of text never fills the row of a band twice as wide as the name), and is not counted. The band has ink
-//! when it holds at least `MIN_INK_PIXELS` text-like pixels and at least a quarter (`INK_RATIO`) of the name line's own.
+//! A pixel is text-like when its luma is `ink_delta` or more above the median luma of its own region (so an empty band of
+//! any background is quiet), or when it is gold or red (the colours of the titles and of the hardcore ones). The delta is
+//! relative to the name line's own contrast on the same frame, `max(MIN_INK_DELTA, NAME_CONTRAST_PERCENT% of the name's
+//! p95 - median luma)`: the difficulty popup dims the whole screen, the name and the title with it, so a fixed +60 would
+//! lose a dimmed title while the same fraction of the name's contrast keeps it. When the name line itself has less than
+//! `MIN_INK_DELTA` of contrast the frame cannot tell lettering from noise and the answer is `Unclear` (the card is refused,
+//! never taken as untitled). Gold and red are compared by channel ratios, so dimmed gold still counts. A row where more
+//! than `BORDER_ROW_PERCENT` of the pixels are text-like is a frame border or a rule, not lettering (a line of text never
+//! fills the row of a band twice as wide as the name), and is not counted. The band has ink when it holds at least
+//! `MIN_INK_PIXELS` text-like pixels and at least a quarter (`INK_RATIO`) of the name line's own.
 
 use d2rmm_agent_domain::character_screen::{is_gold, luma};
 use d2rmm_agent_domain::vision::Region;
 
 use crate::ports::Rgba;
 
-/// How far above the median luma of its region a pixel must be to count as text.
-pub const INK_LUMA_ABOVE_MEDIAN: u8 = 60;
+/// The least a pixel must be above the median luma of its region to count as text, and the least contrast the name line
+/// must have for the test to be trusted. 16 is above the grain of a rendered frame (about 10) and below dimmed lettering.
+pub const MIN_INK_DELTA: u8 = 16;
+
+/// The share of the name line's contrast (its p95 luma minus its median) a pixel must stand out by. The title is drawn in
+/// the same size and about as bright as the name, but gold or grey titles run below white names: under half the contrast
+/// keeps them, over a third keeps the noise of a dimmed bright frame out.
+pub const NAME_CONTRAST_PERCENT: u16 = 45;
 
 /// A row with more than this percent of text-like pixels is a border, not text.
 pub const BORDER_ROW_PERCENT: usize = 60;
@@ -44,8 +55,49 @@ fn is_red(red: u8, green: u8, blue: u8) -> bool {
     red >= 120 && u16::from(red) >= 2 * u16::from(green) && u16::from(red) >= 2 * u16::from(blue)
 }
 
-/// The text-like pixels of a region, not counting the rows of a border. A region outside the frame has none.
-pub fn ink_pixels(frame: &Rgba, area: Region) -> usize {
+/// Gold by channel ratios, so that dimmed gold counts as much as bright gold: red clearly above blue, green between.
+fn is_goldish(red: u8, green: u8, blue: u8) -> bool {
+    let (red, green, blue) = (u16::from(red), u16::from(green), u16::from(blue));
+    red >= 40
+        && red * 5 >= blue * 8
+        && red >= blue + 15
+        && green * 5 >= blue * 7
+        && green >= blue + 10
+}
+
+/// Whether `is_gold` or its ratio form holds.
+fn is_goldlike(red: u8, green: u8, blue: u8) -> bool {
+    is_gold(red, green, blue) || is_goldish(red, green, blue)
+}
+
+/// The luma of every pixel of a region inside the frame, sorted.
+fn sorted_lumas(frame: &Rgba, area: Region) -> Vec<u8> {
+    let mut lumas: Vec<u8> = (area.y..area.bottom())
+        .flat_map(|y| (area.x..area.right()).map(move |x| (x, y)))
+        .filter_map(|(x, y)| pixel(frame, x, y))
+        .map(|[red, green, blue]| luma(red, green, blue))
+        .collect();
+    lumas.sort_unstable();
+    lumas
+}
+
+/// The contrast of a region's lettering: its luma at the 95th percentile minus its median. `None` for a region outside the
+/// frame.
+pub fn contrast(frame: &Rgba, area: Region) -> Option<u8> {
+    let lumas = sorted_lumas(frame, area);
+    let last = lumas.len().checked_sub(1)?;
+    Some(lumas[last * 95 / 100].saturating_sub(lumas[lumas.len() / 2]))
+}
+
+/// How far above its median a pixel must be, given the name line's contrast.
+fn ink_delta(name_contrast: u8) -> u8 {
+    let relative = u16::from(name_contrast) * NAME_CONTRAST_PERCENT / 100;
+    u8::try_from(relative).unwrap_or(u8::MAX).max(MIN_INK_DELTA)
+}
+
+/// The text-like pixels of a region (luma `delta` above its median, gold or red), not counting the rows of a border. A
+/// region outside the frame has none.
+fn ink_pixels_above(frame: &Rgba, area: Region, delta: u8) -> usize {
     let rows: Vec<Vec<[u8; 3]>> = (area.y..area.bottom())
         .map(|y| {
             (area.x..area.right())
@@ -53,20 +105,15 @@ pub fn ink_pixels(frame: &Rgba, area: Region) -> usize {
                 .collect()
         })
         .collect();
-    let mut lumas: Vec<u8> = rows
-        .iter()
-        .flatten()
-        .map(|&[red, green, blue]| luma(red, green, blue))
-        .collect();
+    let lumas = sorted_lumas(frame, area);
     if lumas.is_empty() {
         return 0;
     }
-    lumas.sort_unstable();
     let median = lumas[lumas.len() / 2];
-    let threshold = median.saturating_add(INK_LUMA_ABOVE_MEDIAN);
+    let threshold = median.saturating_add(delta);
     let text_like = |&[red, green, blue]: &[u8; 3]| {
         (luma(red, green, blue) >= threshold && threshold > median)
-            || is_gold(red, green, blue)
+            || is_goldlike(red, green, blue)
             || is_red(red, green, blue)
     };
     rows.iter()
@@ -75,17 +122,51 @@ pub fn ink_pixels(frame: &Rgba, area: Region) -> usize {
         .sum()
 }
 
-/// Whether the band where a title would be drawn holds text: its text-like pixels against those of the name line.
+/// The text-like pixels of a region, measured against its own contrast. A region outside the frame has none.
+pub fn ink_pixels(frame: &Rgba, area: Region) -> usize {
+    ink_pixels_above(frame, area, ink_delta(contrast(frame, area).unwrap_or(0)))
+}
+
+/// What the pixels of the band where a title would be drawn show.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InkRead {
+    /// The band holds lettering.
+    Ink,
+    /// The band holds none.
+    NoInk,
+    /// The name line has too little contrast to tell: neither answer is safe.
+    Unclear,
+}
+
+/// The band where a title would be drawn against the name line: its text-like pixels against those of the name line, both
+/// measured with the name line's own contrast.
+pub fn read_band(frame: &Rgba, band: Region, name: Region) -> InkRead {
+    match contrast(frame, name) {
+        Some(found) if found >= MIN_INK_DELTA => {
+            let delta = ink_delta(found);
+            let in_band = ink_pixels_above(frame, band, delta);
+            if in_band >= MIN_INK_PIXELS
+                && in_band * INK_RATIO >= ink_pixels_above(frame, name, delta)
+            {
+                InkRead::Ink
+            } else {
+                InkRead::NoInk
+            }
+        }
+        _ => InkRead::Unclear,
+    }
+}
+
+/// Whether the band where a title would be drawn holds text (`Unclear` is not text).
 pub fn band_has_ink(frame: &Rgba, band: Region, name: Region) -> bool {
-    let in_band = ink_pixels(frame, band);
-    in_band >= MIN_INK_PIXELS && in_band * INK_RATIO >= ink_pixels(frame, name)
+    read_band(frame, band, name) == InkRead::Ink
 }
 
 #[cfg(test)]
 mod tests {
     use d2rmm_agent_domain::vision::Region;
 
-    use super::{band_has_ink, ink_pixels};
+    use super::{InkRead, band_has_ink, ink_pixels, read_band};
     use crate::ports::Rgba;
 
     const WIDTH: u32 = 200;
@@ -215,5 +296,56 @@ mod tests {
             region(WIDTH + 5, 10, 40, 16),
             region(WIDTH + 5, 40, 40, 16)
         ));
+    }
+
+    /// Every pixel of the frame scaled to `percent`.
+    fn dim(frame: &mut Rgba, percent: u16) {
+        for px in frame.pixels.as_chunks_mut::<4>().0 {
+            for channel in &mut px[..3] {
+                *channel = u8::try_from(u16::from(*channel) * percent / 100).unwrap_or(255);
+            }
+        }
+    }
+
+    #[test]
+    fn a_dimmed_frame_keeps_the_lettering_of_the_band_as_ink() {
+        for colour in [[220, 220, 220], [200, 170, 80]] {
+            let mut image = frame([20, 20, 22]);
+            write(&mut image, NAME, [220, 220, 220]);
+            write(&mut image, region(20, 50, 54, 16), colour);
+            dim(&mut image, 45);
+            assert_eq!(read_band(&image, BAND, NAME), InkRead::Ink, "{colour:?}");
+        }
+    }
+
+    #[test]
+    fn a_dimmed_frame_with_an_empty_band_has_no_ink() {
+        let mut image = frame([20, 20, 22]);
+        write(&mut image, NAME, [220, 220, 220]);
+        dim(&mut image, 45);
+        assert_eq!(read_band(&image, BAND, NAME), InkRead::NoInk);
+    }
+
+    #[test]
+    fn noise_alone_in_a_bright_band_is_not_ink() {
+        let mut image = frame([150, 150, 150]);
+        write(&mut image, NAME, [255, 255, 255]);
+        // Grain of +-10 in luma over every other pixel of the band.
+        for y in 50..66 {
+            for x in (20..140).step_by(2) {
+                let value = if (x + y) % 4 == 0 { 160 } else { 140 };
+                paint(&mut image, region(x, y, 1, 1), [value, value, value]);
+            }
+        }
+        assert_eq!(read_band(&image, BAND, NAME), InkRead::NoInk);
+    }
+
+    #[test]
+    fn a_name_line_without_contrast_leaves_the_band_unclear() {
+        let mut image = frame([20, 20, 22]);
+        write(&mut image, NAME, [30, 30, 32]);
+        write(&mut image, region(20, 50, 54, 16), [220, 220, 220]);
+        assert_eq!(read_band(&image, BAND, NAME), InkRead::Unclear);
+        assert!(!band_has_ink(&image, BAND, NAME));
     }
 }

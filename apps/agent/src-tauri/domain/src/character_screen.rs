@@ -119,6 +119,8 @@ pub type Readings = Option<Vec<String>>;
 pub enum BandRead {
     /// No text-like pixels: the card has no title.
     NoInk,
+    /// The name line has too little contrast to tell ink from noise: the card is refused, never taken as untitled.
+    Unclear,
     /// Text-like pixels: the band, read again once per OCR variant, each variant's lines apart (`None` when it could not
     /// be read at all).
     Ink(Option<Vec<Vec<String>>>),
@@ -140,8 +142,10 @@ pub enum UnseenTitle {
 /// lines that are the ONLINE / OFFLINE tab or a level line are dropped, and when none is left the card has no title; any
 /// other line is unread.
 pub fn settle_unseen_title(pack: &LanguagePack, band: BandRead) -> UnseenTitle {
-    let BandRead::Ink(variants) = band else {
-        return UnseenTitle::NoTitle;
+    let variants = match band {
+        BandRead::NoInk => return UnseenTitle::NoTitle,
+        BandRead::Unclear => return UnseenTitle::Unread,
+        BandRead::Ink(variants) => variants,
     };
     let Some(variants) = variants else {
         return UnseenTitle::Unread;
@@ -854,6 +858,11 @@ mod tests {
         assert_eq!(
             settle_unseen_title(&pack, BandRead::NoInk),
             UnseenTitle::NoTitle
+        );
+        // A name line too flat to judge the band by: refused.
+        assert_eq!(
+            settle_unseen_title(&pack, BandRead::Unclear),
+            UnseenTitle::Unread
         );
         // Ink that reads as a title of the pack, in any variant: that title.
         assert_eq!(
