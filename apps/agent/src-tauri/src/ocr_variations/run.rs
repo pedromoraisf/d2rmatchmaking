@@ -325,6 +325,13 @@ mod tests {
                 .any(|line| line.contains("party-masked shift: 2 correct, 1 refused, 0 wrong"))
         );
         assert_eq!(report.seed, 3);
+        // The log lines carry fixed vocabulary only: no text a reader returned.
+        let log = report.log_lines().join("\n");
+        assert!(log.contains("Supported totals: 6 variations"), "{log}");
+        assert!(
+            !log.contains("PARTY") && !log.contains("GAME NAME"),
+            "{log}"
+        );
     }
 
     #[test]

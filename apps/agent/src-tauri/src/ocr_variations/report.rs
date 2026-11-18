@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use serde_json::{Value, json};
 
 use super::catalogue::{COMBO_FAMILY, FAMILIES};
-use super::outcome::{Outcome, Verdict};
+use super::outcome::{Outcome, UNSUPPORTED_SIZE, Verdict};
 
 /// How many variations of a family read correctly, were refused and read wrong.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -185,6 +185,57 @@ impl Report {
             .collect();
         rows.sort_by(|a, b| b.2.cmp(&a.2).then_with(|| a.0.cmp(&b.0)));
         rows
+    }
+
+    /// The reason rows of `outcome` as log lines, one per reason and screenshot, most frequent reason first, at most `limit`:
+    /// `  wrong  maintainer-select-screen.png  card0-title=None  35`. Reasons are fixed vocabulary, never read text.
+    pub fn reason_lines(&self, outcome: Outcome, limit: usize) -> Vec<String> {
+        let screenshots = self.screenshots();
+        self.reason_counts(outcome)
+            .into_iter()
+            .flat_map(|(reason, per, _)| {
+                screenshots
+                    .iter()
+                    .filter_map(|name| {
+                        let count = per.get(*name).copied().unwrap_or(0);
+                        (count > 0)
+                            .then(|| format!("  {}  {name}  {reason}  {count}", outcome.name()))
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .take(limit)
+            .collect()
+    }
+
+    /// The end of the run's log, for when the artifact is out of reach: the reason tables, one line per screenshot without
+    /// the unsupported-size refusals, and the totals of the supported variations.
+    pub fn log_lines(&self) -> Vec<String> {
+        let mut lines = vec!["Reasons for the wrong reads:".to_string()];
+        lines.extend(self.reason_lines(Outcome::Wrong, usize::MAX));
+        lines.push("Reasons for the refused reads (top 40 rows):".to_string());
+        lines.extend(self.reason_lines(Outcome::Refused, 40));
+        let mut all = Counts::default();
+        for name in self.screenshots() {
+            let mut counts = Counts::default();
+            for result in &self.results {
+                if result.screenshot == name && result.verdict.reason != UNSUPPORTED_SIZE.reason {
+                    counts.add(result.verdict.outcome);
+                }
+            }
+            all.merge(counts);
+            lines.push(format!(
+                "  {name}: {} correct, {} refused, {} wrong (unsupported-size left out)",
+                counts.correct, counts.refused, counts.wrong
+            ));
+        }
+        lines.push(format!(
+            "Supported totals: {} variations, {} correct, {} refused, {} wrong.",
+            all.total(),
+            all.correct,
+            all.refused,
+            all.wrong
+        ));
+        lines
     }
 
     /// A table of reason class by screenshot for `outcome`, or nothing when no variation ended so.
@@ -595,6 +646,54 @@ mod tests {
             ..Report::default()
         };
         assert!(!clean.markdown().contains("Reasons for the"));
+    }
+
+    #[test]
+    fn the_log_lines_print_the_reason_tables_and_the_supported_totals() {
+        let with = |outcome, reason: &str| VariantResult {
+            verdict: Verdict {
+                outcome,
+                reason: reason.to_string().into(),
+            },
+            ..result("maintainer-select-screen.png", "a", "tone", outcome)
+        };
+        let mut results = vec![
+            with(Outcome::Wrong, "card0-title=None"),
+            with(Outcome::Wrong, "card0-title=None"),
+            with(Outcome::Refused, "unsupported-size"),
+            with(Outcome::Refused, "no-card"),
+            VariantResult {
+                screenshot: "maintainer-party-masked.png".to_string(),
+                ..with(Outcome::Correct, "fine")
+            },
+        ];
+        let lines = Report {
+            results: results.clone(),
+            ..Report::default()
+        }
+        .log_lines();
+        assert_eq!(lines[0], "Reasons for the wrong reads:");
+        assert_eq!(
+            lines[1],
+            "  wrong  maintainer-select-screen.png  card0-title=None  2"
+        );
+        assert!(lines.contains(&"  refused  maintainer-select-screen.png  no-card  1".to_string()));
+        assert!(lines.contains(
+            &"  maintainer-select-screen.png: 0 correct, 1 refused, 2 wrong (unsupported-size left out)"
+                .to_string()
+        ));
+        assert_eq!(
+            lines.last().unwrap(),
+            "Supported totals: 4 variations, 1 correct, 1 refused, 2 wrong."
+        );
+        for index in 0..60 {
+            results.push(with(Outcome::Refused, &format!("r{index}")));
+        }
+        let long = Report {
+            results,
+            ..Report::default()
+        };
+        assert_eq!(long.reason_lines(Outcome::Refused, 40).len(), 40);
     }
 
     #[test]

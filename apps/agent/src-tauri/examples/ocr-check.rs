@@ -107,6 +107,9 @@ fn variations(args: &[String]) -> std::process::ExitCode {
         all.refused,
         all.wrong
     );
+    for line in report.log_lines() {
+        println!("{line}");
+    }
     if let Err(error) = write_outputs(&report, &options) {
         eprintln!("{error}");
         return ExitCode::from(1);
