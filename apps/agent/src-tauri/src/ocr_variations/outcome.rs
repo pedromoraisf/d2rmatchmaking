@@ -8,7 +8,7 @@ use d2rmm_agent_core::messages::FrameReading;
 use d2rmm_agent_core::party::read_panel;
 use d2rmm_agent_core::ports::{FrameReader, Rgba, TextReader};
 use d2rmm_agent_core::screen_reader::ScreenReader;
-use d2rmm_agent_domain::characters::Difficulty;
+use d2rmm_agent_domain::characters::{Card as Character, Difficulty};
 use d2rmm_agent_domain::game_name_match::{FieldRead, is_masked, normalise, read_field_variants};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::supported_size;
@@ -148,19 +148,7 @@ pub fn classify_select(reading: &FrameReading, cards: &[Card]) -> Verdict {
             || card.level() != *level
             || card.title() != *title
         {
-            let mut fields = Vec::new();
-            if card.name().to_lowercase() != name.to_lowercase() {
-                fields.push("name");
-            }
-            if card.class() != *class {
-                fields.push("class");
-            }
-            if card.level() != *level {
-                fields.push("level");
-            }
-            if card.title() != *title {
-                fields.push("title");
-            }
+            let fields = differing_fields(card, cards, slot);
             return verdict_owned(Outcome::Wrong, format!("card{slot}-{}", fields.join("+")));
         }
     }
@@ -168,6 +156,37 @@ pub fn classify_select(reading: &FrameReading, cards: &[Card]) -> Verdict {
         return verdict_owned(Outcome::Refused, cards_refused_reason(reading, cards.len()));
     }
     verdict(Outcome::Correct, "cards-as-expected")
+}
+
+/// The fields of a card read that differ from the expected one, each with the value read: a title, a class and a level are
+/// game vocabulary; a name is only `card{n}` when it is one of the expected cards' names (public in `ocr_check`) and
+/// `other` otherwise, so the text read is never printed.
+fn differing_fields(card: &Character, cards: &[Card], slot: usize) -> Vec<String> {
+    let (name, class, level, title) = cards[slot];
+    let mut fields = Vec::new();
+    let read_name = card.name().to_lowercase();
+    if read_name != name.to_lowercase() {
+        let which = cards
+            .iter()
+            .position(|(other, ..)| other.to_lowercase() == read_name);
+        fields.push(match which {
+            Some(index) => format!("name=card{index}"),
+            None => "name=other".to_string(),
+        });
+    }
+    if card.class() != class {
+        fields.push(format!("class={:?}", card.class()));
+    }
+    if card.level() != level {
+        fields.push(format!("level={}", card.level()));
+    }
+    if card.title() != title {
+        fields.push(match card.title() {
+            Some(read) => format!("title={read:?}"),
+            None => "title=None".to_string(),
+        });
+    }
+    fields
 }
 
 /// `cards-refused-{read}of{expected}-slots{n}` and the rejection kinds (sorted, joined by `+`) when some slot was refused.
@@ -427,43 +446,58 @@ mod tests {
                 0,
                 card("vukVukb", Class::Sorceress, 88, Some(Title::Matriarch)),
             ),
-            "card0-name",
+            "card0-name=other",
         );
         wrong(
             differ(
                 0,
                 card("vukVuka", Class::Amazon, 88, Some(Title::Matriarch)),
             ),
-            "card0-class",
+            "card0-class=Amazon",
         );
         wrong(
             differ(
                 0,
                 card("vukVuka", Class::Sorceress, 87, Some(Title::Matriarch)),
             ),
-            "card0-level",
+            "card0-level=87",
         );
         wrong(
             differ(0, card("vukVuka", Class::Sorceress, 88, None)),
-            "card0-title",
+            "card0-title=None",
         );
         wrong(
             differ(
                 1,
                 card("vukaDao", Class::Sorceress, 11, Some(Title::Matriarch)),
             ),
-            "card1-title",
+            "card1-title=Matriarch",
         );
         wrong(
             differ(1, card("other", Class::Amazon, 11, Some(Title::Matriarch))),
-            "card1-name+class+title",
+            "card1-name=other+class=Amazon+title=Matriarch",
         );
         wrong(
             differ(
                 0,
                 card("other", Class::Sorceress, 1, Some(Title::Matriarch)),
             ),
-            "card0-name+level",
+            "card0-name=other+level=1",
+        );
+        // A name that is the other expected card's is named by its slot, without case; the text read is never printed.
+        wrong(
+            differ(
+                0,
+                card("VUKADAO", Class::Sorceress, 11, Some(Title::Matriarch)),
+            ),
+            "card0-name=card1+level=11",
+        );
+        wrong(
+            differ(
+                1,
+                card("vukvuka", Class::Sorceress, 11, Some(Title::Slayer)),
+            ),
+            "card1-name=card0+title=Slayer",
         );
         // A wrong card is Wrong even when the other card was refused.
         assert_eq!(
