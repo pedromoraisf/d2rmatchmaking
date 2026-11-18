@@ -1,7 +1,10 @@
 //! Matching the game name the Party panel shows against the room's expected name (AGN-03, AGN-04). D2R draws the letter O as
 //! `⊕` and zero as `Ø`, and OCR reads both as zero or as O, so each side is normalised the same way before the comparison:
 //! before the last `-` the glyphs `0`, `Ø` and `⊕` mean the letter `o` (`mmcowsh`, `mmchaosn`), and after it `O`, `o`, `Ø`
-//! and `⊕` mean the digit `0` (the level number, `mmchaosn-10`). A masked field (only `x` characters) is never compared.
+//! and `⊕` mean the digit `0` (the level number, `mmchaosn-10`). The engine also reads the `⊕` as `b`, `e`, `9`, `@`, `®`,
+//! `©`, `°`, `ö`, `ó`, `ò`, `ô`, `õ`, `θ`, `⊗`, `⊙`, `◎`, `○` or `◯`, so before the last `-` those mean `o` too; it is a glyph
+//! table, never an edit distance, and a unit test proves that no two names the API can generate (ADR 017) collide under it,
+//! so a different room's name is still refused. A masked field (only `x` characters) is never compared.
 
 /// What one reading of the Game Name field says about the room's game name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,11 +75,13 @@ pub fn normalise(name: &str) -> String {
     }
 }
 
-/// The part of a name before its last `-`: the glyphs of zero and the slashed zero and the O drawn as `⊕` read as `o`.
+/// The part of a name before its last `-`: the glyphs of zero and the slashed zero, and the O drawn as `⊕` with every way
+/// the engine reads it, read as `o`.
 fn letters_of(part: &str) -> String {
     part.chars()
         .map(|c| match c {
-            '0' | 'ø' | '⊕' => 'o',
+            '0' | 'ø' | '⊕' | 'b' | 'e' | '9' | '@' | '®' | '©' | '°' | 'ö' | 'ó' | 'ò' | 'ô'
+            | 'õ' | 'θ' | '⊗' | '⊙' | '◎' | '○' | '◯' => 'o',
             other => other,
         })
         .collect()
@@ -102,6 +107,51 @@ mod tests {
         assert_eq!(read_field("MMC⊕WSH-1", "mmcowsh-1"), FieldRead::Matched);
         assert_eq!(read_field("MMCHA⊕SN-1Ø", "mmchaosn-10"), FieldRead::Matched);
         assert_eq!(read_field("MMCOWSH-1O", "mmcowsh-10"), FieldRead::Matched);
+    }
+
+    #[test]
+    fn every_reading_the_engine_gives_the_circled_plus_matches_the_letter_o() {
+        for glyph in [
+            'b', 'e', '9', '@', '®', '©', '°', 'ö', 'ó', 'ò', 'ô', 'õ', 'θ', '⊗', '⊙', '◎', '○',
+            '◯',
+        ] {
+            let read = format!("mmc{glyph}wsh-1");
+            assert_eq!(
+                read_field(&read, "mmcowsh-1"),
+                FieldRead::Matched,
+                "{glyph}"
+            );
+            assert_eq!(
+                read_field(&read.to_uppercase(), "mmcowsh-1"),
+                FieldRead::Matched,
+                "{glyph} upper"
+            );
+        }
+        // After the last `-` they are no zero: only the O glyphs are.
+        assert_eq!(read_field("mmcowsh-1b", "mmcowsh-10"), FieldRead::Other);
+        // A different letter is still another name.
+        assert_eq!(read_field("mmcxwsh-1", "mmcowsh-1"), FieldRead::Other);
+    }
+
+    #[test]
+    fn no_two_generated_room_names_collide_after_the_normalisation() {
+        // `apps/api` lobby-room `GameName`: `mm{activity}{difficulty}-{n}`; activities of the glossary, difficulty codes
+        // n, m, h (the API issues `h` today), n in 1..=99.
+        let activities = [
+            "baal", "chaos", "cows", "tz", "heralds", "duel1v1", "duel2v2", "arena6", "mephisto",
+            "pvp",
+        ];
+        let mut seen = std::collections::HashMap::new();
+        for activity in activities {
+            for difficulty in ["n", "m", "h"] {
+                for n in 1..=99 {
+                    let name = format!("mm{activity}{difficulty}-{n}");
+                    if let Some(other) = seen.insert(normalise(&name), name.clone()) {
+                        panic!("{name} and {other} collide");
+                    }
+                }
+            }
+        }
     }
 
     #[test]
@@ -138,15 +188,15 @@ mod tests {
 
     #[test]
     fn digits_after_the_dash_read_every_o_glyph_as_zero() {
-        assert_eq!(normalise("mmbaalh-1O"), "mmbaalh-10");
-        assert_eq!(normalise("mmbaalh-1o"), "mmbaalh-10");
-        assert_eq!(normalise("mmbaalh-1Ø"), "mmbaalh-10");
-        assert_eq!(normalise("mmbaalh-1⊕"), "mmbaalh-10");
+        assert_eq!(normalise("mmbaalh-1O"), "mmoaalh-10");
+        assert_eq!(normalise("mmbaalh-1o"), "mmoaalh-10");
+        assert_eq!(normalise("mmbaalh-1Ø"), "mmoaalh-10");
+        assert_eq!(normalise("mmbaalh-1⊕"), "mmoaalh-10");
     }
 
     #[test]
     fn a_name_without_a_dash_is_all_letters() {
-        assert_eq!(normalise("DUEL NK L⊕CKS"), "duel nk locks");
+        assert_eq!(normalise("DUEL NK L⊕CKS"), "duol nk locks");
         assert_eq!(
             read_field("DUEL NK L⊕CKS", "duel nk locks"),
             FieldRead::Matched
@@ -211,7 +261,7 @@ mod tests {
             read_field_variants(&reads, "DUEL NK LOCKS"),
             FieldRead::Matched
         );
-        let wrong = [reads[0], reads[1], reads[3]];
+        let wrong = [reads[0], reads[1], "DUEL NK LACKS"];
         assert_eq!(
             read_field_variants(&wrong, "DUEL NK LOCKS"),
             FieldRead::Other,
