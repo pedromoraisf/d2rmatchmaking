@@ -8,8 +8,8 @@
 //! relative to the name line's own contrast on the same frame, `max(MIN_INK_DELTA, NAME_CONTRAST_PERCENT% of the name's
 //! p95 - median luma)`: the difficulty popup dims the whole screen, the name and the title with it, so a fixed +60 would
 //! lose a dimmed title while the same fraction of the name's contrast keeps it. When the name line itself has less than
-//! `MIN_INK_DELTA` of contrast the frame cannot tell lettering from noise and the answer is `Unclear` (the card is refused,
-//! never taken as untitled). Gold and red are compared by channel ratios, so dimmed gold still counts. A row where more
+//! `MIN_INK_DELTA` of contrast the frame cannot tell lettering from noise and and the band holds lettering, the answer is
+//! `Unclear` (the card is refused, never taken as untitled); a band with none above the floor is empty. Gold and red are compared by channel ratios, so dimmed gold still counts. A row where more
 //! than `BORDER_ROW_PERCENT` of the pixels are text-like is a frame border or a rule, not lettering (a line of text never
 //! fills the row of a band twice as wide as the name), and is not counted. The band has ink when it holds at least
 //! `MIN_INK_PIXELS` text-like pixels and at least a quarter (`INK_RATIO`) of the name line's own.
@@ -153,7 +153,16 @@ pub fn read_band(frame: &Rgba, band: Region, name: Region) -> InkRead {
                 InkRead::NoInk
             }
         }
-        _ => InkRead::Unclear,
+        // The name line has no contrast to calibrate against (its p95 equals its median when thin lettering fills under 5% of
+        // the line, as in the drawn fixtures). An empty band stays empty at the absolute floor; only lettering in the band
+        // that the name cannot calibrate is unclear.
+        _ => {
+            if ink_pixels_above(frame, band, MIN_INK_DELTA) >= MIN_INK_PIXELS {
+                InkRead::Unclear
+            } else {
+                InkRead::NoInk
+            }
+        }
     }
 }
 
@@ -337,6 +346,12 @@ mod tests {
                 paint(&mut image, region(x, y, 1, 1), [value, value, value]);
             }
         }
+        assert_eq!(read_band(&image, BAND, NAME), InkRead::NoInk);
+    }
+
+    #[test]
+    fn a_flat_frame_has_no_ink() {
+        let image = frame([20, 20, 22]);
         assert_eq!(read_band(&image, BAND, NAME), InkRead::NoInk);
     }
 
