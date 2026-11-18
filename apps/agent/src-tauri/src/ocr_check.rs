@@ -11,7 +11,7 @@ use d2rmm_agent_core::ports::{FrameReader, Rgba, TextReader};
 use d2rmm_agent_core::screen_reader::ScreenReader;
 use d2rmm_agent_domain::anchors;
 use d2rmm_agent_domain::characters::{Class, Difficulty, Title};
-use d2rmm_agent_domain::game_name_match::{FieldRead, read_field_variants};
+use d2rmm_agent_domain::game_name_match::{FieldRead, read_panel_field};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{PanelRegion, ScreenRegion, panel_region, screen_region};
 use d2rmm_agent_domain::presence::Screen;
@@ -110,7 +110,7 @@ pub fn check_party_reads(
         return Err(format!("the panel is not open: {anchors}{field_text}"));
     }
     let fields: Vec<&str> = field.iter().map(String::as_str).collect();
-    let got = read_field_variants(&fields, expected_name);
+    let got = read_panel_field(panel.field_source, &fields, expected_name);
     if got == expected {
         Ok(())
     } else {

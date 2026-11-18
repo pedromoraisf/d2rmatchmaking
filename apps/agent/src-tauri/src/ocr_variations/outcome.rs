@@ -9,7 +9,9 @@ use d2rmm_agent_core::party::read_panel;
 use d2rmm_agent_core::ports::{FrameReader, Rgba, TextReader};
 use d2rmm_agent_core::screen_reader::ScreenReader;
 use d2rmm_agent_domain::characters::{Card as Character, Difficulty};
-use d2rmm_agent_domain::game_name_match::{FieldRead, is_masked, normalise, read_field_variants};
+use d2rmm_agent_domain::game_name_match::{
+    FieldRead, FieldSource, is_masked, normalise, read_panel_field,
+};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::supported_size;
 use d2rmm_agent_domain::presence::Screen;
@@ -179,10 +181,33 @@ pub fn classify_party(
     expected_name: &str,
     expected: FieldRead,
 ) -> Verdict {
+    classify_party_field(open, FieldSource::Label, reads, expected_name, expected)
+}
+
+/// `classify_party` for a field read from `source`. When no variant found the label (`LayoutBox`), the agent only accepts an
+/// exact match and never asks the player to reveal the name (`read_panel_field`): a match is Correct
+/// (`label-not-found-layout-match`), a match where the field is masked is Wrong, and anything else is Refused
+/// (`label-not-found-layout-other`). `blank-read-as-masked` is therefore only a label-found reason.
+pub fn classify_party_field(
+    open: bool,
+    source: FieldSource,
+    reads: &[&str],
+    expected_name: &str,
+    expected: FieldRead,
+) -> Verdict {
     if !open {
         return verdict(Outcome::Refused, "panel-not-open");
     }
-    let got = read_field_variants(reads, expected_name);
+    let got = read_panel_field(source, reads, expected_name);
+    if source == FieldSource::LayoutBox {
+        return match (got, expected) {
+            (FieldRead::Matched, FieldRead::Matched) => {
+                verdict(Outcome::Correct, "label-not-found-layout-match")
+            }
+            (FieldRead::Matched, _) => verdict(Outcome::Wrong, "matched-read-for-masked"),
+            _ => verdict(Outcome::Refused, "label-not-found-layout-other"),
+        };
+    }
     match (got, expected) {
         (got, expected) if got == expected => verdict(Outcome::Correct, "field-as-expected"),
         (FieldRead::Masked, FieldRead::Matched) => {
@@ -395,7 +420,13 @@ fn classify_party_image(
     let panel = read_panel(reader, &LanguagePack::english(), image);
     let field: Vec<&str> = panel.field.iter().map(|read| read.text.as_str()).collect();
     (
-        classify_party(panel.open, &field, PARTY_ROOM_NAME, expected),
+        classify_party_field(
+            panel.open,
+            panel.field_source,
+            &field,
+            PARTY_ROOM_NAME,
+            expected,
+        ),
         field_variant_classes(&field, PARTY_ROOM_NAME),
     )
 }
@@ -447,6 +478,38 @@ mod tests {
                 FieldRead::Matched
             ),
             verdict(Outcome::Refused, "panel-not-open")
+        );
+    }
+
+    #[test]
+    fn a_field_read_in_the_layout_box_never_reads_as_masked() {
+        let layout = |reads: &[&str], expected| {
+            classify_party_field(
+                true,
+                FieldSource::LayoutBox,
+                reads,
+                PARTY_ROOM_NAME,
+                expected,
+            )
+        };
+        assert_eq!(
+            layout(&["", "DUEL NK LOCKS"], FieldRead::Matched),
+            verdict(Outcome::Correct, "label-not-found-layout-match")
+        );
+        for reads in [&["", " "][..], &["xxx"], &["other"], &[]] {
+            assert_eq!(
+                layout(reads, FieldRead::Matched),
+                verdict(Outcome::Refused, "label-not-found-layout-other"),
+                "{reads:?}"
+            );
+        }
+        assert_eq!(
+            layout(&["DUEL NK LOCKS"], FieldRead::Masked),
+            verdict(Outcome::Wrong, "matched-read-for-masked")
+        );
+        assert_eq!(
+            layout(&[""], FieldRead::Masked),
+            verdict(Outcome::Refused, "label-not-found-layout-other")
         );
     }
 

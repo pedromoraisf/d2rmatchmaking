@@ -55,6 +55,31 @@ pub fn read_field_variants(reads: &[&str], expected: &str) -> FieldRead {
     FieldRead::Other
 }
 
+/// Where the Game Name field's readings came from (T16).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldSource {
+    /// The box under the "Game Name" label that was found: the field was located.
+    Label,
+    /// The line just under the found label: the field was located.
+    LabelLine,
+    /// The label was found by no OCR variant, so the fixed layout box was read: the field was not located.
+    LayoutBox,
+}
+
+/// Classifies the readings of the Game Name field by where they were read. A field located by its label (`Label`,
+/// `LabelLine`) follows `read_field_variants`, so a blank or `x`-only reading is `Masked`. A reading from the layout box
+/// may only be `Matched`: an exact match of the room's expected name (after normalisation) is self-validating wherever it
+/// is read, whereas "masked" needs the field to have been located, since a blank box may be any part of the panel. So
+/// from the layout box a blank, an `x`-only or a different reading, or no reading at all, is `Other`: nothing is posted
+/// and the player is not told to reveal a name that may be revealed already.
+pub fn read_panel_field(source: FieldSource, reads: &[&str], expected: &str) -> FieldRead {
+    match (source, read_field_variants(reads, expected)) {
+        (FieldSource::LayoutBox, FieldRead::Matched) => FieldRead::Matched,
+        (FieldSource::LayoutBox, _) => FieldRead::Other,
+        (_, got) => got,
+    }
+}
+
 /// Whether a reading is the masked value: one or more `x` characters and nothing else, after trimming (AGN-04).
 pub fn is_masked(read: &str) -> bool {
     let trimmed = read.trim();
@@ -99,7 +124,28 @@ fn digits_of(part: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{FieldRead, is_masked, normalise, read_field, read_field_variants};
+    use super::{
+        FieldRead, FieldSource, is_masked, normalise, read_field, read_field_variants,
+        read_panel_field,
+    };
+
+    #[test]
+    fn a_field_read_by_its_source() {
+        let mask = "xxxxxxxx";
+        let at = |source, reads: &[&str]| read_panel_field(source, reads, "mmcowsh-1");
+        for source in [FieldSource::Label, FieldSource::LabelLine] {
+            assert_eq!(at(source, &["", mask]), FieldRead::Masked, "label + mask");
+            assert_eq!(at(source, &["", " "]), FieldRead::Masked, "label + blank");
+            assert_eq!(at(source, &["mmcowsh-1"]), FieldRead::Matched);
+            assert_eq!(at(source, &["mmcowsh-7"]), FieldRead::Other);
+        }
+        let layout = FieldSource::LayoutBox;
+        assert_eq!(at(layout, &["", "mmcowsh-1"]), FieldRead::Matched);
+        assert_eq!(at(layout, &["", " "]), FieldRead::Other, "layout + blank");
+        assert_eq!(at(layout, &["", mask]), FieldRead::Other, "layout + mask");
+        assert_eq!(at(layout, &["mmcowsh-7"]), FieldRead::Other);
+        assert_eq!(at(layout, &[]), FieldRead::Other, "no field area at all");
+    }
 
     #[test]
     fn the_crowded_glyph_pairs_match_their_expected_names() {
