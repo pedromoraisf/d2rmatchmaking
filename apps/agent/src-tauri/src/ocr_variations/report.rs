@@ -214,20 +214,14 @@ impl Report {
         lines.extend(self.reason_lines(Outcome::Wrong, usize::MAX));
         lines.push("Reasons for the refused reads (top 40 rows):".to_string());
         lines.extend(self.reason_lines(Outcome::Refused, 40));
-        let mut all = Counts::default();
         for name in self.screenshots() {
-            let mut counts = Counts::default();
-            for result in &self.results {
-                if result.screenshot == name && result.verdict.reason != UNSUPPORTED_SIZE.reason {
-                    counts.add(result.verdict.outcome);
-                }
-            }
-            all.merge(counts);
+            let counts = self.supported_counts(Some(name));
             lines.push(format!(
                 "  {name}: {} correct, {} refused, {} wrong (unsupported-size left out)",
                 counts.correct, counts.refused, counts.wrong
             ));
         }
+        let all = self.supported_counts(None);
         lines.push(format!(
             "Supported totals: {} variations, {} correct, {} refused, {} wrong.",
             all.total(),
@@ -236,6 +230,19 @@ impl Report {
             all.wrong
         ));
         lines
+    }
+
+    /// The counts of the variations of `screenshot` (all when `None`) without the unsupported-size refusals.
+    fn supported_counts(&self, screenshot: Option<&str>) -> Counts {
+        let mut counts = Counts::default();
+        for result in &self.results {
+            if screenshot.is_none_or(|name| result.screenshot == name)
+                && result.verdict.reason != UNSUPPORTED_SIZE.reason
+            {
+                counts.add(result.verdict.outcome);
+            }
+        }
+        counts
     }
 
     /// A table of reason class by screenshot for `outcome`, or nothing when no variation ended so.
@@ -392,6 +399,13 @@ impl Report {
             }
             families.insert(family.to_string(), Value::Object(per_screenshot));
         }
+        let all = self.supported_counts(None);
+        let supported = json!({
+            "variations": all.total(),
+            "correct": all.correct,
+            "refused": all.refused,
+            "wrong": all.wrong,
+        });
         let mut totals = serde_json::Map::new();
         for name in self.screenshots() {
             totals.insert(name.to_string(), counts_json(self.totals(Some(name))));
@@ -421,6 +435,7 @@ impl Report {
             "seed": self.seed,
             "combos": self.combos,
             "totals": counts_json(self.totals(None)),
+            "supported": supported,
             "totals_by_screenshot": totals,
             "families": families,
             "elapsed_seconds": elapsed,
@@ -782,5 +797,32 @@ mod tests {
             value["elapsed_seconds"]["maintainer-select-screen.png"],
             8.0
         );
+    }
+
+    #[test]
+    fn the_json_carries_the_supported_totals_without_the_unsupported_size() {
+        let with = |outcome, reason: &str| VariantResult {
+            verdict: Verdict {
+                outcome,
+                reason: reason.to_string().into(),
+            },
+            ..result("maintainer-select-screen.png", "a", "tone", outcome)
+        };
+        let value = Report {
+            results: vec![
+                with(Outcome::Wrong, "card0-title=None"),
+                with(Outcome::Wrong, "card0-title=None"),
+                with(Outcome::Refused, "unsupported-size"),
+                with(Outcome::Refused, "no-card"),
+                with(Outcome::Correct, "fine"),
+            ],
+            ..Report::default()
+        }
+        .json();
+        assert_eq!(
+            value["supported"],
+            json!({"variations": 4, "correct": 1, "refused": 1, "wrong": 2})
+        );
+        assert_eq!(value["totals"]["refused"], 2);
     }
 }
