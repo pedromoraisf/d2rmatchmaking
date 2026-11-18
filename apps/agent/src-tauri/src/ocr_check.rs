@@ -28,7 +28,7 @@ pub const SCREENSHOTS: [&str; 5] = [
 ];
 
 /// The room's name the maintainer's Party screenshots show when the name is revealed.
-const PARTY_ROOM_NAME: &str = "DUEL NK LOCKS";
+pub const PARTY_ROOM_NAME: &str = "DUEL NK LOCKS";
 
 /// A card as the character checks compare it: name, class, level and title.
 pub type Card = (&'static str, Class, u8, Option<Title>);
