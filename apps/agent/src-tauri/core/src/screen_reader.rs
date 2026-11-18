@@ -231,6 +231,8 @@ mod tests {
         /// Lines the lines pass misses but a read of the place finds (the engine reads a title line in one place and not
         /// in another).
         unlisted: Vec<TextLine>,
+        /// Whether a region with no line reads blank, once per variant, instead of failing.
+        blank_unread: bool,
     }
 
     fn region_of(value: &Value) -> Region {
@@ -308,6 +310,7 @@ mod tests {
                 size: (width, height),
                 asked_areas: Mutex::new(Vec::new()),
                 unlisted: Vec::new(),
+                blank_unread: false,
             }
         }
 
@@ -343,6 +346,13 @@ mod tests {
             self
         }
 
+        /// This sidecar reading a blank text, once per variant, where it finds no line (the engine saw nothing) rather than
+        /// failing the read.
+        fn with_blank_readings(mut self) -> Self {
+            self.blank_unread = true;
+            self
+        }
+
         fn inside(area: Region, line: &TextLine) -> bool {
             let (x, y) = (line.region.middle_x(), line.region.middle_y());
             area.x <= x && x < area.right() && area.y <= y && y < area.bottom()
@@ -375,6 +385,19 @@ mod tests {
                     .join("\n"),
                 confidence: 1.0,
             })
+        }
+
+        fn read_variants(&self, image: &Rgba, region: Region) -> Vec<ReadText> {
+            match self.read(image, region) {
+                Ok(read) => vec![read],
+                Err(_) if self.blank_unread => (0..2)
+                    .map(|_| ReadText {
+                        text: String::new(),
+                        confidence: 0.0,
+                    })
+                    .collect(),
+                Err(_) => Vec::new(),
+            }
         }
 
         fn read_lines(&self, _image: &Rgba, region: Region) -> Vec<TextLine> {
@@ -761,6 +784,27 @@ mod tests {
         let reading = read_without_title_line(false, true);
         assert_eq!(names(&reading), ["vukaDao"]);
         assert_eq!(reading.slots_read, 2);
+        assert_eq!(reading.rejected.len(), 1);
+        assert_eq!(reading.rejected[0].slot, 0);
+        assert_eq!(reading.rejected[0].reason, RejectReason::TitleUnread);
+    }
+
+    #[test]
+    fn an_inked_band_every_variant_reads_blank_refuses_the_card() {
+        let sidecar = Sidecar::of(FULLSCREEN_SELECT, 1920, 1080)
+            .without_line("MATRIARCH", false)
+            .with_blank_readings();
+        let mut image = frame(&sidecar, Some(0), &[]);
+        for stroke in 0..20 {
+            for y in 81..93 {
+                for x in 1612 + stroke * 6..1614 + stroke * 6 {
+                    let at = ((y * image.width + x) * 4) as usize;
+                    image.pixels[at..at + 3].copy_from_slice(&[230, 230, 230]);
+                }
+            }
+        }
+        let reading =
+            ScreenReader::new(Arc::new(sidecar), Arc::new(LanguagePack::english())).read(&image);
         assert_eq!(reading.rejected.len(), 1);
         assert_eq!(reading.rejected[0].slot, 0);
         assert_eq!(reading.rejected[0].reason, RejectReason::TitleUnread);

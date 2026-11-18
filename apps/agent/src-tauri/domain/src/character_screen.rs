@@ -166,10 +166,23 @@ pub fn settle_unseen_title(pack: &LanguagePack, band: BandRead) -> UnseenTitle {
             .collect();
         return UnseenTitle::Title(readings);
     }
-    let explained = |line: &String| {
-        line.trim().is_empty() || anchors::is_tab_line(pack, line) || level_of(line, pack).is_some()
-    };
-    if variants.iter().flatten().all(explained) {
+    // A blank reading explains nothing: the ink is accounted for only by a tab or level line actually read in the band, and
+    // no other line of text left over.
+    let explained =
+        |line: &String| anchors::is_tab_line(pack, line) || level_of(line, pack).is_some();
+    let mut read = variants
+        .iter()
+        .flatten()
+        .filter(|line| !line.trim().is_empty());
+    let (mut seen_explained, mut seen_other) = (false, false);
+    for line in read.by_ref() {
+        if explained(line) {
+            seen_explained = true;
+        } else {
+            seen_other = true;
+        }
+    }
+    if seen_explained && !seen_other {
         return UnseenTitle::NoTitle;
     }
     UnseenTitle::Unread
@@ -891,6 +904,19 @@ mod tests {
         assert_eq!(
             settle_unseen_title(&pack, ink(&[&["ONLINE OFFLINE", "MATRIARCH"]])),
             UnseenTitle::Title(vec!["MATRIARCH".to_string()])
+        );
+        // Ink every variant read as blank: seen but not read, so unread, never untitled.
+        assert_eq!(
+            settle_unseen_title(&pack, ink(&[&[], &[""], &["  "]])),
+            UnseenTitle::Unread
+        );
+        assert_eq!(
+            settle_unseen_title(&pack, ink(&[&[""], &["ONLINE"]])),
+            UnseenTitle::NoTitle
+        );
+        assert_eq!(
+            settle_unseen_title(&pack, ink(&[&["", "q%z"]])),
+            UnseenTitle::Unread
         );
         // The tab line beside a garbled line: unread, never untitled.
         assert_eq!(
