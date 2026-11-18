@@ -80,7 +80,7 @@ test('the verdict is the exit code of ocr-check.exe on the extracted folder', ()
   assert.notEqual(read['continue-on-error'], true);
 });
 
-// The variations job (informational robustness measure): same guards, and it uploads the counts file only.
+// The variations job (robustness measure under the quality ratchet): same guards, and it uploads the counts file only.
 const variations = wf.jobs['ocr-variations'];
 
 test('the variations job has the same guards as the check', () => {
@@ -105,9 +105,21 @@ test('the variations job uploads only the counts file and deletes the extracted 
   assert.match(last.run, /rm -rf "\$RUNNER_TEMP\/real-prints"/);
 });
 
-test('the variations run is informational and never given the show-reads flag', () => {
+test('the variations run is never given the show-reads flag', () => {
   const run = variations.steps.find((s) => (s.run ?? '').includes('--variations'));
   assert.match(run.run, /ocr-check\.exe --variations --summary .*--json .*"\$RUNNER_TEMP\/real-prints"/);
   assert.doesNotMatch(text, /--show-reads/);
   assert.doesNotMatch(run.run, /continue-on-error/);
+});
+
+test('the variations job holds the counts to the ratchet in the ocr context, after the run and before the upload', () => {
+  const steps = variations.steps;
+  const run = steps.findIndex((s) => (s.run ?? '').includes('--variations'));
+  const gate = steps.findIndex((s) => (s.run ?? '').includes('quality-ratchet.mjs'));
+  const upload = steps.findIndex((s) => /upload-artifact/.test(s.uses ?? ''));
+  assert.ok(run < gate && gate < upload);
+  assert.match(steps[gate].run, /cp "\$RUNNER_TEMP\/ocr-variations\.json" reports\/ocr-variations\.json/);
+  assert.match(steps[gate].run, /quality-collect\.mjs/);
+  assert.match(steps[gate].run, /quality-ratchet\.mjs --context ocr/);
+  assert.notEqual(steps[gate]['continue-on-error'], true);
 });

@@ -38,7 +38,11 @@ temperature), `blur` (gaussian and unsharp), `jpeg` (quality 90 to 30), `noise`,
 `border` (cropped or added edges) and `combo` (seeded mixes of two or three families). Run locally on Windows with
 `ocr-check.exe --variations [--combos N] [--summary out.md] [--json out.json] <folder>`.
 
-- It is informational: the job does not fail on a wrong read, and the five-file `ocr-real` check is untouched.
+- It is held to the quality ratchet (context `ocr`): after the run the job copies the JSON to `reports/ocr-variations.json`
+  and runs `quality-collect` and `quality-ratchet --context ocr`. The metrics `ocr.variations.wrong` (ceiling) and
+  `ocr.variations.correct` (floor) read `/supported/wrong` and `/supported/correct`, the totals without the
+  `unsupported-size` refusals (the log's `Supported totals:` line). More wrong reads or fewer correct ones fail the job; the
+  five-file `ocr-real` check is untouched.
 - Privacy limits: a variation lives in memory only while it is read, then it is dropped; none is written to disk, uploaded or
   committed. The log, the job summary and the JSON hold counts, family names, variant ids (`gamma-0.8`, `combo-017`),
   screenshot file names, outcome classes and reason classes only: no pixel and no read text beyond what follows. The summary

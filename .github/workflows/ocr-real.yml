@@ -76,8 +76,9 @@ jobs:
         run: rm -rf "$RUNNER_TEMP/real-prints"
 
   # The robustness measure (apps/agent/ocr-lab/README.md): hundreds of in-memory variations of each real screenshot, read with the
-  # production reading and counted per transform family as correct, refused or wrong. Informational: it never fails the job on a
-  # wrong read. No variation is written to disk; only the counts (ocr-variations.json) are uploaded.
+  # production reading and counted per transform family as correct, refused or wrong. It is held to the quality ratchet
+  # (context ocr, .quality-baseline.json): more wrong reads or fewer correct ones than the baseline fail the job. No variation is
+  # written to disk; only the counts (ocr-variations.json) are uploaded.
   ocr-variations:
     name: ocr-variations
     # Fork pull requests never receive the secret.
@@ -124,10 +125,18 @@ jobs:
           PW: ${{ secrets.OCR_PRINTS_PASSWORD }}
         run: |
           "/c/Program Files/7-Zip/7z.exe" e -y -bso0 -bsp0 -p"$PW" -o"$RUNNER_TEMP/real-prints" apps/agent/ocr-lab/real-prints.zip
-      - name: Read the variations with Windows OCR (informational)
+      - name: Read the variations with Windows OCR
         if: steps.zip.outputs.present == 'true'
         run: |
           apps/agent/src-tauri/target/release/examples/ocr-check.exe --variations --summary "$RUNNER_TEMP/ocr-variations.md" --json "$RUNNER_TEMP/ocr-variations.json" "$RUNNER_TEMP/real-prints"
+      # The supported totals of the run against the baseline; the other sources are absent here, which the collect tolerates.
+      - name: Hold the variations to the quality ratchet
+        if: steps.zip.outputs.present == 'true'
+        run: |
+          mkdir -p reports
+          cp "$RUNNER_TEMP/ocr-variations.json" reports/ocr-variations.json
+          node scripts/quality-collect.mjs
+          node scripts/quality-ratchet.mjs --context ocr
       - name: Add the counts to the job summary
         if: steps.zip.outputs.present == 'true' && always()
         run: |
