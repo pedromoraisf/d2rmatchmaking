@@ -9,6 +9,11 @@ all-features = true
 [advisories]
 # RustSec advisories stop the build: a vulnerable or yanked crate is never shipped.
 yanked = "deny"
+ignore = [
+  # chrono is unmaintained (published 2026-11-18): no vulnerability and no safe upgrade. Only the agent's own crates use it.
+  # Ignored by the maintainer's decision of 2026-11-18; review by 2027-02-18 (replace it with jiff or time).
+  { id = "RUSTSEC-2026-0543", reason = "unmaintained, no vulnerability; maintainer accepted 2026-11-18, review by 2027-02-18" },
+]
 
 [licenses]
 allow = [
