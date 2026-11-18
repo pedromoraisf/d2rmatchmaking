@@ -41,9 +41,17 @@ temperature), `blur` (gaussian and unsharp), `jpeg` (quality 90 to 30), `noise`,
 - It is informational: the job does not fail on a wrong read, and the five-file `ocr-real` check is untouched.
 - Privacy limits: a variation lives in memory only while it is read, then it is dropped; none is written to disk, uploaded or
   committed. The log, the job summary and the JSON hold counts, family names, variant ids (`gamma-0.8`, `combo-017`),
-  screenshot file names and outcome classes and reason classes only (fixed words, field names and numbers such as `field-other-1-edit`, `card0-level`,
-  `cards-refused-1of2-slots2-title-unread`): no character name, no game name, no read text, no pixel. The summary lists the
-  reason classes of the refused and of the wrong reads per screenshot, most frequent first.
+  screenshot file names, outcome classes and reason classes only: no pixel and no read text beyond what follows. The summary
+  lists the reason classes of the refused and of the wrong reads per screenshot, most frequent first.
+- What a reason may print, because it is public already: a card read that differs names the value read for its title,
+  class and level (game vocabulary: `card0-title=None`, `card0-level=86`); a name is only `name=card0`, `name=card1` (it
+  equals an expected card's name, committed in `src/ocr_check.rs`) or `name=other`, never the text. A Party field one or
+  two edits from the room name appends the edit operations against the Party room name `PARTY_ROOM_NAME` (committed in the
+  same file), `field-other-1-edit:sub(o>0)@9`, with characters outside `[a-z0-9 ]` printed as `?`. For the Party frames
+  the JSON also has `field_variants`, the class of each OCR variant's reading in reader order (nearest 3x, bilinear 3x,
+  nearest 4x, bilinear 4x, nearest 5x, bilinear 5x): `match`, `masked`, `blank`, `1-edit`, `2-edits` or `far`; the summary
+  counts them per variant for the revealed screenshots. Nothing else read is ever printed. The selection screens have no
+  per-variant card results (`FrameReading` holds only the settled cards), so they have no such table.
 - The only artifact is `ocr-variations.json` (14 days). The extracted screenshots are never uploaded and are deleted at the
   end of the job.
 

@@ -10,7 +10,7 @@ use d2rmm_agent_core::screen_reader::ScreenReader;
 use d2rmm_agent_domain::language::LanguagePack;
 
 use super::catalogue::{DEFAULT_COMBOS, Variation, catalogue};
-use super::outcome::classify_image;
+use super::outcome::classify_image_detailed;
 use super::report::{Report, VariantResult};
 use crate::ocr_check::{SCREENSHOTS, read_screenshot};
 
@@ -85,13 +85,15 @@ pub fn run_images(
         let first = report.results.len();
         for variation in variations {
             let varied = variation.apply(image);
-            let verdict = classify_image(name, &*reader, &screens, &varied);
+            let (verdict, field_variants) =
+                classify_image_detailed(name, &*reader, &screens, &varied);
             drop(varied);
             report.results.push(VariantResult {
                 screenshot: name.clone(),
                 id: variation.id.clone(),
                 family: variation.family,
                 verdict,
+                field_variants,
             });
         }
         let seconds = started.elapsed().as_secs_f64();

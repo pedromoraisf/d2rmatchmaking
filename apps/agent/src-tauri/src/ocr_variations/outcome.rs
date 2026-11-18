@@ -317,26 +317,75 @@ pub fn classify_image(
     screens: &ScreenReader,
     image: &Rgba,
 ) -> Verdict {
+    classify_image_detailed(name, reader, screens, image).0
+}
+
+/// The class of each OCR variant's reading of the Party field, in reader order (nearest 3x, bilinear 3x, nearest 4x,
+/// bilinear 4x, nearest 5x, bilinear 5x): `match`, `masked`, `blank`, `1-edit`, `2-edits` or `far` against the expected name.
+/// Only the class is kept; a variant that failed in the engine is left out by the reader, so the list may be shorter.
+pub fn field_variant_classes(reads: &[&str], expected_name: &str) -> Vec<&'static str> {
+    let expected = normalise(expected_name);
+    reads
+        .iter()
+        .map(|read| {
+            if read.trim().is_empty() {
+                "blank"
+            } else if is_masked(read) {
+                "masked"
+            } else {
+                match edit_distance(&normalise(read), &expected) {
+                    0 => "match",
+                    1 => "1-edit",
+                    2 => "2-edits",
+                    _ => "far",
+                }
+            }
+        })
+        .collect()
+}
+
+/// `classify_image`, and for a Party frame the class of each OCR variant's reading of the field (`None` for other screens).
+pub fn classify_image_detailed(
+    name: &str,
+    reader: &dyn TextReader,
+    screens: &ScreenReader,
+    image: &Rgba,
+) -> (Verdict, Option<Vec<&'static str>>) {
     if !supported_size(image.width, image.height) {
-        return UNSUPPORTED_SIZE;
+        return (UNSUPPORTED_SIZE, None);
     }
     match name {
         "maintainer-party-revealed.png" | "maintainer-party-revealed-tooltip.png" => {
-            classify_party_image(reader, image, FieldRead::Matched)
+            let (verdict, variants) = classify_party_image(reader, image, FieldRead::Matched);
+            (verdict, Some(variants))
         }
-        "maintainer-party-masked.png" => classify_party_image(reader, image, FieldRead::Masked),
-        "maintainer-select-screen.png" => classify_select(&screens.read(image), &MAINTAINER_CARDS),
-        "maintainer-select-difficulty.png" => {
-            classify_popup(&screens.read(image), &MAINTAINER_CARDS)
+        "maintainer-party-masked.png" => {
+            let (verdict, variants) = classify_party_image(reader, image, FieldRead::Masked);
+            (verdict, Some(variants))
         }
-        _ => verdict(Outcome::Refused, "unknown-screenshot"),
+        "maintainer-select-screen.png" => (
+            classify_select(&screens.read(image), &MAINTAINER_CARDS),
+            None,
+        ),
+        "maintainer-select-difficulty.png" => (
+            classify_popup(&screens.read(image), &MAINTAINER_CARDS),
+            None,
+        ),
+        _ => (verdict(Outcome::Refused, "unknown-screenshot"), None),
     }
 }
 
-fn classify_party_image(reader: &dyn TextReader, image: &Rgba, expected: FieldRead) -> Verdict {
+fn classify_party_image(
+    reader: &dyn TextReader,
+    image: &Rgba,
+    expected: FieldRead,
+) -> (Verdict, Vec<&'static str>) {
     let panel = read_panel(reader, &LanguagePack::english(), image);
     let field: Vec<&str> = panel.field.iter().map(|read| read.text.as_str()).collect();
-    classify_party(panel.open, &field, PARTY_ROOM_NAME, expected)
+    (
+        classify_party(panel.open, &field, PARTY_ROOM_NAME, expected),
+        field_variant_classes(&field, PARTY_ROOM_NAME),
+    )
 }
 
 #[cfg(test)]
@@ -485,6 +534,25 @@ mod tests {
             other_reason(&["DUEL NK LACKS"], PARTY_ROOM_NAME),
             "field-other-1-edit:sub(a>o)@9"
         );
+    }
+
+    #[test]
+    fn each_variant_reading_of_the_field_gets_a_class_in_reader_order() {
+        assert_eq!(
+            field_variant_classes(
+                &[
+                    "DUEL NK LOCKS",
+                    "xxx",
+                    "  ",
+                    "DUEL NK LOCK",
+                    "DUEL NK LOC",
+                    "something else"
+                ],
+                PARTY_ROOM_NAME
+            ),
+            ["match", "masked", "blank", "1-edit", "2-edits", "far"]
+        );
+        assert!(field_variant_classes(&[], PARTY_ROOM_NAME).is_empty());
     }
 
     #[test]

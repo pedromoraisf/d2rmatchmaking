@@ -41,6 +41,17 @@ impl Counts {
     }
 }
 
+/// The OCR variants in the order the reader returns them, and the classes of a reading of the Party field.
+pub const FIELD_VARIANTS: [&str; 6] = [
+    "nearest 3x",
+    "bilinear 3x",
+    "nearest 4x",
+    "bilinear 4x",
+    "nearest 5x",
+    "bilinear 5x",
+];
+pub const FIELD_CLASSES: [&str; 6] = ["match", "masked", "blank", "1-edit", "2-edits", "far"];
+
 /// One variation of one screenshot, read and classified.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VariantResult {
@@ -48,6 +59,8 @@ pub struct VariantResult {
     pub id: String,
     pub family: &'static str,
     pub verdict: Verdict,
+    /// For a Party frame: the class of each OCR variant's reading of the field, in reader order; `None` for other screens.
+    pub field_variants: Option<Vec<&'static str>>,
 }
 
 /// Every result of a run, in the order they were read, and the seconds each screenshot took.
@@ -201,6 +214,51 @@ impl Report {
         text
     }
 
+    /// How many readings of each OCR variant fell in each class, across the Party variations of the revealed screenshots, or
+    /// nothing when there are none. A variant the engine failed on is left out by the reader, so a short list shifts the
+    /// positions after it; the position is the index in the list.
+    fn field_variant_table(&self) -> String {
+        let mut counts = [[0usize; FIELD_CLASSES.len()]; FIELD_VARIANTS.len()];
+        let mut variations = 0;
+        for result in &self.results {
+            if !result.screenshot.contains("party-revealed") {
+                continue;
+            }
+            let Some(classes) = &result.field_variants else {
+                continue;
+            };
+            variations += 1;
+            for (position, class) in classes.iter().take(FIELD_VARIANTS.len()).enumerate() {
+                if let Some(column) = FIELD_CLASSES.iter().position(|name| name == class) {
+                    counts[position][column] += 1;
+                }
+            }
+        }
+        if variations == 0 {
+            return String::new();
+        }
+        let mut text = format!(
+            "Party field by OCR variant ({variations} readings of the revealed screenshots):\n\n| variant |"
+        );
+        for class in FIELD_CLASSES {
+            text.push_str(&format!(" {class} |"));
+        }
+        text.push_str("\n|---|");
+        for _ in FIELD_CLASSES {
+            text.push_str("---|");
+        }
+        text.push('\n');
+        for (position, name) in FIELD_VARIANTS.iter().enumerate() {
+            text.push_str(&format!("| {name} |"));
+            for count in counts[position] {
+                text.push_str(&format!(" {count} |"));
+            }
+            text.push('\n');
+        }
+        text.push('\n');
+        text
+    }
+
     /// The markdown for the job summary: a family by screenshot table of `correct/refused/wrong`, the totals and the ids of
     /// the variants that read wrong.
     pub fn markdown(&self) -> String {
@@ -242,6 +300,7 @@ impl Report {
             all.refused,
             all.wrong
         ));
+        text.push_str(&self.field_variant_table());
         text.push_str(&self.reason_table(Outcome::Refused));
         text.push_str(&self.reason_table(Outcome::Wrong));
         let wrong = self.wrong_ids();
@@ -294,13 +353,17 @@ impl Report {
             .results
             .iter()
             .map(|result| {
-                json!({
+                let mut entry = json!({
                     "screenshot": result.screenshot,
                     "id": result.id,
                     "family": result.family,
                     "outcome": result.verdict.outcome.name(),
                     "reason_class": result.verdict.reason.as_ref(),
-                })
+                });
+                if let Some(variants) = &result.field_variants {
+                    entry["field_variants"] = json!(variants);
+                }
+                entry
             })
             .collect();
         json!({
@@ -328,6 +391,7 @@ mod tests {
                 outcome,
                 reason: "reason".into(),
             },
+            field_variants: None,
         }
     }
 
@@ -531,6 +595,64 @@ mod tests {
             ..Report::default()
         };
         assert!(!clean.markdown().contains("Reasons for the"));
+    }
+
+    #[test]
+    fn the_variant_table_counts_each_class_per_position_for_the_revealed_party_frames() {
+        let party = |screenshot: &str, classes: &[&'static str]| VariantResult {
+            field_variants: Some(classes.to_vec()),
+            ..result(screenshot, "a", "shift", Outcome::Refused)
+        };
+        let report = Report {
+            results: vec![
+                party(
+                    "maintainer-party-revealed.png",
+                    &["match", "blank", "far", "far", "far", "far"],
+                ),
+                party(
+                    "maintainer-party-revealed-tooltip.png",
+                    &["1-edit", "blank"],
+                ),
+                // The masked frame and the other screens are not counted.
+                party("maintainer-party-masked.png", &["masked"; 6]),
+                result(
+                    "maintainer-select-screen.png",
+                    "b",
+                    "shift",
+                    Outcome::Correct,
+                ),
+            ],
+            ..Report::default()
+        };
+        let text = report.markdown();
+        assert!(text.contains("(2 readings of the revealed"), "{text}");
+        assert!(
+            text.contains("| variant | match | masked | blank | 1-edit | 2-edits | far |"),
+            "{text}"
+        );
+        assert!(
+            text.contains("| nearest 3x | 1 | 0 | 0 | 1 | 0 | 0 |"),
+            "{text}"
+        );
+        assert!(
+            text.contains("| bilinear 3x | 0 | 0 | 2 | 0 | 0 | 0 |"),
+            "{text}"
+        );
+        assert!(
+            text.contains("| nearest 4x | 0 | 0 | 0 | 0 | 0 | 1 |"),
+            "{text}"
+        );
+        assert!(
+            text.contains("| bilinear 5x | 0 | 0 | 0 | 0 | 0 | 1 |"),
+            "{text}"
+        );
+        assert!(!Report::default().markdown().contains("by OCR variant"));
+        let value = report.json();
+        assert_eq!(
+            value["variants"][1]["field_variants"],
+            json!(["1-edit", "blank"])
+        );
+        assert!(value["variants"][3].get("field_variants").is_none());
     }
 
     #[test]
