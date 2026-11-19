@@ -2,7 +2,9 @@
 //! `⊕` and zero as `Ø`, and OCR reads both as zero or as O, so each side is normalised the same way before the comparison:
 //! before the last `-` the glyphs `0`, `Ø` and `⊕` mean the letter `o` (`mmcowsh`, `mmchaosn`), and after it `O`, `o`, `Ø`
 //! and `⊕` mean the digit `0` (the level number, `mmchaosn-10`). The engine also reads the `⊕` as `b`, `e`, `9`, `@`, `®`,
-//! `©`, `°`, `ö`, `ó`, `ò`, `ô`, `õ`, `θ`, `⊗`, `⊙`, `◎`, `○` or `◯`, so before the last `-` those mean `o` too; it is a glyph
+//! `©`, `°`, `ö`, `ó`, `ò`, `ô`, `õ`, `θ`, `⊗`, `⊙`, `◎`, `○` or `◯`, so before the last `-` those mean `o` too. The small-caps `B` of `mmbaalh` is read as `8` (maintainer's live test,
+//! 2026-11-19), and `b` already reads as `o` there, so before the last `-` `8` means `o` as well (after it `8` stays the
+//! digit). It is a glyph
 //! table, never an edit distance, and a unit test proves that no two names the API can generate (ADR 017) collide under it,
 //! so a different room's name is still refused. A masked field (only `x` characters) is never compared.
 
@@ -109,8 +111,8 @@ pub fn normalise(name: &str) -> String {
 fn letters_of(part: &str) -> String {
     part.chars()
         .map(|c| match c {
-            '0' | 'ø' | '⊕' | 'b' | 'e' | '9' | '@' | '®' | '©' | '°' | 'ö' | 'ó' | 'ò' | 'ô'
-            | 'õ' | 'θ' | '⊗' | '⊙' | '◎' | '○' | '◯' => 'o',
+            '0' | 'ø' | '⊕' | 'b' | '8' | 'e' | '9' | '@' | '®' | '©' | '°' | 'ö' | 'ó' | 'ò'
+            | 'ô' | 'õ' | 'θ' | '⊗' | '⊙' | '◎' | '○' | '◯' => 'o',
             other => other,
         })
         .collect()
@@ -367,6 +369,20 @@ mod tests {
     #[test]
     fn a_blank_expected_name_never_matches_in_any_variant() {
         assert_eq!(read_field_variants(&["abc", "abd"], " "), FieldRead::Other);
+    }
+
+    #[test]
+    fn the_small_caps_b_read_as_eight_matches_before_the_dash_only() {
+        assert_eq!(read_field("mm8aalh-19", "mmbaalh-19"), FieldRead::Matched);
+        assert_eq!(read_field("MM8AALH-19", "mmbaalh-19"), FieldRead::Matched);
+        assert_eq!(read_field("mm8aalm-99", "mmbaalm-99"), FieldRead::Matched);
+        // After the last `-` the 8 stays the digit 8.
+        assert_eq!(read_field("mmbaalh-18", "mmbaalh-18"), FieldRead::Matched);
+        assert_eq!(read_field("mmbaalh-18", "mmbaalh-1b"), FieldRead::Other);
+        assert_eq!(read_field("mmbaalh-18", "mmbaalh-10"), FieldRead::Other);
+        assert_eq!(read_field("mmbaalh-1o", "mmbaalh-18"), FieldRead::Other);
+        assert_eq!(read_field("mmcowsh-38", "mmcowsh-33"), FieldRead::Other);
+        assert_eq!(normalise("mm8aalh-8"), "mmoaalh-8");
     }
 
     /// The activities and difficulty codes this agent is proven against, as the API issues them (lobby-room `GameName`).
