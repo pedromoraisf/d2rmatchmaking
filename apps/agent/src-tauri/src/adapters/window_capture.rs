@@ -79,8 +79,8 @@ mod game {
     };
     use windows::Win32::Storage::Xps::{PRINT_WINDOW_FLAGS, PW_CLIENTONLY, PrintWindow};
     use windows::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, GetClientRect, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
-        PW_RENDERFULLCONTENT,
+        EnumWindows, GetClientRect, GetWindowRect, GetWindowThreadProcessId, IsIconic,
+        IsWindowVisible, PW_RENDERFULLCONTENT,
     };
     use windows::core::BOOL;
 
@@ -97,6 +97,12 @@ mod game {
             // SAFETY: `window` is a window handle that `EnumWindows` returned a moment ago; the capture uses it only on this
             // call, takes its device context from it and releases that context before it returns.
             unsafe { client_frame(window) }
+        }
+
+        fn window_size(&self) -> Option<(u32, u32)> {
+            let window = game_window()?;
+            // SAFETY: `window` is a window handle that `EnumWindows` returned a moment ago; it is used only on this call.
+            unsafe { window_size_of(window) }
         }
     }
 
@@ -158,6 +164,23 @@ mod game {
             top: client.top,
             right: client.right,
             bottom: client.bottom,
+        })
+    }
+
+    /// The size of the whole window, title bar and borders included (`GetWindowRect`), or `None` when it has no area. The
+    /// diagnostics show it beside the client size, so an offset between the two is visible.
+    ///
+    /// # Safety
+    /// `window` must be a window handle that is valid at the time of the call.
+    unsafe fn window_size_of(window: HWND) -> Option<(u32, u32)> {
+        let mut outer = RECT::default();
+        // SAFETY: `outer` is a valid RECT that the call writes.
+        unsafe { GetWindowRect(window, std::ptr::addr_of_mut!(outer)) }.ok()?;
+        client_size(Rect {
+            left: outer.left,
+            top: outer.top,
+            right: outer.right,
+            bottom: outer.bottom,
         })
     }
 

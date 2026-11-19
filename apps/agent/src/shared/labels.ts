@@ -43,6 +43,32 @@ export interface Diagnostics {
   post: string;
 }
 
+// What the last Party look saw, as state: never the text the field showed.
+export interface PartyLook {
+  panelOpen: boolean;
+  field: 'notRead' | 'empty' | 'masked' | 'text';
+  matched: boolean;
+  // How the field was read; absent or null when it was not.
+  detail?: FieldDetail | null;
+}
+
+// How the Game Name field was read: where, by how many OCR variants and, for another name, the edit operations of the
+// closest variant against the expected name (`sub(l>9)@9`, `?` for a character outside [a-z0-9 -], `far`, `same`).
+export interface FieldDetail {
+  source: 'label' | 'labelLine' | 'layoutBox';
+  variants: number;
+  diff: string | null;
+}
+
+// What the capture itself holds: numbers and booleans, never a pixel (the geometry-or-blank-frame check).
+export interface CaptureDiagnostics {
+  brightness: number;
+  blank: boolean;
+  windowWidth: number | null;
+  windowHeight: number | null;
+  party: PartyLook | null;
+}
+
 export interface AgentView {
   pairing: PairingState;
   connectivity: Connectivity;
@@ -51,6 +77,8 @@ export interface AgentView {
   // A ready check is open for the account: the hotkey that accepts it is registered (RDY-07).
   readyCheckOpen: boolean;
   diagnostics: Diagnostics | null;
+  // Absent until the first frame was captured.
+  capture?: CaptureDiagnostics;
 }
 
 export interface Label {
@@ -120,6 +148,60 @@ export function diagnosticsLabels(diagnostics: Diagnostics): Label[] {
     })),
     { key: 'diagnostics.post', values: { outcome: diagnostics.post } },
   ];
+}
+
+// The capture lines of the diagnostics: the window size beside the frame (client) size, the frame content and the last Party
+// look of the held run. Shown after the lines `diagnosticsLabels` gives.
+export function captureLabels(capture: CaptureDiagnostics): Label[] {
+  const labels: Label[] = [];
+  if (capture.windowWidth !== null && capture.windowHeight !== null) {
+    labels.push({
+      key: 'diagnostics.window',
+      values: { width: capture.windowWidth, height: capture.windowHeight },
+    });
+  }
+  labels.push(
+    capture.blank
+      ? { key: 'diagnostics.content.blank', values: { brightness: capture.brightness } }
+      : { key: 'diagnostics.content.drawn', values: { brightness: capture.brightness } },
+  );
+  labels.push(partyLabel(capture.party));
+  labels.push(...partyDetailLabels(capture.party));
+  return labels;
+}
+
+function partyLabel(party: PartyLook | null): Label {
+  if (party === null) {
+    return { key: 'diagnostics.party.none' };
+  }
+  if (!party.panelOpen) {
+    return { key: 'diagnostics.party.closed' };
+  }
+  if (party.matched) {
+    return { key: 'diagnostics.party.matched' };
+  }
+  return { key: `diagnostics.party.${party.field}` };
+}
+
+function partyDetailLabels(party: PartyLook | null): Label[] {
+  const detail = party?.detail;
+  if (!party || !party.panelOpen || !detail) {
+    return [];
+  }
+  const labels: Label[] = [
+    {
+      key: `diagnostics.party.source.${detail.source}`,
+      values: { variants: detail.variants },
+    },
+  ];
+  if (detail.diff !== null) {
+    labels.push(
+      detail.diff === 'far' || detail.diff === 'same'
+        ? { key: `diagnostics.party.closest.${detail.diff}` }
+        : { key: 'diagnostics.party.closest.edits', values: { edits: detail.diff } },
+    );
+  }
+  return labels;
 }
 
 export function updateLabel(update: UpdateState): Label | null {

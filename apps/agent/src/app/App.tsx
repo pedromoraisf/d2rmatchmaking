@@ -75,7 +75,9 @@ export function App({ translate }: AppProps) {
       <ConsentView consent={consent} failed={consentFailed} translate={translate} onChange={changeConsent} />
       <PairingView pairing={pairing} translate={translate} onNewCode={requestNewCode} />
       {view === null ? null : <StatusView view={view} translate={translate} />}
-      {view === null ? null : <DiagnosticsView diagnostics={view.diagnostics} translate={translate} />}
+      {view === null ? null : (
+        <DiagnosticsView diagnostics={view.diagnostics} capture={view.capture} translate={translate} />
+      )}
     </main>
   );
 }
