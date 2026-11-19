@@ -16,7 +16,7 @@ use crate::party::{self, PartyLook, PartyPorts};
 use crate::ports::{
     ApiError, ApiGateway, ConsentStore, FrameReader, FrameSource, ProcessSource, Rgba, TokenStore,
 };
-use crate::view::{CaptureView, DiagnosticsView, PartyLookView, RejectedSlot};
+use crate::view::{CaptureView, DiagnosticsView, FieldDetailView, PartyLookView, RejectedSlot};
 
 /// The interval between two looks at the game (CHR-03: at most once per second).
 pub const TICK: Duration = Duration::from_secs(1);
@@ -169,6 +169,11 @@ fn capture_of(frame: &Rgba, window: Option<(u32, u32)>, party: Option<PartyLook>
             panel_open: look.panel_open,
             field: look.field.code(),
             matched: look.matched,
+            detail: look.detail.map(|detail| FieldDetailView {
+                source: detail.source,
+                variants: detail.variants,
+                diff: detail.diff,
+            }),
         }),
     }
 }
@@ -224,13 +229,13 @@ mod tests {
     use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NoText, NullSink};
     use crate::groups::ReadPorts;
     use crate::messages::{FrameReading, Screen};
-    use crate::party::{FieldState, PartyLook, PartyPorts};
+    use crate::party::{FieldDetail, FieldState, PartyLook, PartyPorts};
     use crate::ports::{
         ApiError, ConsentStore, FrameReader, FrameSource, PausedWallClock, ProcessSource, Rgba,
         SequentialIds, StoreError, TokenStore,
     };
     use crate::secret::Secret;
-    use crate::view::{CaptureView, DiagnosticsView, PartyLookView, RejectedSlot};
+    use crate::view::{CaptureView, DiagnosticsView, FieldDetailView, PartyLookView, RejectedSlot};
     use d2rmm_agent_domain::language::LanguagePack;
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
@@ -737,7 +742,8 @@ mod tests {
             Some(PartyLookView {
                 panel_open: false,
                 field: "notRead",
-                matched: false
+                matched: false,
+                detail: None,
             }),
             "the panel did not read as open"
         );
@@ -754,6 +760,11 @@ mod tests {
             panel_open: true,
             field: FieldState::Masked,
             matched: false,
+            detail: Some(FieldDetail {
+                source: "labelLine",
+                variants: 2,
+                diff: None,
+            }),
         };
 
         let capture = capture_of(&frame, Some((1936, 1063)), Some(look));
@@ -768,7 +779,12 @@ mod tests {
                 party: Some(PartyLookView {
                     panel_open: true,
                     field: "masked",
-                    matched: false
+                    matched: false,
+                    detail: Some(FieldDetailView {
+                        source: "labelLine",
+                        variants: 2,
+                        diff: None,
+                    }),
                 }),
             }
         );

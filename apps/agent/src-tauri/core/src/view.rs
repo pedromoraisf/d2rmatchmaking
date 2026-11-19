@@ -69,7 +69,7 @@ pub struct DiagnosticsView {
 }
 
 /// What the last Party look saw, as plain state for the diagnostics (never the text it read, NFR-04, NFR-05).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PartyLookView {
     /// The Party panel was open: its title read as its word.
@@ -78,11 +78,24 @@ pub struct PartyLookView {
     pub field: &'static str,
     /// The field read as the expected game name.
     pub matched: bool,
+    /// How the field was read; `None` when it was not.
+    pub detail: Option<FieldDetailView>,
+}
+
+/// How the Game Name field was read: where, by how many OCR variants and, for another name, the edit operations of the
+/// closest variant against the expected name (`[a-z0-9 -]`, `?` for any other character, `far` past a few edits). Never text.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldDetailView {
+    /// `label`, `labelLine` or `layoutBox`.
+    pub source: &'static str,
+    pub variants: usize,
+    pub diff: Option<String>,
 }
 
 /// What the capture itself shows, to tell a wrong geometry from a blank frame (the Windows incident of 2026-11-19). Numbers
 /// and booleans only: never a pixel, a text or a name.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CaptureView {
     /// The mean luminance of the frame, 0 to 255.
@@ -209,7 +222,7 @@ mod tests {
     }
     #[test]
     fn the_capture_serialises_as_numbers_and_codes_and_is_left_out_when_absent() {
-        use super::{CaptureView, PartyLookView};
+        use super::{CaptureView, FieldDetailView, PartyLookView};
         let capture = CaptureView {
             brightness: 42,
             blank: false,
@@ -217,8 +230,13 @@ mod tests {
             window_height: None,
             party: Some(PartyLookView {
                 panel_open: true,
-                field: "masked",
+                field: "text",
                 matched: false,
+                detail: Some(FieldDetailView {
+                    source: "label",
+                    variants: 3,
+                    diff: Some("sub(l>9)@9".to_string()),
+                }),
             }),
         };
 
@@ -229,7 +247,12 @@ mod tests {
                 "blank": false,
                 "windowWidth": 1936,
                 "windowHeight": null,
-                "party": { "panelOpen": true, "field": "masked", "matched": false },
+                "party": {
+                    "panelOpen": true,
+                    "field": "text",
+                    "matched": false,
+                    "detail": { "source": "label", "variants": 3, "diff": "sub(l>9)@9" },
+                },
             })
         );
     }

@@ -14,6 +14,7 @@ use d2rmm_agent_domain::fusion::{GameNameObservation, fuse};
 use d2rmm_agent_domain::game_name_match::{FieldRead, FieldSource, read_field, read_panel_field};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{PanelRegion, panel_region};
+use d2rmm_agent_domain::name_diff::closest_reading_diff;
 use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::ReadText;
 
@@ -84,13 +85,37 @@ impl FieldState {
     }
 }
 
+/// How the field was read, for the diagnostics: where, by how many OCR variants, and, for another name, how the closest
+/// variant differs from the expected one (`closest_reading_diff`: edit operations in `[a-z0-9 -]`, `?` for any other
+/// character, `far` past a few edits). Never the text read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldDetail {
+    /// `label`, `labelLine` or `layoutBox`.
+    pub source: &'static str,
+    /// How many OCR variants of the field were read.
+    pub variants: usize,
+    /// The closest variant's edit operations, only when the field shows another name.
+    pub diff: Option<String>,
+}
+
+/// The code the window maps to a translated line.
+pub fn source_code(source: FieldSource) -> &'static str {
+    match source {
+        FieldSource::Label => "label",
+        FieldSource::LabelLine => "labelLine",
+        FieldSource::LayoutBox => "layoutBox",
+    }
+}
+
 /// The last look at the Party panel for the held run: plain facts, no text.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartyLook {
     pub panel_open: bool,
     pub field: FieldState,
     /// The field read as the expected game name.
     pub matched: bool,
+    /// How the field was read; `None` when it was not read.
+    pub detail: Option<FieldDetail>,
 }
 
 /// What a reading of the panel shows, as a state (no text kept). A field whose every variant is blank is `Empty`, even
@@ -101,6 +126,7 @@ pub fn look_of(reading: &PanelReading, expected: &str) -> PartyLook {
             panel_open: false,
             field: FieldState::NotRead,
             matched: false,
+            detail: None,
         };
     }
     if reading.field.is_empty() {
@@ -108,6 +134,11 @@ pub fn look_of(reading: &PanelReading, expected: &str) -> PartyLook {
             panel_open: true,
             field: FieldState::NotRead,
             matched: false,
+            detail: Some(FieldDetail {
+                source: source_code(reading.field_source),
+                variants: 0,
+                diff: None,
+            }),
         };
     }
     let texts: Vec<&str> = reading
@@ -123,10 +154,21 @@ pub fn look_of(reading: &PanelReading, expected: &str) -> PartyLook {
     } else {
         FieldState::Text
     };
+    let matched = read == FieldRead::Matched;
+    let diff = if field == FieldState::Text && !matched {
+        closest_reading_diff(&texts, expected)
+    } else {
+        None
+    };
     PartyLook {
         panel_open: true,
         field,
-        matched: read == FieldRead::Matched,
+        matched,
+        detail: Some(FieldDetail {
+            source: source_code(reading.field_source),
+            variants: texts.len(),
+            diff,
+        }),
     }
 }
 
@@ -146,7 +188,7 @@ impl PartyProgress {
 
     /// The last look at the panel for the followed run, `None` before one.
     pub fn last_look(&self) -> Option<PartyLook> {
-        self.last_look
+        self.last_look.clone()
     }
 
     /// Keeps what the latest look saw.
@@ -1021,7 +1063,15 @@ mod look_tests {
         let rig = rig();
         rig.device
             .replace_assignment(Some(assignment(1, "mmcowsh-1")));
-        let seen = |rig: &Rig| rig.device.with_party(|progress| progress.last_look());
+        // How the field was read is asserted in `anchored_tests`; here only the state.
+        let seen = |rig: &Rig| {
+            rig.device
+                .with_party(|progress| progress.last_look())
+                .map(|look| PartyLook {
+                    detail: None,
+                    ..look
+                })
+        };
         assert_eq!(seen(&rig), None, "no look yet");
 
         show(&rig.panel, "INVENTORY", "mmcowsh-1");
@@ -1031,7 +1081,8 @@ mod look_tests {
             Some(PartyLook {
                 panel_open: false,
                 field: FieldState::NotRead,
-                matched: false
+                matched: false,
+                detail: None,
             })
         );
 
@@ -1042,7 +1093,8 @@ mod look_tests {
             Some(PartyLook {
                 panel_open: true,
                 field: FieldState::Masked,
-                matched: false
+                matched: false,
+                detail: None,
             })
         );
 
@@ -1058,7 +1110,8 @@ mod look_tests {
             Some(PartyLook {
                 panel_open: true,
                 field: FieldState::Text,
-                matched: true
+                matched: true,
+                detail: None,
             })
         );
     }
@@ -1198,7 +1251,7 @@ mod look_state_tests {
     use d2rmm_agent_domain::game_name_match::FieldSource;
     use d2rmm_agent_domain::vision::ReadText;
 
-    use super::{FieldState, PanelReading, PartyLook, PartyProgress, look_of};
+    use super::{FieldDetail, FieldState, PanelReading, PartyLook, PartyProgress, look_of};
 
     fn reading(open: bool, source: FieldSource, texts: &[&str]) -> PanelReading {
         PanelReading {
@@ -1220,6 +1273,25 @@ mod look_state_tests {
             panel_open,
             field,
             matched,
+            detail: None,
+        }
+    }
+
+    /// `look` with how the field was read.
+    fn look_with(
+        field: FieldState,
+        matched: bool,
+        source: &'static str,
+        variants: usize,
+        diff: Option<&str>,
+    ) -> PartyLook {
+        PartyLook {
+            detail: Some(FieldDetail {
+                source,
+                variants,
+                diff: diff.map(str::to_string),
+            }),
+            ..look(true, field, matched)
         }
     }
 
@@ -1237,7 +1309,7 @@ mod look_state_tests {
         let open = reading(true, FieldSource::Label, &[]);
         assert_eq!(
             look_of(&open, "mmbaalh-16"),
-            look(true, FieldState::NotRead, false)
+            look_with(FieldState::NotRead, false, "label", 0, None)
         );
     }
 
@@ -1246,7 +1318,7 @@ mod look_state_tests {
         let blank = reading(true, FieldSource::Label, &["", "  "]);
         assert_eq!(
             look_of(&blank, "mmbaalh-16"),
-            look(true, FieldState::Empty, false)
+            look_with(FieldState::Empty, false, "label", 2, None)
         );
     }
 
@@ -1255,7 +1327,7 @@ mod look_state_tests {
         let masked = reading(true, FieldSource::Label, &["xxxxxxxxxx"]);
         assert_eq!(
             look_of(&masked, "mmbaalh-16"),
-            look(true, FieldState::Masked, false)
+            look_with(FieldState::Masked, false, "label", 1, None)
         );
     }
 
@@ -1264,7 +1336,25 @@ mod look_state_tests {
         let other = reading(true, FieldSource::Label, &["mmbaalh-17"]);
         assert_eq!(
             look_of(&other, "mmbaalh-16"),
-            look(true, FieldState::Text, false)
+            look_with(FieldState::Text, false, "label", 1, Some("sub(7>6)@9"))
+        );
+    }
+
+    #[test]
+    fn another_name_names_the_edits_of_its_closest_variant_and_the_source_and_count() {
+        let other = reading(
+            true,
+            FieldSource::LabelLine,
+            &["", "zzzzzzzzzz", "mmbaalh-1l", "mmbaalh-lg"],
+        );
+        assert_eq!(
+            look_of(&other, "mmbaalh-19"),
+            look_with(FieldState::Text, false, "labelLine", 4, Some("sub(l>9)@9"))
+        );
+        let far = reading(true, FieldSource::LayoutBox, &["qqqqqqqqqqqq"]);
+        assert_eq!(
+            look_of(&far, "mmbaalh-19"),
+            look_with(FieldState::Text, false, "layoutBox", 1, Some("far"))
         );
     }
 
@@ -1273,7 +1363,7 @@ mod look_state_tests {
         let shown = reading(true, FieldSource::Label, &["mmbaalh-16"]);
         assert_eq!(
             look_of(&shown, "mmbaalh-16"),
-            look(true, FieldState::Text, true)
+            look_with(FieldState::Text, true, "label", 1, None)
         );
     }
 
