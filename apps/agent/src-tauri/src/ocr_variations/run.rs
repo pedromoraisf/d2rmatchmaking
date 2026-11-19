@@ -12,7 +12,9 @@ use d2rmm_agent_domain::language::LanguagePack;
 use super::catalogue::{DEFAULT_COMBOS, Variation, catalogue};
 use super::outcome::classify_image_detailed;
 use super::report::{Report, VariantResult};
-use crate::ocr_check::{SCREENSHOTS, read_screenshot};
+#[cfg(test)]
+use crate::ocr_check::SCREENSHOTS;
+use crate::ocr_check::{folder_screenshots, read_screenshot};
 
 /// The seed of the catalogue: fixed, so every run reads the same variations.
 pub const SEED: u64 = 20_261_118;
@@ -130,10 +132,10 @@ pub fn run_folder(
         return Err(format!("{} is not a folder", dir.display()));
     }
     let mut images = Vec::new();
-    for name in SCREENSHOTS {
-        let path = dir.join(name);
+    for name in folder_screenshots(dir) {
+        let path = dir.join(&name);
         match read_screenshot(&path) {
-            Ok(image) => images.push((name.to_string(), image)),
+            Ok(image) => images.push((name, image)),
             Err(error) => progress(&format!("  {name}: skipped, {error}")),
         }
     }

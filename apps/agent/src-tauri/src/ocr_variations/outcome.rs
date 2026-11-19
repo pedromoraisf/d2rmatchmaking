@@ -16,7 +16,9 @@ use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::supported_size;
 use d2rmm_agent_domain::presence::Screen;
 
-use crate::ocr_check::{Card, MAINTAINER_CARDS, PARTY_ROOM_NAME};
+use crate::ocr_check::{
+    Card, MAINTAINER_CARDS, PARTY_ROOM_NAME, is_generated_game_name, party_expectation,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Outcome {
@@ -162,7 +164,7 @@ fn other_reason(reads: &[&str], expected_name: &str) -> Cow<'static, str> {
         2 => "field-other-2-edits",
         _ => return Cow::Borrowed("field-other-far"),
     };
-    if expected_name == PARTY_ROOM_NAME {
+    if expected_name == PARTY_ROOM_NAME || is_generated_game_name(expected_name) {
         Cow::Owned(format!(
             "{class}:{}",
             edit_operations(&read, &expected).join(",")
@@ -399,15 +401,11 @@ pub fn classify_image_detailed(
     if !supported_size(image.width, image.height) {
         return (UNSUPPORTED_SIZE, None);
     }
+    if let Some((expected_name, expected)) = party_expectation(name) {
+        let (verdict, variants) = classify_party_image(reader, image, expected_name, expected);
+        return (verdict, Some(variants));
+    }
     match name {
-        "maintainer-party-revealed.png" | "maintainer-party-revealed-tooltip.png" => {
-            let (verdict, variants) = classify_party_image(reader, image, FieldRead::Matched);
-            (verdict, Some(variants))
-        }
-        "maintainer-party-masked.png" => {
-            let (verdict, variants) = classify_party_image(reader, image, FieldRead::Masked);
-            (verdict, Some(variants))
-        }
         "maintainer-select-screen.png" => (
             classify_select(&screens.read(image), &MAINTAINER_CARDS),
             None,
@@ -423,6 +421,7 @@ pub fn classify_image_detailed(
 fn classify_party_image(
     reader: &dyn TextReader,
     image: &Rgba,
+    expected_name: &str,
     expected: FieldRead,
 ) -> (Verdict, Vec<&'static str>) {
     let panel = read_panel(reader, &LanguagePack::english(), image);
@@ -432,10 +431,10 @@ fn classify_party_image(
             panel.open,
             panel.field_source,
             &field,
-            PARTY_ROOM_NAME,
+            expected_name,
             expected,
         ),
-        field_variant_classes(&field, PARTY_ROOM_NAME),
+        field_variant_classes(&field, expected_name),
     )
 }
 
@@ -625,6 +624,27 @@ mod tests {
         assert_eq!(
             other_reason(&["DUEL NK LACKS"], PARTY_ROOM_NAME),
             "field-other-1-edit:sub(a>o)@9"
+        );
+    }
+
+    #[test]
+    fn a_generated_game_name_is_classified_against_its_own_name_with_its_edits() {
+        assert_eq!(
+            classify_party(true, &["mmbaalh-19"], "mmbaalh-19", FieldRead::Matched),
+            verdict(Outcome::Correct, "field-as-expected")
+        );
+        assert_eq!(
+            other_reason(&["mmbaa1h-19"], "mmbaalh-19"),
+            "field-other-1-edit:sub(1>l)@5"
+        );
+        // A read of another file's name is far, not a match.
+        assert_eq!(
+            classify_party(true, &["mmtzh-47"], "mmbaalh-19", FieldRead::Matched).outcome,
+            Outcome::Refused
+        );
+        assert_eq!(
+            field_variant_classes(&["mmbaalh-19", "mmbaalh-1"], "mmbaalh-19"),
+            ["match", "1-edit"]
         );
     }
 

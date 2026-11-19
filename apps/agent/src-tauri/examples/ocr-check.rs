@@ -12,7 +12,7 @@ fn main() -> std::process::ExitCode {
     use std::sync::Arc;
 
     use d2rmm_agent::adapters::windows_ocr::{WindowsOcr, comparison_readers};
-    use d2rmm_agent::ocr_check::{SCREENSHOTS, check_folder};
+    use d2rmm_agent::ocr_check::{check_folder, folder_screenshots};
 
     // `--show-reads` prints the character names and the game name the engine read: local runs only, the CI log is public.
     let mut args: Vec<String> = std::env::args().skip(1).collect();
@@ -45,11 +45,18 @@ fn main() -> std::process::ExitCode {
         show_reads,
     ) {
         Ok(()) => {
-            println!("All {} files PASS.", SCREENSHOTS.len());
+            println!(
+                "All {} files PASS.",
+                folder_screenshots(Path::new(folder)).len()
+            );
             ExitCode::SUCCESS
         }
         Err(failed) => {
-            println!("{} of {} files FAIL.", failed.len(), SCREENSHOTS.len());
+            println!(
+                "{} of {} files FAIL.",
+                failed.len(),
+                folder_screenshots(Path::new(folder)).len()
+            );
             ExitCode::from(1)
         }
     }
