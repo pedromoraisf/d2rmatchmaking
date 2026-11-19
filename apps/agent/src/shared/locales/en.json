@@ -51,6 +51,20 @@
     "cards": "Cards read: {{read}}, settled: {{settled}}",
     "popup": "Popup options found: {{found}}",
     "rejected": "Card {{slot}} not settled: {{reason}}",
-    "post": "Last send: {{outcome}}"
+    "post": "Last send: {{outcome}}",
+    "window": "Window (with borders): {{width}}×{{height}}",
+    "content": {
+      "blank": "Frame content: blank (brightness {{brightness}})",
+      "drawn": "Frame content: brightness {{brightness}}"
+    },
+    "party": {
+      "none": "Party panel: not looked at yet",
+      "closed": "Party panel: not open",
+      "notRead": "Party panel: open, name field not read",
+      "empty": "Party panel: open, name field empty",
+      "masked": "Party panel: open, name field masked",
+      "text": "Party panel: open, name field shows another name",
+      "matched": "Party panel: open, name matched"
+    }
   }
 }

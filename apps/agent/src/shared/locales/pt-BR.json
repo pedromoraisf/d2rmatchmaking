@@ -51,6 +51,20 @@
     "cards": "Cartões lidos: {{read}}, confirmados: {{settled}}",
     "popup": "Opções do pop-up encontradas: {{found}}",
     "rejected": "Cartão {{slot}} não confirmado: {{reason}}",
-    "post": "Último envio: {{outcome}}"
+    "post": "Último envio: {{outcome}}",
+    "window": "Janela (com bordas): {{width}}×{{height}}",
+    "content": {
+      "blank": "Conteúdo do quadro: vazio (brilho {{brightness}})",
+      "drawn": "Conteúdo do quadro: brilho {{brightness}}"
+    },
+    "party": {
+      "none": "Painel do grupo: ainda não verificado",
+      "closed": "Painel do grupo: fechado",
+      "notRead": "Painel do grupo: aberto, campo do nome não lido",
+      "empty": "Painel do grupo: aberto, campo do nome vazio",
+      "masked": "Painel do grupo: aberto, campo do nome oculto",
+      "text": "Painel do grupo: aberto, o campo mostra outro nome",
+      "matched": "Painel do grupo: aberto, nome confere"
+    }
   }
 }
