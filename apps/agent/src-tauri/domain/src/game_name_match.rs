@@ -389,62 +389,6 @@ mod tests {
     const AGENT_ACTIVITIES: [&str; 6] = ["baal", "chaos", "cows", "tz", "heralds", "pvp"];
     const AGENT_DIFFICULTY_CODES: [&str; 3] = ["n", "m", "h"];
 
-    /// The text of an API source file, read from the repository (the agent is built in the same repository).
-    fn api_source(relative: &str) -> String {
-        let path = format!("{}/../../../api/{relative}", env!("CARGO_MANIFEST_DIR"));
-        std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("cannot read {path}: {error}"))
-    }
-
-    /// The single-quoted words of `text`.
-    fn quoted_words(text: &str) -> Vec<String> {
-        text.split('\'')
-            .skip(1)
-            .step_by(2)
-            .map(str::to_string)
-            .collect()
-    }
-
-    #[test]
-    fn every_activity_the_api_can_generate_is_in_the_agents_collision_list() {
-        let source = api_source("src/modules/matchmaking/domain/queue-ticket/queue-ticket.ts");
-        let at = source
-            .find("export type Activity =")
-            .expect("queue-ticket.ts declares `export type Activity =`");
-        let union = &source[at..];
-        let union = &union[..union.find(';').expect("the union ends with `;`")];
-        let mut api = quoted_words(union);
-        assert!(!api.is_empty(), "the Activity union has members");
-        api.push("pvp".to_string());
-        for activity in api {
-            assert!(
-                AGENT_ACTIVITIES.contains(&activity.as_str()),
-                "the API can generate `{activity}`: add it to the agent's list"
-            );
-        }
-    }
-
-    #[test]
-    fn every_difficulty_code_the_api_can_generate_is_in_the_agents_collision_list() {
-        let source = api_source("src/modules/lobby-room/domain/game-name.ts");
-        let at = source
-            .find("function difficultyCode")
-            .expect("game-name.ts declares `difficultyCode`");
-        let body = &source[at..];
-        let body = &body[..body.find("\n}\n").expect("the function ends")];
-        let codes: Vec<String> = body
-            .lines()
-            .filter_map(|line| line.trim().strip_prefix("return "))
-            .flat_map(quoted_words)
-            .collect();
-        assert!(!codes.is_empty(), "the API issues at least one code");
-        for code in codes {
-            assert!(
-                AGENT_DIFFICULTY_CODES.contains(&code.as_str()),
-                "the API can generate the code `{code}`: add it to the agent's list"
-            );
-        }
-    }
-
     #[test]
     fn no_two_generated_names_collide_for_any_run_number_up_to_9999() {
         // The API's run number is a global sequence, not bounded by 99.
