@@ -1,7 +1,7 @@
 # OCR lab: the real screenshots
 
-This folder holds exactly one file, `real-prints.zip`: the maintainer's five real Diablo II: Resurrected screenshots
-that the OCR check reads (`apps/agent/README.md`, "The Party panel check"). The zip is **AES-256 encrypted**. Its
+This folder holds exactly one file, `real-prints.zip`: the maintainer's five real Diablo II: Resurrected screenshots (and
+any `maintainer-party-<gamename>.png` of a generated game name) that the OCR check reads (`apps/agent/README.md`, "The Party panel check"). The zip is **AES-256 encrypted**. Its
 password is the repository secret `OCR_PRINTS_PASSWORD`, never written anywhere in the repository.
 
 ## Why this exists
@@ -61,7 +61,11 @@ temperature), `blur` (gaussian and unsharp), `jpeg` (quality 90 to 30), `noise`,
 
 ## Replacing the zip (maintainer)
 
-1. Put the five screenshots, named as in `apps/agent/README.md`, in a folder (no subfolders).
+1. Put the five screenshots, named as in `apps/agent/README.md`, in a folder (no subfolders), plus the optional
+   `maintainer-party-<gamename>.png` frames of generated game names (recommended: `mmbaalh-19`, `mmchaosh-20`,
+   `mmcowsh-38`, `mmtzh-47`, `mmheraldsh-56`, `mmpvpn-10`, `mmbaalm-99`, which cover every glyph the API can generate). Each
+   is checked against the name in its file name; the variations job counts them in the same totals and tables, and a
+   reason's edit operations are then printed against that file's expected name (a generated name is public).
 2. With 7-Zip, add them to an archive: format **zip**, encryption method **AES-256**, password = the value of the
    repository secret `OCR_PRINTS_PASSWORD` (change the secret and the zip together if you want a new password). Tick
    nothing else; do not use ZipCrypto.

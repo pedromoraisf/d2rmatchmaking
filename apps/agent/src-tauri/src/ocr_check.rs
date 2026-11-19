@@ -30,6 +30,68 @@ pub const SCREENSHOTS: [&str; 5] = [
 /// The room's name the maintainer's Party screenshots show when the name is revealed.
 pub const PARTY_ROOM_NAME: &str = "DUEL NK LOCKS";
 
+const PARTY_PREFIX: &str = "maintainer-party-";
+const PNG_SUFFIX: &str = ".png";
+
+/// The expected game name of a `maintainer-party-<gamename>.png` file: the name exactly as typed in game
+/// (`maintainer-party-mmbaalh-19.png` is `mmbaalh-19`). `None` for the five known files, for any other file, and for a name
+/// that is empty, holds a path separator or lacks the shape of a generated game name.
+pub fn generated_name_of(file: &str) -> Option<&str> {
+    if SCREENSHOTS.contains(&file) {
+        return None;
+    }
+    let name = file.strip_prefix(PARTY_PREFIX)?.strip_suffix(PNG_SUFFIX)?;
+    if name.is_empty() || name.contains(['/', '\\']) || !is_generated_game_name(name) {
+        return None;
+    }
+    Some(name)
+}
+
+/// What a Party file expects: the public room name revealed or masked for the three known files, the generated name revealed
+/// for a `maintainer-party-<gamename>.png`. `None` for any other file.
+pub fn party_expectation(file: &str) -> Option<(&str, FieldRead)> {
+    match file {
+        "maintainer-party-revealed.png" | "maintainer-party-revealed-tooltip.png" => {
+            Some((PARTY_ROOM_NAME, FieldRead::Matched))
+        }
+        "maintainer-party-masked.png" => Some((PARTY_ROOM_NAME, FieldRead::Masked)),
+        _ => generated_name_of(file).map(|name| (name, FieldRead::Matched)),
+    }
+}
+
+/// Whether `name` has the shape of a generated game name (`mm` + activity + difficulty code + `-` + number): such a name is
+/// not personal data, so a reason may print the edits against it.
+pub fn is_generated_game_name(name: &str) -> bool {
+    let Some(rest) = name.strip_prefix("mm") else {
+        return false;
+    };
+    let Some((head, number)) = rest.split_once('-') else {
+        return false;
+    };
+    !head.is_empty()
+        && head.bytes().all(|b| b.is_ascii_lowercase())
+        && !number.is_empty()
+        && number.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// The files the check reads in `dir`: the five known ones, then every `maintainer-party-<gamename>.png` found there, sorted
+/// by name. A file of any other name is left alone.
+pub fn folder_screenshots(dir: &Path) -> Vec<String> {
+    let mut extra: Vec<String> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter(|file| generated_name_of(file).is_some())
+        .collect();
+    extra.sort();
+    SCREENSHOTS
+        .iter()
+        .map(|name| name.to_string())
+        .chain(extra)
+        .collect()
+}
+
 /// A card as the character checks compare it: name, class, level and title.
 pub type Card = (&'static str, Class, u8, Option<Title>);
 
@@ -349,23 +411,10 @@ fn verdict(
     image: &Rgba,
     show_reads: bool,
 ) -> Result<(), String> {
+    if let Some((expected_name, expected)) = party_expectation(name) {
+        return check_party_reads(reader, image, expected_name, expected, show_reads);
+    }
     match name {
-        "maintainer-party-revealed.png" | "maintainer-party-revealed-tooltip.png" => {
-            check_party_reads(
-                reader,
-                image,
-                PARTY_ROOM_NAME,
-                FieldRead::Matched,
-                show_reads,
-            )
-        }
-        "maintainer-party-masked.png" => check_party_reads(
-            reader,
-            image,
-            PARTY_ROOM_NAME,
-            FieldRead::Masked,
-            show_reads,
-        ),
         "maintainer-select-screen.png" => check_screen_reads(
             &screens.read(image),
             Screen::CharacterSelect,
@@ -400,7 +449,7 @@ fn verdict(
     }
 }
 
-/// Reads the five screenshots in `dir` with `reader` (the production reader: it alone decides PASS or FAIL) and prints, per
+/// Reads the five screenshots in `dir` (and every `maintainer-party-<gamename>.png`) with `reader` (the production reader: it alone decides PASS or FAIL) and prints, per
 /// region, the text of each of `variants` (T14); prints one PASS or FAIL line per file with why, and returns the failed file
 /// names. Without `show_reads` nothing printed is a character name or a game name (the CI log is public); with it, local
 /// runs see every read. A missing file is a failure that names the file. Every file is read before the result is
@@ -417,7 +466,8 @@ pub fn check_folder(
     }
     let screens = ScreenReader::new(Arc::clone(&reader), Arc::new(LanguagePack::english()));
     let mut failed = Vec::new();
-    for name in SCREENSHOTS {
+    for name in &folder_screenshots(dir) {
+        let name = name.as_str();
         let path = dir.join(name);
         let result = if path.is_file() {
             read_screenshot(&path).and_then(|image| {
@@ -800,6 +850,124 @@ mod tests {
         assert_eq!(
             party(vec![line("INVENTORY", 153)]),
             "  anchors: title found no, game-name label found no, game-name field read no"
+        );
+    }
+
+    #[test]
+    fn a_party_file_of_another_shape_never_names_an_expected_game_name() {
+        use super::generated_name_of;
+        for file in [
+            "maintainer-party-someone.png",
+            "maintainer-party-MMBAALH-19.png",
+            "maintainer-party-mmbaalh-.png",
+            "maintainer-party-mmbaalh-x.png",
+        ] {
+            assert_eq!(generated_name_of(file), None, "{file}");
+        }
+    }
+
+    #[test]
+    fn a_generated_party_file_names_its_expected_game_name() {
+        use super::generated_name_of;
+        assert_eq!(
+            generated_name_of("maintainer-party-mmbaalh-19.png"),
+            Some("mmbaalh-19")
+        );
+        assert_eq!(
+            generated_name_of("maintainer-party-mmpvpn-10.png"),
+            Some("mmpvpn-10")
+        );
+        // The known files, other files, an empty name and a path are not generated names.
+        for file in [
+            "maintainer-party-revealed.png",
+            "maintainer-party-revealed-tooltip.png",
+            "maintainer-party-masked.png",
+            "maintainer-party-.png",
+            "maintainer-party-a/b.png",
+            "maintainer-party-a\\b.png",
+            "maintainer-party-mmbaalh-19.jpg",
+            "maintainer-party-mmbaalh-19",
+            "maintainer-select-screen.png",
+            "party-mmbaalh-19.png",
+        ] {
+            assert_eq!(generated_name_of(file), None, "{file}");
+        }
+    }
+
+    #[test]
+    fn a_party_file_expects_its_own_name() {
+        use super::{PARTY_ROOM_NAME, party_expectation};
+        use d2rmm_agent_domain::game_name_match::FieldRead;
+        assert_eq!(
+            party_expectation("maintainer-party-revealed.png"),
+            Some((PARTY_ROOM_NAME, FieldRead::Matched))
+        );
+        assert_eq!(
+            party_expectation("maintainer-party-revealed-tooltip.png"),
+            Some((PARTY_ROOM_NAME, FieldRead::Matched))
+        );
+        assert_eq!(
+            party_expectation("maintainer-party-masked.png"),
+            Some((PARTY_ROOM_NAME, FieldRead::Masked))
+        );
+        assert_eq!(
+            party_expectation("maintainer-party-mmtzh-47.png"),
+            Some(("mmtzh-47", FieldRead::Matched))
+        );
+        assert_eq!(party_expectation("maintainer-select-screen.png"), None);
+        assert_eq!(party_expectation("something-else.png"), None);
+    }
+
+    #[test]
+    fn only_the_shape_of_a_generated_name_is_public() {
+        use super::is_generated_game_name;
+        for name in ["mmbaalh-19", "mmpvpn-10", "mmheraldsh-56", "mmbaalm-9999"] {
+            assert!(is_generated_game_name(name), "{name}");
+        }
+        for name in [
+            "",
+            "mm",
+            "mm-1",
+            "mmbaalh-",
+            "mmbaalh",
+            "mmbaalh-1a",
+            "MMBAALH-19",
+            "DUEL NK LOCKS",
+            "secret name",
+            "xmmbaalh-19",
+        ] {
+            assert!(!is_generated_game_name(name), "{name}");
+        }
+    }
+
+    #[test]
+    fn the_folder_lists_the_five_files_then_the_generated_party_files_sorted() {
+        use super::folder_screenshots;
+        let dir = std::env::temp_dir().join(format!("d2rmm-ocr-names-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        for file in [
+            "maintainer-party-mmtzh-47.png",
+            "maintainer-party-mmbaalh-19.png",
+            "maintainer-party-revealed.png",
+            "maintainer-party-.png",
+            "notes.txt",
+        ] {
+            std::fs::write(dir.join(file), b"").unwrap();
+        }
+        let listed = folder_screenshots(&dir);
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(listed[..5], super::SCREENSHOTS);
+        assert_eq!(
+            listed[5..],
+            [
+                "maintainer-party-mmbaalh-19.png",
+                "maintainer-party-mmtzh-47.png"
+            ]
+        );
+        assert_eq!(
+            folder_screenshots(std::path::Path::new("/does/not/exist")).len(),
+            5,
+            "an unreadable folder lists the five known files"
         );
     }
 }
