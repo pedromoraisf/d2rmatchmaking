@@ -142,10 +142,10 @@ describe('LobbyRoom.fromMatch', () => {
     expect(change.value.events).toHaveLength(2);
   });
 
-  it('answers unsupported-difficulty for a difficulty F0 does not play', () => {
+  it('answers unsupported-difficulty for a difficulty outside normal, nightmare and hell', () => {
     expect(
       LobbyRoom.fromMatch(
-        match({ difficulty: 'normal' }),
+        match({ difficulty: 'bogus' as never }),
         12,
         new SequentialIdGenerator('room'),
         CAPTURED_AT,

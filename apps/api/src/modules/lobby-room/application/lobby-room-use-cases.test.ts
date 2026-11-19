@@ -142,13 +142,50 @@ describe('lobby-room use cases', () => {
     });
   });
 
-  it('answers unsupported-difficulty and stores nothing for a difficulty F0 does not play', async () => {
+  it('answers unsupported-difficulty and stores nothing for a difficulty outside normal, nightmare and hell', async () => {
     const { useCases, outbox } = setup();
 
-    const result = await useCases.onMatchFormed({ ...match(), difficulty: 'normal' });
+    const result = await useCases.onMatchFormed({ ...match(), difficulty: 'bogus' as never });
 
     expect(result).toEqual({ ok: false, error: 'unsupported-difficulty' });
     expect(outbox.appended).toEqual([]);
+  });
+
+  it('opens a room named mm<activity>m-<n> for a nightmare match', async () => {
+    const { useCases, rooms, outbox } = setup();
+
+    const result = await useCases.onMatchFormed({ ...match(), difficulty: 'nightmare' });
+
+    expect(result).toEqual({ ok: true, value: 'created' });
+    expect((await rooms.findByMatchId('match-1'))?.gameName.value).toBe('mmbaalm-1');
+    expect(outbox.appended).toHaveLength(2);
+  });
+
+  it('opens a room named mm<activity>n-<n> for a normal match', async () => {
+    const { useCases, rooms } = setup();
+
+    await useCases.onMatchFormed({ ...match(), difficulty: 'normal' });
+
+    expect((await rooms.findByMatchId('match-1'))?.gameName.value).toBe('mmbaaln-1');
+  });
+
+  it('spends no sequence number on a match it refuses', async () => {
+    const { useCases, rooms } = setup();
+
+    await useCases.onMatchFormed({ ...match('match-bad'), difficulty: 'bogus' as never });
+    await useCases.onMatchFormed(match('match-ok'));
+
+    expect((await rooms.findByMatchId('match-ok'))?.gameName.value).toBe('mmbaalh-1');
+  });
+
+  it('records a lobby.match-refused event on the span of a refused match', async () => {
+    const { useCases } = setup();
+
+    await useCases.onMatchFormed({ ...match(), difficulty: 'bogus' as never });
+
+    expect(finishedSpan('lobby.on-match-formed').events.map((event) => event.name)).toEqual([
+      'lobby.match-refused',
+    ]);
   });
 
   it('refuses an observation from an account outside the room with forbidden and stores nothing', async () => {
