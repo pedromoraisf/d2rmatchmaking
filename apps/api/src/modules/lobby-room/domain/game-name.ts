@@ -2,14 +2,16 @@ import { err, ok, type Result } from '../../../shared-kernel/result.ts';
 
 export type GameDifficulty = 'normal' | 'nightmare' | 'hell';
 
-/** Difficulty code inside a game name. F0 supports hell only (FR-14 arrives with F1). */
+/** Difficulty code inside a game name (ADR 017, FR-14); the agent reads the same `n`, `m` and `h`. */
+const DIFFICULTY_CODES: Readonly<Record<GameDifficulty, string>> = {
+  normal: 'n',
+  nightmare: 'm',
+  hell: 'h',
+};
+
+/** A value outside the union (an event from an older payload) has no code. */
 function difficultyCode(difficulty: GameDifficulty): string | undefined {
-  switch (difficulty) {
-    case 'hell':
-      return 'h';
-    default:
-      return undefined;
-  }
+  return Object.hasOwn(DIFFICULTY_CODES, difficulty) ? DIFFICULTY_CODES[difficulty] : undefined;
 }
 
 /**

@@ -16,6 +16,18 @@ describe('GameName', () => {
     expect(result.ok && result.value.value).toBe('mmbaalh-12');
   });
 
+  it('builds mmbaaln-<n> for baal on normal', () => {
+    const result = GameName.of('baal', 'normal', 12);
+
+    expect(result.ok && result.value.value).toBe('mmbaaln-12');
+  });
+
+  it('builds mmbaalm-<n> for baal on nightmare', () => {
+    const result = GameName.of('baal', 'nightmare', 12);
+
+    expect(result.ok && result.value.value).toBe('mmbaalm-12');
+  });
+
   it('answers unsupported-difficulty for a value outside the three difficulties', () => {
     expect(GameName.of('baal', 'toString' as GameDifficulty, 12)).toEqual({
       ok: false,

@@ -8,6 +8,7 @@ import {
 import type { AgentsPort } from '../../agents/index.ts';
 import {
   activeTraceparent,
+  addActiveSpanEvent,
   annotateActiveSpan,
   err,
   linkActiveSpan,
@@ -218,6 +219,14 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
         const existing = await deps.rooms.findByMatchId(match.matchId);
         if (existing !== null) {
           return ok('already-created');
+        }
+        // The name must be buildable before a sequence number is spent on it.
+        if (!GameName.of(match.activity, match.difficulty, 1).ok) {
+          addActiveSpanEvent('lobby.match-refused', {
+            reason: 'unsupported-difficulty',
+            difficulty: String(match.difficulty),
+          });
+          return err('unsupported-difficulty');
         }
         const n = await deps.sequence.next();
         const opened = LobbyRoom.fromMatch(match, n, deps.ids, deps.clock.now());

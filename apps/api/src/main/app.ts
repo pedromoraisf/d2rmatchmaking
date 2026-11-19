@@ -318,7 +318,14 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   const matchmaking = createMatchmakingUseCases({ ids, uow, outbox });
   bus.subscribe('MatchFormed', async (event) => {
     if (event.event.type === 'MatchFormed') {
-      await lobby.onMatchFormed(event.event.payload);
+      const opened = await lobby.onMatchFormed(event.event.payload);
+      if (!opened.ok) {
+        // A formed match without a room leaves its players waiting: never drop it silently.
+        app.log.error(
+          { matchId: event.event.payload.matchId, reason: opened.error },
+          'a match was formed but no room could be opened for it',
+        );
+      }
     }
   });
   const hub = new StreamHub({
