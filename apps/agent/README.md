@@ -41,6 +41,24 @@ exactly:
 - `maintainer-select-screen.png`: the character selection screen
 - `maintainer-select-difficulty.png`: the selection screen with the difficulty popup open
 
+Any number of extra Party frames of a **generated** game name may sit in the same folder, named
+`maintainer-party-<gamename>.png`, where `<gamename>` is the name exactly as typed in game (`maintainer-party-mmbaalh-19.png`
+expects `mmbaalh-19`). Each is checked like `maintainer-party-revealed.png` (panel open, field revealed and matched) against
+its own name, and gets its own PASS or FAIL; the variations job reads them too. A name that is empty or holds `/` or `\`
+is ignored, and so is any other file. Generated game names are not personal data, so a failure may name the edits against
+that file's expected name (`field-other-1-edit:sub(8>o)@2`).
+
+Recommended set, whose names together cover every glyph the API can generate (the letters of `baal chaos cows tz heralds
+pvp`, the difficulty codes `n m h`, the dash and the digits 0 to 9): seven files,
+
+- `maintainer-party-mmbaalh-19.png`
+- `maintainer-party-mmchaosh-20.png`
+- `maintainer-party-mmcowsh-38.png`
+- `maintainer-party-mmtzh-47.png`
+- `maintainer-party-mmheraldsh-56.png`
+- `maintainer-party-mmpvpn-10.png`
+- `maintainer-party-mmbaalm-99.png`
+
 ### In CI (recommended)
 
 The five screenshots live in the repository as one AES-256 encrypted zip, `apps/agent/ocr-lab/real-prints.zip`
