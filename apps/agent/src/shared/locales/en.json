@@ -64,7 +64,17 @@
       "empty": "Party panel: open, name field empty",
       "masked": "Party panel: open, name field masked",
       "text": "Party panel: open, name field shows another name",
-      "matched": "Party panel: open, name matched"
+      "matched": "Party panel: open, name matched",
+      "source": {
+        "label": "Party field: read under the label ({{variants}} variants read)",
+        "labelLine": "Party field: read on the label line ({{variants}} variants read)",
+        "layoutBox": "Party field: read in the layout box, label not found ({{variants}} variants read)"
+      },
+      "closest": {
+        "edits": "Party field, closest reading: {{edits}}",
+        "far": "Party field, closest reading: far",
+        "same": "Party field, closest reading: same after normalising"
+      }
     }
   }
 }

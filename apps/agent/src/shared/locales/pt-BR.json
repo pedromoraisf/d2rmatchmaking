@@ -64,7 +64,17 @@
       "empty": "Painel do grupo: aberto, campo do nome vazio",
       "masked": "Painel do grupo: aberto, campo do nome oculto",
       "text": "Painel do grupo: aberto, o campo mostra outro nome",
-      "matched": "Painel do grupo: aberto, nome confere"
+      "matched": "Painel do grupo: aberto, nome confere",
+      "source": {
+        "label": "Campo do grupo: lido sob o rótulo ({{variants}} variantes lidas)",
+        "labelLine": "Campo do grupo: lido na linha do rótulo ({{variants}} variantes lidas)",
+        "layoutBox": "Campo do grupo: lido na caixa do layout, rótulo não encontrado ({{variants}} variantes lidas)"
+      },
+      "closest": {
+        "edits": "Campo do grupo, leitura mais próxima: {{edits}}",
+        "far": "Campo do grupo, leitura mais próxima: distante",
+        "same": "Campo do grupo, leitura mais próxima: igual após normalizar"
+      }
     }
   }
 }

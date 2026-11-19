@@ -255,6 +255,62 @@ describe('capture diagnostics', () => {
     expect(screen.getByText(text)).toBeTruthy();
   });
 
+  it.each([
+    ['label', 'Party field: read under the label (3 variants read)'],
+    ['labelLine', 'Party field: read on the label line (3 variants read)'],
+    ['layoutBox', 'Party field: read in the layout box, label not found (3 variants read)'],
+  ] as const)('says the Party field was read from %s', (source, text) => {
+    renderCapture({
+      party: { panelOpen: true, field: 'text', matched: false, detail: { source, variants: 3, diff: null } },
+    });
+
+    expect(screen.getByText(text)).toBeTruthy();
+    expect(screen.queryByText(/closest reading/)).toBeNull();
+  });
+
+  it.each([
+    ['sub(l>9)@9,ins(-)@7', 'Party field, closest reading: sub(l>9)@9,ins(-)@7'],
+    ['far', 'Party field, closest reading: far'],
+    ['same', 'Party field, closest reading: same after normalising'],
+  ] as const)('shows the closest reading of another name as %s', (diff, text) => {
+    renderCapture({
+      party: {
+        panelOpen: true,
+        field: 'text',
+        matched: false,
+        detail: { source: 'labelLine', variants: 4, diff },
+      },
+    });
+
+    expect(screen.getByText('Party panel: open, name field shows another name')).toBeTruthy();
+    expect(screen.getByText(text)).toBeTruthy();
+  });
+
+  it('shows no read detail while the panel is closed', () => {
+    renderCapture({
+      party: { panelOpen: false, field: 'notRead', matched: false, detail: null },
+    });
+
+    expect(screen.queryByText(/Party field/)).toBeNull();
+  });
+
+  it('translates the read detail to pt-BR', () => {
+    renderCapture(
+      {
+        party: {
+          panelOpen: true,
+          field: 'text',
+          matched: false,
+          detail: { source: 'labelLine', variants: 4, diff: 'sub(l>9)@9' },
+        },
+      },
+      ptBR,
+    );
+
+    expect(screen.getByText('Campo do grupo: lido na linha do rótulo (4 variantes lidas)')).toBeTruthy();
+    expect(screen.getByText('Campo do grupo, leitura mais próxima: sub(l>9)@9')).toBeTruthy();
+  });
+
   it('shows no capture lines before the first frame', () => {
     render(<DiagnosticsView diagnostics={diagnostics} translate={en} />);
 

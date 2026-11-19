@@ -48,6 +48,16 @@ export interface PartyLook {
   panelOpen: boolean;
   field: 'notRead' | 'empty' | 'masked' | 'text';
   matched: boolean;
+  // How the field was read; absent or null when it was not.
+  detail?: FieldDetail | null;
+}
+
+// How the Game Name field was read: where, by how many OCR variants and, for another name, the edit operations of the
+// closest variant against the expected name (`sub(l>9)@9`, `?` for a character outside [a-z0-9 -], `far`, `same`).
+export interface FieldDetail {
+  source: 'label' | 'labelLine' | 'layoutBox';
+  variants: number;
+  diff: string | null;
 }
 
 // What the capture itself holds: numbers and booleans, never a pixel (the geometry-or-blank-frame check).
@@ -156,6 +166,7 @@ export function captureLabels(capture: CaptureDiagnostics): Label[] {
       : { key: 'diagnostics.content.drawn', values: { brightness: capture.brightness } },
   );
   labels.push(partyLabel(capture.party));
+  labels.push(...partyDetailLabels(capture.party));
   return labels;
 }
 
@@ -170,6 +181,27 @@ function partyLabel(party: PartyLook | null): Label {
     return { key: 'diagnostics.party.matched' };
   }
   return { key: `diagnostics.party.${party.field}` };
+}
+
+function partyDetailLabels(party: PartyLook | null): Label[] {
+  const detail = party?.detail;
+  if (!party || !party.panelOpen || !detail) {
+    return [];
+  }
+  const labels: Label[] = [
+    {
+      key: `diagnostics.party.source.${detail.source}`,
+      values: { variants: detail.variants },
+    },
+  ];
+  if (detail.diff !== null) {
+    labels.push(
+      detail.diff === 'far' || detail.diff === 'same'
+        ? { key: `diagnostics.party.closest.${detail.diff}` }
+        : { key: 'diagnostics.party.closest.edits', values: { edits: detail.diff } },
+    );
+  }
+  return labels;
 }
 
 export function updateLabel(update: UpdateState): Label | null {
