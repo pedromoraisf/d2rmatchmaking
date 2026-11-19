@@ -11,13 +11,14 @@ import {
   type Server,
   type ServerResponse,
 } from 'node:http';
-import { createServer, type Socket } from 'node:net';
+import type { Socket } from 'node:net';
 import { existsSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { POSTGRES_URL_ENV } from './global-setup.ts';
+import { freePort, PortInUseError, reportsAddressInUse, retryOnPortInUse } from './ports.ts';
 import { BNET_CLIENT_ID, BNET_CLIENT_SECRET, FakeBattleNet } from './fake-battle-net.ts';
 
 /** The repository root: this file is in tests/acceptance/support. */
@@ -93,23 +94,6 @@ interface Managed {
   readonly output: () => string;
 }
 
-/** Returns a free loopback port. The port is released before the caller binds it, a small race the suite accepts. */
-async function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = createServer();
-    server.unref();
-    server.on('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      if (address === null || typeof address === 'string') {
-        reject(new Error('no loopback port was assigned'));
-        return;
-      }
-      server.close(() => resolve(address.port));
-    });
-  });
-}
-
 /**
  * Starts a child process in its own process group, so that closing the stack also stops the processes it spawns
  * (wrangler starts workerd). Only a minimal environment is passed: no secrets of the host reach the children.
@@ -144,7 +128,8 @@ async function waitFor(managed: Managed, url: string, ready: (status: number) =>
   let lastError = 'no answer yet';
   while (Date.now() < deadline) {
     if (managed.child.exitCode !== null) {
-      throw new Error(`${managed.name} exited with ${managed.child.exitCode}\n${managed.output()}`);
+      const message = `${managed.name} exited with ${managed.child.exitCode}\n${managed.output()}`;
+      throw reportsAddressInUse(managed.output()) ? new PortInUseError(message) : new Error(message);
     }
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
@@ -328,7 +313,8 @@ async function buildTelemetrySite(outDir: string): Promise<void> {
 /** Starts the stack for one worker. `runtime` names the browser build of the run, for start-up errors. */
 export async function startStack(workerIndex: number, runtime: string): Promise<Stack> {
   try {
-    return await startStackProcesses(workerIndex);
+    // A port lost to another process between its allocation and the bind restarts the stack on new ports (ports.ts).
+    return await retryOnPortInUse(() => startStackProcesses(workerIndex));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`the acceptance stack of worker ${workerIndex} (${runtime}) did not start: ${message}`);
@@ -549,7 +535,7 @@ export interface TracedStackOptions {
 /** Starts the traced stack. The database name is per process, so two traced stacks of one run never share a database. */
 export async function startTracedStack(options: TracedStackOptions): Promise<TracedStack> {
   try {
-    return await startTracedProcesses(options);
+    return await retryOnPortInUse(() => startTracedProcesses(options));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`the traced acceptance stack did not start: ${message}`);
