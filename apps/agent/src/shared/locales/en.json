@@ -51,6 +51,30 @@
     "cards": "Cards read: {{read}}, settled: {{settled}}",
     "popup": "Popup options found: {{found}}",
     "rejected": "Card {{slot}} not settled: {{reason}}",
-    "post": "Last send: {{outcome}}"
+    "post": "Last send: {{outcome}}",
+    "window": "Window (with borders): {{width}}×{{height}}",
+    "content": {
+      "blank": "Frame content: blank (brightness {{brightness}})",
+      "drawn": "Frame content: brightness {{brightness}}"
+    },
+    "party": {
+      "none": "Party panel: not looked at yet",
+      "closed": "Party panel: not open",
+      "notRead": "Party panel: open, name field not read",
+      "empty": "Party panel: open, name field empty",
+      "masked": "Party panel: open, name field masked",
+      "text": "Party panel: open, name field shows another name",
+      "matched": "Party panel: open, name matched",
+      "source": {
+        "label": "Party field: read under the label ({{variants}} variants read)",
+        "labelLine": "Party field: read on the label line ({{variants}} variants read)",
+        "layoutBox": "Party field: read in the layout box, label not found ({{variants}} variants read)"
+      },
+      "closest": {
+        "edits": "Party field, closest reading: {{edits}}",
+        "far": "Party field, closest reading: far",
+        "same": "Party field, closest reading: same after normalising"
+      }
+    }
   }
 }

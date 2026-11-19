@@ -5,10 +5,12 @@
 pub mod anchors;
 pub mod character_screen;
 pub mod characters;
+pub mod frame_content;
 pub mod fusion;
 pub mod game_name_match;
 pub mod language;
 pub mod layout;
+pub mod name_diff;
 pub mod observation_retry;
 pub mod paired_device;
 pub mod pairing;

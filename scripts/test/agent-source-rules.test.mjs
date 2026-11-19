@@ -57,6 +57,7 @@ const UNSAFE_ADAPTERS = {
     'PrintWindow',
     'EnumWindows',
     'GetClientRect',
+    'GetWindowRect',
     'GetWindowThreadProcessId',
     'IsIconic',
     'IsWindowVisible',

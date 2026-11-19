@@ -7,15 +7,16 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use d2rmm_agent_domain::characters::{Card, reconcile_names};
+use d2rmm_agent_domain::frame_content::summarize;
 use d2rmm_agent_domain::presence::game_running;
 
 use crate::device_state::DeviceState;
 use crate::messages::{FrameReading, Screen};
-use crate::party::{self, PartyPorts};
+use crate::party::{self, PartyLook, PartyPorts};
 use crate::ports::{
     ApiError, ApiGateway, ConsentStore, FrameReader, FrameSource, ProcessSource, Rgba, TokenStore,
 };
-use crate::view::{DiagnosticsView, RejectedSlot};
+use crate::view::{CaptureView, DiagnosticsView, FieldDetailView, PartyLookView, RejectedSlot};
 
 /// The interval between two looks at the game (CHR-03: at most once per second).
 pub const TICK: Duration = Duration::from_secs(1);
@@ -57,6 +58,11 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
     let reading = read_screen(ports, &frame).await;
     device.set_screen(reading.screen);
     party::look(device, &ports.party, Arc::clone(&frame)).await;
+    device.hub.set_capture(capture_of(
+        &frame,
+        ports.frames.window_size(),
+        device.with_party(|progress| progress.last_look()),
+    ));
     let mut diagnostics = diagnostics_of(&reading, &frame, previous_post(device));
     let FrameReading {
         screen: Screen::CharacterSelect,
@@ -151,6 +157,27 @@ fn diagnostics_of(reading: &FrameReading, frame: &Rgba, post: &'static str) -> D
     }
 }
 
+/// What the capture itself shows: the frame's brightness, the window's size and the last Party look. Numbers and booleans.
+fn capture_of(frame: &Rgba, window: Option<(u32, u32)>, party: Option<PartyLook>) -> CaptureView {
+    let content = summarize(&frame.pixels);
+    CaptureView {
+        brightness: content.brightness,
+        blank: content.blank,
+        window_width: window.map(|(width, _)| width),
+        window_height: window.map(|(_, height)| height),
+        party: party.map(|look| PartyLookView {
+            panel_open: look.panel_open,
+            field: look.field.code(),
+            matched: look.matched,
+            detail: look.detail.map(|detail| FieldDetailView {
+                source: detail.source,
+                variants: detail.variants,
+                diff: detail.diff,
+            }),
+        }),
+    }
+}
+
 /// The game window's frame, when the player has consented, the game runs and a frame came. `None` otherwise: in each case
 /// nothing is captured past the check that failed (CHR-01, CHR-02, CHR-03).
 fn capture<G>(ports: &ScreenPorts<G>) -> Option<Rgba> {
@@ -197,18 +224,18 @@ mod tests {
 
     use d2rmm_agent_domain::character_screen::{RejectReason, Rejection};
 
-    use super::{ScreenPorts, tick};
+    use super::{ScreenPorts, capture_of, tick};
     use crate::device_state::DeviceState;
     use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NoText, NullSink};
     use crate::groups::ReadPorts;
     use crate::messages::{FrameReading, Screen};
-    use crate::party::PartyPorts;
+    use crate::party::{FieldDetail, FieldState, PartyLook, PartyPorts};
     use crate::ports::{
         ApiError, ConsentStore, FrameReader, FrameSource, PausedWallClock, ProcessSource, Rgba,
         SequentialIds, StoreError, TokenStore,
     };
     use crate::secret::Secret;
-    use crate::view::{DiagnosticsView, RejectedSlot};
+    use crate::view::{CaptureView, DiagnosticsView, FieldDetailView, PartyLookView, RejectedSlot};
     use d2rmm_agent_domain::language::LanguagePack;
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
@@ -663,5 +690,103 @@ mod tests {
         assert_eq!(shown.screen, "inGame");
         assert_eq!((shown.cards_read, shown.cards_settled), (0, 0));
         assert_eq!(shown.post, "not-sent");
+    }
+    fn assignment() -> d2rmm_agent_domain::room_assignment::Assignment {
+        use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
+        Assignment {
+            room: RoomId::new("7d9f2c1e-0000-4000-8000-000000000001"),
+            run: std::num::NonZeroU64::new(1).expect("a non-zero run"),
+            expected_game_name: GameName::new("mmbaalh-16"),
+            members: Vec::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn the_capture_shows_a_blank_frame_and_no_party_look_without_a_room() {
+        let rig = rig(
+            true,
+            true,
+            frame(),
+            FrameReading::without_cards(Screen::Unknown),
+        );
+
+        look(&rig, &mut None).await;
+
+        let capture = rig
+            .device
+            .hub
+            .snapshot()
+            .capture
+            .expect("a frame was captured");
+        assert!(capture.blank, "a frame with no pixels is blank");
+        assert_eq!(capture.brightness, 0);
+        assert_eq!((capture.window_width, capture.window_height), (None, None));
+        assert_eq!(capture.party, None, "no room, no Party look");
+    }
+
+    #[tokio::test]
+    async fn the_capture_shows_the_party_look_of_the_held_run() {
+        let rig = rig(
+            true,
+            true,
+            frame(),
+            FrameReading::without_cards(Screen::Unknown),
+        );
+        rig.device.replace_assignment(Some(assignment()));
+
+        look(&rig, &mut None).await;
+
+        let party = rig.device.hub.snapshot().capture.and_then(|c| c.party);
+        assert_eq!(
+            party,
+            Some(PartyLookView {
+                panel_open: false,
+                field: "notRead",
+                matched: false,
+                detail: None,
+            }),
+            "the panel did not read as open"
+        );
+    }
+
+    #[test]
+    fn the_capture_carries_the_window_size_and_the_look_as_codes() {
+        let frame = Rgba {
+            width: 1,
+            height: 1,
+            pixels: vec![200, 200, 200, 255],
+        };
+        let look = PartyLook {
+            panel_open: true,
+            field: FieldState::Masked,
+            matched: false,
+            detail: Some(FieldDetail {
+                source: "labelLine",
+                variants: 2,
+                diff: None,
+            }),
+        };
+
+        let capture = capture_of(&frame, Some((1936, 1063)), Some(look));
+
+        assert_eq!(
+            capture,
+            CaptureView {
+                brightness: 200,
+                blank: true,
+                window_width: Some(1936),
+                window_height: Some(1063),
+                party: Some(PartyLookView {
+                    panel_open: true,
+                    field: "masked",
+                    matched: false,
+                    detail: Some(FieldDetailView {
+                        source: "labelLine",
+                        variants: 2,
+                        diff: None,
+                    }),
+                }),
+            }
+        );
     }
 }
