@@ -300,6 +300,20 @@ jobs:
         if: steps.changed.outputs.changed == 'true'
         working-directory: apps/agent
         run: pnpm exec tauri build --ci --config '{"bundle":{"createUpdaterArtifacts":false}}' -- --locked
+      # The binary a human will install must start: --self-check runs its startup steps (build configuration, OCR engine)
+      # with no window and prints one JSON line. The release exe has no console, so stdout is redirected to a file.
+      - name: Smoke-start the built agent (--self-check)
+        if: steps.changed.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set +e
+          apps/agent/src-tauri/target/release/d2rmm-agent.exe --self-check > self-check.out 2> self-check.err
+          code=$?
+          cat self-check.out self-check.err
+          if [ "$code" -ne 0 ] || [ ! -s self-check.out ]; then
+            echo "::error::the built agent failed its startup self-check (exit $code)"
+            exit 1
+          fi
       # A test build, never a release: unsigned, with no updater artifacts. The installers (bundle targets default to all,
       # so NSIS and MSI) are kept for a pull request so the maintainer can try them on a Windows machine.
       - name: Upload the unsigned Windows installer

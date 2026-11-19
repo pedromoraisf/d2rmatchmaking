@@ -105,9 +105,22 @@ jobs:
           # script, so a release can be rebuilt from a tag that already exists.
           tauriScript: pnpm exec tauri
           tagName: ${{ steps.tag.outputs.tag }}
-          releaseDraft: false
+          # A draft: the release is published only after the built binary has started (self-check below).
+          releaseDraft: true
           includeUpdaterJson: true
           args: --ci -- --locked
+
+      - name: 'Smoke check: the release binary starts (--self-check --online)'
+        shell: bash
+        run: |
+          set +e
+          apps/agent/src-tauri/target/release/d2rmm-agent.exe --self-check --online > self-check.out 2> self-check.err
+          code=$?
+          cat self-check.out self-check.err
+          if [ "$code" -ne 0 ] || [ ! -s self-check.out ]; then
+            echo "::error::the built agent failed its startup self-check (exit $code)"
+            exit 1
+          fi
 
       - name: 'Smoke check: the release binary rejects --read-fixture (exit 2)'
         shell: bash
@@ -132,6 +145,15 @@ jobs:
           cp "$installer" D2RMatchMaking-setup.exe
           sha256sum "$versioned" D2RMatchMaking-setup.exe > SHA256SUMS
           gh release upload "$TAG" D2RMatchMaking-setup.exe SHA256SUMS
+
+      # The release was created as a draft by tauri-action; it goes public only now, after the binary started and every
+      # asset is attached.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        shell: bash
+        run: gh release edit "$TAG" --draft=false --latest
 
       - name: Keep the unsigned installer for SignPath
         id: unsigned
