@@ -11,6 +11,24 @@ The agent window does not show its version. On Windows, open Settings → Apps �
 The agent looks for an update when it starts and every 6 hours (AD-049). With an older version installed and a newer
 release published, restart the agent, wait a moment, and check the installed version again.
 
+## Testing a pull request's installer (maintainer, Windows)
+
+The CI `agent-build` job of a pull request that changes `apps/agent` uploads the artifact `agent-installer-windows` (14
+days). It is a test build: unsigned, with no updater artifacts, and it talks to the API of the repository variable
+`API_BASE_URL`, like a release.
+
+- The artifact is a zip (GitHub zips every artifact). Run the `.exe` in its `nsis` folder; the `msi` folder holds the
+  same app as an MSI.
+- Windows 11 Smart App Control blocks any unsigned app, with no way to run it: turn it off to test (Settings → Privacy &
+  security → Windows Security → App & browser control), or wait for signed releases. SmartScreen then warns once: "More
+  info" → "Run anyway".
+- If the installed agent closes at once, run it from PowerShell with
+  `Start-Process <exe> -RedirectStandardError $env:TEMP\d2rmm-err.txt -Wait` and read the file: a release build has no
+  console, so a startup error is otherwise silent.
+- With Smart App Control on, the unsigned uninstaller cannot run either. Remove the agent by hand: close it, delete
+  `%LOCALAPPDATA%\D2RMatchMaking` and the registry key
+  `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\D2RMatchMaking`.
+
 ## The Party panel check (maintainer, Windows)
 
 The Windows OCR reading of the Party panel and the selection screen is checked on the maintainer's own screenshots. They

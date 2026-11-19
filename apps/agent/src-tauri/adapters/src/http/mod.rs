@@ -5,6 +5,7 @@
 pub mod api_client;
 pub mod client;
 pub mod gateway;
+pub mod health;
 pub mod sse;
 pub mod sse_stream;
 pub mod translate;
