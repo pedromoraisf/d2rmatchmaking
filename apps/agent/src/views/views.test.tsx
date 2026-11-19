@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createAgentI18n, translatorFor } from '../shared/i18n.ts';
-import type { AgentView, Diagnostics, PairingState } from '../shared/labels.ts';
+import type { AgentView, CaptureDiagnostics, Diagnostics, PairingState } from '../shared/labels.ts';
 import { DiagnosticsView } from './DiagnosticsView.tsx';
 import { PairingView } from './PairingView.tsx';
 import { StatusView } from './StatusView.tsx';
@@ -191,5 +191,137 @@ describe('diagnostics view', () => {
     expect(screen.getByText('Diagnóstico')).toBeTruthy();
     expect(screen.getByText('Tela: Seleção de personagem')).toBeTruthy();
     expect(screen.getByText('Último envio: not-sent')).toBeTruthy();
+  });
+});
+
+describe('capture diagnostics', () => {
+  const diagnostics: Diagnostics = {
+    screen: 'unknown',
+    frameWidth: 1920,
+    frameHeight: 1056,
+    cardsRead: 0,
+    cardsSettled: 0,
+    popupOptionsFound: 0,
+    rejected: [],
+    post: 'ok',
+  };
+  const capture: CaptureDiagnostics = {
+    brightness: 87,
+    blank: false,
+    windowWidth: 1936,
+    windowHeight: 1095,
+    party: { panelOpen: true, field: 'masked', matched: false },
+  };
+  const renderCapture = (overrides: Partial<CaptureDiagnostics> = {}, translate = en) =>
+    render(
+      <DiagnosticsView
+        diagnostics={diagnostics}
+        capture={{ ...capture, ...overrides }}
+        translate={translate}
+      />,
+    );
+
+  it('shows the window size beside the frame size, the brightness and the Party panel state', () => {
+    renderCapture();
+
+    expect(screen.getByText('Frame: 1920×1056')).toBeTruthy();
+    expect(screen.getByText('Window (with borders): 1936×1095')).toBeTruthy();
+    expect(screen.getByText('Frame content: brightness 87')).toBeTruthy();
+    expect(screen.getByText('Party panel: open, name field masked')).toBeTruthy();
+  });
+
+  it('says a blank frame is blank', () => {
+    renderCapture({ blank: true, brightness: 0 });
+
+    expect(screen.getByText('Frame content: blank (brightness 0)')).toBeTruthy();
+  });
+
+  it('leaves the window line out when the size is unknown', () => {
+    renderCapture({ windowWidth: null, windowHeight: null });
+
+    expect(screen.queryByText(/Window \(with borders\)/)).toBeNull();
+  });
+
+  it.each([
+    [null, 'Party panel: not looked at yet'],
+    [{ panelOpen: false, field: 'notRead', matched: false }, 'Party panel: not open'],
+    [{ panelOpen: true, field: 'notRead', matched: false }, 'Party panel: open, name field not read'],
+    [{ panelOpen: true, field: 'empty', matched: false }, 'Party panel: open, name field empty'],
+    [{ panelOpen: true, field: 'text', matched: false }, 'Party panel: open, name field shows another name'],
+    [{ panelOpen: true, field: 'text', matched: true }, 'Party panel: open, name matched'],
+  ] as const)('shows the Party look %j as "%s"', (party, text) => {
+    renderCapture({ party });
+
+    expect(screen.getByText(text)).toBeTruthy();
+  });
+
+  it.each([
+    ['label', 'Party field: read under the label (3 variants read)'],
+    ['labelLine', 'Party field: read on the label line (3 variants read)'],
+    ['layoutBox', 'Party field: read in the layout box, label not found (3 variants read)'],
+  ] as const)('says the Party field was read from %s', (source, text) => {
+    renderCapture({
+      party: { panelOpen: true, field: 'text', matched: false, detail: { source, variants: 3, diff: null } },
+    });
+
+    expect(screen.getByText(text)).toBeTruthy();
+    expect(screen.queryByText(/closest reading/)).toBeNull();
+  });
+
+  it.each([
+    ['sub(l>9)@9,ins(-)@7', 'Party field, closest reading: sub(l>9)@9,ins(-)@7'],
+    ['far', 'Party field, closest reading: far'],
+    ['same', 'Party field, closest reading: same after normalising'],
+  ] as const)('shows the closest reading of another name as %s', (diff, text) => {
+    renderCapture({
+      party: {
+        panelOpen: true,
+        field: 'text',
+        matched: false,
+        detail: { source: 'labelLine', variants: 4, diff },
+      },
+    });
+
+    expect(screen.getByText('Party panel: open, name field shows another name')).toBeTruthy();
+    expect(screen.getByText(text)).toBeTruthy();
+  });
+
+  it('shows no read detail while the panel is closed', () => {
+    renderCapture({
+      party: { panelOpen: false, field: 'notRead', matched: false, detail: null },
+    });
+
+    expect(screen.queryByText(/Party field/)).toBeNull();
+  });
+
+  it('translates the read detail to pt-BR', () => {
+    renderCapture(
+      {
+        party: {
+          panelOpen: true,
+          field: 'text',
+          matched: false,
+          detail: { source: 'labelLine', variants: 4, diff: 'sub(l>9)@9' },
+        },
+      },
+      ptBR,
+    );
+
+    expect(screen.getByText('Campo do grupo: lido na linha do rótulo (4 variantes lidas)')).toBeTruthy();
+    expect(screen.getByText('Campo do grupo, leitura mais próxima: sub(l>9)@9')).toBeTruthy();
+  });
+
+  it('shows no capture lines before the first frame', () => {
+    render(<DiagnosticsView diagnostics={diagnostics} translate={en} />);
+
+    expect(screen.queryByText(/Party panel/)).toBeNull();
+  });
+
+  it('is translated to pt-BR', () => {
+    renderCapture({ blank: true }, ptBR);
+
+    expect(screen.getByText('Janela (com bordas): 1936×1095')).toBeTruthy();
+    expect(screen.getByText('Conteúdo do quadro: vazio (brilho 87)')).toBeTruthy();
+    expect(screen.getByText('Painel do grupo: aberto, campo do nome oculto')).toBeTruthy();
   });
 });

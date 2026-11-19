@@ -1,22 +1,34 @@
 // The local read diagnostics (collapsed by default): what the last look at the game window read. Counts, the frame size and
 // reason codes only; nothing here is sent anywhere, and no name or game text is shown (NFR-04, rule 5).
-import { diagnosticsLabels, translateLabel, type Diagnostics, type Translate } from '../shared/labels.ts';
+import {
+  captureLabels,
+  diagnosticsLabels,
+  translateLabel,
+  type CaptureDiagnostics,
+  type Diagnostics,
+  type Translate,
+} from '../shared/labels.ts';
 
 interface DiagnosticsViewProps {
   diagnostics: Diagnostics | null;
+  capture?: CaptureDiagnostics | undefined;
   translate: Translate;
 }
 
-export function DiagnosticsView({ diagnostics, translate }: DiagnosticsViewProps) {
+export function DiagnosticsView({ diagnostics, capture, translate }: DiagnosticsViewProps) {
   if (diagnostics === null) {
     return null;
   }
   const heading = translate('diagnostics.heading');
+  const labels = [
+    ...diagnosticsLabels(diagnostics),
+    ...(capture === undefined ? [] : captureLabels(capture)),
+  ];
   return (
     <details>
       <summary>{heading}</summary>
       <ul>
-        {diagnosticsLabels(diagnostics).map((label, index) => (
+        {labels.map((label, index) => (
           <li key={`${label.key}-${index}`}>{translateLabel(translate, label)}</li>
         ))}
       </ul>

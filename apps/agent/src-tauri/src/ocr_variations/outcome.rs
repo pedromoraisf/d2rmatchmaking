@@ -14,6 +14,9 @@ use d2rmm_agent_domain::game_name_match::{
 };
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::supported_size;
+#[cfg(test)]
+use d2rmm_agent_domain::name_diff::printable;
+use d2rmm_agent_domain::name_diff::{edit_distance, edit_operations};
 use d2rmm_agent_domain::presence::Screen;
 
 use crate::ocr_check::{
@@ -61,81 +64,8 @@ fn verdict_owned(outcome: Outcome, reason: String) -> Verdict {
 /// The verdict of an image whose size the layout does not support.
 pub const UNSUPPORTED_SIZE: Verdict = verdict(Outcome::Refused, "unsupported-size");
 
-/// The Levenshtein distance between two strings, in characters.
-fn edit_distance(a: &str, b: &str) -> usize {
-    let b: Vec<char> = b.chars().collect();
-    let mut row: Vec<usize> = (0..=b.len()).collect();
-    for (i, ca) in a.chars().enumerate() {
-        let mut diagonal = row[0];
-        row[0] = i + 1;
-        for (j, cb) in b.iter().enumerate() {
-            let above = row[j + 1];
-            row[j + 1] = (diagonal + usize::from(ca != *cb))
-                .min(row[j] + 1)
-                .min(above + 1);
-            diagonal = above;
-        }
-    }
-    row[b.len()]
-}
-
 fn without_whitespace(text: &str) -> String {
     text.chars().filter(|c| !c.is_whitespace()).collect()
-}
-
-/// A character of a normalised read as it may be printed: `[a-z0-9 ]` as is, anything else as `?`.
-fn printable(c: char) -> char {
-    if c.is_ascii_lowercase() || c.is_ascii_digit() || c == ' ' {
-        c
-    } else {
-        '?'
-    }
-}
-
-/// The edit operations that turn `read` into `expected` (a Levenshtein backtrace), in order of position in `expected`:
-/// `sub(r>e)@i`, `del(r)@i`, `ins(e)@i`, where `i` indexes `expected`. Characters print through `printable`.
-fn edit_operations(read: &str, expected: &str) -> Vec<String> {
-    let a: Vec<char> = read.chars().collect();
-    let b: Vec<char> = expected.chars().collect();
-    let mut d = vec![vec![0usize; b.len() + 1]; a.len() + 1];
-    for (i, row) in d.iter_mut().enumerate() {
-        row[0] = i;
-    }
-    for (j, cell) in d[0].iter_mut().enumerate() {
-        *cell = j;
-    }
-    for i in 1..=a.len() {
-        for j in 1..=b.len() {
-            d[i][j] = (d[i - 1][j - 1] + usize::from(a[i - 1] != b[j - 1]))
-                .min(d[i][j - 1] + 1)
-                .min(d[i - 1][j] + 1);
-        }
-    }
-    let (mut i, mut j) = (a.len(), b.len());
-    let mut operations = Vec::new();
-    while i > 0 || j > 0 {
-        if i > 0 && j > 0 && a[i - 1] == b[j - 1] && d[i][j] == d[i - 1][j - 1] {
-            i -= 1;
-            j -= 1;
-        } else if i > 0 && j > 0 && d[i][j] == d[i - 1][j - 1] + 1 {
-            operations.push(format!(
-                "sub({}>{})@{}",
-                printable(a[i - 1]),
-                printable(b[j - 1]),
-                j - 1
-            ));
-            i -= 1;
-            j -= 1;
-        } else if i > 0 && d[i][j] == d[i - 1][j] + 1 {
-            operations.push(format!("del({})@{j}", printable(a[i - 1])));
-            i -= 1;
-        } else {
-            operations.push(format!("ins({})@{}", printable(b[j - 1]), j - 1));
-            j -= 1;
-        }
-    }
-    operations.reverse();
-    operations
 }
 
 /// Why a field that showed another name is not the expected one: how close the closest of its readings is. For one or two
