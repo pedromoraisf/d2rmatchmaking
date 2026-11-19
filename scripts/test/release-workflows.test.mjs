@@ -310,3 +310,44 @@ test('--clobber is allowed only in the sign job', () => {
     assert.equal(clobbers, name === 'sign', `${name} ${clobbers ? 'clobbers assets' : 'does not clobber'}`);
   }
 });
+
+// First real release (agent-v0.3.0): release-please published the release at once, with no assets, and the online
+// self-check hit a sleeping Render free tier. See docs/engineering/lessons.md.
+test('release-please creates the agent release as a draft and still creates the tag', () => {
+  const config = JSON.parse(readText('release-please-config.json'));
+  const agent = config.packages['apps/agent'];
+  assert.equal(agent.draft, true, 'the release stays a draft until release-agent.yml publishes it');
+  assert.equal(
+    agent['force-tag-creation'],
+    true,
+    'a draft release has no tag unless release-please creates it',
+  );
+});
+
+test('the release is published and marked latest only after the self-check', () => {
+  const job = buildJob();
+  const isRun = (text) => (s) => typeof s.run === 'string' && s.run.includes(text);
+  const selfCheck = indexOfStep(job, isRun('--self-check --online'));
+  const publish = indexOfStep(job, isRun('gh release edit'));
+  assert.ok(selfCheck >= 0 && publish > selfCheck, 'gh release edit comes after the self-check');
+  const run = stepsOf(job)[publish].run;
+  assert.ok(run.includes('--draft=false'), 'the publish step undrafts the release');
+  assert.ok(run.includes('--latest=false'), 'an older tag is never marked latest');
+  assert.ok(run.includes('sort -V | tail -n1'), 'only the newest agent-v* tag is latest');
+});
+
+test('the API is woken, with retries, before the online self-check', () => {
+  const job = buildJob();
+  const isRun = (text) => (s) => typeof s.run === 'string' && s.run.includes(text);
+  const wake = indexOfStep(job, isRun('/healthz'));
+  const selfCheck = indexOfStep(job, isRun('--self-check --online'));
+  assert.ok(wake >= 0, 'a step probes /healthz');
+  assert.ok(wake < selfCheck, 'the wake comes before the self-check');
+  const step = stepsOf(job)[wake];
+  assert.equal(step.env.API_BASE, '${{ vars.API_BASE_URL }}', 'same variable the build embeds');
+  assert.ok(step.run.includes('curl -fsS'), 'a failing status is a failed probe');
+  assert.ok(step.run.includes('until curl'), 'the probe is retried');
+  assert.ok(step.run.includes('SECONDS + 90'), 'it waits up to 90 s');
+  assert.ok(step.run.includes('sleep "$delay"'), 'with a backoff');
+  assert.ok(step.run.includes('exit 1'), 'it fails when the API never wakes');
+});
