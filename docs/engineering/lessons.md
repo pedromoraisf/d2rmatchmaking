@@ -105,6 +105,16 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
   as `pending-at-close` errors that looked like a capacity limit.
 - **In k6 with `xk6-sse`, no JavaScript timer fires while a stream is open**, and `postgres:17-alpine` has no `openssl`.
 
+## Releases
+
+- **release-please publishes the GitHub Release immediately unless the package sets `"draft": true`** (with
+  `"force-tag-creation": true`, since a draft has no tag). Why: agent-v0.3.0 went public and Latest with no assets, so the
+  download link and installed agents' `latest.json` were broken until the build ended; `releaseDraft` on tauri-action
+  does nothing for a release another tool created.
+- **Render's free tier sleeps after idle and takes 30-60 s to wake, so any online probe must wake it first** (retry
+  `/healthz` with backoff for about 90 s). Why: `--self-check --online` failed with "the API could not be reached"
+  after about 10 s on agent-v0.3.0 and passed on a rerun minutes later.
+
 ## Harness
 
 - **Do not build a gate on a subagent's report or on a tight `git` timeout.** Why: `verdict.mjs` never saw the reports

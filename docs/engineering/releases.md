@@ -9,11 +9,26 @@ publishes it. Installed agents read `latest.json` from the latest release (AGS-2
 1. Commits reach `main`. `release-please.yml` opens or updates one release PR for `apps/agent`, and runs `ci.yml` on the
    PR branch so the required `verify` check appears (`workflow_dispatch`, because a `GITHUB_TOKEN` PR gets no
    `pull_request` run).
-2. The maintainer merges the release PR. release-please creates the tag `agent-v<version>` and the GitHub Release.
-3. The same workflow calls `release-agent.yml` with that tag. The build runs on `windows-latest` in the `release`
-   environment and publishes `latest.json`, `D2RMatchMaking-setup.exe` (a fixed name, so the site's download link never
-   changes) and `SHA256SUMS`.
+2. The maintainer merges the release PR. release-please creates the GitHub Release as a **draft** (`draft: true` in
+   `release-please-config.json`), with no assets and not Latest, and creates the tag `agent-v<version>` itself
+   (`force-tag-creation: true`; GitHub makes no tag for a draft). The site's download link and installed agents'
+   `latest.json` still point at the previous release.
+3. The same workflow calls `release-agent.yml` with that tag (a tag made with `GITHUB_TOKEN` starts no `push: tags`
+   run, so the call is the path). The build runs on `windows-latest` in the `release` environment and `tauri-action`
+   attaches the installer and `latest.json` to the draft. The API is woken (`/healthz`, retried for up to 90 s), then
+   `--self-check --online` runs. Only after it passes does the last step upload `D2RMatchMaking-setup.exe` (a fixed
+   name, so the site's download link never changes) and `SHA256SUMS` and publish the release
+   (`gh release edit --draft=false`). It is marked Latest only when its tag is the newest `agent-v*`; a rerun of an
+   older tag passes `--latest=false`.
 4. The first release after the merge is the phase review's proof (C43).
+
+### Maintainer steps, in order
+
+1. Open the release PR. Its bot-authored `pull_request` runs wait as `action_required`: click **Approve and run**. The
+   dispatched `ci` run alone does not unblock the PR.
+2. When `verify` is green, approve the PR and merge it.
+3. Open the `release-agent` run (Actions) and approve the `release` environment deployment.
+4. Wait for the run to publish the release. Until then the release is a draft and nothing public changes.
 
 `agent-v0.0.1` has no assets: its build failed and the tag cannot move, so `agent-v0.0.2` is the first installable
 release and the oldest version that can self-update.
@@ -21,8 +36,8 @@ release and the oldest version that can self-update.
 release-please only counts commits that touch `apps/agent`. To release with no behavior change, as the self-update proof
 does, use a `chore(agent)` commit with the footer `Release-As: <version>`.
 
-A tag pushed by hand (`agent-v*`) starts `release-agent.yml` through its `push: tags` trigger. A failed release re-runs
-through `workflow_dispatch` of `release-agent.yml` with the tag as input.
+A tag pushed by hand (`agent-v*`) starts `release-agent.yml` through its `push: tags` trigger. A failed release (the draft and its
+tag remain) re-runs through `workflow_dispatch` of `release-agent.yml` with the tag as input.
 
 ## Maintainer setup (once)
 
