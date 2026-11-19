@@ -1,5 +1,60 @@
 # Changelog
 
+## [0.3.0](https://github.com/pedromoraisf/d2rmatchmaking/compare/agent-v0.2.0...agent-v0.3.0) (2026-11-19)
+
+
+### Features
+
+* **agent:** a --self-check mode that starts the binary's own startup steps and exits ([cfb885e](https://github.com/pedromoraisf/d2rmatchmaking/commit/cfb885ecc2cb4e3f0d0ddd96f8f64ec09ef5293b))
+* **agent:** about 500 variations per screenshot in the ocr-variations job ([704691c](https://github.com/pedromoraisf/d2rmatchmaking/commit/704691c789c3f8c86df46a03da201848718e40b7))
+* **agent:** add ocr-check --variations and its report ([7409cbc](https://github.com/pedromoraisf/d2rmatchmaking/commit/7409cbc128af5dc99f0a8428e489b8c714395365))
+* **agent:** add the catalogue of OCR variations ([9d5724e](https://github.com/pedromoraisf/d2rmatchmaking/commit/9d5724ead11cbe6dda29fd6d0838dc5b37d81272))
+* **agent:** add the ocr-variations job to the ocr-real workflow ([3a2cf63](https://github.com/pedromoraisf/d2rmatchmaking/commit/3a2cf63b574979e2d982ca5f25d5cf870620161a))
+* **agent:** add the pure image transforms of the OCR variations ([70200d0](https://github.com/pedromoraisf/d2rmatchmaking/commit/70200d082cd39773cf741dfc2bc5b743ada98a19))
+* **agent:** check generated game names in the real-print OCR check ([ecc8f5e](https://github.com/pedromoraisf/d2rmatchmaking/commit/ecc8f5ea84578b5701525e189cf281b5c689d868))
+* **agent:** classify an OCR variation as correct, refused or wrong ([34bc397](https://github.com/pedromoraisf/d2rmatchmaking/commit/34bc3972271d3a598368cfd797b2eacb632d5182))
+* **agent:** finer privacy-safe reason classes for party, card and difficulty variations ([79b83ad](https://github.com/pedromoraisf/d2rmatchmaking/commit/79b83ad59fa8328fde2b9ac8d015226c74dc6271))
+* **agent:** keep every OCR bitmap within the engine's maximum dimension ([59dcdef](https://github.com/pedromoraisf/d2rmatchmaking/commit/59dcdefd4769f3d5f404b6650dceb85862b5c678))
+* **agent:** match the measured cards by name, not by position ([c76cf83](https://github.com/pedromoraisf/d2rmatchmaking/commit/c76cf8332b78d1caf0f947fd722c9741ba50942d))
+* **agent:** measure OCR robustness on 2,500 in-memory variations and fix what it found ([3c1d6ad](https://github.com/pedromoraisf/d2rmatchmaking/commit/3c1d6adcedcddf564e9fc1f32174edc9b4d27146))
+* **agent:** name the edit operations of a near-miss Party field read ([31b78ec](https://github.com/pedromoraisf/d2rmatchmaking/commit/31b78ecc5af4830b35d53c145467106fea213523))
+* **agent:** name the value a wrong card read had, per field ([05de8ee](https://github.com/pedromoraisf/d2rmatchmaking/commit/05de8ee53da5b871ecc1fea8827771d142d5a60b))
+* **agent:** print the variations' reason tables in the job log ([8aedf97](https://github.com/pedromoraisf/d2rmatchmaking/commit/8aedf974886e5033f91bde82796df67bd91e4e81))
+* **agent:** publish how the Party field was read and its closest variant's edits ([52674d2](https://github.com/pedromoraisf/d2rmatchmaking/commit/52674d2ffc6514de6a8c799cba73a4d4f745acbe))
+* **agent:** publish the capture and the last Party look to the diagnostics ([1ea01c9](https://github.com/pedromoraisf/d2rmatchmaking/commit/1ea01c9a46c176d7dab7af179a7f42c4a47b78bd))
+* **agent:** read the field's layout box when no variant finds the label, and never call it masked ([c7038a8](https://github.com/pedromoraisf/d2rmatchmaking/commit/c7038a819ca35a5f411c3f433f71af20a1699df4))
+* **agent:** refuse a card whose title line was not read but whose band has ink ([32130b6](https://github.com/pedromoraisf/d2rmatchmaking/commit/32130b691e6202a9cdb37e38fc9a36d4914400a1))
+* **agent:** report the game window's outer size to the diagnostics ([75dad72](https://github.com/pedromoraisf/d2rmatchmaking/commit/75dad72c003b80fd6cf27834130e8a6e21786c72))
+* **agent:** report the variations' supported totals ([264f30b](https://github.com/pedromoraisf/d2rmatchmaking/commit/264f30b77f0b24adea2172bb12e2bd5d8b0c2f45))
+* **agent:** report which OCR variant read what for the Party field ([9be618d](https://github.com/pedromoraisf/d2rmatchmaking/commit/9be618d2930073c60f577de7327d08acfa0675bc))
+* **agent:** show the capture and Party panel state in the diagnostics ([2da96f9](https://github.com/pedromoraisf/d2rmatchmaking/commit/2da96f926b5582a81b01da9819b8701a655699d4))
+* **agent:** show the Party field's source, variants and closest reading in the window ([fa3325c](https://github.com/pedromoraisf/d2rmatchmaking/commit/fa3325cd76ef4d68ec1c35087f5a3f4ea76a5802))
+* **agent:** summarize a captured frame as brightness and blank ([f6c1288](https://github.com/pedromoraisf/d2rmatchmaking/commit/f6c12885f0fb0c85bee0604c3e3aaac28c1dbbd5))
+
+
+### Bug Fixes
+
+* **agent:** a blank read of a found title line is not a vote for no title ([73ba5bc](https://github.com/pedromoraisf/d2rmatchmaking/commit/73ba5bcb9a39a28abcd918872f3d3f15a68bbe62))
+* **agent:** a doubtful amount of ink in the title band refuses the card ([b452647](https://github.com/pedromoraisf/d2rmatchmaking/commit/b452647ee7e13bbdfb85999e5fd90f9ae736cf46))
+* **agent:** a Party file of another shape never names an expected game name ([2d07995](https://github.com/pedromoraisf/d2rmatchmaking/commit/2d079953edc8c4bd423eaee2648cacec71dbdb0a))
+* **agent:** an empty title band reads as no ink even beside a flat name line ([4ad3641](https://github.com/pedromoraisf/d2rmatchmaking/commit/4ad3641a5a516fafa80743fc67b49a5322edfbe7))
+* **agent:** an inked title band that reads blank refuses the card ([5297ec7](https://github.com/pedromoraisf/d2rmatchmaking/commit/5297ec723145f37ebde11b6023f56ff5ca2eeb34))
+* **agent:** check the top card's title band under the tab strip ([332356f](https://github.com/pedromoraisf/d2rmatchmaking/commit/332356f4a62c09b0e7df342f3fa7de6ec399c124))
+* **agent:** give the pull request's test installer the API base URL ([d7fbdd9](https://github.com/pedromoraisf/d2rmatchmaking/commit/d7fbdd99abcabfd9fdb1467db7bfbfcce727a7ef))
+* **agent:** give the pull request's test installer the API base URL ([b5bbe96](https://github.com/pedromoraisf/d2rmatchmaking/commit/b5bbe967ef2d27a3dd85d36bb5ebee4b173c7eb3))
+* **agent:** ignore the chrono unmaintained advisory until it is replaced ([5c2b047](https://github.com/pedromoraisf/d2rmatchmaking/commit/5c2b0471b89f4f9c4a952a9957e01b2b82acf706))
+* **agent:** ignore the chrono unmaintained advisory until it is replaced ([a8654ee](https://github.com/pedromoraisf/d2rmatchmaking/commit/a8654eed06a02844bc853d73784af2ee0bdc1c94))
+* **agent:** match the small-caps Game Name label by its noisy read, log the Party line pass without text ([301f0bb](https://github.com/pedromoraisf/d2rmatchmaking/commit/301f0bb7add326188e59e7dcd1034051b73bdd6d))
+* **agent:** measure the title band's ink against the name line's contrast ([b427d90](https://github.com/pedromoraisf/d2rmatchmaking/commit/b427d9064963886908584389175d4e801937febb))
+* **agent:** prove generated game names on real prints and read the small-caps B drawn as 8 ([fd6b61e](https://github.com/pedromoraisf/d2rmatchmaking/commit/fd6b61e3e1f0ae864272691f69516143b72a1f5a))
+* **agent:** read the game name's O glyph as the engine reads it ([ba2868a](https://github.com/pedromoraisf/d2rmatchmaking/commit/ba2868a87250f00b61b18e5f50a6aaed2d2019fa))
+* **agent:** read the layout box as masked only when the mask itself is read ([c359bcd](https://github.com/pedromoraisf/d2rmatchmaking/commit/c359bcd586b88faf9a66f599edc9f1c01eda0889))
+* **agent:** read the selection screen, popup and Party panel anchored on their text (incident) ([7f5d345](https://github.com/pedromoraisf/d2rmatchmaking/commit/7f5d34526a138f1108b01f1360a17e9ceb63c86f))
+* **agent:** read the small-caps B drawn as 8 in the game name ([81e7aff](https://github.com/pedromoraisf/d2rmatchmaking/commit/81e7aff8d949b1e496676fbba2652ccdec83b168))
+* **agent:** settle a re-read title band line by line ([7f097d0](https://github.com/pedromoraisf/d2rmatchmaking/commit/7f097d000c3cc4f33743484a02e75bd67b67e791))
+* **agent:** show the frame content, window size and Party panel state in the diagnostics ([ffaec59](https://github.com/pedromoraisf/d2rmatchmaking/commit/ffaec5929a8f3cf6308aeb3f69044bc89dc41fa8))
+* **agent:** start every built agent with --self-check before it is uploaded or released ([aa89353](https://github.com/pedromoraisf/d2rmatchmaking/commit/aa893532549360319a5b506a2361c03cb9aef48a))
+
 ## [0.2.0](https://github.com/pedromoraisf/d2rmatchmaking/compare/agent-v0.1.1...agent-v0.2.0) (2026-11-13)
 
 
