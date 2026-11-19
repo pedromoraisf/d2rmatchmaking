@@ -299,6 +299,10 @@ jobs:
       - name: Compile the release without updater artifacts (no signing key)
         if: steps.changed.outputs.changed == 'true'
         working-directory: apps/agent
+        # The API base URL is fixed at compile time (src/config.rs): without it the installed agent refuses to start. The
+        # same repository variable as the release (release-agent.yml), so the test installer talks to the same API.
+        env:
+          D2RMM_API_BASE: ${{ vars.API_BASE_URL }}
         run: pnpm exec tauri build --ci --config '{"bundle":{"createUpdaterArtifacts":false}}' -- --locked
       # A test build, never a release: unsigned, with no updater artifacts. The installers (bundle targets default to all,
       # so NSIS and MSI) are kept for a pull request so the maintainer can try them on a Windows machine.
