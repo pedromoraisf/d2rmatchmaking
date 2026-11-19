@@ -130,6 +130,12 @@ pub trait TextReader {
 /// minimized. Only the app crate's window adapter implements it.
 pub trait FrameSource {
     fn capture(&self) -> Option<Rgba>;
+
+    /// The size of the whole game window, title bar and borders included, for the diagnostics. `None` when the platform
+    /// cannot say it; the client area is the frame itself.
+    fn window_size(&self) -> Option<(u32, u32)> {
+        None
+    }
 }
 
 /// Whether the player consented to screen capture, kept on this PC (CHR-01, CHR-02). The store holds no secret.

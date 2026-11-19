@@ -55,6 +55,79 @@ pub struct PartyProgress {
     run: Option<RunKey>,
     posted: bool,
     masked: bool,
+    last_look: Option<PartyLook>,
+}
+
+/// What the Game Name field showed in one look, as a state and never as the text: the diagnostics show it (never the
+/// text itself, NFR-04, NFR-05).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldState {
+    /// The field was not read: the panel is closed, or no box was read.
+    NotRead,
+    /// The field was read and holds no text (the engine returns nothing for the masked dots).
+    Empty,
+    /// The field showed the masked value.
+    Masked,
+    /// The field showed a text: the expected name or another.
+    Text,
+}
+
+impl FieldState {
+    /// The code the window maps to a translated line.
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::NotRead => "notRead",
+            Self::Empty => "empty",
+            Self::Masked => "masked",
+            Self::Text => "text",
+        }
+    }
+}
+
+/// The last look at the Party panel for the held run: plain facts, no text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PartyLook {
+    pub panel_open: bool,
+    pub field: FieldState,
+    /// The field read as the expected game name.
+    pub matched: bool,
+}
+
+/// What a reading of the panel shows, as a state (no text kept). A field whose every variant is blank is `Empty`, even
+/// though under a found label it counts as masked for the player's hint (`read_panel_field`).
+pub fn look_of(reading: &PanelReading, expected: &str) -> PartyLook {
+    if !reading.open {
+        return PartyLook {
+            panel_open: false,
+            field: FieldState::NotRead,
+            matched: false,
+        };
+    }
+    if reading.field.is_empty() {
+        return PartyLook {
+            panel_open: true,
+            field: FieldState::NotRead,
+            matched: false,
+        };
+    }
+    let texts: Vec<&str> = reading
+        .field
+        .iter()
+        .map(|read| read.text.as_str())
+        .collect();
+    let read = read_panel_field(reading.field_source, &texts, expected);
+    let field = if texts.iter().all(|text| text.trim().is_empty()) {
+        FieldState::Empty
+    } else if read == FieldRead::Masked {
+        FieldState::Masked
+    } else {
+        FieldState::Text
+    };
+    PartyLook {
+        panel_open: true,
+        field,
+        matched: read == FieldRead::Matched,
+    }
 }
 
 impl PartyProgress {
@@ -66,8 +139,19 @@ impl PartyProgress {
                 run: key,
                 posted: false,
                 masked: false,
+                last_look: None,
             };
         }
+    }
+
+    /// The last look at the panel for the followed run, `None` before one.
+    pub fn last_look(&self) -> Option<PartyLook> {
+        self.last_look
+    }
+
+    /// Keeps what the latest look saw.
+    pub fn saw_look(&mut self, look: PartyLook) {
+        self.last_look = Some(look);
     }
 
     /// Whether `run` is the run this progress follows.
@@ -207,6 +291,14 @@ fn apply_reading<G>(
         masked = false,
     );
     let _entered = span.enter();
+    let seen = look_of(&reading, assignment.expected_game_name.as_str());
+    let held = RunKey::of(assignment);
+    device.with_party(|progress| {
+        // A read that started for a replaced run does not describe the new one.
+        if progress.follows(&held) {
+            progress.saw_look(seen);
+        }
+    });
     if !reading.open {
         return None;
     }
@@ -922,6 +1014,54 @@ mod look_tests {
             "the OCR runs on a blocking thread, not on the loop's thread"
         );
     }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_last_look_is_kept_as_state_for_the_diagnostics() {
+        use super::{FieldState, PartyLook};
+        let rig = rig();
+        rig.device
+            .replace_assignment(Some(assignment(1, "mmcowsh-1")));
+        let seen = |rig: &Rig| rig.device.with_party(|progress| progress.last_look());
+        assert_eq!(seen(&rig), None, "no look yet");
+
+        show(&rig.panel, "INVENTORY", "mmcowsh-1");
+        look_at(&rig).await;
+        assert_eq!(
+            seen(&rig),
+            Some(PartyLook {
+                panel_open: false,
+                field: FieldState::NotRead,
+                matched: false
+            })
+        );
+
+        show(&rig.panel, "PARTY", "xxxxxxxxx");
+        look_at(&rig).await;
+        assert_eq!(
+            seen(&rig),
+            Some(PartyLook {
+                panel_open: true,
+                field: FieldState::Masked,
+                matched: false
+            })
+        );
+
+        show(&rig.panel, "PARTY", "   ");
+        look_at(&rig).await;
+        assert_eq!(seen(&rig).map(|look| look.field), Some(FieldState::Empty));
+
+        rig.gateway.script_post_observation([Ok(())]);
+        show(&rig.panel, "PARTY", "mmcowsh-1");
+        look_at(&rig).await;
+        assert_eq!(
+            seen(&rig),
+            Some(PartyLook {
+                panel_open: true,
+                field: FieldState::Text,
+                matched: true
+            })
+        );
+    }
 }
 
 #[cfg(test)]
@@ -1050,5 +1190,123 @@ mod anchored_tests {
             !read_panel(&closed, &pack, &frame(768)).open,
             "an unsupported size reads nothing"
         );
+    }
+}
+
+#[cfg(test)]
+mod look_state_tests {
+    use d2rmm_agent_domain::game_name_match::FieldSource;
+    use d2rmm_agent_domain::vision::ReadText;
+
+    use super::{FieldState, PanelReading, PartyLook, PartyProgress, look_of};
+
+    fn reading(open: bool, source: FieldSource, texts: &[&str]) -> PanelReading {
+        PanelReading {
+            open,
+            label_found: true,
+            field: texts
+                .iter()
+                .map(|text| ReadText {
+                    text: (*text).to_string(),
+                    confidence: 1.0,
+                })
+                .collect(),
+            field_source: source,
+        }
+    }
+
+    fn look(panel_open: bool, field: FieldState, matched: bool) -> PartyLook {
+        PartyLook {
+            panel_open,
+            field,
+            matched,
+        }
+    }
+
+    #[test]
+    fn a_closed_panel_reads_no_field() {
+        let closed = reading(false, FieldSource::Label, &[]);
+        assert_eq!(
+            look_of(&closed, "mmbaalh-16"),
+            look(false, FieldState::NotRead, false)
+        );
+    }
+
+    #[test]
+    fn an_open_panel_with_no_field_read_is_open_and_not_read() {
+        let open = reading(true, FieldSource::Label, &[]);
+        assert_eq!(
+            look_of(&open, "mmbaalh-16"),
+            look(true, FieldState::NotRead, false)
+        );
+    }
+
+    #[test]
+    fn a_blank_field_is_empty_even_though_it_counts_as_masked() {
+        let blank = reading(true, FieldSource::Label, &["", "  "]);
+        assert_eq!(
+            look_of(&blank, "mmbaalh-16"),
+            look(true, FieldState::Empty, false)
+        );
+    }
+
+    #[test]
+    fn the_mask_is_masked() {
+        let masked = reading(true, FieldSource::Label, &["xxxxxxxxxx"]);
+        assert_eq!(
+            look_of(&masked, "mmbaalh-16"),
+            look(true, FieldState::Masked, false)
+        );
+    }
+
+    #[test]
+    fn another_name_is_text_that_did_not_match() {
+        let other = reading(true, FieldSource::Label, &["mmbaalh-17"]);
+        assert_eq!(
+            look_of(&other, "mmbaalh-16"),
+            look(true, FieldState::Text, false)
+        );
+    }
+
+    #[test]
+    fn the_expected_name_is_text_that_matched() {
+        let shown = reading(true, FieldSource::Label, &["mmbaalh-16"]);
+        assert_eq!(
+            look_of(&shown, "mmbaalh-16"),
+            look(true, FieldState::Text, true)
+        );
+    }
+
+    #[test]
+    fn the_codes_name_each_state() {
+        assert_eq!(FieldState::NotRead.code(), "notRead");
+        assert_eq!(FieldState::Empty.code(), "empty");
+        assert_eq!(FieldState::Masked.code(), "masked");
+        assert_eq!(FieldState::Text.code(), "text");
+    }
+
+    #[test]
+    fn a_look_is_kept_until_the_run_changes() {
+        use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
+        let assignment = |run: u64| Assignment {
+            room: RoomId::new("7d9f2c1e-0000-4000-8000-000000000001"),
+            run: std::num::NonZeroU64::new(run).expect("a non-zero run"),
+            expected_game_name: GameName::new("mmbaalh-16"),
+            members: Vec::new(),
+        };
+        let mut progress = PartyProgress::default();
+        progress.follow(Some(&assignment(1)));
+        assert_eq!(progress.last_look(), None);
+
+        progress.saw_look(look(true, FieldState::Masked, false));
+        progress.follow(Some(&assignment(1)));
+        assert_eq!(
+            progress.last_look(),
+            Some(look(true, FieldState::Masked, false)),
+            "the same run keeps its look"
+        );
+
+        progress.follow(Some(&assignment(2)));
+        assert_eq!(progress.last_look(), None, "a new run starts afresh");
     }
 }

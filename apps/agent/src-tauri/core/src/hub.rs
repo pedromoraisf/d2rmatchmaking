@@ -4,7 +4,9 @@
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use crate::ports::StateSink;
-use crate::view::{AgentView, Connectivity, DiagnosticsView, PairingView, RoomView, UpdateView};
+use crate::view::{
+    AgentView, CaptureView, Connectivity, DiagnosticsView, PairingView, RoomView, UpdateView,
+};
 
 /// Owns the agent view and publishes every change through the state sink (AGS-34).
 pub struct Hub {
@@ -23,6 +25,7 @@ impl Hub {
                 update: UpdateView::Idle,
                 ready_check_open: false,
                 diagnostics: None,
+                capture: None,
             }),
         }
     }
@@ -63,6 +66,14 @@ impl Hub {
         let unchanged = lock(&self.view).diagnostics.as_ref() == Some(&diagnostics);
         if !unchanged {
             self.change(|view| view.diagnostics = Some(diagnostics));
+        }
+    }
+
+    /// Shows what the capture of the last look held. An unchanged reading publishes nothing.
+    pub fn set_capture(&self, capture: CaptureView) {
+        let unchanged = lock(&self.view).capture.as_ref() == Some(&capture);
+        if !unchanged {
+            self.change(|view| view.capture = Some(capture));
         }
     }
 
