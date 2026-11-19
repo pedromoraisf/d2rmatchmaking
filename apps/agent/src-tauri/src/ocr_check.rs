@@ -35,13 +35,13 @@ const PNG_SUFFIX: &str = ".png";
 
 /// The expected game name of a `maintainer-party-<gamename>.png` file: the name exactly as typed in game
 /// (`maintainer-party-mmbaalh-19.png` is `mmbaalh-19`). `None` for the five known files, for any other file, and for a name
-/// that is empty or holds a path separator.
+/// that is empty, holds a path separator or lacks the shape of a generated game name.
 pub fn generated_name_of(file: &str) -> Option<&str> {
     if SCREENSHOTS.contains(&file) {
         return None;
     }
     let name = file.strip_prefix(PARTY_PREFIX)?.strip_suffix(PNG_SUFFIX)?;
-    if name.is_empty() || name.contains(['/', '\\']) {
+    if name.is_empty() || name.contains(['/', '\\']) || !is_generated_game_name(name) {
         return None;
     }
     Some(name)
@@ -851,6 +851,19 @@ mod tests {
             party(vec![line("INVENTORY", 153)]),
             "  anchors: title found no, game-name label found no, game-name field read no"
         );
+    }
+
+    #[test]
+    fn a_party_file_of_another_shape_never_names_an_expected_game_name() {
+        use super::generated_name_of;
+        for file in [
+            "maintainer-party-someone.png",
+            "maintainer-party-MMBAALH-19.png",
+            "maintainer-party-mmbaalh-.png",
+            "maintainer-party-mmbaalh-x.png",
+        ] {
+            assert_eq!(generated_name_of(file), None, "{file}");
+        }
     }
 
     #[test]
