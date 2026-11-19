@@ -253,3 +253,43 @@ describe('RoomPanel: by keyboard only (NFR-13)', () => {
     expect(order).toEqual(['Copy game name', 'Next run', 'Close room', 'Leave room']);
   });
 });
+
+describe('RoomPanel: an ended room is history, not a live room', () => {
+  const ended = (stage: 'closed' | 'expired') =>
+    room({
+      stage,
+      run: 1,
+      members: [{ ...ALICE, confirmed: true }, BOB],
+    });
+
+  it.each(['closed', 'expired'] as const)(
+    'shows a %s room with no current run, no copy button and no live member status',
+    (stage) => {
+      show(ended(stage), 'acc-alice');
+
+      expect(screen.queryByRole('button', { name: 'Copy game name' })).toBeNull();
+      expect(screen.queryByText('No password')).toBeNull();
+      expect(screen.queryByText('Confirmed by the agent')).toBeNull();
+      expect(screen.queryByText('Waiting')).toBeNull();
+      expect(screen.queryByRole('list', { name: 'Room stages' })).toBeNull();
+      const runs = within(screen.getByRole('list', { name: 'Runs' })).getAllByRole('listitem');
+      expect(runs.map((run) => run.textContent)).toEqual(['Run 1: mmbaalh-12']);
+      expect(runs[0]?.getAttribute('aria-current')).toBeNull();
+    },
+  );
+
+  it('lets the player put the ended room away', async () => {
+    show(ended('closed'), 'acc-alice');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+
+    expect(screen.queryByRole('region', { name: 'Your room' })).toBeNull();
+    expect(screen.queryByText(/closed the room/)).toBeNull();
+  });
+
+  it('offers no dismiss while the room is open', () => {
+    show(room({ stage: 'active' }), 'acc-alice');
+
+    expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull();
+  });
+});

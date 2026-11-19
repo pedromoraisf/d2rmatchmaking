@@ -141,6 +141,7 @@
     "leave": "Sair da sala",
     "nextRun": "Próxima corrida",
     "close": "Fechar sala",
+    "dismiss": "Dispensar",
     "actionFailed": "A ação não foi concluída. Tente de novo.",
     "ended": {
       "closed": "O anfitrião fechou a sala. Você já pode entrar em uma fila de novo.",
