@@ -27,6 +27,10 @@ being true.
   pre-push `cargo clippy` needs `apps/agent/dist` (Tauri `frontendDist`) and fails without it, which looks like a code
   failure (characters, Batch 1).
 
+- **A binary handed to a human is started by CI first.** Every installer CI uploads or releases is smoke-started
+  (`--self-check`) before the upload. Why: on 2026-11-19 the PR test installer was built without `D2RMM_API_BASE`, every
+  check was green, and the agent exited silently on the maintainer's PC (a GUI-subsystem exe prints nothing).
+
 - **Remove a worker's worktree once its branch is pushed and its report is read.** Each worktree holds 5–7 GB of Rust
   `target/`. Why: on 2026-11-11 six finished worktrees filled the maintainer's disk; a worker could not build, and
   Docker and Postgres failed with I/O errors until Docker Desktop was restarted (characters-reading, lobby-rooms).

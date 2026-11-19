@@ -4,7 +4,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 #[cfg(windows)]
-use d2rmm_agent::{adapters, app, language_pack};
+use d2rmm_agent::{adapters, app, config, language_pack, self_check};
 
 #[cfg(windows)]
 use std::sync::Arc;
@@ -48,7 +48,41 @@ use adapters::windows_ocr::WindowsOcr;
 #[cfg(windows)]
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if let Some(options) = self_check::parse_args(&args) {
+        std::process::exit(run_self_check(options));
+    }
     app::run(&args, ports);
+}
+
+/// `--self-check`: the real engine and health probe behind `self_check::run`. The JSON line goes to stdout and the reasons to
+/// stderr; the return value is the exit code. It starts no window and reads no token or consent.
+#[cfg(windows)]
+fn run_self_check(options: self_check::Options) -> i32 {
+    use std::io::Write;
+    use std::time::Duration;
+
+    let checks = self_check::run(
+        options,
+        config::build_api_base(),
+        !cfg!(debug_assertions),
+        || {
+            WindowsOcr::new()
+                .map(|_| ())
+                .map_err(|error| format!("{error:?}"))
+        },
+        |base| {
+            tauri::async_runtime::block_on(d2rmm_agent_adapters::http::health::check(
+                base,
+                Duration::from_secs(10),
+            ))
+            .map_err(|error| error.to_string())
+        },
+        |note| {
+            let _ = writeln!(std::io::stderr(), "{note}");
+        },
+    );
+    let _ = writeln!(std::io::stdout(), "{}", self_check::report_line(&checks));
+    self_check::exit_code(&checks)
 }
 
 /// The port groups of the Windows agent: the HTTP gateway the app built, the Credential Manager token, the toolhelp process

@@ -209,3 +209,21 @@ test('the agent build job compiles the release without signing', () => {
     'updater artifacts are off for this build',
   );
 });
+
+// The installer CI uploads is started once first: --self-check on the built exe, before the upload, never allowed to fail
+// quietly. (The 2026-11-19 test installer was built without D2RMM_API_BASE and every check was green.)
+test('the agent build starts the built binary with --self-check before uploading an installer', () => {
+  const steps = jobs['agent-build'].steps;
+  const check = steps.findIndex((step) =>
+    String(step.run ?? '').includes('target/release/d2rmm-agent.exe --self-check'),
+  );
+  const build = steps.findIndex((step) => String(step.run ?? '').includes('tauri build'));
+  const firstUpload = steps.findIndex((step) =>
+    String(step.uses ?? '').startsWith('actions/upload-artifact@'),
+  );
+  assert.ok(check > build, 'the self-check runs after the Tauri build');
+  assert.ok(check < firstUpload, 'the self-check runs before the first upload');
+  assert.equal(steps[check].if, "steps.changed.outputs.changed == 'true'", 'it follows the changed guard');
+  assert.equal(steps[check]['continue-on-error'], undefined, 'the self-check can fail the job');
+  assert.match(steps[check].run, /-ne 0/u, 'a non-zero exit fails the step');
+});

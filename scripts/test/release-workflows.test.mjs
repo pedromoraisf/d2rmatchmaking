@@ -153,6 +153,28 @@ test('fixture-read cannot reach a release build', () => {
   );
 });
 
+// The startup self-check: a binary that cannot start is never published. The release is a draft until the check has passed.
+test('the release binary is started with --self-check --online before anything is published', () => {
+  const job = buildJob();
+  const build = indexOfStep(job, (step) => step === tauriAction(job));
+  const check = indexOfStep(
+    job,
+    (step) => typeof step.run === 'string' && step.run.includes('d2rmm-agent.exe --self-check --online'),
+  );
+  const upload = indexOfStep(job, (step) => step.run?.includes('gh release upload'));
+  const publish = indexOfStep(job, (step) => step.run?.includes('--draft=false'));
+  assert.ok(check > build, 'the check runs after the build');
+  assert.ok(check < upload, 'the check runs before any asset is uploaded');
+  assert.ok(publish > check, 'the release is published after the check');
+  assert.ok(publish > upload, 'the release is published after its assets are attached');
+  assert.equal(stepsOf(job)[check]['continue-on-error'], undefined, 'the check can fail the job');
+  assert.equal(tauriAction(job).with.releaseDraft, true, 'tauri-action leaves the release a draft');
+  assert.ok(stepsOf(job)[check].run.includes('-ne 0'), 'a non-zero exit fails the step');
+  const publishRun = stepsOf(job)[publish].run;
+  assert.ok(publishRun.includes('--latest=false'), 'an older tag never becomes "latest"');
+  assert.doesNotMatch(publishRun, /--draft=false --latest\s*$/m, '"latest" is never unconditional');
+});
+
 // The tag-on-main check (AGS-28): the tag's commit must be an ancestor of origin/main. The reversed test is refused.
 const TAG_ON_MAIN_LINE = 'if ! git merge-base --is-ancestor HEAD origin/main; then';
 const tagOnMainHolds = (run) =>

@@ -14,3 +14,5 @@ pub mod fixture_read;
 pub mod language_pack;
 pub mod ocr_check;
 pub mod ocr_variations;
+#[cfg(any(windows, test))]
+pub mod self_check;
