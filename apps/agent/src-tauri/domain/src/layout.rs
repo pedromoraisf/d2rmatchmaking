@@ -161,7 +161,16 @@ pub enum ScreenRegion {
     CardColumn,
     /// The area of the popup's title and options, around the centre line (`anchors::popup_options`).
     PopupArea,
+    /// The full-width band along the bottom of the client, where the Life and Mana labels of the in-game HUD are searched
+    /// by their words (`anchors::find_hud`): the fixed "Life:" box missed in both window and full screen, because D2R does
+    /// not scale its HUD linearly between the two. Its width is the client's, whatever the aspect ratio.
+    HudBand,
 }
+
+/// The top of `ScreenRegion::HudBand` in pixels of the reference client: the bottom quarter. The "Life:" label sits at
+/// 826 to 848 there (80% of the height), the Mana label level with it on the right; the 5% above it absorbs the shift of
+/// the full-screen layout.
+const HUD_BAND_TOP: u32 = 775;
 
 fn card_top(slot: u8) -> u32 {
     CARD_TOP + CARD_PITCH * u32::from(slot)
@@ -184,6 +193,14 @@ pub fn screen_box(region: ScreenRegion) -> PanelBox {
         ScreenRegion::CardSelected(slot) => PanelBox::new(Right, 210, card_top(slot) - 1, 20, 3),
         ScreenRegion::CardColumn => PanelBox::new(Right, 40, 30, 340, 850),
         ScreenRegion::PopupArea => PanelBox::new(Centre, -130, 320, 260, 290),
+        // The width is the client's: `screen_region` replaces it.
+        ScreenRegion::HudBand => PanelBox::new(
+            Left,
+            0,
+            HUD_BAND_TOP,
+            REFERENCE_WIDTH,
+            REFERENCE_HEIGHT - HUD_BAND_TOP,
+        ),
     }
 }
 
@@ -215,6 +232,17 @@ pub fn screen_region(region: ScreenRegion, width: u32, height: u32) -> Option<Re
     if !supported_size(width, height) {
         return None;
     }
+    if region == ScreenRegion::HudBand {
+        // Full width, from the reference top scaled with the height down to the bottom edge of the client.
+        let top = (f64::from(HUD_BAND_TOP) * f64::from(height) / f64::from(REFERENCE_HEIGHT))
+            .round() as u32;
+        return Some(Region {
+            x: 0,
+            y: top,
+            width,
+            height: height - top,
+        });
+    }
     screen_box(region).resolve(width, height)
 }
 
@@ -235,6 +263,7 @@ impl ScreenRegion {
             ScreenRegion::CardSelected(slot) => format!("cardSelected{slot}"),
             ScreenRegion::CardColumn => "cardColumn".to_string(),
             ScreenRegion::PopupArea => "popupArea".to_string(),
+            ScreenRegion::HudBand => "hudBand".to_string(),
         }
     }
 }
@@ -441,6 +470,36 @@ mod screen_tests {
             let create = at(ScreenRegion::CreateNew, width, height);
             assert!(column.y + column.height <= create.y);
         }
+    }
+
+    #[test]
+    fn the_hud_band_is_the_bottom_quarter_at_the_full_width_of_every_client() {
+        let band = |width: u32, height: u32| at(ScreenRegion::HudBand, width, height);
+        assert_eq!(
+            band(1920, 1033),
+            Region {
+                x: 0,
+                y: 775,
+                width: 1920,
+                height: 258
+            }
+        );
+        // The window and the full screen: the Life label (826 on the reference, 80% of the height) is inside both.
+        for (width, height) in [(1920, 1056), (1920, 1080)] {
+            let area = band(width, height);
+            let label = height * 826 / 1033;
+            assert_eq!(
+                (area.x, area.width, area.y + area.height),
+                (0, width, height)
+            );
+            assert!(area.y <= label && label + 22 <= height);
+            assert!(
+                area.y > height * 7 / 10,
+                "a quarter of the client, not more"
+            );
+        }
+        assert_eq!(band(2560, 1440).width, 2560);
+        assert_eq!(screen_region(ScreenRegion::HudBand, 1280, 1024), None);
     }
 
     #[test]

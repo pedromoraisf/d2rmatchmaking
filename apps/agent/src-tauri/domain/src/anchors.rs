@@ -7,7 +7,7 @@
 
 use crate::characters::Difficulty;
 use crate::language::{
-    GAME_NAME, LanguagePack, PASSWORD, SELECT_DIFFICULTY, TAB_OFFLINE, TAB_ONLINE,
+    GAME_NAME, LIFE, LanguagePack, MANA, PASSWORD, SELECT_DIFFICULTY, TAB_OFFLINE, TAB_ONLINE,
 };
 use crate::layout::REFERENCE_HEIGHT;
 use crate::vision::{Region, TextLine};
@@ -240,6 +240,30 @@ pub fn find_party_in_variants(
         label: chosen.and_then(|party| party.label),
         field: chosen.and_then(|party| party.field),
     }
+}
+
+/// Whether any word of `text` starts the pack's Life or Mana label: the in-game HUD's two labels. The line may begin with
+/// other text the engine joined to it, so every word is tried as the start of the label.
+fn is_hud_line(pack: &LanguagePack, text: &str) -> bool {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    (0..words.len()).any(|start| {
+        let rest = words[start..].join(" ");
+        pack.begins_with(&rest, LIFE) || pack.begins_with(&rest, MANA)
+    })
+}
+
+/// The first line of `lines` (top to bottom) that shows the HUD's Life or Mana label: the in-game marker, found anywhere in
+/// the bottom band (`ScreenRegion::HudBand`), not at one fixed place. Its box is what the tracker remembers.
+pub fn find_hud(pack: &LanguagePack, lines: &[TextLine]) -> Option<Region> {
+    top_down(lines)
+        .into_iter()
+        .find(|line| is_hud_line(pack, &line.text))
+        .map(|line| line.region)
+}
+
+/// The HUD's label line in any variant's lines: the first variant that found one gives its box.
+pub fn find_hud_in_variants(pack: &LanguagePack, variants: &[Vec<TextLine>]) -> Option<Region> {
+    variants.iter().find_map(|lines| find_hud(pack, lines))
 }
 
 /// Whether a line of the popup area is the popup's title.
@@ -1065,5 +1089,62 @@ mod tests {
         for other in ["NORMAL", "NIGHTMARE", "HELL", "", "SELECT"] {
             assert!(!is_popup_title(&pack(), other), "{other} is not the title");
         }
+    }
+}
+
+#[cfg(test)]
+mod hud_tests {
+    use super::{find_hud, find_hud_in_variants};
+    use crate::language::LanguagePack;
+    use crate::vision::{Region, TextLine};
+
+    fn line(text: &str, x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: text.to_string(),
+            region: Region {
+                x,
+                y,
+                width: 150,
+                height: 20,
+            },
+        }
+    }
+
+    #[test]
+    fn the_life_line_is_found_wherever_the_band_puts_it() {
+        let english = LanguagePack::english();
+        for (x, y) in [(400, 826), (432, 865), (900, 900)] {
+            let lines = [line("Life: 925 / 925", x, y)];
+            assert_eq!(find_hud(&english, &lines), Some(lines[0].region));
+        }
+    }
+
+    #[test]
+    fn the_mana_line_alone_is_the_marker_too() {
+        let lines = [line("Mana: 400 / 400", 1500, 870)];
+        assert!(find_hud(&LanguagePack::english(), &lines).is_some());
+    }
+
+    #[test]
+    fn a_label_the_engine_joined_to_other_text_or_misread_is_found() {
+        let english = LanguagePack::english();
+        assert!(find_hud(&english, &[line("1 2 Life: 925 / 925", 400, 826)]).is_some());
+        assert!(find_hud(&english, &[line("Lite: 925 / 925", 400, 826)]).is_some());
+    }
+
+    #[test]
+    fn other_text_of_the_band_is_not_the_marker() {
+        let english = LanguagePack::english();
+        let lines = [line("Town Portal", 700, 880), line("Level 88", 900, 880)];
+        assert_eq!(find_hud(&english, &lines), None);
+        assert_eq!(find_hud(&english, &[]), None);
+    }
+
+    #[test]
+    fn any_variant_finds_it() {
+        let english = LanguagePack::english();
+        let variants = [vec![], vec![line("Life: 9 / 9", 400, 826)]];
+        assert!(find_hud_in_variants(&english, &variants).is_some());
+        assert_eq!(find_hud_in_variants(&english, &[vec![], vec![]]), None);
     }
 }

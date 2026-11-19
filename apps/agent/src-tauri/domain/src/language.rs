@@ -20,6 +20,8 @@ pub const CHARACTER_LEVEL: &str = "characterLevel";
 pub const CREATE_NEW: &str = "createNew";
 /// The label that starts the health line in game (the in-game marker, CHR-04).
 pub const LIFE: &str = "life";
+/// The label that starts the mana line in game, the other word of the in-game HUD (searched with `LIFE`).
+pub const MANA: &str = "mana";
 /// The label that starts the difficulty line of the automap's area block (the automap's marker, CHR-04).
 pub const DIFFICULTY_LABEL: &str = "difficultyLabel";
 /// The title of the difficulty popup (CHR-18).
@@ -71,6 +73,7 @@ const ENGLISH: &[(&str, &str)] = &[
     ("titleGuardian", "Guardian"),
     (CREATE_NEW, "Create New"),
     (LIFE, "Life:"),
+    (MANA, "Mana:"),
     (DIFFICULTY_LABEL, "Difficulty:"),
     (SELECT_DIFFICULTY, "Select Difficulty"),
     (DIFFICULTY_NORMAL, "Normal"),
