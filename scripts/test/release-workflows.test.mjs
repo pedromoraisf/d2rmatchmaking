@@ -170,6 +170,9 @@ test('the release binary is started with --self-check --online before anything i
   assert.equal(stepsOf(job)[check]['continue-on-error'], undefined, 'the check can fail the job');
   assert.equal(tauriAction(job).with.releaseDraft, true, 'tauri-action leaves the release a draft');
   assert.ok(stepsOf(job)[check].run.includes('-ne 0'), 'a non-zero exit fails the step');
+  const publishRun = stepsOf(job)[publish].run;
+  assert.ok(publishRun.includes('--latest=false'), 'an older tag never becomes "latest"');
+  assert.doesNotMatch(publishRun, /--draft=false --latest\s*$/m, '"latest" is never unconditional');
 });
 
 // The tag-on-main check (AGS-28): the tag's commit must be an ancestor of origin/main. The reversed test is refused.

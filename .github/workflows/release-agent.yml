@@ -153,7 +153,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.tag.outputs.tag }}
         shell: bash
-        run: gh release edit "$TAG" --draft=false --latest
+        # "latest" only for the newest agent tag: a rerun for an older tag must not move the pointer back.
+        run: |
+          newest="$(git ls-remote --tags --refs origin 'agent-v*' | sed 's#.*refs/tags/##' | sort -V | tail -n1)"
+          if [ "$TAG" = "$newest" ]; then latest=--latest; else latest=--latest=false; fi
+          gh release edit "$TAG" --draft=false "$latest"
 
       - name: Keep the unsigned installer for SignPath
         id: unsigned
