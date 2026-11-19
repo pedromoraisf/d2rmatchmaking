@@ -143,6 +143,32 @@
         "pointer": "/p95StateLatencyMs"
       }
     },
+    "ocr.variations.wrong": {
+      "value": 43,
+      "direction": "lower",
+      "ceiling": 43,
+      "contexts": [
+        "ocr"
+      ],
+      "source": {
+        "type": "json",
+        "path": "reports/ocr-variations.json",
+        "pointer": "/supported/wrong"
+      }
+    },
+    "ocr.variations.correct": {
+      "value": 1028,
+      "direction": "higher",
+      "floor": 1028,
+      "contexts": [
+        "ocr"
+      ],
+      "source": {
+        "type": "json",
+        "path": "reports/ocr-variations.json",
+        "pointer": "/supported/correct"
+      }
+    },
     "acceptance.failed": {
       "value": 0,
       "direction": "lower",

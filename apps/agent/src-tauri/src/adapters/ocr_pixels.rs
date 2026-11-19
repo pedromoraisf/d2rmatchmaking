@@ -165,6 +165,18 @@ pub fn scaled_bgra(image: &Rgba, region: Region, scale: u32) -> Option<Vec<u8>> 
     Some(out)
 }
 
+/// The scale a `width` x `height` crop is read at so that its enlarged bitmap stays within the engine's maximum image
+/// dimension `max`: `wanted` when it fits, else the largest whole scale that fits. `None` when even 1x is too large (or
+/// the crop or the wanted scale is empty), so the read fails instead of handing the engine a bitmap it refuses.
+pub fn fit_scale(width: u32, height: u32, wanted: u32, max: u32) -> Option<u32> {
+    let longest = width.max(height);
+    if wanted == 0 || longest == 0 {
+        return None;
+    }
+    let fits = max / longest;
+    (fits >= 1).then(|| wanted.min(fits))
+}
+
 /// The frame region a line of OCR words covers: the union of the words' boxes, which the engine measures in pixels of the
 /// image it read (the crop `read`, enlarged `scale` times), mapped back to pixels of the frame. A box is `(x, y, width,
 /// height)`. `None` for a line without a usable box or a zero scale.
@@ -206,7 +218,35 @@ mod tests {
     use d2rmm_agent_core::ports::Rgba;
     use d2rmm_agent_domain::vision::Region;
 
-    use super::{Upscale, frame_region_of_boxes, nearest_bgra, scaled_bgra, upscaled_bgra};
+    use super::{
+        Upscale, fit_scale, frame_region_of_boxes, nearest_bgra, scaled_bgra, upscaled_bgra,
+    };
+
+    #[test]
+    fn the_scale_is_lowered_to_the_largest_whole_one_that_fits_the_engine() {
+        // 10 000 px is the engine's usual maximum.
+        assert_eq!(fit_scale(1000, 200, 5, 10_000), Some(5), "fits as wanted");
+        assert_eq!(
+            fit_scale(2000, 200, 5, 10_000),
+            Some(5),
+            "exactly at the limit"
+        );
+        assert_eq!(fit_scale(2001, 200, 5, 10_000), Some(4), "one pixel over");
+        assert_eq!(
+            fit_scale(300, 3500, 3, 10_000),
+            Some(2),
+            "the height decides"
+        );
+        assert_eq!(fit_scale(10_000, 10, 3, 10_000), Some(1), "1x is the floor");
+        assert_eq!(
+            fit_scale(10_001, 10, 3, 10_000),
+            None,
+            "even 1x is too large"
+        );
+        assert_eq!(fit_scale(0, 0, 3, 10_000), None, "an empty crop");
+        assert_eq!(fit_scale(10, 10, 0, 10_000), None, "an empty scale");
+        assert_eq!(fit_scale(10, 10, 3, 0), None, "no room at all");
+    }
 
     #[test]
     fn a_line_maps_back_to_the_frame_as_the_union_of_its_words() {

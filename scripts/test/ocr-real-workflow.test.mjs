@@ -55,8 +55,8 @@ test('it builds the UI then the ocr-check example, locked', () => {
 test('the password reaches the extract step only, through an env var, and nothing echoes it', () => {
   assert.equal(
     (text.match(/OCR_PRINTS_PASSWORD/g) ?? []).length,
-    2,
-    'once in the header comment, once on the extract step',
+    3,
+    'once in the header comment, once on the extract step of each of the two jobs',
   );
   const withSecret = steps.filter((s) => JSON.stringify(s).includes('secrets.'));
   assert.equal(withSecret.length, 1);
@@ -78,4 +78,48 @@ test('the verdict is the exit code of ocr-check.exe on the extracted folder', ()
   assert.match(read.run, /ocr-check\.exe "\$RUNNER_TEMP\/real-prints"$/);
   assert.doesNotMatch(read.run, /\|\||continue-on-error|\| *tee/);
   assert.notEqual(read['continue-on-error'], true);
+});
+
+// The variations job (robustness measure under the quality ratchet): same guards, and it uploads the counts file only.
+const variations = wf.jobs['ocr-variations'];
+
+test('the variations job has the same guards as the check', () => {
+  assert.equal(variations['runs-on'], 'windows-latest');
+  assert.match(variations.if, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
+  assert.equal(variations['timeout-minutes'], 120);
+  const checkout = variations.steps.find((s) => /^actions\/checkout@/.test(s.uses ?? ''));
+  assert.equal(checkout.with['persist-credentials'], false);
+  for (const step of variations.steps.filter((s) => s.uses)) assert.match(step.uses, SHA_PINNED);
+  const withSecret = variations.steps.filter((s) => JSON.stringify(s).includes('secrets.'));
+  assert.equal(withSecret.length, 1);
+  assert.equal(withSecret[0].env.PW, '${{ secrets.OCR_PRINTS_PASSWORD }}');
+});
+
+test('the variations job uploads only the counts file and deletes the extracted folder last', () => {
+  const uploads = variations.steps.filter((s) => /upload-artifact/.test(s.uses ?? ''));
+  assert.equal(uploads.length, 1);
+  assert.equal(uploads[0].with.name, 'ocr-variations');
+  assert.match(uploads[0].with.path, /ocr-variations\.json$/);
+  const last = variations.steps.at(-1);
+  assert.equal(last.if, 'always()');
+  assert.match(last.run, /rm -rf "\$RUNNER_TEMP\/real-prints"/);
+});
+
+test('the variations run is never given the show-reads flag', () => {
+  const run = variations.steps.find((s) => (s.run ?? '').includes('--variations'));
+  assert.match(run.run, /ocr-check\.exe --variations --summary .*--json .*"\$RUNNER_TEMP\/real-prints"/);
+  assert.doesNotMatch(text, /--show-reads/);
+  assert.doesNotMatch(run.run, /continue-on-error/);
+});
+
+test('the variations job holds the counts to the ratchet in the ocr context, after the run and before the upload', () => {
+  const steps = variations.steps;
+  const run = steps.findIndex((s) => (s.run ?? '').includes('--variations'));
+  const gate = steps.findIndex((s) => (s.run ?? '').includes('quality-ratchet.mjs'));
+  const upload = steps.findIndex((s) => /upload-artifact/.test(s.uses ?? ''));
+  assert.ok(run < gate && gate < upload);
+  assert.match(steps[gate].run, /cp "\$RUNNER_TEMP\/ocr-variations\.json" reports\/ocr-variations\.json/);
+  assert.match(steps[gate].run, /quality-collect\.mjs/);
+  assert.match(steps[gate].run, /quality-ratchet\.mjs --context ocr/);
+  assert.notEqual(steps[gate]['continue-on-error'], true);
 });

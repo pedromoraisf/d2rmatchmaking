@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use d2rmm_agent_domain::anchors;
 use d2rmm_agent_domain::fusion::{GameNameObservation, fuse};
-use d2rmm_agent_domain::game_name_match::{FieldRead, read_field, read_field_variants};
+use d2rmm_agent_domain::game_name_match::{FieldRead, FieldSource, read_field, read_panel_field};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{PanelRegion, panel_region};
 use d2rmm_agent_domain::room_assignment::Assignment;
@@ -144,13 +144,16 @@ pub struct PanelReading {
     /// The readings of the field, one per OCR variant; empty when the panel is closed, the label was not found or the field
     /// did not read.
     pub field: Vec<ReadText>,
+    /// Where `field` was read: under the found label, or, when no variant found the label, in the fixed layout box (T16).
+    pub field_source: FieldSource,
 }
 
 /// The OCR of one frame's Party panel, anchored on its content (the full-screen incident, 0.1.3: the panel sits at other
 /// offsets in a full-screen client): the lines of the panel's area are read once; the panel is open when a line is its title
 /// (the whole word or a prefix of it: a tooltip over the title leaves "PAR"), the "Game Name" label is the line that reads as
 /// that word, and the game name is the line just under the label. A field with no line under the label (the masked value's
-/// dots, which the engine does not read) is read in the box under the label and reads blank. The panel area may include
+/// dots, which the engine does not read) is read in the box under the label and reads blank. When no variant found the label,
+/// the field's fixed layout box is read instead, and only an exact match or the mask itself counts (`read_panel_field`). The panel area may include
 /// the "Password" label (and its field); that text is never used, matched, returned, logged or sent, and a line that reads
 /// like it is never taken for the game name. Blocking: called on a blocking thread.
 pub fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba) -> PanelReading {
@@ -158,11 +161,18 @@ pub fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba
         .map(|area| reader.read_line_variants(frame, area))
         .unwrap_or_default();
     let found = anchors::find_party_in_variants(language, &lines, frame.height);
-    let field_area = found.field.or_else(|| {
-        found
-            .label
-            .map(|label| anchors::field_below(label, frame.height))
-    });
+    let (field_area, field_source) = match (found.field, found.label) {
+        (Some(line), _) => (Some(line), FieldSource::LabelLine),
+        (None, Some(label)) => (
+            Some(anchors::field_below(label, frame.height)),
+            FieldSource::Label,
+        ),
+        // No variant found the label: the field's fixed layout box, which proves a match, or a masked field only when the mask is read (`read_panel_field`).
+        (None, None) => (
+            panel_region(PanelRegion::GameNameField, frame.width, frame.height),
+            FieldSource::LayoutBox,
+        ),
+    };
     let field = match field_area {
         Some(area) if found.open => reader.read_variants(
             frame,
@@ -179,6 +189,7 @@ pub fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba
         open: found.open,
         label_found: found.label.is_some(),
         field,
+        field_source,
     }
 }
 
@@ -199,7 +210,8 @@ fn apply_reading<G>(
     if !reading.open {
         return None;
     }
-    // A blank field reads as masked (`read_field`): the engine returns nothing for the dots of the masked value.
+    // A blank field under a found label reads as masked (`read_field`): the engine returns nothing for the dots of the
+    // masked value. A field read in the layout box reads as masked only when the mask itself is read (`read_panel_field`).
     if reading.field.is_empty() {
         return None;
     }
@@ -210,7 +222,7 @@ fn apply_reading<G>(
         .map(|read| read.text.as_str())
         .collect();
     let run = RunKey::of(assignment);
-    match read_field_variants(&texts, expected) {
+    match read_panel_field(reading.field_source, &texts, expected) {
         FieldRead::Masked => {
             span.record("masked", true);
             device.with_party(|progress| progress.saw_masked());
@@ -620,6 +632,20 @@ mod look_tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn no_label_and_the_mask_read_in_the_layout_box_asks_for_the_reveal() {
+        let rig = rig();
+        rig.device
+            .replace_assignment(Some(assignment(1, "mmcowsh-1")));
+        show(&rig.panel, "PARTY", "xxxxxxxx");
+        *rig.panel.label.lock().expect("the panel lock") = String::new();
+
+        look_at(&rig).await;
+
+        assert!(posts(&rig.gateway).is_empty(), "nothing is posted");
+        assert!(room(&rig).is_some_and(|room| room.needs_reveal && !room.matched));
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn a_closed_panel_reads_only_its_title() {
         let rig = rig();
         rig.device
@@ -903,6 +929,8 @@ mod anchored_tests {
     use d2rmm_agent_domain::language::LanguagePack;
     use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 
+    use d2rmm_agent_domain::game_name_match::FieldSource;
+
     use super::read_panel;
     use crate::ports::{ReadError, Rgba, TextReader};
 
@@ -996,7 +1024,7 @@ mod anchored_tests {
     }
 
     #[test]
-    fn a_panel_without_its_label_reads_no_field_and_a_closed_one_reads_none_at_all() {
+    fn a_panel_without_its_label_reads_the_layout_box_and_a_closed_one_reads_none_at_all() {
         let pack = LanguagePack::english();
         let no_label = Lines(vec![
             line("PARTY", 366, 153, 60),
@@ -1004,10 +1032,14 @@ mod anchored_tests {
         ]);
         let reading = read_panel(&no_label, &pack, &frame(1080));
         assert!(reading.open && !reading.label_found);
-        assert!(
-            reading.field.is_empty(),
-            "no label, no anchor for the field"
-        );
+        // Changed expectation (maintainer, in chat, 2026-11-18): with no label the field's layout box is read.
+        assert_eq!(reading.field_source, FieldSource::LayoutBox);
+        assert_eq!(fields(&reading), ["MF-FAST-RUN-O1"]);
+        let blank_box = Lines(vec![line("PARTY", 366, 153, 60)]);
+        let reading = read_panel(&blank_box, &pack, &frame(1080));
+        assert!(reading.open && !reading.label_found);
+        assert_eq!(reading.field_source, FieldSource::LayoutBox);
+        assert_eq!(fields(&reading), [""], "read, and blank");
         let closed = Lines(vec![
             line("INVENTORY", 366, 153, 90),
             line("GAME NAME", 280, 192, 90),

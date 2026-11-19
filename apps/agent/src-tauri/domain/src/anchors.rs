@@ -50,8 +50,31 @@ pub fn is_tab_line(pack: &LanguagePack, text: &str) -> bool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CardAnchor {
     pub title: TitleLine,
+    /// The title is `None` only because no line was read above the name (not because that line is the tab strip or a
+    /// level line): the title may be there unread, so the screen reader checks the pixels of `title_band`.
+    pub title_unseen: bool,
     pub name: Region,
     pub level: Region,
+}
+
+/// How far a card's title line sits above its name line, from the middle of one to the middle of the other, measured on a
+/// 1080 px high full-screen client (see `card_line_gap`).
+const TITLE_OFFSET_AT_1080: u32 = 31;
+
+/// The widest title of the pack (`Baroness`, `Matriarch`, `Patriarch`, `Conqueror`...) has nine letters, each about as wide
+/// as the line is high.
+const WIDEST_TITLE_LETTERS: u32 = 9;
+
+/// Where a card's title would be drawn: the name's line moved up by the title offset scaled with the client height, as
+/// wide as the name twice, or as the widest title of the pack when that is wider. `None` when it would leave the frame.
+pub fn title_band(name: Region, frame_height: u32) -> Option<Region> {
+    let offset = (TITLE_OFFSET_AT_1080 * frame_height + 540) / 1080;
+    Some(Region {
+        x: name.x,
+        y: name.y.checked_sub(offset)?,
+        width: (name.width * 2).max(name.height * WIDEST_TITLE_LETTERS),
+        height: name.height,
+    })
 }
 
 /// What sits directly above a card's name line.
@@ -116,6 +139,8 @@ pub fn find_cards(pack: &LanguagePack, lines: &[TextLine], frame_height: u32) ->
             .checked_sub(2)
             .map(|above| sorted[above])
             .filter(|line| near(name, line));
+        // Under the tab strip the title may be there unread too: the band is checked for ink.
+        let title_unseen = above.is_none_or(|line| is_tab_line(pack, &line.text));
         let title = match above {
             None => TitleLine::None,
             Some(line) if is_tab_line(pack, &line.text) || is_level(line) => TitleLine::None,
@@ -126,6 +151,7 @@ pub fn find_cards(pack: &LanguagePack, lines: &[TextLine], frame_height: u32) ->
         };
         cards.push(CardAnchor {
             title,
+            title_unseen,
             name: name.region,
             level: level.region,
         });
@@ -150,6 +176,11 @@ pub fn find_cards_in_variants(
             {
                 Some(card) if found.title.rank() > card.title.rank() => {
                     card.title = found.title;
+                    card.title_unseen = found.title_unseen;
+                }
+                // Two views with no title: unseen only when no variant saw the tab strip or a level line there.
+                Some(card) if found.title.rank() == card.title.rank() => {
+                    card.title_unseen = card.title_unseen && found.title_unseen;
                 }
                 Some(_) => {}
                 None => cards.push(found),
@@ -480,6 +511,68 @@ mod tests {
             find_cards(&pack(), &far, 1080)[0].title,
             super::TitleLine::None
         );
+    }
+
+    #[test]
+    fn a_title_is_unseen_only_when_no_line_was_read_above_the_name() {
+        let unseen = |lines: &[TextLine]| find_cards(&pack(), lines, 1080)[0].title_unseen;
+        let card = [column("vukVuka", 118), column("Level 88 Sorceress", 141)];
+        // Nothing within a card's height above the name: the title may be there unread.
+        assert!(unseen(&card));
+        // The tab strip, a level line or a garbled line right above the name explain what is above it.
+        for above in ["Level 88 Sorceress", "Marshal", "MATRIARCH"] {
+            let mut lines = vec![column(above, 96)];
+            lines.extend(card.clone());
+            assert!(!unseen(&lines), "{above}");
+        }
+        // The tab strip right above the name hides a title that was not read: the band is checked.
+        let mut under_tab = vec![column("ONLINE OFFLINE", 96)];
+        under_tab.extend(card.clone());
+        assert!(unseen(&under_tab));
+    }
+
+    #[test]
+    fn a_card_is_unseen_in_the_merge_only_when_every_view_of_it_is() {
+        use super::find_cards_in_variants;
+        let card = [column("vukVuka", 118), column("Level 88 Sorceress", 141)];
+        let mut with_tab = vec![column("ONLINE OFFLINE", 96)];
+        with_tab.extend(card.clone());
+        let bare = card.to_vec();
+        let merged = |variants: &[Vec<TextLine>]| find_cards_in_variants(&pack(), variants, 1080);
+        assert!(merged(&[bare.clone(), bare.clone()])[0].title_unseen);
+        assert!(merged(&[bare.clone(), with_tab.clone()])[0].title_unseen);
+        assert!(merged(&[with_tab.clone(), bare.clone()])[0].title_unseen);
+        let mut with_level = vec![column("Level 88 Sorceress", 96)];
+        with_level.extend(card.clone());
+        assert!(!merged(&[with_tab.clone(), with_level.clone()])[0].title_unseen);
+        assert!(!merged(&[with_level, with_tab])[0].title_unseen);
+        // A title line found in one view wins over the bare one.
+        let mut titled = vec![column("MATRIARCH", 87)];
+        titled.extend(card);
+        let cards = merged(&[bare, titled]);
+        assert!(!cards[0].title_unseen);
+        assert!(matches!(cards[0].title, super::TitleLine::Known(_)));
+    }
+
+    #[test]
+    fn the_title_band_is_the_name_line_moved_up_by_the_title_offset() {
+        use super::title_band;
+        let name = Region {
+            x: 1560,
+            y: 110,
+            width: 100,
+            height: 16,
+        };
+        // 31 px at 1080, 30 px at 1033 (scaled with the height), 16 px high.
+        let at_1080 = title_band(name, 1080).unwrap();
+        assert_eq!((at_1080.x, at_1080.y, at_1080.height), (1560, 79, 16));
+        assert_eq!(title_band(name, 1033).unwrap().y, 80);
+        // Twice the name's width, or nine letters when that is wider.
+        assert_eq!(at_1080.width, 200);
+        let short = Region { width: 40, ..name };
+        assert_eq!(title_band(short, 1080).unwrap().width, 144);
+        // A band that would leave the top of the frame is none.
+        assert_eq!(title_band(Region { y: 20, ..name }, 1080), None);
     }
 
     #[test]

@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use d2rmm_agent_domain::anchors::{self, line_pad};
 use d2rmm_agent_domain::character_screen::{
-    is_enabled_label, is_gold, label_brightness, luma, read_screen,
+    BandRead, Probes, is_enabled_label, is_gold, label_brightness, luma, read_screen,
 };
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{ScreenRegion, screen_region, selection_band, supported_size};
@@ -17,6 +17,7 @@ use d2rmm_agent_domain::vision::{Region, TextLine};
 
 use crate::messages::FrameReading;
 use crate::ports::{FrameReader, Rgba, TextReader};
+use crate::title_ink::{InkRead, read_band};
 
 /// Reads the character screens of a frame: the markers, the popup and the cards, with the language pack's words.
 pub struct ScreenReader {
@@ -66,6 +67,29 @@ impl ScreenReader {
     }
 }
 
+/// Every OCR variant's reading of the band, each kept as its lines (the title and the tab strip can share a band), the
+/// region grown like a title field. `None` when no variant read anything.
+fn lines_of_variants(
+    reader: &(dyn TextReader + Send + Sync),
+    frame: &Rgba,
+    band: Region,
+) -> Option<Vec<Vec<String>>> {
+    let area = anchors::padded(band, line_pad(frame.height), frame.width, frame.height);
+    let variants: Vec<Vec<String>> = reader
+        .read_variants(frame, area)
+        .into_iter()
+        .map(|read| {
+            read.text
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .collect();
+    (!variants.is_empty()).then_some(variants)
+}
+
 /// Every reading of a region, the lines of each joined with a space.
 pub fn readings_of(reader: &dyn TextReader, frame: &Rgba, area: Region) -> Vec<String> {
     reader
@@ -104,8 +128,19 @@ impl FrameReader for ScreenReader {
             text,
             |search| self.lines_of(frame, search),
             field,
-            |name| is_selected(frame, name),
-            |region| is_lit(frame, region),
+            Probes {
+                selected: |name| is_selected(frame, name),
+                lit: |region| is_lit(frame, region),
+                // A title line no variant read: the card is untitled only when the band where it would be holds no ink;
+                // with ink, the band is read again like a title field (T13).
+                title_ink: |band, name| match read_band(frame, band, name) {
+                    InkRead::Ink => {
+                        BandRead::Ink(lines_of_variants(self.reader.as_ref(), frame, band))
+                    }
+                    InkRead::NoInk => BandRead::NoInk,
+                    InkRead::Unclear => BandRead::Unclear,
+                },
+            },
         );
         FrameReading {
             screen: reading.screen,
@@ -155,6 +190,7 @@ fn pixel(frame: &Rgba, x: u32, y: u32) -> Option<[u8; 3]> {
 mod tests {
     use std::sync::{Arc, Mutex};
 
+    use d2rmm_agent_domain::character_screen::RejectReason;
     use d2rmm_agent_domain::characters::{Class, Difficulty, Mode, Title};
     use d2rmm_agent_domain::language::LanguagePack;
     use d2rmm_agent_domain::layout::{ScreenRegion, screen_region, screen_text_regions};
@@ -192,6 +228,11 @@ mod tests {
         gold: Option<Region>,
         size: (u32, u32),
         asked_areas: Mutex<Vec<Region>>,
+        /// Lines the lines pass misses but a read of the place finds (the engine reads a title line in one place and not
+        /// in another).
+        unlisted: Vec<TextLine>,
+        /// Whether a region with no line reads blank, once per variant, instead of failing.
+        blank_unread: bool,
     }
 
     fn region_of(value: &Value) -> Region {
@@ -268,7 +309,48 @@ mod tests {
                 gold: object.get("gold").map(region_of),
                 size: (width, height),
                 asked_areas: Mutex::new(Vec::new()),
+                unlisted: Vec::new(),
+                blank_unread: false,
             }
+        }
+
+        /// This sidecar without the line of `text` in the lines pass; a read of its place still finds it when `readable`.
+        fn without_line(mut self, text: &str, readable: bool) -> Self {
+            let at = self
+                .lines
+                .iter()
+                .position(|line| line.text == text)
+                .expect("the sidecar has the line");
+            let line = self.lines.remove(at);
+            if readable {
+                self.unlisted.push(line);
+            }
+            self
+        }
+
+        /// This sidecar with the ONLINE / OFFLINE tab line moved to sit `above` px over the first card's name (middle to
+        /// middle), where the lines pass of a real frame finds it when it misses the title line.
+        fn with_tab_over_the_name(mut self, above: u32) -> Self {
+            let name = self
+                .lines
+                .iter()
+                .find(|line| line.text == "vukVuka")
+                .expect("the sidecar has the first name")
+                .region;
+            let tab = self
+                .lines
+                .iter_mut()
+                .find(|line| line.text.starts_with("ONLINE"))
+                .expect("the sidecar has the tab line");
+            tab.region.y = (name.middle_y() - above).saturating_sub(tab.region.height / 2);
+            self
+        }
+
+        /// This sidecar reading a blank text, once per variant, where it finds no line (the engine saw nothing) rather than
+        /// failing the read.
+        fn with_blank_readings(mut self) -> Self {
+            self.blank_unread = true;
+            self
         }
 
         fn inside(area: Region, line: &TextLine) -> bool {
@@ -288,6 +370,7 @@ mod tests {
             let mut found: Vec<&TextLine> = self
                 .lines
                 .iter()
+                .chain(self.unlisted.iter())
                 .filter(|line| Self::inside(region, line))
                 .collect();
             found.sort_by_key(|line| line.region.y);
@@ -302,6 +385,19 @@ mod tests {
                     .join("\n"),
                 confidence: 1.0,
             })
+        }
+
+        fn read_variants(&self, image: &Rgba, region: Region) -> Vec<ReadText> {
+            match self.read(image, region) {
+                Ok(read) => vec![read],
+                Err(_) if self.blank_unread => (0..2)
+                    .map(|_| ReadText {
+                        text: String::new(),
+                        confidence: 0.0,
+                    })
+                    .collect(),
+                Err(_) => Vec::new(),
+            }
         }
 
         fn read_lines(&self, _image: &Rgba, region: Region) -> Vec<TextLine> {
@@ -342,6 +438,30 @@ mod tests {
                 246
             };
             paint(line.region, [level, level, level, 255]);
+        }
+        // The lettering of the card names: strokes 2 px wide every 6 px, so that the name line has the contrast the ink test
+        // measures the title band against (a flat frame would leave it `Unclear`, and every unseen title refused).
+        for line in sidecar.lines.iter().filter(|line| {
+            let text = line.text.trim();
+            !text.is_empty()
+                && text.chars().all(char::is_alphabetic)
+                && pack.read_title_word(text).is_none()
+                && pack.read_difficulty(text).is_none()
+        }) {
+            let area = line.region;
+            let mut x = area.x + 1;
+            while x + 2 <= area.right() {
+                paint(
+                    Region {
+                        x,
+                        y: area.y + 2,
+                        width: 2,
+                        height: area.height.saturating_sub(4),
+                    },
+                    [230, 230, 230, 255],
+                );
+                x += 6;
+            }
         }
         if let Some(slot) = selected {
             let area = sidecar.gold.unwrap_or_else(|| {
@@ -632,6 +752,185 @@ mod tests {
             vec![Difficulty::Normal, Difficulty::Nightmare, Difficulty::Hell],
             "no gold frame: the Matriarch title's three stand"
         );
+    }
+
+    /// The full-screen list with the Matriarch title line missing from the lines pass: `readable` says whether reading its
+    /// place finds it, `ink` whether the frame draws something there.
+    fn read_without_title_line(readable: bool, ink: bool) -> FrameReading {
+        let sidecar =
+            Sidecar::of(FULLSCREEN_SELECT, 1920, 1080).without_line("MATRIARCH", readable);
+        let mut image = frame(&sidecar, Some(0), &[]);
+        if ink {
+            // The strokes of a word where the title was: 2 px wide every 6 px, 12 px high.
+            for stroke in 0..20 {
+                for y in 81..93 {
+                    for x in 1612 + stroke * 6..1614 + stroke * 6 {
+                        let at = ((y * image.width + x) * 4) as usize;
+                        image.pixels[at..at + 3].copy_from_slice(&[230, 230, 230]);
+                    }
+                }
+            }
+        }
+        ScreenReader::new(Arc::new(sidecar), Arc::new(LanguagePack::english())).read(&image)
+    }
+
+    #[test]
+    fn a_titled_card_whose_title_line_is_missing_but_inked_is_read_again_or_refused() {
+        // The band has ink and reading it again finds the title: the card has it.
+        let reading = read_without_title_line(true, true);
+        assert_eq!(reading.cards[0].title(), Some(Title::Matriarch));
+        assert!(reading.rejected.is_empty());
+        // The band has ink and it reads as nothing: the card is refused, never read as untitled.
+        let reading = read_without_title_line(false, true);
+        assert_eq!(names(&reading), ["vukaDao"]);
+        assert_eq!(reading.slots_read, 2);
+        assert_eq!(reading.rejected.len(), 1);
+        assert_eq!(reading.rejected[0].slot, 0);
+        assert_eq!(reading.rejected[0].reason, RejectReason::TitleUnread);
+    }
+
+    #[test]
+    fn an_inked_band_every_variant_reads_blank_refuses_the_card() {
+        let sidecar = Sidecar::of(FULLSCREEN_SELECT, 1920, 1080)
+            .without_line("MATRIARCH", false)
+            .with_blank_readings();
+        let mut image = frame(&sidecar, Some(0), &[]);
+        for stroke in 0..20 {
+            for y in 81..93 {
+                for x in 1612 + stroke * 6..1614 + stroke * 6 {
+                    let at = ((y * image.width + x) * 4) as usize;
+                    image.pixels[at..at + 3].copy_from_slice(&[230, 230, 230]);
+                }
+            }
+        }
+        let reading =
+            ScreenReader::new(Arc::new(sidecar), Arc::new(LanguagePack::english())).read(&image);
+        assert_eq!(reading.rejected.len(), 1);
+        assert_eq!(reading.rejected[0].slot, 0);
+        assert_eq!(reading.rejected[0].reason, RejectReason::TitleUnread);
+    }
+
+    #[test]
+    fn an_untitled_card_with_a_dark_band_stays_untitled() {
+        // No ink where the title would be: the card has no title, as before (and the second card is untitled too).
+        let reading = read_without_title_line(false, false);
+        assert_eq!(names(&reading), ["vukVuka", "vukaDao"]);
+        assert_eq!(reading.cards[0].title(), None);
+        assert!(reading.rejected.is_empty());
+    }
+
+    /// The full-screen list with the Matriarch title line missing from the lines pass and the tab line right over the name,
+    /// so the line above the name is the tab (T15): `readable` says whether reading the title's place finds it, `ink`
+    /// whether the frame draws something there.
+    fn read_under_the_tab(readable: bool, ink: bool) -> FrameReading {
+        read_under_the_tab_at(readable, ink, 43)
+    }
+
+    fn read_under_the_tab_at(readable: bool, ink: bool, above: u32) -> FrameReading {
+        let sidecar = Sidecar::of(FULLSCREEN_SELECT, 1920, 1080)
+            .without_line("MATRIARCH", readable)
+            .with_tab_over_the_name(above);
+        let mut image = frame(&sidecar, Some(0), &[]);
+        if ink {
+            for stroke in 0..20 {
+                for y in 81..93 {
+                    for x in 1612 + stroke * 6..1614 + stroke * 6 {
+                        let at = ((y * image.width + x) * 4) as usize;
+                        image.pixels[at..at + 3].copy_from_slice(&[230, 230, 230]);
+                    }
+                }
+            }
+        }
+        ScreenReader::new(Arc::new(sidecar), Arc::new(LanguagePack::english())).read(&image)
+    }
+
+    #[test]
+    fn the_top_card_with_the_tab_over_its_name_and_an_inked_readable_band_has_its_title() {
+        let reading = read_under_the_tab(true, true);
+        assert_eq!(reading.cards[0].title(), Some(Title::Matriarch));
+        assert!(reading.rejected.is_empty());
+    }
+
+    #[test]
+    fn the_top_card_with_the_tab_over_its_name_and_an_inked_unreadable_band_is_refused() {
+        let reading = read_under_the_tab(false, true);
+        assert_eq!(names(&reading), ["vukaDao"]);
+        assert_eq!(reading.rejected.len(), 1);
+        assert_eq!(reading.rejected[0].slot, 0);
+        assert_eq!(reading.rejected[0].reason, RejectReason::TitleUnread);
+    }
+
+    #[test]
+    fn the_top_card_with_the_tab_over_its_name_and_a_dark_band_stays_untitled() {
+        let reading = read_under_the_tab(false, false);
+        assert_eq!(names(&reading), ["vukVuka", "vukaDao"]);
+        assert_eq!(reading.cards[0].title(), None);
+        assert!(reading.rejected.is_empty());
+    }
+
+    #[test]
+    fn a_tab_line_inside_the_re_read_band_neither_hides_nor_replaces_the_title() {
+        // The tab 38 to 42 px over the name falls in the padded band: the band reads as two lines, settled one by one.
+        for above in 38..=42 {
+            let reading = read_under_the_tab_at(true, true, above);
+            assert_eq!(reading.cards[0].title(), Some(Title::Matriarch), "{above}");
+            assert!(reading.rejected.is_empty(), "{above}");
+            // The tab line alone beside an unread title is explained ink: no title (the tab is not what is refused).
+            let reading = read_under_the_tab_at(false, true, above);
+            assert_eq!(reading.cards[0].title(), None, "{above}");
+        }
+    }
+
+    #[test]
+    fn a_garbled_line_beside_the_tab_line_in_the_band_refuses_the_card() {
+        for above in [38, 42, 43] {
+            let mut sidecar = Sidecar::of(FULLSCREEN_SELECT, 1920, 1080)
+                .without_line("MATRIARCH", true)
+                .with_tab_over_the_name(above);
+            sidecar.unlisted[0].text = "q%z".to_string();
+            let mut image = frame(&sidecar, Some(0), &[]);
+            for stroke in 0..20 {
+                for y in 81..93 {
+                    for x in 1612 + stroke * 6..1614 + stroke * 6 {
+                        let at = ((y * image.width + x) * 4) as usize;
+                        image.pixels[at..at + 3].copy_from_slice(&[230, 230, 230]);
+                    }
+                }
+            }
+            let reading = ScreenReader::new(Arc::new(sidecar), Arc::new(LanguagePack::english()))
+                .read(&image);
+            assert_eq!(names(&reading), ["vukaDao"], "{above}");
+            assert_eq!(
+                reading.rejected[0].reason,
+                RejectReason::TitleUnread,
+                "{above}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_top_card_under_the_tab_strip_is_unaffected() {
+        // The tab strip sits 65 px over the name, outside its title band: with no title, the first card reads untitled.
+        let sidecar = Sidecar::of(FULLSCREEN_SELECT, 1920, 1080).without_line("MATRIARCH", false);
+        assert!(
+            sidecar
+                .lines
+                .iter()
+                .any(|line| line.text.starts_with("ONLINE"))
+        );
+        let mut image = frame(&sidecar, Some(0), &[]);
+        // The tab strip is drawn bright, as the game draws it.
+        for y in 47..59 {
+            for x in 1582..1818 {
+                let at = ((y * image.width + x) * 4) as usize;
+                image.pixels[at..at + 3].copy_from_slice(&[230, 230, 230]);
+            }
+        }
+        let reading =
+            ScreenReader::new(Arc::new(sidecar), Arc::new(LanguagePack::english())).read(&image);
+        assert_eq!(names(&reading), ["vukVuka", "vukaDao"]);
+        assert_eq!(reading.cards[0].title(), None);
+        assert!(reading.rejected.is_empty());
     }
 
     #[test]

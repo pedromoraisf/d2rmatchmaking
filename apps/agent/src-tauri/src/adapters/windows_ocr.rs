@@ -10,7 +10,9 @@ use windows::Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap};
 use windows::Media::Ocr::OcrEngine;
 use windows::Storage::Streams::DataWriter;
 
-use crate::adapters::ocr_pixels::{Upscale, frame_region_of_boxes, padded_region, upscaled_bgra};
+use crate::adapters::ocr_pixels::{
+    Upscale, fit_scale, frame_region_of_boxes, padded_region, upscaled_bgra,
+};
 
 /// The scale a region is read at: bilinear, 3×, so the Party panel's text (about 12 px high) reaches the size the
 /// engine reads. A decision of the agent-game-name feature, pinned by the maintainer's screenshots (windows test); T11's
@@ -40,6 +42,8 @@ pub struct WindowsOcr {
     filter: Upscale,
     /// The other ways `read_variants` reads a region besides `scale` and `filter`.
     extra: Vec<(u32, Upscale)>,
+    /// `OcrEngine::MaxImageDimension()`, read once: no enlarged bitmap is wider or taller than this (T17).
+    max_dimension: u32,
 }
 
 impl WindowsOcr {
@@ -56,11 +60,14 @@ impl WindowsOcr {
             Language::CreateLanguage(&LANGUAGE.into()).map_err(|_| ReadError::EngineUnavailable)?;
         let engine = OcrEngine::TryCreateFromLanguage(&language)
             .map_err(|_| ReadError::EngineUnavailable)?;
+        // The engine's documented minimum maximum is 2600 px, used if it cannot say.
+        let max_dimension = OcrEngine::MaxImageDimension().unwrap_or(2600);
         Ok(Self {
             engine,
             scale,
             filter,
             extra: Vec::new(),
+            max_dimension,
         })
     }
 
@@ -72,7 +79,7 @@ impl WindowsOcr {
         scale: u32,
         filter: Upscale,
     ) -> Result<ReadText, ReadError> {
-        let bitmap = crop_to_bitmap(image, region, scale, filter)?;
+        let (bitmap, _) = crop_to_bitmap(image, region, scale, filter, self.max_dimension)?;
         let result = self
             .engine
             .RecognizeAsync(&bitmap)
@@ -92,7 +99,8 @@ impl WindowsOcr {
         scale: u32,
         filter: Upscale,
     ) -> Result<Vec<TextLine>, ReadError> {
-        let bitmap = crop_to_bitmap(image, region, scale, filter)?;
+        // The scale the crop was really read at: lowered when the wanted one would exceed the engine's maximum.
+        let (bitmap, scale) = crop_to_bitmap(image, region, scale, filter, self.max_dimension)?;
         let result = self
             .engine
             .RecognizeAsync(&bitmap)
@@ -169,14 +177,19 @@ pub fn comparison_readers() -> Vec<(String, std::sync::Arc<dyn TextReader + Send
 /// edge (T9). Rows are not padded: a crop that reaches the next row reads that row's text too.
 const OCR_PAD_X: u32 = 16;
 
-/// Copies the region with its background margin, scaled up by `scale`, into a BGRA8 software bitmap (`ocr_pixels`).
+/// Copies the region with its background margin, scaled up by `scale`, into a BGRA8 software bitmap (`ocr_pixels`). The
+/// scale is lowered to the largest whole one that keeps the bitmap within `max_dimension` (`fit_scale`); it fails only when
+/// even 1x exceeds it. Returns the bitmap and the scale it was made at.
 fn crop_to_bitmap(
     image: &Rgba,
     region: Region,
     scale: u32,
     filter: Upscale,
-) -> Result<SoftwareBitmap, ReadError> {
+    max_dimension: u32,
+) -> Result<(SoftwareBitmap, u32), ReadError> {
     let region = padded_region(region, image.width, image.height, OCR_PAD_X, 0);
+    let scale =
+        fit_scale(region.width, region.height, scale, max_dimension).ok_or(ReadError::Failed)?;
     let bgra = upscaled_bgra(image, region, scale, filter).ok_or(ReadError::Failed)?;
     // A region is checked against the frame before scaling; the scaled sizes are still checked, so a size that
     // overflows `u32` fails the read instead of wrapping.
@@ -194,7 +207,7 @@ fn crop_to_bitmap(
     bitmap
         .CopyFromBuffer(&buffer)
         .map_err(|_| ReadError::Failed)?;
-    Ok(bitmap)
+    Ok((bitmap, scale))
 }
 
 #[cfg(test)]

@@ -27,6 +27,38 @@ exception on 2026-11-11 (`.specs/phases/F1/decisions.md`): the encrypted zip, an
   and the workflow never passes it.
 - Never decrypt the zip into the repository or paste a screenshot, or what it shows, in an issue or a PR.
 
+## The variations job
+
+The second job of the workflow, `ocr-variations`, measures how robust the reading is. For each of the five screenshots it
+makes about 500 deterministic variations in memory (seed fixed in `ocr_variations::run::SEED`), reads each one with the same
+production reading and verdict rules as the check above, and classifies the result: **correct**, **refused** (the agent said
+it could not read it, so it posts nothing) or **wrong** (a false read, the worst outcome). The families are: `scale` (ten
+heights from 720 to 2160), `aspect` (4:3 crop, 21:9 pad), `tone` (gamma, brightness, contrast, saturation, colour
+temperature), `blur` (gaussian and unsharp), `jpeg` (quality 90 to 30), `noise`, `quantise` (RGB565), `shift` (1 to 3 px),
+`border` (cropped or added edges) and `combo` (seeded mixes of two or three families). Run locally on Windows with
+`ocr-check.exe --variations [--combos N] [--summary out.md] [--json out.json] <folder>`.
+
+- It is held to the quality ratchet (context `ocr`): after the run the job copies the JSON to `reports/ocr-variations.json`
+  and runs `quality-collect` and `quality-ratchet --context ocr`. The metrics `ocr.variations.wrong` (ceiling) and
+  `ocr.variations.correct` (floor) read `/supported/wrong` and `/supported/correct`, the totals without the
+  `unsupported-size` refusals (the log's `Supported totals:` line). More wrong reads or fewer correct ones fail the job; the
+  five-file `ocr-real` check is untouched.
+- Privacy limits: a variation lives in memory only while it is read, then it is dropped; none is written to disk, uploaded or
+  committed. The log, the job summary and the JSON hold counts, family names, variant ids (`gamma-0.8`, `combo-017`),
+  screenshot file names, outcome classes and reason classes only: no pixel and no read text beyond what follows. The summary
+  lists the reason classes of the refused and of the wrong reads per screenshot, most frequent first.
+- What a reason may print, because it is public already: a card read that differs names the value read for its title,
+  class and level (game vocabulary: `card0-title=None`, `card0-level=86`); a name is only `name=card0`, `name=card1` (it
+  equals an expected card's name, committed in `src/ocr_check.rs`) or `name=other`, never the text. A Party field one or
+  two edits from the room name appends the edit operations against the Party room name `PARTY_ROOM_NAME` (committed in the
+  same file), `field-other-1-edit:sub(o>0)@9`, with characters outside `[a-z0-9 ]` printed as `?`. For the Party frames
+  the JSON also has `field_variants`, the class of each OCR variant's reading in reader order (nearest 3x, bilinear 3x,
+  nearest 4x, bilinear 4x, nearest 5x, bilinear 5x): `match`, `masked`, `blank`, `1-edit`, `2-edits` or `far`; the summary
+  counts them per variant for the revealed screenshots. Nothing else read is ever printed. The selection screens have no
+  per-variant card results (`FrameReading` holds only the settled cards), so they have no such table.
+- The only artifact is `ocr-variations.json` (14 days). The extracted screenshots are never uploaded and are deleted at the
+  end of the job.
+
 ## Replacing the zip (maintainer)
 
 1. Put the five screenshots, named as in `apps/agent/README.md`, in a folder (no subfolders).

@@ -300,6 +300,18 @@ jobs:
         if: steps.changed.outputs.changed == 'true'
         working-directory: apps/agent
         run: pnpm exec tauri build --ci --config '{"bundle":{"createUpdaterArtifacts":false}}' -- --locked
+      # A test build, never a release: unsigned, with no updater artifacts. The installers (bundle targets default to all,
+      # so NSIS and MSI) are kept for a pull request so the maintainer can try them on a Windows machine.
+      - name: Upload the unsigned Windows installer
+        if: steps.changed.outputs.changed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: agent-installer-windows
+          path: |
+            apps/agent/src-tauri/target/release/bundle/nsis/*.exe
+            apps/agent/src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
+          retention-days: 14
       # The maintainer's OCR check as one .exe (apps/agent/README.md). The CRT is linked statically so it runs on a clean
       # Windows 10/11 with no runtime installed. RUSTFLAGS is set on this step only: the rest of the job stays dynamic.
       - name: Build the standalone OCR check (static CRT)
