@@ -142,10 +142,10 @@ describe('lobby-room use cases', () => {
     });
   });
 
-  it('answers unsupported-difficulty and stores nothing for a difficulty F0 does not play', async () => {
+  it('answers unsupported-difficulty and stores nothing for a difficulty outside normal, nightmare and hell', async () => {
     const { useCases, outbox } = setup();
 
-    const result = await useCases.onMatchFormed({ ...match(), difficulty: 'normal' });
+    const result = await useCases.onMatchFormed({ ...match(), difficulty: 'bogus' as never });
 
     expect(result).toEqual({ ok: false, error: 'unsupported-difficulty' });
     expect(outbox.appended).toEqual([]);
