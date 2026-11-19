@@ -17,6 +17,15 @@ Feature: Rooms from formed group to finished runs
     Then Alice and Bob are in a room with Alice as host
     And the room's game name matches "mmpvph-<n>" and it has no password
 
+  @LBR-01 @FR-14 @INV-08 @api
+  Scenario: A nightmare leveling group opens a room named for nightmare
+    Given 9 players with Nightmare characters at level 80 have joined the leveling queue for Baal in the Americas, one as teleporter, one as BO and the rest as killers
+    When the matcher runs
+    Then a ready check opens for a group of 8 with the teleporter and the BO in it
+    When the eight members accept the ready check
+    Then their room has the teleporter as host and the BO in it
+    And the teleporter's room has a game name matching "mmbaalm-<n>" and no password
+
   @LBR-02 @FR-15 @agent
   Scenario: The room waits for the host once the host's agent has the assignment
     When Alice's agent has fetched the room assignment

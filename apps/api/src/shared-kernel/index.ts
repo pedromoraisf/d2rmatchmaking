@@ -7,6 +7,7 @@ export type { RandomSource } from './random-source.ts';
 export { SequentialIdGenerator } from './id-generator.ts';
 export {
   activeTraceparent,
+  addActiveSpanEvent,
   annotateActiveSpan,
   linkActiveSpan,
   withRecordingSpan,

@@ -10,6 +10,11 @@ export function annotateActiveSpan(attributes: SpanAttributes): void {
   trace.getActiveSpan()?.setAttributes(attributes);
 }
 
+/** Adds a named event to the active span (a failure worth finding in a trace). Nothing happens outside a span. */
+export function addActiveSpanEvent(name: string, attributes: SpanAttributes): void {
+  trace.getActiveSpan()?.addEvent(name, attributes);
+}
+
 /** A W3C `traceparent` of version 00: lowercase hex ids and flags, nothing else (RTL-05). */
 const TRACEPARENT = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/;
 const ZERO_TRACE_ID = '0'.repeat(32);

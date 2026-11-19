@@ -288,6 +288,18 @@ Then(
   },
 );
 
+Then(
+  /^the teleporter's room has a game name matching "([^"]+)" and no password$/,
+  async ({ world }, pattern: string) => {
+    const room = await roomOf(world, 'Tele');
+    expect(room, "the teleporter's room").not.toBeNull();
+    expect(room?.expectedGameName, 'the game name').toMatch(
+      new RegExp(`^${pattern.replace('<n>', '\\d+')}$`),
+    );
+    expect(room?.password, 'the password').toBe('');
+  },
+);
+
 // --- LBR-02: the host's agent fetches the assignment ----------------------------------------------------------------
 
 When("Alice's agent has fetched the room assignment", async ({ world }) => {

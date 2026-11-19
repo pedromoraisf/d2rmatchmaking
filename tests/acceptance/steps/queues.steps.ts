@@ -392,8 +392,8 @@ Then(
 
 // QUE-10: nine more players pair, so the pairing hour passes once first (AWS-09 limits codes per address per hour).
 Given(
-  /^(\d+) players with Hell characters at level (\d+) have joined the leveling queue for (\w+) in the Americas, one as teleporter, one as BO and the rest as killers$/,
-  async ({ world }, _count: string, level: string, activity: string) => {
+  /^(\d+) players with (Hell|Nightmare) characters at level (\d+) have joined the leveling queue for (\w+) in the Americas, one as teleporter, one as BO and the rest as killers$/,
+  async ({ world }, _count: string, difficulty: string, level: string, activity: string) => {
     await passTime(world, 60 * 60 * 1_000);
     const players = [
       { name: TELEPORTER, role: 'teleporter' },
@@ -417,7 +417,7 @@ Given(
       );
     }
     for (const player of players) {
-      await joinAs(world, player.name, 'leveling', player.name, 'hell', 'americas', {
+      await joinAs(world, player.name, 'leveling', player.name, difficulty, 'americas', {
         activity: activity.toLowerCase(),
         role: player.role,
         minLevel: 70,
