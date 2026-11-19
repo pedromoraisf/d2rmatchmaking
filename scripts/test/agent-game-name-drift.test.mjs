@@ -50,11 +50,11 @@ test('every activity the API can generate is in the agent collision list', () =>
 test('every difficulty code the API can generate is in the agent collision list', () => {
   const body = required(
     source('apps/api/src/modules/lobby-room/domain/game-name.ts').match(
-      /function difficultyCode[^{]*\{([\s\S]*?)\n\}\n/,
+      /const DIFFICULTY_CODES[^=]*=\s*\{([^}]*)\}/,
     ),
-    '`function difficultyCode` in game-name.ts',
+    '`const DIFFICULTY_CODES` object literal in game-name.ts',
   )[1];
-  const codes = [...body.matchAll(/return\s+('[^']*')/g)].flatMap((m) => quoted(m[1]));
+  const codes = quoted(body);
   assert.ok(codes.length > 0, 'the API issues at least one difficulty code');
   const agentCodes = agentList('AGENT_DIFFICULTY_CODES');
   for (const code of codes) {
