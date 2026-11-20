@@ -63,10 +63,11 @@ Rules:
 
 ## Batch 3 — acceptance
 
-- [ ] T10 — Acceptance steps for `@SNM-01`, `@SNM-02`, `@SNM-03`, `@SNM-04`, `@SNM-07` and `@SNM-08` (simulated agents;
+- [x] T10 — Acceptance steps for `@SNM-01`, `@SNM-02`, `@SNM-03`, `@SNM-04`, `@SNM-07` and `@SNM-08` (simulated agents;
       the room and characters come from the existing queue and room steps; reuse `agents.steps.ts` for "the API answers").
       Gate: `pnpm exec turbo run test:acceptance -- --grep "@SNM-01|@SNM-02|@SNM-03|@SNM-04|@SNM-07|@SNM-08"`
-- [ ] T11 — Acceptance steps for `@SNM-05` and `@SNM-06` with the headless agent, the drawn chat fixture of
+- [ ] T11 — First put the three scenarios of `@SNM-05` and `@SNM-06` back into `acceptance.feature` **verbatim from commit `f1f6c78`**
+      (T10 left them out and gave each requirement a `not-scenario` line; delete those two lines). Then write the acceptance steps for `@SNM-05` and `@SNM-06` with the headless agent, the drawn chat fixture of
       `game-name-reading` and the recording proxy (`support/agent-wire.ts`: add `@SNM-05 or @SNM-06` to its `Before`
       and `After` tags and to the headless cleanup tags). If the fixture does not exist, return the task. Then close the
       feature. Gate:
