@@ -86,6 +86,24 @@ mod capture {
     const FIRST_FRAME_WAIT: Duration = Duration::from_millis(250);
     const FRAME_POLL: Duration = Duration::from_millis(10);
 
+    thread_local! {
+        /// Whether this thread has entered the multithreaded apartment. `RoInitialize` is counted per call and never undone
+        /// here, so it runs once per thread, not once per capture.
+        static ENTERED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+
+    /// Puts the calling thread in the multithreaded apartment the capture API needs, once per thread. A thread that is already in
+    /// another apartment keeps it: the error is not an error of the capture.
+    fn enter_apartment() {
+        ENTERED.with(|entered| {
+            if !entered.get() {
+                // SAFETY: `RoInitialize` takes no pointer; it is called once on this thread and its result is not needed.
+                let _ = unsafe { RoInitialize(RO_INIT_MULTITHREADED) };
+                entered.set(true);
+            }
+        });
+    }
+
     /// Whether this Windows can offer the Graphics Capture API at all (CAP-01: a PC that cannot is skipped silently).
     pub fn supported() -> bool {
         GraphicsCaptureSession::IsSupported().unwrap_or(false)
@@ -127,9 +145,7 @@ mod capture {
     impl GraphicsFrames {
         /// One frame of the client area of `window`, or why there is none.
         pub fn capture(&self, window: HWND) -> Result<Rgba, Miss> {
-            // The capture API needs the thread to be in the multithreaded apartment; a thread that is already is left as it is.
-            // SAFETY: `RoInitialize` takes no pointer; its error (another apartment already set) is not an error of the capture.
-            let _ = unsafe { RoInitialize(RO_INIT_MULTITHREADED) };
+            enter_apartment();
             let mut slot = self.session.lock().unwrap_or_else(PoisonError::into_inner);
             let handle = window.0 as isize;
             let stale = slot
