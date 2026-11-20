@@ -59,7 +59,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
       that a cookie alone, an unknown token and no credential answer `401`, and that a revoked agent is refused on its next
       request. Run the whole API integration suite, since `openapi.int.test.ts` pins every route (lessons). Gate **(CI)**:
       `pnpm test:integration` (the new route is listed in `openapi.json`; run `pnpm contracts:openapi` first)
-- [ ] T6 — The staging test control (RCF-05, RCF-06 scenarios). `main/test-controls.ts`: `PUT /v1/test/agent-config` serves a raw
+- [x] T6 — The staging test control (RCF-05, RCF-06 scenarios). `main/test-controls.ts`: `PUT /v1/test/agent-config` serves a raw
       body, a broken body or none, for the staging and local compositions only; `render.ts` never registers it and the
       `render-no-test-controls` rule stays green. Unit test and the architecture check. Gate:
       `pnpm --filter @d2rmm/api test && pnpm arch`

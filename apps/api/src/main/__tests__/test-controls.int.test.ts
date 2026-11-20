@@ -307,3 +307,110 @@ describe('the site-streams controls (queues QUE-05)', () => {
     expect(close.statusCode).toBe(404);
   });
 });
+
+describe('the agent-config control (remote-config RCF-05, RCF-06)', () => {
+  const CONFIG_CONTROL = '/__test/agent-config';
+  const AGENT_VERSION = '1.0.0';
+
+  /** The control, called with the given header value (or none). */
+  function put(app: BuiltApp, payload: object, secret?: string) {
+    return app.app.inject({
+      method: 'PUT',
+      url: CONFIG_CONTROL,
+      headers: {
+        'content-type': 'application/json',
+        ...(secret === undefined ? {} : { [TEST_CONTROL_HEADER]: secret }),
+      },
+      payload,
+    });
+  }
+
+  /** What the agent route serves now, asked with an agent token. */
+  function served(app: BuiltApp, token: string) {
+    return app.app.inject({
+      method: 'GET',
+      url: '/v1/agents/config',
+      headers: { authorization: `Bearer ${token}`, 'x-agent-version': AGENT_VERSION },
+    });
+  }
+
+  /** A paired agent's token, the way the agent gets it. */
+  async function pairedToken(app: BuiltApp): Promise<string> {
+    const cookie = await sessionFor(app);
+    const headers = { 'x-agent-version': AGENT_VERSION };
+    const issued = JSON.parse(
+      (await app.app.inject({ method: 'POST', url: '/v1/agents/pairing-codes', headers })).body,
+    ) as { code: string; claimSecret: string };
+    const claim = () =>
+      app.app.inject({
+        method: 'POST',
+        url: '/v1/agents/pairing-codes/claim',
+        headers: { ...headers, 'content-type': 'application/json' },
+        payload: { claimSecret: issued.claimSecret },
+      });
+    await claim();
+    const paired = await app.app.inject({
+      method: 'POST',
+      url: '/v1/agents/pair',
+      headers: { origin: SITE_ORIGIN, 'content-type': 'application/json', cookie },
+      payload: { code: issued.code },
+    });
+    expect(paired.statusCode).toBe(200);
+    return (JSON.parse((await claim()).body) as { token: string }).token;
+  }
+
+  it('serves a raw body the committed file could not hold, then none, then the committed one after reset', async () => {
+    const { db, name } = await openAcceptanceDatabase();
+    const app = await startApp(db, { name, host: 'localhost' });
+    const token = await pairedToken(app);
+    const committed = (await served(app, token)).body;
+
+    const outOfRange = '{"version":7,"cadence":{"probeEvery":100000}}';
+    expect((await put(app, { version: 7, body: outOfRange }, SECRET)).statusCode).toBe(204);
+    const raw = await served(app, token);
+    expect(raw.statusCode).toBe(200);
+    expect(raw.body).toBe(outOfRange);
+    expect(raw.headers['etag']).toBe('"agent-config-v7"');
+
+    expect((await put(app, { version: 8, body: 'not json' }, SECRET)).statusCode).toBe(204);
+    expect((await served(app, token)).body).toBe('not json');
+
+    expect((await put(app, { body: null }, SECRET)).statusCode).toBe(204);
+    expect((await served(app, token)).statusCode).toBe(404);
+
+    const reset = await app.app.inject({
+      method: 'POST',
+      url: '/__test/reset',
+      headers: { [TEST_CONTROL_HEADER]: SECRET },
+    });
+    expect(reset.statusCode).toBe(204);
+    expect((await served(app, await pairedToken(app))).body).toBe(committed);
+  });
+
+  it('answers 403 without the secret or with a wrong one, and changes nothing', async () => {
+    const { db, name } = await openAcceptanceDatabase();
+    const app = await startApp(db, { name, host: 'localhost' });
+    const token = await pairedToken(app);
+    const before = (await served(app, token)).body;
+
+    expect((await put(app, { body: null })).statusCode).toBe(403);
+    expect((await put(app, { body: null }, 'wrong')).statusCode).toBe(403);
+
+    expect((await served(app, token)).body).toBe(before);
+  });
+
+  it('refuses a body that is not text or null, and a version that is not a whole number', async () => {
+    const { db, name } = await openAcceptanceDatabase();
+    const app = await startApp(db, { name, host: 'localhost' });
+
+    expect((await put(app, { body: 5 }, SECRET)).statusCode).toBe(400);
+    expect((await put(app, { version: 1.5, body: '{}' }, SECRET)).statusCode).toBe(400);
+    expect((await put(app, { version: 0, body: '{}' }, SECRET)).statusCode).toBe(400);
+  });
+
+  it('the app built the way render.ts builds it has no agent-config control', async () => {
+    const app = await startApp(migrated.db);
+
+    expect((await put(app, { body: null }, SECRET)).statusCode).toBe(404);
+  });
+});
