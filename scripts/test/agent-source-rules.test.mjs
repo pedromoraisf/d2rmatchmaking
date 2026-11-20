@@ -177,6 +177,40 @@ const INPUT_NAMES =
   /\b(?:SendInput|GetAsyncKeyState|GetKeyState|GetKeyboardState|keybd_event|mouse_event|KeyboardAndMouse|SendMessageW|PostMessageW)\b/;
 const withoutComments = (text) => text.replace(/\/\/.*$/gm, '');
 
+// The text of a Rust file with exactly its `#[cfg(test)] mod …` blocks removed (braces balanced, strings skipped), so code
+// after the test module is still read. `text` must already be without comments.
+const withoutTestModules = (text) => {
+  const opener = /^[ \t]*#\[cfg\(test\)\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*/m;
+  let rest = text;
+  let out = '';
+  for (let match = opener.exec(rest); match; match = opener.exec(rest)) {
+    out += rest.slice(0, match.index);
+    let i = match.index + match[0].length;
+    if (rest[i] === '{') {
+      let depth = 0;
+      for (; i < rest.length; i += 1) {
+        const char = rest[i];
+        if (char === '"') {
+          i += 1;
+          while (i < rest.length && rest[i] !== '"') i += rest[i] === '\\' ? 2 : 1;
+        } else if (/^'[{}]'/.test(rest.slice(i, i + 3))) {
+          i += 2;
+        } else if (char === '{') {
+          depth += 1;
+        } else if (char === '}') {
+          depth -= 1;
+          if (depth === 0) break;
+        }
+      }
+      i += 1;
+    } else {
+      i = rest.indexOf(';', i) + 1 || rest.length;
+    }
+    rest = rest.slice(i);
+  }
+  return out + rest;
+};
+
 const inputOutsideTypingViolations = (base) =>
   rustFiles(base)
     .filter(({ rel }) => rel !== TYPING_ADAPTER)
@@ -188,7 +222,7 @@ const ALLOWED_VIRTUAL_KEYS = ['VK_CONTROL', 'VK_SHIFT', 'VK_MENU'];
 const typingAdapterViolations = (base) => {
   const text = crateFile(base, TYPING_ADAPTER);
   if (text === undefined) return [];
-  const code = withoutComments(nonTestText(text));
+  const code = withoutTestModules(withoutComments(text));
   const violations = [];
   for (const key of new Set(code.match(/\bVK_[A-Z0-9_]+\b/g) ?? [])) {
     if (!ALLOWED_VIRTUAL_KEYS.includes(key)) {
@@ -443,6 +477,12 @@ test('the typing adapter rule rejects a confirming or navigating key', () => {
   for (const key of ['VK_RETURN', 'VK_TAB', 'VK_SPACE', 'VK_ESCAPE', 'VK_BACK']) {
     assert.match(violations, new RegExp(`names ${key}`), key);
   }
+});
+
+test('the typing adapter rule reads code after the test module and skips only the module itself', () => {
+  const violations = typingAdapterViolations(fixtureBase('typing-after-test-module')).join('\n');
+  assert.match(violations, /names VK_RETURN/);
+  assert.doesNotMatch(violations, /VK_F1/);
 });
 
 test('the typing adapter rule rejects a virtual key in a keystroke and a scan-code or extended-key flag', () => {
