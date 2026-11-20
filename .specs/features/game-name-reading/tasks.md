@@ -95,7 +95,7 @@ failure message carries a name read from a real print.
 
 ## Batch 2 — reading proofs on the real prints (CI loop; the orchestrator reads each `ocr-real` and `ocr-variations` run)
 
-- [ ] T8 — The real-print check reads the automap and chat prints (GNR-11). In `src/ocr_check.rs` add the verdicts for the
+- [x] T8 — The real-print check reads the automap and chat prints (GNR-11). In `src/ocr_check.rs` add the verdicts for the
       automap and chat files by the names O1 lists (the same shape as `party_expectation`: the expected generated name for
       an automap print; the expected event, and for a chat print only whether the name was read, never its text, for a chat
       print), `spots` for their diagnostics (counts and boxes only; a name region is personal and prints only with
