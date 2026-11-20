@@ -60,7 +60,7 @@ failure message carries a name read from a real print.
       the file already documents it as measured. No non-test line changes, and no test is ignored. Gate:
       `CARGO nextest run -p d2rmm-agent-domain -p d2rmm-agent-core --lib` and
       `CARGO clippy -p d2rmm-agent-domain -p d2rmm-agent-core --all-targets -- -D warnings`
-- [ ] T3 — **[R14]** The chat in the domain (GNR-07, GNR-08). Add `domain/src/chat.rs`: `ChatEvent { Joined, Left }`,
+- [ ] T3 — **[R14]** The chat in the domain (GNR-07). Add `domain/src/chat.rs`: `ChatEvent { Joined, Left }`,
       `classify(pack, line) -> Option<(ChatEvent, name)>` by the pack's words, and `ChatTracker` (a line present in the
       previous frame is not new; a name that joins, leaves and joins again is three events; a blank name is ignored). Add
       the words `joinedGame` and `leftGame` to `LanguagePack` and `resources/lang/en.json`, **from O1's note only**
@@ -70,7 +70,7 @@ failure message carries a name read from a real print.
       O1's note, as a band and never one fixed box), and `anchors::find_name_line`: the first line whose normalised read
       parses as `mm` + letters + `-` + digits. Matching stays `game_name_match`'s. Unit tests at 1920×1033, 1920×1045,
       1920×1056 and 1920×1080 with drawn lines at the measured positions. Gate: as T2
-- [ ] T5 — Drawn fixtures (GNR-06, GNR-07, GNR-08, GNR-09). Extend the `xtask` drawing (a new `xtask/src/automap_name_fixture.rs`
+- [ ] T5 — Drawn fixtures (GNR-06, GNR-07, GNR-09). Extend the `xtask` drawing (a new `xtask/src/automap_name_fixture.rs`
       and `chat_fixture.rs`, wired in `main.rs` as `draw-fixture automap-name` and `draw-fixture chat`) with sidecars of lines
       that have boxes: the automap name for each difficulty code and activity, a name that is another room's, a chat
       joined line, a chat left line, the same line across frames, a Portuguese pair, and a line with no joined or left
@@ -78,12 +78,12 @@ failure message carries a name read from a real print.
       `CARGO run -p xtask -- draw-fixture automap-name && CARGO run -p xtask -- draw-fixture chat && git diff --exit-code apps/agent/fixtures`
       and `CARGO nextest run -p xtask` (the drawing is deterministic: a second run changes nothing; commit the new files first,
       then run the gate)
-- [ ] T6 — **[R14]** The core steps (GNR-06, GNR-08, GNR-10). Add `core/src/automap_name.rs` (read the area while the
-      Party step has not matched the run; match; post once through `post_observation`) and `core/src/chat_step.rs` (while an
-      assignment is held, read the chat area, track new lines, post one observation each, the name as read), and call them
+- [ ] T6 — **[R14]** The core steps (GNR-06, GNR-07, GNR-10). Add `core/src/automap_name.rs` (read the area while the
+      Party step has not matched the run; match; post once through `post_observation`) and `core/src/chat_step.rs` (read the
+      chat area, track new lines, count them as `joined` or `left`; it posts nothing), and call them
       from `watch_screen.rs` after the Party step, at most one frame a second. Telemetry as the design's table, with fixed
-      words only. Unit tests with `fakes.rs`: no assignment posts nothing; a run confirmed by the Party step is not posted
-      again by the automap; a repeated line posts once; a failed post retries as F0's rules say; no span attribute, log
+      words only. Unit tests with `fakes.rs`: a chat line posts no observation and sends no name; a run confirmed by the Party step is not posted
+      again by the automap; a repeated line counts once; a failed post retries as F0's rules say; no span attribute, log
       line or label holds a name (a source-rule test in `scripts/test/` refuses it). Gate:
       `CARGO nextest run -p d2rmm-agent-core --lib` and `CARGO test -p d2rmm-agent-core --lib` (one process, OCP-04),
       `CARGO clippy -p d2rmm-agent-core --all-targets -- -D warnings` and `pnpm test:harness`

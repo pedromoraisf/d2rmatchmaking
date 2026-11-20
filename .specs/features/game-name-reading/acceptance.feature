@@ -8,8 +8,8 @@
 # not-scenario: GNR-04 — proved by Rust unit tests over the vocabulary and the `agent-game-name-drift` harness test
 # not-scenario: GNR-05 — proved by the `ocr-variations` summary before and after, by reason class, in the pull request
 # not-scenario: GNR-07 — proved by Rust unit tests on drawn chat fixtures and `ocr-real` on the English and Portuguese chat prints
-# not-scenario: GNR-08 (no room) — the half "while no assignment is held nothing is posted" is proved by a Rust unit test of the core's chat step with a fake gateway; the scenarios below hold a room
-# not-scenario: GNR-09— proved by `ocr-real` on the `n` and `m` prints, unit tests per code, `@LBR-01` naming scenarios, and the maintainer's live rooms
+# not-scenario: GNR-08 — moved to server-name-match (posting chat events with a player name); this feature posts none
+# not-scenario: GNR-09 — proved by `ocr-real` on the `n` and `m` prints, unit tests per code, `@LBR-01` naming scenarios, and the maintainer's live rooms
 # not-scenario: GNR-10 — proved by a source-rule test (no name in a span, log or label) and unit tests with the in-memory exporter
 # not-scenario: GNR-11 — proved by `ocr-real` (every print of the zip) and the `ocr-variations` counts in the pull request (CI, Windows)
 
@@ -46,18 +46,3 @@ Feature: The agent reads the room's game name and the chat messages of its game
     When the game shows the Party panel with the room's game name revealed
     And the game shows the automap with the room's game name
     Then the agent has reported the room's game name once
-
-  @GNR-08 @FR-27 @agent
-  Scenario: A player who joins the game is reported
-    When the game's chat shows that "Bob" joined the game
-    Then the agent reports that "Bob" joined
-
-  @GNR-08 @FR-27 @agent
-  Scenario: A player who leaves the game is reported
-    When the game's chat shows that "Bob" left the game
-    Then the agent reports that "Bob" left
-
-  @GNR-08 @FR-27 @agent
-  Scenario: A message that stays in the chat for many frames is reported once
-    When the game's chat shows that "Bob" joined the game for 5 frames
-    Then the agent reports that "Bob" joined once

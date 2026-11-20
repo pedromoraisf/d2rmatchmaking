@@ -1,7 +1,7 @@
 # Game name reading — Specification
 
 **Phase**: F2 (covered by the brief's approval, ADR 029) · **Size**: Large (design in `design.md`) · **Security review**:
-yes (the agent starts sending two more observation types, with a character name read from the chat)
+yes (the agent reads a character name from the chat; none of it leaves the process)
 
 ## Problem
 
@@ -21,8 +21,8 @@ the name itself open (F1 post-close items d, e, i and k, and the chat half of FR
 - **Normal and nightmare rooms never tested live (item i).** The test match always created hell until #77. The codes
   `n` and `m` are proven on two prints at most (`mmpvpn-10`, `mmbaalm-99`).
 - **The chat "joined" and "left" messages (rest of FR-27) are not read at all.** The glossary and the contract carry
-  `PLAYER_JOINED_SEEN` and `PLAYER_LEFT_SEEN`; no agent code produces them. The brief's exit criterion "Chat" needs
-  them, proved on drawn fixtures, the real prints (English and Portuguese) and the field log.
+  `PLAYER_JOINED_SEEN` and `PLAYER_LEFT_SEEN`; no agent code produces them. The brief's exit criterion "Chat" needs the
+  reading proved on drawn fixtures and the real prints (English and Portuguese); posting is `server-name-match`'s.
 
 The lesson of F1 applies to every requirement below: prove the reading on the real font with every glyph the server can
 generate, never on one fixed name (lessons, "Agent reading"). Reading accuracy is proved by `ocr-real`, `ocr-variations`
@@ -38,16 +38,16 @@ reason goes to `screen-recognition` and not into this feature.
 
 ## Out of scope
 
-| Item                                                                   | Why                                                                                       |
-| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Finding the Party panel at 1033, 1045, 1056 and 1080 (panel detection) | `screen-recognition` (SCR-04)                                                             |
-| The `agent.vision.read-game-name` span fields `panel_open` and `field` | `agent-trust` (AGT-07); this feature adds no attribute to that span                       |
-| Matching a chat name against the account's characters                  | `server-name-match` (item g); this feature reads and posts what it read                   |
-| What the API does with `PLAYER_JOINED_SEEN` and `PLAYER_LEFT_SEEN`     | `lobby-rooms` and `server-name-match`; the types exist in the contract and need no change |
-| Remote configuration of the chat words and regions                     | `remote-config`; the words stay in the language packs, regions in `layout.rs`             |
-| The capture cascade, exclusive full screen, window-mode field matrix   | `capture-cascade`                                                                         |
-| `PLAYER_SLAIN_SEEN` (PvP death message) and round scoring              | F3                                                                                        |
-| A new Portuguese pack for panels, popups and cards                     | later; only the chat words of Portuguese enter here, as data, from the prints (GNR-07)    |
+| Item                                                                   | Why                                                                                    |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Finding the Party panel at 1033, 1045, 1056 and 1080 (panel detection) | `screen-recognition` (SCR-04)                                                          |
+| The `agent.vision.read-game-name` span fields `panel_open` and `field` | `agent-trust` (AGT-07); this feature adds no attribute to that span                    |
+| Matching a chat name against the account's characters                  | `server-name-match` (item g)                                                           |
+| Posting `PLAYER_JOINED_SEEN` and `PLAYER_LEFT_SEEN` with a player name | `server-name-match` (GNR-08 moved there); what the API does with them: `lobby-rooms`   |
+| Remote configuration of the chat words and regions                     | `remote-config`; the words stay in the language packs, regions in `layout.rs`          |
+| The capture cascade, exclusive full screen, window-mode field matrix   | `capture-cascade`                                                                      |
+| `PLAYER_SLAIN_SEEN` (PvP death message) and round scoring              | F3                                                                                     |
+| A new Portuguese pack for panels, popups and cards                     | later; only the chat words of Portuguese enter here, as data, from the prints (GNR-07) |
 
 ## Requirements
 
@@ -75,18 +75,17 @@ reason goes to `screen-recognition` and not into this feature.
   with the rule of GNR-03 and GNR-04. A match SHALL post the same `GAME_NAME_SEEN` observation as the Party panel, once
   per run whichever source read it first; any other name SHALL post nothing.
 - **GNR-07** — WHEN a chat line in the chat area says that a player joined or left the game THEN the agent SHALL
-  classify it by the words of the active language pack (English, and Portuguese added as data) and take the player's
-  name from the line. A line with no such words, or a name it cannot read, SHALL be ignored; the agent SHALL never post a
-  player's name it did not read.
-- **GNR-08** — WHILE the agent holds a room assignment, WHEN GNR-07 reads a new joined or left line, THEN the agent SHALL
-  post one `PLAYER_JOINED_SEEN` or `PLAYER_LEFT_SEEN` observation for the run, with the name as read, the F0
-  idempotency key and the retry rules of `post_observation`. A line that stays on screen across frames SHALL post once;
-  a name that joins, leaves and joins again posts three times. WHILE no assignment is held, nothing SHALL be posted.
+  classify it locally by the words of the active language pack (English, and Portuguese added as data) and take the
+  player's name from the line, and SHALL track which lines are new (a line that stays on screen across frames is one
+  event). A line with no such words, or a name it cannot read, SHALL be ignored. The classified event SHALL stay in the
+  process: it is counted with a fixed word (`joined` or `left`) and never sent, logged or put in a span.
+- **GNR-08** — _Moved to `server-name-match`_ (posting `PLAYER_JOINED_SEEN` and `PLAYER_LEFT_SEEN` with a player name).
+  This feature puts no chat player name on the wire; the ID is kept so the numbering stays stable (see Decisions).
 - **GNR-09** — The reading of GNR-01 to GNR-06 SHALL hold for the normal (`n`), nightmare (`m`) and hell (`h`) codes: the
   real prints with `n` and `m`, drawn fixtures for every code, and the maintainer's live normal and nightmare rooms
   (brief input 8e) SHALL show the room reaching "Confirmed by the agent".
-- **GNR-10** — The agent SHALL send no frame, crop or text other than the matching game name and, for GNR-08, the player
-  name read from a joined or left line. No log line, span attribute, metric label or error text SHALL hold a game name
+- **GNR-10** — The agent SHALL send no frame, crop or text other than the matching game name; no chat player name leaves
+  the process. No log line, span attribute, metric label or error text SHALL hold a game name
   or a player name. The reading steps SHALL be spans or counters with a fixed vocabulary (the source `party` or `automap`
   or `chat`, the outcome `matched`, `masked`, `other`, `joined`, `left`, `none`), added without changing an assertion of
   the existing span tests. The released agent SHALL stay on the F0 fixture-read exclusion (AGN-06).
@@ -98,19 +97,19 @@ reason goes to `screen-recognition` and not into this feature.
 
 ## Sources
 
-| ID     | Source                                                                                                                |
-| ------ | --------------------------------------------------------------------------------------------------------------------- |
-| GNR-01 | FR-27; brief exit criterion 3 (read rate of 95%, 7 prints); F1 post-close item k; `apps/agent/ocr-lab/README.md`      |
-| GNR-02 | FR-16, INV-06, INV-09; brief input 2 (zero wrong confirmations); AGN-03; `game_name_match.rs` collision test          |
-| GNR-03 | FR-27; lessons ("Agent reading": prove on every glyph the server generates); #76 (`B` read as `8`); AGN-03 decisions  |
-| GNR-04 | ADR 017; brief input 7 (the `n`/`m`/`h` codes); #77; `scripts/test/agent-game-name-drift.test.mjs`                    |
-| GNR-05 | FR-27; F1 post-close item e (398 of 500 refused); brief exit criterion 3; AGENTS.md rule 14 (ocr-protection)          |
-| GNR-06 | FR-27 (reading the name); F1 post-close item d (the automap as a second source); brief input 8b (automap prints)      |
-| GNR-07 | FR-27 (the chat's joined and left messages); brief exit criterion "Chat"; brief input 8c; PRD § Sinais limitados      |
-| GNR-08 | FR-27; FR-16 (observations); Design Doc § Contratos (`PLAYER_JOINED_SEEN`, `PLAYER_LEFT_SEEN`); `post_observation.rs` |
-| GNR-09 | ADR 017; FR-14; F1 post-close item i; brief input 8e (live normal and nightmare rooms)                                |
-| GNR-10 | NFR-04; ADR 010; AGENTS.md rules 5 and 10; `docs/engineering/telemetry.md`; AGN-06, AGN-07                            |
-| GNR-11 | AGENTS.md rule 14 (ocr-protection); `.quality-baseline.json` `ocr.*`; ADR 026; `apps/agent/ocr-lab/README.md`         |
+| ID     | Source                                                                                                               |
+| ------ | -------------------------------------------------------------------------------------------------------------------- |
+| GNR-01 | FR-27; brief exit criterion 3 (read rate of 95%, 7 prints); F1 post-close item k; `apps/agent/ocr-lab/README.md`     |
+| GNR-02 | FR-16, INV-06, INV-09; brief input 2 (zero wrong confirmations); AGN-03; `game_name_match.rs` collision test         |
+| GNR-03 | FR-27; lessons ("Agent reading": prove on every glyph the server generates); #76 (`B` read as `8`); AGN-03 decisions |
+| GNR-04 | ADR 017; brief input 7 (the `n`/`m`/`h` codes); #77; `scripts/test/agent-game-name-drift.test.mjs`                   |
+| GNR-05 | FR-27; F1 post-close item e (398 of 500 refused); brief exit criterion 3; AGENTS.md rule 14 (ocr-protection)         |
+| GNR-06 | FR-27 (reading the name); F1 post-close item d (the automap as a second source); brief input 8b (automap prints)     |
+| GNR-07 | FR-27 (the chat's joined and left messages); brief exit criterion "Chat"; brief input 8c; PRD § Sinais limitados     |
+| GNR-08 | Moved to `server-name-match` (FR-27; AGENTS.md rule 2, contracts first); orchestrator, 2026-11-20                    |
+| GNR-09 | ADR 017; FR-14; F1 post-close item i; brief input 8e (live normal and nightmare rooms)                               |
+| GNR-10 | NFR-04; ADR 010; AGENTS.md rules 5 and 10; `docs/engineering/telemetry.md`; AGN-06, AGN-07                           |
+| GNR-11 | AGENTS.md rule 14 (ocr-protection); `.quality-baseline.json` `ocr.*`; ADR 026; `apps/agent/ocr-lab/README.md`        |
 
 ## Requirement Traceability
 
@@ -123,7 +122,7 @@ reason goes to `screen-recognition` and not into this feature.
 | GNR-05         | Refusals sorted    | `ocr-variations` summary before and after in the PR; Rust unit tests for each class changed                 |
 | GNR-06         | Automap source     | Rust unit tests (domain, core) + drawn fixtures + `ocr-real` on the automap prints + acceptance `@GNR-06`   |
 | GNR-07         | Chat lines         | Rust unit tests on drawn fixtures + `ocr-real` on the chat prints (English, Portuguese)                     |
-| GNR-08         | Chat observations  | Rust unit tests (core, fake gateway) + acceptance `@GNR-08` with the headless agent                         |
+| GNR-08         | Moved              | none here; `server-name-match` owns the contract change, the matching and the post                          |
 | GNR-09         | Every difficulty   | Rust unit tests + `ocr-real` (`n`, `m` prints) + drawn fixtures + the maintainer's live rooms (field log)   |
 | GNR-10         | Privacy, telemetry | source-rule test (no name in a span, log or label) + unit tests with the in-memory exporter + `@NFR-04` run |
 | GNR-11         | Real-print proof   | `ocr-real` and `ocr-variations` counts in the pull request (CI, Windows); unit tests of `ocr_check.rs`      |
@@ -135,8 +134,8 @@ reason goes to `screen-recognition` and not into this feature.
 - As a player, I want the agent never to confirm a room by reading another room's name (GNR-02, GNR-03).
 - As a host who left the Party panel closed, I want the agent to read the name from the automap at the top of the
   screen too, so that presence still confirms (GNR-06).
-- As a member of a room, I want the agent to tell the room that I joined or left the game, read from the chat, so that
-  the room learns who is in (GNR-07, GNR-08).
+- As a member of a room, I want the agent to read the joined and left messages of the chat, so that the later posting
+  of who is in (`server-name-match`) stands on a proven reading (GNR-07).
 - As the maintainer, I want every change to the reading proved on the real prints before it merges, and no name or
   character in any log (GNR-05, GNR-10, GNR-11, rule 14).
 
@@ -154,11 +153,11 @@ reason goes to `screen-recognition` and not into this feature.
   and written into the drawn fixtures, never into a committed capture.
 - **Both sources post the same observation.** The Party panel stays the first source; the automap is read only while the
   Party step has not matched the current run, so a run posts once (AGN-05 holds).
-- **Chat names are posted as read.** The assignment carries character ids, not names, so the agent cannot filter to
-  members, and matching names to members is `server-name-match`. This is the one gray area that adds data to the wire;
-  the player name is a character name the player sees in the public game's chat, it is read only while the agent holds
-  an assignment, it is never logged, and the API already accepts the two types. To confirm in the phase review; the
-  reversal is one line in the core (hold the post until `server-name-match` lands).
+- **GNR-08, posting the chat events, is deferred to `server-name-match`**, which owns the contract change and the
+  matching of names to members (contracts first, AGENTS.md rule 2). The assignment carries character ids, not names, so
+  the agent cannot filter to members today. This feature reads and classifies the chat locally (GNR-07) and puts no
+  player name on the wire (orchestrator, 2026-11-20). The brief's "Chat" exit criterion is met jointly: reading here,
+  posting there.
 - **No new user-facing string in the agent window.** If one is needed, it comes from the translation files (rule 9).
 - **Telemetry carries counts and fixed words only** (GNR-10); the existing Party span is left to `agent-trust`.
 - **The English chat words are measured on the English prints; the Portuguese words on the Portuguese prints.** A word

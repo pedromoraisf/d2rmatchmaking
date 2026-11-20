@@ -1,8 +1,8 @@
 # Game name reading — Design
 
 Short. The agent keeps its hexagonal shape (ADR 027): `adapters → core → domain`. Nothing here adds a crate or a route.
-No contract change: `PLAYER_JOINED_SEEN` and `PLAYER_LEFT_SEEN` are in `OBSERVATION_TYPES` (`packages/contracts`) and the
-API accepts them. Relies on ADR 010 (read-only agent), 017 (game names), 026 (mutation scope), 027, and on AGENTS.md rule
+No contract change, and no chat observation: posting `PLAYER_JOINED_SEEN` and `PLAYER_LEFT_SEEN` (GNR-08) moved to
+`server-name-match`. Relies on ADR 010 (read-only agent), 017 (game names), 026 (mutation scope), 027, and on AGENTS.md rule
 14 (the reading modules).
 
 ## Principle
@@ -11,7 +11,7 @@ The agent never reads a name blind. It holds the room's expected name and decide
 name: the read is accepted only when it equals the expected name after a glyph table (`game_name_match.rs`), per part of
 `mm{activity}{difficulty}-{n}`. Everything in this feature either helps the engine see the name (where to look, which
 variant) or makes the table honest about what the engine returns. It never loosens the accept rule (no edit distance).
-The chat is the other direction: the agent has no expected line, so it classifies by words and posts what it read.
+The chat is the other direction: the agent has no expected line, so it classifies by words, locally, and posts nothing.
 
 ## Modules and layers
 
@@ -22,10 +22,9 @@ The chat is the other direction: the agent has no expected line, so it classifie
 | domain | `domain/src/anchors.rs` (reading module)                 | `find_name_line` (a line shaped like a generated name, in a wide area) and `chat_lines` (lines of the chat area)           |
 | domain | `domain/src/chat.rs` (new)                               | `ChatEvent { Joined, Left }`, `classify(pack, line)`, `ChatTracker` (a line present in the last frame is not new). Pure    |
 | domain | `domain/src/language.rs` (reading module), `lang/*.json` | chat words as data: `joinedGame`, `leftGame`; English first, Portuguese from its prints                                    |
-| domain | `domain/src/fusion.rs`                                   | builds the chat observation beside the game-name one (value = the name read, never logged)                                 |
 | core   | `core/src/party.rs` (reading module)                     | the Party step stays; it exposes that it matched, so the automap step skips a run already confirmed                        |
 | core   | `core/src/automap_name.rs` (new)                         | reads the automap's name line while the Party step has not matched the run; matches and posts through `post_observation`   |
-| core   | `core/src/chat_step.rs` (new)                            | reads the chat area while an assignment is held, tracks new lines, posts one observation per new line                      |
+| core   | `core/src/chat_step.rs` (new)                            | reads the chat area, tracks new lines, counts them (`joined`, `left`); posts nothing                                       |
 | core   | `core/src/watch_screen.rs`                               | calls the Party step, then the automap step, then the chat step on each captured frame (at most one per second, as AGN-01) |
 | tests  | `src/ocr_check.rs` (app crate)                           | reads the automap and chat prints with their expected readings (GNR-11); the verdicts print no name without `--show-reads` |
 | xtask  | `xtask/src/*_fixture.rs`                                 | draws `automap-name` and `chat` fixtures (English and Portuguese lines) with sidecars of lines that have boxes             |
@@ -51,14 +50,14 @@ place), its geometry measured on the maintainer's automap prints by an `xtask` g
 pixel boxes, never a pixel written to the repository). The automap step runs only when the Party step has not matched
 the current run, so one run posts once whichever source reads it first.
 
-## The chat (GNR-07, GNR-08)
+## The chat (GNR-07)
 
 The chat area is a wide area at the left bottom of the client (position measured on the chat prints, as above). Its
 lines are classified by the pack's words (`joinedGame`, `leftGame`), with the name taken as the text before them. A line
-the classifier cannot parse is ignored; nothing is posted for a name that is blank. D2R fades chat lines after a few
+the classifier cannot parse is ignored; a blank name is ignored. D2R fades chat lines after a few
 seconds, so the tracker treats a line as new when it was not among the previous frame's lines; a name that joins, leaves
-and joins again posts three times. Posting uses the existing `post_observation` path (idempotency key and retry rules of
-F0); only while the room assignment is held.
+and joins again is three events. The events stay in the process: they are counted with a fixed word and posted by nobody;
+`server-name-match` will consume them when it owns the contract and the matching.
 
 ## Data
 
@@ -66,7 +65,7 @@ F0); only while the room assignment is held.
   harness drift test `scripts/test/agent-game-name-drift.test.mjs` keeps it equal to the API's.
 - Chat words per language are data in the packs (`resources/lang/*.json`), as every other word of the reading.
 - No persistence. Nothing about a frame or a line of text is stored or sent; the observation carries the matching game
-  name, or for the chat the name read from the line.
+  name.
 
 ## Fixtures
 
@@ -100,10 +99,9 @@ source-rule test refuses a read text or a name in a span attribute or a metric l
 
 ## Security
 
-The agent still reads only the game window's pixels (ADR 010). The new data on the wire is a character name read from a
-chat line (GNR-08), posted only while an assignment is held, through the existing authenticated `observations` route and
-the existing contract type. The security reviewer reads: that no frame or crop leaves, that the name is never logged or
-put in a span, and that a line the classifier cannot parse posts nothing.
+The agent still reads only the game window's pixels (ADR 010). No new data goes on the wire: a character name read from a
+chat line stays in the process. The security reviewer reads: that no frame or crop leaves, that no chat name is sent,
+logged or put in a span or label.
 
 ## ADRs
 
