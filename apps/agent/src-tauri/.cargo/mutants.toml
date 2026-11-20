@@ -11,6 +11,8 @@ examine_globs = [
   "core/src/beat.rs",
   "core/src/party.rs",
   "core/src/screen_reader.rs",
+  "core/src/automap_name.rs",
+  "core/src/chat_step.rs",
   "adapters/src/http/translate.rs",
   "adapters/src/http/sse.rs",
   "adapters/src/telemetry/queue.rs",
