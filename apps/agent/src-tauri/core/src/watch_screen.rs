@@ -64,8 +64,9 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
         device.hub.set_capture(unseen_capture(status, window));
         return;
     };
-    let content = summarize(&frame.pixels);
     let status = ports.frames.status();
+    // A source that already measured the frame (the `Capturer` does, to accept it) hands the measure over: it is taken once.
+    let content = status.content.unwrap_or_else(|| summarize(&frame.pixels));
     device.set_capture_report(report_of(status));
     if content.blank {
         // A blank frame is never read: no OCR call is made for it, and the Party step does not see it (CAP-02, NFR-02).
@@ -999,6 +1000,7 @@ mod tests {
                 method: Some(CaptureMethod::GraphicsCapture),
                 read_rate_percent: 97,
                 unusable: false,
+                content: None,
             },
         );
 
@@ -1032,6 +1034,7 @@ mod tests {
             method: None,
             read_rate_percent: 0,
             unusable: true,
+            content: None,
         };
         let view = unseen_capture(status, Some((1936, 1063)));
         assert_eq!(

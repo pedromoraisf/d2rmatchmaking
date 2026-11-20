@@ -9,6 +9,7 @@ use std::time::Duration;
 use chrono::{DateTime, TimeDelta, Utc};
 use d2rmm_agent_domain::capture_cascade::CaptureMethod;
 use d2rmm_agent_domain::characters::Card;
+use d2rmm_agent_domain::frame_content::FrameContent;
 use d2rmm_agent_domain::room_assignment::{Assignment, RoomId};
 use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 use uuid::Uuid;
@@ -159,6 +160,8 @@ pub struct CaptureStatus {
     pub read_rate_percent: u8,
     /// The last look was asked for and no method gave a usable frame (CAP-02).
     pub unusable: bool,
+    /// What the usable frame of the last look holds, when the source already measured it: the loop does not measure it again.
+    pub content: Option<FrameContent>,
 }
 
 /// Why a method gave no frame. A game window that is not there (closed, minimized) is not a failure of the method, and does

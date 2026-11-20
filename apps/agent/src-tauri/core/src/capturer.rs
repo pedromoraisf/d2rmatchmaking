@@ -7,7 +7,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use d2rmm_agent_domain::capture_cascade::{CaptureMethod, Cascade, Outcome, Step};
-use d2rmm_agent_domain::frame_content::summarize;
+use d2rmm_agent_domain::frame_content::{FrameContent, summarize};
 
 use crate::ports::{CaptureStatus, FrameSource, MethodSource, Miss, Rgba};
 
@@ -35,6 +35,8 @@ enum Last {
 struct State {
     cascade: Cascade,
     last: Last,
+    /// What the last usable frame holds, measured once when it was accepted.
+    content: Option<FrameContent>,
 }
 
 /// A frame source that runs the cascade over `methods`.
@@ -51,6 +53,7 @@ impl<M: MethodSource> Capturer<M> {
             state: Mutex::new(State {
                 cascade,
                 last: Last::Idle,
+                content: None,
             }),
         }
     }
@@ -62,7 +65,7 @@ impl<M: MethodSource> Capturer<M> {
     /// One capture with `method`, as an outcome and its usable frame, or `None` when there is no game window to capture. A
     /// method that panics, a frame of the wrong size and a blank frame are all unusable; the frame is dropped here, never
     /// passed on (CAP-02, CAP-04, CAP-09).
-    fn attempt(&self, method: CaptureMethod) -> Option<(Outcome, Option<Rgba>)> {
+    fn attempt(&self, method: CaptureMethod) -> Option<(Outcome, Option<(Rgba, FrameContent)>)> {
         let span = tracing::info_span!(
             "agent.vision.capture",
             "capture.method" = method.word(),
@@ -80,8 +83,14 @@ impl<M: MethodSource> Capturer<M> {
             }
             Err(Miss::Failed) => (Outcome::Failed, None),
             Ok(frame) if !self.holds_the_client(&frame) => (Outcome::Failed, None),
-            Ok(frame) if summarize(&frame.pixels).blank => (Outcome::Blank, None),
-            Ok(frame) => (Outcome::Frame, Some(frame)),
+            Ok(frame) => {
+                let content = summarize(&frame.pixels);
+                if content.blank {
+                    (Outcome::Blank, None)
+                } else {
+                    (Outcome::Frame, Some((frame, content)))
+                }
+            }
         };
         let outcome_text = outcome_word(outcome);
         span.record("capture.outcome", outcome_text);
@@ -109,7 +118,10 @@ impl<M: MethodSource + Send + Sync> FrameSource for Capturer<M> {
                 state.last = Last::Frame(method);
                 // The earlier method works again: close the sessions of the later one.
                 self.methods.release();
-                return frame;
+                return frame.map(|(frame, content)| {
+                    state.content = Some(content);
+                    frame
+                });
             }
         }
         // One capture with the current method; a demotion tries the next method in the same look (CAP-02).
@@ -122,9 +134,10 @@ impl<M: MethodSource + Send + Sync> FrameSource for Capturer<M> {
                 return self.no_window(&mut state);
             };
             let step = state.cascade.record(outcome);
-            if frame.is_some() {
+            if let Some((frame, content)) = frame {
                 state.last = Last::Frame(method);
-                result = frame;
+                state.content = Some(content);
+                result = Some(frame);
                 break;
             }
             match step {
@@ -134,6 +147,7 @@ impl<M: MethodSource + Send + Sync> FrameSource for Capturer<M> {
         }
         if result.is_none() {
             state.last = Last::Unusable;
+            state.content = None;
         }
         result
     }
@@ -151,6 +165,10 @@ impl<M: MethodSource + Send + Sync> FrameSource for Capturer<M> {
             },
             read_rate_percent: state.cascade.read_rate_percent(),
             unusable: state.last == Last::Unusable,
+            content: match state.last {
+                Last::Frame(_) => state.content,
+                _ => None,
+            },
         }
     }
 
@@ -203,6 +221,7 @@ mod tests {
     use super::Capturer;
     use crate::ports::{CaptureStatus, FrameSource, MethodSource, Miss, Rgba};
     use CaptureMethod::{GraphicsCapture, PrintWindow, ScreenCrop};
+    use d2rmm_agent_domain::frame_content::summarize;
 
     /// What a scripted method returns.
     #[derive(Clone, Copy)]
@@ -425,14 +444,29 @@ mod tests {
 
         assert_eq!(script.total_calls(), 1);
         assert_eq!(script.calls_of(PrintWindow), 1);
+        let status = capturer.status();
         assert_eq!(
-            capturer.status(),
+            CaptureStatus {
+                content: None,
+                ..status
+            },
             CaptureStatus {
                 method: Some(PrintWindow),
                 read_rate_percent: 100,
-                unusable: false
+                unusable: false,
+                content: None,
             }
         );
+        // The measure of the accepted frame comes with the status, so the loop does not take it again.
+        let content = status.content.expect("a usable frame is measured");
+        assert!(!content.blank);
+        assert_eq!(content, summarize(&drawn(8, 8).pixels));
+        // No frame, no measure.
+        script.say(PrintWindow, Say::Black);
+        for _ in 0..3 {
+            capturer.capture();
+        }
+        assert_eq!(capturer.status().content, None);
     }
 
     #[test]
