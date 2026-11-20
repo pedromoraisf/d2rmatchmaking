@@ -1,7 +1,7 @@
 # ADR 033 — Delivery platform: uniform environments and stages for the site, the API and the agent
 
-**Status**: Proposed
-**Date**: 2026-11-20
+**Status**: Accepted
+**Date**: 2026-11-20 (accepted 2026-11-20 by the maintainer, with the Batch 3 amendment in force: "aceito")
 **Deciders**: maintainer
 **Supersedes**: none (extends 030 and 032; changes the deploy shape of 028 § 1 only in where its steps live)
 
@@ -62,7 +62,7 @@ Render build that exact commit (deviation from "build once", recorded here at th
 
 #### Amendment 2026-11-20 (Batch 3): the API deviates from build once
 
-The fallback is in force. The status of this ADR does not change (still Proposed).
+The fallback is in force. The ADR was accepted with this amendment (see the date line).
 
 - **Factor V is broken for the API** (ADR 032 V, one build per release). Render builds the pinned commit from source,
   twice: once for `d2rmm-api` (staging) and once for `d2rmm-api-production`. The two builds are not byte-identical
