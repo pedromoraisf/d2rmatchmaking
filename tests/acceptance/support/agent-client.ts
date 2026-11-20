@@ -34,7 +34,7 @@ export interface HttpAnswer {
 }
 
 export interface SendOptions {
-  readonly method: 'GET' | 'POST';
+  readonly method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   /** The JSON body, when there is one. */
   readonly body?: unknown;
   /** The `X-Agent-Version` value; `null` omits the header. Defaults to the agent's version. */
