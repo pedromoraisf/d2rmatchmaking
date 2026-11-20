@@ -88,7 +88,7 @@ describe('ReadyCheckOverlay (RDY-08)', () => {
     const key = screen.getByText('Ctrl+Shift+A');
     expect(key.tagName).toBe('KBD');
     expect(key.parentElement?.textContent).toBe(
-      'You can also accept with Ctrl+Shift+A without leaving the game.',
+      'You can also accept with Ctrl+Shift+A (the default; you can change it in the agent) without leaving the game.',
     );
   });
 
