@@ -10,6 +10,7 @@ use d2rmm_agent_domain::presence::Screen;
 use d2rmm_agent_domain::typing::{Modifiers, TypableName};
 use serde::Serialize;
 use tokio::time::Instant;
+use tracing::Instrument;
 
 use crate::device_state::DeviceState;
 use crate::ports::{ForegroundWindow, KeyTyper, ModifierState};
@@ -109,6 +110,16 @@ impl FillControl {
     }
 }
 
+/// Ends the fill when it goes out of scope, however it goes: a finished fill, a task that is aborted, or a panic. Without it
+/// a fill that never returns would leave the state at "running" and every later press would only ask it to stop.
+struct EndOnDrop<'a>(&'a FillControl);
+
+impl Drop for EndOnDrop<'_> {
+    fn drop(&mut self) {
+        self.0.end();
+    }
+}
+
 impl Default for FillControl {
     fn default() -> Self {
         Self::new()
@@ -128,10 +139,15 @@ pub async fn press(
         Begin::Stopped | Begin::Ignored => return None,
         Begin::Run(stop) => stop,
     };
-    let outcome = fill(device, ports, &stop, modifiers).await;
-    control.end();
-    device.record_fill(outcome);
-    Some(outcome)
+    let _ends = EndOnDrop(control);
+    // One span for the fill, with the outcome as its event (AST-10).
+    async {
+        let outcome = fill(device, ports, &stop, modifiers).await;
+        device.record_fill(outcome);
+        Some(outcome)
+    }
+    .instrument(tracing::info_span!("agent.fill"))
+    .await
 }
 
 async fn fill(
@@ -496,6 +512,33 @@ mod tests {
             let shown = format!("{event:?}");
             assert!(!shown.contains("mmbaalh"), "no game name in {shown}");
         }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_fill_that_is_dropped_mid_way_ends_and_the_next_press_after_the_pause_types() {
+        let rig = holding(Some("mmbaalh-12"));
+        let first = {
+            let (device, ports, control) = (
+                Arc::clone(&rig.device),
+                Arc::clone(&rig.ports),
+                Arc::clone(&rig.control),
+            );
+            tokio::spawn(async move { press(&device, &ports, &control, KEYS).await })
+        };
+        tokio::time::sleep(Duration::from_millis(40)).await;
+        first.abort();
+        let _ = first.await;
+        assert_eq!(
+            rig.keyboard.typed(),
+            "mmb",
+            "the aborted fill had typed three"
+        );
+
+        // Still in the pause after a fill ended: ignored, not "running" (which would stop a fill that is not there).
+        assert_eq!(one_press(&rig).await, None);
+        tokio::time::advance(Duration::from_millis(2_100)).await;
+        assert_eq!(one_press(&rig).await, Some(FillOutcome::Typed));
+        assert_eq!(rig.keyboard.typed(), "mmbmmbaalh-12");
     }
 
     #[test]
