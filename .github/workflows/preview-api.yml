@@ -244,7 +244,8 @@ jobs:
           path: apps/web/dist
 
       - name: Bake the preview API into the proxy Function
-        # The same script deploy-web runs, so whichever workflow finishes last publishes the same upstream.
+        # The site's deploy stage writes the same upstream as deploy configuration (stage-deploy.yml), so whichever
+        # workflow finishes last publishes the same upstream.
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}

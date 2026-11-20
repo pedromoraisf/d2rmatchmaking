@@ -1,13 +1,12 @@
 # The site through the delivery stages (ADR 033, DLP-02, DLP-03): build → verify → deploy → smoke on every push to main
 # (staging), on every same-repo pull request (preview) and on pushes of the delivery branch while it is built; promote on
 # a manual dispatch of a commit that passed staging smoke (the runner, ADR 028). This file holds triggers and inputs
-# only. It runs beside deploy-web.yml until that is removed (DLP-09).
+# only. It replaced deploy-web.yml, removed after three real runs (DLP-09, T11a).
 name: site
 
 on:
   push:
-    # The delivery branch is listed only while the stages are proven by real runs (T5); it goes with deploy-web.yml (T11).
-    branches: [main, feat/F2-delivery-platform]
+    branches: [main]
     paths:
       - 'apps/web/**'
       - 'packages/**'

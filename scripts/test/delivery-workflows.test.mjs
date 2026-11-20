@@ -57,7 +57,11 @@ test('site.yml is a thin caller: its jobs only call the stages, named after them
 
 test('site.yml triggers: main and same-repo pull requests deploy, a dispatch promotes a SHA', () => {
   const wf = workflow('site.yml');
-  assert.deepEqual(wf.on.push.branches.slice(0, 1), ['main']);
+  assert.deepEqual(
+    wf.on.push.branches,
+    ['main'],
+    'only main deploys on a push: the delivery branch is gone (T11a)',
+  );
   assert.ok(wf.on.pull_request, 'pull requests get a preview');
   assert.equal(wf.on.workflow_dispatch.inputs.sha.required, true);
   assert.deepEqual(wf.permissions, { contents: 'read', actions: 'read', 'pull-requests': 'read' });
@@ -431,4 +435,45 @@ test('the frozen workflows are not mentioned as edited: callers never reference 
   for (const name of ALL) {
     assert.doesNotMatch(text(name), /uses: \.\/\.github\/workflows\/(ci|nightly|ocr-real)\.yml/);
   }
+});
+
+// What deploy-web.yml guarded (AWS-34), now asserted on its replacement (DLP-09, T11a).
+test('the site publishes previews only for same-repo pull requests, and a bare pull request path never deploys', () => {
+  const wf = workflow('site.yml');
+  assert.ok(wf.on.pull_request, 'pull requests get a preview');
+  const sameRepo = 'github.event.pull_request.head.repo.full_name == github.repository';
+  assert.ok(wf.jobs.deploy.if.includes(sameRepo), 'the deploy job must refuse pull requests from forks');
+  assert.ok(
+    !wf.jobs.deploy.if.includes("github.event_name == 'pull_request' ||"),
+    'a bare pull request path must not deploy',
+  );
+});
+
+test('the site build holds no secrets, and nothing in the stages or callers writes pull requests', () => {
+  assert.ok(!jobText('site.yml', 'build').includes('secrets.'));
+  assert.doesNotMatch(text('stage-build.yml'), /secrets\./);
+  for (const name of ALL) {
+    const wf = workflow(name);
+    assert.notEqual(wf.permissions?.['pull-requests'], 'write', `${name} must not write pull requests`);
+    for (const [id, job] of Object.entries(wf.jobs)) {
+      assert.notEqual(
+        job.permissions?.['pull-requests'],
+        'write',
+        `${name} ${id} must not write pull requests`,
+      );
+    }
+  }
+});
+
+test('the Pages branch passes through env and is quoted, and a failed wrangler fails the publish step', () => {
+  const deploy = workflow('stage-deploy.yml').jobs.deploy;
+  const pages = stepsOf(deploy).find((step) => step.id === 'pages');
+  assert.ok(pages.env.DEPLOY_BRANCH.includes('inputs.branch'), 'the branch reaches the step through env');
+  assert.ok(pages.run.includes('"$DEPLOY_BRANCH"'), 'and is quoted in run');
+  assert.doesNotMatch(pages.run, /github\.head_ref|inputs\.branch/);
+  const publish = stepsOf(deploy).find((step) => step.id === 'publish');
+  assert.ok(publish.run.includes('--branch "$PAGES_BRANCH"'), 'the alias is passed quoted');
+  assert.match(publish.run, /wrangler pages deploy .*\| tee /);
+  // Only an explicit `shell: bash` runs with pipefail; the default `bash -e` reports the exit code of tee.
+  assert.equal(publish.shell, 'bash');
 });

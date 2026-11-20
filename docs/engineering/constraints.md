@@ -48,4 +48,5 @@ ADR 030. To try a pull request into `main` (a phase PR) on its own API and data,
   `main`, enable previews (manual) on `d2rmm-api` in the Render dashboard.
 - The preview API gets the preview site's own `SITE_ORIGIN` (the Pages alias of the head branch: `phase/F1` becomes
   `https://phase-f1.<project>.pages.dev`), so its same-origin check and sign-in redirects stay on the preview.
-  `deploy-web.yml` and `preview-api.yml` bake the same upstream, so the last one to publish changes nothing.
+  `preview-api.yml` and the site's deploy stage (`stage-deploy.yml`) choose the same upstream, so the last one to publish
+  changes nothing.
