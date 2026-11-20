@@ -14,7 +14,11 @@ Rules:
   `node --test scripts/load/check/full-summary.check.mjs` (lessons, 2026-11-12). Docker Hub may answer 429 in the
   cloud: pull the images with backoff first (`DOCKER_CONFIG=<dir holding {}> docker pull node:26-alpine`, then
   `postgres:17-alpine`); if a load gate still cannot run, say "not run here" in the task's commit message and run it
-  in the nightly (ADR 035).
+  in the nightly (ADR 035). **Checked on 2026-11-20 in a cloud session:** the pulls succeed after two 429s, but
+  `pnpm test:load:smoke` stops at "the image d2rmm-load-api:f0 could not be built": `npm install -g corepack` inside
+  `docker build` has no route through the session's egress proxy. So `pnpm test:load`, `test:load:smoke` and the two
+  `check` files in T2 and T9 are **not run here**; run them on the maintainer's machine or by dispatching the nightly
+  with `-f suites=load` on the branch. Every other gate below was run once and passes.
 - A task that changes a stream event regenerates `asyncapi.json` and stages it before the gate's `git diff --exit-code`.
 - Before pushing in a fresh worktree, build the agent window once (`pnpm --filter @d2rmm/agent build`).
 
