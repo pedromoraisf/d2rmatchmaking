@@ -46,6 +46,28 @@ afterEach(async () => {
   await app.app.close();
 });
 
+/**
+ * The `METHOD path` lines of Fastify's route tree. The tree shares prefixes (`/v1/agents/pair` then `ing-codes` under it),
+ * so each node's path is the segments of its ancestors followed by its own. Four characters of the line's drawing are one
+ * level of depth. HEAD and OPTIONS (added by Fastify for a GET) are left out; `:id` is written `{id}` as the table does.
+ */
+export function liveRoutes(tree: string): string[] {
+  const segments: string[] = [];
+  const found: string[] = [];
+  for (const line of tree.split('\n')) {
+    const node = /^((?:[│ ] {3})*)[├└]── (\S+)(?: \(([A-Z, ]+)\))?$/.exec(line);
+    if (node === null) continue;
+    const depth = (node[1] ?? '').length / 4;
+    segments.length = depth;
+    segments.push(node[2] ?? '');
+    for (const method of (node[3] ?? '').split(',').map((word) => word.trim())) {
+      if (method === '' || method === 'HEAD' || method === 'OPTIONS') continue;
+      found.push(`${method} ${segments.join('').replace(/:(\w+)/g, '{$1}')}`);
+    }
+  }
+  return found.sort();
+}
+
 /** The stream stays open once it is accepted, so the live call is left to the stream tests (IDB-08, site-stream-close). */
 const OPENS_A_STREAM = '/v1/stream';
 
@@ -59,6 +81,13 @@ describe('the agent token reaches only the agent routes (AGT-01)', () => {
       .sort();
     const classified = ROUTE_REACH.map((route) => `${route.method} ${route.path}`).sort();
     expect(classified).toEqual(documented);
+  });
+
+  it('classifies every route the live router holds, hidden from the document or not', () => {
+    // `printRoutes` lists what Fastify routes, including a route with `schema.hide`, which the document leaves out.
+    const live = liveRoutes(app.app.printRoutes({ commonPrefix: false }));
+    const classified = ROUTE_REACH.map((route) => `${route.method} ${route.path}`).sort();
+    expect(live).toEqual(classified);
   });
 
   it('keeps the agent token reach to the eight routes of the spec', () => {
