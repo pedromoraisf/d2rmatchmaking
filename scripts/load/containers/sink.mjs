@@ -1,5 +1,5 @@
 // The telemetry sink (design.md § Byte meter and sink; LB-21). The API exports its telemetry to it over loopback
-// (`OTEL_EXPORTER_OTLP_ENDPOINT`). The sink answers `200 {}` on the three OTLP/HTTP paths and counts the bytes it reads on
+// (`OTEL_EXPORTER_OTLP_ENDPOINT`). The sink answers `200 {}` (an empty protobuf message for a protobuf request) on the three OTLP/HTTP paths and counts the bytes it reads on
 // the wire while the window is open: the request line, the headers and the body. The body is read and dropped, and nothing
 // is logged. The control endpoints are the meter's (`control.mjs`): a bearer token and a loopback `Host` are required.
 //
@@ -41,6 +41,12 @@ export async function startSink({ listen, control, token, now = () => performanc
       return;
     }
     request.on('end', () => {
+      // The API exports protobuf: its answer is the empty response message (zero bytes), with the protobuf content type.
+      if (String(request.headers['content-type'] ?? '').startsWith('application/x-protobuf')) {
+        response.writeHead(200, { 'content-type': 'application/x-protobuf', 'content-length': 0 });
+        response.end();
+        return;
+      }
       response.writeHead(200, { 'content-type': 'application/json', 'content-length': 2 });
       response.end('{}');
     });
