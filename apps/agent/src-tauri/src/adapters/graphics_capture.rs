@@ -49,13 +49,11 @@ pub use capture::{GraphicsFrames, supported};
 
 #[cfg(windows)]
 mod capture {
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::{Arc, Mutex, PoisonError};
+    use std::sync::{Mutex, PoisonError};
     use std::time::{Duration, Instant};
 
     use d2rmm_agent_core::ports::{Miss, Rgba};
     use d2rmm_agent_domain::capture_geometry::{crop_rgba, crop_to_client};
-    use windows::Foundation::TypedEventHandler;
     use windows::Graphics::Capture::{
         Direct3D11CaptureFramePool, GraphicsCaptureItem, GraphicsCaptureSession,
     };
@@ -124,15 +122,10 @@ mod capture {
         /// The last frame read and when, kept for a window that has not drawn since: Windows delivers a frame on change only.
         /// It is returned again only while `reusable` says so.
         last: Option<(Rgba, Instant)>,
-        item: GraphicsCaptureItem,
-        /// Set by the item's `Closed` event: the window closed, so this session is over.
-        closed: Arc<AtomicBool>,
-        closed_token: i64,
     }
 
     impl Drop for Session {
         fn drop(&mut self) {
-            let _ = self.item.RemoveClosed(self.closed_token);
             let _ = self.session.Close();
             let _ = self.pool.Close();
         }
@@ -220,12 +213,6 @@ mod capture {
         session.SetIsCursorCaptureEnabled(false)?;
         // The capture border stays on wherever Windows draws it: it is the visible sign that the window is captured (NFR-05,
         // spec decision 4). Nothing here asks Windows to hide it.
-        let closed = Arc::new(AtomicBool::new(false));
-        let flag = Arc::clone(&closed);
-        let closed_token = item.Closed(&TypedEventHandler::new(move |_, _| {
-            flag.store(true, Ordering::SeqCst);
-            Ok(())
-        }))?;
         session.StartCapture()?;
         Ok(Session {
             window: window.0 as isize,
@@ -235,9 +222,6 @@ mod capture {
             pool,
             session,
             last: None,
-            item,
-            closed,
-            closed_token,
         })
     }
 
@@ -245,9 +229,6 @@ mod capture {
         /// The latest frame of the window, cropped to its client area. A window that has not drawn since the last look gives the
         /// last frame again; a session that has never had a frame waits a moment for the first.
         fn look(&mut self, window: HWND) -> Result<Rgba, Miss> {
-            if self.closed.load(Ordering::SeqCst) {
-                return Err(Miss::Failed);
-            }
             let deadline = Instant::now() + FIRST_FRAME_WAIT;
             loop {
                 if let Ok(frame) = self.pool.TryGetNextFrame() {
