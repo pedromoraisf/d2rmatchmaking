@@ -1,0 +1,140 @@
+# Phase F1 — after the review was approved
+
+The F1 review was approved on 2026-11-12. The maintainer concluded the phase on 2026-11-20: "registre todo o status do
+projeto, marque a fase 1 como concluida". This file records what happened between those dates and what is still open.
+It is the backlog to read when replanning F2 and later. Numbers and links come from the PRs named below.
+
+## Incidents and fixes (2026-11-13 → 2026-11-20)
+
+The agent's Party-panel presence did not work in production. Generated room names (`mm…-NN`) in D2R's small-caps font
+were never proven on a real print: the only real Party print was "DUEL NK LOCKS". OCR read the `B` as `8`.
+
+Fixes, merged to `main`:
+
+- #73: test installer API base.
+- #74: `--self-check` before any upload or release.
+- #75: capture and Party diagnostics; `GetWindowRect` allowed.
+- #76: generated names on real prints; `8` read as `b` before the dash; drift test in the harness; collision test 1..9999.
+- #77: rooms named for normal (`n`) and nightmare (`m`); the refusal is logged, not dropped.
+- #79: release-please drafts the release; the API is woken before `--self-check --online`.
+- #80: the site shows a closed or expired room as ended, with Dismiss; the locked label sits under the difficulty name.
+- #81: acceptance port race; the RDY-07 wait for the site stream.
+
+Agent 0.3.0 was released on 2026-11-19. The maintainer confirmed presence end to end (room `Created`, "Confirmed by the
+agent").
+
+The first real release surfaced two problems:
+
+- release-please published the release immediately and marked it Latest with no assets;
+- Render's free tier sleeps, and `--self-check --online` failed until the API woke.
+
+The bot release PR needed "Approve and run" on its workflows. The OCR zip was re-encrypted with a new password, and the
+maintainer updated the `OCR_PRINTS_PASSWORD` secret (2026-11-19).
+
+## Maintainer decisions taken in chat
+
+Also recorded in [`decisions.md`](decisions.md).
+
+1. 2026-11-19, "1. Liberar a GetWindowRect": add `GetWindowRect` to the unsafe-adapter allow-list
+   (`scripts/test/agent-source-rules.test.mjs`).
+2. 2026-11-19, "Corrija agora as salas de normal e nightmare", then "Sim": approved changing three existing lobby-room
+   tests that encoded "F0 plays hell only" (commit 36d3cc5) and one new acceptance scenario for nightmare (tagged
+   `@LBR-01`).
+3. 2026-11-19, "2. PR logo depois desses": the agent reading rewrite comes as its own PRs after #75/#76, not as an F2
+   feature.
+4. 2026-11-19: the release PR #70 was approved by the maintainer on GitHub, and its workflow runs approved by them (no
+   chat sentence; the maintainer did not say "Faça o merge").
+5. 2026-11-20: F1 concluded ("registre todo o status do projeto, marque a fase 1 como concluida").
+
+## Deferred and open items
+
+Each item names its origin and status.
+
+### Agent reading (rewrite, in progress or not started)
+
+- (a) In-game marker by searching "Life"/"Mana" in a wide bottom band with search-then-track. It fixes "Screen: not
+  recognised" and the site's "Screen: Unknown". Origin: field test of 0.3.0. Status: work in progress exists locally,
+  not pushed: branch `feat/agent-ingame-band-search`, commit 4e190ad, plus an uncommitted change to
+  `core/src/screen_reader.rs`, in worktree `.claude/worktrees/agent-a18a199d6469064c9`. The worker was interrupted.
+- (b) The agent drops its assignment on `room.stage_changed` expired or closed. Today `adapters/src/http/sse.rs`
+  ignores it, so the window keeps "waiting for the game". Status: not started; the worker was interrupted with no
+  commits.
+- (c) The agent window shows "presence confirmed" after a successful match. Today it keeps "waiting for the game", and
+  the maintainer read that as a broken presence. Status: not started.
+- (d) The automap as a second game-name source. The maintainer suggested reading the name from the top of the screen.
+  Status: idea.
+- (e) The 398/500 refusals on the `mmbaalh-19` print variations, mostly `label-not-found-layout-other`. Status: open.
+- (f) 176 popups with no card read and 104 unrecognised selection screens. They predate this record; see the PR #71
+  numbers. Status: open.
+- (g) The 43 wrong reads, all the "O" of a character name read as g/e/b. The real fix is server-side matching against
+  the account's characters, which changes the agent-API contract. Origin: ratchet of 2026-11-18. Status: the
+  maintainer's decision pending (F2?).
+- (h) Robustness field tests on 0.3.0 not done: window mode, legacy graphics (G), low and high brightness.
+- (i) Normal and nightmare rooms not tested live: the test match always creates hell (#77).
+- (j) Telemetry: adding `panel_open` and the field state to the Party span needs a change to existing span tests (the
+  maintainer's decision; not asked yet).
+- (k) The recommended set of 7 real Party prints covering every glyph (`apps/agent/ocr-lab/README.md`): only
+  `mmbaalh-19` is in the zip.
+
+### Release and signing
+
+- SignPath Foundation: the maintainer applies. Needed: a "Code signing policy" page on the site and in the README, MFA,
+  roles. The maintainer has not confirmed roles or the contact email yet.
+- Publish only after the `sign` job when signing is enabled (security review of #79).
+- Proofs only possible on the next real release: draft plus `force-tag-creation`, `release_created` for a draft,
+  tauri-action attaching to the draft, the 90 s wake.
+- The unsigned public release stays until SignPath.
+
+### Production
+
+- The Render free API sleeps after about 15 min. The first visitor gets a 502 through the proxy. Already deferred in
+  `handoff.md` ("the site should retry while the free Render API wakes up").
+- Proposed: a 10-minute Actions ping to `/healthz` plus a site/proxy retry with a "waking the server" message. Awaiting
+  the maintainer's decision.
+
+### Site
+
+- "Dismiss" is lost on reload (#80 review).
+- The CSS-reading test in `QueuePanel.test.tsx` is brittle; replace it with a Playwright bounding-box check (#80
+  review).
+- The site's stream reconnect was not investigated, in case "agent online · game open" lingers well over a minute (#80
+  worker).
+
+### API
+
+- The n/m/h codes are not listed in ADR 017 (#77 review).
+- The `app.ts` match-refused log branch has no direct test.
+- A per-account limit on the ready-check answer routes (F1 review; security review of #52, low).
+- The ClockScheduler next-due short-circuit (F1 review; architecture review of #52).
+- The load harness "rooms open at the step end" reads 0 (F1 review).
+
+### CI and harness
+
+- 11 open Dependabot PRs (#13–#18, #36, #38, #39, #42, #78), several majors: upload-artifact 7, download-artifact 8,
+  tauri-action 1.0, release-please-action 5, github-script 9, Playwright 1.65.
+- Minor items from #81: unclear error when `accountId` is missing in `openSiteFor`; the traced-stack retry rebuilds the
+  telemetry site.
+- The drift test hard-codes `pvp`.
+- The Node 20 deprecation warning on release-please-action.
+
+### Carried from `handoff.md`
+
+Status as read from the files; confirm before acting.
+
+- Preview redirect URL at Blizzard: one fixed Pages alias for every phase preview (update `preview.mjs`,
+  `preview-api.yml`, `deploy-web.yml`, tests and ADR 030; the maintainer then registers the URL). Not recorded as done.
+- `BNET_CLIENT_ID` and `BNET_CLIENT_SECRET` as `sync: false` names in `render.yaml`. Not recorded as done.
+- The branch `feat/F0-parallel-cloud-spike`: an F0 spike, remote at `87be3b5`, not merged, not part of F1. Open.
+- Signing the agent and the `ocr-check` tool (Windows App Control blocked the unsigned tool): see SignPath above.
+- The site retry while the free Render API wakes up: see Production above.
+- A per-account limit on the ready-check routes and the ClockScheduler short-circuit: see API above.
+- Dependabot PRs: see CI and harness above.
+- The agent's per-branch pipeline (preview channels), the first F2 work named in the review approval. Not started as far
+  as the files show.
+- `feat/F1-characters-reading` (#50) and `fix/F1-room-view-500` from `handoff.md` are merged into `phase/F1` per the
+  review.
+
+## How to resume
+
+Start with `pnpm phase:status`, `gh pr list`, then this file. Remove stale worktrees once their work is pushed
+(`git worktree list`).
