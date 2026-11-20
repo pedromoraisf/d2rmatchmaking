@@ -308,7 +308,7 @@ pub fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba
             FieldSource::LayoutBox,
         ),
     };
-    let field = match field_area {
+    let mut field = match field_area {
         Some(area) if found.open => reader.read_variants(
             frame,
             anchors::padded(
@@ -320,6 +320,22 @@ pub fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba
         ),
         _ => Vec::new(),
     };
+    if let (true, FieldSource::LabelLine, Some(label)) = (found.open, field_source, found.label) {
+        // The tight box of a found line reads some names worse than the wider crop under the label (the pt-BR 1045 prints,
+        // screen-recognition T6): the box under the label is read too, and a reading already there is not repeated. The
+        // match stays exact on any one reading, so no other room's name is accepted.
+        let below = anchors::padded(
+            anchors::field_below(label, frame.height),
+            anchors::line_pad(frame.height),
+            frame.width,
+            frame.height,
+        );
+        for read in reader.read_variants(frame, below) {
+            if !field.iter().any(|held| held.text == read.text) {
+                field.push(read);
+            }
+        }
+    }
     PanelReading {
         open: found.open,
         label_found: found.label.is_some(),
@@ -1248,10 +1264,14 @@ mod anchored_tests {
     /// The Party panel of a pt-BR client at 1920x1045, at the positions the `ocr-real` diagnostics measured (title y 129,
     /// label y 171, field y 199, in line tops; middles here).
     fn portuguese_panel() -> Lines {
+        portuguese_panel_named("mmbaalm-99")
+    }
+
+    fn portuguese_panel_named(name: &str) -> Lines {
         Lines(vec![
             line("GRUPO", 364, 136, 71),
             line("Nome", 264, 176, 40),
-            line("mmbaalm-99", 269, 204, 95),
+            line(name, 269, 204, 95),
             line("SENHA", 460, 174, 44),
         ])
     }
@@ -1292,6 +1312,46 @@ mod anchored_tests {
         ]);
         let reading = read_panel(&closed, &LanguagePack::english(), &frame(1045));
         assert!(!reading.open && reading.field.is_empty());
+    }
+
+    /// A reader whose tight line box reads the name badly (a clipped line: "mm T zH-47" with spaces) and whose box under the
+    /// label, the wider crop, reads it right: the pt-BR 1045 prints of the `ocr-real` run 44707650229.
+    struct TwoBoxes(Lines);
+
+    impl TextReader for TwoBoxes {
+        fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            let mut read = self.0.read(image, region)?;
+            if region.height < 30 && read.text == "mmtzh-47" {
+                read.text = "mm T zH-47".to_string();
+            }
+            Ok(read)
+        }
+
+        fn read_lines(&self, image: &Rgba, area: Region) -> Vec<TextLine> {
+            self.0.read_lines(image, area)
+        }
+    }
+
+    #[test]
+    fn the_box_under_the_found_label_is_read_too_so_a_clipped_line_read_does_not_hide_the_name() {
+        use d2rmm_agent_domain::game_name_match::{FieldRead, read_panel_field};
+        let reader = TwoBoxes(portuguese_panel_named("mmtzh-47"));
+        let reading = read_panel(&reader, &LanguagePack::english(), &frame(1045));
+        let reads = fields(&reading);
+        assert!(reads.contains(&"mm T zH-47"), "the line box: {reads:?}");
+        assert!(
+            reads.contains(&"mmtzh-47"),
+            "the box under the label: {reads:?}"
+        );
+        assert_eq!(
+            read_panel_field(reading.field_source, &reads, "mmtzh-47"),
+            FieldRead::Matched
+        );
+        assert_ne!(
+            read_panel_field(reading.field_source, &reads, "mmtzh-48"),
+            FieldRead::Matched,
+            "another room's name stays refused"
+        );
     }
 
     #[test]
