@@ -68,4 +68,14 @@ exclude_re = [
   # Evidence: the arithmetic of `supported_size` for each zero case above, and `an_empty_client_is_not_supported` which
   # pins (0, 0), (1920, 0) and (0, 1080) as unsupported with both forms of the guard.
   "layout\\.rs:108:19: replace \\|\\| with && in supported_size",
+
+  # Non-terminating mutants (ocr-protection): `domain/src/name_diff.rs:83:15` and `domain/src/name_diff.rs:86:15`,
+  # `replace -= with /= in edit_operations_with` (`i -= 1` of a deletion, `j -= 1` of an insertion). Dividing by one leaves
+  # the index where it is, so the backtrace `while` never ends and pushes an operation each round: no assertion can observe
+  # the result of a function that does not return, and the loop grows a vector until cargo-mutants kills the run at its
+  # timeout. The two branches are pinned by `the_operations_of_an_insertion_a_deletion_and_a_substitution_are_listed_by_position`,
+  # which fails for every other mutation of these lines (`+=` indexes out of range and panics).
+  # Evidence: run 44558970584 (nightly of 2026-11-19), `agent-domain/mutants.out/timeout.txt`:
+  # `domain/src/name_diff.rs:83:15: replace -= with /= in edit_operations_with`, the only entry of that file's timeouts.
+  "name_diff\\.rs:(?:83|86):15: replace -= with /= in edit_operations_with",
 ]
