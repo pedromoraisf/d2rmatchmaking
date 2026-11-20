@@ -70,7 +70,11 @@ test('site.yml triggers: main and same-repo pull requests deploy, a dispatch pro
   assert.deepEqual(wf.jobs.deploy.needs, ['build']);
   assert.deepEqual(wf.jobs.smoke.needs, ['deploy']);
   // A preview is cancelled by the next push; a staging run on main is not.
-  assert.match(wf.concurrency['cancel-in-progress'], /github\.ref != 'refs\/heads\/main'/);
+  const cancel = wf.concurrency['cancel-in-progress'];
+  assert.match(cancel, /github\.event_name == 'pull_request'/);
+  assert.match(cancel, /github\.event_name == 'push' && github\.ref != 'refs\/heads\/main'/);
+  assert.doesNotMatch(cancel, /workflow_dispatch/, 'a dispatch is never cancelled');
+  assert.doesNotMatch(cancel, /!=\s*'push'/, 'cancel must be an allow-list of events, not a deny-list');
 });
 
 test('verify comes before deploy, and the deploy stage downloads the artifact instead of building', () => {

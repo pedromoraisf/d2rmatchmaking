@@ -37,7 +37,8 @@ permissions:
 
 concurrency:
   group: site-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
+  # A newer push cancels an older preview. A run on main, and above all a promotion that may be publishing, is never cancelled.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main') }}
 
 jobs:
   build:
