@@ -1,9 +1,9 @@
 {
   "uid": "d2rmm-skeleton",
   "title": "D2RMM skeleton (API)",
-  "description": "The API's request, outbox and stream metrics (OBS-35). Every panel reads service_name=\"d2rmm-api\" only.",
+  "description": "The API's request, outbox and stream metrics (OBS-35). Every panel reads job=\"d2rmm-api\" only.",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": false,
   "time": {
     "from": "now-1h",
@@ -18,7 +18,7 @@
       "unit": "reqps",
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "gridPos": {
         "h": 8,
@@ -31,9 +31,9 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
-          "expr": "sum by (http_route) (rate(http_server_request_duration_seconds_count{service_name=\"d2rmm-api\"}[5m]))"
+          "expr": "sum by (http_route) (rate(http_server_request_duration_seconds_count{job=\"d2rmm-api\"}[5m]))"
         }
       ]
     },
@@ -44,7 +44,7 @@
       "unit": "percentunit",
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "gridPos": {
         "h": 8,
@@ -57,9 +57,9 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
-          "expr": "sum(rate(http_server_request_duration_seconds_count{service_name=\"d2rmm-api\", http_response_status_class=\"5xx\"}[5m])) / sum(rate(http_server_request_duration_seconds_count{service_name=\"d2rmm-api\"}[5m]))"
+          "expr": "sum(rate(http_server_request_duration_seconds_count{job=\"d2rmm-api\", http_response_status_class=\"5xx\"}[5m])) / sum(rate(http_server_request_duration_seconds_count{job=\"d2rmm-api\"}[5m]))"
         }
       ]
     },
@@ -70,7 +70,7 @@
       "unit": "s",
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "gridPos": {
         "h": 8,
@@ -83,9 +83,9 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, http_route) (rate(http_server_request_duration_seconds_bucket{service_name=\"d2rmm-api\"}[5m])))"
+          "expr": "histogram_quantile(0.95, sum by (le, http_route) (rate(http_server_request_duration_seconds_bucket{job=\"d2rmm-api\"}[5m])))"
         }
       ]
     },
@@ -96,7 +96,7 @@
       "unit": "s",
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "gridPos": {
         "h": 8,
@@ -109,9 +109,9 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
-          "expr": "max(outbox_lag_seconds{service_name=\"d2rmm-api\"})"
+          "expr": "max(outbox_lag_seconds{job=\"d2rmm-api\"})"
         }
       ]
     },
@@ -122,7 +122,7 @@
       "unit": "short",
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "gridPos": {
         "h": 8,
@@ -135,9 +135,9 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
-          "expr": "sum by (d2r_stream_kind) (sse_connections{service_name=\"d2rmm-api\"})"
+          "expr": "sum by (d2r_stream_kind) (sse_connections{job=\"d2rmm-api\"})"
         }
       ]
     },
@@ -153,9 +153,17 @@
       },
       "targets": [
         {
-          "expr": "sum by (d2r_queue_mode, d2r_difficulty) (d2r_queue_size{service_name=\"d2rmm-api\"})"
+          "expr": "sum by (d2r_queue_mode, d2r_difficulty) (d2r_queue_size{job=\"d2rmm-api\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
     },
     {
       "id": 7,
@@ -169,9 +177,17 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, d2r_queue_mode) (rate(d2r_queue_wait_seconds_bucket{service_name=\"d2rmm-api\"}[5m])))"
+          "expr": "histogram_quantile(0.95, sum by (le, d2r_queue_mode) (rate(d2r_queue_wait_seconds_bucket{job=\"d2rmm-api\"}[5m])))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
     },
     {
       "id": 8,
@@ -185,9 +201,17 @@
       },
       "targets": [
         {
-          "expr": "sum by (d2r_ready_check_outcome) (rate(d2r_ready_check_resolved_total{service_name=\"d2rmm-api\"}[5m]))"
+          "expr": "sum by (d2r_ready_check_outcome) (rate(d2r_ready_check_resolved_total{job=\"d2rmm-api\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
     },
     {
       "id": 9,
@@ -201,9 +225,17 @@
       },
       "targets": [
         {
-          "expr": "sum by (d2r_room_stage) (rate(d2r_room_final_stage_total{service_name=\"d2rmm-api\"}[5m]))"
+          "expr": "sum by (d2r_room_stage) (rate(d2r_room_final_stage_total{job=\"d2rmm-api\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
     },
     {
       "id": 10,
@@ -217,9 +249,33 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, d2r_queue_mode) (rate(d2r_room_time_to_active_seconds_bucket{service_name=\"d2rmm-api\"}[5m])))"
+          "expr": "histogram_quantile(0.95, sum by (le, d2r_queue_mode) (rate(d2r_room_time_to_active_seconds_bucket{job=\"d2rmm-api\"}[5m])))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
     }
-  ]
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Data source",
+        "type": "datasource",
+        "query": "prometheus",
+        "refresh": 1,
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "options": [],
+        "current": {}
+      }
+    ]
+  }
 }

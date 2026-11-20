@@ -2,7 +2,7 @@
 // and binds every port to loopback, because the image ships with anonymous admin access. The root scripts start and stop
 // it. The dashboard provisioning is checked by the tests of T48.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -51,7 +51,7 @@ test('the dashboard holds the listed panels', () => {
   for (const panel of dashboard.panels) {
     assert.ok(panel.title, `panel ${panel.id} has a title`);
     for (const target of panel.targets) {
-      assert.match(target.expr, /service_name="d2rmm-api"/u, `panel "${panel.title}" filters on the API`);
+      assert.match(target.expr, /job="d2rmm-api"/u, `panel "${panel.title}" filters on the API`);
     }
   }
 
@@ -88,6 +88,36 @@ test('the dashboard holds the listed panels', () => {
     /token|secret|password|authorization|cookie/iu,
     'the dashboard carries no secret',
   );
+});
+
+// Every dashboard file is portable: the data source is a variable (Grafana Cloud names its own), never the local uid, and
+// every query filters on the `job` label the OTLP to Prometheus mapping sets from service.name.
+const dashboardFiles = readdirSync(path.join(root, 'infra/observability/dashboards'))
+  .filter((name) => name.endsWith('.json'))
+  .sort();
+
+test('every dashboard file reads its data source from the datasource variable', () => {
+  assert.ok(dashboardFiles.includes('skeleton.json'));
+  for (const file of dashboardFiles) {
+    const text = readText(`infra/observability/dashboards/${file}`);
+    const board = JSON.parse(text);
+    const variable = board.templating?.list?.find((item) => item.name === 'datasource');
+    assert.equal(variable?.type, 'datasource', `${file} declares a datasource variable`);
+    assert.equal(variable?.query, 'prometheus', `${file}: the variable lists the Prometheus data sources`);
+    assert.doesNotMatch(text, /"uid": "prometheus"/u, `${file} does not hard-code the local data source uid`);
+    assert.doesNotMatch(text, /service_name/u, `${file} filters on job, not service_name`);
+    for (const panel of board.panels) {
+      assert.equal(
+        panel.datasource?.uid,
+        '${datasource}',
+        `${file}: panel "${panel.title}" uses the variable`,
+      );
+      for (const target of panel.targets) {
+        assert.equal(target.datasource?.uid, '${datasource}', `${file}: "${panel.title}" target uses it`);
+        assert.match(target.expr, /job="d2rmm-api"/u, `${file}: "${panel.title}" filters on the API job`);
+      }
+    }
+  }
 });
 
 test('compose provisions the dashboard', () => {

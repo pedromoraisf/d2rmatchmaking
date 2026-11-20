@@ -3,23 +3,18 @@
 // of INSTRUMENT_NAMES. The Prometheus names follow the OpenTelemetry-to-Prometheus rule: dots become underscores, the unit
 // becomes a suffix (`s` is `seconds`, `By` is `bytes`), a unit-less instrument has no suffix, and a histogram is queried as
 // `_bucket`, `_sum` or `_count`.
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { INSTRUMENT_NAMES } from './instrument-names.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const dashboardPath = path.resolve(
-  here,
-  '..',
-  '..',
-  '..',
-  'infra',
-  'observability',
-  'dashboards',
-  'skeleton.json',
-);
+const dashboardsDirectory = path.resolve(here, '..', '..', '..', 'infra', 'observability', 'dashboards');
+/** Every dashboard file of the directory: a new one is covered without an edit here. */
+const dashboardFiles = readdirSync(dashboardsDirectory)
+  .filter((name) => name.endsWith('.json'))
+  .sort();
 
 /** The Prometheus name of each instrument, keyed by its OpenTelemetry name (the rule above, written out). */
 const PROMETHEUS_NAMES: Record<string, string> = {
@@ -79,8 +74,12 @@ describe('dashboard metrics against the instrument names', () => {
     expect(Object.keys(PROMETHEUS_NAMES).sort()).toStrictEqual(Object.values(INSTRUMENT_NAMES).sort());
   });
 
-  it('every dashboard metric is defined by the code', () => {
-    const queried = dashboardMetrics(readFileSync(dashboardPath, 'utf8'));
+  it('covers every dashboard file', () => {
+    expect(dashboardFiles).toContain('skeleton.json');
+  });
+
+  it.each(dashboardFiles)('every metric of %s is defined by the code', (file) => {
+    const queried = dashboardMetrics(readFileSync(path.join(dashboardsDirectory, file), 'utf8'));
     expect(queried.length).toBeGreaterThan(0);
 
     const known = new Set(Object.values(PROMETHEUS_NAMES));
