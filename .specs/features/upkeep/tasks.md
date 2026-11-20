@@ -102,7 +102,7 @@ Rules:
       staging API under node ESM (`Named export 'logs' not found`) while the unit and integration suites stayed green; only
       the acceptance stack saw it. It is back at 0.76.0 in this commit, and #38 joins #39 in the deferred OpenTelemetry
       group. Proof: `@UPK-`, `@ARL-05`, `@QUE-15`, `@RDY-07` pass (8) on 1.65.1.
-- [ ] T15 — UPK-11: write the Dependabot outcome table in `.specs/phases/F2/decisions.md` (one row per PR: #13, #14, #15,
+- [x] T15 — UPK-11: write the Dependabot outcome table in `.specs/phases/F2/decisions.md` (one row per PR: #13, #14, #15,
       #16, #17, #18, #36, #38, #39, #42, #78 → the task that took it, or the reason it is closed: #14 and #15 as in the
       spec; any group a worker had to defer, with its last error). The orchestrator closes the PRs after the merge.
       Gate: `pnpm specs:check && pnpm exec prettier --check .specs && node scripts/acceptance-check.mjs upkeep`
