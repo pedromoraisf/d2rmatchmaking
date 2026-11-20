@@ -5,12 +5,14 @@
 //!
 //! The release build is a GUI-subsystem executable: its stdout shows only when redirected (`app.exe --self-check > out.txt`
 //! or a CI step's captured output). Run from a console without redirection it prints nothing; the exit code still tells.
-//! The line is `{"ok":bool,"checks":[{"name":"config","ok":true},...]}`. It holds names and verdicts only: no URL, no secret.
+//! The line is `{"ok":bool,"channel":"staging","version":"0.3.0","checks":[{"name":"config","ok":true},...]}`: the
+//! channel and the version of the build (DLP-06), then the verdicts. It holds names and verdicts only: no URL, no secret.
 #![cfg(any(windows, test))]
 
 use d2rmm_agent_adapters::config::ApiBase;
 use serde_json::json;
 
+use crate::channel::Channel;
 use crate::config;
 
 /// What the arguments asked for.
@@ -43,10 +45,38 @@ pub fn all_ok(checks: &[Check]) -> bool {
     !checks.is_empty() && checks.iter().all(|check| check.ok)
 }
 
-/// The single JSON line printed to stdout.
-pub fn report_line(checks: &[Check]) -> String {
+/// The channel of the build and its check: an unknown `D2RMM_CHANNEL` fails the check and is reported as `unknown`.
+pub fn channel_check(
+    raw: Option<&str>,
+    mut diagnostics: impl FnMut(&str),
+) -> (&'static str, Check) {
+    match Channel::of(raw) {
+        Ok(channel) => (
+            channel.name(),
+            Check {
+                name: "channel",
+                ok: true,
+            },
+        ),
+        Err(error) => {
+            diagnostics(&error.to_string());
+            (
+                "unknown",
+                Check {
+                    name: "channel",
+                    ok: false,
+                },
+            )
+        }
+    }
+}
+
+/// The single JSON line printed to stdout: the channel and the version of the build, then the verdicts.
+pub fn report_line(channel: &str, version: &str, checks: &[Check]) -> String {
     json!({
         "ok": all_ok(checks),
+        "channel": channel,
+        "version": version,
         "checks": checks
             .iter()
             .map(|check| json!({ "name": check.name, "ok": check.ok }))
@@ -122,7 +152,7 @@ pub fn run(
 
 #[cfg(test)]
 mod tests {
-    use super::{Check, Options, all_ok, exit_code, parse_args, report_line, run};
+    use super::{Check, Options, all_ok, channel_check, exit_code, parse_args, report_line, run};
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|item| item.to_string()).collect()
@@ -170,11 +200,14 @@ mod tests {
             |_| panic!("offline never probes"),
             |note| notes.push(note.to_string()),
         );
-        let line: serde_json::Value = serde_json::from_str(&report_line(&checks)).expect("json");
+        let line: serde_json::Value =
+            serde_json::from_str(&report_line("staging", "0.3.0", &checks)).expect("json");
         assert_eq!(
             line,
             serde_json::json!({
                 "ok": true,
+                "channel": "staging",
+                "version": "0.3.0",
                 "checks": [{"name": "config", "ok": true}, {"name": "ocr", "ok": true}]
             })
         );
@@ -188,7 +221,8 @@ mod tests {
         assert_eq!(checks[0], check("config", false));
         assert!(!all_ok(&checks));
         assert_eq!(exit_code(&checks), 1);
-        let line: serde_json::Value = serde_json::from_str(&report_line(&checks)).expect("json");
+        let line: serde_json::Value =
+            serde_json::from_str(&report_line("production", "1.0.0", &checks)).expect("json");
         assert_eq!(line["ok"], serde_json::json!(false));
     }
 
@@ -214,7 +248,7 @@ mod tests {
         );
         assert_eq!(exit_code(&checks), 1);
         assert_eq!(notes, vec!["ocr: EngineUnavailable".to_string()]);
-        let line = report_line(&checks);
+        let line = report_line("production", "1.0.0", &checks);
         assert!(!line.contains("EngineUnavailable") && !line.contains("example.test"));
     }
 
@@ -264,5 +298,50 @@ mod tests {
     #[test]
     fn no_checks_is_not_a_pass() {
         assert!(!all_ok(&[]));
+    }
+
+    #[test]
+    fn the_line_names_the_channel_and_the_version_of_each_channel() {
+        for (channel, version) in [
+            ("preview", "0.3.0"),
+            ("staging", "0.3.1"),
+            ("production", "1.2.3"),
+        ] {
+            let line: serde_json::Value =
+                serde_json::from_str(&report_line(channel, version, &[check("config", true)]))
+                    .expect("json");
+            assert_eq!(line["channel"], channel);
+            assert_eq!(line["version"], version);
+        }
+    }
+
+    #[test]
+    fn a_known_channel_passes_its_check_and_no_channel_is_production() {
+        let mut notes = Vec::new();
+        for (raw, name) in [
+            (Some("preview"), "preview"),
+            (Some("staging"), "staging"),
+            (Some("production"), "production"),
+            (None, "production"),
+        ] {
+            assert_eq!(
+                channel_check(raw, |note| notes.push(note.to_string())),
+                (name, check("channel", true))
+            );
+        }
+        assert!(notes.is_empty());
+    }
+
+    #[test]
+    fn an_unknown_channel_fails_its_check_and_is_reported_as_unknown() {
+        let mut notes = Vec::new();
+        let (name, verdict) = channel_check(Some("beta"), |note| notes.push(note.to_string()));
+        assert_eq!(
+            (name, verdict.clone()),
+            ("unknown", check("channel", false))
+        );
+        assert_eq!(exit_code(&[check("config", true), verdict]), 1);
+        assert_eq!(notes.len(), 1);
+        assert!(!notes[0].contains("beta"), "the value is not echoed");
     }
 }

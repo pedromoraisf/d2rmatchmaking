@@ -35,7 +35,7 @@ flowchart LR
   K6 -- window start/stop --> METER
   K6 -- window start/stop --> SINK
   API --> PG
-  API -- OTLP/HTTP JSON over loopback --> SINK
+  API -- OTLP/HTTP protobuf, gzip, over loopback --> SINK
   K6 -- out/step.json --> ORCH
   ORCH -- verdict, summary --> OUT[reports/load/summary.json]
 ```

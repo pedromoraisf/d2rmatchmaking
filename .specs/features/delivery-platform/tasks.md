@@ -42,10 +42,10 @@ Rules:
 
 ## Batch 4 — agent channels (PR 4)
 
-- [ ] T9 — Channel config in the app crate: the identifier, product name, API base and updater per channel; the
+- [x] T9 — Channel config in the app crate: the identifier, product name, API base and updater per channel; the
       self-check line carries `channel` and `version` (DLP-06). Rust unit tests. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml --lib && cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings`
-- [ ] T10 — `agent.yml` on the stages: a preview installer per agent PR and a staging installer per `main` commit, both
+- [x] T10 — `agent.yml` on the stages: a preview installer per agent PR and a staging installer per `main` commit, both
       as artifacts only, each smoke-started against its API. Harness tests. Gate: `pnpm test:harness`
 
 ## Batch 5 — remove what was replaced (PR 5)
