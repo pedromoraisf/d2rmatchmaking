@@ -1,0 +1,90 @@
+# Stage `promote` (ADR 033, § 7, DLP-03): deploys to production the artifact `stage-build` made for a commit whose
+# staging run passed the smoke stage, then smokes production. It never builds. The gate comes first: the staging run is
+# looked up through the GitHub REST API, and the job fails when there is none. The cloud tokens reach only this job's
+# publish step, through env.
+name: stage-promote
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        type: string
+        required: true
+      sha:
+        type: string
+        required: true
+    secrets:
+      CLOUDFLARE_API_TOKEN:
+        required: false
+      CLOUDFLARE_ACCOUNT_ID:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: promote
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      url: ${{ steps.publish.outputs.url }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Require a staging run of this commit that passed smoke
+        id: staging
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          APP: ${{ inputs.app }}
+          SHA: ${{ inputs.sha }}
+        run: echo "run_id=$(node scripts/delivery/promotable.mjs "$APP" "$SHA")" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Download the artifact staging deployed
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ inputs.app }}-${{ inputs.sha }}
+          path: apps/web/dist
+          run-id: ${{ steps.staging.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Publish to Cloudflare Pages production
+        id: publish
+        working-directory: apps/web
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+        run: |
+          pnpm exec wrangler pages deploy dist --project-name "$CLOUDFLARE_PAGES_PROJECT" --branch main | tee deploy.log
+          echo "url=$(grep -Eo 'https://[^ ]+' deploy.log | tail -n 1)" >> "$GITHUB_OUTPUT"
+
+  smoke:
+    name: smoke
+    needs: [promote]
+    uses: ./.github/workflows/stage-smoke.yml
+    with:
+      app: ${{ inputs.app }}
+      environment: production
+      sha: ${{ inputs.sha }}
+      url: ${{ needs.promote.outputs.url }}

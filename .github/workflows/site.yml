@@ -1,0 +1,81 @@
+# The site through the delivery stages (ADR 033, DLP-02, DLP-03): build → verify → deploy → smoke on every push to main
+# (staging), on every same-repo pull request (preview) and on pushes of the delivery branch while it is built; promote on
+# a manual dispatch of a commit that passed staging smoke (the runner, ADR 028). This file holds triggers and inputs
+# only. It runs beside deploy-web.yml until that is removed (DLP-09).
+name: site
+
+on:
+  push:
+    branches: [main, feat/F2-delivery-platform]
+    paths:
+      - 'apps/web/**'
+      - 'packages/**'
+      - '.github/workflows/site.yml'
+      - '.github/workflows/stage-*.yml'
+      - 'scripts/delivery/**'
+      - 'scripts/preview/**'
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - 'packages/**'
+      - '.github/workflows/site.yml'
+      - '.github/workflows/stage-*.yml'
+      - 'scripts/delivery/**'
+      - 'scripts/preview/**'
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: The commit to promote to production; its staging run must have passed smoke
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: site-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
+
+jobs:
+  build:
+    name: build
+    if: github.event_name != 'workflow_dispatch'
+    uses: ./.github/workflows/stage-build.yml
+    with:
+      app: site
+      sha: ${{ github.event.pull_request.head.sha || github.sha }}
+
+  deploy:
+    name: deploy
+    needs: [build]
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    uses: ./.github/workflows/stage-deploy.yml
+    with:
+      app: site
+      environment: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'staging' || 'preview' }}
+      sha: ${{ github.event.pull_request.head.sha || github.sha }}
+      branch: ${{ github.head_ref || github.ref_name }}
+    secrets: inherit
+
+  smoke:
+    name: smoke
+    needs: [deploy]
+    uses: ./.github/workflows/stage-smoke.yml
+    with:
+      app: site
+      environment: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'staging' || 'preview' }}
+      sha: ${{ github.event.pull_request.head.sha || github.sha }}
+      url: ${{ needs.deploy.outputs.url }}
+
+  promote:
+    name: promote
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/stage-promote.yml
+    with:
+      app: site
+      sha: ${{ inputs.sha }}
+    secrets: inherit
