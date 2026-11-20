@@ -18,6 +18,10 @@ on:
         required: false
       CLOUDFLARE_ACCOUNT_ID:
         required: false
+      NEON_DATABASE_URL:
+        required: false
+      RENDER_DEPLOY_HOOK:
+        required: false
 
 permissions:
   contents: read
@@ -26,14 +30,14 @@ jobs:
   promote:
     name: promote
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     # The production environment allows only main. Repository-level secrets still resolve inside it.
     environment: production
     permissions:
       contents: read
       actions: read
     outputs:
-      url: ${{ steps.publish.outputs.url }}
+      url: ${{ steps.publish.outputs.url || steps.api.outputs.url }}
     steps:
       # The code that holds the secrets is the dispatching ref's (main), never the commit being promoted.
       - name: Check out the dispatching ref
@@ -63,6 +67,7 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Take the Functions of the promoted commit
+        if: inputs.app == 'site'
         # Only the bytes that staging deployed are taken from that commit, after the gate; none of its code runs here.
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -71,11 +76,13 @@ jobs:
           sparse-checkout: apps/web/functions
 
       - name: Use the promoted Functions
+        if: inputs.app == 'site'
         run: |
           rm -rf apps/web/functions
           cp -r promoted/apps/web/functions apps/web/functions
 
       - name: Download the artifact staging deployed
+        if: inputs.app == 'site'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: ${{ inputs.app }}-${{ inputs.sha }}
@@ -85,6 +92,7 @@ jobs:
 
       - name: Publish to Cloudflare Pages production
         id: publish
+        if: inputs.app == 'site'
         working-directory: apps/web
         shell: bash
         env:
@@ -96,6 +104,44 @@ jobs:
           # An assignment, so a refused URL fails the step (a substitution inside echo would hide it).
           url=$(node ../../scripts/delivery/deployment-url.mjs deploy.log "$CLOUDFLARE_PAGES_PROJECT")
           echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Take the migrations of the promoted commit
+        # The migrations staging applied, from that commit, after the gate; the migration code is the dispatching ref's.
+        if: inputs.app == 'api'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.sha }}
+          path: promoted-api
+          sparse-checkout: apps/api/migrations
+
+      - name: Use the promoted migrations
+        if: inputs.app == 'api'
+        run: |
+          rm -rf apps/api/migrations
+          cp -r promoted-api/apps/api/migrations apps/api/migrations
+
+      - name: Migrate the database of this environment
+        if: inputs.app == 'api'
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          : "${DATABASE_URL:?NEON_DATABASE_URL is not set in the production environment}"
+          pnpm --filter @d2rmm/api db:migrate
+
+      - name: Deploy the promoted commit on the Render service of this environment and wait until it answers
+        id: api
+        if: inputs.app == 'api'
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          SHA: ${{ inputs.sha }}
+          SMOKE_BUDGET_SECONDS: '600'
+        run: |
+          : "${RENDER_DEPLOY_HOOK:?RENDER_DEPLOY_HOOK is not set in the production environment}"
+          : "${API_BASE_URL:?API_BASE_URL is not set in the production environment}"
+          curl -fsS -X POST "${RENDER_DEPLOY_HOOK}&ref=${SHA}" > /dev/null
+          node scripts/delivery/smoke.mjs api "$API_BASE_URL" "$SHA"
+          echo "url=$API_BASE_URL" >> "$GITHUB_OUTPUT"
 
   smoke:
     name: smoke

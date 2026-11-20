@@ -13,7 +13,7 @@ const text = (name) => readFileSync(path.join(root, '.github/workflows', name), 
 const workflow = (name) => parse(text(name));
 
 const STAGES = ['stage-build.yml', 'stage-deploy.yml', 'stage-smoke.yml', 'stage-promote.yml'];
-const CALLERS = ['site.yml'];
+const CALLERS = ['site.yml', 'api.yml'];
 const ALL = [...STAGES, ...CALLERS];
 const STAGE_NAMES = ['build', 'verify', 'deploy', 'smoke', 'promote'];
 const SHA_PINNED = /^[^@\s]+@[0-9a-f]{40}$/;
@@ -189,6 +189,78 @@ test('the deployment URL comes from the strict parser, not from the last https:/
       /scripts\/delivery\/deployment-url\.mjs deploy\.log "\$CLOUDFLARE_PAGES_PROJECT"/,
     );
     assert.doesNotMatch(publish.run, /grep -Eo/);
+  }
+});
+
+test('api.yml is a thin caller; it deploys staging only when the maintainer turns the stages on', () => {
+  const wf = workflow('api.yml');
+  assert.deepEqual(Object.keys(wf.jobs), ['build', 'deploy', 'smoke', 'promote']);
+  for (const [id, job] of Object.entries(wf.jobs)) {
+    assert.equal(job.name, id);
+    assert.equal(job.with.app, 'api');
+    assert.equal(job.steps, undefined);
+  }
+  assert.deepEqual(wf.on.push.branches, ['main']);
+  assert.equal(wf.on.pull_request, undefined, "API previews stay preview-api.yml's (ADR 030)");
+  assert.equal(wf.on.workflow_dispatch.inputs.sha.required, true);
+  assert.equal(wf.concurrency['cancel-in-progress'], false, 'a migration or a deploy is never cancelled');
+  assert.equal(wf.jobs.deploy.if, "github.event_name == 'push' && vars.API_STAGES_LIVE == 'true'");
+  assert.equal(wf.jobs.deploy.with.environment, 'staging');
+  assert.equal(
+    wf.jobs.promote.if,
+    "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
+  );
+  assert.deepEqual(wf.jobs.smoke.needs, ['deploy']);
+});
+
+test('the API deploy migrates its database before it calls Render, then waits for the commit to answer', () => {
+  for (const [file, job] of [
+    ['stage-deploy.yml', 'deploy'],
+    ['stage-promote.yml', 'promote'],
+  ]) {
+    const j = workflow(file).jobs[job];
+    const migrate = indexOfStep(j, runIncludes('db:migrate'));
+    const hook = indexOfStep(j, runIncludes('RENDER_DEPLOY_HOOK}&ref=${SHA}'));
+    assert.ok(migrate >= 0 && hook > migrate, `${file}: migrations run before the deploy hook`);
+    for (const index of [migrate, hook]) {
+      assert.equal(stepsOf(j)[index].if, "inputs.app == 'api'", `${file}: API steps run only for the API`);
+    }
+    assert.match(
+      stepsOf(j)[hook].run,
+      /smoke\.mjs api "\$API_BASE_URL" "\$SHA"/,
+      'waits for the SHA to answer',
+    );
+    assert.equal(stepsOf(j)[hook].env.SMOKE_BUDGET_SECONDS, '600');
+    assert.match(stepsOf(j)[migrate].env.DATABASE_URL, /^\$\{\{ secrets\.[A-Z_]+ \}\}$/);
+    assert.equal(stepsOf(j)[hook].env.RENDER_DEPLOY_HOOK, '${{ secrets.RENDER_DEPLOY_HOOK }}');
+  }
+});
+
+test('promoting the API uses the migrations of the promoted commit, taken after the gate', () => {
+  const job = workflow('stage-promote.yml').jobs.promote;
+  const gate = indexOfStep(job, runIncludes('scripts/delivery/promotable.mjs'));
+  const taken = indexOfStep(job, (s) => s.with?.['sparse-checkout'] === 'apps/api/migrations');
+  const migrate = indexOfStep(job, runIncludes('db:migrate'));
+  assert.ok(gate < taken && taken < migrate);
+  assert.equal(stepsOf(job)[taken].with.ref, '${{ inputs.sha }}');
+  assert.equal(stepsOf(job)[taken].with.path, 'promoted-api');
+  // Site-only steps never run for the API.
+  for (const step of stepsOf(job).filter((s) =>
+    /wrangler|download-artifact|deployment-url/.test(JSON.stringify(s)),
+  )) {
+    assert.equal(step.if, "inputs.app == 'site'", `${step.name} is a site step`);
+  }
+});
+
+test('the API build compiles the API and uploads the commit pin; the site deploy steps are site-only', () => {
+  const build = workflow('stage-build.yml').jobs.build;
+  const pin = stepsOf(build).find((s) => s.run?.includes('api-commit.txt'));
+  assert.equal(pin.if, "inputs.app == 'api'");
+  assert.match(pin.run, /@d2rmm\/api build/);
+  for (const step of stepsOf(workflow('stage-deploy.yml').jobs.deploy).filter((s) =>
+    /wrangler|download-artifact|pages\.mjs|preview\.mjs/.test(JSON.stringify(s)),
+  )) {
+    assert.match(step.if, /inputs\.app == 'site'/, `${step.name} is a site step`);
   }
 });
 

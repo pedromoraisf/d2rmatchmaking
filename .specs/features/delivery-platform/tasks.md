@@ -32,7 +32,7 @@ Rules:
 
 ## Batch 3 — the API split (PR 3; the deploy to production waits for the maintainer's secrets)
 
-- [ ] T6 — `render.yaml` with `d2rmm-api` (staging) and `d2rmm-api-production`, each with every secret name as
+- [x] T6 — `render.yaml` with `d2rmm-api` (staging) and `d2rmm-api-production`, each with every secret name as
       `sync: false`, `BNET_*` included (DLP-05). Write `api.yml` on the stages with migrations per environment, and
       update the `render.yaml` harness test. Gate: `pnpm test:harness`
 - [ ] T7 — `scripts/delivery/awake-window.mjs` with unit tests, and `keep-awake.yml` (DLP-07). Gate:

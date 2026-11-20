@@ -1,5 +1,8 @@
-# Render blueprint for the API (design.md § Workflows and hosting files): one free web service for the F0 staging build.
-# autoDeploy is off: deploy-api.yml migrates the database and calls the deploy hook after ci.yml passes on main.
+# Render blueprint for the API (design.md § Workflows and hosting files, ADR 033). Two free web services built from the
+# same source: `d2rmm-api` is staging (every commit on main) and `d2rmm-api-production` is production (a promotion of a
+# commit that passed staging smoke). Each has its own database, Battle.net client and site URL. autoDeploy is off: the
+# stage workflows migrate the database and call each service's deploy hook. Every secret is `sync: false`: the
+# maintainer sets its value in Render, never in this file.
 services:
   - type: web
     name: d2rmm-api
@@ -27,4 +30,39 @@ services:
       - key: OTEL_EXPORTER_OTLP_ENDPOINT
         sync: false
       - key: OTEL_EXPORTER_OTLP_HEADERS
+        sync: false
+      - key: BNET_CLIENT_ID
+        sync: false
+      - key: BNET_CLIENT_SECRET
+        sync: false
+
+  - type: web
+    name: d2rmm-api-production
+    runtime: node
+    plan: free
+    region: virginia
+    buildCommand: npm install -g corepack@0.36.0 && corepack enable && pnpm install --frozen-lockfile --ignore-scripts
+    startCommand: node --import ./apps/api/src/main/instrument.ts apps/api/src/main/render.ts
+    healthCheckPath: /healthz
+    autoDeploy: false
+    # No previews: they come from the staging service only.
+    previews:
+      generation: off
+    envVars:
+      - key: D2RMM_ENV
+        value: production
+      # The staging test endpoints stay off in production.
+      - key: ENABLE_STAGING_ENDPOINTS
+        value: 'false'
+      - key: SITE_ORIGIN
+        value: https://d2rmatchmaking.pages.dev
+      - key: DATABASE_URL
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_HEADERS
+        sync: false
+      - key: BNET_CLIENT_ID
+        sync: false
+      - key: BNET_CLIENT_SECRET
         sync: false
