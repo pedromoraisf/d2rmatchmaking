@@ -2,9 +2,10 @@
 // sampler, views, redacting exporters) and returns them in a handle. It reads no process.env: the caller passes every
 // setting, so the composition root alone decides where the configuration comes from.
 import { ExportResultCode, type ExportResult } from '@opentelemetry/core';
-import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
-import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-proto';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-proto';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
+import { CompressionAlgorithm } from '@opentelemetry/otlp-exporter-base';
 import { BatchLogRecordProcessor, LoggerProvider, type ReadableLogRecord } from '@opentelemetry/sdk-logs';
 import {
   MeterProvider,
@@ -65,7 +66,7 @@ class ExportErrorReporter {
   }
 }
 
-type OtlpConfig = { url: string; headers?: Record<string, string> };
+type OtlpConfig = { url: string; headers?: Record<string, string>; compression: CompressionAlgorithm };
 
 // Each OTLP exporter reports its failed exports to the reporter and keeps every other behaviour of the library class,
 // including the metric temporality selectors of the metric exporter.
@@ -122,7 +123,7 @@ function signalUrl(endpoint: string, signal: 'traces' | 'metrics' | 'logs'): str
 }
 
 /**
- * Starts the traces, metrics and logs of one process, exported over OTLP/HTTP to `endpoint`. Every exported record
+ * Starts the traces, metrics and logs of one process, exported over OTLP/HTTP (protobuf, gzip) to `endpoint`. Every exported record
  * passes its redacting exporter first, and the metric views keep only the bounded attribute sets.
  */
 export function startNodeTelemetry(options: NodeTelemetryOptions): TelemetryHandle {
@@ -135,6 +136,7 @@ export function startNodeTelemetry(options: NodeTelemetryOptions): TelemetryHand
   const reporter = new ExportErrorReporter(options.onExportError, now);
   const config = (signal: 'traces' | 'metrics' | 'logs'): OtlpConfig => ({
     url: signalUrl(options.endpoint, signal),
+    compression: CompressionAlgorithm.GZIP,
     ...(options.headers === undefined ? {} : { headers: options.headers }),
   });
 

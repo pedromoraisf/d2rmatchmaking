@@ -16,7 +16,10 @@ pub const MAX_STRING_CHARS: usize = 128;
 /// Span names must start with this prefix; any other span is dropped.
 pub const SPAN_NAME_PREFIX: &str = "agent.";
 /// The only attribute keys a span keeps. The match is exact: `http.url` is not `http.request.method`.
-pub const ALLOWED_ATTRIBUTE_KEYS: [&str; 7] = [
+pub const ALLOWED_ATTRIBUTE_KEYS: [&str; 10] = [
+    "vision.screen",
+    "vision.search",
+    "vision.area_class",
     "status",
     "d2r.room.id",
     "d2r.agent.version",
@@ -25,6 +28,31 @@ pub const ALLOWED_ATTRIBUTE_KEYS: [&str; 7] = [
     "http.request.method",
     "http.response.status_code",
 ];
+/// The values a vision attribute may carry (screen-recognition T8, SCR-09): fixed words, never a coordinate, a read text or a
+/// pixel. Any other value of these keys is dropped with its key.
+pub const VISION_VALUES: [(&str, &[&str]); 3] = [
+    (
+        "vision.screen",
+        &["in_game", "automap", "character_select", "unknown"],
+    ),
+    ("vision.search", &["track", "band", "fixed", "none"]),
+    ("vision.area_class", &["box", "band", "panel"]),
+];
+
+/// Whether an attribute may leave the machine: its key is allowed and, for a vision key, its value is one of the fixed words.
+fn attribute_allowed(attribute: &KeyValue) -> bool {
+    let key = attribute.key.as_str();
+    if !ALLOWED_ATTRIBUTE_KEYS.contains(&key) {
+        return false;
+    }
+    match VISION_VALUES.iter().find(|(name, _)| *name == key) {
+        None => true,
+        Some((_, words)) => {
+            matches!(&attribute.value, Value::String(text) if words.contains(&text.as_str()))
+        }
+    }
+}
+
 /// The only resource attributes the exporter sends.
 pub const ALLOWED_RESOURCE_KEYS: [&str; 4] = [
     "service.name",
@@ -41,7 +69,7 @@ pub fn sanitize_span(span: SpanData) -> Option<SpanData> {
     let attributes = span
         .attributes
         .into_iter()
-        .filter(|attribute| ALLOWED_ATTRIBUTE_KEYS.contains(&attribute.key.as_str()))
+        .filter(attribute_allowed)
         .map(|attribute| KeyValue::new(attribute.key, truncate_value(attribute.value)))
         .collect();
     Some(SpanData {
@@ -170,6 +198,41 @@ mod tests {
             .iter()
             .map(|attribute| attribute.key.as_str().to_string())
             .collect()
+    }
+
+    #[test]
+    fn a_vision_attribute_keeps_only_its_fixed_words() {
+        let fixture = span(
+            "agent.vision.read",
+            vec![
+                KeyValue::new("vision.screen", "in_game"),
+                KeyValue::new("vision.search", "band"),
+                KeyValue::new("vision.area_class", "panel"),
+            ],
+            Status::Unset,
+        );
+        let clean = sanitize_span(fixture).expect("an agent span is kept");
+        assert_eq!(
+            keys(&clean),
+            ["vision.screen", "vision.search", "vision.area_class"]
+        );
+        let other = span(
+            "agent.vision.read",
+            vec![
+                KeyValue::new("vision.screen", "Level 88 Sorceress"),
+                KeyValue::new("vision.search", "1650,882"),
+                KeyValue::new("vision.area_class", 7_i64),
+                KeyValue::new("vision.text", "mmbaalm-99"),
+                KeyValue::new("status", "ok"),
+            ],
+            Status::Unset,
+        );
+        let clean = sanitize_span(other).expect("an agent span is kept");
+        assert_eq!(
+            keys(&clean),
+            ["status"],
+            "any other value goes with its key"
+        );
     }
 
     #[test]

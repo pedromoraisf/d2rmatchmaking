@@ -312,3 +312,15 @@ test('the deploy stage may wait for a Render build for 1 to 900 seconds, set fro
     assert.equal(budgetFromEnv(bad), undefined, String(bad));
   }
 });
+
+test('an API smoke with no SHA accepts any build: an agent smoke only needs the API awake', async () => {
+  const request = async () => ({
+    status: 200,
+    headers: new Headers(),
+    json: async () => ({ status: 'ok', version: 'unknown' }),
+  });
+  assert.deepEqual(
+    await smokeChecks('api', 'https://api.test', undefined, { request, wait: async () => {}, budgetMs: 0 }),
+    [],
+  );
+});

@@ -1,0 +1,41 @@
+# Publishes the Grafana dashboards of infra/observability/dashboards/ to Grafana Cloud as code (scripts/obs/publish-dashboards.mjs):
+# on a push to main that touches them, and on demand. Secrets: GRAFANA_URL (the stack URL, https://<stack>.grafana.net) and
+# GRAFANA_SA_TOKEN (a service account token with dashboard write). When either is not set the script prints a notice and the job
+# succeeds. The token is only read from the environment and is never printed. Actions are pinned by commit SHA (ADR 019).
+name: publish-dashboards
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/observability/dashboards/**'
+      - 'scripts/obs/publish-dashboards.mjs'
+      - '.github/workflows/publish-dashboards.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-dashboards
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish-dashboards
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+      - name: Publish the dashboards
+        run: node scripts/obs/publish-dashboards.mjs
+        env:
+          GRAFANA_URL: ${{ secrets.GRAFANA_URL }}
+          GRAFANA_SA_TOKEN: ${{ secrets.GRAFANA_SA_TOKEN }}

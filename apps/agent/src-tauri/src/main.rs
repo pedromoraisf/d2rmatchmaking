@@ -4,7 +4,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 #[cfg(windows)]
-use d2rmm_agent::{adapters, app, config, language_pack, self_check};
+use d2rmm_agent::{adapters, app, channel, config, language_pack, self_check};
 
 #[cfg(windows)]
 use std::sync::Arc;
@@ -61,7 +61,11 @@ fn run_self_check(options: self_check::Options) -> i32 {
     use std::io::Write;
     use std::time::Duration;
 
-    let checks = self_check::run(
+    let (channel_name, channel_check) =
+        self_check::channel_check(channel::build_channel(), |note| {
+            let _ = writeln!(std::io::stderr(), "{note}");
+        });
+    let mut checks = self_check::run(
         options,
         config::build_api_base(),
         !cfg!(debug_assertions),
@@ -81,7 +85,13 @@ fn run_self_check(options: self_check::Options) -> i32 {
             let _ = writeln!(std::io::stderr(), "{note}");
         },
     );
-    let _ = writeln!(std::io::stdout(), "{}", self_check::report_line(&checks));
+    checks.push(channel_check);
+    let version = app::app_context().package_info().version.to_string();
+    let _ = writeln!(
+        std::io::stdout(),
+        "{}",
+        self_check::report_line(channel_name, &version, &checks)
+    );
     self_check::exit_code(&checks)
 }
 
@@ -138,7 +148,14 @@ fn ports(app: AppHandle, gateway: Arc<HttpGateway>) -> Groups<HttpGateway> {
             tokens: Arc::clone(&tokens),
         },
         update: UpdatePorts {
-            updater: Arc::new(TauriUpdater::new(app)),
+            // Only production updates itself: a preview or staging installer never finds a release (DLP-06).
+            updater: if channel::Channel::of(channel::build_channel())
+                .is_ok_and(|channel| channel.config().updater)
+            {
+                Arc::new(TauriUpdater::new(app))
+            } else {
+                Arc::new(channel::NoUpdater)
+            },
         },
         read: ReadPorts {
             reader,
