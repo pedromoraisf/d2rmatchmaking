@@ -40,7 +40,7 @@ Rules:
       failed request's error text and spans hold no token, and that the gateway sends `Authorization` only to the
       configured API base; a source rule that the token's `expose()` is called only by the gateway and the store. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core -p d2rmm-agent-adapters --lib && node --test scripts/test/agent-source-rules.test.mjs`
-- [ ] T4 — Agent: data only (AGT-04). Parser tests: an unknown event type, an unknown field, a malformed frame and an
+- [x] T4 — Agent: data only (AGT-04). Parser tests: an unknown event type, an unknown field, a malformed frame and an
       oversized frame change nothing; a source rule that lists the `StreamItem` variants and fails on a new one. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core -p d2rmm-agent-adapters --lib && node --test scripts/test/agent-source-rules.test.mjs`
 - [ ] T5 — Agent: structured data only (AGT-05). A unit test per request body (heartbeat, observation, characters,
