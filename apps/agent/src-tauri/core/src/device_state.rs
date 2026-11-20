@@ -11,6 +11,7 @@ use d2rmm_agent_domain::room_assignment::{Assignment, RoomAssignment};
 use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
+use crate::fill_name::FillOutcome;
 use crate::hub::Hub;
 use crate::messages::{ReadyCheckOpen, Screen};
 use crate::party::PartyProgress;
@@ -145,6 +146,11 @@ impl DeviceState {
         (*lock(&self.screen_read))
             .filter(|(_, read_at)| read_at.elapsed() <= within)
             .map(|(screen, _)| screen)
+    }
+
+    /// Shows what a fill did and keeps it until the next one (AST-08).
+    pub fn record_fill(&self, outcome: FillOutcome) {
+        self.hub.set_last_fill(outcome);
     }
 
     /// Whether a token is held.

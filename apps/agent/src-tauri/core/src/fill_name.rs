@@ -132,6 +132,7 @@ pub async fn press(
     };
     let outcome = fill(device, ports, &stop, modifiers).await;
     control.end();
+    device.record_fill(outcome);
     Some(outcome)
 }
 
@@ -436,6 +437,29 @@ mod tests {
             );
             assert_eq!(rig.keyboard.typed(), "mmb");
         }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_view_shows_the_last_outcome_and_a_press_that_did_nothing_changes_it_not() {
+        let rig = holding(Some("mmbaalh-12"));
+        assert_eq!(rig.device.hub.snapshot().last_fill, None);
+        assert_eq!(one_press(&rig).await, Some(FillOutcome::Typed));
+        assert_eq!(
+            rig.device.hub.snapshot().last_fill,
+            Some(FillOutcome::Typed)
+        );
+        rig.keyboard.set_focused(false);
+        assert_eq!(one_press(&rig).await, None, "too soon");
+        assert_eq!(
+            rig.device.hub.snapshot().last_fill,
+            Some(FillOutcome::Typed)
+        );
+        tokio::time::advance(Duration::from_secs(3)).await;
+        assert_eq!(one_press(&rig).await, Some(FillOutcome::RefusedFocus));
+        assert_eq!(
+            rig.device.hub.snapshot().last_fill,
+            Some(FillOutcome::RefusedFocus)
+        );
     }
 
     #[test]

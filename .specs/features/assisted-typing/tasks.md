@@ -44,7 +44,7 @@ Rules:
       read; waits for modifiers up to 1 s and then refuses; a press during a fill stops it; a press within 2 s of the end
       is ignored; stops when the room is dropped. Time comes from the paused clock, never a real wait. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --all-targets -- -D warnings`
-- [ ] T3 — Core view: hotkeys and the last fill outcome in `AgentView` (AST-01, AST-08); the outcome is a closed enum
+- [x] T3 — Core view: hotkeys and the last fill outcome in `AgentView` (AST-01, AST-08); the outcome is a closed enum
       (`typed`, `stopped`, `no-room`, `no-focus`, `game-running`, `keys-held`, `refused`) and carries no text. Unit tests
       on the view's JSON. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib`
