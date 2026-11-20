@@ -102,7 +102,7 @@ check is `node scripts/agent/win-check.mjs` (Docker, clippy for `x86_64-pc-windo
 
 ## Batch 2 — Windows adapters, written in the cloud, proved by the Windows check and CI
 
-- [ ] T10 — `graphics-capture` (CAP-01, CAP-04, CAP-09). New `src/adapters/graphics_capture.rs`: the Windows Graphics Capture of
+- [x] T10 — `graphics-capture` (CAP-01, CAP-04, CAP-09). New `src/adapters/graphics_capture.rs`: the Windows Graphics Capture of
       the game window (design, § Method adapters), with `FrameSource::methods` omitting it when
       `GraphicsCaptureSession::IsSupported()` is false, cursor capture off, the frame cropped with `crop_to_client`, RAII
       wrappers that release the device, pool, session and staging texture on every path and in `release()`. The pure parts
@@ -111,7 +111,7 @@ check is `node scripts/agent/win-check.mjs` (Docker, clippy for `x86_64-pc-windo
       adds `windows` features, not a crate, and must not change the bans. Gate:
       `CARGO nextest run -p d2rmm-agent --lib` (pure parts; needs `pnpm --filter @d2rmm/agent build` and the Tauri system
       libraries on Linux) and `node scripts/agent/win-check.mjs`
-- [ ] T11 — Compose the cascade in the app (CAP-01, CAP-09). `src/adapters/window_capture.rs` implements `methods`,
+- [x] T11 — Compose the cascade in the app (CAP-01, CAP-09). `src/adapters/window_capture.rs` implements `methods`,
       `capture_with` and `release` for `print-window` and delegates the second method to `graphics_capture`; `app.rs` builds
       the `Capturer`; `--self-check` stays as it is (it must still print and exit with no game running). The unsafe
       policy file list in the module header is updated. Gate: as T10, plus `node scripts/test/agent-source-rules.test.mjs`

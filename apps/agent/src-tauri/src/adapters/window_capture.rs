@@ -64,13 +64,16 @@ pub fn rgba_from_bgra(width: u32, height: u32, bgra: &[u8]) -> Option<Rgba> {
 }
 
 #[cfg(windows)]
-pub use game::WindowFrames;
+pub use game::WindowMethods;
 
 #[cfg(windows)]
 mod game {
     use std::mem::size_of;
 
-    use d2rmm_agent_core::ports::{FrameSource, Rgba};
+    use std::sync::{Mutex, PoisonError};
+
+    use d2rmm_agent_core::ports::{MethodSource, Miss, Rgba};
+    use d2rmm_agent_domain::capture_cascade::CaptureMethod;
     use windows::Win32::Foundation::{HWND, LPARAM, RECT};
     use windows::Win32::Graphics::Gdi::{
         BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleBitmap, CreateCompatibleDC,
@@ -85,24 +88,61 @@ mod game {
     use windows::core::BOOL;
 
     use super::{Rect, client_size, largest_client, rgba_from_bgra};
+    use crate::adapters::graphics_capture::{self, GraphicsFrames};
     use crate::adapters::toolhelp::game_process_ids;
 
-    /// The D2R game window, captured in memory when the screen loop asks for a frame.
-    #[derive(Debug, Default, Clone, Copy)]
-    pub struct WindowFrames;
+    /// The capture methods of the D2R game window (capture-cascade): `print-window` always, `graphics-capture` where Windows
+    /// offers it. The cascade (`d2rmm_agent_core::capturer::Capturer`) decides which one a look uses; each returns the client
+    /// area of the game window and nothing else (CAP-04, ADR 010).
+    #[derive(Default)]
+    pub struct WindowMethods {
+        graphics: GraphicsFrames,
+        /// The client size of the window the last capture used, so the cascade can refuse a frame of another size without a
+        /// second window lookup.
+        client: Mutex<Option<(u32, u32)>>,
+    }
 
-    impl FrameSource for WindowFrames {
-        fn capture(&self) -> Option<Rgba> {
-            let window = game_window()?;
-            // SAFETY: `window` is a window handle that `EnumWindows` returned a moment ago; the capture uses it only on this
-            // call, takes its device context from it and releases that context before it returns.
-            unsafe { client_frame(window) }
+    impl WindowMethods {
+        pub fn new() -> Self {
+            Self::default()
+        }
+    }
+
+    impl MethodSource for WindowMethods {
+        fn methods(&self) -> Vec<CaptureMethod> {
+            let mut methods = vec![CaptureMethod::PrintWindow];
+            if graphics_capture::supported() {
+                methods.push(CaptureMethod::GraphicsCapture);
+            }
+            methods
+        }
+
+        fn capture_with(&self, method: CaptureMethod) -> Result<Rgba, Miss> {
+            let window = game_window().ok_or(Miss::NoWindow)?;
+            // SAFETY: `window` is a window handle that `EnumWindows` returned a moment ago; it is used only on this call.
+            let size = unsafe { client_size_of(window) };
+            *self.client.lock().unwrap_or_else(PoisonError::into_inner) = size;
+            match method {
+                // SAFETY: as above; the capture takes its device context from the window and releases it before it returns.
+                CaptureMethod::PrintWindow => unsafe { client_frame(window) }.ok_or(Miss::Failed),
+                CaptureMethod::GraphicsCapture => self.graphics.capture(window),
+                // Built only if the field matrix needs it (capture-cascade T14).
+                CaptureMethod::ScreenCrop => Err(Miss::Failed),
+            }
+        }
+
+        fn client_size(&self) -> Option<(u32, u32)> {
+            *self.client.lock().unwrap_or_else(PoisonError::into_inner)
         }
 
         fn window_size(&self) -> Option<(u32, u32)> {
             let window = game_window()?;
             // SAFETY: `window` is a window handle that `EnumWindows` returned a moment ago; it is used only on this call.
             unsafe { window_size_of(window) }
+        }
+
+        fn release(&self) {
+            self.graphics.release();
         }
     }
 
