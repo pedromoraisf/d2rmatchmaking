@@ -190,7 +190,7 @@ export async function runLoad(input) {
   let versions = null;
   let error = null;
   let refusalMessage = null;
-  let leftBehind = [];
+  let leftBehind;
   try {
     const version = await docker.version();
     if (version.code !== 0) {

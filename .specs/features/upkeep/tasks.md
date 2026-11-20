@@ -87,7 +87,7 @@ Rules:
   `@opentelemetry` majors for 30 days (`dependabot.yml`), so this is the maintainer's migration, not upkeep. Moved to a
   follow-up; #39 closes with this reason, and `instrumentation-pg` 0.78.0 and `import-in-the-middle` 3.6.0 (#38, #36)
   went in with T11.
-- [ ] T13 — UPK-11, group 4 (ESLint majors): `eslint`, `@eslint/*`, `typescript-eslint` in one step; fix new findings
+- [x] T13 — UPK-11, group 4 (ESLint majors): `eslint`, `@eslint/*`, `typescript-eslint` in one step; fix new findings
       in the code, never by relaxing a rule or adding an ignore (rule 4). Gate:
       `pnpm install && pnpm lint && pnpm typecheck && pnpm test`
 - [ ] T14 — UPK-11, group 5 (Playwright): `@playwright/test` 1.65 with the `playwright-bdd` version its changelog lists
