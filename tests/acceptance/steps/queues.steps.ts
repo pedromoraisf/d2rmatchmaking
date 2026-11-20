@@ -147,7 +147,7 @@ async function passTime(world: World, ms: number): Promise<void> {
 }
 
 /** Opens the site in a new browser of the player, signed in with the player's session, and waits for the first view. */
-async function openSiteFor(world: World, name: string): Promise<void> {
+export async function openSiteFor(world: World, name: string): Promise<void> {
   const session = await world.sessionOf(name);
   const visitor = await world.newVisitor();
   const previous = world.pendingSessionCookie;

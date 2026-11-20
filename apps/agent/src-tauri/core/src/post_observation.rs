@@ -38,7 +38,12 @@ pub async fn send<G: ApiGateway + Send + Sync>(
             .instrument(span)
             .await;
         let error = match outcome {
-            Ok(()) => return SendOutcome::Posted,
+            Ok(()) => {
+                tracing::info_span!("agent.run.confirm")
+                    .in_scope(|| tracing::info!("agent.run.confirmed"));
+                device.confirm_run(&observation.room.to_string(), observation.run);
+                return SendOutcome::Posted;
+            }
             Err(error) => error,
         };
         if matches!(error, ApiError::Unauthorized | ApiError::UpgradeRequired) {
@@ -131,6 +136,68 @@ mod tests {
             tokens: tokens.clone(),
         };
         (device, tokens, ports, gateway)
+    }
+
+    /// The assignment the observation names: its room, run 1.
+    fn held_assignment(run: u64) -> d2rmm_agent_domain::room_assignment::Assignment {
+        d2rmm_agent_domain::room_assignment::Assignment {
+            room: d2rmm_agent_domain::room_assignment::RoomId::new(
+                "00000000-0000-0000-0000-000000000001",
+            ),
+            run: NonZeroU64::new(run).expect("a run is not zero"),
+            expected_game_name: d2rmm_agent_domain::room_assignment::GameName::new("mmbaalh-12"),
+            members: Vec::new(),
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn an_accepted_post_confirms_the_run_in_the_window_until_the_run_changes() {
+        let (device, _tokens, ports, gateway) = paired();
+        gateway.script_post_observation([Ok(())]);
+        let probe = crate::event_probe::EventProbe::default();
+        let _guard = probe.install();
+        device.replace_assignment(Some(held_assignment(1)));
+        device.publish_room();
+        let confirmed =
+            |device: &DeviceState| device.hub.snapshot().room.map(|room| room.confirmed);
+        assert_eq!(confirmed(&device), Some(false), "waiting before the post");
+
+        send(&device, &ports, &observation()).await;
+        assert_eq!(confirmed(&device), Some(true), "the 2xx confirms the run");
+        let events = probe.named("agent.run.confirmed");
+        assert_eq!(events.len(), 1);
+        assert!(events[0].fields.is_empty(), "no names on the event");
+
+        device.replace_assignment(Some(held_assignment(2)));
+        device.publish_room();
+        assert_eq!(
+            confirmed(&device),
+            Some(false),
+            "a new run waits again (ARL-04)"
+        );
+
+        device.replace_assignment(None);
+        device.publish_room();
+        assert_eq!(confirmed(&device), None, "a dropped room shows no line");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_refused_or_failed_post_keeps_waiting() {
+        let (device, _tokens, ports, gateway) = paired();
+        gateway.script_post_observation([Err(ApiError::Unauthorized)]);
+        device.replace_assignment(Some(held_assignment(1)));
+        device.publish_room();
+
+        send(&device, &ports, &observation()).await;
+
+        assert!(
+            device
+                .hub
+                .snapshot()
+                .room
+                .is_none_or(|room| !room.confirmed),
+            "nothing confirms a refused post"
+        );
     }
 
     #[tokio::test(start_paused = true)]

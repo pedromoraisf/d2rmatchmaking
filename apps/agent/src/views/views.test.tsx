@@ -99,6 +99,24 @@ describe('status view', () => {
     expect(screen.getByText('Room mmbaalh-12 — waiting for the game')).toBeTruthy();
   });
 
+  it('shows the room line as presence confirmed once the API accepted the observation (ARL-03)', () => {
+    renderStatus({
+      room: { gameName: 'mmbaalh-12', needsReveal: false, matched: true, confirmed: true },
+    });
+
+    expect(screen.getByText('Room mmbaalh-12 — presence confirmed')).toBeTruthy();
+    expect(screen.queryByText('Room mmbaalh-12 — waiting for the game')).toBeNull();
+  });
+
+  it('shows presence confirmed in pt-BR (ARL-03)', () => {
+    const confirmed = view({
+      room: { gameName: 'mmbaalh-12', needsReveal: false, matched: true, confirmed: true },
+    });
+    render(<StatusView view={confirmed} translate={ptBR} />);
+
+    expect(screen.getByText('Sala mmbaalh-12 — presença confirmada')).toBeTruthy();
+  });
+
   it('tells the player to reveal the game name while it is masked (AGN-04)', () => {
     const { unmount } = renderStatus({
       room: { gameName: 'mmbaalh-12', needsReveal: true, matched: false },

@@ -2,6 +2,7 @@
 //! wake the loops, the dropped-observation count and the hub. The rules run under a short lock. The effects a rule returns
 //! are applied here, to the token store, the view and the update loop. No lock is held across an await.
 
+use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
@@ -37,6 +38,9 @@ pub struct DeviceState {
     party: Mutex<PartyProgress>,
     /// The ready check the account is in, while its time has not run out (RDY-07). The hotkey answers it.
     ready_check: Mutex<Option<HeldReadyCheck>>,
+    /// The run the API last accepted an observation for (ARL-03): its room and run number. It counts only while the held
+    /// assignment names the same run.
+    confirmed_run: Mutex<Option<(String, NonZeroU64)>>,
 }
 
 /// A held ready check and the monotonic instant its time runs out: the time left came from the server (RDY-11).
@@ -60,6 +64,7 @@ impl DeviceState {
             observations_dropped: AtomicU64::new(0),
             party: Mutex::new(PartyProgress::default()),
             ready_check: Mutex::new(None),
+            confirmed_run: Mutex::new(None),
         }
     }
 
@@ -171,15 +176,28 @@ impl DeviceState {
     pub fn publish_room(&self) {
         let room = self.assignment.borrow().current().map(|assignment| {
             let progress = lock(&self.party);
+            let confirmed = lock(&self.confirmed_run)
+                .as_ref()
+                .is_some_and(|(room, run)| {
+                    room == assignment.room.as_str() && *run == assignment.run
+                });
             RoomView {
                 game_name: assignment.expected_game_name.as_str().to_string(),
                 needs_reveal: progress.needs_reveal(),
                 matched: progress.matched(),
+                confirmed,
             }
         });
         if self.hub.snapshot().room != room {
             self.hub.set_room(room);
         }
+    }
+
+    /// The API accepted the observation of this run (ARL-03): the window says the presence is confirmed until the run changes
+    /// or the room ends. Holds the run, not the name, and publishes the room.
+    pub fn confirm_run(&self, room: &str, run: NonZeroU64) {
+        *lock(&self.confirmed_run) = Some((room.to_string(), run));
+        self.publish_room();
     }
 
     /// A 401 on any request: the token goes, the room goes, and the pairing loop shows a new code (AGS-08).
@@ -359,6 +377,7 @@ mod tests {
             game_name: "mmbaalh-12".to_string(),
             needs_reveal: false,
             matched: false,
+            confirmed: false,
         }));
         let epoch = device.epoch();
 

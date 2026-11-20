@@ -5,6 +5,8 @@ pub mod beat;
 pub mod check_update;
 pub mod config;
 pub mod device_state;
+#[cfg(test)]
+mod event_probe;
 pub mod fakes;
 pub mod follow_stream;
 pub mod groups;
