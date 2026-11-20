@@ -56,7 +56,7 @@ with drawn fixtures. Never commit a capture.
 
 ## Batch 2 (after the orchestrator dispatches the nightly on the branch)
 
-- [ ] T8 — From the branch's nightly, kill or exclude with evidence (OCP-05, OCP-06) every survivor in `core/src/party.rs`
+- [x] T8 — From the branch's nightly, kill or exclude with evidence (OCP-05, OCP-06) every survivor in `core/src/party.rs`
       and `core/src/screen_reader.rs`, and any domain survivor still left. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core -p d2rmm-agent-domain --lib && pnpm test:harness`
 

@@ -508,6 +508,24 @@ mod tests {
     }
 
     #[test]
+    fn a_shown_name_after_a_masked_one_clears_the_hint() {
+        let mut progress = PartyProgress::default();
+        progress.follow(Some(&assignment(1, "mmbaalh-12")));
+        progress.saw_masked();
+        assert!(
+            progress.needs_reveal(),
+            "the masked field asks for the reveal"
+        );
+
+        progress.saw_shown();
+
+        assert!(
+            !progress.needs_reveal(),
+            "the player revealed the name, so the prompt goes away (AGN-04)"
+        );
+    }
+
+    #[test]
     fn forgetting_the_assignment_clears_the_run() {
         let mut progress = PartyProgress::default();
         progress.follow(Some(&assignment(1, "mmbaalh-12")));
