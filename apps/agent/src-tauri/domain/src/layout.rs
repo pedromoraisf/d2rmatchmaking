@@ -165,6 +165,9 @@ pub enum ScreenRegion {
     /// by their words (`anchors::find_hud`): the fixed "Life:" box missed in both window and full screen, because D2R does
     /// not scale its HUD linearly between the two. Its width is the client's, whatever the aspect ratio.
     HudBand,
+    /// The top-right corner where the automap's area block sits, searched for its "Difficulty:" line by its word
+    /// (`anchors::find_automap`) when the fixed `AreaDifficulty` box misses: a fallback, the fixed box stays the first check.
+    AutomapArea,
 }
 
 /// The top of `ScreenRegion::HudBand` in pixels of the reference client: the bottom quarter. The "Life:" label sits at
@@ -193,6 +196,7 @@ pub fn screen_box(region: ScreenRegion) -> PanelBox {
         ScreenRegion::CardSelected(slot) => PanelBox::new(Right, 210, card_top(slot) - 1, 20, 3),
         ScreenRegion::CardColumn => PanelBox::new(Right, 40, 30, 340, 850),
         ScreenRegion::PopupArea => PanelBox::new(Centre, -130, 320, 260, 290),
+        ScreenRegion::AutomapArea => PanelBox::new(Right, 0, 20, 560, 220),
         // The width is the client's: `screen_region` replaces it.
         ScreenRegion::HudBand => PanelBox::new(
             Left,
@@ -264,6 +268,7 @@ impl ScreenRegion {
             ScreenRegion::CardColumn => "cardColumn".to_string(),
             ScreenRegion::PopupArea => "popupArea".to_string(),
             ScreenRegion::HudBand => "hudBand".to_string(),
+            ScreenRegion::AutomapArea => "automapArea".to_string(),
         }
     }
 }
@@ -500,6 +505,34 @@ mod screen_tests {
         }
         assert_eq!(band(2560, 1440).width, 2560);
         assert_eq!(screen_region(ScreenRegion::HudBand, 1280, 1024), None);
+    }
+
+    #[test]
+    fn the_automap_area_holds_the_fixed_difficulty_line_of_every_client() {
+        // The area is where the automap's difficulty line is searched by its word when the fixed box misses: it contains
+        // that box at every height of the maintainer's prints and stays at the top right.
+        for height in [1033, 1045, 1056, 1080] {
+            let area = at(ScreenRegion::AutomapArea, 1920, height);
+            let line = at(ScreenRegion::AreaDifficulty, 1920, height);
+            assert!(
+                area.x <= line.x
+                    && line.right() <= area.right()
+                    && area.y <= line.y
+                    && line.bottom() <= area.bottom(),
+                "at {height}"
+            );
+            assert_eq!(area.right(), 1920, "anchored to the right edge");
+            assert!(area.bottom() < height / 4, "a corner, not a half: {height}");
+        }
+        assert_eq!(
+            at(ScreenRegion::AutomapArea, 1920, 1033),
+            Region {
+                x: 1360,
+                y: 20,
+                width: 560,
+                height: 220
+            }
+        );
     }
 
     #[test]

@@ -7,7 +7,8 @@
 
 use crate::characters::Difficulty;
 use crate::language::{
-    GAME_NAME, LIFE, LanguagePack, MANA, PASSWORD, SELECT_DIFFICULTY, TAB_OFFLINE, TAB_ONLINE,
+    DIFFICULTY_LABEL, GAME_NAME, LIFE, LanguagePack, MANA, PASSWORD, SELECT_DIFFICULTY,
+    TAB_OFFLINE, TAB_ONLINE,
 };
 use crate::layout::REFERENCE_HEIGHT;
 use crate::vision::{Region, TextLine};
@@ -264,6 +265,27 @@ pub fn find_hud(pack: &LanguagePack, lines: &[TextLine]) -> Option<Region> {
 /// The HUD's label line in any variant's lines: the first variant that found one gives its box.
 pub fn find_hud_in_variants(pack: &LanguagePack, variants: &[Vec<TextLine>]) -> Option<Region> {
     variants.iter().find_map(|lines| find_hud(pack, lines))
+}
+
+/// Whether any word of `text` starts the pack's automap difficulty label ("Difficulty: Hell"): the line may begin with other
+/// text the engine joined to it, so every word is tried as the start of the label.
+fn is_automap_line(pack: &LanguagePack, text: &str) -> bool {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    (0..words.len()).any(|start| pack.begins_with(&words[start..].join(" "), DIFFICULTY_LABEL))
+}
+
+/// The first line of `lines` (top to bottom) that shows the automap's "Difficulty:" label, found anywhere in the top-right
+/// area (`ScreenRegion::AutomapArea`), not at one fixed place. Its box is what the tracker remembers.
+pub fn find_automap(pack: &LanguagePack, lines: &[TextLine]) -> Option<Region> {
+    top_down(lines)
+        .into_iter()
+        .find(|line| is_automap_line(pack, &line.text))
+        .map(|line| line.region)
+}
+
+/// The automap's label line in any variant's lines: the first variant that found one gives its box.
+pub fn find_automap_in_variants(pack: &LanguagePack, variants: &[Vec<TextLine>]) -> Option<Region> {
+    variants.iter().find_map(|lines| find_automap(pack, lines))
 }
 
 /// Whether a line of the popup area is the popup's title.
@@ -1138,6 +1160,33 @@ mod hud_tests {
         let lines = [line("Town Portal", 700, 880), line("Level 88", 900, 880)];
         assert_eq!(find_hud(&english, &lines), None);
         assert_eq!(find_hud(&english, &[]), None);
+    }
+
+    #[test]
+    fn the_automap_difficulty_line_is_found_wherever_the_area_puts_it() {
+        use super::{find_automap, find_automap_in_variants};
+        let english = LanguagePack::english();
+        for (x, y) in [(1750, 52), (1700, 90), (1500, 140)] {
+            let lines = [line("Difficulty: Hell", x, y)];
+            assert_eq!(find_automap(&english, &lines), Some(lines[0].region));
+        }
+        let joined = [line("Act 1 Difficulty: Normal", 1600, 60)];
+        assert!(find_automap(&english, &joined).is_some());
+        let variants = [vec![], vec![line("Difficulty: Hell", 1750, 52)]];
+        assert!(find_automap_in_variants(&english, &variants).is_some());
+    }
+
+    #[test]
+    fn other_text_of_the_area_is_not_the_automap_marker() {
+        use super::{find_automap, find_automap_in_variants};
+        let english = LanguagePack::english();
+        let lines = [
+            line("Rogue Encampment", 1700, 40),
+            line("Level 88", 1700, 70),
+        ];
+        assert_eq!(find_automap(&english, &lines), None);
+        assert_eq!(find_automap(&english, &[]), None);
+        assert_eq!(find_automap_in_variants(&english, &[vec![], vec![]]), None);
     }
 
     #[test]

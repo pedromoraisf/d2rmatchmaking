@@ -245,6 +245,13 @@ where
     let list = any_reading(&text(ScreenRegion::CreateNew), |read| {
         pack.is_word(read, CREATE_NEW) || pack.is_squashed_word(read, CREATE_NEW)
     });
+    // The automap's "Difficulty:" line, searched for by its word in the top-right area when the fixed box above missed (the
+    // same window and full-screen drift as the HUD); before the HUD, because an open automap shows the HUD too. The
+    // character list never shows it.
+    if !list && anchors::find_automap_in_variants(pack, &lines(ScreenRegion::AutomapArea)).is_some()
+    {
+        return Reading::without_cards(Screen::AutomapOpen);
+    }
     // The HUD's Life or Mana label, searched for by its word in the bottom band: D2R does not scale its HUD linearly
     // between a window and full screen, so the fixed box above misses one of them (0.3.0). The character list never
     // shows it, so a frame with the list does not read the band.
@@ -2043,6 +2050,60 @@ mod hud_band_tests {
             let (screen, _) = read(vec![vec![line("Life: 925 / 925", x, y)]], "");
             assert_eq!(screen, Screen::InGame);
         }
+    }
+
+    /// Reads a frame with lines in the automap area and in the HUD band; returns the screen and the areas read, in order.
+    fn read_areas(
+        automap: Vec<Vec<TextLine>>,
+        band: Vec<Vec<TextLine>>,
+        create_new: &str,
+    ) -> (Screen, Vec<ScreenRegion>) {
+        let mut asked = Vec::new();
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |region| (region == ScreenRegion::CreateNew).then(|| vec![create_new.to_string()]),
+            |search| {
+                asked.push(search);
+                match search {
+                    ScreenRegion::AutomapArea => automap.clone(),
+                    ScreenRegion::HudBand => band.clone(),
+                    _ => Vec::new(),
+                }
+            },
+            |_| None,
+            Probes {
+                selected: |_| false,
+                lit: |_| false,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        (reading.screen, asked)
+    }
+
+    #[test]
+    fn a_difficulty_line_anywhere_in_the_area_is_the_automap_and_wins_over_the_hud() {
+        let automap = vec![vec![line("Difficulty: Hell", 1700, 90)]];
+        let band = vec![vec![line("Life: 925 / 925", 436, 868)]];
+        let (screen, asked) = read_areas(automap, band, "");
+        assert_eq!(screen, Screen::AutomapOpen);
+        assert_eq!(
+            asked,
+            [ScreenRegion::AutomapArea],
+            "the HUD band is not read"
+        );
+    }
+
+    #[test]
+    fn no_difficulty_line_leaves_the_hud_to_decide_and_the_list_reads_neither_area() {
+        let band = vec![vec![line("Life: 925 / 925", 436, 868)]];
+        let other = vec![vec![line("Rogue Encampment", 1700, 40)]];
+        let (screen, asked) = read_areas(other.clone(), band.clone(), "");
+        assert_eq!(screen, Screen::InGame);
+        assert_eq!(asked, [ScreenRegion::AutomapArea, ScreenRegion::HudBand]);
+        let (_, asked) = read_areas(other, band, "Create New");
+        assert!(!asked.contains(&ScreenRegion::AutomapArea));
+        assert!(!asked.contains(&ScreenRegion::HudBand));
     }
 
     #[test]

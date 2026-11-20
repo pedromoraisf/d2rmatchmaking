@@ -10,7 +10,7 @@ use d2rmm_agent_domain::anchors::{self, line_pad};
 use d2rmm_agent_domain::character_screen::{
     BandRead, Probes, is_enabled_label, is_gold, label_brightness, luma, read_screen,
 };
-use d2rmm_agent_domain::hud_track::{HudRead, HudTracker};
+use d2rmm_agent_domain::hud_track::{TrackRead, Tracker};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{ScreenRegion, screen_region, selection_band, supported_size};
 use d2rmm_agent_domain::presence::Screen;
@@ -25,8 +25,13 @@ pub struct ScreenReader {
     reader: Arc<dyn TextReader + Send + Sync>,
     language: Arc<LanguagePack>,
     /// Where the HUD's label was last found: the next frames read a small box around it, not the whole band.
-    hud: Mutex<HudTracker>,
+    hud: Mutex<Tracker>,
+    /// The same for the automap's "Difficulty:" line.
+    automap: Mutex<Tracker>,
 }
+
+/// Finds a tracked label's line in a frame's variants.
+type FindLabel = fn(&LanguagePack, &[Vec<TextLine>]) -> Option<Region>;
 
 /// What the anchors found in a frame: counts only, never a line of text (`ocr-check` prints them).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -42,33 +47,42 @@ impl ScreenReader {
         Self {
             reader,
             language,
-            hud: Mutex::new(HudTracker::default()),
+            hud: Mutex::new(Tracker::new(ScreenRegion::HudBand)),
+            automap: Mutex::new(Tracker::new(ScreenRegion::AutomapArea)),
         }
     }
 
-    /// The lines that hold the HUD's label: the box it was last found in, when it is still there, else the whole bottom
-    /// band. What was found is remembered for the next frame (search, then track).
-    fn hud_lines(&self, frame: &Rgba) -> Vec<Vec<TextLine>> {
-        let plan = self
-            .hud
+    /// The lines that hold a label: the box it was last found in, when it is still there, else the whole search area of
+    /// its tracker. What was found is remembered for the next frame (search, then track).
+    fn tracked_lines(
+        &self,
+        frame: &Rgba,
+        tracker: &Mutex<Tracker>,
+        find: FindLabel,
+    ) -> Vec<Vec<TextLine>> {
+        let plan = tracker
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .next(frame.width, frame.height);
         let (area, tracked) = match plan {
-            Some(HudRead::Track(area)) => (area, true),
-            Some(HudRead::Search(area)) => (area, false),
+            Some(TrackRead::Track(area)) => (area, true),
+            Some(TrackRead::Search(area)) => (area, false),
             None => return Vec::new(),
         };
         let mut lines = self.reader.read_line_variants(frame, area);
-        let mut found = anchors::find_hud_in_variants(&self.language, &lines);
+        let mut found = find(&self.language, &lines);
         if tracked && found.is_none() {
-            // The label moved or is gone: look in the whole band.
-            if let Some(band) = screen_region(ScreenRegion::HudBand, frame.width, frame.height) {
-                lines = self.reader.read_line_variants(frame, band);
-                found = anchors::find_hud_in_variants(&self.language, &lines);
+            // The label moved or is gone: look in the whole search area.
+            let search = tracker
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .search_area(frame.width, frame.height);
+            if let Some(search) = search {
+                lines = self.reader.read_line_variants(frame, search);
+                found = find(&self.language, &lines);
             }
         }
-        self.hud
+        tracker
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .record(found, frame.width, frame.height);
@@ -77,8 +91,14 @@ impl ScreenReader {
 
     /// The lines of a search area as each variant of the reader reads them.
     fn lines_of(&self, frame: &Rgba, search: ScreenRegion) -> Vec<Vec<TextLine>> {
-        if search == ScreenRegion::HudBand {
-            return self.hud_lines(frame);
+        match search {
+            ScreenRegion::HudBand => {
+                return self.tracked_lines(frame, &self.hud, anchors::find_hud_in_variants);
+            }
+            ScreenRegion::AutomapArea => {
+                return self.tracked_lines(frame, &self.automap, anchors::find_automap_in_variants);
+            }
+            _ => {}
         }
         screen_region(search, frame.width, frame.height)
             .map(|area| self.reader.read_line_variants(frame, area))
@@ -1096,6 +1116,55 @@ mod hud_tests {
             let reading = reader(&hud).read(&frame(width, height));
             assert_eq!(reading.screen, Screen::InGame, "{width}×{height}");
         }
+    }
+
+    fn difficulty(x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: "Difficulty: Hell".to_string(),
+            region: Region {
+                x,
+                y,
+                width: 150,
+                height: 18,
+            },
+        }
+    }
+
+    #[test]
+    fn the_automap_is_found_by_its_word_where_the_fixed_box_misses_and_then_tracked() {
+        // 1920×1056: the line is at the top right but not in the fixed box. The HUD is on screen too: the automap wins.
+        let hud = Hud::new(vec![difficulty(1600, 120), life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1056);
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        let first = hud.take_asked();
+        assert_eq!(automap_reads(&first), 1, "searched");
+        assert_eq!(band_reads(&first), 0, "the band is not read");
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        let second = hud.take_asked();
+        assert_eq!(automap_reads(&second), 0, "only tracked");
+        assert!(second.iter().any(|area| area.width < 400 && area.x > 1400));
+    }
+
+    #[test]
+    fn a_closed_automap_searches_its_area_again_and_reads_the_hud() {
+        let hud = Hud::new(vec![difficulty(1600, 120), life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        *hud.lines.lock().expect("lines") = vec![life(436, 880)];
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        hud.take_asked();
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        assert_eq!(automap_reads(&hud.take_asked()), 1);
+    }
+
+    /// The reads of the whole automap area (about 560 px wide on the reference client), not of a box around a line.
+    fn automap_reads(asked: &[Region]) -> usize {
+        asked
+            .iter()
+            .filter(|area| (500..1000).contains(&area.width))
+            .count()
     }
 
     #[test]

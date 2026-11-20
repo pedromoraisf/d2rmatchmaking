@@ -60,7 +60,7 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
       the missing cases: a band find at 1920×1033, 1920×1045, 1920×1056 and 1920×1080; the English pack's
       words only; a tracker find at one client size never reused at another. Gate: as T2, plus
       `CARGO nextest run -p d2rmm-agent-core --lib` run under `cargo test -p d2rmm-agent-core --lib` too (one process, OCP-04)
-- [ ] T4 — **[R14]** The automap by words in a wide area, with the same search-then-track rule (SCR-03). Generalise
+- [x] T4 — **[R14]** The automap by words in a wide area, with the same search-then-track rule (SCR-03). Generalise
       `hud_track.rs` to a `Tracker` that both lines use (pure; no I/O), add the automap area to `layout.rs`, `find_automap`
       to `anchors.rs`, and the order of `read_screen`. The fixed `AreaDifficulty` box stays as the first check. Pinning
       tests of T2 first. Gate: as T3

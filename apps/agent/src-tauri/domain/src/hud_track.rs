@@ -1,7 +1,8 @@
-//! Search, then track, the in-game HUD's label (the Life or Mana line). Searching reads the whole bottom band
-//! (`ScreenRegion::HudBand`), which is the most OCR the marker costs; once a line is found, the next frames read only a
-//! small box around it, and a miss goes back to searching the band. A pure state machine: it holds where the label was
-//! and the client size that was measured on, and decides what to read next. No I/O, no clock, no randomness.
+//! Search, then track, a label of the in-game screens: the HUD's Life or Mana line (`ScreenRegion::HudBand`) and the
+//! automap's "Difficulty:" line (`ScreenRegion::AutomapArea`). Searching reads the whole wide area, which is the most OCR
+//! the marker costs; once a line is found, the next frames read only a small box around it, and a miss goes back to
+//! searching the area. A pure state machine: it holds where the label was and the client size that was measured on, and
+//! decides what to read next. No I/O, no clock, no randomness.
 
 use crate::anchors::padded;
 use crate::layout::{REFERENCE_HEIGHT, ScreenRegion, screen_region};
@@ -13,34 +14,45 @@ const TRACK_PAD: u32 = 24;
 
 /// What to read on the next frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HudRead {
-    /// The label is not known: read the whole band.
+pub enum TrackRead {
+    /// The label is not known: read the whole search area.
     Search(Region),
-    /// The label was last seen here: read this box first, the band only on a miss.
+    /// The label was last seen here: read this box first, the search area only on a miss.
     Track(Region),
 }
 
-/// Where the HUD's label was last seen, and in a client of what size.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct HudTracker {
+/// Where a label was last seen, and in a client of what size, with the area it is searched in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Tracker {
+    search: ScreenRegion,
     seen: Option<(Region, u32, u32)>,
 }
 
-impl HudTracker {
-    /// The area to read on a frame of `width` × `height`. `None` when the size has no band. A label seen in a client of
+impl Tracker {
+    /// A tracker that has seen nothing, searching `search` (a wide area such as `ScreenRegion::HudBand`).
+    pub fn new(search: ScreenRegion) -> Self {
+        Self { search, seen: None }
+    }
+
+    /// The area to read on a frame of `width` × `height`. `None` when the size has no area. A label seen in a client of
     /// another size is forgotten: its box does not apply.
-    pub fn next(&self, width: u32, height: u32) -> Option<HudRead> {
-        let band = screen_region(ScreenRegion::HudBand, width, height)?;
+    pub fn next(&self, width: u32, height: u32) -> Option<TrackRead> {
+        let area = screen_region(self.search, width, height)?;
         match self.seen {
             Some((line, seen_width, seen_height))
                 if (seen_width, seen_height) == (width, height) =>
             {
                 let pad = (u64::from(TRACK_PAD) * u64::from(height) / u64::from(REFERENCE_HEIGHT))
                     .max(1) as u32;
-                Some(HudRead::Track(padded(line, pad, width, height)))
+                Some(TrackRead::Track(padded(line, pad, width, height)))
             }
-            _ => Some(HudRead::Search(band)),
+            _ => Some(TrackRead::Search(area)),
         }
+    }
+
+    /// The area this tracker searches when its box misses.
+    pub fn search_area(&self, width: u32, height: u32) -> Option<Region> {
+        screen_region(self.search, width, height)
     }
 
     /// Records what the frame showed: the label's line (to track it) or nothing (to search again).
@@ -51,7 +63,8 @@ impl HudTracker {
 
 #[cfg(test)]
 mod tests {
-    use super::{HudRead, HudTracker};
+    use super::{TrackRead, Tracker};
+    use crate::layout::ScreenRegion;
     use crate::vision::Region;
 
     const LINE: Region = Region {
@@ -61,6 +74,10 @@ mod tests {
         height: 20,
     };
 
+    fn hud() -> Tracker {
+        Tracker::new(ScreenRegion::HudBand)
+    }
+
     #[test]
     fn a_new_tracker_searches_the_whole_band() {
         let band = Region {
@@ -69,20 +86,29 @@ mod tests {
             width: 1920,
             height: 270,
         };
+        assert_eq!(hud().next(1920, 1080), Some(TrackRead::Search(band)));
+        assert_eq!(hud().search_area(1920, 1080), Some(band));
+    }
+
+    #[test]
+    fn a_tracker_searches_the_area_it_was_made_for() {
+        let automap = Tracker::new(ScreenRegion::AutomapArea);
         assert_eq!(
-            HudTracker::default().next(1920, 1080),
-            Some(HudRead::Search(band))
+            automap.next(1920, 1080),
+            Some(TrackRead::Search(
+                crate::layout::screen_region(ScreenRegion::AutomapArea, 1920, 1080).expect("area")
+            ))
         );
     }
 
     #[test]
     fn a_found_line_is_tracked_in_a_box_around_it() {
-        let mut tracker = HudTracker::default();
+        let mut tracker = hud();
         tracker.record(Some(LINE), 1920, 1080);
         // 24 px on the 1033 reference is 25 px at 1080.
         assert_eq!(
             tracker.next(1920, 1080),
-            Some(HudRead::Track(Region {
+            Some(TrackRead::Track(Region {
                 x: 405,
                 y: 835,
                 width: 200,
@@ -93,24 +119,36 @@ mod tests {
 
     #[test]
     fn a_miss_goes_back_to_searching() {
-        let mut tracker = HudTracker::default();
+        let mut tracker = hud();
         tracker.record(Some(LINE), 1920, 1080);
         tracker.record(None, 1920, 1080);
-        assert!(matches!(tracker.next(1920, 1080), Some(HudRead::Search(_))));
+        assert!(matches!(
+            tracker.next(1920, 1080),
+            Some(TrackRead::Search(_))
+        ));
     }
 
     #[test]
     fn a_line_seen_at_another_size_is_not_tracked() {
-        let mut tracker = HudTracker::default();
+        let mut tracker = hud();
         tracker.record(Some(LINE), 1920, 1080);
-        assert!(matches!(tracker.next(1920, 1056), Some(HudRead::Search(_))));
-        assert!(matches!(tracker.next(1921, 1080), Some(HudRead::Search(_))));
-        assert!(matches!(tracker.next(1920, 1079), Some(HudRead::Search(_))));
+        assert!(matches!(
+            tracker.next(1920, 1056),
+            Some(TrackRead::Search(_))
+        ));
+        assert!(matches!(
+            tracker.next(1921, 1080),
+            Some(TrackRead::Search(_))
+        ));
+        assert!(matches!(
+            tracker.next(1920, 1079),
+            Some(TrackRead::Search(_))
+        ));
     }
 
     #[test]
     fn the_box_stays_inside_the_client() {
-        let mut tracker = HudTracker::default();
+        let mut tracker = hud();
         let corner = Region {
             x: 0,
             y: 1070,
@@ -120,7 +158,7 @@ mod tests {
         tracker.record(Some(corner), 1920, 1080);
         assert_eq!(
             tracker.next(1920, 1080),
-            Some(HudRead::Track(Region {
+            Some(TrackRead::Track(Region {
                 x: 0,
                 y: 1045,
                 width: 125,
@@ -131,7 +169,8 @@ mod tests {
 
     #[test]
     fn an_unsupported_size_reads_nothing() {
-        assert_eq!(HudTracker::default().next(1280, 1024), None);
-        assert_eq!(HudTracker::default().next(0, 0), None);
+        assert_eq!(hud().next(1280, 1024), None);
+        assert_eq!(hud().next(0, 0), None);
+        assert_eq!(hud().search_area(1280, 1024), None);
     }
 }
