@@ -8,6 +8,7 @@ import { verdictOf, waitForVerdict } from '../delivery/ci-verdict.mjs';
 import { isSmokeJob, stagingSmokeRunId } from '../delivery/promotable.mjs';
 import {
   backoffMs,
+  budgetFromEnv,
   healthzAccepts,
   jitteredMs,
   smokeChecks,
@@ -301,4 +302,13 @@ test('a URL on another project, another host or another scheme is not a deployme
   }
   assert.equal(deploymentUrl(WRANGLER, 'bad project'), undefined);
   assert.equal(deploymentUrl(WRANGLER, undefined), undefined);
+});
+
+test('the deploy stage may wait for a Render build for 1 to 900 seconds, set from the environment', () => {
+  assert.equal(budgetFromEnv('600'), 600_000);
+  assert.equal(budgetFromEnv('1'), 1000);
+  assert.equal(budgetFromEnv('900'), 900_000);
+  for (const bad of ['0', '901', '-5', '1e3', '', ' 60', 'abc', undefined, null]) {
+    assert.equal(budgetFromEnv(bad), undefined, String(bad));
+  }
 });
