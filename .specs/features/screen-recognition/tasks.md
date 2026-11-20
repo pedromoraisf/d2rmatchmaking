@@ -64,7 +64,7 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
       `hud_track.rs` to a `Tracker` that both lines use (pure; no I/O), add the automap area to `layout.rs`, `find_automap`
       to `anchors.rs`, and the order of `read_screen`. The fixed `AreaDifficulty` box stays as the first check. Pinning
       tests of T2 first. Gate: as T3
-- [ ] T5 — Drawn fixtures per mode (SCR-07, SCR-01, SCR-03, SCR-08). Extend the `xtask` drawing
+- [x] T5 — Drawn fixtures per mode (SCR-07, SCR-01, SCR-03, SCR-08). Extend the `xtask` drawing
       (`xtask/src/character_fixture.rs` or a new `xtask/src/screen_fixture.rs`, wired in `main.rs`) with sidecars of lines
       that have boxes, at the HUD positions measured on the maintainer's prints: `in-game-window` (1920×1056),
       `in-game-fullscreen` (1920×1080), `in-game-mana-only`, `in-game-low-brightness`, `automap-window`,
