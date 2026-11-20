@@ -38,4 +38,4 @@ Format: Context · Decision · Alternatives · Consequences. Only the maintainer
 | [032](032-twelve-factor.md)                 | The Twelve-Factor App is a founding principle                                          | Accepted                                 |
 | [033](033-delivery-platform.md)             | Delivery platform: uniform environments and stages for the site, the API and the agent | Proposed                                 |
 | [035](035-nightly-runs-load.md)             | The nightly runs the load test on a GitHub runner                                      | Accepted                                 |
-| [036](036-chat-names-matched-on-the-api.md) | A chat name may leave the PC to be matched on the API, and is dropped there            | Proposed                                 |
+| [036](036-chat-names-matched-on-the-api.md) | A chat name may leave the PC to be matched on the API, and is dropped there            | Accepted                                 |
