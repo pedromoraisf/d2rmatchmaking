@@ -2,6 +2,7 @@
 // site scenario shares. Black box: the browser and HTTP only. Each pattern is anchored, so one line matches one step.
 import { expect } from '@playwright/test';
 import { Given, Then, When } from '../fixtures.ts';
+import { ACCEPTANCE_BUILD_SHA } from '../support/stack.ts';
 
 /** Every quoted text of a step line, in order. */
 function quoted(text: string): string[] {
@@ -16,7 +17,7 @@ When('a client asks the API for its health', async ({ world }) => {
 
 Then('the API answers that it is ok', ({ world }) => {
   expect(world.last?.status, 'the health status').toBe(200);
-  expect(world.last?.body, 'the health body').toEqual({ status: 'ok' });
+  expect(world.last?.body, 'the health body').toEqual({ status: 'ok', version: expect.any(String) });
 });
 
 // AWS-37: the site follows the browser's language. The context's locale is what navigator.languages reports.
@@ -71,4 +72,15 @@ Then(/^the site shows "([^"]+)" next to "([^"]+)"$/, async ({ world }, note: str
     link.locator('xpath=..').getByText(note, { exact: true }),
     `"${note}" next to "${name}"`,
   ).toBeVisible();
+});
+
+// DLP-04: the API answers its health with the commit of the running build.
+When('anyone asks the API for its health', async ({ world }) => {
+  const response = await fetch(`${world.stack.staging.api}/healthz`, { signal: AbortSignal.timeout(10_000) });
+  world.last = { status: response.status, body: await response.json().catch(() => undefined) };
+});
+
+Then('it answers that it is ok, with the commit of the running build', ({ world }) => {
+  expect(world.last?.status, 'the health status').toBe(200);
+  expect(world.last?.body, 'the health body').toEqual({ status: 'ok', version: ACCEPTANCE_BUILD_SHA });
 });

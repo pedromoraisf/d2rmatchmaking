@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadConfig } from './config.ts';
+import { buildShaOf, loadConfig } from './config.ts';
 
 const SECRET = 'user-secret-value';
 
@@ -179,5 +179,32 @@ describe('loadConfig room drop tolerance (LBR-08)', () => {
     expect(loadConfig({ ROOM_DROP_TOLERANCE_SECONDS: '90' }).roomDropToleranceSeconds).toBe(90);
     expect(() => loadConfig({ ROOM_DROP_TOLERANCE_SECONDS: '0' })).toThrow('ROOM_DROP_TOLERANCE_SECONDS');
     expect(() => loadConfig({ ROOM_DROP_TOLERANCE_SECONDS: 'soon' })).toThrow('ROOM_DROP_TOLERANCE_SECONDS');
+  });
+});
+
+describe('build SHA (DLP-04)', () => {
+  const SHA = '0123456789abcdef0123456789abcdef01234567';
+
+  it('prefers D2RMM_BUILD_SHA over RENDER_GIT_COMMIT', () => {
+    expect(buildShaOf({ D2RMM_BUILD_SHA: SHA, RENDER_GIT_COMMIT: 'fedcba9876543210' })).toBe(SHA);
+  });
+
+  it('falls back to RENDER_GIT_COMMIT when D2RMM_BUILD_SHA is unset, empty or not a SHA', () => {
+    expect(buildShaOf({ RENDER_GIT_COMMIT: SHA })).toBe(SHA);
+    expect(buildShaOf({ D2RMM_BUILD_SHA: '', RENDER_GIT_COMMIT: SHA })).toBe(SHA);
+    expect(buildShaOf({ D2RMM_BUILD_SHA: 'not a sha', RENDER_GIT_COMMIT: SHA })).toBe(SHA);
+  });
+
+  it('trims and lowercases', () => {
+    expect(buildShaOf({ D2RMM_BUILD_SHA: ` ${SHA.toUpperCase()}\n` })).toBe(SHA);
+  });
+
+  it('answers unknown when neither variable holds a SHA', () => {
+    expect(buildShaOf({})).toBe('unknown');
+    expect(buildShaOf({ D2RMM_BUILD_SHA: 'abc' })).toBe('unknown');
+  });
+
+  it('loadConfig carries it', () => {
+    expect(loadConfig({ RENDER_GIT_COMMIT: SHA }).buildSha).toBe(SHA);
   });
 });

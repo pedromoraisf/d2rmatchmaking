@@ -54,6 +54,7 @@ async function main(): Promise<void> {
       trustProxyHops: config.trustProxyHops,
       roomDropToleranceSeconds: config.roomDropToleranceSeconds,
       bnet: config.bnet,
+      buildSha: config.buildSha,
     },
     clock,
     scheduler: new ClockScheduler(clock),

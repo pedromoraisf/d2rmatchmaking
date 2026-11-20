@@ -44,6 +44,7 @@ export async function startLocal(config: Config): Promise<LocalServer> {
         trustProxyHops: config.trustProxyHops,
         roomDropToleranceSeconds: config.roomDropToleranceSeconds,
         bnet: config.bnet,
+        buildSha: config.buildSha,
       },
       clock,
       scheduler: new ClockScheduler(clock),

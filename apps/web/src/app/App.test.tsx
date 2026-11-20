@@ -813,3 +813,29 @@ describe('App', () => {
     expect(screen.queryByRole('dialog', { name: 'Ready check' })).toBeNull();
   });
 });
+
+describe('App on a sleeping server (DLP-07)', () => {
+  it('says the server is waking on a 502, retries, and loads once the API answers', async () => {
+    let answers = 0;
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => (answers++ < 2 ? jsonResponse(502) : jsonResponse(200, config)),
+      'GET /api/v1/me': () => jsonResponse(401),
+    });
+    // The wait is held open until the test has seen the message, then released.
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    renderInLanguage(<App client={createApiClient(fetch)} sleep={() => held} />);
+    expect((await screen.findByRole('status')).textContent).toContain('Waking the server');
+    release();
+    expect(await screen.findByRole('button', { name: /sign in/i })).toBeTruthy();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('shows the error once the 90 seconds are spent', async () => {
+    const { fetch } = routeFetch({ 'GET /api/v1/config': () => jsonResponse(503) });
+    renderInLanguage(<App client={createApiClient(fetch)} sleep={() => Promise.resolve()} />);
+    expect((await screen.findByRole('alert')).textContent).toBe('Something went wrong. Try again.');
+  });
+});
