@@ -82,9 +82,12 @@ mod capture {
     use super::{client_offset, reusable, unpad_rows};
     use crate::adapters::window_capture::{Rect, rgba_from_bgra};
 
-    /// How long a new session waits for its first frame: Windows delivers a frame when the window draws.
-    const FIRST_FRAME_WAIT: Duration = Duration::from_millis(250);
-    const FRAME_POLL: Duration = Duration::from_millis(10);
+    /// How long a look waits for the first frame of a session it just opened: Windows delivers one when the window draws, in a few
+    /// milliseconds. The wait is under the capturer's lock and in the async loop, so it is short and only a session that has never
+    /// had a frame waits; a session still without one fails the look (a failure the cascade counts like any other, so three
+    /// of them demote) and the next look, a second later, usually finds it.
+    const FIRST_FRAME_WAIT: Duration = Duration::from_millis(40);
+    const FRAME_POLL: Duration = Duration::from_millis(5);
 
     thread_local! {
         /// Whether this thread has entered the multithreaded apartment. `RoInitialize` is counted per call and never undone
