@@ -153,3 +153,18 @@ maintainer's roles, contact email or the SignPath organisation is marked as wait
   read in `main/`-style config like the rest of the site's environment (rule 13).
 - **No new ADR.** ADR 015 and ADR 016 already decide the pipeline and the signer; this feature changes the order of jobs
   inside them and adds a page.
+
+## Decisions from the review of batch 0 (orchestrator, 2026-11-20)
+
+- **Roles on the policy page** are the maintainer's public GitHub handle for committer, reviewer and approver. The contact
+  email waits for T9 (brief input 9).
+- **`SIGNPATH_PUBLISHER`** is a repository variable (rule 13). While it is unset, the Authenticode check reports "not
+  configured" and the publication of a signed release refuses; the unsigned flow (`SIGNPATH_ENABLED` not `true`) is unchanged.
+- **`/code-signing` is served by the SPA fallback**, and this is proved, not assumed: Cloudflare Pages serves `index.html`
+  for an unknown path when the project has no top-level `404.html` (Pages "Not found behavior"); the repository has no
+  `_redirects` and no `404.html`, a harness test fails if either appears under `apps/web`, and the site's smoke stage
+  (`scripts/delivery/smoke.mjs`) asks for `/code-signing` and needs a 200 HTML answer.
+- **`VITE_INSTALLER_SIGNED`** is a build-time setting (rule 13), default `false`.
+- **"An installed 0.3.0 is offered the update"** (AGR-07) stays the maintainer's field check, in batch 2.
+- **Never in this feature's tasks:** creating a tag or a release, or running `release-agent.yml` for real. Tests only; the
+  first real run is T8, after the phase merges.
