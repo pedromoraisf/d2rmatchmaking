@@ -13,8 +13,8 @@ const sorc = {
   unlockedDifficulties: ['normal', 'nightmare', 'hell'],
 };
 
-describe('characterNameOf (SNM-03)', () => {
-  it('answers the stored spelling of the account’s own character, and null for any other', async () => {
+describe('characterNamesOf (SNM-03)', () => {
+  it('answers the stored spelling of each pair in one call, null for a pair the account does not hold', async () => {
     const useCases = createCharacterUseCases({
       characters: new InMemoryCharacterRepository(),
       uow: new InMemoryUnitOfWork(),
@@ -22,10 +22,18 @@ describe('characterNameOf (SNM-03)', () => {
       clock: new FakeClock(new Date('2026-11-10T12:00:00.000Z')),
     });
     await useCases.recordCharacters({ accountId: 'alice', characters: [sorc] });
-    const [stored] = await useCases.listMyCharacters({ accountId: 'alice' });
+    await useCases.recordCharacters({ accountId: 'bob', characters: [{ ...sorc, name: 'Hammer' }] });
+    const [alicesCharacter] = await useCases.listMyCharacters({ accountId: 'alice' });
+    const [bobsCharacter] = await useCases.listMyCharacters({ accountId: 'bob' });
 
-    expect(await useCases.characterNameOf('alice', stored?.id ?? '')).toBe('Sorc');
-    expect(await useCases.characterNameOf('bob', stored?.id ?? '')).toBeNull();
-    expect(await useCases.characterNameOf('alice', 'nope')).toBeNull();
+    const names = await useCases.characterNamesOf([
+      { accountId: 'alice', characterId: alicesCharacter?.id ?? '' },
+      { accountId: 'bob', characterId: bobsCharacter?.id ?? '' },
+      { accountId: 'bob', characterId: alicesCharacter?.id ?? '' },
+      { accountId: 'alice', characterId: 'nope' },
+    ]);
+
+    expect(names).toEqual(['Sorc', 'Hammer', null, null]);
+    expect(await useCases.characterNamesOf([])).toEqual([]);
   });
 });

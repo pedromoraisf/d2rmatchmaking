@@ -131,6 +131,28 @@ export class PostgresCharacterRepository implements CharacterRepository {
     return Number(result.numUpdatedRows) > 0;
   }
 
+  async namesOf(
+    pairs: readonly { readonly accountId: string; readonly characterId: string }[],
+  ): Promise<(string | null)[]> {
+    if (pairs.length === 0) {
+      return [];
+    }
+    // One query for every pair; the account must own the character, as the one-by-one read required.
+    const rows = await this.#db
+      .selectFrom('identity.characters')
+      .select(['id', 'account_id', 'name'])
+      .where(
+        'id',
+        'in',
+        pairs.map((pair) => pair.characterId),
+      )
+      .execute();
+    return pairs.map(
+      (pair) =>
+        rows.find((row) => row.id === pair.characterId && row.account_id === pair.accountId)?.name ?? null,
+    );
+  }
+
   async listByAccount(accountId: string): Promise<StoredCharacter[]> {
     const rows = await this.#db
       .selectFrom('identity.characters')

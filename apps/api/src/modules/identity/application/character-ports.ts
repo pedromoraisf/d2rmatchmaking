@@ -34,6 +34,13 @@ export interface CharacterRepository {
   ): Promise<void>;
   /** Sets the ladder and era of one of the account's characters; false when the account holds no such character (CHR-16). */
   declare(accountId: string, characterId: string, declaration: Declaration): Promise<boolean>;
+  /**
+   * The stored spelling of each (account, character) pair, in one query, `null` for a pair the account does not hold. The
+   * answer is in the order of the pairs (SNM-03).
+   */
+  namesOf(
+    pairs: readonly { readonly accountId: string; readonly characterId: string }[],
+  ): Promise<(string | null)[]>;
   /** The account's characters, ordered by name. */
   listByAccount(accountId: string): Promise<StoredCharacter[]>;
 }

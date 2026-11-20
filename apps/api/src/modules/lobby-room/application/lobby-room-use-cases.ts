@@ -285,16 +285,17 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
    * name is a parameter of this function and goes no further.
    */
   async function matchedJoinOrder(room: LobbyRoom, read: string): Promise<number | 'ambiguous' | null> {
-    const named: { readonly joinOrder: number; readonly name: string }[] = [];
-    for (const member of room.members) {
-      const name =
-        member.characterId === null
-          ? null
-          : await deps.characters.nameOf(member.accountId, member.characterId);
-      if (name !== null) {
-        named.push({ joinOrder: member.joinOrder, name });
-      }
-    }
+    // One lookup for every member who queued with a character, not one for each (security review of #101).
+    const withCharacter = room.members.flatMap((member) =>
+      member.characterId === null
+        ? []
+        : [{ joinOrder: member.joinOrder, accountId: member.accountId, characterId: member.characterId }],
+    );
+    const names = await deps.characters.namesOf(withCharacter);
+    const named = withCharacter.flatMap((member, index) => {
+      const name = names[index];
+      return name === undefined || name === null ? [] : [{ joinOrder: member.joinOrder, name }];
+    });
     const match = matchCharacterName(
       read,
       named.map((entry) => entry.name),

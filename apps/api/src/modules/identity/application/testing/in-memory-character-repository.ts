@@ -66,6 +66,17 @@ export class InMemoryCharacterRepository implements CharacterRepository {
     return false;
   }
 
+  async namesOf(
+    pairs: readonly { readonly accountId: string; readonly characterId: string }[],
+  ): Promise<(string | null)[]> {
+    return pairs.map((pair) => {
+      const row = [...this.#rows.values()].find(
+        (candidate) => candidate.accountId === pair.accountId && candidate.character.id === pair.characterId,
+      );
+      return row?.character.name ?? null;
+    });
+  }
+
   async listByAccount(accountId: string): Promise<StoredCharacter[]> {
     return [...this.#rows.values()]
       .filter((row) => row.accountId === accountId)

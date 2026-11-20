@@ -309,3 +309,19 @@ describe('the answer to a sighting tells nothing about a match (security review 
     expect(answers[0]).toEqual({ ok: true, value: { stored: true } });
   });
 });
+
+describe('the member names are read in one query (security review of #101)', () => {
+  it('looks every member up with one call, whatever the size of the room', async () => {
+    const { useCases, characters } = await setup();
+    characters.nameLookups.length = 0;
+
+    await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: sighting('Sorc') });
+    await useCases.recordObservation({
+      agentId: 'agent-1',
+      roomId: 'room-1',
+      body: sighting('Zzyzx', { idempotencyKey: 'k2' }),
+    });
+
+    expect(characters.nameLookups).toEqual([2, 2]);
+  });
+});

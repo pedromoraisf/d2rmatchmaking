@@ -19,8 +19,14 @@ export class FakeRoomCharacters implements RoomCharacters {
     }
   }
 
-  async nameOf(accountId: string, characterId: string): Promise<string | null> {
-    return this.#names.get(`${accountId}:${characterId}`) ?? null;
+  /** Every call, so a test can say how many lookups a sighting made. */
+  readonly nameLookups: number[] = [];
+
+  async namesOf(
+    members: readonly { readonly accountId: string; readonly characterId: string }[],
+  ): Promise<(string | null)[]> {
+    this.nameLookups.push(members.length);
+    return members.map((member) => this.#names.get(`${member.accountId}:${member.characterId}`) ?? null);
   }
 
   async characterOf(accountId: string, characterId: string) {

@@ -41,7 +41,10 @@ export interface MemberConnectivity {
  * Implemented in `main/` over Identity. The name is read for one request and never stored, logged or put in a view.
  */
 export interface RoomCharacters {
-  nameOf(accountId: string, characterId: string): Promise<string | null>;
+  /** The names of these members' characters, in one query and in the order given; `null` where there is none. */
+  namesOf(
+    members: readonly { readonly accountId: string; readonly characterId: string }[],
+  ): Promise<(string | null)[]>;
   characterOf(
     accountId: string,
     characterId: string,
