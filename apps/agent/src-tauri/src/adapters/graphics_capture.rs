@@ -6,7 +6,19 @@
 //! may allow `unsafe_code` (the policy of the agent rules).
 #![allow(unsafe_code)]
 
+use std::time::Duration;
+
 use crate::adapters::window_capture::Rect;
+
+/// The oldest a kept frame may be and still stand for a window that has not drawn. Windows delivers a frame on change only, so
+/// a still menu sends none; but a session that is silent for longer than this is a stalled one (a lost device, a closed item,
+/// a window that stopped), and a frozen picture must not read as a live game (capture-cascade, fix round 1).
+pub const MAX_FRAME_AGE: Duration = Duration::from_secs(15);
+
+/// Whether a kept frame of this age may be returned again.
+pub fn reusable(age: Duration) -> bool {
+    age <= MAX_FRAME_AGE
+}
 
 /// Where the client area starts inside a captured window frame: the client origin (screen pixels) minus the top left of the
 /// window's visible bounds (screen pixels). `None` when the client would start left of or above the frame.
@@ -37,11 +49,13 @@ pub use capture::{GraphicsFrames, supported};
 
 #[cfg(windows)]
 mod capture {
-    use std::sync::{Mutex, PoisonError};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex, PoisonError};
     use std::time::{Duration, Instant};
 
     use d2rmm_agent_core::ports::{Miss, Rgba};
     use d2rmm_agent_domain::capture_geometry::{crop_rgba, crop_to_client};
+    use windows::Foundation::TypedEventHandler;
     use windows::Graphics::Capture::{
         Direct3D11CaptureFramePool, GraphicsCaptureItem, GraphicsCaptureSession,
     };
@@ -65,7 +79,7 @@ mod capture {
     use windows::Win32::UI::WindowsAndMessaging::GetClientRect;
     use windows::core::{Interface, factory};
 
-    use super::{client_offset, unpad_rows};
+    use super::{client_offset, reusable, unpad_rows};
     use crate::adapters::window_capture::{Rect, rgba_from_bgra};
 
     /// How long a new session waits for its first frame: Windows delivers a frame when the window draws.
@@ -86,12 +100,18 @@ mod capture {
         context: ID3D11DeviceContext,
         pool: Direct3D11CaptureFramePool,
         session: GraphicsCaptureSession,
-        /// The last frame read, kept for a window that has not drawn since: Windows delivers a frame on change only.
-        last: Option<Rgba>,
+        /// The last frame read and when, kept for a window that has not drawn since: Windows delivers a frame on change only.
+        /// It is returned again only while `reusable` says so.
+        last: Option<(Rgba, Instant)>,
+        item: GraphicsCaptureItem,
+        /// Set by the item's `Closed` event: the window closed, so this session is over.
+        closed: Arc<AtomicBool>,
+        closed_token: i64,
     }
 
     impl Drop for Session {
         fn drop(&mut self) {
+            let _ = self.item.RemoveClosed(self.closed_token);
             let _ = self.session.Close();
             let _ = self.pool.Close();
         }
@@ -181,6 +201,12 @@ mod capture {
         session.SetIsCursorCaptureEnabled(false)?;
         // The capture border stays on wherever Windows draws it: it is the visible sign that the window is captured (NFR-05,
         // spec decision 4). Nothing here asks Windows to hide it.
+        let closed = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&closed);
+        let closed_token = item.Closed(&TypedEventHandler::new(move |_, _| {
+            flag.store(true, Ordering::SeqCst);
+            Ok(())
+        }))?;
         session.StartCapture()?;
         Ok(Session {
             window: window.0 as isize,
@@ -190,6 +216,9 @@ mod capture {
             pool,
             session,
             last: None,
+            item,
+            closed,
+            closed_token,
         })
     }
 
@@ -197,6 +226,9 @@ mod capture {
         /// The latest frame of the window, cropped to its client area. A window that has not drawn since the last look gives the
         /// last frame again; a session that has never had a frame waits a moment for the first.
         fn look(&mut self, window: HWND) -> Result<Rgba, Miss> {
+            if self.closed.load(Ordering::SeqCst) {
+                return Err(Miss::Failed);
+            }
             let deadline = Instant::now() + FIRST_FRAME_WAIT;
             loop {
                 if let Ok(frame) = self.pool.TryGetNextFrame() {
@@ -212,11 +244,16 @@ mod capture {
                     let texture: ID3D11Texture2D =
                         unsafe { access.GetInterface() }.map_err(|_| Miss::Failed)?;
                     let image = self.read(&texture, window)?;
-                    self.last = Some(image.clone());
+                    self.last = Some((image.clone(), Instant::now()));
                     return Ok(image);
                 }
-                if let Some(last) = &self.last {
-                    return Ok(last.clone());
+                if let Some((last, at)) = &self.last {
+                    // A window that has not drawn gives its last frame again, within a bound; past it the session is stalled.
+                    return if reusable(at.elapsed()) {
+                        Ok(last.clone())
+                    } else {
+                        Err(Miss::Failed)
+                    };
                 }
                 if Instant::now() >= deadline {
                     return Err(Miss::Failed);
@@ -309,8 +346,24 @@ mod capture {
 
 #[cfg(test)]
 mod tests {
-    use super::{client_offset, unpad_rows};
+    use std::time::Duration;
+
+    use super::{MAX_FRAME_AGE, client_offset, reusable, unpad_rows};
     use crate::adapters::window_capture::Rect;
+
+    #[test]
+    fn the_bound_on_a_kept_frame_is_fifteen_seconds() {
+        assert_eq!(MAX_FRAME_AGE, Duration::from_secs(15));
+    }
+
+    #[test]
+    fn a_kept_frame_is_reusable_up_to_the_bound_and_not_beyond() {
+        assert!(reusable(Duration::ZERO));
+        assert!(reusable(Duration::from_secs(14)));
+        assert!(reusable(MAX_FRAME_AGE));
+        assert!(!reusable(MAX_FRAME_AGE + Duration::from_nanos(1)));
+        assert!(!reusable(Duration::from_secs(3600)));
+    }
 
     fn bounds(left: i32, top: i32) -> Rect {
         Rect {

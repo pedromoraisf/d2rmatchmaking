@@ -155,3 +155,6 @@ is **blank** when `frame_content::summarize` says so (uniform or near-black); a 
   sensor edit O1 is the orchestrator's. `graphics-capture` uses the `windows` crate's WinRT and Direct3D features, no new
   crate. The Windows capture border stays on where the OS requires it. `readRate` is the share of usable captures. The
   3 and 60 constants live in the domain, pinned by tests.
+- **A kept frame stands for a still window for at most 15 seconds** (fix round 1, `MAX_FRAME_AGE`). Windows delivers a Graphics
+  Capture frame on change only, so a still menu sends none and the session returns its last frame; past 15 s the session is
+  treated as stalled (`Miss::Failed`), reopens, and the cascade can demote. A closed capture item ends the session at once.
