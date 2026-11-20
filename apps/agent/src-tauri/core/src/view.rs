@@ -38,6 +38,14 @@ pub struct RoomView {
     pub needs_reveal: bool,
     /// The Party panel showed the expected game name in this run, so the room's observation is sent (AGN-03).
     pub matched: bool,
+    /// The API accepted the observation for this run (ARL-03). Sent only when true; the window then says "presence
+    /// confirmed" instead of "waiting for the game". A new run or a dropped room clears it (ARL-04).
+    #[serde(skip_serializing_if = "is_false")]
+    pub confirmed: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 /// One card slot that held text but settled no card, and the short code of the field that refused it.
@@ -145,6 +153,7 @@ mod tests {
                 game_name: "mmbaalh-12".to_string(),
                 needs_reveal: true,
                 matched: false,
+                confirmed: false,
             }),
             update: UpdateView::Idle,
             ready_check_open: true,
@@ -162,6 +171,25 @@ mod tests {
                 "readyCheckOpen": true,
                 "diagnostics": null,
             })
+        );
+    }
+
+    #[test]
+    fn a_confirmed_room_serialises_its_flag_and_an_unconfirmed_one_omits_it() {
+        let room = |confirmed| RoomView {
+            game_name: "mmbaalh-12".to_string(),
+            needs_reveal: false,
+            matched: true,
+            confirmed,
+        };
+
+        assert_eq!(
+            serde_json::to_value(room(true)).expect("the room serializes"),
+            json!({ "gameName": "mmbaalh-12", "needsReveal": false, "matched": true, "confirmed": true })
+        );
+        assert_eq!(
+            serde_json::to_value(room(false)).expect("the room serializes"),
+            json!({ "gameName": "mmbaalh-12", "needsReveal": false, "matched": true })
         );
     }
 

@@ -167,10 +167,14 @@
                       "enum": [
                         "ok"
                       ]
+                    },
+                    "version": {
+                      "type": "string"
                     }
                   },
                   "required": [
-                    "status"
+                    "status",
+                    "version"
                   ],
                   "additionalProperties": false
                 }

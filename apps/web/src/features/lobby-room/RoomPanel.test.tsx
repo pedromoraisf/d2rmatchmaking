@@ -1,10 +1,14 @@
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApiClient } from '../../shared/api-client.ts';
 import { jsonResponse, routeFetch } from '../../test/fake-api.ts';
 import { renderInLanguage } from '../../test/render.tsx';
 import { type RoomMemberShown, type RoomShown, RoomPanel } from './RoomPanel.tsx';
+
+beforeEach(() => {
+  window.localStorage.clear();
+});
 
 afterEach(() => {
   cleanup();
@@ -285,6 +289,26 @@ describe('RoomPanel: an ended room is history, not a live room', () => {
 
     expect(screen.queryByRole('region', { name: 'Your room' })).toBeNull();
     expect(screen.queryByText(/closed the room/)).toBeNull();
+  });
+
+  it('keeps an ended room put away after a reload, and shows another room normally (ARL-05)', async () => {
+    show(ended('closed'), 'acc-alice');
+    await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    cleanup();
+
+    show(ended('closed'), 'acc-alice');
+    expect(screen.queryByRole('region', { name: 'Your room' })).toBeNull();
+    cleanup();
+
+    show({ ...ended('expired'), roomId: '9999' }, 'acc-alice');
+    expect(screen.getByRole('region', { name: 'Your room' })).toBeTruthy();
+  });
+
+  it('stores only the room id in the browser', async () => {
+    show(ended('closed'), 'acc-alice');
+    await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+
+    expect(window.localStorage.getItem('d2rmm.dismissed-rooms')).toBe('["4821"]');
   });
 
   it('offers no dismiss while the room is open', () => {

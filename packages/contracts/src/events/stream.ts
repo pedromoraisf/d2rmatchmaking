@@ -104,10 +104,11 @@ export const SiteStreamEvent = z.discriminatedUnion('type', [
 ]);
 export type SiteStreamEvent = z.infer<typeof SiteStreamEvent>;
 
-// The agent stream carries the assignment and the ready check's start and end (the agent answers its hotkey, RDY-07);
-// it never receives presence of itself or of others.
+// The agent stream carries the assignment, the end of a room (`room.stage_changed` to `expired` or `closed`, ARL-01) and the
+// ready check's start and end (the agent answers its hotkey, RDY-07); it never receives presence of itself or of others.
 export const AgentStreamEvent = z.discriminatedUnion('type', [
   RoomAssignedEvent,
+  RoomStageChangedEvent,
   RoomRunOpenedEvent,
   ReadyCheckStartedEvent,
   ReadyCheckResolvedEvent,

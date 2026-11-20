@@ -18,7 +18,7 @@ export type CurrentAgentLookup = Pick<AgentsPort, 'currentAgentOf'>;
 /**
  * Maps a domain event to the stream messages it produces (design.md § Platform, stream projection):
  * `RoomAssignmentChanged` → `room.assigned` to each member's site and to each member's current agent;
- * `RoomStageChanged` → `room.stage_changed` to each member's site; `RoomRunOpened` → `room.run_opened` to each member's
+ * `RoomStageChanged` → `room.stage_changed` to each member's site, and to the current agent when the room expired or closed; `RoomRunOpened` → `room.run_opened` to each member's
  * site and agent; `RoomMemberChanged` → `room.member_changed` to each member's site (and the member who left); `AgentPresenceChanged` → `agent.presence_changed`
  * to the owner's site. `MatchFormed` and `AgentRevoked` are not streamed (AgentRevoked closes streams instead).
  */
@@ -51,14 +51,23 @@ export async function projectStreamEvent(
     }
     case 'RoomStageChanged': {
       const { payload } = event;
-      return payload.members.map((member) => ({
-        stream: 'site' as const,
-        accountId: member.accountId,
-        event: {
-          type: 'room.stage_changed' as const,
-          data: { roomId: payload.roomId, stage: payload.stage, members: [...payload.members] },
-        },
-      }));
+      const data = { roomId: payload.roomId, stage: payload.stage, members: [...payload.members] };
+      const deliveries: Delivery[] = [];
+      for (const member of payload.members) {
+        deliveries.push({
+          stream: 'site',
+          accountId: member.accountId,
+          event: { type: 'room.stage_changed', data },
+        });
+        // The agent holds an assignment only while the room lives: it needs to hear the end (ARL-01), and no other stage.
+        if (payload.stage === 'expired' || payload.stage === 'closed') {
+          const agentId = await agents.currentAgentOf(member.accountId);
+          if (agentId !== null) {
+            deliveries.push({ stream: 'agent', agentId, event: { type: 'room.stage_changed', data } });
+          }
+        }
+      }
+      return deliveries;
     }
     case 'RoomRunOpened': {
       // The next run (LBR-06): every member's site and current agent get the new name; the agent reads for it from now on.

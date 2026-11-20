@@ -30,6 +30,8 @@ export interface Config {
   /** `TEST_CONTROL_SECRET`, the header value the test controls require. */
   readonly testControlSecret: string | undefined;
   readonly telemetry: TelemetryConfig;
+  /** The commit of the running build: `D2RMM_BUILD_SHA`, else Render's `RENDER_GIT_COMMIT`, else `unknown` (DLP-04). */
+  readonly buildSha: string;
   /** Battle.net sign-in settings: defined only when both `BNET_CLIENT_ID` and `BNET_CLIENT_SECRET` are set (IDB-06). */
   readonly bnet: BnetSettings | undefined;
 }
@@ -56,6 +58,19 @@ export interface TelemetryConfig {
   /** `OTEL_METRIC_EXPORT_INTERVAL` in milliseconds, default 60000. */
   readonly intervalMs: number;
 }
+
+/** The build's commit SHA from the environment: the first of the two variables that holds a SHA, else `unknown`. */
+export function buildShaOf(env: Readonly<Record<string, string | undefined>>): string {
+  for (const name of ['D2RMM_BUILD_SHA', 'RENDER_GIT_COMMIT']) {
+    const value = (env[name] ?? '').trim();
+    if (/^[0-9a-f]{7,64}$/i.test(value)) {
+      return value.toLowerCase();
+    }
+  }
+  return UNKNOWN_BUILD_SHA;
+}
+
+export const UNKNOWN_BUILD_SHA = 'unknown';
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -214,6 +229,7 @@ export function loadConfig(env: Environment = process.env): Config {
     acceptance: acceptanceRaw === 'true',
     acceptanceSet: acceptanceRaw !== undefined,
     testControlSecret: env['TEST_CONTROL_SECRET'],
+    buildSha: buildShaOf(env),
     telemetry: {
       endpoint: endpointOf(env['OTEL_EXPORTER_OTLP_ENDPOINT']),
       headers: headersOf(env['OTEL_EXPORTER_OTLP_HEADERS']),

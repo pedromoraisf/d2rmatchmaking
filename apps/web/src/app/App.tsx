@@ -24,11 +24,14 @@ import { type ApiClient, createApiClient } from '../shared/api-client.ts';
 import { tracingFetcher } from '../shared/telemetry.ts';
 import { openSiteStream, type StreamOpener } from '../shared/stream.ts';
 import { Layout } from './Layout.tsx';
+import { readWhenAwake, type WakeOptions } from './wake-retry.ts';
 import { clearSignInFailure, signInFailedIn } from './sign-in-failure.ts';
 import { applyStreamEvent, shownRoom, type SiteNotice } from './site-state.ts';
 
 export interface AppProps {
   client?: ApiClient;
+  /** Test seam for the wait on a sleeping server (DLP-07). */
+  sleep?: (ms: number) => Promise<void>;
   openStream?: StreamOpener;
 }
 
@@ -46,14 +49,17 @@ interface Ready {
   readyCheck: ReadyCheckView | null;
 }
 
-type Boot = { status: 'loading' } | { status: 'failed' } | Ready;
+type Boot = { status: 'loading' } | { status: 'waking' } | { status: 'failed' } | Ready;
 
 const defaultClient = createApiClient(tracingFetcher((url, init) => fetch(url, init)));
+/** How often an online agent is read again. 45 s offline mark + this stays under the 60 s of ARL-06. */
+export const AGENT_PRESENCE_REREAD_MS = 10_000;
+
 const defaultOpenStream: StreamOpener = (handlers) => openSiteStream(handlers);
 
 // A 401 on /v1/me is the signed-out view, not a failure (AWS-03, AWS-04).
-async function loadBoot(client: ApiClient): Promise<Boot> {
-  const config = await client.config();
+async function loadBoot(client: ApiClient, wake: WakeOptions): Promise<Boot> {
+  const config = await readWhenAwake(() => client.config(), wake);
   if (!config.ok) {
     return { status: 'failed' };
   }
@@ -95,7 +101,7 @@ async function loadBoot(client: ApiClient): Promise<Boot> {
   };
 }
 
-export function App({ client = defaultClient, openStream = defaultOpenStream }: AppProps) {
+export function App({ client = defaultClient, openStream = defaultOpenStream, sleep }: AppProps) {
   const { t } = useTranslation();
   const [boot, setBoot] = useState<Boot>({ status: 'loading' });
   const signedIn = boot.status === 'ready' && boot.session !== null;
@@ -193,7 +199,12 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
 
   useEffect(() => {
     let current = true;
-    void loadBoot(client).then((next) => {
+    const wake: WakeOptions = {
+      onWaking: () => setBoot({ status: 'waking' }),
+      active: () => current,
+      ...(sleep === undefined ? {} : { sleep }),
+    };
+    void loadBoot(client, wake).then((next) => {
       if (current) {
         setBoot(next);
       }
@@ -201,7 +212,7 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
     return () => {
       current = false;
     };
-  }, [client]);
+  }, [client, sleep]);
 
   // One stream per signed-in site. Every open re-reads the state, so an event lost in a reconnect is never stale.
   useEffect(() => {
@@ -228,10 +239,40 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
     });
   }, [signedIn, openStream, refreshSite, refreshCharacters, refreshRoomMarks]);
 
+  // The agent is read again while it shows online (ARL-06). The API marks an agent offline 45 s after its last heartbeat and
+  // says so once, as a transient event that is never replayed; a browser keeps a half-dead event stream open without
+  // noticing. A lost event would leave "online" on screen until the next page load. The read gives the API's own answer
+  // (computed from the last heartbeat), so the state is wrong for at most one interval past the 45 s.
+  const agentShownOnline = signedIn && boot.agent?.status === 'paired' && boot.agent.online;
+  useEffect(() => {
+    if (!agentShownOnline) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      const seen = streamEvents.current;
+      void client.myAgent().then((agent) => {
+        // An event that arrived while the read ran is newer than the answer.
+        if (agent.ok && streamEvents.current === seen) {
+          setBoot((current) => (current.status === 'ready' ? { ...current, agent: agent.value } : current));
+        }
+      });
+    }, AGENT_PRESENCE_REREAD_MS);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [agentShownOnline, client]);
+
   if (boot.status === 'loading') {
     return (
       <Layout>
         <p>{t('app.loading')}</p>
+      </Layout>
+    );
+  }
+  if (boot.status === 'waking') {
+    return (
+      <Layout>
+        <p role="status">{t('app.waking')}</p>
       </Layout>
     );
   }

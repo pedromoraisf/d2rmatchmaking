@@ -7,6 +7,8 @@ use std::time::Duration;
 use uuid::Uuid;
 
 use d2rmm_agent_core::messages::{ReadyCheckEnd, ReadyCheckOpen};
+use d2rmm_agent_core::ports::{RoomEnd, RoomEndReason};
+use d2rmm_agent_domain::room_assignment::RoomId;
 
 use crate::contracts::generated::{
     Assignment, ReadyCheckResolvedEventData, ReadyCheckStartedEventData, RoomAssignedEventData,
@@ -18,6 +20,8 @@ pub const ROOM_ASSIGNED: &str = "room.assigned";
 /// The host opened the next run (LBR-06): the same assignment shape with the new run and game name. The agent holds it as
 /// its assignment, so the Party step reads for the new name from the next frame on.
 pub const ROOM_RUN_OPENED: &str = "room.run_opened";
+/// A room changed stage: `expired` (LBR-05) and `closed` end the assignment the agent holds for it.
+pub const ROOM_STAGE_CHANGED: &str = "room.stage_changed";
 /// A ready check opened for the account (RDY-01): the hotkey answers it until it ends.
 pub const READY_CHECK_STARTED: &str = "ready_check.started";
 /// A ready check ended (RDY-03 … RDY-05): the hotkey stops answering it.
@@ -34,6 +38,8 @@ pub enum StreamEffect {
     SetAssignment(Assignment),
     ReadyCheckStarted(ReadyCheckOpen),
     ReadyCheckResolved(ReadyCheckEnd),
+    /// The room with this id expired or closed: the core drops the assignment if it holds that room.
+    RoomEnded(RoomEnd),
     Ignore,
 }
 
@@ -51,8 +57,34 @@ pub fn handle(name: &str, data: &str) -> StreamEffect {
             .map_or(StreamEffect::Ignore, StreamEffect::ReadyCheckStarted),
         READY_CHECK_RESOLVED => ready_check_resolved_from(data)
             .map_or(StreamEffect::Ignore, StreamEffect::ReadyCheckResolved),
+        ROOM_STAGE_CHANGED => {
+            room_ended_from(data).map_or(StreamEffect::Ignore, StreamEffect::RoomEnded)
+        }
         _ => StreamEffect::Ignore,
     }
+}
+
+/// The two fields of a `room.stage_changed` event the agent reads; the others are not needed.
+#[derive(serde::Deserialize)]
+struct StageChanged {
+    #[serde(rename = "roomId")]
+    room_id: String,
+    stage: String,
+}
+
+/// The room of a stage change to `expired` or `closed`; any other stage, or data of another shape, gives `None`.
+fn room_ended_from(data: &str) -> Option<RoomEnd> {
+    let event: StageChanged = serde_json::from_str(data).ok()?;
+    let reason = match event.stage.as_str() {
+        "expired" => RoomEndReason::Expired,
+        "closed" => RoomEndReason::Closed,
+        _ => return None,
+    };
+    Uuid::parse_str(&event.room_id).ok()?;
+    Some(RoomEnd {
+        room: RoomId::new(event.room_id),
+        reason,
+    })
 }
 
 /// The open check of `GET /v1/ready-checks/me` (RDY-11): the same view the started event carries, so it parses the same way.
@@ -425,5 +457,57 @@ mod tests {
         assert!(valid_ready_check_id("7d9f2c1e-0000-4000-8000-000000000001"));
         assert!(!valid_ready_check_id(""));
         assert!(!valid_ready_check_id("rc_1"));
+    }
+}
+
+#[cfg(test)]
+mod room_end_tests {
+    use super::{StreamEffect, handle};
+
+    const ROOM: &str = "7d9f2c1e-0000-4000-8000-000000000001";
+
+    fn stage(room: &str, stage: &str) -> String {
+        format!(r#"{{"roomId":"{room}","stage":"{stage}","members":[]}}"#)
+    }
+
+    fn ended_room(data: &str) -> Option<String> {
+        match handle("room.stage_changed", data) {
+            StreamEffect::RoomEnded(end) => Some(end.room.as_str().to_string()),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn an_expired_or_closed_stage_ends_the_room() {
+        assert_eq!(ended_room(&stage(ROOM, "expired")), Some(ROOM.to_string()));
+        assert_eq!(ended_room(&stage(ROOM, "closed")), Some(ROOM.to_string()));
+    }
+
+    #[test]
+    fn each_ended_stage_carries_its_reason() {
+        use d2rmm_agent_core::ports::RoomEndReason;
+        for (stage_name, expected) in [
+            ("expired", RoomEndReason::Expired),
+            ("closed", RoomEndReason::Closed),
+        ] {
+            match handle("room.stage_changed", &stage(ROOM, stage_name)) {
+                StreamEffect::RoomEnded(end) => assert_eq!(end.reason, expected),
+                _ => panic!("{stage_name} ends the room"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_live_stage_does_not_end_the_room() {
+        for live in ["formed", "awaiting_host", "created", "active"] {
+            assert_eq!(ended_room(&stage(ROOM, live)), None, "{live}");
+        }
+    }
+
+    #[test]
+    fn a_stage_event_of_another_shape_is_ignored() {
+        assert_eq!(ended_room(r#"{"stage":"expired"}"#), None);
+        assert_eq!(ended_room(&stage("not-a-uuid", "expired")), None);
+        assert_eq!(ended_room("nope"), None);
     }
 }

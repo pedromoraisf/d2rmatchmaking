@@ -19,8 +19,6 @@ import { registerTelemetryHandle } from './telemetry-lifecycle.ts';
 
 /** The service name the dashboard filters on (OBS-35). */
 const SERVICE_NAME = 'd2rmm-api';
-/** The API has no version of its own yet; the package version is 0.0.0. */
-const SERVICE_VERSION = '0.0.0';
 /** Requests that are not traced as server spans: the health check and the relay, which must not trace itself. */
 const UNTRACED_PATHS: ReadonlySet<string> = new Set(['/healthz', '/v1/telemetry/traces']);
 
@@ -45,7 +43,7 @@ function installTelemetry(): void {
   register('import-in-the-middle/hook.mjs', import.meta.url);
   const handle = startNodeTelemetry({
     serviceName: SERVICE_NAME,
-    serviceVersion: SERVICE_VERSION,
+    serviceVersion: config.buildSha,
     environment: config.environment,
     endpoint: settings.endpoint,
     headers: { ...settings.headers },

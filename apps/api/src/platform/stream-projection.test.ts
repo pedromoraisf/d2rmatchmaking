@@ -54,6 +54,24 @@ describe('projectStreamEvent', () => {
     ]);
   });
 
+  it('an expired or closed room also goes to the current agent of each member (ARL-01)', async () => {
+    for (const ended of ['expired', 'closed'] as const) {
+      const event: AnyDomainEvent = {
+        type: 'RoomStageChanged',
+        payload: { roomId: 'room-1', stage: ended, members },
+      };
+
+      const deliveries = await projectStreamEvent(event, agents);
+
+      expect(deliveries.map((delivery) => [delivery.stream, delivery.event.type])).toEqual([
+        ['site', 'room.stage_changed'],
+        ['agent', 'room.stage_changed'],
+        ['site', 'room.stage_changed'],
+        ['agent', 'room.stage_changed'],
+      ]);
+    }
+  });
+
   it('a new run goes to every member site and current agent with the new name (LBR-06)', async () => {
     const runOpened: AnyDomainEvent = {
       type: 'RoomRunOpened',

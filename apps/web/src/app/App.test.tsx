@@ -6,7 +6,7 @@ import type { SiteStreamHandlers, StreamOpener } from '../shared/stream.ts';
 import { createApiClient, type Fetcher } from '../shared/api-client.ts';
 import { jsonResponse, routeFetch } from '../test/fake-api.ts';
 import { renderInLanguage } from '../test/render.tsx';
-import { App } from './App.tsx';
+import { AGENT_PRESENCE_REREAD_MS, App } from './App.tsx';
 
 afterEach(cleanup);
 
@@ -217,6 +217,49 @@ describe('App', () => {
     expect(screen.getByText('Agent online')).toBeTruthy();
     expect(screen.getByText('Game open')).toBeTruthy();
     expect(screen.getByText('Screen: Automap open')).toBeTruthy();
+  });
+
+  it('reads the agent again when the stream reconnects, so a lost offline event never stays (ARL-06)', async () => {
+    let reply: unknown = { ...pairedAgent, online: true, gameRunning: true };
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(200, player),
+      'GET /api/v1/agents/me': () => jsonResponse(200, reply),
+      'GET /api/v1/me/room': () => jsonResponse(404),
+    });
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={stream.openStream} />);
+    expect(await screen.findByText('Agent online')).toBeTruthy();
+
+    reply = { ...pairedAgent, online: false };
+    await streamOpens(stream);
+
+    expect(await screen.findByText('Agent offline')).toBeTruthy();
+  });
+
+  it('reads an online agent again on a timer, so an offline event the stream lost shows within the bound (ARL-06)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let reply: unknown = { ...pairedAgent, online: true };
+      const { fetch } = routeFetch({
+        'GET /api/v1/config': () => jsonResponse(200, config),
+        'GET /api/v1/me': () => jsonResponse(200, player),
+        'GET /api/v1/agents/me': () => jsonResponse(200, reply),
+        'GET /api/v1/me/room': () => jsonResponse(404),
+      });
+      const stream = fakeStream();
+      renderInLanguage(<App client={createApiClient(fetch)} openStream={stream.openStream} />);
+      expect(await screen.findByText('Agent online')).toBeTruthy();
+
+      reply = { ...pairedAgent, online: false };
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(AGENT_PRESENCE_REREAD_MS + 100);
+      });
+
+      expect(await screen.findByText('Agent offline')).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('lists a character the agent registers without a reload, on the characters.updated event', async () => {
@@ -811,5 +854,31 @@ describe('App', () => {
     renderInLanguage(<App client={createApiClient(fetch)} openStream={fakeStream().openStream} />);
     expect(await screen.findByText('Pairing code')).toBeTruthy();
     expect(screen.queryByRole('dialog', { name: 'Ready check' })).toBeNull();
+  });
+});
+
+describe('App on a sleeping server (DLP-07)', () => {
+  it('says the server is waking on a 502, retries, and loads once the API answers', async () => {
+    let answers = 0;
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => (answers++ < 2 ? jsonResponse(502) : jsonResponse(200, config)),
+      'GET /api/v1/me': () => jsonResponse(401),
+    });
+    // The wait is held open until the test has seen the message, then released.
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    renderInLanguage(<App client={createApiClient(fetch)} sleep={() => held} />);
+    expect((await screen.findByRole('status')).textContent).toContain('Waking the server');
+    release();
+    expect(await screen.findByRole('button', { name: /sign in/i })).toBeTruthy();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('shows the error once the 90 seconds are spent', async () => {
+    const { fetch } = routeFetch({ 'GET /api/v1/config': () => jsonResponse(503) });
+    renderInLanguage(<App client={createApiClient(fetch)} sleep={() => Promise.resolve()} />);
+    expect((await screen.findByRole('alert')).textContent).toBe('Something went wrong. Try again.');
   });
 });

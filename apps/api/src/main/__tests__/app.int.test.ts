@@ -26,6 +26,7 @@ const CONFIG: AppConfig = {
   minAgentVersion: '0.0.1',
   siteOrigin: 'https://site.example',
   trustProxyHops: 1,
+  buildSha: 'abc1234',
 };
 
 /** A log sink that keeps nothing: the tests that read logs use their own. */
@@ -75,7 +76,7 @@ describe('buildApp', () => {
     const response = await app.app.inject({ method: 'GET', url: '/healthz' });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ status: 'ok' });
+    expect(response.json()).toEqual({ status: 'ok', version: 'abc1234' });
   });
 
   it('/v1/config reflects the staging flag and the minimum agent version', async () => {
