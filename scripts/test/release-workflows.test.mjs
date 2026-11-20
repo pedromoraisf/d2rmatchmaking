@@ -475,3 +475,20 @@ test('the release build is the production channel and uses no channel override',
     assert.equal(channels[channel].updater, false, `${channel} has the updater off`);
   }
 });
+
+// The runbook names what the workflow reads (AGR-11): a variable or secret the maintainer must create is never a surprise.
+test('docs/engineering/releases.md names every variable and secret release-agent.yml reads', () => {
+  const workflowText = readText(`.github/workflows/${RELEASE_AGENT}`);
+  const runbook = readText('docs/engineering/releases.md');
+  const read = [
+    ...[...workflowText.matchAll(/\bvars\.([A-Z_]+)/g)].map((match) => match[1]),
+    ...[...workflowText.matchAll(/\bsecrets\.([A-Z_]+)/g)].map((match) => match[1]),
+  ];
+  assert.ok(
+    read.includes('SIGNPATH_PUBLISHER') && read.includes('API_BASE_URL'),
+    'the pattern finds the names',
+  );
+  for (const name of new Set(read)) {
+    assert.ok(runbook.includes(`\`${name}\``), `releases.md must name ${name}`);
+  }
+});

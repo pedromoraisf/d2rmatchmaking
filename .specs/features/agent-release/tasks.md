@@ -47,7 +47,7 @@ Rules:
       `Get-AuthenticodeSignature` returned into pass or a reason, against the expected subject. Both are pure, tested on
       drawn inputs, and called from `publish` (the PowerShell step prints the two values as JSON). Gate:
       `node --test scripts/test/publish-release.test.mjs scripts/test/signature-verdict.test.mjs scripts/test/release-workflows.test.mjs`
-- [ ] T5 — The runbook (AGR-11): `docs/engineering/releases.md` and the agent row of `docs/engineering/delivery.md` state the
+- [x] T5 — The runbook (AGR-11): `docs/engineering/releases.md` and the agent row of `docs/engineering/delivery.md` state the
       new order, the maintainer's steps (approve and run, merge, approve the `release` environment, approve the SignPath
       request), what each failure leaves (a draft) and the fallback (`SIGNPATH_ENABLED` to `false`, re-run the tag). A
       harness test checks that every `vars.*` and `secrets.*` that `release-agent.yml` reads is named in the runbook.
