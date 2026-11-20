@@ -63,7 +63,7 @@ Rules:
 
 ## Batch 2 — Windows adapters and sensors (after the maintainer approves the exception)
 
-- [ ] T8 — Sensors (AST-09): add `Win32_UI_Input_KeyboardAndMouse` to the `windows` features and to
+- [x] T8 — Sensors (AST-09): add `Win32_UI_Input_KeyboardAndMouse` to the `windows` features and to
       `WINDOWS_FEATURE_ALLOW_LIST`; add the typing adapter to the unsafe adapters with its exact path allow-list
       (`SendInput`, `INPUT`, `INPUT_KEYBOARD`, `KEYBDINPUT`, `KEYEVENTF_UNICODE`, `KEYEVENTF_KEYUP`, `GetAsyncKeyState`,
       `VK_CONTROL`, `VK_SHIFT`, `VK_MENU`); add the source rules (no other file names `SendInput`, `KeyboardAndMouse` or

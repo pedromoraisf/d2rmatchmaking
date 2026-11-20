@@ -29,9 +29,11 @@ const WINDOWS_FEATURE_ALLOW_LIST = [
   'Win32_Graphics_Gdi',
   'Win32_Storage_Xps',
   'Win32_UI_WindowsAndMessaging',
+  // Assisted typing (FR-28, AST-09): Unicode character keystrokes and the hotkey's own modifier keys, in `typing.rs` alone.
+  'Win32_UI_Input_KeyboardAndMouse',
 ];
 
-// The only three files that may allow unsafe_code, each with the windows:: paths it may name.
+// The only four files that may allow unsafe_code, each with the windows:: paths it may name.
 const UNSAFE_ADAPTERS = {
   'src/adapters/window_capture.rs': [
     'HWND',
@@ -62,6 +64,8 @@ const UNSAFE_ADAPTERS = {
     'IsIconic',
     'IsWindowVisible',
     'PW_RENDERFULLCONTENT',
+    // Which window has the focus (assisted typing, AST-03): a read, never an input.
+    'GetForegroundWindow',
   ],
   'src/adapters/toolhelp.rs': [
     'CreateToolhelp32Snapshot',
@@ -71,6 +75,25 @@ const UNSAFE_ADAPTERS = {
     'PROCESSENTRY32W',
     'TH32CS_SNAPPROCESS',
     'HANDLE',
+  ],
+  // The one file that sends input to the game (FR-28, AST-06, ADR 010): Unicode character keystrokes, and a read of the
+  // state of the hotkey's own modifier keys. The path list below is all it may name; `typingAdapterViolations` adds the
+  // rules on what it may do with them.
+  'src/adapters/typing.rs': [
+    'INPUT',
+    'INPUT_0',
+    'INPUT_KEYBOARD',
+    'INPUT_TYPE',
+    'KEYBDINPUT',
+    'KEYBD_EVENT_FLAGS',
+    'KEYEVENTF_UNICODE',
+    'KEYEVENTF_KEYUP',
+    'SendInput',
+    'GetAsyncKeyState',
+    'VIRTUAL_KEY',
+    'VK_CONTROL',
+    'VK_SHIFT',
+    'VK_MENU',
   ],
   'src/adapters/windows_ocr.rs': [
     'Media::Ocr',
@@ -136,7 +159,7 @@ const windowsFeatureViolations = (base) => {
 const unsafeLocationViolations = (base) =>
   rustFiles(base)
     .filter(({ rel, text }) => /allow\(\s*unsafe_code\s*\)/.test(text) && !(rel in UNSAFE_ADAPTERS))
-    .map(({ rel }) => `${rel} allows unsafe_code outside the three adapters`);
+    .map(({ rel }) => `${rel} allows unsafe_code outside the four adapters`);
 
 const adapterPathViolations = (base) =>
   Object.entries(UNSAFE_ADAPTERS).flatMap(([rel, allowed]) => {
@@ -146,6 +169,67 @@ const adapterPathViolations = (base) =>
       .filter((windowsPath) => !isAllowedWindowsPath(windowsPath, allowed))
       .map((windowsPath) => `${rel} references windows::${windowsPath}, which is not on its allow-list`);
   });
+
+// Assisted typing (AST-06, AST-09; ADR 010). The names that send or read input live in one file, `typing.rs`, and that file
+// can do nothing but type Unicode characters and read three modifier keys. The agent never confirms an action in the game.
+const TYPING_ADAPTER = 'src/adapters/typing.rs';
+const INPUT_NAMES =
+  /\b(?:SendInput|GetAsyncKeyState|GetKeyState|GetKeyboardState|keybd_event|mouse_event|KeyboardAndMouse|SendMessageW|PostMessageW)\b/;
+const withoutComments = (text) => text.replace(/\/\/.*$/gm, '');
+
+const inputOutsideTypingViolations = (base) =>
+  rustFiles(base)
+    .filter(({ rel }) => rel !== TYPING_ADAPTER)
+    .filter(({ text }) => INPUT_NAMES.test(withoutComments(text)))
+    .map(({ rel }) => `${rel} names an input function, and only ${TYPING_ADAPTER} may`);
+
+const ALLOWED_VIRTUAL_KEYS = ['VK_CONTROL', 'VK_SHIFT', 'VK_MENU'];
+
+const typingAdapterViolations = (base) => {
+  const text = crateFile(base, TYPING_ADAPTER);
+  if (text === undefined) return [];
+  const code = withoutComments(nonTestText(text));
+  const violations = [];
+  for (const key of new Set(code.match(/\bVK_[A-Z0-9_]+\b/g) ?? [])) {
+    if (!ALLOWED_VIRTUAL_KEYS.includes(key)) {
+      violations.push(
+        `${TYPING_ADAPTER} names ${key}: only Ctrl, Shift and Alt are read, and no key is sent`,
+      );
+    }
+  }
+  for (const match of code.matchAll(/\bwVk\s*:\s*([^,}\n]+)/g)) {
+    if (!/^VIRTUAL_KEY\(\s*0\s*\)$/.test(match[1].trim())) {
+      violations.push(
+        `${TYPING_ADAPTER} sets wVk to ${match[1].trim()}: a keystroke must be Unicode, with virtual key 0`,
+      );
+    }
+  }
+  for (const name of new Set(code.match(/\bKEYEVENTF_[A-Z_]+\b/g) ?? [])) {
+    if (!['KEYEVENTF_UNICODE', 'KEYEVENTF_KEYUP'].includes(name)) {
+      violations.push(
+        `${TYPING_ADAPTER} uses ${name}: only KEYEVENTF_UNICODE and KEYEVENTF_KEYUP may be set`,
+      );
+    }
+  }
+  for (const name of new Set(
+    code.match(
+      /\b(?:INPUT_MOUSE|INPUT_HARDWARE|MOUSEINPUT|HARDWAREINPUT|MOUSEEVENTF_[A-Z_]+|[A-Za-z]*Clipboard[A-Za-z]*)\b/g,
+    ) ?? [],
+  )) {
+    violations.push(`${TYPING_ADAPTER} uses ${name}: no mouse, hardware or clipboard input`);
+  }
+  if (code.includes('SendInput') && !/\bKEYEVENTF_UNICODE\b/.test(code)) {
+    violations.push(`${TYPING_ADAPTER} sends input without KEYEVENTF_UNICODE`);
+  }
+  return violations;
+};
+
+// The scoped `allow` for the input functions that clippy.toml bans sits in the typing adapter alone (AST-09).
+const clippyAllowViolations = (base) =>
+  rustFiles(base)
+    .filter(({ rel }) => rel !== TYPING_ADAPTER)
+    .filter(({ text }) => /allow\(\s*clippy::disallowed_methods\s*\)/.test(text))
+    .map(({ rel }) => `${rel} allows clippy::disallowed_methods, and only ${TYPING_ADAPTER} may`);
 
 const instrumentViolations = (base) =>
   rustFiles(base).flatMap(({ rel, text }) =>
@@ -290,7 +374,7 @@ test('windows features stay on the allow-list', () => {
   assert.deepEqual(windowsFeatureViolations(root), []);
 });
 
-test('unsafe is allowed only in the three adapters', () => {
+test('unsafe is allowed only in the four adapters', () => {
   assert.deepEqual(unsafeLocationViolations(root), []);
 });
 
@@ -334,6 +418,55 @@ test('release-agent.yml builds no example and enables no all-features', () => {
   }
 });
 
+test('only the typing adapter names an input function or allows the clippy ban on them', () => {
+  assert.deepEqual(inputOutsideTypingViolations(root), []);
+  assert.deepEqual(clippyAllowViolations(root), []);
+});
+
+test('the typing adapter types Unicode characters and reads three modifier keys, and nothing else', () => {
+  assert.deepEqual(typingAdapterViolations(root), []);
+});
+
+test('the input rule rejects an input function outside the typing adapter and a clippy allow outside it', () => {
+  assert.match(
+    inputOutsideTypingViolations(fixtureBase('input-outside-typing')).join('\n'),
+    /src\/adapters\/window_capture\.rs names an input function, and only src\/adapters\/typing\.rs may/,
+  );
+  assert.match(
+    clippyAllowViolations(fixtureBase('input-outside-typing')).join('\n'),
+    /src\/adapters\/window_capture\.rs allows clippy::disallowed_methods/,
+  );
+});
+
+test('the typing adapter rule rejects a confirming or navigating key', () => {
+  const violations = typingAdapterViolations(fixtureBase('typing-confirm-key')).join('\n');
+  for (const key of ['VK_RETURN', 'VK_TAB', 'VK_SPACE', 'VK_ESCAPE', 'VK_BACK']) {
+    assert.match(violations, new RegExp(`names ${key}`), key);
+  }
+});
+
+test('the typing adapter rule rejects a virtual key in a keystroke and a scan-code or extended-key flag', () => {
+  const violations = typingAdapterViolations(fixtureBase('typing-virtual-key')).join('\n');
+  assert.match(violations, /sets wVk to VIRTUAL_KEY\(13\)/);
+  assert.match(violations, /sets wVk to VIRTUAL_KEY\(vk\)/);
+  assert.match(violations, /uses KEYEVENTF_SCANCODE/);
+  assert.match(violations, /uses KEYEVENTF_EXTENDEDKEY/);
+});
+
+test('the typing adapter rule rejects mouse, hardware and clipboard input and a send without Unicode', () => {
+  const violations = typingAdapterViolations(fixtureBase('typing-mouse-clipboard')).join('\n');
+  for (const name of [
+    'INPUT_MOUSE',
+    'MOUSEINPUT',
+    'MOUSEEVENTF_LEFTDOWN',
+    'INPUT_HARDWARE',
+    'SetClipboardData',
+  ]) {
+    assert.match(violations, new RegExp(`uses ${name}`), name);
+  }
+  assert.match(violations, /sends input without KEYEVENTF_UNICODE/);
+});
+
 test('the windows feature rule rejects a feature off the list', () => {
   assert.match(
     windowsFeatureViolations(fixtureBase('windows-feature')).join('\n'),
@@ -344,7 +477,7 @@ test('the windows feature rule rejects a feature off the list', () => {
 test('the unsafe location rule rejects an allow outside the adapters', () => {
   assert.match(
     unsafeLocationViolations(fixtureBase('unsafe-outside-adapters')).join('\n'),
-    /src\/adapters\/http\.rs allows unsafe_code outside the three adapters/,
+    /src\/adapters\/http\.rs allows unsafe_code outside the four adapters/,
   );
 });
 
@@ -505,7 +638,7 @@ test('tauri.conf.json keeps the hardened shell', () => {
   );
 });
 
-test('the window gets exactly listen, unlisten, get_new_code, get_consent and set_consent', () => {
+test('the window gets exactly listen, unlisten, get_new_code, get_consent, set_consent and set_hotkey', () => {
   const capability = readJson(`${agentTauri}/capabilities/main.json`);
   assert.deepEqual(capability.windows, ['main']);
   assert.deepEqual(
@@ -514,6 +647,8 @@ test('the window gets exactly listen, unlisten, get_new_code, get_consent and se
       'allow-get-consent',
       'allow-get-new-code',
       'allow-set-consent',
+      // Assisted typing (AST-09): the window saves the player's hotkey choice; the command types nothing.
+      'allow-set-hotkey',
       'core:event:allow-listen',
       'core:event:allow-unlisten',
     ],
