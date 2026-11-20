@@ -33,11 +33,15 @@ pub struct ScreenReader {
     create_new: Mutex<Tracker>,
 }
 
-/// How a frame's HUD or automap line was looked for (SCR-09): the tracked box held it, or the wide area was searched.
+/// How a frame's HUD, automap or list marker was looked for (SCR-09): the tracked box held it, the wide area was searched,
+/// the search rested for the frame, or the card column was read again with its brightness lifted. The last tracker asked
+/// sets it, except that a lifted read stays on the frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Search {
     Track,
     Band,
+    Rested,
+    Lifted,
 }
 
 /// The fixed words a frame's reading carries on its `agent.vision.read` span (`vision.screen`, `vision.search`,
@@ -52,6 +56,9 @@ fn vision_words(screen: Screen, search: Option<Search>) -> [&'static str; 3] {
     let (search_word, area_class) = match (search, screen) {
         (Some(Search::Track), _) => ("track", "box"),
         (Some(Search::Band), _) => ("band", "band"),
+        (Some(Search::Rested), Screen::CharacterSelect) => ("rested", "panel"),
+        (Some(Search::Rested), _) => ("rested", "box"),
+        (Some(Search::Lifted), _) => ("lifted", "panel"),
         (None, Screen::Unknown) => ("none", "box"),
         (None, Screen::CharacterSelect) => ("fixed", "panel"),
         (None, _) => ("fixed", "box"),
@@ -102,6 +109,9 @@ impl ScreenReader {
             let plan = held.next(frame.width, frame.height);
             // A search of the wide area that found nothing last time rests for some frames (NFR-03 CPU).
             if matches!(plan, Some(TrackRead::Search(_))) && held.rests(frame.width, frame.height) {
+                if how.get() != Some(Search::Lifted) {
+                    how.set(Some(Search::Rested));
+                }
                 return Vec::new();
             }
             plan
@@ -113,11 +123,13 @@ impl ScreenReader {
         };
         let mut lines = self.reader.read_line_variants(frame, area);
         let mut found = find(&self.language, &lines);
-        how.set(Some(if tracked && found.is_some() {
-            Search::Track
-        } else {
-            Search::Band
-        }));
+        if how.get() != Some(Search::Lifted) {
+            how.set(Some(if tracked && found.is_some() {
+                Search::Track
+            } else {
+                Search::Band
+            }));
+        }
         if tracked && found.is_none() {
             // The label moved or is gone: look in the whole search area.
             let search = tracker
@@ -155,6 +167,7 @@ impl ScreenReader {
                 };
                 let lines = self.reader.read_line_variants(&image, area);
                 *lifted.borrow_mut() = Some(image);
+                how.set(Some(Search::Lifted));
                 return lines;
             }
             ScreenRegion::HudBand => {
@@ -1685,7 +1698,7 @@ mod hud_tests {
     }
 
     /// The `agent.vision.read` fields of one read, as `screen/search/area_class`.
-    fn words_of(screens: &ScreenReader, frame: &Rgba) -> String {
+    pub(super) fn words_of(screens: &ScreenReader, frame: &Rgba) -> String {
         let spans = Arc::new(Spans::default());
         let guard = tracing::subscriber::set_default(Arc::clone(&spans));
         tracing::callsite::rebuild_interest_cache();
@@ -1728,8 +1741,32 @@ mod hud_tests {
         let frame = frame(1920, 1080);
         let words: Vec<String> = (0..4).map(|_| words_of(&screens, &frame)).collect();
         assert_eq!(
-            words, ["unknown/band/band"; 4],
-            "the HUD band is searched on every frame; a resting search leaves no trace of its own"
+            words,
+            [
+                "unknown/band/band",
+                "unknown/rested/box",
+                "unknown/band/band",
+                "unknown/rested/box"
+            ],
+            "changed expectation (#104 fix round 1, was band on every frame): the frame whose list-marker search rests says so"
+        );
+    }
+
+    #[test]
+    fn the_words_of_a_rested_or_lifted_frame_are_fixed_words() {
+        use super::{Search, vision_words};
+        use d2rmm_agent_domain::presence::Screen;
+        assert_eq!(
+            vision_words(Screen::Unknown, Some(Search::Rested)),
+            ["unknown", "rested", "box"]
+        );
+        assert_eq!(
+            vision_words(Screen::CharacterSelect, Some(Search::Rested)),
+            ["character_select", "rested", "panel"]
+        );
+        assert_eq!(
+            vision_words(Screen::CharacterSelect, Some(Search::Lifted)),
+            ["character_select", "lifted", "panel"]
         );
     }
 
@@ -1901,6 +1938,26 @@ mod dim_tests {
         assert_eq!(reading.popup_options, 3);
         let names: Vec<&str> = reading.cards.iter().map(|card| card.name()).collect();
         assert_eq!(names, ["vukVuka", "vukaDao"]);
+    }
+
+    #[test]
+    fn a_frame_whose_column_was_lifted_says_so_on_its_read_span_and_a_bright_one_does_not() {
+        let screens = |reader: &Arc<Dimmed>| {
+            ScreenReader::new(
+                Arc::clone(reader) as Arc<dyn TextReader + Send + Sync>,
+                Arc::new(LanguagePack::english()),
+            )
+        };
+        let dim = Dimmed::new(scene());
+        assert_eq!(
+            super::hud_tests::words_of(&screens(&dim), &frame(70)),
+            "character_select/lifted/panel"
+        );
+        let bright = Dimmed::new(scene());
+        assert_ne!(
+            super::hud_tests::words_of(&screens(&bright), &frame(255)),
+            "character_select/lifted/panel"
+        );
     }
 
     #[test]
