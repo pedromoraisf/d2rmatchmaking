@@ -23,6 +23,8 @@ export interface AgentsRouteGuards {
   readonly requireAgent: Guard;
   readonly requireSession: Guard;
   readonly requireSameOrigin: Guard;
+  /** After `requireSession` on `GET /v1/agents/me`: 60 requests a minute per account, then 429 (UPK-02). */
+  readonly limitAgentStatus: Guard;
 }
 
 export interface AgentsRouteDeps {
@@ -187,8 +189,8 @@ export function agentsRoutes(app: FastifyInstance, deps: AgentsRouteDeps): void 
   typed.get(
     '/v1/agents/me',
     {
-      preHandler: [guards.requireSession],
-      schema: { response: { 200: AgentView, 401: ErrorResponse } },
+      preHandler: [guards.requireSession, guards.limitAgentStatus],
+      schema: { response: { 200: AgentView, 401: ErrorResponse, 429: ErrorResponse } },
     },
     async (request, reply) => {
       const accountId = request.accountId;

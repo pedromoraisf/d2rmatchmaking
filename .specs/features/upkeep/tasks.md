@@ -38,7 +38,7 @@ Rules:
       leak between accounts, entries older than the window pruned) as a pure class with unit tests at the boundaries
       (59, 60, 61, window edge). Gate:
       `pnpm --filter @d2rmm/api exec vitest run src/platform/http && pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api lint && pnpm arch`
-- [ ] T4 — UPK-02, UPK-03: wire the limiter to `GET /v1/agents/me` and to the three ready-check routes (one shared window
+- [x] T4 — UPK-02, UPK-03: wire the limiter to `GET /v1/agents/me` and to the three ready-check routes (one shared window
       per principal for the ready-check routes), add `429` to their response schemas, regenerate and commit
       `openapi.json`, update `openapi.int.test.ts`, add integration tests (61st request, other account, the existing
       401/404/409/426 unchanged under the limit). A route changed, so the whole API integration suite runs. Gate:
