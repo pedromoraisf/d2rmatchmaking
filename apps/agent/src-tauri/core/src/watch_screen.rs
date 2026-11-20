@@ -11,7 +11,7 @@ use d2rmm_agent_domain::frame_content::{FrameContent, summarize};
 use d2rmm_agent_domain::presence::game_running;
 
 use crate::device_state::DeviceState;
-use crate::messages::{FrameReading, Screen};
+use crate::messages::{CaptureReport, FrameReading, Screen};
 use crate::party::{self, PartyLook, PartyPorts};
 use crate::ports::{
     ApiError, ApiGateway, CaptureStatus, ConsentStore, FrameReader, FrameSource, ProcessSource,
@@ -54,6 +54,7 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
     let Some(frame) = capture(ports) else {
         device.set_screen(Screen::Unknown);
         let status = ports.frames.status();
+        device.set_capture_report(report_of(status));
         // The window's size is looked up only when the game runs and gave nothing to read: not once a second while it is gone.
         let window = if status.unusable {
             ports.frames.window_size()
@@ -64,6 +65,8 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
         return;
     };
     let content = summarize(&frame.pixels);
+    let status = ports.frames.status();
+    device.set_capture_report(report_of(status));
     if content.blank {
         // A blank frame is never read: no OCR call is made for it, and the Party step does not see it (CAP-02, NFR-02).
         device.set_screen(Screen::Unknown);
@@ -86,7 +89,7 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
         content,
         ports.frames.window_size(),
         device.with_party(|progress| progress.last_look()),
-        ports.frames.status(),
+        status,
     ));
     let mut diagnostics = diagnostics_of(&reading, &frame, previous_post(device));
     let FrameReading {
@@ -228,6 +231,14 @@ fn unseen_capture(status: CaptureStatus, window: Option<(u32, u32)>) -> CaptureV
 /// The reason code of a look that gave no usable frame while the game ran.
 const NOTHING_SEEN: &str = "nothing";
 
+/// What the heartbeat reports of a capture status (CAP-07).
+fn report_of(status: CaptureStatus) -> CaptureReport {
+    CaptureReport {
+        method: status.method,
+        read_rate_percent: status.read_rate_percent,
+    }
+}
+
 fn method_word(status: CaptureStatus) -> &'static str {
     status.method.map_or("none", |method| method.word())
 }
@@ -282,7 +293,7 @@ mod tests {
     use crate::device_state::DeviceState;
     use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NoText, NullSink};
     use crate::groups::ReadPorts;
-    use crate::messages::{FrameReading, Screen};
+    use crate::messages::{CaptureReport, FrameReading, Screen};
     use crate::party::{FieldDetail, FieldState, PartyLook, PartyPorts};
     use crate::ports::{
         ApiError, CaptureStatus, ConsentStore, FrameReader, FrameSource, PausedWallClock,
@@ -586,6 +597,17 @@ mod tests {
             rig.gateway.calls().is_empty(),
             "nothing is sent from a blank frame"
         );
+    }
+
+    #[tokio::test]
+    async fn the_heartbeat_reports_the_capture_status_of_the_last_look() {
+        let rig = rig(true, true, frame(), selecting(Vec::new()));
+        assert_eq!(rig.device.capture_report().method_word(), "none");
+
+        look(&rig, &mut None).await;
+
+        // A raw frame source has no cascade: no method, a rate of 0, until a `Capturer` says otherwise.
+        assert_eq!(rig.device.capture_report(), CaptureReport::default());
     }
 
     #[tokio::test]

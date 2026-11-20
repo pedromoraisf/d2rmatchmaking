@@ -70,7 +70,7 @@ check is `node scripts/agent/win-check.mjs` (Docker, clippy for `x86_64-pc-windo
       step. `CaptureView` gains `method` (the fixed word) and `read_rate`. Change the T1 blank-frame test to expect zero
       reader calls and say why in the commit; add the call-count tests: 600 usable looks make 600 `read` calls, 600
       blank looks make 0, a demotion mid-session loses no `read`. `screen_reader.rs` is not touched. Gate: as T1
-- [ ] T6 — Heartbeat and telemetry (CAP-07, CAP-08). `translate.rs` sends the hub's method word and read rate (T1's
+- [x] T6 — Heartbeat and telemetry (CAP-07, CAP-08). `translate.rs` sends the hub's method word and read rate (T1's
       expectation becomes `none`/0 only before the first look); span `agent.vision.capture` with `capture.method` and
       `capture.outcome` around each capture (a probe is its own span); `sanitize.rs` keeps the two keys with their fixed
       values only and drops any other value (every value outside the words, every case: a size, a title, a path). Tests

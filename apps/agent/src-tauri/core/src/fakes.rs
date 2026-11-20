@@ -443,7 +443,7 @@ mod tests {
     use super::{Call, FakeApiGateway};
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
 
-    use crate::messages::{Presence, Screen};
+    use crate::messages::{CaptureReport, Presence, Screen};
     use crate::ports::{ApiError, ApiGateway, EndReason, StreamItem};
     use crate::secret::Secret;
 
@@ -472,6 +472,7 @@ mod tests {
         let presence = Presence {
             game_running: true,
             screen: Screen::Unknown,
+            capture: CaptureReport::default(),
         };
 
         assert_eq!(gateway.claim(&claim).await, Err(ApiError::Pending));

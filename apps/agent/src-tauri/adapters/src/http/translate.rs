@@ -72,8 +72,8 @@ pub fn issued_code_from_contract(
     })
 }
 
-/// The heartbeat body of the contract: the agent version, the game state and the screen. The capture block says the agent
-/// captures nothing yet (F0), as the heartbeat has always sent it.
+/// The heartbeat body of the contract: the agent version, the game state and the screen. The capture block is the method of the last
+/// usable frame (`none` before one) and the usable share of the last looks (CAP-07).
 pub fn heartbeat_from_presence(
     presence: &Presence,
     version: &str,
@@ -82,7 +82,10 @@ pub fn heartbeat_from_presence(
         "agentVersion": version,
         "pcState": "IDLE",
         "game": { "running": presence.game_running, "window": "", "screen": screen_word(presence.screen) },
-        "capture": { "method": "none", "readRate": 0 },
+        "capture": {
+            "method": presence.capture.method_word(),
+            "readRate": f64::from(presence.capture.read_rate_percent) / 100.0,
+        },
     }))
 }
 
@@ -170,7 +173,7 @@ mod tests {
     };
     use crate::contracts::generated as contract;
     use crate::contracts::schemas::SCHEMAS;
-    use d2rmm_agent_core::messages::{GameNameObservation, Presence, Screen};
+    use d2rmm_agent_core::messages::{CaptureReport, GameNameObservation, Presence, Screen};
     use d2rmm_agent_domain::characters::{Card, Class, Mode, Title};
     use d2rmm_agent_domain::room_assignment::{Member, MemberRole};
 
@@ -248,6 +251,7 @@ mod tests {
         let presence = Presence {
             game_running: true,
             screen: Screen::AutomapOpen,
+            capture: CaptureReport::default(),
         };
 
         let heartbeat = heartbeat_from_presence(&presence, "0.0.1").expect("a contract heartbeat");
@@ -267,6 +271,44 @@ mod tests {
     }
 
     #[test]
+    fn the_heartbeat_carries_the_capture_method_and_the_usable_share() {
+        use d2rmm_agent_domain::capture_cascade::CaptureMethod;
+        for (method, word) in [
+            (CaptureMethod::PrintWindow, "print-window"),
+            (CaptureMethod::GraphicsCapture, "graphics-capture"),
+            (CaptureMethod::ScreenCrop, "screen-crop"),
+        ] {
+            let presence = Presence {
+                game_running: true,
+                screen: Screen::InGame,
+                capture: CaptureReport {
+                    method: Some(method),
+                    read_rate_percent: 97,
+                },
+            };
+            let sent = serde_json::to_value(
+                heartbeat_from_presence(&presence, "0.0.1").expect("a contract heartbeat"),
+            )
+            .expect("the heartbeat serializes");
+            assert_eq!(sent["capture"]["method"], word);
+            assert_eq!(sent["capture"]["readRate"].as_f64(), Some(0.97));
+            assert!(schema("heartbeat.json").is_valid(&sent));
+        }
+        let full = Presence {
+            game_running: true,
+            screen: Screen::InGame,
+            capture: CaptureReport {
+                method: None,
+                read_rate_percent: 100,
+            },
+        };
+        let sent = serde_json::to_value(heartbeat_from_presence(&full, "0.0.1").expect("a body"))
+            .expect("serializes");
+        assert_eq!(sent["capture"]["readRate"].as_f64(), Some(1.0));
+        assert_eq!(sent["capture"]["method"], "none");
+    }
+
+    #[test]
     fn every_screen_is_sent_under_its_contract_word() {
         for (screen, word) in [
             (Screen::Unknown, "UNKNOWN"),
@@ -277,6 +319,7 @@ mod tests {
             let presence = Presence {
                 game_running: true,
                 screen,
+                capture: CaptureReport::default(),
             };
             let sent = serde_json::to_value(
                 heartbeat_from_presence(&presence, "0.0.1").expect("a contract heartbeat"),
@@ -332,6 +375,7 @@ mod tests {
         let presence = Presence {
             game_running: false,
             screen: Screen::Unknown,
+            capture: CaptureReport::default(),
         };
 
         let sent = serde_json::to_value(
@@ -406,6 +450,7 @@ mod tests {
         let presence = Presence {
             game_running: true,
             screen: Screen::Unknown,
+            capture: CaptureReport::default(),
         };
         let body = heartbeat_from_presence(&presence, "0.0.1").expect("a contract body");
         let sent = serde_json::to_value(&body).expect("the body serializes");

@@ -83,7 +83,8 @@ impl<M: MethodSource> Capturer<M> {
             Ok(frame) if summarize(&frame.pixels).blank => (Outcome::Blank, None),
             Ok(frame) => (Outcome::Frame, Some(frame)),
         };
-        span.record("capture.outcome", outcome_word(outcome));
+        let outcome_text = outcome_word(outcome);
+        span.record("capture.outcome", outcome_text);
         Some((outcome, frame))
     }
 
@@ -308,6 +309,109 @@ mod tests {
 
     fn capturer(script: &Arc<Scripted>) -> Capturer<Arc<Scripted>> {
         Capturer::new(Arc::clone(script))
+    }
+
+    /// Every `agent.vision.capture` span's fields, as text, in creation order.
+    type SpanFields = Vec<(String, String)>;
+
+    #[derive(Default)]
+    struct Spans {
+        recorded: Mutex<Vec<(String, SpanFields)>>,
+    }
+
+    struct Writer<'a>(&'a mut Vec<(String, String)>);
+
+    impl tracing::field::Visit for Writer<'_> {
+        fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+            self.0.push((field.name().to_string(), value.to_string()));
+        }
+
+        fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+            self.0
+                .push((field.name().to_string(), format!("{value:?}")));
+        }
+    }
+
+    impl tracing::Subscriber for Spans {
+        fn enabled(&self, _metadata: &tracing::Metadata<'_>) -> bool {
+            true
+        }
+
+        fn new_span(&self, attrs: &tracing::span::Attributes<'_>) -> tracing::Id {
+            let mut fields = Vec::new();
+            attrs.record(&mut Writer(&mut fields));
+            let mut recorded = self.recorded.lock().expect("spans");
+            recorded.push((attrs.metadata().name().to_string(), fields));
+            tracing::Id::from_u64(recorded.len() as u64)
+        }
+
+        fn record(&self, span: &tracing::Id, values: &tracing::span::Record<'_>) {
+            let mut recorded = self.recorded.lock().expect("spans");
+            if let Some((_, fields)) = recorded.get_mut(span.into_u64() as usize - 1) {
+                values.record(&mut Writer(fields));
+            }
+        }
+
+        fn record_follows_from(&self, _span: &tracing::Id, _follows: &tracing::Id) {}
+
+        fn event(&self, _event: &tracing::Event<'_>) {}
+
+        fn enter(&self, _span: &tracing::Id) {}
+
+        fn exit(&self, _span: &tracing::Id) {}
+    }
+
+    #[test]
+    fn each_capture_is_one_span_with_a_fixed_method_and_outcome_and_nothing_else() {
+        let script = Scripted::new(&[PrintWindow, GraphicsCapture]);
+        script.say(PrintWindow, Say::Black);
+        script.say(GraphicsCapture, Say::Good);
+        let capturer = capturer(&script);
+        let spans = Arc::new(Spans::default());
+        let guard = tracing::subscriber::set_default(Arc::clone(&spans));
+        tracing::callsite::rebuild_interest_cache();
+
+        for _ in 0..DEMOTE_AFTER {
+            capturer.capture();
+        }
+        capturer.release();
+        capturer.release();
+        drop(guard);
+
+        let recorded = spans.recorded.lock().expect("spans");
+        let seen: Vec<(String, String)> = recorded
+            .iter()
+            .map(|(name, fields)| {
+                assert_eq!(name, "agent.vision.capture");
+                let get = |key: &str| {
+                    fields
+                        .iter()
+                        .rev()
+                        .find(|(field, _)| field == key)
+                        .map(|(_, value)| value.clone())
+                        .unwrap_or_default()
+                };
+                let keys: Vec<&str> = fields.iter().map(|(field, _)| field.as_str()).collect();
+                assert!(
+                    keys.iter()
+                        .all(|key| ["capture.method", "capture.outcome"].contains(key)),
+                    "only the two fixed fields: {keys:?}"
+                );
+                (get("capture.method"), get("capture.outcome"))
+            })
+            .collect();
+        let pair = |method: &str, outcome: &str| (method.to_string(), outcome.to_string());
+        assert_eq!(
+            seen,
+            vec![
+                pair("print-window", "blank"),
+                pair("print-window", "blank"),
+                pair("print-window", "blank"),
+                pair("graphics-capture", "frame"),
+                pair("none", "skipped"),
+            ],
+            "one span per capture, and one skipped span however many releases"
+        );
     }
 
     #[test]

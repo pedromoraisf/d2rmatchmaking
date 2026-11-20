@@ -11,7 +11,7 @@ use chrono::{DateTime, Utc};
 use d2rmm_agent_adapters::config::{AllowLoopbackHttp, ApiBase};
 use d2rmm_agent_adapters::http::api_client::ApiClient;
 use d2rmm_agent_adapters::http::gateway::HttpGateway;
-use d2rmm_agent_core::messages::{GameNameObservation, Presence, Screen};
+use d2rmm_agent_core::messages::{CaptureReport, GameNameObservation, Presence, Screen};
 use d2rmm_agent_core::ports::ApiGateway;
 use d2rmm_agent_core::secret::Secret;
 use support::fake_api::{CLAIM_SECRET, CODE, FakeApi, Operation, TOKEN};
@@ -47,6 +47,7 @@ async fn http_gateway_forwards_each_route() {
     let presence = Presence {
         game_running: true,
         screen: Screen::AutomapOpen,
+        capture: CaptureReport::default(),
     };
 
     let issued = gateway
