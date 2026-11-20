@@ -96,6 +96,9 @@ const iterationsStarted = new Counter('journey_iterations_started');
 const roomsCreated = new Counter('journey_rooms_created');
 const meterBytes = new Counter('journey_meter_bytes');
 const sinkBytes = new Counter('journey_sink_bytes');
+const SIGNALS = ['traces', 'metrics', 'logs'];
+const sinkBytesBySignal = {};
+for (const signal of SIGNALS) sinkBytesBySignal[signal] = new Counter('journey_sink_bytes_' + signal);
 const windowSeconds = new Counter('journey_window_seconds');
 
 // The bytes of each event type of each stream, counted where the frame arrives (stream-egress SEG-02). `unlisted` holds any
@@ -119,6 +122,9 @@ const TOTALS = [
   'journey_iterations_started',
   'journey_meter_bytes',
   'journey_sink_bytes',
+  'journey_sink_bytes_traces',
+  'journey_sink_bytes_metrics',
+  'journey_sink_bytes_logs',
   'journey_window_seconds',
   'dropped_iterations',
 ];
@@ -583,6 +589,7 @@ export function control() {
   const sink = controlCall(PLAN.control.sink, 'stop');
   meterBytes.add(meter.bytes);
   sinkBytes.add(sink.bytes);
+  for (const signal of SIGNALS) sinkBytesBySignal[signal].add((sink.byLabel && sink.byLabel[signal]) || 0);
   windowSeconds.add(meter.seconds);
 }
 
@@ -645,6 +652,11 @@ export function handleSummary(data) {
     eventBytes: eventBytesOf(data),
     meterBytes: totalOf(data, 'journey_meter_bytes'),
     sinkBytes: totalOf(data, 'journey_sink_bytes'),
+    sinkBytesBySignal: {
+      traces: totalOf(data, 'journey_sink_bytes_traces'),
+      metrics: totalOf(data, 'journey_sink_bytes_metrics'),
+      logs: totalOf(data, 'journey_sink_bytes_logs'),
+    },
     windowSeconds: totalOf(data, 'journey_window_seconds'),
     matchesPosted: totalOf(data, 'journey_matches_posted'),
     iterationsStarted: totalOf(data, 'journey_iterations_started'),

@@ -309,7 +309,7 @@ fn sidecar_lines(sidecar: &Path, image: &Rgba) -> Vec<TextLine> {
             screen_region(screen, image.width, image.height)?,
         ))
     });
-    panels
+    let keyed = panels
         .chain(screens)
         .filter(|(key, _)| !MARKER_KEYS.contains(&key.as_str()))
         .filter_map(|(key, region)| {
@@ -318,8 +318,27 @@ fn sidecar_lines(sidecar: &Path, image: &Rgba) -> Vec<TextLine> {
                 text: text.to_string(),
                 region,
             })
-        })
-        .collect()
+        });
+    // The lines a sidecar draws at their own boxes (`"lines": [{ "text", "x", "y", "width", "height" }]`, the shape of the
+    // full-screen and per-mode fixtures): the screens the fixed regions do not reach, read by the word search.
+    let boxed = value
+        .get("lines")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|line| {
+            let number = |key: &str| u32::try_from(line.get(key)?.as_u64()?).ok();
+            Some(TextLine {
+                text: line.get("text")?.as_str()?.to_string(),
+                region: Region {
+                    x: number("x")?,
+                    y: number("y")?,
+                    width: number("width")?,
+                    height: number("height")?,
+                },
+            })
+        });
+    keyed.chain(boxed).collect()
 }
 
 fn holds(area: Region, line: &TextLine) -> bool {
@@ -948,6 +967,34 @@ mod tests {
             None,
             "no region of the screens"
         );
+    }
+
+    /// A sidecar's `lines` are shown at their own boxes, whatever the layout's fixed regions are (screen-recognition).
+    #[test]
+    fn a_sidecar_shows_its_boxed_lines() {
+        use super::sidecar_lines;
+        use d2rmm_agent_core::ports::Rgba;
+
+        let directory = std::env::temp_dir().join(format!("d2rmm-lines-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).expect("a directory");
+        let sidecar = directory.join("shot.png.json");
+        std::fs::write(
+            &sidecar,
+            r#"{ "createNew": "Create New", "lines": [
+                { "text": "Life: 9 / 9", "x": 436, "y": 880, "width": 170, "height": 22 },
+                { "text": "no box" } ] }"#,
+        )
+        .expect("a sidecar");
+        let frame = Rgba {
+            width: 1920,
+            height: 1080,
+            pixels: Vec::new(),
+        };
+        let lines = sidecar_lines(&sidecar, &frame);
+        std::fs::remove_dir_all(&directory).ok();
+        assert_eq!(lines.len(), 1, "a line with no box is not shown");
+        assert_eq!(lines[0].text, "Life: 9 / 9");
+        assert_eq!((lines[0].region.x, lines[0].region.y), (436, 880));
     }
 
     /// `--consent` gives the player's consent before the run; without it the example reads nothing.

@@ -1,5 +1,5 @@
 // The telemetry sink (design.md § Byte meter and sink; LB-21). The API exports its telemetry to it over loopback
-// (`OTEL_EXPORTER_OTLP_ENDPOINT`). The sink answers `200 {}` on the three OTLP/HTTP paths and counts the bytes it reads on
+// (`OTEL_EXPORTER_OTLP_ENDPOINT`). The sink answers `200 {}` (an empty protobuf message for a protobuf request) on the three OTLP/HTTP paths and counts the bytes it reads on
 // the wire while the window is open: the request line, the headers and the body. The body is read and dropped, and nothing
 // is logged. The control endpoints are the meter's (`control.mjs`): a bearer token and a loopback `Host` are required.
 //
@@ -12,6 +12,8 @@ import { createWindowCounter } from '../lib/window-counter.mjs';
 import { closeServer, flagsOf, listenOn, parseAddress, readToken, startControl } from './control.mjs';
 
 const OTLP_PATHS = new Set(['/v1/traces', '/v1/metrics', '/v1/logs']);
+/** The wire bytes of a request are counted under the signal of its path; any other path is in the total only. */
+const SIGNAL_OF_PATH = { '/v1/traces': 'traces', '/v1/metrics': 'metrics', '/v1/logs': 'logs' };
 const ENTRY_FLAGS = ['--listen', '--control', '--token-file'];
 
 /**
@@ -22,18 +24,29 @@ const ENTRY_FLAGS = ['--listen', '--control', '--token-file'];
 export async function startSink({ listen, control, token, now = () => performance.now() }) {
   const counter = createWindowCounter(now);
   const sockets = new Set();
+  /** The signal of the last request read on each socket. */
+  const signalOf = new WeakMap();
   let open = 0;
   let peak = 0;
 
   const otlp = createServer((request, response) => {
     request.resume();
     const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+    // The server parses the headers before our data listener runs, so the chunk that carries a request line is
+    // counted under that request's signal; the bytes that follow on the socket stay with it until the next request.
+    signalOf.set(request.socket, SIGNAL_OF_PATH[path]);
     if (request.method !== 'POST' || !OTLP_PATHS.has(path)) {
       response.writeHead(404, { 'content-length': 0 });
       response.end();
       return;
     }
     request.on('end', () => {
+      // The API exports protobuf: its answer is the empty response message (zero bytes), with the protobuf content type.
+      if (String(request.headers['content-type'] ?? '').startsWith('application/x-protobuf')) {
+        response.writeHead(200, { 'content-type': 'application/x-protobuf', 'content-length': 0 });
+        response.end();
+        return;
+      }
       response.writeHead(200, { 'content-type': 'application/json', 'content-length': 2 });
       response.end('{}');
     });
@@ -43,7 +56,7 @@ export async function startSink({ listen, control, token, now = () => performanc
     sockets.add(socket);
     open += 1;
     peak = Math.max(peak, open);
-    socket.on('data', (chunk) => counter.add(chunk.length));
+    socket.on('data', (chunk) => counter.add(chunk.length, signalOf.get(socket)));
     socket.on('close', () => {
       sockets.delete(socket);
       open -= 1;

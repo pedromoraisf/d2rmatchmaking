@@ -3,7 +3,12 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { startNodeTelemetry, type TelemetryHandle } from './node-sdk.ts';
 
-type Recorded = { path: string; authorization: string | undefined };
+type Recorded = {
+  path: string;
+  authorization: string | undefined;
+  contentType: string | undefined;
+  contentEncoding: string | undefined;
+};
 
 // A local OTLP/HTTP endpoint that records every request and answers with a fixed status.
 async function startRecorder(
@@ -13,7 +18,12 @@ async function startRecorder(
   const server: Server = createServer((request: IncomingMessage, response: ServerResponse) => {
     request.on('data', () => undefined);
     request.on('end', () => {
-      requests.push({ path: request.url ?? '', authorization: request.headers.authorization });
+      requests.push({
+        path: request.url ?? '',
+        authorization: request.headers.authorization,
+        contentType: request.headers['content-type'],
+        contentEncoding: request.headers['content-encoding'],
+      });
       response.writeHead(status);
       response.end();
     });
@@ -63,6 +73,34 @@ describe('startNodeTelemetry', () => {
     expect(recorder.requests.every((request) => request.authorization === 'Bearer test-credential')).toBe(
       true,
     );
+  });
+
+  it('exports protobuf, gzip-compressed, on every signal', async () => {
+    const recorder = await startRecorder(200);
+    recorders.push(recorder);
+    const handle = startNodeTelemetry({
+      serviceName: 'd2rmm-test',
+      serviceVersion: '0.0.0',
+      environment: 'test',
+      endpoint: recorder.endpoint,
+      samplerArg: '1',
+      intervalMs: 60_000,
+      onExportError: vi.fn(),
+    });
+    handles.push(handle);
+
+    handle.tracerProvider.getTracer('test').startSpan('operation').end();
+    handle.meterProvider.getMeter('d2rmm').createCounter('d2rmm.test.counter').add(1);
+    handle.loggerProvider.getLogger('test').emit({ body: 'hello', severityNumber: 13 });
+    await handle.shutdown();
+    handles.splice(0);
+
+    const paths = new Set(recorder.requests.map((request) => request.path));
+    expect([...paths].sort()).toEqual(['/v1/logs', '/v1/metrics', '/v1/traces']);
+    for (const request of recorder.requests) {
+      expect(request.contentType, request.path).toBe('application/x-protobuf');
+      expect(request.contentEncoding, request.path).toBe('gzip');
+    }
   });
 
   it('reports at most one export error a minute', async () => {

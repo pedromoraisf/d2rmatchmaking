@@ -20,6 +20,8 @@ pub const CHARACTER_LEVEL: &str = "characterLevel";
 pub const CREATE_NEW: &str = "createNew";
 /// The label that starts the health line in game (the in-game marker, CHR-04).
 pub const LIFE: &str = "life";
+/// The label that starts the mana line in game, the other word of the in-game HUD (searched with `LIFE`).
+pub const MANA: &str = "mana";
 /// The label that starts the difficulty line of the automap's area block (the automap's marker, CHR-04).
 pub const DIFFICULTY_LABEL: &str = "difficultyLabel";
 /// The title of the difficulty popup (CHR-18).
@@ -71,6 +73,7 @@ const ENGLISH: &[(&str, &str)] = &[
     ("titleGuardian", "Guardian"),
     (CREATE_NEW, "Create New"),
     (LIFE, "Life:"),
+    (MANA, "Mana:"),
     (DIFFICULTY_LABEL, "Difficulty:"),
     (SELECT_DIFFICULTY, "Select Difficulty"),
     (DIFFICULTY_NORMAL, "Normal"),
@@ -147,6 +150,22 @@ impl LanguagePack {
                 .map(|(key, word)| ((*key).to_string(), (*word).to_string()))
                 .collect(),
         }
+    }
+
+    /// The Party panel's words of a Brazilian Portuguese client (screen-recognition T6, SCR-04): the title "Grupo", the label
+    /// "Nome" (the Game Name field's label) and "Senha" (the Password label), measured on the maintainer's pt-BR prints.
+    /// The other words stay English: this pack is only read for the Party panel, which holds no other word.
+    pub fn brazilian_party() -> Self {
+        let mut pack = Self::english();
+        pack.tag = "pt-BR".to_string();
+        for (key, word) in [
+            ("party", "Grupo"),
+            ("gameName", "Nome"),
+            ("password", "Senha"),
+        ] {
+            pack.words.insert(key.to_string(), word.to_string());
+        }
+        pack
     }
 
     /// A pack from its tag and its words. The tag must not be empty; every required key must hold a word, and no word may be
@@ -326,6 +345,41 @@ mod tests {
             .iter()
             .map(|(key, word)| ((*key).to_string(), (*word).to_string()))
             .collect()
+    }
+
+    #[test]
+    fn the_english_pack_holds_the_in_game_hud_words_and_the_party_words_unchanged() {
+        // Pin added for rule 14 (the MANA word of f42623b9 and the Brazilian pack of 0a2d82c4 changed this file without one):
+        // the HUD's two labels start their lines, and the English Party words are the ones the 1033 prints read.
+        let en = LanguagePack::english();
+        assert_eq!(en.word("life"), Some("Life:"));
+        assert_eq!(en.word("mana"), Some("Mana:"));
+        assert!(en.begins_with("Life: 925 / 925", "life"));
+        assert!(en.begins_with("Mana: 120 / 120", "mana"));
+        assert!(!en.begins_with("Life: 925 / 925", "mana"));
+        assert_eq!(en.word(PARTY), Some("Party"));
+        assert_eq!(en.word(GAME_NAME), Some("Game Name"));
+        assert_eq!(en.word(PASSWORD), Some("Password"));
+        assert_eq!(en.tag(), "en");
+    }
+
+    #[test]
+    fn the_brazilian_party_words_read_the_measured_noisy_forms_and_not_the_english_ones() {
+        // The reads are those of the six 1920x1045 prints (the `ocr-real` wide-pass diagnostics).
+        let pt = LanguagePack::brazilian_party();
+        let en = LanguagePack::english();
+        assert_eq!(pt.tag(), "pt-BR");
+        assert!(pt.party_panel_open("GRUPO"));
+        assert!(!pt.party_panel_open("PARTY"));
+        assert!(!en.party_panel_open("GRUPO"));
+        for read in ["Nome", "Neme"] {
+            assert!(pt.is_label(read, GAME_NAME, &[PASSWORD]), "{read}");
+        }
+        for read in ["SENHA", "SEN H A", "SENKA"] {
+            assert!(pt.is_near_word(read, PASSWORD), "{read}");
+            assert!(!pt.is_label(read, GAME_NAME, &[PASSWORD]), "{read}");
+        }
+        assert!(!pt.is_label("GAME NAME", GAME_NAME, &[PASSWORD]));
     }
 
     #[test]
