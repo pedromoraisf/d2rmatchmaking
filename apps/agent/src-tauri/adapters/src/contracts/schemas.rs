@@ -282,7 +282,8 @@ pub const SCHEMAS: &[(&str, &str)] = &[
     },
     "value": {
       "type": "string",
-      "maxLength": 64
+      "maxLength": 64,
+      "description": "What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and answers stored=false when it matches none, and never keeps it (ADR 036). Other types: free text of at most 64 characters."
     },
     "confidence": {
       "type": "number",

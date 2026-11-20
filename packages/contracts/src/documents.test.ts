@@ -67,3 +67,30 @@ describe('contract documents', () => {
     expect(JSON.stringify(buildJsonSchemaFiles())).toBe(JSON.stringify(buildJsonSchemaFiles()));
   });
 });
+
+describe('the player name value (SNM-01)', () => {
+  it.each(['Sorc', 'S0rc', 'Il', 'Hammer_Smith', 'Ab', 'ThisNameIsFifte', 'a-b'])(
+    'accepts %s',
+    async (value) => {
+      const { PlayerNameValue } = await import('./http/lobby.ts');
+      expect(PlayerNameValue.safeParse(value).success).toBe(true);
+    },
+  );
+
+  it.each([
+    'S',
+    '',
+    'Sorc Sorc',
+    'Sorc2',
+    '0Sorc',
+    'Sorc1x_',
+    '_Sorc',
+    'Sor-c-c',
+    'Sor__c',
+    'ThisNameIsTooLongXX',
+    'Sörc',
+  ])('refuses %s', async (value) => {
+    const { PlayerNameValue } = await import('./http/lobby.ts');
+    expect(PlayerNameValue.safeParse(value).success).toBe(false);
+  });
+});

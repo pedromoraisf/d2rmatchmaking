@@ -21,7 +21,7 @@ Rules:
 
 ## Batch 1 — contract and API
 
-- [ ] T1 — Contract: document `value` per type, export `PlayerNameValue` (SNM-01), regenerate and commit `openapi.json`,
+- [x] T1 — Contract: document `value` per type, export `PlayerNameValue` (SNM-01), regenerate and commit `openapi.json`,
       `asyncapi.json`, the JSON schemas and `generated.rs`. Contract tests for the schema. Gate:
       `pnpm --filter @d2rmm/contracts test && pnpm contracts:check && cargo run --manifest-path apps/agent/src-tauri/Cargo.toml -p xtask -- contracts && cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p xtask --test contracts_are_current`
 - [x] T2 — API shared kernel: `matchCharacterName` (SNM-02) with a unit test for every fold of the agent's `glyph_key`,

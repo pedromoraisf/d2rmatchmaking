@@ -15,11 +15,31 @@ export const OBSERVATION_TYPES = [
 
 export const ObservationType = z.union([z.enum(OBSERVATION_TYPES), z.literal('UNKNOWN')]).catch('UNKNOWN');
 
+/**
+ * The value of a `PLAYER_JOINED_SEEN` or `PLAYER_LEFT_SEEN` observation: one character name as the screen read it from the
+ * chat (SNM-01). The D2R name rule (CHR-10) widened by what the screen misreads: 2 to 15 characters of letters and the
+ * digits `0` and `1` (read for `o`, `i` and `l`), first and last a letter, at most one inner `-` or `_`. The API matches it
+ * to the room's members and drops it; it is never stored (ADR 036).
+ */
+export const PLAYER_NAME_PATTERN = /^[A-Za-z](?:[A-Za-z01]|[-_](?=[A-Za-z01]))*[A-Za-z]$/;
+export const PlayerNameValue = z
+  .string()
+  .min(2)
+  .max(15)
+  .regex(PLAYER_NAME_PATTERN)
+  .refine((value) => (value.match(/[-_]/g) ?? []).length <= 1);
+export type PlayerNameValue = z.infer<typeof PlayerNameValue>;
+
 export const Observation = z.object({
   idempotencyKey: z.string().min(1).max(64),
   type: ObservationType,
   run: z.number().int().min(1),
-  value: z.string().max(64),
+  value: z
+    .string()
+    .max(64)
+    .describe(
+      'What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and answers stored=false when it matches none, and never keeps it (ADR 036). Other types: free text of at most 64 characters.',
+    ),
   confidence: z.number().min(0).max(1),
   signals: z.record(z.string(), z.union([z.number(), z.boolean()])).optional(),
   capturedAt: IsoDateTime,
