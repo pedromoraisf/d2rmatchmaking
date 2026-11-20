@@ -4,12 +4,13 @@
 //! 0.1.3: a full-screen client draws the panels at other offsets than a maximized one). The frame and the text never leave
 //! the process (AGS-20). A frame in an unsupported client size shows nothing (CHR-19).
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use d2rmm_agent_domain::anchors::{self, line_pad};
 use d2rmm_agent_domain::character_screen::{
     BandRead, Probes, is_enabled_label, is_gold, label_brightness, luma, read_screen,
 };
+use d2rmm_agent_domain::hud_track::{HudRead, HudTracker};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{ScreenRegion, screen_region, selection_band, supported_size};
 use d2rmm_agent_domain::presence::Screen;
@@ -23,6 +24,8 @@ use crate::title_ink::{InkRead, read_band};
 pub struct ScreenReader {
     reader: Arc<dyn TextReader + Send + Sync>,
     language: Arc<LanguagePack>,
+    /// Where the HUD's label was last found: the next frames read a small box around it, not the whole band.
+    hud: Mutex<HudTracker>,
 }
 
 /// What the anchors found in a frame: counts only, never a line of text (`ocr-check` prints them).
@@ -36,11 +39,47 @@ pub struct AnchorCounts {
 
 impl ScreenReader {
     pub fn new(reader: Arc<dyn TextReader + Send + Sync>, language: Arc<LanguagePack>) -> Self {
-        Self { reader, language }
+        Self {
+            reader,
+            language,
+            hud: Mutex::new(HudTracker::default()),
+        }
+    }
+
+    /// The lines that hold the HUD's label: the box it was last found in, when it is still there, else the whole bottom
+    /// band. What was found is remembered for the next frame (search, then track).
+    fn hud_lines(&self, frame: &Rgba) -> Vec<Vec<TextLine>> {
+        let plan = self
+            .hud
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .next(frame.width, frame.height);
+        let (area, tracked) = match plan {
+            Some(HudRead::Track(area)) => (area, true),
+            Some(HudRead::Search(area)) => (area, false),
+            None => return Vec::new(),
+        };
+        let mut lines = self.reader.read_line_variants(frame, area);
+        let mut found = anchors::find_hud_in_variants(&self.language, &lines);
+        if tracked && found.is_none() {
+            // The label moved or is gone: look in the whole band.
+            if let Some(band) = screen_region(ScreenRegion::HudBand, frame.width, frame.height) {
+                lines = self.reader.read_line_variants(frame, band);
+                found = anchors::find_hud_in_variants(&self.language, &lines);
+            }
+        }
+        self.hud
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .record(found, frame.width, frame.height);
+        lines
     }
 
     /// The lines of a search area as each variant of the reader reads them.
     fn lines_of(&self, frame: &Rgba, search: ScreenRegion) -> Vec<Vec<TextLine>> {
+        if search == ScreenRegion::HudBand {
+            return self.hud_lines(frame);
+        }
         screen_region(search, frame.width, frame.height)
             .map(|area| self.reader.read_line_variants(frame, area))
             .unwrap_or_default()
@@ -964,5 +1003,154 @@ mod tests {
         );
         assert_eq!(counts(MENU, 1920, 1080), AnchorCounts::default());
         assert_eq!(counts(SELECT_NORMAL, 1280, 1024), AnchorCounts::default());
+    }
+}
+
+#[cfg(test)]
+mod hud_tests {
+    use std::sync::{Arc, Mutex};
+
+    use d2rmm_agent_domain::language::LanguagePack;
+    use d2rmm_agent_domain::presence::Screen;
+    use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
+
+    use super::ScreenReader;
+    use crate::ports::{FrameReader, ReadError, Rgba, TextReader};
+
+    /// A reader of a HUD: the lines it shows are found when their middle is inside the area asked; every area asked is
+    /// recorded. The HUD's lines can be taken away between frames.
+    struct Hud {
+        lines: Mutex<Vec<TextLine>>,
+        asked: Mutex<Vec<Region>>,
+    }
+
+    impl Hud {
+        fn new(lines: Vec<TextLine>) -> Arc<Self> {
+            Arc::new(Self {
+                lines: Mutex::new(lines),
+                asked: Mutex::new(Vec::new()),
+            })
+        }
+
+        fn take_asked(&self) -> Vec<Region> {
+            std::mem::take(&mut *self.asked.lock().expect("asked"))
+        }
+    }
+
+    impl TextReader for Hud {
+        fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
+            Err(ReadError::Failed)
+        }
+
+        fn read_lines(&self, _image: &Rgba, region: Region) -> Vec<TextLine> {
+            self.asked.lock().expect("asked").push(region);
+            self.lines
+                .lock()
+                .expect("lines")
+                .iter()
+                .filter(|line| {
+                    let (x, y) = (line.region.middle_x(), line.region.middle_y());
+                    region.x <= x && x < region.right() && region.y <= y && y < region.bottom()
+                })
+                .cloned()
+                .collect()
+        }
+    }
+
+    fn life(x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: "Life: 925 / 925".to_string(),
+            region: Region {
+                x,
+                y,
+                width: 160,
+                height: 22,
+            },
+        }
+    }
+
+    fn frame(width: u32, height: u32) -> Rgba {
+        Rgba {
+            width,
+            height,
+            pixels: vec![0; width as usize * height as usize * 4],
+        }
+    }
+
+    fn reader(hud: &Arc<Hud>) -> ScreenReader {
+        ScreenReader::new(
+            Arc::clone(hud) as Arc<dyn TextReader + Send + Sync>,
+            Arc::new(LanguagePack::english()),
+        )
+    }
+
+    fn band_reads(asked: &[Region]) -> usize {
+        asked.iter().filter(|area| area.width == 1920).count()
+    }
+
+    #[test]
+    fn the_life_label_is_found_in_the_window_and_in_full_screen() {
+        // The two layouts put the label at other places (window 1920×1056, full screen 1920×1080).
+        for (width, height, x, y) in [(1920, 1056, 400, 846), (1920, 1080, 436, 880)] {
+            let hud = Hud::new(vec![life(x, y)]);
+            let reading = reader(&hud).read(&frame(width, height));
+            assert_eq!(reading.screen, Screen::InGame, "{width}×{height}");
+        }
+    }
+
+    #[test]
+    fn after_a_find_only_a_small_box_around_the_line_is_read() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        assert_eq!(band_reads(&hud.take_asked()), 1, "the first frame searches");
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        let asked = hud.take_asked();
+        assert_eq!(band_reads(&asked), 0, "the second frame only tracks");
+        assert!(
+            asked
+                .iter()
+                .any(|area| area.width < 400 && area.x <= 436 && area.y <= 880)
+        );
+    }
+
+    #[test]
+    fn a_miss_while_tracking_searches_the_band_again() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        hud.take_asked();
+        // The line moves out of its box (a layout change): the band finds it again.
+        *hud.lines.lock().expect("lines") = vec![life(900, 950)];
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        assert_eq!(band_reads(&hud.take_asked()), 1);
+        // And is tracked at the new place.
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        assert_eq!(band_reads(&hud.take_asked()), 0);
+    }
+
+    #[test]
+    fn a_line_gone_is_not_in_game_and_the_next_frame_searches_the_band() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        hud.lines.lock().expect("lines").clear();
+        assert_eq!(screens.read(&frame).screen, Screen::Unknown);
+        hud.take_asked();
+        assert_eq!(screens.read(&frame).screen, Screen::Unknown);
+        assert_eq!(band_reads(&hud.take_asked()), 1);
+    }
+
+    #[test]
+    fn a_frame_of_another_size_searches_the_band() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        assert_eq!(screens.read(&frame(1920, 1080)).screen, Screen::InGame);
+        hud.take_asked();
+        assert_eq!(screens.read(&frame(1920, 1056)).screen, Screen::InGame);
+        assert_eq!(band_reads(&hud.take_asked()), 1);
     }
 }
