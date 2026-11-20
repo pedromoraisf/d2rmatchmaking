@@ -855,5 +855,9 @@ async function runStepBody(ctx, step, provisioned, timings) {
     failedRule: verdict.failedRule,
   };
   log(`step ${step.players}: ${verdict.passed ? 'passed' : `failed the ${verdict.failedRule} rule`}`);
+  log(
+    `step ${step.players}: rooms ${row.roomsCreated}, matches posted ${row.matchesPosted}, iterations ${row.iterations}, ` +
+      `requests ${row.requests}, errors ${row.errors}, agent frames ${row.agentAssignedFrames}, p95 ${row.latencyP95Ms} ms`,
+  );
   return { row, players };
 }
