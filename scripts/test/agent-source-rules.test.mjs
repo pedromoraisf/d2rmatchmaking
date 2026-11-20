@@ -1019,6 +1019,7 @@ const REQUIRED_DISALLOWED_METHODS = [
   'windows::Win32::System::Diagnostics::Debug::ReadProcessMemory',
   'windows::Win32::System::Diagnostics::Debug::WriteProcessMemory',
   'windows::Win32::UI::Input::KeyboardAndMouse::SendInput',
+  'windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState',
   // Input to other windows and screen-hook calls the capture never needs (ADR 010, AGS-20).
   'windows::Win32::UI::WindowsAndMessaging::PostMessageW',
   'windows::Win32::UI::WindowsAndMessaging::SendMessageW',
