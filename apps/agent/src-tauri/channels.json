@@ -1,0 +1,17 @@
+{
+  "preview": {
+    "identifier": "com.d2rmm.agent.preview",
+    "productName": "D2RMatchMaking Preview",
+    "updater": false
+  },
+  "staging": {
+    "identifier": "com.d2rmm.agent.staging",
+    "productName": "D2RMatchMaking Staging",
+    "updater": false
+  },
+  "production": {
+    "identifier": "com.d2rmm.agent",
+    "productName": "D2RMatchMaking",
+    "updater": true
+  }
+}
