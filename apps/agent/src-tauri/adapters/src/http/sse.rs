@@ -248,7 +248,8 @@ mod tests {
     use std::time::Duration;
 
     use super::{
-        MAX_EVENT_BYTES, SseParser, StreamEffect, handle, ready_check_open_from_body,
+        MAX_EVENT_BYTES, READY_CHECK_RESOLVED, READY_CHECK_STARTED, ROOM_ASSIGNED, ROOM_RUN_OPENED,
+        ROOM_STAGE_CHANGED, SseParser, StreamEffect, handle, ready_check_open_from_body,
         valid_game_name, valid_last_event_id, valid_ready_check_id,
     };
 
@@ -451,6 +452,74 @@ mod tests {
         assert!(valid_ready_check_id("7d9f2c1e-0000-4000-8000-000000000001"));
         assert!(!valid_ready_check_id(""));
         assert!(!valid_ready_check_id("rc_1"));
+    }
+
+    /// The server sends data, never commands (AGT-04): an event named like an action, or carrying an action field, is
+    /// ignored, and a known event with an extra field acts exactly as the same event without it.
+    #[test]
+    fn command_shaped_events_change_nothing() {
+        let hostile = r#"{"command":"calc.exe","url":"https://example.invalid","key":"Enter","roomId":"7d9f2c1e-0000-4000-8000-000000000001"}"#;
+        for name in [
+            "command",
+            "exec",
+            "run",
+            "open_url",
+            "press_key",
+            "agent.command",
+            "room.command",
+            "ROOM.ASSIGNED",
+            "room.assigned ",
+            "",
+        ] {
+            assert!(
+                matches!(handle(name, hostile), StreamEffect::Ignore),
+                "{name:?} must be ignored"
+            );
+        }
+        for name in [
+            ROOM_STAGE_CHANGED,
+            READY_CHECK_STARTED,
+            READY_CHECK_RESOLVED,
+        ] {
+            assert!(
+                matches!(handle(name, hostile), StreamEffect::Ignore),
+                "{name} with data of another shape must be ignored"
+            );
+        }
+    }
+
+    #[test]
+    fn an_extra_field_on_a_known_event_adds_no_effect() {
+        let plain = handle("room.assigned", ASSIGNED);
+        let with_extra = ASSIGNED.replacen('{', r#"{"command":"calc.exe","#, 1);
+
+        match (plain, handle("room.assigned", &with_extra)) {
+            (StreamEffect::SetAssignment(plain), StreamEffect::SetAssignment(extra)) => {
+                assert_eq!(format!("{plain:?}"), format!("{extra:?}"));
+            }
+            (StreamEffect::SetAssignment(_), StreamEffect::Ignore) => {}
+            _ => {
+                panic!("a known event must give an assignment, or be ignored with the extra field")
+            }
+        }
+    }
+
+    #[test]
+    fn malformed_data_is_ignored_for_every_known_event() {
+        for name in [
+            ROOM_ASSIGNED,
+            ROOM_RUN_OPENED,
+            ROOM_STAGE_CHANGED,
+            READY_CHECK_STARTED,
+            READY_CHECK_RESOLVED,
+        ] {
+            for data in ["", "nope", "null", "[]", "42", r#""text""#, "{", "{}"] {
+                assert!(
+                    matches!(handle(name, data), StreamEffect::Ignore),
+                    "{name} with {data:?} must be ignored"
+                );
+            }
+        }
     }
 }
 

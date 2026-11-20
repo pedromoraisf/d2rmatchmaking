@@ -62,7 +62,12 @@ export interface Stack {
    * fake Battle.net provider's script and records.
    */
   reset(): Promise<void>;
-  /** Moves the controllable clock of both APIs forward by `ms`. */
+  /**
+   * Moves the controllable clock of the staging API forward by `ms`. Only the staging API: every scenario that passes time
+   * runs on it, and the plain API shares its database, so a plain clock moved with it would run the room and agent sweeps
+   * on the same rows. Whichever API swept first then published the outbox rows to its own bus: when the plain one did, the
+   * staging API's streams never heard the event (@ARL-01 failed that way). A plain clock that stays behind finds nothing due.
+   */
   advanceClock(ms: number): Promise<void>;
   /**
    * Redelivers the newest MatchFormed of the worker database on the staging API's bus, as an at-least-once relay
@@ -449,11 +454,10 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
       }
     },
     async advanceClock(ms: number) {
-      for (const api of apis) {
-        const answer = await controls(`${api}/__test/clock`, { advanceMs: ms });
-        if (answer.status !== 204) {
-          throw new Error(`clock advance of ${api} answered ${answer.status}`);
-        }
+      const api = origins.stagingApi;
+      const answer = await controls(`${api}/__test/clock`, { advanceMs: ms });
+      if (answer.status !== 204) {
+        throw new Error(`clock advance of ${api} answered ${answer.status}`);
       }
       advanced += ms;
     },
