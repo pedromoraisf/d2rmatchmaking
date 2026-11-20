@@ -43,8 +43,8 @@ pub struct DeviceState {
     /// The run the API last accepted an observation for (ARL-03): its room and run number. It counts only while the held
     /// assignment names the same run.
     confirmed_run: Mutex<Option<(String, NonZeroU64)>>,
-    /// The screen the last frame showed and when it was read, for assisted typing (AST-04).
-    screen_read: Mutex<Option<(Screen, Instant)>>,
+    /// The last screen the agent recognised, kept while later frames read as unknown, for assisted typing (AST-04).
+    last_known_screen: Mutex<Option<Screen>>,
     /// The two hotkeys the agent registers (AST-01); the app sets them from its local file at start.
     hotkeys: Mutex<HotkeyPair>,
 }
@@ -71,7 +71,7 @@ impl DeviceState {
             party: Mutex::new(PartyProgress::default()),
             ready_check: Mutex::new(None),
             confirmed_run: Mutex::new(None),
-            screen_read: Mutex::new(None),
+            last_known_screen: Mutex::new(None),
             hotkeys: Mutex::new(HotkeyPair::defaults()),
         }
     }
@@ -133,7 +133,9 @@ impl DeviceState {
 
     /// Records the screen the last frame showed. Only a change wakes the heartbeat (CHR-05).
     pub fn set_screen(&self, screen: Screen) {
-        *lock(&self.screen_read) = Some((screen, Instant::now()));
+        if screen != Screen::Unknown {
+            *lock(&self.last_known_screen) = Some(screen);
+        }
         self.screen.send_if_modified(|current| {
             if *current == screen {
                 false
@@ -144,12 +146,10 @@ impl DeviceState {
         });
     }
 
-    /// The screen the last frame showed, when that frame was read at most `within` ago; `None` when none was read or the
-    /// last read is older (AST-04).
-    pub fn recent_screen(&self, within: std::time::Duration) -> Option<Screen> {
-        (*lock(&self.screen_read))
-            .filter(|(_, read_at)| read_at.elapsed() <= within)
-            .map(|(screen, _)| screen)
+    /// The last screen the agent recognised, or `None` when it never recognised one. An unknown frame does not clear it: the
+    /// agent cannot tell a game it fails to read from a menu, so it remembers what it last knew (AST-04).
+    pub fn last_known_screen(&self) -> Option<Screen> {
+        *lock(&self.last_known_screen)
     }
 
     /// The hotkeys the agent registers now.
@@ -163,8 +163,8 @@ impl DeviceState {
         self.hub.set_hotkeys(&pair);
     }
 
-    /// Shows what a fill did and keeps it until the next one (AST-08).
-    /// Records it as one span event with the outcome code and nothing else: no name, no text, no key (AST-10).
+    /// Shows what a fill did and keeps it until the next one (AST-08). Records it as one span event with the outcome code
+    /// and nothing else: no name, no text, no key (AST-10).
     pub fn record_fill(&self, outcome: FillOutcome) {
         tracing::info!(outcome = outcome.as_str(), "agent.fill");
         self.hub.set_last_fill(outcome);

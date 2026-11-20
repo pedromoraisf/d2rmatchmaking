@@ -41,9 +41,10 @@ The player confirms by pressing Enter (or clicking Create Game) themselves. The 
 - **AST-03** — WHEN the fill hotkey is pressed THEN the agent SHALL type only if the foreground window belongs to a
   `D2R.exe` process, checked at the press and again before every character. WHEN focus leaves D2R mid-way THEN it SHALL
   stop at once and send no further character.
-- **AST-04** — The agent SHALL refuse to type when its last screen reading (within 5 seconds) is the in-game screen or
-  the open automap, because letters there are game keybinds. A screen read as character select or not recognised SHALL
-  allow typing.
+- **AST-04** — The agent SHALL refuse to type when the last screen it recognised is the in-game screen or the open
+  automap, because letters there are game keybinds. An unrecognised frame SHALL NOT clear that memory: it clears only when
+  a later frame is recognised as another screen (character select). WHEN the agent has recognised no screen yet, or the
+  last one it recognised is character select, typing SHALL be allowed.
 - **AST-05** — WHEN the fill hotkey is pressed THEN the agent SHALL wait up to 1 second for the modifier keys of that
   hotkey to be released, and SHALL type nothing if they are still held. It SHALL read the state of those modifier keys
   only.
@@ -126,8 +127,12 @@ The player confirms by pressing Enter (or clicking Create Game) themselves. The 
   maintainer's screenshots). Instead AST-04 refuses on the screens the agent already knows are a running game. The
   rest (Game Creator, lobby, anything unknown) is allowed because the focus and name rules already bound the harm: the
   text is a short, fixed-grammar name with no confirming key.
-- **Unknown screen allows typing**, also when capture consent is off (no screen reading at all): typing needs no
-  capture, and refusing would make the feature depend on consent it does not use.
+- **Fail closed on an unknown screen after a game (security review, fix round 2).** The last recognised screen decides,
+  with no time limit: a game whose frames read as unknown still refuses, and a recognised character select clears it.
+  An unknown screen with nothing recognised before it, or after character select (the Game Creator is not recognised),
+  allows typing, also when capture consent is off (no screen reading at all): typing needs no capture, and refusing
+  would make the feature depend on consent it does not use. This replaces the first draft's "an unknown screen allows
+  typing" and the 5-second freshness window; it is stricter on safety.
 - **The fill hotkey exists only while a room is held**, like the accept hotkey exists only during a ready check (RDY-07).
 - **Reading modifier state** (`GetAsyncKeyState` on Ctrl, Shift and Alt only) is the one input _read_ the feature adds.
   It is OS signal, not a hook and not a log; it is on the open questions for the maintainer.
