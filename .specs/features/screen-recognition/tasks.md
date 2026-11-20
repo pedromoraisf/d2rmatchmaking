@@ -80,7 +80,8 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
       touched). Add unit tests at 1033, 1045, 1056 and 1080 with drawn lines at positions measured on the prints (the
       measurement comes from the orchestrator's note in the PR on the Mac: `xtask` geometry, counts only). Gate: as T3.
       Real-print proof: the PR's `ocr-real` green on all twelve prints, and `ocr-variations` not worse
-- [ ] T7 — Acceptance steps for the `@SCR-` scenarios in `tests/acceptance/steps/screen-recognition.steps.ts`, reusing the
+- [x] T7 — Acceptance steps for the `@SCR-` scenarios (every step already exists in `characters-reading.steps.ts`, so the task
+      only makes the fixture lookup find `apps/agent/fixtures/screens`; no new steps file), reusing the
       `characters-reading` steps (consent, "the game shows the fixture", "the site shows the agent's screen as") and the
       headless agent with a fixture sidecar. Never edit `acceptance.feature`. Gate:
       `pnpm exec turbo run test:acceptance -- --grep @SCR-` and `node scripts/acceptance-check.mjs screen-recognition`
