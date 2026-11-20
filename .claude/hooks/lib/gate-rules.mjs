@@ -16,6 +16,9 @@ const SENSORS = [
   /^eslint\.config\.mjs$/,
   /^\.gitleaks\.toml$/,
   /(^|\/)stryker\.config\.[cm]?[jt]s(on)?$/,
+  // The agent's mutation scope and the OCR reading modules it protects (AGENTS.md rule 14, OCP-08).
+  /^apps\/agent\/src-tauri\/\.cargo\/mutants\.toml$/,
+  /^scripts\/agent\/reading-modules\.json$/,
 ];
 
 // A `.env` file named anywhere in a shell command; `.env.example` is fine.

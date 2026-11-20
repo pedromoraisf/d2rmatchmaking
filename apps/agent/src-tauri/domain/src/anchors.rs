@@ -1028,4 +1028,30 @@ mod tests {
         assert_eq!(line_pad(1080), 3);
         assert_eq!(line_pad(300), 2, "never under 2 px");
     }
+
+    #[test]
+    fn the_popup_title_is_the_word_or_the_word_with_stray_spaces_and_nothing_else() {
+        use super::is_popup_title;
+        for title in [
+            "Select Difficulty",
+            "SELECT DIFFICULTY",
+            "select  difficulty",
+        ] {
+            assert!(is_popup_title(&pack(), title), "{title} is the word");
+        }
+        // Small caps read with stray spaces: only the squashed reading tells it from other text.
+        for title in [
+            "SELECT DIFFI CULTY",
+            "Sel ect Diff iculty",
+            "SelectDifficulty",
+        ] {
+            assert!(
+                is_popup_title(&pack(), title),
+                "{title} is the squashed word"
+            );
+        }
+        for other in ["NORMAL", "NIGHTMARE", "HELL", "", "SELECT"] {
+            assert!(!is_popup_title(&pack(), other), "{other} is not the title");
+        }
+    }
 }

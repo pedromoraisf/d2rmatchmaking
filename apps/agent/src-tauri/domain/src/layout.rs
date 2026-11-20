@@ -473,6 +473,52 @@ mod screen_tests {
         assert_eq!(selection_band(high, 1920, 1080), None, "above the frame");
     }
 
+    /// ocr-protection: the Nightmare option is pinned beside Normal and Hell, left of the centre line like them.
+    #[test]
+    fn the_nightmare_option_is_pinned_at_1920x1033_left_of_the_centre_line() {
+        assert_eq!(
+            at(ScreenRegion::PopupNightmare, 1920, 1033),
+            Region {
+                x: 860,
+                y: 476,
+                width: 200,
+                height: 20
+            }
+        );
+    }
+
+    /// ocr-protection: the gold band of the last slot, whose name line sits low on the reference client, is inside the frame
+    /// and holds that card's border (slot 8: border at 765..768, name line centred on 811).
+    #[test]
+    fn the_gold_band_of_the_last_slot_is_inside_the_frame_and_holds_its_border() {
+        let name = at(ScreenRegion::CardName(8), 1920, 1033);
+        assert_eq!(name.middle_y(), 811);
+        let band = selection_band(name, 1920, 1033).expect("inside the frame");
+        assert_eq!((band.y, band.height), (759, 14));
+        let border = at(ScreenRegion::CardSelected(8), 1920, 1033);
+        assert!(
+            band.y <= border.y && border.bottom() <= band.bottom(),
+            "the border is in the band"
+        );
+    }
+
+    /// ocr-protection: a name line so low that its band would pass the bottom edge has no band; one whose band ends on the
+    /// last row has one.
+    #[test]
+    fn the_gold_band_must_end_on_or_before_the_last_row() {
+        let line = |middle: u32| Region {
+            x: 1576,
+            y: middle - 9,
+            width: 236,
+            height: 18,
+        };
+        // The band spans middle - 52 to middle - 38 (14 rows): it ends on the frame's last row at middle 1071.
+        let band = selection_band(line(1071), 1920, 1033).expect("the band ends on the last row");
+        assert_eq!((band.y, band.bottom()), (1019, 1033));
+        assert_eq!(selection_band(line(1072), 1920, 1033), None);
+        assert_eq!(selection_band(line(1090), 1920, 1033), None);
+    }
+
     #[test]
     fn the_keys_name_each_region_once() {
         let keys: Vec<String> = screen_text_regions()
@@ -700,5 +746,50 @@ mod tests {
         assert!(!supported_size(0, 0));
         assert!(!supported_size(1920, 0));
         assert!(!supported_size(0, 1080));
+    }
+
+    /// ocr-protection: a box ends on the last row or column of the client and not one pixel past it, and a size that
+    /// rounds to one pixel is still a box.
+    #[test]
+    fn a_box_may_end_on_the_edge_of_the_client_but_not_past_it() {
+        let at_edge = |anchor, x, y, width, height| {
+            PanelBox::new(anchor, x, y, width, height).resolve(1920, 1033)
+        };
+        // Past the bottom edge: the box would be inside if its height were taken from its top.
+        assert_eq!(at_edge(Anchor::Left, 0, 1030, 10, 10), None);
+        assert_eq!(
+            at_edge(Anchor::Left, 0, 1023, 10, 10),
+            Some(Region {
+                x: 0,
+                y: 1023,
+                width: 10,
+                height: 10
+            }),
+            "ends on the last row"
+        );
+        assert_eq!(at_edge(Anchor::Left, 0, 1024, 10, 10), None);
+        // Past the right edge, and ending on it.
+        assert_eq!(
+            at_edge(Anchor::Left, 1815, 0, 100, 10),
+            Some(Region {
+                x: 1815,
+                y: 0,
+                width: 100,
+                height: 10
+            })
+        );
+        assert_eq!(at_edge(Anchor::Left, 1821, 0, 100, 10), None);
+        // A box one pixel wide and high is a box; one that rounds to no height is none.
+        assert_eq!(
+            at_edge(Anchor::Left, 5, 5, 1, 1),
+            Some(Region {
+                x: 5,
+                y: 5,
+                width: 1,
+                height: 1
+            })
+        );
+        assert_eq!(at_edge(Anchor::Left, 5, 5, 10, 0), None);
+        assert_eq!(at_edge(Anchor::Left, 5, 5, 0, 10), None);
     }
 }

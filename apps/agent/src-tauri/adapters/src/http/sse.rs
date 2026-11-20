@@ -222,8 +222,8 @@ mod tests {
     use std::time::Duration;
 
     use super::{
-        MAX_EVENT_BYTES, SseParser, StreamEffect, handle, valid_game_name, valid_last_event_id,
-        valid_ready_check_id,
+        MAX_EVENT_BYTES, SseParser, StreamEffect, handle, ready_check_open_from_body,
+        valid_game_name, valid_last_event_id, valid_ready_check_id,
     };
 
     const ASSIGNED: &str = r#"{"roomId":"7d9f2c1e-0000-4000-8000-000000000001","run":1,"expectedGameName":"mmbaalh-12","members":[{"accountId":"account-1","characterId":null,"joinOrder":1,"role":"host"}]}"#;
@@ -380,6 +380,14 @@ mod tests {
         };
         assert_eq!(check.id, "rc-1");
         assert_eq!(check.remaining, Duration::from_secs(60));
+    }
+
+    #[test]
+    fn the_open_check_of_the_status_route_gives_its_id_and_time_left() {
+        let check = ready_check_open_from_body(READY_CHECK).expect("a valid open check is held");
+        assert_eq!(check.id, "rc-1");
+        assert_eq!(check.remaining, Duration::from_secs(60));
+        assert!(ready_check_open_from_body("{}").is_none());
     }
 
     #[test]

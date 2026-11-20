@@ -196,4 +196,41 @@ mod tests {
         assert_eq!(nearest("COUNTES", &titles), Some(2));
         assert_eq!(nearest("COUNT", &titles), Some(1));
     }
+
+    /// ocr-protection: the accented letters of the pt-BR names fold to their letter, upper and lower case, one group at a time.
+    #[test]
+    fn each_group_of_accented_letters_folds_to_its_letter() {
+        assert_eq!(squash("ÁÀÂÃÄ"), "AAAAA");
+        assert_eq!(squash("áàâãä"), "AAAAA");
+        assert_eq!(squash("ÉÈÊË"), "EEEE");
+        assert_eq!(squash("éèêë"), "EEEE");
+        assert_eq!(squash("ÍÌÎÏ"), "IIII");
+        assert_eq!(squash("íìîï"), "IIII");
+        assert_eq!(squash("ÓÒÔÕÖ"), "OOOOO");
+        assert_eq!(squash("óòôõö"), "OOOOO");
+        assert_eq!(squash("ÚÙÛÜ"), "UUUU");
+        assert_eq!(squash("úùûü"), "UUUU");
+        assert_eq!(squash("Çç"), "CC");
+        assert_eq!(squash("Feitiçeira"), "FEITICEIRA");
+    }
+
+    /// ocr-protection: a farther entry never replaces a nearer one, whichever comes first in the vocabulary.
+    #[test]
+    fn a_farther_entry_never_replaces_a_nearer_one() {
+        let words = [(1, "MATRIARCH"), (2, "PATRIARCH")];
+        assert_eq!(nearest("MATRIARCH", &words), Some(1), "exact, listed first");
+        assert_eq!(nearest("PATRIARCH", &words), Some(2), "exact, listed last");
+        let reversed = [(2, "PATRIARCH"), (1, "MATRIARCH")];
+        assert_eq!(nearest("MATRIARCH", &reversed), Some(1));
+        // A read one edit from the first and two from the second, both within the threshold, is the first one.
+        assert_eq!(
+            nearest("MATRIARCX", &words),
+            Some(1),
+            "one edit and two edits"
+        );
+        assert_eq!(
+            nearest("MATRIARC", &[(1, "MATRIARCH"), (2, "PATRIARCH")]),
+            Some(1)
+        );
+    }
 }

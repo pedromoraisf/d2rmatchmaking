@@ -254,7 +254,15 @@ async function main() {
         sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       },
       fs,
-      paths: { root: ROOT, loadDir: HERE, tmpdir, commit: await commitOf(ROOT), uid: process.getuid() },
+      paths: {
+        root: ROOT,
+        loadDir: HERE,
+        tmpdir,
+        commit: await commitOf(ROOT),
+        uid: process.getuid(),
+        // Linux only: Docker Desktop maps ownership of a bind mount, a Linux daemon does not (k6 would be denied the plan).
+        gid: process.platform === 'linux' ? process.getgid() : undefined,
+      },
       random: { bytes: (size) => randomBytes(size) },
       randomInt: (max) => randomInt(max),
       log: say,

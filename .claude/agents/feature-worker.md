@@ -27,6 +27,11 @@ Rules:
 - Never commit a game screenshot, blurred or not, even when a task asks for one: the repository is public and a push
   cannot be undone. Read real captures from their local path; commit only fixtures drawn by `xtask`. Stop and return
   the task if it needs otherwise (`scripts/check-images.mjs` refuses them anyway).
+- A survivor in a reading module (`scripts/agent/reading-modules.json`) is killed only by a test that pins the current
+  behaviour at the mutated point, with values measured on the real prints or drawn fixtures. Never change a non-test
+  line of a reading module to kill a mutant or to please a score; if the survivor seems to need it, stop and return the
+  task. A mutant no test can tell apart is excluded in `.cargo/mutants.toml` with the `file:line`, the reason and an
+  `Evidence:` line, never silently.
 - Run long work in the background or with a long timeout and wait for it; never poll with `sleep` loops.
 - When the batch is done, push: `git push -u origin feat/<F>-<feature>`. Never force, never merge, never open PRs.
 
