@@ -36,6 +36,7 @@ import type { MatchmakingDatabase } from '../modules/matchmaking/adapters/postgr
 import { JOIN_LIMIT } from '../modules/matchmaking/domain/queue-limits.ts';
 import { OtelQueueMetrics } from '../modules/matchmaking/adapters/telemetry/otel-queue-metrics.ts';
 import { createMatchmakingUseCases, createQueueUseCases } from '../modules/matchmaking/index.ts';
+import { MemoryAgentConfigSource } from '../modules/agents/adapters/memory/memory-agent-config-source.ts';
 import { MemoryAgentTokenCache } from '../modules/agents/adapters/memory/memory-agent-token-cache.ts';
 import { MemoryPresenceStore } from '../modules/agents/adapters/memory/memory-presence-store.ts';
 import { MemoryRateLimitStore } from '../modules/agents/adapters/memory/memory-rate-limit-store.ts';
@@ -43,6 +44,7 @@ import { PostgresAgentRepository } from '../modules/agents/adapters/postgres/pos
 import { PostgresPairingCodeRepository } from '../modules/agents/adapters/postgres/postgres-pairing-code-repository.ts';
 import type { AgentsDatabase } from '../modules/agents/adapters/postgres/schema.ts';
 import { createAgentsUseCases } from '../modules/agents/application/agents-use-cases.ts';
+import { loadAgentConfig } from '../modules/agents/adapters/file/agent-config-file.ts';
 import type { ServedAgentConfig } from '../modules/agents/domain/agent-config.ts';
 import type { IdentityPort } from '../modules/identity/index.ts';
 import { characterRoutes } from '../modules/identity/adapters/http/character-routes.ts';
@@ -198,6 +200,8 @@ export interface BuiltApp {
     readonly presence: MemoryPresenceStore;
     readonly rateLimits: MemoryRateLimitStore;
     readonly tokenCache: MemoryAgentTokenCache;
+    /** The served remote configuration; a staging test control replaces it (RCF-05, RCF-06). */
+    readonly agentConfig: MemoryAgentConfigSource;
     readonly queue: MemoryQueueStore;
     /** The joins attempted per account (QUE-18): a scenario starts with no attempt counted. */
     readonly joins: MemoryJoinLimitStore;
@@ -234,6 +238,8 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     presence: new MemoryPresenceStore(),
     rateLimits: new MemoryRateLimitStore(),
     tokenCache: new MemoryAgentTokenCache(),
+    // The committed document, read once at start by the composition root (RCF-12); a test app reads it here.
+    agentConfig: new MemoryAgentConfigSource(deps.agentConfig ?? loadAgentConfig()),
   };
   const hasher = new Sha256SecretHasher();
   // Battle.net is reached only when both client settings are configured; the routes answer 404 otherwise (IDB-06).
@@ -275,6 +281,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     bus,
     cache: stores.tokenCache,
     presence: stores.presence,
+    configSource: stores.agentConfig,
   });
 
   const identityPort: IdentityPort = {

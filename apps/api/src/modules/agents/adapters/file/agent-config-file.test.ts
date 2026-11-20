@@ -14,6 +14,7 @@ import { AGENT_CONFIG_FILE, loadAgentConfig, parseAgentConfig } from './agent-co
 const AGENT_DEFAULTS = {
   cadence: { demoteAfter: 3, probeEvery: 60, rateWindow: 60, lookIntervalMs: 1000 },
   thresholds: { trackPad: 24 },
+  regions: {},
   phrases: { en: { party: 'Party', gameName: 'Game Name', password: 'Password' } },
 };
 

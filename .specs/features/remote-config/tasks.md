@@ -50,7 +50,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
       agent's default (a table in the test, kept next to the Rust pinning tests of T10) and that a field outside the schema
       fails. `main/local.ts` and `main/render.ts` read the file once at start; a bad file stops the start (a test).
       Gate: `pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api typecheck`
-- [ ] T4 — The use case and the route (RCF-01). `modules/agents/application/get-agent-config.ts`, the port entry in
+- [x] T4 — The use case and the route (RCF-01). `modules/agents/application/get-agent-config.ts`, the port entry in
       `modules/agents/index.ts`, `GET /v1/agents/config` in `adapters/http/routes.ts` behind `requireAgentVersion` and
       `requireAgent`, `ETag`, `If-None-Match` → `304`, `Cache-Control: no-cache`, no account data. Unit tests for the use
       case and for the route with fakes. Gate: `pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api lint`

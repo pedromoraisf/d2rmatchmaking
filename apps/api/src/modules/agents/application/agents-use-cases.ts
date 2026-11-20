@@ -4,9 +4,11 @@ import { createAccountOfAgent, createCurrentAgentOf } from './agent-lookups.ts';
 import { createAgentOfflineSinceOf, createAgentOnlineOf } from './agent-online.ts';
 import { createClaimToken } from './claim-token.ts';
 import { createEvictRevokedAgent } from './evict-revoked-agent.ts';
+import { createGetAgentConfig } from './get-agent-config.ts';
 import { createGetMyAgent } from './get-my-agent.ts';
 import { createPairAgent } from './pair-agent.ts';
 import type {
+  AgentConfigSource,
   AgentRepository,
   AgentTokenCache,
   PairingCodeRepository,
@@ -46,6 +48,7 @@ export type PairingUseCases = ReturnType<typeof createPairingUseCases>;
 export interface AgentsRuntimeDeps extends AgentsDeps {
   readonly cache: AgentTokenCache;
   readonly presence: PresenceStore;
+  readonly configSource: AgentConfigSource;
 }
 
 /** Builds every Agents use case, including authentication, presence and the sweep. */
@@ -56,6 +59,7 @@ export function createAgentsUseCases(deps: AgentsRuntimeDeps) {
     recordHeartbeat: createRecordHeartbeat(deps),
     sweep: createSweep(deps),
     getMyAgent: createGetMyAgent(deps),
+    getAgentConfig: createGetAgentConfig(deps),
     revokeAgent: createRevokeAgent(deps),
     evictRevokedAgent: createEvictRevokedAgent(deps),
     accountOfAgent: createAccountOfAgent(deps),

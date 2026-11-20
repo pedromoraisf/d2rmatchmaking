@@ -9,6 +9,7 @@
   "thresholds": {
     "trackPad": 24
   },
+  "regions": {},
   "phrases": {
     "en": {
       "party": "Party",
