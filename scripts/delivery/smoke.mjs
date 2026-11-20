@@ -3,23 +3,30 @@
 import { fileURLToPath } from 'node:url';
 
 export const WAKE_BUDGET_MS = 90_000;
-const FIRST_DELAY_MS = 2_000;
+/** Never fewer than 5 s between two requests, so the smoke cannot trip the host's rate limiting. */
+const FIRST_DELAY_MS = 5_000;
 const LONGEST_DELAY_MS = 10_000;
 
-/** The wait before retry `attempt` (0 first): 2 s, growing by half, never over 10 s. */
+/** The wait before retry `attempt` (0 first): 5 s, growing by half, never over 10 s (before jitter). */
 export function backoffMs(attempt) {
   return Math.min(LONGEST_DELAY_MS, Math.round(FIRST_DELAY_MS * 1.5 ** attempt));
+}
+
+/** `delayMs` plus up to 25 % (`random` in `[0, 1)`): jitter only lengthens a wait, so the 5 s floor holds. */
+export function jitteredMs(delayMs, random) {
+  return Math.round(delayMs * (1 + 0.25 * random()));
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Requests `url` until `accept(response)` holds or the budget is spent. Returns `{ ok, response, waitedMs, attempts }`;
- * a request that throws counts as "asleep". The total wait never exceeds `budgetMs`.
+ * a request that throws counts as "asleep". The total wait never exceeds `budgetMs`, and two requests are always
+ * at least 5 s apart.
  */
 export async function wakeAndRead(
   url,
-  { request, accept, budgetMs = WAKE_BUDGET_MS, wait = sleep, timeoutMs = 15_000 },
+  { request, accept, budgetMs = WAKE_BUDGET_MS, wait = sleep, timeoutMs = 15_000, random = Math.random },
 ) {
   let waitedMs = 0;
   for (let attempts = 1; ; attempts += 1) {
@@ -31,7 +38,9 @@ export async function wakeAndRead(
     }
     if (response !== undefined && (await accept(response))) return { ok: true, response, waitedMs, attempts };
     if (waitedMs >= budgetMs) return { ok: false, response, waitedMs, attempts };
-    const delay = Math.min(backoffMs(attempts - 1), budgetMs - waitedMs);
+    const delay = jitteredMs(backoffMs(attempts - 1), random);
+    // A wait that would pass the budget is not taken: the last answer is the result, and no request comes sooner than 5 s.
+    if (waitedMs + delay > budgetMs) return { ok: false, response, waitedMs, attempts };
     waitedMs += delay;
     await wait(delay);
   }
@@ -63,7 +72,10 @@ async function describe(result) {
   const headers = ['server', 'cf-ray', 'cf-mitigated', 'x-render-routing']
     .map((name) => `${name}=${result.response.headers?.get?.(name) ?? '-'}`)
     .join(' ');
-  return `last answer ${result.response.status} [${headers}] ${body}`;
+  const challenged =
+    result.response.status === 429 && (result.response.headers?.get?.('cf-mitigated') ?? null) !== null;
+  const verdict = challenged ? 'the API host challenged the request (Render edge), not a sleeping API; ' : '';
+  return `${verdict}last answer ${result.response.status} [${headers}] ${body}`;
 }
 
 export async function smokeChecks(app, url, sha, io) {

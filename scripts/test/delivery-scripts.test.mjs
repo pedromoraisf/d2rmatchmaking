@@ -5,7 +5,14 @@ import { test } from 'node:test';
 import { pagesBranchFor, PHASE_PREVIEW_BRANCH } from '../delivery/pages.mjs';
 import { verdictOf, waitForVerdict } from '../delivery/ci-verdict.mjs';
 import { isSmokeJob, stagingSmokeRunId } from '../delivery/promotable.mjs';
-import { backoffMs, healthzAccepts, smokeChecks, wakeAndRead, WAKE_BUDGET_MS } from '../delivery/smoke.mjs';
+import {
+  backoffMs,
+  healthzAccepts,
+  jitteredMs,
+  smokeChecks,
+  wakeAndRead,
+  WAKE_BUDGET_MS,
+} from '../delivery/smoke.mjs';
 import { previewConfigJson, previewSiteOrigin } from '../preview/preview.mjs';
 
 test('every phase branch deploys to the one fixed alias, so one redirect URL is registered (DLP-08)', () => {
@@ -125,19 +132,37 @@ test('promote gate refuses a failed or skipped smoke, another SHA, a PR run, a n
   assert.equal(isSmokeJob({ name: 'smoke / smoke / extra' }), false);
 });
 
-test('smoke backoff: 2 s growing by half, never over 10 s, and the wake never waits more than 90 s', async () => {
-  assert.deepEqual([0, 1, 2, 3, 4, 8].map(backoffMs), [2000, 3000, 4500, 6750, 10000, 10000]);
+test('smoke backoff: 5 s growing by half, never over 10 s; jitter only lengthens, by up to 25 %', () => {
+  assert.deepEqual([0, 1, 2, 3, 8].map(backoffMs), [5000, 7500, 10000, 10000, 10000]);
+  assert.equal(
+    jitteredMs(5000, () => 0),
+    5000,
+  );
+  assert.equal(
+    jitteredMs(5000, () => 0.999999),
+    6250,
+  );
+});
+
+test('the wake never waits past 90 s and never asks twice within 5 s', async () => {
   const slept = [];
+  const randoms = [0, 0.5, 0.999999];
+  let i = 0;
   const result = await wakeAndRead('https://x.test/', {
     request: async () => ({ status: 502 }),
     accept: async () => false,
     wait: async (ms) => slept.push(ms),
+    random: () => randoms[i++ % 3],
   });
   assert.equal(result.ok, false);
-  assert.equal(
-    slept.reduce((a, b) => a + b, 0),
-    WAKE_BUDGET_MS,
+  assert.ok(
+    slept.every((ms) => ms >= 5000),
+    'no wait under 5 s',
   );
+  const total = slept.reduce((a, b) => a + b, 0);
+  assert.ok(total <= WAKE_BUDGET_MS, `waited ${total} ms`);
+  assert.ok(WAKE_BUDGET_MS - total < 12500, 'the budget is used up to one more wait');
+  assert.equal(result.waitedMs, total);
   assert.equal(result.attempts, slept.length + 1);
 });
 
@@ -151,10 +176,32 @@ test('smoke wake returns as soon as the service answers, treating a thrown reque
     },
     accept: async (r) => r.status === 200,
     wait: async () => {},
+    random: () => 0,
   });
   assert.equal(result.ok, true);
   assert.equal(result.attempts, 3);
-  assert.equal(result.waitedMs, 5000);
+  assert.equal(result.waitedMs, 12500);
+});
+
+test('a 429 with cf-mitigated is reported as the host challenging, not as a sleeping API', async () => {
+  const challenged = {
+    status: 429,
+    headers: new Headers({ 'cf-mitigated': 'challenge', server: 'cloudflare' }),
+    text: async () => '<title>Just a moment...</title>',
+  };
+  const failures = await smokeChecks('api', 'https://api.test', SHA, {
+    request: async () => challenged,
+    wait: async () => {},
+    budgetMs: 0,
+  });
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /the API host challenged the request \(Render edge\), not a sleeping API/);
+  const plain = await smokeChecks('api', 'https://api.test', SHA, {
+    request: async () => ({ status: 502, headers: new Headers(), text: async () => 'bad gateway' }),
+    wait: async () => {},
+    budgetMs: 0,
+  });
+  assert.doesNotMatch(plain[0], /challenged/);
 });
 
 const json = (body, status = 200) => ({ status, json: async () => body });
