@@ -78,15 +78,22 @@ test('sink counts wire bytes inside the window', { timeout: SLOW_TEST_MS }, asyn
     const metrics = wireOf(sink.otlpPort, '/v1/metrics', '{"resourceMetrics":[]}');
     await exchange(socket, traces);
     await exchange(socket, metrics);
+    const logs = wireOf(sink.otlpPort, '/v1/logs', '{"resourceLogs":[]}');
+    await exchange(socket, logs);
     const stopped = await control(sink.controlPort, 'POST', '/window/stop');
 
     assert.equal(stopped.status, 200);
     assert.equal(
       stopped.body.bytes,
-      traces.length + metrics.length,
+      traces.length + metrics.length + logs.length,
       'the request lines, headers and bodies read inside the window, and nothing outside it',
     );
     assert.ok(stopped.body.seconds >= 0);
+    assert.deepEqual(
+      stopped.body.byLabel,
+      { traces: traces.length, metrics: metrics.length, logs: logs.length },
+      'each request is counted under the signal of its path',
+    );
 
     await exchange(socket, wireOf(sink.otlpPort, '/v1/logs', '{}'));
     assert.deepEqual((await control(sink.controlPort, 'POST', '/window/stop')).body, {
@@ -154,3 +161,25 @@ test('the sink takes its token from a file and logs nothing', async () => {
     assert.equal(/process\.std(out|err)\./.test(source), false, `${file} writes no stream line`);
   }
 });
+
+test(
+  'the sink answers a protobuf request with an empty protobuf body',
+  { timeout: SLOW_TEST_MS },
+  async () => {
+    const sink = await sinkFor();
+    try {
+      for (const route of ['/v1/traces', '/v1/metrics', '/v1/logs']) {
+        const response = await fetch(`http://127.0.0.1:${sink.otlpPort}${route}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-protobuf', 'content-encoding': 'gzip' },
+          body: new Uint8Array([0x1f, 0x8b, 8, 0]),
+        });
+        assert.equal(response.status, 200, `${route} answers 200`);
+        assert.equal(response.headers.get('content-type'), 'application/x-protobuf');
+        assert.equal((await response.arrayBuffer()).byteLength, 0, `${route} answers an empty message`);
+      }
+    } finally {
+      await sink.close();
+    }
+  },
+);

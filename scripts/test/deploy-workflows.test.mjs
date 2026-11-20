@@ -161,7 +161,7 @@ test('pull-requests write is granted only on the comment job', () => {
 });
 
 test('render.yaml checks /healthz, never auto-deploys and runs the staging build', () => {
-  const service = parse(readText('render.yaml')).services[0];
+  const service = parse(readText('render.yaml')).services.find((entry) => entry.name === 'd2rmm-api');
   assert.equal(service.type, 'web');
   assert.equal(service.plan, 'free');
   assert.equal(service.healthCheckPath, '/healthz');

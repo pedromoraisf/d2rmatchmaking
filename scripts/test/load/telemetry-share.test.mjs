@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { telemetryFails, telemetryNumbers } from '../../load/lib/telemetry-share.mjs';
+import {
+  telemetryBytesPerPlayerHourBySignal,
+  telemetryFails,
+  telemetryNumbers,
+} from '../../load/lib/telemetry-share.mjs';
 
 const close = (actual, expected, label) =>
   assert.ok(
@@ -26,4 +30,15 @@ test('share boundary at 0.10', () => {
   assert.equal(telemetryFails(0.09), false);
   assert.equal(telemetryFails(0.1 + 1e-9), true, 'just above 0.10 fails');
   assert.equal(telemetryFails(0.2), true);
+});
+
+test('telemetry bytes per player-hour by signal', () => {
+  const split = telemetryBytesPerPlayerHourBySignal({ traces: 10000, metrics: 5000, logs: 2500 }, 100, 90);
+  close(split.traces, 4000, 'traces');
+  close(split.metrics, 2000, 'metrics');
+  close(split.logs, 1000, 'logs');
+  assert.throws(
+    () => telemetryBytesPerPlayerHourBySignal({ traces: 1, metrics: 1, logs: 1 }, 0, 90),
+    RangeError,
+  );
 });

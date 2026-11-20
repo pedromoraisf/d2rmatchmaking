@@ -107,10 +107,20 @@ export async function smokeChecks(app, url, sha, io) {
   return failures;
 }
 
+/** The longest wait the deploy stage allows (a Render build takes minutes), from `SMOKE_BUDGET_SECONDS`; else undefined. */
+export function budgetFromEnv(value) {
+  const seconds = /^[0-9]{1,3}$/.test(String(value ?? '')) ? Number(value) : 0;
+  return seconds >= 1 && seconds <= 900 ? seconds * 1000 : undefined;
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   // `smoke.mjs <app> <url> <sha>`
-  const [app, url, sha] = process.argv.slice(2);
+  const [app, url, rawSha] = process.argv.slice(2);
+  // An empty SHA means "any build": an agent smoke only needs the API awake.
+  const sha = rawSha === '' ? undefined : rawSha;
+  const budgetMs = budgetFromEnv(process.env.SMOKE_BUDGET_SECONDS);
   const failures = await smokeChecks(app, url, sha, {
+    ...(budgetMs === undefined ? {} : { budgetMs }),
     request: (u, signal) => fetch(u, { signal, headers: { 'user-agent': 'd2rmm-delivery-smoke' } }),
   });
   for (const failure of failures) process.stderr.write(`::error::${failure}\n`);

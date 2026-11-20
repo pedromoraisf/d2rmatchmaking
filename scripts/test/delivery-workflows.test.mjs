@@ -13,7 +13,7 @@ const text = (name) => readFileSync(path.join(root, '.github/workflows', name), 
 const workflow = (name) => parse(text(name));
 
 const STAGES = ['stage-build.yml', 'stage-deploy.yml', 'stage-smoke.yml', 'stage-promote.yml'];
-const CALLERS = ['site.yml'];
+const CALLERS = ['site.yml', 'api.yml', 'agent.yml'];
 const ALL = [...STAGES, ...CALLERS];
 const STAGE_NAMES = ['build', 'verify', 'deploy', 'smoke', 'promote'];
 const SHA_PINNED = /^[^@\s]+@[0-9a-f]{40}$/;
@@ -109,7 +109,9 @@ test('the artifact is named by the commit SHA in build, deploy and promote', () 
     ['stage-deploy.yml', 'deploy'],
     ['stage-promote.yml', 'promote'],
   ]) {
-    const step = stepsOf(workflow(file).jobs[job]).find((s) => s.uses?.includes('-artifact@'));
+    const step = stepsOf(workflow(file).jobs[job]).find(
+      (s) => s.uses?.includes('-artifact@') && s.name !== 'Upload the agent installers',
+    );
     assert.equal(`name: ${step?.with.name}`, name, `${file} must use the SHA-named artifact`);
   }
 });
@@ -190,6 +192,185 @@ test('the deployment URL comes from the strict parser, not from the last https:/
     );
     assert.doesNotMatch(publish.run, /grep -Eo/);
   }
+});
+
+test('api.yml is a thin caller; it deploys staging only when the maintainer turns the stages on', () => {
+  const wf = workflow('api.yml');
+  assert.deepEqual(Object.keys(wf.jobs), ['build', 'deploy', 'smoke', 'promote']);
+  for (const [id, job] of Object.entries(wf.jobs)) {
+    assert.equal(job.name, id);
+    assert.equal(job.with.app, 'api');
+    assert.equal(job.steps, undefined);
+  }
+  assert.deepEqual(wf.on.push.branches, ['main']);
+  assert.equal(wf.on.pull_request, undefined, "API previews stay preview-api.yml's (ADR 030)");
+  assert.equal(wf.on.workflow_dispatch.inputs.sha.required, true);
+  assert.equal(wf.concurrency['cancel-in-progress'], false, 'a migration or a deploy is never cancelled');
+  assert.equal(wf.jobs.deploy.if, "github.event_name == 'push' && vars.API_STAGES_LIVE == 'true'");
+  assert.equal(wf.jobs.deploy.with.environment, 'staging');
+  assert.equal(
+    wf.jobs.promote.if,
+    "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
+  );
+  assert.deepEqual(wf.jobs.smoke.needs, ['deploy']);
+});
+
+test('the API deploy migrates its database before it calls Render, then waits for the commit to answer', () => {
+  for (const [file, job] of [
+    ['stage-deploy.yml', 'deploy'],
+    ['stage-promote.yml', 'promote'],
+  ]) {
+    const j = workflow(file).jobs[job];
+    const migrate = indexOfStep(j, runIncludes('db:migrate'));
+    const hook = indexOfStep(j, runIncludes('RENDER_DEPLOY_HOOK}&ref=${SHA}'));
+    assert.ok(migrate >= 0 && hook > migrate, `${file}: migrations run before the deploy hook`);
+    for (const index of [migrate, hook]) {
+      assert.equal(stepsOf(j)[index].if, "inputs.app == 'api'", `${file}: API steps run only for the API`);
+    }
+    assert.match(
+      stepsOf(j)[hook].run,
+      /smoke\.mjs api "\$API_BASE_URL" "\$SHA"/,
+      'waits for the SHA to answer',
+    );
+    assert.equal(stepsOf(j)[hook].env.SMOKE_BUDGET_SECONDS, '600');
+    assert.match(stepsOf(j)[migrate].env.DATABASE_URL, /^\$\{\{ secrets\.[A-Z_]+ \}\}$/);
+    assert.equal(stepsOf(j)[hook].env.RENDER_DEPLOY_HOOK, '${{ secrets.RENDER_DEPLOY_HOOK }}');
+  }
+});
+
+test('promoting the API uses the migrations of the promoted commit, taken after the gate', () => {
+  const job = workflow('stage-promote.yml').jobs.promote;
+  const gate = indexOfStep(job, runIncludes('scripts/delivery/promotable.mjs'));
+  const taken = indexOfStep(job, (s) => s.with?.['sparse-checkout'] === 'apps/api/migrations');
+  const migrate = indexOfStep(job, runIncludes('db:migrate'));
+  assert.ok(gate < taken && taken < migrate);
+  assert.equal(stepsOf(job)[taken].with.ref, '${{ inputs.sha }}');
+  assert.equal(stepsOf(job)[taken].with.path, 'promoted-api');
+  // Site-only steps never run for the API.
+  for (const step of stepsOf(job).filter((s) =>
+    /wrangler|download-artifact|deployment-url/.test(JSON.stringify(s)),
+  )) {
+    assert.equal(step.if, "inputs.app == 'site'", `${step.name} is a site step`);
+  }
+});
+
+test('the API build compiles the API and uploads the commit pin; the site deploy steps are site-only', () => {
+  const build = workflow('stage-build.yml').jobs.build;
+  const pin = stepsOf(build).find((s) => s.run?.includes('api-commit.txt'));
+  assert.equal(pin.if, "inputs.app == 'api'");
+  assert.match(pin.run, /@d2rmm\/api build/);
+  for (const step of stepsOf(workflow('stage-deploy.yml').jobs.deploy).filter((s) =>
+    /wrangler|download-artifact|pages\.mjs|preview\.mjs/.test(JSON.stringify(s)),
+  )) {
+    assert.match(step.if, /inputs\.app == 'site'/, `${step.name} is a site step`);
+  }
+});
+
+test('a promotion fails unless the environment-only marker says production, before any migration or deploy', () => {
+  const job = workflow('stage-promote.yml').jobs.promote;
+  const steps = stepsOf(job);
+  const gate = indexOfStep(job, runIncludes('scripts/delivery/promotable.mjs'));
+  const marker = indexOfStep(job, (s) => s.env?.ENVIRONMENT_MARKER === '${{ vars.D2RMM_ENV }}');
+  assert.ok(marker > gate, 'the marker is checked right after the gate');
+  assert.equal(steps[marker].if, undefined, 'the marker is checked for every app, not skipped');
+  assert.match(steps[marker].run, /\[ "\$ENVIRONMENT_MARKER" != "production" \]/);
+  assert.match(steps[marker].run, /exit 1/);
+  // Nothing that holds a secret or changes anything comes before it.
+  for (const step of steps.slice(0, marker)) {
+    assert.doesNotMatch(JSON.stringify(step), /secrets\.|db:migrate|wrangler|RENDER_DEPLOY_HOOK/, step.name);
+  }
+  for (const needle of ['db:migrate', 'RENDER_DEPLOY_HOOK}&ref=', 'wrangler pages deploy']) {
+    assert.ok(indexOfStep(job, runIncludes(needle)) > marker, `${needle} comes after the marker`);
+  }
+  assert.equal(job.environment, 'production');
+});
+
+test('the promoted migrations are refused when they hold a symlink, before they are copied', () => {
+  const job = workflow('stage-promote.yml').jobs.promote;
+  const use = stepsOf(job).find((s) => s.name === 'Use the promoted migrations');
+  const check = use.run.indexOf('scripts/delivery/no-symlinks.mjs promoted-api/apps/api/migrations');
+  assert.ok(check >= 0, 'the symlink check runs on the promoted tree');
+  assert.ok(check < use.run.indexOf('cp -r'), 'the check comes before the copy');
+  assert.ok(check < use.run.indexOf('rm -rf'), 'and before the workspace migrations are removed');
+});
+
+test('agent.yml is a thin caller: a preview per same-repo pull request, a staging build per commit on main', () => {
+  const wf = workflow('agent.yml');
+  assert.deepEqual(Object.keys(wf.jobs), ['build']);
+  const job = wf.jobs.build;
+  assert.equal(job.name, 'build');
+  assert.equal(job.uses, './.github/workflows/stage-build.yml');
+  assert.equal(job.steps, undefined);
+  assert.equal(job.with.app, 'agent');
+  assert.match(job.if, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
+  assert.equal(
+    job.with.channel,
+    "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'staging' || 'preview' }}",
+  );
+  assert.equal(job.with.api_base, '${{ vars.API_BASE_URL }}');
+  assert.deepEqual(wf.on.push.branches.slice(0, 1), ['main']);
+  assert.ok(wf.on.pull_request);
+  assert.equal(wf.on.workflow_dispatch, undefined, 'production is never started from here');
+  assert.deepEqual(wf.permissions, { contents: 'read', 'pull-requests': 'read' });
+  // A staging build on main is never cancelled by a later push.
+  assert.doesNotMatch(wf.concurrency['cancel-in-progress'], /refs\/heads\/main'\s*\}\}$/);
+  assert.match(wf.concurrency['cancel-in-progress'], /github\.ref != 'refs\/heads\/main'/);
+});
+
+test('the agent build: one Windows build per channel, smoke-started against its API before it is uploaded', () => {
+  const build = workflow('stage-build.yml').jobs.build;
+  assert.match(build['runs-on'], /inputs\.app == 'agent' && 'windows-latest'/);
+  const steps = stepsOf(build);
+  const index = (predicate) => steps.findIndex(predicate);
+  const base = index((s) => s.id === 'agent_api');
+  const wake = index((s) => s.run?.includes('scripts/delivery/smoke.mjs api'));
+  const config = index((s) => s.id === 'agent_channel');
+  const compile = index((s) => s.run?.includes('tauri build'));
+  const smoke = index((s) => s.run?.includes('--self-check --online'));
+  const verdict = index((s) => s.run?.includes('scripts/delivery/self-check-line.mjs'));
+  const upload = index((s) => s.name === 'Upload the agent installers');
+  assert.ok(
+    base >= 0 &&
+      base < wake &&
+      wake < config &&
+      config < compile &&
+      compile < smoke &&
+      smoke <= verdict &&
+      verdict < upload,
+    'API, wake, channel config, compile, smoke start, verdict, then upload',
+  );
+  // The build is told its channel and API, and takes its identifier and updater from the one table.
+  assert.equal(steps[compile].env.D2RMM_CHANNEL, '${{ inputs.channel }}');
+  assert.equal(steps[compile].env.D2RMM_API_BASE, '${{ steps.agent_api.outputs.base }}');
+  assert.match(steps[compile].run, /--config "\$TAURI_CHANNEL_CONFIG"/);
+  assert.match(steps[config].run, /scripts\/delivery\/agent-channel\.mjs "\$CHANNEL"/);
+  assert.match(steps[smoke].run, /self-check-line\.mjs self-check\.out "\$CHANNEL"/);
+  for (const step of steps.filter((s) => s.if === "inputs.app == 'agent'" || s.id?.startsWith('agent_'))) {
+    assert.doesNotMatch(
+      JSON.stringify(step),
+      /secrets\.|TAURI_SIGNING|SIGNPATH/,
+      `${step.name} holds no signing secret`,
+    );
+  }
+});
+
+test('preview and staging installers are workflow artifacts only: never a release, named by channel and SHA', () => {
+  const build = workflow('stage-build.yml').jobs.build;
+  const upload = stepsOf(build).find((s) => s.name === 'Upload the agent installers');
+  assert.equal(upload.with.name, 'agent-${{ inputs.channel }}-${{ inputs.sha }}');
+  assert.ok(upload.with['retention-days'] <= 14, 'a test installer expires');
+  assert.match(upload.with.path, /bundle\/nsis\/\*\.exe/);
+  assert.doesNotMatch(
+    JSON.stringify(build),
+    /gh release|action-gh-release|releases\/|softprops|create-release/,
+  );
+  const refuse = stepsOf(build)[0].run;
+  assert.match(
+    refuse,
+    /"\$CHANNEL" != "preview" \] && \[ "\$CHANNEL" != "staging"/,
+    'production is refused here',
+  );
+  assert.match(refuse, /release-please/);
 });
 
 test('smoke comes after the deploy it checks, and production smoke follows the promote', () => {

@@ -7,6 +7,8 @@ pub mod adapters;
 #[cfg(any(windows, test))]
 pub mod app;
 #[cfg(any(windows, test))]
+pub mod channel;
+#[cfg(any(windows, test))]
 pub mod config;
 #[cfg(any(windows, test))]
 pub mod fixture_read;
