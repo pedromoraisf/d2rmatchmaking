@@ -1302,9 +1302,11 @@ mod hud_tests {
     }
 
     /// Every `agent.vision.read` span's fields, as text, in creation order.
+    type SpanFields = Vec<(String, String)>;
+
     #[derive(Default)]
     struct Spans {
-        recorded: Mutex<Vec<(String, Vec<(String, String)>)>>,
+        recorded: Mutex<Vec<(String, SpanFields)>>,
     }
 
     struct Writer<'a>(&'a mut Vec<(String, String)>);
