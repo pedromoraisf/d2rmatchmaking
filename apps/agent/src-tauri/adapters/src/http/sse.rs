@@ -7,6 +7,7 @@ use std::time::Duration;
 use uuid::Uuid;
 
 use d2rmm_agent_core::messages::{ReadyCheckEnd, ReadyCheckOpen};
+use d2rmm_agent_core::ports::{RoomEnd, RoomEndReason};
 use d2rmm_agent_domain::room_assignment::RoomId;
 
 use crate::contracts::generated::{
@@ -38,7 +39,7 @@ pub enum StreamEffect {
     ReadyCheckStarted(ReadyCheckOpen),
     ReadyCheckResolved(ReadyCheckEnd),
     /// The room with this id expired or closed: the core drops the assignment if it holds that room.
-    RoomEnded(RoomId),
+    RoomEnded(RoomEnd),
     Ignore,
 }
 
@@ -72,10 +73,18 @@ struct StageChanged {
 }
 
 /// The room of a stage change to `expired` or `closed`; any other stage, or data of another shape, gives `None`.
-fn room_ended_from(data: &str) -> Option<RoomId> {
+fn room_ended_from(data: &str) -> Option<RoomEnd> {
     let event: StageChanged = serde_json::from_str(data).ok()?;
-    let ended = matches!(event.stage.as_str(), "expired" | "closed");
-    (ended && Uuid::parse_str(&event.room_id).is_ok()).then(|| RoomId::new(event.room_id))
+    let reason = match event.stage.as_str() {
+        "expired" => RoomEndReason::Expired,
+        "closed" => RoomEndReason::Closed,
+        _ => return None,
+    };
+    Uuid::parse_str(&event.room_id).ok()?;
+    Some(RoomEnd {
+        room: RoomId::new(event.room_id),
+        reason,
+    })
 }
 
 /// The open check of `GET /v1/ready-checks/me` (RDY-11): the same view the started event carries, so it parses the same way.
@@ -455,7 +464,7 @@ mod room_end_tests {
 
     fn ended_room(data: &str) -> Option<String> {
         match handle("room.stage_changed", data) {
-            StreamEffect::RoomEnded(room) => Some(room.as_str().to_string()),
+            StreamEffect::RoomEnded(end) => Some(end.room.as_str().to_string()),
             _ => None,
         }
     }
@@ -464,6 +473,20 @@ mod room_end_tests {
     fn an_expired_or_closed_stage_ends_the_room() {
         assert_eq!(ended_room(&stage(ROOM, "expired")), Some(ROOM.to_string()));
         assert_eq!(ended_room(&stage(ROOM, "closed")), Some(ROOM.to_string()));
+    }
+
+    #[test]
+    fn each_ended_stage_carries_its_reason() {
+        use d2rmm_agent_core::ports::RoomEndReason;
+        for (stage_name, expected) in [
+            ("expired", RoomEndReason::Expired),
+            ("closed", RoomEndReason::Closed),
+        ] {
+            match handle("room.stage_changed", &stage(ROOM, stage_name)) {
+                StreamEffect::RoomEnded(end) => assert_eq!(end.reason, expected),
+                _ => panic!("{stage_name} ends the room"),
+            }
+        }
     }
 
     #[test]

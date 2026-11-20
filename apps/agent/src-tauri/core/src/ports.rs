@@ -216,6 +216,30 @@ pub trait ApiGateway {
     ) -> impl Future<Output = Result<Option<ReadyCheckOpen>, ApiError>> + Send;
 }
 
+/// Why a room ended: the stage the API moved it to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RoomEndReason {
+    Expired,
+    Closed,
+}
+
+impl RoomEndReason {
+    /// The reason as the span event records it (ARL-07).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Expired => "expired",
+            Self::Closed => "closed",
+        }
+    }
+}
+
+/// A room that expired or closed, and why.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoomEnd {
+    pub room: RoomId,
+    pub reason: RoomEndReason,
+}
+
 /// One item of the room stream: an assignment, a ready check that opened or ended, or the end of the stream and why it
 /// ended.
 #[derive(Debug, Clone, PartialEq)]
@@ -224,7 +248,7 @@ pub enum StreamItem {
     ReadyCheckStarted(ReadyCheckOpen),
     ReadyCheckResolved(ReadyCheckEnd),
     /// The room with this id expired or closed (LBR-05): an assignment held for it is dropped.
-    RoomEnded(RoomId),
+    RoomEnded(RoomEnd),
     Ended(EndReason),
 }
 

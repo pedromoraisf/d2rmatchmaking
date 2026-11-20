@@ -39,6 +39,8 @@ pub async fn send<G: ApiGateway + Send + Sync>(
             .await;
         let error = match outcome {
             Ok(()) => {
+                tracing::info_span!("agent.run.confirm")
+                    .in_scope(|| tracing::info!("agent.run.confirmed"));
                 device.confirm_run(&observation.room.to_string(), observation.run);
                 return SendOutcome::Posted;
             }
@@ -152,6 +154,8 @@ mod tests {
     async fn an_accepted_post_confirms_the_run_in_the_window_until_the_run_changes() {
         let (device, _tokens, ports, gateway) = paired();
         gateway.script_post_observation([Ok(())]);
+        let probe = crate::event_probe::EventProbe::default();
+        let _guard = probe.install();
         device.replace_assignment(Some(held_assignment(1)));
         device.publish_room();
         let confirmed =
@@ -160,6 +164,9 @@ mod tests {
 
         send(&device, &ports, &observation()).await;
         assert_eq!(confirmed(&device), Some(true), "the 2xx confirms the run");
+        let events = probe.named("agent.run.confirmed");
+        assert_eq!(events.len(), 1);
+        assert!(events[0].fields.is_empty(), "no names on the event");
 
         device.replace_assignment(Some(held_assignment(2)));
         device.publish_room();

@@ -94,8 +94,8 @@ async fn invalid_stream_event_is_skipped() {
         StreamItem::ReadyCheckResolved(end) => {
             panic!("a ready check ended before the valid event: {}", end.id)
         }
-        StreamItem::RoomEnded(room) => {
-            panic!("a room ended before the valid event: {}", room.as_str())
+        StreamItem::RoomEnded(end) => {
+            panic!("a room ended before the valid event: {}", end.room.as_str())
         }
         StreamItem::Ended(reason) => panic!("the stream ended before the valid event: {reason:?}"),
     }

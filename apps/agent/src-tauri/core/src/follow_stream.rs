@@ -55,6 +55,9 @@ async fn connect_once<G: ApiGateway + Send + Sync>(
         return Duration::ZERO;
     }
     match ports.gateway.assignment(&token).await {
+        Ok(None) if device.assignment.borrow().current().is_some() => {
+            drop_room(device, "not-assigned");
+        }
         Ok(assignment) => set_assignment(device, assignment),
         Err(error) => {
             on_error(device, ports, error);
@@ -116,14 +119,14 @@ async fn read_events(
             Some(Some(StreamItem::ReadyCheckResolved(end))) => device.close_ready_check(&end.id),
             // A room expired or closed: its assignment goes, the Party step stops reading and the window drops the room
             // line. An event for another room leaves the held one alone.
-            Some(Some(StreamItem::RoomEnded(room))) => {
+            Some(Some(StreamItem::RoomEnded(end))) => {
                 let holds_it = device
                     .assignment
                     .borrow()
                     .current()
-                    .is_some_and(|held| held.room == room);
+                    .is_some_and(|held| held.room == end.room);
                 if holds_it {
-                    set_assignment(device, None);
+                    drop_room(device, end.reason.as_str());
                 }
             }
             // The stream ended, failed or went silent: the caller reconnects.
@@ -133,6 +136,12 @@ async fn read_events(
     if let Some(id) = stream.last_event_id() {
         *last_id = Some(id.to_string());
     }
+}
+
+/// Drops the held assignment and records why, as a span event with no names (ARL-07).
+fn drop_room(device: &DeviceState, reason: &str) {
+    tracing::info!(reason, "agent.assignment.dropped");
+    set_assignment(device, None);
 }
 
 /// Sets or clears the current assignment and shows the room it names.
@@ -366,9 +375,10 @@ mod room_end_tests {
 
     use super::run;
     use crate::device_state::DeviceState;
+    use crate::event_probe::EventProbe;
     use crate::fakes::{FakeApiGateway, MemoryTokens, NullSink, fails_fast};
     use crate::groups::StreamPorts;
-    use crate::ports::{StreamItem, TokenStore};
+    use crate::ports::{RoomEnd, RoomEndReason, StreamItem, TokenStore};
     use crate::secret::Secret;
 
     const HELD: &str = "7d9f2c1e-0000-4000-8000-000000000001";
@@ -385,9 +395,16 @@ mod room_end_tests {
 
     /// Follows a stream that delivers an end for `ended` after the held assignment, and returns the device once read.
     async fn follow_with(ended: &str) -> Arc<DeviceState> {
+        follow_with_reason(ended, RoomEndReason::Expired).await
+    }
+
+    async fn follow_with_reason(ended: &str, reason: RoomEndReason) -> Arc<DeviceState> {
         let gateway = Arc::new(FakeApiGateway::new());
         gateway.script_assignment([Ok(Some(assignment()))]);
-        gateway.script_open_stream([Ok(vec![StreamItem::RoomEnded(RoomId::new(ended))])]);
+        gateway.script_open_stream([Ok(vec![StreamItem::RoomEnded(RoomEnd {
+            room: RoomId::new(ended),
+            reason,
+        })])]);
         gateway.hold_streams();
         let tokens = Arc::new(MemoryTokens::default());
         tokens
@@ -417,8 +434,39 @@ mod room_end_tests {
     }
 
     #[test]
+    fn both_stages_drop_the_held_room_and_record_the_reason_without_names() {
+        for (reason, text) in [
+            (RoomEndReason::Expired, "expired"),
+            (RoomEndReason::Closed, "closed"),
+        ] {
+            fails_fast(move || async move {
+                let probe = EventProbe::default();
+                let _guard = probe.install();
+                let device = follow_with_reason(HELD, reason).await;
+                assert!(device.assignment.borrow().current().is_none(), "{text}");
+                let dropped = probe.named("agent.assignment.dropped");
+                assert_eq!(dropped.len(), 1, "{text}");
+                assert_eq!(dropped[0].fields.len(), 1, "only the reason: no names");
+                assert_eq!(dropped[0].fields["reason"], format!("{text:?}"));
+            });
+        }
+    }
+
+    #[test]
+    fn an_end_for_another_room_records_nothing() {
+        fails_fast(|| async {
+            let probe = EventProbe::default();
+            let _guard = probe.install();
+            let _device = follow_with(OTHER).await;
+            assert!(probe.named("agent.assignment.dropped").is_empty());
+        });
+    }
+
+    #[test]
     fn a_reconnect_drops_a_room_the_api_no_longer_assigns() {
         fails_fast(|| async {
+            let probe = EventProbe::default();
+            let _guard = probe.install();
             let gateway = Arc::new(FakeApiGateway::new());
             // The first stream ends at once (no hold), so the agent reconnects after the delay and reads again.
             gateway.script_assignment([Ok(Some(assignment())), Ok(None)]);
@@ -440,6 +488,9 @@ mod room_end_tests {
 
             assert!(device.assignment.borrow().current().is_none());
             assert_eq!(device.hub.snapshot().room, None, "the room line goes");
+            let dropped = probe.named("agent.assignment.dropped");
+            assert_eq!(dropped.len(), 1);
+            assert_eq!(dropped[0].fields["reason"], "\"not-assigned\"");
         });
     }
 

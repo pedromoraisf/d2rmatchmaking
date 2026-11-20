@@ -33,7 +33,7 @@ Rules:
       and show "Room {{gameName}} — presence confirmed" in the window in English and pt-BR. Rust view tests and the
       window component test. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && pnpm --filter @d2rmm/agent exec vitest run`
-- [ ] T4 — Agent: span events for a dropped assignment (reason `expired`, `closed` or `not-assigned`) and for a confirmed
+- [x] T4 — Agent: span events for a dropped assignment (reason `expired`, `closed` or `not-assigned`) and for a confirmed
       run, with no names (ARL-07). Unit tests with the in-memory exporter. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib`
 - [ ] T5 — Site: remember a dismissed ended room per room id across reloads (ARL-05), with a component test. Gate:
