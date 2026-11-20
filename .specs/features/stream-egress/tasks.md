@@ -45,7 +45,7 @@ Rules:
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint && pnpm exec turbo run test:acceptance -- --grep @SEG-`
 - [x] T6 — Show the bytes by event type and their change against the latest earlier nightly in the nightly report's load
       section (SEG-08), with and without a previous report. Gate: `node --test scripts/test/nightly-*.test.mjs`
-- [ ] T7 — Write `docs/engineering/stream-events.md`: each stream event type, its fields, its consumers, the fields each
+- [x] T7 — Write `docs/engineering/stream-events.md`: each stream event type, its fields, its consumers, the fields each
       reads and the bytes from a T1 run; mark the fields no consumer reads (SEG-03, the audit). Gate:
       `pnpm format:check && pnpm specs:check`
 
