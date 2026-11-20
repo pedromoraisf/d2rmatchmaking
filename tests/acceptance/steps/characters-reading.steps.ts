@@ -25,7 +25,7 @@ interface HeadlessState {
 const headlessStates = new WeakMap<World, HeadlessState>();
 
 /** The headless agent state of a scenario. Its own store: the Party steps (agent-game-name) keep theirs. */
-function stateOf(world: World): HeadlessState {
+export function stateOf(world: World): HeadlessState {
   let state = headlessStates.get(world);
   if (state === undefined) {
     state = {};
@@ -78,7 +78,7 @@ function cardsOf(fixture: string): FixtureCard[] {
   return cards;
 }
 
-function agentOf(world: World): HeadlessAgent {
+export function agentOf(world: World): HeadlessAgent {
   const agent = stateOf(world).agent;
   if (agent === undefined) {
     throw new Error(
@@ -131,7 +131,7 @@ async function startHeadless(world: World, name: string, consent: boolean): Prom
 }
 
 /** Shows a drawn fixture to the agent: its picture and sidecar are copied into the scenario's directory first. */
-function showFixture(world: World, fixture: string, unreadable?: string): void {
+export function showFixture(world: World, fixture: string, unreadable?: string): void {
   const state = stateOf(world);
   if (state.dir === undefined) {
     throw new Error('the headless agent has no fixture directory in this scenario');
@@ -294,8 +294,8 @@ function playerOf(world: World): string {
   return player;
 }
 
-// Closes the example and removes its fixture directory after each character screen scenario.
-After({ tags: '@CHR-04 or @CHR-06 or @CHR-18 or @CHR-20' }, async ({ world }) => {
+/** Closes the example and removes its fixture directory; the scenarios of other features that start the example reuse it. */
+export async function stopHeadless(world: World): Promise<void> {
   const state = headlessStates.get(world);
   await state?.agent?.stop();
   if (state?.dir !== undefined) {
@@ -303,4 +303,9 @@ After({ tags: '@CHR-04 or @CHR-06 or @CHR-18 or @CHR-20' }, async ({ world }) =>
   }
   headlessStates.delete(world);
   lastShown.delete(world);
+}
+
+// Closes the example and removes its fixture directory after each character screen scenario.
+After({ tags: '@CHR-04 or @CHR-06 or @CHR-18 or @CHR-20' }, async ({ world }) => {
+  await stopHeadless(world);
 });

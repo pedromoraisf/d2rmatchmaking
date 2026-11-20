@@ -260,6 +260,11 @@ export class HeadlessAgent {
     this.#child.stdin?.write(`consent ${given ? 'on' : 'off'}\n`);
   }
 
+  /** Sends one raw input line (`capture print black`, `minimize on`…): how the scripted game window behaves from now on. */
+  send(line: string): void {
+    this.#child.stdin?.write(`${line}\n`);
+  }
+
   /** Sends one `hotkey` line: the example presses the agent's accept hotkey (RDY-07), as the global shortcut does. */
   hotkey(): void {
     this.#child.stdin?.write('hotkey\n');

@@ -86,7 +86,7 @@ check is `node scripts/agent/win-check.mjs` (Docker, clippy for `x86_64-pc-windo
       send. Draw with the repository's open font; no capture is committed. Gate:
       `CARGO run -p xtask -- draw-fixture screens && git diff --exit-code apps/agent/fixtures && CARGO nextest run -p xtask --lib`
       (commit the new files first, then run the gate; the drawing is deterministic)
-- [ ] T9 — Acceptance steps for the `@CAP-` scenarios in `tests/acceptance/steps/capture-cascade.steps.ts`, reusing the
+- [x] T9 — Acceptance steps for the `@CAP-` scenarios in `tests/acceptance/steps/capture-cascade.steps.ts`, reusing the
       consent, "the game shows the fixture" and "the site shows the agent's screen as" steps of
       `characters-reading.steps.ts`; new steps for the scripted methods, the agent window's capture method and reason,
       withdrawing consent and the minimized window. Never edit `acceptance.feature`. Gate:
