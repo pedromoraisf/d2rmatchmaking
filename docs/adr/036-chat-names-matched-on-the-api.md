@@ -1,7 +1,7 @@
 # ADR 036 — A chat name may leave the PC to be matched on the API, and is dropped there
 
-**Status**: Proposed
-**Date**: 2026-11-20
+**Status**: Accepted
+**Date**: 2026-11-20 (accepted 2026-11-20: asked where to match chat names, the maintainer chose "Casar na API (Recomendado)")
 **Deciders**: maintainer
 
 ## Context
