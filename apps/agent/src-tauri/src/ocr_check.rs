@@ -89,6 +89,9 @@ pub enum PrintLanguage {
 pub enum ChatClass {
     Joined,
     Left,
+    /// A print that holds a joined and a left line, and whose file name names no event (`maintainer-chat-en-mmbaalh-19.png`).
+    /// Only a verdict reports it, for a file that says no event; a file name never expects it.
+    Both,
 }
 
 impl ChatClass {
@@ -96,6 +99,7 @@ impl ChatClass {
         match self {
             ChatClass::Joined => "joined",
             ChatClass::Left => "left",
+            ChatClass::Both => "both",
         }
     }
 }
@@ -284,6 +288,8 @@ pub fn check_chat_reading(
     let lines: usize = reading.lines_per_variant.iter().sum();
     let found = match reading.class_for(expected.language) {
         Ok(class) => class,
+        // A print whose file names no event may hold both a joined and a left line.
+        Err("both") if expected.class.is_none() => ChatClass::Both,
         Err(which) => {
             return Err(format!(
                 "joined or left phrase: {which} found among the candidates of the print's language, {lines} chat lines over {} variants",
@@ -1648,6 +1654,51 @@ mod tests {
         );
         assert!(error.contains("1 chat lines over 1 variants"), "{error}");
         let nameless = chat_reading(&[vec![text_line("joined our world", 10, 700)]]);
+        assert!(
+            check_chat_reading(&nameless, english(None))
+                .unwrap_err()
+                .contains("no name")
+        );
+    }
+
+    #[test]
+    fn a_chat_print_that_names_no_event_accepts_both_and_one_that_names_an_event_does_not() {
+        use super::{ChatClass, ChatExpectation, PrintLanguage, chat_reading, check_chat_reading};
+        let english = |class| ChatExpectation {
+            language: PrintLanguage::English,
+            class,
+        };
+        // The shape of `maintainer-chat-en-mmbaalh-19.png`: one joined line and one left line (made-up names).
+        let both = chat_reading(&[vec![
+            text_line("Bob joined our world", 24, 656),
+            text_line("Eve left our world", 24, 770),
+        ]]);
+        assert_eq!(
+            check_chat_reading(&both, english(None)),
+            Ok(ChatClass::Both),
+            "a file that names no event accepts both and records it as such"
+        );
+        for class in [ChatClass::Joined, ChatClass::Left] {
+            let error = check_chat_reading(&both, english(Some(class))).unwrap_err();
+            assert!(
+                error.starts_with("joined or left phrase: both found"),
+                "a file naming {class:?} does not accept both: {error}"
+            );
+        }
+        // Both is still refused in the other language, and still needs a name before the phrase.
+        let portuguese = ChatExpectation {
+            language: PrintLanguage::Portuguese,
+            class: None,
+        };
+        assert!(
+            check_chat_reading(&both, portuguese)
+                .unwrap_err()
+                .starts_with("joined or left phrase: none found")
+        );
+        let nameless = chat_reading(&[vec![
+            text_line("joined our world", 24, 656),
+            text_line("left our world", 24, 770),
+        ]]);
         assert!(
             check_chat_reading(&nameless, english(None))
                 .unwrap_err()
