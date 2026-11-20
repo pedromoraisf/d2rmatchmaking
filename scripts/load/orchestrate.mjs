@@ -73,6 +73,7 @@ export const ROOMS_QUERY = "select count(*) from lobby.rooms where stage in ('cr
 
 const LABEL_KEY = 'd2rmm-load';
 const SAMPLE_INTERVAL_MS = 5000;
+const ROOM_SAMPLE_INTERVAL_MS = 1000;
 const READY_TRIES = 90;
 const READY_INTERVAL_MS = 1000;
 const ALPHANUMERIC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -695,6 +696,22 @@ async function sampleStats(ctx, name, samples, isSampling) {
   }
 }
 
+/**
+ * Peak of the rooms in `created` or `active` seen while the step runs, once a second. The host closes a room once it is
+ * `active`, so the count at the end of a fast step can be zero although rooms were held all along.
+ */
+async function sampleRooms(ctx, peak, isSampling) {
+  while (isSampling()) {
+    try {
+      peak.rooms = Math.max(peak.rooms, await roomsCreated(ctx));
+    } catch {
+      // A missed sample: the count at the end of the step is still read.
+    }
+    if (!isSampling()) break;
+    await ctx.clock.sleep(ROOM_SAMPLE_INTERVAL_MS);
+  }
+}
+
 async function readStepFile(ctx) {
   let parsed;
   try {
@@ -778,7 +795,11 @@ async function runStepBody(ctx, step, provisioned, timings) {
 
   const samples = [];
   let sampling = true;
-  const sampler = sampleStats(ctx, names.api, samples, () => sampling);
+  const peak = { rooms: 0 };
+  const sampler = Promise.all([
+    sampleStats(ctx, names.api, samples, () => sampling),
+    sampleRooms(ctx, peak, () => sampling),
+  ]);
   pushContainer(ctx, names.k6);
   let k6;
   try {
@@ -804,7 +825,7 @@ async function runStepBody(ctx, step, provisioned, timings) {
   const measured = await readStepFile(ctx);
   const latencySamplesMs = samplesOf(`${String(k6.stdout ?? '')}\n${String(k6.stderr ?? '')}`);
   if (samples.length === 0) throw new ToolError('no docker stats sample of the API');
-  const rooms = await roomsCreated(ctx);
+  const rooms = Math.max(peak.rooms, await roomsCreated(ctx));
 
   const healthy = containerOk(before, after);
   // The step's errors: the window's k6 errors, plus the whole step's lost assignments and dropped arrivals (design.md
