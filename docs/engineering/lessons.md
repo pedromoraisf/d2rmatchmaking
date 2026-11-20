@@ -118,6 +118,17 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
 - **Render's free tier sleeps after idle and takes 30-60 s to wake, so any online probe must wake it first** (retry
   `/healthz` with backoff for about 90 s). Why: `--self-check --online` failed with "the API could not be reached"
   after about 10 s on agent-v0.3.0 and passed on a rerun minutes later.
+- **A bot-authored release PR needs "Approve and run" on its workflows before it can merge.** Why: PRs opened by the
+  release bot do not start their checks on their own (agent 0.3.0, #70).
+
+## Agent reading
+
+- **Prove OCR on the real font with every glyph the server can generate, not on one fixed name.** Why: presence failed
+  in production on `B` read as `8`, and CI only had the real print "DUEL NK LOCKS".
+- **A fixed pixel box breaks across window and full screen, because D2R does not scale its HUD linearly; search for the
+  words in a wide area.** Why: "Screen: not recognised" in windowed mode.
+- **A diagnostic line in the agent window must reflect state changes.** Why: "waiting for the game" after a
+  successful match was read as broken presence.
 
 ## Harness
 
