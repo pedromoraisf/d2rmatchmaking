@@ -63,7 +63,7 @@ commands. Today each half is true by construction but pinned in few places:
   WHEN the player withdraws consent THEN capture SHALL stop within one tick (CHR-03). The capture source SHALL be
   opened on the game window only, never the screen or another window (ADR 010).
 - **AGT-07** — The Party reading span (`agent.vision.read-game-name`) SHALL record `panel_open` (boolean) and `field`,
-  one of `not_read`, `empty`, `masked`, `text`, besides `matched` and `masked` (F1 post-close item j). It SHALL carry no
+  one of `notRead`, `empty`, `masked`, `text`, besides `matched` and `masked` (F1 post-close item j). It SHALL carry no
   text read from the screen, no game name and no character name. The span test that pinned two fields SHALL pin these
   four, and a test SHALL fail on any other field.
 

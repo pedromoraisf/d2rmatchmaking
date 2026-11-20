@@ -331,9 +331,14 @@ fn apply_reading<G>(
         "agent.vision.read-game-name",
         matched = false,
         masked = false,
+        panel_open = false,
+        field = FieldState::NotRead.code(),
     );
     let _entered = span.enter();
     let seen = look_of(&reading, assignment.expected_game_name.as_str());
+    // Two facts `look_of` already computed, as plain state: whether the panel is open and the field's state, never its text.
+    span.record("panel_open", seen.panel_open);
+    span.record("field", seen.field.code());
     let held = RunKey::of(assignment);
     device.with_party(|progress| {
         // A read that started for a replaced run does not describe the new one.
@@ -922,6 +927,10 @@ mod look_tests {
             self.0.insert(field.name().to_string(), value.to_string());
         }
 
+        fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+            self.0.insert(field.name().to_string(), value.to_string());
+        }
+
         fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
             self.0
                 .insert(field.name().to_string(), format!("{value:?}"));
@@ -970,12 +979,19 @@ mod look_tests {
             .collect()
     }
 
-    /// The only two fields a reading's span may carry: whether it matched and whether the field was masked.
-    fn only(matched: &str, masked: &str) -> Vec<Fields> {
-        let fields: Fields = [("matched", matched), ("masked", masked)]
-            .into_iter()
-            .map(|(key, value)| (key.to_string(), value.to_string()))
-            .collect();
+    /// The only four fields a reading's span may carry (AGT-07): whether it matched, whether the field was masked, whether the
+    /// panel was open and the field's state. All four are booleans or one of four fixed words; none is text read from the
+    /// screen.
+    fn only(matched: &str, masked: &str, panel_open: &str, field: &str) -> Vec<Fields> {
+        let fields: Fields = [
+            ("matched", matched),
+            ("masked", masked),
+            ("panel_open", panel_open),
+            ("field", field),
+        ]
+        .into_iter()
+        .map(|(key, value)| (key.to_string(), value.to_string()))
+        .collect();
         vec![fields]
     }
 
@@ -1010,7 +1026,7 @@ mod look_tests {
 
         assert_eq!(
             read_spans(&spans),
-            only("true", "false"),
+            only("true", "false", "true", "text"),
             "matched, not masked"
         );
     }
@@ -1027,7 +1043,7 @@ mod look_tests {
 
         assert_eq!(
             read_spans(&spans),
-            only("false", "true"),
+            only("false", "true", "true", "masked"),
             "masked, not matched"
         );
     }
@@ -1044,9 +1060,34 @@ mod look_tests {
 
         assert_eq!(
             read_spans(&spans),
-            only("false", "false"),
+            only("false", "false", "false", "notRead"),
             "nothing read from the field"
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_span_of_another_name_says_text_and_holds_no_name() {
+        let (spans, _guard) = record_spans();
+        let rig = rig();
+        rig.device
+            .replace_assignment(Some(assignment(1, "mmcowsh-1")));
+        show(&rig.panel, "PARTY", "mmbaalh-19");
+
+        look_recorded(&rig).await;
+
+        assert_eq!(
+            read_spans(&spans),
+            only("false", "false", "true", "text"),
+            "another name is text, not a match"
+        );
+        for fields in read_spans(&spans) {
+            for (key, value) in fields {
+                assert!(
+                    !value.contains("mmbaalh") && !value.contains("mmcowsh"),
+                    "{key} holds a game name: {value}"
+                );
+            }
+        }
     }
 
     #[tokio::test(start_paused = true)]

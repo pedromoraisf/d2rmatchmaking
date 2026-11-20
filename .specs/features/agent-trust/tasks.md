@@ -51,7 +51,7 @@ Rules:
       (AGT-06). Core tests with the fake frame source counting its calls; confirm the existing window-capture source
       rules still cover "the game window only" and cite them in the test comment. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && node --test scripts/test/agent-source-rules.test.mjs`
-- [ ] T7 — Agent: the Party span records `panel_open` and `field` (one of `not_read`, `empty`, `masked`, `text`), with no
+- [x] T7 — Agent: the Party span records `panel_open` and `field` (one of `notRead`, `empty`, `masked`, `text`), with no
       text and no name; the span test pins the four fields and fails on any other (AGT-07, post-close item j). Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings`
 
