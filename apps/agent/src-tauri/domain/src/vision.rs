@@ -66,7 +66,7 @@ pub fn region_for(width: u32, height: u32) -> Option<Region> {
 
 #[cfg(test)]
 mod tests {
-    use super::{AUTOMAP_NAME_1080P, region_for};
+    use super::{AUTOMAP_NAME_1080P, Region, region_for};
 
     #[test]
     fn region_for_is_the_automap_block_at_1080p() {
@@ -89,5 +89,34 @@ mod tests {
         assert_eq!(AUTOMAP_NAME_1080P.y, 40);
         assert_eq!(AUTOMAP_NAME_1080P.width, 520);
         assert_eq!(AUTOMAP_NAME_1080P.height, 80);
+    }
+
+    /// ocr-protection: the middle column and row of a region, on the automap block of the maintainer's 1080p prints and on
+    /// small odd sizes (the middle is the integer half: an odd width leaves the extra pixel on the right).
+    #[test]
+    fn the_middle_of_a_region_is_its_origin_plus_half_its_size() {
+        assert_eq!(AUTOMAP_NAME_1080P.middle_x(), 1640);
+        assert_eq!(AUTOMAP_NAME_1080P.middle_y(), 80);
+        let odd = Region {
+            x: 3,
+            y: 7,
+            width: 5,
+            height: 9,
+        };
+        assert_eq!((odd.middle_x(), odd.middle_y()), (5, 11));
+        let one = Region {
+            x: 10,
+            y: 20,
+            width: 1,
+            height: 1,
+        };
+        assert_eq!((one.middle_x(), one.middle_y()), (10, 20));
+        let empty = Region {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+        };
+        assert_eq!(empty.middle_x(), 0);
     }
 }
