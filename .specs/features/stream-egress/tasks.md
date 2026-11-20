@@ -39,11 +39,11 @@ Rules:
       unit tests that the offline event goes to the owner's site only, once, and not before the 45 s limit, and the
       `@SEG-04` steps. No API code changes. Gate:
       `pnpm --filter @d2rmm/api exec vitest run src/modules/agents src/platform`
-- [ ] T5 — The site reads the agent's presence at most 12 times an hour, never while hidden, and once on becoming
+- [x] T5 — The site reads the agent's presence at most 12 times an hour, never while hidden, and once on becoming
       visible or on a stream reconnect (SEG-05). Component tests with fake timers and visibility, strings unchanged,
       and the `@SEG-05` steps. After T4. Gate:
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint && pnpm exec turbo run test:acceptance -- --grep @SEG-`
-- [ ] T6 — Show the bytes by event type and their change against the latest earlier nightly in the nightly report's load
+- [x] T6 — Show the bytes by event type and their change against the latest earlier nightly in the nightly report's load
       section (SEG-08), with and without a previous report. Gate: `node --test scripts/test/nightly-*.test.mjs`
 - [ ] T7 — Write `docs/engineering/stream-events.md`: each stream event type, its fields, its consumers, the fields each
       reads and the bytes from a T1 run; mark the fields no consumer reads (SEG-03, the audit). Gate:
