@@ -22,7 +22,7 @@ Rules:
 
 ## Batch 1
 
-- [ ] T1 — Agent: finish ARL-01 on top of the cherry-picked commit. The adapters parse the room's stage event for
+- [x] T1 — Agent: finish ARL-01 on top of the cherry-picked commit. The adapters parse the room's stage event for
       `expired` and `closed` into `RoomEnded`; core drops only the held room and stops its Party step. Unit tests cover
       both rooms and both stages. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core -p d2rmm-agent-adapters --lib && cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings`
