@@ -69,7 +69,23 @@ export interface CaptureDiagnostics {
   windowWidth: number | null;
   windowHeight: number | null;
   party: PartyLook | null;
+  // The method that gave the last usable frame, as the core's fixed word, or `none` (capture-cascade CAP-07).
+  method: CaptureMethodWord;
+  // The usable share of the last looks, a whole percent.
+  readRatePercent: number;
+  // Present when the game runs and no method gave a usable frame (CAP-02).
+  reason?: 'nothing';
 }
+
+export type CaptureMethodWord = 'print-window' | 'graphics-capture' | 'screen-crop' | 'none';
+
+// The key of each capture method's name in the locale files.
+const METHOD_KEYS: Record<CaptureMethodWord, string> = {
+  'print-window': 'diagnostics.capture.method.printWindow',
+  'graphics-capture': 'diagnostics.capture.method.graphicsCapture',
+  'screen-crop': 'diagnostics.capture.method.screenCrop',
+  none: 'diagnostics.capture.method.none',
+};
 
 export interface AgentView {
   pairing: PairingState;
@@ -159,7 +175,12 @@ export function diagnosticsLabels(diagnostics: Diagnostics): Label[] {
 // The capture lines of the diagnostics: the window size beside the frame (client) size, the frame content and the last Party
 // look of the held run. Shown after the lines `diagnosticsLabels` gives.
 export function captureLabels(capture: CaptureDiagnostics): Label[] {
-  const labels: Label[] = [];
+  const labels: Label[] = [{ key: METHOD_KEYS[capture.method] }];
+  if (capture.reason === 'nothing') {
+    labels.push({ key: 'diagnostics.capture.nothing' });
+  } else if (capture.method !== 'none') {
+    labels.push({ key: 'diagnostics.capture.rate', values: { percent: capture.readRatePercent } });
+  }
   if (capture.windowWidth !== null && capture.windowHeight !== null) {
     labels.push({
       key: 'diagnostics.window',
