@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { AGENT_CONFIG_MAX_BYTES } from '@d2rmm/contracts';
-import { AGENT_CONFIG_FILE, loadAgentConfig, parseAgentConfig } from './agent-config-file.ts';
+import { AGENT_CONFIG_FILE, loadAgentConfig, parseAgentConfig, digestOf } from './agent-config-file.ts';
 
 /**
  * The agent's built-in defaults (RCF-07), written down next to the Rust pinning tests of T10. The committed document
@@ -34,7 +34,8 @@ describe('the committed agent configuration (RCF-12)', () => {
   it('parses against the contract', () => {
     const served = loadAgentConfig();
     expect(served.version).toBe(1);
-    expect(served.etag).toBe('"agent-config-v1"');
+    expect(served.etag).toBe(`"agent-config-v1-${digestOf(served.body)}"`);
+    expect(digestOf(served.body)).toMatch(/^[0-9a-f]{16}$/);
   });
 
   it('holds exactly the agent defaults, at version 1', () => {
@@ -54,11 +55,21 @@ describe('the committed agent configuration (RCF-12)', () => {
 });
 
 describe('parseAgentConfig', () => {
+  it('tags the same version with another tag when the bytes change (an edit without a version bump)', () => {
+    const first = parseAgentConfig('{"version":3}');
+    const second = parseAgentConfig('{"version":3,"cadence":{"probeEvery":30}}');
+    expect(first.ok && second.ok).toBe(true);
+    if (first.ok && second.ok) {
+      expect(first.value.version).toBe(second.value.version);
+      expect(first.value.etag).not.toBe(second.value.etag);
+    }
+  });
+
   it('serves a document with only a version', () => {
     const parsed = parseAgentConfig('{"version": 7}');
     expect(parsed).toStrictEqual({
       ok: true,
-      value: { version: 7, body: '{"version":7}', etag: '"agent-config-v7"' },
+      value: { version: 7, body: '{"version":7}', etag: `"agent-config-v7-${digestOf('{"version":7}')}"` },
     });
   });
 

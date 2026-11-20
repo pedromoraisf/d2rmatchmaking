@@ -43,8 +43,9 @@ agent's domain and never read from the server.
 
 - **RCF-01** — The API SHALL serve the current configuration on `GET /v1/agents/config` to an agent token and to no one
   else: a session cookie alone, an unknown or revoked token and no credential SHALL answer `401`. The body SHALL be the
-  same for every agent (no account data), SHALL carry an `ETag` of its version, and a request whose `If-None-Match` names
-  that version SHALL answer `304` with no body. The route SHALL be on the agent route list of AGT-01.
+  same for every agent (no account data), SHALL carry an `ETag` of its version and its content (a digest of the served
+  bytes, so an edit with no version bump is not answered `304`), and a request whose `If-None-Match` names that tag SHALL
+  answer `304` with no body. The route SHALL be on the agent route list of AGT-01.
 - **RCF-02** — The configuration SHALL be a contract type (`AgentConfig`, Zod, generated JSON Schema and OpenAPI) with
   **closed** objects: a field outside the schema SHALL be refused by the API's own validation of the file it serves, and
   SHALL be ignored by the agent. No field SHALL be a free-form object, a regular expression, a path, a URL or a script.

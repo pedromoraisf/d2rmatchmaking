@@ -8,6 +8,10 @@ import { createGetAgentConfig } from '../../application/get-agent-config.ts';
 import { MemoryAgentConfigSource } from '../memory/memory-agent-config-source.ts';
 import { agentsRoutes, type AgentsRouteDeps } from './routes.ts';
 
+/** A digest of the served bytes, as the adapter computes it; the tests only need it to be stable. */
+const DIGEST = '0123456789abcdef';
+const TAG = `"agent-config-v2-${DIGEST}"`;
+
 let app: FastifyInstance | undefined;
 
 afterEach(async () => {
@@ -44,34 +48,34 @@ async function setup(served: ServedAgentConfig | undefined, allowed = true) {
 
 describe('GET /v1/agents/config', () => {
   it('serves the document as it was validated, tagged with its version', async () => {
-    const { app: server } = await setup(servedConfigOf(2, BODY));
+    const { app: server } = await setup(servedConfigOf(2, BODY, DIGEST));
     const response = await server.inject({ method: 'GET', url: '/v1/agents/config' });
     expect(response.statusCode).toBe(200);
     expect(response.body).toBe(BODY);
-    expect(response.headers['etag']).toBe('"agent-config-v2"');
+    expect(response.headers['etag']).toBe(TAG);
     expect(response.headers['cache-control']).toBe('no-cache');
     expect(response.headers['content-type']).toMatch(/^application\/json/);
   });
 
   it('answers 304 with no body when If-None-Match names the version', async () => {
-    const { app: server } = await setup(servedConfigOf(2, BODY));
+    const { app: server } = await setup(servedConfigOf(2, BODY, DIGEST));
     const response = await server.inject({
       method: 'GET',
       url: '/v1/agents/config',
-      headers: { 'if-none-match': '"agent-config-v2"' },
+      headers: { 'if-none-match': TAG },
     });
     expect(response.statusCode).toBe(304);
     expect(response.body).toBe('');
-    expect(response.headers['etag']).toBe('"agent-config-v2"');
+    expect(response.headers['etag']).toBe(TAG);
     expect(response.headers['cache-control']).toBe('no-cache');
   });
 
   it('serves the document again when If-None-Match names another version', async () => {
-    const { app: server } = await setup(servedConfigOf(2, BODY));
+    const { app: server } = await setup(servedConfigOf(2, BODY, DIGEST));
     const response = await server.inject({
       method: 'GET',
       url: '/v1/agents/config',
-      headers: { 'if-none-match': '"agent-config-v1"' },
+      headers: { 'if-none-match': `"agent-config-v1-${DIGEST}"` },
     });
     expect(response.statusCode).toBe(200);
     expect(response.body).toBe(BODY);
@@ -87,7 +91,7 @@ describe('GET /v1/agents/config', () => {
   });
 
   it('runs the version gate, then the agent guard, and stops at a refusal', async () => {
-    const { app: server, order } = await setup(servedConfigOf(2, BODY), false);
+    const { app: server, order } = await setup(servedConfigOf(2, BODY, DIGEST), false);
     const response = await server.inject({ method: 'GET', url: '/v1/agents/config' });
     expect(response.statusCode).toBe(401);
     expect(response.body).not.toContain('cadence');
@@ -95,7 +99,7 @@ describe('GET /v1/agents/config', () => {
   });
 
   it('sends the same bytes to every caller: no header or query changes the body', async () => {
-    const { app: server } = await setup(servedConfigOf(2, BODY));
+    const { app: server } = await setup(servedConfigOf(2, BODY, DIGEST));
     const first = await server.inject({ method: 'GET', url: '/v1/agents/config' });
     const second = await server.inject({
       method: 'GET',
@@ -106,8 +110,8 @@ describe('GET /v1/agents/config', () => {
   });
 
   it('serves a replaced document at once, raw, even when it is not valid JSON (staging test control)', async () => {
-    const { app: server, source } = await setup(servedConfigOf(2, BODY));
-    source.replace(servedConfigOf(3, 'not json'));
+    const { app: server, source } = await setup(servedConfigOf(2, BODY, DIGEST));
+    source.replace(servedConfigOf(3, 'not json', DIGEST));
     const response = await server.inject({ method: 'GET', url: '/v1/agents/config' });
     expect(response.statusCode).toBe(200);
     expect(response.body).toBe('not json');

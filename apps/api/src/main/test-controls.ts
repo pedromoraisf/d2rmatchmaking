@@ -9,6 +9,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { sql, type Kysely } from 'kysely';
 import { z } from 'zod';
+import { digestOf } from '../modules/agents/adapters/file/agent-config-file.ts';
 import { servedConfigOf, type ServedAgentConfig } from '../modules/agents/domain/agent-config.ts';
 import type { AnyDomainEvent, Clock, EventBus } from '../shared-kernel/index.ts';
 import type { AppDatabase } from './app.ts';
@@ -217,7 +218,9 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
     },
     async (request, reply) => {
       const { body, version } = request.body;
-      deps.stores.agentConfig.replace(body === null ? undefined : servedConfigOf(version ?? 1, body));
+      deps.stores.agentConfig.replace(
+        body === null ? undefined : servedConfigOf(version ?? 1, body, digestOf(body)),
+      );
       return reply.code(204).send(null);
     },
   );

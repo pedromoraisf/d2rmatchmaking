@@ -1,5 +1,6 @@
 // RCF-01 (NFR-06, AGT-01, AGT-02): `GET /v1/agents/config` answers an agent token and no one else, tags the document with
 // its version, answers 304 to a caller that holds it, and stops answering a revoked agent on its next request.
+import { digestOf } from '../../modules/agents/adapters/file/agent-config-file.ts';
 import { Writable } from 'node:stream';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
@@ -60,7 +61,7 @@ describe('GET /v1/agents/config (RCF-01)', () => {
     const response = await ask({ authorization: `Bearer ${token}` });
     expect(response.statusCode).toBe(200);
     const document = AgentConfig.parse(bodyOf(response));
-    expect(response.headers['etag']).toBe(`"agent-config-v${document.version}"`);
+    expect(response.headers['etag']).toBe(`"agent-config-v${document.version}-${digestOf(response.body)}"`);
     expect(response.headers['cache-control']).toBe('no-cache');
     expect(Object.keys(document).sort()).toEqual(['cadence', 'phrases', 'regions', 'thresholds', 'version']);
   });

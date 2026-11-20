@@ -1,5 +1,6 @@
 // The redelivery test control (AD-062) in process: the recording handler sits on the same bus the control publishes on,
 // so the real `onMatchFormed` consumer and the test both see every delivery. Child processes cannot be observed this way.
+import { digestOf } from '../../modules/agents/adapters/file/agent-config-file.ts';
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { Writable } from 'node:stream';
 import { Kysely, PostgresDialect } from 'kysely';
@@ -370,7 +371,7 @@ describe('the agent-config control (remote-config RCF-05, RCF-06)', () => {
     const raw = await served(app, token);
     expect(raw.statusCode).toBe(200);
     expect(raw.body).toBe(outOfRange);
-    expect(raw.headers['etag']).toBe('"agent-config-v7"');
+    expect(raw.headers['etag']).toBe(`"agent-config-v7-${digestOf(outOfRange)}"`);
 
     expect((await put(app, { version: 8, body: 'not json' }, SECRET)).statusCode).toBe(204);
     expect((await served(app, token)).body).toBe('not json');
