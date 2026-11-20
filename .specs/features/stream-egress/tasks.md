@@ -59,6 +59,8 @@ Rules:
       `ready_check.resolved` `outcome` (about 22 bytes an event) and the site's member `characterId`/`team` (about 50
       bytes a member, a change to the site's reducer): small against the 421,369 bytes measured, listed in
       `docs/engineering/stream-events.md`.
-- [ ] T9 — Run the full load before and after, write both in the PR description by event type, and propose the new
+- [x] T9 — Run the full load before and after, write both in the PR description by event type, and propose the new
       ceiling and baseline in `decisions.md → To confirm` (SEG-09). Gate:
-      `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`
+      `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`.
+      Run in the nightly (`-f suites=load`, runs 44784255075 and 44802474201, both green with the check), not here; the numbers
+      are in `load-T9.md`.
