@@ -16,7 +16,8 @@ publishes it. Installed agents read `latest.json` from the latest release (AGS-2
 3. The same workflow calls `release-agent.yml` with that tag (a tag made with `GITHUB_TOKEN` starts no `push: tags`
    run, so the call is the path). Three jobs run in order, and **nothing is public until the last one** (agent-release,
    AGR-01, AGR-02):
-   - `build` (`windows-latest`, `release` environment): `tauri-action` attaches the installer, its updater signature and
+   - `build` (`windows-latest`, `release` environment): reads `SIGNPATH_ENABLED` once (the output `signing`, which `sign`
+     and `publish` use), refuses a release that is already public, then `tauri-action` attaches the installer, its updater signature and
      `latest.json` to the draft. The API is woken (`/healthz`, retried for up to 90 s), then `--self-check --online` and
      the `--read-fixture` refusal run. Only after they pass does it attach `D2RMatchMaking-setup.exe` (a fixed name, so
      the site's download link never changes) and `SHA256SUMS`.
@@ -24,7 +25,9 @@ publishes it. Installed agents read `latest.json` from the latest release (AGS-2
      the draft's installer, `latest.json` and `SHA256SUMS` are replaced (`--clobber`, on a draft only).
    - `publish` (`windows-latest`, no secret): downloads the draft's assets, verifies the Authenticode signature of both
      installers (signed flow only: valid, and by `SIGNPATH_PUBLISHER`), checks the assets as a set
-     (`scripts/agent/release-assets.mjs`), and runs `gh release edit --draft=false`, once. It is marked Latest only when its
+     (`scripts/agent/release-assets.mjs`: only the expected asset names, `latest.json` with this repository's exact download
+     URL and no platform but `windows-x86_64`, and every `.sig` verified against its file with the updater key of
+     `tauri.conf.json`), and runs `gh release edit --draft=false`, once. It is marked Latest only when its
      tag is the newest `agent-v*` (`scripts/agent/publish-release.mjs`); a release that is already public is left alone.
 4. The first release after the merge is the phase review's proof (C43).
 
@@ -40,11 +43,14 @@ publishes it. Installed agents read `latest.json` from the latest release (AGS-2
 
 ### What a failure leaves behind
 
-| Where it fails                               | What is left                                                   | What to do                                                                 |
-| -------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `build` (compile, self-check, upload)        | the draft (maybe with some assets) and the tag                 | fix the cause, re-run the tag (`workflow_dispatch` of `release-agent.yml`) |
-| `sign` (rejected, timed out, never approved) | the draft with the **unsigned** assets; `publish` does not run | approve or re-submit and re-run; or take the fallback below                |
-| `publish` (asset check, signature check)     | the draft with the signed or unsigned assets                   | read the `::error::` line, fix the assets, re-run                          |
+| Where it fails                               | What is left                                                   | What to do                                                                                                                    |
+| -------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `build` (compile, self-check, upload)        | the draft (maybe with some assets) and the tag                 | fix the cause, re-run the tag (`workflow_dispatch` of `release-agent.yml`); `build` replaces the draft's assets (`--clobber`) |
+| `sign` (rejected, timed out, never approved) | the draft with the **unsigned** assets; `publish` does not run | approve or re-submit and re-run; or take the fallback below                                                                   |
+| `publish` (asset check, signature check)     | the draft with the signed or unsigned assets                   | read the `::error::` line, fix the assets, re-run                                                                             |
+
+A re-run is safe because every job that replaces assets first refuses a public release (`gh release view … isDraft`): a
+release that already went public is never edited, and re-running its tag fails at that guard with a clear message.
 
 A release is never public with an unsigned installer while signing is on, and `releases/latest` (the site's link, installed
 agents' `latest.json`) keeps the previous release until `publish` succeeds.

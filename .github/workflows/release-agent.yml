@@ -41,6 +41,8 @@ jobs:
       contents: write
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      # Whether this release is built for signing, decided once here: sign and publish use this output, never the variable.
+      signing: ${{ steps.signing.outputs.enabled }}
       unsigned-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
     steps:
       - name: Resolve and validate the tag
@@ -54,6 +56,31 @@ jobs:
             exit 1
           fi
           echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Read the signing switch once
+        id: signing
+        env:
+          SIGNPATH_ENABLED: ${{ vars.SIGNPATH_ENABLED }}
+        shell: bash
+        run: |
+          if [ "$SIGNPATH_ENABLED" = true ]; then enabled=true; else enabled=false; fi
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
+
+      # A --clobber below replaces assets of a release, which is only ever done on a draft: a public release is refused.
+      # No release yet (a maintainer's tag) is fine: the first build creates the draft.
+      - name: Refuse a release that is already public
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        shell: bash
+        run: |
+          if state="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)"; then
+            if [ "$state" != "true" ]; then
+              echo "::error::$TAG is already public; a public release is never edited or clobbered"
+              exit 1
+            fi
+          fi
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -161,6 +188,7 @@ jobs:
             exit 1
           fi
 
+      # --clobber: a re-run of the tag finds the assets of the failed run in the draft (the guard above refused a public one).
       - name: Attach the fixed-name installer and SHA256SUMS to the draft
         env:
           GH_TOKEN: ${{ github.token }}
@@ -172,11 +200,11 @@ jobs:
           cp "$installer" "$versioned"
           cp "$installer" D2RMatchMaking-setup.exe
           sha256sum "$versioned" D2RMatchMaking-setup.exe > SHA256SUMS
-          gh release upload "$TAG" D2RMatchMaking-setup.exe SHA256SUMS
+          gh release upload "$TAG" D2RMatchMaking-setup.exe SHA256SUMS --clobber
 
       - name: Keep the unsigned installer for SignPath
         id: unsigned
-        if: vars.SIGNPATH_ENABLED == 'true'
+        if: steps.signing.outputs.enabled == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: unsigned-installer
@@ -191,7 +219,7 @@ jobs:
     # this file; the release is not public until the `publish` job (AGR-01, AGR-02).
     name: sign installer
     needs: build
-    if: vars.SIGNPATH_ENABLED == 'true'
+    if: needs.build.outputs.signing == 'true'
     runs-on: windows-latest
     timeout-minutes: 60
     environment: release
@@ -254,6 +282,22 @@ jobs:
           gh release download "$TAG" --pattern latest.json --dir .
           node scripts/agent/latest-json.mjs --latest latest.json --signature "$installer.sig" --out latest.json
 
+      # A --clobber below replaces assets of a release, which is only ever done on a draft: a public release is refused.
+      # No release yet (a maintainer's tag) is fine: the first build creates the draft.
+      - name: Refuse a release that is already public
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        shell: bash
+        run: |
+          if state="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)"; then
+            if [ "$state" != "true" ]; then
+              echo "::error::$TAG is already public; a public release is never edited or clobbered"
+              exit 1
+            fi
+          fi
+
       - name: Replace the release assets with the signed ones
         env:
           GH_TOKEN: ${{ github.token }}
@@ -271,7 +315,7 @@ jobs:
     # no secret; the token is the job's own `contents: write`.
     name: publish release
     needs: [build, sign]
-    if: always() && needs.build.result == 'success' && (needs.sign.result == 'success' || needs.sign.result == 'skipped')
+    if: always() && needs.build.result == 'success' && (needs.sign.result == 'success' || (needs.sign.result == 'skipped' && needs.build.outputs.signing != 'true'))
     runs-on: windows-latest
     timeout-minutes: 20
     permissions:
@@ -308,7 +352,7 @@ jobs:
       # SignPath's output must be a valid signature by the expected publisher on both installers, or nothing is public.
       # SIGNPATH_PUBLISHER unset reads "not configured" and refuses (AGR-04).
       - name: Verify the Authenticode signature of the installers
-        if: vars.SIGNPATH_ENABLED == 'true'
+        if: needs.build.outputs.signing == 'true'
         env:
           EXPECTED_PUBLISHER: ${{ vars.SIGNPATH_PUBLISHER }}
         shell: pwsh
@@ -324,11 +368,12 @@ jobs:
           }
           if ($failed) { exit 1 }
 
+      # The URLs must be this repository's, and every .sig must verify with the updater key the tag ships (tauri.conf.json).
       - name: Check the assets as a set (installers, checksums, latest.json)
         shell: bash
         env:
           TAG: ${{ steps.tag.outputs.tag }}
-        run: node scripts/agent/release-assets.mjs --dir assets --tag "$TAG"
+        run: node scripts/agent/release-assets.mjs --dir assets --tag "$TAG" --repo "$GITHUB_REPOSITORY" --tauri-conf apps/agent/src-tauri/tauri.conf.json
 
       # "latest" only for the newest agent tag: a rerun for an older tag must not move the pointer back, and a release that
       # is already public is left alone (AGR-06).
@@ -339,6 +384,8 @@ jobs:
         shell: bash
         run: |
           is_draft="$(gh release view "$TAG" --json isDraft --jq .isDraft)"
+          # git ls-remote needs no credentials here: the repository is public, so `origin` answers anonymously even though the
+          # checkout kept none (persist-credentials: false).
           tags="$(git ls-remote --tags --refs origin 'agent-v*')"
           decision="$(node scripts/agent/publish-release.mjs --tag "$TAG" --draft "$is_draft" --tags "$tags")"
           case "$decision" in

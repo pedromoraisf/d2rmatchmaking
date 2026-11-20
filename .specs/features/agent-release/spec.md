@@ -29,18 +29,18 @@ maintainer's roles, contact email or the SignPath organisation is marked as wait
 
 - **AGR-01** — WHILE `vars.SIGNPATH_ENABLED` is `true` THEN a release SHALL become public, and Latest, only after the
   signed installer, its updater signature, the rewritten `latest.json`, the fixed-name installer and `SHA256SUMS` are
-  attached to it. Until then it SHALL stay a draft, so the download link and `releases/latest/download/latest.json` keep
+  attached to it. Whether signing is on is decided once, in `build`, and the later jobs use that output. Until then it SHALL stay a draft, so the download link and `releases/latest/download/latest.json` keep
   pointing at the previous release. WHILE it is not `true` THEN the release SHALL be published after the self-check, as
   today, unsigned.
 - **AGR-02** — The release SHALL be published by one step, in its own job that needs the `build` job and, when signing is
   on, the `sign` job. No step before it SHALL make a release public, and `--clobber` SHALL touch only a release that is
-  still a draft. A signing request that fails, is rejected or waits for approval SHALL leave the draft and its tag as they
+  still a draft, which the job checks first (`gh release view … isDraft`). A signing request that fails, is rejected or waits for approval SHALL leave the draft and its tag as they
   are and SHALL NOT publish an unsigned installer in its place.
 - **AGR-03** — Before publication the workflow SHALL run a tested checker over the draft's assets and refuse to publish
-  when any of these fails: the versioned installer, `D2RMatchMaking-setup.exe`, `SHA256SUMS` and `latest.json` are all
-  present; `D2RMatchMaking-setup.exe` and the versioned installer are byte-identical; every line of `SHA256SUMS` matches
-  the asset it names; `latest.json`'s `version` equals the tag's version; its `windows-x86_64` URL names the versioned
-  installer of this release; and its signature equals the `.sig` of that installer.
+  when any of these fails: the versioned installer, `D2RMatchMaking-setup.exe`, `SHA256SUMS` and `latest.json` are all present and no other asset is (an allowlist); `D2RMatchMaking-setup.exe` and the versioned installer are byte-identical; every line of `SHA256SUMS` matches
+  the asset it names; `latest.json`'s `version` equals the tag's version; it lists no platform but `windows-x86_64`; that entry's URL is exactly this
+  repository's download URL of the versioned installer of this tag; its signature equals the `.sig` of that installer;
+  and every `.sig` verifies against its file with the updater public key of `tauri.conf.json`.
 - **AGR-04** — WHILE signing is on THEN, before publication, the workflow SHALL verify that the installer to be published
   carries a valid Authenticode signature whose publisher is the expected one (a repository variable), and SHALL refuse to
   publish an installer that is unsigned, invalid or signed by another publisher.
@@ -50,8 +50,8 @@ maintainer's roles, contact email or the SignPath organisation is marked as wait
   first with a backoff of up to 90 s, and SHALL have refused `--read-fixture` with exit code 2 (AGS-33).
 - **AGR-06** — A re-run of a failed release (`workflow_dispatch` with the tag) SHALL resume from the draft that exists, and
   the publication SHALL be safe to repeat: a release that is already public is left as it is (no error, no change), and a
-  re-run of an older tag SHALL NOT move Latest back. (A whole re-run of a tag that is already public fails in `build`, which
-  never uses `--clobber`, and leaves the public release untouched.)
+  re-run of an older tag SHALL NOT move Latest back. (A whole re-run of a tag that is already public fails at the guard that opens `build` and leaves the public release
+  untouched; a re-run of a draft replaces its assets with `--clobber`.)
 - **AGR-07** — Agent 0.4.0, and every later release, SHALL be produced by the draft flow (release-please draft, build,
   self-check, publish) with every asset of AGR-03 attached. An agent already installed at 0.3.0 SHALL find the new
   `latest.json`, verify its updater signature and offer the update (AGS-24, AGS-26).

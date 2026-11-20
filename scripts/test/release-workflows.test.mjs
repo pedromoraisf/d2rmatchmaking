@@ -235,7 +235,7 @@ test('the installer is published as D2RMatchMaking-setup.exe with SHA256SUMS', (
     publish.run.includes('D2RMatchMaking-setup.exe SHA256SUMS'),
     'the installer and SHA256SUMS are uploaded',
   );
-  assert.ok(!JSON.stringify(job).includes('--clobber'), 'the build job never clobbers');
+  assert.ok(publish.run.includes('--clobber'), 'a re-run of the tag replaces the assets of the draft');
 });
 
 test('secrets live only in the release environment', () => {
@@ -280,8 +280,8 @@ test('SignPath signing runs only when enabled', () => {
   const sign = wf.jobs.sign;
   assert.equal(
     sign.if,
-    "vars.SIGNPATH_ENABLED == 'true'",
-    'the variable gates the job; secrets cannot gate it',
+    "needs.build.outputs.signing == 'true'",
+    'the switch is read once, in build, and the output gates the job; secrets cannot gate it',
   );
   assert.equal(sign.needs, 'build');
   assert.equal(sign.environment, 'release');
@@ -296,7 +296,7 @@ test('SignPath signing runs only when enabled', () => {
   const upload = findStep(buildJob(), (step) => step.uses?.startsWith('actions/upload-artifact@'));
   assert.equal(
     upload.if,
-    "vars.SIGNPATH_ENABLED == 'true'",
+    "steps.signing.outputs.enabled == 'true'",
     'the unsigned installer is kept only for signing',
   );
 
@@ -307,11 +307,61 @@ test('SignPath signing runs only when enabled', () => {
   );
 });
 
-test('--clobber is allowed only in the sign job', () => {
+// Every --clobber replaces assets of a release, so it is only ever done on a draft: the job first refuses a public release
+// (AGR-02, AGR-06). `build` clobbers on a re-run of the tag, `sign` replaces the unsigned assets; `publish` never clobbers.
+const GUARD_NAME = 'Refuse a release that is already public';
+const isGuard = (step) =>
+  typeof step.run === 'string' && step.run.includes('gh release view') && step.run.includes('isDraft');
+
+test('every --clobber is preceded in its job by the guard that refuses a public release', () => {
   const wf = releaseAgent();
   for (const [name, job] of Object.entries(wf.jobs)) {
-    const clobbers = JSON.stringify(job).includes('--clobber');
-    assert.equal(clobbers, name === 'sign', `${name} ${clobbers ? 'clobbers assets' : 'does not clobber'}`);
+    const steps = stepsOf(job);
+    steps.forEach((step, index) => {
+      if (typeof step.run !== 'string' || !step.run.includes('--clobber')) return;
+      assert.ok(steps.slice(0, index).some(isGuard), `${name}: a --clobber has no isDraft guard before it`);
+    });
+  }
+  assert.ok(JSON.stringify(wf.jobs.publish).includes('--clobber') === false, 'publish never clobbers');
+  for (const job of ['build', 'sign']) {
+    assert.ok(JSON.stringify(wf.jobs[job]).includes('--clobber'), `${job} clobbers, so it is guarded`);
+  }
+});
+
+test('build refuses a public release before tauri-action touches it', () => {
+  const job = buildJob();
+  const guard = indexOfStep(job, isGuard);
+  assert.ok(guard >= 0 && guard < indexOfStep(job, (step) => step === tauriAction(job)));
+  assert.equal(stepsOf(job)[guard].name, GUARD_NAME);
+  assert.ok(guard < indexOfStep(job, (step) => step.run?.includes('gh release upload')));
+});
+
+// The guard's own behaviour, run with a stand-in `gh`: no release yet (a maintainer's tag), a draft (a re-run) and a public
+// release (refused).
+test('the guard lets a new tag and a draft through, and refuses a public release', async () => {
+  const { mkdtempSync, writeFileSync, chmodSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { spawnSync } = await import('node:child_process');
+  const guard = (job) => stepsOf(job).find(isGuard).run;
+  const bin = mkdtempSync(path.join(tmpdir(), 'fake-gh-'));
+  const run = (script, answer) => {
+    const fake = path.join(bin, 'gh');
+    writeFileSync(fake, answer);
+    chmodSync(fake, 0o755);
+    return spawnSync('bash', ['-e', '-c', script], {
+      env: { PATH: `${bin}:${process.env.PATH}`, TAG: 'agent-v0.4.0' },
+      encoding: 'utf8',
+    });
+  };
+  for (const job of [releaseAgent().jobs.build, releaseAgent().jobs.sign]) {
+    const script = guard(job);
+    const draft = run(script, '#!/bin/sh\necho true\n');
+    assert.equal(draft.status, 0, `a draft is let through: ${draft.stderr}`);
+    const missing = run(script, '#!/bin/sh\necho "release not found" >&2\nexit 1\n');
+    assert.equal(missing.status, 0, 'no release yet: the first build creates the draft');
+    const published = run(script, '#!/bin/sh\necho false\n');
+    assert.equal(published.status, 1, 'a public release is refused');
+    assert.match(published.stdout, /::error::agent-v0\.4\.0 is already public/);
   }
 });
 
@@ -365,7 +415,7 @@ test('the API is woken, with retries, before the online self-check', () => {
 
 // Publish after sign (AGR-01, AGR-02): the release becomes public once, in its own job, after the signed assets are attached.
 const PUBLISH_IF =
-  "always() && needs.build.result == 'success' && (needs.sign.result == 'success' || needs.sign.result == 'skipped')";
+  "always() && needs.build.result == 'success' && (needs.sign.result == 'success' || (needs.sign.result == 'skipped' && needs.build.outputs.signing != 'true'))";
 const isRun = (text) => (step) => typeof step.run === 'string' && step.run.includes(text);
 
 test('the release is made public by one step, in the publish job, after build and sign', () => {
@@ -397,7 +447,11 @@ test('the draft is checked as a set, and its signature verified, before the rele
   assert.ok(assets < publish, 'the asset check comes before the publication');
   assert.ok(verify >= 0 && verify < publish, 'the signature check comes before the publication');
   const verifyStep = stepsOf(job)[verify];
-  assert.equal(verifyStep.if, "vars.SIGNPATH_ENABLED == 'true'", 'only a signed flow verifies a signature');
+  assert.equal(
+    verifyStep.if,
+    "needs.build.outputs.signing == 'true'",
+    'only a signed flow verifies a signature',
+  );
   assert.ok(
     JSON.stringify(verifyStep).includes('scripts/agent/signature-verdict.mjs'),
     'the verdict is the tested helper',
@@ -491,4 +545,40 @@ test('docs/engineering/releases.md names every variable and secret release-agent
   for (const name of new Set(read)) {
     assert.ok(runbook.includes(`\`${name}\``), `releases.md must name ${name}`);
   }
+});
+
+// AGR-01, AGR-10: whether the release is signed is decided once. Flipping the variable between the jobs of a run cannot skip
+// the signature check of a release that was built for signing.
+test('SIGNPATH_ENABLED is read once, in build, and the other jobs use its output', () => {
+  const wf = releaseAgent();
+  const text = readText(`.github/workflows/${RELEASE_AGENT}`);
+  assert.equal(text.match(/vars\.SIGNPATH_ENABLED/g)?.length, 1, 'the variable is named in one place');
+  const step = findStep(wf.jobs.build, (candidate) => candidate.id === 'signing');
+  assert.equal(step.env.SIGNPATH_ENABLED, '${{ vars.SIGNPATH_ENABLED }}');
+  assert.equal(wf.jobs.build.outputs.signing, '${{ steps.signing.outputs.enabled }}');
+  assert.match(step.run, /= true \]; then/, 'only the exact word true turns signing on');
+  assert.equal(
+    wf.jobs.publish.if,
+    PUBLISH_IF,
+    'publish needs a successful sign whenever the build was made for signing',
+  );
+});
+
+test('publish checks the assets of this repository with the updater key of the tag, and says why ls-remote works', () => {
+  const job = releaseAgent().jobs.publish;
+  const check = findStep(job, isRun('scripts/agent/release-assets.mjs'));
+  assert.ok(
+    check.run.includes('--repo "$GITHUB_REPOSITORY"'),
+    'the download URL is checked against this repository',
+  );
+  assert.ok(
+    check.run.includes('--tauri-conf apps/agent/src-tauri/tauri.conf.json'),
+    'the key is the one the tag ships',
+  );
+  const text = readText(`.github/workflows/${RELEASE_AGENT}`);
+  assert.match(
+    text,
+    /ls-remote[^\n]*\n?[^\n]*public|public[^\n]*\n?[^\n]*ls-remote/i,
+    'a comment explains the credential-less ls-remote',
+  );
 });
