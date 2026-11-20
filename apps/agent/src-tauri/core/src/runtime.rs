@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use d2rmm_agent_domain::fusion::fuse;
 use d2rmm_agent_domain::room_assignment::Assignment;
-use d2rmm_agent_domain::typing::{HotkeyAction, HotkeyChoice, HotkeyPair, HotkeyRefusal};
+use d2rmm_agent_domain::typing::HotkeyPair;
 use tokio::sync::{mpsc, watch};
 
 use crate::config::Config;
@@ -115,6 +115,9 @@ impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
     /// The fill hotkey's press (AST-01, AST-07): types the held room's game name and stops. Runs on its own task, so the
     /// window's thread never waits for the typing; the task ends with the outcome, or `None` when the press changed nothing
     /// of its own. `None` at once when the handle has no typing ports.
+    ///
+    /// It spawns with `tokio::spawn`, so it must be called inside the runtime's context (a task, or `Runtime::enter`): from a
+    /// plain thread it panics. The app calls it from `tauri::async_runtime::spawn`.
     pub fn fill_name(&self) -> Option<tokio::task::JoinHandle<Option<FillOutcome>>> {
         let typing = Arc::clone(self.typing.as_ref()?);
         let device = Arc::clone(&self.device);
@@ -132,22 +135,6 @@ impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
     /// Holds the hotkeys the app read from its local file (AST-01).
     pub fn set_hotkeys(&self, pair: HotkeyPair) {
         self.device.set_hotkeys(pair);
-    }
-
-    /// The player's choice for one hotkey (AST-01): the new pair, or why the combination is refused and nothing changes.
-    pub fn change_hotkey(
-        &self,
-        which: HotkeyAction,
-        combination: &str,
-    ) -> Result<HotkeyPair, HotkeyRefusal> {
-        let choice = HotkeyChoice::parse(combination)?;
-        let current = self.device.hotkeys();
-        let next = match which {
-            HotkeyAction::Accept => current.with_accept(choice)?,
-            HotkeyAction::Fill => current.with_fill(choice)?,
-        };
-        self.device.set_hotkeys(next);
-        Ok(next)
     }
 
     /// "Get a new code": honoured only while the pairing loop is paused (AGS-34).
@@ -246,7 +233,7 @@ mod tests {
     use d2rmm_agent_domain::language::LanguagePack;
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
 
-    use d2rmm_agent_domain::typing::{HotkeyAction, HotkeyRefusal, Modifiers};
+    use d2rmm_agent_domain::typing::{HotkeyChoice, HotkeyPair, Modifiers};
 
     use super::{Handle, Probe, Runtime};
     use crate::config::Config;
@@ -419,37 +406,17 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn a_changed_hotkey_is_held_shown_and_a_refused_one_changes_nothing() {
+    async fn the_hotkeys_the_app_sets_are_held_and_shown_in_the_view() {
         let (handle, _probe, _keyboard) = started();
+        assert_eq!(handle.hotkeys(), HotkeyPair::defaults());
 
-        let changed = handle
-            .change_hotkey(HotkeyAction::Fill, "alt+g")
-            .expect("a valid combination");
-        assert_eq!(changed.fill().to_string(), "Alt+G");
-        assert_eq!(handle.hotkeys(), changed);
+        let pair = HotkeyPair::defaults()
+            .with_fill(HotkeyChoice::parse("alt+g").expect("valid"))
+            .expect("a different key");
+        handle.set_hotkeys(pair);
+
+        assert_eq!(handle.hotkeys(), pair);
         assert_eq!(handle.device.hub.snapshot().hotkeys.fill, "Alt+G");
-
-        for (which, text, refusal) in [
-            (
-                HotkeyAction::Fill,
-                "Ctrl+Shift+Enter",
-                HotkeyRefusal::ConfirmingKey,
-            ),
-            (HotkeyAction::Fill, "G", HotkeyRefusal::NoModifier),
-            (
-                HotkeyAction::Fill,
-                "Ctrl+Shift+A",
-                HotkeyRefusal::SameAsOther,
-            ),
-            (HotkeyAction::Accept, "Alt+G", HotkeyRefusal::SameAsOther),
-            (
-                HotkeyAction::Accept,
-                "Ctrl+Home",
-                HotkeyRefusal::UnsupportedKey,
-            ),
-        ] {
-            assert_eq!(handle.change_hotkey(which, text), Err(refusal), "{text}");
-            assert_eq!(handle.hotkeys(), changed, "{text} left the pair as it was");
-        }
+        assert_eq!(handle.device.hub.snapshot().hotkeys.accept, "Ctrl+Shift+A");
     }
 }
