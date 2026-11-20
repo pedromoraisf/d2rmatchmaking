@@ -73,7 +73,7 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
       open font, never from a print. Gate:
       `CARGO run -p xtask -- draw-fixture characters && git diff --exit-code apps/agent/fixtures && CARGO nextest run -p xtask --lib`
       (the drawing is deterministic: a second run changes nothing; commit the new files first, then the gate)
-- [ ] T6 — **[R14]** The Party panel found at every supported client height (SCR-04). Pinning tests first (T2's ignored
+- [x] T6 — **[R14]** The Party panel found at every supported client height (SCR-04). Pinning tests first (T2's ignored
       case becomes the target). Widen the area `find_party` searches (`PanelRegion::PartyPanel` in `layout.rs`, a band like
       the HUD's if the 1920×1045 measurement shows the panel moves in y, never a larger fixed box guessed once), keeping the
       title, label and field rules as they are and the zero-wrong-confirmation rule (`game_name_match.rs` is not
