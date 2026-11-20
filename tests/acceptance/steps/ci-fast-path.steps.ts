@@ -31,6 +31,7 @@ interface Job {
   services?: Record<string, { image?: string }>;
   env?: Record<string, string>;
   steps?: Step[];
+  strategy?: { matrix?: { include?: Record<string, string>[] } };
 }
 
 interface Workflow {
@@ -223,16 +224,29 @@ Then(/^the agent mutation job runs on "([^"]+)"$/, ({ scenario }, runner: string
   own(scenario).job = 'agent-mutation';
 });
 
+// The nightly job is a matrix (nightly-report NGT-01): one cargo-mutants template, filled in for each crate or shard.
 Then('its three cargo mutants commands and report paths are the ones it had before', ({ scenario }) => {
-  const commands = runsOf(currentJob(scenario)).filter((run) => run.includes('cargo mutants'));
-  expect(commands.length, 'cargo mutants commands in the nightly').toBe(AGENT_CRATES.length);
+  const job = currentJob(scenario);
+  const template = runsOf(job).find((run) => run.includes('cargo mutants')) ?? '';
+  const commands = (job.strategy?.matrix?.include ?? []).map((entry) =>
+    template
+      .replace(/\$\{\{\s*matrix\.(\w+)\s*\}\}/gu, (_, key: string) => entry[key] ?? '')
+      .replace(/\s+/gu, ' ')
+      .trim(),
+  );
+  expect(commands.length, 'cargo mutants commands in the nightly').toBeGreaterThanOrEqual(
+    AGENT_CRATES.length,
+  );
   for (const crate of AGENT_CRATES) {
-    const command = commands.find((run) => run.includes(`--package d2rmm-agent-${crate} `));
-    expect(command, `cargo mutants for ${crate}`).toBeDefined();
-    expect(command ?? '', `${crate} report path`).toMatch(
-      new RegExp(`--output reports/mutation/agent-${crate}( |$)`, 'u'),
-    );
-    expect(command ?? '', `${crate} unit tests only`).toMatch(/ -- --lib$/u);
+    const forCrate = commands.filter((run) => run.includes(`--package d2rmm-agent-${crate} `));
+    expect(forCrate.length, `cargo mutants for ${crate}`).toBeGreaterThan(0);
+    for (const command of forCrate) {
+      // A sharded crate writes agent-<crate>-<k>, and the quality job merges the shards into agent-<crate>.
+      expect(command, `${crate} report path`).toMatch(
+        new RegExp(`--output reports/mutation/agent-${crate}(-\\d+)?( |$)`, 'u'),
+      );
+      expect(command, `${crate} unit tests only`).toMatch(/ -- --lib$/u);
+    }
   }
 });
 

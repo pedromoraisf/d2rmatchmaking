@@ -1,9 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
+import { parse } from 'yaml';
 
-const nightly = readFileSync('.github/workflows/nightly.yml', 'utf8');
-const runLine = nightly.split('\n').find((line) => /cargo mutants\b/.test(line)) ?? '';
+// The nightly runs cargo-mutants once per matrix entry (NGT-01). Each entry's command is the job's one template with
+// the entry's values filled in, so the checks below read the commands the nightly really runs, one per crate or shard.
+const workflow = parse(readFileSync('.github/workflows/nightly.yml', 'utf8'));
+const mutationJob = workflow.jobs['agent-mutation'];
+const template =
+  mutationJob.steps.map((step) => step.run ?? '').find((run) => /cargo mutants\b/.test(run)) ?? '';
+const expand = (entry) =>
+  template
+    .replace(/\$\{\{\s*matrix\.(\w+)\s*\}\}/g, (_, key) => entry[key] ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
+const nightlyCommands = mutationJob.strategy.matrix.include.map(expand);
+const nightly = nightlyCommands.join('\n');
+const runLine = nightlyCommands.find((line) => /--package d2rmm-agent-core\b/.test(line)) ?? '';
 
 test('the nightly cargo-mutants run targets the agent core and its unit tests only (ADR 026)', () => {
   assert.match(runLine, /--package d2rmm-agent-core\b/);
@@ -84,7 +97,6 @@ const packageOf = (commands, crate) =>
     (command) =>
       command.startsWith('cargo mutants') && flagOf(command, '--package') === `d2rmm-agent-${crate}`,
   );
-const nightlyCommands = nightly.split('\n').filter((line) => /cargo mutants\b/.test(line));
 
 test('the agent mutation command covers the three crates', () => {
   for (const crate of MUTATED_CRATES) {
@@ -109,9 +121,10 @@ test('each agent mutation command writes where the nightly writes', () => {
     const ours = packageOf(agentCommands, crate);
     const theirs = nightlyCommands.find((line) => flagOf(line, '--package') === `d2rmm-agent-${crate}`);
     assert.ok(ours && theirs, `both name d2rmm-agent-${crate}`);
+    // A sharded crate writes agent-<crate>-<k> in the nightly; the quality job merges the shards into agent-<crate>.
     assert.equal(
       flagOf(ours, '--output'),
-      flagOf(theirs, '--output'),
+      flagOf(theirs, '--output').replace(/-\d+$/, ''),
       `${crate} --output matches the nightly`,
     );
   }

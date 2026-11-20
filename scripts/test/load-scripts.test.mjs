@@ -243,7 +243,10 @@ test('load scripts are on demand only', () => {
     assert.ok(name in pkg.scripts, `${name} is a root script`);
     assert.doesNotMatch(pkg.scripts[name], LOAD_COMMAND, `${name} never runs the load`);
   }
+  // ADR 035 (NGT-08): the nightly runs the load, and only the nightly. No pull-request or other workflow does.
   for (const file of readdirSync(path.join(root, '.github', 'workflows'))) {
+    if (file === 'nightly.yml') continue;
     assert.doesNotMatch(read('.github', 'workflows', file), LOAD_COMMAND, `${file} never runs the load`);
   }
+  assert.match(read('.github', 'workflows', 'nightly.yml'), /pnpm test:load/u, 'the nightly runs the load');
 });
