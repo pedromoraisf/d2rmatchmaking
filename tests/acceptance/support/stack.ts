@@ -321,7 +321,9 @@ export async function startStack(workerIndex: number, runtime: string): Promise<
     return await retryOnPortInUse(() => startStackProcesses(workerIndex));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`the acceptance stack of worker ${workerIndex} (${runtime}) did not start: ${message}`);
+    throw new Error(`the acceptance stack of worker ${workerIndex} (${runtime}) did not start: ${message}`, {
+      cause: error,
+    });
   }
 }
 
@@ -542,7 +544,7 @@ export async function startTracedStack(options: TracedStackOptions): Promise<Tra
     return await retryOnPortInUse(() => startTracedProcesses(options));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`the traced acceptance stack did not start: ${message}`);
+    throw new Error(`the traced acceptance stack did not start: ${message}`, { cause: error });
   }
 }
 

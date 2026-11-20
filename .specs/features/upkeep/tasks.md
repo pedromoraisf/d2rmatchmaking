@@ -106,7 +106,7 @@ Rules:
       #16, #17, #18, #36, #38, #39, #42, #78 → the task that took it, or the reason it is closed: #14 and #15 as in the
       spec; any group a worker had to defer, with its last error). The orchestrator closes the PRs after the merge.
       Gate: `pnpm specs:check && pnpm exec prettier --check .specs && node scripts/acceptance-check.mjs upkeep`
-- [ ] T16 — Final: the whole feature together. Gate: `pnpm check`
+- [x] T16 — Final: the whole feature together. Gate: `pnpm check`
 
 ## Gate notes (run once on 2026-11-20 before writing)
 
