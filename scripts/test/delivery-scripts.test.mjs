@@ -2,6 +2,7 @@
 // smoke wake. Clocks and requests are injected: nothing here waits or touches the network.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { deploymentUrl } from '../delivery/deployment-url.mjs';
 import { pagesBranchFor, PHASE_PREVIEW_BRANCH } from '../delivery/pages.mjs';
 import { verdictOf, waitForVerdict } from '../delivery/ci-verdict.mjs';
 import { isSmokeJob, stagingSmokeRunId } from '../delivery/promotable.mjs';
@@ -260,4 +261,44 @@ test('the api smoke fails when another build answers; the site smoke needs the p
   assert.deepEqual(await smokeChecks('site', 'https://s.test/', undefined, io('unknown')), []);
   assert.equal((await smokeChecks('site', 'https://s.test', undefined, io('unknown', false))).length, 1);
   assert.equal((await smokeChecks('agent', 'https://s.test', SHA, io(SHA))).length, 1);
+});
+
+const WRANGLER = `
+ ⛅️ wrangler 4.0.0
+▲ [WARNING] See https://developers.cloudflare.com/pages/functions/ for more.
+✨ Compiled Worker successfully
+✨ Uploading Functions bundle
+🌎 Deploying...
+✨ Deployment complete! Take a peek over at https://1a2b3c4d.d2rmatchmaking.pages.dev
+`;
+
+test('the deployment URL is the project pages.dev host in wrangler output, not any other https link', () => {
+  assert.equal(deploymentUrl(WRANGLER, 'd2rmatchmaking'), 'https://1a2b3c4d.d2rmatchmaking.pages.dev');
+  assert.equal(
+    deploymentUrl('see https://d2rmatchmaking.pages.dev.', 'd2rmatchmaking'),
+    'https://d2rmatchmaking.pages.dev',
+  );
+  const both = `${WRANGLER}\nAlias: https://feat-x.d2rmatchmaking.pages.dev/\nDocs https://developers.cloudflare.com/pages/`;
+  assert.equal(
+    deploymentUrl(both, 'd2rmatchmaking'),
+    'https://feat-x.d2rmatchmaking.pages.dev',
+    'the last project URL wins',
+  );
+});
+
+test('a URL on another project, another host or another scheme is not a deployment URL', () => {
+  for (const output of [
+    'https://developers.cloudflare.com/pages/',
+    'https://1a2b.other-project.pages.dev',
+    'https://evil.example.com/d2rmatchmaking.pages.dev',
+    'https://d2rmatchmaking.pages.dev.evil.com',
+    'https://a.b.d2rmatchmaking.pages.dev',
+    'http://1a2b.d2rmatchmaking.pages.dev',
+    '',
+    undefined,
+  ]) {
+    assert.equal(deploymentUrl(output, 'd2rmatchmaking'), undefined, String(output));
+  }
+  assert.equal(deploymentUrl(WRANGLER, 'bad project'), undefined);
+  assert.equal(deploymentUrl(WRANGLER, undefined), undefined);
 });

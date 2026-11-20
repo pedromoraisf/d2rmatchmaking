@@ -93,7 +93,9 @@ jobs:
           CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
         run: |
           pnpm exec wrangler pages deploy dist --project-name "$CLOUDFLARE_PAGES_PROJECT" --branch main | tee deploy.log
-          echo "url=$(grep -Eo 'https://[^ ]+' deploy.log | tail -n 1)" >> "$GITHUB_OUTPUT"
+          # An assignment, so a refused URL fails the step (a substitution inside echo would hide it).
+          url=$(node ../../scripts/delivery/deployment-url.mjs deploy.log "$CLOUDFLARE_PAGES_PROJECT")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
 
   smoke:
     name: smoke

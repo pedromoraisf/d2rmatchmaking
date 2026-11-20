@@ -178,6 +178,20 @@ test('promote runs in the production environment, only from main, with the gate 
   }
 });
 
+test('the deployment URL comes from the strict parser, not from the last https:// of the log', () => {
+  for (const [file, job] of [
+    ['stage-deploy.yml', 'deploy'],
+    ['stage-promote.yml', 'promote'],
+  ]) {
+    const publish = stepsOf(workflow(file).jobs[job]).find((s) => s.id === 'publish');
+    assert.match(
+      publish.run,
+      /scripts\/delivery\/deployment-url\.mjs deploy\.log "\$CLOUDFLARE_PAGES_PROJECT"/,
+    );
+    assert.doesNotMatch(publish.run, /grep -Eo/);
+  }
+});
+
 test('smoke comes after the deploy it checks, and production smoke follows the promote', () => {
   const promoteWf = workflow('stage-promote.yml');
   assert.deepEqual(promoteWf.jobs.smoke.needs, ['promote']);
