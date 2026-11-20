@@ -111,5 +111,13 @@ real prints (`ocr-real`, `ocr-variations`) and by unit tests, not by Gherkin.
 - **Game-name reading items d, e, i and k** belong to `game-name-reading`. SCR-04 concerns only that the panel is found.
 - **Window-mode, brightness and legacy-graphics tasks wait for the maintainer's field matrix** (brief input 8d); the
   drawn fixtures and unit tests do not wait.
+- **The popup column lift is moved out of this PR** (#104 fix round 2, 2026-11-20). Commit 7d53fe17 read a popup's dimmed
+  card column again with its brightness lifted: select-screen 174 to 183 correct, select-difficulty 61 to 105, but wrong
+  43 to 46 against a ceiling of 43 (runs 44789327925 and 44813984040). The whole delta, per reason: select-screen
+  `card1-name sub(g>o)@6` 15 to 16, select-screen `card0-name sub(g>o)@6+level=11+title=None` 4 to 5, select-difficulty
+  `card1-level=1` 0 to 1 (new); every other reason is unchanged. They are lifted reads hitting the existing `o@6` class
+  that `server-name-match` handles at its root. The lift is reverted (the column-box pin stays); it can come back later
+  together with a stricter lifted read (every variant must agree on the name before a lifted frame yields a card), proved
+  on the real prints.
 - **Telemetry** carries counts and fixed words only (SCR-09); no new attribute holds read text.
 - **Exclusive full screen** is the capture cascade's (`capture-cascade`); this feature reads the frames it is given.

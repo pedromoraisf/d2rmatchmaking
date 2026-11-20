@@ -98,6 +98,9 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
       reasons of the 176 popup variations (reason classes only; the summary prints no read text), pin the reads that
       work, then change the popup logic only where a reason class shows a rule that refuses a readable popup. One change
       per commit, each pushed and proved: `ocr-real` green, `popup` correct count up, `wrong` not up. Gate: as T3
+      Moved out of this PR (#104 fix round 2): the popup column lift (7d53fe17, `CardColumnLifted`, `lift_dimmed`) is
+      reverted. It gained 53 correct (2356 to 2409) but cost 3 wrong (43 to 46, ceiling 43), see the spec Decisions. It can
+      come back together with a stricter lifted read.
 - [x] T10 — **[R14]** Unrecognised selection screens (item f, SCR-05). Same loop as T9 for the 104 screens read as
       `Unknown`: classes of reason first, then the smallest change per class (the list marker searched by its word in a
       wider area, as the HUD is). A frame that is not the selection screen must still read `Unknown` (the drawn
