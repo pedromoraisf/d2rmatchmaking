@@ -211,6 +211,7 @@ mod tests {
 
     use super::{FillControl, FillOutcome, FillPorts, press};
     use crate::device_state::DeviceState;
+    use crate::event_probe::EventProbe;
     use crate::fakes::{FakeKeyboard, NullSink};
 
     const KEYS: Modifiers = Modifiers {
@@ -460,6 +461,32 @@ mod tests {
             rig.device.hub.snapshot().last_fill,
             Some(FillOutcome::RefusedFocus)
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn every_fill_records_one_event_with_the_outcome_and_no_name_or_key() {
+        let probe = EventProbe::default();
+        let _guard = probe.install();
+        let rig = holding(Some("mmbaalh-12"));
+        assert_eq!(one_press(&rig).await, Some(FillOutcome::Typed));
+        assert_eq!(
+            one_press(&rig).await,
+            None,
+            "a press that does nothing records nothing"
+        );
+        tokio::time::advance(Duration::from_secs(3)).await;
+        rig.keyboard.set_focused(false);
+        assert_eq!(one_press(&rig).await, Some(FillOutcome::RefusedFocus));
+
+        let events = probe.named("agent.fill");
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].fields["outcome"], "\"typed\"");
+        assert_eq!(events[1].fields["outcome"], "\"refused-focus\"");
+        for event in probe.events() {
+            assert_eq!(event.fields.len(), 1, "only the outcome: {event:?}");
+            let shown = format!("{event:?}");
+            assert!(!shown.contains("mmbaalh"), "no game name in {shown}");
+        }
     }
 
     #[test]

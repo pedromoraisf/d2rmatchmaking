@@ -48,7 +48,7 @@ Rules:
       (`typed`, `stopped`, `no-room`, `no-focus`, `game-running`, `keys-held`, `refused`) and carries no text. Unit tests
       on the view's JSON. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib`
-- [ ] T4 — Core: one span event per fill with the outcome and no name, text or key (AST-10). Unit tests with the
+- [x] T4 — Core: one span event per fill with the outcome and no name, text or key (AST-10). Unit tests with the
       in-memory exporter, including that no attribute value equals the game name. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib`
 - [ ] T5 — Window UI: both hotkeys with a field to change each, the refusal reason, and the fill status line, with the

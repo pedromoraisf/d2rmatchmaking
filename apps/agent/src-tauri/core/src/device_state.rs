@@ -149,7 +149,9 @@ impl DeviceState {
     }
 
     /// Shows what a fill did and keeps it until the next one (AST-08).
+    /// Records it as one span event with the outcome code and nothing else: no name, no text, no key (AST-10).
     pub fn record_fill(&self, outcome: FillOutcome) {
+        tracing::info!(outcome = outcome.as_str(), "agent.fill");
         self.hub.set_last_fill(outcome);
     }
 
