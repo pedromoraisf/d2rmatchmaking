@@ -52,7 +52,7 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
       line changes, and no test is ignored. Gate:
       `CARGO nextest run -p d2rmm-agent-domain -p d2rmm-agent-core --lib` and
       `CARGO clippy --all-targets -- -D warnings`
-- [ ] T3 — **[R14]** Resume item a from `origin/feat/agent-ingame-band-search` (SCR-01, SCR-02). Cherry-pick `4e190ad`
+- [x] T3 — **[R14]** Resume item a from `origin/feat/agent-ingame-band-search` (SCR-01, SCR-02). Cherry-pick `4e190ad`
       and `9d6f963` (`hud_track.rs`, `ScreenRegion::HudBand`, `find_hud`, the `Mana:` word in `language.rs` and
       `resources/lang/en.json`, the core reader's tracker). Read both diffs line by line first: the fixed "Life:" box stays
       the first check, the band is read only without the list marker, and a tracked miss searches the band again.

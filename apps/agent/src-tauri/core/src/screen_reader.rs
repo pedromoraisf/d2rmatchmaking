@@ -1099,6 +1099,29 @@ mod hud_tests {
     }
 
     #[test]
+    fn the_life_label_is_found_at_every_client_height_of_the_prints() {
+        // The label at 826/1033 of the height, 400 px from the left, for the heights of the maintainer's prints.
+        for height in [1033u32, 1045, 1056, 1080] {
+            let hud = Hud::new(vec![life(400, 826 * height / 1033 + 8)]);
+            let reading = reader(&hud).read(&frame(1920, height));
+            assert_eq!(reading.screen, Screen::InGame, "1920×{height}");
+        }
+    }
+
+    #[test]
+    fn a_find_at_one_client_size_is_not_tracked_at_another_after_a_loss() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        assert_eq!(screens.read(&frame(1920, 1080)).screen, Screen::InGame);
+        hud.lines.lock().expect("lines").clear();
+        assert_eq!(screens.read(&frame(1920, 1080)).screen, Screen::Unknown);
+        *hud.lines.lock().expect("lines") = vec![life(400, 834)];
+        hud.take_asked();
+        assert_eq!(screens.read(&frame(1920, 1045)).screen, Screen::InGame);
+        assert_eq!(band_reads(&hud.take_asked()), 1, "a new size searches");
+    }
+
+    #[test]
     fn after_a_find_only_a_small_box_around_the_line_is_read() {
         let hud = Hud::new(vec![life(436, 880)]);
         let screens = reader(&hud);
