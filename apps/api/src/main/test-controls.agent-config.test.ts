@@ -21,13 +21,14 @@ afterEach(async () => {
   app = undefined;
 });
 
-async function setup() {
+async function setup(database: { name: string; host: string } = { name: 'acc_w0', host: '127.0.0.1' }) {
   const source = new MemoryAgentConfigSource(COMMITTED);
   app = Fastify();
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   registerTestControls(app, {
     secret: SECRET,
+    database,
     stores: { agentConfig: source },
   } as unknown as TestControlDeps);
   const put = (payload: object, secret: string | undefined = SECRET) =>
@@ -66,6 +67,20 @@ describe('PUT /__test/agent-config', () => {
     await put({ body: null });
     source.reset();
     expect(source.current()).toStrictEqual(COMMITTED);
+  });
+
+  it('answers 403 and changes nothing on a database that is not a per-worker acceptance one on loopback', async () => {
+    for (const database of [
+      { name: 'd2rmm', host: '127.0.0.1' },
+      { name: 'acc_w1', host: 'db.example.test' },
+      { name: 'acc_wx', host: 'localhost' },
+    ]) {
+      const { source, put } = await setup(database);
+      const response = await put({ version: 3, body: '{"version":3}' });
+      expect(response.statusCode).toBe(403);
+      expect(source.current()).toStrictEqual(COMMITTED);
+      await app?.close();
+    }
   });
 
   it('answers 403 and changes nothing without the secret', async () => {

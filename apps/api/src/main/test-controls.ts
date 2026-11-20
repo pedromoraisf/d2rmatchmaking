@@ -217,6 +217,10 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
       },
     },
     async (request, reply) => {
+      // Like reset: only on a per-worker acceptance database on loopback (AD-045), never on any other database.
+      if (!onAcceptanceDatabase(deps)) {
+        return reply.code(403).send({ error: 'forbidden' });
+      }
       const { body, version } = request.body;
       deps.stores.agentConfig.replace(
         body === null ? undefined : servedConfigOf(version ?? 1, body, digestOf(body)),
