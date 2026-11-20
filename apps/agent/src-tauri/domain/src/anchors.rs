@@ -434,6 +434,28 @@ pub fn padded(region: Region, pad: u32, width: u32, height: u32) -> Region {
     }
 }
 
+/// The box to read the Party panel in on the next frames, once its label was found (screen-recognition T6, as the HUD's
+/// tracked box): from above the title to under the field, and from left of the label to right of the title, clamped to the
+/// frame. Measured on the prints: the title sits 42 px above the label and 100 px to its right (1033 reference).
+pub fn party_track_box(label: Region, frame_width: u32, frame_height: u32) -> Region {
+    let x = label.x.saturating_sub(scaled(60, frame_height));
+    let y = label.y.saturating_sub(scaled(75, frame_height));
+    let right = label
+        .x
+        .saturating_add(scaled(280, frame_height))
+        .min(frame_width);
+    let bottom = label
+        .bottom()
+        .saturating_add(scaled(75, frame_height))
+        .min(frame_height);
+    Region {
+        x,
+        y,
+        width: right.saturating_sub(x),
+        height: bottom.saturating_sub(y),
+    }
+}
+
 /// The padding of a line's box, in pixels of a client `height` px high: 3 px on the reference client, never less than 2.
 pub fn line_pad(frame_height: u32) -> u32 {
     scaled(3, frame_height).max(2)
@@ -1074,6 +1096,47 @@ mod tests {
         for other in ["vukVuka", "Level 88 Sorceress", "MATRIARCH", ""] {
             assert!(!is_tab_line(&pack(), other), "{other}");
         }
+    }
+
+    #[test]
+    fn the_tracked_party_box_holds_the_title_and_the_field_of_the_measured_prints() {
+        use super::party_track_box;
+        let r = |x, y, width, height| Region {
+            x,
+            y,
+            width,
+            height,
+        };
+        // (height, label, title, field) in the boxes the `ocr-real` diagnostics measured: 1033 English, 1045 pt-BR.
+        for (height, label, title, field) in [
+            (
+                1033,
+                r(275, 159, 86, 10),
+                r(367, 117, 67, 15),
+                r(267, 189, 103, 8),
+            ),
+            (
+                1045,
+                r(264, 171, 40, 9),
+                r(364, 129, 71, 15),
+                r(269, 199, 95, 10),
+            ),
+        ] {
+            let tracked = party_track_box(label, 1920, height);
+            for inner in [label, title, field] {
+                assert!(
+                    tracked.x <= inner.x
+                        && tracked.y <= inner.y
+                        && inner.right() <= tracked.right()
+                        && inner.bottom() <= tracked.bottom(),
+                    "{inner:?} in {tracked:?} at {height}"
+                );
+            }
+            assert!(tracked.width < 400 && tracked.height < 240, "a small box");
+        }
+        // Clamped to the frame.
+        let edge = party_track_box(r(1800, 1000, 90, 12), 1920, 1033);
+        assert!(edge.right() <= 1920 && edge.bottom() <= 1033);
     }
 
     #[test]

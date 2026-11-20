@@ -6,7 +6,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use d2rmm_agent_core::messages::FrameReading;
-use d2rmm_agent_core::party::read_panel;
+use d2rmm_agent_core::party::read_panel_for;
 use d2rmm_agent_core::ports::{FrameReader, Rgba, TextReader};
 use d2rmm_agent_core::screen_reader::ScreenReader;
 use d2rmm_agent_domain::anchors;
@@ -157,7 +157,7 @@ pub fn check_party_reads(
         ));
     }
     // The panel is read as the agent reads it: by the lines of its area, the field being the line under the label.
-    let panel = read_panel(reader, &language, image);
+    let panel = read_panel_for(reader, &language, image, Some(expected_name), None);
     let field: Vec<String> = panel.field.iter().map(|read| read.text.clone()).collect();
     let field_text = if show_reads {
         format!(", field {field:?}")
@@ -325,7 +325,7 @@ pub fn anchor_line(
 ) -> String {
     let yes = |found: bool| if found { "yes" } else { "no" };
     if name.starts_with("maintainer-party") {
-        let panel = read_panel(reader, &LanguagePack::english(), image);
+        let panel = read_panel_for(reader, &LanguagePack::english(), image, None, None);
         return format!(
             "  anchors: title found {}, game-name label found {}, game-name field read {}",
             yes(panel.open),

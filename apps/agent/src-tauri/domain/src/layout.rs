@@ -90,6 +90,9 @@ pub enum PanelRegion {
     /// used, matched, returned, logged or sent (the lines are read once, and only the title, the Game Name label and the
     /// field are looked for). The three boxes above are where the drawn fixtures put the text; the agent does not read them.
     PartyPanel,
+    /// The first, cheap area the Party lines are searched in: the box measured on the 1033 English client (title, label and
+    /// field). `PartyPanel` is read only when this one finds no title or no label, and the box found there is tracked.
+    PartyFixed,
 }
 
 /// The box of `panel` in pixels of the reference client. The Party panel is anchored at the left edge.
@@ -99,6 +102,7 @@ pub fn panel_box(panel: PanelRegion) -> PanelBox {
         PanelRegion::GameNameLabel => PanelBox::new(Anchor::Left, 268, 152, 100, 18),
         PanelRegion::GameNameField => PanelBox::new(Anchor::Left, 238, 172, 156, 38),
         PanelRegion::PartyPanel => PanelBox::new(Anchor::Left, 0, 0, 576, 413),
+        PanelRegion::PartyFixed => PanelBox::new(Anchor::Left, 230, 100, 250, 170),
     }
 }
 
@@ -914,6 +918,12 @@ mod pin_fixed_boxes {
         assert_eq!(party(1045), Some(r(0, 0, 583, 418)));
         assert_eq!(party(1056), Some(r(0, 0, 589, 422)));
         assert_eq!(party(1080), Some(r(0, 0, 602, 432)));
+        // The cheap first area keeps the box T2 pinned.
+        let fixed = |height| panel_region(PanelRegion::PartyFixed, 1920, height);
+        assert_eq!(fixed(1033), Some(r(230, 100, 250, 170)));
+        assert_eq!(fixed(1045), Some(r(233, 101, 253, 172)));
+        assert_eq!(fixed(1056), Some(r(235, 102, 256, 174)));
+        assert_eq!(fixed(1080), Some(r(240, 105, 261, 178)));
         assert_eq!(life(1033), Some(r(400, 826, 160, 22)));
         assert_eq!(life(1045), Some(r(405, 836, 162, 22)));
         assert_eq!(life(1056), Some(r(409, 844, 164, 22)));
