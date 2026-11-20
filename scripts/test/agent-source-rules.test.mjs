@@ -174,7 +174,11 @@ const adapterPathViolations = (base) =>
 // can do nothing but type Unicode characters and read three modifier keys. The agent never confirms an action in the game.
 const TYPING_ADAPTER = 'src/adapters/typing.rs';
 const INPUT_NAMES =
-  /\b(?:SendInput|GetAsyncKeyState|GetKeyState|GetKeyboardState|keybd_event|mouse_event|KeyboardAndMouse|SendMessageW|PostMessageW)\b/;
+  /\b(?:SendInput|GetAsyncKeyState|GetKeyState|GetKeyboardState|SetKeyboardState|SetCursorPos|keybd_event|mouse_event|KeyboardAndMouse|(?:SendMessage|PostMessage|SendNotifyMessage|SendMessageTimeout|PostThreadMessage)[AW]?)\b/;
+// What the typing adapter may not name, though it is the one file allowed to send input (AST-09): it calls SendInput and
+// GetAsyncKeyState, nothing else of the list above.
+const TYPING_BANNED_NAMES =
+  /\b(?:GetKeyState|GetKeyboardState|SetKeyboardState|SetCursorPos|keybd_event|mouse_event|(?:SendMessage|PostMessage|SendNotifyMessage|SendMessageTimeout|PostThreadMessage)[AW]?)\b/g;
 
 // Comments out, string-aware: a `//` or `/*` inside a string or char literal hides nothing, and a quote inside a comment
 // opens nothing. Newlines are kept so line anchors still work.
@@ -289,6 +293,9 @@ const typingAdapterViolations = (base) => {
     ) ?? [],
   )) {
     violations.push(`${TYPING_ADAPTER} uses ${name}: no mouse, hardware or clipboard input`);
+  }
+  for (const name of new Set(code.match(TYPING_BANNED_NAMES) ?? [])) {
+    violations.push(`${TYPING_ADAPTER} names ${name}: it may only call SendInput and GetAsyncKeyState`);
   }
   const constructions = code.match(/\bKEYBDINPUT\s*\{/g) ?? [];
   if (constructions.length !== 1) {
@@ -585,6 +592,36 @@ test('a double slash inside a string literal hides no code from the typing rules
     withoutComments('let a = "x // y"; // z\nlet b = 1; /* c */').trim(),
     'let a = "x // y"; \nlet b = 1;',
   );
+});
+
+test('every other way to send input or move the cursor is an input name, and the typing adapter names none', () => {
+  const names = [
+    'SendMessageA',
+    'SendMessageW',
+    'PostMessageA',
+    'PostMessageW',
+    'SendNotifyMessageA',
+    'SendNotifyMessageW',
+    'SendMessageTimeoutA',
+    'SendMessageTimeoutW',
+    'PostThreadMessageA',
+    'PostThreadMessageW',
+    'SetCursorPos',
+    'SetKeyboardState',
+    'keybd_event',
+    'mouse_event',
+  ];
+  for (const name of names) {
+    assert.ok(INPUT_NAMES.test(`let _ = ${name};`), `${name} is an input name`);
+  }
+  assert.match(
+    inputOutsideTypingViolations(fixtureBase('input-outside-typing-variants')).join('\n'),
+    /window_capture\.rs names an input function/,
+  );
+  const violations = typingAdapterViolations(fixtureBase('typing-other-input')).join('\n');
+  for (const name of [...names, 'GetKeyState', 'GetKeyboardState']) {
+    assert.match(violations, new RegExp(`names ${name}:`), name);
+  }
 });
 
 test('the typing adapter rule rejects mouse, hardware and clipboard input and a send without Unicode', () => {
