@@ -52,6 +52,17 @@ export async function healthzAccepts(response, expectedSha) {
  * The checks of one app. `site`: the page answers 200 with an HTML body, then the API behind its proxy answers
  * `/api/healthz` ok. `api`: `/healthz` answers the deployed SHA. Returns a list of failure messages (empty = pass).
  */
+async function describe(result) {
+  if (result.response === undefined) return 'no answer';
+  let body = '';
+  try {
+    body = (await result.response.text()).slice(0, 200).replace(/\s+/g, ' ');
+  } catch {
+    body = '';
+  }
+  return `last answer ${result.response.status} ${body}`;
+}
+
 export async function smokeChecks(app, url, sha, io) {
   const base = url.replace(/\/+$/, '');
   const failures = [];
@@ -65,12 +76,16 @@ export async function smokeChecks(app, url, sha, io) {
       ...asks,
       accept: async (r) => r.status === 200 && /text\/html/.test(r.headers.get('content-type') ?? ''),
     });
-    if (!page.ok) failures.push(`the page ${base}/ did not answer 200 HTML`);
+    if (!page.ok) failures.push(`the page ${base}/ did not answer 200 HTML (${await describe(page)})`);
     const api = await wakeAndRead(`${base}/api/healthz`, { ...asks, accept: (r) => healthzAccepts(r) });
-    if (!api.ok) failures.push(`${base}/api/healthz did not answer ok within ${WAKE_BUDGET_MS / 1000} s`);
+    if (!api.ok)
+      failures.push(
+        `${base}/api/healthz did not answer ok within ${WAKE_BUDGET_MS / 1000} s (${await describe(api)})`,
+      );
   } else if (app === 'api') {
     const health = await wakeAndRead(`${base}/healthz`, { ...asks, accept: (r) => healthzAccepts(r, sha) });
-    if (!health.ok) failures.push(`${base}/healthz did not answer ok with version ${sha}`);
+    if (!health.ok)
+      failures.push(`${base}/healthz did not answer ok with version ${sha} (${await describe(health)})`);
   } else {
     failures.push(`no smoke checks for app "${app}"`);
   }
