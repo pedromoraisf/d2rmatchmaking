@@ -5,6 +5,7 @@ import {
   RoomAssignedEvent,
   RoomMemberChangedEvent,
   RoomRunOpenedEvent,
+  AgentReadyCheckStartedEvent,
   AgentRoomAssignedEvent,
   AgentRoomRunOpenedEvent,
   AgentRoomStageChangedEvent,
@@ -72,6 +73,29 @@ describe('stream events', () => {
     expect(AgentStreamEvent.parse(lean)).toStrictEqual(lean);
     expect(AgentRoomRunOpenedEvent.safeParse(opened).success).toBe(false);
     expect(RoomRunOpenedEvent.parse(opened)).toStrictEqual(opened);
+    expect(SiteStreamEvent.safeParse(lean).success).toBe(false);
+  });
+
+  it('gives the agent an open ready check with an empty member list, and keeps the list for the site (SEG-03)', () => {
+    const started = {
+      type: 'ready_check.started',
+      data: {
+        id: 'rc-1',
+        mode: 'pvp',
+        difficulty: 'hell',
+        deadline: '2026-11-10T12:01:00.000Z',
+        now: '2026-11-10T12:00:00.000Z',
+        members: [
+          { position: 1, class: 'sorceress', level: 90, accepted: false, you: true },
+          { position: 2, class: 'barbarian', level: 84, accepted: false, you: false },
+        ],
+      },
+    };
+    const lean = { type: 'ready_check.started', data: { ...started.data, members: [] } };
+    expect(AgentReadyCheckStartedEvent.parse(lean)).toStrictEqual(lean);
+    expect(AgentStreamEvent.parse(lean)).toStrictEqual(lean);
+    expect(AgentStreamEvent.safeParse(started).success).toBe(false);
+    expect(SiteStreamEvent.parse(started)).toStrictEqual(started);
     expect(SiteStreamEvent.safeParse(lean).success).toBe(false);
   });
 

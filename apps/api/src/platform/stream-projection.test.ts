@@ -389,6 +389,29 @@ describe('projectStreamEvent: ready checks (RDY-01, RDY-02, RDY-03)', () => {
     });
   });
 
+  it("gives the agent's copy of the open check no members, and the site's its members (SEG-03)", async () => {
+    const deliveries = await projectStreamEvent(started, agents);
+
+    const toAgents = deliveries.filter((delivery) => delivery.stream === 'agent');
+    expect(toAgents).toHaveLength(2);
+    for (const delivery of toAgents) {
+      expect(delivery.event).toStrictEqual({
+        type: 'ready_check.started',
+        data: {
+          id: 'rc-1',
+          mode: 'pvp',
+          difficulty: 'hell',
+          deadline: '2026-11-10T12:01:00.000Z',
+          now: '2026-11-10T12:00:00.000Z',
+          members: [],
+        },
+      });
+    }
+    for (const delivery of deliveries.filter((candidate) => candidate.stream === 'site')) {
+      expect(delivery.event.type === 'ready_check.started' && delivery.event.data.members).toHaveLength(2);
+    }
+  });
+
   it('never carries an account id in the check body the recipient reads', async () => {
     const deliveries = await projectStreamEvent(started, agents);
     // The routing fields (`accountId`, `agentId`) stay in the envelope; the event body names nobody.

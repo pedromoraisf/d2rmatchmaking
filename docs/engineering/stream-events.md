@@ -30,7 +30,7 @@ agent's parser (`apps/agent/src-tauri/adapters/src/http/sse.rs`).
 | `agent.presence_changed` | site (owner)                                      | `agentId`, `online`, `gameRunning`, `screen`                                                             | 149                  |
 | `characters.updated`     | site                                              | none (`{}`)                                                                                              | 36                   |
 | `queue.updated`          | site                                              | the ticket (`id`, `status`, `mode`, `options`, `joinedAt`, `band`, `poolSize`) or `left` with its reason | 250 (waiting)        |
-| `ready_check.started`    | site, agent                                       | `id`, `mode`, `difficulty`, `deadline`, `now`, `members[]`                                               | 343                  |
+| `ready_check.started`    | site; agent (members emptied, SEG-03)             | `id`, `mode`, `difficulty`, `deadline`, `now`, `members[]`                                               | 343                  |
 | `ready_check.updated`    | site                                              | the same view with new marks                                                                             | about 343            |
 | `ready_check.resolved`   | site, agent                                       | `id`, `outcome`                                                                                          | 102                  |
 
@@ -54,14 +54,14 @@ for a member in a room.
 
 ## What no consumer reads
 
-| Event and field                                                    | Sent to | Saves per event (two members)      |
-| ------------------------------------------------------------------ | ------- | ---------------------------------- |
-| `room.stage_changed` `members` (agent's copy)                      | agent   | 318 bytes, **done (SEG-01)**       |
-| `room.assigned` `members` (agent's copy)                           | agent   | about 340 bytes, **done (SEG-03)** |
-| `room.run_opened` `members` (agent's copy)                         | agent   | about 340 bytes, **done (SEG-03)** |
-| `ready_check.started` `mode`, `difficulty`, `members`              | agent   | about 230 bytes                    |
-| `ready_check.resolved` `outcome`                                   | agent   | about 22 bytes                     |
-| member `characterId` and `team`, in every event that lists members | site    | about 50 bytes a member            |
+| Event and field                                                                                                        | Sent to | Saves per event (two members)      |
+| ---------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------------------- |
+| `room.stage_changed` `members` (agent's copy)                                                                          | agent   | 318 bytes, **done (SEG-01)**       |
+| `room.assigned` `members` (agent's copy)                                                                               | agent   | about 340 bytes, **done (SEG-03)** |
+| `room.run_opened` `members` (agent's copy)                                                                             | agent   | about 340 bytes, **done (SEG-03)** |
+| `ready_check.started` `members` (agent's copy); `mode` and `difficulty` stay (short, and an older agent requires them) | agent   | about 150 bytes, **done (SEG-03)** |
+| `ready_check.resolved` `outcome`                                                                                       | agent   | about 22 bytes                     |
+| member `characterId` and `team`, in every event that lists members                                                     | site    | about 50 bytes a member            |
 
 The site's `room.stage_changed` carries the members only so the confirmed marks stay current; a stage change that changes no
 mark could carry none, which is a change to the site's reducer, not a dropped field (batch 2 decides it from the measured

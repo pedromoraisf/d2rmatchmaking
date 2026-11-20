@@ -165,7 +165,12 @@ export async function projectStreamEvent(
         });
         const agentId = await agents.currentAgentOf(member.accountId);
         if (agentId !== null) {
-          deliveries.push({ stream: 'agent', agentId, event: { type: 'ready_check.started', data } });
+          // The agent's hotkey reads the id and the deadline: its copy keeps the key with no members (stream-egress SEG-03).
+          deliveries.push({
+            stream: 'agent',
+            agentId,
+            event: { type: 'ready_check.started', data: { ...data, members: [] } },
+          });
         }
       }
       return deliveries;

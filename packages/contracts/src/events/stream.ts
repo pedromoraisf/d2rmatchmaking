@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { Assignment } from '../http/lobby.ts';
 import { Id, Member, RoomStage, Screen } from '../http/common.ts';
 import { QueueLeft, QueueTicketView } from '../http/queues.ts';
-import { ReadyCheckResolved, ReadyCheckView } from '../http/ready-checks.ts';
+import { ReadyCheckMember, ReadyCheckResolved, ReadyCheckView } from '../http/ready-checks.ts';
 
 export const RoomAssignedEvent = z.object({
   type: z.literal('room.assigned'),
@@ -101,6 +101,15 @@ export const ReadyCheckStartedEvent = z.object({
 });
 export type ReadyCheckStartedEvent = z.infer<typeof ReadyCheckStartedEvent>;
 
+// The agent's copy of an open check: the id, the mode, the difficulty and the two instants, with an empty member list. The
+// agent's hotkey reads the id and the deadline (RDY-07) and nothing of the members (stream-egress SEG-03). The key stays,
+// as `[]`, for an agent from before this change.
+export const AgentReadyCheckStartedEvent = z.object({
+  type: z.literal('ready_check.started'),
+  data: ReadyCheckView.extend({ members: z.array(ReadyCheckMember).max(0) }),
+});
+export type AgentReadyCheckStartedEvent = z.infer<typeof AgentReadyCheckStartedEvent>;
+
 // A member accepted, or the check changed for the members still in it (RDY-02): the same view, with the new marks.
 export const ReadyCheckUpdatedEvent = z.object({
   type: z.literal('ready_check.updated'),
@@ -137,7 +146,7 @@ export const AgentStreamEvent = z.discriminatedUnion('type', [
   AgentRoomAssignedEvent,
   AgentRoomStageChangedEvent,
   AgentRoomRunOpenedEvent,
-  ReadyCheckStartedEvent,
+  AgentReadyCheckStartedEvent,
   ReadyCheckResolvedEvent,
 ]);
 export type AgentStreamEvent = z.infer<typeof AgentStreamEvent>;
