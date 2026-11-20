@@ -90,9 +90,14 @@ Rules:
 - [x] T13 — UPK-11, group 4 (ESLint majors): `eslint`, `@eslint/*`, `typescript-eslint` in one step; fix new findings
       in the code, never by relaxing a rule or adding an ignore (rule 4). Gate:
       `pnpm install && pnpm lint && pnpm typecheck && pnpm test`
-- [ ] T14 — UPK-11, group 5 (Playwright): `@playwright/test` 1.65 with the `playwright-bdd` version its changelog lists
+- [x] T14 — UPK-11, group 5 (Playwright): `@playwright/test` 1.65 with the `playwright-bdd` version its changelog lists
       for it (ADR 023); if none is listed, stop and defer with the reason in `decisions.md`. Gate:
       `pnpm install && pnpm --filter @d2rmm/acceptance typecheck && DOCKER_CONFIG=<dir with {}> pnpm exec turbo run test:acceptance -- --grep "@UPK-"`
+      Done with `@playwright/test` ~1.65.1; `playwright-bdd` 9.2.1 already accepts `>=1.44`. Found on the way: T11's
+      `instrumentation-pg` 0.78.0 needs `@opentelemetry/api` 1.10 (it pulls `instrumentation` 0.301), which stopped the
+      staging API under node ESM (`Named export 'logs' not found`) while the unit and integration suites stayed green; only
+      the acceptance stack saw it. It is back at 0.76.0 in this commit, and #38 joins #39 in the deferred OpenTelemetry
+      group. Proof: `@UPK-`, `@ARL-05`, `@QUE-15`, `@RDY-07` pass (8) on 1.65.1.
 - [ ] T15 — UPK-11: write the Dependabot outcome table in `.specs/phases/F2/decisions.md` (one row per PR: #13, #14, #15,
       #16, #17, #18, #36, #38, #39, #42, #78 → the task that took it, or the reason it is closed: #14 and #15 as in the
       spec; any group a worker had to defer, with its last error). The orchestrator closes the PRs after the merge.
