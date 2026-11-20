@@ -87,17 +87,17 @@ Names only, never values. Nothing below costs money: every service and database 
 
 ### 4. GitHub
 
-| Where                                 | Kind     | Name                                         | Value is                                                         |
-| ------------------------------------- | -------- | -------------------------------------------- | ---------------------------------------------------------------- |
-| environment `production` (exists)     | secret   | `NEON_DATABASE_URL`                          | the production Neon connection string                            |
-| environment `production`              | secret   | `RENDER_DEPLOY_HOOK`                         | the deploy hook of `d2rmm-api-production`                        |
-| environment `production`              | variable | `API_BASE_URL`                               | the production service URL (https origin)                        |
-| environment `production`              | variable | `D2RMM_ENV`                                  | `production` (the marker a promotion requires, see below)        |
-| repository (already set, for staging) | secret   | `NEON_DATABASE_URL`, `RENDER_DEPLOY_HOOK`    | staging's; keep them                                             |
-| repository (already set, for staging) | variable | `API_BASE_URL`                               | the staging service URL; keep it                                 |
-| repository                            | variable | `PRODUCTION_API_URL`                         | the production service URL, for keep-awake                       |
-| repository                            | variable | `KEEP_AWAKE_WINDOW` (optional)               | `HH:MM-HH:MM <IANA zone>`; default 16:00-02:00 America/Sao_Paulo |
-| repository                            | variable | `API_STAGES_LIVE` (set last, at the cutover) | `true`                                                           |
+| Where                                 | Kind     | Name                                         | Value is                                                                                    |
+| ------------------------------------- | -------- | -------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| environment `production` (exists)     | secret   | `NEON_DATABASE_URL`                          | the production Neon connection string                                                       |
+| environment `production`              | secret   | `RENDER_DEPLOY_HOOK`                         | the deploy hook of `d2rmm-api-production`                                                   |
+| environment `production`              | variable | `API_BASE_URL`                               | the production service URL (https origin)                                                   |
+| environment `production`              | variable | `D2RMM_ENV`                                  | `production` (the marker a promotion requires, see below)                                   |
+| repository (already set, for staging) | secret   | `NEON_DATABASE_URL`, `RENDER_DEPLOY_HOOK`    | staging's; keep them                                                                        |
+| repository (already set, for staging) | variable | `API_BASE_URL`                               | the staging service URL; keep it                                                            |
+| repository                            | variable | `PRODUCTION_API_URL`                         | the production service URL, an `https://` origin (anything else is ignored), for keep-awake |
+| repository                            | variable | `KEEP_AWAKE_WINDOW` (optional)               | `HH:MM-HH:MM <IANA zone>`; default 16:00-02:00 America/Sao_Paulo                            |
+| repository                            | variable | `API_STAGES_LIVE` (set last, at the cutover) | `true`                                                                                      |
 
 The environments `staging` and `preview` are optional: when they exist, `stage-deploy` gets an `environment:` and the
 staging secrets move into them. Inside `production`, the environment's secret wins over the repository one of the same

@@ -2,7 +2,13 @@
 // exclusive. São Paulo has no daylight saving time since 2019, so UTC-3 holds the whole year.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DEFAULT_WINDOW, isInsideWindow, minuteOfDay, parseWindow } from '../delivery/awake-window.mjs';
+import {
+  DEFAULT_WINDOW,
+  httpsOrigin,
+  isInsideWindow,
+  minuteOfDay,
+  parseWindow,
+} from '../delivery/awake-window.mjs';
 
 /** The instant that reads `hh:mm` in São Paulo (UTC-3) on 2026-11-20. */
 const at = (hh, mm = 0) => new Date(Date.UTC(2026, 10, 20, hh + 3, mm));
@@ -79,5 +85,41 @@ test('an unset, empty, malformed or zero-length window means the default', () =>
     assert.equal(parseWindow(bad), undefined, String(bad));
     assert.equal(isInsideWindow(at(20), bad), true, `${bad} at 20:00`);
     assert.equal(isInsideWindow(at(9), bad), false, `${bad} at 09:00`);
+  }
+});
+
+test('only an https origin is a ping target; its exact origin is returned', () => {
+  assert.equal(
+    httpsOrigin('https://d2rmm-api-production.onrender.com'),
+    'https://d2rmm-api-production.onrender.com',
+  );
+  assert.equal(
+    httpsOrigin('https://d2rmm-api-production.onrender.com/'),
+    'https://d2rmm-api-production.onrender.com',
+  );
+  assert.equal(httpsOrigin(' https://api.example.test:8443 '), 'https://api.example.test:8443');
+  assert.equal(httpsOrigin('HTTPS://API.Example.test'), 'https://api.example.test');
+});
+
+test('http, other schemes, user info, paths, queries, fragments, blanks and junk are refused', () => {
+  for (const bad of [
+    'http://d2rmm-api-production.onrender.com',
+    'ftp://api.example.test',
+    'javascript:alert(1)',
+    `https://${'user'}:${'word'}@api.example.test`, // built, not written out: a literal would look like a credential
+    'https://user@api.example.test',
+    'https://api.example.test/healthz',
+    'https://api.example.test/?x=1',
+    'https://api.example.test/#x',
+    'https://',
+    '//api.example.test',
+    'api.example.test',
+    '',
+    '   ',
+    undefined,
+    null,
+    42,
+  ]) {
+    assert.equal(httpsOrigin(bad), undefined, String(bad));
   }
 });

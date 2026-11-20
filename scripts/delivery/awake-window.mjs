@@ -46,13 +46,41 @@ export function isInsideWindow(now, window) {
     : minute >= rule.startMinute || minute < rule.endMinute;
 }
 
+/**
+ * The exact origin of `value` when it is an `https://` origin (a host, an optional port, at most a trailing slash), else
+ * undefined: no other scheme, no user info, no path, query or fragment. keep-awake pings only an origin it accepts, so a
+ * mistyped or hostile variable cannot send the ping elsewhere.
+ */
+export function httpsOrigin(value) {
+  let url;
+  try {
+    url = new URL(String(value ?? '').trim());
+  } catch {
+    return undefined;
+  }
+  const clean =
+    url.protocol === 'https:' &&
+    url.hostname !== '' &&
+    url.username === '' &&
+    url.password === '' &&
+    url.pathname === '/' &&
+    url.search === '' &&
+    url.hash === '';
+  return clean ? url.origin : undefined;
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  // `awake-window.mjs [window]`: prints `inside=true` or `inside=false` (a line for $GITHUB_OUTPUT).
+  // `awake-window.mjs [window] [url]`: prints `inside=true|false` and `target=<https origin>|` (lines for $GITHUB_OUTPUT).
   const text = process.argv[2] ?? '';
+  const url = process.argv[3] ?? '';
+  const target = httpsOrigin(url);
+  if (url.trim() !== '' && target === undefined) {
+    process.stderr.write('::warning::PRODUCTION_API_URL is not an https:// origin; nothing is pinged\n');
+  }
   if (text.trim() !== '' && parseWindow(text) === undefined) {
     process.stderr.write(
       `::warning::KEEP_AWAKE_WINDOW is not "HH:MM-HH:MM <zone>"; using ${DEFAULT_WINDOW}\n`,
     );
   }
-  process.stdout.write(`inside=${isInsideWindow(new Date(), text)}\n`);
+  process.stdout.write(`inside=${isInsideWindow(new Date(), text)}\ntarget=${target ?? ''}\n`);
 }

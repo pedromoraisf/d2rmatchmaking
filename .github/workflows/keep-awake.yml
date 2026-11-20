@@ -35,17 +35,15 @@ jobs:
         id: window
         env:
           KEEP_AWAKE_WINDOW: ${{ vars.KEEP_AWAKE_WINDOW }}
-        run: node scripts/delivery/awake-window.mjs "$KEEP_AWAKE_WINDOW" >> "$GITHUB_OUTPUT"
+          PRODUCTION_API_URL: ${{ vars.PRODUCTION_API_URL }}
+        # Prints `inside=` and `target=`: the target is PRODUCTION_API_URL only when it is an https origin.
+        run: node scripts/delivery/awake-window.mjs "$KEEP_AWAKE_WINDOW" "$PRODUCTION_API_URL" >> "$GITHUB_OUTPUT"
 
       - name: Ping production /healthz
-        if: steps.window.outputs.inside == 'true'
+        if: steps.window.outputs.inside == 'true' && steps.window.outputs.target != ''
         env:
-          PRODUCTION_API_URL: ${{ vars.PRODUCTION_API_URL }}
+          PRODUCTION_API_URL: ${{ steps.window.outputs.target }}
         run: |
-          if [ -z "$PRODUCTION_API_URL" ]; then
-            echo "::notice::PRODUCTION_API_URL is not set; nothing to keep awake"
-            exit 0
-          fi
           # A sleeping service answers after 30 to 60 s, so one long request wakes it; no loop, no hammering.
           curl -fsS --max-time 90 --output /dev/null "$PRODUCTION_API_URL/healthz"
           echo "production answered"

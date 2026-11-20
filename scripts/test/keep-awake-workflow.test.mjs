@@ -35,7 +35,14 @@ test('the window is asked before the ping, and the ping runs only when inside', 
   const ping = job.steps.findIndex((s) => s.run?.includes('/healthz'));
   assert.ok(ask >= 0 && ping > ask);
   assert.equal(job.steps[ask].id, 'window');
-  assert.equal(job.steps[ping].if, "steps.window.outputs.inside == 'true'");
+  assert.equal(
+    job.steps[ping].if,
+    "steps.window.outputs.inside == 'true' && steps.window.outputs.target != ''",
+    'the ping needs the window and a validated target',
+  );
+  assert.equal(job.steps[ping].env.PRODUCTION_API_URL, '${{ steps.window.outputs.target }}');
+  assert.equal(job.steps[ask].env.PRODUCTION_API_URL, '${{ vars.PRODUCTION_API_URL }}');
+  assert.match(job.steps[ask].run, /awake-window\.mjs "\$KEEP_AWAKE_WINDOW" "\$PRODUCTION_API_URL"/);
   assert.equal(job.steps[ask].env.KEEP_AWAKE_WINDOW, '${{ vars.KEEP_AWAKE_WINDOW }}');
 });
 
