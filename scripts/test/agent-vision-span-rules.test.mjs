@@ -14,6 +14,9 @@ const coreSrc = path.join(root, 'apps/agent/src-tauri/core/src');
 const ALLOWED_FIELDS = new Set([
   'matched',
   'masked',
+  // agent-trust AGT-07: a bool and a fixed FieldState code (notRead, empty, masked, text).
+  'panel_open',
+  'field',
   'screen',
   'cards',
   'vision.screen',
