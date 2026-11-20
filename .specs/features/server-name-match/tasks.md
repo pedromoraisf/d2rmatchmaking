@@ -36,10 +36,10 @@ Rules:
       (SNM-03, SNM-08); `d2r.observation.match` on the span. Unit tests with fakes (matched, none, ambiguous, repeat,
       non-member, stage unchanged, no outbox row) and an integration test. Gate:
       `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api test:integration`
-- [ ] T5 — Privacy test (SNM-04, API half): a distinctive name sent through the observation and the characters routes
+- [x] T5 — Privacy test (SNM-04, API half): a distinctive name sent through the observation and the characters routes
       appears in no span, span event, metric label, log line, outbox row, table row or response. Use the in-memory
       exporter, the log sink and a scan of the new rows; scan every attribute key, not only the ones the spec names
-      (lessons). Gate: `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api test:integration`
+      (lessons). Done for the characters path (harness `name-leak-scan.ts`); the observation path joins it with T4. Gate: `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api test:integration`
 - [ ] T6 — Docs: write ADR 036 as **Proposed** (a chat name may leave the PC to be matched and dropped; matching on the
       API, not the agent), add the new spans and counters to `docs/engineering/telemetry.md`, and note the two player
       observations in `docs/domain/glossary.md`. Never write an `Accepted` or `Approved` line. Gate:
