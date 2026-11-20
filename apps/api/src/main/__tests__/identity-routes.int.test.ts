@@ -610,6 +610,34 @@ describe('character routes', () => {
     expect((await listCharacters(cookie)).json()).toEqual({ characters: [] });
   });
 
+  it('updates the stored character when the screen misread a letter of its name (SNM-07)', async () => {
+    const { cookie } = await freshSession();
+    const token = await pairedAgentToken(cookie);
+    expect((await postCharacters(token, [SORC])).statusCode).toBe(204);
+    const id = await firstCharacterId(cookie);
+    await declareCharacter(id, { ladder: 'non-ladder', era: 'rotw' }, { cookie });
+
+    const misread = await postCharacters(token, [{ ...SORC, name: 'Sgrc', level: 86 }]);
+
+    expect(misread.statusCode).toBe(204);
+    const listed = (await listCharacters(cookie)).json().characters;
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toMatchObject({ id, name: 'Sorc', level: 86, ladder: 'non-ladder', era: 'rotw' });
+  });
+
+  it('adds a second character when the misread card is another class (SNM-07)', async () => {
+    const { cookie } = await freshSession();
+    const token = await pairedAgentToken(cookie);
+    await postCharacters(token, [SORC]);
+
+    await postCharacters(token, [{ ...SORC, name: 'Sgrc', class: 'paladin' }]);
+
+    const names = (await listCharacters(cookie))
+      .json()
+      .characters.map((character: { name: string }) => character.name);
+    expect(names.sort()).toEqual(['Sgrc', 'Sorc']);
+  });
+
   it('lets the player declare ladder and era, and keeps them through the next reading (CHR-15)', async () => {
     const { cookie } = await freshSession();
     const token = await pairedAgentToken(cookie);

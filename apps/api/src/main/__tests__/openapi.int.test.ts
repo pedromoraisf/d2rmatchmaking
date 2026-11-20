@@ -103,7 +103,13 @@ describe('openapi document', () => {
     // The schemas travel with the routes: a body where the route takes one, and every declared status.
     const observation = document.paths['/v1/lobby-rooms/{id}/observations']?.['post'];
     expect(observation?.requestBody).toBeDefined();
-    expect(Object.keys(observation?.responses ?? {}).sort()).toStrictEqual(['202', '400', '401', '403']);
+    expect(Object.keys(observation?.responses ?? {}).sort()).toStrictEqual([
+      '202',
+      '400',
+      '401',
+      '403',
+      '429',
+    ]);
     // The room actions take an empty JSON body and answer 204, or 401, 403, 404 or 409 (LBR-06, LBR-07, LBR-09).
     for (const action of ['runs', 'leave', 'close']) {
       const operation = document.paths[`/v1/lobby-rooms/{id}/${action}`]?.['post'];
