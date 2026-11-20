@@ -111,3 +111,56 @@ Then('the agent is not told anything', async ({ world }) => {
     "nothing reaches the agent's own stream",
   ).toEqual([]);
 });
+
+// --- SEG-05: the site reads an online agent a few times an hour, and never while the page is hidden -------------------
+
+/** The reads of the agent's presence the page has made, and how many it had made when the player's site finished loading. */
+const presenceReadsAtLoad = new WeakMap<World, number>();
+const presenceReads = (world: World): number =>
+  world.currentVisitor.requests.filter((request) => request.url.includes('/agents/me')).length;
+const TEN_MINUTES = '10:00';
+const SETTLE_MS = 1_000;
+
+Given('a signed-in player whose site shows the agent online', async ({ world }) => {
+  const agent = await world.pairAgent('Alice');
+  expect((await agent.heartbeat(ONLINE)).status, "Alice's agent is online").toBe(204);
+  const session = await world.sessionOf('Alice');
+  const visitor = await world.newVisitor();
+  // The browser's clock is the page's own: ten minutes pass in a moment, and nothing of the API moves.
+  await visitor.page.clock.install();
+  const previous = world.pendingSessionCookie;
+  world.pendingSessionCookie = session;
+  try {
+    await world.openSite(visitor);
+  } finally {
+    world.pendingSessionCookie = previous;
+  }
+  world.player('Alice').visitor = visitor;
+  await expect(visitor.page.getByText('Agent online', { exact: true })).toBeVisible({ timeout: 10_000 });
+  presenceReadsAtLoad.set(world, presenceReads(world));
+});
+
+When('ten minutes pass with the page in view', async ({ world }) => {
+  await world.currentVisitor.page.clock.runFor(TEN_MINUTES);
+  await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+});
+
+When('ten minutes pass with the page hidden', async ({ world }) => {
+  const page = world.currentVisitor.page;
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.clock.runFor(TEN_MINUTES);
+  await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+});
+
+Then('the site has asked about the agent at most two times', ({ world }) => {
+  const asked = presenceReads(world) - (presenceReadsAtLoad.get(world) ?? 0);
+  expect(asked, 'reads of the agent in ten minutes').toBeLessThanOrEqual(2);
+});
+
+Then('the site has not asked about the agent', ({ world }) => {
+  const asked = presenceReads(world) - (presenceReadsAtLoad.get(world) ?? 0);
+  expect(asked, 'reads of the agent while the page is hidden').toBe(0);
+});

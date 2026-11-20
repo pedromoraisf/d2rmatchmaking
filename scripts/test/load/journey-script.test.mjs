@@ -14,6 +14,13 @@ test('the presence read is 12 an hour: one per player every 300 seconds', () => 
   assert.equal(3600 / PRESENCE_EVERY_SECONDS, 12);
 });
 
+test('the site reads at the rate the journey does', () => {
+  const app = readFileSync(path.join(root, 'apps/web/src/app/App.tsx'), 'utf8');
+  const match = /export const AGENT_PRESENCE_REREAD_MS = ([0-9_]+);/.exec(app);
+  assert.ok(match, 'the site names its presence read interval');
+  assert.equal(Number(match[1].replace(/_/g, '')), PRESENCE_EVERY_SECONDS * 1000);
+});
+
 test('the journey reads each player presence once per period, as the site does', () => {
   const scenario = journey.slice(journey.indexOf('presence: {'), journey.indexOf('match: {'));
   assert.match(scenario, /executor: 'constant-arrival-rate'/);

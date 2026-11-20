@@ -52,8 +52,12 @@ interface Ready {
 type Boot = { status: 'loading' } | { status: 'waking' } | { status: 'failed' } | Ready;
 
 const defaultClient = createApiClient(tracingFetcher((url, init) => fetch(url, init)));
-/** How often an online agent is read again. 45 s offline mark + this stays under the 60 s of ARL-06. */
-export const AGENT_PRESENCE_REREAD_MS = 10_000;
+/**
+ * How often an agent shown online is read again: 12 times an hour (stream-egress SEG-05). The API tells the site once when
+ * an agent goes quiet, within a second of its 45 s limit, so this read is only the safety net for an event that was lost.
+ * The load journey reads at the same rate (`PRESENCE_EVERY_SECONDS`, scripts/load/lib/journey-state.mjs).
+ */
+export const AGENT_PRESENCE_REREAD_MS = 300_000;
 
 const defaultOpenStream: StreamOpener = (handlers) => openSiteStream(handlers);
 
@@ -240,16 +244,17 @@ export function App({ client = defaultClient, openStream = defaultOpenStream, sl
     });
   }, [signedIn, openStream, refreshSite, refreshCharacters, refreshRoomMarks]);
 
-  // The agent is read again while it shows online (ARL-06). The API marks an agent offline 45 s after its last heartbeat and
-  // says so once, as a transient event that is never replayed; a browser keeps a half-dead event stream open without
-  // noticing. A lost event would leave "online" on screen until the next page load. The read gives the API's own answer
-  // (computed from the last heartbeat), so the state is wrong for at most one interval past the 45 s.
+  // The agent is read again while it shows online (ARL-06, SEG-05). The API marks an agent offline 45 s after its last
+  // heartbeat and says so once, as a transient event that is never replayed; a browser keeps a half-dead event stream open
+  // without noticing. A lost event would leave "online" on screen until the next page load. The read gives the API's own
+  // answer (computed from the last heartbeat). It runs every AGENT_PRESENCE_REREAD_MS while the page is in view, never while
+  // it is hidden, and once when the page comes back into view, so a tab that slept does not show a stale agent.
   const agentShownOnline = signedIn && boot.agent?.status === 'paired' && boot.agent.online;
   useEffect(() => {
     if (!agentShownOnline) {
       return undefined;
     }
-    const timer = window.setInterval(() => {
+    const read = () => {
       const seen = streamEvents.current;
       void client.myAgent().then((agent) => {
         // An event that arrived while the read ran is newer than the answer.
@@ -257,8 +262,20 @@ export function App({ client = defaultClient, openStream = defaultOpenStream, sl
           setBoot((current) => (current.status === 'ready' ? { ...current, agent: agent.value } : current));
         }
       });
+    };
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'hidden') {
+        read();
+      }
     }, AGENT_PRESENCE_REREAD_MS);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        read();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
       window.clearInterval(timer);
     };
   }, [agentShownOnline, client]);
