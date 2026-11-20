@@ -62,6 +62,6 @@ with drawn fixtures. Never commit a capture.
 
 ## Orchestrator (local, the maintainer answers the gate)
 
-- [ ] T9 — Add `apps/agent/src-tauri/.cargo/mutants.toml` and `scripts/agent/reading-modules.json` to the gate's
+- [x] T9 — Add `apps/agent/src-tauri/.cargo/mutants.toml` and `scripts/agent/reading-modules.json` to the gate's
       sensors (OCP-08), with a test in `.claude/hooks/test/gate-rules.test.mjs`. Gate:
       `node --test .claude/hooks/test/gate-rules.test.mjs`

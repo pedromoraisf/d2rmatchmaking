@@ -92,6 +92,8 @@ test('paths: env files denied, vendored and committed migrations denied, sensors
     '.claude/hooks/gate.mjs',
     'lefthook.yml',
     'apps/api/stryker.config.mjs',
+    'apps/agent/src-tauri/.cargo/mutants.toml',
+    'scripts/agent/reading-modules.json',
   ])
     assert.equal(pathVerdict(rel), 'ask', rel);
   for (const rel of [
