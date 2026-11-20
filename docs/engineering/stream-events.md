@@ -20,19 +20,19 @@ agent's parser (`apps/agent/src-tauri/adapters/src/http/sse.rs`).
 
 ## The events
 
-| Event                    | Sent to            | Fields                                                                                                   | Frame bytes (sample) |
-| ------------------------ | ------------------ | -------------------------------------------------------------------------------------------------------- | -------------------- |
-| `room.assigned`          | site, agent        | `roomId`, `run`, `expectedGameName`, `members[]`                                                         | 436                  |
-| `room.stage_changed`     | site (all stages)  | `roomId`, `stage`, `members[]`                                                                           | 419                  |
-|                          | agent (ended only) | `roomId`, `stage` (lean since SEG-01)                                                                    | 101 (was 419)        |
-| `room.run_opened`        | site, agent        | `roomId`, `run`, `expectedGameName`, `members[]`                                                         | 438                  |
-| `room.member_changed`    | site               | `roomId`, `change`, `accountId`, `members[]`                                                             | 474                  |
-| `agent.presence_changed` | site (owner)       | `agentId`, `online`, `gameRunning`, `screen`                                                             | 149                  |
-| `characters.updated`     | site               | none (`{}`)                                                                                              | 36                   |
-| `queue.updated`          | site               | the ticket (`id`, `status`, `mode`, `options`, `joinedAt`, `band`, `poolSize`) or `left` with its reason | 250 (waiting)        |
-| `ready_check.started`    | site, agent        | `id`, `mode`, `difficulty`, `deadline`, `now`, `members[]`                                               | 343                  |
-| `ready_check.updated`    | site               | the same view with new marks                                                                             | about 343            |
-| `ready_check.resolved`   | site, agent        | `id`, `outcome`                                                                                          | 102                  |
+| Event                    | Sent to                                           | Fields                                                                                                   | Frame bytes (sample) |
+| ------------------------ | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------- |
+| `room.assigned`          | site, agent                                       | `roomId`, `run`, `expectedGameName`, `members[]`                                                         | 436                  |
+| `room.stage_changed`     | site (all stages), agent (`expired` and `closed`) | `roomId`, `stage`, `members[]`                                                                           | 419                  |
+|                          | agent's copy                                      | `roomId`, `stage` (lean since SEG-01)                                                                    | 101 (was 419)        |
+| `room.run_opened`        | site, agent                                       | `roomId`, `run`, `expectedGameName`, `members[]`                                                         | 438                  |
+| `room.member_changed`    | site                                              | `roomId`, `change`, `accountId`, `members[]`                                                             | 474                  |
+| `agent.presence_changed` | site (owner)                                      | `agentId`, `online`, `gameRunning`, `screen`                                                             | 149                  |
+| `characters.updated`     | site                                              | none (`{}`)                                                                                              | 36                   |
+| `queue.updated`          | site                                              | the ticket (`id`, `status`, `mode`, `options`, `joinedAt`, `band`, `poolSize`) or `left` with its reason | 250 (waiting)        |
+| `ready_check.started`    | site, agent                                       | `id`, `mode`, `difficulty`, `deadline`, `now`, `members[]`                                               | 343                  |
+| `ready_check.updated`    | site                                              | the same view with new marks                                                                             | about 343            |
+| `ready_check.resolved`   | site, agent                                       | `id`, `outcome`                                                                                          | 102                  |
 
 A `members[]` entry is `accountId`, `characterId`, `joinOrder`, `role`, optional `team` and `confirmed`: about 170 bytes
 for a member in a room.
