@@ -169,7 +169,9 @@ const fixtureReadViolations = (base) =>
 
 // Non-test source of a Rust file: the unit tests of a file sit in a `#[cfg(test)]` module at its end, and the crates' own
 // `tests/` and `extra-tests/` folders are test code.
-const nonTestText = (text) => text.split(/^#\[cfg\(test\)\]/m)[0];
+// The cut is the `#[cfg(test)]` that opens a module (`mod`), not the first one: a `#[cfg(test)] use` above real code would
+// otherwise hide everything below it.
+const nonTestText = (text) => text.split(/^#\[cfg\(test\)\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\b/m)[0];
 const isTestFile = (rel) => /(^|\/)(tests|extra-tests|examples)\//.test(rel);
 
 // The files that may call `Secret::expose` (AGT-03): the wrapper, the token store, the API client and the relay client.
@@ -180,6 +182,23 @@ const EXPOSE_ALLOW_LIST = [
   'adapters/src/telemetry/relay_client.rs',
 ];
 const LOG_EVENT = /\b(?:tracing::)?(?:trace|debug|info|warn|error|event)!\s*\(/;
+// Macros that print or build text. Beside `expose()` the printing ones are never right; `format!` is right only to build the
+// `Bearer` header value, so a `format!` whose own arguments call `expose()` is refused unless it is that one.
+const PRINT_MACRO = /\b(?:println|eprintln|dbg)!\s*\(/;
+
+/** The text of every `format!(...)` call, up to its closing parenthesis. */
+const formatCalls = (code) =>
+  [...code.matchAll(/\bformat!\s*\(/g)].map((match) => {
+    let depth = 1;
+    let end = match.index + match[0].length;
+    while (end < code.length && depth > 0) {
+      if (code[end] === '(') depth += 1;
+      if (code[end] === ')') depth -= 1;
+      end += 1;
+    }
+    return code.slice(match.index, end);
+  });
+const BEARER_FORMAT = /^format!\s*\(\s*"Bearer \{\}"\s*,\s*[\w.]+\.expose\(\)\s*\)$/;
 
 const secretExposureViolations = (base) =>
   rustFiles(base)
@@ -188,7 +207,15 @@ const secretExposureViolations = (base) =>
       const code = nonTestText(text);
       if (!/\.expose\s*\(/.test(code) && !/\bexpose\s*\(/.test(code.replace(/pub fn expose/g, ''))) return [];
       if (!EXPOSE_ALLOW_LIST.includes(rel)) return [`${rel} calls expose() and is not on the allow-list`];
-      return LOG_EVENT.test(code) ? [`${rel} calls expose() and logs an event`] : [];
+      return [
+        ...(LOG_EVENT.test(code) ? [`${rel} calls expose() and logs an event`] : []),
+        ...(PRINT_MACRO.test(code)
+          ? [`${rel} calls expose() and prints with println!, eprintln! or dbg!`]
+          : []),
+        ...(formatCalls(code).some((call) => /expose\s*\(/.test(call) && !BEARER_FORMAT.test(call))
+          ? [`${rel} calls expose() inside a format! that is not the Bearer header`]
+          : []),
+      ];
     });
 
 // The variants of the two types a stream event turns into (AGT-04). A new variant is a new thing the server can make the
@@ -231,15 +258,26 @@ const streamVariantViolations = (base) =>
 const FRAME_TYPES = /\b(?:Rgba|FrameSource|FrameReader|FrameReading|PanelReading)\b/;
 const RAW_UPLOAD = /multipart|octet-stream|\bimage\/|\.body\s*\(|Part::/;
 
+// The span exporter's client sends the protobuf batch with one `.body(...)`: the only raw body allowed, in that one file.
+const RELAY_CLIENT = 'adapters/src/telemetry/relay_client.rs';
+const RAW_BODY = /\.body\s*\(/g;
+
 const outgoingDataViolations = (base) => {
-  const files = rustFiles(base).filter(({ rel }) => rel.startsWith('adapters/src/http/') && !isTestFile(rel));
+  const files = rustFiles(base).filter(
+    ({ rel }) => (rel.startsWith('adapters/src/http/') || rel === RELAY_CLIENT) && !isTestFile(rel),
+  );
   const manifest = crateFile(base, 'adapters/Cargo.toml') ?? '';
   return [
     ...files.flatMap(({ rel, text }) => {
       const code = nonTestText(text);
       return [
         ...(FRAME_TYPES.test(code) ? [`${rel} names a frame or pixel type`] : []),
-        ...(RAW_UPLOAD.test(code) ? [`${rel} sends a raw body, a multipart part or an image`] : []),
+        ...((rel === RELAY_CLIENT ? code.replace(RAW_BODY, '') : code).match(RAW_UPLOAD)
+          ? [`${rel} sends a raw body, a multipart part or an image`]
+          : []),
+        ...(rel === RELAY_CLIENT && (code.match(RAW_BODY) ?? []).length > 1
+          ? [`${rel} sends more than the one protobuf batch body`]
+          : []),
       ];
     }),
     ...(/reqwest[^\n]*multipart/.test(manifest) ? ['adapters/Cargo.toml enables reqwest multipart'] : []),
@@ -365,6 +403,33 @@ test('the outgoing data rule rejects a frame type and a raw body', () => {
   const violations = outgoingDataViolations(fixtureBase('outgoing-frame')).join('\n');
   assert.match(violations, /names a frame or pixel type/);
   assert.match(violations, /sends a raw body, a multipart part or an image/);
+});
+
+test('the expose rule rejects a print macro and a format! that is not the Bearer header', () => {
+  for (const [fixture, message] of [
+    ['expose-println', /calls expose\(\) and prints/],
+    ['expose-eprintln', /calls expose\(\) and prints/],
+    ['expose-dbg', /calls expose\(\) and prints/],
+    ['expose-format', /inside a format! that is not the Bearer header/],
+  ]) {
+    assert.match(secretExposureViolations(fixtureBase(fixture)).join('\n'), message, fixture);
+  }
+});
+
+test('the test-module cut starts at a module, so an early cfg(test) use hides nothing', () => {
+  assert.match(
+    secretExposureViolations(fixtureBase('expose-after-cfg-use')).join('\n'),
+    /core\/src\/early\.rs calls expose\(\) and is not on the allow-list/,
+  );
+  assert.equal(nonTestText('fn a() {}\n#[cfg(test)]\nmod tests {\n fn b() {}\n}\n').includes('fn b'), false);
+  assert.equal(nonTestText('#[cfg(test)]\nuse x::y;\nfn real() {}\n').includes('fn real'), true);
+});
+
+test('the outgoing data rule covers the span exporter client too', () => {
+  const violations = outgoingDataViolations(fixtureBase('outgoing-relay')).join('\n');
+  assert.match(violations, /relay_client\.rs names a frame or pixel type/);
+  assert.match(violations, /relay_client\.rs sends more than the one protobuf batch body/);
+  assert.match(violations, /relay_client\.rs sends a raw body, a multipart part or an image/);
 });
 
 test('the instrument rule rejects arguments without skip_all', () => {
