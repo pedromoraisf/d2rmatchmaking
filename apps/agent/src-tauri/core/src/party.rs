@@ -286,7 +286,16 @@ pub fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba
     let lines = panel_region(PanelRegion::PartyPanel, frame.width, frame.height)
         .map(|area| reader.read_line_variants(frame, area))
         .unwrap_or_default();
-    let found = anchors::find_party_in_variants(language, &lines, frame.height);
+    let mut found = anchors::find_party_in_variants(language, &lines, frame.height);
+    if !found.open {
+        // The maintainer plays on a pt-BR client (screen-recognition T6, SCR-04): when the pack's words find no panel, the
+        // Brazilian words are tried on the same lines. Only the anchors change; the game name is matched as ever.
+        let brazilian =
+            anchors::find_party_in_variants(&LanguagePack::brazilian_party(), &lines, frame.height);
+        if brazilian.open {
+            found = brazilian;
+        }
+    }
     let (field_area, field_source) = match (found.field, found.label) {
         (Some(line), _) => (Some(line), FieldSource::LabelLine),
         (None, Some(label)) => (
@@ -1248,16 +1257,41 @@ mod anchored_tests {
     }
 
     #[test]
-    fn an_english_panel_at_1045_reads_open_and_a_pt_br_panel_is_not_read_by_the_english_pack_alone()
-    {
-        // Pins today (screen-recognition T6, SCR-04): the English pack finds nothing in a pt-BR client's panel. T6 replaces
-        // the second expectation with the reason in its commit: the maintainer plays on a pt-BR client.
+    fn an_english_panel_at_1045_reads_open_and_a_pt_br_panel_reads_open_too() {
+        // Changed expectation (SCR-04, orchestrator's decision): the maintainer plays on a pt-BR client, whose panel the
+        // English words never found; the Brazilian words are tried when the pack's find no panel.
         let english = panel(136, 176, Some(("mmbaalm-99", 204)));
         let reading = read_panel(&english, &LanguagePack::english(), &frame(1045));
         assert!(reading.open && reading.label_found);
         assert_eq!(fields(&reading), ["mmbaalm-99"]);
         let reading = read_panel(&portuguese_panel(), &LanguagePack::english(), &frame(1045));
-        assert!(!reading.open && !reading.label_found && reading.field.is_empty());
+        assert!(reading.open && reading.label_found);
+        assert_eq!(fields(&reading), ["mmbaalm-99"]);
+    }
+
+    #[test]
+    fn a_pt_br_panel_never_confirms_another_rooms_name_and_a_pt_br_word_is_no_panel_elsewhere() {
+        use d2rmm_agent_domain::game_name_match::{FieldRead, read_panel_field};
+        let reading = read_panel(&portuguese_panel(), &LanguagePack::english(), &frame(1045));
+        let reads: Vec<&str> = fields(&reading);
+        assert_eq!(
+            read_panel_field(reading.field_source, &reads, "mmbaalm-99"),
+            FieldRead::Matched
+        );
+        for other in ["mmbaalm-98", "mmpvpn-99", "mmbaalh-99"] {
+            assert_ne!(
+                read_panel_field(reading.field_source, &reads, other),
+                FieldRead::Matched,
+                "{other}"
+            );
+        }
+        // A closed panel in a pt-BR client (another word where the title is) reads nothing.
+        let closed = Lines(vec![
+            line("INVENTARIO", 364, 136, 71),
+            line("Nome", 264, 176, 40),
+        ]);
+        let reading = read_panel(&closed, &LanguagePack::english(), &frame(1045));
+        assert!(!reading.open && reading.field.is_empty());
     }
 
     #[test]

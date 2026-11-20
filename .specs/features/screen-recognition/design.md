@@ -18,7 +18,7 @@ screen, nor across client heights (1033, 1045, 1056, 1080), so a box measured on
 | domain  | `domain/src/anchors.rs`                                              | `find_hud`, `find_hud_in_variants` (resumed); `find_automap`; the Party search over the wider area              |
 | domain  | `domain/src/hud_track.rs` (new, resumed)                             | `HudTracker`: pure search-then-track state machine; generalised to a `Tracker` for the HUD and the automap line |
 | domain  | `domain/src/character_screen.rs`                                     | `read_screen` order: automap, fixed Life, list marker, band search; the band is read only without the list      |
-| domain  | `domain/src/language.rs`, `resources/lang/en.json`                   | `MANA` word (resumed); pt-BR packs are not part of this feature                                                 |
+| domain  | `domain/src/language.rs`, `resources/lang/en.json`                   | `MANA` word (resumed); `brazilian_party()`: the pt-BR Party words, tried when the English ones find no panel    |
 | core    | `core/src/screen_reader.rs`                                          | owns the trackers behind a `Mutex`; asks `TextReader::read_line_variants` for the planned area                  |
 | core    | `core/src/party.rs`                                                  | finds the panel in the wider area (SCR-04)                                                                      |
 | adapter | `adapters/…` (Windows OCR), `xtask/src/*_fixture.rs`                 | no change to OCR; `xtask` draws the per-mode fixtures                                                           |

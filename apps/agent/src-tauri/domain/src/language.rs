@@ -152,6 +152,22 @@ impl LanguagePack {
         }
     }
 
+    /// The Party panel's words of a Brazilian Portuguese client (screen-recognition T6, SCR-04): the title "Grupo", the label
+    /// "Nome" (the Game Name field's label) and "Senha" (the Password label), measured on the maintainer's pt-BR prints.
+    /// The other words stay English: this pack is only read for the Party panel, which holds no other word.
+    pub fn brazilian_party() -> Self {
+        let mut pack = Self::english();
+        pack.tag = "pt-BR".to_string();
+        for (key, word) in [
+            ("party", "Grupo"),
+            ("gameName", "Nome"),
+            ("password", "Senha"),
+        ] {
+            pack.words.insert(key.to_string(), word.to_string());
+        }
+        pack
+    }
+
     /// A pack from its tag and its words. The tag must not be empty; every required key must hold a word, and no word may be
     /// empty after trimming. Keys beyond the required ones are kept as given.
     pub fn from_words(
@@ -329,6 +345,25 @@ mod tests {
             .iter()
             .map(|(key, word)| ((*key).to_string(), (*word).to_string()))
             .collect()
+    }
+
+    #[test]
+    fn the_brazilian_party_words_read_the_measured_noisy_forms_and_not_the_english_ones() {
+        // The reads are those of the six 1920x1045 prints (the `ocr-real` wide-pass diagnostics).
+        let pt = LanguagePack::brazilian_party();
+        let en = LanguagePack::english();
+        assert_eq!(pt.tag(), "pt-BR");
+        assert!(pt.party_panel_open("GRUPO"));
+        assert!(!pt.party_panel_open("PARTY"));
+        assert!(!en.party_panel_open("GRUPO"));
+        for read in ["Nome", "Neme"] {
+            assert!(pt.is_label(read, GAME_NAME, &[PASSWORD]), "{read}");
+        }
+        for read in ["SENHA", "SEN H A", "SENKA"] {
+            assert!(pt.is_near_word(read, PASSWORD), "{read}");
+            assert!(!pt.is_label(read, GAME_NAME, &[PASSWORD]), "{read}");
+        }
+        assert!(!pt.is_label("GAME NAME", GAME_NAME, &[PASSWORD]));
     }
 
     #[test]

@@ -35,7 +35,8 @@ real prints (`ocr-real`, `ocr-variations`) and by unit tests, not by Gherkin.
 - **SCR-03** — WHEN the automap is open THEN the agent SHALL recognise it by finding the "Difficulty:" word in a wide
   area of the client, not in one fixed box, in every mode of SCR-01, with the same search-then-track rule.
 - **SCR-04** — WHEN a frame shows the Party panel THEN the agent SHALL find its title and its "Game Name" label by their
-  words in an area wide enough for every supported client height, including 1920×1033, 1920×1045 and 1920×1080. The
+  words in an area wide enough for every supported client height, including 1920×1033, 1920×1045 and 1920×1080, in the
+  English and in the Brazilian Portuguese (pt-BR) game client (the 1045 prints are pt-BR: "Grupo", "Nome", "Senha"). The
   agent SHALL NOT read the room's name as another room's (the zero-wrong rule of the brief stays).
 - **SCR-05** — WHEN a frame shows the character selection screen THEN the agent SHALL recognise it in at least 95% of
   its `ocr-variations` (supported sizes). WHEN a frame shows the "Select Difficulty" popup THEN the agent SHALL read its
