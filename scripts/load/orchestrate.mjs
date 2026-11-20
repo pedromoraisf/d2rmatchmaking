@@ -225,6 +225,7 @@ export async function runLoad(input) {
     await fs.mkdir(reportsDir, { recursive: true });
     const target = await writeSummary(fs, reportsDir, summary);
     log(`summary written to ${target}`);
+    if (error !== null) log(`the run stopped: ${error}`);
   } catch (caught) {
     writeFailed = true;
     log(`the summary could not be written: ${messageOf(caught)}`);
