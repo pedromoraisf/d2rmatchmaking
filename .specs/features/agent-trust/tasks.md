@@ -36,7 +36,7 @@ Rules:
 - [x] T2 — API: revoking, and pairing a new agent, makes the old token answer `401` on every agent route and ends its open
       stream; the token cache holds nothing for it (AGT-02). Gate:
       `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api test:integration`
-- [ ] T3 — Agent: the token never leaks (AGT-03). Unit tests that `Secret`'s `Debug` and `Display` hide the value, that a
+- [x] T3 — Agent: the token never leaks (AGT-03). Unit tests that `Secret`'s `Debug` and `Display` hide the value, that a
       failed request's error text and spans hold no token, and that the gateway sends `Authorization` only to the
       configured API base; a source rule that the token's `expose()` is called only by the gateway and the store. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core -p d2rmm-agent-adapters --lib && node --test scripts/test/agent-source-rules.test.mjs`
