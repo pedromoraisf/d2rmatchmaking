@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/pedromoraisf/d2rmatchmaking/compare/agent-v0.3.0...agent-v0.4.0) (2026-11-20)
+
+
+### Features
+
+* **agent:** add the preview, staging and production channels ([c7b5f35](https://github.com/pedromoraisf/d2rmatchmaking/commit/c7b5f353b4e77829223a2ab84d5c707db84043ef))
+* **delivery:** agent preview, staging and production channels on the stages (delivery-platform, batch 4) ([9cb46ed](https://github.com/pedromoraisf/d2rmatchmaking/commit/9cb46edb593362e7d61084562b0a359a37947b78))
+
 ## [0.3.0](https://github.com/pedromoraisf/d2rmatchmaking/compare/agent-v0.2.0...agent-v0.3.0) (2026-11-19)
 
 
