@@ -114,6 +114,18 @@ async fn read_events(
             // A ready check opened or ended for the account (RDY-01, RDY-03 … RDY-05): the hotkey follows it.
             Some(Some(StreamItem::ReadyCheckStarted(check))) => device.open_ready_check(check),
             Some(Some(StreamItem::ReadyCheckResolved(end))) => device.close_ready_check(&end.id),
+            // A room expired or closed: its assignment goes, the Party step stops reading and the window drops the room
+            // line. An event for another room leaves the held one alone.
+            Some(Some(StreamItem::RoomEnded(room))) => {
+                let holds_it = device
+                    .assignment
+                    .borrow()
+                    .current()
+                    .is_some_and(|held| held.room == room);
+                if holds_it {
+                    set_assignment(device, None);
+                }
+            }
             // The stream ended, failed or went silent: the caller reconnects.
             Some(Some(StreamItem::Ended(_))) => break,
         }
@@ -339,6 +351,76 @@ mod tests {
             tokio::time::sleep(Duration::from_secs(1)).await;
             assert!(*device.update_required.borrow(), "a 426 raises the gate");
             assert!(!device.api_allowed(), "the API loops stop");
+        });
+    }
+}
+
+#[cfg(test)]
+mod room_end_tests {
+    use std::num::NonZeroU64;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
+
+    use super::run;
+    use crate::device_state::DeviceState;
+    use crate::fakes::{FakeApiGateway, MemoryTokens, NullSink, fails_fast};
+    use crate::groups::StreamPorts;
+    use crate::ports::{StreamItem, TokenStore};
+    use crate::secret::Secret;
+
+    const HELD: &str = "7d9f2c1e-0000-4000-8000-000000000001";
+    const OTHER: &str = "7d9f2c1e-0000-4000-8000-000000000002";
+
+    fn assignment() -> Assignment {
+        Assignment {
+            room: RoomId::new(HELD),
+            run: NonZeroU64::MIN,
+            expected_game_name: GameName::new("mmbaalh-12"),
+            members: Vec::new(),
+        }
+    }
+
+    /// Follows a stream that delivers an end for `ended` after the held assignment, and returns the device once read.
+    async fn follow_with(ended: &str) -> Arc<DeviceState> {
+        let gateway = Arc::new(FakeApiGateway::new());
+        gateway.script_assignment([Ok(Some(assignment()))]);
+        gateway.script_open_stream([Ok(vec![StreamItem::RoomEnded(RoomId::new(ended))])]);
+        gateway.hold_streams();
+        let tokens = Arc::new(MemoryTokens::default());
+        tokens
+            .save(&Secret::new(
+                "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE",
+            ))
+            .expect("the memory store accepts a write");
+        let device = Arc::new(DeviceState::new(Arc::new(NullSink)));
+        device.set_paired(true);
+        let ports = StreamPorts { gateway, tokens };
+        tokio::spawn(run(Arc::clone(&device), ports));
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        device
+    }
+
+    #[test]
+    fn an_ended_event_for_the_held_room_clears_it_and_the_room_line() {
+        fails_fast(|| async {
+            let device = follow_with(HELD).await;
+            assert!(device.assignment.borrow().current().is_none());
+            assert_eq!(
+                device.hub.snapshot().room,
+                None,
+                "the window drops the room"
+            );
+        });
+    }
+
+    #[test]
+    fn an_ended_event_for_another_room_keeps_the_held_one() {
+        fails_fast(|| async {
+            let device = follow_with(OTHER).await;
+            assert!(device.assignment.borrow().current().is_some());
+            assert!(device.hub.snapshot().room.is_some());
         });
     }
 }
