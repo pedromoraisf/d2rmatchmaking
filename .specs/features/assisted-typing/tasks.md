@@ -71,7 +71,7 @@ Rules:
       flag) each with a fixture under `scripts/test/fixtures/agent-rules/` it must reject. `clippy.toml` keeps its bans;
       the adapter alone carries a file-level `#![allow(clippy::disallowed_methods)]` (written in T9). `deny.toml` gains no
       crate. Gate: `node --test scripts/test/agent-source-rules.test.mjs`
-- [ ] T9 — App crate, Windows only: `adapters/typing.rs` (`SendInput`, one down and one up `KEYEVENTF_UNICODE` event
+- [x] T9 — App crate, Windows only: `adapters/typing.rs` (`SendInput`, one down and one up `KEYEVENTF_UNICODE` event
       per character, wVk 0, about 15 ms apart; its pure part builds the event list and is unit-tested everywhere:
       for every name the events are exactly Unicode scan packets for its characters), `adapters/foreground.rs`
       (`GetForegroundWindow` → `GetWindowThreadProcessId` → `game_process_ids()`) and the modifier-state adapter. The
