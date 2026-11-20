@@ -1,8 +1,8 @@
 // The per-principal route limit (UPK-02, UPK-03): 60 a minute, Retry-After in whole seconds, no leak between principals or groups.
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { describe, expect, it } from 'vitest';
-import { FakeClock } from '../../shared-kernel/index.ts';
-import { RelayLimiter } from './relay-limiter.ts';
+import { FakeClock, FakeScheduler } from '../../shared-kernel/index.ts';
+import { PRINCIPAL_CAP, RelayLimiter } from './relay-limiter.ts';
 import { ROUTE_LIMIT, ROUTE_WINDOW_MS, createRouteLimit, retryAfterSeconds } from './route-limit.ts';
 
 const START = new Date('2026-11-02T12:00:00.000Z');
@@ -100,5 +100,27 @@ describe('retryAfterSeconds', () => {
     expect(retryAfterSeconds(new Date(now.getTime() + 1001), now)).toBe(2);
     expect(retryAfterSeconds(new Date(now.getTime() - 5000), now)).toBe(1);
     expect(retryAfterSeconds(new Date(now.getTime() + 60_000), now)).toBe(60);
+  });
+});
+
+describe('the route limiter sweep (security review of #98)', () => {
+  it('drops keys older than the window on the tick, so a new account is admitted after the cap filled', async () => {
+    const clock = new FakeClock(START);
+    const limiter = new RelayLimiter(clock);
+    limiter.watch(new FakeScheduler(clock));
+    const guard = createRouteLimit(limiter, clock, 'group', (request) => request.accountId);
+    for (let i = 0; i < PRINCIPAL_CAP; i += 1) {
+      limiter.arriveAsPrincipal(`group:account-${i}`, ROUTE_LIMIT, ROUTE_WINDOW_MS);
+    }
+    const refused = replyDouble();
+    await guard(requestOf('newcomer'), refused.reply);
+    expect(refused.sent.code, 'a full map refuses a new account').toBe(429);
+
+    clock.advance(ROUTE_WINDOW_MS + 1);
+
+    expect(limiter.keyCounts().principals, 'the tick swept every stale key').toBe(0);
+    const admitted = replyDouble();
+    expect(await guard(requestOf('newcomer'), admitted.reply)).toBeUndefined();
+    expect(admitted.sent.code).toBeUndefined();
   });
 });

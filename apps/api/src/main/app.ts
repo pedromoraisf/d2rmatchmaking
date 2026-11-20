@@ -446,8 +446,11 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.setErrorHandler(answerError);
+  // Keys of the per-account route limit older than their window are dropped every 30 s, so the cap never fills with idle accounts.
+  const stopRouteLimitSweep = guards.watchRouteLimits(scheduler);
   app.addHook('onClose', () => {
     stopSweep();
+    stopRouteLimitSweep();
     stopMatcher();
     stopRoomSweep();
     siteClosedTimers.clear();

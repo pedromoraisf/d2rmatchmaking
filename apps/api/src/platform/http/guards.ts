@@ -1,7 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AgentVersion, type AgentsPort } from '../../modules/agents/index.ts';
 import type { IdentityPort } from '../../modules/identity/index.ts';
-import type { Clock } from '../../shared-kernel/index.ts';
+import type { Cancel, Clock, Scheduler } from '../../shared-kernel/index.ts';
 import { RelayLimiter } from './relay-limiter.ts';
 import { createRouteLimit } from './route-limit.ts';
 
@@ -44,6 +44,8 @@ export interface Guards {
   readonly limitAgentStatus: Guard;
   /** After the guard of a ready-check route: 60 requests a minute per account, agent or site alike (UPK-03). */
   readonly limitReadyCheck: Guard;
+  /** Sweeps the route limiter's stale keys every 30 s until the returned function is called. `main/` starts it (UPK-02, UPK-03). */
+  watchRouteLimits(scheduler: Scheduler): Cancel;
 }
 
 const LOOKUPS_PER_SECOND = 10;
@@ -161,6 +163,7 @@ export function createGuards(deps: GuardDeps): Guards {
   return {
     limitAgentStatus: createRouteLimit(routeLimiter, deps.clock, 'agent-status', accountOf),
     limitReadyCheck: createRouteLimit(routeLimiter, deps.clock, 'ready-check', accountOf),
+    watchRouteLimits: (scheduler) => routeLimiter.watch(scheduler),
 
     /** Every agent route: no header, a value that is not a semantic version, or one below the minimum → 426 (AWS-12). */
     async requireAgentVersion(request, reply) {
