@@ -41,6 +41,15 @@ function stepRow(step) {
   return `| ${numberText(step.players)} | ${numberText(step.latencyP95Ms)} | ${numberText(step.errorRatio)} | ${numberText(step.bytesReceived)} | ${numberText(step.peakCpuPercent)} | ${numberText(step.peakMemoryBytes)} | ${result} |`;
 }
 
+/** One row per OTLP signal; none when the summary has no split (a summary written before it existed). */
+function signalRows(split) {
+  if (split === null || split === undefined) return [];
+  return ['traces', 'metrics', 'logs'].map(
+    (signal) =>
+      `| Telemetry bytes per player-hour, ${signal} (\`telemetryBytesPerPlayerHourBySignal.${signal}\`) | ${numberText(split[signal])} |`,
+  );
+}
+
 /** The document text of a full, passed summary. Each value is read by name from the summary. */
 function documentOf(summary) {
   const date = dateOf(summary.endedAt);
@@ -63,6 +72,7 @@ function documentOf(summary) {
     `| Bytes per player-hour at 100 players (\`bytesPerPlayerHour\`) | ${numberText(summary.bytesPerPlayerHour)} |`,
     `| Within the 70 000 bytes per player-hour budget (\`withinEgressBudget\`) | ${yesNo(summary.withinEgressBudget)} |`,
     `| Telemetry bytes per player-hour (\`telemetryBytesPerPlayerHour\`) | ${numberText(summary.telemetryBytesPerPlayerHour)} |`,
+    ...signalRows(summary.telemetryBytesPerPlayerHourBySignal),
     `| Telemetry bytes a month at 100 players (\`telemetryMonthlyBytes\`) | ${numberText(summary.telemetryMonthlyBytes)} |`,
     `| Telemetry share of the 5 GiB monthly budget, limit 0.10 (\`telemetryShareOfBudget\`) | ${numberText(summary.telemetryShareOfBudget)} |`,
     `| Within the telemetry limit of 0.10, report-only in F0 (\`withinTelemetryBudget\`) | ${yesNo(summary.withinTelemetryBudget)} |`,

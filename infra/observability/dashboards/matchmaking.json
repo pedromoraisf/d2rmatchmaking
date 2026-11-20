@@ -1,0 +1,238 @@
+{
+  "uid": "d2rmm-matchmaking",
+  "title": "D2RMM matchmaking (F1)",
+  "description": "The queue, ready check and room instruments of F1, plus the open streams and the outbox lag. Every panel reads job=\"d2rmm-api\" (the OTLP to Prometheus mapping sets job from service.name) through the datasource variable, so the same file runs on the local stack and on Grafana Cloud.",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "tags": ["d2rmm", "matchmaking"],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Data source",
+        "type": "datasource",
+        "query": "prometheus",
+        "refresh": 1,
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "options": [],
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Queue size by mode and difficulty",
+      "unit": "short",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (d2r_queue_mode, d2r_difficulty) (d2r_queue_size{job=\"d2rmm-api\"})",
+          "legendFormat": "{{d2r_queue_mode}} {{d2r_difficulty}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Queue wait at match, p50 and p95 by difficulty",
+      "unit": "s",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "histogram_quantile(0.5, sum by (le, d2r_difficulty) (rate(d2r_queue_wait_seconds_bucket{job=\"d2rmm-api\"}[5m])))",
+          "legendFormat": "p50 {{d2r_difficulty}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, d2r_difficulty) (rate(d2r_queue_wait_seconds_bucket{job=\"d2rmm-api\"}[5m])))",
+          "legendFormat": "p95 {{d2r_difficulty}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Ready checks by outcome",
+      "unit": "ops",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (d2r_ready_check_outcome) (rate(d2r_ready_check_resolved_total{job=\"d2rmm-api\"}[5m]))",
+          "legendFormat": "{{d2r_ready_check_outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Rooms by final stage",
+      "unit": "ops",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (d2r_room_stage) (rate(d2r_room_final_stage_total{job=\"d2rmm-api\"}[5m]))",
+          "legendFormat": "{{d2r_room_stage}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Room time to active, p50 and p95 by difficulty",
+      "unit": "s",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "histogram_quantile(0.5, sum by (le, d2r_difficulty) (rate(d2r_room_time_to_active_seconds_bucket{job=\"d2rmm-api\"}[5m])))",
+          "legendFormat": "p50 {{d2r_difficulty}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, d2r_difficulty) (rate(d2r_room_time_to_active_seconds_bucket{job=\"d2rmm-api\"}[5m])))",
+          "legendFormat": "p95 {{d2r_difficulty}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Open event streams by kind",
+      "unit": "short",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (d2r_stream_kind) (sse_connections{job=\"d2rmm-api\"})",
+          "legendFormat": "{{d2r_stream_kind}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Outbox lag (oldest unpublished row)",
+      "unit": "s",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max(outbox_lag_seconds{job=\"d2rmm-api\"})",
+          "legendFormat": "lag"
+        }
+      ]
+    }
+  ]
+}

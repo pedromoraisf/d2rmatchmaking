@@ -25,6 +25,7 @@ on:
 permissions:
   contents: read
   actions: read
+  pull-requests: read
 
 concurrency:
   # Nothing here is cancelled: a run may be migrating a database or deploying.
