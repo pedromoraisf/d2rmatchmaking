@@ -2223,3 +2223,101 @@ mod hud_band_tests {
         assert_ne!(screen, Screen::InGame);
     }
 }
+
+/// The popup over a dimmed list whose cards no reading finds (screen-recognition T9; the `cards-refused-0of2-slots0-options3`
+/// class, 155 variations of the last `ocr-variations`).
+#[cfg(test)]
+mod popup_column_tests {
+    use super::{BandRead, Probes, read_screen};
+    use crate::language::LanguagePack;
+    use crate::layout::ScreenRegion;
+    use crate::presence::Screen;
+    use crate::vision::{Region, TextLine};
+
+    fn line(text: &str, x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: text.to_string(),
+            region: Region {
+                x,
+                y,
+                width: 200,
+                height: 20,
+            },
+        }
+    }
+
+    fn popup() -> Vec<Vec<TextLine>> {
+        vec![vec![
+            line("Select Difficulty", 940, 360),
+            line("Normal", 940, 430),
+            line("Nightmare", 940, 500),
+            line("Hell", 940, 570),
+        ]]
+    }
+
+    fn list_cards() -> Vec<Vec<TextLine>> {
+        vec![vec![
+            line("vukVuka", 1576, 91),
+            line("Level 88 Sorceress", 1576, 114),
+        ]]
+    }
+
+    /// Reads a frame with the popup open and `column` as what the card column reads; returns the reading's screen, cards
+    /// found and slots, and the areas asked in order.
+    fn read_popup(column: Vec<Vec<TextLine>>) -> (Screen, usize, u8, Vec<ScreenRegion>) {
+        let mut asked = Vec::new();
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |_| None,
+            |search| {
+                asked.push(search);
+                match search {
+                    ScreenRegion::PopupArea => popup(),
+                    ScreenRegion::CardColumn => column.clone(),
+                    _ => Vec::new(),
+                }
+            },
+            |_| None,
+            Probes {
+                selected: |_| false,
+                lit: |_| true,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        (
+            reading.screen,
+            reading.cards.len(),
+            reading.slots_read,
+            asked,
+        )
+    }
+
+    #[test]
+    fn a_popup_over_a_column_no_reading_finds_cards_in_is_the_selection_screen_with_no_slot_read() {
+        // Pinned before the change: the popup decides the screen, the column is read once, nothing more is asked.
+        let (screen, cards, slots, asked) = read_popup(Vec::new());
+        assert_eq!((screen, cards, slots), (Screen::CharacterSelect, 0, 0));
+        assert_eq!(
+            asked
+                .iter()
+                .filter(|r| **r == ScreenRegion::CardColumn)
+                .count(),
+            1
+        );
+        assert_eq!(asked.last(), Some(&ScreenRegion::CardColumn));
+    }
+
+    #[test]
+    fn a_popup_over_a_column_that_reads_cards_registers_them_with_one_column_read() {
+        let (screen, _, slots, asked) = read_popup(list_cards());
+        assert_eq!((screen, slots), (Screen::CharacterSelect, 1));
+        assert_eq!(
+            asked
+                .iter()
+                .filter(|r| **r == ScreenRegion::CardColumn)
+                .count(),
+            1
+        );
+    }
+}

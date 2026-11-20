@@ -1624,3 +1624,148 @@ mod hud_tests {
         );
     }
 }
+
+/// A popup over a list the game dims (screen-recognition T9): the cards behind it are as readable as their pixels are bright.
+#[cfg(test)]
+mod dim_tests {
+    use std::sync::{Arc, Mutex};
+
+    use d2rmm_agent_domain::language::LanguagePack;
+    use d2rmm_agent_domain::layout::{ScreenRegion, screen_region};
+    use d2rmm_agent_domain::presence::Screen;
+    use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
+
+    use super::ScreenReader;
+    use crate::ports::{FrameReader, ReadError, Rgba, TextReader};
+
+    /// How bright the brightest pixel of a region must be for the fake engine to read the text there.
+    const READABLE: u8 = 180;
+
+    /// A reader of a scene whose lines read only where the frame is bright; every area asked is recorded.
+    struct Dimmed {
+        lines: Vec<TextLine>,
+        asked: Mutex<Vec<Region>>,
+    }
+
+    impl Dimmed {
+        fn new(lines: Vec<TextLine>) -> Arc<Self> {
+            Arc::new(Self {
+                lines,
+                asked: Mutex::new(Vec::new()),
+            })
+        }
+
+        fn take_asked(&self) -> Vec<Region> {
+            std::mem::take(&mut *self.asked.lock().expect("asked"))
+        }
+
+        fn bright(image: &Rgba, area: Region) -> bool {
+            (area.y..area.bottom().min(image.height)).any(|y| {
+                (area.x..area.right().min(image.width)).any(|x| {
+                    let at = (y as usize * image.width as usize + x as usize) * 4;
+                    image.pixels[at] >= READABLE
+                })
+            })
+        }
+
+        fn inside(area: Region, line: &TextLine) -> bool {
+            let (x, y) = (line.region.middle_x(), line.region.middle_y());
+            area.x <= x && x < area.right() && area.y <= y && y < area.bottom()
+        }
+    }
+
+    impl TextReader for Dimmed {
+        fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            self.lines
+                .iter()
+                .find(|line| Self::inside(region, line) && Self::bright(image, line.region))
+                .map(|line| ReadText {
+                    text: line.text.clone(),
+                    confidence: 1.0,
+                })
+                .ok_or(ReadError::Failed)
+        }
+
+        fn read_lines(&self, image: &Rgba, region: Region) -> Vec<TextLine> {
+            self.asked.lock().expect("asked").push(region);
+            self.lines
+                .iter()
+                .filter(|line| Self::inside(region, line) && Self::bright(image, line.region))
+                .cloned()
+                .collect()
+        }
+    }
+
+    fn line(text: &str, x: u32, y: u32, width: u32) -> TextLine {
+        TextLine {
+            text: text.to_string(),
+            region: Region {
+                x,
+                y,
+                width,
+                height: 18,
+            },
+        }
+    }
+
+    /// The popup's four lines and the two cards behind it, at the 1920×1080 client's places.
+    fn scene() -> Vec<TextLine> {
+        vec![
+            line("Select Difficulty", 900, 360, 216),
+            line("Normal", 900, 430, 200),
+            line("Nightmare", 900, 500, 200),
+            line("Hell", 900, 570, 200),
+            line("vukVuka", 1576, 91, 236),
+            line("Level 88 Sorceress", 1576, 114, 236),
+            line("vukaDao", 1576, 181, 236),
+            line("Level 11 Sorceress", 1576, 204, 236),
+        ]
+    }
+
+    /// A frame with the popup bright and the card column at `column` brightness.
+    fn frame(column: u8) -> Rgba {
+        let (width, height) = (1920u32, 1080u32);
+        let mut pixels = vec![255u8; width as usize * height as usize * 4];
+        let area = screen_region(ScreenRegion::CardColumn, width, height).expect("column");
+        for y in area.y..area.bottom() {
+            for x in area.x..area.right() {
+                let at = (y as usize * width as usize + x as usize) * 4;
+                pixels[at..at + 3].fill(column);
+            }
+        }
+        Rgba {
+            width,
+            height,
+            pixels,
+        }
+    }
+
+    fn read(reader: &Arc<Dimmed>, frame: &Rgba) -> crate::messages::FrameReading {
+        ScreenReader::new(
+            Arc::clone(reader) as Arc<dyn TextReader + Send + Sync>,
+            Arc::new(LanguagePack::english()),
+        )
+        .read(frame)
+    }
+
+    #[test]
+    fn a_popup_over_a_bright_column_reads_both_cards_with_one_read_of_the_column() {
+        let reader = Dimmed::new(scene());
+        let reading = read(&reader, &frame(255));
+        assert_eq!(reading.screen, Screen::CharacterSelect);
+        assert_eq!(reading.cards.len(), 2);
+        let column = screen_region(ScreenRegion::CardColumn, 1920, 1080).expect("column");
+        let asked = reader.take_asked();
+        assert_eq!(asked.iter().filter(|area| **area == column).count(), 1);
+    }
+
+    #[test]
+    fn a_popup_over_a_column_too_dim_for_the_engine_reads_no_card() {
+        // Pinned before the change (the `slots0-options3` class): the dimmed text reads as nothing, so no slot is read.
+        let reader = Dimmed::new(scene());
+        let reading = read(&reader, &frame(70));
+        assert_eq!(reading.screen, Screen::CharacterSelect);
+        assert_eq!((reading.cards.len(), reading.slots_read), (0, 0));
+        assert_eq!(reading.popup_options, 3);
+    }
+}
