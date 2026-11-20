@@ -74,7 +74,7 @@ Rules:
       `uses:` lines change, never a job name; `ocr-real.yml` untouched. Read each major's release notes for breaking
       inputs (download-artifact 8 names, upload-artifact 7 hidden files) and fix the callers. Gate:
       `node --test scripts/test/ci-workflow.test.mjs scripts/test/deploy-workflows.test.mjs scripts/test/nightly-workflow.test.mjs scripts/test/ocr-real-workflow.test.mjs scripts/test/preview-workflow.test.mjs scripts/test/release-workflows.test.mjs && pnpm exec prettier --check .github`
-- [ ] T11 — UPK-11, group 2 (npm minor and patch): `import-in-the-middle` 3.6.0, `@opentelemetry/instrumentation-pg`
+- [x] T11 — UPK-11, group 2 (npm minor and patch): `import-in-the-middle` 3.6.0, `@opentelemetry/instrumentation-pg`
       0.78.0 and the dev-tooling group, except anything that Dependabot grouped as ESLint, OpenTelemetry-major or Playwright
       (those are T12–T14). Gate: `pnpm install && pnpm typecheck && pnpm lint && pnpm test && pnpm arch && pnpm format:check`
 - [ ] T12 — UPK-11, group 3 (OpenTelemetry): `@opentelemetry/exporter-metrics-otlp-http` 0.301 with the packages that must
