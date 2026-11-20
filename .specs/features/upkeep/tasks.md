@@ -77,6 +77,10 @@ Rules:
 - [x] T11 — UPK-11, group 2 (npm minor and patch): `import-in-the-middle` 3.6.0, `@opentelemetry/instrumentation-pg`
       0.78.0 and the dev-tooling group, except anything that Dependabot grouped as ESLint, OpenTelemetry-major or Playwright
       (those are T12–T14). Gate: `pnpm install && pnpm typecheck && pnpm lint && pnpm test && pnpm arch && pnpm format:check`
+      Also done after T14 (the majors of #78 that went green): `jsdom` 31 and `dependency-cruiser` 18 (its binary is
+      now `dependency-cruiser.mjs`, so the two harness tests that spawn it follow). Not done: `secretlint` 14 with its
+      rules 13 — it flags a fake connection string in `scripts/test/load/redact.test.mjs`, and changing what the secret
+      scanner accepts is the maintainer's (rule 4); the 10.x minors went in. `typescript` 7 is tried in its own commit.
 - [~] T12 — UPK-11, group 3 (OpenTelemetry): `@opentelemetry/exporter-metrics-otlp-http` 0.301 with the packages that must
   move with it (`pnpm why` shows the pair set); the telemetry and traced-stack tests are the proof. Gate:
   `pnpm install && pnpm --filter @d2rmm/telemetry test && pnpm --filter @d2rmm/api test && DOCKER_CONFIG=<dir with {}> pnpm --filter @d2rmm/api test:integration && pnpm typecheck && pnpm lint`
@@ -85,8 +89,8 @@ Rules:
   `@opentelemetry/sdk-trace`, which is a rename in about 25 files, the architecture-rule fixtures and the telemetry
   rules test, and `api` 1.10 conflicts with the peer range of the 2.x trace packages. The repository holds
   `@opentelemetry` majors for 30 days (`dependabot.yml`), so this is the maintainer's migration, not upkeep. Moved to a
-  follow-up; #39 closes with this reason, and `instrumentation-pg` 0.78.0 and `import-in-the-middle` 3.6.0 (#38, #36)
-  went in with T11.
+  follow-up; #39 and #38 (`instrumentation-pg` 0.78.0, which needs `api` 1.10, see T14) close with this reason;
+  `import-in-the-middle` 3.6.0 (#36) went in with T11.
 - [x] T13 — UPK-11, group 4 (ESLint majors): `eslint`, `@eslint/*`, `typescript-eslint` in one step; fix new findings
       in the code, never by relaxing a rule or adding an ignore (rule 4). Gate:
       `pnpm install && pnpm lint && pnpm typecheck && pnpm test`
