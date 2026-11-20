@@ -54,8 +54,10 @@ services:
       # The staging test endpoints stay off in production.
       - key: ENABLE_STAGING_ENDPOINTS
         value: 'false'
+      # The production site URL is the maintainer's to set in Render; this file never names it, so production cannot
+      # inherit staging's site by copy (the same-origin guard checks this value).
       - key: SITE_ORIGIN
-        value: https://d2rmatchmaking.pages.dev
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: OTEL_EXPORTER_OTLP_ENDPOINT

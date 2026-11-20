@@ -67,8 +67,10 @@ Names only, never values. Nothing below costs money: every service and database 
   deploy off). `d2rmm-api` (staging) already exists. Both declare the same secret names, to be filled in Render:
   `DATABASE_URL`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, `BNET_CLIENT_ID`, `BNET_CLIENT_SECRET`.
 - Copy the **deploy hook URL** of each service (Settings → Deploy Hook).
-- Staging's `SITE_ORIGIN` stays `https://d2rmatchmaking.pages.dev` until the cutover (item 5); production's is the same
-  value.
+- **`SITE_ORIGIN` of `d2rmm-api-production`** is a secret name too (`sync: false`): set it in Render to the exact
+  origin of the production site, `https://d2rmatchmaking.pages.dev`. The file never names it, so production cannot
+  inherit staging's. Staging's `SITE_ORIGIN` stays `https://d2rmatchmaking.pages.dev` in `render.yaml` until the
+  cutover (item 5).
 
 ### 2. Neon
 
