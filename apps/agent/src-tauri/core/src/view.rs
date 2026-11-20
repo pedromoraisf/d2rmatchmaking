@@ -115,6 +115,15 @@ pub struct CaptureView {
     pub window_height: Option<u32>,
     /// The last Party look of the held run; `None` before one was made, or without a held room.
     pub party: Option<PartyLookView>,
+    /// The capture method of the last usable frame, as its fixed word (`print-window`, `graphics-capture`,
+    /// `screen-crop`), or `none` (CAP-07).
+    pub method: &'static str,
+    /// The usable share of the last looks, a whole percent (CAP-07).
+    pub read_rate_percent: u8,
+    /// Why there is no frame to read, as a fixed code: `nothing` when the game runs and no method gave a usable frame
+    /// (CAP-02). Absent while there is a frame, or while nothing is captured.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -266,6 +275,9 @@ mod tests {
                     diff: Some("sub(l>9)@9".to_string()),
                 }),
             }),
+            method: "graphics-capture",
+            read_rate_percent: 97,
+            reason: None,
         };
 
         assert_eq!(
@@ -281,6 +293,8 @@ mod tests {
                     "matched": false,
                     "detail": { "source": "label", "variants": 3, "diff": "sub(l>9)@9" },
                 },
+                "method": "graphics-capture",
+                "readRatePercent": 97,
             })
         );
     }

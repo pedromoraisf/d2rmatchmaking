@@ -9,7 +9,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use d2rmm_agent_domain::capture_cascade::{CaptureMethod, Cascade, Outcome, Step};
 use d2rmm_agent_domain::frame_content::summarize;
 
-use crate::ports::{CaptureStatus, FrameSource, MethodSource, Rgba};
+use crate::ports::{CaptureStatus, FrameSource, MethodSource, Miss, Rgba};
 
 /// The fixed words of `capture.outcome` on an `agent.vision.capture` span (CAP-08).
 const OUTCOME_FRAME: &str = "frame";
@@ -59,9 +59,10 @@ impl<M: MethodSource> Capturer<M> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// One capture with `method`, as an outcome and its usable frame. A method that panics, a frame of the wrong size and a
-    /// blank frame are all unusable; the frame is dropped here, never passed on (CAP-02, CAP-04, CAP-09).
-    fn attempt(&self, method: CaptureMethod) -> (Outcome, Option<Rgba>) {
+    /// One capture with `method`, as an outcome and its usable frame, or `None` when there is no game window to capture. A
+    /// method that panics, a frame of the wrong size and a blank frame are all unusable; the frame is dropped here, never
+    /// passed on (CAP-02, CAP-04, CAP-09).
+    fn attempt(&self, method: CaptureMethod) -> Option<(Outcome, Option<Rgba>)> {
         let span = tracing::info_span!(
             "agent.vision.capture",
             "capture.method" = method.word(),
@@ -69,16 +70,21 @@ impl<M: MethodSource> Capturer<M> {
         );
         let taken = {
             let _entered = span.enter();
-            catch_unwind(AssertUnwindSafe(|| self.methods.capture_with(method))).unwrap_or(None)
+            catch_unwind(AssertUnwindSafe(|| self.methods.capture_with(method)))
+                .unwrap_or(Err(Miss::Failed))
         };
         let (outcome, frame) = match taken {
-            None => (Outcome::Failed, None),
-            Some(frame) if !self.holds_the_client(&frame) => (Outcome::Failed, None),
-            Some(frame) if summarize(&frame.pixels).blank => (Outcome::Blank, None),
-            Some(frame) => (Outcome::Frame, Some(frame)),
+            Err(Miss::NoWindow) => {
+                span.record("capture.outcome", OUTCOME_SKIPPED);
+                return None;
+            }
+            Err(Miss::Failed) => (Outcome::Failed, None),
+            Ok(frame) if !self.holds_the_client(&frame) => (Outcome::Failed, None),
+            Ok(frame) if summarize(&frame.pixels).blank => (Outcome::Blank, None),
+            Ok(frame) => (Outcome::Frame, Some(frame)),
         };
         span.record("capture.outcome", outcome_word(outcome));
-        (outcome, frame)
+        Some((outcome, frame))
     }
 
     /// Whether the frame is the size of the game's client area, when the platform says it (CAP-04, CAP-06).
@@ -93,7 +99,9 @@ impl<M: MethodSource + Send + Sync> FrameSource for Capturer<M> {
     fn capture(&self) -> Option<Rgba> {
         let mut state = self.lock();
         if let Some(method) = state.cascade.probe() {
-            let (outcome, frame) = self.attempt(method);
+            let Some((outcome, frame)) = self.attempt(method) else {
+                return self.no_window(&mut state);
+            };
             if state.cascade.record_probe(method, outcome) {
                 state.cascade.record(Outcome::Frame);
                 state.last = Last::Frame(method);
@@ -108,7 +116,9 @@ impl<M: MethodSource + Send + Sync> FrameSource for Capturer<M> {
             let Some(method) = state.cascade.current() else {
                 break;
             };
-            let (outcome, frame) = self.attempt(method);
+            let Some((outcome, frame)) = self.attempt(method) else {
+                return self.no_window(&mut state);
+            };
             let step = state.cascade.record(outcome);
             if frame.is_some() {
                 state.last = Last::Frame(method);
@@ -144,6 +154,19 @@ impl<M: MethodSource + Send + Sync> FrameSource for Capturer<M> {
 
     fn release(&self) {
         let mut state = self.lock();
+        self.stop(&mut state);
+    }
+}
+
+impl<M: MethodSource> Capturer<M> {
+    /// There is no game window: nothing was captured, and no method failed (CAP-05).
+    fn no_window(&self, state: &mut State) -> Option<Rgba> {
+        self.stop(state);
+        None
+    }
+
+    /// Ends the capture: the sessions close, once, and the status says nothing is being captured.
+    fn stop(&self, state: &mut State) {
         if state.last == Last::Skipped {
             return;
         }
@@ -176,7 +199,7 @@ mod tests {
     use d2rmm_agent_domain::capture_cascade::{CaptureMethod, DEMOTE_AFTER};
 
     use super::Capturer;
-    use crate::ports::{CaptureStatus, FrameSource, MethodSource, Rgba};
+    use crate::ports::{CaptureStatus, FrameSource, MethodSource, Miss, Rgba};
     use CaptureMethod::{GraphicsCapture, PrintWindow, ScreenCrop};
 
     /// What a scripted method returns.
@@ -185,6 +208,7 @@ mod tests {
         Good,
         Black,
         Nothing,
+        NoWindow,
         Panic,
         Size(u32, u32),
     }
@@ -232,7 +256,7 @@ mod tests {
             self.offered.clone()
         }
 
-        fn capture_with(&self, method: CaptureMethod) -> Option<Rgba> {
+        fn capture_with(&self, method: CaptureMethod) -> Result<Rgba, Miss> {
             self.calls.lock().expect("calls").push(method);
             let say = self
                 .says
@@ -242,11 +266,12 @@ mod tests {
                 .copied()
                 .unwrap_or(Say::Nothing);
             match say {
-                Say::Good => Some(drawn(8, 8)),
-                Say::Black => Some(black(8, 8)),
-                Say::Nothing => None,
+                Say::Good => Ok(drawn(8, 8)),
+                Say::Black => Ok(black(8, 8)),
+                Say::Nothing => Err(Miss::Failed),
+                Say::NoWindow => Err(Miss::NoWindow),
                 Say::Panic => panic!("a method that panics"),
-                Say::Size(width, height) => Some(drawn(width, height)),
+                Say::Size(width, height) => Ok(drawn(width, height)),
             }
         }
 
@@ -381,6 +406,30 @@ mod tests {
     }
 
     #[test]
+    fn a_missing_window_is_not_a_failure_of_the_method() {
+        let script = Scripted::new(&[PrintWindow, GraphicsCapture]);
+        script.say(PrintWindow, Say::NoWindow);
+        script.say(GraphicsCapture, Say::Good);
+        let capturer = capturer(&script);
+
+        for _ in 0..(DEMOTE_AFTER * 4) {
+            assert!(capturer.capture().is_none());
+        }
+
+        assert_eq!(
+            script.calls_of(GraphicsCapture),
+            0,
+            "a minimized game demotes nothing"
+        );
+        let status = capturer.status();
+        assert_eq!((status.method, status.unusable), (None, false));
+
+        script.say(PrintWindow, Say::Good);
+        assert!(capturer.capture().is_some());
+        assert_eq!(capturer.status().method, Some(PrintWindow));
+    }
+
+    #[test]
     fn a_method_that_panics_is_a_failed_capture_and_not_a_crash() {
         let script = Scripted::new(&[PrintWindow, GraphicsCapture]);
         script.say(PrintWindow, Say::Panic);
@@ -411,13 +460,13 @@ mod tests {
             fn methods(&self) -> Vec<CaptureMethod> {
                 vec![PrintWindow]
             }
-            fn capture_with(&self, _method: CaptureMethod) -> Option<Rgba> {
+            fn capture_with(&self, _method: CaptureMethod) -> Result<Rgba, Miss> {
                 let mut pixels = Vec::new();
                 for at in 0..64_u32 {
                     let value = if at % 2 == 0 { 6 } else { 26 };
                     pixels.extend_from_slice(&[value, value, value, 255]);
                 }
-                Some(Rgba {
+                Ok(Rgba {
                     width: 8,
                     height: 8,
                     pixels,

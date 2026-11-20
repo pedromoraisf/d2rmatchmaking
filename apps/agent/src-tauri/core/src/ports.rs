@@ -161,14 +161,24 @@ pub struct CaptureStatus {
     pub unusable: bool,
 }
 
+/// Why a method gave no frame. A game window that is not there (closed, minimized) is not a failure of the method, and does
+/// not move the cascade (CAP-05).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Miss {
+    /// No game window with a client area: nothing was captured.
+    NoWindow,
+    /// The window is there and the method returned no frame.
+    Failed,
+}
+
 /// The ways to capture the game window the PC offers, one capture at a time (capture-cascade, design § Ports). Every method
 /// returns the client area of the game window and nothing else (CAP-04); the `Capturer` decides which one to ask.
 pub trait MethodSource {
     /// The methods this PC can offer, in any order; the cascade orders them.
     fn methods(&self) -> Vec<CaptureMethod>;
 
-    /// One capture with `method`: the client area as a frame, or `None` (no window, minimized, the method failed).
-    fn capture_with(&self, method: CaptureMethod) -> Option<Rgba>;
+    /// One capture with `method`: the client area as a frame, or why there is none.
+    fn capture_with(&self, method: CaptureMethod) -> Result<Rgba, Miss>;
 
     /// The size of the game's client area now, when the platform can say it. A frame of another size is refused (CAP-04).
     fn client_size(&self) -> Option<(u32, u32)> {

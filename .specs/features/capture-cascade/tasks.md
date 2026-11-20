@@ -65,7 +65,7 @@ check is `node scripts/agent/win-check.mjs` (Docker, clippy for `x86_64-pc-windo
       run; `release()` called once on consent withdrawn and on a demotion; a panic in a method is a failed capture; a
       frame whose size is not the client's is unusable; calls per method over 600 looks (steady 600, probe 10, none
       after a demotion to the first method). Existing fakes compile unchanged. Gate: as T1
-- [ ] T5 — Wire the loop (CAP-02, CAP-05, CAP-07). `watch_screen::tick` asks the `Capturer`: an unusable look sets
+- [x] T5 — Wire the loop (CAP-02, CAP-05, CAP-07). `watch_screen::tick` asks the `Capturer`: an unusable look sets
       `Unknown`, sets the capture view and the window's reason code, and returns before `read_screen` and the Party
       step. `CaptureView` gains `method` (the fixed word) and `read_rate`. Change the T1 blank-frame test to expect zero
       reader calls and say why in the commit; add the call-count tests: 600 usable looks make 600 `read` calls, 600
