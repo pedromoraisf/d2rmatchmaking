@@ -24,10 +24,10 @@ Rules:
 
 ## Batch 2 — stages and the site (PR 2)
 
-- [ ] T4 — Write the reusable `stage-build`, `stage-deploy`, `stage-smoke` and `stage-promote` workflows and the thin
+- [x] T4 — Write the reusable `stage-build`, `stage-deploy`, `stage-smoke` and `stage-promote` workflows and the thin
       `site.yml` (DLP-02, DLP-03). Make the preview origin deploy configuration, and add the fixed phase-preview alias
       (DLP-08). Write static harness tests (DLP-10). Gate: `pnpm test:harness`
-- [ ] T5 — Run the site through the new stages beside `deploy-web.yml` on three real pushes or PRs, and record the run
+- [x] T5 — Run the site through the new stages beside `deploy-web.yml` on three real pushes or PRs, and record the run
       links in the PR. Gate: `gh run list --workflow site.yml --limit 3 --json conclusion,url`
 
 ## Batch 3 — the API split (PR 3; the deploy to production waits for the maintainer's secrets)
@@ -45,11 +45,11 @@ Rules:
 - [ ] T9 — Channel config in the app crate: the identifier, product name, API base and updater per channel; the
       self-check line carries `channel` and `version` (DLP-06). Rust unit tests. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml --lib && cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings`
-- [x] T10 — `agent.yml` on the stages: a preview installer per agent PR and a staging installer per `main` commit, both
+- [ ] T10 — `agent.yml` on the stages: a preview installer per agent PR and a staging installer per `main` commit, both
       as artifacts only, each smoke-started against its API. Harness tests. Gate: `pnpm test:harness`
 
 ## Batch 5 — remove what was replaced (PR 5)
 
-- [x] T11 — Once each replacement has passed three real runs (links in the PR), remove `deploy-web.yml`,
+- [ ] T11 — Once each replacement has passed three real runs (links in the PR), remove `deploy-web.yml`,
       `deploy-api.yml` and `preview-api.yml`, move `release-agent.yml` onto `stage-smoke` and `stage-promote`, and
       update the harness tests (DLP-09). Gate: `pnpm test:harness && pnpm format:check`

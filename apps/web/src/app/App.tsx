@@ -56,7 +56,7 @@ const defaultOpenStream: StreamOpener = (handlers) => openSiteStream(handlers);
 
 // A 401 on /v1/me is the signed-out view, not a failure (AWS-03, AWS-04).
 async function loadBoot(client: ApiClient, wake: WakeOptions): Promise<Boot> {
-  const config = await readWhenAwake(() => client.config(), wake);
+  const config = await readWhenAwake((signal) => client.config(signal), wake);
   if (!config.ok) {
     return { status: 'failed' };
   }
@@ -199,6 +199,7 @@ export function App({ client = defaultClient, openStream = defaultOpenStream, sl
     const wake: WakeOptions = {
       onWaking: () => setBoot({ status: 'waking' }),
       active: () => current,
+      random: Math.random,
       ...(sleep === undefined ? {} : { sleep }),
     };
     void loadBoot(client, wake).then((next) => {
