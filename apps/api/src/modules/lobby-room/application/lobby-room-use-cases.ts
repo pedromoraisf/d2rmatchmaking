@@ -10,6 +10,7 @@ import {
   activeTraceparent,
   addActiveSpanEvent,
   annotateActiveSpan,
+  matchCharacterName,
   err,
   linkActiveSpan,
   ok,
@@ -27,6 +28,7 @@ import {
 import { GameName } from '../domain/game-name.ts';
 import { LobbyRoom, type RoomChange, type RoomMember } from '../domain/lobby-room.ts';
 import { Observation, type ObservationType } from '../domain/observation.ts';
+import { isPlayerNameReading, isPlayerSighting } from '../domain/player-sighting.ts';
 import type {
   GameNameSequence,
   LobbyRoomRepository,
@@ -278,6 +280,33 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
   }
 
   /**
+   * The join order of the member of `room` whose character the read name stands for (SNM-02), `null` when it stands for
+   * none, `'ambiguous'` when it stands for more than one. Only members who queued with a character can match. The read
+   * name is a parameter of this function and goes no further.
+   */
+  async function matchedJoinOrder(room: LobbyRoom, read: string): Promise<number | 'ambiguous' | null> {
+    // One lookup for every member who queued with a character, not one for each (security review of #101).
+    const withCharacter = room.members.flatMap((member) =>
+      member.characterId === null
+        ? []
+        : [{ joinOrder: member.joinOrder, accountId: member.accountId, characterId: member.characterId }],
+    );
+    const names = await deps.characters.namesOf(withCharacter);
+    const named = withCharacter.flatMap((member, index) => {
+      const name = names[index];
+      return name === undefined || name === null ? [] : [{ joinOrder: member.joinOrder, name }];
+    });
+    const match = matchCharacterName(
+      read,
+      named.map((entry) => entry.name),
+    );
+    if (match.kind === 'ambiguous') {
+      return 'ambiguous';
+    }
+    return match.kind === 'one' ? (named[match.index]?.joinOrder ?? null) : null;
+  }
+
+  /**
    * Stores one observation of the agent's account for a room it belongs to, in this order: membership (403, nothing
    * stored) → unknown type (202, nothing stored) → idempotency key already stored for this agent (202, no change) →
    * insert and `observe` in one transaction (202).
@@ -310,8 +339,29 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
         if (body.type === 'UNKNOWN') {
           return ok({ stored: false });
         }
+        // A chat sighting carries one character name as the screen read it. It is checked, matched to a member of this room
+        // and dropped: only the member's join order is stored, and nothing about the name reaches a span or a log (SNM-04).
+        if (isPlayerSighting(body.type) && !isPlayerNameReading(body.value)) {
+          return err('invalid-observation');
+        }
         if (await deps.observations.exists(input.agentId, body.idempotencyKey)) {
-          return ok({ stored: false });
+          // A replay of a sighting answers as a first one does: the answer never tells a match from a miss (SNM-03).
+          return ok({ stored: isPlayerSighting(body.type) });
+        }
+        let value = body.value;
+        if (isPlayerSighting(body.type)) {
+          const joinOrder = await matchedJoinOrder(room, body.value);
+          annotateActiveSpan({
+            'd2r.observation.type': body.type,
+            'd2r.observation.match':
+              joinOrder === null ? 'none' : joinOrder === 'ambiguous' ? joinOrder : 'matched',
+          });
+          if (joinOrder === null || joinOrder === 'ambiguous') {
+            // The same answer as a match: `stored` of a sighting carries nothing, or a peer could search the members' names
+            // through it (security review of #101, SNM-03).
+            return ok({ stored: true });
+          }
+          value = String(joinOrder);
         }
         const made = Observation.of({
           agentId: input.agentId,
@@ -320,7 +370,7 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
           accountId,
           type: body.type,
           run: body.run,
-          value: body.value,
+          value,
           confidence: body.confidence,
           capturedAt: body.capturedAt,
         });

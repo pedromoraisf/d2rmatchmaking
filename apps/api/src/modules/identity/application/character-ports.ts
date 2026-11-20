@@ -1,4 +1,5 @@
 import type { Character, Declaration, DeclaredLadder, Era } from '../domain/character/character.ts';
+import type { StoredFacts } from '../domain/character/reconcile.ts';
 import type { Transaction } from '../../../shared-kernel/index.ts';
 
 /**
@@ -19,8 +20,8 @@ export interface CharacterRepository {
    * holds when two agents post at once.
    */
   lockAccount(tx: Transaction, accountId: string): Promise<void>;
-  /** The names the account holds now, read in the caller's transaction. */
-  storedNames(tx: Transaction, accountId: string): Promise<readonly string[]>;
+  /** The name, class, mode and level of every character the account holds now, read in the caller's transaction. */
+  storedCharacters(tx: Transaction, accountId: string): Promise<readonly StoredFacts[]>;
   /**
    * Creates each character or replaces its reading with this one, in the caller's transaction. A replaced character keeps
    * the ladder and era the player declared (CHR-15).
@@ -33,6 +34,13 @@ export interface CharacterRepository {
   ): Promise<void>;
   /** Sets the ladder and era of one of the account's characters; false when the account holds no such character (CHR-16). */
   declare(accountId: string, characterId: string, declaration: Declaration): Promise<boolean>;
+  /**
+   * The stored spelling of each (account, character) pair, in one query, `null` for a pair the account does not hold. The
+   * answer is in the order of the pairs (SNM-03).
+   */
+  namesOf(
+    pairs: readonly { readonly accountId: string; readonly characterId: string }[],
+  ): Promise<(string | null)[]>;
   /** The account's characters, ordered by name. */
   listByAccount(accountId: string): Promise<StoredCharacter[]>;
 }
