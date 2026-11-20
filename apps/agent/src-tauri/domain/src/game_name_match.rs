@@ -276,6 +276,15 @@ mod tests {
     }
 
     #[test]
+    fn the_digits_fold_only_the_o_glyphs_to_zero_and_the_letters_before_the_dash_are_not_digits() {
+        // Pins today (screen-recognition T6): after the last dash only the O glyphs read as zero; a letter L or I is no digit.
+        assert_eq!(read_field("mmpvpn-1O", "mmpvpn-10"), FieldRead::Matched);
+        assert_eq!(read_field("mmpvpn-l0", "mmpvpn-10"), FieldRead::Other);
+        assert_eq!(read_field("mmpvpn-I0", "mmpvpn-10"), FieldRead::Other);
+        assert_eq!(normalise("mmpvlN-10"), "mmpvln-10", "letters keep their l");
+    }
+
+    #[test]
     fn a_reading_one_character_off_does_not_match() {
         assert_eq!(read_field("mmcowsh-2", "mmcowsh-1"), FieldRead::Other);
         assert_eq!(read_field("mmcowsh-1x", "mmcowsh-1"), FieldRead::Other);
