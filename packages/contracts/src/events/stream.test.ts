@@ -5,6 +5,7 @@ import {
   RoomAssignedEvent,
   RoomMemberChangedEvent,
   RoomRunOpenedEvent,
+  AgentRoomStageChangedEvent,
   RoomStageChangedEvent,
   SiteStreamEvent,
 } from './stream.ts';
@@ -36,6 +37,28 @@ describe('stream events', () => {
 
   it('accepts the room.stage_changed example', () => {
     expect(RoomStageChangedEvent.parse(stageChanged)).toStrictEqual(stageChanged);
+  });
+
+  it('gives the agent a stage change with the room and the stage only', () => {
+    const agentCopy = { type: 'room.stage_changed', data: { roomId: '4821', stage: 'expired' } };
+    expect(AgentRoomStageChangedEvent.parse(agentCopy)).toStrictEqual(agentCopy);
+    expect(AgentStreamEvent.parse(agentCopy)).toStrictEqual(agentCopy);
+    // A member list is not part of the agent's message: it is stripped, not carried.
+    expect(AgentRoomStageChangedEvent.parse(stageChanged)).toStrictEqual({
+      type: 'room.stage_changed',
+      data: { roomId: '4821', stage: 'created' },
+    });
+    expect(AgentStreamEvent.safeParse({ type: 'room.stage_changed', data: { roomId: '4821' } }).success).toBe(
+      false,
+    );
+  });
+
+  it('keeps the members on the site stream stage change', () => {
+    expect(SiteStreamEvent.parse(stageChanged)).toStrictEqual(stageChanged);
+    expect(
+      SiteStreamEvent.safeParse({ type: 'room.stage_changed', data: { roomId: '4821', stage: 'created' } })
+        .success,
+    ).toBe(false);
   });
 
   it('accepts the agent.presence_changed example', () => {

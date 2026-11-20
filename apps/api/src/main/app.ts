@@ -65,6 +65,7 @@ import { answerError } from '../platform/http/answer-error.ts';
 import { registerRequestMetrics } from '../platform/http/request-metrics.ts';
 import { registerOutboxLag } from '../platform/outbox-lag.ts';
 import { createGuards } from '../platform/http/guards.ts';
+import { createObservationLimit } from '../platform/http/observation-limit.ts';
 import { Forwarder } from '../platform/http/relay-forwarder.ts';
 import { RelayBudget } from '../platform/http/relay-budget.ts';
 import { RelayLimiter } from '../platform/http/relay-limiter.ts';
@@ -327,6 +328,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
         const facts = await characters.characterOf(accountId, characterId);
         return facts === null ? null : { characterClass: facts.characterClass, level: facts.level };
       },
+      namesOf: characters.characterNamesOf,
     },
     dropToleranceMs: (config.roomDropToleranceSeconds ?? DEFAULT_DROP_TOLERANCE_SECONDS) * 1000,
   });
@@ -513,7 +515,14 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   });
   characterRoutes(app, { useCases: characters, agents: agentsPort, guards });
   agentsRoutes(app, { useCases: agents, guards });
-  lobbyRoomRoutes(app, { useCases: lobby, guards });
+  // Observations are limited for each agent and each room; the limiter is swept for as long as the app lives.
+  const observationLimit = createObservationLimit({ clock });
+  const stopObservationSweep = observationLimit.watch(scheduler);
+  app.addHook('onClose', (_instance, done) => {
+    stopObservationSweep();
+    done();
+  });
+  lobbyRoomRoutes(app, { useCases: lobby, guards: { ...guards, limitObservations: observationLimit.guard } });
   matchmakingRoutes(app, { useCases: matchmaking, guards, stagingEndpoints: config.stagingEndpoints });
   queueRoutes(app, { useCases: queue, guards });
   readyCheckRoutes(app, { useCases: queue, guards });

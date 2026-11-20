@@ -36,8 +36,15 @@ export interface MemberConnectivity {
   siteStreamClosedSince(accountId: string): Date | null;
 }
 
-/** The class and level of a member's character, for the room panel. Implemented in `main/` over Identity. */
+/**
+ * The class and level of a member's character, for the room panel, and its name, for matching a chat sighting (SNM-03).
+ * Implemented in `main/` over Identity. The name is read for one request and never stored, logged or put in a view.
+ */
 export interface RoomCharacters {
+  /** The names of these members' characters, in one query and in the order given; `null` where there is none. */
+  namesOf(
+    members: readonly { readonly accountId: string; readonly characterId: string }[],
+  ): Promise<(string | null)[]>;
   characterOf(
     accountId: string,
     characterId: string,

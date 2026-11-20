@@ -552,6 +552,39 @@ mod room_end_tests {
         assert_eq!(ended_room(&stage(ROOM, "closed")), Some(ROOM.to_string()));
     }
 
+    /// The API sends the agent only the room and the stage (stream-egress SEG-01).
+    fn lean_stage(room: &str, stage: &str) -> String {
+        format!(r#"{{"roomId":"{room}","stage":"{stage}"}}"#)
+    }
+
+    #[test]
+    fn the_lean_stage_change_without_members_ends_the_room() {
+        use d2rmm_agent_core::ports::RoomEndReason;
+        for (stage_name, expected) in [
+            ("expired", RoomEndReason::Expired),
+            ("closed", RoomEndReason::Closed),
+        ] {
+            match handle("room.stage_changed", &lean_stage(ROOM, stage_name)) {
+                StreamEffect::RoomEnded(end) => {
+                    assert_eq!(end.room.as_str(), ROOM);
+                    assert_eq!(end.reason, expected);
+                }
+                _ => panic!("{stage_name} ends the room with no member list"),
+            }
+        }
+        for live in ["formed", "awaiting_host", "created", "active"] {
+            assert_eq!(ended_room(&lean_stage(ROOM, live)), None, "{live}");
+        }
+    }
+
+    #[test]
+    fn a_stage_change_that_still_carries_members_ends_the_room_too() {
+        let with_members = format!(
+            r#"{{"roomId":"{ROOM}","stage":"expired","members":[{{"accountId":"a","characterId":null,"joinOrder":1,"role":"host"}}]}}"#
+        );
+        assert_eq!(ended_room(&with_members), Some(ROOM.to_string()));
+    }
+
     #[test]
     fn each_ended_stage_carries_its_reason() {
         use d2rmm_agent_core::ports::RoomEndReason;
