@@ -46,6 +46,20 @@ The numbers below come from the print step of each job log. Both runs passed the
 `room.run_opened` is 0 in both: the journey does not open a second run. Its cut (about 340 bytes an event) is held by the unit
 test only. The site's `room.stage_changed` differs by 0.8 %, within the spread between two runs.
 
+## Bytes by step (the ladder's players, whole step)
+
+Metered bytes of each step (the two stream readers and the rest), before and after. The cuts hold at every step.
+
+| Players | Before    | After     | Change | Of which not the streams (after) |
+| ------- | --------- | --------- | ------ | -------------------------------- |
+| 25      | 275,289   | 259,477   | -5.7 % | 78,447                           |
+| 50      | 532,936   | 507,210   | -4.8 % | 154,504                          |
+| 100     | 1,073,482 | 1,013,334 | -5.6 % | 303,384                          |
+| 150     | 1,597,036 | 1,508,472 | -5.5 % | 449,100                          |
+| 200     | 2,146,100 | 2,020,400 | -5.9 % | 607,300                          |
+| 300     | 3,195,840 | 3,002,880 | -6.0 % | 900,230                          |
+| 400     | 4,240,795 | 4,015,928 | -5.3 % | 1,205,836                        |
+
 ## What is left
 
 The two agent cuts took 25,020 bytes. The remaining weight is the site's `room.stage_changed` (123,540, with the member list
