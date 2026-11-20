@@ -5,6 +5,7 @@
 pub mod anchors;
 pub mod character_screen;
 pub mod characters;
+pub mod chat;
 pub mod frame_content;
 pub mod fusion;
 pub mod game_name_match;

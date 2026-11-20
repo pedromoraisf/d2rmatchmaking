@@ -41,6 +41,8 @@
     "difficultyNightmare": "Nightmare",
     "difficultyHell": "Hell",
     "tabOnline": "Online",
-    "tabOffline": "Offline"
+    "tabOffline": "Offline",
+    "joinedGame": "joined our world",
+    "leftGame": "left our world"
   }
 }

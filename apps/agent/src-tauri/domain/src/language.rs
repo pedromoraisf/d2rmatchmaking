@@ -34,6 +34,12 @@ pub const DIFFICULTY_HELL: &str = "difficultyHell";
 pub const TAB_ONLINE: &str = "tabOnline";
 pub const TAB_OFFLINE: &str = "tabOffline";
 
+/// The fixed phrase of the chat line that says a player joined the game ("<name> joined our world"), GNR-07. Measured on the
+/// maintainer's chat prints by `ocr-real` (English; the Portuguese phrase is in `brazilian_party`).
+pub const JOINED_GAME: &str = "joinedGame";
+/// The fixed phrase of the chat line that says a player left the game ("<name> left our world"), GNR-07.
+pub const LEFT_GAME: &str = "leftGame";
+
 /// The keys a pack must hold for the Party reading. A pack without one of them is refused.
 pub const REQUIRED_KEYS: [&str; 3] = [PARTY, GAME_NAME, PASSWORD];
 
@@ -81,6 +87,8 @@ const ENGLISH: &[(&str, &str)] = &[
     (DIFFICULTY_HELL, "Hell"),
     (TAB_ONLINE, "Online"),
     (TAB_OFFLINE, "Offline"),
+    (JOINED_GAME, "joined our world"),
+    (LEFT_GAME, "left our world"),
 ];
 
 /// The pack key of a class name.
@@ -152,9 +160,10 @@ impl LanguagePack {
         }
     }
 
-    /// The Party panel's words of a Brazilian Portuguese client (screen-recognition T6, SCR-04): the title "Grupo", the label
-    /// "Nome" (the Game Name field's label) and "Senha" (the Password label), measured on the maintainer's pt-BR prints.
-    /// The other words stay English: this pack is only read for the Party panel, which holds no other word.
+    /// The words of a Brazilian Portuguese client: the Party panel's title "Grupo", the label "Nome" (the Game Name field's
+    /// label) and "Senha" (the Password label), measured on the maintainer's pt-BR prints (screen-recognition T6, SCR-04), and
+    /// the chat's two phrases "entrou em nosso mundo" and "saiu de nosso mundo", found on the four Portuguese chat prints by
+    /// `ocr-real` (game-name-reading GNR-07). The other words stay English: this pack is read for the Party panel and the chat.
     pub fn brazilian_party() -> Self {
         let mut pack = Self::english();
         pack.tag = "pt-BR".to_string();
@@ -162,6 +171,8 @@ impl LanguagePack {
             ("party", "Grupo"),
             ("gameName", "Nome"),
             ("password", "Senha"),
+            (JOINED_GAME, "entrou em nosso mundo"),
+            (LEFT_GAME, "saiu de nosso mundo"),
         ] {
             pack.words.insert(key.to_string(), word.to_string());
         }

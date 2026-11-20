@@ -60,7 +60,7 @@ failure message carries a name read from a real print.
       the file already documents it as measured. No non-test line changes, and no test is ignored. Gate:
       `CARGO nextest run -p d2rmm-agent-domain -p d2rmm-agent-core --lib` and
       `CARGO clippy -p d2rmm-agent-domain -p d2rmm-agent-core --all-targets -- -D warnings`
-- [ ] T3 — **[R14]** The chat in the domain (GNR-07). Add `domain/src/chat.rs`: `ChatEvent { Joined, Left }`,
+- [x] T3 — **[R14]** The chat in the domain (GNR-07). Add `domain/src/chat.rs`: `ChatEvent { Joined, Left }`,
       `classify(pack, line) -> Option<(ChatEvent, name)>` by the pack's words, and `ChatTracker` (a line present in the
       previous frame is not new; a name that joins, leaves and joins again is three events; a blank name is ignored). Add
       the words `joinedGame` and `leftGame` to `LanguagePack` and `resources/lang/en.json`, **from O1's note only**
@@ -126,7 +126,7 @@ failure message carries a name read from a real print.
 
 ## Orchestrator (local, the maintainer answers the gate)
 
-- [ ] O1 — Before T3: from the local path of the real prints on the Mac (`xtask` geometry command; counts and pixel boxes,
+- [x] O1 — Before T3: from the local path of the real prints on the Mac (`xtask` geometry command; counts and pixel boxes,
       never a pixel written to the repository), put in the PR for the worker: the file names of the automap and chat prints
       in `real-prints.zip` and what each expects (the game name; joined or left; English or Portuguese); the box of the
       name line on the automap at 1920×1033, 1920×1045 and 1920×1080; the chat area's box; and the fixed phrases of the
@@ -166,3 +166,32 @@ only) runs before T3 to T7. The expectations are in the file names:
 Chat phrases are never guessed into the product. T8's diagnostics test candidate phrases and print one boolean per
 candidate, never the text read. A candidate becomes product data (T3, T11) only after CI shows it found on the matching
 print.
+
+### O1 result (orchestrator note on PR #107, from the first `ocr-real` run, job 136538900128)
+
+`ocr-real`: 17 of 19 PASS. All 12 earlier prints PASS; the EN automap and the 4 PT chat prints PASS on the first try.
+
+**Automap name line (GNR-06).** The name sits in the top-right text column, on one line with its label and a colon:
+`<label>: <name>` (the label differs in PT). Measured boxes of that line:
+
+| print      | client    | box (x, y, w, h)                |
+| ---------- | --------- | ------------------------------- |
+| EN automap | 1920×1033 | 1735–1738, 34–35, 155×11–13     |
+| PT automap | 1920×1045 | 1728–1731, 46–47, 164–166×14–15 |
+
+In one PT variant the line sits at y 83 (scale variant). The column's lines run from x ≈ 1690 to the right edge, at
+y ≈ 15–110. Band for T4: from x = 85% of the width to the right edge, y = 0 to 12% of the height, resolved by client size,
+a band and never one box. The PT print fails today because the label and colon stay glued to the name
+(`aaaa: aaaaaaaa-9a`); in 2 of 6 EN variants the line split alone. So `find_name_line` must look at the text after the last
+`:` or `;` of a line, or at its last token, as well as at the whole line. In PT the digits read as `9a` in several
+variants: that is T10's glyph table (observed reads only), not a guess.
+
+**Chat area and phrases (GNR-07).** Phrase lines sit at x ≈ 24–26 and y ≈ 590–790, widths up to about 530 (1920×1033:
+lines at y 656 and 770; 1920×1045: y 592, 668 and 744). Chat band for T3/T6: x = 0 to 30% of the width, y = 50% to 80% of
+the height. Phrases confirmed by CI: EN joined `joined our world`, EN left `left our world`, PT joined
+`entrou em nosso mundo`, PT left `saiu de nosso mundo`. Candidates `entrou no nosso mundo` and `saiu do nosso mundo` were not
+found and never become data. A name is read before the phrase on every chat print.
+
+The EN chat print `maintainer-chat-en-mmbaalh-19.png` holds one joined and one left line, so its class is `both`; its file
+name names no event, so T8's verdict for a print that names no event accepts `both` (a test-expectation fix, not a reading
+change).
