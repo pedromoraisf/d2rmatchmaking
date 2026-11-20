@@ -54,9 +54,6 @@ pub struct CardAnchor {
     /// The title is `None` only because no line was read above the name (not because that line is the tab strip or a
     /// level line): the title may be there unread, so the screen reader checks the pixels of `title_band`.
     pub title_unseen: bool,
-    /// Where the line above the name sits when the lines pass read it as none of the pack's titles (`TitleLine::Unknown`):
-    /// the screen reader reads that place again as a field, as it does a known title line, before it refuses the card.
-    pub title_unknown: Option<Region>,
     pub name: Region,
     pub level: Region,
 }
@@ -153,14 +150,9 @@ pub fn find_cards(pack: &LanguagePack, lines: &[TextLine], frame_height: u32) ->
             }
             Some(_) => TitleLine::Unknown,
         };
-        let title_unknown = match (title, above) {
-            (TitleLine::Unknown, Some(line)) => Some(line.region),
-            _ => None,
-        };
         cards.push(CardAnchor {
             title,
             title_unseen,
-            title_unknown,
             name: name.region,
             level: level.region,
         });
@@ -186,7 +178,6 @@ pub fn find_cards_in_variants(
                 Some(card) if found.title.rank() > card.title.rank() => {
                     card.title = found.title;
                     card.title_unseen = found.title_unseen;
-                    card.title_unknown = found.title_unknown;
                 }
                 // Two views with no title: unseen only when no variant saw the tab strip or a level line there.
                 Some(card) if found.title.rank() == card.title.rank() => {
@@ -617,28 +608,6 @@ mod tests {
             find_cards(&pack(), &far, 1080)[0].title,
             super::TitleLine::None
         );
-    }
-
-    #[test]
-    fn an_unknown_title_line_keeps_its_place_and_no_other_title_does() {
-        let unknown = |lines: &[TextLine]| find_cards(&pack(), lines, 1080)[0].title_unknown;
-        let rest = [column("vukVuka", 118), column("Level 88 Sorceress", 141)];
-        let with = |above: &str| {
-            let mut lines = vec![column(above, 87)];
-            lines.extend(rest.clone());
-            lines
-        };
-        assert_eq!(unknown(&with("Marshal")), Some(with("Marshal")[0].region));
-        for known_or_none in ["Matriarch", "ONLINE"] {
-            assert_eq!(unknown(&with(known_or_none)), None, "{known_or_none}");
-        }
-        assert_eq!(unknown(&rest), None, "no line above the name");
-        // A variant that read a known title outranks one that read an unknown line: the place goes with the better view.
-        use super::find_cards_in_variants;
-        let merged = find_cards_in_variants(&pack(), &[with("Marshal"), with("Matriarch")], 1080);
-        assert_eq!(merged[0].title_unknown, None);
-        let kept = find_cards_in_variants(&pack(), &[with("Marshal"), rest.to_vec()], 1080);
-        assert_eq!(kept[0].title_unknown, Some(with("Marshal")[0].region));
     }
 
     #[test]

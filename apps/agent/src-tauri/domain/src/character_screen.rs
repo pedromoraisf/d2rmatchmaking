@@ -311,12 +311,7 @@ where
                 }
             }
             anchors::TitleLine::None => Some((TitleSource::Absent, vec![String::new()])),
-            // A line the lines pass read as none of the pack's titles is read again as a field, as a known one is: the
-            // fields pass reads the grown box with every variant, and the title settles only on the same rules.
-            anchors::TitleLine::Unknown => anchor
-                .title_unknown
-                .and_then(&mut field)
-                .map(|r| (TitleSource::Found, r)),
+            anchors::TitleLine::Unknown => None,
         };
         let name = field(anchor.name);
         let level = field(anchor.level);
@@ -2417,7 +2412,6 @@ mod popup_column_tests {
 #[cfg(test)]
 mod garbled_title_tests {
     use super::{BandRead, Probes, RejectReason, read_screen};
-    use crate::characters::Title;
     use crate::language::LanguagePack;
     use crate::layout::ScreenRegion;
     use crate::vision::{Region, TextLine};
@@ -2494,57 +2488,16 @@ mod garbled_title_tests {
     }
 
     #[test]
-    fn a_title_line_that_reads_as_no_title_is_read_again_and_the_card_reads_when_the_field_settles_a_title()
-     {
-        // Changed expectation (screen-recognition T9, the specified change; was: the card refused with `title-unread` and no
-        // read of that line, even when it would read as a title): "Marshal" is none of the pack's titles in the lines pass,
-        // and the fields pass settles Matriarch on three agreeing readings.
+    fn a_title_line_that_reads_as_no_title_refuses_the_card_and_is_not_read_again() {
+        // Pinned before the change: the field pass is never asked for a line the lines pass read as no title ("Marshal" is
+        // none of the pack's), even when it would read as one.
         let (reading, asked) = read("Marshal", &MATRIARCH);
-        assert!(reading.rejected.is_empty(), "{:?}", reading.rejected);
-        assert_eq!(reading.cards.len(), 1);
-        assert_eq!(reading.cards[0].title(), Some(Title::Matriarch));
+        assert!(reading.cards.is_empty());
+        assert_eq!(reading.rejected.len(), 1);
+        assert_eq!(reading.rejected[0].reason, RejectReason::TitleUnread);
         assert!(
-            asked.contains(&region(60)),
-            "the line is read again: {asked:?}"
-        );
-    }
-
-    #[test]
-    fn only_an_unknown_or_known_title_line_costs_a_read_of_it_and_no_title_line_costs_none() {
-        // The tab strip above the name is no title line: the card is untitled, and the fields pass reads the name and the level
-        // only (the steady state of an untitled card adds no read).
-        let (reading, asked) = read("ONLINE", &MATRIARCH);
-        assert_eq!(reading.cards.len(), 1);
-        assert_eq!(reading.cards[0].title(), None);
-        assert_eq!(asked, [region(91), region(114)]);
-    }
-
-    #[test]
-    fn a_title_line_the_fields_pass_does_not_settle_still_refuses_the_card() {
-        for field in [
-            &["Marshal", "Marshal", "Marshal"][..],
-            &["Matriarch", "Marshal", "Marshal"],
-            &["Matriarch", "Patriarch", "Slayer"],
-            &["Matriarch", "", ""],
-            &["", "", ""],
-        ] {
-            let (reading, _) = read("Marshal", field);
-            assert!(reading.cards.is_empty(), "{field:?}");
-            assert_eq!(reading.rejected.len(), 1, "{field:?}");
-            assert_eq!(reading.rejected[0].reason, RejectReason::TitleUnread);
-        }
-    }
-
-    #[test]
-    fn a_hardcore_title_read_again_keeps_the_card_hardcore_and_a_lone_reading_among_blanks_stays_refused()
-     {
-        let (reading, _) = read("Marshal", &["Slayer", "Slayer", "Slayer"]);
-        assert_eq!(reading.cards.len(), 1);
-        assert_eq!(reading.cards[0].title(), Some(Title::Slayer));
-        let (reading, _) = read("Marshal", &["Slayer", "", ""]);
-        assert!(
-            reading.cards.is_empty(),
-            "a lone title among blanks refuses"
+            !asked.contains(&region(60)),
+            "no read of that line: {asked:?}"
         );
     }
 }
