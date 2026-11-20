@@ -162,6 +162,13 @@ async function openSiteFor(world: World, name: string): Promise<void> {
     `"${name}" is signed in`,
   ).toBeVisible();
   world.player(name).visitor = visitor;
+  // "Signed in" is drawn from the session read; the site's stream reaches the API a moment later, and a join before that
+  // is refused with `site-not-open` (422). The step ends when the API counts the stream, as a join needs it (QUE-05).
+  await expect
+    .poll(() => world.stack.siteStreamCount(world.player(name).accountId ?? ''), {
+      message: `${name}'s site stream is open at the API`,
+    })
+    .toBeGreaterThan(0);
 }
 
 /** A character as a scenario states it: the reading the agent sends, and the ladder and era the player declares. */
