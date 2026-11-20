@@ -14,6 +14,7 @@ use d2rmm_agent_domain::characters::{Class, Difficulty, Title};
 use d2rmm_agent_domain::game_name_match::{FieldRead, read_field, read_panel_field};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{PanelRegion, ScreenRegion, panel_region, screen_region};
+use d2rmm_agent_domain::name_diff::closest_reading_diff;
 use d2rmm_agent_domain::presence::Screen;
 use d2rmm_agent_domain::vision::{Region, TextLine};
 
@@ -370,6 +371,35 @@ fn name_shaped(text: &str) -> bool {
     is_generated_game_name(&text.trim().to_lowercase())
 }
 
+/// What of a line may be the name: the whole line, what follows its last `:` or `;` (the automap writes `<label>: <name>`), and
+/// its last word, the same three reads `anchors::find_name_line` makes.
+fn name_candidates(text: &str) -> [&str; 3] {
+    [
+        text,
+        text.rsplit([':', ';']).next().unwrap_or(text),
+        text.split_whitespace().next_back().unwrap_or(""),
+    ]
+}
+
+/// Per variant, how the closest read of the band differs from the expected generated name (public: the name is generated), as
+/// edit operations in the fixed alphabet of `name_diff` (`far` past four edits). It names the glyph the engine returned for a
+/// letter or digit of the name, never a line's text.
+pub fn automap_edit_diagnostics(variants: &[Vec<TextLine>], expected_name: &str) -> Vec<String> {
+    variants
+        .iter()
+        .enumerate()
+        .map(|(index, lines)| {
+            let reads: Vec<&str> = lines
+                .iter()
+                .flat_map(|line| name_candidates(&line.text))
+                .collect();
+            let diff = closest_reading_diff(&reads, expected_name)
+                .unwrap_or_else(|| "no text".to_string());
+            format!("  automap name line, variant {index}: closest read differs by [{diff}]")
+        })
+        .collect()
+}
+
 /// The automap verdict: some line of some variant reads as the room's generated name by the production match
 /// (`read_field`). The error holds counts and the name-shaped reads (a generated name is public); every other line's text
 /// stays out, the band holding other players' text.
@@ -378,10 +408,11 @@ pub fn check_automap_reading(
     expected_name: &str,
 ) -> Result<(), String> {
     let lines: Vec<&TextLine> = variants.iter().flatten().collect();
-    if lines
-        .iter()
-        .any(|line| read_field(&line.text, expected_name) == FieldRead::Matched)
-    {
+    if lines.iter().any(|line| {
+        name_candidates(&line.text)
+            .iter()
+            .any(|candidate| read_field(candidate, expected_name) == FieldRead::Matched)
+    }) {
         return Ok(());
     }
     let shaped: Vec<&str> = lines
@@ -946,8 +977,14 @@ pub fn check_folder(
                     }
                 }
                 if name.starts_with("maintainer-automap") {
-                    for line in automap_diagnostics(&read_automap(&*reader, &image)) {
+                    let variants = read_automap(&*reader, &image);
+                    for line in automap_diagnostics(&variants) {
                         println!("{line}");
+                    }
+                    if let Some(expected) = automap_expectation(name) {
+                        for line in automap_edit_diagnostics(&variants, expected) {
+                            println!("{line}");
+                        }
                     }
                 }
                 if name.starts_with("maintainer-chat") {
@@ -1759,6 +1796,29 @@ mod tests {
         assert_eq!(
             lines[3],
             "    x 1500 y 40 width 300 height 18: name-shaped yes [mmbaalh-18]"
+        );
+        assert!(!lines.join("\n").contains("Vuk"));
+    }
+
+    #[test]
+    fn the_automap_verdict_reads_what_follows_the_label_and_the_edits_name_the_glyph() {
+        use super::{automap_edit_diagnostics, check_automap_reading};
+        let labelled = vec![vec![text_line("Label: mmbaalh-19", 1700, 40)]];
+        assert_eq!(check_automap_reading(&labelled, "mmbaalh-19"), Ok(()));
+        let glued = vec![vec![text_line("Label;MMBAALH-19", 1700, 40)]];
+        assert_eq!(check_automap_reading(&glued, "mmbaalh-19"), Ok(()));
+        let misread = vec![
+            vec![text_line("Label: mmbaalh-1Z", 1700, 40)],
+            vec![text_line("Vuk#1234", 900, 20)],
+        ];
+        assert!(check_automap_reading(&misread, "mmbaalh-19").is_err());
+        let lines = automap_edit_diagnostics(&misread, "mmbaalh-19");
+        assert_eq!(
+            lines,
+            vec![
+                "  automap name line, variant 0: closest read differs by [sub(z>9)@9]",
+                "  automap name line, variant 1: closest read differs by [far]",
+            ]
         );
         assert!(!lines.join("\n").contains("Vuk"));
     }
