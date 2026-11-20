@@ -14,7 +14,7 @@ are built by the batches of `.specs/features/delivery-platform/tasks.md`.
 ## Stages
 
 `build → verify → deploy → smoke → promote`. Reusable workflows `stage-build`, `stage-deploy`, `stage-smoke`,
-`stage-promote`, called by `site.yml` (built), `api.yml` and `agent.yml` (_planned_). Job names are always the stage names.
+`stage-promote`, called by `site.yml` and `api.yml` (built) and `agent.yml` (_planned_). Job names are always the stage names.
 
 | Stage   | Does                                                                                         | Triggered by         |
 | ------- | -------------------------------------------------------------------------------------------- | -------------------- |
@@ -36,13 +36,18 @@ the answer is `unknown`.
 The free API sleeps after 15 minutes idle and wakes in 30–60 s. The site shows "waking the server" and retries a
 502/503 with backoff for up to 90 s. Production stays awake only inside `KEEP_AWAKE_WINDOW` (default
 `16:00-02:00 America/Sao_Paulo`, about 310 h a month) so staging and previews fit in 750 free instance-hours
-(`constraints.md`). _Planned_: `keep-awake.yml`.
+(`constraints.md`). `keep-awake.yml` pings `PRODUCTION_API_URL/healthz` every ten minutes, only inside the window
+(`scripts/delivery/awake-window.mjs`); with the variable unset it does nothing.
 
 ## Render and prebuilt images
 
 Render documents prebuilt-image deploys from GHCR (https://render.com/docs/deploying-an-image), with no auto-deploy
 and a pull on every deploy. Whether the **Free** instance type accepts one is unverified (the docs were not reachable
-from the worker's network); Batch 3 settles it. Fallback: pin the commit and let Render build it (ADR 033).
+from the worker's network, again in Batch 3: `getaddrinfo ENOTFOUND render.com`). So the API **uses the fallback**: the
+commit is pinned and Render builds exactly that commit (the deploy hook takes it as `ref`, also unverified against the
+docs; the first real staging deploy proves it). `stage-build` for the API compiles it and uploads the pin
+(`api-<sha>`); the build-once deviation stays recorded in ADR 033. If the maintainer confirms that the free plan runs a
+prebuilt image, only `stage-build` and the deploy step change.
 
 ## Rules
 
@@ -53,4 +58,60 @@ from the worker's network); Batch 3 settles it. Fallback: pin the commit and let
 
 ## What the maintainer creates
 
-_Planned_ (Batch 3, T8).
+Everything here is the maintainer's (rule 7). The runner has written the code for it and **stops here until these exist**.
+Names only, never values. Nothing below costs money: every service and database stays on a free tier (NFR-07).
+
+### 1. Render
+
+- Create the service **`d2rmm-api-production`** from `render.yaml` (Blueprints → sync; plan Free, region Virginia, auto
+  deploy off). `d2rmm-api` (staging) already exists. Both declare the same secret names, to be filled in Render:
+  `DATABASE_URL`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, `BNET_CLIENT_ID`, `BNET_CLIENT_SECRET`.
+- Copy the **deploy hook URL** of each service (Settings → Deploy Hook).
+- Staging's `SITE_ORIGIN` stays `https://d2rmatchmaking.pages.dev` until the cutover (item 5); production's is the same
+  value.
+
+### 2. Neon
+
+- A second database (a new project or branch) for **production**. Staging keeps today's. Its connection string is a
+  secret; the runner never reads it.
+
+### 3. Battle.net
+
+- A separate OAuth client for production (staging keeps the existing client). Redirect URLs:
+  - production client: `https://d2rmatchmaking.pages.dev/api/v1/auth/bnet/callback`;
+  - staging client: `https://staging.d2rmatchmaking.pages.dev/api/v1/auth/bnet/callback` and
+    `https://phase-preview.d2rmatchmaking.pages.dev/api/v1/auth/bnet/callback` (the one fixed phase alias, DLP-08).
+- Put each client's id and secret in the matching Render service's `BNET_CLIENT_ID` and `BNET_CLIENT_SECRET`.
+
+### 4. GitHub
+
+| Where                                 | Kind     | Name                                         | Value is                                                         |
+| ------------------------------------- | -------- | -------------------------------------------- | ---------------------------------------------------------------- |
+| environment `production` (exists)     | secret   | `NEON_DATABASE_URL`                          | the production Neon connection string                            |
+| environment `production`              | secret   | `RENDER_DEPLOY_HOOK`                         | the deploy hook of `d2rmm-api-production`                        |
+| environment `production`              | variable | `API_BASE_URL`                               | the production service URL (https origin)                        |
+| repository (already set, for staging) | secret   | `NEON_DATABASE_URL`, `RENDER_DEPLOY_HOOK`    | staging's; keep them                                             |
+| repository (already set, for staging) | variable | `API_BASE_URL`                               | the staging service URL; keep it                                 |
+| repository                            | variable | `PRODUCTION_API_URL`                         | the production service URL, for keep-awake                       |
+| repository                            | variable | `KEEP_AWAKE_WINDOW` (optional)               | `HH:MM-HH:MM <IANA zone>`; default 16:00-02:00 America/Sao_Paulo |
+| repository                            | variable | `API_STAGES_LIVE` (set last, at the cutover) | `true`                                                           |
+
+The environments `staging` and `preview` are optional: when they exist, `stage-deploy` gets an `environment:` and the
+staging secrets move into them. Inside `production`, the environment's secret wins over the repository one of the same
+name, which is how a promotion reaches production's database and service with the same workflow.
+
+### 5. Cloudflare Pages
+
+- Pages variable `API_ORIGIN`, per Pages environment: _Production_ → the production service URL; _Preview_ → the
+  staging service URL. Nothing else changes in Pages.
+- At the cutover, set staging's `SITE_ORIGIN` to `https://staging.d2rmatchmaking.pages.dev` (the next change to
+  `render.yaml` records it).
+
+### Cutover order (once 1 to 4 exist)
+
+1. Set the two secrets and the variable in the environment `production`, and `PRODUCTION_API_URL`.
+2. Dispatch `api` on `main` with the SHA of a commit whose staging run passed smoke: it migrates the production
+   database, deploys that commit on `d2rmm-api-production` and waits for its `/healthz` to answer that SHA.
+3. Point Pages _Production_ `API_ORIGIN` at the production service; dispatch `site` with the same SHA.
+4. Set `API_STAGES_LIVE` to `true` and, in the same step, remove `deploy-api.yml` (Batch 5), or both would deploy a push
+   to `main`. Until then `api.yml` builds and stops.

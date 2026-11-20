@@ -37,7 +37,7 @@ Rules:
       update the `render.yaml` harness test. Gate: `pnpm test:harness`
 - [x] T7 — `scripts/delivery/awake-window.mjs` with unit tests, and `keep-awake.yml` (DLP-07). Gate:
       `node --test scripts/test/awake-window.test.mjs && pnpm test:harness`
-- [ ] T8 — Write `docs/engineering/delivery.md § What the maintainer creates`: environments, the service, the Neon
+- [x] T8 — Write `docs/engineering/delivery.md § What the maintainer creates`: environments, the service, the Neon
       database, the Battle.net client and the secret names. Then stop until they exist. Gate: `pnpm format:check`
 
 ## Batch 4 — agent channels (PR 4)
