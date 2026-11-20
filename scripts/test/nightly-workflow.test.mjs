@@ -55,10 +55,10 @@ test('agent mutation is a matrix per crate, with two shards for domain and adapt
     agent.strategy.matrix.include.map((entry) => [entry.crate, entry.shard]),
     [
       ['core', ''],
+      ['domain', '--shard 0/2'],
       ['domain', '--shard 1/2'],
-      ['domain', '--shard 2/2'],
+      ['adapters', '--shard 0/2'],
       ['adapters', '--shard 1/2'],
-      ['adapters', '--shard 2/2'],
     ],
   );
   assert.equal(agent['runs-on'], 'ubuntu-latest', 'the job runs on ubuntu-latest');

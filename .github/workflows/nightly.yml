@@ -59,7 +59,7 @@ jobs:
           - {
               name: domain 1/2,
               crate: domain,
-              shard: '--shard 1/2',
+              shard: '--shard 0/2',
               in_place: '',
               out: agent-domain-1,
               artifact: agent-mutation-domain-1,
@@ -67,7 +67,7 @@ jobs:
           - {
               name: domain 2/2,
               crate: domain,
-              shard: '--shard 2/2',
+              shard: '--shard 1/2',
               in_place: '',
               out: agent-domain-2,
               artifact: agent-mutation-domain-2,
@@ -75,7 +75,7 @@ jobs:
           - {
               name: adapters 1/2,
               crate: adapters,
-              shard: '--shard 1/2',
+              shard: '--shard 0/2',
               in_place: '',
               out: agent-adapters-1,
               artifact: agent-mutation-adapters-1,
@@ -83,7 +83,7 @@ jobs:
           - {
               name: adapters 2/2,
               crate: adapters,
-              shard: '--shard 2/2',
+              shard: '--shard 1/2',
               in_place: '',
               out: agent-adapters-2,
               artifact: agent-mutation-adapters-2,
