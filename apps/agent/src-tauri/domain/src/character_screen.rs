@@ -2119,6 +2119,54 @@ mod hud_band_tests {
         assert_eq!(reads, 1);
     }
 
+    /// Rule 14 pin for the list marker searched by its word (screen-recognition T10): today a frame whose fixed "Create New"
+    /// box reads nothing is `Unknown` even when its card column shows the list, and the areas read, in order, are the
+    /// automap's, the HUD band's and the popup's. The change adds the marker's wide area after the HUD band.
+    #[test]
+    fn a_list_whose_fixed_marker_reads_nothing_is_unknown_after_the_automap_band_and_popup_areas() {
+        let column = vec![vec![
+            line("SORCERESS", 1576, 91),
+            line("Level 88 Sorceress", 1576, 114),
+        ]];
+        let mut asked = Vec::new();
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |_| None,
+            |search| {
+                asked.push(search);
+                if search == ScreenRegion::CardColumn {
+                    column.clone()
+                } else {
+                    Vec::new()
+                }
+            },
+            |_| None,
+            Probes {
+                selected: |_| false,
+                lit: |_| false,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        assert_eq!(reading.screen, Screen::Unknown);
+        assert_eq!(
+            asked,
+            [
+                ScreenRegion::AutomapArea,
+                ScreenRegion::HudBand,
+                ScreenRegion::PopupArea
+            ]
+        );
+    }
+
+    /// Rule 14 pin: a frame that shows neither the list marker nor the HUD, the automap or a popup is `Unknown`, whatever
+    /// else it shows at the bottom right.
+    #[test]
+    fn text_at_the_bottom_right_that_is_not_the_marker_is_unknown() {
+        let (screen, _) = read(vec![vec![line("Exit", 1700, 900)]], "Exit");
+        assert_eq!(screen, Screen::Unknown);
+    }
+
     #[test]
     fn the_character_list_never_reads_the_band() {
         let (screen, reads) = read(vec![vec![line("Life: 925 / 925", 400, 844)]], "Create New");
