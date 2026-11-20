@@ -14,8 +14,4 @@ describe('installerIsSigned (AGR-09)', () => {
       ).toBe(false);
     }
   });
-
-  it('is unsigned in the build the tests run in', () => {
-    expect(installerIsSigned()).toBe(false);
-  });
 });

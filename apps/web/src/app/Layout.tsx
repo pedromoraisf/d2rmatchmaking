@@ -3,7 +3,6 @@
 // agent download (AWS-17, AWS-38); and the footer with the non-affiliation notice.
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { installerIsSigned } from '../shared/installer.ts';
 import { CODE_SIGNING_PATH } from './signing-policy.ts';
 
 export const AGENT_DOWNLOAD_URL =
@@ -18,7 +17,7 @@ export interface LayoutProps {
   account?: ReactNode;
   /** The status column's agent panel; null when there is none to show. */
   status?: ReactNode;
-  /** Whether the latest installer is code-signed; the SmartScreen note shows only when it is not (AGR-09). */
+  /** Whether the latest installer is code-signed, read once in main.tsx; the SmartScreen note shows only when it is not (AGR-09). */
   installerSigned?: boolean;
 }
 
@@ -27,7 +26,7 @@ export function Layout({
   agent = null,
   account = null,
   status = null,
-  installerSigned = installerIsSigned(),
+  installerSigned = false,
 }: LayoutProps) {
   const { t } = useTranslation();
   return (

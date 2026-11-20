@@ -5,6 +5,7 @@ import { App } from './app/App.tsx';
 import { CodeSigningPage } from './app/CodeSigningPage.tsx';
 import { Layout } from './app/Layout.tsx';
 import { isCodeSigningPath } from './app/signing-policy.ts';
+import { installerIsSigned } from './shared/installer.ts';
 import '@fontsource/cinzel/500.css';
 import '@fontsource/cinzel/600.css';
 import '@fontsource/cinzel/700.css';
@@ -25,17 +26,20 @@ if (container === null) {
 // Telemetry starts before the first render, and only in the builds that turn it on (OBS-44).
 startSiteTelemetry(import.meta.env, window);
 
+// Whether the latest installer is code-signed is read here, once, and passed down (AGR-09).
+const installerSigned = installerIsSigned(import.meta.env);
+
 const i18n = createI18n(navigator.languages);
 document.documentElement.lang = i18n.language;
 createRoot(container).render(
   <StrictMode>
     <I18nextProvider i18n={i18n}>
       {isCodeSigningPath(window.location.pathname) ? (
-        <Layout>
+        <Layout installerSigned={installerSigned}>
           <CodeSigningPage />
         </Layout>
       ) : (
-        <App />
+        <App installerSigned={installerSigned} />
       )}
     </I18nextProvider>
   </StrictMode>,

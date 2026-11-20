@@ -132,6 +132,28 @@ describe('App', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('Something went wrong. Try again.');
   });
 
+  it('passes the signed-installer setting to every frame: loading, and the loaded site (AGR-09)', async () => {
+    renderInLanguage(
+      <App client={createApiClient(() => new Promise<Response>(() => undefined))} installerSigned />,
+    );
+    expect(screen.getByRole('link', { name: 'Download the agent' })).toBeTruthy();
+    expect(screen.queryByText(/SmartScreen/)).toBeNull();
+    cleanup();
+
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(401),
+    });
+    renderInLanguage(<App client={createApiClient(fetch)} installerSigned />);
+    expect(await screen.findByText('Sign in with a test account')).toBeTruthy();
+    expect(screen.queryByText(/SmartScreen/)).toBeNull();
+    cleanup();
+
+    renderInLanguage(<App client={createApiClient(fetch)} />);
+    expect(await screen.findByText('Sign in with a test account')).toBeTruthy();
+    expect(screen.getByText(/SmartScreen/)).toBeTruthy();
+  });
+
   it('shows the signed-out site with the sign-in form when /v1/me answers 401', async () => {
     const { fetch } = routeFetch({
       'GET /api/v1/config': () => jsonResponse(200, config),

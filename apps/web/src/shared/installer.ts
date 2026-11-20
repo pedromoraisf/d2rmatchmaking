@@ -7,6 +7,6 @@ export interface InstallerEnv {
   readonly VITE_INSTALLER_SIGNED?: string;
 }
 
-export function installerIsSigned(env: InstallerEnv = import.meta.env): boolean {
+export function installerIsSigned(env: InstallerEnv): boolean {
   return env.VITE_INSTALLER_SIGNED === 'true';
 }
