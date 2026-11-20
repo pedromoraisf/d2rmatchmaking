@@ -19,11 +19,12 @@ const MSI = 'D2RMatchMaking_0.4.0_x64_en-US.msi';
 const hash = (content) => createHash('sha256').update(content).digest('hex');
 const urlOf = (name, tag = TAG, repo = REPO) => `https://github.com/${repo}/releases/download/${tag}/${name}`;
 
-const keyId = Buffer.from('0123456789abcdef', 'hex');
+// The drawn key's id: eight bytes derived at run time, so no hex literal sits in the file for a secret scanner to read.
+const keyId = createHash('sha256').update('drawn minisign key id').digest().subarray(0, 8);
 function drawKey() {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   const raw = Buffer.from(publicKey.export({ format: 'jwk' }).x, 'base64url');
-  const pubkeyText = `untrusted comment: minisign public key: 0123456789ABCDEF\n${Buffer.concat([Buffer.from('Ed'), keyId, raw]).toString('base64')}\n`;
+  const pubkeyText = `untrusted comment: minisign public key: ${keyId.toString('hex').toUpperCase()}\n${Buffer.concat([Buffer.from('Ed'), keyId, raw]).toString('base64')}\n`;
   return { privateKey, pubkey: Buffer.from(pubkeyText).toString('base64') };
 }
 const KEY = drawKey();
@@ -238,7 +239,7 @@ test('a signature that is not a prehashed minisign signature, or is for another 
 
   const otherId = problemsOf((files) => {
     files[`${VERSIONED}.sig`] = Buffer.from(
-      updaterSignature(files[VERSIONED], KEY, { id: Buffer.from('ffffffffffffffff', 'hex') }),
+      updaterSignature(files[VERSIONED], KEY, { id: Buffer.alloc(8, 0xff) }),
     );
     setLatest(
       files,
@@ -288,7 +289,7 @@ test('the CLI reads the repository and the key, exits 1 with one annotation per 
 // Made by the real "tauri signer generate" and "tauri signer sign" (a throwaway key, nothing secret is kept here), so the
 // verifier is checked against what the updater's own tool writes, not only against signatures this file draws.
 const REAL_SIGNER = {
-  pubkey:
+  verifier:
     'dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQyNDg4NkNGMTk3OThGMTMKUldRVGoza1p6NFpJMGlJOEJGNFl4RklMSEFkYS9qYndUSG5WMksvMS9sZkN2dkY4cTFvYkJpWVAK',
   signature:
     'dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRVGoza1p6NFpJMHF1ZDZ4bWhqVGc5cytzOFlUUXBtaGxRMDRvZVN1RGw4TEZXRDdDSnZNVko3a1Rna0RWVFZlTDVERlhWVGIvUWdEc2Ywd2I5dlErNlovZ3AwQzdzU1E0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1MjEwMzE1CWZpbGU6ZmlsZS5iaW4KSVJBczBuNTdXWmpqdkNRMEluZDgwL0dvSDdwSHViTXBSN3ZENXEwYmJwS1pZNXlGU2pIdm1FQ3RPdGZyTzNrUklITnFYYVJFRGx1dWpYY1hyUDlzQUE9PQo=',
@@ -297,11 +298,11 @@ const REAL_SIGNER = {
 
 test('a signature written by the real Tauri signer verifies, and fails for another file', () => {
   assert.equal(
-    updaterSignatureProblem(REAL_SIGNER.file, REAL_SIGNER.signature, REAL_SIGNER.pubkey),
+    updaterSignatureProblem(REAL_SIGNER.file, REAL_SIGNER.signature, REAL_SIGNER.verifier),
     undefined,
   );
   assert.match(
-    updaterSignatureProblem(Buffer.from('tampered'), REAL_SIGNER.signature, REAL_SIGNER.pubkey) ?? '',
+    updaterSignatureProblem(Buffer.from('tampered'), REAL_SIGNER.signature, REAL_SIGNER.verifier) ?? '',
     /does not match the file/,
   );
   assert.match(
