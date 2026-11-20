@@ -1,7 +1,7 @@
 // Lobby Room and stream steps of api-web-skeleton (AWS-19 to AWS-25, AWS-27 to AWS-29): the test match, what the host's
 // agent sees and reports, the streams that carry only their own events, the reconnect from the last event, and the origin
 // of the site's requests. Black box: HTTP, SSE and the browser only.
-import { Assignment, RoomView } from '@d2rmm/contracts';
+import { AgentRoomAssignedEvent, Assignment, RoomView } from '@d2rmm/contracts';
 import { expect, type Page, type Route } from '@playwright/test';
 import { Given, Then, When, type Scenario } from '../fixtures.ts';
 import { EventStream } from '../support/sse.ts';
@@ -121,16 +121,20 @@ Then(
     const agent = world.currentAgentOf(name);
     const stream = await world.agentStreamOf(agent);
     const received = await stream.waitFor((event) => event.type === 'room.assigned');
-    const assigned = Assignment.parse(received.data);
+    // The agent's stream copy holds the room, the run and the name, and an empty member list (stream-egress SEG-03).
+    const assigned = AgentRoomAssignedEvent.shape.data.parse(received.data);
     expect(assigned.roomId, 'the assigned room').toBe(room.roomId);
     expect(assigned.run, 'the run').toBe(1);
     expect(assigned.expectedGameName, 'the game name').toBe(room.gameName);
-    expect(assigned.members, 'the only member').toHaveLength(1);
-    expect(assigned.members[0]?.role, 'the role').toBe('host');
-    expect(assigned.members[0]?.accountId, 'the host').toBe(world.player(name).accountId);
+    expect(assigned.members, 'no member on the agent stream').toEqual([]);
+    // The assignment endpoint keeps the member list: the host and only member are read there.
     const answer = await agent.assignment();
     expect(answer.status, 'the assignment endpoint').toBe(200);
-    expect(Assignment.parse(answer.body).roomId, 'the endpoint names the room').toBe(room.roomId);
+    const fetched = Assignment.parse(answer.body);
+    expect(fetched.roomId, 'the endpoint names the room').toBe(room.roomId);
+    expect(fetched.members, 'the only member').toHaveLength(1);
+    expect(fetched.members[0]?.role, 'the role').toBe('host');
+    expect(fetched.members[0]?.accountId, 'the host').toBe(world.player(name).accountId);
   },
 );
 

@@ -491,7 +491,7 @@ pub const SCHEMAS: &[(&str, &str)] = &[
           "pattern": "^mm[a-z]+-\\d+$"
         },
         "members": {
-          "minItems": 1,
+          "maxItems": 0,
           "type": "array",
           "items": {
             "type": "object",

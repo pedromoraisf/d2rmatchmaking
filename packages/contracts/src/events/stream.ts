@@ -12,6 +12,15 @@ export const RoomAssignedEvent = z.object({
 });
 export type RoomAssignedEvent = z.infer<typeof RoomAssignedEvent>;
 
+// The agent's copy of an assignment: the member list is empty. The agent reads the room, the run and the game name and
+// nothing of the members (stream-egress SEG-03). The key stays, as `[]`, so an agent from before this change, whose parser
+// still requires it, holds the event; an agent now accepts a full list too.
+export const AgentRoomAssignedEvent = z.object({
+  type: z.literal('room.assigned'),
+  data: Assignment.extend({ members: z.array(Member).max(0) }),
+});
+export type AgentRoomAssignedEvent = z.infer<typeof AgentRoomAssignedEvent>;
+
 export const RoomStageChangedEvent = z.object({
   type: z.literal('room.stage_changed'),
   data: z.object({
@@ -118,7 +127,7 @@ export type SiteStreamEvent = z.infer<typeof SiteStreamEvent>;
 // The agent stream carries the assignment, the end of a room (`room.stage_changed` to `expired` or `closed`, ARL-01) and the
 // ready check's start and end (the agent answers its hotkey, RDY-07); it never receives presence of itself or of others.
 export const AgentStreamEvent = z.discriminatedUnion('type', [
-  RoomAssignedEvent,
+  AgentRoomAssignedEvent,
   AgentRoomStageChangedEvent,
   RoomRunOpenedEvent,
   ReadyCheckStartedEvent,

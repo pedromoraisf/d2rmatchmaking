@@ -36,6 +36,24 @@ describe('projectStreamEvent', () => {
     ]);
   });
 
+  it("the agent's copy of an assignment keeps the key with no members; the site's keeps them (SEG-03)", async () => {
+    const deliveries = await projectStreamEvent(assignment, agents);
+
+    for (const delivery of deliveries.filter((candidate) => candidate.stream === 'agent')) {
+      expect(delivery.event).toStrictEqual({
+        type: 'room.assigned',
+        data: { roomId: 'room-1', run: 1, expectedGameName: 'mmbaalh-1', members: [] },
+      });
+      expect(JSON.stringify(delivery.event)).not.toContain('account-');
+    }
+    for (const delivery of deliveries.filter((candidate) => candidate.stream === 'site')) {
+      expect(delivery.event).toStrictEqual({
+        type: 'room.assigned',
+        data: { roomId: 'room-1', run: 1, expectedGameName: 'mmbaalh-1', members },
+      });
+    }
+  });
+
   it('an assignment to a member without an agent gives only the site recipient', async () => {
     const withoutAgent: CurrentAgentLookup = { currentAgentOf: async () => null };
 

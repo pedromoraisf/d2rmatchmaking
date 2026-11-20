@@ -22,7 +22,7 @@ agent's parser (`apps/agent/src-tauri/adapters/src/http/sse.rs`).
 
 | Event                    | Sent to                                           | Fields                                                                                                   | Frame bytes (sample) |
 | ------------------------ | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------- |
-| `room.assigned`          | site, agent                                       | `roomId`, `run`, `expectedGameName`, `members[]`                                                         | 436                  |
+| `room.assigned`          | site; agent (members emptied, SEG-03)             | `roomId`, `run`, `expectedGameName`, `members[]`                                                         | 436                  |
 | `room.stage_changed`     | site (all stages), agent (`expired` and `closed`) | `roomId`, `stage`, `members[]`                                                                           | 419                  |
 |                          | agent's copy                                      | `roomId`, `stage` (lean since SEG-01)                                                                    | 101 (was 419)        |
 | `room.run_opened`        | site, agent                                       | `roomId`, `run`, `expectedGameName`, `members[]`                                                         | 438                  |
@@ -54,13 +54,14 @@ for a member in a room.
 
 ## What no consumer reads
 
-| Event and field                                                    | Sent to | Saves per event (two members) |
-| ------------------------------------------------------------------ | ------- | ----------------------------- |
-| `room.stage_changed` `members` (agent's copy)                      | agent   | 318 bytes, **done (SEG-01)**  |
-| `room.assigned` and `room.run_opened` `members`                    | agent   | about 340 bytes each          |
-| `ready_check.started` `mode`, `difficulty`, `members`              | agent   | about 230 bytes               |
-| `ready_check.resolved` `outcome`                                   | agent   | about 22 bytes                |
-| member `characterId` and `team`, in every event that lists members | site    | about 50 bytes a member       |
+| Event and field                                                    | Sent to | Saves per event (two members)      |
+| ------------------------------------------------------------------ | ------- | ---------------------------------- |
+| `room.stage_changed` `members` (agent's copy)                      | agent   | 318 bytes, **done (SEG-01)**       |
+| `room.assigned` `members` (agent's copy)                           | agent   | about 340 bytes, **done (SEG-03)** |
+| `room.run_opened` `members`                                        | agent   | about 340 bytes                    |
+| `ready_check.started` `mode`, `difficulty`, `members`              | agent   | about 230 bytes                    |
+| `ready_check.resolved` `outcome`                                   | agent   | about 22 bytes                     |
+| member `characterId` and `team`, in every event that lists members | site    | about 50 bytes a member            |
 
 The site's `room.stage_changed` carries the members only so the confirmed marks stay current; a stage change that changes no
 mark could carry none, which is a change to the site's reducer, not a dropped field (batch 2 decides it from the measured
@@ -79,3 +80,5 @@ into view or the stream reconnects (SEG-05, ARL-06). The API tells the site once
 - The event name does not change. The contract (`asyncapi.json`) is regenerated and the agent's own schema (typify,
   `packages/contracts/src/documents.ts` `JSON_SCHEMA_SOURCES`) follows when the agent's copy changes.
 - The agent accepts an event that still carries a dropped field, so an API and an agent of different versions work together.
+- A field the agent's older parsers require stays as an empty value (`members: []`), because the agent's generated types refuse an
+  unknown or a missing field: an agent from before the cut keeps reading the event.

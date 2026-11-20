@@ -5,6 +5,7 @@ import {
   RoomAssignedEvent,
   RoomMemberChangedEvent,
   RoomRunOpenedEvent,
+  AgentRoomAssignedEvent,
   AgentRoomStageChangedEvent,
   RoomStageChangedEvent,
   SiteStreamEvent,
@@ -51,6 +52,16 @@ describe('stream events', () => {
     expect(AgentStreamEvent.safeParse({ type: 'room.stage_changed', data: { roomId: '4821' } }).success).toBe(
       false,
     );
+  });
+
+  it('gives the agent an assignment with an empty member list, and keeps the full list for the site (SEG-03)', () => {
+    const lean = { type: 'room.assigned', data: { ...assigned.data, members: [] } };
+    expect(AgentRoomAssignedEvent.parse(lean)).toStrictEqual(lean);
+    expect(AgentStreamEvent.parse(lean)).toStrictEqual(lean);
+    // A list that is not empty is not part of the agent's message.
+    expect(AgentRoomAssignedEvent.safeParse(assigned).success).toBe(false);
+    expect(SiteStreamEvent.parse(assigned)).toStrictEqual(assigned);
+    expect(SiteStreamEvent.safeParse(lean).success).toBe(false);
   });
 
   it('keeps the members on the site stream stage change', () => {
