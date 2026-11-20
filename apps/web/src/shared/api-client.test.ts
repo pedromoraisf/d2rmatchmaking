@@ -103,6 +103,18 @@ describe('api client', () => {
     expect(await client.config()).toStrictEqual({ ok: false, failure: 'failed' });
   });
 
+  it('hands the abort signal of a config read to the fetcher', async () => {
+    const seen: (AbortSignal | null | undefined)[] = [];
+    const client = createApiClient((_url, init) => {
+      seen.push(init.signal);
+      return Promise.reject(new TypeError('aborted'));
+    });
+    const signal = new AbortController().signal;
+    await client.config(signal);
+    await client.config();
+    expect(seen).toEqual([signal, undefined]);
+  });
+
   it('maps a body that breaks the contract to failed', async () => {
     const { fetch } = routeFetch({ 'GET /api/v1/me': () => jsonResponse(200, { accountId: 1 }) });
     expect(await createApiClient(fetch).me()).toStrictEqual({ ok: false, failure: 'failed' });

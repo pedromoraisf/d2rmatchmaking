@@ -1,0 +1,47 @@
+# Stage `smoke` (ADR 033, DLP-04): wakes the service with a backoff of up to 90 s, then checks what answers: the page and
+# the API behind it for the site, the deployed SHA on /healthz for the API. Requests are at least 5 s apart,
+# so the smoke cannot trip the host's rate limiting. It needs no secret.
+name: stage-smoke
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        type: string
+        required: true
+      environment:
+        type: string
+        required: true
+      sha:
+        type: string
+        required: true
+      url:
+        description: The URL the deploy stage answered
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Wake the service and check it
+        env:
+          APP: ${{ inputs.app }}
+          SMOKE_URL: ${{ inputs.url }}
+          SHA: ${{ inputs.sha }}
+        run: node scripts/delivery/smoke.mjs "$APP" "$SMOKE_URL" "$SHA"
