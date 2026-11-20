@@ -2686,6 +2686,402 @@ impl<'de> ::serde::Deserialize<'de> for RoomRunOpenedEventDataRoomId {
             })
     }
 }
+///`RoomStageChangedEvent`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RoomStageChangedEvent {
+    pub data: RoomStageChangedEventData,
+    #[serde(rename = "type")]
+    pub type_: ::std::string::String,
+}
+///`RoomStageChangedEventData`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RoomStageChangedEventData {
+    pub members: ::std::vec::Vec<RoomStageChangedEventDataMembersItem>,
+    #[serde(rename = "roomId")]
+    pub room_id: RoomStageChangedEventDataRoomId,
+    pub stage: RoomStageChangedEventDataStage,
+}
+///`RoomStageChangedEventDataMembersItem`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RoomStageChangedEventDataMembersItem {
+    #[serde(rename = "accountId")]
+    pub account_id: RoomStageChangedEventDataMembersItemAccountId,
+    #[serde(
+        rename = "characterId",
+        deserialize_with = "::std::option::Option::deserialize"
+    )]
+    pub character_id: ::std::option::Option<
+        RoomStageChangedEventDataMembersItemCharacterId,
+    >,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub confirmed: ::std::option::Option<bool>,
+    #[serde(rename = "joinOrder")]
+    pub join_order: ::std::num::NonZeroU64,
+    pub role: RoomStageChangedEventDataMembersItemRole,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub team: ::std::option::Option<RoomStageChangedEventDataMembersItemTeam>,
+}
+///`RoomStageChangedEventDataMembersItemAccountId`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct RoomStageChangedEventDataMembersItemAccountId(::std::string::String);
+impl ::std::ops::Deref for RoomStageChangedEventDataMembersItemAccountId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<RoomStageChangedEventDataMembersItemAccountId>
+for ::std::string::String {
+    fn from(value: RoomStageChangedEventDataMembersItemAccountId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for RoomStageChangedEventDataMembersItemAccountId {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for RoomStageChangedEventDataMembersItemAccountId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for RoomStageChangedEventDataMembersItemAccountId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for RoomStageChangedEventDataMembersItemAccountId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`RoomStageChangedEventDataMembersItemCharacterId`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct RoomStageChangedEventDataMembersItemCharacterId(::std::string::String);
+impl ::std::ops::Deref for RoomStageChangedEventDataMembersItemCharacterId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<RoomStageChangedEventDataMembersItemCharacterId>
+for ::std::string::String {
+    fn from(value: RoomStageChangedEventDataMembersItemCharacterId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for RoomStageChangedEventDataMembersItemCharacterId {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for RoomStageChangedEventDataMembersItemCharacterId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for RoomStageChangedEventDataMembersItemCharacterId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for RoomStageChangedEventDataMembersItemCharacterId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`RoomStageChangedEventDataMembersItemRole`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum RoomStageChangedEventDataMembersItemRole {
+    #[serde(rename = "host")]
+    Host,
+    #[serde(rename = "member")]
+    Member,
+}
+impl ::std::fmt::Display for RoomStageChangedEventDataMembersItemRole {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Host => f.write_str("host"),
+            Self::Member => f.write_str("member"),
+        }
+    }
+}
+impl ::std::str::FromStr for RoomStageChangedEventDataMembersItemRole {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "host" => Ok(Self::Host),
+            "member" => Ok(Self::Member),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for RoomStageChangedEventDataMembersItemRole {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for RoomStageChangedEventDataMembersItemRole {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///`RoomStageChangedEventDataMembersItemTeam`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum RoomStageChangedEventDataMembersItemTeam {
+    #[serde(rename = "a")]
+    A,
+    #[serde(rename = "b")]
+    B,
+}
+impl ::std::fmt::Display for RoomStageChangedEventDataMembersItemTeam {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::A => f.write_str("a"),
+            Self::B => f.write_str("b"),
+        }
+    }
+}
+impl ::std::str::FromStr for RoomStageChangedEventDataMembersItemTeam {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "a" => Ok(Self::A),
+            "b" => Ok(Self::B),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for RoomStageChangedEventDataMembersItemTeam {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for RoomStageChangedEventDataMembersItemTeam {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///`RoomStageChangedEventDataRoomId`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct RoomStageChangedEventDataRoomId(::std::string::String);
+impl ::std::ops::Deref for RoomStageChangedEventDataRoomId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<RoomStageChangedEventDataRoomId> for ::std::string::String {
+    fn from(value: RoomStageChangedEventDataRoomId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for RoomStageChangedEventDataRoomId {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for RoomStageChangedEventDataRoomId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for RoomStageChangedEventDataRoomId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for RoomStageChangedEventDataRoomId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`RoomStageChangedEventDataStage`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum RoomStageChangedEventDataStage {
+    #[serde(rename = "formed")]
+    Formed,
+    #[serde(rename = "awaiting_host")]
+    AwaitingHost,
+    #[serde(rename = "created")]
+    Created,
+    #[serde(rename = "active")]
+    Active,
+    #[serde(rename = "closed")]
+    Closed,
+    #[serde(rename = "expired")]
+    Expired,
+}
+impl ::std::fmt::Display for RoomStageChangedEventDataStage {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Formed => f.write_str("formed"),
+            Self::AwaitingHost => f.write_str("awaiting_host"),
+            Self::Created => f.write_str("created"),
+            Self::Active => f.write_str("active"),
+            Self::Closed => f.write_str("closed"),
+            Self::Expired => f.write_str("expired"),
+        }
+    }
+}
+impl ::std::str::FromStr for RoomStageChangedEventDataStage {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "formed" => Ok(Self::Formed),
+            "awaiting_host" => Ok(Self::AwaitingHost),
+            "created" => Ok(Self::Created),
+            "active" => Ok(Self::Active),
+            "closed" => Ok(Self::Closed),
+            "expired" => Ok(Self::Expired),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for RoomStageChangedEventDataStage {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for RoomStageChangedEventDataStage {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
 /// Error types.
 pub mod error {
     /// Error from a `TryFrom` or `FromStr` implementation.

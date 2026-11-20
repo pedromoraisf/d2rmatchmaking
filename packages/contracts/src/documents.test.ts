@@ -35,6 +35,7 @@ describe('contract documents', () => {
       'agent-event-ready-check-started.json',
       'agent-event-room-assigned.json',
       'agent-event-room-run-opened.json',
+      'agent-event-room-stage-changed.json',
       'assignment.json',
       'claim-request.json',
       'claim.json',

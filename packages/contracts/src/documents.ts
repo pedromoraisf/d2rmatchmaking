@@ -64,6 +64,7 @@ const JSON_SCHEMA_SOURCES = {
   'observation.json': Observation,
   'agent-event-room-assigned.json': RoomAssignedEvent,
   'agent-event-room-run-opened.json': RoomRunOpenedEvent,
+  'agent-event-room-stage-changed.json': RoomStageChangedEvent,
   'record-characters-request.json': RecordCharactersRequest,
   'agent-event-ready-check-started.json': ReadyCheckStartedEvent,
   'agent-event-ready-check-resolved.json': ReadyCheckResolvedEvent,
