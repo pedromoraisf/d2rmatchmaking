@@ -134,6 +134,23 @@ Status as read from the files; confirm before acting.
 - `feat/F1-characters-reading` (#50) and `fix/F1-room-view-500` from `handoff.md` are merged into `phase/F1` per the
   review.
 
+### Load runs
+
+Load runs are local only (`pnpm test:load`, `docs/engineering/testing.md`), never in CI. Recorded runs:
+
+| Date       | Commit    | Result                                                                                                           |
+| ---------- | --------- | ---------------------------------------------------------------------------------------------------------------- |
+| 2026-11-04 | `07da672` | Baseline: 400 players, 0 errors, p95 1.38 ms at 100, 113,827 bytes/player-hour                                   |
+| 2026-11-07 | `35de8ab` | F0 review: 400 players, 0 errors, p95 1.23 ms, 113,836 bytes/player-hour                                         |
+| 2026-11-12 | `28cbc13` | F1 review: 400 players, 0 errors, p95 27.7 ms at 100 and 132.9 ms at 400, bytes over the ceiling                 |
+| 2026-11-12 | `b7faafb` | Last: 400 players, 0 errors, p95 5.5 ms at 100, 421,369 bytes/player-hour against a 70,000 budget, rooms count 0 |
+
+Open items:
+
+- The egress regression: about 6x the budget in F1, against about 1.6x in F0.
+- The room count reads 0 (`full-summary.check.mjs` fails 1 of 9).
+- No run since 2026-11-12, so #77 and #80 are unmeasured.
+
 ## How to resume
 
 Start with `pnpm phase:status`, `gh pr list`, then this file. Remove stale worktrees once their work is pushed
