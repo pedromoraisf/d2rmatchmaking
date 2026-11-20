@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { characterKey, type Character, type Declaration } from '../../domain/character/character.ts';
 import type { CharacterRepository, StoredCharacter } from '../character-ports.ts';
+import type { StoredFacts } from '../../domain/character/reconcile.ts';
 import type { Transaction } from '../../../../shared-kernel/index.ts';
 
 /**
@@ -14,10 +15,15 @@ export class InMemoryCharacterRepository implements CharacterRepository {
     // One writer at a time in memory: nothing to lock.
   }
 
-  async storedNames(_tx: Transaction, accountId: string): Promise<readonly string[]> {
+  async storedCharacters(_tx: Transaction, accountId: string): Promise<readonly StoredFacts[]> {
     return [...this.#rows.values()]
       .filter((row) => row.accountId === accountId)
-      .map((row) => row.character.name);
+      .map(({ character }) => ({
+        name: character.name,
+        class: character.class,
+        level: character.level,
+        hardcore: character.hardcore,
+      }));
   }
 
   async upsertMany(

@@ -27,7 +27,7 @@ Rules:
 - [x] T2 — API shared kernel: `matchCharacterName` (SNM-02) with a unit test for every fold of the agent's `glyph_key`,
       each of `g`, `e`, `b` for `o`, uppercase and lowercase, the reverse direction refused, ambiguity, length. Gate:
       `pnpm --filter @d2rmm/api exec vitest run src/shared-kernel && pnpm --filter @d2rmm/api lint`
-- [ ] T3 — Identity: reconcile a misread card to the stored character it stands for, with the guards of SNM-07 and the
+- [x] T3 — Identity: reconcile a misread card to the stored character it stands for, with the guards of SNM-07 and the
       `d2r.characters.reconciled` count; `storedNames` carries class, mode and level. Unit tests with the in-memory
       repository and an integration test on Postgres. Gate:
       `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api test:integration`

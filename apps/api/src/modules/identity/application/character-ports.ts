@@ -1,4 +1,5 @@
 import type { Character, Declaration, DeclaredLadder, Era } from '../domain/character/character.ts';
+import type { StoredFacts } from '../domain/character/reconcile.ts';
 import type { Transaction } from '../../../shared-kernel/index.ts';
 
 /**
@@ -19,8 +20,8 @@ export interface CharacterRepository {
    * holds when two agents post at once.
    */
   lockAccount(tx: Transaction, accountId: string): Promise<void>;
-  /** The names the account holds now, read in the caller's transaction. */
-  storedNames(tx: Transaction, accountId: string): Promise<readonly string[]>;
+  /** The name, class, mode and level of every character the account holds now, read in the caller's transaction. */
+  storedCharacters(tx: Transaction, accountId: string): Promise<readonly StoredFacts[]>;
   /**
    * Creates each character or replaces its reading with this one, in the caller's transaction. A replaced character keeps
    * the ladder and era the player declared (CHR-15).
