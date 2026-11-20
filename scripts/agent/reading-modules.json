@@ -10,6 +10,7 @@
     "domain/src/vocabulary.rs",
     "domain/src/vision.rs",
     "domain/src/name_diff.rs",
+    "domain/src/hud_track.rs",
     "core/src/party.rs",
     "core/src/screen_reader.rs"
   ]
