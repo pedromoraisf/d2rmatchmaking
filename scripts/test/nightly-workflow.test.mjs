@@ -15,7 +15,7 @@ const jobs = workflow.jobs;
 const { quality, report, load, acceptance } = jobs;
 const agent = jobs['agent-mutation'];
 const api = jobs['api-mutation'];
-const DOWNLOAD = 'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093';
+const DOWNLOAD = 'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333';
 const FULL_SHA = /^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/u;
 
 const stepNamed = (job, name) => job.steps.find((step) => step.name === name);

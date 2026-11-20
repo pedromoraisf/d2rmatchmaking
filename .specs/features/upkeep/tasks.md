@@ -69,7 +69,7 @@ Rules:
 - [x] T9 — UPK-10: `openSiteFor` throws "no accountId for <name>" naming the player; the traced stack's port retry
       reuses its telemetry site; the drift test iterates the game-name module's activities. Unit tests for each. Gate:
       `pnpm --filter @d2rmm/acceptance exec vitest run && pnpm --filter @d2rmm/acceptance typecheck && node --test scripts/test/agent-game-name-drift.test.mjs`
-- [ ] T10 — UPK-11, group 1 (actions): `actions/upload-artifact` 7, `download-artifact` 8, `github-script` 9 in `ci.yml`,
+- [x] T10 — UPK-11, group 1 (actions): `actions/upload-artifact` 7, `download-artifact` 8, `github-script` 9 in `ci.yml`,
       `nightly.yml`, `deploy-*.yml`, `preview-*.yml` where used, pinned by SHA with the version comment as today; only
       `uses:` lines change, never a job name; `ocr-real.yml` untouched. Read each major's release notes for breaking
       inputs (download-artifact 8 names, upload-artifact 7 hidden files) and fix the callers. Gate:
