@@ -1236,6 +1236,30 @@ mod anchored_tests {
         }
     }
 
+    /// The Party panel of a pt-BR client at 1920x1045, at the positions the `ocr-real` diagnostics measured (title y 129,
+    /// label y 171, field y 199, in line tops; middles here).
+    fn portuguese_panel() -> Lines {
+        Lines(vec![
+            line("GRUPO", 364, 136, 71),
+            line("Nome", 264, 176, 40),
+            line("mmbaalm-99", 269, 204, 95),
+            line("SENHA", 460, 174, 44),
+        ])
+    }
+
+    #[test]
+    fn an_english_panel_at_1045_reads_open_and_a_pt_br_panel_is_not_read_by_the_english_pack_alone()
+    {
+        // Pins today (screen-recognition T6, SCR-04): the English pack finds nothing in a pt-BR client's panel. T6 replaces
+        // the second expectation with the reason in its commit: the maintainer plays on a pt-BR client.
+        let english = panel(136, 176, Some(("mmbaalm-99", 204)));
+        let reading = read_panel(&english, &LanguagePack::english(), &frame(1045));
+        assert!(reading.open && reading.label_found);
+        assert_eq!(fields(&reading), ["mmbaalm-99"]);
+        let reading = read_panel(&portuguese_panel(), &LanguagePack::english(), &frame(1045));
+        assert!(!reading.open && !reading.label_found && reading.field.is_empty());
+    }
+
     #[test]
     fn a_masked_field_without_a_line_is_read_in_the_box_under_the_label_and_reads_blank() {
         let pack = LanguagePack::english();
