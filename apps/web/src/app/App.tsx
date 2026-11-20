@@ -24,11 +24,14 @@ import { type ApiClient, createApiClient } from '../shared/api-client.ts';
 import { tracingFetcher } from '../shared/telemetry.ts';
 import { openSiteStream, type StreamOpener } from '../shared/stream.ts';
 import { Layout } from './Layout.tsx';
+import { readWhenAwake, type WakeOptions } from './wake-retry.ts';
 import { clearSignInFailure, signInFailedIn } from './sign-in-failure.ts';
 import { applyStreamEvent, shownRoom, type SiteNotice } from './site-state.ts';
 
 export interface AppProps {
   client?: ApiClient;
+  /** Test seam for the wait on a sleeping server (DLP-07). */
+  sleep?: (ms: number) => Promise<void>;
   openStream?: StreamOpener;
 }
 
@@ -46,14 +49,14 @@ interface Ready {
   readyCheck: ReadyCheckView | null;
 }
 
-type Boot = { status: 'loading' } | { status: 'failed' } | Ready;
+type Boot = { status: 'loading' } | { status: 'waking' } | { status: 'failed' } | Ready;
 
 const defaultClient = createApiClient(tracingFetcher((url, init) => fetch(url, init)));
 const defaultOpenStream: StreamOpener = (handlers) => openSiteStream(handlers);
 
 // A 401 on /v1/me is the signed-out view, not a failure (AWS-03, AWS-04).
-async function loadBoot(client: ApiClient): Promise<Boot> {
-  const config = await client.config();
+async function loadBoot(client: ApiClient, wake: WakeOptions): Promise<Boot> {
+  const config = await readWhenAwake(() => client.config(), wake);
   if (!config.ok) {
     return { status: 'failed' };
   }
@@ -95,7 +98,7 @@ async function loadBoot(client: ApiClient): Promise<Boot> {
   };
 }
 
-export function App({ client = defaultClient, openStream = defaultOpenStream }: AppProps) {
+export function App({ client = defaultClient, openStream = defaultOpenStream, sleep }: AppProps) {
   const { t } = useTranslation();
   const [boot, setBoot] = useState<Boot>({ status: 'loading' });
   const signedIn = boot.status === 'ready' && boot.session !== null;
@@ -193,7 +196,12 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
 
   useEffect(() => {
     let current = true;
-    void loadBoot(client).then((next) => {
+    const wake: WakeOptions = {
+      onWaking: () => setBoot({ status: 'waking' }),
+      active: () => current,
+      ...(sleep === undefined ? {} : { sleep }),
+    };
+    void loadBoot(client, wake).then((next) => {
       if (current) {
         setBoot(next);
       }
@@ -201,7 +209,7 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
     return () => {
       current = false;
     };
-  }, [client]);
+  }, [client, sleep]);
 
   // One stream per signed-in site. Every open re-reads the state, so an event lost in a reconnect is never stale.
   useEffect(() => {
@@ -232,6 +240,13 @@ export function App({ client = defaultClient, openStream = defaultOpenStream }: 
     return (
       <Layout>
         <p>{t('app.loading')}</p>
+      </Layout>
+    );
+  }
+  if (boot.status === 'waking') {
+    return (
+      <Layout>
+        <p role="status">{t('app.waking')}</p>
       </Layout>
     );
   }

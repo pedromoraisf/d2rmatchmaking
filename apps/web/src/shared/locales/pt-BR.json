@@ -2,6 +2,7 @@
   "app": {
     "title": "D2R Match Making",
     "loading": "Carregando…",
+    "waking": "Acordando o servidor — ele dorme quando fica parado e leva até um minuto para iniciar. Aguarde…",
     "error": "Algo deu errado. Tente novamente.",
     "notice": "D2R Match Making é um projeto da comunidade e não é afiliado à Blizzard Entertainment.",
     "downloadAgent": "Baixar o agente",
