@@ -245,6 +245,19 @@ where
     let list = any_reading(&text(ScreenRegion::CreateNew), |read| {
         pack.is_word(read, CREATE_NEW) || pack.is_squashed_word(read, CREATE_NEW)
     });
+    // The automap's "Difficulty:" line, searched for by its word in the top-right area when the fixed box above missed (the
+    // same window and full-screen drift as the HUD); before the HUD, because an open automap shows the HUD too. The
+    // character list never shows it.
+    if !list && anchors::find_automap_in_variants(pack, &lines(ScreenRegion::AutomapArea)).is_some()
+    {
+        return Reading::without_cards(Screen::AutomapOpen);
+    }
+    // The HUD's Life or Mana label, searched for by its word in the bottom band: D2R does not scale its HUD linearly
+    // between a window and full screen, so the fixed box above misses one of them (0.3.0). The character list never
+    // shows it, so a frame with the list does not read the band.
+    if !list && anchors::find_hud_in_variants(pack, &lines(ScreenRegion::HudBand)).is_some() {
+        return Reading::without_cards(Screen::InGame);
+    }
     let popup_lines = lines(ScreenRegion::PopupArea);
     let popup_title = anchors::popup_title_in_variants(pack, &popup_lines);
     let popup_options = u8::try_from(anchors::popup_options_in_variants(pack, &popup_lines).len())
@@ -793,6 +806,32 @@ mod tests {
         assert_eq!(read(&in_game, &[]).screen, Screen::InGame);
         assert_eq!(read(&[], &[]).screen, Screen::Unknown);
         assert!(read(&[], &[]).cards.is_empty());
+    }
+
+    #[test]
+    fn the_fixed_life_box_reads_only_the_life_word_and_comes_before_the_list_marker() {
+        // The order today: automap, the fixed Life box, the list marker. A Mana word in that box is no marker, and the
+        // Life word wins over a list marker read in the same frame (screen-recognition keeps the fixed box first).
+        let mana = [(ScreenRegion::Life, "Mana: 400 / 400")];
+        assert_eq!(read(&mana, &[]).screen, Screen::Unknown);
+        let both = [
+            (ScreenRegion::Life, "Life: 925 / 925"),
+            (ScreenRegion::CreateNew, "Create New"),
+        ];
+        assert_eq!(read(&both, &[]).screen, Screen::InGame);
+        assert!(read(&both, &[]).cards.is_empty());
+    }
+
+    #[test]
+    fn text_that_is_no_marker_reads_unknown_in_every_marker_region() {
+        let other = [
+            (ScreenRegion::AreaDifficulty, "Town Portal"),
+            (ScreenRegion::Life, "Level 88"),
+            (ScreenRegion::CreateNew, "Join Game"),
+        ];
+        let reading = read(&other, &[]);
+        assert_eq!(reading.screen, Screen::Unknown);
+        assert!(reading.cards.is_empty());
     }
 
     #[test]
@@ -1955,5 +1994,135 @@ mod tests {
         assert_eq!(read_level("+8"), None);
         assert_eq!(read_level("+88"), None);
         assert_eq!(read_level("8 "), None);
+    }
+}
+
+#[cfg(test)]
+mod hud_band_tests {
+    use super::{BandRead, Probes, read_screen};
+    use crate::language::LanguagePack;
+    use crate::layout::ScreenRegion;
+    use crate::presence::Screen;
+    use crate::vision::{Region, TextLine};
+
+    fn line(text: &str, x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: text.to_string(),
+            region: Region {
+                x,
+                y,
+                width: 160,
+                height: 22,
+            },
+        }
+    }
+
+    /// Reads a frame where only the band has lines, and `create_new` is what the list marker reads. Returns the screen and
+    /// how many times the band was read.
+    fn read(band: Vec<Vec<TextLine>>, create_new: &str) -> (Screen, usize) {
+        let mut band_reads = 0;
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |region| (region == ScreenRegion::CreateNew).then(|| vec![create_new.to_string()]),
+            |search| {
+                if search == ScreenRegion::HudBand {
+                    band_reads += 1;
+                    band.clone()
+                } else {
+                    Vec::new()
+                }
+            },
+            |_| None,
+            Probes {
+                selected: |_| false,
+                lit: |_| false,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        (reading.screen, band_reads)
+    }
+
+    #[test]
+    fn a_life_line_anywhere_in_the_band_is_in_game_at_both_layouts() {
+        // The window (1920×1056) and the full screen (1920×1080) put the label at other places.
+        for (x, y) in [(400, 844), (432, 868)] {
+            let (screen, _) = read(vec![vec![line("Life: 925 / 925", x, y)]], "");
+            assert_eq!(screen, Screen::InGame);
+        }
+    }
+
+    /// Reads a frame with lines in the automap area and in the HUD band; returns the screen and the areas read, in order.
+    fn read_areas(
+        automap: Vec<Vec<TextLine>>,
+        band: Vec<Vec<TextLine>>,
+        create_new: &str,
+    ) -> (Screen, Vec<ScreenRegion>) {
+        let mut asked = Vec::new();
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |region| (region == ScreenRegion::CreateNew).then(|| vec![create_new.to_string()]),
+            |search| {
+                asked.push(search);
+                match search {
+                    ScreenRegion::AutomapArea => automap.clone(),
+                    ScreenRegion::HudBand => band.clone(),
+                    _ => Vec::new(),
+                }
+            },
+            |_| None,
+            Probes {
+                selected: |_| false,
+                lit: |_| false,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        (reading.screen, asked)
+    }
+
+    #[test]
+    fn a_difficulty_line_anywhere_in_the_area_is_the_automap_and_wins_over_the_hud() {
+        let automap = vec![vec![line("Difficulty: Hell", 1700, 90)]];
+        let band = vec![vec![line("Life: 925 / 925", 436, 868)]];
+        let (screen, asked) = read_areas(automap, band, "");
+        assert_eq!(screen, Screen::AutomapOpen);
+        assert_eq!(
+            asked,
+            [ScreenRegion::AutomapArea],
+            "the HUD band is not read"
+        );
+    }
+
+    #[test]
+    fn no_difficulty_line_leaves_the_hud_to_decide_and_the_list_reads_neither_area() {
+        let band = vec![vec![line("Life: 925 / 925", 436, 868)]];
+        let other = vec![vec![line("Rogue Encampment", 1700, 40)]];
+        let (screen, asked) = read_areas(other.clone(), band.clone(), "");
+        assert_eq!(screen, Screen::InGame);
+        assert_eq!(asked, [ScreenRegion::AutomapArea, ScreenRegion::HudBand]);
+        let (_, asked) = read_areas(other, band, "Create New");
+        assert!(!asked.contains(&ScreenRegion::AutomapArea));
+        assert!(!asked.contains(&ScreenRegion::HudBand));
+    }
+
+    #[test]
+    fn a_mana_line_alone_is_in_game() {
+        let (screen, _) = read(vec![vec![line("Mana: 400 / 400", 1500, 868)]], "");
+        assert_eq!(screen, Screen::InGame);
+    }
+
+    #[test]
+    fn a_band_with_other_text_is_not_in_game() {
+        let (screen, reads) = read(vec![vec![line("Town Portal", 900, 868)]], "");
+        assert_eq!(screen, Screen::Unknown);
+        assert_eq!(reads, 1);
+    }
+
+    #[test]
+    fn the_character_list_never_reads_the_band() {
+        let (screen, reads) = read(vec![vec![line("Life: 925 / 925", 400, 844)]], "Create New");
+        assert_eq!(reads, 0, "the band is read only without the list");
+        assert_ne!(screen, Screen::InGame);
     }
 }

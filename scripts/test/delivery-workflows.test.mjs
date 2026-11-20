@@ -13,7 +13,7 @@ const text = (name) => readFileSync(path.join(root, '.github/workflows', name), 
 const workflow = (name) => parse(text(name));
 
 const STAGES = ['stage-build.yml', 'stage-deploy.yml', 'stage-smoke.yml', 'stage-promote.yml'];
-const CALLERS = ['site.yml', 'api.yml'];
+const CALLERS = ['site.yml', 'api.yml', 'agent.yml'];
 const ALL = [...STAGES, ...CALLERS];
 const STAGE_NAMES = ['build', 'verify', 'deploy', 'smoke', 'promote'];
 const SHA_PINNED = /^[^@\s]+@[0-9a-f]{40}$/;
@@ -109,7 +109,9 @@ test('the artifact is named by the commit SHA in build, deploy and promote', () 
     ['stage-deploy.yml', 'deploy'],
     ['stage-promote.yml', 'promote'],
   ]) {
-    const step = stepsOf(workflow(file).jobs[job]).find((s) => s.uses?.includes('-artifact@'));
+    const step = stepsOf(workflow(file).jobs[job]).find(
+      (s) => s.uses?.includes('-artifact@') && s.name !== 'Upload the agent installers',
+    );
     assert.equal(`name: ${step?.with.name}`, name, `${file} must use the SHA-named artifact`);
   }
 });
@@ -290,6 +292,85 @@ test('the promoted migrations are refused when they hold a symlink, before they 
   assert.ok(check >= 0, 'the symlink check runs on the promoted tree');
   assert.ok(check < use.run.indexOf('cp -r'), 'the check comes before the copy');
   assert.ok(check < use.run.indexOf('rm -rf'), 'and before the workspace migrations are removed');
+});
+
+test('agent.yml is a thin caller: a preview per same-repo pull request, a staging build per commit on main', () => {
+  const wf = workflow('agent.yml');
+  assert.deepEqual(Object.keys(wf.jobs), ['build']);
+  const job = wf.jobs.build;
+  assert.equal(job.name, 'build');
+  assert.equal(job.uses, './.github/workflows/stage-build.yml');
+  assert.equal(job.steps, undefined);
+  assert.equal(job.with.app, 'agent');
+  assert.match(job.if, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
+  assert.equal(
+    job.with.channel,
+    "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'staging' || 'preview' }}",
+  );
+  assert.equal(job.with.api_base, '${{ vars.API_BASE_URL }}');
+  assert.deepEqual(wf.on.push.branches.slice(0, 1), ['main']);
+  assert.ok(wf.on.pull_request);
+  assert.equal(wf.on.workflow_dispatch, undefined, 'production is never started from here');
+  assert.deepEqual(wf.permissions, { contents: 'read', 'pull-requests': 'read' });
+  // A staging build on main is never cancelled by a later push.
+  assert.doesNotMatch(wf.concurrency['cancel-in-progress'], /refs\/heads\/main'\s*\}\}$/);
+  assert.match(wf.concurrency['cancel-in-progress'], /github\.ref != 'refs\/heads\/main'/);
+});
+
+test('the agent build: one Windows build per channel, smoke-started against its API before it is uploaded', () => {
+  const build = workflow('stage-build.yml').jobs.build;
+  assert.match(build['runs-on'], /inputs\.app == 'agent' && 'windows-latest'/);
+  const steps = stepsOf(build);
+  const index = (predicate) => steps.findIndex(predicate);
+  const base = index((s) => s.id === 'agent_api');
+  const wake = index((s) => s.run?.includes('scripts/delivery/smoke.mjs api'));
+  const config = index((s) => s.id === 'agent_channel');
+  const compile = index((s) => s.run?.includes('tauri build'));
+  const smoke = index((s) => s.run?.includes('--self-check --online'));
+  const verdict = index((s) => s.run?.includes('scripts/delivery/self-check-line.mjs'));
+  const upload = index((s) => s.name === 'Upload the agent installers');
+  assert.ok(
+    base >= 0 &&
+      base < wake &&
+      wake < config &&
+      config < compile &&
+      compile < smoke &&
+      smoke <= verdict &&
+      verdict < upload,
+    'API, wake, channel config, compile, smoke start, verdict, then upload',
+  );
+  // The build is told its channel and API, and takes its identifier and updater from the one table.
+  assert.equal(steps[compile].env.D2RMM_CHANNEL, '${{ inputs.channel }}');
+  assert.equal(steps[compile].env.D2RMM_API_BASE, '${{ steps.agent_api.outputs.base }}');
+  assert.match(steps[compile].run, /--config "\$TAURI_CHANNEL_CONFIG"/);
+  assert.match(steps[config].run, /scripts\/delivery\/agent-channel\.mjs "\$CHANNEL"/);
+  assert.match(steps[smoke].run, /self-check-line\.mjs self-check\.out "\$CHANNEL"/);
+  for (const step of steps.filter((s) => s.if === "inputs.app == 'agent'" || s.id?.startsWith('agent_'))) {
+    assert.doesNotMatch(
+      JSON.stringify(step),
+      /secrets\.|TAURI_SIGNING|SIGNPATH/,
+      `${step.name} holds no signing secret`,
+    );
+  }
+});
+
+test('preview and staging installers are workflow artifacts only: never a release, named by channel and SHA', () => {
+  const build = workflow('stage-build.yml').jobs.build;
+  const upload = stepsOf(build).find((s) => s.name === 'Upload the agent installers');
+  assert.equal(upload.with.name, 'agent-${{ inputs.channel }}-${{ inputs.sha }}');
+  assert.ok(upload.with['retention-days'] <= 14, 'a test installer expires');
+  assert.match(upload.with.path, /bundle\/nsis\/\*\.exe/);
+  assert.doesNotMatch(
+    JSON.stringify(build),
+    /gh release|action-gh-release|releases\/|softprops|create-release/,
+  );
+  const refuse = stepsOf(build)[0].run;
+  assert.match(
+    refuse,
+    /"\$CHANNEL" != "preview" \] && \[ "\$CHANNEL" != "staging"/,
+    'production is refused here',
+  );
+  assert.match(refuse, /release-please/);
 });
 
 test('smoke comes after the deploy it checks, and production smoke follows the promote', () => {

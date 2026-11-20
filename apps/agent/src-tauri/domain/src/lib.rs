@@ -8,6 +8,7 @@ pub mod characters;
 pub mod frame_content;
 pub mod fusion;
 pub mod game_name_match;
+pub mod hud_track;
 pub mod language;
 pub mod layout;
 pub mod name_diff;

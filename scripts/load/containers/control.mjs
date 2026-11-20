@@ -1,5 +1,5 @@
 // The control surface and the argument rules of the two byte counters, the meter and the sink (design.md § Byte meter and
-// sink; LB-14, LB-21). Both run the same endpoints: `POST /window/start`, `POST /window/stop` (answers `{ "bytes", "seconds" }`)
+// sink; LB-14, LB-21). Both run the same endpoints: `POST /window/start`, `POST /window/stop` (answers `{ "bytes", "seconds" }`, and `byLabel` when the counter labelled bytes)
 // and `GET /stats`. A request needs the run's bearer token and a `Host` header of `127.0.0.1:<port>`: a wrong host is `421`,
 // a missing or wrong token is `401`, so a local process or a rebinding page cannot move a window. Nothing here logs. The
 // token comes from a file (`--token-file`), never from a command-line value.
@@ -68,7 +68,7 @@ export async function readToken(file) {
 /**
  * Starts the control endpoints on `address`. `counter` is the window counter of the container; `stats` returns the plain
  * numbers `GET /stats` answers.
- * @param {{ address: string, token: string, counter: { start: () => void, stop: () => { bytes: number, seconds: number } },
+ * @param {{ address: string, token: string, counter: { start: () => void, stop: () => { bytes: number, seconds: number, byLabel?: object } },
  *   stats: () => object }} input
  * @returns {Promise<{ port: number, close: () => Promise<void> }>}
  */
@@ -105,8 +105,8 @@ function answer(request, response, { port, bearer, counter, stats }) {
     return send(response, 200, { ok: true });
   }
   if (route === 'POST /window/stop') {
-    const { bytes, seconds } = counter.stop();
-    return send(response, 200, { bytes, seconds });
+    const { bytes, seconds, byLabel } = counter.stop();
+    return send(response, 200, byLabel === undefined ? { bytes, seconds } : { bytes, seconds, byLabel });
   }
   if (route === 'GET /stats') return send(response, 200, stats());
   return send(response, 404, { error: 'not-found' });

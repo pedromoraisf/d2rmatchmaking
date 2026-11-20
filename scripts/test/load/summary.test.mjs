@@ -22,6 +22,7 @@ const SUMMARY_KEYS = [
   'withinEgressBudget',
   'withinTelemetryBudget',
   'telemetryBytesPerPlayerHour',
+  'telemetryBytesPerPlayerHourBySignal',
   'telemetryMonthlyBytes',
   'relayAllowanceMonthlyBytes',
   'telemetryShareOfBudget',
@@ -37,6 +38,7 @@ const STEP_KEYS = [
   'errorRatio',
   'bytesReceived',
   'telemetryBytes',
+  'telemetryBytesBySignal',
   'windowSeconds',
   'peakCpuPercent',
   'peakMemoryBytes',
@@ -63,6 +65,7 @@ const passing = (players, overrides = {}) => ({
   errorRatio: 0,
   bytesReceived: WITHIN_BUDGET_BYTES,
   telemetryBytes: 10000,
+  telemetryBytesBySignal: { traces: 6000, metrics: 1000, logs: 3000 },
   windowSeconds: 90,
   peakCpuPercent: 40,
   peakMemoryBytes: 300 * 2 ** 20,
@@ -378,4 +381,27 @@ test('malformed step input is refused', () => {
   assert.throws(() => run([{ ...passing(25), players: 0 }]), TypeError);
   assert.throws(() => run('not an array'), TypeError);
   assert.throws(() => run([], { profile: 'nightly' }), TypeError);
+});
+
+test('the telemetry bytes per player-hour are split by signal for the 100-player step', () => {
+  // 90 s window and 100 players: bytes x 0.4 is bytes per player-hour.
+  const summary = run([passing(25), passing(100)]);
+  const split = summary.telemetryBytesPerPlayerHourBySignal;
+  assert.deepEqual(Object.keys(split), ['traces', 'metrics', 'logs']);
+  assert.equal(split.traces, 2400);
+  assert.equal(split.metrics, 400);
+  assert.equal(split.logs, 1200);
+
+  assert.equal(run([passing(25)]).telemetryBytesPerPlayerHourBySignal, null, 'no 100-player step, no split');
+});
+
+test('a step without the signal split reads as zero in each signal', () => {
+  const bare = passing(100);
+  delete bare.telemetryBytesBySignal;
+  const summary = run([bare]);
+  assert.deepEqual(summary.telemetryBytesPerPlayerHourBySignal, { traces: 0, metrics: 0, logs: 0 });
+  assert.throws(
+    () => run([passing(100, { telemetryBytesBySignal: { traces: -1, metrics: 0, logs: 0 } })]),
+    /telemetryBytesBySignal\.traces/,
+  );
 });
