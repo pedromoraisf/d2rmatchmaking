@@ -44,7 +44,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
       field refused; a pattern-looking phrase refused; an empty document valid (every field optional). Run
       `pnpm contracts:openapi` and commit the JSON. Gate:
       `pnpm --filter @d2rmm/contracts test && pnpm contracts:check`
-- [ ] T3 — The committed document and its loader (RCF-12). `apps/api/src/modules/agents/config/agent-config.json` (version 1,
+- [x] T3 — The committed document and its loader (RCF-12). `apps/api/src/modules/agents/config/agent-config.json` (version 1,
       the built-in values of the constants that exist on `phase/F2`), `modules/agents/domain/agent-config.ts`
       (`parseAgentConfig`, `etagOf(version)`), and a unit test that the committed file parses, that every value equals the
       agent's default (a table in the test, kept next to the Rust pinning tests of T10) and that a field outside the schema

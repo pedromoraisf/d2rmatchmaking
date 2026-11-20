@@ -43,6 +43,7 @@ import { PostgresAgentRepository } from '../modules/agents/adapters/postgres/pos
 import { PostgresPairingCodeRepository } from '../modules/agents/adapters/postgres/postgres-pairing-code-repository.ts';
 import type { AgentsDatabase } from '../modules/agents/adapters/postgres/schema.ts';
 import { createAgentsUseCases } from '../modules/agents/application/agents-use-cases.ts';
+import type { ServedAgentConfig } from '../modules/agents/domain/agent-config.ts';
 import type { IdentityPort } from '../modules/identity/index.ts';
 import { characterRoutes } from '../modules/identity/adapters/http/character-routes.ts';
 import { identityRoutes } from '../modules/identity/adapters/http/routes.ts';
@@ -168,6 +169,11 @@ export interface AppDeps {
   readonly onDeadLetter?: (outboxId: string, eventType: string) => void;
   /** Where the telemetry relay forwards (OBS-15). Defaults to no endpoint: every forward is dropped. */
   readonly telemetryBackend?: TelemetryBackend;
+  /**
+   * The validated remote configuration the API serves to agents (RCF-12), read once at start by the composition root.
+   * Defaults to the committed file, so a test app serves the same document as production.
+   */
+  readonly agentConfig?: ServedAgentConfig;
 }
 
 /** The OTLP backend the relay forwards to, from the `OTEL_EXPORTER_OTLP_*` settings (main/config.ts). */
