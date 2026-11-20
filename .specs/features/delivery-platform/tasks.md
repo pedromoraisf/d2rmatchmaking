@@ -27,7 +27,7 @@ Rules:
 - [x] T4 — Write the reusable `stage-build`, `stage-deploy`, `stage-smoke` and `stage-promote` workflows and the thin
       `site.yml` (DLP-02, DLP-03). Make the preview origin deploy configuration, and add the fixed phase-preview alias
       (DLP-08). Write static harness tests (DLP-10). Gate: `pnpm test:harness`
-- [ ] T5 — Run the site through the new stages beside `deploy-web.yml` on three real pushes or PRs, and record the run
+- [x] T5 — Run the site through the new stages beside `deploy-web.yml` on three real pushes or PRs, and record the run
       links in the PR. Gate: `gh run list --workflow site.yml --limit 3 --json conclusion,url`
 
 ## Batch 3 — the API split (PR 3; the deploy to production waits for the maintainer's secrets)
