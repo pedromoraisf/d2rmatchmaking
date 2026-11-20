@@ -520,9 +520,11 @@ pub fn check_folder(
     for name in &folder_screenshots(dir) {
         let name = name.as_str();
         let path = dir.join(name);
+        // The name of a generated-name print is public (the room's generated name): its reads are printed too.
+        let show = show_reads || generated_name_of(name).is_some();
         let result = if path.is_file() {
             read_screenshot(&path).and_then(|image| {
-                for line in diagnostics(name, &variants, &image, show_reads) {
+                for line in diagnostics(name, &variants, &image, show) {
                     println!("{line}");
                 }
                 println!("{}", anchor_line(name, &*reader, &screens, &image));
@@ -534,7 +536,7 @@ pub fn check_folder(
                         println!("{line}");
                     }
                 }
-                verdict(name, &*reader, &screens, &image, show_reads)
+                verdict(name, &*reader, &screens, &image, show)
             })
         } else {
             Err(format!("is missing from {}", dir.display()))
