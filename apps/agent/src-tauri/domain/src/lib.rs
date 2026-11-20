@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 pub mod anchors;
+pub mod capture_cascade;
 pub mod character_screen;
 pub mod characters;
 pub mod frame_content;

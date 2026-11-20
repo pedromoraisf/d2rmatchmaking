@@ -46,7 +46,7 @@ check is `node scripts/agent/win-check.mjs` (Docker, clippy for `x86_64-pc-windo
       not blank and a uniform one blank, and `largest_client` still picks the biggest client area. No non-test line
       changes; no test ignored. Gate: `CARGO nextest run -p d2rmm-agent-domain -p d2rmm-agent-core -p d2rmm-agent-adapters --lib`
       and `CARGO clippy -p d2rmm-agent-domain -p d2rmm-agent-core -p d2rmm-agent-adapters --all-targets -- -D warnings`
-- [ ] T2 — The cascade state machine (CAP-01, CAP-02, CAP-03, CAP-07). New `domain/src/capture_cascade.rs`, exported from
+- [x] T2 — The cascade state machine (CAP-01, CAP-02, CAP-03, CAP-07). New `domain/src/capture_cascade.rs`, exported from
       `lib.rs`: `CaptureMethod` (`PrintWindow`, `GraphicsCapture`, `ScreenCrop`, `word()`), `Outcome`, `Cascade` with
       `DEMOTE_AFTER = 3`, `PROBE_EVERY = 60`, `RATE_WINDOW = 60` as pinned constants. Tests: order and skipping of
       unavailable methods; no demotion on two unusable looks, demotion on three consecutive (a usable look resets the
