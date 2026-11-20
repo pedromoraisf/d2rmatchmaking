@@ -742,6 +742,20 @@ async function runStep(ctx, step, provisioned) {
   }
 }
 
+/**
+ * The last lines k6 wrote to stderr (or stdout when stderr is empty), for the error of a failed step. The text is
+ * redacted by ToolError.
+ * @param {{ stdout?: unknown, stderr?: unknown }} k6
+ * @returns {string}
+ */
+export function k6Tail(k6) {
+  const err = String(k6.stderr ?? '').trim();
+  const text = err === '' ? String(k6.stdout ?? '').trim() : err;
+  if (text === '') return '; k6 wrote no output';
+  const lines = text.split('\n').slice(-15).join(' | ');
+  return `; k6 output: ${lines.slice(-1500)}`;
+}
+
 async function runStepBody(ctx, step, provisioned, timings) {
   const { docker, names, dirs, limits, runId, log, fs } = ctx;
   ensureRunning(ctx);
@@ -777,7 +791,7 @@ async function runStepBody(ctx, step, provisioned, timings) {
     await dropContainer(ctx, names.k6);
   }
   const after = await inspectOf(ctx, names.api);
-  if (k6.code !== 0) throw new ToolError(`k6 ended with status ${k6.code}`);
+  if (k6.code !== 0) throw new ToolError(`k6 ended with status ${k6.code}${k6Tail(k6)}`);
 
   const measured = await readStepFile(ctx);
   const latencySamplesMs = samplesOf(`${String(k6.stdout ?? '')}\n${String(k6.stderr ?? '')}`);
