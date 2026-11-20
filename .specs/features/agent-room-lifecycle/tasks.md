@@ -38,7 +38,7 @@ Rules:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib`
 - [x] T5 — Site: remember a dismissed ended room per room id across reloads (ARL-05), with a component test. Gate:
       `pnpm --filter @d2rmm/web exec vitest run src/features/lobby-room && pnpm --filter @d2rmm/web lint`
-- [ ] T6 — Site: read the agent's presence again after the stream reconnects, so an online state never outlives 60
+- [x] T6 — Site: read the agent's presence again after the stream reconnects, so an online state never outlives 60
       seconds after the last heartbeat (ARL-06). Find why it lingered before fixing it, and write the cause in the
       commit message. Unit or component test. Gate:
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`

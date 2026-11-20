@@ -6,7 +6,7 @@ import type { SiteStreamHandlers, StreamOpener } from '../shared/stream.ts';
 import { createApiClient, type Fetcher } from '../shared/api-client.ts';
 import { jsonResponse, routeFetch } from '../test/fake-api.ts';
 import { renderInLanguage } from '../test/render.tsx';
-import { App } from './App.tsx';
+import { AGENT_PRESENCE_REREAD_MS, App } from './App.tsx';
 
 afterEach(cleanup);
 
@@ -217,6 +217,49 @@ describe('App', () => {
     expect(screen.getByText('Agent online')).toBeTruthy();
     expect(screen.getByText('Game open')).toBeTruthy();
     expect(screen.getByText('Screen: Automap open')).toBeTruthy();
+  });
+
+  it('reads the agent again when the stream reconnects, so a lost offline event never stays (ARL-06)', async () => {
+    let reply: unknown = { ...pairedAgent, online: true, gameRunning: true };
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(200, player),
+      'GET /api/v1/agents/me': () => jsonResponse(200, reply),
+      'GET /api/v1/me/room': () => jsonResponse(404),
+    });
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={stream.openStream} />);
+    expect(await screen.findByText('Agent online')).toBeTruthy();
+
+    reply = { ...pairedAgent, online: false };
+    await streamOpens(stream);
+
+    expect(await screen.findByText('Agent offline')).toBeTruthy();
+  });
+
+  it('reads an online agent again on a timer, so an offline event the stream lost shows within the bound (ARL-06)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let reply: unknown = { ...pairedAgent, online: true };
+      const { fetch } = routeFetch({
+        'GET /api/v1/config': () => jsonResponse(200, config),
+        'GET /api/v1/me': () => jsonResponse(200, player),
+        'GET /api/v1/agents/me': () => jsonResponse(200, reply),
+        'GET /api/v1/me/room': () => jsonResponse(404),
+      });
+      const stream = fakeStream();
+      renderInLanguage(<App client={createApiClient(fetch)} openStream={stream.openStream} />);
+      expect(await screen.findByText('Agent online')).toBeTruthy();
+
+      reply = { ...pairedAgent, online: false };
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(AGENT_PRESENCE_REREAD_MS + 100);
+      });
+
+      expect(await screen.findByText('Agent offline')).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('lists a character the agent registers without a reload, on the characters.updated event', async () => {
