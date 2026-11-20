@@ -115,7 +115,9 @@ export function budgetFromEnv(value) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   // `smoke.mjs <app> <url> <sha>`
-  const [app, url, sha] = process.argv.slice(2);
+  const [app, url, rawSha] = process.argv.slice(2);
+  // An empty SHA means "any build": an agent smoke only needs the API awake.
+  const sha = rawSha === '' ? undefined : rawSha;
   const budgetMs = budgetFromEnv(process.env.SMOKE_BUDGET_SECONDS);
   const failures = await smokeChecks(app, url, sha, {
     ...(budgetMs === undefined ? {} : { budgetMs }),
