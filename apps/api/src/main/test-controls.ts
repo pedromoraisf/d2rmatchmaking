@@ -4,7 +4,7 @@
 // configuration control of remote-config (`PUT /__test/agent-config`, RCF-05, RCF-06). Only `local.ts`
 // registers them, and only when `D2RMM_ACCEPTANCE=true`; `render.ts` never does, and they are never in `openapi.json`.
 import { timingSafeEqual } from 'node:crypto';
-import { ErrorResponse } from '@d2rmm/contracts';
+import { AGENT_CONFIG_MAX_BYTES, ErrorResponse } from '@d2rmm/contracts';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { sql, type Kysely } from 'kysely';
@@ -22,7 +22,7 @@ const ACCEPTANCE_DATABASE = /^acc_w\d+$/;
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1']);
 
 /** The largest text the agent-config control serves: twice the contract's 64 KiB, so a scenario can send one over it. */
-const MAX_AGENT_CONFIG_TEXT = 131072;
+const MAX_AGENT_CONFIG_TEXT = AGENT_CONFIG_MAX_BYTES * 2;
 
 /** Largest clock advance in one call: one year. Scenarios move time by days, never by more. */
 const MAX_ADVANCE_MS = 365 * 24 * 60 * 60 * 1000;
