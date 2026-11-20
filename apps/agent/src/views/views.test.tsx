@@ -245,7 +245,12 @@ describe('fill status and hotkeys (AST-01, AST-08)', () => {
 
   it('shows the reason the core refused a hotkey, and a generic line for an unknown failure', async () => {
     const reasons = new Map([
-      ['no-modifier', 'Use Ctrl, Shift or Alt with the key.'],
+      ['no-modifier', 'Use Ctrl or Alt with the key.'],
+      ['needs-ctrl-or-alt', 'Use Ctrl or Alt with the key; Shift alone is not enough.'],
+      [
+        'reserved',
+        'That combination is already used by Windows or every program (such as Ctrl+C, Alt+F4 or the Windows key). Pick another.',
+      ],
       ['confirming-key', 'Enter, Tab, Space, Escape and Backspace cannot be hotkeys.'],
       ['unsupported-key', 'Use a letter, a digit or F1 to F12 (for example Ctrl+Shift+F).'],
       ['same-as-other', 'The two hotkeys must differ.'],

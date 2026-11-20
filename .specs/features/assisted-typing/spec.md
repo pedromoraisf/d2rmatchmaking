@@ -32,8 +32,9 @@ The player confirms by pressing Enter (or clicking Create Game) themselves. The 
 - **AST-01** — The agent SHALL register a **fill hotkey** with the OS (`RegisterHotKey` through `global-hotkey`; no
   keyboard hook), default Ctrl+Shift+F, exactly while it holds a room with a game name, and unregister it when the room
   ends or is dropped. The accept hotkey (RDY-07) and the fill hotkey SHALL both be configurable in the agent window.
-  The agent SHALL refuse a combination that has no modifier, uses Enter, NumpadEnter, Tab, Space or Escape as its key,
-  or equals the other hotkey, keep the previous one and say why. Choices are stored on this PC only and never sent.
+  The agent SHALL refuse a combination that has no Ctrl or Alt (Shift alone is not enough), uses Enter, NumpadEnter, Tab,
+  Space, Escape or Backspace as its key, is a reserved shortcut (Ctrl+C, V, X, A, Z or Alt+F4 on their own, or any
+  combination with the Windows key), or equals the other hotkey, keep the previous one and say why. Choices are stored on this PC only and never sent.
 - **AST-02** — WHEN the player presses the fill hotkey THEN the agent SHALL type only the game name of the room it
   holds, taken from the assignment the API gave and checked against `mm[a-z0-9]+-[0-9]{1,6}` with at most 32
   characters. A name that does not match, or a press with no held room, SHALL type nothing. The agent SHALL type no

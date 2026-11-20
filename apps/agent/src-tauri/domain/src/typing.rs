@@ -117,6 +117,10 @@ pub enum HotkeyKey {
 pub enum HotkeyRefusal {
     /// Plain keys would fire while the player types.
     NoModifier,
+    /// Shift alone is not enough: Shift+letter is how the player types capitals, so the hotkey needs Ctrl or Alt too.
+    NeedsCtrlOrAlt,
+    /// A combination the system or every program uses (copy, paste, close window) or the Windows key.
+    Reserved,
     /// Enter, NumpadEnter, Tab, Space, Escape or Backspace: keys that confirm or navigate.
     ConfirmingKey,
     /// Not a letter, a digit or F1–F12, or not readable as a combination.
@@ -139,6 +143,9 @@ impl HotkeyChoice {
         let mut key = None;
         for part in text.split('+').map(str::trim) {
             match part.to_ascii_lowercase().as_str() {
+                "win" | "windows" | "meta" | "super" | "cmd" => {
+                    return Err(HotkeyRefusal::Reserved);
+                }
                 "ctrl" | "control" => modifiers.ctrl = true,
                 "shift" => modifiers.shift = true,
                 "alt" => modifiers.alt = true,
@@ -153,8 +160,22 @@ impl HotkeyChoice {
         if !modifiers.any() {
             return Err(HotkeyRefusal::NoModifier);
         }
+        if !(modifiers.ctrl || modifiers.alt) {
+            return Err(HotkeyRefusal::NeedsCtrlOrAlt);
+        }
+        if is_reserved(modifiers, key) {
+            return Err(HotkeyRefusal::Reserved);
+        }
         Ok(Self { modifiers, key })
     }
+}
+
+/// Ctrl+C, V, X, A, Z and Alt+F4 on their own: the shortcuts every program, and the window, already answer to.
+fn is_reserved(modifiers: Modifiers, key: HotkeyKey) -> bool {
+    let only_ctrl = modifiers.ctrl && !modifiers.shift && !modifiers.alt;
+    let only_alt = modifiers.alt && !modifiers.shift && !modifiers.ctrl;
+    (only_ctrl && matches!(key, HotkeyKey::Letter('C' | 'V' | 'X' | 'A' | 'Z')))
+        || (only_alt && key == HotkeyKey::Function(4))
 }
 
 fn read_key(name: &str) -> Result<HotkeyKey, HotkeyRefusal> {
@@ -222,6 +243,8 @@ impl HotkeyRefusal {
     pub fn code(self) -> &'static str {
         match self {
             Self::NoModifier => "no-modifier",
+            Self::NeedsCtrlOrAlt => "needs-ctrl-or-alt",
+            Self::Reserved => "reserved",
             Self::ConfirmingKey => "confirming-key",
             Self::UnsupportedKey => "unsupported-key",
             Self::SameAsOther => "same-as-other",
@@ -397,6 +420,62 @@ mod tests {
     }
 
     #[test]
+    fn a_hotkey_needs_ctrl_or_alt_not_shift_alone() {
+        for text in ["Shift+G", "Shift+F5", "Shift+7"] {
+            assert_eq!(
+                HotkeyChoice::parse(text).err(),
+                Some(HotkeyRefusal::NeedsCtrlOrAlt),
+                "{text}"
+            );
+        }
+        for text in [
+            "Ctrl+G",
+            "Alt+G",
+            "Ctrl+Shift+G",
+            "Alt+Shift+G",
+            "Ctrl+Alt+G",
+        ] {
+            assert!(HotkeyChoice::parse(text).is_ok(), "{text}");
+        }
+    }
+
+    #[test]
+    fn the_shortcuts_every_program_answers_to_and_the_windows_key_are_reserved() {
+        for text in [
+            "Ctrl+C",
+            "Ctrl+V",
+            "Ctrl+X",
+            "Ctrl+A",
+            "Ctrl+Z",
+            "ctrl+c",
+            "Alt+F4",
+            "Win+G",
+            "Win+Ctrl+G",
+            "Meta+Ctrl+F",
+            "Super+Alt+F",
+            "Windows+Ctrl+Q",
+        ] {
+            assert_eq!(
+                HotkeyChoice::parse(text).err(),
+                Some(HotkeyRefusal::Reserved),
+                "{text}"
+            );
+        }
+        // Only the bare combination is reserved: the same key with another modifier added is free (the default is Ctrl+Shift+A).
+        for text in [
+            "Ctrl+Shift+A",
+            "Ctrl+Alt+C",
+            "Ctrl+Shift+Z",
+            "Alt+Shift+F4",
+            "Ctrl+F4",
+            "Alt+F5",
+            "Ctrl+B",
+        ] {
+            assert!(HotkeyChoice::parse(text).is_ok(), "{text}");
+        }
+    }
+
+    #[test]
     fn a_hotkey_on_a_confirming_or_navigating_key_is_refused() {
         for key in [
             "Enter",
@@ -450,6 +529,8 @@ mod tests {
         }
         let codes: Vec<&str> = [
             HotkeyRefusal::NoModifier,
+            HotkeyRefusal::NeedsCtrlOrAlt,
+            HotkeyRefusal::Reserved,
             HotkeyRefusal::ConfirmingKey,
             HotkeyRefusal::UnsupportedKey,
             HotkeyRefusal::SameAsOther,
@@ -460,6 +541,8 @@ mod tests {
             codes,
             [
                 "no-modifier",
+                "needs-ctrl-or-alt",
+                "reserved",
                 "confirming-key",
                 "unsupported-key",
                 "same-as-other"

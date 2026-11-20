@@ -6,7 +6,14 @@ import type { Hotkeys, Translate } from '../shared/labels.ts';
 export type HotkeyAction = 'accept' | 'fill';
 
 // The reasons the core gives for a refused combination; anything else reads as "could not save".
-const REFUSALS = ['no-modifier', 'confirming-key', 'unsupported-key', 'same-as-other'] as const;
+const REFUSALS = [
+  'no-modifier',
+  'needs-ctrl-or-alt',
+  'reserved',
+  'confirming-key',
+  'unsupported-key',
+  'same-as-other',
+] as const;
 
 export function refusalKey(reason: unknown): string {
   return typeof reason === 'string' && (REFUSALS as readonly string[]).includes(reason)
