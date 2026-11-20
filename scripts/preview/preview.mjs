@@ -193,6 +193,33 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     process.stdout.write(
       origin === undefined ? 'no preview API for this branch\n' : `configured ${origin}\n`,
     );
+  } else if (command === 'api-base') {
+    // `api-base <branch> <fallback>`: needs GH_TOKEN and GH_REPO. The preview API origin of the branch's labelled pull
+    // request, or the fallback (the staging API) when there is none or no branch is given (ADR 033, DLP-06).
+    if (args[0] === undefined || args[0] === '') {
+      process.stdout.write(`${args[1]}\n`);
+    } else {
+      const json = execFileSync(
+        'gh',
+        [
+          'pr',
+          'list',
+          '--head',
+          args[0],
+          '--base',
+          'main',
+          '--label',
+          'render-preview',
+          '--state',
+          'open',
+          '--json',
+          'number,headRepositoryOwner',
+        ],
+        { encoding: 'utf8' },
+      );
+      const origin = previewApiOriginFor(JSON.parse(json), (process.env.GH_REPO ?? '').split('/')[0]);
+      process.stdout.write(`${origin ?? args[1]}\n`);
+    }
   } else if (command === 'describe') {
     // `describe`: reads a list-services answer on stdin, prints one line per service (never env vars).
     let text = '';
