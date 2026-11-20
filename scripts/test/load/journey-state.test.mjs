@@ -4,6 +4,12 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+  EVENT_NAMES,
+  STREAMS,
+  eventCounterName,
+  eventKeyOf,
+  frameBytes,
+  utf8Length,
   isError,
   isHostIn,
   kindOf,
@@ -235,4 +241,56 @@ test('the host of an assignment is the member with the host role, and only that 
   assert.equal(isHostIn({ members: [] }, 'a'), false);
   assert.equal(isHostIn({}, 'a'), false);
   assert.equal(isHostIn(null, 'a'), false);
+});
+
+test('every event type the API streams is counted by name, and no other', () => {
+  const projection = readFileSync(
+    path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      '../../../apps/api/src/platform/stream-projection.ts',
+    ),
+    'utf8',
+  );
+  const streamed = [...projection.matchAll(/type: '([a-z_]+\.[a-z_]+)'/g)].map((match) => match[1]);
+  assert.deepEqual(
+    [...new Set(streamed)].sort(),
+    [...EVENT_NAMES].sort(),
+    'EVENT_NAMES follows the projection',
+  );
+  assert.deepEqual(STREAMS, ['site', 'agent']);
+});
+
+test('an event is counted under its own name, or under unlisted', () => {
+  assert.equal(eventKeyOf('room.stage_changed'), 'room.stage_changed');
+  assert.equal(eventKeyOf('something.new'), 'unlisted');
+  assert.equal(eventKeyOf(undefined), 'unlisted');
+  assert.equal(eventCounterName('site', 'room.stage_changed'), 'journey_event_bytes_site_room_stage_changed');
+  assert.equal(
+    eventCounterName('agent', 'ready_check.started'),
+    'journey_event_bytes_agent_ready_check_started',
+  );
+  assert.equal(eventCounterName('agent', 'something.new'), 'journey_event_bytes_agent_unlisted');
+  const names = STREAMS.flatMap((stream) =>
+    [...EVENT_NAMES, 'unlisted'].map((name) => eventCounterName(stream, name)),
+  );
+  assert.equal(new Set(names).size, names.length, 'no two buckets share a counter');
+});
+
+test('the UTF-8 length of a text counts one to four bytes a character', () => {
+  assert.equal(utf8Length(''), 0);
+  assert.equal(utf8Length('abc'), 3);
+  assert.equal(utf8Length('é'), 2);
+  assert.equal(utf8Length('€'), 3);
+  assert.equal(utf8Length('😀'), 4, 'a surrogate pair is one four-byte character');
+  assert.equal(utf8Length('aé€😀'), 1 + 2 + 3 + 4);
+  assert.equal(utf8Length('aé€😀'), Buffer.byteLength('aé€😀'));
+});
+
+test('a frame is the event line, the data line and the blank line', () => {
+  assert.equal(
+    frameBytes('room.assigned', '{"a":1}'),
+    Buffer.byteLength('event: room.assigned\ndata: {"a":1}\n\n'),
+  );
+  assert.equal(frameBytes('x', ''), 'event: x\ndata: \n\n'.length);
+  assert.equal(frameBytes('x', 'é'), 'event: x\ndata: \n\n'.length + 2);
 });

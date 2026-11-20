@@ -31,3 +31,46 @@ export function bytesPerPlayerHour(bytes, players, windowSeconds) {
 export function withinEgressBudget(bytesPerHour) {
   return bytesPerHour <= EGRESS_BYTES_PER_PLAYER_HOUR;
 }
+
+/**
+ * Matches a player plays per hour: the journey's iterations (one per player per room) over the players and the window.
+ * @param {number} iterations
+ * @param {number} players
+ * @param {number} windowSeconds
+ * @returns {number}
+ */
+export function matchesPerPlayerHour(iterations, players, windowSeconds) {
+  return bytesPerPlayerHour(iterations, players, windowSeconds);
+}
+
+/**
+ * The bytes one match costs a player: bytes per player-hour over matches per player-hour; null when no match was played, so
+ * a figure is never divided by zero. Reading the egress per match lets runs of different cadence be compared.
+ * @param {number} bytesPerHour
+ * @param {number} matchesPerHour
+ * @returns {number | null}
+ */
+export function bytesPerMatch(bytesPerHour, matchesPerHour) {
+  return matchesPerHour > 0 ? bytesPerHour / matchesPerHour : null;
+}
+
+/**
+ * Each count of `bytesByEvent` (`{ site: {...}, agent: {...}, other }`) as bytes per player-hour.
+ * @param {{ site: Record<string, number>, agent: Record<string, number>, other: number }} byEvent
+ * @param {number} players
+ * @param {number} windowSeconds
+ */
+export function perPlayerHourByEvent(byEvent, players, windowSeconds) {
+  const scale = (counts) =>
+    Object.fromEntries(
+      Object.entries(counts).map(([name, bytes]) => [
+        name,
+        bytesPerPlayerHour(bytes, players, windowSeconds),
+      ]),
+    );
+  return {
+    site: scale(byEvent.site),
+    agent: scale(byEvent.agent),
+    other: bytesPerPlayerHour(byEvent.other, players, windowSeconds),
+  };
+}
