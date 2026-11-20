@@ -94,10 +94,16 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
       values only, in the exporter's sanitiser. Existing span tests gain assertions, never lose one. A source-rule test in
       `scripts/test/` refuses a read text or a region in a span attribute of the vision code. Gate:
       `CARGO nextest run -p d2rmm-agent-core --lib && pnpm test:harness`
-- [ ] T9 — **[R14]** Popups with no card read (item f, SCR-05). From the PR's `ocr-variations` summary, list the refusal
+- [x] T9 — **[R14]** Popups with no card read (item f, SCR-05). From the PR's `ocr-variations` summary, list the refusal
       reasons of the 176 popup variations (reason classes only; the summary prints no read text), pin the reads that
       work, then change the popup logic only where a reason class shows a rule that refuses a readable popup. One change
       per commit, each pushed and proved: `ocr-real` green, `popup` correct count up, `wrong` not up. Gate: as T3
+      _Part 2 (code and unit proofs), from the reasons of run 44751561205 (`ocr-variations.json`): two changes, one commit
+      each, each pinned first. (1) `slots0-options3` (155): a popup over a column that read no card reads the column again
+      with its brightness lifted (`CardColumnLifted`, `lift_dimmed`). (2) `title-unread` (about 235 of the selection and
+      popup variations): a title line read as none of the pack's titles is read again as a field, as a known one is
+      (`CardAnchor::title_unknown`). The real-print proof (popup correct up, `wrong` not up) waits for the PR's
+      `ocr-variations`; if `wrong` rises, revert change (2) first, it is the one that opens a read the rules refused._
 - [x] T10 — **[R14]** Unrecognised selection screens (item f, SCR-05). Same loop as T9 for the 104 screens read as
       `Unknown`: classes of reason first, then the smallest change per class (the list marker searched by its word in a
       wider area, as the HUD is). A frame that is not the selection screen must still read `Unknown` (the drawn
