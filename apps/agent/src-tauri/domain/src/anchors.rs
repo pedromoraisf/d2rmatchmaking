@@ -1053,14 +1053,35 @@ mod tests {
     }
 
     #[test]
-    fn the_party_area_ends_where_it_does_today() {
-        // Pins the area the Party lines are searched in (screen-recognition T2): it sits between 6% and 28% of the client
-        // height, so a panel outside that band is not found. SCR-04 widens the search; its test replaces this one.
+    fn the_party_area_is_the_wide_top_left_of_every_client_height() {
+        // Changed expectation (screen-recognition T6, SCR-04; orchestrator's decision): the area T2 pinned (6% to 28% of the
+        // height, from x 230) did not give the line pass the "Nome" label of the six pt-BR 1045 prints (the same lines read
+        // in the client's top-left 30% x 40% did), so the Party lines are searched there, a word search over a wide area.
         use crate::layout::{PanelRegion, panel_region};
         for height in [1033u32, 1045, 1056, 1080] {
             let area = panel_region(PanelRegion::PartyPanel, 1920, height).expect("resolves");
-            assert!(area.bottom() < 290 * height / 1033, "at {height}");
-            assert!(area.y > 60 * height / 1033, "at {height}");
+            assert_eq!((area.x, area.y), (0, 0), "at {height}");
+            assert!(area.width.abs_diff(576 * height / 1033) <= 1, "at {height}");
+            assert!(
+                area.height.abs_diff(413 * height / 1033) <= 1,
+                "at {height}"
+            );
+            // The title, label and field of the measured prints (1033 English, 1045 pt-BR) are inside it.
+            let (title, label, field) = if height == 1045 {
+                (136, 176, 204)
+            } else {
+                (
+                    153 * height / 1080,
+                    192 * height / 1080,
+                    220 * height / 1080,
+                )
+            };
+            for (x, y) in [(400, title), (280, label), (300, field)] {
+                assert!(
+                    area.right() > x && area.bottom() > y,
+                    "({x}, {y}) at {height}"
+                );
+            }
         }
     }
 

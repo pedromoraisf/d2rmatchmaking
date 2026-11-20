@@ -98,7 +98,7 @@ pub fn panel_box(panel: PanelRegion) -> PanelBox {
         PanelRegion::PartyTitle => PanelBox::new(Anchor::Left, 350, 108, 100, 34),
         PanelRegion::GameNameLabel => PanelBox::new(Anchor::Left, 268, 152, 100, 18),
         PanelRegion::GameNameField => PanelBox::new(Anchor::Left, 238, 172, 156, 38),
-        PanelRegion::PartyPanel => PanelBox::new(Anchor::Left, 230, 100, 250, 170),
+        PanelRegion::PartyPanel => PanelBox::new(Anchor::Left, 0, 0, 576, 413),
     }
 }
 
@@ -909,10 +909,11 @@ mod pin_fixed_boxes {
         let party = |height| panel_region(PanelRegion::PartyPanel, 1920, height);
         let life = |height| screen_region(ScreenRegion::Life, 1920, height);
         let area = |height| screen_region(ScreenRegion::AreaDifficulty, 1920, height);
-        assert_eq!(party(1033), Some(r(230, 100, 250, 170)));
-        assert_eq!(party(1045), Some(r(233, 101, 253, 172)));
-        assert_eq!(party(1056), Some(r(235, 102, 256, 174)));
-        assert_eq!(party(1080), Some(r(240, 105, 261, 178)));
+        // Changed expectation (screen-recognition T6, SCR-04): the Party lines are searched in the wide top-left area.
+        assert_eq!(party(1033), Some(r(0, 0, 576, 413)));
+        assert_eq!(party(1045), Some(r(0, 0, 583, 418)));
+        assert_eq!(party(1056), Some(r(0, 0, 589, 422)));
+        assert_eq!(party(1080), Some(r(0, 0, 602, 432)));
         assert_eq!(life(1033), Some(r(400, 826, 160, 22)));
         assert_eq!(life(1045), Some(r(405, 836, 162, 22)));
         assert_eq!(life(1056), Some(r(409, 844, 164, 22)));
