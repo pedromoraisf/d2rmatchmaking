@@ -383,6 +383,25 @@ mod tests {
     }
 
     #[test]
+    fn the_brazilian_party_pack_holds_the_three_measured_words_and_nothing_the_panel_reads_besides()
+    {
+        // Pin before the words move to `resources/lang/pt-BR.json` (rule 14): the tag, the three words of the Party panel
+        // and their order of lookup. The Party anchors read no other key (`find_party`), so only these three matter.
+        let pt = LanguagePack::brazilian_party();
+        assert_eq!(pt.tag(), "pt-BR");
+        assert_eq!(pt.word(PARTY), Some("Grupo"));
+        assert_eq!(pt.word(GAME_NAME), Some("Nome"));
+        assert_eq!(pt.word(PASSWORD), Some("Senha"));
+        assert!(pt.is_title_prefix("GRU", PARTY), "a tooltip over the title");
+        assert!(
+            !pt.is_title_prefix("GR", PARTY),
+            "two letters are not enough"
+        );
+        assert!(pt.is_squashed_word("S E N H A", PASSWORD));
+        assert!(pt.is_squashed_word("nome", GAME_NAME));
+    }
+
+    #[test]
     fn a_label_followed_by_its_value_is_found_even_when_its_start_is_misread() {
         let pack = LanguagePack::english();
         assert!(pack.begins_with("Life: 925 / 925", "life"));
