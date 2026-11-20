@@ -24,7 +24,7 @@ Rules:
 - [ ] T1 — Contract: document `value` per type, export `PlayerNameValue` (SNM-01), regenerate and commit `openapi.json`,
       `asyncapi.json`, the JSON schemas and `generated.rs`. Contract tests for the schema. Gate:
       `pnpm --filter @d2rmm/contracts test && pnpm contracts:check && cargo run --manifest-path apps/agent/src-tauri/Cargo.toml -p xtask -- contracts && cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p xtask --test contracts_are_current`
-- [ ] T2 — API shared kernel: `matchCharacterName` (SNM-02) with a unit test for every fold of the agent's `glyph_key`,
+- [x] T2 — API shared kernel: `matchCharacterName` (SNM-02) with a unit test for every fold of the agent's `glyph_key`,
       each of `g`, `e`, `b` for `o`, uppercase and lowercase, the reverse direction refused, ambiguity, length. Gate:
       `pnpm --filter @d2rmm/api exec vitest run src/shared-kernel && pnpm --filter @d2rmm/api lint`
 - [ ] T3 — Identity: reconcile a misread card to the stored character it stands for, with the guards of SNM-07 and the
