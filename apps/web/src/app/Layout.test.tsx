@@ -41,6 +41,18 @@ describe('Layout', () => {
     expect(link.parentElement?.contains(note)).toBe(true);
   });
 
+  it('shows no SmartScreen note once the installer is signed, and keeps the download link', () => {
+    renderInLanguage(<Layout installerSigned>{null}</Layout>, ['en-US']);
+    expect(screen.getByRole('link', { name: 'Download the agent' })).toBeTruthy();
+    expect(screen.queryByText(/SmartScreen/)).toBeNull();
+  });
+
+  it('shows no SmartScreen note in pt-BR either once the installer is signed', () => {
+    renderInLanguage(<Layout installerSigned>{null}</Layout>, ['pt-BR']);
+    expect(screen.getByRole('link', { name: 'Baixar o agente' })).toBeTruthy();
+    expect(screen.queryByText(/SmartScreen/)).toBeNull();
+  });
+
   it('shows the notice and the download button in pt-BR', () => {
     renderInLanguage(<Layout>{null}</Layout>, ['pt-BR']);
     expect(

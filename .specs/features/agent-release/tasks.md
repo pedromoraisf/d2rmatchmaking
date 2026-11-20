@@ -57,7 +57,7 @@ Rules:
       otherwise: **the contact email is not written here, T9 adds it**), the footer link, the README link, and the steps
       for `@AGR-08`. Component tests in both languages with fake locale. Gate:
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint && pnpm exec turbo run test:acceptance -- --grep @AGR-08`
-- [ ] T7 — The SmartScreen note follows one setting (AGR-09): `VITE_INSTALLER_SIGNED` (default `false`) decides whether
+- [x] T7 — The SmartScreen note follows one setting (AGR-09): `VITE_INSTALLER_SIGNED` (default `false`) decides whether
       `Layout` shows `app.smartScreenNote`; the existing `Layout.test.tsx` cases stay for the default, new cases cover
       `true`; the steps for `@AGR-09`. Gate:
       `pnpm --filter @d2rmm/web exec vitest run src/app && pnpm --filter @d2rmm/web lint && pnpm exec turbo run test:acceptance -- --grep @AGR-09`
