@@ -88,6 +88,31 @@ describe('the observation limit', () => {
     expect((await world.post('agent-9', 'room-b')).statusCode).toBe(202);
   });
 
+  it('shares one room budget across the spellings of its uuid (upper case, braces, no hyphens)', async () => {
+    const world = await setup();
+    open = world;
+    const id = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
+    const spellings = [
+      id,
+      id.toUpperCase(),
+      `{${id}}`,
+      id.replaceAll('-', ''),
+      `{${id.toUpperCase().replaceAll('-', '')}}`,
+    ];
+    for (let i = 0; i < ROOM_OBSERVATIONS_PER_MINUTE; i += 1) {
+      const spelling = spellings[i % spellings.length] ?? id;
+      const agent = `agent-${i % 4}`;
+      expect((await world.post(agent, encodeURIComponent(spelling))).statusCode, `request ${i + 1}`).toBe(
+        202,
+      );
+    }
+
+    for (const spelling of spellings) {
+      const refused = await world.post('agent-9', encodeURIComponent(spelling));
+      expect(refused.statusCode, spelling).toBe(429);
+    }
+  });
+
   it('does nothing when no agent was authenticated (the auth guard has answered)', async () => {
     const world = await setup();
     open = world;
