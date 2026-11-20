@@ -36,3 +36,4 @@ Format: Context · Decision · Alternatives · Consequences. Only the maintainer
 | [030](030-api-pull-request-previews.md)    | API pull request previews on Render, each with its own Neon branch         | Accepted                                 |
 | [031](031-worker-model-switchable.md)      | Workers on Sonnet by default; the maintainer switches the model in chat    | Accepted                                 |
 | [032](032-twelve-factor.md)                | The Twelve-Factor App is a founding principle                              | Accepted                                 |
+| [035](035-nightly-runs-load.md)            | The nightly runs the load test on a GitHub runner                          | Proposed                                 |

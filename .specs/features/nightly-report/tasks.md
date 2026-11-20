@@ -29,7 +29,7 @@ Rules:
 
   Update `scripts/test/nightly-workflow.test.mjs` to match. Gate: `pnpm test:harness`
 
-- [ ] T6 — Write ADR 035 (Proposed), amend `testing.md` rule 8, and document dispatching a suite on a branch. Add the
+- [x] T6 — Write ADR 035 (Proposed), amend `testing.md` rule 8, and document dispatching a suite on a branch. Add the
       acceptance steps for `@NGT-02` and `@NGT-06`. Gate:
       `pnpm format:check && pnpm specs:check && pnpm exec turbo run test:acceptance -- --grep @NGT-`
 
