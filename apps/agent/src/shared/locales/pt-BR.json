@@ -97,7 +97,9 @@
     "save": "Salvar",
     "saved": "Atalho salvo.",
     "refused": {
-      "no-modifier": "Use Ctrl, Shift ou Alt junto com a tecla.",
+      "no-modifier": "Use Ctrl ou Alt junto com a tecla.",
+      "needs-ctrl-or-alt": "Use Ctrl ou Alt com a tecla; Shift sozinho não basta.",
+      "reserved": "Essa combinação já é usada pelo Windows ou por todos os programas (como Ctrl+C, Alt+F4 ou a tecla Windows). Escolha outra.",
       "confirming-key": "Enter, Tab, Espaço, Escape e Backspace não podem ser atalhos.",
       "unsupported-key": "Use uma letra, um dígito ou F1 a F12 (por exemplo Ctrl+Shift+F).",
       "same-as-other": "Os dois atalhos devem ser diferentes.",

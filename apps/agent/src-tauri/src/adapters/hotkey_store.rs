@@ -44,7 +44,14 @@ impl FileHotkeyStore {
         }
         let text = json!({ "accept": pair.accept().to_string(), "fill": pair.fill().to_string() })
             .to_string();
-        fs::write(path, text).map_err(|_| HotkeysNotSaved)
+        // Written to a temporary file next to the real one and renamed over it, so a crash in the middle never leaves a
+        // half-written file that reads as "no choice" and silently drops the player's keys.
+        let temporary = path.with_extension("json.tmp");
+        fs::write(&temporary, text).map_err(|_| HotkeysNotSaved)?;
+        fs::rename(&temporary, path).map_err(|_| {
+            let _ = fs::remove_file(&temporary);
+            HotkeysNotSaved
+        })
     }
 }
 
@@ -105,6 +112,28 @@ mod tests {
         store.save(&pair).expect("the file is written");
 
         assert_eq!(store.load(), Some(pair));
+    }
+
+    #[test]
+    fn saving_replaces_the_file_whole_and_leaves_no_temporary_file() {
+        let scratch = Scratch::new();
+        let store = FileHotkeyStore::in_directory(Some(scratch.0.clone()));
+        let first = HotkeyPair::defaults()
+            .with_fill(choice("Alt+G"))
+            .expect("a different key");
+        let second = HotkeyPair::defaults()
+            .with_fill(choice("Alt+H"))
+            .expect("a different key");
+
+        store.save(&first).expect("the file is written");
+        store.save(&second).expect("the file is replaced");
+
+        assert_eq!(store.load(), Some(second));
+        let names: Vec<String> = fs::read_dir(&scratch.0)
+            .expect("the directory")
+            .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+            .collect();
+        assert_eq!(names, ["hotkeys.json"], "no temporary file is left");
     }
 
     #[test]

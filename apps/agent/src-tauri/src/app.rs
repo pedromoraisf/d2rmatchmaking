@@ -156,7 +156,7 @@ pub fn handle_set_consent(store: &dyn ConsentStore, consent: bool) -> Result<boo
 }
 
 /// The player's choice of one hotkey (AST-01): the new pair, stored on this PC, or the refusal code the window maps to a
-/// message (`no-modifier`, `confirming-key`, `unsupported-key`, `same-as-other`, or `not-saved`). Nothing changes on a refusal.
+/// message (`no-modifier`, `needs-ctrl-or-alt`, `reserved`, `confirming-key`, `unsupported-key`, `same-as-other`, or `not-saved`). Nothing changes on a refusal.
 pub fn apply_hotkey_change(
     current: &HotkeyPair,
     action: &str,
@@ -725,6 +725,10 @@ mod tests {
         let defaults = HotkeyPair::defaults();
         for (action, text, code) in [
             ("fill", "G", "no-modifier"),
+            ("fill", "Shift+G", "needs-ctrl-or-alt"),
+            ("fill", "Ctrl+C", "reserved"),
+            ("accept", "Alt+F4", "reserved"),
+            ("accept", "Win+Ctrl+Q", "reserved"),
             ("fill", "Ctrl+Shift+Enter", "confirming-key"),
             ("fill", "Ctrl+Home", "unsupported-key"),
             ("fill", "Ctrl+Shift+A", "same-as-other"),

@@ -10,12 +10,11 @@ use d2rmm_agent_domain::presence::Screen;
 use d2rmm_agent_domain::typing::{Modifiers, TypableName};
 use serde::Serialize;
 use tokio::time::Instant;
+use tracing::Instrument;
 
 use crate::device_state::DeviceState;
 use crate::ports::{ForegroundWindow, KeyTyper, ModifierState};
 
-/// A screen read older than this says nothing about the game now (AST-04).
-const SCREEN_FRESH_FOR: Duration = Duration::from_secs(5);
 /// How long the hotkey's modifier keys may stay held before the fill is refused (AST-05).
 const MODIFIERS_WAIT: Duration = Duration::from_secs(1);
 const MODIFIERS_POLL: Duration = Duration::from_millis(20);
@@ -111,6 +110,16 @@ impl FillControl {
     }
 }
 
+/// Ends the fill when it goes out of scope, however it goes: a finished fill, a task that is aborted, or a panic. Without it
+/// a fill that never returns would leave the state at "running" and every later press would only ask it to stop.
+struct EndOnDrop<'a>(&'a FillControl);
+
+impl Drop for EndOnDrop<'_> {
+    fn drop(&mut self) {
+        self.0.end();
+    }
+}
+
 impl Default for FillControl {
     fn default() -> Self {
         Self::new()
@@ -130,10 +139,15 @@ pub async fn press(
         Begin::Stopped | Begin::Ignored => return None,
         Begin::Run(stop) => stop,
     };
-    let outcome = fill(device, ports, &stop, modifiers).await;
-    control.end();
-    device.record_fill(outcome);
-    Some(outcome)
+    let _ends = EndOnDrop(control);
+    // One span for the fill, with the outcome as its event (AST-10).
+    async {
+        let outcome = fill(device, ports, &stop, modifiers).await;
+        device.record_fill(outcome);
+        Some(outcome)
+    }
+    .instrument(tracing::info_span!("agent.fill"))
+    .await
 }
 
 async fn fill(
@@ -151,8 +165,10 @@ async fn fill(
     if !ports.focus.game_has_focus() {
         return FillOutcome::RefusedFocus;
     }
+    // Fail closed (AST-04): the last screen the agent recognised decides, so a game whose frames read as unknown still
+    // refuses. A menu or nothing recognised yet allows.
     if matches!(
-        device.recent_screen(SCREEN_FRESH_FOR),
+        device.last_known_screen(),
         Some(Screen::InGame | Screen::AutomapOpen)
     ) {
         return FillOutcome::RefusedScreen;
@@ -309,7 +325,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn a_running_game_refuses_and_an_old_or_unknown_screen_allows() {
+    async fn a_running_game_refuses_and_a_menu_or_nothing_recognised_allows() {
         for screen in [Screen::InGame, Screen::AutomapOpen] {
             let rig = holding(Some("mmbaalh-12"));
             rig.device.set_screen(screen);
@@ -330,27 +346,36 @@ mod tests {
             );
         }
         let rig = holding(Some("mmbaalh-12"));
-        rig.device.set_screen(Screen::InGame);
-        tokio::time::advance(Duration::from_secs(6)).await;
         assert_eq!(
             one_press(&rig).await,
             Some(FillOutcome::Typed),
-            "a 6-second-old read"
-        );
-        let rig = holding(Some("mmbaalh-12"));
-        assert_eq!(
-            one_press(&rig).await,
-            Some(FillOutcome::Typed),
-            "no read at all"
+            "nothing recognised yet"
         );
     }
 
     #[tokio::test(start_paused = true)]
-    async fn the_screen_read_just_inside_five_seconds_still_counts() {
+    async fn an_unknown_screen_after_a_game_still_refuses_for_as_long_as_it_lasts() {
+        for game in [Screen::InGame, Screen::AutomapOpen] {
+            let rig = holding(Some("mmbaalh-12"));
+            rig.device.set_screen(game);
+            rig.device.set_screen(Screen::Unknown);
+            tokio::time::advance(Duration::from_secs(600)).await;
+            assert_eq!(
+                one_press(&rig).await,
+                Some(FillOutcome::RefusedScreen),
+                "{game:?} then unknown, ten minutes later"
+            );
+            assert_eq!(rig.keyboard.typed(), "");
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_menu_read_after_a_game_allows_again() {
         let rig = holding(Some("mmbaalh-12"));
         rig.device.set_screen(Screen::InGame);
-        tokio::time::advance(Duration::from_millis(4_900)).await;
-        assert_eq!(one_press(&rig).await, Some(FillOutcome::RefusedScreen));
+        rig.device.set_screen(Screen::CharacterSelect);
+        rig.device.set_screen(Screen::Unknown);
+        assert_eq!(one_press(&rig).await, Some(FillOutcome::Typed));
     }
 
     #[tokio::test(start_paused = true)]
@@ -487,6 +512,33 @@ mod tests {
             let shown = format!("{event:?}");
             assert!(!shown.contains("mmbaalh"), "no game name in {shown}");
         }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_fill_that_is_dropped_mid_way_ends_and_the_next_press_after_the_pause_types() {
+        let rig = holding(Some("mmbaalh-12"));
+        let first = {
+            let (device, ports, control) = (
+                Arc::clone(&rig.device),
+                Arc::clone(&rig.ports),
+                Arc::clone(&rig.control),
+            );
+            tokio::spawn(async move { press(&device, &ports, &control, KEYS).await })
+        };
+        tokio::time::sleep(Duration::from_millis(40)).await;
+        first.abort();
+        let _ = first.await;
+        assert_eq!(
+            rig.keyboard.typed(),
+            "mmb",
+            "the aborted fill had typed three"
+        );
+
+        // Still in the pause after a fill ended: ignored, not "running" (which would stop a fill that is not there).
+        assert_eq!(one_press(&rig).await, None);
+        tokio::time::advance(Duration::from_millis(2_100)).await;
+        assert_eq!(one_press(&rig).await, Some(FillOutcome::Typed));
+        assert_eq!(rig.keyboard.typed(), "mmbmmbaalh-12");
     }
 
     #[test]
