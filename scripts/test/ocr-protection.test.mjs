@@ -51,10 +51,8 @@ test('an exclusion without evidence fails and is named (OCP-06)', () => {
     'exclusion "delete ! in pair_once" lacks an "Evidence:" line',
   ]);
 
-  const bare = toml.replace(
-    'exclude_re = ["delete ! in pair_once"]',
-    'exclude_re = [\n  "delete ! in pair_once",\n  "x in y",\n]',
-  );
+  const bare = toml.replace('  "delete ! in pair_once",\n', '  "delete ! in pair_once",\n  "x in y",\n');
+  assert.notEqual(bare, toml, 'the fixture added a bare entry');
   assert.deepEqual(exclusionProblems(bare), [
     'exclusion "x in y" lacks a file:line, an "Evidence:" line, the reason',
   ]);

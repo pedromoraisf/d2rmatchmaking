@@ -58,12 +58,10 @@ Then('both name the list of reading modules', ({ scenario }) => {
 Given('a copy of the mutation config with an exclusion that has no evidence comment', ({ scenario }) => {
   const config = readFileSync(path.join(scenario.repoRoot, MUTATION_CONFIG), 'utf8');
   const copy = path.join(mkdtempSync(path.join(tmpdir(), 'ocr-protection-')), 'mutants.toml');
-  const existing = config.match(/^exclude_re = \[(.*)\]$/m);
-  if (!existing) throw new Error('the mutation config has no exclude_re');
-  writeFileSync(
-    copy,
-    config.replace(existing[0], `exclude_re = [\n  ${existing[1]},\n  "${EXCLUDED_WITHOUT_EVIDENCE}",\n]`),
-  );
+  // The config ends with its `exclude_re` list: add the bare entry as that list's last line.
+  const end = config.lastIndexOf('\n]');
+  if (end === -1) throw new Error('the mutation config has no exclude_re list');
+  writeFileSync(copy, `${config.slice(0, end)}\n  "${EXCLUDED_WITHOUT_EVIDENCE}",${config.slice(end)}`);
   world(scenario).copy = copy;
 });
 

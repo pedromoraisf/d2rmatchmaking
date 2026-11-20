@@ -47,7 +47,7 @@ with drawn fixtures. Never commit a capture.
 - [x] T4 — Write the rule (OCP-01, OCP-07): a new inviolable rule 14 in AGENTS.md with the four points, the same rule in
       `feature-worker.md`, and the merge rule in the skill's **pr** step. Write a harness test that AGENTS.md and
       `feature-worker.md` name `scripts/agent/reading-modules.json`. Gate: `pnpm test:harness && pnpm format:check`
-- [ ] T5 — Write pinning tests for the survivors in `anchors.rs`, `characters.rs` and `character_screen.rs` (OCP-05).
+- [x] T5 — Write pinning tests for the survivors in `anchors.rs`, `characters.rs` and `character_screen.rs` (OCP-05).
       Gate: `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --lib`
 - [ ] T6 — Write pinning tests for the survivors in `layout.rs` and `vision.rs` (OCP-05). Gate: as T5
 - [ ] T7 — Write pinning tests for the survivors in `name_diff.rs` (including the timeout at line 83) and

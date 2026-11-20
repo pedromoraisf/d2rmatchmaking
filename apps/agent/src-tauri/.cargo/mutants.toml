@@ -27,4 +27,27 @@ examine_globs = [
 # `obtain_code` returns `None`, also `Interrupted`. No unit test can tell the two apart.
 # Evidence: the entry's own comment above, "With `!` deleted, `pause` returning true ends `pair_once` with `Interrupted`
 # and `run` re-enters it at once with a fresh `Pairing`" (maintainer's decision, 2026-11-02).
-exclude_re = ["delete ! in pair_once"]
+exclude_re = [
+  "delete ! in pair_once",
+
+  # Equivalent mutant (ocr-protection): `domain/src/anchors.rs:182:31`, `replace match guard found.title.rank() ==
+  # card.title.rank() with true in find_cards_in_variants`. With the guard true, a found card of a lower rank than the
+  # card already kept would fall into the arm that ANDs `title_unseen` instead of the empty arm `Some(_) => {}`. A card
+  # that outranks another has a title line (`Known` or `Unknown`), and `find_cards` sets `title_unseen` only when it
+  # found no line above the name or a tab line, that is only for `TitleLine::None` (rank 0); so the kept card's
+  # `title_unseen` is already false and `false && x` leaves it false. No unit test can tell the two apart.
+  # Evidence: `find_cards` (`anchors.rs`): `title_unseen = above.is_none_or(is_tab_line)` and `title = TitleLine::None`
+  # for exactly those two cases (`None`, or a tab line), so `title_unseen` implies rank 0 on every print; cargo-mutants
+  # run on `anchors.rs` after the pinning tests left this as the only survivor.
+  "anchors\\.rs:182:31: replace match guard found\\.title\\.rank\\(\\) == card\\.title\\.rank\\(\\) with true in find_cards_in_variants",
+
+  # Equivalent mutant (ocr-protection): `domain/src/characters.rs:247:27`, `replace || with && in is_character_name`
+  # (the first `||` of `index == 0 || previous_was_separator || separators > 1`). At index 0, `previous_was_separator`
+  # still holds its initial `true`, so `index == 0 && previous_was_separator` equals `index == 0 || previous_was_separator`
+  # there; after index 0, `previous_was_separator` is true only when the character before was a separator, which was
+  # already counted, so `separators > 1` is true and the name is refused either way. No unit test can tell the two apart.
+  # Evidence: the rule of D2R names (CHR-10, "at most one `-` or `_` that is neither first nor last"): the only names the
+  # two forms read differently would need a separator right after a separator with `separators <= 1`, which the counter
+  # makes impossible; cargo-mutants run on `characters.rs` leaves this as the only survivor of the function.
+  "characters\\.rs:247:27: replace \\|\\| with && in is_character_name",
+]
