@@ -1496,7 +1496,7 @@ mod look_state_tests {
         );
         assert_eq!(
             look_of(&other, "mmbaalh-19"),
-            look_with(FieldState::Text, false, "labelLine", 4, Some("sub(l>9)@9"))
+            look_with(FieldState::Text, false, "labelLine", 4, Some("sub(1>9)@9"))
         );
         let far = reading(true, FieldSource::LayoutBox, &["qqqqqqqqqqqq"]);
         assert_eq!(

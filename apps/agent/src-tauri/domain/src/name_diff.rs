@@ -135,7 +135,7 @@ mod tests {
     fn the_closest_reading_names_its_edits_against_the_expected_name() {
         assert_eq!(
             closest_reading_diff(&["mmbaalh-1l"], "mmbaalh-19"),
-            Some("sub(l>9)@9".to_string())
+            Some("sub(1>9)@9".to_string())
         );
         assert_eq!(
             closest_reading_diff(&["mmbaalh|19"], "mmbaalh-19"),
@@ -156,7 +156,7 @@ mod tests {
     fn the_closest_of_several_readings_wins_and_blank_ones_are_ignored() {
         assert_eq!(
             closest_reading_diff(&["", "zzzzzzzzzz", "mmbaalh-1l", "  "], "mmbaalh-19"),
-            Some("sub(l>9)@9".to_string())
+            Some("sub(1>9)@9".to_string())
         );
         assert_eq!(closest_reading_diff(&["", "  "], "mmbaalh-19"), None);
         assert_eq!(closest_reading_diff(&[], "mmbaalh-19"), None);
