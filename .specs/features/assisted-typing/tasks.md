@@ -81,7 +81,7 @@ Rules:
       held (`sync_hotkey`'s pattern, tested with the fake registrar), the local `hotkey_config` file and its Tauri
       command in `capabilities/main.json` (one new command, nothing else), and the press handler that runs `fill_name`
       off the main thread (AST-01, AST-07). Gate: same as T9.
-- [ ] T11 — Docs and the maintainer's check: `apps/agent/README.md` (what typing does and never does, the default
+- [x] T11 — Docs and the maintainer's check: `apps/agent/README.md` (what typing does and never does, the default
       hotkeys), `docs/engineering/delivery.md` is not touched; the PR description lists the check on the preview channel
       installer: fill the real Game Creator on normal, nightmare and hell names, press Enter by hand, confirm the agent
       never does, and try the refusals (Alt-Tab away, in-game, keys held). Gate:
