@@ -45,3 +45,22 @@ export function telemetryNumbers(bytesInWindow, players, windowSeconds) {
 export function telemetryFails(share) {
   return share > TELEMETRY_SHARE_LIMIT;
 }
+
+/** The OTLP signals the sink counts apart, in the order of the summary. */
+export const TELEMETRY_SIGNALS = ['traces', 'metrics', 'logs'];
+
+/**
+ * The bytes per player-hour of each signal over the same window as the total.
+ * @param {{ traces: number, metrics: number, logs: number }} bytesBySignal
+ * @param {number} players
+ * @param {number} windowSeconds
+ * @returns {{ traces: number, metrics: number, logs: number }}
+ */
+export function telemetryBytesPerPlayerHourBySignal(bytesBySignal, players, windowSeconds) {
+  return Object.fromEntries(
+    TELEMETRY_SIGNALS.map((signal) => [
+      signal,
+      bytesPerPlayerHour(bytesBySignal[signal], players, windowSeconds),
+    ]),
+  );
+}

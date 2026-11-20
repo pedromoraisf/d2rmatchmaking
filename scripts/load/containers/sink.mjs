@@ -12,6 +12,8 @@ import { createWindowCounter } from '../lib/window-counter.mjs';
 import { closeServer, flagsOf, listenOn, parseAddress, readToken, startControl } from './control.mjs';
 
 const OTLP_PATHS = new Set(['/v1/traces', '/v1/metrics', '/v1/logs']);
+/** The wire bytes of a request are counted under the signal of its path; any other path is in the total only. */
+const SIGNAL_OF_PATH = { '/v1/traces': 'traces', '/v1/metrics': 'metrics', '/v1/logs': 'logs' };
 const ENTRY_FLAGS = ['--listen', '--control', '--token-file'];
 
 /**
@@ -22,12 +24,17 @@ const ENTRY_FLAGS = ['--listen', '--control', '--token-file'];
 export async function startSink({ listen, control, token, now = () => performance.now() }) {
   const counter = createWindowCounter(now);
   const sockets = new Set();
+  /** The signal of the last request read on each socket. */
+  const signalOf = new WeakMap();
   let open = 0;
   let peak = 0;
 
   const otlp = createServer((request, response) => {
     request.resume();
     const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+    // The server parses the headers before our data listener runs, so the chunk that carries a request line is
+    // counted under that request's signal; the bytes that follow on the socket stay with it until the next request.
+    signalOf.set(request.socket, SIGNAL_OF_PATH[path]);
     if (request.method !== 'POST' || !OTLP_PATHS.has(path)) {
       response.writeHead(404, { 'content-length': 0 });
       response.end();
@@ -43,7 +50,7 @@ export async function startSink({ listen, control, token, now = () => performanc
     sockets.add(socket);
     open += 1;
     peak = Math.max(peak, open);
-    socket.on('data', (chunk) => counter.add(chunk.length));
+    socket.on('data', (chunk) => counter.add(chunk.length, signalOf.get(socket)));
     socket.on('close', () => {
       sockets.delete(socket);
       open -= 1;

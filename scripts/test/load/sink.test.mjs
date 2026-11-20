@@ -78,15 +78,22 @@ test('sink counts wire bytes inside the window', { timeout: SLOW_TEST_MS }, asyn
     const metrics = wireOf(sink.otlpPort, '/v1/metrics', '{"resourceMetrics":[]}');
     await exchange(socket, traces);
     await exchange(socket, metrics);
+    const logs = wireOf(sink.otlpPort, '/v1/logs', '{"resourceLogs":[]}');
+    await exchange(socket, logs);
     const stopped = await control(sink.controlPort, 'POST', '/window/stop');
 
     assert.equal(stopped.status, 200);
     assert.equal(
       stopped.body.bytes,
-      traces.length + metrics.length,
+      traces.length + metrics.length + logs.length,
       'the request lines, headers and bodies read inside the window, and nothing outside it',
     );
     assert.ok(stopped.body.seconds >= 0);
+    assert.deepEqual(
+      stopped.body.byLabel,
+      { traces: traces.length, metrics: metrics.length, logs: logs.length },
+      'each request is counted under the signal of its path',
+    );
 
     await exchange(socket, wireOf(sink.otlpPort, '/v1/logs', '{}'));
     assert.deepEqual((await control(sink.controlPort, 'POST', '/window/stop')).body, {
