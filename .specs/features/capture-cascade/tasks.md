@@ -80,7 +80,7 @@ check is `node scripts/agent/win-check.mjs` (Docker, clippy for `x86_64-pc-windo
 - [x] T7 — The window and its strings (CAP-02, CAP-07; rule 9). `apps/agent/src/views` shows the capture method label (`Window print`, `Graphics capture`, `Screen crop`, `None`) and "the capture shows nothing" for the unusable reason code, from
       `shared/locales/en.json` and `pt-BR.json` (no string in a component). Tests in `views.test.tsx`: each label, the
       reason, pt-BR. Gate: `pnpm --filter @d2rmm/agent test` and `pnpm --filter @d2rmm/agent typecheck`
-- [ ] T8 — Drawn fixtures and the headless methods (CAP-01 to CAP-07). `xtask draw-fixture` draws
+- [x] T8 — Drawn fixtures and the headless methods (CAP-01 to CAP-07). `xtask draw-fixture` draws
       `in-game-window-with-title-bar` (a whole-window frame, drawn title bar, sidecar client offset) and
       `in-game-wrong-size-frame`, reusing the HUD lines of `in-game-window`; the headless example (`adapters/examples/headless.rs`) gets scripted methods (`black`, `unavailable`, `wrong-size`, `minimized`) and the lines the steps
       send. Draw with the repository's open font; no capture is committed. Gate:
