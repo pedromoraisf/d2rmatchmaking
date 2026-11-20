@@ -248,7 +248,8 @@ export function App({ client = defaultClient, openStream = defaultOpenStream, sl
   // heartbeat and says so once, as a transient event that is never replayed; a browser keeps a half-dead event stream open
   // without noticing. A lost event would leave "online" on screen until the next page load. The read gives the API's own
   // answer (computed from the last heartbeat). It runs every AGENT_PRESENCE_REREAD_MS while the page is in view, never while
-  // it is hidden, and once when the page comes back into view, so a tab that slept does not show a stale agent.
+  // it is hidden, and once when the page comes back into view, so a tab that slept does not show a stale agent. A stream
+  // reconnect needs no read here: every open reaches `onOpen`, and `refreshSite` reads the agent again (shared/stream.ts).
   const agentShownOnline = signedIn && boot.agent?.status === 'paired' && boot.agent.online;
   useEffect(() => {
     if (!agentShownOnline) {
