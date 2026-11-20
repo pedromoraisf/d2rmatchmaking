@@ -85,6 +85,12 @@ export interface Stack {
    */
   closeSiteStreams(accountId: string): Promise<number>;
   /**
+   * What the staging API serves on `GET /v1/agents/config` (remote-config RCF-05, RCF-06): the given text as it is, under the
+   * given version, or nothing for `null`. A scenario sends a value outside its range or a body that is not JSON, which the
+   * committed file may not hold. A reset puts the committed document back.
+   */
+  serveAgentConfig(body: string | null, version?: number): Promise<void>;
+  /**
    * Adds the account to the room as its next member (the highest join order plus one). A duel group has two players and
    * joining a room past the queue is F3, so a room of three can only be seeded: LBR-07 needs a third member to hand the
    * host role to. The rows are the ones the room's own use cases write; the API reads them as any other member's.
@@ -485,6 +491,17 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
         throw new Error(`site-stream close of ${origins.stagingApi} answered ${answer.status}`);
       }
       return ((await answer.json()) as { closed: number }).closed;
+    },
+    async serveAgentConfig(body: string | null, version?: number) {
+      const answer = await fetch(`${origins.stagingApi}/__test/agent-config`, {
+        method: 'PUT',
+        headers: { [CONTROL_HEADER]: controlSecret, 'Content-Type': 'application/json' },
+        body: JSON.stringify(version === undefined ? { body } : { body, version }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (answer.status !== 204) {
+        throw new Error(`serving the agent configuration on ${origins.stagingApi} answered ${answer.status}`);
+      }
     },
     async seedRoomMember(roomId: string, accountId: string) {
       const client = new pg.Client({ connectionString: databaseUrl });

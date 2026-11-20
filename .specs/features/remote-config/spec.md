@@ -155,6 +155,19 @@ agent's domain and never read from the server.
   carries pinning tests first and the real-print proof (`ocr-real` green, `ocr-variations` not regressing); the new
   `remote_config.rs` of the domain is proposed to join `scripts/agent/reading-modules.json` (the orchestrator's edit; the
   maintainer answers the gate). The built-in defaults mean a PC with no configuration reads exactly as today.
+- **Orchestrator answers to the draft (batch 1 go-ahead, 2026-11-20).** (1) `GET /v1/agents/config` is the 9th agent
+  route; AGT-01's list, its test and the route table grow by one (**to confirm by the maintainer**). (2) The document is a
+  committed file plus an API release, not an environment variable or a database row. (3) Literal phrases only, no
+  patterns (ReDoS). (4) No signature in F2; a signed configuration is a later hardening (**to confirm by the maintainer**).
+  (5) The screen search-cadence fields join the schema in the PR that merges after `feat/F2-screen-recognition-2`, and the
+  chat-phrase fields after `game-name-reading`; until then `phrases` holds the Party panel's words only. (6) Ranges:
+  `probeEvery` 10–600, `demoteAfter` 1–10, `rateWindow` 10–600, `lookIntervalMs` 1000–10000 (the floor keeps CHR-03's at
+  most one look per second); `trackPad` 8–48 pixels; a region's origin 0–1 and size 0.02–1, inside the client.
+- **Where batch 1 put things.** Only adapters import contracts (architecture rule), so the validation of the file
+  (`parseAgentConfig`, `loadAgentConfig`) is in `modules/agents/adapters/file/agent-config-file.ts`; the domain holds the
+  version, ETag and `If-None-Match` rules. The staging test control is `PUT /__test/agent-config`, the prefix every other
+  control uses (`render-no-test-controls` and `onAcceptanceDatabase` already guard it), not `/v1/test/…`. The served
+  document carries all four sections, `regions` empty until a region is tuned, so RCF-02's scenario sees the four.
 - **Order of work.** The API and contract side (batch 1) starts as soon as the phase branch allows. The agent side needs
   `capture-cascade` (merged or its constants known) and the reading side needs `game-name-reading` for the chat phrases and
   `feat/F2-screen-recognition-2` for the search cadences; until they merge, their fields are not in the schema.

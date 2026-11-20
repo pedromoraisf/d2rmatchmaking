@@ -63,7 +63,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
       body, a broken body or none, for the staging and local compositions only; `render.ts` never registers it and the
       `render-no-test-controls` rule stays green. Unit test and the architecture check. Gate:
       `pnpm --filter @d2rmm/api test && pnpm arch`
-- [ ] T7 — The API acceptance steps (RCF-01, RCF-02) in `tests/acceptance/steps/remote-config.steps.ts`, reusing the paired-agent
+- [x] T7 — The API acceptance steps (RCF-01, RCF-02) in `tests/acceptance/steps/remote-config.steps.ts`, reusing the paired-agent
       Background; never edit `acceptance.feature`. Gate **(CI)**:
       `pnpm exec turbo run test:acceptance -- --grep "@RCF-0[12]"` and `node scripts/acceptance-check.mjs remote-config`
 
