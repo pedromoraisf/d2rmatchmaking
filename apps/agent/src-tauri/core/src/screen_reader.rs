@@ -11,7 +11,7 @@ use d2rmm_agent_domain::anchors::{self, line_pad};
 use d2rmm_agent_domain::character_screen::{
     BandRead, Probes, is_enabled_label, is_gold, label_brightness, luma, read_screen,
 };
-use d2rmm_agent_domain::hud_track::{TrackRead, Tracker};
+use d2rmm_agent_domain::hud_track::{AUTOMAP_SEARCH_EVERY, TrackRead, Tracker};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{ScreenRegion, screen_region, selection_band, supported_size};
 use d2rmm_agent_domain::presence::Screen;
@@ -75,7 +75,10 @@ impl ScreenReader {
             reader,
             language,
             hud: Mutex::new(Tracker::new(ScreenRegion::HudBand)),
-            automap: Mutex::new(Tracker::new(ScreenRegion::AutomapArea)),
+            automap: Mutex::new(Tracker::searching_every(
+                ScreenRegion::AutomapArea,
+                AUTOMAP_SEARCH_EVERY,
+            )),
         }
     }
 
@@ -88,10 +91,15 @@ impl ScreenReader {
         find: FindLabel,
         how: &Cell<Option<Search>>,
     ) -> Vec<Vec<TextLine>> {
-        let plan = tracker
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .next(frame.width, frame.height);
+        let plan = {
+            let mut held = tracker.lock().unwrap_or_else(PoisonError::into_inner);
+            let plan = held.next(frame.width, frame.height);
+            // A search of the wide area that found nothing last time rests for some frames (NFR-03 CPU).
+            if matches!(plan, Some(TrackRead::Search(_))) && held.rests(frame.width, frame.height) {
+                return Vec::new();
+            }
+            plan
+        };
         let (area, tracked) = match plan {
             Some(TrackRead::Track(area)) => (area, true),
             Some(TrackRead::Search(area)) => (area, false),
@@ -1210,6 +1218,9 @@ mod hud_tests {
         *hud.lines.lock().expect("lines") = vec![life(436, 880)];
         assert_eq!(screens.read(&frame).screen, Screen::InGame);
         hud.take_asked();
+        // The search that found nothing rests one frame (NFR-03 CPU), then the area is read again.
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        assert_eq!(automap_reads(&hud.take_asked()), 0, "the search rests");
         assert_eq!(screens.read(&frame).screen, Screen::InGame);
         assert_eq!(automap_reads(&hud.take_asked()), 1);
     }
@@ -1315,17 +1326,20 @@ mod hud_tests {
             (first.len(), automap_reads(&first), band_reads(&first)),
             (2, 1, 1)
         );
-        for _ in 0..3 {
+        // The automap area cannot be tracked, so it is searched on every second frame (`AUTOMAP_SEARCH_EVERY`): the
+        // ceiling is two reads, and the frame between reads only the tracked box.
+        for (frame_number, area_reads) in [(1, 0), (2, 1), (3, 0)] {
             assert_eq!(screens.read(&frame).screen, Screen::InGame);
             let steady = hud.take_asked();
             assert_eq!(
                 steady.len(),
-                2,
-                "the automap area and the tracked box: {steady:?}"
+                1 + area_reads,
+                "frame {frame_number}: the tracked box, and the automap area on every second frame: {steady:?}"
             );
             assert_eq!(
                 (automap_reads(&steady), small(&steady), band_reads(&steady)),
-                (1, 1, 0)
+                (area_reads, 1, 0),
+                "frame {frame_number}"
             );
         }
         // The label moves out of its box: the tracked box, then one band search; the next frame tracks the new place.
@@ -1338,8 +1352,9 @@ mod hud_tests {
             "{miss:?}"
         );
         assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        // The automap area's search of that frame found nothing again, so this frame reads only the tracked box.
         let resumed = hud.take_asked();
-        assert_eq!((resumed.len(), band_reads(&resumed)), (2, 0), "{resumed:?}");
+        assert_eq!((resumed.len(), band_reads(&resumed)), (1, 0), "{resumed:?}");
     }
 
     #[test]
