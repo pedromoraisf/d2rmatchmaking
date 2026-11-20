@@ -222,7 +222,9 @@ pub fn popup_title_in_variants(pack: &LanguagePack, variants: &[Vec<TextLine>]) 
 }
 
 /// The Party panel in any variant's lines: open when any variant shows the title; the label and field of the first variant
-/// that found the label with a field under it, else of the first that found the label.
+/// that found the label with a field under it (the one whose field box is the tallest, the first on a tie: a variant that
+/// clips the line's strokes gives a thin box that reads partly, screen-recognition T6), else of the first that found the
+/// label.
 pub fn find_party_in_variants(
     pack: &LanguagePack,
     variants: &[Vec<TextLine>],
@@ -232,9 +234,14 @@ pub fn find_party_in_variants(
         .iter()
         .map(|lines| find_party(pack, lines, frame_height))
         .collect();
+    let field_height = |party: &&PartyAnchors| party.field.map_or(0, |field| field.height);
     let chosen = found
         .iter()
-        .find(|party| party.label.is_some() && party.field.is_some())
+        .filter(|party| party.label.is_some() && party.field.is_some())
+        .fold(None, |best: Option<&PartyAnchors>, party| match best {
+            Some(held) if field_height(&held) >= field_height(&party) => Some(held),
+            _ => Some(party),
+        })
         .or_else(|| found.iter().find(|party| party.label.is_some()));
     PartyAnchors {
         open: found.iter().any(|party| party.open),
@@ -1035,6 +1042,27 @@ mod tests {
         let second = party(153, 192, Some(224), 262);
         let found = find_party_in_variants(&pack(), &[first, second], 1080);
         assert_eq!(found.field.map(centre), Some(220));
+    }
+
+    #[test]
+    fn of_two_variants_with_label_and_field_the_taller_field_box_is_chosen() {
+        // The six pt-BR 1045 prints: one variant clips the field line to 7 px, another reads it at 11 px (ocr-real
+        // diagnostics); the clipped box read the name partly.
+        use super::find_party_in_variants;
+        let thin = {
+            let mut lines = party(153, 192, Some(220), 262);
+            lines[3].region.height = 7;
+            lines
+        };
+        let tall = party(153, 192, Some(224), 262);
+        let found = find_party_in_variants(&pack(), &[thin.clone(), tall.clone()], 1080);
+        assert_eq!(
+            found.field.map(centre),
+            Some(224),
+            "the 16 px box, not the 7 px one"
+        );
+        let found = find_party_in_variants(&pack(), &[tall, thin], 1080);
+        assert_eq!(found.field.map(centre), Some(224));
     }
 
     #[test]
