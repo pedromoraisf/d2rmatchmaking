@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use d2rmm_agent_domain::characters::Card;
-use d2rmm_agent_domain::room_assignment::Assignment;
+use d2rmm_agent_domain::room_assignment::{Assignment, RoomId};
 use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 use uuid::Uuid;
 
@@ -223,6 +223,8 @@ pub enum StreamItem {
     RoomAssigned(Assignment),
     ReadyCheckStarted(ReadyCheckOpen),
     ReadyCheckResolved(ReadyCheckEnd),
+    /// The room with this id expired or closed (LBR-05): an assignment held for it is dropped.
+    RoomEnded(RoomId),
     Ended(EndReason),
 }
 
