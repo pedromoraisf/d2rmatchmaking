@@ -17,7 +17,7 @@ Rules:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib`
 - [x] T2 — Write `scripts/nightly/mutation.mjs` and `merge-mutants.mjs` with unit tests on fixtures cut from run
       44558970584 and from a Stryker report (NGT-04, NGT-10). Gate: `node --test scripts/test/nightly-*.test.mjs`
-- [ ] T3 — Write `scripts/nightly/load.mjs` and `acceptance.mjs` with unit tests (NGT-05, NGT-06). Gate: as T2
+- [x] T3 — Write `scripts/nightly/load.mjs` and `acceptance.mjs` with unit tests (NGT-05, NGT-06). Gate: as T2
 - [ ] T4 — Write `scripts/nightly/trend.mjs`, `render.mjs` and the `report.mjs` CLI with unit tests, including "no
       previous report" (NGT-03, NGT-07). Gate: as T2
 - [ ] T5 — Restructure `nightly.yml` as in design.md (NGT-01, NGT-02, NGT-08). Cover:
