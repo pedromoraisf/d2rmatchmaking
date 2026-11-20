@@ -89,6 +89,12 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
 
 ## Observability and load
 
+- **In the acceptance stack, move only the staging API's clock.** The plain API shares its database, so a plain clock moved
+  with it runs the same sweeps on the same rows, and whichever API sweeps first publishes the outbox rows to its own
+  bus. When the plain one wins, the staging API's streams never hear the event (`@ARL-01` failed about one run in two
+  under 4 workers: the room was `expired` on the site and the agent never dropped it). Why: found by logging the hub and
+  the relay in both processes (2026-11-20); a wait or a retry would only have hidden it.
+
 - **Closing a Playwright browser context does not end its `EventSource` connection promptly** (Chromium kept a site
   stream open > 10 s behind the Pages proxy). A Given that needs "the site is gone" closes the browser and then ends the
   account's streams through a test control. Why: queues QUE-05 failed four times on sleeps and polls (2026-11-11).
