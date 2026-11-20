@@ -175,7 +175,45 @@ const adapterPathViolations = (base) =>
 const TYPING_ADAPTER = 'src/adapters/typing.rs';
 const INPUT_NAMES =
   /\b(?:SendInput|GetAsyncKeyState|GetKeyState|GetKeyboardState|keybd_event|mouse_event|KeyboardAndMouse|SendMessageW|PostMessageW)\b/;
-const withoutComments = (text) => text.replace(/\/\/.*$/gm, '');
+
+// Comments out, string-aware: a `//` or `/*` inside a string or char literal hides nothing, and a quote inside a comment
+// opens nothing. Newlines are kept so line anchors still work.
+const CHAR_LITERAL = /^'(?:\\[^']+|[^\\'])'/;
+const withoutComments = (text) => {
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const rest = text.slice(i);
+    const raw = /^b?r(#*)"/.exec(rest);
+    const char = CHAR_LITERAL.exec(rest);
+    if (raw) {
+      const close = text.indexOf(`"${raw[1]}`, i + raw[0].length);
+      const end = close === -1 ? text.length : close + 1 + raw[1].length;
+      out += text.slice(i, end);
+      i = end;
+    } else if (text[i] === '"') {
+      let j = i + 1;
+      while (j < text.length && text[j] !== '"') j += text[j] === '\\' ? 2 : 1;
+      out += text.slice(i, j + 1);
+      i = j + 1;
+    } else if (char) {
+      out += char[0];
+      i += char[0].length;
+    } else if (rest.startsWith('//')) {
+      const eol = text.indexOf('\n', i);
+      i = eol === -1 ? text.length : eol;
+    } else if (rest.startsWith('/*')) {
+      const close = text.indexOf('*/', i + 2);
+      const end = close === -1 ? text.length : close + 2;
+      out += text.slice(i, end).replace(/[^\n]/g, '');
+      i = end;
+    } else {
+      out += text[i];
+      i += 1;
+    }
+  }
+  return out;
+};
 
 // The text of a Rust file with exactly its `#[cfg(test)] mod …` blocks removed (braces balanced, strings skipped), so code
 // after the test module is still read. `text` must already be without comments.
@@ -251,6 +289,33 @@ const typingAdapterViolations = (base) => {
     ) ?? [],
   )) {
     violations.push(`${TYPING_ADAPTER} uses ${name}: no mouse, hardware or clipboard input`);
+  }
+  const constructions = code.match(/\bKEYBDINPUT\s*\{/g) ?? [];
+  if (constructions.length !== 1) {
+    violations.push(
+      `${TYPING_ADAPTER} builds KEYBDINPUT ${constructions.length} times: exactly one construction is allowed`,
+    );
+  }
+  // Each field is pinned to the one real expression, so no other spelling (assignment, shorthand, another struct) passes.
+  for (const [field, pinned] of [
+    ['wVk', /\bwVk\s*:\s*VIRTUAL_KEY\(\s*0\s*\)\s*,/g],
+    ['wScan', /\bwScan\s*:\s*stroke\.unit\s*,/g],
+    ['dwFlags', /\bdwFlags\s*:\s*KEYBD_EVENT_FLAGS\(\s*flags\.0\s*\)\s*,/g],
+  ]) {
+    const named = (code.match(new RegExp(`\\b${field}\\b`, 'g')) ?? []).length;
+    const exact = (code.match(pinned) ?? []).length;
+    if (named !== 1 || exact !== 1) {
+      violations.push(
+        `${TYPING_ADAPTER} names ${field} ${named} times, ${exact} as the pinned expression: it appears once, in the keystroke, as the pinned expression`,
+      );
+    }
+  }
+  for (const match of code.matchAll(/\bKEYBD_EVENT_FLAGS\s*\(([^)]*)\)/g)) {
+    if (match[1].trim() !== 'flags.0') {
+      violations.push(
+        `${TYPING_ADAPTER} builds KEYBD_EVENT_FLAGS from ${match[1].trim()}: only flags.0 is allowed`,
+      );
+    }
   }
   if (code.includes('SendInput') && !/\bKEYEVENTF_UNICODE\b/.test(code)) {
     violations.push(`${TYPING_ADAPTER} sends input without KEYEVENTF_UNICODE`);
@@ -491,6 +556,35 @@ test('the typing adapter rule rejects a virtual key in a keystroke and a scan-co
   assert.match(violations, /sets wVk to VIRTUAL_KEY\(vk\)/);
   assert.match(violations, /uses KEYEVENTF_SCANCODE/);
   assert.match(violations, /uses KEYEVENTF_EXTENDEDKEY/);
+});
+
+test('the typing adapter rule pins each KEYBDINPUT field to the one keystroke expression', () => {
+  const assigned = typingAdapterViolations(fixtureBase('typing-field-assign')).join('\n');
+  assert.match(assigned, /builds KEYBDINPUT 2 times/);
+  assert.match(assigned, /names wVk 3 times, 2 as the pinned expression/);
+  assert.match(assigned, /names wScan 3 times, 2 as the pinned expression/);
+  const shorthand = typingAdapterViolations(fixtureBase('typing-field-shorthand')).join('\n');
+  for (const field of ['wVk', 'wScan', 'dwFlags']) {
+    assert.match(shorthand, new RegExp(`names ${field} 2 times, 0 as the pinned expression`), field);
+  }
+});
+
+test('the typing adapter rule accepts KEYBD_EVENT_FLAGS only over flags.0', () => {
+  const violations = typingAdapterViolations(fixtureBase('typing-flags-expression')).join('\n');
+  assert.match(violations, /builds KEYBD_EVENT_FLAGS from 0x0008/);
+  assert.match(violations, /builds KEYBD_EVENT_FLAGS from flags\.0 \| 0x0001/);
+  assert.match(violations, /builds KEYBD_EVENT_FLAGS from 0x0004/);
+});
+
+test('a double slash inside a string literal hides no code from the typing rules', () => {
+  const violations = typingAdapterViolations(fixtureBase('typing-string-slashes')).join('\n');
+  assert.match(violations, /names VK_RETURN/);
+  assert.match(violations, /names VK_TAB/);
+  assert.doesNotMatch(violations, /VK_ESCAPE/);
+  assert.equal(
+    withoutComments('let a = "x // y"; // z\nlet b = 1; /* c */').trim(),
+    'let a = "x // y"; \nlet b = 1;',
+  );
 });
 
 test('the typing adapter rule rejects mouse, hardware and clipboard input and a send without Unicode', () => {
