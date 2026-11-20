@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { playerFor } from '../../load/lib/players.mjs';
 import { API_IMAGE_TAG, K6_IMAGE_TAG, OPENSSL_IMAGE } from '../../load/lib/images.mjs';
-import { runLoad, samplesOf, secretOf } from '../../load/orchestrate.mjs';
+import { k6Tail, runLoad, samplesOf, secretOf } from '../../load/orchestrate.mjs';
 
 const UID = 501;
 const TMP = '/fake/tmp';
@@ -752,4 +752,12 @@ test('the sink bytes of each signal reach the step row, and a step file without 
 
   const without = await runLoad(scenario({ profile: 'smoke' }).input);
   assert.deepEqual(without.summary.steps[0].telemetryBytesBySignal, { traces: 0, metrics: 0, logs: 0 });
+});
+
+test('k6Tail: the failed step carries the last lines of k6 stderr, or says there was none', () => {
+  const stderr = Array.from({ length: 30 }, (_, i) => `line ${i}`).join('\n');
+  const tail = k6Tail({ stdout: 'out', stderr });
+  assert.ok(tail.includes('line 29') && tail.includes('line 15') && !tail.includes('line 14 '));
+  assert.ok(k6Tail({ stdout: 'only stdout', stderr: '' }).includes('only stdout'));
+  assert.equal(k6Tail({ stdout: '', stderr: '' }), '; k6 wrote no output');
 });

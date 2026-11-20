@@ -1,0 +1,71 @@
+{
+  "config": {},
+  "suites": [
+    {
+      "title": ".features-gen/.specs/features/queues/acceptance.feature.spec.js",
+      "file": ".features-gen/.specs/features/queues/acceptance.feature.spec.js",
+      "suites": [
+        {
+          "title": "Players queue for a match",
+          "specs": [
+            {
+              "title": "A player joins the queue",
+              "ok": true,
+              "tags": ["QUE-01"],
+              "tests": [
+                { "projectName": "chromium", "status": "expected", "results": [{ "status": "passed" }] }
+              ]
+            },
+            {
+              "title": "A player leaves the queue",
+              "ok": false,
+              "tags": ["QUE-02", "NFR-10"],
+              "tests": [
+                { "projectName": "chromium", "status": "unexpected", "results": [{ "status": "failed" }] }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": ".features-gen/.specs/features/lobby-rooms/acceptance.feature.spec.js",
+      "file": ".features-gen/.specs/features/lobby-rooms/acceptance.feature.spec.js",
+      "suites": [
+        {
+          "title": "Hosts open a room",
+          "specs": [
+            {
+              "title": "The host opens the next run",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "projectName": "chromium",
+                  "status": "flaky",
+                  "results": [{ "status": "failed" }, { "status": "passed" }]
+                }
+              ]
+            },
+            {
+              "title": "The room closes @LBR-09",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                { "projectName": "chromium", "status": "expected", "results": [{ "status": "passed" }] }
+              ]
+            },
+            {
+              "title": "A pending scenario",
+              "ok": true,
+              "tags": ["LBR-10"],
+              "tests": [
+                { "projectName": "chromium", "status": "skipped", "results": [{ "status": "skipped" }] }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

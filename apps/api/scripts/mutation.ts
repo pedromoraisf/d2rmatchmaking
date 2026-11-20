@@ -17,13 +17,16 @@ const LAYERS: readonly Layer[] = ['domain', 'application'];
 export interface MutationArgs {
   /** The git ref given with `--changed-from`, when the run mutates only the files a change touches. */
   readonly changedFrom?: string | undefined;
+  /** The layer given with `--layer`: the run mutates only that layer (the nightly runs one job per layer). */
+  readonly layer?: Layer | undefined;
   /** Every other argument, passed to Stryker unchanged. */
   readonly strykerArgs: readonly string[];
 }
 
-/** Splits the runner's arguments: `--changed-from <ref>` is the runner's own, the rest belongs to Stryker. */
+/** Splits the runner's arguments: `--changed-from <ref>` and `--layer <layer>` are the runner's own, the rest belongs to Stryker. */
 export function parseMutationArgs(argv: readonly string[]): MutationArgs {
   let changedFrom: string | undefined;
+  let layer: Layer | undefined;
   const strykerArgs: string[] = [];
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -40,9 +43,19 @@ export function parseMutationArgs(argv: readonly string[]): MutationArgs {
       index += 1;
       continue;
     }
+    if (arg === '--layer') {
+      const value = argv[index + 1];
+      const known = LAYERS.find((candidate) => candidate === value);
+      if (known === undefined) {
+        throw new Error(`--layer needs one of ${LAYERS.join(', ')}`);
+      }
+      layer = known;
+      index += 1;
+      continue;
+    }
     strykerArgs.push(arg);
   }
-  return { changedFrom, strykerArgs };
+  return { changedFrom, layer, strykerArgs };
 }
 
 /**
@@ -98,10 +111,10 @@ export async function runMutation(
   stryker: StrykerRunner = runStryker,
   listChanged: ChangedFilesLister = gitChangedFiles,
 ): Promise<number> {
-  const { changedFrom, strykerArgs } = parseMutationArgs(argv);
+  const { changedFrom, layer: only, strykerArgs } = parseMutationArgs(argv);
   const changed = changedFrom === undefined ? undefined : new Set(listChanged(apiRoot, changedFrom));
   const plans: { readonly layer: Layer; readonly plan: LayerPlan }[] = [];
-  for (const layer of LAYERS) {
+  for (const layer of LAYERS.filter((candidate) => only === undefined || candidate === only)) {
     plans.push({ layer, plan: await planLayer(apiRoot, layer, changed) });
   }
   if (changed !== undefined && plans.every(({ plan }) => plan.files.length === 0)) {

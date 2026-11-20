@@ -73,6 +73,7 @@ export const ROOMS_QUERY = "select count(*) from lobby.rooms where stage in ('cr
 
 const LABEL_KEY = 'd2rmm-load';
 const SAMPLE_INTERVAL_MS = 5000;
+const ROOM_SAMPLE_INTERVAL_MS = 1000;
 const READY_TRIES = 90;
 const READY_INTERVAL_MS = 1000;
 const ALPHANUMERIC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -138,7 +139,7 @@ export function samplesOf(text) {
  *   http: (url: string, init?: object) => Promise<Response>,
  *   clock: { iso: () => string, sleep: (ms: number) => Promise<void> },
  *   fs: object,
- *   paths: { root: string, loadDir: string, tmpdir: string, commit: string, uid: number },
+ *   paths: { root: string, loadDir: string, tmpdir: string, commit: string, uid: number, gid?: number },
  *   random: { bytes: (size: number) => Uint8Array },
  *   randomInt: (max: number) => number,
  *   log?: (line: string) => void,
@@ -225,6 +226,7 @@ export async function runLoad(input) {
     await fs.mkdir(reportsDir, { recursive: true });
     const target = await writeSummary(fs, reportsDir, summary);
     log(`summary written to ${target}`);
+    if (error !== null) log(`the run stopped: ${error}`);
   } catch (caught) {
     writeFailed = true;
     log(`the summary could not be written: ${messageOf(caught)}`);
@@ -694,6 +696,22 @@ async function sampleStats(ctx, name, samples, isSampling) {
   }
 }
 
+/**
+ * Peak of the rooms in `created` or `active` seen while the step runs, once a second. The host closes a room once it is
+ * `active`, so the count at the end of a fast step can be zero although rooms were held all along.
+ */
+async function sampleRooms(ctx, peak, isSampling) {
+  while (isSampling()) {
+    try {
+      peak.rooms = Math.max(peak.rooms, await roomsCreated(ctx));
+    } catch {
+      // A missed sample: the count at the end of the step is still read.
+    }
+    if (!isSampling()) break;
+    await ctx.clock.sleep(ROOM_SAMPLE_INTERVAL_MS);
+  }
+}
+
 async function readStepFile(ctx) {
   let parsed;
   try {
@@ -748,6 +766,20 @@ async function runStep(ctx, step, provisioned) {
   }
 }
 
+/**
+ * The last lines k6 wrote to stderr (or stdout when stderr is empty), for the error of a failed step. The text is
+ * redacted by ToolError.
+ * @param {{ stdout?: unknown, stderr?: unknown }} k6
+ * @returns {string}
+ */
+export function k6Tail(k6) {
+  const err = String(k6.stderr ?? '').trim();
+  const text = err === '' ? String(k6.stdout ?? '').trim() : err;
+  if (text === '') return '; k6 wrote no output';
+  const lines = text.split('\n').slice(-15).join(' | ');
+  return `; k6 output: ${lines.slice(-1500)}`;
+}
+
 async function runStepBody(ctx, step, provisioned, timings) {
   const { docker, names, dirs, limits, runId, log, fs } = ctx;
   ensureRunning(ctx);
@@ -769,13 +801,24 @@ async function runStepBody(ctx, step, provisioned, timings) {
 
   const samples = [];
   let sampling = true;
-  const sampler = sampleStats(ctx, names.api, samples, () => sampling);
+  const peak = { rooms: 0 };
+  const sampler = Promise.all([
+    sampleStats(ctx, names.api, samples, () => sampling),
+    sampleRooms(ctx, peak, () => sampling),
+  ]);
   pushContainer(ctx, names.k6);
   let k6;
   try {
     ensureRunning(ctx);
     k6 = await docker.run(
-      k6Args({ runId, image: K6_IMAGE_TAG, inDir: dirs.inDir, outDir: dirs.outDir, limits }),
+      k6Args({
+        runId,
+        image: K6_IMAGE_TAG,
+        inDir: dirs.inDir,
+        outDir: dirs.outDir,
+        limits,
+        user: ctx.paths.gid === undefined ? undefined : `${ctx.paths.uid}:${ctx.paths.gid}`,
+      }),
     );
   } finally {
     sampling = false;
@@ -783,12 +826,12 @@ async function runStepBody(ctx, step, provisioned, timings) {
     await dropContainer(ctx, names.k6);
   }
   const after = await inspectOf(ctx, names.api);
-  if (k6.code !== 0) throw new ToolError(`k6 ended with status ${k6.code}`);
+  if (k6.code !== 0) throw new ToolError(`k6 ended with status ${k6.code}${k6Tail(k6)}`);
 
   const measured = await readStepFile(ctx);
   const latencySamplesMs = samplesOf(`${String(k6.stdout ?? '')}\n${String(k6.stderr ?? '')}`);
   if (samples.length === 0) throw new ToolError('no docker stats sample of the API');
-  const rooms = await roomsCreated(ctx);
+  const rooms = Math.max(peak.rooms, await roomsCreated(ctx));
 
   const healthy = containerOk(before, after);
   // The step's errors: the window's k6 errors, plus the whole step's lost assignments and dropped arrivals (design.md
@@ -840,5 +883,9 @@ async function runStepBody(ctx, step, provisioned, timings) {
     failedRule: verdict.failedRule,
   };
   log(`step ${step.players}: ${verdict.passed ? 'passed' : `failed the ${verdict.failedRule} rule`}`);
+  log(
+    `step ${step.players}: rooms ${row.roomsCreated}, matches posted ${row.matchesPosted}, iterations ${row.iterations}, ` +
+      `requests ${row.requests}, errors ${row.errors}, agent frames ${row.agentAssignedFrames}, p95 ${row.latencyP95Ms} ms`,
+  );
   return { row, players };
 }

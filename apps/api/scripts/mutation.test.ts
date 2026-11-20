@@ -78,6 +78,30 @@ describe('mutation runner arguments', () => {
   });
 });
 
+describe('mutation runner with --layer', () => {
+  it('takes --layer and does not pass it to Stryker', () => {
+    expect(parseMutationArgs(['--layer', 'domain', '--incremental'])).toEqual({
+      layer: 'domain',
+      strykerArgs: ['--incremental'],
+    });
+    expect(parseMutationArgs(['--layer', 'application']).layer).toBe('application');
+  });
+
+  it('rejects a missing or unknown layer', () => {
+    expect(() => parseMutationArgs(['--layer'])).toThrow('--layer needs one of domain, application');
+    expect(() => parseMutationArgs(['--layer', 'adapters'])).toThrow('--layer needs one of');
+  });
+
+  it('runs only the layer it is given and writes nothing for the other', async () => {
+    await writeSource('src/shared-kernel/result.ts');
+    await writeSource('src/modules/identity/application/register.ts');
+    const stryker = fakeStryker();
+    expect(await runMutation(apiRoot, ['--layer', 'application'], stryker.run)).toBe(0);
+    expect(stryker.calls.map((call) => call.layer)).toEqual(['application']);
+    expect(stryker.calls[0]?.args).toEqual([]);
+  });
+});
+
 describe('mutation runner with --changed-from', () => {
   it('keeps only the files the PR changes in each layer', async () => {
     await writeSource('src/shared-kernel/result.ts');
