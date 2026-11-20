@@ -1,0 +1,481 @@
+{
+  "outcomes": [
+    {
+      "scenario": "Baseline",
+      "summary": "Success",
+      "log_path": "log/baseline.log",
+      "diff_path": null,
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 3.7,
+          "process_status": "Success"
+        },
+        {
+          "phase": "Test",
+          "duration": 0.2,
+          "process_status": "Success"
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "domain/src/anchors.rs:17:5: replace scaled -> u32 with 0",
+          "package": "d2rmm-agent-domain",
+          "file": "domain/src/anchors.rs",
+          "function": {
+            "function_name": "scaled",
+            "return_type": "-> u32",
+            "span": {
+              "start": {
+                "line": 15,
+                "column": 1
+              },
+              "end": {
+                "line": 20,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 17,
+              "column": 5
+            },
+            "end": {
+              "line": 19,
+              "column": 46
+            }
+          },
+          "replacement": "0",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/domain__src__anchors.rs_line_17_col_5.log",
+      "diff_path": "diff/domain__src__anchors.rs_line_17_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 1.6,
+          "process_status": "Success"
+        },
+        {
+          "phase": "Test",
+          "duration": 0.2,
+          "process_status": {
+            "Failure": 101
+          }
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "domain/src/anchors.rs:17:5: replace scaled -> u32 with 1",
+          "package": "d2rmm-agent-domain",
+          "file": "domain/src/anchors.rs",
+          "function": {
+            "function_name": "scaled",
+            "return_type": "-> u32",
+            "span": {
+              "start": {
+                "line": 15,
+                "column": 1
+              },
+              "end": {
+                "line": 20,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 17,
+              "column": 5
+            },
+            "end": {
+              "line": 19,
+              "column": 46
+            }
+          },
+          "replacement": "1",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/domain__src__anchors.rs_line_17_col_5_001.log",
+      "diff_path": "diff/domain__src__anchors.rs_line_17_col_5_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 1.6,
+          "process_status": "Success"
+        },
+        {
+          "phase": "Test",
+          "duration": 0.2,
+          "process_status": {
+            "Failure": 101
+          }
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "domain/src/anchors.rs:18:9: replace / with % in scaled",
+          "package": "d2rmm-agent-domain",
+          "file": "domain/src/anchors.rs",
+          "function": {
+            "function_name": "scaled",
+            "return_type": "-> u32",
+            "span": {
+              "start": {
+                "line": 15,
+                "column": 1
+              },
+              "end": {
+                "line": 20,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 18,
+              "column": 9
+            },
+            "end": {
+              "line": 18,
+              "column": 10
+            }
+          },
+          "replacement": "%",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/domain__src__anchors.rs_line_18_col_9.log",
+      "diff_path": "diff/domain__src__anchors.rs_line_18_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 1.6,
+          "process_status": "Success"
+        },
+        {
+          "phase": "Test",
+          "duration": 0.2,
+          "process_status": {
+            "Failure": 101
+          }
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "domain/src/anchors.rs:182:31: replace match guard found.title.rank() == card.title.rank() with true in find_cards_in_variants",
+          "package": "d2rmm-agent-domain",
+          "file": "domain/src/anchors.rs",
+          "function": {
+            "function_name": "find_cards_in_variants",
+            "return_type": "-> Vec<CardAnchor>",
+            "span": {
+              "start": {
+                "line": 162,
+                "column": 1
+              },
+              "end": {
+                "line": 192,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 182,
+              "column": 31
+            },
+            "end": {
+              "line": 182,
+              "column": 70
+            }
+          },
+          "replacement": "true",
+          "genre": "MatchArmGuard"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/domain__src__anchors.rs_line_182_col_31.log",
+      "diff_path": "diff/domain__src__anchors.rs_line_182_col_31.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 1.6,
+          "process_status": "Success"
+        },
+        {
+          "phase": "Test",
+          "duration": 0.2,
+          "process_status": "Success"
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "domain/src/anchors.rs:247:5: replace is_popup_title -> bool with true",
+          "package": "d2rmm-agent-domain",
+          "file": "domain/src/anchors.rs",
+          "function": {
+            "function_name": "is_popup_title",
+            "return_type": "-> bool",
+            "span": {
+              "start": {
+                "line": 245,
+                "column": 1
+              },
+              "end": {
+                "line": 248,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 247,
+              "column": 5
+            },
+            "end": {
+              "line": 247,
+              "column": 92
+            }
+          },
+          "replacement": "true",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/domain__src__anchors.rs_line_247_col_5.log",
+      "diff_path": "diff/domain__src__anchors.rs_line_247_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 1.7,
+          "process_status": "Success"
+        },
+        {
+          "phase": "Test",
+          "duration": 0.2,
+          "process_status": "Success"
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "domain/src/name_diff.rs:16:20: replace + with * in edit_distance",
+          "package": "d2rmm-agent-domain",
+          "file": "domain/src/name_diff.rs",
+          "function": {
+            "function_name": "edit_distance",
+            "return_type": "-> usize",
+            "span": {
+              "start": {
+                "line": 10,
+                "column": 1
+              },
+              "end": {
+                "line": 26,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 16,
+              "column": 20
+            },
+            "end": {
+              "line": 16,
+              "column": 21
+            }
+          },
+          "replacement": "*",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/domain__src__name_diff.rs_line_16_col_20_001.log",
+      "diff_path": "diff/domain__src__name_diff.rs_line_16_col_20_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 1.7,
+          "process_status": "Success"
+        },
+        {
+          "phase": "Test",
+          "duration": 0.2,
+          "process_status": "Success"
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "domain/src/name_diff.rs:83:15: replace -= with /= in edit_operations_with",
+          "package": "d2rmm-agent-domain",
+          "file": "domain/src/name_diff.rs",
+          "function": {
+            "function_name": "edit_operations_with",
+            "return_type": "-> Vec<String>",
+            "span": {
+              "start": {
+                "line": 48,
+                "column": 1
+              },
+              "end": {
+                "line": 91,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 83,
+              "column": 15
+            },
+            "end": {
+              "line": 83,
+              "column": 17
+            }
+          },
+          "replacement": "/=",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "Timeout",
+      "log_path": "log/domain__src__name_diff.rs_line_83_col_15_001.log",
+      "diff_path": "diff/domain__src__name_diff.rs_line_83_col_15_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 1.6,
+          "process_status": "Success"
+        },
+        {
+          "phase": "Test",
+          "duration": 20.0,
+          "process_status": "Timeout"
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "domain/src/anchors.rs:37:5: replace top_down -> Vec<&TextLine> with vec![Box::leak(Box::new(Default::default()))]",
+          "package": "d2rmm-agent-domain",
+          "file": "domain/src/anchors.rs",
+          "function": {
+            "function_name": "top_down",
+            "return_type": "-> Vec<&TextLine>",
+            "span": {
+              "start": {
+                "line": 35,
+                "column": 1
+              },
+              "end": {
+                "line": 40,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 37,
+              "column": 5
+            },
+            "end": {
+              "line": 39,
+              "column": 11
+            }
+          },
+          "replacement": "vec![Box::leak(Box::new(Default::default()))]",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/domain__src__anchors.rs_line_37_col_5_001.log",
+      "diff_path": "diff/domain__src__anchors.rs_line_37_col_5_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.8,
+          "process_status": {
+            "Failure": 101
+          }
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "domain/src/anchors.rs:71:5: replace title_band -> Option<Region> with Some(Default::default())",
+          "package": "d2rmm-agent-domain",
+          "file": "domain/src/anchors.rs",
+          "function": {
+            "function_name": "title_band",
+            "return_type": "-> Option<Region>",
+            "span": {
+              "start": {
+                "line": 68,
+                "column": 1
+              },
+              "end": {
+                "line": 78,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 71,
+              "column": 5
+            },
+            "end": {
+              "line": 77,
+              "column": 7
+            }
+          },
+          "replacement": "Some(Default::default())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/domain__src__anchors.rs_line_71_col_5_001.log",
+      "diff_path": "diff/domain__src__anchors.rs_line_71_col_5_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.7,
+          "process_status": {
+            "Failure": 101
+          }
+        }
+      ]
+    }
+  ],
+  "total_mutants": 9,
+  "missed": 3,
+  "caught": 3,
+  "timeout": 1,
+  "unviable": 2,
+  "success": 0,
+  "start_time": "2026-11-19T15:49:11.613056414Z",
+  "end_time": "2026-11-19T16:11:07.533658399Z",
+  "cargo_mutants_version": "27.1.0"
+}

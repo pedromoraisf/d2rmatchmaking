@@ -15,7 +15,7 @@ Rules:
 - [x] T1 — Write a unit test in the adapters that kills the survivor at `http/sse.rs:60` (`ready_check_open_from_body`
       → `None`) (NGT-09). Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib`
-- [ ] T2 — Write `scripts/nightly/mutation.mjs` and `merge-mutants.mjs` with unit tests on fixtures cut from run
+- [x] T2 — Write `scripts/nightly/mutation.mjs` and `merge-mutants.mjs` with unit tests on fixtures cut from run
       44558970584 and from a Stryker report (NGT-04, NGT-10). Gate: `node --test scripts/test/nightly-*.test.mjs`
 - [ ] T3 — Write `scripts/nightly/load.mjs` and `acceptance.mjs` with unit tests (NGT-05, NGT-06). Gate: as T2
 - [ ] T4 — Write `scripts/nightly/trend.mjs`, `render.mjs` and the `report.mjs` CLI with unit tests, including "no
