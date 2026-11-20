@@ -100,6 +100,17 @@ impl StateSink for Lines {
                 .events
                 .send(json!({ "event": "reveal", "text": REVEAL_TEXT }));
         }
+        // The window drops the room line when the room ends (ARL-01) and says "presence confirmed" once the API accepts the
+        // run (ARL-03): the acceptance scenarios read both here.
+        let held_before = before.as_ref().and_then(|previous| previous.room.as_ref());
+        if held_before.is_some() && view.room.is_none() {
+            let _ = self.events.send(json!({ "event": "room-dropped" }));
+        }
+        if view.room.as_ref().is_some_and(|room| room.confirmed)
+            && !held_before.is_some_and(|room| room.confirmed)
+        {
+            let _ = self.events.send(json!({ "event": "presence-confirmed" }));
+        }
         if let Some(room) = &view.room {
             let held = before.as_ref().and_then(|previous| previous.room.as_ref());
             if held != Some(room) {

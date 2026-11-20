@@ -42,5 +42,5 @@ Rules:
       seconds after the last heartbeat (ARL-06). Find why it lingered before fixing it, and write the cause in the
       commit message. Unit or component test. Gate:
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
-- [ ] T7 — Acceptance steps for the `@ARL-` scenarios, with the headless agent where an agent acts. Gate:
+- [x] T7 — Acceptance steps for the `@ARL-` scenarios, with the headless agent where an agent acts. Gate:
       `pnpm exec turbo run test:acceptance -- --grep @ARL-`
