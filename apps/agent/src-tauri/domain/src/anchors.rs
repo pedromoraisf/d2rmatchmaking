@@ -7,7 +7,8 @@
 
 use crate::characters::Difficulty;
 use crate::language::{
-    GAME_NAME, LanguagePack, PASSWORD, SELECT_DIFFICULTY, TAB_OFFLINE, TAB_ONLINE,
+    DIFFICULTY_LABEL, GAME_NAME, LIFE, LanguagePack, MANA, PASSWORD, SELECT_DIFFICULTY,
+    TAB_OFFLINE, TAB_ONLINE,
 };
 use crate::layout::REFERENCE_HEIGHT;
 use crate::vision::{Region, TextLine};
@@ -221,7 +222,9 @@ pub fn popup_title_in_variants(pack: &LanguagePack, variants: &[Vec<TextLine>]) 
 }
 
 /// The Party panel in any variant's lines: open when any variant shows the title; the label and field of the first variant
-/// that found the label with a field under it, else of the first that found the label.
+/// that found the label with a field under it (the one whose field box is the tallest, the first on a tie: a variant that
+/// clips the line's strokes gives a thin box that reads partly, screen-recognition T6), else of the first that found the
+/// label.
 pub fn find_party_in_variants(
     pack: &LanguagePack,
     variants: &[Vec<TextLine>],
@@ -231,15 +234,65 @@ pub fn find_party_in_variants(
         .iter()
         .map(|lines| find_party(pack, lines, frame_height))
         .collect();
+    let field_height = |party: &&PartyAnchors| party.field.map_or(0, |field| field.height);
     let chosen = found
         .iter()
-        .find(|party| party.label.is_some() && party.field.is_some())
+        .filter(|party| party.label.is_some() && party.field.is_some())
+        .fold(None, |best: Option<&PartyAnchors>, party| match best {
+            Some(held) if field_height(&held) >= field_height(&party) => Some(held),
+            _ => Some(party),
+        })
         .or_else(|| found.iter().find(|party| party.label.is_some()));
     PartyAnchors {
         open: found.iter().any(|party| party.open),
         label: chosen.and_then(|party| party.label),
         field: chosen.and_then(|party| party.field),
     }
+}
+
+/// Whether any word of `text` starts the pack's Life or Mana label: the in-game HUD's two labels. The line may begin with
+/// other text the engine joined to it, so every word is tried as the start of the label.
+fn is_hud_line(pack: &LanguagePack, text: &str) -> bool {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    (0..words.len()).any(|start| {
+        let rest = words[start..].join(" ");
+        pack.begins_with(&rest, LIFE) || pack.begins_with(&rest, MANA)
+    })
+}
+
+/// The first line of `lines` (top to bottom) that shows the HUD's Life or Mana label: the in-game marker, found anywhere in
+/// the bottom band (`ScreenRegion::HudBand`), not at one fixed place. Its box is what the tracker remembers.
+pub fn find_hud(pack: &LanguagePack, lines: &[TextLine]) -> Option<Region> {
+    top_down(lines)
+        .into_iter()
+        .find(|line| is_hud_line(pack, &line.text))
+        .map(|line| line.region)
+}
+
+/// The HUD's label line in any variant's lines: the first variant that found one gives its box.
+pub fn find_hud_in_variants(pack: &LanguagePack, variants: &[Vec<TextLine>]) -> Option<Region> {
+    variants.iter().find_map(|lines| find_hud(pack, lines))
+}
+
+/// Whether any word of `text` starts the pack's automap difficulty label ("Difficulty: Hell"): the line may begin with other
+/// text the engine joined to it, so every word is tried as the start of the label.
+fn is_automap_line(pack: &LanguagePack, text: &str) -> bool {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    (0..words.len()).any(|start| pack.begins_with(&words[start..].join(" "), DIFFICULTY_LABEL))
+}
+
+/// The first line of `lines` (top to bottom) that shows the automap's "Difficulty:" label, found anywhere in the top-right
+/// area (`ScreenRegion::AutomapArea`), not at one fixed place. Its box is what the tracker remembers.
+pub fn find_automap(pack: &LanguagePack, lines: &[TextLine]) -> Option<Region> {
+    top_down(lines)
+        .into_iter()
+        .find(|line| is_automap_line(pack, &line.text))
+        .map(|line| line.region)
+}
+
+/// The automap's label line in any variant's lines: the first variant that found one gives its box.
+pub fn find_automap_in_variants(pack: &LanguagePack, variants: &[Vec<TextLine>]) -> Option<Region> {
+    variants.iter().find_map(|lines| find_automap(pack, lines))
 }
 
 /// Whether a line of the popup area is the popup's title.
@@ -373,6 +426,28 @@ pub fn padded(region: Region, pad: u32, width: u32, height: u32) -> Region {
     let y = region.y.saturating_sub(pad);
     let right = region.right().saturating_add(pad).min(width);
     let bottom = region.bottom().saturating_add(pad).min(height);
+    Region {
+        x,
+        y,
+        width: right.saturating_sub(x),
+        height: bottom.saturating_sub(y),
+    }
+}
+
+/// The box to read the Party panel in on the next frames, once its label was found (screen-recognition T6, as the HUD's
+/// tracked box): from above the title to under the field, and from left of the label to right of the title, clamped to the
+/// frame. Measured on the prints: the title sits 42 px above the label and 100 px to its right (1033 reference).
+pub fn party_track_box(label: Region, frame_width: u32, frame_height: u32) -> Region {
+    let x = label.x.saturating_sub(scaled(60, frame_height));
+    let y = label.y.saturating_sub(scaled(75, frame_height));
+    let right = label
+        .x
+        .saturating_add(scaled(280, frame_height))
+        .min(frame_width);
+    let bottom = label
+        .bottom()
+        .saturating_add(scaled(75, frame_height))
+        .min(frame_height);
     Region {
         x,
         y,
@@ -982,6 +1057,37 @@ mod tests {
     }
 
     #[test]
+    fn of_two_variants_with_label_and_field_of_the_same_size_the_first_is_chosen() {
+        // Pins today (screen-recognition T6): the first variant with a label and a field gives the field's box.
+        use super::find_party_in_variants;
+        let first = party(153, 192, Some(220), 262);
+        let second = party(153, 192, Some(224), 262);
+        let found = find_party_in_variants(&pack(), &[first, second], 1080);
+        assert_eq!(found.field.map(centre), Some(220));
+    }
+
+    #[test]
+    fn of_two_variants_with_label_and_field_the_taller_field_box_is_chosen() {
+        // The six pt-BR 1045 prints: one variant clips the field line to 7 px, another reads it at 11 px (ocr-real
+        // diagnostics); the clipped box read the name partly.
+        use super::find_party_in_variants;
+        let thin = {
+            let mut lines = party(153, 192, Some(220), 262);
+            lines[3].region.height = 7;
+            lines
+        };
+        let tall = party(153, 192, Some(224), 262);
+        let found = find_party_in_variants(&pack(), &[thin.clone(), tall.clone()], 1080);
+        assert_eq!(
+            found.field.map(centre),
+            Some(224),
+            "the 16 px box, not the 7 px one"
+        );
+        let found = find_party_in_variants(&pack(), &[tall, thin], 1080);
+        assert_eq!(found.field.map(centre), Some(224));
+    }
+
+    #[test]
     fn the_tab_strip_is_told_from_a_card_line() {
         use super::is_tab_line;
         for tab in ["ONLINE OFFLINE", "Online", "OFFLINE", "O NLINE OFFLINE"] {
@@ -993,6 +1099,47 @@ mod tests {
     }
 
     #[test]
+    fn the_tracked_party_box_holds_the_title_and_the_field_of_the_measured_prints() {
+        use super::party_track_box;
+        let r = |x, y, width, height| Region {
+            x,
+            y,
+            width,
+            height,
+        };
+        // (height, label, title, field) in the boxes the `ocr-real` diagnostics measured: 1033 English, 1045 pt-BR.
+        for (height, label, title, field) in [
+            (
+                1033,
+                r(275, 159, 86, 10),
+                r(367, 117, 67, 15),
+                r(267, 189, 103, 8),
+            ),
+            (
+                1045,
+                r(264, 171, 40, 9),
+                r(364, 129, 71, 15),
+                r(269, 199, 95, 10),
+            ),
+        ] {
+            let tracked = party_track_box(label, 1920, height);
+            for inner in [label, title, field] {
+                assert!(
+                    tracked.x <= inner.x
+                        && tracked.y <= inner.y
+                        && inner.right() <= tracked.right()
+                        && inner.bottom() <= tracked.bottom(),
+                    "{inner:?} in {tracked:?} at {height}"
+                );
+            }
+            assert!(tracked.width < 400 && tracked.height < 240, "a small box");
+        }
+        // Clamped to the frame.
+        let edge = party_track_box(r(1800, 1000, 90, 12), 1920, 1033);
+        assert!(edge.right() <= 1920 && edge.bottom() <= 1033);
+    }
+
+    #[test]
     fn the_party_area_holds_the_title_label_and_field_of_both_clients() {
         use crate::layout::{PanelRegion, panel_region};
         for (height, title, label, field) in [(1080, 153, 192, 220), (1033, 146, 183, 210)] {
@@ -1001,6 +1148,39 @@ mod tests {
                 assert!(
                     area.x <= x && x < area.right() && area.y <= y && y < area.bottom(),
                     "({x}, {y}) is in the party area at {height}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_party_area_is_the_wide_top_left_of_every_client_height() {
+        // Changed expectation (screen-recognition T6, SCR-04; orchestrator's decision): the area T2 pinned (6% to 28% of the
+        // height, from x 230) did not give the line pass the "Nome" label of the six pt-BR 1045 prints (the same lines read
+        // in the client's top-left 30% x 40% did), so the Party lines are searched there, a word search over a wide area.
+        use crate::layout::{PanelRegion, panel_region};
+        for height in [1033u32, 1045, 1056, 1080] {
+            let area = panel_region(PanelRegion::PartyPanel, 1920, height).expect("resolves");
+            assert_eq!((area.x, area.y), (0, 0), "at {height}");
+            assert!(area.width.abs_diff(576 * height / 1033) <= 1, "at {height}");
+            assert!(
+                area.height.abs_diff(413 * height / 1033) <= 1,
+                "at {height}"
+            );
+            // The title, label and field of the measured prints (1033 English, 1045 pt-BR) are inside it.
+            let (title, label, field) = if height == 1045 {
+                (136, 176, 204)
+            } else {
+                (
+                    153 * height / 1080,
+                    192 * height / 1080,
+                    220 * height / 1080,
+                )
+            };
+            for (x, y) in [(400, title), (280, label), (300, field)] {
+                assert!(
+                    area.right() > x && area.bottom() > y,
+                    "({x}, {y}) at {height}"
                 );
             }
         }
@@ -1053,5 +1233,89 @@ mod tests {
         for other in ["NORMAL", "NIGHTMARE", "HELL", "", "SELECT"] {
             assert!(!is_popup_title(&pack(), other), "{other} is not the title");
         }
+    }
+}
+
+#[cfg(test)]
+mod hud_tests {
+    use super::{find_hud, find_hud_in_variants};
+    use crate::language::LanguagePack;
+    use crate::vision::{Region, TextLine};
+
+    fn line(text: &str, x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: text.to_string(),
+            region: Region {
+                x,
+                y,
+                width: 150,
+                height: 20,
+            },
+        }
+    }
+
+    #[test]
+    fn the_life_line_is_found_wherever_the_band_puts_it() {
+        let english = LanguagePack::english();
+        for (x, y) in [(400, 826), (432, 865), (900, 900)] {
+            let lines = [line("Life: 925 / 925", x, y)];
+            assert_eq!(find_hud(&english, &lines), Some(lines[0].region));
+        }
+    }
+
+    #[test]
+    fn the_mana_line_alone_is_the_marker_too() {
+        let lines = [line("Mana: 400 / 400", 1500, 870)];
+        assert!(find_hud(&LanguagePack::english(), &lines).is_some());
+    }
+
+    #[test]
+    fn a_label_the_engine_joined_to_other_text_or_misread_is_found() {
+        let english = LanguagePack::english();
+        assert!(find_hud(&english, &[line("1 2 Life: 925 / 925", 400, 826)]).is_some());
+        assert!(find_hud(&english, &[line("Lite: 925 / 925", 400, 826)]).is_some());
+    }
+
+    #[test]
+    fn other_text_of_the_band_is_not_the_marker() {
+        let english = LanguagePack::english();
+        let lines = [line("Town Portal", 700, 880), line("Level 88", 900, 880)];
+        assert_eq!(find_hud(&english, &lines), None);
+        assert_eq!(find_hud(&english, &[]), None);
+    }
+
+    #[test]
+    fn the_automap_difficulty_line_is_found_wherever_the_area_puts_it() {
+        use super::{find_automap, find_automap_in_variants};
+        let english = LanguagePack::english();
+        for (x, y) in [(1750, 52), (1700, 90), (1500, 140)] {
+            let lines = [line("Difficulty: Hell", x, y)];
+            assert_eq!(find_automap(&english, &lines), Some(lines[0].region));
+        }
+        let joined = [line("Act 1 Difficulty: Normal", 1600, 60)];
+        assert!(find_automap(&english, &joined).is_some());
+        let variants = [vec![], vec![line("Difficulty: Hell", 1750, 52)]];
+        assert!(find_automap_in_variants(&english, &variants).is_some());
+    }
+
+    #[test]
+    fn other_text_of_the_area_is_not_the_automap_marker() {
+        use super::{find_automap, find_automap_in_variants};
+        let english = LanguagePack::english();
+        let lines = [
+            line("Rogue Encampment", 1700, 40),
+            line("Level 88", 1700, 70),
+        ];
+        assert_eq!(find_automap(&english, &lines), None);
+        assert_eq!(find_automap(&english, &[]), None);
+        assert_eq!(find_automap_in_variants(&english, &[vec![], vec![]]), None);
+    }
+
+    #[test]
+    fn any_variant_finds_it() {
+        let english = LanguagePack::english();
+        let variants = [vec![], vec![line("Life: 9 / 9", 400, 826)]];
+        assert!(find_hud_in_variants(&english, &variants).is_some());
+        assert_eq!(find_hud_in_variants(&english, &[vec![], vec![]]), None);
     }
 }

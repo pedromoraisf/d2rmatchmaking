@@ -6,7 +6,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use d2rmm_agent_core::messages::FrameReading;
-use d2rmm_agent_core::party::read_panel;
+use d2rmm_agent_core::party::read_panel_for;
 use d2rmm_agent_core::ports::{FrameReader, Rgba, TextReader};
 use d2rmm_agent_core::screen_reader::ScreenReader;
 use d2rmm_agent_domain::anchors;
@@ -157,7 +157,7 @@ pub fn check_party_reads(
         ));
     }
     // The panel is read as the agent reads it: by the lines of its area, the field being the line under the label.
-    let panel = read_panel(reader, &language, image);
+    let panel = read_panel_for(reader, &language, image, Some(expected_name), None);
     let field: Vec<String> = panel.field.iter().map(|read| read.text.clone()).collect();
     let field_text = if show_reads {
         format!(", field {field:?}")
@@ -325,7 +325,7 @@ pub fn anchor_line(
 ) -> String {
     let yes = |found: bool| if found { "yes" } else { "no" };
     if name.starts_with("maintainer-party") {
-        let panel = read_panel(reader, &LanguagePack::english(), image);
+        let panel = read_panel_for(reader, &LanguagePack::english(), image, None, None);
         return format!(
             "  anchors: title found {}, game-name label found {}, game-name field read {}",
             yes(panel.open),
@@ -360,6 +360,56 @@ pub fn party_line_diagnostics(reader: &dyn TextReader, image: &Rgba) -> Vec<Stri
                 line.region.y,
                 line.region.height,
                 anchors::party_line_anchor(&pack, &line.text)
+            ));
+        }
+    }
+    out
+}
+
+/// What the line pass finds in a wide area of the client's top-left (screen-recognition T6, SCR-04): per variant, every line
+/// with its box and the anchor it matched. The text of a line is printed in clear only when it reads as the Party title or the
+/// Game Name label (either language) or as a generated game name; every other line, whatever its y, prints its shape (a
+/// letter, a digit or another character each), never its text, so no player name or BattleTag reaches the public CI log.
+pub fn party_wide_diagnostics(reader: &dyn TextReader, image: &Rgba) -> Vec<String> {
+    let area = Region {
+        x: 0,
+        y: 0,
+        width: image.width * 30 / 100,
+        height: image.height * 40 / 100,
+    };
+    let pack = LanguagePack::english();
+    let brazilian = LanguagePack::brazilian_party();
+    let mut out = Vec::new();
+    for (index, lines) in reader.read_line_variants(image, area).iter().enumerate() {
+        out.push(format!(
+            "  wide pass, variant {index}: {} lines",
+            lines.len()
+        ));
+        for line in lines {
+            let anchor = anchors::party_line_anchor(&pack, &line.text);
+            let portuguese = anchors::party_line_anchor(&brazilian, &line.text);
+            let clear = matches!(anchor, "title" | "label")
+                || matches!(portuguese, "title" | "label")
+                || is_generated_game_name(line.text.trim());
+            let shown: String = if clear {
+                line.text.clone()
+            } else {
+                line.text
+                    .chars()
+                    .map(|c| {
+                        if c.is_alphabetic() {
+                            'a'
+                        } else if c.is_numeric() {
+                            '9'
+                        } else {
+                            c
+                        }
+                    })
+                    .collect()
+            };
+            out.push(format!(
+                "    x {} y {} width {} height {}: {} [{}]",
+                line.region.x, line.region.y, line.region.width, line.region.height, anchor, shown
             ));
         }
     }
@@ -469,9 +519,11 @@ pub fn check_folder(
     for name in &folder_screenshots(dir) {
         let name = name.as_str();
         let path = dir.join(name);
+        // The name of a generated-name print is public (the room's generated name): its reads are printed too.
+        let show = show_reads || generated_name_of(name).is_some();
         let result = if path.is_file() {
             read_screenshot(&path).and_then(|image| {
-                for line in diagnostics(name, &variants, &image, show_reads) {
+                for line in diagnostics(name, &variants, &image, show) {
                     println!("{line}");
                 }
                 println!("{}", anchor_line(name, &*reader, &screens, &image));
@@ -479,8 +531,11 @@ pub fn check_folder(
                     for line in party_line_diagnostics(&*reader, &image) {
                         println!("{line}");
                     }
+                    for line in party_wide_diagnostics(&*reader, &image) {
+                        println!("{line}");
+                    }
                 }
-                verdict(name, &*reader, &screens, &image, show_reads)
+                verdict(name, &*reader, &screens, &image, show)
             })
         } else {
             Err(format!("is missing from {}", dir.display()))
@@ -794,6 +849,31 @@ mod tests {
         );
         assert_eq!(shown, "  anchors: cards found 2, popup options found 2");
         assert!(!shown.to_lowercase().contains("vuk"));
+    }
+
+    #[test]
+    fn the_wide_diagnostics_print_only_anchor_and_game_name_lines_in_clear() {
+        let image = Rgba {
+            width: 1920,
+            height: 1080,
+            pixels: Vec::new(),
+        };
+        // "Vuk#1234" sits on the title's row (the old 9% to 18% band): it prints as its shape all the same.
+        let reader = LinesReader(vec![
+            line("PARTY", 153),
+            line("Vuk#1234", 160),
+            line("Vuk Bob 12", 300),
+            line("GRUPO", 175),
+            line("mmbaalm-99", 190),
+        ]);
+        let lines = super::party_wide_diagnostics(&reader, &image);
+        assert_eq!(lines[0], "  wide pass, variant 0: 5 lines");
+        assert!(lines[1].ends_with("title [PARTY]"), "{}", lines[1]);
+        assert!(lines[2].ends_with("none [aaa#9999]"), "{}", lines[2]);
+        assert!(lines[3].ends_with("none [aaa aaa 99]"), "{}", lines[3]);
+        assert!(lines[4].ends_with("none [GRUPO]"), "{}", lines[4]);
+        assert!(lines[5].ends_with("none [mmbaalm-99]"), "{}", lines[5]);
+        assert!(!lines.join("\n").contains("Vuk"));
     }
 
     #[test]

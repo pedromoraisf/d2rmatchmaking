@@ -118,11 +118,13 @@ fn letters_of(part: &str) -> String {
         .collect()
 }
 
-/// The part of a name after its last `-`: the letter O in every drawing reads as zero.
+/// The part of a name after its last `-`: the letter O in every drawing reads as zero, and the letters l, I and the bar read as
+/// one (a generated name holds only digits there, ADR 017, so the fold cannot turn one name into another).
 fn digits_of(part: &str) -> String {
     part.chars()
         .map(|c| match c {
             'o' | 'ø' | '⊕' => '0',
+            'l' | 'i' | '|' => '1',
             other => other,
         })
         .collect()
@@ -273,6 +275,54 @@ mod tests {
             FieldRead::Other,
             "no expected name"
         );
+    }
+
+    #[test]
+    fn the_digits_fold_l_i_and_bar_to_one_and_the_o_glyphs_to_zero_and_letters_are_untouched() {
+        // Changed expectation (screen-recognition T6): after the last dash a letter l, I or | reads as the digit 1. It is
+        // the first glyph rule driven by the pt-BR client (the read "mmPVPN-lØ" of mmpvpn-10, `ocr-real` run
+        // 44709482062), taken from a real read as the game-name-reading rule allows.
+        assert_eq!(read_field("mmpvpn-1O", "mmpvpn-10"), FieldRead::Matched);
+        assert_eq!(read_field("mmPVPN-lØ", "mmpvpn-10"), FieldRead::Matched);
+        assert_eq!(read_field("mmpvpn-I0", "mmpvpn-10"), FieldRead::Matched);
+        assert_eq!(read_field("mmpvpn-|o", "mmpvpn-10"), FieldRead::Matched);
+        // Letters before the dash are untouched: a real letter l stays an l, so a name with one is another name.
+        assert_eq!(normalise("mmpvlN-10"), "mmpvln-10");
+        assert_eq!(normalise("mmp|pn-10"), "mmp|pn-10");
+        assert_eq!(read_field("mmpvln-10", "mmpvpn-10"), FieldRead::Other);
+        assert_eq!(read_field("mmpvpn-l1", "mmpvpn-10"), FieldRead::Other);
+    }
+
+    #[test]
+    fn no_two_different_names_collide_after_the_digit_fold_across_the_whole_vocabulary() {
+        // ADR 017: `mm{activity}{difficulty}-{n}`. Each name, read with every digit as its fold glyph (1 as l, 0 as O), still
+        // normalises to its own form and to no other name's.
+        let activities = [
+            "baal", "chaos", "cows", "tz", "heralds", "duel1v1", "duel2v2", "arena6", "mephisto",
+            "pvp",
+        ];
+        let mut seen = std::collections::HashMap::new();
+        for activity in activities {
+            for difficulty in ["n", "m", "h"] {
+                for n in 1..=9999u32 {
+                    let name = format!("mm{activity}{difficulty}-{n}");
+                    let glyphs: String = n
+                        .to_string()
+                        .chars()
+                        .map(|digit| match digit {
+                            '1' => 'l',
+                            '0' => 'O',
+                            other => other,
+                        })
+                        .collect();
+                    let read = format!("mm{activity}{difficulty}-{glyphs}");
+                    assert_eq!(normalise(&read), normalise(&name), "{read}");
+                    if let Some(other) = seen.insert(normalise(&read), name.clone()) {
+                        panic!("{name} and {other} collide after the fold");
+                    }
+                }
+            }
+        }
     }
 
     #[test]

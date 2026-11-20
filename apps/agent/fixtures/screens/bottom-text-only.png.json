@@ -1,0 +1,7 @@
+{
+  "height": 1080,
+  "lines": [
+    { "text": "Town Portal", "x": 700, "y": 900, "width": 150, "height": 22 },
+    { "text": "Level 88", "x": 900, "y": 900, "width": 100, "height": 22 }
+  ]
+}
