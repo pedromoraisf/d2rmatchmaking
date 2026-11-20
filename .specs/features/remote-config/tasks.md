@@ -37,7 +37,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
 - [x] T1 — **Pin today's agent route list (tests only).** In `apps/api/src/main/__tests__/agent-route-table.ts` and the AGT-01
       test, add nothing yet; add a test that fails when an agent-guarded route is not in the table, if one does not exist,
       and pin the eight routes as they are. Gate: `pnpm --filter @d2rmm/api test`
-- [ ] T2 — The contract (RCF-02, RCF-03). New `packages/contracts/src/http/agent-config.ts`: `AgentConfig` with closed
+- [x] T2 — The contract (RCF-02, RCF-03). New `packages/contracts/src/http/agent-config.ts`: `AgentConfig` with closed
       objects (`.strict()`), the four sections and the version, every number with `.int().min().max()` from the design
       table, every phrase a string with a character class and a length limit, the 64 KiB body limit as a documented constant;
       `AgentConfigResponse`; export from `packages/contracts/src/index.ts`. Tests: each range at, below and above; an unknown
