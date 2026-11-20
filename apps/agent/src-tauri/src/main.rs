@@ -97,8 +97,7 @@ fn ports(app: AppHandle, gateway: Arc<HttpGateway>) -> Groups<HttpGateway> {
     let processes: Arc<dyn ProcessSource + Send + Sync> = Arc::new(ToolhelpProcessSource);
     let clock: Arc<dyn WallClock + Send + Sync> = Arc::new(SystemClock);
     // The shipped English file; the domain's built-in pack is the same words, so a file that fails to parse changes nothing.
-    let language =
-        Arc::new(language_pack::shipped_english().unwrap_or_else(|_| LanguagePack::english()));
+    let language = Arc::new(language_pack::shipped());
     let consent: Arc<dyn ConsentStore + Send + Sync> =
         Arc::new(app::consent_store_in(app.path().app_config_dir().ok()));
     Groups {

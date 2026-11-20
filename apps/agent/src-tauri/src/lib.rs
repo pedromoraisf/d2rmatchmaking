@@ -10,7 +10,6 @@ pub mod app;
 pub mod config;
 #[cfg(any(windows, test))]
 pub mod fixture_read;
-#[cfg(any(windows, test))]
 pub mod language_pack;
 pub mod ocr_check;
 pub mod ocr_variations;

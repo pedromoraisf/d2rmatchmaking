@@ -45,6 +45,16 @@ mod tests {
     }
 
     #[test]
+    fn the_brazilian_file_parses_to_the_three_party_words() {
+        let text = include_str!("../../resources/lang/pt-BR.json");
+        let pack = parse_pack(text).expect("the Brazilian file parses");
+        assert_eq!(pack.tag(), "pt-BR");
+        assert_eq!(pack.word(PARTY), Some("Grupo"));
+        assert_eq!(pack.word("gameName"), Some("Nome"));
+        assert_eq!(pack.word("password"), Some("Senha"));
+    }
+
+    #[test]
     fn a_file_without_a_required_word_is_refused() {
         let text =
             r#"{ "language": "en", "words": { "party": "Party", "gameName": "Game Name" } }"#;
