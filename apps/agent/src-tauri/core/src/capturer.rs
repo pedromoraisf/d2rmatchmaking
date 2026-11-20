@@ -88,11 +88,12 @@ impl<M: MethodSource> Capturer<M> {
         Some((outcome, frame))
     }
 
-    /// Whether the frame is the size of the game's client area, when the platform says it (CAP-04, CAP-06).
+    /// Whether the frame is the size of the game's client area (CAP-04, CAP-06). A source that cannot say the client's size
+    /// gives no way to check the frame, so the frame is refused: the check fails closed.
     fn holds_the_client(&self, frame: &Rgba) -> bool {
         self.methods
             .client_size()
-            .is_none_or(|client| client == (frame.width, frame.height))
+            .is_some_and(|client| client == (frame.width, frame.height))
     }
 }
 
@@ -558,11 +559,26 @@ mod tests {
     }
 
     #[test]
+    fn a_source_that_cannot_say_the_client_size_gives_no_frame() {
+        let mut script = Scripted::new(&[PrintWindow]);
+        script.say(PrintWindow, Say::Good);
+        // The scripted source reports a client size; one that reports none leaves the frame unchecked, so it is refused.
+        Arc::get_mut(&mut script).expect("the only owner").client = None;
+        let capturer = capturer(&script);
+
+        assert!(capturer.capture().is_none(), "fails closed");
+        assert!(capturer.status().unusable);
+    }
+
+    #[test]
     fn a_dark_but_drawn_frame_is_a_frame() {
         struct Dark;
         impl MethodSource for Dark {
             fn methods(&self) -> Vec<CaptureMethod> {
                 vec![PrintWindow]
+            }
+            fn client_size(&self) -> Option<(u32, u32)> {
+                Some((8, 8))
             }
             fn capture_with(&self, _method: CaptureMethod) -> Result<Rgba, Miss> {
                 let mut pixels = Vec::new();

@@ -521,10 +521,14 @@ impl MethodSource for ScriptedMethods {
     }
 
     fn client_size(&self) -> Option<(u32, u32)> {
-        self.sidecar_value()
+        // The sidecar's client rectangle or reported client size, else the shown picture's own size (a window with no title bar).
+        if let Some((_, size)) = self.sidecar_value().as_ref().and_then(client_of) {
+            return Some(size);
+        }
+        let shown = self.shared.lock().ok()?;
+        shown
             .as_ref()
-            .and_then(client_of)
-            .map(|(_, size)| size)
+            .map(|shot| (shot.frame.width, shot.frame.height))
     }
 }
 
