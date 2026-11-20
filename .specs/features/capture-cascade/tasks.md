@@ -116,7 +116,7 @@ check is `node scripts/agent/win-check.mjs` (Docker, clippy for `x86_64-pc-windo
       the `Capturer`; `--self-check` stays as it is (it must still print and exit with no game running). The unsafe
       policy file list in the module header is updated. Gate: as T10, plus `node scripts/test/agent-source-rules.test.mjs`
       through `pnpm test:harness`
-- [ ] T12 — Close the proofs. Write the PR's table: unit-test counts, call counts (captures and reads per 600 looks), `ocr-real`
+- [x] T12 — Close the proofs. Write the PR's table: unit-test counts, call counts (captures and reads per 600 looks), `ocr-real`
       per print and `ocr-variations` counts before (`phase/F2` baseline) and after (expected: unchanged), the Windows
       check result, and the threat table of the spec with the control that closes each line. Fix rounds per feature. Gate:
       `pnpm specs:check && pnpm test:harness`
