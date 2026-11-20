@@ -35,10 +35,10 @@ Rules:
       regenerated `asyncapi.json`, an API unit test, a Rust unit test that the agent ends a room on an event with and
       without `members`, and the `@SEG-01` steps. Gate:
       `pnpm --filter @d2rmm/api exec vitest run src/platform && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json && pnpm arch && cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib`
-- [ ] T4 — Push the offline change (SEG-04): a sweep over agents last seen online that emits
-      `agent.presence_changed` (offline) once, within 15 s of the 45 s limit. Unit tests on a `FakeClock`, an
-      integration test, the contract if the event changes, and the `@SEG-04` steps. Gate:
-      `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json && pnpm arch`
+- [x] T4 — Pin the offline push (SEG-04), which the API's sweep already does (`agents/application/sweep.ts`, every second):
+      unit tests that the offline event goes to the owner's site only, once, and not before the 45 s limit, and the
+      `@SEG-04` steps. No API code changes. Gate:
+      `pnpm --filter @d2rmm/api exec vitest run src/modules/agents src/platform`
 - [ ] T5 — The site reads the agent's presence at most 12 times an hour, never while hidden, and once on becoming
       visible or on a stream reconnect (SEG-05). Component tests with fake timers and visibility, strings unchanged,
       and the `@SEG-05` steps. After T4. Gate:

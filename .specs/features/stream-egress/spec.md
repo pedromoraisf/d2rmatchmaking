@@ -1,7 +1,7 @@
 # Stream egress — Specification
 
 **Phase**: F2 (covered by the brief's approval, ADR 029) · **Size**: Medium · **Security review**: no (event payloads and
-timers; no new endpoint, no auth, no secret). The API change drops fields from stream events and adds an offline push.
+timers; no new endpoint, no auth, no secret). The API change drops fields from stream events; its offline push already exists (SEG-04).
 
 ## Problem
 
@@ -18,8 +18,9 @@ What is known today:
   reads only `roomId` and `stage` (`http/sse.rs`).
 - The site re-reads the agent's presence every 10 s while it shows the agent online (`AGENT_PRESENCE_REREAD_MS`,
   ARL-06). That is 360 `GET /v1/me/agent` a player-hour, each with headers. **The load journey does not do it, so the
-  number above does not include it.** The API marks an agent offline at 45 s by computing it on read, without telling
-  anyone, which is why the site polls.
+  number above does not include it.** The API already tells the site once, within a second of the 45 s limit (a sweep every
+  second, `agents/application/sweep.ts`, a transient `agent.presence_changed`). The event is never replayed, so a stream
+  that is down at that moment never learns it, and the site polls as a safety net (ARL-06).
 - Nothing says which event costs how much: the harness meters bytes in total (`journey_meter_bytes`).
 - The load harness's room count reads 0 (`full-summary.check.mjs` fails 1 of 9; F1 `post-close.md`).
 - The nightly now runs the load test (ADR 035, `nightly-report`), so every night can report the egress number.
@@ -38,9 +39,10 @@ What is known today:
   fields each consumer reads and its measured bytes. Each field dropped SHALL have a contract change (`asyncapi.json`
   regenerated) and a test, and no event name changes.
 - **SEG-04** — WHEN an agent's last heartbeat is older than the offline limit (45 s, `presence.ts`) THEN the API SHALL
-  emit `agent.presence_changed` with `online: false` to the owner's site within 15 s of that limit, once. A viewer
-  SHALL therefore be told within 60 s of the last heartbeat (ARL-06's bound). An agent that heartbeats again SHALL
-  emit the online change as today.
+  emit `agent.presence_changed` with `online: false` to the owner's site within 15 s of that limit, once, and to nobody
+  else. A viewer SHALL therefore be told within 60 s of the last heartbeat (ARL-06's bound). An agent that heartbeats
+  again SHALL emit the online change as today. This holds today (AWS-15); the feature pins it with tests, because SEG-05
+  stops relying on the poll.
 - **SEG-05** — The site SHALL re-read the agent's presence while it shows the agent online at most 12 times an hour
   (a safety net, no longer the way offline is learned), SHALL not read while the page is hidden, and SHALL read once
   when the page becomes visible again or the stream reconnects (ARL-06). It SHALL never show an agent online more than
@@ -87,10 +89,10 @@ What is known today:
 
 ## Decisions (conservative defaults)
 
-- **The offline push is the way, not a faster poll.** The only polling that keeps ARL-06's 60 s bound is one every 15 s
-  (240 reads an hour, a third less than today), which stays several times over budget: a read is about the size of a
-  small event plus its headers. Telling the viewer once is the smallest cost. It changes how ARL-06 is met, not what
-  the player sees. To confirm.
+- **The offline push is the way, not a faster poll, and it already exists.** The only polling that keeps ARL-06's 60 s
+  bound is one every 15 s (240 reads an hour, a third less than today), which stays several times over budget: a read
+  is about the size of a small event plus its headers. The API's sweep tells the viewer once, so no API code changes
+  for SEG-04; the feature adds its tests. SEG-05 only slows the read that covers a lost event.
 - **Trim only what no consumer reads.** No event is renamed, merged or sent less often in this feature. A field
   a consumer does read stays until that consumer changes in the same PR.
 - **Measure before cutting further.** Batch 1 builds the breakdown and the audit; the cuts of SEG-03 beyond SEG-01 are
@@ -106,6 +108,6 @@ What is known today:
    matches; a real player-hour holds one or two. If so, the 421,369 figure overstates the real cost, and the 70,000
    budget is compared against a stress journey. SEG-02 reports matches per player-hour so the question can be answered
    with numbers. Decide whether the journey's cadence changes (a load-baseline decision) or only the report.
-2. May the API push the offline transition (SEG-04)? It adds a periodic sweep over agents that were online. The
-   alternative with no API change is a read scheduled at last heartbeat + 45 s, which still polls about every 30 s.
+2. ~~May the API push the offline transition (SEG-04)?~~ Answered by the code: it already does (`sweep.ts`, every
+   second); no sweep is added.
 3. The new `load.bytes_per_player_hour` ceiling and baseline after the cuts (SEG-09): the maintainer applies them.

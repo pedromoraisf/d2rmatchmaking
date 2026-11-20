@@ -75,3 +75,39 @@ Then("the host's site still gets the room's new stage with its members", async (
   expect(data.stage).toBe('expired');
   expect(Array.isArray(data.members) ? data.members.length : 0, "the site's copy lists both players").toBe(2);
 });
+
+// --- SEG-04: the site is told once that an agent went quiet ----------------------------------------------------------
+
+/** The offline presence events a stream received. */
+const offlineEvents = (events: readonly StreamEvent[]): StreamEvent[] =>
+  events.filter(
+    (event) =>
+      event.type === 'agent.presence_changed' && (event.data as { online?: boolean }).online === false,
+  );
+
+Given('a player whose agent is online and whose site is watching', async ({ world }) => {
+  const agent = await world.pairAgent('Alice');
+  expect((await agent.heartbeat(ONLINE)).status, "Alice's agent is online").toBe(204);
+  await world.siteStreamOf('Alice');
+  await world.agentStreamOf(agent);
+});
+
+When('the agent sends no heartbeat for 60 seconds', async ({ world }) => {
+  await world.stack.advanceClock(60_000);
+});
+
+Then('the site is told once that the agent is offline', async ({ world }) => {
+  const stream = await world.siteStreamOf('Alice');
+  await stream.waitFor((event) => offlineEvents([event]).length === 1, STREAM_WAIT_MS);
+  // The sweep runs every second of the stack's clock: give it more time than one tick to tell again, if it would.
+  await new Promise((resolve) => setTimeout(resolve, 2_000));
+  expect(offlineEvents(stream.events), 'the offline change, told once').toHaveLength(1);
+});
+
+Then('the agent is not told anything', async ({ world }) => {
+  const stream = await world.agentStreamOf(world.currentAgentOf('Alice'));
+  expect(
+    stream.events.map((event) => event.type),
+    "nothing reaches the agent's own stream",
+  ).toEqual([]);
+});

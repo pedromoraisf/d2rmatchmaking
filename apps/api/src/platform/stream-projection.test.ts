@@ -180,6 +180,32 @@ describe('projectStreamEvent', () => {
     ]);
   });
 
+  it('an agent that went offline is told to its owner only, never to an agent stream (SEG-04)', async () => {
+    const offline: AnyDomainEvent = {
+      type: 'AgentPresenceChanged',
+      payload: {
+        agentId: 'agent-1',
+        accountId: 'account-1',
+        online: false,
+        gameRunning: true,
+        screen: 'UNKNOWN',
+      },
+    };
+
+    const deliveries = await projectStreamEvent(offline, agents);
+
+    expect(deliveries).toEqual([
+      {
+        stream: 'site',
+        accountId: 'account-1',
+        event: {
+          type: 'agent.presence_changed',
+          data: { agentId: 'agent-1', online: false, gameRunning: true, screen: 'UNKNOWN' },
+        },
+      },
+    ]);
+  });
+
   it('CharactersRecorded goes to the owner site only, as characters.updated with no body', async () => {
     const recorded: AnyDomainEvent = { type: 'CharactersRecorded', payload: { accountId: 'account-1' } };
 
