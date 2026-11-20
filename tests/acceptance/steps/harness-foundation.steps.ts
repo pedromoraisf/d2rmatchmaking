@@ -73,7 +73,15 @@ interface WorkflowStep {
 }
 
 interface Workflow {
-  jobs: Record<string, { needs?: string | string[]; if?: string; steps?: WorkflowStep[] }>;
+  jobs: Record<
+    string,
+    {
+      needs?: string | string[];
+      if?: string;
+      steps?: WorkflowStep[];
+      strategy?: { matrix?: { include?: Record<string, string>[] } };
+    }
+  >;
 }
 
 // The state this feature's steps share within one scenario, stored in the scenario fixture.
@@ -443,9 +451,20 @@ function mutantsFor(commands: string[], crate: string, source: string): string {
   return found;
 }
 
+// The nightly job is a matrix (nightly-report NGT-01): one cargo-mutants template, filled in for each crate or shard.
 function nightlyMutants(workflow: Workflow, crate: string): string {
-  const runs = (workflow.jobs['agent-mutation']?.steps ?? []).map((step) => step.run ?? '');
-  return mutantsFor(runs, crate, 'the nightly');
+  const job = workflow.jobs['agent-mutation'];
+  const template = (job?.steps ?? [])
+    .map((step) => step.run ?? '')
+    .find((run) => run.includes('cargo mutants'));
+  const entries = job?.strategy?.matrix?.include ?? [];
+  const commands = entries.map((entry) =>
+    (template ?? '')
+      .replace(/\$\{\{\s*matrix\.(\w+)\s*\}\}/gu, (_, key: string) => entry[key] ?? '')
+      .replace(/\s+/gu, ' ')
+      .trim(),
+  );
+  return mutantsFor(commands, crate, 'the nightly');
 }
 
 // GitHub expressions are written `${{ ... }}`; compare the inside, with its spaces collapsed.
@@ -558,7 +577,8 @@ Then('each of them writes to the report path the nightly uses', ({ scenario }) =
   const workflow = readWorkflow(scenario.repoRoot, nightlyWorkflow);
   for (const crate of agentCrates) {
     const ours = flagValue(mutantsFor(commands, crate, 'test:mutation:agent'), '--output');
-    const nightly = flagValue(nightlyMutants(workflow, crate), '--output');
+    // A sharded crate writes agent-<crate>-<k> in the nightly; the quality job merges the shards into agent-<crate>.
+    const nightly = flagValue(nightlyMutants(workflow, crate), '--output')?.replace(/-\d+$/u, '');
     expect(ours, `${crate} --output`).toBe(nightly);
     expect(ours, `${crate} --output`).toBeDefined();
   }
@@ -575,22 +595,29 @@ Then('the quality job needs the agent mutation job', ({ scenario }) => {
 
 Then('the quality job runs unless the workflow was cancelled', ({ scenario }) => {
   const condition = expression(jobOf(requireWorkflow(harness(scenario)), 'quality').if);
-  expect(condition, 'if of quality').toBe('!cancelled()');
+  expect(condition, 'if of quality').toMatch(/^!cancelled\(\)( &&|$)/u);
 });
 
 Then(
   "the quality job downloads the agent's reports into the mutation reports directory before the ratchet",
   ({ scenario }) => {
     const steps = jobOf(requireWorkflow(harness(scenario)), 'quality').steps ?? [];
-    const download = steps.findIndex((step) =>
-      String(step.uses ?? '').startsWith('actions/download-artifact@'),
+    const download = steps.findIndex(
+      (step) =>
+        String(step.uses ?? '').startsWith('actions/download-artifact@') &&
+        step.with?.['pattern'] === 'agent-mutation-*',
     );
+    // The shards are downloaded, then merged into reports/mutation, where the ratchet reads them.
+    const merge = steps.findIndex((step) => (step.run ?? '').includes('merge-mutants.mjs'));
     const ratchet = steps.findIndex((step) => step.name === 'Quality ratchet (nightly)');
     expect(download, 'download step in quality').toBeGreaterThanOrEqual(0);
+    expect(merge, 'merge step in quality').toBeGreaterThanOrEqual(0);
     expect(ratchet, 'ratchet step in quality').toBeGreaterThanOrEqual(0);
-    expect(download, 'download comes before the ratchet').toBeLessThan(ratchet);
-    expect(steps[download]?.with?.['name'], 'artifact name').toBe('agent-mutation');
-    expect(steps[download]?.with?.['path'], 'artifact path').toBe('reports/mutation');
+    expect(download, 'download comes before the merge').toBeLessThan(merge);
+    expect(merge, 'merge comes before the ratchet').toBeLessThan(ratchet);
+    expect(steps[merge]?.run ?? '', 'merge writes the mutation reports directory').toMatch(
+      /--out reports\/mutation$/u,
+    );
   },
 );
 

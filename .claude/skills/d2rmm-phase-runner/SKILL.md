@@ -93,6 +93,9 @@ repeat until nothing is runnable. Runnable features run in parallel.
    edge. Fix findings that are bugs or rule violations (dispatch a fix batch); answer the rest in the PR. Wait for CI
    with `gh pr checks <pr> --watch` in the background. When the required checks are green, merge with
    `gh pr merge <pr> --merge` and delete nothing. A red check is a failure like any other (see above).
+   A PR that changes a non-test line of a reading module (`scripts/agent/reading-modules.json`, AGENTS.md rule 14) merges
+   only with `ocr-real` and `ocr-variations` green and the ratchet not regressing (correct floor, wrong ceiling); its
+   description shows the before and after counts.
 
 Only the feature's own scenarios run locally (`pnpm exec turbo run test:acceptance -- --grep @<PREFIX>-`); the full
 acceptance suite, the load test and mutation run in CI or the nightly.

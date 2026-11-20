@@ -94,6 +94,7 @@ const VALUE_FLAGS = new Set([
   '--pid',
   '--ipc',
   '--userns',
+  '--user',
   '-v',
   '--volume',
   '--mount',
@@ -585,14 +586,18 @@ export function migrateArgs({ runId, image, envFile, caFile }) {
  *   inDir: string,
  *   outDir: string,
  *   limits?: { cpus: string, memory: string, k6Memory: string },
- * }} input
+ *   user?: string,
+ * }} input `user` is `<uid>:<gid>` of the host user: on Linux the 0600 plan and the 0700 work directory are the host
+ *   user's, so k6 runs as that user to read them; Docker Desktop maps ownership and needs none.
  * @returns {string[]}
  */
-export function k6Args({ runId, image, inDir, outDir, limits = DEFAULT_LIMITS }) {
+export function k6Args({ runId, image, inDir, outDir, limits = DEFAULT_LIMITS, user }) {
   const { k6Memory } = limitsOf(limits);
+  if (user !== undefined && !/^\d+:\d+$/.test(user)) throw new TypeError('the k6 user is <uid>:<gid>');
   return assertSafe([
     'run',
     ...common(runId, 'k6'),
+    ...(user === undefined ? [] : ['--user', user]),
     '--network',
     networkNameOf(runId),
     '--memory',

@@ -1,10 +1,18 @@
-# Nightly sensors: full mutation (the only place it runs, ADR 029), ratchet (nightly context) and Postgres backup.
+# The nightly: full mutation (the only place it runs, ADR 029), the load run (ADR 035), acceptance, the ratchet (nightly
+# context), one report per run (NGT-01, NGT-03) and the Postgres backup. The suites run as parallel jobs; `suites` picks
+# which ones a manual run starts (NGT-02), and the schedule always runs all of them.
 name: nightly
 
 on:
   schedule:
     - cron: '17 6 * * *' # 03:17 America/Sao_Paulo
   workflow_dispatch:
+    inputs:
+      suites:
+        description: 'Which suites to run (the schedule always runs all)'
+        type: choice
+        options: [all, mutation, load, acceptance]
+        default: all
 
 permissions:
   contents: read
@@ -18,81 +26,310 @@ jobs:
       agent: ${{ steps.d.outputs.agent }}
       acceptance: ${{ steps.d.outputs.acceptance }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - id: d
         run: |
           [ -f apps/api/package.json ] && echo "api=true" >> "$GITHUB_OUTPUT" || echo "api=false" >> "$GITHUB_OUTPUT"
           [ -f apps/agent/src-tauri/Cargo.toml ] && echo "agent=true" >> "$GITHUB_OUTPUT" || echo "agent=false" >> "$GITHUB_OUTPUT"
           if compgen -G ".specs/features/*/acceptance.feature" > /dev/null; then echo "acceptance=true"; else echo "acceptance=false"; fi >> "$GITHUB_OUTPUT"
 
-  quality:
-    # The ratchet reads the agent's mutation score, so it waits for that job (CRF-12). It still runs when that job fails
-    # or is skipped, because the ratchet gives its own verdict on a missing metric (CRF-13, AD-130).
-    needs: agent-mutation
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Mutation (full)
-        if: hashFiles('apps/api/stryker.config.*') != ''
-        run: pnpm run test:mutation
-      # The agent's reports come from the agent-mutation job (CRF-14, CRF-15). Without an artifact the download fails, and
-      # continue-on-error lets the ratchet step give its own verdict (CRF-17).
-      - name: Download the agent's mutation reports
-        if: needs.agent-mutation.result != 'skipped'
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        continue-on-error: true
-        with:
-          name: agent-mutation
-          path: reports/mutation
-      - name: Quality ratchet (nightly)
-        run: |
-          pnpm run quality:collect
-          pnpm run quality:ratchet -- --context nightly --current reports/quality.json
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: nightly-quality
-          path: reports/
-          retention-days: 30
-
   agent-mutation:
     # Linux: the three crates have no Windows-only code, and integration already builds the adapters on Ubuntu (AD-149).
+    # One job per crate; the two crates that take more than 15 minutes run in two shards (NGT-01).
+    name: agent-mutation (${{ matrix.name }})
     needs: detect
-    if: needs.detect.outputs.agent == 'true'
+    if: >-
+      needs.detect.outputs.agent == 'true' &&
+      (github.event_name == 'schedule' || inputs.suites == 'all' || inputs.suites == 'mutation')
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # core runs --in-place: its tests include_str! sidecars from apps/agent/fixtures, outside the workspace cargo-mutants copies.
+          - {
+              name: core,
+              crate: core,
+              shard: '',
+              in_place: '--in-place',
+              out: agent-core,
+              artifact: agent-mutation-core,
+            }
+          - {
+              name: domain 1/2,
+              crate: domain,
+              shard: '--shard 0/2',
+              in_place: '',
+              out: agent-domain-1,
+              artifact: agent-mutation-domain-1,
+            }
+          - {
+              name: domain 2/2,
+              crate: domain,
+              shard: '--shard 1/2',
+              in_place: '',
+              out: agent-domain-2,
+              artifact: agent-mutation-domain-2,
+            }
+          - {
+              name: adapters 1/2,
+              crate: adapters,
+              shard: '--shard 0/2',
+              in_place: '',
+              out: agent-adapters-1,
+              artifact: agent-mutation-adapters-1,
+            }
+          - {
+              name: adapters 2/2,
+              crate: adapters,
+              shard: '--shard 1/2',
+              in_place: '',
+              out: agent-adapters-2,
+              artifact: agent-mutation-adapters-2,
+            }
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: apps/agent/src-tauri
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2
         with:
           tool: cargo-mutants
       # The job's default shell on Windows is PowerShell, so the directory is created with bash on every runner (CRF-25).
       - shell: bash
         run: mkdir -p reports/mutation
       # ADR 026 (AHM-23): mutants are caught by the unit tests (--lib) of each crate, never by tests/ or the app crate.
-      # core runs --in-place: its tests include_str! sidecars from apps/agent/fixtures, outside the workspace cargo-mutants copies.
-      - run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-core --in-place --output reports/mutation/agent-core -- --lib
-      - if: ${{ !cancelled() }}
-        run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-domain --output reports/mutation/agent-domain -- --lib
-      - if: ${{ !cancelled() }}
-        run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-adapters --output reports/mutation/agent-adapters -- --lib
-      - uses: actions/upload-artifact@v4
+      - run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-${{ matrix.crate }} ${{ matrix.in_place }} ${{ matrix.shard }} --output reports/mutation/${{ matrix.out }} -- --lib
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
-          name: agent-mutation
+          name: ${{ matrix.artifact }}
+          path: reports/mutation/${{ matrix.out }}
+          if-no-files-found: warn
+
+  api-mutation:
+    name: api-mutation (${{ matrix.layer }})
+    needs: detect
+    if: >-
+      needs.detect.outputs.api == 'true' &&
+      (github.event_name == 'schedule' || inputs.suites == 'all' || inputs.suites == 'mutation')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        layer: [domain, application]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Mutation (one layer)
+        run: pnpm exec turbo run test:mutation --filter=@d2rmm/api -- --layer ${{ matrix.layer }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: api-mutation-${{ matrix.layer }}
           path: reports/mutation
+          if-no-files-found: warn
+
+  acceptance:
+    # The BDD scenarios of .specs, as the pull-request CI runs them, with the JSON report the nightly report reads (NGT-06).
+    needs: detect
+    if: >-
+      needs.detect.outputs.acceptance == 'true' &&
+      (github.event_name == 'schedule' || inputs.suites == 'all' || inputs.suites == 'acceptance')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # @HF-01 runs `pnpm test`, and agent-test-preservation reads its baseline commit from the history.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: apps/agent/src-tauri
+      - name: Build the headless agent example
+        run: cargo build --locked --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --example headless --features fixture-read
+      - name: Install Chromium for Playwright
+        run: |
+          pnpm --filter @d2rmm/acceptance exec playwright install chromium
+          if ! timeout 180 pnpm --filter @d2rmm/acceptance exec playwright install-deps chromium; then
+            echo "::warning::Chromium's system packages could not be installed in 3 minutes; using the runner image's libraries"
+          fi
+      - name: Acceptance (BDD scenarios from .specs)
+        run: pnpm run test:acceptance
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: acceptance-report
+          path: reports/acceptance/
+          if-no-files-found: warn
+
+  load:
+    # `pnpm test:load` on a GitHub runner (ADR 035, NGT-08): the API container keeps its limits (0.5 CPU, 512 MB), and the
+    # harness still refuses any remote target. The two images are built first, with the Actions cache; the harness then
+    # finds them under the tags it builds.
+    needs: detect
+    if: >-
+      needs.detect.outputs.api == 'true' &&
+      (github.event_name == 'schedule' || inputs.suites == 'all' || inputs.suites == 'load')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Build the API image (cached)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: scripts/load/docker/api.Dockerfile
+          tags: d2rmm-load-api:f0
+          load: true
+          cache-from: type=gha,scope=load-api
+          cache-to: type=gha,scope=load-api,mode=max
+      - name: Build the k6 image (cached)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: scripts/load/docker
+          file: scripts/load/docker/k6.Dockerfile
+          tags: d2rmm-load-k6:f0
+          load: true
+          cache-from: type=gha,scope=load-k6
+          cache-to: type=gha,scope=load-k6,mode=max
+      - name: Load test (full ladder)
+        run: pnpm test:load
+      - name: Check the full summary
+        id: check
+        if: ${{ !cancelled() && hashFiles('reports/load/summary.json') != '' }}
+        continue-on-error: true
+        run: node --test scripts/load/check/full-summary.check.mjs
+      - name: Record the check's verdict
+        if: ${{ !cancelled() && hashFiles('reports/load/summary.json') != '' }}
+        run: echo '{"verdict":"${{ steps.check.outcome == 'success' && 'passed' || 'failed' }}"}' > reports/load/check.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: load-report
+          path: reports/load/
+          if-no-files-found: warn
+      - name: Fail when the check failed
+        if: steps.check.outcome == 'failure'
+        run: |
+          echo "::error::scripts/load/check/full-summary.check.mjs failed"
+          exit 1
+
+  quality:
+    # The ratchet reads the mutation reports of every shard, so it waits for them. It still runs when a job fails or is
+    # skipped, because the ratchet gives its own verdict on a missing metric (CRF-13, AD-130).
+    needs: [agent-mutation, api-mutation]
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || inputs.suites == 'all' || inputs.suites == 'mutation') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Without an artifact the download finds nothing, and continue-on-error lets the ratchet step give its own verdict
+      # (CRF-17).
+      - name: Download the agent's mutation reports
+        if: needs.agent-mutation.result != 'skipped'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        continue-on-error: true
+        with:
+          pattern: agent-mutation-*
+          path: reports/agent-shards
+      - name: Download the API mutation reports
+        if: needs.api-mutation.result != 'skipped'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        continue-on-error: true
+        with:
+          pattern: api-mutation-*
+          path: reports/mutation
+          merge-multiple: true
+      # The shards of a crate become the one outcomes.json the ratchet reads (reports/mutation/agent-<crate>).
+      - name: Merge the agent shards
+        run: node scripts/nightly/merge-mutants.mjs --in reports/agent-shards --out reports/mutation
+      - name: Quality ratchet (nightly)
+        run: |
+          pnpm run quality:collect
+          pnpm run quality:ratchet -- --context nightly --current reports/quality.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: nightly-quality
+          path: reports/
+          retention-days: 30
+
+  report:
+    # One report per run (NGT-03), built even when other jobs failed. `actions: read` lets it find the previous report.
+    needs: [detect, agent-mutation, api-mutation, acceptance, load, quality]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SUITES: ${{ github.event_name == 'schedule' && 'all' || inputs.suites }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+      - name: Download every artifact of the run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        continue-on-error: true
+        with:
+          path: reports/artifacts
+      # The latest earlier scheduled run on main that published a report; none is fine (NGT-07).
+      - name: Download the previous report
+        continue-on-error: true
+        run: |
+          for id in $(gh run list --workflow nightly.yml --branch main --event schedule --status completed --limit 10 --json databaseId --jq '.[].databaseId'); do
+            [ "$id" = "$GITHUB_RUN_ID" ] && continue
+            if gh run download "$id" -n nightly-report -D reports/previous; then break; fi
+          done
+      - name: The run's jobs
+        continue-on-error: true
+        run: gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" > reports/jobs.json
+      - name: Build the report
+        run: node scripts/nightly/report.mjs --in reports/artifacts --out reports/nightly --commit "$GITHUB_SHA" --branch "$GITHUB_REF_NAME" --run "$GITHUB_RUN_ID" --suites "$SUITES" --jobs reports/jobs.json --previous reports/previous/nightly-report.json
+      - name: Publish the job summary
+        run: cat reports/nightly/nightly-report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nightly-report
+          path: reports/nightly/
+          retention-days: 90
 
   backup:
-    # Runs only once the production secrets exist (created by the maintainer, never by an agent).
+    # Runs only once the production secrets exist (created by the maintainer, never by an agent). Only on main: the
+    # production environment accepts no other ref, so a dispatch on a branch skips it instead of failing.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
     env:

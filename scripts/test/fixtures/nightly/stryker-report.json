@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "2",
+  "thresholds": { "high": 80, "low": 60 },
+  "files": {
+    "src/modules/queues/domain/ticket.ts": {
+      "language": "typescript",
+      "source": "",
+      "mutants": [
+        {
+          "id": "1",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Killed",
+          "location": { "start": { "line": 10, "column": 5 }, "end": { "line": 10, "column": 20 } }
+        },
+        {
+          "id": "2",
+          "mutatorName": "EqualityOperator",
+          "replacement": "a !== b",
+          "status": "Survived",
+          "location": { "start": { "line": 22, "column": 9 }, "end": { "line": 22, "column": 15 } }
+        },
+        {
+          "id": "3",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "NoCoverage",
+          "location": { "start": { "line": 5, "column": 1 }, "end": { "line": 5, "column": 8 } }
+        },
+        {
+          "id": "4",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "Timeout",
+          "location": { "start": { "line": 30, "column": 1 }, "end": { "line": 32, "column": 2 } }
+        }
+      ]
+    },
+    "src/modules/queues/domain/rating.ts": {
+      "language": "typescript",
+      "source": "",
+      "mutants": [
+        {
+          "id": "5",
+          "mutatorName": "ArithmeticOperator",
+          "replacement": "a - b",
+          "status": "Killed",
+          "location": { "start": { "line": 8, "column": 3 }, "end": { "line": 8, "column": 8 } }
+        },
+        {
+          "id": "6",
+          "mutatorName": "ArithmeticOperator",
+          "replacement": "a * b",
+          "status": "CompileError",
+          "location": { "start": { "line": 9, "column": 3 }, "end": { "line": 9, "column": 8 } }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,258 @@
+{
+  "outcomes": [
+    {
+      "scenario": "Baseline",
+      "summary": "Success",
+      "log_path": "log/baseline.log",
+      "diff_path": null,
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 68.4,
+          "process_status": "Success"
+        },
+        {
+          "phase": "Test",
+          "duration": 0.3,
+          "process_status": "Success"
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "adapters/src/http/sse.rs:28:39: replace * with +",
+          "package": "d2rmm-agent-adapters",
+          "file": "adapters/src/http/sse.rs",
+          "function": null,
+          "span": {
+            "start": {
+              "line": 28,
+              "column": 39
+            },
+            "end": {
+              "line": 28,
+              "column": 40
+            }
+          },
+          "replacement": "+",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/adapters__src__http__sse.rs_line_28_col_39.log",
+      "diff_path": "diff/adapters__src__http__sse.rs_line_28_col_39.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 15.4,
+          "process_status": "Success"
+        },
+        {
+          "phase": "Test",
+          "duration": 0.3,
+          "process_status": {
+            "Failure": 101
+          }
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "adapters/src/http/sse.rs:44:9: delete match arm ROOM_ASSIGNED in handle",
+          "package": "d2rmm-agent-adapters",
+          "file": "adapters/src/http/sse.rs",
+          "function": {
+            "function_name": "handle",
+            "return_type": "-> StreamEffect",
+            "span": {
+              "start": {
+                "line": 40,
+                "column": 1
+              },
+              "end": {
+                "line": 56,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 44,
+              "column": 9
+            },
+            "end": {
+              "line": 46,
+              "column": 10
+            }
+          },
+          "replacement": "",
+          "genre": "MatchArm"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/adapters__src__http__sse.rs_line_44_col_9.log",
+      "diff_path": "diff/adapters__src__http__sse.rs_line_44_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 15.3,
+          "process_status": "Success"
+        },
+        {
+          "phase": "Test",
+          "duration": 0.3,
+          "process_status": {
+            "Failure": 101
+          }
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "adapters/src/http/sse.rs:47:9: delete match arm ROOM_RUN_OPENED in handle",
+          "package": "d2rmm-agent-adapters",
+          "file": "adapters/src/http/sse.rs",
+          "function": {
+            "function_name": "handle",
+            "return_type": "-> StreamEffect",
+            "span": {
+              "start": {
+                "line": 40,
+                "column": 1
+              },
+              "end": {
+                "line": 56,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 47,
+              "column": 9
+            },
+            "end": {
+              "line": 49,
+              "column": 10
+            }
+          },
+          "replacement": "",
+          "genre": "MatchArm"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/adapters__src__http__sse.rs_line_47_col_9.log",
+      "diff_path": "diff/adapters__src__http__sse.rs_line_47_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 15.4,
+          "process_status": "Success"
+        },
+        {
+          "phase": "Test",
+          "duration": 0.3,
+          "process_status": {
+            "Failure": 101
+          }
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "adapters/src/http/sse.rs:60:5: replace ready_check_open_from_body -> Option<ReadyCheckOpen> with None",
+          "package": "d2rmm-agent-adapters",
+          "file": "adapters/src/http/sse.rs",
+          "function": {
+            "function_name": "ready_check_open_from_body",
+            "return_type": "-> Option<ReadyCheckOpen>",
+            "span": {
+              "start": {
+                "line": 58,
+                "column": 1
+              },
+              "end": {
+                "line": 61,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 60,
+              "column": 5
+            },
+            "end": {
+              "line": 60,
+              "column": 35
+            }
+          },
+          "replacement": "None",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/adapters__src__http__sse.rs_line_60_col_5.log",
+      "diff_path": "diff/adapters__src__http__sse.rs_line_60_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 15.2,
+          "process_status": "Success"
+        },
+        {
+          "phase": "Test",
+          "duration": 0.3,
+          "process_status": "Success"
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "adapters/src/http/sse.rs:28:39: replace * with /",
+          "package": "d2rmm-agent-adapters",
+          "file": "adapters/src/http/sse.rs",
+          "function": null,
+          "span": {
+            "start": {
+              "line": 28,
+              "column": 39
+            },
+            "end": {
+              "line": 28,
+              "column": 40
+            }
+          },
+          "replacement": "/",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/adapters__src__http__sse.rs_line_28_col_39_001.log",
+      "diff_path": "diff/adapters__src__http__sse.rs_line_28_col_39_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 2.3,
+          "process_status": {
+            "Failure": 101
+          }
+        }
+      ]
+    }
+  ],
+  "total_mutants": 5,
+  "missed": 1,
+  "caught": 3,
+  "timeout": 0,
+  "unviable": 1,
+  "success": 0,
+  "start_time": "2026-11-19T16:11:07.649509895Z",
+  "end_time": "2026-11-19T16:42:22.901060072Z",
+  "cargo_mutants_version": "27.1.0"
+}
