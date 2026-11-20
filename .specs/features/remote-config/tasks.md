@@ -34,7 +34,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
 
 ## Batch 1 — contract and API, runs in the cloud
 
-- [ ] T1 — **Pin today's agent route list (tests only).** In `apps/api/src/main/__tests__/agent-route-table.ts` and the AGT-01
+- [x] T1 — **Pin today's agent route list (tests only).** In `apps/api/src/main/__tests__/agent-route-table.ts` and the AGT-01
       test, add nothing yet; add a test that fails when an agent-guarded route is not in the table, if one does not exist,
       and pin the eight routes as they are. Gate: `pnpm --filter @d2rmm/api test`
 - [ ] T2 — The contract (RCF-02, RCF-03). New `packages/contracts/src/http/agent-config.ts`: `AgentConfig` with closed
