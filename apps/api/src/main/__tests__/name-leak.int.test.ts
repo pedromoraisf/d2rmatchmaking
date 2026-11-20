@@ -171,10 +171,63 @@ function sightingOf(value: string, key: string) {
   };
 }
 
+/** Every row of every table of the `lobby` schema, found in `information_schema`, as JSON text: a table added later is scanned too. */
+async function lobbyRows(): Promise<string[]> {
+  const tables = await sql<{ table_name: string }>`
+    select table_name from information_schema.tables where table_schema = 'lobby' and table_type = 'BASE TABLE'`.execute(
+    database.db,
+  );
+  const rows: string[] = [];
+  for (const { table_name: table } of tables.rows) {
+    const found = await sql<{
+      row: string;
+    }>`select to_json(t)::text as row from ${sql.table(`lobby.${table}`)} t`.execute(database.db);
+    rows.push(...found.rows.map((entry) => entry.row));
+  }
+  return rows;
+}
+
+/** A second member of the room with a character of this name: two members, so a name can stand for both. */
+async function addMemberWithCharacter(roomId: string, name: string): Promise<void> {
+  const cookie = await sessionFor(app);
+  const accountId = (await app.app.inject({ method: 'GET', url: '/v1/me', headers: { cookie } })).json() as {
+    accountId?: string;
+    id?: string;
+  };
+  const account = accountId.accountId ?? accountId.id ?? '';
+  const inserted = await database.db
+    .insertInto('identity.characters')
+    .values({
+      account_id: account,
+      name,
+      class: 'paladin',
+      level: 80,
+      hardcore: false,
+      ladder: null,
+      era: null,
+      unlocked_difficulties: ['normal', 'nightmare', 'hell'],
+      read_at: new Date('2026-10-31T12:00:00.000Z'),
+    })
+    .returning('id')
+    .executeTakeFirstOrThrow();
+  await database.db
+    .insertInto('lobby.members')
+    .values({
+      room_id: roomId,
+      account_id: account,
+      character_id: inserted.id,
+      role: 'member',
+      join_order: 2,
+      confirmed_run: null,
+      left_at: null,
+    })
+    .execute();
+}
+
 describe('a chat name leaves no trace (SNM-04)', () => {
-  it('is in no span, log line, answer or row, matched or not', async () => {
+  it('is in no span, log line, answer or row, on every path of the observation route', async () => {
     const { roomId, token } = await roomWithCharacter(STORED);
-    const post = (value: string, key: string) =>
+    const send = (payload: unknown) =>
       app.app.inject({
         method: 'POST',
         url: `/v1/lobby-rooms/${roomId}/observations`,
@@ -183,37 +236,76 @@ describe('a chat name leaves no trace (SNM-04)', () => {
           'x-agent-version': AGENT_VERSION,
           'content-type': 'application/json',
         },
-        payload: sightingOf(value, key),
+        payload: payload as object,
       });
+    const sighting = (value: string, key: string, type = 'PLAYER_JOINED_SEEN') => ({
+      ...sightingOf(value, key),
+      type,
+    });
 
-    const matched = await post(MISREAD, 'k-1');
-    const unmatched = await post('Qwvkjh', 'k-2');
-    const refused = await post('Q', 'k-3');
+    const answers = [];
+    // Matched, joined and left; a miss; a replay of each; an unknown type; a value that breaks the rule (illegal character,
+    // too long); and a body past the limit.
+    answers.push(await send(sighting(MISREAD, 'k-join')));
+    answers.push(await send(sighting(MISREAD, 'k-left', 'PLAYER_LEFT_SEEN')));
+    answers.push(await send(sighting('Qwvkjh', 'k-miss')));
+    answers.push(await send(sighting(MISREAD, 'k-join')));
+    answers.push(await send(sighting('Qwvkjh', 'k-miss')));
+    answers.push(await send(sighting('Vqkjwz', 'k-unknown', 'SOMETHING_ELSE')));
+    answers.push(await send(sighting('Xqjz3pk', 'k-illegal')));
+    answers.push(await send(sighting('Qzxjvkwpyqzxjvkw', 'k-long')));
+    answers.push(
+      await send({
+        ...sighting('Pqzxkjv', 'k-big'),
+        signals: { pad: 1 },
+        filler: `Pqzxkjv${'x'.repeat(5 * 1024)}`,
+      }),
+    );
+    const statuses = answers.map((answer) => answer.statusCode);
+    expect(statuses.slice(0, 6)).toEqual([202, 202, 202, 202, 202, 202]);
+    expect(statuses.slice(6, 8)).toEqual([400, 400]);
+    expect(statuses[8]).toBe(413);
 
-    expect([matched.json(), unmatched.json()]).toEqual([{ stored: true }, { stored: true }]);
-    expect(refused.statusCode).toBe(400);
-    const observations = await sql<{
-      row: string;
-    }>`select to_json(o)::text as row from lobby.observations o`.execute(database.db);
+    // The ambiguous path: a second member holds the same name, so the read stands for both.
+    await addMemberWithCharacter(roomId, STORED);
+    answers.push(await send(sighting(MISREAD, 'k-ambiguous')));
+    expect(answers.at(-1)?.statusCode).toBe(202);
+
     const observed: Observed = {
       spans: exporter.getFinishedSpans(),
       logs: logLines,
-      responses: [matched.body, unmatched.body, refused.body],
-      rows: [...(await rowsWritten()), ...observations.rows.map((entry) => entry.row)],
+      responses: answers.map((answer) => answer.body),
+      rows: [...(await rowsWritten()), ...(await lobbyRows())],
     };
     for (const [read, canonical] of [
       [MISREAD, STORED],
       ['Qwvkjh', 'Zzzzzz'],
+      ['Vqkjwz', 'Zzzzzz'],
+      ['Xqjz3pk', 'Zzzzzz'],
+      ['Qzxjvkwpyqzxjvkw', 'Zzzzzz'],
+      ['Pqzxkjv', 'Zzzzzz'],
     ] as const) {
       expect(findLeaks(read, canonical, observed), read).toEqual([]);
     }
-    expect(observations.rows.map((entry) => JSON.parse(entry.row).value)).toEqual(['1']);
-    const match = exporter
-      .getFinishedSpans()
-      .filter((span) => span.name === 'lobby.record-observation')
-      .map((span) => span.attributes['d2r.observation.match']);
-    // The refused sighting never reached the match, so its span has no word.
-    expect(match).toEqual(['matched', 'none', undefined]);
+    // The span says only which of three words the match was, and the ambiguous path was reached.
+    const words = new Set(
+      exporter
+        .getFinishedSpans()
+        .filter((span) => span.name === 'lobby.record-observation')
+        .map((span) => span.attributes['d2r.observation.match']),
+    );
+    expect(words).toEqual(new Set(['matched', 'none', 'ambiguous', undefined]));
+    // Only the two matched sightings left a row, and each holds the member's join order.
+    const kept = await sql<{
+      value: string;
+      type: string;
+    }>`select value, type from lobby.observations order by type`.execute(database.db);
+    expect(kept.rows).toEqual([
+      { value: '1', type: 'PLAYER_JOINED_SEEN' },
+      { value: '1', type: 'PLAYER_LEFT_SEEN' },
+    ]);
+    // Every answer to a valid sighting is the same, a match or not (security review of #101).
+    expect(new Set(answers.slice(0, 5).map((answer) => answer.body)).size).toBe(1);
   });
 });
 
