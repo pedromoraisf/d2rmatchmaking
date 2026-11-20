@@ -60,7 +60,10 @@ async function describe(result) {
   } catch {
     body = '';
   }
-  return `last answer ${result.response.status} ${body}`;
+  const headers = ['server', 'cf-ray', 'cf-mitigated', 'x-render-routing']
+    .map((name) => `${name}=${result.response.headers?.get?.(name) ?? '-'}`)
+    .join(' ');
+  return `last answer ${result.response.status} [${headers}] ${body}`;
 }
 
 export async function smokeChecks(app, url, sha, io) {
@@ -95,7 +98,9 @@ export async function smokeChecks(app, url, sha, io) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   // `smoke.mjs <app> <url> <sha>`
   const [app, url, sha] = process.argv.slice(2);
-  const failures = await smokeChecks(app, url, sha, { request: (u, signal) => fetch(u, { signal }) });
+  const failures = await smokeChecks(app, url, sha, {
+    request: (u, signal) => fetch(u, { signal, headers: { 'user-agent': 'd2rmm-delivery-smoke' } }),
+  });
   for (const failure of failures) process.stderr.write(`::error::${failure}\n`);
   if (failures.length > 0) process.exit(1);
   process.stdout.write(`smoke passed for ${app} at ${url}\n`);
