@@ -297,12 +297,14 @@ mod tests {
     use crate::party::{FieldDetail, FieldState, PartyLook, PartyPorts};
     use crate::ports::{
         ApiError, CaptureStatus, ConsentStore, FrameReader, FrameSource, PausedWallClock,
-        ProcessSource, Rgba, SequentialIds, StoreError, TokenStore,
+        ProcessSource, ReadError, Rgba, SequentialIds, StoreError, TextReader, TokenStore,
     };
     use crate::secret::Secret;
     use crate::view::{CaptureView, DiagnosticsView, FieldDetailView, PartyLookView, RejectedSlot};
     use d2rmm_agent_domain::frame_content::summarize;
     use d2rmm_agent_domain::language::LanguagePack;
+    use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
+    use d2rmm_agent_domain::vision::{ReadText, Region};
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
 
@@ -681,6 +683,62 @@ mod tests {
 
         assert_eq!(rig.frames.captures.load(Ordering::SeqCst), 0);
         assert!(rig.gateway.calls().is_empty());
+    }
+
+    /// A text reader that counts its reads and reads nothing.
+    struct CountingText(AtomicUsize);
+
+    impl TextReader for CountingText {
+        fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Err(ReadError::EngineUnavailable)
+        }
+    }
+
+    /// The Party step looks at a frame the screen loop captured, and the loop captures only with the player's consent and
+    /// a running game (AGT-06, NFR-04): with a room held, a withdrawn consent or a closed game leaves the step with no
+    /// frame to read and nothing to send. The last case shows that the counter works. That the capture source opens the
+    /// game window alone is pinned by the window-capture allow-list rules in `scripts/test/agent-source-rules.test.mjs`.
+    #[tokio::test]
+    async fn the_party_step_reads_nothing_without_consent_or_without_the_game() {
+        for (consent, game, expected_reads) in [
+            (false, true, false),
+            (true, false, false),
+            (false, false, false),
+            (true, true, true),
+        ] {
+            let mut rig = rig(
+                consent,
+                game,
+                frame(),
+                FrameReading::without_cards(Screen::InGame),
+            );
+            let text = Arc::new(CountingText(AtomicUsize::new(0)));
+            rig.ports.party.read.reader = Arc::clone(&text) as Arc<dyn TextReader + Send + Sync>;
+            rig.device.replace_assignment(Some(Assignment {
+                room: RoomId::new("7d9f2c1e-0000-4000-8000-000000000001"),
+                run: std::num::NonZeroU64::new(1).expect("a non-zero run"),
+                expected_game_name: GameName::new("mmbaalh-12"),
+                members: Vec::new(),
+            }));
+
+            look(&rig, &mut None).await;
+
+            let reads = text.0.load(Ordering::SeqCst);
+            assert_eq!(
+                reads > 0,
+                expected_reads,
+                "consent {consent}, game {game}: {reads} reads"
+            );
+            if !expected_reads {
+                assert_eq!(
+                    rig.frames.captures.load(Ordering::SeqCst),
+                    0,
+                    "no frame captured"
+                );
+                assert!(rig.gateway.calls().is_empty(), "nothing is sent");
+            }
+        }
     }
 
     #[tokio::test]

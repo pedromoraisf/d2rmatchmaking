@@ -460,6 +460,52 @@ mod tests {
         assert!(heartbeat_from_presence(&presence, "not-a-version").is_err());
     }
 
+    /// The keys a request body may carry are the contract's, and no more (AGT-05): a heartbeat and a batch of cards hold no
+    /// image, frame or free text beyond their fields.
+    #[test]
+    fn heartbeat_and_cards_carry_only_the_keys_of_their_contract() {
+        fn keys(value: &Value) -> BTreeSet<&str> {
+            value
+                .as_object()
+                .expect("an object")
+                .keys()
+                .map(String::as_str)
+                .collect()
+        }
+        let presence = Presence {
+            game_running: true,
+            screen: Screen::InGame,
+            capture: CaptureReport::default(),
+        };
+        let heartbeat = serde_json::to_value(
+            heartbeat_from_presence(&presence, "0.0.1").expect("a contract heartbeat"),
+        )
+        .expect("the heartbeat serializes");
+        assert_eq!(
+            keys(&heartbeat),
+            BTreeSet::from(["agentVersion", "capture", "game", "pcState"])
+        );
+        assert_eq!(
+            keys(&heartbeat["game"]),
+            BTreeSet::from(["running", "screen", "window"])
+        );
+        assert_eq!(
+            keys(&heartbeat["capture"]),
+            BTreeSet::from(["method", "readRate"])
+        );
+
+        let card =
+            Card::new("Sorc", Class::Sorceress, 85, Mode::Softcore, None).expect("the card builds");
+        let batch =
+            serde_json::to_value(characters_to_contract(&[card]).expect("a contract batch"))
+                .expect("the batch serializes");
+        assert_eq!(keys(&batch), BTreeSet::from(["characters"]));
+        assert_eq!(
+            keys(&batch["characters"][0]),
+            BTreeSet::from(["class", "hardcore", "level", "name", "unlockedDifficulties"])
+        );
+    }
+
     /// A fused observation carries exactly the wire keys, the `GAME_NAME_SEEN` type and a body that matches its schema
     /// (AD-052). No image travels with it (AGS-20).
     #[test]

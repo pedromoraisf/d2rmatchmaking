@@ -1,4 +1,4 @@
-// The preload (OBS-01, OBS-03) against a fake OTLP/HTTP backend: local.ts is started as a child process with
+// The preload (OBS-01, OBS-03) against a fake OTLP/HTTP backend (protobuf, gzip: decoded by test/support/otlp-protobuf.ts): local.ts is started as a child process with
 // `--import ./src/main/instrument.ts`, the endpoint set, and its traces and metrics are read back from the backend.
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes, randomInt } from 'node:crypto';
@@ -11,6 +11,7 @@ import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { migrateToLatest } from '../../platform/postgres/migrator.ts';
+import { decodeOtlpRequest, emptyOtlpReply } from '../../../test/support/otlp-protobuf.ts';
 import { createTestDatabase, type TestDatabase } from '../../../test/support/postgres.ts';
 
 /** The API package root: the composition roots and the preload are run from here. */
@@ -63,10 +64,14 @@ beforeAll(async () => {
     const chunks: Buffer[] = [];
     request.on('data', (chunk: Buffer) => chunks.push(chunk));
     request.on('end', () => {
-      const text = Buffer.concat(chunks).toString('utf8');
-      received.push({ path: request.url ?? '', body: text.length === 0 ? undefined : JSON.parse(text) });
-      response.writeHead(200, { 'content-type': 'application/json' });
-      response.end('{}');
+      const urlPath = request.url ?? '';
+      received.push({
+        path: urlPath,
+        body: decodeOtlpRequest(urlPath, Buffer.concat(chunks), request.headers),
+      });
+      const reply = emptyOtlpReply(request.headers['content-type']);
+      response.writeHead(200, { 'content-type': reply.contentType });
+      response.end(reply.body);
     });
   });
   backend.listen(0, '127.0.0.1');

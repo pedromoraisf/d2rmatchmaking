@@ -6,7 +6,12 @@ import { bytesPerPlayerHour, withinEgressBudget } from './bytes.mjs';
 import { kindOf } from './journey-state.mjs';
 import { PROVISION_ROUTES } from './provision-requests.mjs';
 import { containsSecret } from './redact.mjs';
-import { telemetryFails, telemetryNumbers } from './telemetry-share.mjs';
+import {
+  TELEMETRY_SIGNALS,
+  telemetryBytesPerPlayerHourBySignal,
+  telemetryFails,
+  telemetryNumbers,
+} from './telemetry-share.mjs';
 
 const REFERENCE_PLAYERS = 100;
 const CEILING_PLAYERS = 400;
@@ -109,6 +114,17 @@ function safeText(name, value) {
   return containsSecret(text) ? WITHHELD : text;
 }
 
+/** The sink's bytes of each OTLP signal in the window; a step without the split reads as zero in each. */
+function signalBytesOf(value) {
+  const split = value ?? {};
+  return Object.fromEntries(
+    TELEMETRY_SIGNALS.map((signal) => [
+      signal,
+      numberOf(`telemetryBytesBySignal.${signal}`, split[signal] ?? 0, 0),
+    ]),
+  );
+}
+
 /** One step result, field by field: the StepResult of design.md and nothing else. */
 function stepOf(step) {
   const failedRule = step.failedRule ?? null;
@@ -138,6 +154,7 @@ function stepOf(step) {
     errorRatio: numberOf('errorRatio', step.errorRatio, 0),
     bytesReceived: numberOf('bytesReceived', step.bytesReceived, 0),
     telemetryBytes: numberOf('telemetryBytes', step.telemetryBytes, 0),
+    telemetryBytesBySignal: signalBytesOf(step.telemetryBytesBySignal),
     windowSeconds: numberOf('windowSeconds', step.windowSeconds, Number.MIN_VALUE),
     peakCpuPercent: numberOf('peakCpuPercent', step.peakCpuPercent, 0),
     peakMemoryBytes: numberOf('peakMemoryBytes', step.peakMemoryBytes, 0),
@@ -175,6 +192,11 @@ function referenceNumbersOf(reference) {
       reference.windowSeconds,
     ),
     telemetry,
+    telemetryBySignal: telemetryBytesPerPlayerHourBySignal(
+      reference.telemetryBytesBySignal,
+      REFERENCE_PLAYERS,
+      reference.windowSeconds,
+    ),
   };
 }
 
@@ -246,6 +268,7 @@ export function buildSummary({ profile, steps, limits, versions, commit, times, 
     withinTelemetryBudget:
       numbers === null ? null : !telemetryFails(numbers.telemetry.telemetryShareOfBudget),
     telemetryBytesPerPlayerHour: numbers?.telemetry.telemetryBytesPerPlayerHour ?? null,
+    telemetryBytesPerPlayerHourBySignal: numbers?.telemetryBySignal ?? null,
     telemetryMonthlyBytes: numbers?.telemetry.telemetryMonthlyBytes ?? null,
     relayAllowanceMonthlyBytes: RELAY_ALLOWANCE_MONTHLY_BYTES,
     telemetryShareOfBudget: numbers?.telemetry.telemetryShareOfBudget ?? null,

@@ -60,4 +60,25 @@ mod tests {
         assert_eq!(format!("{secret}"), "***");
         assert!(!format!("{secret:?} {secret}").contains(CLAIM_SECRET));
     }
+
+    /// A value that holds the secret and derives `Debug` (a message, an error, a span field) still prints `***` (AGT-03).
+    #[test]
+    fn a_secret_inside_a_derived_debug_stays_redacted() {
+        #[derive(Debug)]
+        struct Holder {
+            _token: Secret,
+        }
+        let held = Holder {
+            _token: Secret::new(CLAIM_SECRET),
+        };
+        let printed = [
+            format!("{held:?}"),
+            format!("{held:#?}"),
+            format!("{:?}", Some(&held)),
+        ]
+        .join(" ");
+
+        assert!(printed.contains("***"));
+        assert!(!printed.contains(CLAIM_SECRET));
+    }
 }

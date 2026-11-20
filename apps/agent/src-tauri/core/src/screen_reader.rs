@@ -307,12 +307,14 @@ mod tests {
     use d2rmm_agent_domain::character_screen::RejectReason;
     use d2rmm_agent_domain::characters::{Class, Difficulty, Mode, Title};
     use d2rmm_agent_domain::language::LanguagePack;
-    use d2rmm_agent_domain::layout::{ScreenRegion, screen_region, screen_text_regions};
+    use d2rmm_agent_domain::layout::{
+        ScreenRegion, screen_region, screen_text_regions, selection_band,
+    };
     use d2rmm_agent_domain::presence::Screen;
     use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
     use serde_json::Value;
 
-    use super::{AnchorCounts, ScreenReader};
+    use super::{AnchorCounts, ScreenReader, is_lit, is_selected};
     use crate::messages::FrameReading;
     use crate::ports::{FrameReader, ReadError, Rgba, TextReader};
 
@@ -1078,6 +1080,57 @@ mod tests {
         );
         assert_eq!(counts(MENU, 1920, 1080), AnchorCounts::default());
         assert_eq!(counts(SELECT_NORMAL, 1280, 1024), AnchorCounts::default());
+    }
+
+    #[test]
+    fn gold_pixels_right_of_the_selection_band_do_not_select_the_card() {
+        let (width, height) = (1920, 1033);
+        let name = Region {
+            x: 300,
+            y: 500,
+            width: 200,
+            height: 20,
+        };
+        let band = selection_band(name, width, height).expect("a band on a supported size");
+        let mut image = Rgba {
+            width,
+            height,
+            pixels: vec![0; (width * height * 4) as usize],
+        };
+        for y in band.y..band.y + band.height {
+            for x in band.x + band.width..band.x + band.width + 4 {
+                let at = ((y * width + x) * 4) as usize;
+                image.pixels[at..at + 3].copy_from_slice(&[200, 170, 60]);
+            }
+        }
+        assert!(!is_selected(&image, name));
+        let inside = ((band.y * width + band.x) * 4) as usize;
+        image.pixels[inside..inside + 3].copy_from_slice(&[200, 170, 60]);
+        assert!(is_selected(&image, name));
+    }
+
+    #[test]
+    fn an_option_past_the_right_edge_is_lit_only_by_pixels_inside_the_frame() {
+        let (width, height) = (10, 4);
+        let mut image = Rgba {
+            width,
+            height,
+            pixels: vec![40; (width * height * 4) as usize],
+        };
+        for x in 0..2u32 {
+            let at = ((width + x) * 4) as usize;
+            image.pixels[at..at + 3].copy_from_slice(&[250, 250, 250]);
+        }
+        let area = Region {
+            x: 8,
+            y: 0,
+            width: 4,
+            height: 1,
+        };
+        assert!(!is_lit(&image, area));
+        let inside = Region { x: 0, ..area };
+        assert!(!is_lit(&image, Region { y: 0, ..inside }));
+        assert!(is_lit(&image, Region { y: 1, ..inside }));
     }
 }
 

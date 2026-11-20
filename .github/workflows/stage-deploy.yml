@@ -27,6 +27,10 @@ on:
         required: false
       CLOUDFLARE_ACCOUNT_ID:
         required: false
+      NEON_DATABASE_URL:
+        required: false
+      RENDER_DEPLOY_HOOK:
+        required: false
     outputs:
       url:
         description: The URL of the deployment
@@ -70,12 +74,12 @@ jobs:
     name: deploy
     needs: [verify]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
       contents: read
       pull-requests: read
     outputs:
-      url: ${{ steps.publish.outputs.url }}
+      url: ${{ steps.publish.outputs.url || steps.api.outputs.url }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -95,6 +99,7 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Download the artifact
+        if: inputs.app == 'site'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: ${{ inputs.app }}-${{ inputs.sha }}
@@ -103,7 +108,7 @@ jobs:
       - name: Write the preview API origin as deploy configuration
         # A branch with an open `render-preview` labelled pull request into main proxies to that pull request's API
         # (ADR 030); any other deploy keeps the committed `null`, so the proxy uses the environment's API_ORIGIN.
-        if: inputs.environment == 'preview'
+        if: inputs.app == 'site' && inputs.environment == 'preview'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -112,6 +117,7 @@ jobs:
 
       - name: Choose the Pages branch
         id: pages
+        if: inputs.app == 'site'
         env:
           ENVIRONMENT: ${{ inputs.environment }}
           DEPLOY_BRANCH: ${{ inputs.branch }}
@@ -119,6 +125,7 @@ jobs:
 
       - name: Publish to Cloudflare Pages
         id: publish
+        if: inputs.app == 'site'
         working-directory: apps/web
         # Only an explicit `shell: bash` sets pipefail: without it, a failed wrangler is hidden by the exit code of tee.
         shell: bash
@@ -132,3 +139,27 @@ jobs:
           # An assignment, so a refused URL fails the step (a substitution inside echo would hide it).
           url=$(node ../../scripts/delivery/deployment-url.mjs deploy.log "$CLOUDFLARE_PAGES_PROJECT")
           echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Migrate the database
+        if: inputs.app == 'api'
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          : "${DATABASE_URL:?NEON_DATABASE_URL is not set for this environment}"
+          pnpm --filter @d2rmm/api db:migrate
+
+      - name: Deploy this commit on Render and wait until it answers
+        id: api
+        if: inputs.app == 'api'
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          SHA: ${{ inputs.sha }}
+          SMOKE_BUDGET_SECONDS: '600'
+        run: |
+          : "${RENDER_DEPLOY_HOOK:?RENDER_DEPLOY_HOOK is not set for this environment}"
+          : "${API_BASE_URL:?API_BASE_URL is not set for this environment}"
+          # Render builds exactly this commit: the deploy hook takes the commit to deploy as `ref`.
+          curl -fsS -X POST "${RENDER_DEPLOY_HOOK}&ref=${SHA}" > /dev/null
+          node scripts/delivery/smoke.mjs api "$API_BASE_URL" "$SHA"
+          echo "url=$API_BASE_URL" >> "$GITHUB_OUTPUT"

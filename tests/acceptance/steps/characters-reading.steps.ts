@@ -100,14 +100,14 @@ async function listedCharacters(world: World, name: string) {
 }
 
 /** The screen the agent reported on its last heartbeat, or undefined when no agent is paired. */
-async function reportedScreen(world: World, name: string): Promise<string | undefined> {
+export async function reportedScreen(world: World, name: string): Promise<string | undefined> {
   const answer = await world.presenceOf(name);
   const body = answer.body as { status?: string; screen?: string } | undefined;
   return body?.status === 'paired' ? body.screen : undefined;
 }
 
 /** Starts the headless agent for the player, with or without consent, and pairs it as the player's agent (CHR-01). */
-async function startHeadless(world: World, name: string, consent: boolean): Promise<void> {
+export async function startHeadless(world: World, name: string, consent: boolean): Promise<void> {
   test.setTimeout(START_TIMEOUT_MS);
   const session = await world.sessionOf(name);
   const state = stateOf(world);
@@ -306,6 +306,6 @@ export async function stopHeadless(world: World): Promise<void> {
 }
 
 // Closes the example and removes its fixture directory after each character screen scenario.
-After({ tags: '@CHR-04 or @CHR-06 or @CHR-18 or @CHR-20' }, async ({ world }) => {
+After({ tags: '@AGT-06 or @CHR-04 or @CHR-06 or @CHR-18 or @CHR-20' }, async ({ world }) => {
   await stopHeadless(world);
 });
