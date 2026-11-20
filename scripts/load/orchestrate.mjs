@@ -862,6 +862,7 @@ async function runStepBody(ctx, step, provisioned, timings) {
     iterations: measured.iterations,
     errorRatio: ratio,
     bytesReceived: measured.meterBytes,
+    bytesByEvent: measured.eventBytes ?? null,
     telemetryBytes: measured.sinkBytes,
     windowSeconds: measured.windowSeconds,
     peakCpuPercent: peaks.peakCpuPercent,

@@ -195,3 +195,71 @@ export function isHostIn(frame, accountId) {
   }
   return false;
 }
+
+// The bytes of each stream event type (stream-egress SEG-02). The frame is counted as the API writes it, so the sum of the
+// event types plus "other" (HTTP bodies, headers, framing) is the metered total.
+
+/** The event types the API streams (`apps/api/src/platform/stream-projection.ts`); any other name is counted as `unlisted`. */
+export const EVENT_NAMES = [
+  'agent.presence_changed',
+  'characters.updated',
+  'queue.updated',
+  'ready_check.resolved',
+  'ready_check.started',
+  'ready_check.updated',
+  'room.assigned',
+  'room.member_changed',
+  'room.run_opened',
+  'room.stage_changed',
+];
+
+/** The two streams a player holds: the site's (cookie) and the agent's (token). */
+export const STREAMS = ['site', 'agent'];
+
+/**
+ * The bucket of an event name: the name itself when the API streams it, else `unlisted`.
+ * @param {string} name
+ * @returns {string}
+ */
+export function eventKeyOf(name) {
+  return EVENT_NAMES.indexOf(String(name)) >= 0 ? String(name) : 'unlisted';
+}
+
+/**
+ * The k6 counter of one stream and event type: `journey_event_bytes_site_room_stage_changed`.
+ * @param {'site' | 'agent'} stream
+ * @param {string} name an event name, or `unlisted`
+ * @returns {string}
+ */
+export function eventCounterName(stream, name) {
+  return 'journey_event_bytes_' + stream + '_' + eventKeyOf(name).replace(/\./g, '_');
+}
+
+/**
+ * The UTF-8 length of a text, without TextEncoder (plain ES2015: k6 and Node run this file).
+ * @param {string} text
+ * @returns {number}
+ */
+export function utf8Length(text) {
+  let bytes = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) {
+      bytes += 4;
+      i += 1;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
+/**
+ * The bytes of one server-sent event frame as written on the wire: `event: <name>`, `data: <data>`, and the blank line.
+ * @param {string} name
+ * @param {string} data
+ * @returns {number}
+ */
+export function frameBytes(name, data) {
+  return utf8Length('event: ' + String(name) + '\ndata: ' + String(data) + '\n\n');
+}

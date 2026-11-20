@@ -24,7 +24,7 @@ Rules:
 
 ## Batch 1 — measure, and the cheap cuts
 
-- [ ] T1 — Count the bytes of each stream event type in the k6 journey (site stream and agent stream), add
+- [x] T1 — Count the bytes of each stream event type in the k6 journey (site stream and agent stream), add
       `bytesByEvent` and `matchesPerPlayerHour` to the step summary with "other" as the rest of the metered bytes, and
       show them in `load:publish` (SEG-02). Unit tests on the summary and the journey state. Gate:
       `node --test scripts/test/load/*.test.mjs scripts/test/load-scripts.test.mjs`

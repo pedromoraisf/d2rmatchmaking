@@ -43,6 +43,11 @@ import {
   quarterOf,
   start,
   statusKind,
+  EVENT_NAMES,
+  STREAMS,
+  eventCounterName,
+  eventKeyOf,
+  frameBytes,
 } from './journey-state.mjs';
 
 const PLAN = JSON.parse(open('/work/in/plan.json'));
@@ -91,7 +96,21 @@ const meterBytes = new Counter('journey_meter_bytes');
 const sinkBytes = new Counter('journey_sink_bytes');
 const windowSeconds = new Counter('journey_window_seconds');
 
-const MEASURED = ['journey_requests', 'journey_errors', 'journey_iterations', 'journey_agent_assigned'];
+// The bytes of each event type of each stream, counted where the frame arrives (stream-egress SEG-02). `unlisted` holds any
+// event name the API streams that EVENT_NAMES does not know.
+const EVENT_BUCKETS = EVENT_NAMES.concat(['unlisted']);
+const eventCounters = {};
+for (const stream of STREAMS) {
+  for (const name of EVENT_BUCKETS)
+    eventCounters[eventCounterName(stream, name)] = new Counter(eventCounterName(stream, name));
+}
+
+const MEASURED = [
+  'journey_requests',
+  'journey_errors',
+  'journey_iterations',
+  'journey_agent_assigned',
+].concat(Object.keys(eventCounters));
 const TOTALS = [
   'journey_matches_posted',
   'journey_iterations_started',
@@ -165,6 +184,13 @@ function windowOf(ms) {
 
 function tally(counter, ms) {
   counter.add(1, { window: windowOf(ms) });
+}
+
+/** The bytes of one frame, in the measuring window or outside it, on one stream. */
+function tallyFrame(stream, event) {
+  eventCounters[eventCounterName(stream, eventKeyOf(event.name))].add(frameBytes(event.name, event.data), {
+    window: windowOf(nowMs()),
+  });
 }
 
 function waitUntil(ms) {
@@ -391,6 +417,7 @@ export function site() {
   }
 
   function onEvent(event) {
+    tallyFrame('site', event);
     if (event.name === 'room.assigned') assigned(JSON.parse(event.data));
     else if (event.name === 'room.stage_changed') staged(JSON.parse(event.data));
   }
@@ -446,6 +473,7 @@ export function agent() {
     },
     function (client) {
       client.on('event', function (event) {
+        tallyFrame('agent', event);
         if (event.name === 'room.assigned') tally(agentAssigned, nowMs());
         // The agent's hotkey: the ready check is accepted with the agent's token (RDY-07).
         if (event.name === 'ready_check.started') {
@@ -543,6 +571,16 @@ function totalOf(data, name) {
   return metric && metric.values && typeof metric.values.count === 'number' ? metric.values.count : 0;
 }
 
+/** The bytes of each event type in the window, per stream: `{ site: { 'room.assigned': n, ... }, agent: { ... } }`. */
+function eventBytesOf(data) {
+  const bytes = {};
+  for (const stream of STREAMS) {
+    bytes[stream] = {};
+    for (const name of EVENT_BUCKETS) bytes[stream][name] = measuredOf(data, eventCounterName(stream, name));
+  }
+  return bytes;
+}
+
 /**
  * The step file the orchestrator reads. `latencySamplesMs` is empty here: the samples come from the `LB_SAMPLE` lines,
  * which handleSummary cannot see; the orchestrator fills the field from them. `matchesPosted`, `iterationsStarted` and
@@ -578,6 +616,7 @@ export function handleSummary(data) {
     requests: measuredOf(data, 'journey_requests'),
     iterations: measuredOf(data, 'journey_iterations'),
     agentAssignedFrames: measuredOf(data, 'journey_agent_assigned'),
+    eventBytes: eventBytesOf(data),
     meterBytes: totalOf(data, 'journey_meter_bytes'),
     sinkBytes: totalOf(data, 'journey_sink_bytes'),
     windowSeconds: totalOf(data, 'journey_window_seconds'),

@@ -193,6 +193,7 @@ function fakeDocker(fs, options) {
               meterBytes: answer.meterBytes,
               sinkBytes: answer.sinkBytes,
               windowSeconds: answer.windowSeconds,
+              eventBytes: answer.eventBytes,
             }),
             mode: 0o644,
           });
@@ -698,6 +699,29 @@ test(
 
       assert.equal(result.summary.steps[0].errors, 2, 'only the window errors of k6');
     });
+  },
+);
+
+test(
+  'the bytes of each event type in the step file reach the step of the summary',
+  { timeout: SLOW_TEST_MS },
+  async () => {
+    const eventBytes = {
+      site: { 'room.assigned': 1_000_000, 'room.stage_changed': 500_000 },
+      agent: { 'room.assigned': 400_000 },
+    };
+    const scn = scenario({ profile: 'smoke', k6: () => ({ ...PASSING_K6(), eventBytes }) });
+    const result = await runLoad(scn.input);
+    const step = result.summary.steps[0];
+
+    assert.equal(step.bytesByEvent.site['room.assigned'], 1_000_000);
+    assert.equal(step.bytesByEvent.site['room.stage_changed'], 500_000);
+    assert.equal(step.bytesByEvent.agent['room.assigned'], 400_000);
+    assert.equal(step.bytesByEvent.other, 50_000_000 - 1_900_000, 'the rest of the metered bytes');
+    assertClean(scn);
+
+    const without = await runLoad(scenario({ profile: 'smoke', k6: PASSING_K6 }).input);
+    assert.equal(without.summary.steps[0].bytesByEvent, null, 'a step file with no counts gives none');
   },
 );
 

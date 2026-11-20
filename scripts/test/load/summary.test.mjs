@@ -8,6 +8,9 @@ const SUMMARY_KEYS = [
   'maxConcurrentPlayers',
   'maxConcurrentRooms',
   'bytesPerPlayerHour',
+  'bytesByEventPerPlayerHour',
+  'matchesPerPlayerHour',
+  'bytesPerMatch',
   'p95StateLatencyMs',
   'passed',
   'failure',
@@ -36,6 +39,9 @@ const STEP_KEYS = [
   'iterations',
   'errorRatio',
   'bytesReceived',
+  'bytesByEvent',
+  'matchesPerPlayerHour',
+  'bytesPerMatch',
   'telemetryBytes',
   'windowSeconds',
   'peakCpuPercent',
@@ -378,4 +384,68 @@ test('malformed step input is refused', () => {
   assert.throws(() => run([{ ...passing(25), players: 0 }]), TypeError);
   assert.throws(() => run('not an array'), TypeError);
   assert.throws(() => run([], { profile: 'nightly' }), TypeError);
+});
+
+const eventCounts = (site, agent) => ({
+  site: { 'room.assigned': 60_000, 'room.stage_changed': 30_000, ...site },
+  agent: { 'room.assigned': 20_000, ...agent },
+});
+
+test('a step with event counts reports them with the rest of the metered bytes as other', () => {
+  const summary = run([passing(100, { bytesByEvent: eventCounts({}, {}) })]);
+  const step = summary.steps[0];
+  assert.equal(step.bytesByEvent.site['room.assigned'], 60_000);
+  assert.equal(step.bytesByEvent.site['room.run_opened'], 0, 'an event with no frame counts zero');
+  assert.equal(step.bytesByEvent.agent['room.assigned'], 20_000);
+  assert.equal(step.bytesByEvent.other, WITHIN_BUDGET_BYTES - 110_000, 'the rest of the metered bytes');
+});
+
+test('other is never negative when the frames outweigh the metered bytes', () => {
+  const step = run([passing(100, { bytesByEvent: eventCounts({ 'queue.updated': 900_000 }, {}) })]).steps[0];
+  assert.equal(step.bytesByEvent.other, 0);
+});
+
+test('a step with no event counts reports none, so an older run still builds', () => {
+  const summary = run([passing(100)]);
+  assert.equal(summary.steps[0].bytesByEvent, null);
+  assert.equal(summary.bytesByEventPerPlayerHour, null);
+});
+
+test('a negative or non-numeric event count is refused', () => {
+  assert.throws(
+    () => run([passing(100, { bytesByEvent: eventCounts({ 'room.assigned': -1 }, {}) })]),
+    TypeError,
+  );
+  assert.throws(
+    () => run([passing(100, { bytesByEvent: eventCounts({ 'room.assigned': 'x' }, {}) })]),
+    TypeError,
+  );
+});
+
+test('the 100-player step gives the bytes by event type per player-hour', () => {
+  const summary = run([passing(25), passing(100, { bytesByEvent: eventCounts({}, {}) })]);
+  // 60 000 bytes over 100 players in 90 s is 24 000 a player-hour.
+  assert.ok(Math.abs(summary.bytesByEventPerPlayerHour.site['room.assigned'] - 24_000) < 1e-6);
+  assert.ok(Math.abs(summary.bytesByEventPerPlayerHour.agent['room.assigned'] - 8_000) < 1e-6);
+  const total =
+    Object.values(summary.bytesByEventPerPlayerHour.site).reduce((a, b) => a + b, 0) +
+    Object.values(summary.bytesByEventPerPlayerHour.agent).reduce((a, b) => a + b, 0) +
+    summary.bytesByEventPerPlayerHour.other;
+  assert.ok(
+    Math.abs(total - summary.bytesPerPlayerHour) < 1e-6,
+    'the event types and other add up to the total',
+  );
+});
+
+test('matches per player-hour and bytes per match come from the iterations of the window', () => {
+  // 400 iterations over 100 players in 90 s: 160 matches a player-hour; 70 000 bytes a player-hour is 437.5 a match.
+  const step = run([passing(100)]).steps[0];
+  assert.ok(Math.abs(step.matchesPerPlayerHour - 160) < 1e-9);
+  assert.ok(Math.abs(step.bytesPerMatch - 437.5) < 1e-9);
+  const summary = run([passing(100)]);
+  assert.equal(summary.matchesPerPlayerHour, step.matchesPerPlayerHour);
+  assert.equal(summary.bytesPerMatch, step.bytesPerMatch);
+  const idle = run([passing(100, { iterations: 0 })]).steps[0];
+  assert.equal(idle.matchesPerPlayerHour, 0);
+  assert.equal(idle.bytesPerMatch, null, 'no iteration is no bytes per match');
 });
