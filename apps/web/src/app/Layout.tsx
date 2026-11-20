@@ -4,6 +4,7 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { installerIsSigned } from '../shared/installer.ts';
+import { CODE_SIGNING_PATH } from './signing-policy.ts';
 
 export const AGENT_DOWNLOAD_URL =
   'https://github.com/pedromoraisf/d2rmatchmaking/releases/latest/download/D2RMatchMaking-setup.exe';
@@ -66,6 +67,9 @@ export function Layout({
       </div>
       <footer className="foot">
         <p>{t('app.notice')}</p>
+        <p>
+          <a href={CODE_SIGNING_PATH}>{t('app.codeSigningLink')}</a>
+        </p>
       </footer>
     </>
   );

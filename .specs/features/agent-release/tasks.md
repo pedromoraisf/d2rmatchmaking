@@ -52,7 +52,7 @@ Rules:
       request), what each failure leaves (a draft) and the fallback (`SIGNPATH_ENABLED` to `false`, re-run the tag). A
       harness test checks that every `vars.*` and `secrets.*` that `release-agent.yml` reads is named in the runbook.
       Gate: `pnpm format:check && pnpm specs:check && node --test scripts/test/release-workflows.test.mjs`
-- [ ] T6 — The code signing policy page (AGR-08): the `/code-signing` view of the site, English and pt-BR strings, the typed
+- [x] T6 — The code signing policy page (AGR-08): the `/code-signing` view of the site, English and pt-BR strings, the typed
       list of roles (the maintainer's public GitHub handle for committer, reviewer and approver until the maintainer says
       otherwise: **the contact email is not written here, T9 adds it**), the footer link, the README link, and the steps
       for `@AGR-08`. Component tests in both languages with fake locale. Gate:

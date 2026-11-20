@@ -2,6 +2,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { I18nextProvider } from 'react-i18next';
 import { App } from './app/App.tsx';
+import { CodeSigningPage } from './app/CodeSigningPage.tsx';
+import { Layout } from './app/Layout.tsx';
+import { isCodeSigningPath } from './app/signing-policy.ts';
 import '@fontsource/cinzel/500.css';
 import '@fontsource/cinzel/600.css';
 import '@fontsource/cinzel/700.css';
@@ -27,7 +30,13 @@ document.documentElement.lang = i18n.language;
 createRoot(container).render(
   <StrictMode>
     <I18nextProvider i18n={i18n}>
-      <App />
+      {isCodeSigningPath(window.location.pathname) ? (
+        <Layout>
+          <CodeSigningPage />
+        </Layout>
+      ) : (
+        <App />
+      )}
     </I18nextProvider>
   </StrictMode>,
 );
