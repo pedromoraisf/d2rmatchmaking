@@ -25,6 +25,7 @@ import { PostgresRoomTraceContexts } from '../modules/lobby-room/adapters/postgr
 import type { LobbyDatabase } from '../modules/lobby-room/adapters/postgres/schema.ts';
 import { OtelRoomMetrics } from '../modules/lobby-room/adapters/telemetry/otel-room-metrics.ts';
 import { createLobbyRoomUseCases } from '../modules/lobby-room/index.ts';
+import { openRoomForMatch } from './match-formed.ts';
 import { matchmakingRoutes } from '../modules/matchmaking/adapters/http/routes.ts';
 import { queueRoutes } from '../modules/matchmaking/adapters/http/queue-routes.ts';
 import { readyCheckRoutes } from '../modules/matchmaking/adapters/http/ready-check-routes.ts';
@@ -320,14 +321,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   const matchmaking = createMatchmakingUseCases({ ids, uow, outbox });
   bus.subscribe('MatchFormed', async (event) => {
     if (event.event.type === 'MatchFormed') {
-      const opened = await lobby.onMatchFormed(event.event.payload);
-      if (!opened.ok) {
-        // A formed match without a room leaves its players waiting: never drop it silently.
-        app.log.error(
-          { matchId: event.event.payload.matchId, reason: opened.error },
-          'a match was formed but no room could be opened for it',
-        );
-      }
+      await openRoomForMatch(lobby, event.event.payload, app.log);
     }
   });
   const hub = new StreamHub({

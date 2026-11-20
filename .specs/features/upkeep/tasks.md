@@ -61,7 +61,7 @@ Rules:
 
 ## Batch 2
 
-- [ ] T8 — UPK-09: ADR 017 lists `n`, `m` and `h` (in the ADR's own Consequences or Pattern section, Proposed status
+- [x] T8 — UPK-09: ADR 017 lists `n`, `m` and `h` (in the ADR's own Consequences or Pattern section, Proposed status
       rules of ADR 029 apply: a clarification of an accepted ADR is a note, not a change of decision; if the maintainer
       must accept it, add a row to `decisions.md → To confirm`); a unit test of the `app.ts` match-refused branch checks
       the error log and the `lobby.match-refused` span event. Gate:
