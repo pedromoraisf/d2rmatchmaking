@@ -14,6 +14,7 @@ Run as root from the directory that holds the checkout (`d2rmatchmaking`).
 | `pnpm install`     | `--frozen-lockfile`; installs Lefthook                                                                                                                                                                                                    | 6 s         |
 | Full git history   | The clone is shallow; `git fetch --unshallow origin` (a harness test needs commit `b1519d6`)                                                                                                                                              | 2 s         |
 | `cargo-nextest`    | `cargo install cargo-nextest --locked` (Rust 1.97 is preinstalled)                                                                                                                                                                        | 4 min       |
+| Tauri Linux libs   | `DEBIAN_FRONTEND=noninteractive apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev`; the pre-push hook builds the app crate and needs them      | 20 s        |
 | Docker daemon      | `dockerd` is installed but not running; start it in the background. Pull with an empty `DOCKER_CONFIG`                                                                                                                                    | 8 s + pulls |
 | Playwright browser | The repo pins Playwright 1.61 (chromium revision 1228); the image has revision 1243. `cdn.playwright.dev` is blocked, so symlink `/opt/pw-browsers/chromium_headless_shell-1243` to `~/.cache/ms-playwright/chromium_headless_shell-1228` | 0 s         |
 
@@ -37,8 +38,9 @@ with prettier right after the edit.
 
 ## What does not run in the cloud
 
-- **App crate `d2rmm-agent`** (Tauri, Windows target): `cargo check -p d2rmm-agent` fails in the `gdk-sys` build script
-  (no GTK system libraries). CI builds it on Windows.
+- **App crate `d2rmm-agent`** (Tauri, Windows target): without the Tauri Linux libs above, `cargo check -p d2rmm-agent`
+  fails in the `gdk-sys` build script and the pre-push hook (which builds it) blocks the push; with them the push hook
+  passed in 1 min 28 s. The Windows build itself stays in CI.
 - **`ocr-real`** (needs the encrypted prints) runs in CI only.
 - **Real prints and the game**: capture, OCR calibration and anything that reads the D2R window stay on the
   maintainer's machine (AGENTS.md: never commit a screenshot).
