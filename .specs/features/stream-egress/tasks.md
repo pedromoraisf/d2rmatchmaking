@@ -51,9 +51,14 @@ Rules:
 
 ## Batch 2 (written by the orchestrator from the T1 breakdown; the cuts follow the measured sizes)
 
-- [ ] T8 — Trim the fields of the largest event types that no consumer reads (SEG-03), one event type per commit, each
+- [x] T8 — Trim the fields of the largest event types that no consumer reads (SEG-03), one event type per commit, each
       with a unit test, the regenerated contract and the consumer's parser change in the same commit. Gate: as T3's
-      API, contract and architecture part, plus `pnpm --filter @d2rmm/web exec vitest run`
+      API, contract and architecture part, plus `pnpm --filter @d2rmm/web exec vitest run`.
+      Done for the three largest agent copies: `room.assigned`, `room.run_opened` and `ready_check.started` carry
+      `members: []` (b80b1196, fc869f0b, 6c98aa01), after SEG-01's `room.stage_changed`. Left as they are: the agent's
+      `ready_check.resolved` `outcome` (about 22 bytes an event) and the site's member `characterId`/`team` (about 50
+      bytes a member, a change to the site's reducer): small against the 421,369 bytes measured, listed in
+      `docs/engineering/stream-events.md`.
 - [ ] T9 — Run the full load before and after, write both in the PR description by event type, and propose the new
       ceiling and baseline in `decisions.md → To confirm` (SEG-09). Gate:
       `pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`
