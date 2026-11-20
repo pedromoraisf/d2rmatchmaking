@@ -67,7 +67,8 @@ jobs:
           echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
 
       # A --clobber below replaces assets of a release, which is only ever done on a draft: a public release is refused.
-      # No release yet (a maintainer's tag) is fine: the first build creates the draft.
+      # Only an explicit "release not found" (a maintainer's tag) is fine: the first build creates the draft. Any other error
+      # (auth, rate limit, network) fails: the guard never reads an error as "no release".
       - name: Refuse a release that is already public
         env:
           GH_TOKEN: ${{ github.token }}
@@ -75,11 +76,18 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
         shell: bash
         run: |
-          if state="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)"; then
+          err="$(mktemp)"
+          if state="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>"$err")"; then
             if [ "$state" != "true" ]; then
               echo "::error::$TAG is already public; a public release is never edited or clobbered"
               exit 1
             fi
+          elif grep -q 'release not found' "$err"; then
+            echo "no release for $TAG yet; the first build creates the draft"
+          else
+            cat "$err" >&2
+            echo "::error::could not read the release of $TAG, so it is not known to be a draft"
+            exit 1
           fi
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -213,10 +221,11 @@ jobs:
           retention-days: 1
 
   sign:
-    # Opt-in SignPath signing (AD-053, AGS-29). Runs only when the repository variable SIGNPATH_ENABLED is 'true' (secrets
-    # cannot be read in `if:`). SignPath signs the installer; the updater signature is redone for the signed file and
-    # latest.json takes the new Windows signature. The assets of the DRAFT release are replaced here, the only --clobber in
-    # this file; the release is not public until the `publish` job (AGR-01, AGR-02).
+    # Opt-in SignPath signing (AD-053, AGS-29). Runs only when `build` found the repository variable SIGNPATH_ENABLED to be
+    # 'true' (its `signing` output; secrets cannot be read in `if:`). SignPath signs the installer; the updater signature is redone for the signed file and
+    # latest.json takes the new Windows signature. The assets of the DRAFT release are replaced here with --clobber, after
+    # a guard that refuses a public release (`build` clobbers on a re-run in the same way, `publish` never does); the
+    # release is not public until the `publish` job (AGR-01, AGR-02).
     name: sign installer
     needs: build
     if: needs.build.outputs.signing == 'true'
@@ -283,7 +292,8 @@ jobs:
           node scripts/agent/latest-json.mjs --latest latest.json --signature "$installer.sig" --out latest.json
 
       # A --clobber below replaces assets of a release, which is only ever done on a draft: a public release is refused.
-      # No release yet (a maintainer's tag) is fine: the first build creates the draft.
+      # Only an explicit "release not found" (a maintainer's tag) is fine: the first build creates the draft. Any other error
+      # (auth, rate limit, network) fails: the guard never reads an error as "no release".
       - name: Refuse a release that is already public
         env:
           GH_TOKEN: ${{ github.token }}
@@ -291,11 +301,18 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
         shell: bash
         run: |
-          if state="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)"; then
+          err="$(mktemp)"
+          if state="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>"$err")"; then
             if [ "$state" != "true" ]; then
               echo "::error::$TAG is already public; a public release is never edited or clobbered"
               exit 1
             fi
+          elif grep -q 'release not found' "$err"; then
+            echo "no release for $TAG yet; the first build creates the draft"
+          else
+            cat "$err" >&2
+            echo "::error::could not read the release of $TAG, so it is not known to be a draft"
+            exit 1
           fi
 
       - name: Replace the release assets with the signed ones

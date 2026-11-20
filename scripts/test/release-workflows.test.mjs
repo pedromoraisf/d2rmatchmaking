@@ -338,7 +338,7 @@ test('build refuses a public release before tauri-action touches it', () => {
 
 // The guard's own behaviour, run with a stand-in `gh`: no release yet (a maintainer's tag), a draft (a re-run) and a public
 // release (refused).
-test('the guard lets a new tag and a draft through, and refuses a public release', async () => {
+test('the guard lets a new tag and a draft through, and refuses a public release or any other error', async () => {
   const { mkdtempSync, writeFileSync, chmodSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { spawnSync } = await import('node:child_process');
@@ -358,7 +358,17 @@ test('the guard lets a new tag and a draft through, and refuses a public release
     const draft = run(script, '#!/bin/sh\necho true\n');
     assert.equal(draft.status, 0, `a draft is let through: ${draft.stderr}`);
     const missing = run(script, '#!/bin/sh\necho "release not found" >&2\nexit 1\n');
-    assert.equal(missing.status, 0, 'no release yet: the first build creates the draft');
+    assert.equal(missing.status, 0, 'an explicit "release not found": the first build creates the draft');
+    // Any other error is not "no release yet": the guard fails closed (an auth error, a rate limit, a network error).
+    for (const error of [
+      'HTTP 401: Bad credentials (https://api.github.com/graphql)',
+      'HTTP 403: API rate limit exceeded',
+      'error connecting to api.github.com',
+    ]) {
+      const failed = run(script, `#!/bin/sh\necho "${error}" >&2\nexit 1\n`);
+      assert.equal(failed.status, 1, `${error} fails the guard`);
+      assert.match(failed.stdout + failed.stderr, /could not read the release/);
+    }
     const published = run(script, '#!/bin/sh\necho false\n');
     assert.equal(published.status, 1, 'a public release is refused');
     assert.match(published.stdout, /::error::agent-v0\.4\.0 is already public/);
@@ -581,4 +591,8 @@ test('publish checks the assets of this repository with the updater key of the t
     /ls-remote[^\n]*\n?[^\n]*public|public[^\n]*\n?[^\n]*ls-remote/i,
     'a comment explains the credential-less ls-remote',
   );
+});
+
+test('no comment claims --clobber lives in one job only', () => {
+  assert.doesNotMatch(readText(`.github/workflows/${RELEASE_AGENT}`), /the only --clobber in/);
 });
