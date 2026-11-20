@@ -4,7 +4,7 @@
 //! 0.1.3: a full-screen client draws the panels at other offsets than a maximized one). The frame and the text never leave
 //! the process (AGS-20). A frame in an unsupported client size shows nothing (CHR-19).
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use d2rmm_agent_domain::anchors::{self, line_pad};
@@ -136,14 +136,27 @@ impl ScreenReader {
         lines
     }
 
-    /// The lines of a search area as each variant of the reader reads them.
+    /// The lines of a search area as each variant of the reader reads them. `lifted` holds the frame with the card column's
+    /// brightness lifted once a read of `ScreenRegion::CardColumnLifted` made it: the reads of the cards' fields use it.
     fn lines_of(
         &self,
         frame: &Rgba,
         search: ScreenRegion,
         how: &Cell<Option<Search>>,
+        lifted: &RefCell<Option<Rgba>>,
     ) -> Vec<Vec<TextLine>> {
         match search {
+            ScreenRegion::CardColumnLifted => {
+                let Some(area) = screen_region(search, frame.width, frame.height) else {
+                    return Vec::new();
+                };
+                let Some(image) = lift_dimmed(frame, area) else {
+                    return Vec::new();
+                };
+                let lines = self.reader.read_line_variants(&image, area);
+                *lifted.borrow_mut() = Some(image);
+                return lines;
+            }
             ScreenRegion::HudBand => {
                 return self.tracked_lines(frame, &self.hud, anchors::find_hud_in_variants, how);
             }
@@ -178,13 +191,23 @@ impl ScreenReader {
         AnchorCounts {
             cards: anchors::find_cards_in_variants(
                 &self.language,
-                &self.lines_of(frame, ScreenRegion::CardColumn, &Cell::new(None)),
+                &self.lines_of(
+                    frame,
+                    ScreenRegion::CardColumn,
+                    &Cell::new(None),
+                    &RefCell::new(None),
+                ),
                 frame.height,
             )
             .len(),
             popup_options: anchors::popup_options_in_variants(
                 &self.language,
-                &self.lines_of(frame, ScreenRegion::PopupArea, &Cell::new(None)),
+                &self.lines_of(
+                    frame,
+                    ScreenRegion::PopupArea,
+                    &Cell::new(None),
+                    &RefCell::new(None),
+                ),
             )
             .len(),
         }
@@ -243,34 +266,41 @@ impl FrameReader for ScreenReader {
         );
         let _entered = span.enter();
         let how = Cell::new(None);
+        let lifted: RefCell<Option<Rgba>> = RefCell::new(None);
         let text = |region: ScreenRegion| -> Option<Vec<String>> {
             let area = screen_region(region, frame.width, frame.height)?;
             let readings = readings_of(self.reader.as_ref(), frame, area);
             (!readings.is_empty()).then_some(readings)
         };
         // A found line is read again, once per variant: its box grown by a few pixels, so the strokes of the glyphs are in.
+        // The cards' lines are read from the lifted frame when the column was read lifted (a popup dims the list).
         let field = |region: Region| -> Option<Vec<String>> {
             let area = anchors::padded(region, line_pad(frame.height), frame.width, frame.height);
-            let readings = readings_of(self.reader.as_ref(), frame, area);
+            let held = lifted.borrow();
+            let readings = readings_of(self.reader.as_ref(), held.as_ref().unwrap_or(frame), area);
             (!readings.is_empty()).then_some(readings)
         };
         let reading = read_screen(
             &self.language,
             frame.height,
             text,
-            |search| self.lines_of(frame, search, &how),
+            |search| self.lines_of(frame, search, &how, &lifted),
             field,
             Probes {
                 selected: |name| is_selected(frame, name),
                 lit: |region| is_lit(frame, region),
                 // A title line no variant read: the card is untitled only when the band where it would be holds no ink;
                 // with ink, the band is read again like a title field (T13).
-                title_ink: |band, name| match read_band(frame, band, name) {
-                    InkRead::Ink => {
-                        BandRead::Ink(lines_of_variants(self.reader.as_ref(), frame, band))
+                title_ink: |band, name| {
+                    let held = lifted.borrow();
+                    let image = held.as_ref().unwrap_or(frame);
+                    match read_band(image, band, name) {
+                        InkRead::Ink => {
+                            BandRead::Ink(lines_of_variants(self.reader.as_ref(), image, band))
+                        }
+                        InkRead::NoInk => BandRead::NoInk,
+                        InkRead::Unclear => BandRead::Unclear,
                     }
-                    InkRead::NoInk => BandRead::NoInk,
-                    InkRead::Unclear => BandRead::Unclear,
                 },
             },
         );
@@ -286,6 +316,42 @@ impl FrameReader for ScreenReader {
             rejected: reading.rejected,
         }
     }
+}
+
+/// A column with this brightness (`label_brightness` of its pixels) or more is read as it is: lifting it again would read the
+/// same text.
+const READABLE_BRIGHTNESS: u8 = 200;
+
+/// A column whose brightest pixels are darker than this has no text to lift (a black frame, noise).
+const LIFTABLE_BRIGHTNESS: u8 = 24;
+
+/// The frame with the brightness of `area` lifted so its brightest pixels (`label_brightness`) reach white, every channel
+/// scaled by the same factor and clamped: the list behind the difficulty popup is dimmed, and dim text reads only as well
+/// as its pixels are bright (screen-recognition T9). `None` when the area is already bright enough to read, has nothing to
+/// lift, or lies outside the frame. Pixels outside `area` are unchanged.
+fn lift_dimmed(frame: &Rgba, area: Region) -> Option<Rgba> {
+    let rows = area.y..area.bottom().min(frame.height);
+    let columns = area.x..area.right().min(frame.width);
+    let lumas: Vec<u8> = rows
+        .clone()
+        .flat_map(|y| columns.clone().map(move |x| (x, y)))
+        .filter_map(|(x, y)| pixel(frame, x, y).map(|[red, green, blue]| luma(red, green, blue)))
+        .collect();
+    let top = label_brightness(lumas)?;
+    if !(LIFTABLE_BRIGHTNESS..READABLE_BRIGHTNESS).contains(&top) {
+        return None;
+    }
+    let mut lifted = frame.clone();
+    for y in rows {
+        for x in columns.clone() {
+            let at = (y as usize * frame.width as usize + x as usize) * 4;
+            for channel in &mut lifted.pixels[at..at + 3] {
+                let value = u32::from(*channel) * 255 / u32::from(top);
+                *channel = u8::try_from(value.min(255)).unwrap_or(u8::MAX);
+            }
+        }
+    }
+    Some(lifted)
 }
 
 /// Whether the card whose name line is `name` shows the gold frame: any pixel of the band above its name (`selection_band`)
@@ -1760,12 +1826,129 @@ mod dim_tests {
     }
 
     #[test]
-    fn a_popup_over_a_column_too_dim_for_the_engine_reads_no_card() {
-        // Pinned before the change (the `slots0-options3` class): the dimmed text reads as nothing, so no slot is read.
+    fn a_popup_over_a_column_too_dim_for_the_engine_reads_both_cards_once_the_column_is_lifted() {
+        // Changed expectation (screen-recognition T9, the specified change; was: no card and no slot read, the `slots0-options3`
+        // class): the column is read again with its brightness lifted, and the cards' fields are read from that frame.
         let reader = Dimmed::new(scene());
         let reading = read(&reader, &frame(70));
         assert_eq!(reading.screen, Screen::CharacterSelect);
-        assert_eq!((reading.cards.len(), reading.slots_read), (0, 0));
+        assert_eq!((reading.cards.len(), reading.slots_read), (2, 2));
         assert_eq!(reading.popup_options, 3);
+        let names: Vec<&str> = reading.cards.iter().map(|card| card.name()).collect();
+        assert_eq!(names, ["vukVuka", "vukaDao"]);
+    }
+
+    #[test]
+    fn the_lifted_read_costs_one_more_read_of_the_column_and_only_on_a_popup_that_read_no_card() {
+        let column = screen_region(ScreenRegion::CardColumn, 1920, 1080).expect("column");
+        let reads_of_the_column =
+            |asked: &[Region]| asked.iter().filter(|area| **area == column).count();
+        // Dim column under a popup: the plain read, then the lifted one.
+        let dim = Dimmed::new(scene());
+        read(&dim, &frame(70));
+        assert_eq!(reads_of_the_column(&dim.take_asked()), 2);
+        // Bright column under a popup: the plain read finds the cards, nothing more.
+        let bright = Dimmed::new(scene());
+        read(&bright, &frame(255));
+        assert_eq!(reads_of_the_column(&bright.take_asked()), 1);
+        // A column with nothing in it under a popup, already bright: no lifted read (nothing the lift would change).
+        let empty = Dimmed::new(scene()[..4].to_vec());
+        let reading = read(&empty, &frame(255));
+        assert_eq!(reading.slots_read, 0);
+        assert_eq!(reads_of_the_column(&empty.take_asked()), 1);
+        // A black column under a popup: nothing to lift.
+        let black = Dimmed::new(scene());
+        let reading = read(&black, &frame(0));
+        assert_eq!(reading.slots_read, 0);
+        assert_eq!(reads_of_the_column(&black.take_asked()), 1);
+    }
+
+    #[test]
+    fn a_dim_list_with_no_popup_is_not_lifted() {
+        // The list marker read, no popup: the column is read once, never lifted (the frame is not the popup's).
+        let reader = Dimmed::new(vec![
+            line("Create New", 1650, 925, 140),
+            line("vukVuka", 1576, 91, 236),
+            line("Level 88 Sorceress", 1576, 114, 236),
+        ]);
+        let column = screen_region(ScreenRegion::CardColumn, 1920, 1080).expect("column");
+        let reading = read(&reader, &frame(70));
+        assert_eq!(reading.screen, Screen::CharacterSelect);
+        assert_eq!(reading.slots_read, 0);
+        let asked = reader.take_asked();
+        assert_eq!(asked.iter().filter(|area| **area == column).count(), 1);
+    }
+
+    #[test]
+    fn lifting_scales_every_channel_so_the_brightest_percent_reaches_white_and_leaves_the_rest_of_the_frame()
+     {
+        use super::lift_dimmed;
+        let width = 40u32;
+        let mut pixels = vec![10u8; width as usize * 40 * 4];
+        let area = Region {
+            x: 10,
+            y: 10,
+            width: 20,
+            height: 20,
+        };
+        for y in area.y..area.bottom() {
+            for x in area.x..area.right() {
+                let at = (y as usize * width as usize + x as usize) * 4;
+                pixels[at..at + 3].copy_from_slice(&[100, 50, 20]);
+            }
+        }
+        let frame = Rgba {
+            width,
+            height: 40,
+            pixels,
+        };
+        let lifted = lift_dimmed(&frame, area).expect("a dim area is lifted");
+        let at = |image: &Rgba, x: u32, y: u32| {
+            let at = (y as usize * width as usize + x as usize) * 4;
+            image.pixels[at..at + 4].to_vec()
+        };
+        // The luma of (100, 50, 20) is 58: 100 -> 100 * 255 / 58 = 439, clamped to 255; 50 -> 219; 20 -> 87.
+        assert_eq!(at(&lifted, 15, 15), [255, 219, 87, 10], "the alpha is kept");
+        assert_eq!(at(&lifted, 5, 5), at(&frame, 5, 5), "outside the area");
+        assert_eq!(at(&lifted, 30, 30), at(&frame, 30, 30), "outside the area");
+    }
+
+    #[test]
+    fn a_readable_a_black_and_an_outside_area_are_not_lifted() {
+        use super::lift_dimmed;
+        let pixels = |value: u8| vec![value; 20 * 20 * 4];
+        let area = Region {
+            x: 0,
+            y: 0,
+            width: 20,
+            height: 20,
+        };
+        for (value, lifted) in [
+            (0u8, false),
+            (23, false),
+            (24, true),
+            (199, true),
+            (200, false),
+            (255, false),
+        ] {
+            let frame = Rgba {
+                width: 20,
+                height: 20,
+                pixels: pixels(value),
+            };
+            assert_eq!(lift_dimmed(&frame, area).is_some(), lifted, "{value}");
+        }
+        let frame = Rgba {
+            width: 20,
+            height: 20,
+            pixels: pixels(80),
+        };
+        let outside = Region {
+            x: 30,
+            y: 30,
+            width: 5,
+            height: 5,
+        };
+        assert!(lift_dimmed(&frame, outside).is_none());
     }
 }

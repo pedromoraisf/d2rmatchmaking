@@ -177,6 +177,10 @@ pub enum ScreenRegion {
     /// The button is at 882 to 904 on the reference client; the area reaches 80 px above and below it for the drift of the
     /// window, borderless and full-screen layouts and of a client a few pixels taller or shorter.
     CreateNewArea,
+    /// The card column read again with its brightness lifted, only when a popup is open and the column read no card: the game
+    /// dims the list behind the popup, and text that dim is as readable as its pixels are bright. The same box as
+    /// `CardColumn`; the reader lifts the pixels (`screen_reader`), the box is not another place.
+    CardColumnLifted,
 }
 
 /// The top of `ScreenRegion::HudBand` in pixels of the reference client: the bottom quarter. The "Life:" label sits at
@@ -203,7 +207,9 @@ pub fn screen_box(region: ScreenRegion) -> PanelBox {
         ScreenRegion::CardName(slot) => PanelBox::new(Right, 108, card_top(slot) + 36, 236, 18),
         ScreenRegion::CardLevel(slot) => PanelBox::new(Right, 108, card_top(slot) + 58, 236, 18),
         ScreenRegion::CardSelected(slot) => PanelBox::new(Right, 210, card_top(slot) - 1, 20, 3),
-        ScreenRegion::CardColumn => PanelBox::new(Right, 40, 30, 340, 850),
+        ScreenRegion::CardColumn | ScreenRegion::CardColumnLifted => {
+            PanelBox::new(Right, 40, 30, 340, 850)
+        }
         ScreenRegion::PopupArea => PanelBox::new(Centre, -130, 320, 260, 290),
         ScreenRegion::AutomapArea => PanelBox::new(Right, 0, 20, 560, 220),
         ScreenRegion::CreateNewArea => PanelBox::new(Right, 0, 800, 560, 220),
@@ -280,6 +286,7 @@ impl ScreenRegion {
             ScreenRegion::HudBand => "hudBand".to_string(),
             ScreenRegion::AutomapArea => "automapArea".to_string(),
             ScreenRegion::CreateNewArea => "createNewArea".to_string(),
+            ScreenRegion::CardColumnLifted => "cardColumnLifted".to_string(),
         }
     }
 }
@@ -574,6 +581,20 @@ mod screen_tests {
             }
         );
         assert_eq!(screen_region(ScreenRegion::CreateNewArea, 1280, 1024), None);
+    }
+
+    #[test]
+    fn the_lifted_card_column_is_the_card_column() {
+        for (width, height) in [(1920, 1033), (1920, 1080), (1680, 1050)] {
+            assert_eq!(
+                at(ScreenRegion::CardColumnLifted, width, height),
+                at(ScreenRegion::CardColumn, width, height)
+            );
+        }
+        assert_eq!(
+            screen_region(ScreenRegion::CardColumnLifted, 1280, 1024),
+            None
+        );
     }
 
     #[test]

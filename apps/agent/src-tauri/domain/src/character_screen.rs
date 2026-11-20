@@ -272,17 +272,24 @@ where
     if !list && !popup_title && popup.is_none() {
         return Reading::without_cards(Screen::Unknown);
     }
+    let popup_open = popup_title || popup.is_some();
     let enabled = popup.filter(|difficulties| !difficulties.is_empty());
     let mut cards = Vec::new();
     let mut rejected = Vec::new();
     let mut slots_read = 0;
     let mut popup_applied = false;
-    let column = lines(ScreenRegion::CardColumn);
-    for (slot, anchor) in anchors::find_cards_in_variants(pack, &column, frame_height)
-        .into_iter()
-        .take(usize::from(CARD_SLOTS))
-        .enumerate()
-    {
+    let mut found =
+        anchors::find_cards_in_variants(pack, &lines(ScreenRegion::CardColumn), frame_height);
+    // The game dims the list behind the popup, and dim text is read only when it is bright enough: a popup over a column that
+    // read no card has the column read again with its brightness lifted. No other frame asks for it.
+    if found.is_empty() && popup_open {
+        found = anchors::find_cards_in_variants(
+            pack,
+            &lines(ScreenRegion::CardColumnLifted),
+            frame_height,
+        );
+    }
+    for (slot, anchor) in found.into_iter().take(usize::from(CARD_SLOTS)).enumerate() {
         let slot = u8::try_from(slot).unwrap_or(u8::MAX);
         slots_read += 1;
         // A card with no title line has a blank title; a known title line is read like any other field; a line that is
@@ -2265,6 +2272,40 @@ mod popup_column_tests {
     /// Reads a frame with the popup open and `column` as what the card column reads; returns the reading's screen, cards
     /// found and slots, and the areas asked in order.
     fn read_popup(column: Vec<Vec<TextLine>>) -> (Screen, usize, u8, Vec<ScreenRegion>) {
+        read_popup_lifted(column, Vec::new())
+    }
+
+    /// A frame that is neither the list nor the popup: its areas asked, in order.
+    fn read_unknown() -> (Screen, usize, u8, Vec<ScreenRegion>) {
+        let mut asked = Vec::new();
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |_| None,
+            |search| {
+                asked.push(search);
+                Vec::new()
+            },
+            |_| None,
+            Probes {
+                selected: |_| false,
+                lit: |_| true,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        (
+            reading.screen,
+            reading.cards.len(),
+            reading.slots_read,
+            asked,
+        )
+    }
+
+    /// `read_popup`, with `lifted` as what the lifted card column reads.
+    fn read_popup_lifted(
+        column: Vec<Vec<TextLine>>,
+        lifted: Vec<Vec<TextLine>>,
+    ) -> (Screen, usize, u8, Vec<ScreenRegion>) {
         let mut asked = Vec::new();
         let reading = read_screen(
             &LanguagePack::english(),
@@ -2275,6 +2316,7 @@ mod popup_column_tests {
                 match search {
                     ScreenRegion::PopupArea => popup(),
                     ScreenRegion::CardColumn => column.clone(),
+                    ScreenRegion::CardColumnLifted => lifted.clone(),
                     _ => Vec::new(),
                 }
             },
@@ -2295,7 +2337,8 @@ mod popup_column_tests {
 
     #[test]
     fn a_popup_over_a_column_no_reading_finds_cards_in_is_the_selection_screen_with_no_slot_read() {
-        // Pinned before the change: the popup decides the screen, the column is read once, nothing more is asked.
+        // The popup decides the screen. Changed expectation (screen-recognition T9, the specified change; was: the column read
+        // once and nothing more asked): the column is then read again, lifted, once, and nothing else is asked.
         let (screen, cards, slots, asked) = read_popup(Vec::new());
         assert_eq!((screen, cards, slots), (Screen::CharacterSelect, 0, 0));
         assert_eq!(
@@ -2305,7 +2348,49 @@ mod popup_column_tests {
                 .count(),
             1
         );
-        assert_eq!(asked.last(), Some(&ScreenRegion::CardColumn));
+        assert_eq!(
+            asked
+                .iter()
+                .filter(|r| **r == ScreenRegion::CardColumnLifted)
+                .count(),
+            1
+        );
+        assert_eq!(asked.last(), Some(&ScreenRegion::CardColumnLifted));
+    }
+
+    #[test]
+    fn the_lifted_column_is_read_only_when_the_popup_is_open_and_the_column_found_no_card() {
+        // Cards found by the plain read: no lifted read.
+        let (_, _, _, asked) = read_popup(list_cards());
+        assert!(!asked.contains(&ScreenRegion::CardColumnLifted));
+        // Cards found only by the lifted read: they register, with their slot read.
+        let (screen, _, slots, asked) = read_popup_lifted(Vec::new(), list_cards());
+        assert_eq!((screen, slots), (Screen::CharacterSelect, 1));
+        assert!(asked.contains(&ScreenRegion::CardColumnLifted));
+        // The list with no popup (the marker read, no popup lines): the column stays one read.
+        let mut asked = Vec::new();
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |region| (region == ScreenRegion::CreateNew).then(|| vec!["Create New".to_string()]),
+            |search| {
+                asked.push(search);
+                Vec::new()
+            },
+            |_| None,
+            Probes {
+                selected: |_| false,
+                lit: |_| true,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        assert_eq!(reading.slots_read, 0);
+        assert!(!asked.contains(&ScreenRegion::CardColumnLifted));
+        // Neither list nor popup: Unknown, and the column is not read at all.
+        let (screen, _, _, asked) = read_unknown();
+        assert_eq!(screen, Screen::Unknown);
+        assert!(!asked.contains(&ScreenRegion::CardColumn));
+        assert!(!asked.contains(&ScreenRegion::CardColumnLifted));
     }
 
     #[test]
