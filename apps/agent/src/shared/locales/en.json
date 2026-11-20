@@ -19,6 +19,7 @@
   },
   "room": {
     "waiting": "Room {{gameName}} — waiting for the game",
+    "confirmed": "Room {{gameName}} — presence confirmed",
     "revealHint": "Open the Party panel (P) and click the eye to show the game name."
   },
   "update": {

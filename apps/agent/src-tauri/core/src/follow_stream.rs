@@ -244,6 +244,7 @@ mod tests {
                     game_name: "mmbaalh-13".to_string(),
                     needs_reveal: false,
                     matched: false,
+                    confirmed: false,
                 }),
                 "the latest room.assigned wins"
             );

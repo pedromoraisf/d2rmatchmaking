@@ -21,6 +21,8 @@ export interface RoomState {
   needsReveal: boolean;
   // The Party panel showed the expected game name in this run (AGN-03).
   matched: boolean;
+  // The API accepted the observation for the held run (ARL-03). The core omits it while false.
+  confirmed?: boolean;
 }
 
 export interface RejectedSlot {
@@ -118,7 +120,11 @@ export function connectivityLabel(connectivity: Connectivity): Label {
 }
 
 export function roomLabel(room: RoomState | null): Label | null {
-  return room === null ? null : { key: 'room.waiting', values: { gameName: room.gameName } };
+  if (room === null) {
+    return null;
+  }
+  const key = room.confirmed === true ? 'room.confirmed' : 'room.waiting';
+  return { key, values: { gameName: room.gameName } };
 }
 
 // The hint to reveal the game name: shown while the agent holds the room, the Party panel showed the masked name and no

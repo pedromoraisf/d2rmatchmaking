@@ -29,7 +29,7 @@ Rules:
 - [x] T2 — Agent: on a stream reconnect or a start, read the assignment again and drop a room the API no longer assigns
       (ARL-02). Unit test with the fake gateway. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib`
-- [ ] T3 — Agent: the confirmed state (ARL-03, ARL-04). Add it to the view model, clear it on a new run and on a drop,
+- [x] T3 — Agent: the confirmed state (ARL-03, ARL-04). Add it to the view model, clear it on a new run and on a drop,
       and show "Room {{gameName}} — presence confirmed" in the window in English and pt-BR. Rust view tests and the
       window component test. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && pnpm --filter @d2rmm/agent exec vitest run`
