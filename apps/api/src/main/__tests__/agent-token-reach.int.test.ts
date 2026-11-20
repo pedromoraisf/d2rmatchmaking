@@ -1,6 +1,5 @@
 // AGT-01 (NFR-06, ADR 011): an agent token opens only the agent's routes, and a session cookie alone opens none of
 // them. The route table is checked against the committed OpenAPI document, so a new route must be classified.
-import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { Writable } from 'node:stream';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -12,10 +11,8 @@ import { FakeClock, FakeScheduler } from '../../shared-kernel/index.ts';
 import { buildApp, type AppDatabase, type BuiltApp } from '../app.ts';
 import { OPENAPI_PATH } from '../openapi.ts';
 import { NodeRandomSource, RandomUuidGenerator } from '../runtime.ts';
-import { ROUTE_REACH, agentRoutes, bodyFor, urlOf, type RouteReach } from './agent-route-table.ts';
-
-const SITE_ORIGIN = 'https://site.example';
-const AGENT_VERSION = '1.0.0';
+import { ROUTE_REACH, agentRoutes } from './agent-route-table.ts';
+import { SITE_ORIGIN, send, sessionFor, tokenFor } from './agent-reach-helpers.ts';
 
 let database: MigratedTestDatabase<AppDatabase>;
 let app: BuiltApp;
@@ -48,61 +45,6 @@ beforeEach(async () => {
 afterEach(async () => {
   await app.app.close();
 });
-
-function bodyOf<T>(response: { readonly body: string }): T {
-  return JSON.parse(response.body) as T;
-}
-
-async function sessionFor(): Promise<string> {
-  const response = await app.app.inject({
-    method: 'POST',
-    url: '/v1/auth/test-login',
-    headers: { origin: SITE_ORIGIN, 'content-type': 'application/json' },
-    payload: { name: `p${randomUUID().replaceAll('-', '').slice(0, 14)}` },
-  });
-  expect(response.statusCode).toBe(200);
-  const header = response.headers['set-cookie'];
-  return (Array.isArray(header) ? (header[0] ?? '') : String(header ?? '')).split(';')[0] ?? '';
-}
-
-/** Pairs an agent for the session and returns its token. */
-async function tokenFor(cookie: string): Promise<string> {
-  const headers = { 'x-agent-version': AGENT_VERSION };
-  const issued = bodyOf<{ code: string; claimSecret: string }>(
-    await app.app.inject({ method: 'POST', url: '/v1/agents/pairing-codes', headers }),
-  );
-  const claim = (): ReturnType<typeof app.app.inject> =>
-    app.app.inject({
-      method: 'POST',
-      url: '/v1/agents/pairing-codes/claim',
-      headers: { ...headers, 'content-type': 'application/json' },
-      payload: { claimSecret: issued.claimSecret },
-    });
-  await claim();
-  const paired = await app.app.inject({
-    method: 'POST',
-    url: '/v1/agents/pair',
-    headers: { origin: SITE_ORIGIN, 'content-type': 'application/json', cookie },
-    payload: { code: issued.code },
-  });
-  expect(paired.statusCode).toBe(200);
-  return bodyOf<{ token: string }>(await claim()).token;
-}
-
-/** One request to a route with the given credential headers. A body is sent where the route takes one. */
-function send(route: RouteReach, credential: Record<string, string>) {
-  return app.app.inject({
-    method: route.method,
-    url: urlOf(route),
-    headers: {
-      'x-agent-version': AGENT_VERSION,
-      origin: SITE_ORIGIN,
-      'content-type': 'application/json',
-      ...credential,
-    },
-    ...(route.method === 'GET' ? {} : { payload: bodyFor(route) as object }),
-  });
-}
 
 /** The stream stays open once it is accepted, so the live call is left to the stream tests (IDB-08, site-stream-close). */
 const OPENS_A_STREAM = '/v1/stream';
@@ -139,30 +81,30 @@ describe('the agent token reaches only the agent routes (AGT-01)', () => {
   });
 
   it('answers 401 to an agent token on every route that takes a session', async () => {
-    const token = await tokenFor(await sessionFor());
+    const token = await tokenFor(app, await sessionFor(app));
     const statuses: string[] = [];
     for (const route of ROUTE_REACH.filter((candidate) => candidate.reach === 'session')) {
-      const response = await send(route, { authorization: `Bearer ${token}` });
+      const response = await send(app, route, { authorization: `Bearer ${token}` });
       statuses.push(`${route.method} ${route.path} ${response.statusCode}`);
     }
     expect(statuses.filter((line) => !line.endsWith(' 401'))).toEqual([]);
   });
 
   it('answers 401 to a session cookie alone on every route that takes an agent token alone', async () => {
-    const cookie = await sessionFor();
-    await tokenFor(cookie);
+    const cookie = await sessionFor(app);
+    await tokenFor(app, cookie);
     const statuses: string[] = [];
     for (const route of ROUTE_REACH.filter((candidate) => candidate.reach === 'agent')) {
-      const response = await send(route, { cookie });
+      const response = await send(app, route, { cookie });
       statuses.push(`${route.method} ${route.path} ${response.statusCode}`);
     }
     expect(statuses.filter((line) => !line.endsWith(' 401'))).toEqual([]);
   });
 
   it('accepts the agent token on every agent route (the guard lets it through)', async () => {
-    const token = await tokenFor(await sessionFor());
+    const token = await tokenFor(app, await sessionFor(app));
     for (const route of agentRoutes().filter((candidate) => candidate.path !== OPENS_A_STREAM)) {
-      const response = await send(route, { authorization: `Bearer ${token}` });
+      const response = await send(app, route, { authorization: `Bearer ${token}` });
       expect(response.statusCode, `${route.method} ${route.path}`).not.toBe(401);
     }
   });

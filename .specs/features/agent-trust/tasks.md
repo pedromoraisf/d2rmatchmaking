@@ -33,7 +33,7 @@ Rules:
       of AGT-01 uses the agent guard, plus a test that the agent token is refused on a sample of site routes and the
       session cookie alone on every agent route. Gate:
       `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api test:integration`
-- [ ] T2 — API: revoking, and pairing a new agent, makes the old token answer `401` on every agent route and ends its open
+- [x] T2 — API: revoking, and pairing a new agent, makes the old token answer `401` on every agent route and ends its open
       stream; the token cache holds nothing for it (AGT-02). Gate:
       `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api test:integration`
 - [ ] T3 — Agent: the token never leaks (AGT-03). Unit tests that `Secret`'s `Debug` and `Display` hide the value, that a
