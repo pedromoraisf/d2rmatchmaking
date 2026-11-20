@@ -216,6 +216,9 @@ jobs:
           cache-from: type=gha,scope=load-k6
           cache-to: type=gha,scope=load-k6,mode=max
       - name: Load test (full ladder)
+        # The two images were just built with the cache: the run uses them instead of building them again (UPK-06).
+        env:
+          LOAD_IMAGES_PREBUILT: '1'
         run: pnpm test:load
       - name: Check the full summary
         id: check

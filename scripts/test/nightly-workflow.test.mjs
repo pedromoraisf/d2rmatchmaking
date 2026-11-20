@@ -152,6 +152,18 @@ test('load builds the two images with buildx and its cache, runs the full ladder
   assert.equal(stepNamed(load, 'Check the full summary')['continue-on-error'], true);
 });
 
+test('the load run uses the images the job just built (UPK-06)', () => {
+  const names = load.steps.map((step) => step.name ?? '');
+  const lastBuild = Math.max(
+    ...load.steps.map((step, i) =>
+      String(step.uses ?? '').startsWith('docker/build-push-action@') ? i : -1,
+    ),
+  );
+  const run = names.indexOf('Load test (full ladder)');
+  assert.ok(run > lastBuild, 'the run follows both builds');
+  assert.equal(load.steps[run].env.LOAD_IMAGES_PREBUILT, '1');
+});
+
 test('the load job sets no target, so the harness refuses nothing and starts its own containers', () => {
   const text = JSON.stringify(load);
   for (const name of ['LOAD_TARGET', 'DATABASE_URL', 'DOCKER_HOST', 'DOCKER_CONTEXT', 'OTEL_']) {

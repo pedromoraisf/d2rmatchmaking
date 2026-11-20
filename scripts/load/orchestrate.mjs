@@ -45,6 +45,7 @@ import {
   OPENSSL_IMAGE,
   POSTGRES_IMAGE,
 } from './lib/images.mjs';
+import { PREBUILT_VARIABLE, useBuiltImages } from './lib/prebuilt-images.mjs';
 import { classifyDockerFailure } from './lib/preflight.mjs';
 import { nextStep, profileFor } from './lib/profile.mjs';
 import { p95 } from './lib/percentile.mjs';
@@ -419,7 +420,17 @@ async function listRunDirectories(fs, tmpdir) {
 }
 
 async function buildImages(ctx) {
-  const { docker, paths, log } = ctx;
+  const { docker, paths, log, env } = ctx;
+  if (env[PREBUILT_VARIABLE] === '1' && typeof docker.imageExists === 'function') {
+    const present = {
+      api: await docker.imageExists(API_IMAGE_TAG),
+      k6: await docker.imageExists(K6_IMAGE_TAG),
+    };
+    if (useBuiltImages(env, present)) {
+      log(`using the prebuilt images ${API_IMAGE_TAG} and ${K6_IMAGE_TAG}`);
+      return;
+    }
+  }
   log(`building the API image ${API_IMAGE_TAG}`);
   const api = await docker.build({
     file: join(paths.loadDir, 'docker', 'api.Dockerfile'),

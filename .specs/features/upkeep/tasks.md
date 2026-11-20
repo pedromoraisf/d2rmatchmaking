@@ -50,7 +50,7 @@ Rules:
       browser; remove the `readFileSync` CSS test and its imports from `QueuePanel.test.tsx` (the DOM-order test next
       to it stays). Gate:
       `pnpm --filter @d2rmm/web exec vitest run src/features/matchmaking/QueuePanel.test.tsx && pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web lint && DOCKER_CONFIG=<dir with {}> pnpm exec turbo run test:acceptance -- --grep "@UPK-07"`
-- [ ] T7 — UPK-05, UPK-06, UPK-08: (a) report p95 and its trend rounded to two decimals, `n/a` when absent
+- [x] T7 — UPK-05, UPK-06, UPK-08: (a) report p95 and its trend rounded to two decimals, `n/a` when absent
       (`scripts/nightly/render.mjs`, `trend.mjs`, `load.mjs`); (b) `LOAD_IMAGES_PREBUILT=1` makes `pnpm test:load`
       skip `buildImages` when both tags exist, and the load job sets it after its cached builds (`nightly.yml`; no
       change to `ci.yml` job names or `ocr-real.yml`); (c) a unit test reads the committed
