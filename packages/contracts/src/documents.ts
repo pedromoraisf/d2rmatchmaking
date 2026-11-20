@@ -5,6 +5,7 @@ import { z } from 'zod';
 import {
   AgentPresenceChangedEvent,
   AgentRoomAssignedEvent,
+  AgentRoomRunOpenedEvent,
   CharactersUpdatedEvent,
   QueueUpdatedEvent,
   ReadyCheckResolvedEvent,
@@ -48,6 +49,7 @@ const STREAM_MESSAGES = {
   // The agent's copy: the room and the stage, no members (stream-egress SEG-01).
   // The agent's copy: the member list is empty (stream-egress SEG-03).
   AgentRoomAssigned: { name: 'room.assigned', schema: AgentRoomAssignedEvent },
+  AgentRoomRunOpened: { name: 'room.run_opened', schema: AgentRoomRunOpenedEvent },
   AgentRoomStageChanged: { name: 'room.stage_changed', schema: AgentRoomStageChangedEvent },
   RoomRunOpened: { name: 'room.run_opened', schema: RoomRunOpenedEvent },
   RoomMemberChanged: { name: 'room.member_changed', schema: RoomMemberChangedEvent },
@@ -69,7 +71,7 @@ const JSON_SCHEMA_SOURCES = {
   'assignment.json': Assignment,
   'observation.json': Observation,
   'agent-event-room-assigned.json': AgentRoomAssignedEvent,
-  'agent-event-room-run-opened.json': RoomRunOpenedEvent,
+  'agent-event-room-run-opened.json': AgentRoomRunOpenedEvent,
   'record-characters-request.json': RecordCharactersRequest,
   'agent-event-ready-check-started.json': ReadyCheckStartedEvent,
   'agent-event-ready-check-resolved.json': ReadyCheckResolvedEvent,

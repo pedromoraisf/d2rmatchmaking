@@ -25,7 +25,7 @@ agent's parser (`apps/agent/src-tauri/adapters/src/http/sse.rs`).
 | `room.assigned`          | site; agent (members emptied, SEG-03)             | `roomId`, `run`, `expectedGameName`, `members[]`                                                         | 436                  |
 | `room.stage_changed`     | site (all stages), agent (`expired` and `closed`) | `roomId`, `stage`, `members[]`                                                                           | 419                  |
 |                          | agent's copy                                      | `roomId`, `stage` (lean since SEG-01)                                                                    | 101 (was 419)        |
-| `room.run_opened`        | site, agent                                       | `roomId`, `run`, `expectedGameName`, `members[]`                                                         | 438                  |
+| `room.run_opened`        | site; agent (members emptied, SEG-03)             | `roomId`, `run`, `expectedGameName`, `members[]`                                                         | 438                  |
 | `room.member_changed`    | site                                              | `roomId`, `change`, `accountId`, `members[]`                                                             | 474                  |
 | `agent.presence_changed` | site (owner)                                      | `agentId`, `online`, `gameRunning`, `screen`                                                             | 149                  |
 | `characters.updated`     | site                                              | none (`{}`)                                                                                              | 36                   |
@@ -58,7 +58,7 @@ for a member in a room.
 | ------------------------------------------------------------------ | ------- | ---------------------------------- |
 | `room.stage_changed` `members` (agent's copy)                      | agent   | 318 bytes, **done (SEG-01)**       |
 | `room.assigned` `members` (agent's copy)                           | agent   | about 340 bytes, **done (SEG-03)** |
-| `room.run_opened` `members`                                        | agent   | about 340 bytes                    |
+| `room.run_opened` `members` (agent's copy)                         | agent   | about 340 bytes, **done (SEG-03)** |
 | `ready_check.started` `mode`, `difficulty`, `members`              | agent   | about 230 bytes                    |
 | `ready_check.resolved` `outcome`                                   | agent   | about 22 bytes                     |
 | member `characterId` and `team`, in every event that lists members | site    | about 50 bytes a member            |

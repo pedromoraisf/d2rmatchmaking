@@ -54,6 +54,30 @@ describe('projectStreamEvent', () => {
     }
   });
 
+  it("the agent's copy of a new run keeps the key with no members; the site's keeps them (SEG-03)", async () => {
+    const opened: AnyDomainEvent = {
+      type: 'RoomRunOpened',
+      payload: { roomId: 'room-1', run: 2, expectedGameName: 'mmbaalh-2', members },
+    };
+
+    const deliveries = await projectStreamEvent(opened, agents);
+
+    const toAgents = deliveries.filter((candidate) => candidate.stream === 'agent');
+    expect(toAgents).toHaveLength(2);
+    for (const delivery of toAgents) {
+      expect(delivery.event).toStrictEqual({
+        type: 'room.run_opened',
+        data: { roomId: 'room-1', run: 2, expectedGameName: 'mmbaalh-2', members: [] },
+      });
+    }
+    for (const delivery of deliveries.filter((candidate) => candidate.stream === 'site')) {
+      expect(delivery.event).toStrictEqual({
+        type: 'room.run_opened',
+        data: { roomId: 'room-1', run: 2, expectedGameName: 'mmbaalh-2', members },
+      });
+    }
+  });
+
   it('an assignment to a member without an agent gives only the site recipient', async () => {
     const withoutAgent: CurrentAgentLookup = { currentAgentOf: async () => null };
 

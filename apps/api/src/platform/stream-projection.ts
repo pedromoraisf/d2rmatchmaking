@@ -86,6 +86,8 @@ export async function projectStreamEvent(
         expectedGameName: payload.expectedGameName,
         members: [...payload.members],
       };
+      // The agent's copy keeps the key with no members, as the assignment's does (stream-egress SEG-03).
+      const agentData = { ...data, members: [] };
       const deliveries: Delivery[] = [];
       for (const member of payload.members) {
         deliveries.push({
@@ -95,7 +97,7 @@ export async function projectStreamEvent(
         });
         const agentId = await agents.currentAgentOf(member.accountId);
         if (agentId !== null) {
-          deliveries.push({ stream: 'agent', agentId, event: { type: 'room.run_opened', data } });
+          deliveries.push({ stream: 'agent', agentId, event: { type: 'room.run_opened', data: agentData } });
         }
       }
       return deliveries;

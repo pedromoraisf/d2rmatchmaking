@@ -50,6 +50,13 @@ export const RoomRunOpenedEvent = z.object({
 });
 export type RoomRunOpenedEvent = z.infer<typeof RoomRunOpenedEvent>;
 
+// The agent's copy of a new run: the member list is empty, as in `AgentRoomAssignedEvent` (stream-egress SEG-03).
+export const AgentRoomRunOpenedEvent = z.object({
+  type: z.literal('room.run_opened'),
+  data: Assignment.extend({ members: z.array(Member).max(0) }),
+});
+export type AgentRoomRunOpenedEvent = z.infer<typeof AgentRoomRunOpenedEvent>;
+
 // A member confirmed, left, or the host changed (LBR-04, LBR-07, LBR-08): the members after the change.
 export const RoomMemberChangedEvent = z.object({
   type: z.literal('room.member_changed'),
@@ -129,7 +136,7 @@ export type SiteStreamEvent = z.infer<typeof SiteStreamEvent>;
 export const AgentStreamEvent = z.discriminatedUnion('type', [
   AgentRoomAssignedEvent,
   AgentRoomStageChangedEvent,
-  RoomRunOpenedEvent,
+  AgentRoomRunOpenedEvent,
   ReadyCheckStartedEvent,
   ReadyCheckResolvedEvent,
 ]);

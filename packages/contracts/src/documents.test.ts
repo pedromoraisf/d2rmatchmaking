@@ -10,7 +10,7 @@ describe('contract documents', () => {
     });
   });
 
-  it('builds an AsyncAPI 3.0 document with the stream channel and its twelve messages', () => {
+  it('builds an AsyncAPI 3.0 document with the stream channel and its thirteen messages', () => {
     const document = buildAsyncApiDocument();
     expect(document.asyncapi).toBe('3.0.0');
     expect(document.channels.stream.address).toBe('/v1/stream');
@@ -18,6 +18,7 @@ describe('contract documents', () => {
       'RoomAssigned',
       'RoomStageChanged',
       'AgentRoomAssigned',
+      'AgentRoomRunOpened',
       'AgentRoomStageChanged',
       'RoomRunOpened',
       'RoomMemberChanged',

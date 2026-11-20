@@ -6,6 +6,7 @@ import {
   RoomMemberChangedEvent,
   RoomRunOpenedEvent,
   AgentRoomAssignedEvent,
+  AgentRoomRunOpenedEvent,
   AgentRoomStageChangedEvent,
   RoomStageChangedEvent,
   SiteStreamEvent,
@@ -61,6 +62,16 @@ describe('stream events', () => {
     // A list that is not empty is not part of the agent's message.
     expect(AgentRoomAssignedEvent.safeParse(assigned).success).toBe(false);
     expect(SiteStreamEvent.parse(assigned)).toStrictEqual(assigned);
+    expect(SiteStreamEvent.safeParse(lean).success).toBe(false);
+  });
+
+  it('gives the agent a new run with an empty member list, and keeps the full list for the site (SEG-03)', () => {
+    const opened = { type: 'room.run_opened', data: { ...assigned.data, run: 8 } };
+    const lean = { type: 'room.run_opened', data: { ...opened.data, members: [] } };
+    expect(AgentRoomRunOpenedEvent.parse(lean)).toStrictEqual(lean);
+    expect(AgentStreamEvent.parse(lean)).toStrictEqual(lean);
+    expect(AgentRoomRunOpenedEvent.safeParse(opened).success).toBe(false);
+    expect(RoomRunOpenedEvent.parse(opened)).toStrictEqual(opened);
     expect(SiteStreamEvent.safeParse(lean).success).toBe(false);
   });
 
@@ -157,7 +168,10 @@ describe('room.run_opened and room.member_changed', () => {
   it('accepts the room.run_opened example on the site and the agent streams', () => {
     expect(RoomRunOpenedEvent.parse(runOpened)).toStrictEqual(runOpened);
     expect(SiteStreamEvent.parse(runOpened)).toStrictEqual(runOpened);
-    expect(AgentStreamEvent.parse(runOpened)).toStrictEqual(runOpened);
+    // The agent's copy has no members (SEG-03): the full example is the site's message, the lean one the agent's.
+    const lean = { type: 'room.run_opened', data: { ...runOpened.data, members: [] } };
+    expect(AgentStreamEvent.parse(lean)).toStrictEqual(lean);
+    expect(AgentStreamEvent.safeParse(runOpened).success).toBe(false);
   });
 
   it('accepts the room.member_changed example on the site stream only', () => {
