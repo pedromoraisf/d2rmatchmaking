@@ -4,7 +4,8 @@
 roadmap's scope: capture cascade, OCR reading of the Party panel and the chat, fusion, remote configuration and
 assisted typing, with a read rate of at least 95% under NFR-02/03. It also takes the whole F1 post-close backlog
 (`.specs/phases/F1/post-close.md`), a nightly that reports mutation, load and acceptance in one report, and the F2
-work that F1 deferred: agent channels per branch, the staging and production split, and cutting stream bytes.
+work that F1 deferred: one delivery platform for the three apps, with the same environments and pipeline stages for
+each (it brings the agent channels per branch and the staging and production split), and cutting stream bytes.
 **Roadmap**: .specs/phases/ROADMAP.md#f2
 **Status**: DRAFT — waiting for the maintainer's answers below and the approval line
 
@@ -27,13 +28,21 @@ What is new in F2 is where the work runs. The maintainer decided this on 2026-11
 - **Local lane (the Mac)**: OCR tuning against the real prints, which never leave the machine (AGENTS.md "Never do").
   It also covers load runs until the nightly carries them, and anything that needs the maintainer's credentials.
 - **The maintainer's game PC**: field tests, new real prints, and the CPU and FPS check.
-- **CI is the proof for what a Linux cloud session cannot run**: the Windows app crate (`agent`, `agent-build`), the
-  real-print proofs (`ocr-real` with the encrypted prints), and the integration and acceptance suites if the cloud
-  pilot shows no Docker.
+- **CI is the proof for what a Linux cloud session cannot run**: the Windows app crate (`agent`, `agent-build`) and
+  the real-print proofs (`ocr-real` with the encrypted prints).
 
-The "Runs" column of the features table says where each feature's work happens. A pilot cloud session is checking
-the toolchain, the hooks, Docker and `gh` before the first dispatch. Its findings go into
-`docs/engineering/cloud-sessions.md` and into the cloud environment's setup script, which the maintainer approves.
+The "Runs" column of the features table says where each feature's work happens. The cloud pilot of 2026-11-20 ran
+lint, typecheck, the unit, harness, Rust (455 tests), integration (186, with Docker) and acceptance (237) suites in a
+cloud session. They need Node 26, a full clone, `cargo-nextest`, a Playwright browser link and `dockerd` started, all
+of which go into the environment's setup script; the maintainer approves that script.
+
+Two limits shape the flow:
+
+- `git push` from the cloud needs the Claude GitHub App on the repository.
+- `gh` GraphQL calls such as `pr create` are blocked in the cloud. Cloud workers only push their branch. The
+  orchestrator on the Mac opens, reviews and merges the PRs, as the skill already says.
+
+The findings are documented in `docs/engineering/cloud-sessions.md`.
 
 ## Exit criteria
 
@@ -81,12 +90,18 @@ Every item needs a proof in the phase review.
 - [ ] **Agent lifecycle in the window and on the site**: the agent drops a room that expired or closed, the window
       shows "presence confirmed", and the site keeps a dismissed room dismissed after a reload (items b and c, #80
       review). Proof: scenarios.
-- [ ] **Agent channels**: every agent PR builds an installer for its preview API. It installs side by side with the
-      released agent, with the updater off, and is smoke-started by CI before upload (ADR 033). Proof: a PR artifact
-      and its `--self-check`.
-- [ ] **Staging and production are separate**: separate API services, databases and Battle.net credentials, at no cost
-      beyond the free tiers unless the maintainer approves otherwise. Proof: the two health endpoints and the deploy
-      runs.
+- [ ] **Delivery platform (ADR 033).**
+  - The site, the API and the agent share the same environments: preview per PR, staging from `main`, and production
+    by promoting the same build.
+  - They also share the same stages: build once, verify, deploy, smoke check (`/healthz`, the page, `--self-check`),
+    promote. The stages are reusable workflows with one thin caller per app.
+  - Staging and production are separate: API services, databases and Battle.net credentials, at no cost beyond the
+    free tiers unless the maintainer approves otherwise (NFR-07).
+  - Every agent PR builds an installer for its preview API. It installs side by side with the released agent, with
+    the updater off.
+  - The old deploy, preview and release workflows are removed after the new ones pass on real runs.
+  - Proof: the run links for each app and environment, the two health endpoints, and an agent PR artifact with its
+    `--self-check`.
 - [ ] **Load**: 100 or more players with 0 errors on the real journey (NFR-14), run by the nightly. Bytes per
       player-hour drop from 421,400 to 125,000 or less (F0 had about 113,800 at its ceiling of 125,000). The room count
       measures again. Proof: the nightly report.
@@ -97,27 +112,26 @@ Every item needs a proof in the phase review.
 
 ## Features
 
-| Feature              | Size   | Depends on                               | Parallel               | Runs                  | Covers                           |
-| -------------------- | ------ | ---------------------------------------- | ---------------------- | --------------------- | -------------------------------- |
-| nightly-report       | Large  | —                                        | yes (wave 1)           | cloud                 | NFR-14 (nightly), ADR 026        |
-| agent-channels       | Medium | —                                        | yes (wave 1)           | cloud + CI (Windows)  | ADR 033, FR-29 (channels)        |
-| ocr-protection       | Medium | —                                        | yes (wave 1)           | cloud + CI            | NFR-02 (guard), ADR 026          |
-| agent-room-lifecycle | Medium | —                                        | yes                    | cloud + you           | FR-05, FR-16 (hardening)         |
-| screen-recognition   | Large  | ocr-protection                           | yes                    | cloud + local + you   | FR-05, FR-02 (hardening), NFR-03 |
-| server-name-match    | Large  | ocr-protection                           | yes                    | cloud                 | FR-16, FR-27, FR-02 (fusion)     |
-| game-name-reading    | Large  | ocr-protection                           | yes                    | local + cloud + you   | FR-27                            |
-| capture-cascade      | Large  | screen-recognition                       | with game-name-reading | cloud + CI + you      | NFR-02, NFR-03, NFR-04           |
-| assisted-typing      | Medium | agent-channels                           | yes                    | cloud + CI + you      | FR-28                            |
-| agent-trust          | Medium | agent-room-lifecycle                     | yes                    | cloud                 | NFR-04, NFR-06                   |
-| remote-config        | Large  | capture-cascade, game-name-reading       | no                     | cloud                 | FR-27, NFR-03 (configuration)    |
-| environments-split   | Medium | agent-channels                           | yes                    | local (secrets) + you | NFR-07 (staging/production)      |
-| stream-egress        | Medium | nightly-report                           | yes                    | cloud                 | NFR-14 (egress)                  |
-| upkeep               | Medium | —                                        | yes (fills free slots) | cloud                 | CI, review items of #77/#80/#81  |
-| agent-release        | Medium | agent-room-lifecycle, screen-recognition | no                     | cloud + CI            | FR-29, ADR 015, ADR 016          |
+| Feature              | Size   | Depends on                               | Parallel               | Runs                | Covers                           |
+| -------------------- | ------ | ---------------------------------------- | ---------------------- | ------------------- | -------------------------------- |
+| nightly-report       | Large  | —                                        | yes (wave 1)           | cloud               | NFR-14 (nightly), ADR 026        |
+| delivery-platform    | Large  | —                                        | yes (wave 1, serial)   | cloud + local + CI  | NFR-07, NFR-08, FR-29, ADR 032   |
+| ocr-protection       | Medium | —                                        | yes (wave 1)           | cloud + CI          | NFR-02 (guard), ADR 026          |
+| agent-room-lifecycle | Medium | —                                        | yes                    | cloud + you         | FR-05, FR-16 (hardening)         |
+| screen-recognition   | Large  | ocr-protection                           | yes                    | cloud + local + you | FR-05, FR-02 (hardening), NFR-03 |
+| server-name-match    | Large  | ocr-protection                           | yes                    | cloud               | FR-16, FR-27, FR-02 (fusion)     |
+| game-name-reading    | Large  | ocr-protection                           | yes                    | local + cloud + you | FR-27                            |
+| capture-cascade      | Large  | screen-recognition                       | with game-name-reading | cloud + CI + you    | NFR-02, NFR-03, NFR-04           |
+| assisted-typing      | Medium | delivery-platform                        | yes                    | cloud + CI + you    | FR-28                            |
+| agent-trust          | Medium | agent-room-lifecycle                     | yes                    | cloud               | NFR-04, NFR-06                   |
+| remote-config        | Large  | capture-cascade, game-name-reading       | no                     | cloud               | FR-27, NFR-03 (configuration)    |
+| stream-egress        | Medium | nightly-report                           | yes                    | cloud               | NFR-14 (egress)                  |
+| upkeep               | Medium | —                                        | yes (fills free slots) | cloud               | CI, review items of #77/#80/#81  |
+| agent-release        | Medium | agent-room-lifecycle, screen-recognition | no                     | cloud + CI          | FR-29, ADR 015, ADR 016          |
 
 Notes:
 
-- **Waves.** Wave 1 is `nightly-report`, `agent-channels` and `ocr-protection`. `agent-room-lifecycle` and `upkeep` take
+- **Waves.** Wave 1 is `nightly-report`, `delivery-platform` and `ocr-protection`. `agent-room-lifecycle` and `upkeep` take
   the next free slots. When the protection rule is in force, `screen-recognition`, `server-name-match` and
   `game-name-reading` follow, and `game-name-reading` starts in the local lane. Never more than 3 cloud workers at once.
 - **Work already started** resumes from its branch. `fix/agent-drop-expired-room` (item b) feeds `agent-room-lifecycle`
@@ -125,19 +139,34 @@ Notes:
 - **Mapping the post-close items (`F1/post-close.md`)**:
   - Agent reading: a and f → `screen-recognition`; b and c → `agent-room-lifecycle`; d, e, i and k →
     `game-name-reading`; g → `server-name-match`; h → `capture-cascade`; j → `agent-trust`.
-  - Production keep-awake → `environments-split`.
+  - Production keep-awake, the preview redirect alias at Blizzard and the `BNET_*` names in `render.yaml` →
+    `delivery-platform`.
   - Site and API items, Dependabot and CI → `upkeep`.
   - The egress regression and the room count → `stream-egress`.
   - SignPath and publish-after-sign → `agent-release`.
 - **Reading logic**: every PR that changes a threshold, a box, a glyph table or an anchor carries the real-print proof:
   `ocr-real` green and `ocr-variations` not regressing on its ratchet.
-- **Security review** on the diff for `agent-channels`, `assisted-typing`, `agent-trust`, `capture-cascade`,
-  `server-name-match`, `environments-split` and `agent-release`.
+- **Security review** on the diff for `delivery-platform`, `assisted-typing`, `agent-trust`, `capture-cascade`,
+  `server-name-match` and `agent-release`.
 - **New ADRs** are written as Proposed inside their feature, and the maintainer accepts them:
-  - 033, agent channels (planned at F1);
+  - 033, the delivery platform: environments, stages and agent channels for the three apps (it extends the agent
+    channels planned at F1);
   - 034, workers in cloud sessions, which notes ADR 025's worktree;
   - 035, the load run in the nightly, which changes `testing.md` rule 8.
-- `environments-split` runs in the local lane, because it creates services and needs secrets the maintainer sets.
+- **How `delivery-platform` runs.**
+  - **Design first**: ADR 033 and `design.md`, with the target map of environments and stages for the site, the API
+    and the agent.
+  - **One worker, in series**: it is the only feature that touches the deploy, preview and release workflows. Its PRs
+    go **straight to `main`**, because those workflows only fire for real from `main`. After each merge,
+    `phase/F2` merges `main` in.
+  - **Strangler, never a big bang**: each new workflow runs beside the old one, and the old one is removed only after
+    the new one passes on real runs.
+  - **Order, lowest risk first**: the site, then the API with the staging and production split (the maintainer sets
+    the new secrets; the local lane does what needs them), then the agent channels.
+  - **Frozen**: `ci.yml` (the PR checks and their required names), `nightly.yml` (owned by `nightly-report`) and
+    `ocr-real.yml`.
+  - Only `assisted-typing` and `agent-release` wait for it. Field tests use the per-PR test installer that already
+    exists.
 
 ## Decisions already taken
 
@@ -157,6 +186,13 @@ Notes:
 - **Agent channels per branch are the first work of F2** (maintainer, 2026-11-12: "essa pipeline do agent é
   desenvolvida nos primeiros momentos da fase 2").
 - **The staging and production split moves to F2** (maintainer, 2026-11-12: "vamos adiar esse trabalho para a fase 2").
+- **One delivery platform, with its PRs straight to `main`** (maintainer, 2026-11-20: "Aceito as duas
+  recomendações").
+  - The two recommendations were: merge the agent channels and the staging and production split into one feature,
+    `delivery-platform`, whose ADR 033 covers the three apps.
+  - And: its PRs go straight to `main`, with `phase/F2` merging `main` in after each one. This is an explicit
+    exception to ADR 028's "into `main` through the phase PR", limited to this feature.
+  - It also covers the uniform staging environment and pipelines the maintainer asked for.
 - **Cutting stream bytes is an F2 task** (maintainer, 2026-11-12, with the load cost accepted: "Aceito").
 - **Workers on Sonnet** (ADR 031); reviewers on Sonnet.
 
