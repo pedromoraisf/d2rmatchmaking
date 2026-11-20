@@ -39,7 +39,7 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
 
 ## Batch 1 — runs in the cloud, no maintainer input
 
-- [ ] T1 — Take PR #87 in: `git merge origin/chore/F2-real-prints-generated-names` (two commits, one encrypted zip with the
+- [x] T1 — Take PR #87 in: `git merge origin/chore/F2-real-prints-generated-names` (two commits, one encrypted zip with the
       twelve prints). Do not open the zip. Expected: the merge adds only `apps/agent/ocr-lab/real-prints.zip` and the print
       names. `ocr-real` stays red on six Party prints until T6; that is the starting point of SCR-04. Gate:
       `node scripts/check-encrypted-zip.mjs && pnpm test:harness`
