@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import type { ApiClient, ApiResult } from '../../shared/api-client.ts';
 import { classKey, stageKey } from '../../shared/labels.ts';
 import { tracedAction } from '../../shared/telemetry.ts';
+import { dismissRoom, isRoomDismissed } from './dismissed-rooms.ts';
 import './room.css';
 
 type Stage = RoomView['stage'];
@@ -57,10 +58,12 @@ export function RoomPanel({ room, you, client, onActed }: RoomPanelProps) {
   const { t } = useTranslation();
   const [copy, setCopy] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [failed, setFailed] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  // The room id put away in this visit; a reload reads the browser's memory of it (ARL-05).
+  const [putAway, setPutAway] = useState<string | null>(null);
   const nameRef = useRef<HTMLElement | null>(null);
 
   const open = isOpen(room.stage);
+  const dismissed = !open && (putAway === room.roomId || isRoomDismissed(room.roomId));
   const isHost = room.members.some((member) => member.accountId === you && member.role === 'host');
 
   async function copyName() {
@@ -119,7 +122,14 @@ export function RoomPanel({ room, you, client, onActed }: RoomPanelProps) {
           <p role="status" className="ended">
             {t(room.stage === 'closed' ? 'room.ended.closed' : 'room.ended.expired')}
           </p>
-          <button type="button" className="btn" onClick={() => setDismissed(true)}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              dismissRoom(room.roomId);
+              setPutAway(room.roomId);
+            }}
+          >
             {t('room.dismiss')}
           </button>
         </>
