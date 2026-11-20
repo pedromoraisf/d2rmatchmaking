@@ -2,7 +2,7 @@
 // maintainer's tag and with secrets, so their shape is checked here; their first runs are the phase review's proof
 // (C43). release-please.yml chains into release-agent.yml by workflow_call.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -153,7 +153,8 @@ test('fixture-read cannot reach a release build', () => {
   );
 });
 
-// The startup self-check: a binary that cannot start is never published. The release is a draft until the check has passed.
+// The startup self-check: a binary that cannot start is never published. The release is a draft until the check has passed,
+// and the build job never makes it public: the `publish` job does, after `sign` (AGR-01, AGR-02).
 test('the release binary is started with --self-check --online before anything is published', () => {
   const job = buildJob();
   const build = indexOfStep(job, (step) => step === tauriAction(job));
@@ -162,17 +163,20 @@ test('the release binary is started with --self-check --online before anything i
     (step) => typeof step.run === 'string' && step.run.includes('d2rmm-agent.exe --self-check --online'),
   );
   const upload = indexOfStep(job, (step) => step.run?.includes('gh release upload'));
-  const publish = indexOfStep(job, (step) => step.run?.includes('--draft=false'));
   assert.ok(check > build, 'the check runs after the build');
   assert.ok(check < upload, 'the check runs before any asset is uploaded');
-  assert.ok(publish > check, 'the release is published after the check');
-  assert.ok(publish > upload, 'the release is published after its assets are attached');
+  assert.equal(
+    indexOfStep(job, (step) => step.run?.includes('--draft=false')),
+    -1,
+    'the build job never makes the release public',
+  );
   assert.equal(stepsOf(job)[check]['continue-on-error'], undefined, 'the check can fail the job');
   assert.equal(tauriAction(job).with.releaseDraft, true, 'tauri-action leaves the release a draft');
   assert.ok(stepsOf(job)[check].run.includes('-ne 0'), 'a non-zero exit fails the step');
-  const publishRun = stepsOf(job)[publish].run;
-  assert.ok(publishRun.includes('--latest=false'), 'an older tag never becomes "latest"');
-  assert.doesNotMatch(publishRun, /--draft=false --latest\s*$/m, '"latest" is never unconditional');
+  assert.ok(
+    releaseAgent().jobs.publish.needs.includes('build'),
+    'the publication needs the build, so it comes after the check',
+  );
 });
 
 // The tag-on-main check (AGS-28): the tag's commit must be an ancestor of origin/main. The reversed test is refused.
@@ -324,16 +328,23 @@ test('release-please creates the agent release as a draft and still creates the 
   );
 });
 
-test('the release is published and marked latest only after the self-check', () => {
-  const job = buildJob();
-  const isRun = (text) => (s) => typeof s.run === 'string' && s.run.includes(text);
-  const selfCheck = indexOfStep(job, isRun('--self-check --online'));
-  const publish = indexOfStep(job, isRun('gh release edit'));
-  assert.ok(selfCheck >= 0 && publish > selfCheck, 'gh release edit comes after the self-check');
-  const run = stepsOf(job)[publish].run;
+test('the release is published and marked latest only after the self-check, by the publish job', () => {
+  const wf = releaseAgent();
+  const publish = indexOfStep(
+    wf.jobs.publish,
+    (s) => typeof s.run === 'string' && s.run.includes('gh release edit'),
+  );
+  assert.ok(publish >= 0, 'the publish job runs gh release edit');
+  const run = stepsOf(wf.jobs.publish)[publish].run;
   assert.ok(run.includes('--draft=false'), 'the publish step undrafts the release');
-  assert.ok(run.includes('--latest=false'), 'an older tag is never marked latest');
-  assert.ok(run.includes('sort -V | tail -n1'), 'only the newest agent-v* tag is latest');
+  assert.ok(run.includes('"$latest"'), 'whether it is Latest comes from the publication decision');
+  assert.ok(run.includes('scripts/agent/publish-release.mjs'), 'the decision is the tested helper');
+  assert.ok(run.includes('skip'), 'a release that is already public is left alone');
+  assert.ok(
+    indexOfStep(wf.jobs.build, (s) => typeof s.run === 'string' && s.run.includes('--self-check --online')) >=
+      0,
+    'the self-check runs in the build job, which the publish job needs',
+  );
 });
 
 test('the API is woken, with retries, before the online self-check', () => {
@@ -350,4 +361,117 @@ test('the API is woken, with retries, before the online self-check', () => {
   assert.ok(step.run.includes('SECONDS + 90'), 'it waits up to 90 s');
   assert.ok(step.run.includes('sleep "$delay"'), 'with a backoff');
   assert.ok(step.run.includes('exit 1'), 'it fails when the API never wakes');
+});
+
+// Publish after sign (AGR-01, AGR-02): the release becomes public once, in its own job, after the signed assets are attached.
+const PUBLISH_IF =
+  "always() && needs.build.result == 'success' && (needs.sign.result == 'success' || needs.sign.result == 'skipped')";
+const isRun = (text) => (step) => typeof step.run === 'string' && step.run.includes(text);
+
+test('the release is made public by one step, in the publish job, after build and sign', () => {
+  const wf = releaseAgent();
+  const publish = wf.jobs.publish;
+  assert.ok(publish, 'a publish job exists');
+  assert.deepEqual(publish.needs, ['build', 'sign']);
+  assert.equal(publish.if, PUBLISH_IF, 'it runs with signing on and off, and never after a failed sign');
+  assert.equal(publish['runs-on'], 'windows-latest', 'the Authenticode check needs Windows');
+  assert.deepEqual(publish.permissions, { contents: 'write' });
+  const text = readText(`.github/workflows/${RELEASE_AGENT}`);
+  assert.equal(text.match(/--draft=false/g)?.length, 1, 'exactly one step makes a release public');
+  assert.equal(text.match(/gh release edit/g)?.length, 1, 'and it is the only release edit');
+  assert.equal(
+    indexOfStep(wf.jobs.build, isRun('gh release edit')),
+    -1,
+    'the build job does not edit the release',
+  );
+  assert.equal(indexOfStep(wf.jobs.sign, isRun('gh release edit')), -1, 'nor does the sign job');
+});
+
+test('the draft is checked as a set, and its signature verified, before the release is made public', () => {
+  const job = releaseAgent().jobs.publish;
+  const download = indexOfStep(job, isRun('gh release download'));
+  const assets = indexOfStep(job, isRun('scripts/agent/release-assets.mjs'));
+  const verify = indexOfStep(job, (step) => JSON.stringify(step).includes('Get-AuthenticodeSignature'));
+  const publish = indexOfStep(job, isRun('--draft=false'));
+  assert.ok(download >= 0 && download < assets, 'the draft assets are downloaded, then checked');
+  assert.ok(assets < publish, 'the asset check comes before the publication');
+  assert.ok(verify >= 0 && verify < publish, 'the signature check comes before the publication');
+  const verifyStep = stepsOf(job)[verify];
+  assert.equal(verifyStep.if, "vars.SIGNPATH_ENABLED == 'true'", 'only a signed flow verifies a signature');
+  assert.ok(
+    JSON.stringify(verifyStep).includes('scripts/agent/signature-verdict.mjs'),
+    'the verdict is the tested helper',
+  );
+  assert.ok(
+    JSON.stringify(verifyStep).includes('vars.SIGNPATH_PUBLISHER'),
+    'the expected publisher is a variable',
+  );
+  assert.equal(stepsOf(job)[assets]['continue-on-error'], undefined, 'the asset check can fail the job');
+});
+
+test('the signing key and the SignPath token are read only by build and sign', () => {
+  for (const [name, job] of Object.entries(releaseAgent().jobs)) {
+    const secrets = JSON.stringify(job).match(/secrets\.[A-Z_]+/g) ?? [];
+    assert.equal(
+      secrets.length > 0,
+      name === 'build' || name === 'sign',
+      `${name} ${secrets.length > 0 ? 'reads secrets' : 'reads none'}`,
+    );
+  }
+  for (const [name, job] of Object.entries(releaseAgent().jobs)) {
+    const installs = stepsOf(job).filter((step) => step.run?.includes('pnpm install'));
+    for (const step of installs)
+      assert.ok(step.run.includes('--ignore-scripts'), `${name} installs without scripts`);
+  }
+});
+
+test('sign submits the artifact id that build produced', () => {
+  const wf = releaseAgent();
+  assert.equal(wf.jobs.build.outputs['unsigned-artifact-id'], '${{ steps.unsigned.outputs.artifact-id }}');
+  const submit = findStep(wf.jobs.sign, (step) =>
+    step.uses?.startsWith('signpath/github-action-submit-signing-request@'),
+  );
+  assert.equal(submit.with['github-artifact-id'], '${{ needs.build.outputs.unsigned-artifact-id }}');
+  const upload = findStep(wf.jobs.build, (step) => step.uses?.startsWith('actions/upload-artifact@'));
+  assert.equal(upload.with['retention-days'], 1, 'the unsigned installer lives one day');
+});
+
+// One channel releases (AGR-05, ADR 033 §8): only release-agent.yml and release-please.yml touch a release.
+test('no workflow but the two release workflows creates, edits or uploads to a release', () => {
+  const dir = path.join(root, '.github', 'workflows');
+  for (const name of readdirSync(dir).filter((file) => file.endsWith('.yml'))) {
+    if (name === RELEASE_AGENT || name === 'release-please.yml') continue;
+    const text = readText(`.github/workflows/${name}`);
+    for (const forbidden of [
+      'gh release',
+      'tauri-apps/tauri-action',
+      'softprops/action-gh-release',
+      'release-please-action',
+    ]) {
+      assert.ok(!text.includes(forbidden), `${name} must not use ${forbidden}`);
+    }
+  }
+});
+
+test('the release build is the production channel and uses no channel override', () => {
+  const text = readText(`.github/workflows/${RELEASE_AGENT}`);
+  for (const forbidden of ['agent-channel.mjs', 'D2RMM_CHANNEL', 'TAURI_CHANNEL_CONFIG']) {
+    assert.ok(!text.includes(forbidden), `release-agent.yml must not use ${forbidden}`);
+  }
+  const conf = JSON.parse(readText('apps/agent/src-tauri/tauri.conf.json'));
+  const channels = JSON.parse(readText('apps/agent/src-tauri/channels.json'));
+  assert.equal(
+    conf.identifier,
+    channels.production.identifier,
+    'the default build is the production identifier',
+  );
+  assert.equal(conf.productName, channels.production.productName);
+  assert.equal(channels.production.updater, true, 'the updater is on in production');
+  assert.equal(conf.bundle.createUpdaterArtifacts, true);
+  assert.ok(
+    conf.plugins.updater.endpoints.some((url) => url.endsWith('/releases/latest/download/latest.json')),
+  );
+  for (const channel of ['preview', 'staging']) {
+    assert.equal(channels[channel].updater, false, `${channel} has the updater off`);
+  }
 });

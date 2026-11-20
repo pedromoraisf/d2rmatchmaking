@@ -22,7 +22,7 @@ Rules:
 
 ## Batch 1 — publish after sign, the asset checker, the page
 
-- [ ] T1 — Pin the new order with harness tests that fail on today's workflow (AGR-01, AGR-02, AGR-05, AGR-10): `publish`
+- [x] T1 — Pin the new order with harness tests that fail on today's workflow (AGR-01, AGR-02, AGR-05, AGR-10): `publish`
       is a job of its own with `needs: [build, sign]` and the `always()` condition of the spec; exactly one `--draft=false`
       in the file and it is in `publish`; `build` no longer runs `gh release edit`; `--clobber` appears only in `sign`; no
       workflow but `release-agent.yml` and `release-please.yml` calls `gh release` or `softprops`/`tauri-action` with a tag;
@@ -34,7 +34,7 @@ Rules:
       differs; a hash that does not match; `latest.json` version of another tag; URL of another asset; stale signature).
       Pure functions over file contents, plus a thin CLI (`--dir <downloaded assets> --tag <tag>`), exit 1 with one line per
       problem. Gate: `node --test scripts/test/release-assets.test.mjs`
-- [ ] T3 — Reorder `release-agent.yml` (AGR-01, AGR-02, AGR-06): `build` keeps tauri-action into the draft, the wake and the
+- [x] T3 — Reorder `release-agent.yml` (AGR-01, AGR-02, AGR-06): `build` keeps tauri-action into the draft, the wake and the
       two smoke checks, uploads the fixed-name installer and `SHA256SUMS` **to the draft**, and no longer publishes; `sign`
       stays as it is (replaces the draft's assets, `--clobber`); the new `publish` job downloads the draft's assets, runs
       `release-assets.mjs`, and publishes once, `--latest` only for the newest tag, doing nothing when the release is already

@@ -48,9 +48,10 @@ maintainer's roles, contact email or the SignPath organisation is marked as wait
   API's address), and a preview or staging installer SHALL never be created, attached or edited as a GitHub Release (ADR
   033 §8). The binary that is published SHALL have started with `--self-check --online` against the production API, woken
   first with a backoff of up to 90 s, and SHALL have refused `--read-fixture` with exit code 2 (AGS-33).
-- **AGR-06** — A re-run of a failed release (`workflow_dispatch` with the tag) SHALL resume from the draft that exists and
-  SHALL be safe to repeat: re-running a tag that is already public changes nothing and does not fail, and a re-run of an
-  older tag SHALL NOT move Latest back.
+- **AGR-06** — A re-run of a failed release (`workflow_dispatch` with the tag) SHALL resume from the draft that exists, and
+  the publication SHALL be safe to repeat: a release that is already public is left as it is (no error, no change), and a
+  re-run of an older tag SHALL NOT move Latest back. (A whole re-run of a tag that is already public fails in `build`, which
+  never uses `--clobber`, and leaves the public release untouched.)
 - **AGR-07** — Agent 0.4.0, and every later release, SHALL be produced by the draft flow (release-please draft, build,
   self-check, publish) with every asset of AGR-03 attached. An agent already installed at 0.3.0 SHALL find the new
   `latest.json`, verify its updater signature and offer the update (AGS-24, AGS-26).
