@@ -57,13 +57,13 @@ Rules:
 
 ## Batch 2
 
-- [ ] T8 — Acceptance steps for `@AGT-01` and `@AGT-02`: the agent asks for an action on the site with its token, the
+- [x] T8 — Acceptance steps for `@AGT-01` and `@AGT-02`: the agent asks for an action on the site with its token, the
       session cookie alone calls each agent route, and the revoked or replaced agent calls each agent route (reuse the
       steps of `agents.steps.ts`; the stream-closed step exists for IDB-08). Gate:
       `pnpm exec turbo run test:acceptance -- --grep "@AGT-01|@AGT-02"`
-- [ ] T9 — Acceptance steps for `@AGT-04`, `@AGT-05` and `@AGT-06`: an unknown stream event reaches the headless agent
+- [x] T9 — Acceptance steps for `@AGT-04`, `@AGT-05` and `@AGT-06`: an unknown stream event reaches the headless agent
       through the stack's test control, the recording proxy shows each request's keys and no image data, and the
       headless agent runs with and without consent. Gate:
       `pnpm exec turbo run test:acceptance -- --grep "@AGT-04|@AGT-05|@AGT-06"`
-- [ ] T10 — Close the feature: every scenario of the feature passes together, and the spec checks are green. Gate:
+- [x] T10 — Close the feature: every scenario of the feature passes together, and the spec checks are green. Gate:
       `pnpm exec turbo run test:acceptance -- --grep @AGT- && pnpm acceptance:check && pnpm specs:check`
