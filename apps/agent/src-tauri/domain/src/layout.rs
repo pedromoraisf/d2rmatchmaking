@@ -584,6 +584,18 @@ mod screen_tests {
     }
 
     #[test]
+    fn the_card_column_box_is_pinned_per_client_size() {
+        let measured = |width: u32, height: u32| {
+            let r = at(ScreenRegion::CardColumn, width, height);
+            (r.x, r.y, r.width, r.height)
+        };
+        assert_eq!(measured(1920, 1033), (1540, 30, 340, 850));
+        assert_eq!(measured(1920, 1080), (1523, 31, 355, 889));
+        assert_eq!(measured(1680, 1050), (1293, 30, 346, 864));
+        assert_eq!(measured(2560, 1440), (2030, 42, 474, 1185));
+    }
+
+    #[test]
     fn the_lifted_card_column_is_the_card_column() {
         for (width, height) in [(1920, 1033), (1920, 1080), (1680, 1050)] {
             assert_eq!(
