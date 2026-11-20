@@ -63,3 +63,17 @@ test('a byte count must be a non-negative integer and the clock a function', () 
   assert.throws(() => counter.add(Number.NaN), RangeError);
   assert.throws(() => createWindowCounter(42), TypeError);
 });
+
+test('bytes labelled by signal are split in the answer and still count in the total', () => {
+  const counter = createWindowCounter(() => 0);
+  counter.start();
+  counter.add(10, 'traces');
+  counter.add(5, 'logs');
+  counter.add(3, 'traces');
+  counter.add(7);
+  assert.deepEqual(counter.stop(), { bytes: 25, seconds: 0, byLabel: { traces: 13, logs: 5 } });
+
+  counter.start();
+  counter.add(4);
+  assert.deepEqual(counter.stop(), { bytes: 4, seconds: 0 }, 'a window with no label keeps the old answer');
+});

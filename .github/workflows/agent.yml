@@ -1,0 +1,43 @@
+# The agent through the delivery stages (ADR 033, DLP-02, DLP-06): a preview installer for every same-repository pull request
+# that changes the agent, and a staging installer for every commit on main that does, both as workflow artifacts only (never a
+# GitHub Release, the `releases/latest` rule) and each started once with `--self-check --online` against its channel's API
+# before it is uploaded. Production is the release-please release (ADR 015), which this file never touches. This file holds
+# triggers and inputs only. It runs beside ci.yml's agent-build and release-agent.yml until they are removed (DLP-09).
+name: agent
+
+on:
+  push:
+    branches: [main, feat/F2-delivery-platform]
+    paths:
+      - 'apps/agent/**'
+      - '.github/workflows/agent.yml'
+      - '.github/workflows/stage-build.yml'
+      - 'scripts/delivery/**'
+  pull_request:
+    paths:
+      - 'apps/agent/**'
+      - '.github/workflows/agent.yml'
+      - '.github/workflows/stage-build.yml'
+      - 'scripts/delivery/**'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: agent-${{ github.event_name }}-${{ github.ref }}
+  # A newer push cancels an older preview or branch build; a staging build on main runs to its end.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main') }}
+
+jobs:
+  build:
+    name: build
+    # A fork's pull request gets no installer: its code would build with this repository's workflow permissions.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    uses: ./.github/workflows/stage-build.yml
+    with:
+      app: agent
+      sha: ${{ github.event.pull_request.head.sha || github.sha }}
+      channel: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'staging' || 'preview' }}
+      branch: ${{ github.head_ref || github.ref_name }}
+      api_base: ${{ vars.API_BASE_URL }}

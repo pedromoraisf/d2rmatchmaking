@@ -13,6 +13,7 @@ use typify::{TypeSpace, TypeSpaceSettings};
 pub mod character_fixture;
 pub mod fixture;
 pub mod fullscreen_fixture;
+pub mod screen_fixture;
 
 /// Each agent schema file and the Rust type it generates. The directory must hold exactly these files.
 pub const CONTRACTS: &[(&str, &str)] = &[

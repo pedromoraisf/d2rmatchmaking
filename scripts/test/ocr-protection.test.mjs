@@ -12,7 +12,7 @@ import {
 
 const toml = readFileSync(defaultConfig, 'utf8');
 
-test('the reading modules are the nine domain modules and the two core modules (OCP-02)', () => {
+test('the reading modules are the ten domain modules and the two core modules (OCP-02)', () => {
   assert.deepEqual([...readingModules()].sort(), [
     'core/src/party.rs',
     'core/src/screen_reader.rs',
@@ -20,6 +20,7 @@ test('the reading modules are the nine domain modules and the two core modules (
     'domain/src/character_screen.rs',
     'domain/src/characters.rs',
     'domain/src/game_name_match.rs',
+    'domain/src/hud_track.rs',
     'domain/src/language.rs',
     'domain/src/layout.rs',
     'domain/src/name_diff.rs',

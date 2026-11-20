@@ -738,6 +738,12 @@ async function readStepFile(ctx) {
   return parsed;
 }
 
+/** The per-signal sink bytes of a step file; a file without them (an older k6 script) reads as zero. */
+function signalBytesOf(value) {
+  const bytes = (signal) => (Number.isFinite(value?.[signal]) && value[signal] >= 0 ? value[signal] : 0);
+  return { traces: bytes('traces'), metrics: bytes('metrics'), logs: bytes('logs') };
+}
+
 async function roomsCreated(ctx) {
   const result = await ctx.docker.exec(ctx.names.postgres, [
     'psql',
@@ -874,6 +880,7 @@ async function runStepBody(ctx, step, provisioned, timings) {
     errorRatio: ratio,
     bytesReceived: measured.meterBytes,
     telemetryBytes: measured.sinkBytes,
+    telemetryBytesBySignal: signalBytesOf(measured.sinkBytesBySignal),
     windowSeconds: measured.windowSeconds,
     peakCpuPercent: peaks.peakCpuPercent,
     peakMemoryBytes: peaks.peakMemoryBytes,
