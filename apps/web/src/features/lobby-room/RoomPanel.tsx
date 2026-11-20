@@ -57,6 +57,7 @@ export function RoomPanel({ room, you, client, onActed }: RoomPanelProps) {
   const { t } = useTranslation();
   const [copy, setCopy] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [failed, setFailed] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const nameRef = useRef<HTMLElement | null>(null);
 
   const open = isOpen(room.stage);
@@ -90,42 +91,54 @@ export function RoomPanel({ room, you, client, onActed }: RoomPanelProps) {
     }
   }
 
+  // A closed or expired room is history, not a live room: the player may put the card away (conservative default).
+  if (dismissed) {
+    return null;
+  }
+
   return (
     <section className="panel room-panel" aria-labelledby="room-heading">
       <div className="room-h">
         <h2 id="room-heading">{t('room.heading')}</h2>
       </div>
 
-      <ol className="stepper" aria-label={t('room.stagesLabel')}>
-        {STEPPER_STAGES.map((step) => (
-          <li
-            key={step}
-            className={isCurrentStep(step, room.stage) ? 'step now' : 'step'}
-            aria-current={isCurrentStep(step, room.stage) ? 'step' : undefined}
-          >
-            {t(stageKey(step))}
-          </li>
-        ))}
-      </ol>
-
-      {open ? null : (
-        <p role="status" className="ended">
-          {t(room.stage === 'closed' ? 'room.ended.closed' : 'room.ended.expired')}
-        </p>
+      {open ? (
+        <ol className="stepper" aria-label={t('room.stagesLabel')}>
+          {STEPPER_STAGES.map((step) => (
+            <li
+              key={step}
+              className={isCurrentStep(step, room.stage) ? 'step now' : 'step'}
+              aria-current={isCurrentStep(step, room.stage) ? 'step' : undefined}
+            >
+              {t(stageKey(step))}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <>
+          <p role="status" className="ended">
+            {t(room.stage === 'closed' ? 'room.ended.closed' : 'room.ended.expired')}
+          </p>
+          <button type="button" className="btn" onClick={() => setDismissed(true)}>
+            {t('room.dismiss')}
+          </button>
+        </>
       )}
 
-      <div className="cred">
-        <span className="muted">{t('room.gameName')}</span>
-        <code className="credential" ref={nameRef}>
-          {room.gameName}
-        </code>
-        <span className="nopass">{t('room.noPassword')}</span>
-        <button type="button" className="btn quiet" onClick={() => void copyName()}>
-          {t('room.copy')}
-        </button>
-        {copy === 'copied' ? <span role="status">{t('room.copied')}</span> : null}
-        {copy === 'failed' ? <span role="alert">{t('room.copyFailed')}</span> : null}
-      </div>
+      {open ? (
+        <div className="cred">
+          <span className="muted">{t('room.gameName')}</span>
+          <code className="credential" ref={nameRef}>
+            {room.gameName}
+          </code>
+          <span className="nopass">{t('room.noPassword')}</span>
+          <button type="button" className="btn quiet" onClick={() => void copyName()}>
+            {t('room.copy')}
+          </button>
+          {copy === 'copied' ? <span role="status">{t('room.copied')}</span> : null}
+          {copy === 'failed' ? <span role="alert">{t('room.copyFailed')}</span> : null}
+        </div>
+      ) : null}
 
       {open ? (
         <ol className="steps" aria-label={t('room.stepsLabel')}>
@@ -157,9 +170,11 @@ export function RoomPanel({ room, you, client, onActed }: RoomPanelProps) {
             </span>
             {member.role === 'host' ? <span className="tag hostmark">{t('room.host')}</span> : null}
             {member.accountId === you ? <span className="tag">{t('room.you')}</span> : null}
-            <span className={member.confirmed ? 'pres ok' : 'pres wait'}>
-              {t(member.confirmed ? 'room.presence.confirmed' : 'room.presence.waiting')}
-            </span>
+            {open ? (
+              <span className={member.confirmed ? 'pres ok' : 'pres wait'}>
+                {t(member.confirmed ? 'room.presence.confirmed' : 'room.presence.waiting')}
+              </span>
+            ) : null}
           </li>
         ))}
       </ul>
@@ -167,9 +182,9 @@ export function RoomPanel({ room, you, client, onActed }: RoomPanelProps) {
       <h3>{t('room.runsLabel')}</h3>
       <ol className="runlog" aria-label={t('room.runsLabel')}>
         {room.runs.map((run) => (
-          <li key={run.run} aria-current={run.run === room.run ? 'true' : undefined}>
+          <li key={run.run} aria-current={open && run.run === room.run ? 'true' : undefined}>
             {`${t('room.run', { run: run.run })}: ${run.gameName}`}
-            {run.run === room.run ? ` (${t('room.runCurrent')})` : null}
+            {open && run.run === room.run ? ` (${t('room.runCurrent')})` : null}
           </li>
         ))}
       </ol>

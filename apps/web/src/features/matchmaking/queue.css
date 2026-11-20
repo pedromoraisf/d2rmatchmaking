@@ -111,12 +111,12 @@
 }
 
 .queue-panel .lock {
-  position: absolute;
-  top: 12px;
-  right: 12px;
+  /* In the grid flow, under the difficulty name: an absolute label covered the name (field report 2026-11-19). */
+  display: block;
   font-family: var(--display);
-  font-size: 11.5px;
-  letter-spacing: 0.1em;
+  font-size: 10px;
+  line-height: 1.3;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ash);
 }

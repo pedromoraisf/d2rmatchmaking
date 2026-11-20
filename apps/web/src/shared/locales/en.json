@@ -141,6 +141,7 @@
     "leave": "Leave room",
     "nextRun": "Next run",
     "close": "Close room",
+    "dismiss": "Dismiss",
     "actionFailed": "The action did not go through. Try again.",
     "ended": {
       "closed": "The host closed the room. You are free to join a queue again.",
