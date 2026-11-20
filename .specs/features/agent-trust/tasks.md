@@ -43,7 +43,7 @@ Rules:
 - [x] T4 — Agent: data only (AGT-04). Parser tests: an unknown event type, an unknown field, a malformed frame and an
       oversized frame change nothing; a source rule that lists the `StreamItem` variants and fails on a new one. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core -p d2rmm-agent-adapters --lib && node --test scripts/test/agent-source-rules.test.mjs`
-- [ ] T5 — Agent: structured data only (AGT-05). A unit test per request body (heartbeat, observation, characters,
+- [x] T5 — Agent: structured data only (AGT-05). A unit test per request body (heartbeat, observation, characters,
       telemetry) that its keys equal the contract's; a source rule that `adapters/src/http` imports no frame, pixel or
       capture type and has no multipart or binary upload. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib && node --test scripts/test/agent-source-rules.test.mjs`
