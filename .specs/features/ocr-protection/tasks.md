@@ -49,7 +49,7 @@ with drawn fixtures. Never commit a capture.
       `feature-worker.md` name `scripts/agent/reading-modules.json`. Gate: `pnpm test:harness && pnpm format:check`
 - [x] T5 — Write pinning tests for the survivors in `anchors.rs`, `characters.rs` and `character_screen.rs` (OCP-05).
       Gate: `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --lib`
-- [ ] T6 — Write pinning tests for the survivors in `layout.rs` and `vision.rs` (OCP-05). Gate: as T5
+- [x] T6 — Write pinning tests for the survivors in `layout.rs` and `vision.rs` (OCP-05). Gate: as T5
 - [ ] T7 — Write pinning tests for the survivors in `name_diff.rs` (including the timeout at line 83) and
       `vocabulary.rs` (OCP-05). Gate: as T5, plus
       `cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings`
