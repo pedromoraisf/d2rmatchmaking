@@ -199,6 +199,36 @@ impl fmt::Display for HotkeyChoice {
     }
 }
 
+/// Which of the two hotkeys a change is for (AST-01).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HotkeyAction {
+    Accept,
+    Fill,
+}
+
+impl HotkeyAction {
+    /// `accept` or `fill`, as the window names them.
+    pub fn parse(name: &str) -> Option<Self> {
+        match name {
+            "accept" => Some(Self::Accept),
+            "fill" => Some(Self::Fill),
+            _ => None,
+        }
+    }
+}
+
+impl HotkeyRefusal {
+    /// The code the window maps to its message for this refusal.
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::NoModifier => "no-modifier",
+            Self::ConfirmingKey => "confirming-key",
+            Self::UnsupportedKey => "unsupported-key",
+            Self::SameAsOther => "same-as-other",
+        }
+    }
+}
+
 /// The two hotkeys of the agent: the one that accepts a ready check (RDY-07) and the one that fills the name (AST-01).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HotkeyPair {
@@ -400,6 +430,33 @@ mod tests {
                 "{text:?}"
             );
         }
+    }
+
+    #[test]
+    fn an_action_and_a_refusal_have_the_names_the_window_uses() {
+        use super::HotkeyAction;
+        assert_eq!(HotkeyAction::parse("accept"), Some(HotkeyAction::Accept));
+        assert_eq!(HotkeyAction::parse("fill"), Some(HotkeyAction::Fill));
+        for other in ["", "Fill", "confirm", "accept "] {
+            assert_eq!(HotkeyAction::parse(other), None, "{other:?}");
+        }
+        let codes: Vec<&str> = [
+            HotkeyRefusal::NoModifier,
+            HotkeyRefusal::ConfirmingKey,
+            HotkeyRefusal::UnsupportedKey,
+            HotkeyRefusal::SameAsOther,
+        ]
+        .map(HotkeyRefusal::code)
+        .to_vec();
+        assert_eq!(
+            codes,
+            [
+                "no-modifier",
+                "confirming-key",
+                "unsupported-key",
+                "same-as-other"
+            ]
+        );
     }
 
     #[test]

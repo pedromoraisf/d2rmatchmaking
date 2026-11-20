@@ -57,7 +57,7 @@ Rules:
 - [x] T6 — Site: the accept-hotkey hint says Ctrl+Shift+A by default and that the agent can change it, in English and
       pt-BR (AST-10). Update `ReadyCheckOverlay.test.tsx` for the new text, never loosen another assertion. Gate:
       `pnpm --filter @d2rmm/web exec vitest run src/features/matchmaking && pnpm --filter @d2rmm/web lint`
-- [ ] T7 — Headless agent and acceptance steps: fakes for the three ports, a `fill` stdin command, and
+- [x] T7 — Headless agent and acceptance steps: fakes for the three ports, a `fill` stdin command, and
       `tests/acceptance/steps/assisted-typing.steps.ts` for every `@AST-` scenario. Gate:
       `pnpm exec turbo run test:acceptance -- --grep @AST-`
 

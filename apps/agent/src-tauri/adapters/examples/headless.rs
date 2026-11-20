@@ -12,7 +12,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use chrono::{DateTime, Utc};
@@ -24,6 +24,7 @@ use d2rmm_agent_adapters::telemetry::relay_client::HeaderSource;
 use d2rmm_agent_adapters::telemetry::{self, ExportConfig, Mode, TelemetryGuard};
 use d2rmm_agent_core::config::Config;
 use d2rmm_agent_core::fakes::{MemoryTokens, NoConsent, NoFrames, NoUpdates};
+use d2rmm_agent_core::fill_name::FillPorts;
 use d2rmm_agent_core::groups::{
     Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
 };
@@ -32,7 +33,8 @@ use d2rmm_agent_core::ports::{
     ApiError, ApiGateway, ConsentStore, EventStream, FrameSource, ProcessSource, ReadError, Rgba,
     SequentialIds, StateSink, StoreError, TextReader, TokenStore, WallClock,
 };
-use d2rmm_agent_core::runtime::{Handle, Runtime};
+use d2rmm_agent_core::ports::{ForegroundWindow, KeyTyper, ModifierState};
+use d2rmm_agent_core::runtime::{Handle, Probe, Runtime};
 use d2rmm_agent_core::screen_reader::ScreenReader;
 use d2rmm_agent_core::secret::Secret;
 use d2rmm_agent_core::view::{AgentView, PairingView, RoomView};
@@ -40,7 +42,8 @@ use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{
     PanelRegion, ScreenRegion, panel_region, screen_region, screen_text_regions,
 };
-use d2rmm_agent_domain::room_assignment::Assignment;
+use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
+use d2rmm_agent_domain::typing::{Modifiers, TypableChar};
 use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
@@ -385,6 +388,117 @@ impl ConsentStore for SwitchConsent {
     }
 }
 
+/// What a hook does once, after the keyboard typed some characters.
+type AfterChars = (usize, std::sync::Arc<dyn Fn() + Send + Sync>);
+
+/// The typer, the foreground window and the modifier keys of the headless agent (assisted typing, FR-28): plain state the
+/// acceptance steps drive with lines. It records what was typed and nothing reaches an operating system.
+#[derive(Default)]
+struct HeadlessKeyboard {
+    typed: Mutex<String>,
+    typed_while_held: AtomicUsize,
+    unfocused: AtomicBool,
+    lose_focus_after: Mutex<Option<usize>>,
+    held_until: Mutex<Option<std::time::Instant>>,
+    held_forever: AtomicBool,
+    after_chars: Mutex<Option<AfterChars>>,
+}
+
+impl HeadlessKeyboard {
+    fn held(&self) -> bool {
+        self.held_forever.load(Ordering::SeqCst)
+            || self
+                .held_until
+                .lock()
+                .map(|until| until.is_some_and(|until| std::time::Instant::now() < until))
+                .unwrap_or(false)
+    }
+
+    /// What was typed and how many characters went out while the modifier keys were held, and forgets both.
+    fn take(&self) -> (String, usize) {
+        let text = self
+            .typed
+            .lock()
+            .map(|mut typed| std::mem::take(&mut *typed))
+            .unwrap_or_default();
+        (text, self.typed_while_held.swap(0, Ordering::SeqCst))
+    }
+}
+
+impl KeyTyper for HeadlessKeyboard {
+    fn type_char(&self, character: TypableChar) {
+        if self.held() {
+            self.typed_while_held.fetch_add(1, Ordering::SeqCst);
+        }
+        let count = {
+            let Ok(mut typed) = self.typed.lock() else {
+                return;
+            };
+            typed.push(character.get());
+            typed.len()
+        };
+        if self.lose_focus_after.lock().ok().and_then(|after| *after) == Some(count) {
+            self.unfocused.store(true, Ordering::SeqCst);
+        }
+        let hook = self
+            .after_chars
+            .lock()
+            .ok()
+            .and_then(|mut hook| hook.take_if(|(after, _)| *after == count));
+        if let Some((_, hook)) = hook {
+            hook();
+        }
+    }
+}
+
+impl ForegroundWindow for HeadlessKeyboard {
+    fn game_has_focus(&self) -> bool {
+        !self.unfocused.load(Ordering::SeqCst)
+    }
+}
+
+impl ModifierState for HeadlessKeyboard {
+    fn any_held(&self, _modifiers: Modifiers) -> bool {
+        self.held()
+    }
+}
+
+/// The room the `assign` line makes the agent hold: the id is fixed, the name is the line's.
+const ASSIGNED_ROOM: &str = "7d9f2c1e-0000-4000-8000-000000000001";
+
+fn assignment_named(name: &str) -> Assignment {
+    Assignment {
+        room: RoomId::new(ASSIGNED_ROOM),
+        run: std::num::NonZeroU64::MIN,
+        expected_game_name: GameName::new(name),
+        members: Vec::new(),
+    }
+}
+
+/// Applies one assisted-typing line to the keyboard: `focus on|off|lose-after <n>`, `keys free|hold <ms>|hold-forever`.
+fn apply_keyboard(keyboard: &HeadlessKeyboard, command: &KeyboardCommand) {
+    match command {
+        KeyboardCommand::Focus(on) => keyboard.unfocused.store(!on, Ordering::SeqCst),
+        KeyboardCommand::LoseFocusAfter(count) => {
+            if let Ok(mut after) = keyboard.lose_focus_after.lock() {
+                *after = Some(*count);
+            }
+        }
+        KeyboardCommand::KeysFree => {
+            keyboard.held_forever.store(false, Ordering::SeqCst);
+            if let Ok(mut until) = keyboard.held_until.lock() {
+                *until = None;
+            }
+        }
+        KeyboardCommand::KeysHoldFor(millis) => {
+            if let Ok(mut until) = keyboard.held_until.lock() {
+                *until = Some(std::time::Instant::now() + Duration::from_millis(*millis));
+            }
+        }
+        KeyboardCommand::KeysHoldForever => keyboard.held_forever.store(true, Ordering::SeqCst),
+    }
+}
+
 /// What the example reads: the F0 fixture (`read` lines, one sidecar text), or the shown frames the screen loop reads.
 enum ScreenMode {
     Read(String),
@@ -400,7 +514,24 @@ pub enum Command {
     Read,
     Show(PathBuf),
     Consent(bool),
+    /// `assign <name>`: the agent holds a room with this game name (assisted typing, FR-28).
+    Assign(String),
+    /// `fill`: the player presses the fill hotkey.
+    Fill,
+    /// `fill-again-after <n>`: after `n` characters were typed, the fill hotkey is pressed once more.
+    FillAgainAfter(usize),
+    Keyboard(KeyboardCommand),
     Other,
+}
+
+/// A line that changes the headless keyboard (assisted typing, FR-28).
+#[derive(Debug, PartialEq, Eq)]
+pub enum KeyboardCommand {
+    Focus(bool),
+    LoseFocusAfter(usize),
+    KeysFree,
+    KeysHoldFor(u64),
+    KeysHoldForever,
 }
 
 /// Reads one input line as a command.
@@ -412,9 +543,33 @@ pub fn parse_command(line: &str) -> Command {
     if let Some(path) = line.strip_prefix("show ") {
         return Command::Show(PathBuf::from(path.trim()));
     }
+    if let Some(name) = line.strip_prefix("assign ") {
+        return Command::Assign(name.trim().to_string());
+    }
+    if let Some(count) = line.strip_prefix("fill-again-after ") {
+        return count
+            .trim()
+            .parse()
+            .map_or(Command::Other, Command::FillAgainAfter);
+    }
+    if let Some(count) = line.strip_prefix("focus lose-after ") {
+        return count.trim().parse().map_or(Command::Other, |count| {
+            Command::Keyboard(KeyboardCommand::LoseFocusAfter(count))
+        });
+    }
+    if let Some(millis) = line.strip_prefix("keys hold ") {
+        return millis.trim().parse().map_or(Command::Other, |millis| {
+            Command::Keyboard(KeyboardCommand::KeysHoldFor(millis))
+        });
+    }
     match line {
         "consent on" => Command::Consent(true),
         "consent off" => Command::Consent(false),
+        "fill" => Command::Fill,
+        "focus on" => Command::Keyboard(KeyboardCommand::Focus(true)),
+        "focus off" => Command::Keyboard(KeyboardCommand::Focus(false)),
+        "keys free" => Command::Keyboard(KeyboardCommand::KeysFree),
+        "keys hold-forever" => Command::Keyboard(KeyboardCommand::KeysHoldForever),
         _ => Command::Other,
     }
 }
@@ -511,7 +666,8 @@ fn start(
     mode: ScreenMode,
     version: &str,
     events: UnboundedSender<Value>,
-) -> Result<(Handle<Reporting>, TelemetryGuard), String> {
+    keyboard: &std::sync::Arc<HeadlessKeyboard>,
+) -> Result<(Handle<Reporting>, Probe, TelemetryGuard), String> {
     let base = api_base.url().as_str().trim_end_matches('/').to_string();
     // The F0 read path reads the sidecar text. The screen mode captures the shown frames with the player's consent and reads
     // their regions from the sidecars, so the screen loop (the Party panel, the character screens) runs as it does for the
@@ -609,7 +765,13 @@ fn start(
         events,
         last: Mutex::new(None),
     });
-    Ok((Runtime::start(&config, sink, groups), guard))
+    let (handle, probe) = Runtime::start_with_probe(&config, sink, groups);
+    let handle = handle.with_typing(FillPorts {
+        typer: keyboard.clone(),
+        focus: keyboard.clone(),
+        keys: keyboard.clone(),
+    });
+    Ok((handle, probe, guard))
 }
 
 /// Writes each event as one line, until every sender is gone or the output fails.
@@ -657,8 +819,12 @@ where
 
     let (events, received) = mpsc::unbounded_channel();
     let writer = tokio::spawn(write_lines(output, received));
-    let (handle, guard) = start(&api_base, mode, &arguments.agent_version, events)
-        .map_err(|message| failure(1, message))?;
+    let keyboard = std::sync::Arc::new(HeadlessKeyboard::default());
+    let fill_events = events.clone();
+    let (handle, probe, guard) =
+        start(&api_base, mode, &arguments.agent_version, events, &keyboard)
+            .map_err(|message| failure(1, message))?;
+    let handle = std::sync::Arc::new(handle);
 
     let mut lines = BufReader::new(input).lines();
     while let Some(line) = lines
@@ -680,6 +846,24 @@ where
                 Err(message) => eprintln!("{message}"),
             },
             Command::Consent(given) => consent.store(given, Ordering::SeqCst),
+            Command::Assign(name) => probe.set_assignment(Some(assignment_named(&name))),
+            Command::Fill => press_fill(&handle, &keyboard, &fill_events),
+            Command::FillAgainAfter(count) => {
+                let (again, keyboard_again, events_again) = (
+                    std::sync::Arc::clone(&handle),
+                    std::sync::Arc::clone(&keyboard),
+                    fill_events.clone(),
+                );
+                if let Ok(mut hook) = keyboard.after_chars.lock() {
+                    *hook = Some((
+                        count,
+                        std::sync::Arc::new(move || {
+                            press_fill(&again, &keyboard_again, &events_again);
+                        }),
+                    ));
+                }
+            }
+            Command::Keyboard(command) => apply_keyboard(&keyboard, &command),
             Command::Other => {}
         }
         // The agent's accept hotkey (RDY-07): the same accept path the Tauri global shortcut takes.
@@ -690,6 +874,29 @@ where
     let _ = guard.shutdown();
     writer.abort();
     Ok(())
+}
+
+/// One press of the fill hotkey: prints `fill` with the outcome, what was typed and how much of it went out while the
+/// hotkey's keys were held, or `fill-ignored` when the press only stopped a running fill or came too soon (AST-07).
+fn press_fill(
+    handle: &std::sync::Arc<Handle<Reporting>>,
+    keyboard: &std::sync::Arc<HeadlessKeyboard>,
+    events: &UnboundedSender<Value>,
+) {
+    let Some(task) = handle.fill_name() else {
+        return;
+    };
+    let (keyboard, events) = (std::sync::Arc::clone(keyboard), events.clone());
+    tokio::spawn(async move {
+        let line = match task.await {
+            Ok(Some(outcome)) => {
+                let (text, while_held) = keyboard.take();
+                json!({ "event": "fill", "outcome": outcome.as_str(), "text": text, "typedWhileHeld": while_held })
+            }
+            _ => json!({ "event": "fill-ignored" }),
+        };
+        let _ = events.send(line);
+    });
 }
 
 #[cfg(not(test))]
@@ -907,7 +1114,7 @@ mod tests {
     /// The input lines of the example: `read`, `show <png>`, `consent on|off`; any other line changes nothing.
     #[test]
     fn the_input_lines_are_commands() {
-        use super::{Command, parse_command};
+        use super::{Command, KeyboardCommand, parse_command};
         use std::path::PathBuf;
 
         assert_eq!(parse_command("read"), Command::Read);
@@ -918,6 +1125,36 @@ mod tests {
         assert_eq!(parse_command("consent on"), Command::Consent(true));
         assert_eq!(parse_command("consent off"), Command::Consent(false));
         assert_eq!(parse_command("consent maybe"), Command::Other);
+        assert_eq!(
+            parse_command("assign mmbaalh-12"),
+            Command::Assign("mmbaalh-12".to_string())
+        );
+        assert_eq!(parse_command("fill"), Command::Fill);
+        assert_eq!(
+            parse_command("fill-again-after 3"),
+            Command::FillAgainAfter(3)
+        );
+        assert_eq!(parse_command("fill-again-after x"), Command::Other);
+        assert_eq!(
+            parse_command("focus off"),
+            Command::Keyboard(KeyboardCommand::Focus(false))
+        );
+        assert_eq!(
+            parse_command("focus lose-after 3"),
+            Command::Keyboard(KeyboardCommand::LoseFocusAfter(3))
+        );
+        assert_eq!(
+            parse_command("keys hold 300"),
+            Command::Keyboard(KeyboardCommand::KeysHoldFor(300))
+        );
+        assert_eq!(
+            parse_command("keys hold-forever"),
+            Command::Keyboard(KeyboardCommand::KeysHoldForever)
+        );
+        assert_eq!(
+            parse_command("keys free"),
+            Command::Keyboard(KeyboardCommand::KeysFree)
+        );
         assert_eq!(parse_command(""), Command::Other);
     }
 

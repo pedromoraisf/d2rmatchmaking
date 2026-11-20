@@ -2,6 +2,8 @@
 # The headless agent has no OS: its typing, focus, screen and key state are in-memory fakes the steps control, so the
 # scenarios read what the agent would have sent. The Windows adapter is proved by unit tests, the source rules and the
 # maintainer's check on a preview installer.
+# The fill that stops in the middle when the room ends has no scenario: typing takes about 150 ms, so no step can end a room
+# inside it. It is proved by a Rust unit test in core (fill_name, the fill stops when the room is dropped or changes).
 # not-scenario: AST-01 — proved by Rust unit tests (combination rules, hotkey registered only while a room is held) and the window component test
 # not-scenario: AST-09 — proved by `pnpm test:harness` (the source rules and the fixtures each one rejects), cargo deny and clippy
 # not-scenario: AST-10 — proved by Rust unit tests with the in-memory span exporter, the locales tests and the web component test
@@ -120,11 +122,13 @@ Feature: The agent types the game name for the player and never confirms
     Then the agent typed nothing more
 
   @AST-07 @FR-17 @api
-  Scenario: The fill stops when the room ends
+  Scenario: The agent types nothing once the room has ended
     Given Alice and Bob are in an active room, with their agents online
-    And Bob's agent is typing the room's name
     When the host closes the room on the site
-    Then Bob's agent stops typing
+    Then Bob's agent no longer holds a room
+    When Bob presses the agent's fill hotkey
+    Then the agent typed nothing
+    And the agent window says there is no room to fill
 
   @AST-08 @FR-28 @agent
   Scenario: The window tells the player to confirm

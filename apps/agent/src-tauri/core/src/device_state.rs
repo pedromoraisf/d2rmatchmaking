@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use d2rmm_agent_domain::paired_device::{DeviceEffect, PairedDevice};
 use d2rmm_agent_domain::room_assignment::{Assignment, RoomAssignment};
+use d2rmm_agent_domain::typing::HotkeyPair;
 use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
@@ -44,6 +45,8 @@ pub struct DeviceState {
     confirmed_run: Mutex<Option<(String, NonZeroU64)>>,
     /// The screen the last frame showed and when it was read, for assisted typing (AST-04).
     screen_read: Mutex<Option<(Screen, Instant)>>,
+    /// The two hotkeys the agent registers (AST-01); the app sets them from its local file at start.
+    hotkeys: Mutex<HotkeyPair>,
 }
 
 /// A held ready check and the monotonic instant its time runs out: the time left came from the server (RDY-11).
@@ -69,6 +72,7 @@ impl DeviceState {
             ready_check: Mutex::new(None),
             confirmed_run: Mutex::new(None),
             screen_read: Mutex::new(None),
+            hotkeys: Mutex::new(HotkeyPair::defaults()),
         }
     }
 
@@ -146,6 +150,17 @@ impl DeviceState {
         (*lock(&self.screen_read))
             .filter(|(_, read_at)| read_at.elapsed() <= within)
             .map(|(screen, _)| screen)
+    }
+
+    /// The hotkeys the agent registers now.
+    pub fn hotkeys(&self) -> HotkeyPair {
+        *lock(&self.hotkeys)
+    }
+
+    /// Holds the hotkeys and shows them in the window (AST-01).
+    pub fn set_hotkeys(&self, pair: HotkeyPair) {
+        *lock(&self.hotkeys) = pair;
+        self.hub.set_hotkeys(&pair);
     }
 
     /// Shows what a fill did and keeps it until the next one (AST-08).
