@@ -41,7 +41,7 @@ Rules:
       public. The one existing test that says "the release is published and marked latest only after the self-check" is
       updated to name the `publish` job: the self-check still comes first. Gate:
       `node --test scripts/test/release-workflows.test.mjs scripts/test/latest-json.test.mjs scripts/test/release-assets.test.mjs`
-- [ ] T4 — The publish helper and the Authenticode verdict (AGR-04, AGR-06): `scripts/agent/publish-release.mjs` decides, from
+- [x] T4 — The publish helper and the Authenticode verdict (AGR-04, AGR-06): `scripts/agent/publish-release.mjs` decides, from
       the release's state (`draft`, tag, newest agent tag), whether to publish, to publish without Latest, or to do nothing;
       `scripts/agent/signature-verdict.mjs` turns the `Status` and the signer's subject that PowerShell's
       `Get-AuthenticodeSignature` returned into pass or a reason, against the expected subject. Both are pure, tested on
