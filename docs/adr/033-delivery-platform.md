@@ -60,6 +60,28 @@ were not reachable from the worker's network (HTTP 403 from the egress proxy), s
 type specifically accepts an image is **unverified** until Batch 3. Fallback if it does not: pin the commit and let
 Render build that exact commit (deviation from "build once", recorded here at that time).
 
+#### Amendment 2026-11-20 (Batch 3): the API deviates from build once
+
+The fallback is in force. The status of this ADR does not change (still Proposed).
+
+- **Factor V is broken for the API** (ADR 032 V, one build per release). Render builds the pinned commit from source,
+  twice: once for `d2rmm-api` (staging) and once for `d2rmm-api-production`. The two builds are not byte-identical
+  artifacts of one build. `stage-build` only compiles the API and uploads the commit pin (`api-<sha>`); no image or
+  bundle is promoted. The site keeps build once (its `dist` is promoted unchanged).
+- **Image support was not verified.** Whether the Free instance type runs a prebuilt image could not be checked in
+  Batch 3: `render.com` was unreachable from the cloud session (`getaddrinfo ENOTFOUND render.com`).
+- **Mitigation: the SHA-checked smoke.** Every deploy waits (up to 10 minutes) until `/healthz` answers the SHA that was
+  deployed, and the smoke stage fails otherwise. Production runs the same check on promotion, so a build that is not the
+  verified commit is never reported as promoted.
+- **The deploy hook's `&ref=` is unverified.** The workflows pass the commit to deploy as `ref` on the hook URL. If Render
+  ignores it, it builds its branch head, the answering SHA differs from the deployed one and the SHA smoke **fails
+  loudly**. The first staging deploy proves it, and the first production promotion needs the same proof before it is
+  trusted.
+- **Condition to return to a prebuilt image.** The maintainer (or a session with `render.com` reachable) confirms in
+  Render's docs that a Free web service runs an image from a registry (e.g. a public GHCR image) and how a deploy hook
+  names the image tag. Then `stage-build` pushes `ghcr.io/<owner>/d2rmm-api:<sha>`, both services deploy that image, the
+  hook carries the image instead of `ref`, and this amendment is superseded by a new one.
+
 ## Alternatives considered
 
 - Keep one Render service for both environments: the staging credentials would serve production, and one deploy
