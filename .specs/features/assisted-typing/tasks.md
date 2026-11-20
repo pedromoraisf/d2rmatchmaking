@@ -54,7 +54,7 @@ Rules:
 - [x] T5 — Window UI: both hotkeys with a field to change each, the refusal reason, and the fill status line, with the
       "press Enter in the game" reminder, in English and pt-BR (AST-01, AST-08, AST-10). Component tests. Gate:
       `pnpm --filter @d2rmm/agent exec vitest run && pnpm --filter @d2rmm/agent lint`
-- [ ] T6 — Site: the accept-hotkey hint says Ctrl+Shift+A by default and that the agent can change it, in English and
+- [x] T6 — Site: the accept-hotkey hint says Ctrl+Shift+A by default and that the agent can change it, in English and
       pt-BR (AST-10). Update `ReadyCheckOverlay.test.tsx` for the new text, never loosen another assertion. Gate:
       `pnpm --filter @d2rmm/web exec vitest run src/features/matchmaking && pnpm --filter @d2rmm/web lint`
 - [ ] T7 — Headless agent and acceptance steps: fakes for the three ports, a `fill` stdin command, and
