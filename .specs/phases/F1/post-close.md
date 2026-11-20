@@ -151,6 +151,24 @@ Open items:
 - The room count reads 0 (`full-summary.check.mjs` fails 1 of 9).
 - No run since 2026-11-12, so #77 and #80 are unmeasured.
 
+### Nightly (maintainer's priority for the F2+ planning)
+
+**State.** `nightly.yml` (cron 03:17 São Paulo, also `workflow_dispatch`) has failed every night since 2026-11-13 (runs 43444737059 … 44558970584). Only 2026-11-10 and 2026-11-12 passed in the last ten. On 2026-11-19:
+
+- `agent-mutation` failed in all three crates.
+  - core: the unmutated baseline fails. `party::look_tests::the_span_of_a_closed_panel_says_neither` fails under `cargo test` (cargo-mutants runs the lib tests in one process), while it passes under `cargo nextest` in CI. This suggests tests sharing global telemetry state across threads: a test-isolation bug, not a mutant.
+  - domain: many MISSED mutants in the OCR reading code written during the F1 incidents: `anchors.rs` (`find_cards_in_variants`, `is_popup_title`), `character_screen.rs` (`is_gold`, `label_brightness`, `read_screen`, `popup_difficulties`, `read_level`), `characters.rs` (`is_character_name`), `layout.rs` (`PanelBox::resolve`).
+  - adapters: failed too (cause not yet read).
+- `quality` failed on the nightly quality ratchet.
+
+**What the maintainer wants (2026-11-20, in chat).** Quote: "quero dedicar atenção ao nightly… nesse nightly que deveria rodar os testes de carga e outros de alto nível que gerem um relatorio a cada execução de: relatorio util sobre mutação, resumido; como esta a carga do jogo; se as aceitações (bdd) estão passando e tudo mais (listar elas também)… não quero que o agente trabalhe e espere a noite para testa-lo… quero que desenvolva e dispare ele em sequencia para ir testando os pontos (com a maior celeridade possivel)".
+
+1. Each run produces one readable report with three parts: a short, useful mutation summary per crate and module (score, survivors grouped by file, trend); the load results (players, errors, p95 per step, bytes per player-hour against the budget, rooms); and the acceptance results, listing every scenario with pass/fail and tags.
+2. The nightly runs the high-level suites, including the load run. Today load is local-only by design (testing.md: "never part of `pnpm check` or a pull-request workflow"; AD-110), so moving it to a GitHub runner needs a decision (Docker limits on the runner, duration, cost of minutes on a public repo), and possibly an ADR amendment.
+3. While developing, the agent dispatches the nightly (`gh workflow run nightly.yml --ref <branch>`) and iterates on it immediately, not waiting for the cron. This is compatible with ADR 026/029: mutation never runs on a PR or in a task gate, but an on-demand dispatch is allowed. Speed matters: shard jobs and run only what changed where possible.
+
+**Mutation and OCR (the orchestrator's answer to the maintainer, 2026-11-20).** Mutation testing measures whether the unit tests catch changes to the code's logic (thresholds, comparisons, glyph tables). It does not train or improve the OCR's reading of the game. The survivors in `anchors.rs` and `character_screen.rs` show that the reading logic changed in F1 is weakly tested, which is a regression risk for OCR work. Reading quality is measured by the `ocr-variations` job (correct, refused or wrong over thousands of variations of real prints) and improved with real prints and search-based reading.
+
 ## How to resume
 
 Start with `pnpm phase:status`, `gh pr list`, then this file. Remove stale worktrees once their work is pushed
