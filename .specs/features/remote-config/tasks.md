@@ -54,7 +54,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
       `modules/agents/index.ts`, `GET /v1/agents/config` in `adapters/http/routes.ts` behind `requireAgentVersion` and
       `requireAgent`, `ETag`, `If-None-Match` → `304`, `Cache-Control: no-cache`, no account data. Unit tests for the use
       case and for the route with fakes. Gate: `pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api lint`
-- [ ] T5 — The route reach (RCF-01, AGT-01). Add the route to `agent-route-table.ts` and AGT-01's list in
+- [x] T5 — The route reach (RCF-01, AGT-01). Add the route to `agent-route-table.ts` and AGT-01's list in
       `.specs/features/agent-trust/spec.md` (the spec change the decision asks for; the orchestrator confirms it), prove
       that a cookie alone, an unknown token and no credential answer `401`, and that a revoked agent is refused on its next
       request. Run the whole API integration suite, since `openapi.int.test.ts` pins every route (lessons). Gate **(CI)**:

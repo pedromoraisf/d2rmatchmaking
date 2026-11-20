@@ -30,6 +30,7 @@ const ROUTES: readonly {
   { method: 'post', url: '/v1/agents/heartbeat', path: '/v1/agents/heartbeat' },
   { method: 'get', url: '/v1/agents/me', path: '/v1/agents/me' },
   { method: 'get', url: '/v1/agents/me/assignment', path: '/v1/agents/me/assignment' },
+  { method: 'get', url: '/v1/agents/config', path: '/v1/agents/config' },
   { method: 'delete', url: '/v1/agents/:id', path: '/v1/agents/{id}' },
   { method: 'post', url: '/v1/lobby-rooms/:id/observations', path: '/v1/lobby-rooms/{id}/observations' },
   { method: 'post', url: '/v1/lobby-rooms/:id/runs', path: '/v1/lobby-rooms/{id}/runs' },

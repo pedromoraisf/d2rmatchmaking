@@ -38,8 +38,9 @@ commands. Today each half is true by construction but pinned in few places:
 ## Requirements
 
 - **AGT-01** — The API SHALL accept an agent token only on the agent routes: `POST /v1/agents/heartbeat`,
-  `GET /v1/agents/me/assignment`, `POST /v1/lobby-rooms/:id/observations`, `POST /v1/me/characters`,
-  `GET /v1/ready-checks/me`, `POST /v1/ready-checks/:id/accept`, `GET /v1/stream` and `POST /v1/telemetry/traces`. Every other route SHALL answer an agent token `401`, and
+  `GET /v1/agents/me/assignment`, `GET /v1/agents/config` (remote-config, RCF-01), `POST /v1/lobby-rooms/:id/observations`,
+  `POST /v1/me/characters`, `GET /v1/ready-checks/me`, `POST /v1/ready-checks/:id/accept`, `GET /v1/stream` and
+  `POST /v1/telemetry/traces`. Every other route SHALL answer an agent token `401`, and
   every agent route SHALL answer a session cookie alone `401`. A test SHALL list every route registered by the app with
   the guards it uses, and fail when a route outside that list uses the agent guard, so widening the token's reach needs
   a visible change to the list.
@@ -103,7 +104,8 @@ commands. Today each half is true by construction but pinned in few places:
 
 ## Decisions (conservative defaults)
 
-- **The agent's route list is the one the code has**, eight routes, not the PRD's three words (the draft said seven; the
+- **The agent's route list is the one the code has**, nine routes (eight, plus `GET /v1/agents/config` added by
+  remote-config, RCF-01, to confirm in the phase review), not the PRD's three words (the draft said seven; the
   ready-check read, `GET /v1/ready-checks/me`, was missed and found while writing T1). The extra five are the
   assignment read, the stream, the ready-check read and accept, and the telemetry relay; each is already shipped and
   needed. AGT-01 pins the list instead of narrowing it. To confirm in the phase review: whether the PRD's wording of NFR-06
