@@ -34,7 +34,7 @@ Rules:
 - [x] T2 — UPK-04: `projectStreamEvent` does the per-member `currentAgentOf` lookups with `Promise.all` in the three
       cases that await in a loop; unit tests pin the delivery order and that the lookups start together (a gated fake).
       Gate: `pnpm --filter @d2rmm/api exec vitest run src/platform/stream-projection.test.ts && pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api lint`
-- [ ] T3 — UPK-02, UPK-03: the per-account limiter (60 per minute, sliding window, `Retry-After` in whole seconds, no
+- [x] T3 — UPK-02, UPK-03: the per-account limiter (60 per minute, sliding window, `Retry-After` in whole seconds, no
       leak between accounts, entries older than the window pruned) as a pure class with unit tests at the boundaries
       (59, 60, 61, window edge). Gate:
       `pnpm --filter @d2rmm/api exec vitest run src/platform/http && pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api lint && pnpm arch`
