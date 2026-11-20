@@ -35,7 +35,7 @@ Rules:
 - [x] T6 — `render.yaml` with `d2rmm-api` (staging) and `d2rmm-api-production`, each with every secret name as
       `sync: false`, `BNET_*` included (DLP-05). Write `api.yml` on the stages with migrations per environment, and
       update the `render.yaml` harness test. Gate: `pnpm test:harness`
-- [ ] T7 — `scripts/delivery/awake-window.mjs` with unit tests, and `keep-awake.yml` (DLP-07). Gate:
+- [x] T7 — `scripts/delivery/awake-window.mjs` with unit tests, and `keep-awake.yml` (DLP-07). Gate:
       `node --test scripts/test/awake-window.test.mjs && pnpm test:harness`
 - [ ] T8 — Write `docs/engineering/delivery.md § What the maintainer creates`: environments, the service, the Neon
       database, the Battle.net client and the secret names. Then stop until they exist. Gate: `pnpm format:check`

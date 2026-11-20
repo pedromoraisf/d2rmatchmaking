@@ -1,0 +1,51 @@
+# Keeps the production API awake inside a daily window (ADR 033, DLP-07). The free service sleeps after 15 idle minutes and
+# wakes in 30 to 60 s; a visitor in the window should not meet that. Outside the window nothing pings, so the service
+# sleeps and staging and the previews fit in Render's 750 free instance-hours. The window is the repository variable
+# KEEP_AWAKE_WINDOW (`HH:MM-HH:MM <IANA zone>`, default 16:00-02:00 America/Sao_Paulo); the target is PRODUCTION_API_URL.
+# It holds no secret: /healthz is public.
+name: keep-awake
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keep-awake
+  cancel-in-progress: false
+
+jobs:
+  keep-awake:
+    name: keep-awake
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Is it inside the window?
+        id: window
+        env:
+          KEEP_AWAKE_WINDOW: ${{ vars.KEEP_AWAKE_WINDOW }}
+        run: node scripts/delivery/awake-window.mjs "$KEEP_AWAKE_WINDOW" >> "$GITHUB_OUTPUT"
+
+      - name: Ping production /healthz
+        if: steps.window.outputs.inside == 'true'
+        env:
+          PRODUCTION_API_URL: ${{ vars.PRODUCTION_API_URL }}
+        run: |
+          if [ -z "$PRODUCTION_API_URL" ]; then
+            echo "::notice::PRODUCTION_API_URL is not set; nothing to keep awake"
+            exit 0
+          fi
+          # A sleeping service answers after 30 to 60 s, so one long request wakes it; no loop, no hammering.
+          curl -fsS --max-time 90 --output /dev/null "$PRODUCTION_API_URL/healthz"
+          echo "production answered"
