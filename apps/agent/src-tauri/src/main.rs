@@ -26,8 +26,6 @@ use d2rmm_agent_core::screen_reader::ScreenReader;
 #[cfg(windows)]
 use d2rmm_agent_core::watch_screen::ScreenPorts;
 #[cfg(windows)]
-use d2rmm_agent_domain::language::LanguagePack;
-#[cfg(windows)]
 use d2rmm_agent_domain::vision::{ReadText, Region};
 #[cfg(windows)]
 use tauri::{AppHandle, Manager};
