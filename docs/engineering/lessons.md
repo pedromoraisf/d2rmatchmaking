@@ -96,6 +96,10 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
 - **Locally, run the traced scenarios (`@OBS-`) alone with `--workers=1`**, never mixed into a broad acceptance gate.
   Why: the traced stack (API, site, telemetry backend per worker) did not become ready within 90 s under 4 workers on
   the 8 GB machine, and the same 22 scenarios passed with one worker (characters, T14).
+- **A port found free is not a port held.** The acceptance stack allocates ports, releases them and binds them seconds
+  later, so another worker or the kernel can take one (`Address already in use` from wrangler or the API, four CI runs
+  on 2026-11-19). A stack that loses the race restarts on new ports (`support/ports.ts`); never retry on the same port.
+  Locally, the `@OBS-`/`@RTL-09` scenarios time out at 5 min when `grafana/otel-lgtm` is not pulled: pull it first.
 - **`instrument.int.test.ts` failed in CI on two PRs in a row (#43, #44).** If it fails a third time, fix the wait on the
   fake OTLP backend instead of rerunning.
 
