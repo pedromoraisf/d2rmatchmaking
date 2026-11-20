@@ -327,7 +327,9 @@ jobs:
           retention-days: 90
 
   backup:
-    # Runs only once the production secrets exist (created by the maintainer, never by an agent).
+    # Runs only once the production secrets exist (created by the maintainer, never by an agent). Only on main: the
+    # production environment accepts no other ref, so a dispatch on a branch skips it instead of failing.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
     env:

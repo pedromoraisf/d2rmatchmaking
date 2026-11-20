@@ -264,6 +264,11 @@ test('the backup job is unchanged: production environment, no needs', () => {
   assert.equal(jobs.backup.needs, undefined);
 });
 
+// The production environment rejects branch refs, so a branch dispatch must skip the backup, not fail it.
+test('the backup runs only on main', () => {
+  assert.equal(jobs.backup.if, "github.ref == 'refs/heads/main'");
+});
+
 // NGT-01 and the supply chain: every action is pinned by its full commit SHA.
 test('every action in the nightly is pinned by its full commit SHA', () => {
   const uses = Object.values(jobs).flatMap((job) => job.steps.map((step) => step.uses).filter(Boolean));
