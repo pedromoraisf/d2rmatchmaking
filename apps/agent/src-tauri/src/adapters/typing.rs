@@ -4,8 +4,8 @@
 //! held. It names no other key, no mouse or hardware event and no clipboard call, and the source rules fail if it ever does
 //! (`agent-source-rules.test.mjs`, AST-09). The pure parts are tested everywhere; the Win32 calls exist on Windows only.
 #![allow(unsafe_code)]
-// `SendInput` and `GetAsyncKeyState` are banned by clippy.toml for the rest of the agent; this file alone may call them.
-#![allow(clippy::disallowed_methods)]
+// `SendInput` and `GetAsyncKeyState` are banned by clippy.toml for the rest of the agent. Each of the two calls below carries
+// its own scoped `allow`, so nothing else in this file may call a banned function.
 
 use d2rmm_agent_domain::typing::{Modifiers, TypableChar};
 
@@ -95,6 +95,7 @@ mod keyboard {
             let size = i32::try_from(size_of::<INPUT>()).unwrap_or(i32::MAX);
             // SAFETY: `events` is an initialised array of two keyboard INPUT structures that lives across the call, and `size`
             // is the size of one of them, as SendInput requires.
+            #[allow(clippy::disallowed_methods)]
             let _sent = unsafe { SendInput(&events, size) };
         }
     }
@@ -112,6 +113,7 @@ mod keyboard {
                     ModifierKey::Alt => VK_MENU,
                 };
                 // SAFETY: a plain read of the state of one modifier key; it takes no pointer.
+                #[allow(clippy::disallowed_methods)]
                 let state = unsafe { GetAsyncKeyState(i32::from(virtual_key.0)) };
                 state < 0
             })
