@@ -65,7 +65,7 @@ failure message carries a name read from a real print.
       previous frame is not new; a name that joins, leaves and joins again is three events; a blank name is ignored). Add
       the words `joinedGame` and `leftGame` to `LanguagePack` and `resources/lang/en.json`, **from O1's note only**
       (never a guess); Portuguese stays out until O1 gives its words (T10). Pure, no I/O. Gate: as T2
-- [ ] T4 — **[R14]** The automap name in the domain (GNR-06). Pinning tests of `layout.rs` and `anchors.rs` first (as T2).
+- [x] T4 — **[R14]** The automap name in the domain (GNR-06). Pinning tests of `layout.rs` and `anchors.rs` first (as T2).
       Then add `ScreenRegion::AutomapName`, a wide area at the top of the client resolved by the client size (numbers from
       O1's note, as a band and never one fixed box), and `anchors::find_name_line`: the first line whose normalised read
       parses as `mm` + letters + `-` + digits. Matching stays `game_name_match`'s. Unit tests at 1920×1033, 1920×1045,
