@@ -263,3 +263,9 @@ export function utf8Length(text) {
 export function frameBytes(name, data) {
   return utf8Length('event: ' + String(name) + '\ndata: ' + String(data) + '\n\n');
 }
+
+/**
+ * How often the site reads an online agent's presence, in seconds: 12 reads an hour (stream-egress SEG-05, SEG-06). The
+ * journey makes the same reads, so the metered bytes include them; the site's constant is checked against this one.
+ */
+export const PRESENCE_EVERY_SECONDS = 300;

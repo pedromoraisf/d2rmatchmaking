@@ -194,6 +194,7 @@ function fakeDocker(fs, options) {
               sinkBytes: answer.sinkBytes,
               windowSeconds: answer.windowSeconds,
               eventBytes: answer.eventBytes,
+              roomsCreated: answer.roomsCreated,
             }),
             mode: 0o644,
           });
@@ -722,6 +723,34 @@ test(
 
     const without = await runLoad(scenario({ profile: 'smoke', k6: PASSING_K6 }).input);
     assert.equal(without.summary.steps[0].bytesByEvent, null, 'a step file with no counts gives none');
+  },
+);
+
+test(
+  'the rooms of a step are the ones that reached created in the window, as the journey counted them',
+  { timeout: SLOW_TEST_MS },
+  async () => {
+    const counted = await runLoad(
+      scenario({ profile: 'smoke', rooms: 3, k6: () => ({ ...PASSING_K6(), roomsCreated: 37 }) }).input,
+    );
+    assert.equal(counted.summary.steps[0].roomsCreated, 37, 'the journey count, not the sampled peak');
+    assert.equal(counted.summary.maxConcurrentRooms, 37);
+
+    const none = await runLoad(
+      scenario({ profile: 'smoke', rooms: 3, k6: () => ({ ...PASSING_K6(), roomsCreated: 0 }) }).input,
+    );
+    assert.equal(
+      none.summary.steps[0].roomsCreated,
+      0,
+      'zero rooms in the window is zero, not the sampled peak',
+    );
+
+    const older = await runLoad(scenario({ profile: 'smoke', rooms: 3, k6: PASSING_K6 }).input);
+    assert.equal(
+      older.summary.steps[0].roomsCreated,
+      3,
+      'a step file without the count falls back to the sampled peak',
+    );
   },
 );
 

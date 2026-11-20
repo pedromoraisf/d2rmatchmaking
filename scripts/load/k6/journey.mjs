@@ -44,6 +44,7 @@ import {
   start,
   statusKind,
   EVENT_NAMES,
+  PRESENCE_EVERY_SECONDS,
   STREAMS,
   eventCounterName,
   eventKeyOf,
@@ -92,6 +93,7 @@ const iterations = new Counter('journey_iterations');
 const agentAssigned = new Counter('journey_agent_assigned');
 const matchesPosted = new Counter('journey_matches_posted');
 const iterationsStarted = new Counter('journey_iterations_started');
+const roomsCreated = new Counter('journey_rooms_created');
 const meterBytes = new Counter('journey_meter_bytes');
 const sinkBytes = new Counter('journey_sink_bytes');
 const windowSeconds = new Counter('journey_window_seconds');
@@ -110,6 +112,7 @@ const MEASURED = [
   'journey_errors',
   'journey_iterations',
   'journey_agent_assigned',
+  'journey_rooms_created',
 ].concat(Object.keys(eventCounters));
 const TOTALS = [
   'journey_matches_posted',
@@ -152,6 +155,16 @@ export const options = {
       preAllocatedVUs: HEARTBEAT_RATE * 2,
       maxVUs: HEARTBEAT_RATE * 4 + 2,
       exec: 'heartbeat',
+    },
+    // The site's presence reads (stream-egress SEG-05, SEG-06): every player once per PRESENCE_EVERY_SECONDS, in turn.
+    presence: {
+      executor: 'constant-arrival-rate',
+      rate: COUNT,
+      timeUnit: PRESENCE_EVERY_SECONDS + 's',
+      duration: CLOSE_SECONDS + 's',
+      preAllocatedVUs: 2,
+      maxVUs: 4 + Math.ceil(COUNT / 50),
+      exec: 'presence',
     },
     match: {
       executor: 'constant-arrival-rate',
@@ -390,6 +403,8 @@ export function site() {
   /** The stage of the room changed: the host's iteration ends at `created`, the member's starts there and ends at `active`. */
   function staged(frame) {
     if (assignedFrame === null || frame.roomId !== assignedFrame.roomId) return;
+    // The host's `created` frame counts the room once, in the window it arrives in (stream-egress SEG-07).
+    if (hosting && frame.stage === 'created') tally(roomsCreated, nowMs());
     if (frame.stage === 'created' && !hosting) begin(assignedFrame);
     if (frame.stage === (hosting ? 'created' : 'active')) finish(frame);
     // The host frees the room once it is `active`, so both players can queue again.
@@ -505,6 +520,16 @@ export function heartbeat() {
   if (isError(res.status)) fail(statusKind(res.status, 'heartbeat'), index, at);
 }
 
+/** One read of the agent's presence, the next player in turn: what the site does while it shows the agent online. */
+export function presence() {
+  const index = exec.scenario.iterationInInstance % COUNT;
+  const player = PLAYERS[index];
+  const at = nowMs();
+  const res = http.get(BASE + '/v1/agents/me', { headers: siteHeaders(player) });
+  tally(requests, at);
+  if (isError(res.status)) fail(statusKind(res.status, 'presence'), index, at);
+}
+
 /** One join of the player into the duel queue. Returns true for a 2xx answer, which is a join. */
 function joinQueue(index) {
   const player = PLAYERS[index];
@@ -616,6 +641,7 @@ export function handleSummary(data) {
     requests: measuredOf(data, 'journey_requests'),
     iterations: measuredOf(data, 'journey_iterations'),
     agentAssignedFrames: measuredOf(data, 'journey_agent_assigned'),
+    roomsCreated: measuredOf(data, 'journey_rooms_created'),
     eventBytes: eventBytesOf(data),
     meterBytes: totalOf(data, 'journey_meter_bytes'),
     sinkBytes: totalOf(data, 'journey_sink_bytes'),

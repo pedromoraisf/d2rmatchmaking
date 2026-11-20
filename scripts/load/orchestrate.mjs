@@ -867,7 +867,8 @@ async function runStepBody(ctx, step, provisioned, timings) {
     windowSeconds: measured.windowSeconds,
     peakCpuPercent: peaks.peakCpuPercent,
     peakMemoryBytes: peaks.peakMemoryBytes,
-    roomsCreated: rooms,
+    // The rooms that reached `created` in the window, counted by the journey; the sampled peak only for a step file without it.
+    roomsCreated: typeof measured.roomsCreated === 'number' ? measured.roomsCreated : rooms,
     agentAssignedFrames: measured.agentAssignedFrames,
     matchesPosted: measured.matchesPosted,
     iterationsStarted: measured.iterationsStarted,

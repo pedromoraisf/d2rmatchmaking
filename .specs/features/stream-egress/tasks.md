@@ -28,7 +28,7 @@ Rules:
       `bytesByEvent` and `matchesPerPlayerHour` to the step summary with "other" as the rest of the metered bytes, and
       show them in `load:publish` (SEG-02). Unit tests on the summary and the journey state. Gate:
       `node --test scripts/test/load/*.test.mjs scripts/test/load-scripts.test.mjs`
-- [ ] T2 — Make the journey read the site's presence at the rate SEG-05 allows for each player with an online agent
+- [x] T2 — Make the journey read the site's presence at the rate SEG-05 allows for each player with an online agent
       (SEG-06), and count the rooms that reached `created` in each step's window (SEG-07). Unit tests first. Gate:
       `node --test scripts/test/load/*.test.mjs scripts/test/load-scripts.test.mjs && pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.check.mjs && pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`
 - [ ] T3 — Send the agent's copy of `room.stage_changed` with `roomId` and `stage` only (SEG-01): the projection, the
