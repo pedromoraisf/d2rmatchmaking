@@ -179,8 +179,8 @@ mod capture {
         )?;
         let session = pool.CreateCaptureSession(&item)?;
         session.SetIsCursorCaptureEnabled(false)?;
-        // Not every Windows build lets a program turn the border off; a refusal leaves Windows' own border on.
-        let _ = session.SetIsBorderRequired(false);
+        // The capture border stays on wherever Windows draws it: it is the visible sign that the window is captured (NFR-05,
+        // spec decision 4). Nothing here asks Windows to hide it.
         session.StartCapture()?;
         Ok(Session {
             window: window.0 as isize,
