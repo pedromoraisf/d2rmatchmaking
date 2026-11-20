@@ -43,7 +43,7 @@ Rules:
       `openapi.json`, update `openapi.int.test.ts`, add integration tests (61st request, other account, the existing
       401/404/409/426 unchanged under the limit). A route changed, so the whole API integration suite runs. Gate:
       `pnpm contracts:openapi && git diff --exit-code -- packages/contracts/asyncapi.json && pnpm --filter @d2rmm/api test && DOCKER_CONFIG=<dir with {}> pnpm --filter @d2rmm/api test:integration`
-- [ ] T5 — UPK-02, UPK-03: step definitions for the four scenarios (`upkeep.steps.ts`). A "minute passes" step moves the
+- [x] T5 — UPK-02, UPK-03: step definitions for the four scenarios (`upkeep.steps.ts`). A "minute passes" step moves the
       stack's clock (`world.stack.advanceClock`). Gate:
       `pnpm --filter @d2rmm/acceptance typecheck && DOCKER_CONFIG=<dir with {}> pnpm exec turbo run test:acceptance -- --grep "@UPK-02|@UPK-03" && node scripts/acceptance-check.mjs upkeep`
 - [ ] T6 — UPK-07: the `@UPK-07` steps compare the bounding boxes of the "Hell" name and its locked label in a real
