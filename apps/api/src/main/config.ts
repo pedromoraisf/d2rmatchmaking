@@ -59,6 +59,8 @@ export interface TelemetryConfig {
   readonly intervalMs: number;
 }
 
+export const UNKNOWN_BUILD_SHA = 'unknown';
+
 /** The build's commit SHA from the environment: the first of the two variables that holds a SHA, else `unknown`. */
 export function buildShaOf(env: Readonly<Record<string, string | undefined>>): string {
   for (const name of ['D2RMM_BUILD_SHA', 'RENDER_GIT_COMMIT']) {
@@ -69,8 +71,6 @@ export function buildShaOf(env: Readonly<Record<string, string | undefined>>): s
   }
   return UNKNOWN_BUILD_SHA;
 }
-
-export const UNKNOWN_BUILD_SHA = 'unknown';
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
