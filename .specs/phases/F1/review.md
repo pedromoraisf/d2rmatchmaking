@@ -170,3 +170,9 @@ nunca mais isso vai acontecer. essa pipeline do agent é desenvolvida nos primei
 Conditions of the approval: real J1 runs on production after the merge, with the released F1 agent, and is treated as
 a severe incident if it fails (no postmortem; ADR 032 is the prevention). The production Battle.net sign-in repeats
 once after the deploy. The agent's per-branch pipeline (preview channels) is the first work of F2.
+
+## Post-close addendum (2026-11-20)
+
+The exit criterion "the agent confirms presence" was met on fixtures and on one real print (the Party panel "DUEL NK LOCKS"). In production it failed until 2026-11-19: generated room names were never proven on a real print, and OCR read the `B` as `8`. The fix is #76, released in agent 0.3.0, and the maintainer then confirmed presence end to end. The incidents, the fixes, the maintainer's decisions and the deferred backlog are in [`post-close.md`](post-close.md). The approval line and every number above are unchanged.
+
+The maintainer concluded the phase on 2026-11-20: "registre todo o status do projeto, marque a fase 1 como concluida".
