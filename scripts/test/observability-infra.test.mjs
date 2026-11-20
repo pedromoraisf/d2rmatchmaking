@@ -97,7 +97,7 @@ const dashboardFiles = readdirSync(path.join(root, 'infra/observability/dashboar
   .sort();
 
 test('every dashboard file reads its data source from the datasource variable', () => {
-  assert.ok(dashboardFiles.includes('skeleton.json'));
+  assert.ok(dashboardFiles.includes('skeleton.json') && dashboardFiles.includes('matchmaking.json'));
   for (const file of dashboardFiles) {
     const text = readText(`infra/observability/dashboards/${file}`);
     const board = JSON.parse(text);
@@ -118,6 +118,24 @@ test('every dashboard file reads its data source from the datasource variable', 
       }
     }
   }
+});
+
+test('the matchmaking dashboard holds the F1 instruments', () => {
+  const board = JSON.parse(readText('infra/observability/dashboards/matchmaking.json'));
+  const exprs = board.panels.flatMap((panel) => panel.targets.map((target) => target.expr)).join('\n');
+  for (const metric of [
+    'd2r_queue_size',
+    'd2r_queue_wait_seconds_bucket',
+    'd2r_ready_check_resolved_total',
+    'd2r_room_final_stage_total',
+    'd2r_room_time_to_active_seconds_bucket',
+    'sse_connections',
+    'outbox_lag_seconds',
+  ]) {
+    assert.ok(exprs.includes(metric), `the matchmaking dashboard queries ${metric}`);
+  }
+  assert.ok(exprs.includes('histogram_quantile(0.5'), 'the p50 is drawn');
+  assert.ok(exprs.includes('histogram_quantile(0.95'), 'the p95 is drawn');
 });
 
 test('compose provisions the dashboard', () => {

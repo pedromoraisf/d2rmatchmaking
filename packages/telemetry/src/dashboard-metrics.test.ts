@@ -76,6 +76,7 @@ describe('dashboard metrics against the instrument names', () => {
 
   it('covers every dashboard file', () => {
     expect(dashboardFiles).toContain('skeleton.json');
+    expect(dashboardFiles).toContain('matchmaking.json');
   });
 
   it.each(dashboardFiles)('every metric of %s is defined by the code', (file) => {
