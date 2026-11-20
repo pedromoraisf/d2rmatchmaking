@@ -11,7 +11,7 @@ use d2rmm_agent_domain::anchors::{self, line_pad};
 use d2rmm_agent_domain::character_screen::{
     BandRead, Probes, is_enabled_label, is_gold, label_brightness, luma, read_screen,
 };
-use d2rmm_agent_domain::hud_track::{AUTOMAP_SEARCH_EVERY, TrackRead, Tracker};
+use d2rmm_agent_domain::hud_track::{AUTOMAP_SEARCH_EVERY, LIST_SEARCH_EVERY, TrackRead, Tracker};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{ScreenRegion, screen_region, selection_band, supported_size};
 use d2rmm_agent_domain::presence::Screen;
@@ -29,6 +29,8 @@ pub struct ScreenReader {
     hud: Mutex<Tracker>,
     /// The same for the automap's "Difficulty:" line.
     automap: Mutex<Tracker>,
+    /// The same for the character list's "Create New" button, searched only when the fixed box missed.
+    create_new: Mutex<Tracker>,
 }
 
 /// How a frame's HUD or automap line was looked for (SCR-09): the tracked box held it, or the wide area was searched.
@@ -78,6 +80,10 @@ impl ScreenReader {
             automap: Mutex::new(Tracker::searching_every(
                 ScreenRegion::AutomapArea,
                 AUTOMAP_SEARCH_EVERY,
+            )),
+            create_new: Mutex::new(Tracker::searching_every(
+                ScreenRegion::CreateNewArea,
+                LIST_SEARCH_EVERY,
             )),
         }
     }
@@ -146,6 +152,14 @@ impl ScreenReader {
                     frame,
                     &self.automap,
                     anchors::find_automap_in_variants,
+                    how,
+                );
+            }
+            ScreenRegion::CreateNewArea => {
+                return self.tracked_lines(
+                    frame,
+                    &self.create_new,
+                    anchors::find_create_new_in_variants,
                     how,
                 );
             }
@@ -1225,12 +1239,125 @@ mod hud_tests {
         assert_eq!(automap_reads(&hud.take_asked()), 1);
     }
 
-    /// The reads of the whole automap area (about 560 px wide on the reference client), not of a box around a line.
+    /// The reads of the whole automap area (about 560 px wide on the reference client, at the top), not of a box around a
+    /// line.
     fn automap_reads(asked: &[Region]) -> usize {
         asked
             .iter()
-            .filter(|area| (500..1000).contains(&area.width))
+            .filter(|area| (500..1000).contains(&area.width) && area.y < 400)
             .count()
+    }
+
+    /// The reads of the whole area the character list's "Create New" button is searched in (about 560 px wide, at the
+    /// bottom right).
+    fn marker_area_reads(asked: &[Region]) -> usize {
+        asked
+            .iter()
+            .filter(|area| (500..1000).contains(&area.width) && area.y > 700)
+            .count()
+    }
+
+    fn create_new(x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: "Create New".to_string(),
+            region: Region {
+                x,
+                y,
+                width: 140,
+                height: 22,
+            },
+        }
+    }
+
+    #[test]
+    fn the_list_marker_is_found_by_its_word_where_the_fixed_box_misses_and_then_tracked() {
+        // 1920×1080 full screen: the button is at 1650,905, not in the fixed box. Rule 14: before this change the frame read
+        // `Unknown` (the pinned domain test of the previous commit).
+        let hud = Hud::new(vec![create_new(1650, 905)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::CharacterSelect);
+        let first = hud.take_asked();
+        assert_eq!(marker_area_reads(&first), 1, "searched: {first:?}");
+        for _ in 0..3 {
+            assert_eq!(screens.read(&frame).screen, Screen::CharacterSelect);
+            let steady = hud.take_asked();
+            assert_eq!(marker_area_reads(&steady), 0, "only tracked: {steady:?}");
+            assert!(
+                steady.iter().any(|area| area.width < 400
+                    && area.x <= 1650
+                    && area.y <= 905
+                    && area.y > 700),
+                "the box around the button is read: {steady:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_list_marker_that_moves_out_of_its_box_is_searched_again_once() {
+        let hud = Hud::new(vec![create_new(1650, 905)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::CharacterSelect);
+        hud.take_asked();
+        *hud.lines.lock().expect("lines") = vec![create_new(1500, 960)];
+        assert_eq!(screens.read(&frame).screen, Screen::CharacterSelect);
+        let miss = hud.take_asked();
+        assert_eq!(marker_area_reads(&miss), 1, "{miss:?}");
+        assert_eq!(screens.read(&frame).screen, Screen::CharacterSelect);
+        assert_eq!(marker_area_reads(&hud.take_asked()), 0, "tracked again");
+    }
+
+    #[test]
+    fn a_frame_that_is_neither_the_list_nor_the_game_reads_the_marker_area_every_second_frame_at_most()
+     {
+        // Steady state of a menu or a loading screen: nothing is found, so the area cannot be tracked. The search rests one
+        // frame after each miss (`LIST_SEARCH_EVERY`): one read in two frames, none in between.
+        let hud = Hud::new(vec![]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        let mut per_frame = Vec::new();
+        for _ in 0..6 {
+            assert_eq!(screens.read(&frame).screen, Screen::Unknown);
+            per_frame.push(marker_area_reads(&hud.take_asked()));
+        }
+        assert_eq!(per_frame, [1, 0, 1, 0, 1, 0]);
+    }
+
+    #[test]
+    fn an_in_game_or_automap_frame_never_reads_the_marker_area() {
+        // The steady state of the game adds no read for the list marker: the HUD or the automap is found first.
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        for _ in 0..4 {
+            assert_eq!(screens.read(&frame).screen, Screen::InGame);
+            assert_eq!(marker_area_reads(&hud.take_asked()), 0);
+        }
+        let map = Hud::new(vec![difficulty(1600, 120)]);
+        let screens = reader(&map);
+        for _ in 0..4 {
+            assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+            assert_eq!(marker_area_reads(&map.take_asked()), 0);
+        }
+    }
+
+    #[test]
+    fn bottom_right_text_that_is_not_the_marker_is_no_list() {
+        // Only the word is the marker: a part of it ("Create") does not make a frame the selection screen.
+        let hud = Hud::new(vec![TextLine {
+            text: "Create".to_string(),
+            region: Region {
+                x: 1650,
+                y: 905,
+                width: 70,
+                height: 22,
+            },
+        }]);
+        assert_eq!(
+            reader(&hud).read(&frame(1920, 1080)).screen,
+            Screen::Unknown
+        );
     }
 
     #[test]

@@ -98,10 +98,13 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
       reasons of the 176 popup variations (reason classes only; the summary prints no read text), pin the reads that
       work, then change the popup logic only where a reason class shows a rule that refuses a readable popup. One change
       per commit, each pushed and proved: `ocr-real` green, `popup` correct count up, `wrong` not up. Gate: as T3
-- [ ] T10 — **[R14]** Unrecognised selection screens (item f, SCR-05). Same loop as T9 for the 104 screens read as
+- [x] T10 — **[R14]** Unrecognised selection screens (item f, SCR-05). Same loop as T9 for the 104 screens read as
       `Unknown`: classes of reason first, then the smallest change per class (the list marker searched by its word in a
       wider area, as the HUD is). A frame that is not the selection screen must still read `Unknown` (the drawn
       `select-with-hud-text` and `bottom-text-only` fixtures). Gate: as T3
+      _Part 2 (code and unit proofs): `ScreenRegion::CreateNewArea`, `find_create_new`, a tracker of the marker in the core
+      reader, searched every second frame while not found; the pins and the call-count tests are in `domain` and `core`.
+      The real-print proof (`not-the-select-screen`, 107 variations of run 44751561205) waits for the PR's `ocr-variations`._
 - [ ] T11 — Close the proofs (SCR-06, SCR-05). Write the PR's table: `ocr-real` per print (12), `ocr-variations` counts
       before (`phase/F2` baseline) and after, and the share of selection and popup variations correct. If the supported
       selection or popup share is under 95%, say which reason classes remain and stop: tuning on the maintainer's new

@@ -26,6 +26,10 @@ pub enum TrackRead {
 /// a frame that rests reads nothing for it. The HUD's band is searched every frame (`Tracker::new`).
 pub const AUTOMAP_SEARCH_EVERY: u32 = 2;
 
+/// How many frames apart the character list's marker area is searched while the marker is not found. A frame that is neither
+/// in game nor the list (a menu, a loading screen) costs one more read of the area every this many frames, none in between.
+pub const LIST_SEARCH_EVERY: u32 = 2;
+
 /// Where a label was last seen, and in a client of what size, with the area it is searched in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Tracker {
@@ -261,6 +265,16 @@ mod tests {
     #[test]
     fn the_automap_area_is_searched_every_second_frame() {
         assert_eq!(super::AUTOMAP_SEARCH_EVERY, 2);
+    }
+
+    #[test]
+    fn the_list_marker_area_is_searched_every_second_frame() {
+        assert_eq!(super::LIST_SEARCH_EVERY, 2);
+        let tracker =
+            Tracker::searching_every(ScreenRegion::CreateNewArea, super::LIST_SEARCH_EVERY);
+        let area =
+            crate::layout::screen_region(ScreenRegion::CreateNewArea, 1920, 1080).expect("area");
+        assert_eq!(tracker.next(1920, 1080), Some(TrackRead::Search(area)));
     }
 
     #[test]

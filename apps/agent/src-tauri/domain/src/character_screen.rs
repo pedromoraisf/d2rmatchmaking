@@ -258,6 +258,12 @@ where
     if !list && anchors::find_hud_in_variants(pack, &lines(ScreenRegion::HudBand)).is_some() {
         return Reading::without_cards(Screen::InGame);
     }
+    // The list's "Create New" button, searched for by its word in the bottom-right area when the fixed box above missed (the
+    // same window and full-screen drift): only a frame that is neither the automap nor in game gets here, so an in-game
+    // frame costs no read of this area.
+    let list = list
+        || anchors::find_create_new_in_variants(pack, &lines(ScreenRegion::CreateNewArea))
+            .is_some();
     let popup_lines = lines(ScreenRegion::PopupArea);
     let popup_title = anchors::popup_title_in_variants(pack, &popup_lines);
     let popup_options = u8::try_from(anchors::popup_options_in_variants(pack, &popup_lines).len())
@@ -2119,11 +2125,9 @@ mod hud_band_tests {
         assert_eq!(reads, 1);
     }
 
-    /// Rule 14 pin for the list marker searched by its word (screen-recognition T10): today a frame whose fixed "Create New"
-    /// box reads nothing is `Unknown` even when its card column shows the list, and the areas read, in order, are the
-    /// automap's, the HUD band's and the popup's. The change adds the marker's wide area after the HUD band.
-    #[test]
-    fn a_list_whose_fixed_marker_reads_nothing_is_unknown_after_the_automap_band_and_popup_areas() {
+    /// Reads a frame whose fixed "Create New" box reads nothing, with `marker` the lines of the marker's wide area and the
+    /// card column showing a list. Returns the screen and the areas read, in order.
+    fn read_with_list_column(marker: Vec<Vec<TextLine>>) -> (Screen, Vec<ScreenRegion>) {
         let column = vec![vec![
             line("SORCERESS", 1576, 91),
             line("Level 88 Sorceress", 1576, 114),
@@ -2135,10 +2139,10 @@ mod hud_band_tests {
             |_| None,
             |search| {
                 asked.push(search);
-                if search == ScreenRegion::CardColumn {
-                    column.clone()
-                } else {
-                    Vec::new()
+                match search {
+                    ScreenRegion::CardColumn => column.clone(),
+                    ScreenRegion::CreateNewArea => marker.clone(),
+                    _ => Vec::new(),
                 }
             },
             |_| None,
@@ -2148,15 +2152,60 @@ mod hud_band_tests {
                 title_ink: |_, _| BandRead::NoInk,
             },
         );
-        assert_eq!(reading.screen, Screen::Unknown);
+        (reading.screen, asked)
+    }
+
+    /// Changed expectation (screen-recognition T10, the specified change; was `Unknown` with no wide marker area read): a list
+    /// whose fixed "Create New" box reads nothing is the character selection screen when the word is found in the wider
+    /// bottom-right area, read after the automap's and the HUD band's.
+    #[test]
+    fn a_list_whose_fixed_marker_misses_is_found_by_its_word_in_the_wide_area_after_the_other_areas()
+     {
+        let (screen, asked) = read_with_list_column(vec![vec![line("Create New", 1650, 905)]]);
+        assert_eq!(screen, Screen::CharacterSelect);
         assert_eq!(
-            asked,
+            asked[..4],
             [
                 ScreenRegion::AutomapArea,
                 ScreenRegion::HudBand,
+                ScreenRegion::CreateNewArea,
                 ScreenRegion::PopupArea
             ]
         );
+    }
+
+    #[test]
+    fn a_list_whose_marker_is_nowhere_stays_unknown_and_other_bottom_right_text_is_no_marker() {
+        let (screen, asked) = read_with_list_column(Vec::new());
+        assert_eq!(screen, Screen::Unknown);
+        assert!(asked.contains(&ScreenRegion::CreateNewArea));
+        for other in ["Exit", "Create", "New Game", "Create New Character"] {
+            let (screen, _) = read_with_list_column(vec![vec![line(other, 1650, 905)]]);
+            assert_eq!(screen, Screen::Unknown, "{other}");
+        }
+    }
+
+    #[test]
+    fn a_noisy_read_of_the_marker_still_counts_when_it_is_the_word_with_stray_spaces_or_case() {
+        for read in ["CREATE NEW", "C R E A T E  N E W", "create new"] {
+            let (screen, _) = read_with_list_column(vec![vec![line(read, 1650, 905)]]);
+            assert_eq!(screen, Screen::CharacterSelect, "{read}");
+        }
+    }
+
+    #[test]
+    fn the_marker_area_is_read_only_when_neither_the_fixed_box_nor_an_earlier_area_decided() {
+        // The fixed box reads the marker: no wide read. In game (the band): decided before it. The automap: decided before.
+        let in_game = vec![vec![line("Life: 925 / 925", 436, 868)]];
+        let (screen, asked) = read_areas(Vec::new(), in_game, "");
+        assert_eq!(screen, Screen::InGame);
+        assert!(!asked.contains(&ScreenRegion::CreateNewArea));
+        let automap = vec![vec![line("Difficulty: Hell", 1700, 90)]];
+        let (screen, asked) = read_areas(automap, Vec::new(), "");
+        assert_eq!(screen, Screen::AutomapOpen);
+        assert!(!asked.contains(&ScreenRegion::CreateNewArea));
+        let (_, asked) = read_areas(Vec::new(), Vec::new(), "Create New");
+        assert!(!asked.contains(&ScreenRegion::CreateNewArea));
     }
 
     /// Rule 14 pin: a frame that shows neither the list marker nor the HUD, the automap or a popup is `Unknown`, whatever

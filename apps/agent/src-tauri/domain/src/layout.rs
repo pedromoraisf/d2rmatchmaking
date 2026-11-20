@@ -172,6 +172,11 @@ pub enum ScreenRegion {
     /// The top-right corner where the automap's area block sits, searched for its "Difficulty:" line by its word
     /// (`anchors::find_automap`) when the fixed `AreaDifficulty` box misses: a fallback, the fixed box stays the first check.
     AutomapArea,
+    /// The bottom-right corner where the character list's "Create New" button sits, searched for its word
+    /// (`anchors::find_create_new`) when the fixed `CreateNew` box misses: a fallback, the fixed box stays the first check.
+    /// The button is at 882 to 904 on the reference client; the area reaches 80 px above and below it for the drift of the
+    /// window, borderless and full-screen layouts and of a client a few pixels taller or shorter.
+    CreateNewArea,
 }
 
 /// The top of `ScreenRegion::HudBand` in pixels of the reference client: the bottom quarter. The "Life:" label sits at
@@ -201,6 +206,7 @@ pub fn screen_box(region: ScreenRegion) -> PanelBox {
         ScreenRegion::CardColumn => PanelBox::new(Right, 40, 30, 340, 850),
         ScreenRegion::PopupArea => PanelBox::new(Centre, -130, 320, 260, 290),
         ScreenRegion::AutomapArea => PanelBox::new(Right, 0, 20, 560, 220),
+        ScreenRegion::CreateNewArea => PanelBox::new(Right, 0, 800, 560, 220),
         // The width is the client's: `screen_region` replaces it.
         ScreenRegion::HudBand => PanelBox::new(
             Left,
@@ -273,6 +279,7 @@ impl ScreenRegion {
             ScreenRegion::PopupArea => "popupArea".to_string(),
             ScreenRegion::HudBand => "hudBand".to_string(),
             ScreenRegion::AutomapArea => "automapArea".to_string(),
+            ScreenRegion::CreateNewArea => "createNewArea".to_string(),
         }
     }
 }
@@ -537,6 +544,36 @@ mod screen_tests {
                 height: 220
             }
         );
+    }
+
+    #[test]
+    fn the_create_new_area_holds_the_fixed_marker_of_every_client_and_stays_at_the_bottom_right() {
+        // Where the marker is searched by its word when the fixed box misses: it contains that box at every height of the
+        // maintainer's prints, reaches the right edge and is a corner, not a half.
+        for height in [1033, 1045, 1056, 1080] {
+            let area = at(ScreenRegion::CreateNewArea, 1920, height);
+            let marker = at(ScreenRegion::CreateNew, 1920, height);
+            assert!(
+                area.x <= marker.x
+                    && marker.right() <= area.right()
+                    && area.y <= marker.y
+                    && marker.bottom() <= area.bottom(),
+                "at {height}"
+            );
+            assert_eq!(area.right(), 1920, "anchored to the right edge");
+            assert!(area.bottom() < height, "inside the client: {height}");
+            assert!(area.y > height / 2, "the bottom half only: {height}");
+        }
+        assert_eq!(
+            at(ScreenRegion::CreateNewArea, 1920, 1033),
+            Region {
+                x: 1360,
+                y: 800,
+                width: 560,
+                height: 220
+            }
+        );
+        assert_eq!(screen_region(ScreenRegion::CreateNewArea, 1280, 1024), None);
     }
 
     #[test]
