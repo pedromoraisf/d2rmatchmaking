@@ -248,7 +248,7 @@
     "accept": "Aceitar",
     "decline": "Recusar",
     "answerFailed": "Esta resposta não valeu. A confirmação pode ter terminado.",
-    "hotkeyHint": "Também dá para aceitar com <kbd>{{hotkey}}</kbd> sem sair do jogo.",
+    "hotkeyHint": "Também dá para aceitar com <kbd>{{hotkey}}</kbd> (o padrão; dá para mudar no agente) sem sair do jogo.",
     "penaltyNotice": "Recusar não gera penalidade. Não responder gera 5 minutos de espera."
   }
 }

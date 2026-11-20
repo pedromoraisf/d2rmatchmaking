@@ -71,6 +71,23 @@ export interface CaptureDiagnostics {
   party: PartyLook | null;
 }
 
+export interface Hotkeys {
+  accept: string;
+  fill: string;
+}
+
+// What a press of the fill hotkey did: a closed set of codes from the core (AST-08, AST-10).
+export type FillOutcome =
+  | 'typed'
+  | 'stopped-focus'
+  | 'stopped-room'
+  | 'stopped-press'
+  | 'refused-room'
+  | 'refused-name'
+  | 'refused-focus'
+  | 'refused-screen'
+  | 'refused-keys';
+
 export interface AgentView {
   pairing: PairingState;
   connectivity: Connectivity;
@@ -78,6 +95,10 @@ export interface AgentView {
   update: UpdateState;
   // A ready check is open for the account: the hotkey that accepts it is registered (RDY-07).
   readyCheckOpen: boolean;
+  // The keys that accept a ready check and fill the game name (RDY-07, AST-01), as the core spells them.
+  hotkeys: Hotkeys;
+  // What the last press of the fill hotkey did (AST-08); absent before the first press.
+  lastFill?: FillOutcome;
   diagnostics: Diagnostics | null;
   // Absent until the first frame was captured.
   capture?: CaptureDiagnostics;
@@ -134,8 +155,18 @@ export function revealLabel(room: RoomState | null): Label | null {
 }
 
 // The hotkey line while a ready check is open (RDY-07, en and pt-BR): the window names the key, and only while it is open.
-export function readyCheckLabel(open: boolean): Label | null {
-  return open ? { key: 'readyCheck.hotkey' } : null;
+export function readyCheckLabel(open: boolean, hotkeys: Hotkeys): Label | null {
+  return open ? { key: 'readyCheck.hotkey', values: { key: hotkeys.accept } } : null;
+}
+
+// The line that says how to fill the game name while the agent holds a room (AST-01).
+export function fillHintLabel(room: RoomState | null, hotkeys: Hotkeys): Label | null {
+  return room === null ? null : { key: 'fill.hint', values: { key: hotkeys.fill } };
+}
+
+// What the last press of the fill hotkey did, one line per outcome; a full fill reminds the player to confirm (AST-08).
+export function fillLabel(outcome: FillOutcome | undefined): Label | null {
+  return outcome === undefined ? null : { key: `fill.${outcome}` };
 }
 
 // The lines of the diagnostics section, one label each, in the order the window shows them.
