@@ -192,6 +192,9 @@ function fakeDocker(fs, options) {
               droppedIterations: answer.droppedIterations,
               meterBytes: answer.meterBytes,
               sinkBytes: answer.sinkBytes,
+              ...(answer.sinkBytesBySignal === undefined
+                ? {}
+                : { sinkBytesBySignal: answer.sinkBytesBySignal }),
               windowSeconds: answer.windowSeconds,
             }),
             mode: 0o644,
@@ -739,6 +742,17 @@ test(
     }
   },
 );
+
+test('the sink bytes of each signal reach the step row, and a step file without them reads as zero', async () => {
+  const split = { traces: 600, metrics: 100, logs: 300 };
+  const withSplit = await runLoad(
+    scenario({ profile: 'smoke', k6: () => ({ ...PASSING_K6(), sinkBytesBySignal: split }) }).input,
+  );
+  assert.deepEqual(withSplit.summary.steps[0].telemetryBytesBySignal, split);
+
+  const without = await runLoad(scenario({ profile: 'smoke' }).input);
+  assert.deepEqual(without.summary.steps[0].telemetryBytesBySignal, { traces: 0, metrics: 0, logs: 0 });
+});
 
 test('k6Tail: the failed step carries the last lines of k6 stderr, or says there was none', () => {
   const stderr = Array.from({ length: 30 }, (_, i) => `line ${i}`).join('\n');
