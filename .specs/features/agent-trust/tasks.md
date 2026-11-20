@@ -47,7 +47,7 @@ Rules:
       telemetry) that its keys equal the contract's; a source rule that `adapters/src/http` imports no frame, pixel or
       capture type and has no multipart or binary upload. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib && node --test scripts/test/agent-source-rules.test.mjs`
-- [ ] T6 — Agent: no capture without consent or without the game, and consent withdrawn stops capture within one tick
+- [x] T6 — Agent: no capture without consent or without the game, and consent withdrawn stops capture within one tick
       (AGT-06). Core tests with the fake frame source counting its calls; confirm the existing window-capture source
       rules still cover "the game window only" and cite them in the test comment. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && node --test scripts/test/agent-source-rules.test.mjs`
