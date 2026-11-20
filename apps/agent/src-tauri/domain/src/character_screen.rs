@@ -2406,3 +2406,98 @@ mod popup_column_tests {
         );
     }
 }
+
+/// A card whose title line the lines pass reads as no title in any variant (screen-recognition T9; the `title-unread` class,
+/// about 235 of the selection and popup variations of the last `ocr-variations`).
+#[cfg(test)]
+mod garbled_title_tests {
+    use super::{BandRead, Probes, RejectReason, read_screen};
+    use crate::language::LanguagePack;
+    use crate::layout::ScreenRegion;
+    use crate::vision::{Region, TextLine};
+
+    fn region(y: u32) -> Region {
+        Region {
+            x: 1576,
+            y,
+            width: 236,
+            height: 18,
+        }
+    }
+
+    fn line(text: &str, y: u32) -> TextLine {
+        TextLine {
+            text: text.to_string(),
+            region: region(y),
+        }
+    }
+
+    /// A list (the marker reads) with one card: the title line `title_lines` reads (in the lines pass), the name and the
+    /// level, and `title_field` as what the fields pass reads of the title region. Returns the reading and the regions the
+    /// fields pass was asked for.
+    fn read(title_lines: &str, title_field: &[&str]) -> (super::Reading, Vec<Region>) {
+        let column = vec![vec![
+            line(title_lines, 60),
+            line("vukVuka", 91),
+            line("Level 88 Sorceress", 114),
+        ]];
+        let mut asked = Vec::new();
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |text_region| {
+                (text_region == ScreenRegion::CreateNew).then(|| vec!["Create New".to_string()])
+            },
+            |search| {
+                if search == ScreenRegion::CardColumn {
+                    column.clone()
+                } else {
+                    Vec::new()
+                }
+            },
+            |asked_region| {
+                asked.push(asked_region);
+                let said = |texts: &[&str]| Some(texts.iter().map(|t| (*t).to_string()).collect());
+                match asked_region.y {
+                    60 => said(title_field),
+                    91 => said(&["vukVuka", "vukVuka", "vukVuka"]),
+                    114 => said(&[
+                        "Level 88 Sorceress",
+                        "Level 88 Sorceress",
+                        "Level 88 Sorceress",
+                    ]),
+                    _ => None,
+                }
+            },
+            Probes {
+                selected: |_| false,
+                lit: |_| true,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        (reading, asked)
+    }
+
+    const MATRIARCH: [&str; 3] = ["Matriarch", "MATRIARCH", "Matriarch"];
+
+    #[test]
+    fn a_known_title_line_is_read_again_as_a_field_and_the_card_reads() {
+        let (reading, asked) = read("Matriarch", &MATRIARCH);
+        assert_eq!(reading.cards.len(), 1);
+        assert!(asked.contains(&region(60)), "the title line is read again");
+    }
+
+    #[test]
+    fn a_title_line_that_reads_as_no_title_refuses_the_card_and_is_not_read_again() {
+        // Pinned before the change: the field pass is never asked for a line the lines pass read as no title ("Marshal" is
+        // none of the pack's), even when it would read as one.
+        let (reading, asked) = read("Marshal", &MATRIARCH);
+        assert!(reading.cards.is_empty());
+        assert_eq!(reading.rejected.len(), 1);
+        assert_eq!(reading.rejected[0].reason, RejectReason::TitleUnread);
+        assert!(
+            !asked.contains(&region(60)),
+            "no read of that line: {asked:?}"
+        );
+    }
+}
