@@ -119,6 +119,104 @@ async function rowsWritten(): Promise<string[]> {
   return [...characters.rows, ...outbox.rows].map((entry) => entry.row);
 }
 
+/** A room of the player's test match, whose host has a character named `name`. Returns the room id and the agent token. */
+async function roomWithCharacter(name: string): Promise<{ roomId: string; token: string }> {
+  const cookie = await sessionFor(app);
+  const token = await tokenFor(app, cookie);
+  const match = await app.app.inject({
+    method: 'POST',
+    url: '/v1/staging/match-formed',
+    headers: { origin: SITE_ORIGIN, 'content-type': 'application/json', cookie },
+    payload: {},
+  });
+  expect(match.statusCode).toBe(202);
+  await app.relay.settled();
+  const room = (await app.app.inject({ method: 'GET', url: '/v1/me/room', headers: { cookie } })).json() as {
+    roomId: string;
+    members: { accountId: string }[];
+  };
+  const accountId = room.members[0]?.accountId ?? '';
+  const inserted = await database.db
+    .insertInto('identity.characters')
+    .values({
+      account_id: accountId,
+      name,
+      class: 'sorceress',
+      level: 85,
+      hardcore: false,
+      ladder: null,
+      era: null,
+      unlocked_difficulties: ['normal', 'nightmare', 'hell'],
+      read_at: new Date('2026-10-31T12:00:00.000Z'),
+    })
+    .returning('id')
+    .executeTakeFirstOrThrow();
+  await database.db
+    .updateTable('lobby.members')
+    .set({ character_id: inserted.id })
+    .where('room_id', '=', room.roomId)
+    .where('account_id', '=', accountId)
+    .execute();
+  return { roomId: room.roomId, token };
+}
+
+function sightingOf(value: string, key: string) {
+  return {
+    idempotencyKey: key,
+    type: 'PLAYER_JOINED_SEEN',
+    run: 1,
+    value,
+    confidence: 0.9,
+    capturedAt: '2026-10-31T12:00:00.000Z',
+  };
+}
+
+describe('a chat name leaves no trace (SNM-04)', () => {
+  it('is in no span, log line, answer or row, matched or not', async () => {
+    const { roomId, token } = await roomWithCharacter(STORED);
+    const post = (value: string, key: string) =>
+      app.app.inject({
+        method: 'POST',
+        url: `/v1/lobby-rooms/${roomId}/observations`,
+        headers: {
+          authorization: `Bearer ${token}`,
+          'x-agent-version': AGENT_VERSION,
+          'content-type': 'application/json',
+        },
+        payload: sightingOf(value, key),
+      });
+
+    const matched = await post(MISREAD, 'k-1');
+    const unmatched = await post('Qwvkjh', 'k-2');
+    const refused = await post('Q', 'k-3');
+
+    expect([matched.json(), unmatched.json()]).toEqual([{ stored: true }, { stored: false }]);
+    expect(refused.statusCode).toBe(400);
+    const observations = await sql<{
+      row: string;
+    }>`select to_json(o)::text as row from lobby.observations o`.execute(database.db);
+    const observed: Observed = {
+      spans: exporter.getFinishedSpans(),
+      logs: logLines,
+      responses: [matched.body, unmatched.body, refused.body],
+      rows: [...(await rowsWritten()), ...observations.rows.map((entry) => entry.row)],
+    };
+    for (const [read, canonical] of [
+      [MISREAD, STORED],
+      ['Qwvkjh', 'Zzzzzz'],
+    ] as const) {
+      expect(findLeaks(read, canonical, observed), read).toEqual([]);
+    }
+    expect(observations.rows.map((entry) => JSON.parse(entry.row).value)).toEqual(['1']);
+    const match = exporter
+      .getFinishedSpans()
+      .filter((span) => span.name === 'lobby.record-observation')
+      .map((span) => span.attributes['d2r.observation.match']);
+    // The refused sighting never reached the match, so its span has no word.
+    expect(match).toEqual(['matched', 'none', undefined]);
+  });
+});
+
 describe('a misread card name leaves no trace (SNM-04)', () => {
   it('is in no span, log line, answer or row once it was reconciled', async () => {
     const cookie = await sessionFor(app);

@@ -31,7 +31,7 @@ Rules:
       `d2r.characters.reconciled` count; `storedNames` carries class, mode and level. Unit tests with the in-memory
       repository and an integration test on Postgres. Gate:
       `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api test:integration`
-- [ ] T4 — Lobby Room: refuse a player observation with a value outside the reading rule; match the others to the room's
+- [x] T4 — Lobby Room: refuse a player observation with a value outside the reading rule; match the others to the room's
       members through the new `MemberNames` port (implemented in `main/` over Identity) and store only the join order
       (SNM-03, SNM-08); `d2r.observation.match` on the span. Unit tests with fakes (matched, none, ambiguous, repeat,
       non-member, stage unchanged, no outbox row) and an integration test. Gate:
@@ -40,7 +40,7 @@ Rules:
       appears in no span, span event, metric label, log line, outbox row, table row or response. Use the in-memory
       exporter, the log sink and a scan of the new rows; scan every attribute key, not only the ones the spec names
       (lessons). Done for the characters path (harness `name-leak-scan.ts`); the observation path joins it with T4. Gate: `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api test:integration`
-- [ ] T6 — Docs: write ADR 036 as **Proposed** (a chat name may leave the PC to be matched and dropped; matching on the
+- [x] T6 — Docs: write ADR 036 as **Proposed** (a chat name may leave the PC to be matched and dropped; matching on the
       API, not the agent), add the new spans and counters to `docs/engineering/telemetry.md`, and note the two player
       observations in `docs/domain/glossary.md`. Never write an `Accepted` or `Approved` line. Gate:
       `pnpm exec prettier --check docs && pnpm specs:check`

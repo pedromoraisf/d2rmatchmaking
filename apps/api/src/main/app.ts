@@ -314,6 +314,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
         const facts = await characters.characterOf(accountId, characterId);
         return facts === null ? null : { characterClass: facts.characterClass, level: facts.level };
       },
+      nameOf: characters.characterNameOf,
     },
     dropToleranceMs: (config.roomDropToleranceSeconds ?? DEFAULT_DROP_TOLERANCE_SECONDS) * 1000,
   });
