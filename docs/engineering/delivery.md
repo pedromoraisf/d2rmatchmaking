@@ -92,6 +92,7 @@ Names only, never values. Nothing below costs money: every service and database 
 | environment `production` (exists)     | secret   | `NEON_DATABASE_URL`                          | the production Neon connection string                            |
 | environment `production`              | secret   | `RENDER_DEPLOY_HOOK`                         | the deploy hook of `d2rmm-api-production`                        |
 | environment `production`              | variable | `API_BASE_URL`                               | the production service URL (https origin)                        |
+| environment `production`              | variable | `D2RMM_ENV`                                  | `production` (the marker a promotion requires, see below)        |
 | repository (already set, for staging) | secret   | `NEON_DATABASE_URL`, `RENDER_DEPLOY_HOOK`    | staging's; keep them                                             |
 | repository (already set, for staging) | variable | `API_BASE_URL`                               | the staging service URL; keep it                                 |
 | repository                            | variable | `PRODUCTION_API_URL`                         | the production service URL, for keep-awake                       |
@@ -101,6 +102,8 @@ Names only, never values. Nothing below costs money: every service and database 
 The environments `staging` and `preview` are optional: when they exist, `stage-deploy` gets an `environment:` and the
 staging secrets move into them. Inside `production`, the environment's secret wins over the repository one of the same
 name, which is how a promotion reaches production's database and service with the same workflow.
+`D2RMM_ENV=production` exists only in that environment. The promote job fails before it migrates or deploys unless
+it reads that value, so a missing production secret can never fall back to staging's repository-level one.
 
 ### 5. Cloudflare Pages
 
@@ -111,7 +114,8 @@ name, which is how a promotion reaches production's database and service with th
 
 ### Cutover order (once 1 to 4 exist)
 
-1. Set the two secrets and the variable in the environment `production`, and `PRODUCTION_API_URL`.
+1. Set the two secrets and the variables (`API_BASE_URL`, `D2RMM_ENV=production`) in the environment `production`, and
+   `PRODUCTION_API_URL` in the repository.
 2. Dispatch `api` on `main` with the SHA of a commit whose staging run passed smoke: it migrates the production
    database, deploys that commit on `d2rmm-api-production` and waits for its `/healthz` to answer that SHA.
 3. Point Pages _Production_ `API_ORIGIN` at the production service; dispatch `site` with the same SHA.

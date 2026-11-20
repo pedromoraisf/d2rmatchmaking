@@ -264,6 +264,34 @@ test('the API build compiles the API and uploads the commit pin; the site deploy
   }
 });
 
+test('a promotion fails unless the environment-only marker says production, before any migration or deploy', () => {
+  const job = workflow('stage-promote.yml').jobs.promote;
+  const steps = stepsOf(job);
+  const gate = indexOfStep(job, runIncludes('scripts/delivery/promotable.mjs'));
+  const marker = indexOfStep(job, (s) => s.env?.ENVIRONMENT_MARKER === '${{ vars.D2RMM_ENV }}');
+  assert.ok(marker > gate, 'the marker is checked right after the gate');
+  assert.equal(steps[marker].if, undefined, 'the marker is checked for every app, not skipped');
+  assert.match(steps[marker].run, /\[ "\$ENVIRONMENT_MARKER" != "production" \]/);
+  assert.match(steps[marker].run, /exit 1/);
+  // Nothing that holds a secret or changes anything comes before it.
+  for (const step of steps.slice(0, marker)) {
+    assert.doesNotMatch(JSON.stringify(step), /secrets\.|db:migrate|wrangler|RENDER_DEPLOY_HOOK/, step.name);
+  }
+  for (const needle of ['db:migrate', 'RENDER_DEPLOY_HOOK}&ref=', 'wrangler pages deploy']) {
+    assert.ok(indexOfStep(job, runIncludes(needle)) > marker, `${needle} comes after the marker`);
+  }
+  assert.equal(job.environment, 'production');
+});
+
+test('the promoted migrations are refused when they hold a symlink, before they are copied', () => {
+  const job = workflow('stage-promote.yml').jobs.promote;
+  const use = stepsOf(job).find((s) => s.name === 'Use the promoted migrations');
+  const check = use.run.indexOf('scripts/delivery/no-symlinks.mjs promoted-api/apps/api/migrations');
+  assert.ok(check >= 0, 'the symlink check runs on the promoted tree');
+  assert.ok(check < use.run.indexOf('cp -r'), 'the check comes before the copy');
+  assert.ok(check < use.run.indexOf('rm -rf'), 'and before the workspace migrations are removed');
+});
+
 test('smoke comes after the deploy it checks, and production smoke follows the promote', () => {
   const promoteWf = workflow('stage-promote.yml');
   assert.deepEqual(promoteWf.jobs.smoke.needs, ['promote']);

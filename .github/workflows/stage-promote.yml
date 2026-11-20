@@ -63,6 +63,17 @@ jobs:
           SHA: ${{ inputs.sha }}
         run: echo "run_id=$(node scripts/delivery/promotable.mjs "$APP" "$SHA")" >> "$GITHUB_OUTPUT"
 
+      - name: Require the production environment marker
+        # `D2RMM_ENV` is a variable of the environment `production` only. If this job ever runs without that environment,
+        # repository-level secrets (staging's) would resolve and a promotion would reach staging; the marker stops it.
+        env:
+          ENVIRONMENT_MARKER: ${{ vars.D2RMM_ENV }}
+        run: |
+          if [ "$ENVIRONMENT_MARKER" != "production" ]; then
+            echo "::error::The variable D2RMM_ENV is not production in this environment; nothing is migrated or deployed"
+            exit 1
+          fi
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
@@ -117,6 +128,8 @@ jobs:
       - name: Use the promoted migrations
         if: inputs.app == 'api'
         run: |
+          # A symlink in the promoted tree could point at a file of this runner: refuse the copy if there is one.
+          node scripts/delivery/no-symlinks.mjs promoted-api/apps/api/migrations
           rm -rf apps/api/migrations
           cp -r promoted-api/apps/api/migrations apps/api/migrations
 
