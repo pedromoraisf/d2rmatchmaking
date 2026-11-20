@@ -348,6 +348,22 @@ mod tests {
     }
 
     #[test]
+    fn the_english_pack_holds_the_in_game_hud_words_and_the_party_words_unchanged() {
+        // Pin added for rule 14 (the MANA word of f42623b9 and the Brazilian pack of 0a2d82c4 changed this file without one):
+        // the HUD's two labels start their lines, and the English Party words are the ones the 1033 prints read.
+        let en = LanguagePack::english();
+        assert_eq!(en.word("life"), Some("Life:"));
+        assert_eq!(en.word("mana"), Some("Mana:"));
+        assert!(en.begins_with("Life: 925 / 925", "life"));
+        assert!(en.begins_with("Mana: 120 / 120", "mana"));
+        assert!(!en.begins_with("Life: 925 / 925", "mana"));
+        assert_eq!(en.word(PARTY), Some("Party"));
+        assert_eq!(en.word(GAME_NAME), Some("Game Name"));
+        assert_eq!(en.word(PASSWORD), Some("Password"));
+        assert_eq!(en.tag(), "en");
+    }
+
+    #[test]
     fn the_brazilian_party_words_read_the_measured_noisy_forms_and_not_the_english_ones() {
         // The reads are those of the six 1920x1045 prints (the `ocr-real` wide-pass diagnostics).
         let pt = LanguagePack::brazilian_party();

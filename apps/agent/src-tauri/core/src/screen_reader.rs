@@ -1301,6 +1301,78 @@ mod hud_tests {
         assert_eq!(band_reads(&hud.take_asked()), 1);
     }
 
+    #[test]
+    fn a_tracked_hud_costs_one_read_of_its_box_and_a_miss_one_extra_band_search() {
+        // Steady state of the in-game frame: the automap area is searched (no automap yet, so it cannot be tracked) and the
+        // HUD's small box is read; the band is read only on the first frame and after a miss, then tracking resumes.
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        let small = |asked: &[Region]| asked.iter().filter(|area| area.width < 400).count();
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        let first = hud.take_asked();
+        assert_eq!(
+            (first.len(), automap_reads(&first), band_reads(&first)),
+            (2, 1, 1)
+        );
+        for _ in 0..3 {
+            assert_eq!(screens.read(&frame).screen, Screen::InGame);
+            let steady = hud.take_asked();
+            assert_eq!(
+                steady.len(),
+                2,
+                "the automap area and the tracked box: {steady:?}"
+            );
+            assert_eq!(
+                (automap_reads(&steady), small(&steady), band_reads(&steady)),
+                (1, 1, 0)
+            );
+        }
+        // The label moves out of its box: the tracked box, then one band search; the next frame tracks the new place.
+        *hud.lines.lock().expect("lines") = vec![life(900, 950)];
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        let miss = hud.take_asked();
+        assert_eq!(
+            (miss.len(), small(&miss), band_reads(&miss)),
+            (3, 1, 1),
+            "{miss:?}"
+        );
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        let resumed = hud.take_asked();
+        assert_eq!((resumed.len(), band_reads(&resumed)), (2, 0), "{resumed:?}");
+    }
+
+    #[test]
+    fn a_tracked_automap_costs_one_read_of_its_box_and_a_miss_one_extra_area_search() {
+        let hud = Hud::new(vec![difficulty(1600, 120)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1056);
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        let first = hud.take_asked();
+        assert_eq!(
+            (first.len(), automap_reads(&first)),
+            (1, 1),
+            "searched once"
+        );
+        for _ in 0..3 {
+            assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+            let steady = hud.take_asked();
+            assert_eq!((steady.len(), automap_reads(&steady)), (1, 0), "{steady:?}");
+        }
+        // The line moves: the tracked box misses, the whole area is searched once, and tracking resumes.
+        *hud.lines.lock().expect("lines") = vec![difficulty(1500, 200)];
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        let miss = hud.take_asked();
+        assert_eq!((miss.len(), automap_reads(&miss)), (2, 1), "{miss:?}");
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        let resumed = hud.take_asked();
+        assert_eq!(
+            (resumed.len(), automap_reads(&resumed)),
+            (1, 0),
+            "{resumed:?}"
+        );
+    }
+
     /// Every `agent.vision.read` span's fields, as text, in creation order.
     type SpanFields = Vec<(String, String)>;
 
