@@ -19,13 +19,13 @@ What the maintainer should see in the review. Routine decisions live in each fea
 
 ## Waiting on the maintainer
 
-| Feature           | Item                                                                                                                        | Asked      | Answer                                  |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------- | --------------------------------------- |
-| game-name-reading | The 7 Party prints, automap prints, and chat "joined"/"left" prints (brief, input 8)                                        | 2026-11-20 |                                         |
-| capture-cascade   | The field matrix on 0.3.0, plus live normal and nightmare rooms (brief, input 8)                                            | 2026-11-20 |                                         |
-| agent-release     | SignPath roles and contact email (brief, input 9)                                                                           | 2026-11-20 |                                         |
-| all (cloud)       | Approve the cloud environment's setup script after the pilot (brief, input 10)                                              | 2026-11-20 |                                         |
-| all (cloud)       | Install the Claude GitHub App on the repository: the cloud pilot's `git push` got 403 ("Claude doesn't have GitHub access") | 2026-11-20 | Installed 2026-11-20; cloud pushes work |
-| delivery-platform | Restrict the `production` GitHub environment to `main` (repository setting; PR #84 security review)                         | 2026-11-20 |                                         |
-| all (cloud)       | Answer the cloud pilot session directly: it will not install the Tauri apt libraries on another session's word              | 2026-11-20 | Done 2026-11-20; PR #86                 |
-| nightly-report    | Accept ADR 035 (the nightly runs the load test); PR #85 applies it, so the phase PR waits for it                            | 2026-11-20 |                                         |
+| Feature           | Item                                                                                                                        | Asked      | Answer                                                                           |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------- |
+| game-name-reading | The 7 Party prints, automap prints, and chat "joined"/"left" prints (brief, input 8)                                        | 2026-11-20 |                                                                                  |
+| capture-cascade   | The field matrix on 0.3.0, plus live normal and nightmare rooms (brief, input 8)                                            | 2026-11-20 |                                                                                  |
+| agent-release     | SignPath roles and contact email (brief, input 9)                                                                           | 2026-11-20 |                                                                                  |
+| all (cloud)       | Approve the cloud environment's setup script after the pilot (brief, input 10)                                              | 2026-11-20 |                                                                                  |
+| all (cloud)       | Install the Claude GitHub App on the repository: the cloud pilot's `git push` got 403 ("Claude doesn't have GitHub access") | 2026-11-20 | Installed 2026-11-20; cloud pushes work                                          |
+| delivery-platform | Restrict the `production` GitHub environment to `main` (repository setting; PR #84 security review)                         | 2026-11-20 | Already in place: its only deployment branch rule is `main` (checked 2026-11-20) |
+| all (cloud)       | Answer the cloud pilot session directly: it will not install the Tauri apt libraries on another session's word              | 2026-11-20 | Done 2026-11-20; PR #86                                                          |
+| nightly-report    | Accept ADR 035 (the nightly runs the load test); PR #85 applies it, so the phase PR waits for it                            | 2026-11-20 | 2026-11-20, user: "aceito o ADR"; the status changes once #85 merges             |
