@@ -53,7 +53,7 @@ check is `node scripts/agent/win-check.mjs` (Docker, clippy for `x86_64-pc-windo
       run); a probe exactly every sixtieth look and never in steady state on the first method; promotion on a usable
       probe; read rate over the last 60 looks (0 with no look); a 600-look loop counts captures per method (steady state
       600, one probe per sixty adds 10). No clock, randomness or I/O. Gate: as T1
-- [ ] T3 — Client-area geometry (CAP-04, CAP-06). New `domain/src/capture_geometry.rs`: `crop_to_client`
+- [x] T3 — Client-area geometry (CAP-04, CAP-06). New `domain/src/capture_geometry.rs`: `crop_to_client`
       (frame, client offset, client size) returns the rectangle to keep or `None` when the frame cannot hold the client area or the sizes do not
       match; tests for a windowed frame with a title bar and borders (offset 8,31 as `window_capture` tests use), a
       borderless one (offset 0,0), a frame smaller than the client, a zero-size client and overflow at `u32::MAX`.

@@ -4,6 +4,7 @@
 
 pub mod anchors;
 pub mod capture_cascade;
+pub mod capture_geometry;
 pub mod character_screen;
 pub mod characters;
 pub mod frame_content;
