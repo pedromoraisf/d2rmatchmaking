@@ -1722,6 +1722,18 @@ mod hud_tests {
     }
 
     #[test]
+    fn the_read_span_of_a_frame_that_finds_nothing_is_pinned_frame_by_frame() {
+        let hud = Hud::new(vec![]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        let words: Vec<String> = (0..4).map(|_| words_of(&screens, &frame)).collect();
+        assert_eq!(
+            words, ["unknown/band/band"; 4],
+            "the HUD band is searched on every frame; a resting search leaves no trace of its own"
+        );
+    }
+
+    #[test]
     fn the_words_of_a_frame_with_no_search_are_fixed_or_none() {
         use super::{Search, vision_words};
         use d2rmm_agent_domain::presence::Screen;
