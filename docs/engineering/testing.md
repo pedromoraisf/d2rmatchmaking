@@ -1,14 +1,14 @@
 # Testing
 
-| Level                | Tool                                                                            | Where                             | Runs                                         |
-| -------------------- | ------------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------- |
-| Unit                 | Vitest; `cargo nextest` + `insta`                                               | next to code                      | on edit (related), pre-commit (related), CI  |
-| Integration          | Vitest + Testcontainers (Postgres)                                              | `apps/api/test/integration`       | CI                                           |
-| Contract             | Zod → JSON Schema snapshot; OpenAPI/AsyncAPI drift                              | `packages/contracts`              | Stop hook, CI                                |
-| Acceptance (BDD)     | playwright-bdd running `.specs/features/*/acceptance.feature` (English Gherkin) | steps in `tests/acceptance/steps` | proofs, CI integration job (ADR 023)         |
-| End to end (non-BDD) | Playwright                                                                      | `apps/web/e2e`                    | CI                                           |
-| Load                 | k6 (+ SSE extension) in Docker                                                  | `scripts/load`                    | on demand and at the end of a phase (NFR-14) |
-| Mutation             | StrykerJS (domain ≥ 80%, application ≥ 70%); cargo-mutants (agent core ≥ 70%)   | per workspace                     | nightly only (ADR 029)                       |
+| Level                | Tool                                                                            | Where                             | Runs                                        |
+| -------------------- | ------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------- |
+| Unit                 | Vitest; `cargo nextest` + `insta`                                               | next to code                      | on edit (related), pre-commit (related), CI |
+| Integration          | Vitest + Testcontainers (Postgres)                                              | `apps/api/test/integration`       | CI                                          |
+| Contract             | Zod → JSON Schema snapshot; OpenAPI/AsyncAPI drift                              | `packages/contracts`              | Stop hook, CI                               |
+| Acceptance (BDD)     | playwright-bdd running `.specs/features/*/acceptance.feature` (English Gherkin) | steps in `tests/acceptance/steps` | proofs, CI integration job (ADR 023)        |
+| End to end (non-BDD) | Playwright                                                                      | `apps/web/e2e`                    | CI                                          |
+| Load                 | k6 (+ SSE extension) in Docker                                                  | `scripts/load`                    | on demand, end of a phase, nightly (NFR-14) |
+| Mutation             | StrykerJS (domain ≥ 80%, application ≥ 70%); cargo-mutants (agent core ≥ 70%)   | per workspace                     | nightly only (ADR 029)                      |
 
 Rules:
 
@@ -24,9 +24,34 @@ Rules:
    for ports, no server/DB/browser/container); integration, e2e and acceptance are few and never run per mutation.
    Rust: `cargo nextest run -p <crate> --lib`; TypeScript: `vitest run <colocated *.test.ts>`. `pnpm specs:check`
    (`scripts/mutation-scope-check.mjs`) and the gate refuse a `mutations.json` that breaks this.
-8. The load run (NFR-14, AD-110) is on demand and runs at the end of a phase. It is never part of `pnpm check` or a
-   pull-request workflow. Three commands: `pnpm test:load` (the full ramp), `pnpm test:load:smoke` (5 players for
-   30 s, writes `smoke-summary.json` only) and `pnpm load:publish` (writes `docs/engineering/load-baseline.md` from a
-   passed full summary, and refuses anything else). The run needs Docker: it starts its own Postgres, API and k6
-   containers, and it refuses any target it did not start (`LOAD_TARGET`, a non-empty `DATABASE_URL`, a remote Docker
-   host). Its code lives in `scripts/load`; its unit tests live in `scripts/test/load`.
+8. The load run (NFR-14, AD-110) is on demand, runs at the end of a phase, and runs in the nightly on a GitHub runner
+   (ADR 035, Proposed). It is never part of `pnpm check` or a pull-request workflow; `scripts/test/load-scripts.test.mjs`
+   refuses it in any workflow except `nightly.yml`. Three commands: `pnpm test:load` (the full ramp),
+   `pnpm test:load:smoke` (5 players for 30 s, writes `smoke-summary.json` only) and `pnpm load:publish` (writes
+   `docs/engineering/load-baseline.md` from a passed full summary, and refuses anything else). The run needs Docker: it
+   starts its own Postgres, API and k6 containers, and it refuses any target it did not start (`LOAD_TARGET`, a
+   non-empty `DATABASE_URL`, a remote Docker host). Its code lives in `scripts/load`; its unit tests live in `scripts/test/load`.
+
+## The nightly and its report
+
+The nightly (`.github/workflows/nightly.yml`) runs its suites as parallel jobs: agent mutation (a matrix per crate, two
+shards for the domain and the adapters), API mutation (per layer), acceptance, load, the quality ratchet and one report
+job that always runs last. The report (`nightly-report.md` and `nightly-report.json`) is the run's job summary and an
+artifact. It shows the jobs, the mutation scores and survivors per file, the load steps, every acceptance scenario
+(failures first) and the change since the latest earlier scheduled run on `main`. Its rules are pure functions in
+`scripts/nightly/`, tested in `scripts/test/nightly-*.test.mjs`.
+
+### Dispatching a suite on a branch
+
+Any session can run part of the nightly on its branch, without waiting for the schedule:
+
+```text
+gh workflow run nightly.yml --ref <branch> -f suites=<all|mutation|load|acceptance>
+gh run list --workflow nightly.yml --branch <branch> --limit 1
+gh run watch <run-id>
+```
+
+The job summary of the run is the report; `gh run download <run-id> -n nightly-report` fetches it. `gh workflow run`
+can only dispatch a workflow file that is on the default branch or on the `--ref` branch, so a workflow change is tested
+by dispatching on the branch that carries it. A missed mutant still fails its matrix job: the nightly turns green by
+killing survivors, never by tolerating them. The schedule always runs every suite.

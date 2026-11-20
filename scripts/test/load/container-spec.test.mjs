@@ -536,3 +536,20 @@ test('publish guard', () => {
     'the guard runs inside each builder: a writable scripts/load output is refused',
   );
 });
+
+test('k6Args: a host user runs k6 as that user, so a Linux daemon can read the 0600 plan', () => {
+  const args = k6Args({
+    runId: RUN,
+    image: 'd2rmm-load-k6:test',
+    inDir: IN_DIR,
+    outDir: OUT_DIR,
+    user: '1001:118',
+  });
+  assert.deepEqual(args.slice(args.indexOf('--user'), args.indexOf('--user') + 2), ['--user', '1001:118']);
+  assert.ok(
+    !k6Args({ runId: RUN, image: 'd2rmm-load-k6:test', inDir: IN_DIR, outDir: OUT_DIR }).includes('--user'),
+  );
+  assert.throws(() =>
+    k6Args({ runId: RUN, image: 'd2rmm-load-k6:test', inDir: IN_DIR, outDir: OUT_DIR, user: 'root' }),
+  );
+});

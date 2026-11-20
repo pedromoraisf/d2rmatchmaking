@@ -93,9 +93,14 @@ test('json pointer and eslint counts', () => {
 // CRF-04, CRF-07 (ci-and-review-fixes): cargo-mutants writes mutants.out inside the nightly's --output directory.
 test("the agent core source is inside the nightly's report directory", () => {
   const nightly = parse(readFileSync(path.join(root, '.github', 'workflows', 'nightly.yml'), 'utf8'));
-  const runs = nightly.jobs['agent-mutation'].steps.map((step) => step.run ?? '');
-  const run = runs.find((line) => /--package d2rmm-agent-core(\s|$)/u.test(line)) ?? '';
+  // The job is a matrix (NGT-01): the core entry fills the one cargo-mutants command's `${{ matrix.* }}` placeholders.
+  const job = nightly.jobs['agent-mutation'];
+  const core = job.strategy.matrix.include.find((entry) => entry.crate === 'core');
+  const template =
+    job.steps.map((step) => step.run ?? '').find((line) => line.includes('cargo mutants')) ?? '';
+  const run = template.replace(/\$\{\{\s*matrix\.(\w+)\s*\}\}/gu, (_, key) => core?.[key] ?? '');
   const output = /--output\s+(\S+)/u.exec(run)?.[1];
+  assert.match(run, /--package d2rmm-agent-core(\s|$)/u, 'the core entry runs the core crate');
   assert.ok(output, 'the nightly writes the agent core report to a directory');
   assert.equal(agentCore.source.path, path.posix.join(output, 'mutants.out', 'outcomes.json'));
 });
