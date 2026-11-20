@@ -87,7 +87,7 @@ failure message carries a name read from a real print.
       line or label holds a name (a source-rule test in `scripts/test/` refuses it). Gate:
       `CARGO nextest run -p d2rmm-agent-core --lib` and `CARGO test -p d2rmm-agent-core --lib` (one process, OCP-04),
       `CARGO clippy -p d2rmm-agent-core --all-targets -- -D warnings` and `pnpm test:harness`
-- [ ] T7 — Acceptance steps for the `@GNR-` scenarios in `tests/acceptance/steps/game-name-reading.steps.ts`, reusing the
+- [x] T7 — Acceptance steps for the `@GNR-` scenarios in `tests/acceptance/steps/game-name-reading.steps.ts`, reusing the
       `agent-game-name` steps (the test match, consent, "the room becomes Created within 2 seconds") and the headless agent
       with the T5 fixtures; the headless example reads the sidecar lines of the automap and chat fixtures. Never edit
       `acceptance.feature`. Gate: `pnpm exec turbo run test:acceptance -- --grep @GNR-` and
