@@ -82,3 +82,16 @@ into view or the stream reconnects (SEG-05, ARL-06). The API tells the site once
 - The agent accepts an event that still carries a dropped field, so an API and an agent of different versions work together.
 - A field the agent's older parsers require stays as an empty value (`members: []`), because the agent's generated types refuse an
   unknown or a missing field: an agent from before the cut keeps reading the event.
+
+### Two limits of the empty `members` (SEG-03, architecture review of #110)
+
+- **An old agent accepting `members: []` is a reading of the generated types, not a proof.** The agent's types come from the
+  JSON schema through typify, which carries no `minItems` check, so a list of any length, an empty one too, parses. That is
+  why an agent from before the cut keeps reading the event. It has not been run against a build of an old agent. The proof
+  that exists is the current agent's own tests (`an_assignment_event_holds_with_its_members_or_with_an_empty_list` and its
+  ready-check twin in `adapters/src/http/sse.rs`) and the API tests that pin the exact payload. If a release ever adds a
+  length check on `members`, the API's empty list breaks the agent that has it: change the two sides in one release.
+- **The agent contract is stricter than the agent.** The API's schema says `members` is an array of at most 0 entries
+  (`max(0)` in `packages/contracts/src/events/stream.ts`), so the API can send nothing else. The agent accepts both shapes, an
+  empty list and a full one, and the Rust tests cover both on purpose: an agent must keep working with an API that has not
+  been cut yet. The contract describes what the API sends now, the agent's tests what it tolerates.
