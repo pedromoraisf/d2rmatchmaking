@@ -31,7 +31,7 @@ Rules:
 - [x] T1 — UPK-01: schema file for `room.stage_changed`, regenerated Rust type, `sse.rs` parses through it, unit tests
       for both stages, another stage, a bad room id and a wrong shape. Gate:
       `pnpm contracts:check && cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p xtask -p d2rmm-agent-adapters --lib --test contracts_are_current && cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings`
-- [ ] T2 — UPK-04: `projectStreamEvent` does the per-member `currentAgentOf` lookups with `Promise.all` in the three
+- [x] T2 — UPK-04: `projectStreamEvent` does the per-member `currentAgentOf` lookups with `Promise.all` in the three
       cases that await in a loop; unit tests pin the delivery order and that the lookups start together (a gated fake).
       Gate: `pnpm --filter @d2rmm/api exec vitest run src/platform/stream-projection.test.ts && pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api lint`
 - [ ] T3 — UPK-02, UPK-03: the per-account limiter (60 per minute, sliding window, `Retry-After` in whole seconds, no
