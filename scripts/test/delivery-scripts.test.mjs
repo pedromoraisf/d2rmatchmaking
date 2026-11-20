@@ -35,6 +35,30 @@ test('other previews keep their branch alias; staging and production have fixed 
   assert.notEqual(pagesBranchFor('preview', 'phase/F2/x'), 'phase-preview');
 });
 
+test('a preview may not take a reserved Pages name, by its raw name or by its alias', () => {
+  for (const branch of [
+    'main',
+    'staging',
+    'production',
+    'phase-preview',
+    'Main',
+    'STAGING',
+    'main!',
+    '-staging-',
+    'staging/',
+    'phase_preview',
+  ]) {
+    assert.throws(() => pagesBranchFor('preview', branch), /reserved Pages name/, branch);
+  }
+  // The phase alias is reached only through a phase/* branch, and look-alikes stay ordinary previews.
+  assert.equal(pagesBranchFor('preview', 'phase/F2'), 'phase-preview');
+  assert.equal(pagesBranchFor('preview', 'main-fix'), 'main-fix');
+  assert.equal(pagesBranchFor('preview', 'feat/staging'), 'feat/staging');
+  // Staging and production themselves are not previews, so they are not refused.
+  assert.equal(pagesBranchFor('staging', 'main'), 'staging');
+  assert.equal(pagesBranchFor('production', 'main'), 'main');
+});
+
 test('the preview configuration names a valid preview API origin or null', () => {
   assert.deepEqual(JSON.parse(previewConfigJson('https://d2rmm-api-pr-9.onrender.com')), {
     previewApiOrigin: 'https://d2rmm-api-pr-9.onrender.com',

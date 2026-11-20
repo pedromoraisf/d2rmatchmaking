@@ -11,6 +11,12 @@ export const STAGING_BRANCH = 'staging';
 export const PRODUCTION_BRANCH = 'main';
 
 /**
+ * Names a preview may never take: a preview deployed with `--branch main` or `--branch staging` would publish to
+ * production or staging without the promote gate, and `phase-preview` is the phase alias only a `phase/*` branch reaches.
+ */
+export const RESERVED_BRANCHES = ['main', 'staging', 'production', PHASE_PREVIEW_BRANCH];
+
+/**
  * The Pages branch of a deploy. `environment` is preview, staging or production; `branch` is the Git branch that
  * triggered a preview. Throws for a preview whose alias Cloudflare would shorten by a rule not verified here.
  */
@@ -20,6 +26,12 @@ export function pagesBranchFor(environment, branch) {
   if (environment !== 'preview') throw new Error(`unknown environment "${environment}"`);
   if (/^phase\/[^/]+$/.test(String(branch ?? ''))) return PHASE_PREVIEW_BRANCH;
   const alias = branchAlias(branch);
+  const raw = String(branch ?? '').toLowerCase();
+  if (RESERVED_BRANCHES.includes(raw) || RESERVED_BRANCHES.includes(alias)) {
+    throw new Error(
+      `the branch "${branch}" is a reserved Pages name (${RESERVED_BRANCHES.join(', ')}); a preview cannot use it`,
+    );
+  }
   if (alias === '' || alias.length > MAX_ALIAS_LENGTH) {
     throw new Error(`no usable Pages alias for branch "${branch}"`);
   }
