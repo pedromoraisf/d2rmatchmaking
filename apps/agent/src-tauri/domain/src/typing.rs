@@ -256,6 +256,14 @@ impl HotkeyPair {
         }
     }
 
+    /// The pair of these two hotkeys, or why it is refused (they must differ).
+    pub fn new(accept: HotkeyChoice, fill: HotkeyChoice) -> Result<Self, HotkeyRefusal> {
+        if accept == fill {
+            return Err(HotkeyRefusal::SameAsOther);
+        }
+        Ok(Self { accept, fill })
+    }
+
     pub fn accept(&self) -> HotkeyChoice {
         self.accept
     }
@@ -473,6 +481,14 @@ mod tests {
         assert_eq!(
             pair.with_fill(same_as_accept).err(),
             Some(HotkeyRefusal::SameAsOther)
+        );
+        assert_eq!(
+            HotkeyPair::new(same_as_fill, same_as_fill).err(),
+            Some(HotkeyRefusal::SameAsOther)
+        );
+        assert_eq!(
+            HotkeyPair::new(same_as_accept, same_as_fill).expect("two keys"),
+            pair
         );
         let other = HotkeyChoice::parse("Alt+G").expect("valid");
         let changed = pair.with_fill(other).expect("a different key");

@@ -11,9 +11,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use d2rmm_agent_adapters::http::gateway::HttpGateway;
 use d2rmm_agent_core::ports::{ConsentStore, StoreError};
 use d2rmm_agent_core::runtime::Handle;
+use d2rmm_agent_domain::typing::{HotkeyAction, HotkeyChoice, HotkeyPair};
 use tauri::Url;
 
 use crate::adapters::consent_store::FileConsentStore;
+use crate::adapters::hotkey_store::FileHotkeyStore;
 
 /// What the command handler needs from the runtime: a request for one new pairing code.
 pub trait CodeRequester {
@@ -68,6 +70,25 @@ pub fn handle_set_consent(store: &dyn ConsentStore, consent: bool) -> Result<boo
     Ok(consent)
 }
 
+/// The player's choice of one hotkey (AST-01): the new pair, stored on this PC, or the refusal code the window maps to a
+/// message (`no-modifier`, `confirming-key`, `unsupported-key`, `same-as-other`, or `not-saved`). Nothing changes on a refusal.
+pub fn apply_hotkey_change(
+    current: &HotkeyPair,
+    action: &str,
+    combination: &str,
+    store: &FileHotkeyStore,
+) -> Result<HotkeyPair, &'static str> {
+    let action = HotkeyAction::parse(action).ok_or("unsupported-key")?;
+    let choice = HotkeyChoice::parse(combination).map_err(|refusal| refusal.code())?;
+    let next = match action {
+        HotkeyAction::Accept => current.with_accept(choice),
+        HotkeyAction::Fill => current.with_fill(choice),
+    }
+    .map_err(|refusal| refusal.code())?;
+    store.save(&next).map_err(|_| "not-saved")?;
+    Ok(next)
+}
+
 /// The window may navigate only to the bundled app (AGS-04): the custom protocol of each platform.
 pub fn is_app_url(url: &Url) -> bool {
     matches!(
@@ -108,8 +129,9 @@ mod shell {
     use d2rmm_agent_core::view::AgentView;
 
     use super::{
-        FileConsentStore, HotkeyRegistrar, app_context, consent_store_in, handle_get_consent,
-        handle_get_new_code, handle_set_consent, is_app_url, sync_hotkey,
+        FileConsentStore, FileHotkeyStore, HotkeyRegistrar, app_context, apply_hotkey_change,
+        consent_store_in, handle_get_consent, handle_get_new_code, handle_set_consent, is_app_url,
+        sync_hotkey,
     };
     use crate::adapters::token_store::KeyringTokenStore;
     use crate::config;
@@ -196,6 +218,30 @@ mod shell {
     fn set_consent(app: AppHandle, consent: bool) -> Result<bool, String> {
         handle_set_consent(&consent_store(&app), consent)
             .map_err(|_| "consent-not-saved".to_string())
+    }
+
+    /// The hotkeys of this app: the file in its configuration directory, apart from the consent file.
+    fn hotkey_store(app: &AppHandle) -> FileHotkeyStore {
+        FileHotkeyStore::in_directory(app.path().app_config_dir().ok())
+    }
+
+    /// The player's choice of one hotkey (AST-01). A refusal is one fixed code, never a path or a cause (AGS-09).
+    #[tauri::command]
+    fn set_hotkey(
+        app: AppHandle,
+        handle: State<'_, Arc<Handle<HttpGateway>>>,
+        action: String,
+        combination: String,
+    ) -> Result<(), String> {
+        let next = apply_hotkey_change(
+            &handle.hotkeys(),
+            &action,
+            &combination,
+            &hotkey_store(&app),
+        )
+        .map_err(str::to_string)?;
+        handle.set_hotkeys(next);
+        Ok(())
     }
 
     /// Logs the location of a panic and never its payload, which can carry secrets (AGS-09).
@@ -342,7 +388,8 @@ mod shell {
             .invoke_handler(tauri::generate_handler![
                 get_new_code,
                 get_consent,
-                set_consent
+                set_consent,
+                set_hotkey
             ])
             .setup(move |app| {
                 let app_handle = app.handle().clone();
@@ -368,6 +415,9 @@ mod shell {
                 let handle = Arc::new(tauri::async_runtime::block_on(async move {
                     Runtime::start(&core_config, sink, groups)
                 }));
+                if let Some(saved) = hotkey_store(app.handle()).load() {
+                    handle.set_hotkeys(saved);
+                }
                 window_sink.attach(handle.clone());
                 app.manage(handle);
 
@@ -395,9 +445,11 @@ mod tests {
 
     use tauri::Url;
 
+    use d2rmm_agent_domain::typing::HotkeyPair;
+
     use super::{
-        CodeRequester, app_context, consent_store_in, handle_get_consent, handle_get_new_code,
-        handle_set_consent, is_app_url,
+        CodeRequester, FileHotkeyStore, app_context, apply_hotkey_change, consent_store_in,
+        handle_get_consent, handle_get_new_code, handle_set_consent, is_app_url,
     };
     use crate::config;
 
@@ -526,5 +578,50 @@ mod tests {
         let store = consent_store_in(None);
         assert!(!handle_get_consent(&store));
         assert!(handle_set_consent(&store, true).is_err());
+    }
+
+    fn scratch_store() -> (FileHotkeyStore, std::path::PathBuf) {
+        let directory = std::env::temp_dir().join(format!("d2rmm-hk-{}", uuid::Uuid::new_v4()));
+        (
+            FileHotkeyStore::in_directory(Some(directory.clone())),
+            directory,
+        )
+    }
+
+    #[test]
+    fn a_valid_hotkey_choice_is_stored_and_returned() {
+        let (store, directory) = scratch_store();
+        let next = apply_hotkey_change(&HotkeyPair::defaults(), "fill", "alt+g", &store)
+            .expect("a valid combination");
+        assert_eq!(next.fill().to_string(), "Alt+G");
+        assert_eq!(store.load(), Some(next));
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn a_refused_hotkey_returns_its_code_and_stores_nothing() {
+        let (store, directory) = scratch_store();
+        let defaults = HotkeyPair::defaults();
+        for (action, text, code) in [
+            ("fill", "G", "no-modifier"),
+            ("fill", "Ctrl+Shift+Enter", "confirming-key"),
+            ("fill", "Ctrl+Home", "unsupported-key"),
+            ("fill", "Ctrl+Shift+A", "same-as-other"),
+            ("accept", "Ctrl+Shift+F", "same-as-other"),
+            ("confirm", "Ctrl+Shift+Q", "unsupported-key"),
+        ] {
+            assert_eq!(
+                apply_hotkey_change(&defaults, action, text, &store),
+                Err(code),
+                "{action} {text}"
+            );
+        }
+        assert!(store.load().is_none(), "no refusal wrote the file");
+        let nowhere = FileHotkeyStore::in_directory(None);
+        assert_eq!(
+            apply_hotkey_change(&defaults, "fill", "Alt+G", &nowhere),
+            Err("not-saved")
+        );
+        let _ = std::fs::remove_dir_all(directory);
     }
 }
