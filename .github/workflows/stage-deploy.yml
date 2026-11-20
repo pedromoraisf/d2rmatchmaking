@@ -1,0 +1,134 @@
+# Stages `verify` and `deploy` (ADR 033, DLP-02, DLP-03, DLP-08). `verify` reads the ci run of the commit and never
+# re-runs it. `deploy` downloads the artifact `stage-build` made and publishes it to the environment without building;
+# the cloud tokens reach only this job, through env. The preview API origin is written as deploy configuration
+# (preview-origin.json beside the Functions); the built bundle is never patched.
+name: stage-deploy
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        type: string
+        required: true
+      environment:
+        description: preview or staging
+        type: string
+        required: true
+      sha:
+        type: string
+        required: true
+      branch:
+        description: The Git branch of a preview, for its Pages alias
+        type: string
+        required: false
+        default: ''
+    secrets:
+      CLOUDFLARE_API_TOKEN:
+        required: false
+      CLOUDFLARE_ACCOUNT_ID:
+        required: false
+    outputs:
+      url:
+        description: The URL of the deployment
+        value: ${{ jobs.deploy.outputs.url }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Wait for the ci run of this commit to be green
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ inputs.sha }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          # Staging needs a ci run; a preview of a branch push with no pull request has none and is not held for one.
+          required=false
+          [ "$ENVIRONMENT" = "preview" ] || required=true
+          node scripts/delivery/ci-verdict.mjs "$SHA" "$required"
+
+  deploy:
+    name: deploy
+    needs: [verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      url: ${{ steps.publish.outputs.url }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Download the artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ inputs.app }}-${{ inputs.sha }}
+          path: apps/web/dist
+
+      - name: Write the preview API origin as deploy configuration
+        # A branch with an open `render-preview` labelled pull request into main proxies to that pull request's API
+        # (ADR 030); any other deploy keeps the committed `null`, so the proxy uses the environment's API_ORIGIN.
+        if: inputs.environment == 'preview'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DEPLOY_BRANCH: ${{ inputs.branch }}
+        run: node scripts/preview/preview.mjs config "$DEPLOY_BRANCH" apps/web/functions/api/preview-origin.json
+
+      - name: Choose the Pages branch
+        id: pages
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          DEPLOY_BRANCH: ${{ inputs.branch }}
+        run: echo "branch=$(node scripts/delivery/pages.mjs "$ENVIRONMENT" "$DEPLOY_BRANCH")" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to Cloudflare Pages
+        id: publish
+        working-directory: apps/web
+        # Only an explicit `shell: bash` sets pipefail: without it, a failed wrangler is hidden by the exit code of tee.
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+          PAGES_BRANCH: ${{ steps.pages.outputs.branch }}
+        run: |
+          pnpm exec wrangler pages deploy dist --project-name "$CLOUDFLARE_PAGES_PROJECT" --branch "$PAGES_BRANCH" | tee deploy.log
+          # An assignment, so a refused URL fails the step (a substitution inside echo would hide it).
+          url=$(node ../../scripts/delivery/deployment-url.mjs deploy.log "$CLOUDFLARE_PAGES_PROJECT")
+          echo "url=$url" >> "$GITHUB_OUTPUT"

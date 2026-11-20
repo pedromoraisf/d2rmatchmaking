@@ -14,7 +14,7 @@ are built by the batches of `.specs/features/delivery-platform/tasks.md`.
 ## Stages
 
 `build → verify → deploy → smoke → promote`. Reusable workflows `stage-build`, `stage-deploy`, `stage-smoke`,
-`stage-promote` (_planned_), called by `site.yml`, `api.yml`, `agent.yml`. Job names are always the stage names.
+`stage-promote`, called by `site.yml` (built), `api.yml` and `agent.yml` (_planned_). Job names are always the stage names.
 
 | Stage   | Does                                                                                         | Triggered by         |
 | ------- | -------------------------------------------------------------------------------------------- | -------------------- |

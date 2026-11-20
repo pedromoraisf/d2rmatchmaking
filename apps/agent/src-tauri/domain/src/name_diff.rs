@@ -114,7 +114,9 @@ pub fn closest_reading_diff(reads: &[&str], expected: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{closest_reading_diff, edit_operations, edit_operations_with, printable_name};
+    use super::{
+        closest_reading_diff, edit_distance, edit_operations, edit_operations_with, printable_name,
+    };
 
     #[test]
     fn the_dash_prints_for_a_game_name_and_other_characters_print_a_question_mark() {
@@ -173,5 +175,63 @@ mod tests {
             closest_reading_diff(&["qqqqqqqqqq"], "mmbaalh-19"),
             Some("far".to_string())
         );
+    }
+
+    /// ocr-protection: the edit distance on the maintainer's game names and on small cases whose answer is known.
+    #[test]
+    fn the_edit_distance_counts_substitutions_insertions_and_deletions() {
+        for (a, b, distance) in [
+            ("", "", 0),
+            ("", "abc", 3),
+            ("abc", "", 3),
+            ("a", "ab", 1),
+            ("ab", "a", 1),
+            ("ac", "abc", 1),
+            ("abc", "ac", 1),
+            ("flaw", "lawn", 2),
+            ("kitten", "sitting", 3),
+            ("sunday", "saturday", 3),
+            ("mmbaalh-1l", "mmbaalh-19", 1),
+            ("mmbaalh19", "mmbaalh-19", 1),
+            ("mmbaalh--19", "mmbaalh-19", 1),
+            ("mmbaalh-19", "mmbaalh-19", 0),
+            ("qqqqqqqqqq", "mmbaalh-19", 10),
+        ] {
+            assert_eq!(edit_distance(a, b), distance, "{a:?} to {b:?}");
+        }
+    }
+
+    /// ocr-protection: each kind of operation, at the start, in the middle and at the end of the expected name, in order of
+    /// position in the expected name.
+    #[test]
+    fn the_operations_of_an_insertion_a_deletion_and_a_substitution_are_listed_by_position() {
+        let ops = |read: &str, expected: &str| edit_operations_with(read, expected, printable_name);
+        // Insertions.
+        assert_eq!(ops("bc", "abc"), ["ins(a)@0"], "at the start");
+        assert_eq!(ops("ac", "abc"), ["ins(b)@1"], "in the middle");
+        assert_eq!(ops("ab", "abc"), ["ins(c)@2"], "at the end");
+        assert_eq!(ops("", "ab"), ["ins(a)@0", "ins(b)@1"], "of everything");
+        assert_eq!(ops("mmbaalh19", "mmbaalh-19"), ["ins(-)@7"]);
+        // Deletions, indexed by the position in the expected name they stand before.
+        assert_eq!(ops("abc", "bc"), ["del(a)@0"], "at the start");
+        assert_eq!(ops("abc", "ac"), ["del(b)@1"], "in the middle");
+        assert_eq!(ops("abc", "ab"), ["del(c)@2"], "at the end");
+        assert_eq!(ops("ab", ""), ["del(a)@0", "del(b)@0"], "of everything");
+        assert_eq!(ops("mmbaalh--19", "mmbaalh-19"), ["del(-)@7"]);
+        // Substitutions, at the start, in the middle and at the end.
+        assert_eq!(ops("xbc", "abc"), ["sub(x>a)@0"]);
+        assert_eq!(ops("axc", "abc"), ["sub(x>b)@1"]);
+        assert_eq!(ops("abx", "abc"), ["sub(x>c)@2"]);
+        // Several kinds at once.
+        assert_eq!(ops("xbcd", "abc"), ["sub(x>a)@0", "del(d)@3"]);
+        assert_eq!(ops("bcd", "abce"), ["ins(a)@0", "sub(d>e)@3"]);
+        // An insertion costs one edit like a deletion: where a read of one letter is two letters short, the insertion comes
+        // first and the letter is substituted (the table must not take an insertion for free).
+        assert_eq!(ops("a", "aa"), ["ins(a)@0"]);
+        assert_eq!(ops("a", "bc"), ["ins(b)@0", "sub(a>c)@1"]);
+        assert_eq!(ops("b", "bb"), ["ins(b)@0"]);
+        // Nothing to do.
+        assert_eq!(ops("same", "same"), Vec::<String>::new());
+        assert_eq!(ops("", ""), Vec::<String>::new());
     }
 }

@@ -1843,4 +1843,117 @@ mod tests {
         assert_eq!(majority::<u8>(Vec::new()), None);
         assert_eq!(majority::<u8>(vec![None, None]), None);
     }
+
+    /// ocr-protection: the survivors of the nightly of 2026-11-19, pinned on the real values of the maintainer's prints.
+    #[test]
+    fn the_gold_border_is_pinned_at_each_of_its_three_thresholds() {
+        // The selected card lit (227, 201, 97) and under the popup (114, 101, 49) are gold; the grey ones are not.
+        // Each threshold, on the dimmed gold of the print: red at least 70 and 40 over blue, green 30 over blue.
+        assert!(is_gold(114, 101, 49));
+        assert!(
+            is_gold(89, 79, 49),
+            "red exactly 40 over blue, green 30 over"
+        );
+        assert!(!is_gold(88, 79, 49), "red 39 over blue");
+        assert!(!is_gold(89, 78, 49), "green 29 over blue");
+        assert!(is_gold(70, 70, 30), "red exactly 70");
+        assert!(!is_gold(69, 70, 29), "red under 70");
+        // Only one of the two margins holds: a card that is not gold.
+        assert!(!is_gold(80, 100, 60), "green 40 over blue, red 20 over");
+        assert!(!is_gold(100, 70, 60), "red 40 over blue, green 10 over");
+        assert!(!is_gold(100, 100, 100), "a white border");
+    }
+
+    #[test]
+    fn the_label_brightness_reads_the_pixel_at_ninety_nine_percent_of_the_last_index() {
+        // A hundred pixels: the index is 99 * 99 / 100 = 98, so the very brightest pixel is not the brightness.
+        let mut lumas = vec![60; 98];
+        lumas.extend([100, 246]);
+        assert_eq!(label_brightness(lumas), Some(100));
+        assert_eq!(label_brightness(vec![7]), Some(7), "one pixel");
+        assert_eq!(label_brightness(vec![9, 3]), Some(3), "two pixels: index 0");
+    }
+
+    #[test]
+    fn a_create_new_label_with_stray_spaces_still_shows_the_list() {
+        for label in ["Create Ne w", "CREATE NEW", "CreateNew"] {
+            let reading = read(&[(ScreenRegion::CreateNew, label)], &[]);
+            assert_eq!(reading.screen, Screen::CharacterSelect, "{label}");
+        }
+        let reading = read(&[(ScreenRegion::CreateNew, "Delete")], &[]);
+        assert_eq!(reading.screen, Screen::Unknown);
+    }
+
+    #[test]
+    fn a_title_line_that_is_a_level_line_is_no_title_and_asks_no_band() {
+        use super::BandRead;
+        let mut pairs = list();
+        pairs[1] = (ScreenRegion::CardTitle(0), "Level 5 Amazon");
+        pairs.retain(|(region, _)| *region != ScreenRegion::CardTitle(1));
+        let scene = single(&pairs);
+        let asked = std::cell::RefCell::new(0_u32);
+        let reading = scene.read_with_ink(&[], &[], |_, _| {
+            *asked.borrow_mut() += 1;
+            BandRead::Unclear
+        });
+        // Slot 0 has a level line above its name: a card without a title, whose band is never read. Slot 1 has no line
+        // above it, so its band is read (and refused here).
+        assert_eq!(*asked.borrow(), 1, "only the card with no line above asks");
+        assert_eq!(reading.cards.len(), 1);
+        assert_eq!(reading.cards[0].title(), None);
+    }
+
+    #[test]
+    fn only_the_first_gold_card_takes_the_popup() {
+        let mut pairs = list();
+        pairs.push((ScreenRegion::SelectDifficulty, "Select Difficulty"));
+        pairs.push((ScreenRegion::PopupNormal, "Normal"));
+        pairs.push((ScreenRegion::PopupNightmare, "Nightmare"));
+        pairs.push((ScreenRegion::PopupHell, "Hell"));
+        let reading = read(&pairs, &[0, 1]);
+        assert_eq!(
+            reading.cards[0].unlocked_difficulties(),
+            vec![Normal, Nightmare, Hell]
+        );
+        assert_eq!(
+            reading.cards[1].unlocked_difficulties(),
+            vec![Normal],
+            "a second gold frame does not take the popup"
+        );
+        // Without a popup, a gold frame changes nothing.
+        let reading = read(&list(), &[0, 1]);
+        assert_eq!(reading.cards, read(&list(), &[]).cards);
+    }
+
+    #[test]
+    fn a_popup_option_the_lines_missed_counts_only_when_its_place_reads_as_its_word() {
+        let popup = |hell: &'static str| {
+            let mut pairs = list();
+            pairs.push((ScreenRegion::SelectDifficulty, "Select Difficulty"));
+            pairs.push((ScreenRegion::PopupNormal, "Normal"));
+            pairs.push((ScreenRegion::PopupNightmare, "Nightmare"));
+            pairs.push((ScreenRegion::PopupHell, hell));
+            read(&pairs, &[0])
+        };
+        // A garbled Hell is found at the pitch of the other two by its nearest word.
+        assert_eq!(
+            popup("Hel1").cards[0].unlocked_difficulties(),
+            vec![Normal, Nightmare, Hell]
+        );
+        // A place that reads as no difficulty adds nothing.
+        assert_eq!(
+            popup("Qxzvk").cards[0].unlocked_difficulties(),
+            vec![Normal, Nightmare]
+        );
+    }
+
+    #[test]
+    fn a_lowercase_i_reads_as_one_in_a_level_and_a_plus_sign_is_no_digit() {
+        assert_eq!(read_level("i"), Some(1));
+        assert_eq!(read_level("ii"), Some(11));
+        assert_eq!(read_level("8i"), Some(81));
+        assert_eq!(read_level("+8"), None);
+        assert_eq!(read_level("+88"), None);
+        assert_eq!(read_level("8 "), None);
+    }
 }
