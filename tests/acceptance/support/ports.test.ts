@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { freePort, PortInUseError, reportsAddressInUse, retryOnPortInUse } from './ports.ts';
+import {
+  freePort,
+  onceAsync,
+  PortInUseError,
+  reportsAddressInUse,
+  requireAccountId,
+  retryOnPortInUse,
+} from './ports.ts';
 
 describe('reportsAddressInUse', () => {
   it('recognises the refusals of wrangler, workerd and Node', () => {
@@ -61,5 +68,43 @@ describe('retryOnPortInUse', () => {
       }),
     ).rejects.toThrow('boom');
     expect(calls).toBe(1);
+  });
+});
+
+describe('onceAsync', () => {
+  it('runs the builder once for every call, concurrent or later', async () => {
+    let builds = 0;
+    const site = onceAsync(async () => {
+      builds += 1;
+      return `site-${builds}`;
+    });
+
+    const [a, b] = await Promise.all([site(), site()]);
+
+    expect([a, b, await site()]).toEqual(['site-1', 'site-1', 'site-1']);
+    expect(builds).toBe(1);
+  });
+
+  it('keeps a failure, so a retry of the stack does not build the site a second time', async () => {
+    let builds = 0;
+    const site = onceAsync(async () => {
+      builds += 1;
+      throw new Error('the site did not build');
+    });
+
+    await expect(site()).rejects.toThrow('did not build');
+    await expect(site()).rejects.toThrow('did not build');
+    expect(builds).toBe(1);
+  });
+});
+
+describe('requireAccountId', () => {
+  it('returns the id of a signed-in player', () => {
+    expect(requireAccountId('Alice', 'account-1')).toBe('account-1');
+  });
+
+  it('names the player when the id is missing or empty', () => {
+    expect(() => requireAccountId('Alice', undefined)).toThrow('"Alice" has no account id');
+    expect(() => requireAccountId('Bob', '')).toThrow('"Bob" has no account id');
   });
 });

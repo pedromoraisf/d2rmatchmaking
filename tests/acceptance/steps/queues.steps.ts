@@ -11,6 +11,7 @@ import type { DataTable } from 'playwright-bdd';
 import { After, Given, Then, When, test } from '../fixtures.ts';
 import { AGENT_VERSION, type GameState, type SimulatedAgent } from '../support/agent-client.ts';
 import { HeadlessAgent, prepareFixture } from '../support/headless-agent.ts';
+import { requireAccountId } from '../support/ports.ts';
 import { HEADLESS_START_TIMEOUT_MS, stateOf } from '../support/scenario-state.ts';
 import { SESSION_COOKIE, submitPairingCode, type World } from '../support/world.ts';
 
@@ -165,7 +166,7 @@ export async function openSiteFor(world: World, name: string): Promise<void> {
   // "Signed in" is drawn from the session read; the site's stream reaches the API a moment later, and a join before that
   // is refused with `site-not-open` (422). The step ends when the API counts the stream, as a join needs it (QUE-05).
   await expect
-    .poll(() => world.stack.siteStreamCount(world.player(name).accountId ?? ''), {
+    .poll(() => world.stack.siteStreamCount(requireAccountId(name, world.player(name).accountId)), {
       message: `${name}'s site stream is open at the API`,
     })
     .toBeGreaterThan(0);

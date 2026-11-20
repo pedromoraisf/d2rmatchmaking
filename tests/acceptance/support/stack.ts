@@ -18,7 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { POSTGRES_URL_ENV } from './global-setup.ts';
-import { freePort, PortInUseError, reportsAddressInUse, retryOnPortInUse } from './ports.ts';
+import { freePort, onceAsync, PortInUseError, reportsAddressInUse, retryOnPortInUse } from './ports.ts';
 import { BNET_CLIENT_ID, BNET_CLIENT_SECRET, FakeBattleNet } from './fake-battle-net.ts';
 
 /** The repository root: this file is in tests/acceptance/support. */
@@ -550,16 +550,11 @@ export async function startTracedStack(options: TracedStackOptions): Promise<Tra
  * The telemetry-on site, built once per process: the traced stacks of one worker serve the same build, so a scenario that
  * starts its own stack does not wait for a new build. The build lives in the temporary directory, outside every stack.
  */
-let telemetrySiteBuild: Promise<string> | undefined;
-
-function telemetrySite(): Promise<string> {
-  telemetrySiteBuild ??= (async () => {
-    const outDir = mkdtempSync(path.join(tmpdir(), 'd2rmm-telemetry-site-'));
-    await buildTelemetrySite(outDir);
-    return outDir;
-  })();
-  return telemetrySiteBuild;
-}
+const telemetrySite = onceAsync(async (): Promise<string> => {
+  const outDir = mkdtempSync(path.join(tmpdir(), 'd2rmm-telemetry-site-'));
+  await buildTelemetrySite(outDir);
+  return outDir;
+});
 
 async function startTracedProcesses(options: TracedStackOptions): Promise<TracedStack> {
   const adminUrl = process.env[POSTGRES_URL_ENV];

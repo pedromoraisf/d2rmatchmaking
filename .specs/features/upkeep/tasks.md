@@ -66,7 +66,7 @@ Rules:
       must accept it, add a row to `decisions.md → To confirm`); a unit test of the `app.ts` match-refused branch checks
       the error log and the `lobby.match-refused` span event. Gate:
       `pnpm --filter @d2rmm/api exec vitest run src/main/app.test.ts && pnpm --filter @d2rmm/api typecheck && pnpm --filter @d2rmm/api lint && pnpm exec prettier --check docs`
-- [ ] T9 — UPK-10: `openSiteFor` throws "no accountId for <name>" naming the player; the traced stack's port retry
+- [x] T9 — UPK-10: `openSiteFor` throws "no accountId for <name>" naming the player; the traced stack's port retry
       reuses its telemetry site; the drift test iterates the game-name module's activities. Unit tests for each. Gate:
       `pnpm --filter @d2rmm/acceptance exec vitest run && pnpm --filter @d2rmm/acceptance typecheck && node --test scripts/test/agent-game-name-drift.test.mjs`
 - [ ] T10 — UPK-11, group 1 (actions): `actions/upload-artifact` 7, `download-artifact` 8, `github-script` 9 in `ci.yml`,
