@@ -24,69 +24,13 @@
             "closed",
             "expired"
           ]
-        },
-        "members": {
-          "minItems": 1,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "accountId": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 64
-              },
-              "characterId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "joinOrder": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 9007199254740991
-              },
-              "role": {
-                "type": "string",
-                "enum": [
-                  "host",
-                  "member"
-                ]
-              },
-              "team": {
-                "type": "string",
-                "enum": [
-                  "a",
-                  "b"
-                ]
-              },
-              "confirmed": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "accountId",
-              "characterId",
-              "joinOrder",
-              "role"
-            ],
-            "additionalProperties": false
-          }
         }
       },
       "required": [
         "roomId",
-        "stage",
-        "members"
+        "stage"
       ],
-      "additionalProperties": false
+      "additionalProperties": true
     }
   },
   "required": [

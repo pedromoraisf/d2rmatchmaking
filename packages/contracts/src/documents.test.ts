@@ -96,4 +96,16 @@ describe('the player name value (SNM-01)', () => {
     const { PlayerNameValue } = await import('./http/lobby.ts');
     expect(PlayerNameValue.safeParse(value).success).toBe(false);
   });
+
+  it("lets the agent's stage change accept a member list, and no other agent event accept extra data", () => {
+    const files = buildJsonSchemaFiles();
+    const dataOf = (name: string) =>
+      (files[name]?.['properties'] as Record<string, Record<string, unknown>>)['data']?.[
+        'additionalProperties'
+      ];
+    expect(dataOf('agent-event-room-stage-changed.json')).toBe(true);
+    for (const name of ['agent-event-room-assigned.json', 'agent-event-room-run-opened.json']) {
+      expect(dataOf(name), name).not.toBe(true);
+    }
+  });
 });

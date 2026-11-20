@@ -608,9 +608,15 @@ mod room_end_tests {
     }
 
     #[test]
-    fn an_unknown_stage_or_a_missing_members_list_is_ignored() {
+    fn an_unknown_stage_is_ignored() {
         assert_eq!(ended_room(&stage(ROOM, "paused")), None);
+        assert_eq!(ended_room(&lean_stage(ROOM, "paused")), None);
+    }
+
+    #[test]
+    fn a_missing_members_list_ends_the_room_since_the_agents_copy_is_lean() {
+        // The agent's stage event is the room and the stage only (stream-egress SEG-01): no member list is the normal shape.
         let no_members = format!(r#"{{"roomId":"{ROOM}","stage":"expired"}}"#);
-        assert_eq!(ended_room(&no_members), None);
+        assert_eq!(ended_room(&no_members), Some(ROOM.to_string()));
     }
 }
