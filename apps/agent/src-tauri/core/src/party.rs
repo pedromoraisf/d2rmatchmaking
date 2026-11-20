@@ -1630,6 +1630,49 @@ mod anchored_tests {
             "an unsupported size reads nothing"
         );
     }
+
+    /// GNR-02 pin: the panel's field source, and what `read_panel_field` makes of its reads, for each of the three ways the
+    /// field is found (the 1080 positions of the maintainer's full-screen print: PARTY 153, label 192, name 220).
+    #[test]
+    fn the_field_source_of_a_read_panel_and_what_it_makes_of_each_read_is_pinned() {
+        use d2rmm_agent_domain::game_name_match::{FieldRead, read_panel_field};
+        let pack = LanguagePack::english();
+
+        let by_line = read_panel(
+            &panel(153, 192, Some(("mmcowsh-1", 220))),
+            &pack,
+            &frame(1080),
+        );
+        assert_eq!(by_line.field_source, FieldSource::LabelLine);
+        let reads = fields(&by_line);
+        assert_eq!(
+            read_panel_field(by_line.field_source, &reads, "mmcowsh-1"),
+            FieldRead::Matched
+        );
+        assert_eq!(
+            read_panel_field(by_line.field_source, &reads, "mmcowsh-2"),
+            FieldRead::Other
+        );
+
+        let by_label = read_panel(&panel(153, 192, None), &pack, &frame(1080));
+        assert_eq!(by_label.field_source, FieldSource::Label);
+        let reads = fields(&by_label);
+        assert_eq!(
+            read_panel_field(by_label.field_source, &reads, "mmcowsh-1"),
+            FieldRead::Masked,
+            "a blank field under a found label is masked"
+        );
+
+        let no_label = Lines(vec![line("PARTY", 366, 153, 60)]);
+        let by_box = read_panel(&no_label, &pack, &frame(1080));
+        assert_eq!(by_box.field_source, FieldSource::LayoutBox);
+        let reads = fields(&by_box);
+        assert_eq!(
+            read_panel_field(by_box.field_source, &reads, "mmcowsh-1"),
+            FieldRead::Other,
+            "a blank layout box proves nothing"
+        );
+    }
 }
 
 #[cfg(test)]

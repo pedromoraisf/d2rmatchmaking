@@ -439,6 +439,124 @@ mod tests {
     const AGENT_ACTIVITIES: [&str; 6] = ["baal", "chaos", "cows", "tz", "heralds", "pvp"];
     const AGENT_DIFFICULTY_CODES: [&str; 3] = ["n", "m", "h"];
 
+    /// GNR-02 pin: the glyphs the table reads as the letter `o` before the last `-` (every one of them, in lower case).
+    const LETTER_O_GLYPHS: [char; 22] = [
+        '0', 'ø', '⊕', 'b', '8', 'e', '9', '@', '®', '©', '°', 'ö', 'ó', 'ò', 'ô', 'õ', 'θ', '⊗',
+        '⊙', '◎', '○', '◯',
+    ];
+
+    #[test]
+    fn every_glyph_of_the_letter_table_reads_as_o_before_the_dash_and_a_near_letter_does_not() {
+        for glyph in LETTER_O_GLYPHS {
+            assert_eq!(
+                normalise(&format!("mmc{glyph}wsh-1")),
+                "mmcowsh-1",
+                "{glyph}"
+            );
+            assert_eq!(
+                read_field(&format!("MMC{glyph}WSH-1"), "mmcowsh-1"),
+                FieldRead::Matched,
+                "{glyph} upper"
+            );
+            // The glyph in the letters part stands for `o` only: the name with another letter there is another name.
+            assert_eq!(
+                read_field(&format!("mmc{glyph}wsh-1"), "mmcawsh-1"),
+                FieldRead::Other,
+                "{glyph} is not an a"
+            );
+        }
+        for near in ['a', 'c', 'q', 'x', 'l', '1', '6'] {
+            assert_eq!(
+                read_field(&format!("mmc{near}wsh-1"), "mmcowsh-1"),
+                FieldRead::Other,
+                "{near}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_glyph_of_the_digit_table_folds_after_the_dash_and_no_letter_glyph_does() {
+        for zero in ['0', 'o', 'O', 'ø', 'Ø', '⊕'] {
+            assert_eq!(
+                normalise(&format!("mmcowsh-1{zero}")),
+                "mmcowsh-10",
+                "{zero}"
+            );
+        }
+        for one in ['1', 'l', 'L', 'i', 'I', '|'] {
+            assert_eq!(normalise(&format!("mmcowsh-{one}2")), "mmcowsh-12", "{one}");
+        }
+        // The glyphs the letters part reads as `o` stay themselves after the dash (8 and 9 are digits there).
+        for stay in [
+            'b', 'e', '@', '®', '©', '°', 'ö', 'ó', 'ò', 'ô', 'õ', 'θ', '⊗', '⊙', '◎', '○', '◯',
+            '8', '9',
+        ] {
+            assert_eq!(
+                normalise(&format!("mmcowsh-1{stay}")),
+                format!("mmcowsh-1{stay}"),
+                "{stay}"
+            );
+            assert_eq!(
+                read_field(&format!("mmcowsh-1{stay}"), "mmcowsh-10"),
+                FieldRead::Other,
+                "{stay} is no zero"
+            );
+        }
+    }
+
+    #[test]
+    fn a_name_of_another_difficulty_stays_other_in_both_directions() {
+        // Pins `n` against `m`: the engine reads the two alike on some prints (`mmpvpn-10`, `mmbaalm-99`), the match must not.
+        assert_eq!(read_field("mmpvpn-10", "mmpvpm-10"), FieldRead::Other);
+        assert_eq!(read_field("mmpvpm-10", "mmpvpn-10"), FieldRead::Other);
+        assert_eq!(read_field("mmbaalm-99", "mmbaaln-99"), FieldRead::Other);
+        assert_eq!(read_field("mmbaaln-99", "mmbaalm-99"), FieldRead::Other);
+        assert_eq!(read_field("mmbaalh-99", "mmbaalm-99"), FieldRead::Other);
+        assert_eq!(read_field("mmbaalm-99", "mmbaalm-99"), FieldRead::Matched);
+    }
+
+    /// The seven generated names of the maintainer's Party prints (PR #87, `apps/agent/ocr-lab/README.md`).
+    const PRINT_NAMES: [&str; 7] = [
+        "mmbaalh-19",
+        "mmchaosh-20",
+        "mmcowsh-38",
+        "mmtzh-47",
+        "mmheraldsh-56",
+        "mmpvpn-10",
+        "mmbaalm-99",
+    ];
+
+    #[test]
+    fn the_seven_print_names_normalise_to_distinct_forms() {
+        let forms: std::collections::HashSet<String> =
+            PRINT_NAMES.iter().map(|name| normalise(name)).collect();
+        assert_eq!(forms.len(), PRINT_NAMES.len());
+    }
+
+    #[test]
+    fn the_seven_print_names_equal_themselves_under_every_circled_plus_glyph() {
+        for name in PRINT_NAMES {
+            let (letters, number) = name.rsplit_once('-').expect("a generated name has a dash");
+            for glyph in LETTER_O_GLYPHS {
+                // Every `o` and `b` of the letters part stands for the same letter once the table has run.
+                let drawn: String = letters
+                    .chars()
+                    .map(|c| if c == 'o' || c == 'b' { glyph } else { c })
+                    .collect();
+                let read = format!("{drawn}-{number}");
+                assert_eq!(read_field(&read, name), FieldRead::Matched, "{read}");
+                assert_eq!(normalise(&read), normalise(name), "{read}");
+            }
+            for zero in ['0', 'o', 'O', 'ø', 'Ø', '⊕'] {
+                let read = format!("{letters}-{}", number.replace('0', &zero.to_string()));
+                assert_eq!(read_field(&read, name), FieldRead::Matched, "{read}");
+            }
+            for other in PRINT_NAMES.iter().filter(|other| **other != name) {
+                assert_eq!(read_field(other, name), FieldRead::Other, "{other}");
+            }
+        }
+    }
+
     #[test]
     fn no_two_generated_names_collide_for_any_run_number_up_to_9999() {
         // The API's run number is a global sequence, not bounded by 99.

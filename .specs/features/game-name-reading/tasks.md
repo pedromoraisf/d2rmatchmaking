@@ -51,7 +51,7 @@ failure message carries a name read from a real print.
       `real-prints.zip`). Do not open the zip; do not edit `find_party`, `PanelRegion::PartyPanel` or the panel's
       anchors. Expected: only the merge. Gate: `node scripts/check-encrypted-zip.mjs && pnpm test:harness` and
       `CARGO nextest run -p d2rmm-agent-domain -p d2rmm-agent-core --lib`
-- [ ] T2 — **Pin today's behaviour first (tests only, GNR-02, GNR-03, GNR-04).** In `domain/src/game_name_match.rs`,
+- [x] T2 — **Pin today's behaviour first (tests only, GNR-02, GNR-03, GNR-04).** In `domain/src/game_name_match.rs`,
       `domain/src/fusion.rs` and `core/src/party.rs` add tests that pass on the unchanged code: every glyph of the
       table in each part of the name (letters before the last `-`, digits after it) and one name it must not match; `n`
       read against an `m` room and `m` against `n` stay `Other`; `read_panel_field` per `FieldSource`; the seven
