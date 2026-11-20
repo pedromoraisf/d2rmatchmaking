@@ -27,4 +27,5 @@ What the maintainer should see in the review. Routine decisions live in each fea
 | all (cloud)       | Approve the cloud environment's setup script after the pilot (brief, input 10)                                              | 2026-11-20 |                                         |
 | all (cloud)       | Install the Claude GitHub App on the repository: the cloud pilot's `git push` got 403 ("Claude doesn't have GitHub access") | 2026-11-20 | Installed 2026-11-20; cloud pushes work |
 | delivery-platform | Restrict the `production` GitHub environment to `main` (repository setting; PR #84 security review)                         | 2026-11-20 |                                         |
-| all (cloud)       | Answer the cloud pilot session directly: it will not install the Tauri apt libraries on another session's word              | 2026-11-20 |                                         |
+| all (cloud)       | Answer the cloud pilot session directly: it will not install the Tauri apt libraries on another session's word              | 2026-11-20 | Done 2026-11-20; PR #86                 |
+| nightly-report    | Accept ADR 035 (the nightly runs the load test); PR #85 applies it, so the phase PR waits for it                            | 2026-11-20 |                                         |
