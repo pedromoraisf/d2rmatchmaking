@@ -4,6 +4,7 @@
 //! 0.1.3: a full-screen client draws the panels at other offsets than a maximized one). The frame and the text never leave
 //! the process (AGS-20). A frame in an unsupported client size shows nothing (CHR-19).
 
+use std::cell::Cell;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use d2rmm_agent_domain::anchors::{self, line_pad};
@@ -28,6 +29,32 @@ pub struct ScreenReader {
     hud: Mutex<Tracker>,
     /// The same for the automap's "Difficulty:" line.
     automap: Mutex<Tracker>,
+}
+
+/// How a frame's HUD or automap line was looked for (SCR-09): the tracked box held it, or the wide area was searched.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Search {
+    Track,
+    Band,
+}
+
+/// The fixed words a frame's reading carries on its `agent.vision.read` span (`vision.screen`, `vision.search`,
+/// `vision.area_class`): never a coordinate, a text or a pixel.
+fn vision_words(screen: Screen, search: Option<Search>) -> [&'static str; 3] {
+    let screen_word = match screen {
+        Screen::InGame => "in_game",
+        Screen::AutomapOpen => "automap",
+        Screen::CharacterSelect => "character_select",
+        Screen::Unknown => "unknown",
+    };
+    let (search_word, area_class) = match (search, screen) {
+        (Some(Search::Track), _) => ("track", "box"),
+        (Some(Search::Band), _) => ("band", "band"),
+        (None, Screen::Unknown) => ("none", "box"),
+        (None, Screen::CharacterSelect) => ("fixed", "panel"),
+        (None, _) => ("fixed", "box"),
+    };
+    [screen_word, search_word, area_class]
 }
 
 /// Finds a tracked label's line in a frame's variants.
@@ -59,6 +86,7 @@ impl ScreenReader {
         frame: &Rgba,
         tracker: &Mutex<Tracker>,
         find: FindLabel,
+        how: &Cell<Option<Search>>,
     ) -> Vec<Vec<TextLine>> {
         let plan = tracker
             .lock()
@@ -71,6 +99,11 @@ impl ScreenReader {
         };
         let mut lines = self.reader.read_line_variants(frame, area);
         let mut found = find(&self.language, &lines);
+        how.set(Some(if tracked && found.is_some() {
+            Search::Track
+        } else {
+            Search::Band
+        }));
         if tracked && found.is_none() {
             // The label moved or is gone: look in the whole search area.
             let search = tracker
@@ -90,13 +123,23 @@ impl ScreenReader {
     }
 
     /// The lines of a search area as each variant of the reader reads them.
-    fn lines_of(&self, frame: &Rgba, search: ScreenRegion) -> Vec<Vec<TextLine>> {
+    fn lines_of(
+        &self,
+        frame: &Rgba,
+        search: ScreenRegion,
+        how: &Cell<Option<Search>>,
+    ) -> Vec<Vec<TextLine>> {
         match search {
             ScreenRegion::HudBand => {
-                return self.tracked_lines(frame, &self.hud, anchors::find_hud_in_variants);
+                return self.tracked_lines(frame, &self.hud, anchors::find_hud_in_variants, how);
             }
             ScreenRegion::AutomapArea => {
-                return self.tracked_lines(frame, &self.automap, anchors::find_automap_in_variants);
+                return self.tracked_lines(
+                    frame,
+                    &self.automap,
+                    anchors::find_automap_in_variants,
+                    how,
+                );
             }
             _ => {}
         }
@@ -113,13 +156,13 @@ impl ScreenReader {
         AnchorCounts {
             cards: anchors::find_cards_in_variants(
                 &self.language,
-                &self.lines_of(frame, ScreenRegion::CardColumn),
+                &self.lines_of(frame, ScreenRegion::CardColumn, &Cell::new(None)),
                 frame.height,
             )
             .len(),
             popup_options: anchors::popup_options_in_variants(
                 &self.language,
-                &self.lines_of(frame, ScreenRegion::PopupArea),
+                &self.lines_of(frame, ScreenRegion::PopupArea, &Cell::new(None)),
             )
             .len(),
         }
@@ -170,6 +213,14 @@ impl FrameReader for ScreenReader {
         if !supported_size(frame.width, frame.height) {
             return FrameReading::without_cards(Screen::Unknown);
         }
+        let span = tracing::info_span!(
+            "agent.vision.read",
+            "vision.screen" = tracing::field::Empty,
+            "vision.search" = tracing::field::Empty,
+            "vision.area_class" = tracing::field::Empty,
+        );
+        let _entered = span.enter();
+        let how = Cell::new(None);
         let text = |region: ScreenRegion| -> Option<Vec<String>> {
             let area = screen_region(region, frame.width, frame.height)?;
             let readings = readings_of(self.reader.as_ref(), frame, area);
@@ -185,7 +236,7 @@ impl FrameReader for ScreenReader {
             &self.language,
             frame.height,
             text,
-            |search| self.lines_of(frame, search),
+            |search| self.lines_of(frame, search, &how),
             field,
             Probes {
                 selected: |name| is_selected(frame, name),
@@ -201,6 +252,10 @@ impl FrameReader for ScreenReader {
                 },
             },
         );
+        let [screen_word, search_word, area_class] = vision_words(reading.screen, how.get());
+        span.record("vision.screen", screen_word);
+        span.record("vision.search", search_word);
+        span.record("vision.area_class", area_class);
         FrameReading {
             screen: reading.screen,
             cards: reading.cards,
@@ -1244,5 +1299,112 @@ mod hud_tests {
         hud.take_asked();
         assert_eq!(screens.read(&frame(1920, 1056)).screen, Screen::InGame);
         assert_eq!(band_reads(&hud.take_asked()), 1);
+    }
+
+    /// Every `agent.vision.read` span's fields, as text, in creation order.
+    #[derive(Default)]
+    struct Spans {
+        recorded: Mutex<Vec<(String, Vec<(String, String)>)>>,
+    }
+
+    struct Writer<'a>(&'a mut Vec<(String, String)>);
+
+    impl tracing::field::Visit for Writer<'_> {
+        fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+            self.0.push((field.name().to_string(), value.to_string()));
+        }
+
+        fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+            self.0
+                .push((field.name().to_string(), format!("{value:?}")));
+        }
+    }
+
+    impl tracing::Subscriber for Spans {
+        fn enabled(&self, _metadata: &tracing::Metadata<'_>) -> bool {
+            true
+        }
+
+        fn new_span(&self, attrs: &tracing::span::Attributes<'_>) -> tracing::Id {
+            let mut fields = Vec::new();
+            attrs.record(&mut Writer(&mut fields));
+            let mut recorded = self.recorded.lock().expect("spans");
+            recorded.push((attrs.metadata().name().to_string(), fields));
+            tracing::Id::from_u64(recorded.len() as u64)
+        }
+
+        fn record(&self, span: &tracing::Id, values: &tracing::span::Record<'_>) {
+            let mut recorded = self.recorded.lock().expect("spans");
+            if let Some((_, fields)) = recorded.get_mut(span.into_u64() as usize - 1) {
+                values.record(&mut Writer(fields));
+            }
+        }
+
+        fn record_follows_from(&self, _span: &tracing::Id, _follows: &tracing::Id) {}
+
+        fn event(&self, _event: &tracing::Event<'_>) {}
+
+        fn enter(&self, _span: &tracing::Id) {}
+
+        fn exit(&self, _span: &tracing::Id) {}
+    }
+
+    /// The `agent.vision.read` fields of one read, as `screen/search/area_class`.
+    fn words_of(screens: &ScreenReader, frame: &Rgba) -> String {
+        let spans = Arc::new(Spans::default());
+        let guard = tracing::subscriber::set_default(Arc::clone(&spans));
+        tracing::callsite::rebuild_interest_cache();
+        screens.read(frame);
+        drop(guard);
+        let recorded = spans.recorded.lock().expect("spans");
+        let (name, fields) = recorded.last().expect("a span");
+        assert_eq!(name, "agent.vision.read");
+        let get = |key: &str| {
+            fields
+                .iter()
+                .find(|(name, _)| name == key)
+                .map(|(_, value)| value.clone())
+                .unwrap_or_default()
+        };
+        assert_eq!(fields.len(), 3, "three fields and no more: {fields:?}");
+        format!(
+            "{}/{}/{}",
+            get("vision.screen"),
+            get("vision.search"),
+            get("vision.area_class")
+        )
+    }
+
+    #[test]
+    fn the_read_span_carries_the_screen_the_search_and_the_area_class_as_fixed_words() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(words_of(&screens, &frame), "in_game/band/band");
+        assert_eq!(words_of(&screens, &frame), "in_game/track/box");
+        hud.lines.lock().expect("lines").clear();
+        assert_eq!(words_of(&screens, &frame), "unknown/band/band");
+    }
+
+    #[test]
+    fn the_words_of_a_frame_with_no_search_are_fixed_or_none() {
+        use super::{Search, vision_words};
+        use d2rmm_agent_domain::presence::Screen;
+        assert_eq!(
+            vision_words(Screen::InGame, None),
+            ["in_game", "fixed", "box"]
+        );
+        assert_eq!(
+            vision_words(Screen::CharacterSelect, None),
+            ["character_select", "fixed", "panel"]
+        );
+        assert_eq!(
+            vision_words(Screen::Unknown, None),
+            ["unknown", "none", "box"]
+        );
+        assert_eq!(
+            vision_words(Screen::AutomapOpen, Some(Search::Track)),
+            ["automap", "track", "box"]
+        );
     }
 }

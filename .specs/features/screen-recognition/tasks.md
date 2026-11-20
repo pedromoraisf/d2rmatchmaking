@@ -88,10 +88,11 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
 
 ## Batch 2 — reading proofs on the real prints (CI loop; the orchestrator reads each `ocr-real` and `ocr-variations` run)
 
-- [ ] T8 — **[R14]** Telemetry (SCR-09, brief input 6). Add `vision.screen`, `vision.search` and `vision.area_class` to the
-      `agent.vision.read` span and a `agent.vision.screen_reads` counter with fixed words and no coordinates, text or
-      pixels. Existing span tests gain assertions, never lose one. A source-rule test in `scripts/test/` refuses a read
-      text or a region in a span attribute of the vision code. Gate:
+- [x] T8 — **[R14]** Telemetry (SCR-09, brief input 6). Add `vision.screen`, `vision.search` and `vision.area_class` to a
+      new `agent.vision.read` span inside `ScreenReader::read`, with fixed words and no coordinates, text or pixels (no
+      counter: the agent has no metrics pipeline, the orchestrator's decision), and allow the three keys, with their fixed
+      values only, in the exporter's sanitiser. Existing span tests gain assertions, never lose one. A source-rule test in
+      `scripts/test/` refuses a read text or a region in a span attribute of the vision code. Gate:
       `CARGO nextest run -p d2rmm-agent-core --lib && pnpm test:harness`
 - [ ] T9 — **[R14]** Popups with no card read (item f, SCR-05). From the PR's `ocr-variations` summary, list the refusal
       reasons of the 176 popup variations (reason classes only; the summary prints no read text), pin the reads that
