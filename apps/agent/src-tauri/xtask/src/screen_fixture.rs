@@ -98,6 +98,25 @@ pub fn render_screen_png(file: &str) -> Result<Vec<u8>, Box<dyn Error>> {
     encode(&pixels)
 }
 
+/// The PNG of a 1920-wide frame of `height` px that shows `lines` (text and box) in the name ink on the dark background. The
+/// automap-name and chat fixtures use it. Deterministic.
+pub(crate) fn render_lines_png(
+    height: u32,
+    lines: &[(String, d2rmm_agent_domain::vision::Region)],
+) -> Result<Vec<u8>, Box<dyn Error>> {
+    let mut pixels = vec![0u8; (WIDTH * height * 4) as usize];
+    let (rgba, _remainder) = pixels.as_chunks_mut::<4>();
+    for pixel in rgba {
+        pixel.copy_from_slice(&BACKGROUND);
+    }
+    let font =
+        FontRef::try_from_slice(FONT).map_err(|_| "the fixture font is not a readable font")?;
+    for (text, area) in lines {
+        draw_left(&mut pixels, &font, text, 18.0, *area, NAME_INK);
+    }
+    encode(&pixels)
+}
+
 /// Writes every screen fixture (`<file>.png`) into `screen_fixture_dir`. The sidecars are read, never written.
 pub fn draw_screen_fixtures() -> Result<Vec<PathBuf>, Box<dyn Error>> {
     let dir = screen_fixture_dir();

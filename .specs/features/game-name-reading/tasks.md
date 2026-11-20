@@ -70,7 +70,7 @@ failure message carries a name read from a real print.
       O1's note, as a band and never one fixed box), and `anchors::find_name_line`: the first line whose normalised read
       parses as `mm` + letters + `-` + digits. Matching stays `game_name_match`'s. Unit tests at 1920×1033, 1920×1045,
       1920×1056 and 1920×1080 with drawn lines at the measured positions. Gate: as T2
-- [ ] T5 — Drawn fixtures (GNR-06, GNR-07, GNR-09). Extend the `xtask` drawing (a new `xtask/src/automap_name_fixture.rs`
+- [x] T5 — Drawn fixtures (GNR-06, GNR-07, GNR-09). Extend the `xtask` drawing (a new `xtask/src/automap_name_fixture.rs`
       and `chat_fixture.rs`, wired in `main.rs` as `draw-fixture automap-name` and `draw-fixture chat`) with sidecars of lines
       that have boxes: the automap name for each difficulty code and activity, a name that is another room's, a chat
       joined line, a chat left line, the same line across frames, a Portuguese pair, and a line with no joined or left

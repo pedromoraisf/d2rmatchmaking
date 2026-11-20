@@ -10,7 +10,9 @@ use std::path::{Path, PathBuf};
 use syn::{Fields, Item, parse_quote};
 use typify::{TypeSpace, TypeSpaceSettings};
 
+pub mod automap_name_fixture;
 pub mod character_fixture;
+pub mod chat_fixture;
 pub mod fixture;
 pub mod fullscreen_fixture;
 pub mod screen_fixture;
