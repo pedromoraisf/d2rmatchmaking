@@ -59,3 +59,25 @@ test('an exclusion without evidence fails and is named (OCP-06)', () => {
     'exclusion "x in y" lacks a file:line, an "Evidence:" line, the reason',
   ]);
 });
+
+// OCP-01: the rule is where every agent reads first, and both copies name the list of reading modules.
+const LIST = 'scripts/agent/reading-modules.json';
+
+test('AGENTS.md and the feature worker name the list of reading modules and the pinning rule (OCP-01)', () => {
+  for (const file of ['AGENTS.md', '.claude/agents/feature-worker.md']) {
+    const text = readFileSync(file, 'utf8').replace(/\s+/g, ' ');
+    assert.ok(text.includes(LIST), `${file} names ${LIST}`);
+    assert.match(text, /pins? the current behaviour/, `${file} says survivors are killed by pinning tests`);
+    assert.match(text, /Evidence:/, `${file} requires evidence for an exclusion`);
+  }
+});
+
+test('AGENTS.md carries the rule as inviolable rule 14 (OCP-01)', () => {
+  assert.match(readFileSync('AGENTS.md', 'utf8'), /^14\. \*\*OCR reading logic\*\*/m);
+});
+
+test('the skill states the merge rule for a changed reading module (OCP-07)', () => {
+  const skill = readFileSync('.claude/skills/d2rmm-phase-runner/SKILL.md', 'utf8').replace(/\s+/g, ' ');
+  assert.match(skill, /`ocr-real` and `ocr-variations` green and the ratchet not regressing/);
+  assert.match(skill, /before and after counts/);
+});

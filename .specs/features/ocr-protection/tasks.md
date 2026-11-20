@@ -44,7 +44,7 @@ with drawn fixtures. Never commit a capture.
 - [x] T3 — Write the exclusion evidence check (OCP-06): each `exclude_re` entry needs a preceding comment with
       `file:line`, the reason and an `Evidence:` line. Add the missing `Evidence:` line to the existing `pair_once`
       entry, quoting its own comment. Write a negative fixture. Gate: `pnpm test:harness`
-- [ ] T4 — Write the rule (OCP-01, OCP-07): a new inviolable rule 14 in AGENTS.md with the four points, the same rule in
+- [x] T4 — Write the rule (OCP-01, OCP-07): a new inviolable rule 14 in AGENTS.md with the four points, the same rule in
       `feature-worker.md`, and the merge rule in the skill's **pr** step. Write a harness test that AGENTS.md and
       `feature-worker.md` name `scripts/agent/reading-modules.json`. Gate: `pnpm test:harness && pnpm format:check`
 - [ ] T5 — Write pinning tests for the survivors in `anchors.rs`, `characters.rs` and `character_screen.rs` (OCP-05).

@@ -103,6 +103,14 @@ else (secret scanning, Playwright, Lefthook…) comes from `pnpm install`; no ot
     (https://12factor.net/pt_br/): config only from the environment and read in `main/`, stateless processes, one build
     per release, logs as streams, admin tasks as scripts. Breaking a factor needs a new ADR that names it.
 
+14. **OCR reading logic** (ocr-protection). The modules listed in `scripts/agent/reading-modules.json` hold the logic
+    tuned on the maintainer's real prints. (1) A survivor in one of them is killed only by a test that pins the current
+    behaviour at the mutated point, with values measured on the real prints or drawn fixtures; never change a non-test
+    line of a reading module to kill a mutant. (2) A change to a non-test line needs the real-print proof: `ocr-real` and
+    `ocr-variations` green and the ratchet not regressing, with before and after counts in the PR. (3) A mutant no test
+    can tell apart is excluded in `.cargo/mutants.toml` with a comment holding the `file:line`, the reason and an
+    `Evidence:` line. (4) This rule is repeated in `.claude/agents/feature-worker.md`.
+
 The Claude Code gate hook (`.claude/hooks/gate.mjs`) guards the irreversible ones (force pushes, deletions, secrets,
 the production database, skipped hooks, vendored files, committed migrations, sensors); CI and the reviewers check the
 rest. If the gate denies or asks, do not look for a workaround: follow the reason it gives.
