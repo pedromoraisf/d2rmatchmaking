@@ -89,13 +89,12 @@ line is gone from the screen); a failed post is counted with a fixed word.
 
 ## Telemetry (rule 10; no name anywhere)
 
-| Where                                 | Name                                | Attributes                                                           |
-| ------------------------------------- | ----------------------------------- | -------------------------------------------------------------------- |
-| API span `lobby.record-observation`   | existing                            | `d2r.observation.type`, `d2r.observation.match` (fixed words)        |
-| API span `identity.record-characters` | existing                            | `d2r.characters.count`, `d2r.characters.reconciled` (counts)         |
-| API metric                            | `d2r.observation.matches` (counter) | `match` = `matched`, `none`, `ambiguous`; `type`                     |
-| Agent span `agent.chat.post`          | new                                 | `kind` = `joined`, `left`; `outcome` = `posted`, `dropped`, `failed` |
-| Agent counter `agent.chat.posts`      | new                                 | `kind`, `outcome`                                                    |
+| Where                                 | Name     | Attributes                                                           |
+| ------------------------------------- | -------- | -------------------------------------------------------------------- |
+| API span `lobby.record-observation`   | existing | `d2r.observation.type`, `d2r.observation.match` (fixed words)        |
+| API span `identity.record-characters` | existing | `d2r.characters.count`, `d2r.characters.reconciled` (counts)         |
+| Agent span `agent.chat.post`          | new      | `kind` = `joined`, `left`; `outcome` = `posted`, `dropped`, `failed` |
+| Agent counter `agent.chat.posts`      | new      | `kind`, `outcome`                                                    |
 
 No attribute key or value may hold a name, a part of one, a hash of one or its length; the leak test (SNM-04) sends a
 distinctive name and scans every span, event, metric label, log line and response, in the key set the telemetry package
