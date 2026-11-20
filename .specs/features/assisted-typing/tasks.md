@@ -33,7 +33,7 @@ Rules:
 
 ## Batch 1 — domain, core, view, window, site, headless (no sensor touched)
 
-- [ ] T1 — Domain: `TypableName` and `HotkeyChoice` (AST-01, AST-02, AST-06). Unit tests: every name the server can
+- [x] T1 — Domain: `TypableName` and `HotkeyChoice` (AST-01, AST-02, AST-06). Unit tests: every name the server can
       generate (each activity × difficulty code × `n` of 1, 12, 999999) passes; `/exit`, uppercase, a space, a trailing
       `-`, an empty `n`, a seventh digit and 33 characters fail; a hotkey with no modifier, with Enter, NumpadEnter, Tab,
       Space or Escape as key, or equal to the other hotkey is refused with its reason. Gate:
