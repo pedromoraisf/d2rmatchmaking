@@ -1028,6 +1028,16 @@ mod tests {
     }
 
     #[test]
+    fn of_two_variants_with_label_and_field_of_the_same_size_the_first_is_chosen() {
+        // Pins today (screen-recognition T6): the first variant with a label and a field gives the field's box.
+        use super::find_party_in_variants;
+        let first = party(153, 192, Some(220), 262);
+        let second = party(153, 192, Some(224), 262);
+        let found = find_party_in_variants(&pack(), &[first, second], 1080);
+        assert_eq!(found.field.map(centre), Some(220));
+    }
+
+    #[test]
     fn the_tab_strip_is_told_from_a_card_line() {
         use super::is_tab_line;
         for tab in ["ONLINE OFFLINE", "Online", "OFFLINE", "O NLINE OFFLINE"] {
