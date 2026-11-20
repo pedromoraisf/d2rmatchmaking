@@ -27,16 +27,19 @@ jobs:
     name: promote
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # The production environment allows only main. Repository-level secrets still resolve inside it.
+    environment: production
     permissions:
       contents: read
       actions: read
     outputs:
       url: ${{ steps.publish.outputs.url }}
     steps:
-      - name: Check out
+      # The code that holds the secrets is the dispatching ref's (main), never the commit being promoted.
+      - name: Check out the dispatching ref
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.sha }}
+          ref: ${{ github.sha }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
@@ -58,6 +61,19 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Take the Functions of the promoted commit
+        # Only the bytes that staging deployed are taken from that commit, after the gate; none of its code runs here.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.sha }}
+          path: promoted
+          sparse-checkout: apps/web/functions
+
+      - name: Use the promoted Functions
+        run: |
+          rm -rf apps/web/functions
+          cp -r promoted/apps/web/functions apps/web/functions
 
       - name: Download the artifact staging deployed
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4

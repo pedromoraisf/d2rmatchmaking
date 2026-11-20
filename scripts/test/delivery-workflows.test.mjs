@@ -62,7 +62,10 @@ test('site.yml triggers: main and same-repo pull requests deploy, a dispatch pro
   assert.equal(wf.on.workflow_dispatch.inputs.sha.required, true);
   assert.deepEqual(wf.permissions, { contents: 'read', actions: 'read', 'pull-requests': 'read' });
   assert.ok(wf.jobs.deploy.if.includes('github.event.pull_request.head.repo.full_name == github.repository'));
-  assert.equal(wf.jobs.promote.if, "github.event_name == 'workflow_dispatch'");
+  assert.equal(
+    wf.jobs.promote.if,
+    "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
+  );
   assert.equal(wf.jobs.build.if, "github.event_name != 'workflow_dispatch'");
   assert.deepEqual(wf.jobs.deploy.needs, ['build']);
   assert.deepEqual(wf.jobs.smoke.needs, ['deploy']);
@@ -122,6 +125,53 @@ test('stage-promote verifies the staging smoke of the SHA before it downloads or
     'the artifact comes from the staging run',
   );
   assert.equal(stepsOf(job)[gate].id, 'staging');
+});
+
+test('promote runs in the production environment, only from main, with the gate from the dispatching ref', () => {
+  const caller = workflow('site.yml').jobs.promote;
+  assert.match(caller.if, /github\.event_name == 'workflow_dispatch'/);
+  assert.match(
+    caller.if,
+    /github\.ref == 'refs\/heads\/main'/,
+    'a dispatch from another ref must not promote',
+  );
+
+  const job = workflow('stage-promote.yml').jobs.promote;
+  assert.equal(job.environment, 'production');
+  const steps = stepsOf(job);
+  const gate = indexOfStep(job, runIncludes('scripts/delivery/promotable.mjs'));
+  const firstCheckout = indexOfStep(job, (s) => s.uses?.startsWith('actions/checkout@'));
+  assert.ok(firstCheckout >= 0 && firstCheckout < gate, 'the gate runs from a checkout');
+  assert.equal(
+    steps[firstCheckout].with.ref,
+    '${{ github.sha }}',
+    'the gate code is the dispatching ref, not inputs.sha',
+  );
+  // Nothing before the gate may take its code from the commit being promoted.
+  for (const step of steps.slice(0, gate + 1)) {
+    assert.ok(
+      !JSON.stringify(step).includes('inputs.sha') || step.id === 'staging',
+      `${step.name} uses inputs.sha before the gate`,
+    );
+  }
+  // The promoted commit is checked out only after the gate, apart from the code that runs, and only for its Functions.
+  const promoted = indexOfStep(
+    job,
+    (s) => s.uses?.startsWith('actions/checkout@') && s.with?.ref === '${{ inputs.sha }}',
+  );
+  assert.ok(promoted > gate, 'the promoted commit is checked out after the gate');
+  assert.equal(steps[promoted].with.path, 'promoted');
+  assert.equal(steps[promoted].with['sparse-checkout'], 'apps/web/functions');
+  const download = indexOfStep(job, (s) => s.uses?.startsWith('actions/download-artifact@'));
+  const publish = indexOfStep(job, runIncludes('wrangler pages deploy'));
+  assert.ok(gate < download && download < publish);
+  for (const preview of ['stage-deploy.yml']) {
+    assert.equal(
+      workflow(preview).jobs.deploy.environment,
+      undefined,
+      "preview and staging environments are the maintainer's",
+    );
+  }
 });
 
 test('smoke comes after the deploy it checks, and production smoke follows the promote', () => {

@@ -74,7 +74,8 @@ jobs:
 
   promote:
     name: promote
-    if: github.event_name == 'workflow_dispatch'
+    # Only a dispatch of main promotes: another ref's copy of this workflow would carry its own gate.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/stage-promote.yml
     with:
       app: site
