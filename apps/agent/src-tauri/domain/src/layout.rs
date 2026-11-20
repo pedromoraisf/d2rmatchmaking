@@ -793,3 +793,41 @@ mod tests {
         assert_eq!(at_edge(Anchor::Left, 5, 5, 0, 10), None);
     }
 }
+
+#[cfg(test)]
+mod pin_fixed_boxes {
+    use super::{PanelRegion, ScreenRegion, panel_region, screen_region};
+
+    use crate::vision::Region;
+
+    const fn r(x: u32, y: u32, width: u32, height: u32) -> Region {
+        Region {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    /// The fixed boxes of the Party panel, the Life label and the area's difficulty line at the client heights of the
+    /// maintainer's prints (1033 maximized, 1045, 1056 window, 1080 full screen): they follow the height linearly, which is
+    /// what a client that does not scale its panels linearly outgrows (screen-recognition SCR-01, SCR-03, SCR-04).
+    #[test]
+    fn the_fixed_boxes_follow_the_client_height_linearly() {
+        let party = |height| panel_region(PanelRegion::PartyPanel, 1920, height);
+        let life = |height| screen_region(ScreenRegion::Life, 1920, height);
+        let area = |height| screen_region(ScreenRegion::AreaDifficulty, 1920, height);
+        assert_eq!(party(1033), Some(r(230, 100, 250, 170)));
+        assert_eq!(party(1045), Some(r(233, 101, 253, 172)));
+        assert_eq!(party(1056), Some(r(235, 102, 256, 174)));
+        assert_eq!(party(1080), Some(r(240, 105, 261, 178)));
+        assert_eq!(life(1033), Some(r(400, 826, 160, 22)));
+        assert_eq!(life(1045), Some(r(405, 836, 162, 22)));
+        assert_eq!(life(1056), Some(r(409, 844, 164, 22)));
+        assert_eq!(life(1080), Some(r(418, 864, 167, 23)));
+        assert_eq!(area(1033), Some(r(1750, 52, 150, 16)));
+        assert_eq!(area(1045), Some(r(1748, 53, 152, 16)));
+        assert_eq!(area(1056), Some(r(1747, 53, 153, 16)));
+        assert_eq!(area(1080), Some(r(1742, 54, 157, 17)));
+    }
+}

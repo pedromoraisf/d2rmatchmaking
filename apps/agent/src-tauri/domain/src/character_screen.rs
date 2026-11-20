@@ -796,6 +796,32 @@ mod tests {
     }
 
     #[test]
+    fn the_fixed_life_box_reads_only_the_life_word_and_comes_before_the_list_marker() {
+        // The order today: automap, the fixed Life box, the list marker. A Mana word in that box is no marker, and the
+        // Life word wins over a list marker read in the same frame (screen-recognition keeps the fixed box first).
+        let mana = [(ScreenRegion::Life, "Mana: 400 / 400")];
+        assert_eq!(read(&mana, &[]).screen, Screen::Unknown);
+        let both = [
+            (ScreenRegion::Life, "Life: 925 / 925"),
+            (ScreenRegion::CreateNew, "Create New"),
+        ];
+        assert_eq!(read(&both, &[]).screen, Screen::InGame);
+        assert!(read(&both, &[]).cards.is_empty());
+    }
+
+    #[test]
+    fn text_that_is_no_marker_reads_unknown_in_every_marker_region() {
+        let other = [
+            (ScreenRegion::AreaDifficulty, "Town Portal"),
+            (ScreenRegion::Life, "Level 88"),
+            (ScreenRegion::CreateNew, "Join Game"),
+        ];
+        let reading = read(&other, &[]);
+        assert_eq!(reading.screen, Screen::Unknown);
+        assert!(reading.cards.is_empty());
+    }
+
+    #[test]
     fn the_create_new_button_reads_the_selection_screen_and_its_cards() {
         let reading = read(&list(), &[0]);
         assert_eq!(reading.screen, Screen::CharacterSelect);

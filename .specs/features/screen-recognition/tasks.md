@@ -43,7 +43,7 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
       twelve prints). Do not open the zip. Expected: the merge adds only `apps/agent/ocr-lab/real-prints.zip` and the print
       names. `ocr-real` stays red on six Party prints until T6; that is the starting point of SCR-04. Gate:
       `node scripts/check-encrypted-zip.mjs && pnpm test:harness`
-- [ ] T2 — **Pin today's behaviour first (tests only, SCR-06).** In `domain/src/character_screen.rs`, `anchors.rs` and
+- [x] T2 — **Pin today's behaviour first (tests only, SCR-06).** In `domain/src/character_screen.rs`, `anchors.rs` and
       `layout.rs` add tests that pass on the unchanged code: the order of `read_screen` (automap, fixed Life, list marker,
       popup), `Unknown` for an unsupported size and for text that is none of them, the Party anchors found at 1920×1033
       with the committed measured lines, the fixed boxes of `Life` and `AreaDifficulty` at 1920×1033 and 1920×1080, and

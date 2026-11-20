@@ -1007,6 +1007,18 @@ mod tests {
     }
 
     #[test]
+    fn the_party_area_ends_where_it_does_today() {
+        // Pins the area the Party lines are searched in (screen-recognition T2): it sits between 6% and 28% of the client
+        // height, so a panel outside that band is not found. SCR-04 widens the search; its test replaces this one.
+        use crate::layout::{PanelRegion, panel_region};
+        for height in [1033u32, 1045, 1056, 1080] {
+            let area = panel_region(PanelRegion::PartyPanel, 1920, height).expect("resolves");
+            assert!(area.bottom() < 290 * height / 1033, "at {height}");
+            assert!(area.y > 60 * height / 1033, "at {height}");
+        }
+    }
+
+    #[test]
     fn padding_stays_inside_the_frame() {
         let region = Region {
             x: 1,
