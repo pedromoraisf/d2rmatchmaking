@@ -6,6 +6,7 @@ name: site
 
 on:
   push:
+    # The delivery branch is listed only while the stages are proven by real runs (T5); it goes with deploy-web.yml (T11).
     branches: [main, feat/F2-delivery-platform]
     paths:
       - 'apps/web/**'
