@@ -3,7 +3,7 @@
 // builds it, later runs reuse the build), parses its stdout events and sends it `read` lines. The example never learns the
 // acceptance stack's internals: it talks to the API it is given, like any agent.
 import { spawn, type ChildProcess } from 'node:child_process';
-import { copyFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -98,9 +98,16 @@ function cargoEnv(): Record<string, string> {
 /** The drawn character screens (`xtask draw-fixture characters`): a picture and its sidecar with the text of each region. */
 export const CHARACTER_FIXTURE_DIR = path.join(repoRoot, 'apps', 'agent', 'fixtures', 'characters');
 
-/** A character screen fixture's picture and its sidecar, by the fixture's name (`select-titles`, `in-game`…). */
+/** The per-mode screens (`xtask draw-fixture screens`, screen-recognition): in-game and automap at window and full screen. */
+export const SCREEN_FIXTURE_DIR = path.join(repoRoot, 'apps', 'agent', 'fixtures', 'screens');
+
+/**
+ * A screen fixture's picture and its sidecar, by the fixture's name (`select-titles`, `in-game`, `in-game-window`…): a
+ * character screen when `characters/` has it, else a per-mode screen.
+ */
 export function characterFixture(name: string): { png: string; sidecar: string } {
-  const png = path.join(CHARACTER_FIXTURE_DIR, `${name}.png`);
+  const drawn = path.join(CHARACTER_FIXTURE_DIR, `${name}.png`);
+  const png = existsSync(drawn) ? drawn : path.join(SCREEN_FIXTURE_DIR, `${name}.png`);
   return { png, sidecar: `${png}.json` };
 }
 

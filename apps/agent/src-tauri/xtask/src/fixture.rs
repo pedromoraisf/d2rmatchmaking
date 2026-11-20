@@ -75,6 +75,7 @@ pub(crate) fn draw_line_in(
 ) {
     let scale = PxScale::from(size);
     let scaled = font.as_scaled(scale);
+    let height = frame_height(pixels);
     let mut caret = x;
     for c in text.chars() {
         let id = font.glyph_id(c);
@@ -84,7 +85,7 @@ pub(crate) fn draw_line_in(
             outlined.draw(|gx, gy, coverage| {
                 let px = i64::from(bounds.min.x as i32) + i64::from(gx);
                 let py = i64::from(bounds.min.y as i32) + i64::from(gy);
-                if px < 0 || py < 0 || px >= i64::from(WIDTH) || py >= i64::from(HEIGHT) {
+                if px < 0 || py < 0 || px >= i64::from(WIDTH) || py >= i64::from(height) {
                     return;
                 }
                 let at = ((py as u32 * WIDTH + px as u32) * 4) as usize;
@@ -215,9 +216,15 @@ pub(crate) fn draw_centred(
     );
 }
 
+/// The height of a frame of the fixed width `WIDTH` held in `pixels` (RGBA): 1080 for the frames drawn so far, other
+/// heights for the window-mode screens (`screen_fixture`).
+pub(crate) fn frame_height(pixels: &[u8]) -> u32 {
+    u32::try_from(pixels.len() / (WIDTH as usize * 4)).unwrap_or(HEIGHT)
+}
+
 pub(crate) fn encode(pixels: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut out = Vec::new();
-    let mut encoder = png::Encoder::new(&mut out, WIDTH, HEIGHT);
+    let mut encoder = png::Encoder::new(&mut out, WIDTH, frame_height(pixels));
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
     encoder.write_header()?.write_image_data(pixels)?;
