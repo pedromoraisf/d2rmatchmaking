@@ -1,8 +1,8 @@
 # ADR 035 — The nightly runs the load test on a GitHub runner
 
-**Status**: Proposed
-**Date**: 2026-11-20
-**Deciders**: maintainer (to accept)
+**Status**: Accepted
+**Date**: 2026-11-20 (accepted 2026-11-20 by the maintainer: "aceito o ADR")
+**Deciders**: maintainer
 
 ## Context
 
