@@ -46,7 +46,7 @@ Rules:
 - [x] T5 — UPK-02, UPK-03: step definitions for the four scenarios (`upkeep.steps.ts`). A "minute passes" step moves the
       stack's clock (`world.stack.advanceClock`). Gate:
       `pnpm --filter @d2rmm/acceptance typecheck && DOCKER_CONFIG=<dir with {}> pnpm exec turbo run test:acceptance -- --grep "@UPK-02|@UPK-03" && node scripts/acceptance-check.mjs upkeep`
-- [ ] T6 — UPK-07: the `@UPK-07` steps compare the bounding boxes of the "Hell" name and its locked label in a real
+- [x] T6 — UPK-07: the `@UPK-07` steps compare the bounding boxes of the "Hell" name and its locked label in a real
       browser; remove the `readFileSync` CSS test and its imports from `QueuePanel.test.tsx` (the DOM-order test next
       to it stays). Gate:
       `pnpm --filter @d2rmm/web exec vitest run src/features/matchmaking/QueuePanel.test.tsx && pnpm --filter @d2rmm/web typecheck && pnpm --filter @d2rmm/web lint && DOCKER_CONFIG=<dir with {}> pnpm exec turbo run test:acceptance -- --grep "@UPK-07"`
