@@ -12,7 +12,7 @@ Rules:
 
 ## Batch 1
 
-- [ ] T1 — Write a unit test in the adapters that kills the survivor at `http/sse.rs:60` (`ready_check_open_from_body`
+- [x] T1 — Write a unit test in the adapters that kills the survivor at `http/sse.rs:60` (`ready_check_open_from_body`
       → `None`) (NGT-09). Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib`
 - [ ] T2 — Write `scripts/nightly/mutation.mjs` and `merge-mutants.mjs` with unit tests on fixtures cut from run
