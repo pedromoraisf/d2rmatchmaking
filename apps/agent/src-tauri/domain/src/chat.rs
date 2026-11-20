@@ -62,6 +62,12 @@ pub fn classify(pack: &LanguagePack, line: &str) -> Option<(ChatEvent, String)> 
     (!name.is_empty()).then_some((event, name))
 }
 
+/// `classify` with each pack in turn (a Portuguese client's chat is read with its pack after the English one): the first pack
+/// that parses the line gives the event and the name.
+pub fn classify_any(packs: &[&LanguagePack], line: &str) -> Option<(ChatEvent, String)> {
+    packs.iter().find_map(|pack| classify(pack, line))
+}
+
 /// The lines of the chat area across frames. D2R fades a chat line after a few seconds and a new line scrolls the others, so
 /// a line is new when the frame holds more copies of its text than the previous frame did: a line that stays on screen is
 /// counted once, and a name that joins, leaves and joins again is three events.
@@ -71,9 +77,9 @@ pub struct ChatTracker {
 }
 
 impl ChatTracker {
-    /// The events of the lines of one frame that were not in the previous frame, in the order the lines come. Lines the pack
-    /// does not classify are not events. The frame replaces the previous one.
-    pub fn next(&mut self, pack: &LanguagePack, lines: &[&str]) -> Vec<ChatEvent> {
+    /// The events of the lines of one frame that were not in the previous frame, in the order the lines come. Lines no pack
+    /// classifies are not events. The frame replaces the previous one.
+    pub fn next(&mut self, packs: &[&LanguagePack], lines: &[&str]) -> Vec<ChatEvent> {
         let mut now: BTreeMap<String, usize> = BTreeMap::new();
         let mut events = Vec::new();
         for line in lines {
@@ -85,7 +91,7 @@ impl ChatTracker {
             *seen += 1;
             let before = self.previous.get(&key).copied().unwrap_or(0);
             if *seen > before
-                && let Some((event, _)) = classify(pack, line)
+                && let Some((event, _)) = classify_any(packs, line)
             {
                 events.push(event);
             }
@@ -217,22 +223,25 @@ mod tests {
         let pack = english();
         let mut tracker = ChatTracker::default();
         assert_eq!(
-            tracker.next(&pack, &["Bob joined our world"]),
+            tracker.next(&[&pack], &["Bob joined our world"]),
             vec![ChatEvent::Joined]
         );
-        assert_eq!(tracker.next(&pack, &["Bob joined our world"]), vec![]);
-        assert_eq!(tracker.next(&pack, &["  bob  JOINED our world "]), vec![]);
+        assert_eq!(tracker.next(&[&pack], &["Bob joined our world"]), vec![]);
+        assert_eq!(
+            tracker.next(&[&pack], &["  bob  JOINED our world "]),
+            vec![]
+        );
     }
 
     #[test]
     fn a_name_that_joins_leaves_and_joins_again_is_three_events() {
         let pack = english();
         let mut tracker = ChatTracker::default();
-        let mut events = tracker.next(&pack, &["Bob joined our world"]);
-        events.extend(tracker.next(&pack, &["Bob joined our world", "Bob left our world"]));
+        let mut events = tracker.next(&[&pack], &["Bob joined our world"]);
+        events.extend(tracker.next(&[&pack], &["Bob joined our world", "Bob left our world"]));
         // The first line faded between the frames, then the player came back.
-        events.extend(tracker.next(&pack, &["Bob left our world"]));
-        events.extend(tracker.next(&pack, &["Bob left our world", "Bob joined our world"]));
+        events.extend(tracker.next(&[&pack], &["Bob left our world"]));
+        events.extend(tracker.next(&[&pack], &["Bob left our world", "Bob joined our world"]));
         assert_eq!(
             events,
             vec![ChatEvent::Joined, ChatEvent::Left, ChatEvent::Joined]
@@ -244,18 +253,18 @@ mod tests {
         let pack = english();
         let mut tracker = ChatTracker::default();
         let line = "Bob joined our world";
-        assert_eq!(tracker.next(&pack, &[line, line]).len(), 2);
-        assert_eq!(tracker.next(&pack, &[line, line]).len(), 0);
-        assert_eq!(tracker.next(&pack, &[line, line, line]).len(), 1);
+        assert_eq!(tracker.next(&[&pack], &[line, line]).len(), 2);
+        assert_eq!(tracker.next(&[&pack], &[line, line]).len(), 0);
+        assert_eq!(tracker.next(&[&pack], &[line, line, line]).len(), 1);
     }
 
     #[test]
     fn a_line_that_fades_and_comes_back_counts_again() {
         let pack = english();
         let mut tracker = ChatTracker::default();
-        assert_eq!(tracker.next(&pack, &["Bob joined our world"]).len(), 1);
-        assert_eq!(tracker.next(&pack, &[]).len(), 0);
-        assert_eq!(tracker.next(&pack, &["Bob joined our world"]).len(), 1);
+        assert_eq!(tracker.next(&[&pack], &["Bob joined our world"]).len(), 1);
+        assert_eq!(tracker.next(&[&pack], &[]).len(), 0);
+        assert_eq!(tracker.next(&[&pack], &["Bob joined our world"]).len(), 1);
     }
 
     #[test]
@@ -264,7 +273,7 @@ mod tests {
         let mut tracker = ChatTracker::default();
         assert_eq!(
             tracker.next(
-                &pack,
+                &[&pack],
                 &["Bob: hello", "", "joined our world", "Difficulty: Hell"]
             ),
             vec![]
@@ -272,12 +281,26 @@ mod tests {
     }
 
     #[test]
+    fn a_portuguese_line_is_an_event_when_its_pack_is_listed() {
+        let (en, pt) = (english(), portuguese());
+        let mut tracker = ChatTracker::default();
+        let lines = ["Bob entrou em nosso mundo", "Eve left our world"];
+        assert_eq!(tracker.next(&[&en], &lines), vec![ChatEvent::Left]);
+        let mut tracker = ChatTracker::default();
+        assert_eq!(
+            tracker.next(&[&en, &pt], &lines),
+            vec![ChatEvent::Joined, ChatEvent::Left]
+        );
+        assert_eq!(super::classify_any(&[], "Bob left our world"), None);
+    }
+
+    #[test]
     fn reset_forgets_the_previous_frame() {
         let pack = english();
         let mut tracker = ChatTracker::default();
-        assert_eq!(tracker.next(&pack, &["Bob joined our world"]).len(), 1);
+        assert_eq!(tracker.next(&[&pack], &["Bob joined our world"]).len(), 1);
         tracker.reset();
-        assert_eq!(tracker.next(&pack, &["Bob joined our world"]).len(), 1);
+        assert_eq!(tracker.next(&[&pack], &["Bob joined our world"]).len(), 1);
     }
 
     #[test]
@@ -285,7 +308,7 @@ mod tests {
         let pack = english();
         let mut tracker = ChatTracker::default();
         assert_eq!(
-            tracker.next(&pack, &["Bob left our world", "Eve joined our world"]),
+            tracker.next(&[&pack], &["Bob left our world", "Eve joined our world"]),
             vec![ChatEvent::Left, ChatEvent::Joined]
         );
     }

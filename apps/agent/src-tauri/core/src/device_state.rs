@@ -6,6 +6,7 @@ use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
+use d2rmm_agent_domain::chat::ChatTracker;
 use d2rmm_agent_domain::paired_device::{DeviceEffect, PairedDevice};
 use d2rmm_agent_domain::room_assignment::{Assignment, RoomAssignment};
 use tokio::sync::{Notify, watch};
@@ -36,6 +37,8 @@ pub struct DeviceState {
     observations_dropped: AtomicU64,
     /// What the Party step has seen for the held run (AGN-05). It follows the assignment and is forgotten with it.
     party: Mutex<PartyProgress>,
+    /// The chat lines the last frame showed (GNR-07): a line that stays on screen is counted once. Never sent or logged.
+    chat: Mutex<ChatTracker>,
     /// The ready check the account is in, while its time has not run out (RDY-07). The hotkey answers it.
     ready_check: Mutex<Option<HeldReadyCheck>>,
     /// The run the API last accepted an observation for (ARL-03): its room and run number. It counts only while the held
@@ -63,6 +66,7 @@ impl DeviceState {
             screen: watch::channel(Screen::Unknown).0,
             observations_dropped: AtomicU64::new(0),
             party: Mutex::new(PartyProgress::default()),
+            chat: Mutex::new(ChatTracker::default()),
             ready_check: Mutex::new(None),
             confirmed_run: Mutex::new(None),
         }
@@ -169,6 +173,11 @@ impl DeviceState {
     /// Runs `apply` on the Party progress of the held run (AGN-05). Publish the room after a change with `publish_room`.
     pub fn with_party<T>(&self, apply: impl FnOnce(&mut PartyProgress) -> T) -> T {
         apply(&mut lock(&self.party))
+    }
+
+    /// Runs `apply` on the chat tracker (the chat step, GNR-07).
+    pub fn with_chat<T>(&self, apply: impl FnOnce(&mut ChatTracker) -> T) -> T {
+        apply(&mut lock(&self.chat))
     }
 
     /// Shows the held room with the Party progress: the name, the reveal hint (AGN-04) and the match (AGN-03). Publishes only

@@ -78,7 +78,7 @@ failure message carries a name read from a real print.
       `CARGO run -p xtask -- draw-fixture automap-name && CARGO run -p xtask -- draw-fixture chat && git diff --exit-code apps/agent/fixtures`
       and `CARGO nextest run -p xtask` (the drawing is deterministic: a second run changes nothing; commit the new files first,
       then run the gate)
-- [ ] T6 — **[R14]** The core steps (GNR-06, GNR-07, GNR-10). Add `core/src/automap_name.rs` (read the area while the
+- [x] T6 — **[R14]** The core steps (GNR-06, GNR-07, GNR-10). Add `core/src/automap_name.rs` (read the area while the
       Party step has not matched the run; match; post once through `post_observation`) and `core/src/chat_step.rs` (read the
       chat area, track new lines, count them as `joined` or `left`; it posts nothing), and call them
       from `watch_screen.rs` after the Party step, at most one frame a second. Telemetry as the design's table, with fixed
