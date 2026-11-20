@@ -344,7 +344,8 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
           return err('invalid-observation');
         }
         if (await deps.observations.exists(input.agentId, body.idempotencyKey)) {
-          return ok({ stored: false });
+          // A replay of a sighting answers as a first one does: the answer never tells a match from a miss (SNM-03).
+          return ok({ stored: isPlayerSighting(body.type) });
         }
         let value = body.value;
         if (isPlayerSighting(body.type)) {
@@ -355,7 +356,9 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
               joinOrder === null ? 'none' : joinOrder === 'ambiguous' ? joinOrder : 'matched',
           });
           if (joinOrder === null || joinOrder === 'ambiguous') {
-            return ok({ stored: false });
+            // The same answer as a match: `stored` of a sighting carries nothing, or a peer could search the members' names
+            // through it (security review of #101, SNM-03).
+            return ok({ stored: true });
           }
           value = String(joinOrder);
         }

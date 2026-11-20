@@ -63,8 +63,7 @@ and `left` (GNR-10), nothing else.
 - **SNM-03** — WHEN a member's agent posts a `PLAYER_JOINED_SEEN` or `PLAYER_LEFT_SEEN` for the room it belongs to, THEN
   the API SHALL match the value against the character names of the room's members (the characters they queued with) by
   SNM-02, and store the observation with `value` replaced by the matched member's join order and the reporting agent,
-  run, type and instant as for any observation. A value that matches no member, or more than one, SHALL be answered `202` with `stored` `false`, with no row, no outbox event and no change to the room. The same key posted again SHALL change nothing
-  (INV-09).
+  run, type and instant as for any observation. A value that matches no member, or more than one, SHALL store no row, send no outbox event and change nothing in the room. The same key posted again SHALL change nothing (INV-09). **The answer SHALL be the same `202` whether the name matched, matched none, was ambiguous or was a replay, and its `stored` SHALL carry nothing for a sighting (always `true`)**: a body that said whether a name matched would let a peer's agent search the members' character names (security review of #101, 2026-11-20).
 - **SNM-04** — The read name SHALL exist only in the request's memory: no table, outbox payload, event, log line, span
   attribute or event, metric label, error body or response SHALL hold it, a part of it or a hash of it, on the API
   (SNM-03, SNM-07) and on the agent. The `lobby.record-observation` and `identity.record-characters` spans SHALL carry

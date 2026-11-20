@@ -71,3 +71,11 @@ directional, ambiguity means no match) also reconciles a misread character card 
 - A retention for the stored join orders is not set: they hold no personal data. LGPD retention (NFR-05, F4) may revisit
   it.
 - Supersedes nothing. Builds on ADR 010 (read-only agent), 011 (agent token), 017 (names) and 020 (contracts first).
+
+## Amendment, 2026-11-20 (security review of #101)
+
+The API's `202` for a chat sighting no longer says whether a name matched: it is the same for a match, a miss, an
+ambiguous name and a replay (`stored` is always `true` for a sighting). Before, `stored` told a peer's agent whether a
+guess stood for exactly one member, which let it search the members' character names. The API also limits the
+observation route to 20 a minute for each agent and 40 a minute for each room (`429`, `rate-limited`), so the agent's own
+bound of 20 is not the only one. The decision above is unchanged.

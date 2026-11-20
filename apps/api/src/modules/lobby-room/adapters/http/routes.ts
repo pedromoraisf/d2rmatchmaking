@@ -57,7 +57,13 @@ export function lobbyRoomRoutes(app: FastifyInstance, deps: LobbyRouteDeps): voi
         params: z.object({ id: Id }),
         body: Observation,
         response: {
-          202: z.object({ stored: z.boolean() }),
+          202: z.object({
+            stored: z
+              .boolean()
+              .describe(
+                'Whether the observation was stored. Always true for PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN, matched or not: the answer never says whether a name matched a member.',
+              ),
+          }),
           400: ErrorResponse,
           401: ErrorResponse,
           403: ErrorResponse,

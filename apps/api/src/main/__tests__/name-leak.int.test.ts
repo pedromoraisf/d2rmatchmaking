@@ -190,7 +190,7 @@ describe('a chat name leaves no trace (SNM-04)', () => {
     const unmatched = await post('Qwvkjh', 'k-2');
     const refused = await post('Q', 'k-3');
 
-    expect([matched.json(), unmatched.json()]).toEqual([{ stored: true }, { stored: false }]);
+    expect([matched.json(), unmatched.json()]).toEqual([{ stored: true }, { stored: true }]);
     expect(refused.statusCode).toBe(400);
     const observations = await sql<{
       row: string;

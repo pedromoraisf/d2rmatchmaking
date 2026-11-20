@@ -143,7 +143,7 @@ describe('a chat sighting (SNM-03)', () => {
         body: sighting(read),
       });
 
-      expect(result).toEqual({ ok: true, value: { stored: false } });
+      expect(result).toEqual({ ok: true, value: { stored: true } });
       expect(observations.stored).toEqual([]);
       expect(outbox.appended).toHaveLength(eventsBefore);
     },
@@ -159,7 +159,7 @@ describe('a chat sighting (SNM-03)', () => {
       body: sighting('Sgrc'),
     });
 
-    expect(result).toEqual({ ok: true, value: { stored: false } });
+    expect(result).toEqual({ ok: true, value: { stored: true } });
     expect(observations.stored).toEqual([]);
   });
 
@@ -180,7 +180,7 @@ describe('a chat sighting (SNM-03)', () => {
       body: sighting('Sorc'),
     });
 
-    expect(result).toEqual({ ok: true, value: { stored: false } });
+    expect(result).toEqual({ ok: true, value: { stored: true } });
     expect(observations.stored).toEqual([]);
   });
 
@@ -191,7 +191,7 @@ describe('a chat sighting (SNM-03)', () => {
     await useCases.recordObservation({ agentId: 'agent-2', roomId: 'room-1', body });
     const again = await useCases.recordObservation({ agentId: 'agent-2', roomId: 'room-1', body });
 
-    expect(again).toEqual({ ok: true, value: { stored: false } });
+    expect(again).toEqual({ ok: true, value: { stored: true } });
     expect(observations.stored).toHaveLength(1);
   });
 
@@ -281,5 +281,31 @@ describe('the read name goes nowhere else (SNM-04)', () => {
       expect(text).not.toContain('zzyzx');
       expect(text).not.toContain('sorc');
     }
+  });
+});
+
+describe('the answer to a sighting tells nothing about a match (security review of #101)', () => {
+  it('is the same for a match, a miss, an ambiguous name and a replay', async () => {
+    const { useCases, characters } = await setup();
+    characters.add('account-2', 'char-2', 'paladin', 90, 'Hammer');
+    characters.add('account-1', 'char-9', 'sorceress', 80, 'S0rc');
+    const answers = [];
+    for (const [value, key] of [
+      ['Hammer', 'k-hit'],
+      ['Zzyzx', 'k-miss'],
+      ['Hammer', 'k-hit'],
+      ['Zzyzx', 'k-miss'],
+    ] as const) {
+      answers.push(
+        await useCases.recordObservation({
+          agentId: 'agent-1',
+          roomId: 'room-1',
+          body: sighting(value, { idempotencyKey: key }),
+        }),
+      );
+    }
+
+    expect(new Set(answers.map((answer) => JSON.stringify(answer))).size).toBe(1);
+    expect(answers[0]).toEqual({ ok: true, value: { stored: true } });
   });
 });

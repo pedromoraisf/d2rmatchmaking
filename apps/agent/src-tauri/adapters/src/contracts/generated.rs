@@ -901,7 +901,7 @@ pub struct Observation {
     >,
     #[serde(rename = "type")]
     pub type_: ObservationType,
-    ///What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and answers stored=false when it matches none, and never keeps it (ADR 036). Other types: free text of at most 64 characters.
+    ///What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and never keeps it, and its answer is the same whether it matched or not (ADR 036). Other types: free text of at most 64 characters.
     pub value: ObservationValue,
 }
 ///`ObservationIdempotencyKey`
@@ -1096,7 +1096,7 @@ impl ::std::default::Default for ObservationType {
         ObservationType::Unknown
     }
 }
-///What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and answers stored=false when it matches none, and never keeps it (ADR 036). Other types: free text of at most 64 characters.
+///What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and never keeps it, and its answer is the same whether it matched or not (ADR 036). Other types: free text of at most 64 characters.
 #[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[serde(transparent)]
 pub struct ObservationValue(::std::string::String);

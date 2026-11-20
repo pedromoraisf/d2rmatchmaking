@@ -38,7 +38,7 @@ export const Observation = z.object({
     .string()
     .max(64)
     .describe(
-      'What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and answers stored=false when it matches none, and never keeps it (ADR 036). Other types: free text of at most 64 characters.',
+      'What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and never keeps it, and its answer is the same whether it matched or not (ADR 036). Other types: free text of at most 64 characters.',
     ),
   confidence: z.number().min(0).max(1),
   signals: z.record(z.string(), z.union([z.number(), z.boolean()])).optional(),

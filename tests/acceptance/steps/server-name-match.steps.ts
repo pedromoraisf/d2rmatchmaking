@@ -23,6 +23,8 @@ const API_WAIT_MS = 15_000;
 interface Sightings {
   /** The last sighting an agent posted: what "the same sighting again" posts once more. */
   last?: { readonly agent: string; readonly type: string; readonly value: string; readonly key: string };
+  /** The observations the room held before and after the last sighting: what was kept is read from the table. */
+  counts?: { readonly before: number; readonly after: number };
   /** Every body the API answered to a sighting or a card. */
   readonly answers: string[];
 }
@@ -98,10 +100,12 @@ async function report(
   if (type === undefined) throw new Error(`no sighting is worded "${word}"`);
   const roomId = world.player(roomOf).room?.roomId;
   if (roomId === undefined) throw new Error(`${roomOf} has no room in this scenario`);
+  const before = await world.stack.observationCount(roomId);
   const answer = await world
     .currentAgentOf(agentOf)
     .observe(roomId, { type, value, run: 1, idempotencyKey: key });
   world.last = { status: answer.status, body: answer.body };
+  sightingsOf(world).counts = { before, after: await world.stack.observationCount(roomId) };
   const state = sightingsOf(world);
   state.answers.push(JSON.stringify(answer.body ?? null));
   state.last = { agent: agentOf, type, value, key };
@@ -140,7 +144,12 @@ Then(
   /^the API answers "(\d+)" and the sighting is (kept|not kept)$/,
   ({ world }, code: string, kept: string) => {
     expect(world.last?.status, 'the status').toBe(Number(code));
-    expect(world.last?.body, 'the answer').toEqual({ stored: kept === 'kept' });
+    // The answer is the same for a match and a miss (SNM-03): what was kept is read from the table.
+    const counts = sightingsOf(world).counts;
+    expect(counts, 'a sighting was reported').toBeDefined();
+    expect((counts?.after ?? 0) - (counts?.before ?? 0), 'the observations the sighting added').toBe(
+      kept === 'kept' ? 1 : 0,
+    );
   },
 );
 
