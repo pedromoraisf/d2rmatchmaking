@@ -35,7 +35,7 @@ Rules:
 
 ## Batch 2 (the orchestrator dispatches the nightly on the branch)
 
-- [ ] T7 — Fix what the dispatched run shows, until a full run on the branch publishes the report and takes 40
+- [x] T7 — Fix what the dispatched run shows, until a full run on the branch publishes the report and takes 40
       minutes or less. Mutation survivors left in reading modules belong to `ocr-protection`; list them and do not fix
       them. Gate:
       `gh run list --workflow nightly.yml --branch feat/F2-nightly-report --limit 1 --json conclusion,createdAt,updatedAt,url`
