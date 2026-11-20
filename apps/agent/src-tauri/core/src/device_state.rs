@@ -41,6 +41,8 @@ pub struct DeviceState {
     /// The run the API last accepted an observation for (ARL-03): its room and run number. It counts only while the held
     /// assignment names the same run.
     confirmed_run: Mutex<Option<(String, NonZeroU64)>>,
+    /// The screen the last frame showed and when it was read, for assisted typing (AST-04).
+    screen_read: Mutex<Option<(Screen, Instant)>>,
 }
 
 /// A held ready check and the monotonic instant its time runs out: the time left came from the server (RDY-11).
@@ -65,6 +67,7 @@ impl DeviceState {
             party: Mutex::new(PartyProgress::default()),
             ready_check: Mutex::new(None),
             confirmed_run: Mutex::new(None),
+            screen_read: Mutex::new(None),
         }
     }
 
@@ -125,6 +128,7 @@ impl DeviceState {
 
     /// Records the screen the last frame showed. Only a change wakes the heartbeat (CHR-05).
     pub fn set_screen(&self, screen: Screen) {
+        *lock(&self.screen_read) = Some((screen, Instant::now()));
         self.screen.send_if_modified(|current| {
             if *current == screen {
                 false
@@ -133,6 +137,14 @@ impl DeviceState {
                 true
             }
         });
+    }
+
+    /// The screen the last frame showed, when that frame was read at most `within` ago; `None` when none was read or the
+    /// last read is older (AST-04).
+    pub fn recent_screen(&self, within: std::time::Duration) -> Option<Screen> {
+        (*lock(&self.screen_read))
+            .filter(|(_, read_at)| read_at.elapsed() <= within)
+            .map(|(screen, _)| screen)
     }
 
     /// Whether a token is held.

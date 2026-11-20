@@ -38,7 +38,7 @@ Rules:
       `-`, an empty `n`, a seventh digit and 33 characters fail; a hotkey with no modifier, with Enter, NumpadEnter, Tab,
       Space or Escape as key, or equal to the other hotkey is refused with its reason. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --lib && cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain --all-targets -- -D warnings`
-- [ ] T2 — Core: the ports and `fill_name` (AST-02, AST-03, AST-04, AST-05, AST-07). With fakes: types exactly the name;
+- [x] T2 — Core: the ports and `fill_name` (AST-02, AST-03, AST-04, AST-05, AST-07). With fakes: types exactly the name;
       nothing with no room; nothing when the name fails `TypableName`; nothing when another window has focus; stops after
       the character that lost focus; refuses on in-game and automap screens read within 5 s, allows an older or unknown
       read; waits for modifiers up to 1 s and then refuses; a press during a fill stops it; a press within 2 s of the end
