@@ -151,3 +151,7 @@ is **blank** when `frame_content::summarize` says so (uniform or near-black); a 
 - **Exclusive full screen** that stays black in every method is reported honestly (`UNKNOWN` and a window message that
   names the capture, not a game setting to change); presence by process and heartbeat is unchanged (NFR-03: no game
   configuration is required of the player).
+- **Orchestrator answers to the draft (F2-ORQ004).** `screen-crop` stays conditional on the field matrix (T14). The
+  sensor edit O1 is the orchestrator's. `graphics-capture` uses the `windows` crate's WinRT and Direct3D features, no new
+  crate. The Windows capture border stays on where the OS requires it. `readRate` is the share of usable captures. The
+  3 and 60 constants live in the domain, pinned by tests.

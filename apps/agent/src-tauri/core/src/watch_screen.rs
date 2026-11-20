@@ -493,6 +493,18 @@ mod tests {
         );
     }
 
+    /// Pins today's behaviour: a blank frame (here a frame with no pixels) is read like any other one. The capture cascade
+    /// (capture-cascade T5, CAP-02) changes this to no read at all, and replaces this expectation with its reason.
+    #[tokio::test]
+    async fn a_blank_frame_is_read_once_per_look_today() {
+        let rig = rig(true, true, frame(), selecting(vec![card("Sorc")]));
+
+        look(&rig, &mut None).await;
+
+        assert_eq!(rig.reader.reads.load(Ordering::SeqCst), 1);
+        assert_eq!(rig.frames.captures.load(Ordering::SeqCst), 1);
+    }
+
     #[tokio::test]
     async fn withdrawing_consent_stops_the_capture_before_the_next_frame() {
         let rig = rig(true, true, frame(), selecting(vec![card("Sorc")]));

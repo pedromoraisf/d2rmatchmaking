@@ -39,7 +39,7 @@ check is `node scripts/agent/win-check.mjs` (Docker, clippy for `x86_64-pc-windo
 
 ## Batch 1 — pure cascade and wiring, runs in the cloud (Linux), no maintainer input
 
-- [ ] T1 — **Pin today's behaviour first (tests only).** In `core/src/watch_screen.rs`, `adapters/src/http/translate.rs` and
+- [x] T1 — **Pin today's behaviour first (tests only).** In `core/src/watch_screen.rs`, `adapters/src/http/translate.rs` and
       `domain/src/frame_content.rs` add tests that pass on the unchanged code: a tick on a blank frame calls the reader
       once (the behaviour T5 changes; T5 replaces that expectation with the reason in its commit), the heartbeat body
       carries `capture.method == "none"` and `readRate == 0`, `summarize` calls a drawn dark frame (mean 20, spread 40)
