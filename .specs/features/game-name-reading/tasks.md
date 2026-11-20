@@ -47,7 +47,7 @@ failure message carries a name read from a real print.
 
 ## Batch 1 — runs in the cloud, no maintainer input; T4 to T7 wait for O1's note
 
-- [ ] T1 — Take `screen-recognition` in: `git merge origin/phase/F2` once its batch 1 is there (it brings PR #87's
+- [x] T1 — Take `screen-recognition` in: `git merge origin/phase/F2` once its batch 1 is there (it brings PR #87's
       `real-prints.zip`). Do not open the zip; do not edit `find_party`, `PanelRegion::PartyPanel` or the panel's
       anchors. Expected: only the merge. Gate: `node scripts/check-encrypted-zip.mjs && pnpm test:harness` and
       `CARGO nextest run -p d2rmm-agent-domain -p d2rmm-agent-core --lib`
@@ -148,3 +148,21 @@ These wait; nothing in batches 1 and 2 depends on them.
 - [ ] T15 — **[R14]** Fix what the live rooms show: for each room that did not confirm, a drawn fixture first (as T5), then
       the change, then the real-print proof. If a live room brings a new print, it joins the encrypted zip by the
       maintainer's hand (`apps/agent/ocr-lab/README.md`). Gate: as T6
+
+## O1 note
+
+The real prints are already in the encrypted `apps/agent/ocr-lab/real-prints.zip` on `phase/F2`, and nobody on the Mac
+decrypts it (the password is a CI secret). So O1's geometry (the automap name-line band, the chat area box) comes from the
+first `ocr-real` diagnostics, and T8 (the check reads the automap and chat prints, with `spots` counts and pixel boxes
+only) runs before T3 to T7. The expectations are in the file names:
+
+- `maintainer-automap-en-mmbaalh-19.png` (English client, automap shows `mmbaalh-19`)
+- `maintainer-automap-pt-mmchaosh-20.png` (Portuguese client, `mmchaosh-20`)
+- `maintainer-chat-en-mmbaalh-19.png` (English chat; the event class is confirmed from the CI verdict, not guessed)
+- `maintainer-chat-pt-joined-closed-1.png`, `maintainer-chat-pt-joined-open-1.png` (Portuguese, joined; chat panel
+  closed and open)
+- `maintainer-chat-pt-left-closed-1.png`, `maintainer-chat-pt-left-open-1.png` (Portuguese, left)
+
+Chat phrases are never guessed into the product. T8's diagnostics test candidate phrases and print one boolean per
+candidate, never the text read. A candidate becomes product data (T3, T11) only after CI shows it found on the matching
+print.
