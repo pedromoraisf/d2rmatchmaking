@@ -17,6 +17,7 @@ const view = (overrides: Partial<AgentView> = {}): AgentView => ({
   room: null,
   update: 'idle',
   readyCheckOpen: false,
+  hotkeys: { accept: 'Ctrl+Shift+A', fill: 'Ctrl+Shift+F' },
   diagnostics: null,
   ...overrides,
 });
@@ -47,6 +48,16 @@ describe('App', () => {
 
     expect(screen.getByText('123456')).toBeTruthy();
     expect(screen.getByText('Expires in 4 min')).toBeTruthy();
+  });
+
+  it('sends a changed hotkey through the set_hotkey command (AST-01)', () => {
+    render(<App translate={en} />);
+    publish(view());
+
+    fireEvent.change(screen.getByLabelText('Accept a ready check'), { target: { value: 'Alt+Q' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0] as HTMLElement);
+
+    expect(invoke).toHaveBeenCalledWith('set_hotkey', { action: 'accept', combination: 'Alt+Q' });
   });
 
   it('paused view requests a new code through the get_new_code command', () => {

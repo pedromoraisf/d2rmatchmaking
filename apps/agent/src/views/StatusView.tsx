@@ -2,6 +2,8 @@
 // the update line. Nothing is shown for an idle update.
 import {
   connectivityLabel,
+  fillHintLabel,
+  fillLabel,
   readyCheckLabel,
   revealLabel,
   roomLabel,
@@ -30,11 +32,19 @@ export function StatusView({ view, translate }: StatusViewProps) {
   if (reveal !== null) {
     labels.push(reveal);
   }
+  const fillHint = fillHintLabel(view.room, view.hotkeys);
+  if (fillHint !== null) {
+    labels.push(fillHint);
+  }
+  const fill = fillLabel(view.lastFill);
+  if (fill !== null) {
+    labels.push(fill);
+  }
   const update = updateLabel(view.update);
   if (update !== null) {
     labels.push(update);
   }
-  const readyCheck = readyCheckLabel(view.readyCheckOpen);
+  const readyCheck = readyCheckLabel(view.readyCheckOpen, view.hotkeys);
   if (readyCheck !== null) {
     labels.push(readyCheck);
   }

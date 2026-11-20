@@ -51,7 +51,7 @@ Rules:
 - [x] T4 — Core: one span event per fill with the outcome and no name, text or key (AST-10). Unit tests with the
       in-memory exporter, including that no attribute value equals the game name. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib`
-- [ ] T5 — Window UI: both hotkeys with a field to change each, the refusal reason, and the fill status line, with the
+- [x] T5 — Window UI: both hotkeys with a field to change each, the refusal reason, and the fill status line, with the
       "press Enter in the game" reminder, in English and pt-BR (AST-01, AST-08, AST-10). Component tests. Gate:
       `pnpm --filter @d2rmm/agent exec vitest run && pnpm --filter @d2rmm/agent lint`
 - [ ] T6 — Site: the accept-hotkey hint says Ctrl+Shift+A by default and that the agent can change it, in English and
