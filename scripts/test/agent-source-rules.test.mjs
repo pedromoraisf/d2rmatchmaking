@@ -164,6 +164,126 @@ const fixtureReadViolations = (base) =>
     return /"fixture-read"/.test(defaults) ? [`${rel} enables fixture-read by default`] : [];
   });
 
+// Trust rules (agent-trust, NFR-04, NFR-06). The token, the stream the agent accepts and what it sends are pinned so a
+// change that widens one fails here and needs a reviewer's eye.
+
+// Non-test source of a Rust file: the unit tests of a file sit in a `#[cfg(test)]` module at its end, and the crates' own
+// `tests/` and `extra-tests/` folders are test code.
+// The cut is the `#[cfg(test)]` that opens a module (`mod`), not the first one: a `#[cfg(test)] use` above real code would
+// otherwise hide everything below it.
+const nonTestText = (text) => text.split(/^#\[cfg\(test\)\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\b/m)[0];
+const isTestFile = (rel) => /(^|\/)(tests|extra-tests|examples)\//.test(rel);
+
+// The files that may call `Secret::expose` (AGT-03): the wrapper, the token store, the API client and the relay client.
+const EXPOSE_ALLOW_LIST = [
+  'core/src/secret.rs',
+  'src/adapters/token_store.rs',
+  'adapters/src/http/api_client.rs',
+  'adapters/src/telemetry/relay_client.rs',
+];
+const LOG_EVENT = /\b(?:tracing::)?(?:trace|debug|info|warn|error|event)!\s*\(/;
+// Macros that print or build text. Beside `expose()` the printing ones are never right; `format!` is right only to build the
+// `Bearer` header value, so a `format!` whose own arguments call `expose()` is refused unless it is that one.
+const PRINT_MACRO = /\b(?:println|eprintln|dbg)!\s*\(/;
+
+/** The text of every `format!(...)` call, up to its closing parenthesis. */
+const formatCalls = (code) =>
+  [...code.matchAll(/\bformat!\s*\(/g)].map((match) => {
+    let depth = 1;
+    let end = match.index + match[0].length;
+    while (end < code.length && depth > 0) {
+      if (code[end] === '(') depth += 1;
+      if (code[end] === ')') depth -= 1;
+      end += 1;
+    }
+    return code.slice(match.index, end);
+  });
+const BEARER_FORMAT = /^format!\s*\(\s*"Bearer \{\}"\s*,\s*[\w.]+\.expose\(\)\s*\)$/;
+
+const secretExposureViolations = (base) =>
+  rustFiles(base)
+    .filter(({ rel }) => !isTestFile(rel))
+    .flatMap(({ rel, text }) => {
+      const code = nonTestText(text);
+      if (!/\.expose\s*\(/.test(code) && !/\bexpose\s*\(/.test(code.replace(/pub fn expose/g, ''))) return [];
+      if (!EXPOSE_ALLOW_LIST.includes(rel)) return [`${rel} calls expose() and is not on the allow-list`];
+      return [
+        ...(LOG_EVENT.test(code) ? [`${rel} calls expose() and logs an event`] : []),
+        ...(PRINT_MACRO.test(code)
+          ? [`${rel} calls expose() and prints with println!, eprintln! or dbg!`]
+          : []),
+        ...(formatCalls(code).some((call) => /expose\s*\(/.test(call) && !BEARER_FORMAT.test(call))
+          ? [`${rel} calls expose() inside a format! that is not the Bearer header`]
+          : []),
+      ];
+    });
+
+// The variants of the two types a stream event turns into (AGT-04). A new variant is a new thing the server can make the
+// agent do, so it fails until a reviewer lists it here.
+const STREAM_VARIANTS = [
+  {
+    file: 'core/src/ports.rs',
+    type: 'StreamItem',
+    variants: ['RoomAssigned', 'ReadyCheckStarted', 'ReadyCheckResolved', 'RoomEnded', 'Ended'],
+  },
+  {
+    file: 'adapters/src/http/sse.rs',
+    type: 'StreamEffect',
+    variants: ['SetAssignment', 'ReadyCheckStarted', 'ReadyCheckResolved', 'RoomEnded', 'Ignore'],
+  },
+];
+
+const enumVariants = (text, name) => {
+  const body = text.match(new RegExp(`pub enum ${name}\\s*\\{([\\s\\S]*?)\\n\\}`))?.[1];
+  if (body === undefined) return undefined;
+  return body
+    .split('\n')
+    .filter((line) => /^ {4}[A-Z]/.test(line))
+    .map((line) => line.trim().match(/^[A-Za-z0-9]+/)[0]);
+};
+
+const streamVariantViolations = (base) =>
+  STREAM_VARIANTS.flatMap(({ file, type, variants }) => {
+    const found = enumVariants(crateFile(base, file) ?? '', type);
+    if (found === undefined) return [`${file} has no enum ${type}`];
+    const extra = found.filter((name) => !variants.includes(name));
+    const missing = variants.filter((name) => !found.includes(name));
+    return [
+      ...extra.map((name) => `${file}: ${type}::${name} is not on the reviewed list`),
+      ...missing.map((name) => `${file}: ${type}::${name} is on the list and gone`),
+    ];
+  });
+
+// What the HTTP adapters may send (AGT-05): contract bodies only. No frame or pixel type, no raw body, no multipart.
+const FRAME_TYPES = /\b(?:Rgba|FrameSource|FrameReader|FrameReading|PanelReading)\b/;
+const RAW_UPLOAD = /multipart|octet-stream|\bimage\/|\.body\s*\(|Part::/;
+
+// The span exporter's client sends the protobuf batch with one `.body(...)`: the only raw body allowed, in that one file.
+const RELAY_CLIENT = 'adapters/src/telemetry/relay_client.rs';
+const RAW_BODY = /\.body\s*\(/g;
+
+const outgoingDataViolations = (base) => {
+  const files = rustFiles(base).filter(
+    ({ rel }) => (rel.startsWith('adapters/src/http/') || rel === RELAY_CLIENT) && !isTestFile(rel),
+  );
+  const manifest = crateFile(base, 'adapters/Cargo.toml') ?? '';
+  return [
+    ...files.flatMap(({ rel, text }) => {
+      const code = nonTestText(text);
+      return [
+        ...(FRAME_TYPES.test(code) ? [`${rel} names a frame or pixel type`] : []),
+        ...((rel === RELAY_CLIENT ? code.replace(RAW_BODY, '') : code).match(RAW_UPLOAD)
+          ? [`${rel} sends a raw body, a multipart part or an image`]
+          : []),
+        ...(rel === RELAY_CLIENT && (code.match(RAW_BODY) ?? []).length > 1
+          ? [`${rel} sends more than the one protobuf batch body`]
+          : []),
+      ];
+    }),
+    ...(/reqwest[^\n]*multipart/.test(manifest) ? ['adapters/Cargo.toml enables reqwest multipart'] : []),
+  ];
+};
+
 const fixtureBase = (name) => path.join(root, 'scripts/test/fixtures/agent-rules', name);
 
 test('windows features stay on the allow-list', () => {
@@ -244,6 +364,72 @@ test('the window capture rule rejects input, hook and blit calls', () => {
       `${name} must fail the window capture allow-list`,
     );
   }
+});
+
+test('only the wrapper, the token store and the two clients call expose, and none logs an event', () => {
+  assert.deepEqual(secretExposureViolations(root), []);
+});
+
+test('the expose rule rejects a call outside the allow-list', () => {
+  assert.match(
+    secretExposureViolations(fixtureBase('expose-outside')).join('\n'),
+    /core\/src\/leak\.rs calls expose\(\) and is not on the allow-list/,
+  );
+});
+
+test('the expose rule rejects a log event beside a call on the allow-list', () => {
+  assert.match(
+    secretExposureViolations(fixtureBase('expose-logged')).join('\n'),
+    /adapters\/src\/http\/api_client\.rs calls expose\(\) and logs an event/,
+  );
+});
+
+test('a stream event turns into one of the reviewed data variants only', () => {
+  assert.deepEqual(streamVariantViolations(root), []);
+});
+
+test('the stream variant rule rejects a new variant', () => {
+  assert.match(
+    streamVariantViolations(fixtureBase('stream-new-variant')).join('\n'),
+    /StreamItem::RunCommand is not on the reviewed list/,
+  );
+});
+
+test('the HTTP adapters send contract bodies only: no frame, no raw body, no multipart', () => {
+  assert.deepEqual(outgoingDataViolations(root), []);
+});
+
+test('the outgoing data rule rejects a frame type and a raw body', () => {
+  const violations = outgoingDataViolations(fixtureBase('outgoing-frame')).join('\n');
+  assert.match(violations, /names a frame or pixel type/);
+  assert.match(violations, /sends a raw body, a multipart part or an image/);
+});
+
+test('the expose rule rejects a print macro and a format! that is not the Bearer header', () => {
+  for (const [fixture, message] of [
+    ['expose-println', /calls expose\(\) and prints/],
+    ['expose-eprintln', /calls expose\(\) and prints/],
+    ['expose-dbg', /calls expose\(\) and prints/],
+    ['expose-format', /inside a format! that is not the Bearer header/],
+  ]) {
+    assert.match(secretExposureViolations(fixtureBase(fixture)).join('\n'), message, fixture);
+  }
+});
+
+test('the test-module cut starts at a module, so an early cfg(test) use hides nothing', () => {
+  assert.match(
+    secretExposureViolations(fixtureBase('expose-after-cfg-use')).join('\n'),
+    /core\/src\/early\.rs calls expose\(\) and is not on the allow-list/,
+  );
+  assert.equal(nonTestText('fn a() {}\n#[cfg(test)]\nmod tests {\n fn b() {}\n}\n').includes('fn b'), false);
+  assert.equal(nonTestText('#[cfg(test)]\nuse x::y;\nfn real() {}\n').includes('fn real'), true);
+});
+
+test('the outgoing data rule covers the span exporter client too', () => {
+  const violations = outgoingDataViolations(fixtureBase('outgoing-relay')).join('\n');
+  assert.match(violations, /relay_client\.rs names a frame or pixel type/);
+  assert.match(violations, /relay_client\.rs sends more than the one protobuf batch body/);
+  assert.match(violations, /relay_client\.rs sends a raw body, a multipart part or an image/);
 });
 
 test('the instrument rule rejects arguments without skip_all', () => {

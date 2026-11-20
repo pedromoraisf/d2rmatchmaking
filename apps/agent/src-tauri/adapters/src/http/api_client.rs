@@ -401,6 +401,39 @@ mod tests {
         );
     }
 
+    /// A token that cannot be a header value is refused with an error that names neither it nor the header (AGT-03).
+    #[test]
+    fn a_token_that_is_no_header_value_fails_without_naming_it() {
+        let token = Secret::new("d2rmm_a_secret\nsplit");
+
+        let refused = authorization_value(&token).expect_err("a newline is no header value");
+
+        assert_eq!(refused, ApiError::Invalid);
+        let shown = format!("{refused} {refused:?}");
+        assert!(!shown.contains("secret"), "the error leaked: {shown}");
+    }
+
+    /// No variant of `ApiError` carries data, so no message or `Debug` text can hold a token, a URL or a body (AGT-03).
+    #[test]
+    fn api_errors_print_no_token_url_or_body() {
+        for error in [
+            ApiError::Unauthorized,
+            ApiError::UpgradeRequired,
+            ApiError::RateLimited { retry_after: None },
+            ApiError::Gone,
+            ApiError::Pending,
+            ApiError::Server,
+            ApiError::Network,
+            ApiError::Invalid,
+            ApiError::CheckEnded,
+        ] {
+            let shown = format!("{error} {error:?}");
+            assert!(!shown.contains("d2rmm_a_"), "{shown}");
+            assert!(!shown.contains("http"), "{shown}");
+            assert!(!shown.contains("Bearer"), "{shown}");
+        }
+    }
+
     #[test]
     fn stream_request_timeout_outlives_any_session() {
         assert_eq!(
