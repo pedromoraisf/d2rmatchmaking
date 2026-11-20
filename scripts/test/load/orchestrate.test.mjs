@@ -196,6 +196,8 @@ function fakeDocker(fs, options) {
                 ? {}
                 : { sinkBytesBySignal: answer.sinkBytesBySignal }),
               windowSeconds: answer.windowSeconds,
+              eventBytes: answer.eventBytes,
+              roomsCreated: answer.roomsCreated,
             }),
             mode: 0o644,
           });
@@ -701,6 +703,57 @@ test(
 
       assert.equal(result.summary.steps[0].errors, 2, 'only the window errors of k6');
     });
+  },
+);
+
+test(
+  'the bytes of each event type in the step file reach the step of the summary',
+  { timeout: SLOW_TEST_MS },
+  async () => {
+    const eventBytes = {
+      site: { 'room.assigned': 1_000_000, 'room.stage_changed': 500_000 },
+      agent: { 'room.assigned': 400_000 },
+    };
+    const scn = scenario({ profile: 'smoke', k6: () => ({ ...PASSING_K6(), eventBytes }) });
+    const result = await runLoad(scn.input);
+    const step = result.summary.steps[0];
+
+    assert.equal(step.bytesByEvent.site['room.assigned'], 1_000_000);
+    assert.equal(step.bytesByEvent.site['room.stage_changed'], 500_000);
+    assert.equal(step.bytesByEvent.agent['room.assigned'], 400_000);
+    assert.equal(step.bytesByEvent.other, 50_000_000 - 1_900_000, 'the rest of the metered bytes');
+    assertClean(scn);
+
+    const without = await runLoad(scenario({ profile: 'smoke', k6: PASSING_K6 }).input);
+    assert.equal(without.summary.steps[0].bytesByEvent, null, 'a step file with no counts gives none');
+  },
+);
+
+test(
+  'the rooms of a step are the ones that reached created in the window, as the journey counted them',
+  { timeout: SLOW_TEST_MS },
+  async () => {
+    const counted = await runLoad(
+      scenario({ profile: 'smoke', rooms: 3, k6: () => ({ ...PASSING_K6(), roomsCreated: 37 }) }).input,
+    );
+    assert.equal(counted.summary.steps[0].roomsCreated, 37, 'the journey count, not the sampled peak');
+    assert.equal(counted.summary.maxConcurrentRooms, 37);
+
+    const none = await runLoad(
+      scenario({ profile: 'smoke', rooms: 3, k6: () => ({ ...PASSING_K6(), roomsCreated: 0 }) }).input,
+    );
+    assert.equal(
+      none.summary.steps[0].roomsCreated,
+      0,
+      'zero rooms in the window is zero, not the sampled peak',
+    );
+
+    const older = await runLoad(scenario({ profile: 'smoke', rooms: 3, k6: PASSING_K6 }).input);
+    assert.equal(
+      older.summary.steps[0].roomsCreated,
+      3,
+      'a step file without the count falls back to the sampled peak',
+    );
   },
 );
 

@@ -8,9 +8,11 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use d2rmm_agent_domain::paired_device::{DeviceEffect, PairedDevice};
 use d2rmm_agent_domain::room_assignment::{Assignment, RoomAssignment};
+use d2rmm_agent_domain::typing::HotkeyPair;
 use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
+use crate::fill_name::FillOutcome;
 use crate::hub::Hub;
 use crate::messages::{CaptureReport, ReadyCheckOpen, Screen};
 use crate::party::PartyProgress;
@@ -43,6 +45,10 @@ pub struct DeviceState {
     /// The run the API last accepted an observation for (ARL-03): its room and run number. It counts only while the held
     /// assignment names the same run.
     confirmed_run: Mutex<Option<(String, NonZeroU64)>>,
+    /// The last screen the agent recognised, kept while later frames read as unknown, for assisted typing (AST-04).
+    last_known_screen: Mutex<Option<Screen>>,
+    /// The two hotkeys the agent registers (AST-01); the app sets them from its local file at start.
+    hotkeys: Mutex<HotkeyPair>,
 }
 
 /// A held ready check and the monotonic instant its time runs out: the time left came from the server (RDY-11).
@@ -68,6 +74,8 @@ impl DeviceState {
             party: Mutex::new(PartyProgress::default()),
             ready_check: Mutex::new(None),
             confirmed_run: Mutex::new(None),
+            last_known_screen: Mutex::new(None),
+            hotkeys: Mutex::new(HotkeyPair::defaults()),
         }
     }
 
@@ -144,6 +152,9 @@ impl DeviceState {
 
     /// Records the screen the last frame showed. Only a change wakes the heartbeat (CHR-05).
     pub fn set_screen(&self, screen: Screen) {
+        if screen != Screen::Unknown {
+            *lock(&self.last_known_screen) = Some(screen);
+        }
         self.screen.send_if_modified(|current| {
             if *current == screen {
                 false
@@ -152,6 +163,30 @@ impl DeviceState {
                 true
             }
         });
+    }
+
+    /// The last screen the agent recognised, or `None` when it never recognised one. An unknown frame does not clear it: the
+    /// agent cannot tell a game it fails to read from a menu, so it remembers what it last knew (AST-04).
+    pub fn last_known_screen(&self) -> Option<Screen> {
+        *lock(&self.last_known_screen)
+    }
+
+    /// The hotkeys the agent registers now.
+    pub fn hotkeys(&self) -> HotkeyPair {
+        *lock(&self.hotkeys)
+    }
+
+    /// Holds the hotkeys and shows them in the window (AST-01).
+    pub fn set_hotkeys(&self, pair: HotkeyPair) {
+        *lock(&self.hotkeys) = pair;
+        self.hub.set_hotkeys(&pair);
+    }
+
+    /// Shows what a fill did and keeps it until the next one (AST-08). Records it as one span event with the outcome code
+    /// and nothing else: no name, no text, no key (AST-10).
+    pub fn record_fill(&self, outcome: FillOutcome) {
+        tracing::info!(outcome = outcome.as_str(), "agent.fill");
+        self.hub.set_last_fill(outcome);
     }
 
     /// Whether a token is held.

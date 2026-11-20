@@ -6,14 +6,18 @@
 #![cfg(any(windows, test))]
 
 use std::path::PathBuf;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use d2rmm_agent_adapters::http::gateway::HttpGateway;
 use d2rmm_agent_core::ports::{ConsentStore, StoreError};
 use d2rmm_agent_core::runtime::Handle;
+use d2rmm_agent_core::view::AgentView;
+use d2rmm_agent_domain::typing::{HotkeyAction, HotkeyChoice, HotkeyKey, HotkeyPair};
 use tauri::Url;
 
 use crate::adapters::consent_store::FileConsentStore;
+use crate::adapters::hotkey_store::FileHotkeyStore;
 
 /// What the command handler needs from the runtime: a request for one new pairing code.
 pub trait CodeRequester {
@@ -44,6 +48,89 @@ pub fn sync_hotkey(registered: &AtomicBool, open: bool, registrar: &dyn HotkeyRe
     }
 }
 
+/// One hotkey the app registers with the OS, and which combination it holds now. A key the player changed while it was
+/// registered is unregistered first, so the OS never holds the old combination (AST-01).
+pub struct Slot {
+    registered: AtomicBool,
+    held: Mutex<Option<HotkeyChoice>>,
+}
+
+impl Slot {
+    pub fn new() -> Self {
+        Self {
+            registered: AtomicBool::new(false),
+            held: Mutex::new(None),
+        }
+    }
+
+    /// The combination the OS holds for this slot now.
+    pub fn held(&self) -> Option<HotkeyChoice> {
+        *self
+            .held
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn set_held(&self, choice: Option<HotkeyChoice>) {
+        *self
+            .held
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = choice;
+    }
+}
+
+impl Default for Slot {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Brings one slot in line with the combination wanted now: `None` when the hotkey must not be registered (no ready check
+/// is open, no room is held). `registrar_for` gives the registrar of one combination. Each OS call is made once, only on a
+/// change; a refused call leaves the slot as it was, so the next change tries again (RDY-07, AST-01).
+pub fn reconcile_slot(
+    slot: &Slot,
+    wanted: Option<HotkeyChoice>,
+    registrar_for: &dyn Fn(HotkeyChoice) -> Box<dyn HotkeyRegistrar>,
+) {
+    if let Some(held) = slot.held().filter(|held| Some(*held) != wanted) {
+        sync_hotkey(&slot.registered, false, registrar_for(held).as_ref());
+        if !slot.registered.load(Ordering::SeqCst) {
+            slot.set_held(None);
+        }
+    }
+    if let (Some(wanted), None) = (wanted, slot.held()) {
+        sync_hotkey(&slot.registered, true, registrar_for(wanted).as_ref());
+        if slot.registered.load(Ordering::SeqCst) {
+            slot.set_held(Some(wanted));
+        }
+    }
+}
+
+/// The two combinations the OS should hold for this view: the accept key exactly while a ready check is open (RDY-07) and
+/// the fill key exactly while a room is held (AST-01). A combination the window shows that does not read is never wanted.
+pub fn wanted_hotkeys(view: &AgentView) -> (Option<HotkeyChoice>, Option<HotkeyChoice>) {
+    let read = |text: &str| HotkeyChoice::parse(text).ok();
+    (
+        view.ready_check_open
+            .then(|| read(&view.hotkeys.accept))
+            .flatten(),
+        view.room
+            .is_some()
+            .then(|| read(&view.hotkeys.fill))
+            .flatten(),
+    )
+}
+
+/// The name of the key in the OS hotkey crate's code list (`KeyA`, `Digit7`, `F12`).
+pub fn code_name(key: HotkeyKey) -> String {
+    match key {
+        HotkeyKey::Letter(letter) => format!("Key{letter}"),
+        HotkeyKey::Digit(digit) => format!("Digit{digit}"),
+        HotkeyKey::Function(number) => format!("F{number}"),
+    }
+}
+
 /// The "Get a new code" command: one request to the runtime. The runtime honours it only while the code is paused (AGS-34).
 pub fn handle_get_new_code(requester: &impl CodeRequester) {
     requester.request_new_code();
@@ -68,6 +155,25 @@ pub fn handle_set_consent(store: &dyn ConsentStore, consent: bool) -> Result<boo
     Ok(consent)
 }
 
+/// The player's choice of one hotkey (AST-01): the new pair, stored on this PC, or the refusal code the window maps to a
+/// message (`no-modifier`, `needs-ctrl-or-alt`, `reserved`, `confirming-key`, `unsupported-key`, `same-as-other`, or `not-saved`). Nothing changes on a refusal.
+pub fn apply_hotkey_change(
+    current: &HotkeyPair,
+    action: &str,
+    combination: &str,
+    store: &FileHotkeyStore,
+) -> Result<HotkeyPair, &'static str> {
+    let action = HotkeyAction::parse(action).ok_or("unsupported-key")?;
+    let choice = HotkeyChoice::parse(combination).map_err(|refusal| refusal.code())?;
+    let next = match action {
+        HotkeyAction::Accept => current.with_accept(choice),
+        HotkeyAction::Fill => current.with_fill(choice),
+    }
+    .map_err(|refusal| refusal.code())?;
+    store.save(&next).map_err(|_| "not-saved")?;
+    Ok(next)
+}
+
 /// The window may navigate only to the bundled app (AGS-04): the custom protocol of each platform.
 pub fn is_app_url(url: &Url) -> bool {
     matches!(
@@ -90,7 +196,6 @@ mod shell {
     use std::sync::Arc;
 
     use std::cell::RefCell;
-    use std::sync::atomic::AtomicBool;
 
     use global_hotkey::hotkey::{Code, HotKey, Modifiers};
     use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
@@ -101,25 +206,35 @@ mod shell {
     use d2rmm_agent_adapters::http::gateway::HttpGateway;
     use d2rmm_agent_adapters::telemetry::relay_client::HeaderSource;
     use d2rmm_agent_adapters::telemetry::{self, ExportConfig, Mode};
+    use d2rmm_agent_core::fill_name::FillPorts;
     use d2rmm_agent_core::groups::Groups;
     use d2rmm_agent_core::ports::{StateSink, TokenStore};
     use d2rmm_agent_core::runtime::{Handle, Runtime};
     use d2rmm_agent_core::secret::Secret;
     use d2rmm_agent_core::view::AgentView;
 
+    use d2rmm_agent_domain::typing::HotkeyChoice;
+
     use super::{
-        FileConsentStore, HotkeyRegistrar, app_context, consent_store_in, handle_get_consent,
-        handle_get_new_code, handle_set_consent, is_app_url, sync_hotkey,
+        FileConsentStore, FileHotkeyStore, HotkeyRegistrar, Slot, app_context, apply_hotkey_change,
+        code_name, consent_store_in, handle_get_consent, handle_get_new_code, handle_set_consent,
+        is_app_url, reconcile_slot, wanted_hotkeys,
     };
     use crate::adapters::token_store::KeyringTokenStore;
+    use crate::adapters::typing::{HeldModifiers, SendTyper};
+    use crate::adapters::window_capture::ForegroundGame;
     use crate::config;
     use crate::fixture_read;
     use d2rmm_agent_adapters::http;
 
-    /// The global shortcut that accepts the open ready check (RDY-07). Fixed in F1; configurable in F2 (FR-28). The agent
-    /// sends the API one call with it and never sends input to the game or to any window (ADR 010).
-    fn ready_check_hotkey() -> HotKey {
-        HotKey::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyA)
+    /// The OS hotkey of a combination the player chose (RDY-07, AST-01), or `None` when it does not map to a key.
+    fn os_hotkey(choice: HotkeyChoice) -> Option<HotKey> {
+        let mut modifiers = Modifiers::empty();
+        modifiers.set(Modifiers::CONTROL, choice.modifiers.ctrl);
+        modifiers.set(Modifiers::SHIFT, choice.modifiers.shift);
+        modifiers.set(Modifiers::ALT, choice.modifiers.alt);
+        let code = code_name(choice.key).parse::<Code>().ok()?;
+        Some(HotKey::new(Some(modifiers), code))
     }
 
     thread_local! {
@@ -128,30 +243,39 @@ mod shell {
         static MANAGER: RefCell<Option<GlobalHotKeyManager>> = const { RefCell::new(None) };
     }
 
-    /// The hotkey of the app: every registration runs on the main thread, where the manager lives.
+    /// The hotkeys of the app: every registration runs on the main thread, where the manager lives. The accept key is held
+    /// exactly while a ready check is open (RDY-07) and the fill key exactly while a room is held (AST-01).
     struct MainThreadHotkey {
         app: AppHandle,
-        registered: Arc<AtomicBool>,
+        accept: Arc<Slot>,
+        fill: Arc<Slot>,
     }
 
     impl MainThreadHotkey {
-        /// Registers or unregisters on the main thread, then records what the OS accepted.
-        fn request(&self, open: bool) {
-            let registered = self.registered.clone();
+        /// Registers and unregisters on the main thread, then records what the OS accepted.
+        fn request(&self, view: &AgentView) {
+            let (accept_wanted, fill_wanted) = wanted_hotkeys(view);
+            let (accept, fill) = (self.accept.clone(), self.fill.clone());
             let _ = self.app.run_on_main_thread(move || {
-                sync_hotkey(&registered, open, &LocalManager);
+                reconcile_slot(&accept, accept_wanted, &|choice| {
+                    Box::new(LocalManager(choice))
+                });
+                reconcile_slot(&fill, fill_wanted, &|choice| Box::new(LocalManager(choice)));
             });
         }
     }
 
-    /// The manager of the main thread, as a registrar.
-    struct LocalManager;
+    /// The manager of the main thread, as the registrar of one combination.
+    struct LocalManager(HotkeyChoice);
 
     impl HotkeyRegistrar for LocalManager {
         fn set(&self, on: bool) -> bool {
+            let Some(hotkey) = os_hotkey(self.0) else {
+                return false;
+            };
             MANAGER.with(|manager| match manager.borrow().as_ref() {
-                Some(manager) if on => manager.register(ready_check_hotkey()).is_ok(),
-                Some(manager) => manager.unregister(ready_check_hotkey()).is_ok(),
+                Some(manager) if on => manager.register(hotkey).is_ok(),
+                Some(manager) => manager.unregister(hotkey).is_ok(),
                 None => false,
             })
         }
@@ -161,10 +285,9 @@ mod shell {
     fn start_hotkey(app: &AppHandle) {
         MANAGER.with(|manager| *manager.borrow_mut() = GlobalHotKeyManager::new().ok());
         let app = app.clone();
-        let id = ready_check_hotkey().id();
         std::thread::spawn(move || {
             while let Ok(event) = GlobalHotKeyEvent::receiver().recv() {
-                on_hotkey(&app, id, &event);
+                on_hotkey(&app, &event);
             }
         });
     }
@@ -198,6 +321,30 @@ mod shell {
             .map_err(|_| "consent-not-saved".to_string())
     }
 
+    /// The hotkeys of this app: the file in its configuration directory, apart from the consent file.
+    fn hotkey_store(app: &AppHandle) -> FileHotkeyStore {
+        FileHotkeyStore::in_directory(app.path().app_config_dir().ok())
+    }
+
+    /// The player's choice of one hotkey (AST-01). A refusal is one fixed code, never a path or a cause (AGS-09).
+    #[tauri::command]
+    fn set_hotkey(
+        app: AppHandle,
+        handle: State<'_, Arc<Handle<HttpGateway>>>,
+        action: String,
+        combination: String,
+    ) -> Result<(), String> {
+        let next = apply_hotkey_change(
+            &handle.hotkeys(),
+            &action,
+            &combination,
+            &hotkey_store(&app),
+        )
+        .map_err(str::to_string)?;
+        handle.set_hotkeys(next);
+        Ok(())
+    }
+
     /// Logs the location of a panic and never its payload, which can carry secrets (AGS-09).
     fn install_panic_hook() {
         std::panic::set_hook(Box::new(|info| match info.location() {
@@ -211,7 +358,7 @@ mod shell {
     /// The state sink of the app: every view goes to the window, and to the fixture trigger in a fixture build.
     struct WindowSink {
         app: AppHandle,
-        /// Whether the hotkey is registered now: it is registered exactly while a ready check is open (RDY-07).
+        /// The hotkeys registered now: accept while a ready check is open (RDY-07), fill while a room is held (AST-01).
         hotkey: MainThreadHotkey,
         #[cfg(feature = "fixture-read")]
         fixture: Option<fixture_read::FixtureSink>,
@@ -242,19 +389,31 @@ mod shell {
     impl StateSink for WindowSink {
         fn publish(&self, view: AgentView) {
             self.feed_fixture(&view);
-            self.hotkey.request(view.ready_check_open);
+            self.hotkey.request(&view);
             let _ = self.app.emit(AGENT_STATE, view);
         }
     }
 
-    /// The hotkey's press: the runtime accepts the held ready check at this instant (RDY-02, RDY-07). Only a press of the
-    /// ready-check combination does anything.
-    fn on_hotkey(app: &AppHandle, id: u32, event: &GlobalHotKeyEvent) {
-        if event.state != HotKeyState::Pressed || event.id != id {
+    /// A hotkey's press (RDY-02, RDY-07, AST-01). The accept combination accepts the held ready check; the fill combination
+    /// types the held room's game name and stops (AST-07). Only a press does anything, and only of a combination the runtime
+    /// holds now.
+    fn on_hotkey(app: &AppHandle, event: &GlobalHotKeyEvent) {
+        if event.state != HotKeyState::Pressed {
             return;
         }
-        if let Some(handle) = app.try_state::<Arc<Handle<HttpGateway>>>() {
+        let Some(handle) = app.try_state::<Arc<Handle<HttpGateway>>>() else {
+            return;
+        };
+        let id_of = |choice: HotkeyChoice| os_hotkey(choice).map(|hotkey| hotkey.id());
+        let pair = handle.hotkeys();
+        if id_of(pair.accept()) == Some(event.id) {
             handle.accept_ready_check();
+        } else if id_of(pair.fill()) == Some(event.id) {
+            // The fill runs on the runtime's own task; the press only starts it.
+            let handle = Arc::clone(&handle);
+            tauri::async_runtime::spawn(async move {
+                let _ = handle.fill_name();
+            });
         }
     }
 
@@ -342,7 +501,8 @@ mod shell {
             .invoke_handler(tauri::generate_handler![
                 get_new_code,
                 get_consent,
-                set_consent
+                set_consent,
+                set_hotkey
             ])
             .setup(move |app| {
                 let app_handle = app.handle().clone();
@@ -350,7 +510,8 @@ mod shell {
                     app: app_handle.clone(),
                     hotkey: MainThreadHotkey {
                         app: app_handle.clone(),
-                        registered: Arc::new(AtomicBool::new(false)),
+                        accept: Arc::new(Slot::new()),
+                        fill: Arc::new(Slot::new()),
                     },
                     #[cfg(feature = "fixture-read")]
                     fixture,
@@ -366,8 +527,17 @@ mod shell {
                 )));
                 let groups = build(app_handle, gateway);
                 let handle = Arc::new(tauri::async_runtime::block_on(async move {
-                    Runtime::start(&core_config, sink, groups)
+                    // The three ports of assisted typing (FR-28): the one place the agent can send input, and only as
+                    // Unicode characters of a game name (ADR 010, AST-06).
+                    Runtime::start(&core_config, sink, groups).with_typing(FillPorts {
+                        typer: Arc::new(SendTyper),
+                        focus: Arc::new(ForegroundGame),
+                        keys: Arc::new(HeldModifiers),
+                    })
                 }));
+                if let Some(saved) = hotkey_store(app.handle()).load() {
+                    handle.set_hotkeys(saved);
+                }
                 window_sink.attach(handle.clone());
                 app.manage(handle);
 
@@ -395,9 +565,12 @@ mod tests {
 
     use tauri::Url;
 
+    use d2rmm_agent_domain::typing::{HotkeyChoice, HotkeyPair};
+
     use super::{
-        CodeRequester, app_context, consent_store_in, handle_get_consent, handle_get_new_code,
-        handle_set_consent, is_app_url,
+        CodeRequester, FileHotkeyStore, Slot, app_context, apply_hotkey_change, code_name,
+        consent_store_in, handle_get_consent, handle_get_new_code, handle_set_consent, is_app_url,
+        reconcile_slot, wanted_hotkeys,
     };
     use crate::config;
 
@@ -526,5 +699,212 @@ mod tests {
         let store = consent_store_in(None);
         assert!(!handle_get_consent(&store));
         assert!(handle_set_consent(&store, true).is_err());
+    }
+
+    fn scratch_store() -> (FileHotkeyStore, std::path::PathBuf) {
+        let directory = std::env::temp_dir().join(format!("d2rmm-hk-{}", uuid::Uuid::new_v4()));
+        (
+            FileHotkeyStore::in_directory(Some(directory.clone())),
+            directory,
+        )
+    }
+
+    #[test]
+    fn a_valid_hotkey_choice_is_stored_and_returned() {
+        let (store, directory) = scratch_store();
+        let next = apply_hotkey_change(&HotkeyPair::defaults(), "fill", "alt+g", &store)
+            .expect("a valid combination");
+        assert_eq!(next.fill().to_string(), "Alt+G");
+        assert_eq!(store.load(), Some(next));
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn a_refused_hotkey_returns_its_code_and_stores_nothing() {
+        let (store, directory) = scratch_store();
+        let defaults = HotkeyPair::defaults();
+        for (action, text, code) in [
+            ("fill", "G", "no-modifier"),
+            ("fill", "Shift+G", "needs-ctrl-or-alt"),
+            ("fill", "Ctrl+C", "reserved"),
+            ("accept", "Alt+F4", "reserved"),
+            ("accept", "Win+Ctrl+Q", "reserved"),
+            ("fill", "Ctrl+Shift+Enter", "confirming-key"),
+            ("fill", "Ctrl+Home", "unsupported-key"),
+            ("fill", "Ctrl+Shift+A", "same-as-other"),
+            ("accept", "Ctrl+Shift+F", "same-as-other"),
+            ("confirm", "Ctrl+Shift+Q", "unsupported-key"),
+        ] {
+            assert_eq!(
+                apply_hotkey_change(&defaults, action, text, &store),
+                Err(code),
+                "{action} {text}"
+            );
+        }
+        assert!(store.load().is_none(), "no refusal wrote the file");
+        let nowhere = FileHotkeyStore::in_directory(None);
+        assert_eq!(
+            apply_hotkey_change(&defaults, "fill", "Alt+G", &nowhere),
+            Err("not-saved")
+        );
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    /// A registrar factory that records every (combination, on) call and accepts or refuses them all.
+    struct Recording {
+        calls: std::rc::Rc<std::cell::RefCell<Vec<(String, bool)>>>,
+        accept: bool,
+    }
+
+    struct Recorded {
+        choice: HotkeyChoice,
+        log: Recording,
+    }
+
+    impl super::HotkeyRegistrar for Recorded {
+        fn set(&self, on: bool) -> bool {
+            self.log
+                .calls
+                .borrow_mut()
+                .push((self.choice.to_string(), on));
+            self.log.accept
+        }
+    }
+
+    fn reconcile(slot: &Slot, wanted: Option<&str>, log: &Recording) {
+        let wanted = wanted.map(|text| HotkeyChoice::parse(text).expect("a valid combination"));
+        reconcile_slot(slot, wanted, &|choice| {
+            Box::new(Recorded {
+                choice,
+                log: Recording {
+                    calls: log.calls.clone(),
+                    accept: log.accept,
+                },
+            })
+        });
+    }
+
+    fn recording(accept: bool) -> Recording {
+        Recording {
+            calls: std::rc::Rc::default(),
+            accept,
+        }
+    }
+
+    #[test]
+    fn a_slot_registers_while_wanted_and_calls_the_os_only_on_a_change() {
+        let (slot, log) = (Slot::new(), recording(true));
+        reconcile(&slot, None, &log);
+        reconcile(&slot, Some("Ctrl+Shift+F"), &log);
+        reconcile(&slot, Some("Ctrl+Shift+F"), &log);
+        reconcile(&slot, None, &log);
+        reconcile(&slot, None, &log);
+        assert_eq!(
+            *log.calls.borrow(),
+            [
+                ("Ctrl+Shift+F".to_string(), true),
+                ("Ctrl+Shift+F".to_string(), false)
+            ]
+        );
+        assert!(slot.held().is_none());
+    }
+
+    #[test]
+    fn a_changed_combination_unregisters_the_old_one_before_it_registers_the_new_one() {
+        let (slot, log) = (Slot::new(), recording(true));
+        reconcile(&slot, Some("Ctrl+Shift+F"), &log);
+        reconcile(&slot, Some("Alt+G"), &log);
+        assert_eq!(
+            *log.calls.borrow(),
+            [
+                ("Ctrl+Shift+F".to_string(), true),
+                ("Ctrl+Shift+F".to_string(), false),
+                ("Alt+G".to_string(), true),
+            ]
+        );
+        assert_eq!(
+            slot.held().map(|held| held.to_string()),
+            Some("Alt+G".to_string())
+        );
+    }
+
+    #[test]
+    fn a_refused_registration_leaves_the_slot_empty_and_the_next_change_tries_again() {
+        let (slot, refusing) = (Slot::new(), recording(false));
+        reconcile(&slot, Some("Ctrl+Shift+F"), &refusing);
+        assert!(slot.held().is_none(), "the OS refused, so nothing is held");
+        let accepting = recording(true);
+        reconcile(&slot, Some("Ctrl+Shift+F"), &accepting);
+        assert_eq!(accepting.calls.borrow().len(), 1, "tried again");
+        assert!(slot.held().is_some());
+    }
+
+    #[test]
+    fn a_refused_unregistration_keeps_the_old_combination_and_registers_nothing_new() {
+        let (slot, accepting) = (Slot::new(), recording(true));
+        reconcile(&slot, Some("Ctrl+Shift+F"), &accepting);
+        let refusing = recording(false);
+        reconcile(&slot, Some("Alt+G"), &refusing);
+        assert_eq!(
+            slot.held().map(|held| held.to_string()),
+            Some("Ctrl+Shift+F".to_string())
+        );
+        assert_eq!(
+            *refusing.calls.borrow(),
+            [("Ctrl+Shift+F".to_string(), false)]
+        );
+    }
+
+    #[test]
+    fn the_view_wants_accept_only_during_a_ready_check_and_fill_only_with_a_room() {
+        use d2rmm_agent_core::view::{
+            AgentView, Connectivity, HotkeysView, PairingView, RoomView, UpdateView,
+        };
+        let mut view = AgentView {
+            pairing: PairingView::Paired,
+            connectivity: Connectivity::Connected,
+            room: None,
+            update: UpdateView::Idle,
+            ready_check_open: false,
+            hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
+            last_fill: None,
+            diagnostics: None,
+            capture: None,
+        };
+        assert_eq!(wanted_hotkeys(&view), (None, None));
+        view.ready_check_open = true;
+        let (accept, fill) = wanted_hotkeys(&view);
+        assert_eq!(
+            accept.map(|key| key.to_string()),
+            Some("Ctrl+Shift+A".to_string())
+        );
+        assert!(fill.is_none());
+        view.ready_check_open = false;
+        view.room = Some(RoomView {
+            game_name: "mmbaalh-12".to_string(),
+            needs_reveal: false,
+            matched: false,
+            confirmed: false,
+        });
+        let (accept, fill) = wanted_hotkeys(&view);
+        assert!(accept.is_none());
+        assert_eq!(
+            fill.map(|key| key.to_string()),
+            Some("Ctrl+Shift+F".to_string())
+        );
+        view.hotkeys.fill = "not a key".to_string();
+        assert_eq!(
+            wanted_hotkeys(&view),
+            (None, None),
+            "a combination that does not read is never wanted"
+        );
+    }
+
+    #[test]
+    fn a_key_is_named_as_the_os_crate_names_it() {
+        use d2rmm_agent_domain::typing::HotkeyKey;
+        assert_eq!(code_name(HotkeyKey::Letter('F')), "KeyF");
+        assert_eq!(code_name(HotkeyKey::Digit('7')), "Digit7");
+        assert_eq!(code_name(HotkeyKey::Function(12)), "F12");
     }
 }

@@ -38,7 +38,7 @@
     "notSaved": "Não foi possível salvar sua escolha. Tente novamente."
   },
   "readyCheck": {
-    "hotkey": "Há uma confirmação de partida: pressione Ctrl+Shift+A para aceitar."
+    "hotkey": "Há uma confirmação de partida: pressione {{key}} para aceitar."
   },
   "diagnostics": {
     "heading": "Diagnóstico",
@@ -86,6 +86,34 @@
       },
       "rate": "Quadros utilizáveis: {{percent}}%",
       "nothing": "A captura não mostra nada: nenhum método de captura deu um quadro utilizável"
+    }
+  },
+  "fill": {
+    "hint": "Para preencher o nome da partida, pressione {{key}} com o Criador de jogo aberto e o campo de nome vazio. O agente nunca aperta Enter: confirme você mesmo.",
+    "typed": "Nome da partida digitado. Aperte Enter no jogo para confirmar; o agente nunca faz isso.",
+    "stopped-focus": "Digitação interrompida: o jogo perdeu o foco.",
+    "stopped-room": "Digitação interrompida: a sala mudou ou terminou.",
+    "stopped-press": "Digitação interrompida: você apertou o atalho de novo.",
+    "refused-room": "Nada digitado: o agente não tem sala.",
+    "refused-name": "Nada digitado: o nome da sala não é um que o agente digita.",
+    "refused-focus": "Nada digitado: o jogo não está em foco.",
+    "refused-screen": "Nada digitado: há uma partida em andamento. Preencha o nome pelo lobby.",
+    "refused-keys": "Nada digitado: solte as teclas do atalho e aperte de novo."
+  },
+  "hotkeys": {
+    "heading": "Atalhos",
+    "accept": "Aceitar a confirmação de partida",
+    "fill": "Preencher o nome da partida",
+    "save": "Salvar",
+    "saved": "Atalho salvo.",
+    "refused": {
+      "no-modifier": "Use Ctrl ou Alt junto com a tecla.",
+      "needs-ctrl-or-alt": "Use Ctrl ou Alt com a tecla; Shift sozinho não basta.",
+      "reserved": "Essa combinação já é usada pelo Windows ou por todos os programas (como Ctrl+C, Alt+F4 ou a tecla Windows). Escolha outra.",
+      "confirming-key": "Enter, Tab, Espaço, Escape e Backspace não podem ser atalhos.",
+      "unsupported-key": "Use uma letra, um dígito ou F1 a F12 (por exemplo Ctrl+Shift+F).",
+      "same-as-other": "Os dois atalhos devem ser diferentes.",
+      "not-saved": "Não foi possível salvar o atalho. Tente de novo."
     }
   }
 }

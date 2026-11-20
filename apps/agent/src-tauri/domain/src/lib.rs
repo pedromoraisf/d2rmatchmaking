@@ -21,6 +21,7 @@ pub mod presence;
 pub mod reconnect;
 pub mod room_assignment;
 pub mod timings;
+pub mod typing;
 pub mod vision;
 pub mod vocabulary;
 

@@ -7,10 +7,12 @@ use std::cell::Cell;
 use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::room_assignment::Assignment;
+use d2rmm_agent_domain::typing::{Modifiers, TypableChar};
 use d2rmm_agent_domain::vision::{ReadText, Region};
 
 use crate::check_update::Updater;
@@ -18,9 +20,9 @@ use crate::messages::{
     FrameReading, GameNameObservation, IssuedCode, Presence, ReadyCheckOpen, Screen,
 };
 use crate::ports::{
-    ApiError, ApiGateway, ConsentStore, EndReason, EventStream, FrameReader, FrameSource,
-    ProcessSource, ReadError, Rgba, StateSink, StoreError, StreamItem, TextReader, TokenStore,
-    UpdateOutcome,
+    ApiError, ApiGateway, ConsentStore, EndReason, EventStream, ForegroundWindow, FrameReader,
+    FrameSource, KeyTyper, ModifierState, ProcessSource, ReadError, Rgba, StateSink, StoreError,
+    StreamItem, TextReader, TokenStore, UpdateOutcome,
 };
 use crate::secret::Secret;
 use crate::view::AgentView;
@@ -517,5 +519,104 @@ mod tests {
                 },
             ]
         );
+    }
+}
+
+/// One in-memory keyboard that is the typer, the foreground window and the modifier state of assisted typing: it records
+/// what was typed, says whether D2R has focus, and says whether the hotkey's modifiers are held. Plain state, no script.
+#[derive(Debug)]
+pub struct FakeKeyboard {
+    typed: Mutex<Vec<char>>,
+    focused: AtomicBool,
+    /// Loses focus once this many characters were typed.
+    focus_lost_after: Mutex<Option<usize>>,
+    /// The next this many polls of the modifier keys answer "held".
+    held_polls: AtomicUsize,
+    held_forever: AtomicBool,
+}
+
+impl FakeKeyboard {
+    /// A keyboard where D2R has focus and no modifier is held.
+    pub fn focused() -> Self {
+        Self {
+            typed: Mutex::new(Vec::new()),
+            focused: AtomicBool::new(true),
+            focus_lost_after: Mutex::new(None),
+            held_polls: AtomicUsize::new(0),
+            held_forever: AtomicBool::new(false),
+        }
+    }
+
+    pub fn set_focused(&self, focused: bool) {
+        self.focused.store(focused, Ordering::SeqCst);
+    }
+
+    /// D2R loses focus right after the `count`th character.
+    pub fn lose_focus_after(&self, count: usize) {
+        *self
+            .focus_lost_after
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(count);
+    }
+
+    /// The modifier keys read as held for the next `polls` polls.
+    pub fn hold_modifiers_for_polls(&self, polls: usize) {
+        self.held_polls.store(polls, Ordering::SeqCst);
+    }
+
+    /// The modifier keys read as held for ever.
+    pub fn hold_modifiers_forever(&self) {
+        self.held_forever.store(true, Ordering::SeqCst);
+    }
+
+    /// What was typed, in order.
+    pub fn typed(&self) -> String {
+        self.typed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .collect()
+    }
+}
+
+impl KeyTyper for FakeKeyboard {
+    fn type_char(&self, character: TypableChar) {
+        let mut typed = self.typed.lock().unwrap_or_else(PoisonError::into_inner);
+        typed.push(character.get());
+        let lost = *self
+            .focus_lost_after
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if lost == Some(typed.len()) {
+            self.focused.store(false, Ordering::SeqCst);
+        }
+    }
+}
+
+impl ForegroundWindow for FakeKeyboard {
+    fn game_has_focus(&self) -> bool {
+        self.focused.load(Ordering::SeqCst)
+    }
+}
+
+impl ModifierState for FakeKeyboard {
+    fn any_held(&self, _modifiers: Modifiers) -> bool {
+        if self.held_forever.load(Ordering::SeqCst) {
+            return true;
+        }
+        // Takes one of the remaining polls, if any: a compare-and-swap loop, so two pollers never take the same one.
+        let mut left = self.held_polls.load(Ordering::SeqCst);
+        while left > 0 {
+            match self.held_polls.compare_exchange(
+                left,
+                left - 1,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            ) {
+                Ok(_) => return true,
+                Err(now) => left = now,
+            }
+        }
+        false
     }
 }

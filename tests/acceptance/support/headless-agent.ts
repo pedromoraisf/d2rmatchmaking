@@ -260,7 +260,10 @@ export class HeadlessAgent {
     this.#child.stdin?.write(`consent ${given ? 'on' : 'off'}\n`);
   }
 
-  /** Sends one raw input line (`capture print black`, `minimize on`…): how the scripted game window behaves from now on. */
+  /**
+   * Sends one raw input line: how the scripted game window behaves from now on (`capture print black`, `minimize on`…)
+   * and the assisted typing (`assign`, `fill`, `focus`, `keys`, `fill-again-after`; FR-28).
+   */
   send(line: string): void {
     this.#child.stdin?.write(`${line}\n`);
   }
