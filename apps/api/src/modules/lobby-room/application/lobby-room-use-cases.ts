@@ -514,7 +514,9 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
         return null;
       }
       const room = await deps.rooms.findNewestByAccount(accountId);
-      if (room === null) {
+      // A room that ended (expired or closed) is no longer assigned: an agent whose stream was down when the end was sent
+      // reads this on reconnect and drops the room (ARL-01, ARL-02). Returning the dead room kept it held for ever.
+      if (room === null || room.stage === 'closed' || room.stage === 'expired') {
         return null;
       }
       if (room.stage === 'formed' && room.hostAccountId === accountId) {

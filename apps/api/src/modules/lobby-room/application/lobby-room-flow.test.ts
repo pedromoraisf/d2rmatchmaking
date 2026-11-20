@@ -217,6 +217,27 @@ describe('confirmation by the agents (LBR-03, LBR-04, LBR-11)', () => {
   });
 });
 
+describe('the assignment of a room that ended (ARL-01, ARL-02)', () => {
+  it('is gone once the room expired: an agent that missed the end reads no assignment on reconnect', async () => {
+    const world = await awaitingHost();
+    expect(await world.useCases.getAssignment({ agentId: 'agent-2' })).not.toBeNull();
+    world.clock.advance(180_000);
+    await world.useCases.expireRooms();
+    expect(await stageOf(world)).toBe('expired');
+
+    expect(await world.useCases.getAssignment({ agentId: 'agent-1' })).toBeNull();
+    expect(await world.useCases.getAssignment({ agentId: 'agent-2' })).toBeNull();
+  });
+
+  it('is gone once the host closed the room', async () => {
+    const world = await active();
+    await world.useCases.closeRoom({ accountId: 'account-1', roomId: 'room-1' });
+    expect(await stageOf(world)).toBe('closed');
+
+    expect(await world.useCases.getAssignment({ agentId: 'agent-2' })).toBeNull();
+  });
+});
+
 describe('expireRooms (LBR-05)', () => {
   it('expires a room 3 minutes after it waited for the host, not one millisecond before', async () => {
     const world = await awaitingHost();
