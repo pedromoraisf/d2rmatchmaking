@@ -14,6 +14,7 @@ import type { RoomView } from '@d2rmm/contracts';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { After, Given, Then, When, test } from '../fixtures.ts';
 import { AGENT_VERSION } from '../support/agent-client.ts';
+import { apiBaseFor } from '../support/agent-wire.ts';
 import { HeadlessAgent, preparePartyFixture, setPartyPanel } from '../support/headless-agent.ts';
 import { submitPairingCode, type World } from '../support/world.ts';
 import {
@@ -159,7 +160,8 @@ export async function startHeadless(world: World, name: string, gameName: string
   const playerDir = mkdtempSync(path.join(state.dir, `${name}-`));
   const fixture = preparePartyFixture(playerDir, { gameNameField: MASKED });
   const agent = HeadlessAgent.start({
-    apiBase: world.site.api,
+    // The API, or the recording proxy in front of it when the scenario asked for the wire (agent-trust).
+    apiBase: await apiBaseFor(world, name),
     fixture: fixture.png,
     party: true,
     agentVersion: AGENT_VERSION,
@@ -622,7 +624,7 @@ async function tabUntilFocused(page: Page, control: Locator): Promise<void> {
 // Stops the headless agents and removes their fixtures after each scenario that started them.
 After(
   {
-    tags: '@ARL-01 or @ARL-03 or @LBR-01 or @LBR-02 or @LBR-03 or @LBR-04 or @LBR-05 or @LBR-06 or @LBR-07 or @LBR-08 or @LBR-09 or @LBR-10 or @LBR-12',
+    tags: '@AGT-04 or @AGT-05 or @ARL-01 or @ARL-03 or @LBR-01 or @LBR-02 or @LBR-03 or @LBR-04 or @LBR-05 or @LBR-06 or @LBR-07 or @LBR-08 or @LBR-09 or @LBR-10 or @LBR-12',
   },
   async ({ world }) => {
     const state = states.get(world);
