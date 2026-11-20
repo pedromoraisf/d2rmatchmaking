@@ -33,7 +33,7 @@ with drawn fixtures. Never commit a capture.
 
 ## Batch 1
 
-- [ ] T1 — Make the core's unit tests pass in one process (OCP-04). The span tests install a thread-local subscriber
+- [x] T1 — Make the core's unit tests pass in one process (OCP-04). The span tests install a thread-local subscriber
       while other threads register the same callsites. Fix the test setup, for example by rebuilding the interest cache
       after `set_default` or by serialising the span tests; never change the reading code or an assertion. Gate:
       `cargo test --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib`

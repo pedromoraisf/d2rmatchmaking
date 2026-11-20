@@ -962,10 +962,21 @@ mod look_tests {
     }
 
     /// Installs the recording subscriber for the current thread; the test's runtime is single-threaded.
+    /// Other tests run on other threads with no subscriber and register the same callsites; tracing caches that answer
+    /// for the whole process (a callsite registered while this subscriber was being installed can cache "never"). The
+    /// cache is rebuilt after the subscriber is set, and again just before the look (`look_recorded`), so the span is
+    /// recorded under `cargo test` (one process) as under nextest (one process per test).
     fn record_spans() -> (Arc<Spans>, tracing::subscriber::DefaultGuard) {
         let spans = Arc::new(Spans::default());
         let guard = tracing::subscriber::set_default(Arc::clone(&spans));
+        tracing::callsite::rebuild_interest_cache();
         (spans, guard)
+    }
+
+    /// One look with the interest cache rebuilt first, so the recording subscriber sees the look's span.
+    async fn look_recorded(rig: &Rig) {
+        tracing::callsite::rebuild_interest_cache();
+        look_at(rig).await;
     }
 
     #[tokio::test(start_paused = true)]
@@ -977,7 +988,7 @@ mod look_tests {
         rig.gateway.script_post_observation([Ok(())]);
         show(&rig.panel, "PARTY", "MMC⊕WSH-1");
 
-        look_at(&rig).await;
+        look_recorded(&rig).await;
 
         assert_eq!(
             read_spans(&spans),
@@ -994,7 +1005,7 @@ mod look_tests {
             .replace_assignment(Some(assignment(1, "mmcowsh-1")));
         show(&rig.panel, "PARTY", "xxxxxxxxx");
 
-        look_at(&rig).await;
+        look_recorded(&rig).await;
 
         assert_eq!(
             read_spans(&spans),
@@ -1011,7 +1022,7 @@ mod look_tests {
             .replace_assignment(Some(assignment(1, "mmcowsh-1")));
         show(&rig.panel, "INVENTORY", "mmcowsh-1");
 
-        look_at(&rig).await;
+        look_recorded(&rig).await;
 
         assert_eq!(
             read_spans(&spans),
