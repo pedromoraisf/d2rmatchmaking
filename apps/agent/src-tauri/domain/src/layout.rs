@@ -90,6 +90,9 @@ pub enum PanelRegion {
     /// used, matched, returned, logged or sent (the lines are read once, and only the title, the Game Name label and the
     /// field are looked for). The three boxes above are where the drawn fixtures put the text; the agent does not read them.
     PartyPanel,
+    /// The first, cheap area the Party lines are searched in: the box measured on the 1033 English client (title, label and
+    /// field). `PartyPanel` is read only when this one finds no title or no label, and the box found there is tracked.
+    PartyFixed,
 }
 
 /// The box of `panel` in pixels of the reference client. The Party panel is anchored at the left edge.
@@ -98,7 +101,8 @@ pub fn panel_box(panel: PanelRegion) -> PanelBox {
         PanelRegion::PartyTitle => PanelBox::new(Anchor::Left, 350, 108, 100, 34),
         PanelRegion::GameNameLabel => PanelBox::new(Anchor::Left, 268, 152, 100, 18),
         PanelRegion::GameNameField => PanelBox::new(Anchor::Left, 238, 172, 156, 38),
-        PanelRegion::PartyPanel => PanelBox::new(Anchor::Left, 230, 100, 250, 170),
+        PanelRegion::PartyPanel => PanelBox::new(Anchor::Left, 0, 0, 576, 413),
+        PanelRegion::PartyFixed => PanelBox::new(Anchor::Left, 230, 100, 250, 170),
     }
 }
 
@@ -161,7 +165,19 @@ pub enum ScreenRegion {
     CardColumn,
     /// The area of the popup's title and options, around the centre line (`anchors::popup_options`).
     PopupArea,
+    /// The full-width band along the bottom of the client, where the Life and Mana labels of the in-game HUD are searched
+    /// by their words (`anchors::find_hud`): the fixed "Life:" box missed in both window and full screen, because D2R does
+    /// not scale its HUD linearly between the two. Its width is the client's, whatever the aspect ratio.
+    HudBand,
+    /// The top-right corner where the automap's area block sits, searched for its "Difficulty:" line by its word
+    /// (`anchors::find_automap`) when the fixed `AreaDifficulty` box misses: a fallback, the fixed box stays the first check.
+    AutomapArea,
 }
+
+/// The top of `ScreenRegion::HudBand` in pixels of the reference client: the bottom quarter. The "Life:" label sits at
+/// 826 to 848 there (80% of the height), the Mana label level with it on the right; the 5% above it absorbs the shift of
+/// the full-screen layout.
+const HUD_BAND_TOP: u32 = 775;
 
 fn card_top(slot: u8) -> u32 {
     CARD_TOP + CARD_PITCH * u32::from(slot)
@@ -184,6 +200,15 @@ pub fn screen_box(region: ScreenRegion) -> PanelBox {
         ScreenRegion::CardSelected(slot) => PanelBox::new(Right, 210, card_top(slot) - 1, 20, 3),
         ScreenRegion::CardColumn => PanelBox::new(Right, 40, 30, 340, 850),
         ScreenRegion::PopupArea => PanelBox::new(Centre, -130, 320, 260, 290),
+        ScreenRegion::AutomapArea => PanelBox::new(Right, 0, 20, 560, 220),
+        // The width is the client's: `screen_region` replaces it.
+        ScreenRegion::HudBand => PanelBox::new(
+            Left,
+            0,
+            HUD_BAND_TOP,
+            REFERENCE_WIDTH,
+            REFERENCE_HEIGHT - HUD_BAND_TOP,
+        ),
     }
 }
 
@@ -215,6 +240,17 @@ pub fn screen_region(region: ScreenRegion, width: u32, height: u32) -> Option<Re
     if !supported_size(width, height) {
         return None;
     }
+    if region == ScreenRegion::HudBand {
+        // Full width, from the reference top scaled with the height down to the bottom edge of the client.
+        let top = (f64::from(HUD_BAND_TOP) * f64::from(height) / f64::from(REFERENCE_HEIGHT))
+            .round() as u32;
+        return Some(Region {
+            x: 0,
+            y: top,
+            width,
+            height: height - top,
+        });
+    }
     screen_box(region).resolve(width, height)
 }
 
@@ -235,6 +271,8 @@ impl ScreenRegion {
             ScreenRegion::CardSelected(slot) => format!("cardSelected{slot}"),
             ScreenRegion::CardColumn => "cardColumn".to_string(),
             ScreenRegion::PopupArea => "popupArea".to_string(),
+            ScreenRegion::HudBand => "hudBand".to_string(),
+            ScreenRegion::AutomapArea => "automapArea".to_string(),
         }
     }
 }
@@ -441,6 +479,64 @@ mod screen_tests {
             let create = at(ScreenRegion::CreateNew, width, height);
             assert!(column.y + column.height <= create.y);
         }
+    }
+
+    #[test]
+    fn the_hud_band_is_the_bottom_quarter_at_the_full_width_of_every_client() {
+        let band = |width: u32, height: u32| at(ScreenRegion::HudBand, width, height);
+        assert_eq!(
+            band(1920, 1033),
+            Region {
+                x: 0,
+                y: 775,
+                width: 1920,
+                height: 258
+            }
+        );
+        // The window and the full screen: the Life label (826 on the reference, 80% of the height) is inside both.
+        for (width, height) in [(1920, 1056), (1920, 1080)] {
+            let area = band(width, height);
+            let label = height * 826 / 1033;
+            assert_eq!(
+                (area.x, area.width, area.y + area.height),
+                (0, width, height)
+            );
+            assert!(area.y <= label && label + 22 <= height);
+            assert!(
+                area.y > height * 7 / 10,
+                "a quarter of the client, not more"
+            );
+        }
+        assert_eq!(band(2560, 1440).width, 2560);
+        assert_eq!(screen_region(ScreenRegion::HudBand, 1280, 1024), None);
+    }
+
+    #[test]
+    fn the_automap_area_holds_the_fixed_difficulty_line_of_every_client() {
+        // The area is where the automap's difficulty line is searched by its word when the fixed box misses: it contains
+        // that box at every height of the maintainer's prints and stays at the top right.
+        for height in [1033, 1045, 1056, 1080] {
+            let area = at(ScreenRegion::AutomapArea, 1920, height);
+            let line = at(ScreenRegion::AreaDifficulty, 1920, height);
+            assert!(
+                area.x <= line.x
+                    && line.right() <= area.right()
+                    && area.y <= line.y
+                    && line.bottom() <= area.bottom(),
+                "at {height}"
+            );
+            assert_eq!(area.right(), 1920, "anchored to the right edge");
+            assert!(area.bottom() < height / 4, "a corner, not a half: {height}");
+        }
+        assert_eq!(
+            at(ScreenRegion::AutomapArea, 1920, 1033),
+            Region {
+                x: 1360,
+                y: 20,
+                width: 560,
+                height: 220
+            }
+        );
     }
 
     #[test]
@@ -791,5 +887,50 @@ mod tests {
         );
         assert_eq!(at_edge(Anchor::Left, 5, 5, 10, 0), None);
         assert_eq!(at_edge(Anchor::Left, 5, 5, 0, 10), None);
+    }
+}
+
+#[cfg(test)]
+mod pin_fixed_boxes {
+    use super::{PanelRegion, ScreenRegion, panel_region, screen_region};
+
+    use crate::vision::Region;
+
+    const fn r(x: u32, y: u32, width: u32, height: u32) -> Region {
+        Region {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    /// The fixed boxes of the Party panel, the Life label and the area's difficulty line at the client heights of the
+    /// maintainer's prints (1033 maximized, 1045, 1056 window, 1080 full screen): they follow the height linearly, which is
+    /// what a client that does not scale its panels linearly outgrows (screen-recognition SCR-01, SCR-03, SCR-04).
+    #[test]
+    fn the_fixed_boxes_follow_the_client_height_linearly() {
+        let party = |height| panel_region(PanelRegion::PartyPanel, 1920, height);
+        let life = |height| screen_region(ScreenRegion::Life, 1920, height);
+        let area = |height| screen_region(ScreenRegion::AreaDifficulty, 1920, height);
+        // Changed expectation (screen-recognition T6, SCR-04): the Party lines are searched in the wide top-left area.
+        assert_eq!(party(1033), Some(r(0, 0, 576, 413)));
+        assert_eq!(party(1045), Some(r(0, 0, 583, 418)));
+        assert_eq!(party(1056), Some(r(0, 0, 589, 422)));
+        assert_eq!(party(1080), Some(r(0, 0, 602, 432)));
+        // The cheap first area keeps the box T2 pinned.
+        let fixed = |height| panel_region(PanelRegion::PartyFixed, 1920, height);
+        assert_eq!(fixed(1033), Some(r(230, 100, 250, 170)));
+        assert_eq!(fixed(1045), Some(r(233, 101, 253, 172)));
+        assert_eq!(fixed(1056), Some(r(235, 102, 256, 174)));
+        assert_eq!(fixed(1080), Some(r(240, 105, 261, 178)));
+        assert_eq!(life(1033), Some(r(400, 826, 160, 22)));
+        assert_eq!(life(1045), Some(r(405, 836, 162, 22)));
+        assert_eq!(life(1056), Some(r(409, 844, 164, 22)));
+        assert_eq!(life(1080), Some(r(418, 864, 167, 23)));
+        assert_eq!(area(1033), Some(r(1750, 52, 150, 16)));
+        assert_eq!(area(1045), Some(r(1748, 53, 152, 16)));
+        assert_eq!(area(1056), Some(r(1747, 53, 153, 16)));
+        assert_eq!(area(1080), Some(r(1742, 54, 157, 17)));
     }
 }

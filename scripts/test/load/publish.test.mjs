@@ -159,3 +159,32 @@ test('a run without the 100-player step is refused', () => {
   const plan = publishPlan(smallRun);
   assert.equal(plan.allowed, false, 'a full run without the 100-player step does not pass, so it is refused');
 });
+
+test('the baseline publishes the telemetry bytes per player-hour of each signal', () => {
+  const summary = buildSummary({
+    profile: 'full',
+    steps: [
+      step(25),
+      step(50),
+      step(100, { telemetryBytesBySignal: { traces: 10000, metrics: 5000, logs: 2500 } }),
+    ],
+    limits,
+    versions,
+    commit: 'abc1234',
+    times,
+  });
+  const plan = publishPlan(summary);
+  assert.equal(plan.allowed, true);
+  assert.match(
+    plan.text,
+    /Telemetry bytes per player-hour, traces \(`telemetryBytesPerPlayerHourBySignal\.traces`\) \| 4000 \|/,
+  );
+  assert.match(
+    plan.text,
+    /Telemetry bytes per player-hour, metrics \(`telemetryBytesPerPlayerHourBySignal\.metrics`\) \| 2000 \|/,
+  );
+  assert.match(
+    plan.text,
+    /Telemetry bytes per player-hour, logs \(`telemetryBytesPerPlayerHourBySignal\.logs`\) \| 1000 \|/,
+  );
+});

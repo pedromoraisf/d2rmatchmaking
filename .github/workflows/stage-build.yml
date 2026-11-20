@@ -1,19 +1,37 @@
 # Stage `build` (ADR 033, DLP-02, DLP-03): builds the artifact of an app once for a commit and names it by the SHA. It
-# needs no secret: deploy and promote download this artifact; nothing downstream builds again. Only the site is wired so
-# far; the API and the agent join in their own batches.
+# needs no secret. Site: deploy and promote download the built `dist`; nothing downstream builds again. API: Render
+# builds from source, so the artifact is the commit pin (`api-commit.txt`) after the API has compiled here (ADR 033,
+# § Render and prebuilt images: the free plan's image support is unverified). Agent: one Tauri build per channel on
+# Windows (ADR 032's agent exception), started once with `--self-check --online` against its channel's API before it is
+# uploaded (lessons, 2026-11-19), kept as a workflow artifact and never as a GitHub Release.
 name: stage-build
 
 on:
   workflow_call:
     inputs:
       app:
-        description: The app to build (site)
+        description: The app to build (site, api or agent)
         type: string
         required: true
       sha:
         description: The commit to build; the artifact is named <app>-<sha>
         type: string
         required: true
+      channel:
+        description: The agent channel (preview or staging); the artifact is named agent-<channel>-<sha>
+        type: string
+        required: false
+        default: ''
+      branch:
+        description: The Git branch of a preview agent, to find its pull request's preview API
+        type: string
+        required: false
+        default: ''
+      api_base:
+        description: The API the agent is built for (the staging API); a preview with a labelled pull request uses that preview API
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -24,15 +42,28 @@ env:
 jobs:
   build:
     name: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: ${{ inputs.app == 'agent' && 'windows-latest' || 'ubuntu-latest' }}
+    timeout-minutes: 45
+    # pull-requests: read lets a preview agent find its pull request's preview API (ADR 030).
+    permissions:
+      contents: read
+      pull-requests: read
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Refuse an app that has no build here yet
         env:
           APP: ${{ inputs.app }}
+          CHANNEL: ${{ inputs.channel }}
         run: |
-          if [ "$APP" != "site" ]; then
+          if [ "$APP" != "site" ] && [ "$APP" != "api" ] && [ "$APP" != "agent" ]; then
             echo "::error::stage-build has no build for app \"$APP\" yet"
+            exit 1
+          fi
+          # Production is released by release-please (ADR 015), never built here.
+          if [ "$APP" = "agent" ] && [ "$CHANNEL" != "preview" ] && [ "$CHANNEL" != "staging" ]; then
+            echo "::error::stage-build builds the agent for the preview and staging channels only"
             exit 1
           fi
 
@@ -51,16 +82,117 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
+        if: inputs.app != 'agent'
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Build the site
+        if: inputs.app == 'site'
         run: pnpm --filter @d2rmm/web build
 
+      - name: Compile the API and write its commit pin
+        if: inputs.app == 'api'
+        env:
+          SHA: ${{ inputs.sha }}
+        run: |
+          pnpm --filter @d2rmm/api build
+          mkdir -p api-pin
+          echo "$SHA" > api-pin/api-commit.txt
+
+      - name: Choose the API the agent is built for
+        id: agent_api
+        if: inputs.app == 'agent'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CHANNEL: ${{ inputs.channel }}
+          DEPLOY_BRANCH: ${{ inputs.branch }}
+          STAGING_API: ${{ inputs.api_base }}
+        run: |
+          : "${STAGING_API:?the staging API URL (the repository variable API_BASE_URL) is not set}"
+          # A preview agent follows its pull request's preview API when it has one; staging always uses the staging API.
+          branch="$DEPLOY_BRANCH"
+          [ "$CHANNEL" = "preview" ] || branch=""
+          base=$(node scripts/preview/preview.mjs api-base "$branch" "$STAGING_API")
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
+      - name: Wake the API (up to 90 s)
+        if: inputs.app == 'agent'
+        env:
+          AGENT_API: ${{ steps.agent_api.outputs.base }}
+        run: node scripts/delivery/smoke.mjs api "$AGENT_API" ""
+
+      - name: Install the workspace
+        if: inputs.app == 'agent'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the agent window (Tauri reads frontendDist)
+        if: inputs.app == 'agent'
+        run: pnpm --filter @d2rmm/agent build
+
+      - name: Set up Rust
+        if: inputs.app == 'agent'
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+
+      - name: Cache the Rust build
+        if: inputs.app == 'agent'
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: apps/agent/src-tauri
+
+      - name: Write the channel's build configuration
+        id: agent_channel
+        if: inputs.app == 'agent'
+        env:
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          # An assignment, so an unknown channel fails the step.
+          config=$(node scripts/delivery/agent-channel.mjs "$CHANNEL")
+          echo "config=$config" >> "$GITHUB_OUTPUT"
+
+      - name: Compile the agent for the channel (unsigned, no updater artifacts)
+        if: inputs.app == 'agent'
+        working-directory: apps/agent
+        env:
+          D2RMM_API_BASE: ${{ steps.agent_api.outputs.base }}
+          D2RMM_CHANNEL: ${{ inputs.channel }}
+          TAURI_CHANNEL_CONFIG: ${{ steps.agent_channel.outputs.config }}
+        run: pnpm exec tauri build --ci --config "$TAURI_CHANNEL_CONFIG" -- --locked
+
+      # The binary a human will install must start, and reach its channel's API: --self-check --online runs the startup
+      # steps with no window and prints one JSON line. The release exe has no console, so stdout goes to a file.
+      - name: Smoke-start the built agent (--self-check --online)
+        if: inputs.app == 'agent'
+        env:
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          set +e
+          apps/agent/src-tauri/target/release/d2rmm-agent.exe --self-check --online > self-check.out 2> self-check.err
+          code=$?
+          cat self-check.out self-check.err
+          if [ "$code" -ne 0 ]; then
+            echo "::error::the built agent failed its startup self-check (exit $code)"
+            exit 1
+          fi
+          node scripts/delivery/self-check-line.mjs self-check.out "$CHANNEL"
+
+      - name: Upload the agent installers
+        if: inputs.app == 'agent'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: agent-${{ inputs.channel }}-${{ inputs.sha }}
+          path: |
+            apps/agent/src-tauri/target/release/bundle/nsis/*.exe
+            apps/agent/src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
+          # A test installer for people to try, never a release: it expires.
+          retention-days: 14
+
       - name: Upload the artifact
+        if: inputs.app != 'agent'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ inputs.app }}-${{ inputs.sha }}
-          path: apps/web/dist
+          path: ${{ inputs.app == 'site' && 'apps/web/dist' || 'api-pin' }}
           if-no-files-found: error
           # A promotion deploys this artifact; it must still exist when the maintainer's runner promotes.
           retention-days: 30

@@ -11,12 +11,14 @@ use std::sync::Arc;
 
 use d2rmm_agent_domain::anchors;
 use d2rmm_agent_domain::fusion::{GameNameObservation, fuse};
-use d2rmm_agent_domain::game_name_match::{FieldRead, FieldSource, read_field, read_panel_field};
+use d2rmm_agent_domain::game_name_match::{
+    FieldRead, FieldSource, read_field, read_field_variants, read_panel_field,
+};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{PanelRegion, panel_region};
 use d2rmm_agent_domain::name_diff::closest_reading_diff;
 use d2rmm_agent_domain::room_assignment::Assignment;
-use d2rmm_agent_domain::vision::ReadText;
+use d2rmm_agent_domain::vision::{ReadText, Region};
 
 use crate::device_state::DeviceState;
 use crate::groups::ReadPorts;
@@ -57,6 +59,8 @@ pub struct PartyProgress {
     posted: bool,
     masked: bool,
     last_look: Option<PartyLook>,
+    /// Where the panel was last found, and in a client of what size: the next frames read this box first.
+    panel_area: Option<(Region, u32, u32)>,
 }
 
 /// What the Game Name field showed in one look, as a state and never as the text: the diagnostics show it (never the
@@ -182,8 +186,21 @@ impl PartyProgress {
                 posted: false,
                 masked: false,
                 last_look: None,
+                panel_area: self.panel_area,
             };
         }
+    }
+
+    /// The box the panel was found in, when it was found in a client of this size: a box seen at another size does not apply.
+    pub fn tracked_area(&self, width: u32, height: u32) -> Option<Region> {
+        self.panel_area
+            .filter(|(_, seen_width, seen_height)| (*seen_width, *seen_height) == (width, height))
+            .map(|(area, _, _)| area)
+    }
+
+    /// Remembers where the panel was found (to read that box first on the next frame), or forgets it after a miss.
+    pub fn track_area(&mut self, area: Option<Region>, width: u32, height: u32) {
+        self.panel_area = area.map(|area| (area, width, height));
     }
 
     /// The last look at the panel for the followed run, `None` before one.
@@ -249,11 +266,17 @@ pub async fn look<G: ApiGateway + Send + Sync>(
     }
     let reader = Arc::clone(&ports.read.reader);
     let language = Arc::clone(&ports.language);
-    let reading =
-        tokio::task::spawn_blocking(move || read_panel(reader.as_ref(), &language, &frame)).await;
+    let expected = assignment.expected_game_name.as_str().to_string();
+    let tracked = device.with_party(|progress| progress.tracked_area(frame.width, frame.height));
+    let size = (frame.width, frame.height);
+    let reading = tokio::task::spawn_blocking(move || {
+        read_panel_for(reader.as_ref(), &language, &frame, Some(&expected), tracked)
+    })
+    .await;
     let Ok(reading) = reading else {
         return;
     };
+    device.with_party(|progress| progress.track_area(reading.area, size.0, size.1));
     let Some(observation) = apply_reading(device, ports, &assignment, reading) else {
         return;
     };
@@ -272,6 +295,8 @@ pub struct PanelReading {
     pub field: Vec<ReadText>,
     /// Where `field` was read: under the found label, or, when no variant found the label, in the fixed layout box (T16).
     pub field_source: FieldSource,
+    /// The box to read first on the next frames, when the panel and its label were found (tracked like the HUD's label).
+    pub area: Option<Region>,
 }
 
 /// The OCR of one frame's Party panel, anchored on its content (the full-screen incident, 0.1.3: the panel sits at other
@@ -283,10 +308,68 @@ pub struct PanelReading {
 /// the "Password" label (and its field); that text is never used, matched, returned, logged or sent, and a line that reads
 /// like it is never taken for the game name. Blocking: called on a blocking thread.
 pub fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba) -> PanelReading {
-    let lines = panel_region(PanelRegion::PartyPanel, frame.width, frame.height)
-        .map(|area| reader.read_line_variants(frame, area))
-        .unwrap_or_default();
+    read_panel_for(reader, language, frame, None, None)
+}
+
+/// The Party anchors of the lines of `area`: the pack's words, and the Brazilian words when the pack's find no panel
+/// (screen-recognition T6, SCR-04: the maintainer plays on a pt-BR client). Only the anchors change; the game name is matched
+/// as ever. One OCR call set per area.
+fn locate(
+    reader: &dyn TextReader,
+    language: &LanguagePack,
+    frame: &Rgba,
+    area: Region,
+) -> anchors::PartyAnchors {
+    let lines = reader.read_line_variants(frame, area);
     let found = anchors::find_party_in_variants(language, &lines, frame.height);
+    if found.open {
+        return found;
+    }
+    let brazilian =
+        anchors::find_party_in_variants(&LanguagePack::brazilian_party(), &lines, frame.height);
+    if brazilian.open { brazilian } else { found }
+}
+
+/// `read_panel` as the agent looks at a frame (screen-recognition T6): the cheap areas first, the wide one only as a
+/// fallback. A box tracked from the last frame (`tracked`) is read first; when it misses, or none is held, the fixed box
+/// (`PartyFixed`); when that finds no title or no label, the wide area (`PartyPanel`). The box found is returned in
+/// `PanelReading::area` for the next frame. The crop under the label is read only when the line read did not give the
+/// `expected` name (always, when none is given).
+pub fn read_panel_for(
+    reader: &dyn TextReader,
+    language: &LanguagePack,
+    frame: &Rgba,
+    expected: Option<&str>,
+    tracked: Option<Region>,
+) -> PanelReading {
+    let mut best: Option<anchors::PartyAnchors> = None;
+    let areas = [
+        tracked,
+        panel_region(PanelRegion::PartyFixed, frame.width, frame.height),
+        panel_region(PanelRegion::PartyPanel, frame.width, frame.height),
+    ];
+    for (index, area) in areas.into_iter().enumerate() {
+        let Some(area) = area else { continue };
+        let found = locate(reader, language, frame, area);
+        if found.open && found.label.is_some() {
+            best = Some(found);
+            break;
+        }
+        // The first area that found the title is kept unless a later one finds the label too.
+        if best.as_ref().is_none_or(|held| !held.open) {
+            best = Some(found);
+        }
+        // A closed panel (no title in the fixed box, the common frame while the host has not opened it) costs one read, as
+        // before: the wide area is the fallback of a title found without its label (the pt-BR client), not of a closed panel.
+        if index == 1 && !found.open {
+            break;
+        }
+    }
+    let found = best.unwrap_or(anchors::PartyAnchors {
+        open: false,
+        label: None,
+        field: None,
+    });
     let (field_area, field_source) = match (found.field, found.label) {
         (Some(line), _) => (Some(line), FieldSource::LabelLine),
         (None, Some(label)) => (
@@ -299,7 +382,7 @@ pub fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba
             FieldSource::LayoutBox,
         ),
     };
-    let field = match field_area {
+    let mut field = match field_area {
         Some(area) if found.open => reader.read_variants(
             frame,
             anchors::padded(
@@ -311,11 +394,38 @@ pub fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba
         ),
         _ => Vec::new(),
     };
+    let line_read_it = expected.is_some_and(|name| {
+        let reads: Vec<&str> = field.iter().map(|read| read.text.as_str()).collect();
+        read_field_variants(&reads, name) == FieldRead::Matched
+    });
+    if let (true, FieldSource::LabelLine, Some(label), false) =
+        (found.open, field_source, found.label, line_read_it)
+    {
+        // The tight box of a found line reads some names worse than the wider crop under the label (the pt-BR 1045 prints,
+        // screen-recognition T6): when the line read did not give the expected name, the box under the label is read too,
+        // and a reading already there is not repeated. The match stays exact on any one reading, so no other room's name is
+        // accepted.
+        let below = anchors::padded(
+            anchors::field_below(label, frame.height),
+            anchors::line_pad(frame.height),
+            frame.width,
+            frame.height,
+        );
+        for read in reader.read_variants(frame, below) {
+            if !field.iter().any(|held| held.text == read.text) {
+                field.push(read);
+            }
+        }
+    }
     PanelReading {
         open: found.open,
         label_found: found.label.is_some(),
         field,
         field_source,
+        area: found
+            .label
+            .filter(|_| found.open)
+            .map(|label| anchors::party_track_box(label, frame.width, frame.height)),
     }
 }
 
@@ -331,9 +441,14 @@ fn apply_reading<G>(
         "agent.vision.read-game-name",
         matched = false,
         masked = false,
+        panel_open = false,
+        field = FieldState::NotRead.code(),
     );
     let _entered = span.enter();
     let seen = look_of(&reading, assignment.expected_game_name.as_str());
+    // Two facts `look_of` already computed, as plain state: whether the panel is open and the field's state, never its text.
+    span.record("panel_open", seen.panel_open);
+    span.record("field", seen.field.code());
     let held = RunKey::of(assignment);
     device.with_party(|progress| {
         // A read that started for a replaced run does not describe the new one.
@@ -922,6 +1037,10 @@ mod look_tests {
             self.0.insert(field.name().to_string(), value.to_string());
         }
 
+        fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+            self.0.insert(field.name().to_string(), value.to_string());
+        }
+
         fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
             self.0
                 .insert(field.name().to_string(), format!("{value:?}"));
@@ -970,12 +1089,19 @@ mod look_tests {
             .collect()
     }
 
-    /// The only two fields a reading's span may carry: whether it matched and whether the field was masked.
-    fn only(matched: &str, masked: &str) -> Vec<Fields> {
-        let fields: Fields = [("matched", matched), ("masked", masked)]
-            .into_iter()
-            .map(|(key, value)| (key.to_string(), value.to_string()))
-            .collect();
+    /// The only four fields a reading's span may carry (AGT-07): whether it matched, whether the field was masked, whether the
+    /// panel was open and the field's state. All four are booleans or one of four fixed words; none is text read from the
+    /// screen.
+    fn only(matched: &str, masked: &str, panel_open: &str, field: &str) -> Vec<Fields> {
+        let fields: Fields = [
+            ("matched", matched),
+            ("masked", masked),
+            ("panel_open", panel_open),
+            ("field", field),
+        ]
+        .into_iter()
+        .map(|(key, value)| (key.to_string(), value.to_string()))
+        .collect();
         vec![fields]
     }
 
@@ -1010,7 +1136,7 @@ mod look_tests {
 
         assert_eq!(
             read_spans(&spans),
-            only("true", "false"),
+            only("true", "false", "true", "text"),
             "matched, not masked"
         );
     }
@@ -1027,7 +1153,7 @@ mod look_tests {
 
         assert_eq!(
             read_spans(&spans),
-            only("false", "true"),
+            only("false", "true", "true", "masked"),
             "masked, not matched"
         );
     }
@@ -1044,9 +1170,34 @@ mod look_tests {
 
         assert_eq!(
             read_spans(&spans),
-            only("false", "false"),
+            only("false", "false", "false", "notRead"),
             "nothing read from the field"
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_span_of_another_name_says_text_and_holds_no_name() {
+        let (spans, _guard) = record_spans();
+        let rig = rig();
+        rig.device
+            .replace_assignment(Some(assignment(1, "mmcowsh-1")));
+        show(&rig.panel, "PARTY", "mmbaalh-19");
+
+        look_recorded(&rig).await;
+
+        assert_eq!(
+            read_spans(&spans),
+            only("false", "false", "true", "text"),
+            "another name is text, not a match"
+        );
+        for fields in read_spans(&spans) {
+            for (key, value) in fields {
+                assert!(
+                    !value.contains("mmbaalh") && !value.contains("mmcowsh"),
+                    "{key} holds a game name: {value}"
+                );
+            }
+        }
     }
 
     #[tokio::test(start_paused = true)]
@@ -1236,6 +1387,212 @@ mod anchored_tests {
         }
     }
 
+    /// The Party panel of a pt-BR client at 1920x1045, at the positions the `ocr-real` diagnostics measured (title y 129,
+    /// label y 171, field y 199, in line tops; middles here).
+    fn portuguese_panel() -> Lines {
+        portuguese_panel_named("mmbaalm-99")
+    }
+
+    fn portuguese_panel_named(name: &str) -> Lines {
+        Lines(vec![
+            line("GRUPO", 364, 136, 71),
+            line("Nome", 264, 176, 40),
+            line(name, 269, 204, 95),
+            line("SENHA", 460, 174, 44),
+        ])
+    }
+
+    #[test]
+    fn an_english_panel_at_1045_reads_open_and_a_pt_br_panel_reads_open_too() {
+        // Changed expectation (SCR-04, orchestrator's decision): the maintainer plays on a pt-BR client, whose panel the
+        // English words never found; the Brazilian words are tried when the pack's find no panel.
+        let english = panel(136, 176, Some(("mmbaalm-99", 204)));
+        let reading = read_panel(&english, &LanguagePack::english(), &frame(1045));
+        assert!(reading.open && reading.label_found);
+        assert_eq!(fields(&reading), ["mmbaalm-99"]);
+        let reading = read_panel(&portuguese_panel(), &LanguagePack::english(), &frame(1045));
+        assert!(reading.open && reading.label_found);
+        assert_eq!(fields(&reading), ["mmbaalm-99"]);
+    }
+
+    #[test]
+    fn a_pt_br_panel_never_confirms_another_rooms_name_and_a_pt_br_word_is_no_panel_elsewhere() {
+        use d2rmm_agent_domain::game_name_match::{FieldRead, read_panel_field};
+        let reading = read_panel(&portuguese_panel(), &LanguagePack::english(), &frame(1045));
+        let reads: Vec<&str> = fields(&reading);
+        assert_eq!(
+            read_panel_field(reading.field_source, &reads, "mmbaalm-99"),
+            FieldRead::Matched
+        );
+        for other in ["mmbaalm-98", "mmpvpn-99", "mmbaalh-99"] {
+            assert_ne!(
+                read_panel_field(reading.field_source, &reads, other),
+                FieldRead::Matched,
+                "{other}"
+            );
+        }
+        // A closed panel in a pt-BR client (another word where the title is) reads nothing.
+        let closed = Lines(vec![
+            line("INVENTARIO", 364, 136, 71),
+            line("Nome", 264, 176, 40),
+        ]);
+        let reading = read_panel(&closed, &LanguagePack::english(), &frame(1045));
+        assert!(!reading.open && reading.field.is_empty());
+    }
+
+    /// A reader whose tight line box reads the name badly (a clipped line: "mm T zH-47" with spaces) and whose box under the
+    /// label, the wider crop, reads it right: the pt-BR 1045 prints of the `ocr-real` run 44707650229.
+    struct TwoBoxes(Lines);
+
+    impl TextReader for TwoBoxes {
+        fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            let mut read = self.0.read(image, region)?;
+            if region.height < 30 && read.text == "mmtzh-47" {
+                read.text = "mm T zH-47".to_string();
+            }
+            Ok(read)
+        }
+
+        fn read_lines(&self, image: &Rgba, area: Region) -> Vec<TextLine> {
+            self.0.read_lines(image, area)
+        }
+    }
+
+    #[test]
+    fn the_box_under_the_found_label_is_read_too_so_a_clipped_line_read_does_not_hide_the_name() {
+        use d2rmm_agent_domain::game_name_match::{FieldRead, read_panel_field};
+        let reader = TwoBoxes(portuguese_panel_named("mmtzh-47"));
+        let reading = read_panel(&reader, &LanguagePack::english(), &frame(1045));
+        let reads = fields(&reading);
+        assert!(reads.contains(&"mm T zH-47"), "the line box: {reads:?}");
+        assert!(
+            reads.contains(&"mmtzh-47"),
+            "the box under the label: {reads:?}"
+        );
+        assert_eq!(
+            read_panel_field(reading.field_source, &reads, "mmtzh-47"),
+            FieldRead::Matched
+        );
+        assert_ne!(
+            read_panel_field(reading.field_source, &reads, "mmtzh-48"),
+            FieldRead::Matched,
+            "another room's name stays refused"
+        );
+    }
+
+    /// Counts every OCR call it forwards to the panel's fake (one `read` or one `read_lines` is one call), and hides the
+    /// "Nome" label from every area that does not start at the client's left edge (a label only the wide area sees).
+    struct Counted {
+        inner: Lines,
+        calls: std::sync::atomic::AtomicUsize,
+        label_only_in_the_wide_area: bool,
+    }
+
+    impl Counted {
+        fn new(inner: Lines, label_only_in_the_wide_area: bool) -> Self {
+            Self {
+                inner,
+                calls: std::sync::atomic::AtomicUsize::new(0),
+                label_only_in_the_wide_area,
+            }
+        }
+
+        fn calls(&self) -> usize {
+            self.calls.load(std::sync::atomic::Ordering::SeqCst)
+        }
+    }
+
+    impl TextReader for Counted {
+        fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.inner.read(image, region)
+        }
+
+        fn read_lines(&self, image: &Rgba, area: Region) -> Vec<TextLine> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let mut lines = self.inner.read_lines(image, area);
+            let fixed = d2rmm_agent_domain::layout::panel_region(
+                d2rmm_agent_domain::layout::PanelRegion::PartyFixed,
+                image.width,
+                image.height,
+            );
+            if self.label_only_in_the_wide_area && Some(area) == fixed {
+                lines.retain(|line| line.text != "Nome");
+            }
+            lines
+        }
+    }
+
+    #[test]
+    fn the_steady_state_makes_no_more_ocr_calls_than_before_the_wide_area() {
+        // Before T6 a look read the panel's lines once and the field once: two calls. A panel found and tracked, a panel
+        // found in the fixed box, and a closed panel must not cost more; only a title without its label reads the wide area.
+        use super::read_panel_for;
+        use d2rmm_agent_domain::anchors::party_track_box;
+        let pt = || portuguese_panel_named("mmbaalm-99");
+        let pack = LanguagePack::english();
+        let size = frame(1045);
+
+        let first = Counted::new(pt(), false);
+        let reading = read_panel_for(&first, &pack, &size, Some("mmbaalm-99"), None);
+        assert!(reading.open && reading.label_found);
+        assert_eq!(first.calls(), 2, "found in the fixed box: lines + field");
+        let tracked = reading.area.expect("the found box is returned to track");
+
+        let again = Counted::new(pt(), false);
+        let reading = read_panel_for(&again, &pack, &size, Some("mmbaalm-99"), Some(tracked));
+        assert!(reading.open && reading.label_found);
+        assert_eq!(again.calls(), 2, "tracked: lines + field, as before");
+        assert_eq!(
+            reading.area,
+            Some(tracked),
+            "the same label gives the same box"
+        );
+
+        let closed = Counted::new(
+            Lines(vec![
+                line("INVENTARIO", 364, 136, 71),
+                line("Nome", 264, 176, 40),
+            ]),
+            false,
+        );
+        let reading = read_panel_for(&closed, &pack, &size, Some("mmbaalm-99"), None);
+        assert!(!reading.open && reading.area.is_none());
+        assert_eq!(closed.calls(), 1, "a closed panel is one read, as before");
+
+        // A title found without its label reads the wide area, once, and the box found there is tracked.
+        let wide = Counted::new(pt(), true);
+        let reading = read_panel_for(&wide, &pack, &size, Some("mmbaalm-99"), None);
+        assert!(reading.open && reading.label_found);
+        assert_eq!(wide.calls(), 3, "fixed box, wide area, field");
+        let label = d2rmm_agent_domain::vision::Region {
+            x: 264,
+            y: 168,
+            width: 40,
+            height: 16,
+        };
+        assert_eq!(reading.area, Some(party_track_box(label, 1920, 1045)));
+        // Tracked from there, the wide area is not read again.
+        let tracked = reading.area;
+        let next = Counted::new(pt(), true);
+        let reading = read_panel_for(&next, &pack, &size, Some("mmbaalm-99"), tracked);
+        assert!(reading.open && reading.label_found);
+        assert_eq!(next.calls(), 2);
+    }
+
+    #[test]
+    fn the_crop_under_the_label_is_read_only_when_the_line_read_missed_the_expected_name() {
+        use super::read_panel_for;
+        let pack = LanguagePack::english();
+        let size = frame(1045);
+        let hit = Counted::new(portuguese_panel_named("mmtzh-47"), false);
+        read_panel_for(&hit, &pack, &size, Some("mmtzh-47"), None);
+        assert_eq!(hit.calls(), 2, "the line read it: no crop");
+        let miss = Counted::new(portuguese_panel_named("mmtzh-47"), false);
+        read_panel_for(&miss, &pack, &size, Some("mmtzh-99"), None);
+        assert_eq!(miss.calls(), 3, "the line read missed: the crop is read");
+    }
+
     #[test]
     fn a_masked_field_without_a_line_is_read_in_the_box_under_the_label_and_reads_blank() {
         let pack = LanguagePack::english();
@@ -1294,6 +1651,7 @@ mod look_state_tests {
                 })
                 .collect(),
             field_source: source,
+            area: None,
         }
     }
 
@@ -1378,7 +1736,7 @@ mod look_state_tests {
         );
         assert_eq!(
             look_of(&other, "mmbaalh-19"),
-            look_with(FieldState::Text, false, "labelLine", 4, Some("sub(l>9)@9"))
+            look_with(FieldState::Text, false, "labelLine", 4, Some("sub(1>9)@9"))
         );
         let far = reading(true, FieldSource::LayoutBox, &["qqqqqqqqqqqq"]);
         assert_eq!(

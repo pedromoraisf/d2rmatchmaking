@@ -4,12 +4,14 @@
 //! 0.1.3: a full-screen client draws the panels at other offsets than a maximized one). The frame and the text never leave
 //! the process (AGS-20). A frame in an unsupported client size shows nothing (CHR-19).
 
-use std::sync::Arc;
+use std::cell::Cell;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use d2rmm_agent_domain::anchors::{self, line_pad};
 use d2rmm_agent_domain::character_screen::{
     BandRead, Probes, is_enabled_label, is_gold, label_brightness, luma, read_screen,
 };
+use d2rmm_agent_domain::hud_track::{TrackRead, Tracker};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{ScreenRegion, screen_region, selection_band, supported_size};
 use d2rmm_agent_domain::presence::Screen;
@@ -23,7 +25,40 @@ use crate::title_ink::{InkRead, read_band};
 pub struct ScreenReader {
     reader: Arc<dyn TextReader + Send + Sync>,
     language: Arc<LanguagePack>,
+    /// Where the HUD's label was last found: the next frames read a small box around it, not the whole band.
+    hud: Mutex<Tracker>,
+    /// The same for the automap's "Difficulty:" line.
+    automap: Mutex<Tracker>,
 }
+
+/// How a frame's HUD or automap line was looked for (SCR-09): the tracked box held it, or the wide area was searched.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Search {
+    Track,
+    Band,
+}
+
+/// The fixed words a frame's reading carries on its `agent.vision.read` span (`vision.screen`, `vision.search`,
+/// `vision.area_class`): never a coordinate, a text or a pixel.
+fn vision_words(screen: Screen, search: Option<Search>) -> [&'static str; 3] {
+    let screen_word = match screen {
+        Screen::InGame => "in_game",
+        Screen::AutomapOpen => "automap",
+        Screen::CharacterSelect => "character_select",
+        Screen::Unknown => "unknown",
+    };
+    let (search_word, area_class) = match (search, screen) {
+        (Some(Search::Track), _) => ("track", "box"),
+        (Some(Search::Band), _) => ("band", "band"),
+        (None, Screen::Unknown) => ("none", "box"),
+        (None, Screen::CharacterSelect) => ("fixed", "panel"),
+        (None, _) => ("fixed", "box"),
+    };
+    [screen_word, search_word, area_class]
+}
+
+/// Finds a tracked label's line in a frame's variants.
+type FindLabel = fn(&LanguagePack, &[Vec<TextLine>]) -> Option<Region>;
 
 /// What the anchors found in a frame: counts only, never a line of text (`ocr-check` prints them).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -36,11 +71,78 @@ pub struct AnchorCounts {
 
 impl ScreenReader {
     pub fn new(reader: Arc<dyn TextReader + Send + Sync>, language: Arc<LanguagePack>) -> Self {
-        Self { reader, language }
+        Self {
+            reader,
+            language,
+            hud: Mutex::new(Tracker::new(ScreenRegion::HudBand)),
+            automap: Mutex::new(Tracker::new(ScreenRegion::AutomapArea)),
+        }
+    }
+
+    /// The lines that hold a label: the box it was last found in, when it is still there, else the whole search area of
+    /// its tracker. What was found is remembered for the next frame (search, then track).
+    fn tracked_lines(
+        &self,
+        frame: &Rgba,
+        tracker: &Mutex<Tracker>,
+        find: FindLabel,
+        how: &Cell<Option<Search>>,
+    ) -> Vec<Vec<TextLine>> {
+        let plan = tracker
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .next(frame.width, frame.height);
+        let (area, tracked) = match plan {
+            Some(TrackRead::Track(area)) => (area, true),
+            Some(TrackRead::Search(area)) => (area, false),
+            None => return Vec::new(),
+        };
+        let mut lines = self.reader.read_line_variants(frame, area);
+        let mut found = find(&self.language, &lines);
+        how.set(Some(if tracked && found.is_some() {
+            Search::Track
+        } else {
+            Search::Band
+        }));
+        if tracked && found.is_none() {
+            // The label moved or is gone: look in the whole search area.
+            let search = tracker
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .search_area(frame.width, frame.height);
+            if let Some(search) = search {
+                lines = self.reader.read_line_variants(frame, search);
+                found = find(&self.language, &lines);
+            }
+        }
+        tracker
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .record(found, frame.width, frame.height);
+        lines
     }
 
     /// The lines of a search area as each variant of the reader reads them.
-    fn lines_of(&self, frame: &Rgba, search: ScreenRegion) -> Vec<Vec<TextLine>> {
+    fn lines_of(
+        &self,
+        frame: &Rgba,
+        search: ScreenRegion,
+        how: &Cell<Option<Search>>,
+    ) -> Vec<Vec<TextLine>> {
+        match search {
+            ScreenRegion::HudBand => {
+                return self.tracked_lines(frame, &self.hud, anchors::find_hud_in_variants, how);
+            }
+            ScreenRegion::AutomapArea => {
+                return self.tracked_lines(
+                    frame,
+                    &self.automap,
+                    anchors::find_automap_in_variants,
+                    how,
+                );
+            }
+            _ => {}
+        }
         screen_region(search, frame.width, frame.height)
             .map(|area| self.reader.read_line_variants(frame, area))
             .unwrap_or_default()
@@ -54,13 +156,13 @@ impl ScreenReader {
         AnchorCounts {
             cards: anchors::find_cards_in_variants(
                 &self.language,
-                &self.lines_of(frame, ScreenRegion::CardColumn),
+                &self.lines_of(frame, ScreenRegion::CardColumn, &Cell::new(None)),
                 frame.height,
             )
             .len(),
             popup_options: anchors::popup_options_in_variants(
                 &self.language,
-                &self.lines_of(frame, ScreenRegion::PopupArea),
+                &self.lines_of(frame, ScreenRegion::PopupArea, &Cell::new(None)),
             )
             .len(),
         }
@@ -111,6 +213,14 @@ impl FrameReader for ScreenReader {
         if !supported_size(frame.width, frame.height) {
             return FrameReading::without_cards(Screen::Unknown);
         }
+        let span = tracing::info_span!(
+            "agent.vision.read",
+            "vision.screen" = tracing::field::Empty,
+            "vision.search" = tracing::field::Empty,
+            "vision.area_class" = tracing::field::Empty,
+        );
+        let _entered = span.enter();
+        let how = Cell::new(None);
         let text = |region: ScreenRegion| -> Option<Vec<String>> {
             let area = screen_region(region, frame.width, frame.height)?;
             let readings = readings_of(self.reader.as_ref(), frame, area);
@@ -126,7 +236,7 @@ impl FrameReader for ScreenReader {
             &self.language,
             frame.height,
             text,
-            |search| self.lines_of(frame, search),
+            |search| self.lines_of(frame, search, &how),
             field,
             Probes {
                 selected: |name| is_selected(frame, name),
@@ -142,6 +252,10 @@ impl FrameReader for ScreenReader {
                 },
             },
         );
+        let [screen_word, search_word, area_class] = vision_words(reading.screen, how.get());
+        span.record("vision.screen", screen_word);
+        span.record("vision.search", search_word);
+        span.record("vision.area_class", area_class);
         FrameReading {
             screen: reading.screen,
             cards: reading.cards,
@@ -193,12 +307,14 @@ mod tests {
     use d2rmm_agent_domain::character_screen::RejectReason;
     use d2rmm_agent_domain::characters::{Class, Difficulty, Mode, Title};
     use d2rmm_agent_domain::language::LanguagePack;
-    use d2rmm_agent_domain::layout::{ScreenRegion, screen_region, screen_text_regions};
+    use d2rmm_agent_domain::layout::{
+        ScreenRegion, screen_region, screen_text_regions, selection_band,
+    };
     use d2rmm_agent_domain::presence::Screen;
     use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
     use serde_json::Value;
 
-    use super::{AnchorCounts, ScreenReader};
+    use super::{AnchorCounts, ScreenReader, is_lit, is_selected};
     use crate::messages::FrameReading;
     use crate::ports::{FrameReader, ReadError, Rgba, TextReader};
 
@@ -964,5 +1080,458 @@ mod tests {
         );
         assert_eq!(counts(MENU, 1920, 1080), AnchorCounts::default());
         assert_eq!(counts(SELECT_NORMAL, 1280, 1024), AnchorCounts::default());
+    }
+
+    #[test]
+    fn gold_pixels_right_of_the_selection_band_do_not_select_the_card() {
+        let (width, height) = (1920, 1033);
+        let name = Region {
+            x: 300,
+            y: 500,
+            width: 200,
+            height: 20,
+        };
+        let band = selection_band(name, width, height).expect("a band on a supported size");
+        let mut image = Rgba {
+            width,
+            height,
+            pixels: vec![0; (width * height * 4) as usize],
+        };
+        for y in band.y..band.y + band.height {
+            for x in band.x + band.width..band.x + band.width + 4 {
+                let at = ((y * width + x) * 4) as usize;
+                image.pixels[at..at + 3].copy_from_slice(&[200, 170, 60]);
+            }
+        }
+        assert!(!is_selected(&image, name));
+        let inside = ((band.y * width + band.x) * 4) as usize;
+        image.pixels[inside..inside + 3].copy_from_slice(&[200, 170, 60]);
+        assert!(is_selected(&image, name));
+    }
+
+    #[test]
+    fn an_option_past_the_right_edge_is_lit_only_by_pixels_inside_the_frame() {
+        let (width, height) = (10, 4);
+        let mut image = Rgba {
+            width,
+            height,
+            pixels: vec![40; (width * height * 4) as usize],
+        };
+        for x in 0..2u32 {
+            let at = ((width + x) * 4) as usize;
+            image.pixels[at..at + 3].copy_from_slice(&[250, 250, 250]);
+        }
+        let area = Region {
+            x: 8,
+            y: 0,
+            width: 4,
+            height: 1,
+        };
+        assert!(!is_lit(&image, area));
+        let inside = Region { x: 0, ..area };
+        assert!(!is_lit(&image, Region { y: 0, ..inside }));
+        assert!(is_lit(&image, Region { y: 1, ..inside }));
+    }
+}
+
+#[cfg(test)]
+mod hud_tests {
+    use std::sync::{Arc, Mutex};
+
+    use d2rmm_agent_domain::language::LanguagePack;
+    use d2rmm_agent_domain::presence::Screen;
+    use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
+
+    use super::ScreenReader;
+    use crate::ports::{FrameReader, ReadError, Rgba, TextReader};
+
+    /// A reader of a HUD: the lines it shows are found when their middle is inside the area asked; every area asked is
+    /// recorded. The HUD's lines can be taken away between frames.
+    struct Hud {
+        lines: Mutex<Vec<TextLine>>,
+        asked: Mutex<Vec<Region>>,
+    }
+
+    impl Hud {
+        fn new(lines: Vec<TextLine>) -> Arc<Self> {
+            Arc::new(Self {
+                lines: Mutex::new(lines),
+                asked: Mutex::new(Vec::new()),
+            })
+        }
+
+        fn take_asked(&self) -> Vec<Region> {
+            std::mem::take(&mut *self.asked.lock().expect("asked"))
+        }
+    }
+
+    impl TextReader for Hud {
+        fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
+            Err(ReadError::Failed)
+        }
+
+        fn read_lines(&self, _image: &Rgba, region: Region) -> Vec<TextLine> {
+            self.asked.lock().expect("asked").push(region);
+            self.lines
+                .lock()
+                .expect("lines")
+                .iter()
+                .filter(|line| {
+                    let (x, y) = (line.region.middle_x(), line.region.middle_y());
+                    region.x <= x && x < region.right() && region.y <= y && y < region.bottom()
+                })
+                .cloned()
+                .collect()
+        }
+    }
+
+    fn life(x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: "Life: 925 / 925".to_string(),
+            region: Region {
+                x,
+                y,
+                width: 160,
+                height: 22,
+            },
+        }
+    }
+
+    fn frame(width: u32, height: u32) -> Rgba {
+        Rgba {
+            width,
+            height,
+            pixels: vec![0; width as usize * height as usize * 4],
+        }
+    }
+
+    fn reader(hud: &Arc<Hud>) -> ScreenReader {
+        ScreenReader::new(
+            Arc::clone(hud) as Arc<dyn TextReader + Send + Sync>,
+            Arc::new(LanguagePack::english()),
+        )
+    }
+
+    fn band_reads(asked: &[Region]) -> usize {
+        asked.iter().filter(|area| area.width == 1920).count()
+    }
+
+    #[test]
+    fn the_life_label_is_found_in_the_window_and_in_full_screen() {
+        // The two layouts put the label at other places (window 1920×1056, full screen 1920×1080).
+        for (width, height, x, y) in [(1920, 1056, 400, 846), (1920, 1080, 436, 880)] {
+            let hud = Hud::new(vec![life(x, y)]);
+            let reading = reader(&hud).read(&frame(width, height));
+            assert_eq!(reading.screen, Screen::InGame, "{width}×{height}");
+        }
+    }
+
+    fn difficulty(x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: "Difficulty: Hell".to_string(),
+            region: Region {
+                x,
+                y,
+                width: 150,
+                height: 18,
+            },
+        }
+    }
+
+    #[test]
+    fn the_automap_is_found_by_its_word_where_the_fixed_box_misses_and_then_tracked() {
+        // 1920×1056: the line is at the top right but not in the fixed box. The HUD is on screen too: the automap wins.
+        let hud = Hud::new(vec![difficulty(1600, 120), life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1056);
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        let first = hud.take_asked();
+        assert_eq!(automap_reads(&first), 1, "searched");
+        assert_eq!(band_reads(&first), 0, "the band is not read");
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        let second = hud.take_asked();
+        assert_eq!(automap_reads(&second), 0, "only tracked");
+        assert!(second.iter().any(|area| area.width < 400 && area.x > 1400));
+    }
+
+    #[test]
+    fn a_closed_automap_searches_its_area_again_and_reads_the_hud() {
+        let hud = Hud::new(vec![difficulty(1600, 120), life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        *hud.lines.lock().expect("lines") = vec![life(436, 880)];
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        hud.take_asked();
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        assert_eq!(automap_reads(&hud.take_asked()), 1);
+    }
+
+    /// The reads of the whole automap area (about 560 px wide on the reference client), not of a box around a line.
+    fn automap_reads(asked: &[Region]) -> usize {
+        asked
+            .iter()
+            .filter(|area| (500..1000).contains(&area.width))
+            .count()
+    }
+
+    #[test]
+    fn the_life_label_is_found_at_every_client_height_of_the_prints() {
+        // The label at 826/1033 of the height, 400 px from the left, for the heights of the maintainer's prints.
+        for height in [1033u32, 1045, 1056, 1080] {
+            let hud = Hud::new(vec![life(400, 826 * height / 1033 + 8)]);
+            let reading = reader(&hud).read(&frame(1920, height));
+            assert_eq!(reading.screen, Screen::InGame, "1920×{height}");
+        }
+    }
+
+    #[test]
+    fn a_find_at_one_client_size_is_not_tracked_at_another_after_a_loss() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        assert_eq!(screens.read(&frame(1920, 1080)).screen, Screen::InGame);
+        hud.lines.lock().expect("lines").clear();
+        assert_eq!(screens.read(&frame(1920, 1080)).screen, Screen::Unknown);
+        *hud.lines.lock().expect("lines") = vec![life(400, 834)];
+        hud.take_asked();
+        assert_eq!(screens.read(&frame(1920, 1045)).screen, Screen::InGame);
+        assert_eq!(band_reads(&hud.take_asked()), 1, "a new size searches");
+    }
+
+    #[test]
+    fn after_a_find_only_a_small_box_around_the_line_is_read() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        assert_eq!(band_reads(&hud.take_asked()), 1, "the first frame searches");
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        let asked = hud.take_asked();
+        assert_eq!(band_reads(&asked), 0, "the second frame only tracks");
+        assert!(
+            asked
+                .iter()
+                .any(|area| area.width < 400 && area.x <= 436 && area.y <= 880)
+        );
+    }
+
+    #[test]
+    fn a_miss_while_tracking_searches_the_band_again() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        hud.take_asked();
+        // The line moves out of its box (a layout change): the band finds it again.
+        *hud.lines.lock().expect("lines") = vec![life(900, 950)];
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        assert_eq!(band_reads(&hud.take_asked()), 1);
+        // And is tracked at the new place.
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        assert_eq!(band_reads(&hud.take_asked()), 0);
+    }
+
+    #[test]
+    fn a_line_gone_is_not_in_game_and_the_next_frame_searches_the_band() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        hud.lines.lock().expect("lines").clear();
+        assert_eq!(screens.read(&frame).screen, Screen::Unknown);
+        hud.take_asked();
+        assert_eq!(screens.read(&frame).screen, Screen::Unknown);
+        assert_eq!(band_reads(&hud.take_asked()), 1);
+    }
+
+    #[test]
+    fn a_frame_of_another_size_searches_the_band() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        assert_eq!(screens.read(&frame(1920, 1080)).screen, Screen::InGame);
+        hud.take_asked();
+        assert_eq!(screens.read(&frame(1920, 1056)).screen, Screen::InGame);
+        assert_eq!(band_reads(&hud.take_asked()), 1);
+    }
+
+    #[test]
+    fn a_tracked_hud_costs_one_read_of_its_box_and_a_miss_one_extra_band_search() {
+        // Steady state of the in-game frame: the automap area is searched (no automap yet, so it cannot be tracked) and the
+        // HUD's small box is read; the band is read only on the first frame and after a miss, then tracking resumes.
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        let small = |asked: &[Region]| asked.iter().filter(|area| area.width < 400).count();
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        let first = hud.take_asked();
+        assert_eq!(
+            (first.len(), automap_reads(&first), band_reads(&first)),
+            (2, 1, 1)
+        );
+        for _ in 0..3 {
+            assert_eq!(screens.read(&frame).screen, Screen::InGame);
+            let steady = hud.take_asked();
+            assert_eq!(
+                steady.len(),
+                2,
+                "the automap area and the tracked box: {steady:?}"
+            );
+            assert_eq!(
+                (automap_reads(&steady), small(&steady), band_reads(&steady)),
+                (1, 1, 0)
+            );
+        }
+        // The label moves out of its box: the tracked box, then one band search; the next frame tracks the new place.
+        *hud.lines.lock().expect("lines") = vec![life(900, 950)];
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        let miss = hud.take_asked();
+        assert_eq!(
+            (miss.len(), small(&miss), band_reads(&miss)),
+            (3, 1, 1),
+            "{miss:?}"
+        );
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        let resumed = hud.take_asked();
+        assert_eq!((resumed.len(), band_reads(&resumed)), (2, 0), "{resumed:?}");
+    }
+
+    #[test]
+    fn a_tracked_automap_costs_one_read_of_its_box_and_a_miss_one_extra_area_search() {
+        let hud = Hud::new(vec![difficulty(1600, 120)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1056);
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        let first = hud.take_asked();
+        assert_eq!(
+            (first.len(), automap_reads(&first)),
+            (1, 1),
+            "searched once"
+        );
+        for _ in 0..3 {
+            assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+            let steady = hud.take_asked();
+            assert_eq!((steady.len(), automap_reads(&steady)), (1, 0), "{steady:?}");
+        }
+        // The line moves: the tracked box misses, the whole area is searched once, and tracking resumes.
+        *hud.lines.lock().expect("lines") = vec![difficulty(1500, 200)];
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        let miss = hud.take_asked();
+        assert_eq!((miss.len(), automap_reads(&miss)), (2, 1), "{miss:?}");
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        let resumed = hud.take_asked();
+        assert_eq!(
+            (resumed.len(), automap_reads(&resumed)),
+            (1, 0),
+            "{resumed:?}"
+        );
+    }
+
+    /// Every `agent.vision.read` span's fields, as text, in creation order.
+    type SpanFields = Vec<(String, String)>;
+
+    #[derive(Default)]
+    struct Spans {
+        recorded: Mutex<Vec<(String, SpanFields)>>,
+    }
+
+    struct Writer<'a>(&'a mut Vec<(String, String)>);
+
+    impl tracing::field::Visit for Writer<'_> {
+        fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+            self.0.push((field.name().to_string(), value.to_string()));
+        }
+
+        fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+            self.0
+                .push((field.name().to_string(), format!("{value:?}")));
+        }
+    }
+
+    impl tracing::Subscriber for Spans {
+        fn enabled(&self, _metadata: &tracing::Metadata<'_>) -> bool {
+            true
+        }
+
+        fn new_span(&self, attrs: &tracing::span::Attributes<'_>) -> tracing::Id {
+            let mut fields = Vec::new();
+            attrs.record(&mut Writer(&mut fields));
+            let mut recorded = self.recorded.lock().expect("spans");
+            recorded.push((attrs.metadata().name().to_string(), fields));
+            tracing::Id::from_u64(recorded.len() as u64)
+        }
+
+        fn record(&self, span: &tracing::Id, values: &tracing::span::Record<'_>) {
+            let mut recorded = self.recorded.lock().expect("spans");
+            if let Some((_, fields)) = recorded.get_mut(span.into_u64() as usize - 1) {
+                values.record(&mut Writer(fields));
+            }
+        }
+
+        fn record_follows_from(&self, _span: &tracing::Id, _follows: &tracing::Id) {}
+
+        fn event(&self, _event: &tracing::Event<'_>) {}
+
+        fn enter(&self, _span: &tracing::Id) {}
+
+        fn exit(&self, _span: &tracing::Id) {}
+    }
+
+    /// The `agent.vision.read` fields of one read, as `screen/search/area_class`.
+    fn words_of(screens: &ScreenReader, frame: &Rgba) -> String {
+        let spans = Arc::new(Spans::default());
+        let guard = tracing::subscriber::set_default(Arc::clone(&spans));
+        tracing::callsite::rebuild_interest_cache();
+        screens.read(frame);
+        drop(guard);
+        let recorded = spans.recorded.lock().expect("spans");
+        let (name, fields) = recorded.last().expect("a span");
+        assert_eq!(name, "agent.vision.read");
+        let get = |key: &str| {
+            fields
+                .iter()
+                .find(|(name, _)| name == key)
+                .map(|(_, value)| value.clone())
+                .unwrap_or_default()
+        };
+        assert_eq!(fields.len(), 3, "three fields and no more: {fields:?}");
+        format!(
+            "{}/{}/{}",
+            get("vision.screen"),
+            get("vision.search"),
+            get("vision.area_class")
+        )
+    }
+
+    #[test]
+    fn the_read_span_carries_the_screen_the_search_and_the_area_class_as_fixed_words() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(words_of(&screens, &frame), "in_game/band/band");
+        assert_eq!(words_of(&screens, &frame), "in_game/track/box");
+        hud.lines.lock().expect("lines").clear();
+        assert_eq!(words_of(&screens, &frame), "unknown/band/band");
+    }
+
+    #[test]
+    fn the_words_of_a_frame_with_no_search_are_fixed_or_none() {
+        use super::{Search, vision_words};
+        use d2rmm_agent_domain::presence::Screen;
+        assert_eq!(
+            vision_words(Screen::InGame, None),
+            ["in_game", "fixed", "box"]
+        );
+        assert_eq!(
+            vision_words(Screen::CharacterSelect, None),
+            ["character_select", "fixed", "panel"]
+        );
+        assert_eq!(
+            vision_words(Screen::Unknown, None),
+            ["unknown", "none", "box"]
+        );
+        assert_eq!(
+            vision_words(Screen::AutomapOpen, Some(Search::Track)),
+            ["automap", "track", "box"]
+        );
     }
 }
