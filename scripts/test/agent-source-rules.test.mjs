@@ -336,6 +336,48 @@ const outgoingDataViolations = (base) => {
   ];
 };
 
+// Capture scope (ADR 010, capture-cascade CAP-04): the capture adapters see the game window and nothing else. No monitor, no
+// desktop or screen device context, no duplication of the output. The allowed `IGraphicsCaptureItemInterop` and
+// `Graphics::Capture` imports reach these through method calls, so the rule matches calls and uses, not import paths.
+const CAPTURE_ADAPTERS = ['src/adapters/graphics_capture.rs', 'src/adapters/window_capture.rs'];
+const BANNED_CAPTURE_CALLS = [
+  'CreateForMonitor',
+  'TryCreateFromDisplayId',
+  'DuplicateOutput',
+  'GetDesktopWindow',
+  'GetWindowDC',
+  'MonitorFromWindow',
+  'BitBlt',
+];
+// `GetDC(None)`, `GetDC(Some(None))`-style nulls, `GetDC(HWND(0))`, `GetDC(HWND::default())`, `GetDC(null)`: the screen's DC.
+const SCREEN_DC =
+  /\bGetDC\s*\(\s*(?:Some\s*\(\s*)?(?:None|0\b|(?:std::|core::)?(?:ptr::)?null(?:_mut)?\s*\(\s*\)|HWND\s*\(\s*(?:0\b[^)]*|[\w:]*null(?:_mut)?\s*\(\s*\))\)|HWND::default\s*\(\s*\))/;
+
+// Source text without comments and string literals, so a doc line that names a call is not one.
+const codeOnly = (text) =>
+  text
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '')
+    .replace(/"(?:[^"\\]|\\.)*"/g, '""');
+
+const captureScopeViolations = (base) =>
+  CAPTURE_ADAPTERS.flatMap((rel) => {
+    const text = crateFile(base, rel);
+    if (text === undefined) return [];
+    const code = codeOnly(text);
+    return [
+      ...BANNED_CAPTURE_CALLS.filter((name) => new RegExp(`\\b${name}\\b`).test(code)).map(
+        (name) => `${rel} uses ${name}, which reaches beyond the game window`,
+      ),
+      ...(SCREEN_DC.test(code) ? [`${rel} calls GetDC on the screen, not on the game window`] : []),
+      ...[...code.matchAll(/\b(CreateFor\w+|TryCreateFrom\w+)\b/g)]
+        .map((match) => match[1])
+        .filter((name) => name !== 'CreateForWindow')
+        .filter((name, index, all) => all.indexOf(name) === index)
+        .map((name) => `${rel} uses ${name}; CreateForWindow is the only capture item constructor`),
+    ];
+  });
+
 const fixtureBase = (name) => path.join(root, 'scripts/test/fixtures/agent-rules', name);
 
 test('windows features stay on the allow-list', () => {
@@ -416,6 +458,38 @@ test('the window capture rule rejects input, hook and blit calls', () => {
       `${name} must fail the window capture allow-list`,
     );
   }
+});
+
+test('the capture adapters reach no monitor, no desktop DC and no constructor but CreateForWindow', () => {
+  assert.deepEqual(captureScopeViolations(root), []);
+});
+
+test('the capture scope rule rejects every monitor and desktop call (ADR 010, CAP-04)', () => {
+  for (const name of BANNED_CAPTURE_CALLS) {
+    assert.match(
+      captureScopeViolations(fixtureBase(`capture-scope-${name}`)).join('\n'),
+      new RegExp(`graphics_capture\\.rs uses ${name}, which reaches beyond the game window`),
+      `${name} must fail the capture scope rule`,
+    );
+  }
+});
+
+test('the capture scope rule rejects a screen device context and any other item constructor (CAP-04)', () => {
+  for (const fixture of ['capture-scope-GetDC-None', 'capture-scope-GetDC-HWND0']) {
+    assert.match(
+      captureScopeViolations(fixtureBase(fixture)).join('\n'),
+      /window_capture\.rs calls GetDC on the screen, not on the game window/,
+      fixture,
+    );
+  }
+  assert.match(
+    captureScopeViolations(fixtureBase('capture-scope-CreateForOther')).join('\n'),
+    /graphics_capture\.rs uses CreateForSomething; CreateForWindow is the only capture item constructor/,
+  );
+});
+
+test('the capture scope rule accepts CreateForWindow and GetDC on the game window (CAP-04)', () => {
+  assert.deepEqual(captureScopeViolations(fixtureBase('capture-scope-accepted')), []);
 });
 
 test('only the wrapper, the token store and the two clients call expose, and none logs an event', () => {
