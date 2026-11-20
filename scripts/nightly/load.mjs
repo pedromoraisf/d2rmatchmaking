@@ -1,5 +1,9 @@
 // Pure rules for the load section of the nightly report (NGT-05, NGT-10). No I/O: the CLI reads the files.
-import { bytesPerPlayerHour, EGRESS_BYTES_PER_PLAYER_HOUR } from '../load/lib/bytes.mjs';
+import {
+  bytesPerPlayerHour,
+  EGRESS_BYTES_PER_PLAYER_HOUR,
+  perPlayerHourByEvent,
+} from '../load/lib/bytes.mjs';
 
 const round = (n) => Math.round(n);
 /** A latency in milliseconds at two decimals, so a float residue (`12.300000000000001`) never reaches the report (UPK-05). */
@@ -12,6 +16,19 @@ function bytesOfStep(step) {
   if (!(players > 0) || !(window > 0) || typeof step.bytesReceived !== 'number') return null;
   return round(bytesPerPlayerHour(step.bytesReceived, players, window));
 }
+
+/** The bytes of each event type of a step per player-hour, rounded, or null when the run has no breakdown (SEG-08). */
+function byEventOfStep(step) {
+  const counts = step.bytesByEvent;
+  if (counts === null || counts === undefined || !(step.players > 0) || !(step.windowSeconds > 0))
+    return null;
+  const scaled = perPlayerHourByEvent(counts, step.players, step.windowSeconds);
+  const roundAll = (by) =>
+    Object.fromEntries(Object.entries(by).map(([name, bytes]) => [name, round(bytes)]));
+  return { site: roundAll(scaled.site), agent: roundAll(scaled.agent), other: round(scaled.other) };
+}
+
+const oneDecimal = (n) => (typeof n === 'number' ? Math.round(n * 10) / 10 : null);
 
 /**
  * The summary of `pnpm test:load` (reports/load/summary.json) -> the report's load section.
@@ -31,6 +48,9 @@ export function fromLoadSummary(summary, budget = EGRESS_BYTES_PER_PLAYER_HOUR, 
       errors: step.errors ?? 0,
       p95Ms: roundMs(step.latencyP95Ms),
       bytesPerPlayerHour: perHour,
+      bytesByEvent: byEventOfStep(step),
+      matchesPerPlayerHour: oneDecimal(step.matchesPerPlayerHour),
+      bytesPerMatch: oneDecimal(step.bytesPerMatch),
       budget,
       withinBudget: perHour === null ? null : perHour <= budget,
       rooms: step.roomsCreated ?? 0,

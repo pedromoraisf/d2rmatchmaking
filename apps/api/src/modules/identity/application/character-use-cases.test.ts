@@ -1,4 +1,5 @@
-import { SpanStatusCode, trace } from '@opentelemetry/api';
+import { SpanStatusCode, context, trace } from '@opentelemetry/api';
+import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
@@ -18,6 +19,8 @@ const LATER = new Date('2026-11-10T12:00:05.000Z');
 const exporter = new InMemorySpanExporter();
 
 beforeAll(() => {
+  // Without a context manager no span is active, and a use case cannot annotate it.
+  context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
   trace.setGlobalTracerProvider(
     new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] }),
   );
@@ -145,6 +148,69 @@ describe('recordCharacters (CHR-09)', () => {
     expect(span?.attributes).toEqual({ 'd2r.characters.count': 1 });
     expect(JSON.stringify(span?.attributes)).not.toContain('Sorc');
     expect(span?.status.code).not.toBe(SpanStatusCode.ERROR);
+  });
+});
+
+describe('recordCharacters reconciles a misread name (SNM-07)', () => {
+  it('updates the stored character instead of adding a second one, and records only the count', async () => {
+    const { useCases } = setup();
+    await useCases.recordCharacters({ accountId: 'alice', characters: [sorc] });
+    exporter.reset();
+
+    const result = await useCases.recordCharacters({
+      accountId: 'alice',
+      characters: [{ ...sorc, name: 'Sgrc', level: 86 }],
+    });
+
+    expect(result).toEqual({ ok: true, value: { count: 1 } });
+    const listed = await useCases.listMyCharacters({ accountId: 'alice' });
+    expect(listed.map((character) => [character.name, character.level])).toEqual([['Sorc', 86]]);
+    const span = exporter
+      .getFinishedSpans()
+      .find((finished) => finished.name === 'identity.record-characters');
+    expect(span?.attributes).toEqual({ 'd2r.characters.count': 1, 'd2r.characters.reconciled': 1 });
+    expect(JSON.stringify(exporter.getFinishedSpans().map((finished) => finished.attributes))).not.toContain(
+      'Sgrc',
+    );
+  });
+
+  it('adds a new character when the class differs', async () => {
+    const { useCases } = setup();
+    await useCases.recordCharacters({ accountId: 'alice', characters: [sorc] });
+
+    await useCases.recordCharacters({
+      accountId: 'alice',
+      characters: [{ ...sorc, name: 'Sgrc', class: 'paladin', level: 86 }],
+    });
+
+    const names = (await useCases.listMyCharacters({ accountId: 'alice' })).map(
+      (character) => character.name,
+    );
+    expect(names.sort()).toEqual(['Sgrc', 'Sorc']);
+  });
+
+  it('counts only really new names against the account limit', async () => {
+    const { useCases } = setup();
+    await useCases.recordCharacters({ accountId: 'alice', characters: [sorc] });
+
+    const again = await useCases.recordCharacters({
+      accountId: 'alice',
+      characters: [{ ...sorc, name: 'Sbrc' }],
+    });
+
+    expect(again.ok).toBe(true);
+    expect(await useCases.listMyCharacters({ accountId: 'alice' })).toHaveLength(1);
+  });
+
+  it('never reconciles across accounts', async () => {
+    const { useCases } = setup();
+    await useCases.recordCharacters({ accountId: 'alice', characters: [sorc] });
+
+    await useCases.recordCharacters({ accountId: 'bob', characters: [{ ...sorc, name: 'Sgrc' }] });
+
+    expect(
+      (await useCases.listMyCharacters({ accountId: 'bob' })).map((character) => character.name),
+    ).toEqual(['Sgrc']);
   });
 });
 

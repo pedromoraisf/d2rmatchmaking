@@ -62,6 +62,8 @@ export async function projectStreamEvent(
     case 'RoomStageChanged': {
       const { payload } = event;
       const data = { roomId: payload.roomId, stage: payload.stage, members: [...payload.members] };
+      // The agent's copy is the room and the stage: it reads nothing of the members (stream-egress SEG-01).
+      const agentData = { roomId: payload.roomId, stage: payload.stage };
       // The agent holds an assignment only while the room lives: it needs to hear the end (ARL-01), and no other stage.
       const agentHears = payload.stage === 'expired' || payload.stage === 'closed';
       return perAccount(
@@ -71,7 +73,13 @@ export async function projectStreamEvent(
           { stream: 'site', accountId, event: { type: 'room.stage_changed', data } },
           ...(agentId === null
             ? []
-            : [{ stream: 'agent' as const, agentId, event: { type: 'room.stage_changed' as const, data } }]),
+            : [
+                {
+                  stream: 'agent' as const,
+                  agentId,
+                  event: { type: 'room.stage_changed' as const, data: agentData },
+                },
+              ]),
         ],
       );
     }

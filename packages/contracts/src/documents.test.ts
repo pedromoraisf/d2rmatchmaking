@@ -10,13 +10,14 @@ describe('contract documents', () => {
     });
   });
 
-  it('builds an AsyncAPI 3.0 document with the stream channel and its ten messages', () => {
+  it('builds an AsyncAPI 3.0 document with the stream channel and its eleven messages', () => {
     const document = buildAsyncApiDocument();
     expect(document.asyncapi).toBe('3.0.0');
     expect(document.channels.stream.address).toBe('/v1/stream');
     expect(Object.keys(document.channels.stream.messages)).toStrictEqual([
       'RoomAssigned',
       'RoomStageChanged',
+      'AgentRoomStageChanged',
       'RoomRunOpened',
       'RoomMemberChanged',
       'AgentPresenceChanged',
@@ -27,6 +28,7 @@ describe('contract documents', () => {
       'ReadyCheckResolved',
     ]);
     expect(document.components.messages['RoomStageChanged']?.name).toBe('room.stage_changed');
+    expect(document.components.messages['AgentRoomStageChanged']?.name).toBe('room.stage_changed');
   });
 
   it('writes one JSON Schema per agent message', () => {
@@ -66,5 +68,32 @@ describe('contract documents', () => {
   it('produces byte-identical output on every run', () => {
     expect(JSON.stringify(buildAsyncApiDocument())).toBe(JSON.stringify(buildAsyncApiDocument()));
     expect(JSON.stringify(buildJsonSchemaFiles())).toBe(JSON.stringify(buildJsonSchemaFiles()));
+  });
+});
+
+describe('the player name value (SNM-01)', () => {
+  it.each(['Sorc', 'S0rc', 'Il', 'Hammer_Smith', 'Ab', 'ThisNameIsFifte', 'a-b'])(
+    'accepts %s',
+    async (value) => {
+      const { PlayerNameValue } = await import('./http/lobby.ts');
+      expect(PlayerNameValue.safeParse(value).success).toBe(true);
+    },
+  );
+
+  it.each([
+    'S',
+    '',
+    'Sorc Sorc',
+    'Sorc2',
+    '0Sorc',
+    'Sorc1x_',
+    '_Sorc',
+    'Sor-c-c',
+    'Sor__c',
+    'ThisNameIsTooLongXX',
+    'Sörc',
+  ])('refuses %s', async (value) => {
+    const { PlayerNameValue } = await import('./http/lobby.ts');
+    expect(PlayerNameValue.safeParse(value).success).toBe(false);
   });
 });

@@ -90,6 +90,11 @@ export interface Stack {
    * host role to. The rows are the ones the room's own use cases write; the API reads them as any other member's.
    */
   seedRoomMember(roomId: string, accountId: string): Promise<void>;
+  /**
+   * How many observations the API stored for the room. A chat sighting answers the same whether it matched or not
+   * (server-name-match SNM-03), so the scenarios read what was kept from the table, not from the answer.
+   */
+  observationCount(roomId: string): Promise<number>;
   /** Estimated API clock in epoch ms: the start of the API processes plus every advance so far. */
   apiClockMs(): number;
   /** Stops every child process and returns when they have exited. */
@@ -487,6 +492,19 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
         throw new Error(`site-stream close of ${origins.stagingApi} answered ${answer.status}`);
       }
       return ((await answer.json()) as { closed: number }).closed;
+    },
+    async observationCount(roomId: string) {
+      const client = new pg.Client({ connectionString: databaseUrl });
+      await client.connect();
+      try {
+        const counted = await client.query(
+          'select count(*)::int as n from lobby.observations where room_id = $1::uuid',
+          [roomId],
+        );
+        return Number(counted.rows[0]?.n ?? 0);
+      } finally {
+        await client.end();
+      }
     },
     async seedRoomMember(roomId: string, accountId: string) {
       const client = new pg.Client({ connectionString: databaseUrl });

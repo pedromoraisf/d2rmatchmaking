@@ -22,6 +22,17 @@ export const RoomStageChangedEvent = z.object({
 });
 export type RoomStageChangedEvent = z.infer<typeof RoomStageChangedEvent>;
 
+// The agent's copy of a stage change carries the room and the stage only: the agent holds a room until it ends and reads
+// nothing of its members, so the member list stays off its stream (stream-egress SEG-01).
+export const AgentRoomStageChangedEvent = z.object({
+  type: z.literal('room.stage_changed'),
+  data: z.object({
+    roomId: Id,
+    stage: RoomStage,
+  }),
+});
+export type AgentRoomStageChangedEvent = z.infer<typeof AgentRoomStageChangedEvent>;
+
 // The host opened the next run (LBR-06): the same assignment shape with the new run and name. The agent replaces the
 // name it reads for; the site refetches its room.
 export const RoomRunOpenedEvent = z.object({
@@ -108,7 +119,7 @@ export type SiteStreamEvent = z.infer<typeof SiteStreamEvent>;
 // ready check's start and end (the agent answers its hotkey, RDY-07); it never receives presence of itself or of others.
 export const AgentStreamEvent = z.discriminatedUnion('type', [
   RoomAssignedEvent,
-  RoomStageChangedEvent,
+  AgentRoomStageChangedEvent,
   RoomRunOpenedEvent,
   ReadyCheckStartedEvent,
   ReadyCheckResolvedEvent,
