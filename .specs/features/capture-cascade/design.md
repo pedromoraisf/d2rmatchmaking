@@ -37,18 +37,20 @@ worker does not edit that file.
 
 ## Ports
 
-`FrameSource` (core) stays one port. It gains two methods with defaults, so every existing fake and the headless agent keep
-compiling and behaving as `print-window`:
+`FrameSource` (core) stays the one port the screen loop holds. It gains `status()` (the method of the last usable frame,
+the read rate and whether the last look gave none) and `release()` (close the capture sessions), both with defaults, so
+every existing fake keeps compiling and behaving as before. A second port, `MethodSource`, is the raw side: the methods
+the PC offers, `capture_with(method)`, the client size and `release()`. The `Capturer` implements `FrameSource` over a
+`MethodSource`, so the loop does not know there is a cascade:
 
 ```rust
-fn methods(&self) -> Vec<CaptureMethod> { vec![CaptureMethod::PrintWindow] }   // what this PC can offer, in cascade order
-fn capture_with(&self, method: CaptureMethod) -> Option<Rgba> { /* PrintWindow => self.capture() */ }
-fn release(&self) {}                                                           // close sessions (consent off, demotion)
+trait MethodSource { fn methods(&self) -> Vec<CaptureMethod>; fn capture_with(&self, m: CaptureMethod) -> Option<Rgba>;
+                     fn client_size(&self) -> Option<(u32, u32)>; fn release(&self); }
 ```
 
-The domain `Cascade` has no clock, no randomness and no I/O: `plan() → Plan { try_first, probe }` and
-`record(method, Outcome)` where `Outcome` is `Frame | Blank | Failed`; the looks are counted, not timed, so a test drives
-600 looks in a loop. `Capturer` holds the state and the port; it is the only code that calls `capture_with`.
+The domain `Cascade` has no clock, no randomness and no I/O: `current()`, `probe()`, `record_probe(method, outcome)` and
+`record(outcome) → Stay | Demoted(next)` where `Outcome` is `Frame | Blank | Failed`; the looks are counted, not timed, so
+a test drives 600 looks in a loop. `Capturer` holds the state and is the only code that calls `capture_with`.
 
 ## Method adapters
 

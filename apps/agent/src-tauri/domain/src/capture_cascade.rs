@@ -15,7 +15,7 @@ pub const RATE_WINDOW: usize = 60;
 
 /// One way to get the game window's pixels into the agent's memory. Each one returns the client area of the game window and
 /// nothing else (CAP-04, ADR 010).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CaptureMethod {
     /// `PrintWindow` of the game window.
     PrintWindow,

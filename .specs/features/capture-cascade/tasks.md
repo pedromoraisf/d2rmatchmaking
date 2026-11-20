@@ -58,7 +58,7 @@ check is `node scripts/agent/win-check.mjs` (Docker, clippy for `x86_64-pc-windo
       match; tests for a windowed frame with a title bar and borders (offset 8,31 as `window_capture` tests use), a
       borderless one (offset 0,0), a frame smaller than the client, a zero-size client and overflow at `u32::MAX`.
       Gate: as T1
-- [ ] T4 — The port and the `Capturer` (CAP-01, CAP-02, CAP-03, CAP-05, CAP-09). In `core/src/ports.rs` add `methods()`,
+- [x] T4 — The port and the `Capturer` (CAP-01, CAP-02, CAP-03, CAP-05, CAP-09). In `core/src/ports.rs` add `methods()`,
       `capture_with(method)` and `release()` to `FrameSource` with the defaults of the design; new `core/src/capturer.rs`
       owning the `Cascade` behind a `Mutex` (`PoisonError::into_inner`) and calling the port inside `catch_unwind`. Tests
       with a scripted fake source (`core/src/fakes.rs`): no call at all without consent or while the game does not

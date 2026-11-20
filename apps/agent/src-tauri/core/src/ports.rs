@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
+use d2rmm_agent_domain::capture_cascade::CaptureMethod;
 use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::room_assignment::{Assignment, RoomId};
 use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
@@ -136,6 +137,51 @@ pub trait FrameSource {
     fn window_size(&self) -> Option<(u32, u32)> {
         None
     }
+
+    /// What the capture is doing, for the window and the heartbeat (CAP-07). A source with one fixed way to capture has
+    /// nothing to say: no method, a read rate of 0.
+    fn status(&self) -> CaptureStatus {
+        CaptureStatus::default()
+    }
+
+    /// Ends every capture session the source holds, when the player withdrew consent or the game is gone (CAP-05, CAP-09).
+    /// Idempotent; a source that holds none does nothing.
+    fn release(&self) {}
+}
+
+/// What a frame source says about its capture (CAP-07): the method that gave the last usable frame, the share of the last
+/// looks that gave one, and whether the last look it was asked for gave none. Numbers and fixed words only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CaptureStatus {
+    /// The method of the last usable frame; `None` before one, or after a look that gave none.
+    pub method: Option<CaptureMethod>,
+    /// The usable share of the last looks, a whole percent.
+    pub read_rate_percent: u8,
+    /// The last look was asked for and no method gave a usable frame (CAP-02).
+    pub unusable: bool,
+}
+
+/// The ways to capture the game window the PC offers, one capture at a time (capture-cascade, design § Ports). Every method
+/// returns the client area of the game window and nothing else (CAP-04); the `Capturer` decides which one to ask.
+pub trait MethodSource {
+    /// The methods this PC can offer, in any order; the cascade orders them.
+    fn methods(&self) -> Vec<CaptureMethod>;
+
+    /// One capture with `method`: the client area as a frame, or `None` (no window, minimized, the method failed).
+    fn capture_with(&self, method: CaptureMethod) -> Option<Rgba>;
+
+    /// The size of the game's client area now, when the platform can say it. A frame of another size is refused (CAP-04).
+    fn client_size(&self) -> Option<(u32, u32)> {
+        None
+    }
+
+    /// The size of the whole game window, for the diagnostics.
+    fn window_size(&self) -> Option<(u32, u32)> {
+        None
+    }
+
+    /// Ends every capture session of every method (CAP-09). Idempotent.
+    fn release(&self) {}
 }
 
 /// Whether the player consented to screen capture, kept on this PC (CHR-01, CHR-02). The store holds no secret.
