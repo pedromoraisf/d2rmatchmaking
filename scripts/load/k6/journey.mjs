@@ -43,6 +43,12 @@ import {
   quarterOf,
   start,
   statusKind,
+  EVENT_NAMES,
+  PRESENCE_EVERY_SECONDS,
+  STREAMS,
+  eventCounterName,
+  eventKeyOf,
+  frameBytes,
 } from './journey-state.mjs';
 
 const PLAN = JSON.parse(open('/work/in/plan.json'));
@@ -87,6 +93,7 @@ const iterations = new Counter('journey_iterations');
 const agentAssigned = new Counter('journey_agent_assigned');
 const matchesPosted = new Counter('journey_matches_posted');
 const iterationsStarted = new Counter('journey_iterations_started');
+const roomsCreated = new Counter('journey_rooms_created');
 const meterBytes = new Counter('journey_meter_bytes');
 const sinkBytes = new Counter('journey_sink_bytes');
 const SIGNALS = ['traces', 'metrics', 'logs'];
@@ -94,7 +101,22 @@ const sinkBytesBySignal = {};
 for (const signal of SIGNALS) sinkBytesBySignal[signal] = new Counter('journey_sink_bytes_' + signal);
 const windowSeconds = new Counter('journey_window_seconds');
 
-const MEASURED = ['journey_requests', 'journey_errors', 'journey_iterations', 'journey_agent_assigned'];
+// The bytes of each event type of each stream, counted where the frame arrives (stream-egress SEG-02). `unlisted` holds any
+// event name the API streams that EVENT_NAMES does not know.
+const EVENT_BUCKETS = EVENT_NAMES.concat(['unlisted']);
+const eventCounters = {};
+for (const stream of STREAMS) {
+  for (const name of EVENT_BUCKETS)
+    eventCounters[eventCounterName(stream, name)] = new Counter(eventCounterName(stream, name));
+}
+
+const MEASURED = [
+  'journey_requests',
+  'journey_errors',
+  'journey_iterations',
+  'journey_agent_assigned',
+  'journey_rooms_created',
+].concat(Object.keys(eventCounters));
 const TOTALS = [
   'journey_matches_posted',
   'journey_iterations_started',
@@ -140,6 +162,16 @@ export const options = {
       maxVUs: HEARTBEAT_RATE * 4 + 2,
       exec: 'heartbeat',
     },
+    // The site's presence reads (stream-egress SEG-05, SEG-06): every player once per PRESENCE_EVERY_SECONDS, in turn.
+    presence: {
+      executor: 'constant-arrival-rate',
+      rate: COUNT,
+      timeUnit: PRESENCE_EVERY_SECONDS + 's',
+      duration: CLOSE_SECONDS + 's',
+      preAllocatedVUs: 2,
+      maxVUs: 4 + Math.ceil(COUNT / 50),
+      exec: 'presence',
+    },
     match: {
       executor: 'constant-arrival-rate',
       rate: MATCH_RATE,
@@ -171,6 +203,13 @@ function windowOf(ms) {
 
 function tally(counter, ms) {
   counter.add(1, { window: windowOf(ms) });
+}
+
+/** The bytes of one frame, in the measuring window or outside it, on one stream. */
+function tallyFrame(stream, event) {
+  eventCounters[eventCounterName(stream, eventKeyOf(event.name))].add(frameBytes(event.name, event.data), {
+    window: windowOf(nowMs()),
+  });
 }
 
 function waitUntil(ms) {
@@ -370,6 +409,8 @@ export function site() {
   /** The stage of the room changed: the host's iteration ends at `created`, the member's starts there and ends at `active`. */
   function staged(frame) {
     if (assignedFrame === null || frame.roomId !== assignedFrame.roomId) return;
+    // The host's `created` frame counts the room once, in the window it arrives in (stream-egress SEG-07).
+    if (hosting && frame.stage === 'created') tally(roomsCreated, nowMs());
     if (frame.stage === 'created' && !hosting) begin(assignedFrame);
     if (frame.stage === (hosting ? 'created' : 'active')) finish(frame);
     // The host frees the room once it is `active`, so both players can queue again.
@@ -397,6 +438,7 @@ export function site() {
   }
 
   function onEvent(event) {
+    tallyFrame('site', event);
     if (event.name === 'room.assigned') assigned(JSON.parse(event.data));
     else if (event.name === 'room.stage_changed') staged(JSON.parse(event.data));
   }
@@ -452,6 +494,7 @@ export function agent() {
     },
     function (client) {
       client.on('event', function (event) {
+        tallyFrame('agent', event);
         if (event.name === 'room.assigned') tally(agentAssigned, nowMs());
         // The agent's hotkey: the ready check is accepted with the agent's token (RDY-07).
         if (event.name === 'ready_check.started') {
@@ -481,6 +524,16 @@ export function heartbeat() {
   });
   tally(requests, at);
   if (isError(res.status)) fail(statusKind(res.status, 'heartbeat'), index, at);
+}
+
+/** One read of the agent's presence, the next player in turn: what the site does while it shows the agent online. */
+export function presence() {
+  const index = exec.scenario.iterationInInstance % COUNT;
+  const player = PLAYERS[index];
+  const at = nowMs();
+  const res = http.get(BASE + '/v1/agents/me', { headers: siteHeaders(player) });
+  tally(requests, at);
+  if (isError(res.status)) fail(statusKind(res.status, 'presence'), index, at);
 }
 
 /** One join of the player into the duel queue. Returns true for a 2xx answer, which is a join. */
@@ -550,6 +603,16 @@ function totalOf(data, name) {
   return metric && metric.values && typeof metric.values.count === 'number' ? metric.values.count : 0;
 }
 
+/** The bytes of each event type in the window, per stream: `{ site: { 'room.assigned': n, ... }, agent: { ... } }`. */
+function eventBytesOf(data) {
+  const bytes = {};
+  for (const stream of STREAMS) {
+    bytes[stream] = {};
+    for (const name of EVENT_BUCKETS) bytes[stream][name] = measuredOf(data, eventCounterName(stream, name));
+  }
+  return bytes;
+}
+
 /**
  * The step file the orchestrator reads. `latencySamplesMs` is empty here: the samples come from the `LB_SAMPLE` lines,
  * which handleSummary cannot see; the orchestrator fills the field from them. `matchesPosted`, `iterationsStarted` and
@@ -585,6 +648,8 @@ export function handleSummary(data) {
     requests: measuredOf(data, 'journey_requests'),
     iterations: measuredOf(data, 'journey_iterations'),
     agentAssignedFrames: measuredOf(data, 'journey_agent_assigned'),
+    roomsCreated: measuredOf(data, 'journey_rooms_created'),
+    eventBytes: eventBytesOf(data),
     meterBytes: totalOf(data, 'journey_meter_bytes'),
     sinkBytes: totalOf(data, 'journey_sink_bytes'),
     sinkBytesBySignal: {

@@ -284,6 +284,92 @@ describe('App', () => {
     }
   });
 
+  describe('reading an online agent again (SEG-05)', () => {
+    const setVisibility = (state: 'visible' | 'hidden') => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
+    };
+
+    /** Renders the site with an agent shown online and counts the reads of `GET /v1/agents/me`. */
+    async function onlineSite(): Promise<{ reads: () => number }> {
+      let reads = 0;
+      const { fetch } = routeFetch({
+        'GET /api/v1/config': () => jsonResponse(200, config),
+        'GET /api/v1/me': () => jsonResponse(200, player),
+        'GET /api/v1/agents/me': () => {
+          reads += 1;
+          return jsonResponse(200, { ...pairedAgent, online: true });
+        },
+        'GET /api/v1/me/room': () => jsonResponse(404),
+      });
+      renderInLanguage(<App client={createApiClient(fetch)} openStream={fakeStream().openStream} />);
+      expect(await screen.findByText('Agent online')).toBeTruthy();
+      const afterLoad = reads;
+      return { reads: () => reads - afterLoad };
+    }
+
+    afterEach(() => {
+      setVisibility('visible');
+      vi.useRealTimers();
+    });
+
+    it('is 12 times an hour, the rate the load journey reads at', () => {
+      expect(3_600_000 / AGENT_PRESENCE_REREAD_MS).toBe(12);
+    });
+
+    it('reads at most twice in ten minutes while the page is in view', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const { reads } = await onlineSite();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10 * 60_000);
+      });
+
+      expect(reads()).toBeGreaterThanOrEqual(1);
+      expect(reads()).toBeLessThanOrEqual(2);
+    });
+
+    it('reads nothing while the page is hidden', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const { reads } = await onlineSite();
+      setVisibility('hidden');
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10 * 60_000);
+      });
+
+      expect(reads()).toBe(0);
+    });
+
+    it('reads once when the page comes back into view', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const { reads } = await onlineSite();
+      setVisibility('hidden');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(AGENT_PRESENCE_REREAD_MS + 100);
+      });
+      expect(reads()).toBe(0);
+
+      setVisibility('visible');
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+        await vi.advanceTimersByTimeAsync(100);
+      });
+
+      expect(reads()).toBe(1);
+    });
+
+    it('does not read when the page is only hidden again', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const { reads } = await onlineSite();
+      setVisibility('hidden');
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      expect(reads()).toBe(0);
+    });
+  });
+
   it('lists a character the agent registers without a reload, on the characters.updated event', async () => {
     let listed: unknown[] = [];
     const { fetch } = routeFetch({
