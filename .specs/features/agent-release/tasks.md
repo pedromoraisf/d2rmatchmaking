@@ -29,7 +29,7 @@ Rules:
       the secrets `TAURI_SIGNING_PRIVATE_KEY` and `SIGNPATH_API_TOKEN` appear only in `build` and `sign`. Gate (red on
       purpose until T3, so run it in the same commit as T3's change if the hook requires a green tree):
       `node --test scripts/test/release-workflows.test.mjs`
-- [ ] T2 — `scripts/agent/release-assets.mjs` and its test (AGR-03): `checkRelease({ tag, files })` returns the list of
+- [x] T2 — `scripts/agent/release-assets.mjs` and its test (AGR-03): `checkRelease({ tag, files })` returns the list of
       problems for the six checks of the spec, over drawn asset sets (complete; missing `SHA256SUMS`; fixed-name file
       differs; a hash that does not match; `latest.json` version of another tag; URL of another asset; stale signature).
       Pure functions over file contents, plus a thin CLI (`--dir <downloaded assets> --tag <tag>`), exit 1 with one line per
