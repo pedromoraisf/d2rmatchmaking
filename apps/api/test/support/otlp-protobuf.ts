@@ -4,6 +4,9 @@
 // reads the decoded data the way it always did. A JSON body (the browser relay's) is parsed as it is.
 import { gunzipSync } from 'node:zlib';
 
+/** The most a gzip body may inflate to; a larger one is refused, so a test backend never expands a bomb. */
+export const MAX_DECODED_BYTES = 16 * 1024 * 1024;
+
 const WIRE_VARINT = 0;
 const WIRE_FIXED64 = 1;
 const WIRE_LENGTH_DELIMITED = 2;
@@ -141,7 +144,8 @@ export function decodeOtlpRequest(
   body: Buffer,
   headers: { 'content-type'?: string | undefined; 'content-encoding'?: string | undefined },
 ): unknown {
-  const plain = headers['content-encoding'] === 'gzip' ? gunzipSync(body) : body;
+  const plain =
+    headers['content-encoding'] === 'gzip' ? gunzipSync(body, { maxOutputLength: MAX_DECODED_BYTES }) : body;
   if (plain.length === 0) return undefined;
   if ((headers['content-type'] ?? '').startsWith('application/x-protobuf')) {
     return decodeOtlpProtobuf(signalPath, plain);

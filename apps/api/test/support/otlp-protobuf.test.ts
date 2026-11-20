@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { gzipSync } from 'node:zlib';
 import { startNodeTelemetry } from '@d2rmm/telemetry/node';
 import { describe, expect, it, vi } from 'vitest';
-import { decodeOtlpProtobuf, decodeOtlpRequest, emptyOtlpReply } from './otlp-protobuf.ts';
+import { decodeOtlpProtobuf, decodeOtlpRequest, emptyOtlpReply, MAX_DECODED_BYTES } from './otlp-protobuf.ts';
 
 /** The protobuf writer of the test: tag, length-delimited and varint fields, enough to build an export request. */
 const varint = (value: number): Buffer => {
@@ -101,6 +101,18 @@ describe('decodeOtlpRequest', () => {
       resourceSpans: [],
     });
     expect(decodeOtlpRequest('/v1/traces', Buffer.alloc(0), {})).toBeUndefined();
+  });
+});
+
+describe('decodeOtlpRequest limit', () => {
+  it('refuses a gzip body that inflates past the limit', () => {
+    const bomb = gzipSync(Buffer.alloc(MAX_DECODED_BYTES + 1));
+    expect(bomb.length).toBeLessThan(MAX_DECODED_BYTES);
+    expect(() => decodeOtlpRequest('/v1/traces', bomb, { 'content-encoding': 'gzip' })).toThrow();
+    const within = gzipSync(Buffer.from('{"resourceSpans":[]}'));
+    expect(decodeOtlpRequest('/v1/traces', within, { 'content-encoding': 'gzip' })).toEqual({
+      resourceSpans: [],
+    });
   });
 });
 
