@@ -72,6 +72,35 @@ describe('projectStreamEvent', () => {
     }
   });
 
+  it("the agent's copy of an ended room carries the room and the stage only; the site's keeps the members (SEG-01)", async () => {
+    for (const ended of ['expired', 'closed'] as const) {
+      const event: AnyDomainEvent = {
+        type: 'RoomStageChanged',
+        payload: { roomId: 'room-1', stage: ended, members },
+      };
+
+      const deliveries = await projectStreamEvent(event, agents);
+
+      const toAgents = deliveries.filter((delivery) => delivery.stream === 'agent');
+      const toSites = deliveries.filter((delivery) => delivery.stream === 'site');
+      expect(toAgents).toHaveLength(2);
+      for (const delivery of toAgents) {
+        expect(delivery.event).toStrictEqual({
+          type: 'room.stage_changed',
+          data: { roomId: 'room-1', stage: ended },
+        });
+        expect(JSON.stringify(delivery.event)).not.toContain('account-');
+      }
+      expect(toSites).toHaveLength(2);
+      for (const delivery of toSites) {
+        expect(delivery.event).toStrictEqual({
+          type: 'room.stage_changed',
+          data: { roomId: 'room-1', stage: ended, members },
+        });
+      }
+    }
+  });
+
   it('a new run goes to every member site and current agent with the new name (LBR-06)', async () => {
     const runOpened: AnyDomainEvent = {
       type: 'RoomRunOpened',

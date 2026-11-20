@@ -31,7 +31,7 @@ Rules:
 - [x] T2 — Make the journey read the site's presence at the rate SEG-05 allows for each player with an online agent
       (SEG-06), and count the rooms that reached `created` in each step's window (SEG-07). Unit tests first. Gate:
       `node --test scripts/test/load/*.test.mjs scripts/test/load-scripts.test.mjs && pnpm test:load:smoke && node --test scripts/load/check/smoke-summary.check.mjs && pnpm test:load && node --test scripts/load/check/full-summary.check.mjs`
-- [ ] T3 — Send the agent's copy of `room.stage_changed` with `roomId` and `stage` only (SEG-01): the projection, the
+- [x] T3 — Send the agent's copy of `room.stage_changed` with `roomId` and `stage` only (SEG-01): the projection, the
       regenerated `asyncapi.json`, an API unit test, a Rust unit test that the agent ends a room on an event with and
       without `members`, and the `@SEG-01` steps. Gate:
       `pnpm --filter @d2rmm/api exec vitest run src/platform && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json && pnpm arch && cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-adapters --lib`
