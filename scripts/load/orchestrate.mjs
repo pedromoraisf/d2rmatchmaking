@@ -138,7 +138,7 @@ export function samplesOf(text) {
  *   http: (url: string, init?: object) => Promise<Response>,
  *   clock: { iso: () => string, sleep: (ms: number) => Promise<void> },
  *   fs: object,
- *   paths: { root: string, loadDir: string, tmpdir: string, commit: string, uid: number },
+ *   paths: { root: string, loadDir: string, tmpdir: string, commit: string, uid: number, gid?: number },
  *   random: { bytes: (size: number) => Uint8Array },
  *   randomInt: (max: number) => number,
  *   log?: (line: string) => void,
@@ -784,7 +784,14 @@ async function runStepBody(ctx, step, provisioned, timings) {
   try {
     ensureRunning(ctx);
     k6 = await docker.run(
-      k6Args({ runId, image: K6_IMAGE_TAG, inDir: dirs.inDir, outDir: dirs.outDir, limits }),
+      k6Args({
+        runId,
+        image: K6_IMAGE_TAG,
+        inDir: dirs.inDir,
+        outDir: dirs.outDir,
+        limits,
+        user: ctx.paths.gid === undefined ? undefined : `${ctx.paths.uid}:${ctx.paths.gid}`,
+      }),
     );
   } finally {
     sampling = false;
