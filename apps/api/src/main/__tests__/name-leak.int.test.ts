@@ -72,6 +72,17 @@ export function bodyOf<T>(response: { readonly body: string }): T {
   return JSON.parse(response.body) as T;
 }
 
+/** What a caller can tell apart besides the body: the status and the headers, without the ones that change on every request. */
+function shapeOf(answer: { readonly statusCode: number; readonly headers: Record<string, unknown> }) {
+  const volatile = new Set(['date', 'x-request-id', 'request-id']);
+  const headers = Object.fromEntries(
+    Object.entries(answer.headers)
+      .filter(([name]) => !volatile.has(name.toLowerCase()))
+      .sort(([a], [b]) => a.localeCompare(b)),
+  );
+  return { status: answer.statusCode, headers };
+}
+
 export async function sessionFor(app: BuiltApp): Promise<string> {
   const response = await app.app.inject({
     method: 'POST',
@@ -306,6 +317,110 @@ describe('a chat name leaves no trace (SNM-04)', () => {
     ]);
     // Every answer to a valid sighting is the same, a match or not (security review of #101).
     expect(new Set(answers.slice(0, 5).map((answer) => answer.body)).size).toBe(1);
+    // ... and so are the status and the headers (minus date and request id), not only the body.
+    expect(new Set(answers.slice(0, 5).map((answer) => JSON.stringify(shapeOf(answer)))).size).toBe(1);
+  });
+
+  it('is in no span, log line, answer or row on the refusals of the route, and a refusal does not tell a match from a miss', async () => {
+    const { roomId, token } = await roomWithCharacter(STORED);
+    const outsider = await tokenFor(app, await sessionFor(app));
+    const post = (bearer: string, payload: object) =>
+      app.app.inject({
+        method: 'POST',
+        url: `/v1/lobby-rooms/${roomId}/observations`,
+        headers: {
+          authorization: `Bearer ${bearer}`,
+          'x-agent-version': AGENT_VERSION,
+          'content-type': 'application/json',
+        },
+        payload,
+      });
+    const sighting = (value: string, key: string) => sightingOf(value, key);
+    const answers: {
+      readonly statusCode: number;
+      readonly body: string;
+      readonly headers: Record<string, unknown>;
+    }[] = [];
+    const pair = async (
+      matched: object,
+      unmatched: object,
+      send: (payload: object) => ReturnType<typeof post>,
+    ) => {
+      const a = await send(matched);
+      const b = await send(unmatched);
+      answers.push(a, b);
+      return [a, b] as const;
+    };
+
+    // 403: an agent whose account is not in the room, with a name that matches and one that does not.
+    const [forbiddenA, forbiddenB] = await pair(
+      sighting(MISREAD, 'f-1'),
+      sighting('Qwvkjh', 'f-2'),
+      (payload) => post(outsider, payload),
+    );
+    expect(forbiddenA.statusCode).toBe(403);
+    expect(shapeOf(forbiddenA)).toEqual(shapeOf(forbiddenB));
+    expect(forbiddenA.body).toBe(forbiddenB.body);
+
+    // 401: a token nobody holds, with the names in the body.
+    const [unauthA, unauthB] = await pair(sighting(MISREAD, 'u-1'), sighting('Qwvkjh', 'u-2'), (payload) =>
+      post('not-a-token', payload),
+    );
+    expect(unauthA.statusCode).toBe(401);
+    expect(shapeOf(unauthA)).toEqual(shapeOf(unauthB));
+    expect(unauthA.body).toBe(unauthB.body);
+
+    // 400 at the schema: a valid name with a confidence out of range.
+    const [schemaA, schemaB] = await pair(
+      { ...sighting(MISREAD, 'z-1'), confidence: 7 },
+      { ...sighting('Qwvkjh', 'z-2'), confidence: 7 },
+      (payload) => post(token, payload),
+    );
+    expect(schemaA.statusCode).toBe(400);
+    expect(shapeOf(schemaA)).toEqual(shapeOf(schemaB));
+    expect(schemaA.body).toBe(schemaB.body);
+
+    // 5xx: the members table is gone for a moment, so the use case fails whatever the name is.
+    await sql`alter table lobby.members rename to members_gone`.execute(database.db);
+    try {
+      const [brokenA, brokenB] = await pair(sighting(MISREAD, 'b-1'), sighting('Qwvkjh', 'b-2'), (payload) =>
+        post(token, payload),
+      );
+      expect(brokenA.statusCode).toBeGreaterThanOrEqual(500);
+      expect(shapeOf(brokenA)).toEqual(shapeOf(brokenB));
+      expect(brokenA.body).toBe(brokenB.body);
+    } finally {
+      await sql`alter table lobby.members_gone rename to members`.execute(database.db);
+    }
+
+    // 429: send valid sightings until the agent's twenty a minute are spent (the refusals above that reached the guard count
+    // too), then the matched and the missed name as the first requests over the limit.
+    let filled = 0;
+    for (; filled < 25; filled += 1) {
+      const filler = await post(token, sighting(`Fillerx${String.fromCharCode(97 + filled)}`, `r-${filled}`));
+      answers.push(filler);
+      if (filler.statusCode === 429) break;
+    }
+    expect(filled).toBeLessThan(21);
+    const [limitedA, limitedB] = await pair(sighting(MISREAD, 'l-1'), sighting('Qwvkjh', 'l-2'), (payload) =>
+      post(token, payload),
+    );
+    expect(limitedA.statusCode).toBe(429);
+    expect(shapeOf(limitedA)).toEqual(shapeOf(limitedB));
+    expect(limitedA.body).toBe(limitedB.body);
+
+    const observed: Observed = {
+      spans: exporter.getFinishedSpans(),
+      logs: logLines,
+      responses: answers.map((answer) => answer.body),
+      rows: [...(await rowsWritten()), ...(await lobbyRows())],
+    };
+    for (const [read, canonical] of [
+      [MISREAD, STORED],
+      ['Qwvkjh', 'Zzzzzz'],
+    ] as const) {
+      expect(findLeaks(read, canonical, observed), read).toEqual([]);
+    }
   });
 });
 
