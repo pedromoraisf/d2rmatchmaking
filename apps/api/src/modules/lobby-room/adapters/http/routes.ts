@@ -18,6 +18,8 @@ export interface LobbyRouteGuards {
   readonly requireAgent: Guard;
   readonly requireSession: Guard;
   readonly requireSameOrigin: Guard;
+  /** 20 a minute for each agent and 40 for each room on the observation route (security review of #101). */
+  readonly limitObservations: Guard;
 }
 
 export interface LobbyRouteDeps {
@@ -52,7 +54,7 @@ export function lobbyRoomRoutes(app: FastifyInstance, deps: LobbyRouteDeps): voi
     '/v1/lobby-rooms/:id/observations',
     {
       bodyLimit: OBSERVATION_BODY_LIMIT_BYTES,
-      preHandler: [guards.requireAgentVersion, guards.requireAgent],
+      preHandler: [guards.requireAgentVersion, guards.requireAgent, guards.limitObservations],
       schema: {
         params: z.object({ id: Id }),
         body: Observation,
@@ -67,6 +69,7 @@ export function lobbyRoomRoutes(app: FastifyInstance, deps: LobbyRouteDeps): voi
           400: ErrorResponse,
           401: ErrorResponse,
           403: ErrorResponse,
+          429: ErrorResponse,
         },
       },
     },
