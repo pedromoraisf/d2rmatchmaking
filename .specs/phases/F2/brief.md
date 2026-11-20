@@ -7,7 +7,7 @@ assisted typing, with a read rate of at least 95% under NFR-02/03. It also takes
 work that F1 deferred: one delivery platform for the three apps, with the same environments and pipeline stages for
 each (it brings the agent channels per branch and the staging and production split), and cutting stream bytes.
 **Roadmap**: .specs/phases/ROADMAP.md#f2
-**Status**: DRAFT — waiting for the maintainer's answers below and the approval line
+**Status**: APPROVED — 2026-11-20
 
 ## How F2 runs
 
@@ -248,4 +248,17 @@ Notes:
 
 ## Approval
 
-<!-- **Approved**: <date> - user: "<maintainer's words>" -->
+**Approved**: 2026-11-20 - user: "aprovado o brief"
+
+The maintainer approved the brief without changing "What I need from you". The message that presented the draft said
+the recommendations would be followed for any item left unanswered. So items 1 to 7 take their recommendations:
+
+1. The OCR protection rule, as written.
+2. Zero wrong confirmations.
+3. Load in the nightly (ADR 035).
+4. Option (a) for keeping the API awake.
+5. Server-side matching in F2.
+6. The Party span attributes.
+7. The ADR 017 amendment.
+
+Items 8 to 10 remain inputs. They are tracked in `decisions.md → Waiting on the maintainer`.
