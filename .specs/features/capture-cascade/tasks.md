@@ -94,7 +94,7 @@ check is `node scripts/agent/win-check.mjs` (Docker, clippy for `x86_64-pc-windo
 
 ## Orchestrator (local; the maintainer answers the gate where it asks)
 
-- [ ] O1 — Sensors for the new adapters. In `scripts/test/agent-source-rules.test.mjs` add `src/adapters/graphics_capture.rs`
+- [x] O1 — Sensors for the new adapters. In `scripts/test/agent-source-rules.test.mjs` add `src/adapters/graphics_capture.rs`
       (and `screen_crop.rs` only when T14 starts) to the unsafe allowlist with the exact `windows::` paths each names, and
       the `windows` features the capture needs to the feature list, one comment per feature saying why. No feature that
       reaches memory, input, hooks or process handles (`deny.toml`). The security reviewer reads this edit first. Gate:

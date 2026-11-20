@@ -29,10 +29,62 @@ const WINDOWS_FEATURE_ALLOW_LIST = [
   'Win32_Graphics_Gdi',
   'Win32_Storage_Xps',
   'Win32_UI_WindowsAndMessaging',
+  // The Windows Graphics Capture of the game window (capture-cascade CAP-01, CAP-04; maintainer exception O1, 2026-11-20).
+  // The capture item, one Direct3D 11 device that copies one texture to the CPU, and the window's visible bounds: no
+  // feature here reaches process memory, input, hooks or process handles.
+  'Graphics', // SizeInt32, the capture item's size
+  'Graphics_Capture', // GraphicsCaptureItem, Direct3D11CaptureFramePool, GraphicsCaptureSession
+  'Graphics_DirectX', // DirectXPixelFormat of the frame pool (B8G8R8A8)
+  'Graphics_DirectX_Direct3D11', // IDirect3DDevice, the WinRT view of the device the frame pool needs
+  'Win32_Graphics_Direct3D', // D3D_DRIVER_TYPE_HARDWARE, to create the device
+  'Win32_Graphics_Direct3D11', // the device, its context and the staging texture that copies one frame
+  'Win32_Graphics_Dxgi', // IDXGIDevice, to make the WinRT device from the D3D device
+  'Win32_Graphics_Dxgi_Common', // D3D11_TEXTURE2D_DESC is gated behind it
+  'Win32_Graphics_Dwm', // DwmGetWindowAttribute(EXTENDED_FRAME_BOUNDS): where the client sits in the frame
+  'Win32_System_WinRT', // RoInitialize, the capture thread's apartment
+  'Win32_System_WinRT_Direct3D11', // CreateDirect3D11DeviceFromDXGIDevice, IDirect3DDxgiInterfaceAccess
+  'Win32_System_WinRT_Graphics_Capture', // IGraphicsCaptureItemInterop::CreateForWindow, from the game window's handle
 ];
 
-// The only three files that may allow unsafe_code, each with the windows:: paths it may name.
+// The only four files that may allow unsafe_code, each with the windows:: paths it may name.
 const UNSAFE_ADAPTERS = {
+  // The Windows Graphics Capture of the game window (capture-cascade O1): the item is made from the game window's own
+  // handle, one frame is copied through a staging texture, and the client rectangle is located in the window frame.
+  'src/adapters/graphics_capture.rs': [
+    'Graphics::Capture',
+    'Graphics::DirectX',
+    'HMODULE',
+    'HWND',
+    'POINT',
+    'RECT',
+    'E_FAIL',
+    'D3D_DRIVER_TYPE_HARDWARE',
+    'D3D11CreateDevice',
+    'D3D11_CPU_ACCESS_READ',
+    'D3D11_CREATE_DEVICE_BGRA_SUPPORT',
+    'D3D11_MAP_READ',
+    'D3D11_MAPPED_SUBRESOURCE',
+    'D3D11_SDK_VERSION',
+    'D3D11_TEXTURE2D_DESC',
+    'D3D11_USAGE_STAGING',
+    'ID3D11Device',
+    'ID3D11DeviceContext',
+    'ID3D11Texture2D',
+    'DWMWA_EXTENDED_FRAME_BOUNDS',
+    'DwmGetWindowAttribute',
+    'IDXGIDevice',
+    'ClientToScreen',
+    'GetClientRect',
+    'CreateDirect3D11DeviceFromDXGIDevice',
+    'IDirect3DDxgiInterfaceAccess',
+    'IGraphicsCaptureItemInterop',
+    'RO_INIT_MULTITHREADED',
+    'RoInitialize',
+    'core::Interface',
+    'core::factory',
+    'core::Result',
+    'core::Error',
+  ],
   'src/adapters/window_capture.rs': [
     'HWND',
     'LPARAM',
@@ -136,7 +188,7 @@ const windowsFeatureViolations = (base) => {
 const unsafeLocationViolations = (base) =>
   rustFiles(base)
     .filter(({ rel, text }) => /allow\(\s*unsafe_code\s*\)/.test(text) && !(rel in UNSAFE_ADAPTERS))
-    .map(({ rel }) => `${rel} allows unsafe_code outside the three adapters`);
+    .map(({ rel }) => `${rel} allows unsafe_code outside the four adapters`);
 
 const adapterPathViolations = (base) =>
   Object.entries(UNSAFE_ADAPTERS).flatMap(([rel, allowed]) => {
@@ -290,7 +342,7 @@ test('windows features stay on the allow-list', () => {
   assert.deepEqual(windowsFeatureViolations(root), []);
 });
 
-test('unsafe is allowed only in the three adapters', () => {
+test('unsafe is allowed only in the four adapters', () => {
   assert.deepEqual(unsafeLocationViolations(root), []);
 });
 
@@ -344,7 +396,7 @@ test('the windows feature rule rejects a feature off the list', () => {
 test('the unsafe location rule rejects an allow outside the adapters', () => {
   assert.match(
     unsafeLocationViolations(fixtureBase('unsafe-outside-adapters')).join('\n'),
-    /src\/adapters\/http\.rs allows unsafe_code outside the three adapters/,
+    /src\/adapters\/http\.rs allows unsafe_code outside the four adapters/,
   );
 });
 
