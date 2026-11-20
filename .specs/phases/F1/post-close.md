@@ -169,6 +169,15 @@ Open items:
 
 **Mutation and OCR (the orchestrator's answer to the maintainer, 2026-11-20).** Mutation testing measures whether the unit tests catch changes to the code's logic (thresholds, comparisons, glyph tables). It does not train or improve the OCR's reading of the game. The survivors in `anchors.rs` and `character_screen.rs` show that the reading logic changed in F1 is weakly tested, which is a regression risk for OCR work. Reading quality is measured by the `ocr-variations` job (correct, refused or wrong over thousands of variations of real prints) and improved with real prints and search-based reading.
 
+**Protecting the OCR reading logic (maintainer's concern, 2026-11-20).** Quote: "os testes de mutação não podem ficar acusando gaps na forma que estamos usando o OCR para ler os pontos da tela. estou com medo de ele acusar algo e os agentes irem corrigir e perderem a logica sagrada e suada da leitura do ocr da tela (ao meu ver, o ponto de maior risco do projeto disparado)".
+
+Proposal for the planning (the maintainer's decision; nothing applied yet):
+
+1. A survivor in the OCR reading modules (`domain/src/anchors.rs`, `character_screen.rs`, `characters.rs`, `layout.rs`, `game_name_match.rs`, `language.rs`, `core/src/party.rs`, `screen_reader.rs`) is fixed only by a new unit test that pins the current behaviour, using a fixture or values from a real print. The reading logic is never changed to kill a mutant.
+2. A change to that logic (thresholds, boxes, glyph tables, anchors) needs the real-print proof in the same PR: `ocr-real` green, and `ocr-variations` not regressing on the ratchet (correct floor, wrong ceiling). That ratchet is the safety net, and it already runs on every agent PR.
+3. Mutants that are equivalent for empirically tuned values (where nearby thresholds read the same) are excluded explicitly in the cargo-mutants config, with a comment and the real-print evidence. They are not "fixed".
+4. Write the rule into AGENTS.md (maintainer-owned, rule 4 and the sensors) and the feature-worker instructions, so no agent "fixes" reading logic for a mutation score.
+
 ## How to resume
 
 Start with `pnpm phase:status`, `gh pr list`, then this file. Remove stale worktrees once their work is pushed
