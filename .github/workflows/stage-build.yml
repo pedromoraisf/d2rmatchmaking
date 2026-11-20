@@ -1,13 +1,14 @@
 # Stage `build` (ADR 033, DLP-02, DLP-03): builds the artifact of an app once for a commit and names it by the SHA. It
-# needs no secret: deploy and promote download this artifact; nothing downstream builds again. Only the site is wired so
-# far; the API and the agent join in their own batches.
+# needs no secret. Site: deploy and promote download the built `dist`; nothing downstream builds again. API: Render
+# builds from source, so the artifact is the commit pin (`api-commit.txt`) after the API has compiled here (ADR 033,
+# § Render and prebuilt images: the free plan's image support is unverified). The agent joins in its own batch.
 name: stage-build
 
 on:
   workflow_call:
     inputs:
       app:
-        description: The app to build (site)
+        description: The app to build (site or api)
         type: string
         required: true
       sha:
@@ -31,7 +32,7 @@ jobs:
         env:
           APP: ${{ inputs.app }}
         run: |
-          if [ "$APP" != "site" ]; then
+          if [ "$APP" != "site" ] && [ "$APP" != "api" ]; then
             echo "::error::stage-build has no build for app \"$APP\" yet"
             exit 1
           fi
@@ -54,13 +55,23 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Build the site
+        if: inputs.app == 'site'
         run: pnpm --filter @d2rmm/web build
+
+      - name: Compile the API and write its commit pin
+        if: inputs.app == 'api'
+        env:
+          SHA: ${{ inputs.sha }}
+        run: |
+          pnpm --filter @d2rmm/api build
+          mkdir -p api-pin
+          echo "$SHA" > api-pin/api-commit.txt
 
       - name: Upload the artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ inputs.app }}-${{ inputs.sha }}
-          path: apps/web/dist
+          path: ${{ inputs.app == 'site' && 'apps/web/dist' || 'api-pin' }}
           if-no-files-found: error
           # A promotion deploys this artifact; it must still exist when the maintainer's runner promotes.
           retention-days: 30

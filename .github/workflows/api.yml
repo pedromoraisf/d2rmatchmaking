@@ -1,0 +1,72 @@
+# The API through the delivery stages (ADR 033, DLP-02, DLP-03, DLP-05): build → verify → deploy → smoke on every push to
+# main (staging), and promote on a manual dispatch of a commit that passed staging smoke (the runner, ADR 028). Each stage
+# migrates its own database before its Render service deploys the exact commit. This file holds triggers and inputs only.
+# It runs beside deploy-api.yml and preview-api.yml until they are removed (DLP-09): until the maintainer sets the
+# repository variable API_STAGES_LIVE to true, it builds and stops, so two workflows never deploy the same push.
+name: api
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'packages/**'
+      - 'render.yaml'
+      - '.github/workflows/api.yml'
+      - '.github/workflows/stage-*.yml'
+      - 'scripts/delivery/**'
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: The commit to promote to production; its staging run must have passed smoke
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  # Nothing here is cancelled: a run may be migrating a database or deploying.
+  group: api-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build
+    if: github.event_name != 'workflow_dispatch'
+    uses: ./.github/workflows/stage-build.yml
+    with:
+      app: api
+      sha: ${{ github.sha }}
+
+  deploy:
+    name: deploy
+    needs: [build]
+    if: github.event_name == 'push' && vars.API_STAGES_LIVE == 'true'
+    uses: ./.github/workflows/stage-deploy.yml
+    with:
+      app: api
+      environment: staging
+      sha: ${{ github.sha }}
+    secrets: inherit
+
+  smoke:
+    name: smoke
+    needs: [deploy]
+    uses: ./.github/workflows/stage-smoke.yml
+    with:
+      app: api
+      environment: staging
+      sha: ${{ github.sha }}
+      url: ${{ needs.deploy.outputs.url }}
+
+  promote:
+    name: promote
+    # Only a dispatch of main promotes: another ref's copy of this workflow would carry its own gate.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/stage-promote.yml
+    with:
+      app: api
+      sha: ${{ inputs.sha }}
+    secrets: inherit
