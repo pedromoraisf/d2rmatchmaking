@@ -367,9 +367,9 @@ pub fn party_line_diagnostics(reader: &dyn TextReader, image: &Rgba) -> Vec<Stri
 }
 
 /// What the line pass finds in a wide area of the client's top-left (screen-recognition T6, SCR-04): per variant, every line
-/// with its box and the anchor it matched. The text of a line is printed only for the rows where the Party title and the Game
-/// Name label sit (between 9% and 18% of the client height), which hold fixed words; every other line prints its shape (a
-/// letter, a digit or another character each), never its text, so no player name reaches the CI log.
+/// with its box and the anchor it matched. The text of a line is printed in clear only when it reads as the Party title or the
+/// Game Name label (either language) or as a generated game name; every other line, whatever its y, prints its shape (a
+/// letter, a digit or another character each), never its text, so no player name or BattleTag reaches the public CI log.
 pub fn party_wide_diagnostics(reader: &dyn TextReader, image: &Rgba) -> Vec<String> {
     let area = Region {
         x: 0,
@@ -378,6 +378,7 @@ pub fn party_wide_diagnostics(reader: &dyn TextReader, image: &Rgba) -> Vec<Stri
         height: image.height * 40 / 100,
     };
     let pack = LanguagePack::english();
+    let brazilian = LanguagePack::brazilian_party();
     let mut out = Vec::new();
     for (index, lines) in reader.read_line_variants(image, area).iter().enumerate() {
         out.push(format!(
@@ -385,9 +386,12 @@ pub fn party_wide_diagnostics(reader: &dyn TextReader, image: &Rgba) -> Vec<Stri
             lines.len()
         ));
         for line in lines {
-            let fixed_row =
-                line.region.y * 100 >= image.height * 9 && line.region.y * 100 <= image.height * 18;
-            let shown: String = if fixed_row {
+            let anchor = anchors::party_line_anchor(&pack, &line.text);
+            let portuguese = anchors::party_line_anchor(&brazilian, &line.text);
+            let clear = matches!(anchor, "title" | "label")
+                || matches!(portuguese, "title" | "label")
+                || is_generated_game_name(line.text.trim());
+            let shown: String = if clear {
                 line.text.clone()
             } else {
                 line.text
@@ -405,12 +409,7 @@ pub fn party_wide_diagnostics(reader: &dyn TextReader, image: &Rgba) -> Vec<Stri
             };
             out.push(format!(
                 "    x {} y {} width {} height {}: {} [{}]",
-                line.region.x,
-                line.region.y,
-                line.region.width,
-                line.region.height,
-                anchors::party_line_anchor(&pack, &line.text),
-                shown
+                line.region.x, line.region.y, line.region.width, line.region.height, anchor, shown
             ));
         }
     }
@@ -853,17 +852,27 @@ mod tests {
     }
 
     #[test]
-    fn the_wide_diagnostics_print_the_text_of_the_title_rows_only() {
+    fn the_wide_diagnostics_print_only_anchor_and_game_name_lines_in_clear() {
         let image = Rgba {
             width: 1920,
             height: 1080,
             pixels: Vec::new(),
         };
-        let reader = LinesReader(vec![line("PARTY", 153), line("Vuk Bob 12", 300)]);
+        // "Vuk#1234" sits on the title's row (the old 9% to 18% band): it prints as its shape all the same.
+        let reader = LinesReader(vec![
+            line("PARTY", 153),
+            line("Vuk#1234", 160),
+            line("Vuk Bob 12", 300),
+            line("GRUPO", 175),
+            line("mmbaalm-99", 190),
+        ]);
         let lines = super::party_wide_diagnostics(&reader, &image);
-        assert_eq!(lines[0], "  wide pass, variant 0: 2 lines");
+        assert_eq!(lines[0], "  wide pass, variant 0: 5 lines");
         assert!(lines[1].ends_with("title [PARTY]"), "{}", lines[1]);
-        assert!(lines[2].ends_with("none [aaa aaa 99]"), "{}", lines[2]);
+        assert!(lines[2].ends_with("none [aaa#9999]"), "{}", lines[2]);
+        assert!(lines[3].ends_with("none [aaa aaa 99]"), "{}", lines[3]);
+        assert!(lines[4].ends_with("none [GRUPO]"), "{}", lines[4]);
+        assert!(lines[5].ends_with("none [mmbaalm-99]"), "{}", lines[5]);
         assert!(!lines.join("\n").contains("Vuk"));
     }
 
