@@ -37,11 +37,11 @@ with drawn fixtures. Never commit a capture.
       while other threads register the same callsites. Fix the test setup, for example by rebuilding the interest cache
       after `set_default` or by serialising the span tests; never change the reading code or an assertion. Gate:
       `cargo test --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib`
-- [ ] T2 — Add `scripts/agent/reading-modules.json` (OCP-02). Add `core/src/party.rs` and `core/src/screen_reader.rs`
+- [x] T2 — Add `scripts/agent/reading-modules.json` (OCP-02). Add `core/src/party.rs` and `core/src/screen_reader.rs`
       to `examine_globs` (OCP-03). Write a harness test that every listed module exists and is in the scope, with a
       negative fixture. Update the lists in `agent-mutation-scope.test.mjs` and `agent-source-rules.test.mjs`. Gate:
       `pnpm test:harness`
-- [ ] T3 — Write the exclusion evidence check (OCP-06): each `exclude_re` entry needs a preceding comment with
+- [x] T3 — Write the exclusion evidence check (OCP-06): each `exclude_re` entry needs a preceding comment with
       `file:line`, the reason and an `Evidence:` line. Add the missing `Evidence:` line to the existing `pair_once`
       entry, quoting its own comment. Write a negative fixture. Gate: `pnpm test:harness`
 - [ ] T4 — Write the rule (OCP-01, OCP-07): a new inviolable rule 14 in AGENTS.md with the four points, the same rule in
