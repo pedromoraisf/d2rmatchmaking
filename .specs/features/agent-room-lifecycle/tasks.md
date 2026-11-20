@@ -26,7 +26,7 @@ Rules:
       `expired` and `closed` into `RoomEnded`; core drops only the held room and stops its Party step. Unit tests cover
       both rooms and both stages. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core -p d2rmm-agent-adapters --lib && cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings`
-- [ ] T2 — Agent: on a stream reconnect or a start, read the assignment again and drop a room the API no longer assigns
+- [x] T2 — Agent: on a stream reconnect or a start, read the assignment again and drop a room the API no longer assigns
       (ARL-02). Unit test with the fake gateway. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib`
 - [ ] T3 — Agent: the confirmed state (ARL-03, ARL-04). Add it to the view model, clear it on a new run and on a drop,
