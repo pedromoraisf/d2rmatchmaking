@@ -366,6 +366,57 @@ pub fn party_line_diagnostics(reader: &dyn TextReader, image: &Rgba) -> Vec<Stri
     out
 }
 
+/// What the line pass finds in a wide area of the client's top-left (screen-recognition T6, SCR-04): per variant, every line
+/// with its box and the anchor it matched. The text of a line is printed only for the rows where the Party title and the Game
+/// Name label sit (between 9% and 18% of the client height), which hold fixed words; every other line prints its shape (a
+/// letter, a digit or another character each), never its text, so no player name reaches the CI log.
+pub fn party_wide_diagnostics(reader: &dyn TextReader, image: &Rgba) -> Vec<String> {
+    let area = Region {
+        x: 0,
+        y: 0,
+        width: image.width * 30 / 100,
+        height: image.height * 40 / 100,
+    };
+    let pack = LanguagePack::english();
+    let mut out = Vec::new();
+    for (index, lines) in reader.read_line_variants(image, area).iter().enumerate() {
+        out.push(format!(
+            "  wide pass, variant {index}: {} lines",
+            lines.len()
+        ));
+        for line in lines {
+            let fixed_row =
+                line.region.y * 100 >= image.height * 9 && line.region.y * 100 <= image.height * 18;
+            let shown: String = if fixed_row {
+                line.text.clone()
+            } else {
+                line.text
+                    .chars()
+                    .map(|c| {
+                        if c.is_alphabetic() {
+                            'a'
+                        } else if c.is_numeric() {
+                            '9'
+                        } else {
+                            c
+                        }
+                    })
+                    .collect()
+            };
+            out.push(format!(
+                "    x {} y {} width {} height {}: {} [{}]",
+                line.region.x,
+                line.region.y,
+                line.region.width,
+                line.region.height,
+                anchors::party_line_anchor(&pack, &line.text),
+                shown
+            ));
+        }
+    }
+    out
+}
+
 /// The readers whose text the diagnostics print for each region, by label (nearest and bilinear at 2x, 3x, 4x and 5x); the agent
 /// reads the six of 3x, 4x and 5x (characters-reading T24).
 pub type Variants = Vec<(String, Arc<dyn TextReader + Send + Sync>)>;
@@ -477,6 +528,9 @@ pub fn check_folder(
                 println!("{}", anchor_line(name, &*reader, &screens, &image));
                 if name.starts_with("maintainer-party") {
                     for line in party_line_diagnostics(&*reader, &image) {
+                        println!("{line}");
+                    }
+                    for line in party_wide_diagnostics(&*reader, &image) {
                         println!("{line}");
                     }
                 }
@@ -794,6 +848,21 @@ mod tests {
         );
         assert_eq!(shown, "  anchors: cards found 2, popup options found 2");
         assert!(!shown.to_lowercase().contains("vuk"));
+    }
+
+    #[test]
+    fn the_wide_diagnostics_print_the_text_of_the_title_rows_only() {
+        let image = Rgba {
+            width: 1920,
+            height: 1080,
+            pixels: Vec::new(),
+        };
+        let reader = LinesReader(vec![line("PARTY", 153), line("Vuk Bob 12", 300)]);
+        let lines = super::party_wide_diagnostics(&reader, &image);
+        assert_eq!(lines[0], "  wide pass, variant 0: 2 lines");
+        assert!(lines[1].ends_with("title [PARTY]"), "{}", lines[1]);
+        assert!(lines[2].ends_with("none [aaa aaa 99]"), "{}", lines[2]);
+        assert!(!lines.join("\n").contains("Vuk"));
     }
 
     #[test]
