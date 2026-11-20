@@ -603,10 +603,19 @@ impl ModifierState for FakeKeyboard {
         if self.held_forever.load(Ordering::SeqCst) {
             return true;
         }
-        self.held_polls
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
-                left.checked_sub(1)
-            })
-            .is_ok()
+        // Takes one of the remaining polls, if any: a compare-and-swap loop, so two pollers never take the same one.
+        let mut left = self.held_polls.load(Ordering::SeqCst);
+        while left > 0 {
+            match self.held_polls.compare_exchange(
+                left,
+                left - 1,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            ) {
+                Ok(_) => return true,
+                Err(now) => left = now,
+            }
+        }
+        false
     }
 }
