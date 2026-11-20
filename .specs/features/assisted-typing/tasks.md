@@ -77,7 +77,7 @@ Rules:
       (`GetForegroundWindow` → `GetWindowThreadProcessId` → `game_process_ids()`) and the modifier-state adapter. The
       `windows::` paths stay inside the allow-list of T8. Gate (CI builds the Windows crate):
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent --lib && cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo deny --manifest-path apps/agent/src-tauri/Cargo.toml --locked check`
-- [ ] T10 — App crate: the hotkey registration for the fill key next to RDY-07's, registered exactly while a room is
+- [x] T10 — App crate: the hotkey registration for the fill key next to RDY-07's, registered exactly while a room is
       held (`sync_hotkey`'s pattern, tested with the fake registrar), the local `hotkey_config` file and its Tauri
       command in `capabilities/main.json` (one new command, nothing else), and the press handler that runs `fill_name`
       off the main thread (AST-01, AST-07). Gate: same as T9.
