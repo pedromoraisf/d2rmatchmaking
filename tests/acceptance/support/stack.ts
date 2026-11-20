@@ -35,6 +35,9 @@ const BUILD_TIMEOUT_MS = 180_000;
 /** How often the traced API's clock follows the wall clock while a scenario runs (`followWallClock`). */
 const WALL_CLOCK_TICK_MS = 500;
 /** The header the traced API sends to its OTLP endpoint (a test value; the local backend ignores it). */
+/** The commit the acceptance API reports on `/healthz` (DLP-04). */
+export const ACCEPTANCE_BUILD_SHA = '0123456789abcdef0123456789abcdef01234567';
+
 export const TRACED_BACKEND_HEADER = 'x-acceptance-backend=present';
 /** The compatibility date of the local Pages Functions (the wrangler default of this version). */
 const WRANGLER_COMPATIBILITY_DATE = '2026-10-23';
@@ -221,6 +224,7 @@ function apiEnv(input: ApiEnvInput): Record<string, string> {
     AGENT_MIN_VERSION: input.telemetry === undefined ? '0.0.1' : '0.0.0',
     D2RMM_ACCEPTANCE: 'true',
     D2RMM_ENV: 'local',
+    D2RMM_BUILD_SHA: ACCEPTANCE_BUILD_SHA,
     TEST_CONTROL_SECRET: input.controlSecret,
     ...(input.telemetry === undefined
       ? {}

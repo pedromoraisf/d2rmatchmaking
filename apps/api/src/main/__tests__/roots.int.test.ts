@@ -152,13 +152,13 @@ describe('composition roots', () => {
     const local = await startRoot('src/main/local.ts', rootEnv, preload);
     const localHealth = await fetch(`${local.url}/healthz`);
     expect(localHealth.status).toBe(200);
-    expect(await localHealth.json()).toEqual({ status: 'ok' });
+    expect(await localHealth.json()).toEqual({ status: 'ok', version: 'unknown' });
 
     // The Render root listens on 0.0.0.0; the loopback address reaches the same socket.
     const render = await startRoot('src/main/render.ts', rootEnv, preload);
     const renderHealth = await fetch(`${render.url.replace('0.0.0.0', '127.0.0.1')}/healthz`);
     expect(renderHealth.status).toBe(200);
-    expect(await renderHealth.json()).toEqual({ status: 'ok' });
+    expect(await renderHealth.json()).toEqual({ status: 'ok', version: 'unknown' });
   });
 
   it('local.ts started as a child process answers /healthz', async () => {
@@ -170,7 +170,7 @@ describe('composition roots', () => {
 
     const response = await fetch(`${local.url}/healthz`);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ status: 'ok' });
+    expect(await response.json()).toEqual({ status: 'ok', version: 'unknown' });
   });
 
   it('render refuses staging endpoints outside staging', async () => {

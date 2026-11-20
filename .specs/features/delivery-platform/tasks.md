@@ -15,7 +15,7 @@ Rules:
 
 - [x] T1 — Write ADR 033 (Proposed) and `docs/engineering/delivery.md` from design.md. Record Render's answer on free
       prebuilt images, with the docs URL (DLP-01). Gate: `pnpm format:check`
-- [ ] T2 — The API answers its build SHA on `/healthz` and sets `service.version` (DLP-04). Cover it with unit and
+- [x] T2 — The API answers its build SHA on `/healthz` and sets `service.version` (DLP-04). Cover it with unit and
       integration tests, regenerate the contract, and write the `@DLP-04` steps. Gate:
       `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api exec vitest run -c vitest.integration.config.ts && pnpm contracts:openapi && git diff --exit-code packages/contracts/openapi.json packages/contracts/asyncapi.json && pnpm arch`
 - [ ] T3 — The site retries a sleeping API with a "waking the server" message for up to 90 s (DLP-07, site part). Add
