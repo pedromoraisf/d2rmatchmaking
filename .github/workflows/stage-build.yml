@@ -1,0 +1,66 @@
+# Stage `build` (ADR 033, DLP-02, DLP-03): builds the artifact of an app once for a commit and names it by the SHA. It
+# needs no secret: deploy and promote download this artifact; nothing downstream builds again. Only the site is wired so
+# far; the API and the agent join in their own batches.
+name: stage-build
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        description: The app to build (site)
+        type: string
+        required: true
+      sha:
+        description: The commit to build; the artifact is named <app>-<sha>
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: '1'
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Refuse an app that has no build here yet
+        env:
+          APP: ${{ inputs.app }}
+        run: |
+          if [ "$APP" != "site" ]; then
+            echo "::error::stage-build has no build for app \"$APP\" yet"
+            exit 1
+          fi
+
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build the site
+        run: pnpm --filter @d2rmm/web build
+
+      - name: Upload the artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ inputs.app }}-${{ inputs.sha }}
+          path: apps/web/dist
+          if-no-files-found: error
+          # A promotion deploys this artifact; it must still exist when the maintainer's runner promotes.
+          retention-days: 30

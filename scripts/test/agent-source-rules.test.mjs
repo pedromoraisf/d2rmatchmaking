@@ -604,7 +604,9 @@ test('mutation covers the core rule modules', () => {
     'core/src/check_update.rs',
     'core/src/follow_stream.rs',
     'core/src/pair.rs',
+    'core/src/party.rs',
     'core/src/post_observation.rs',
+    'core/src/screen_reader.rs',
     'domain/src/**/*.rs',
   ]);
 });

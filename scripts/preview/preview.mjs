@@ -112,6 +112,11 @@ export function previewApiOriginFor(pullRequests, owner) {
   return validPreviewOrigin(`https://${BASE_SERVICE}-pr-${Math.min(...numbers)}.onrender.com`);
 }
 
+/** The text of `preview-origin.json`, the deploy configuration of the Pages Function (ADR 033). */
+export function previewConfigJson(origin) {
+  return `${JSON.stringify({ previewApiOrigin: validPreviewOrigin(origin) ?? null }, null, 2)}\n`;
+}
+
 /** The module text with the preview API origin baked in; throws when the origin or the default line is wrong. */
 export function bakeOrigin(moduleText, origin) {
   if (validPreviewOrigin(origin) === undefined) throw new Error('not a preview API origin');
@@ -162,6 +167,32 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       writeFileSync(args[1], bakeOrigin(readFileSync(args[1], 'utf8'), origin));
       process.stdout.write(`baked ${origin}\n`);
     }
+  } else if (command === 'config') {
+    // `config <branch> <json file>`: needs GH_TOKEN and GH_REPO. Writes the deploy configuration the Pages Function reads
+    // (ADR 033): the preview API origin of the branch's labelled pull request, or null. The built bundle is untouched.
+    const json = execFileSync(
+      'gh',
+      [
+        'pr',
+        'list',
+        '--head',
+        args[0],
+        '--base',
+        'main',
+        '--label',
+        'render-preview',
+        '--state',
+        'open',
+        '--json',
+        'number,headRepositoryOwner',
+      ],
+      { encoding: 'utf8' },
+    );
+    const origin = previewApiOriginFor(JSON.parse(json), (process.env.GH_REPO ?? '').split('/')[0]);
+    writeFileSync(args[1], previewConfigJson(origin));
+    process.stdout.write(
+      origin === undefined ? 'no preview API for this branch\n' : `configured ${origin}\n`,
+    );
   } else if (command === 'describe') {
     // `describe`: reads a list-services answer on stdin, prints one line per service (never env vars).
     let text = '';
@@ -184,7 +215,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     }
   } else {
     process.stderr.write(
-      'usage: preview.mjs find <n> | describe | site-origin <branch> <project> | bake <branch> <file>\n',
+      'usage: preview.mjs find <n> | describe | site-origin <branch> <project> | bake <branch> <file> | config <branch> <json>\n',
     );
     process.exit(2);
   }

@@ -48,7 +48,8 @@ function failureFor(status: number): ApiFailure {
 }
 
 export interface ApiClient {
-  config(): Promise<ApiResult<ConfigResponse>>;
+  /** The signal, when given, aborts the request (the wake retry gives each attempt a timeout, DLP-07). */
+  config(signal?: AbortSignal): Promise<ApiResult<ConfigResponse>>;
   me(): Promise<ApiResult<MeResponse>>;
   testLogin(name: string): Promise<ApiResult<void>>;
   signOut(): Promise<ApiResult<void>>;
@@ -80,6 +81,7 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
     method: 'GET' | 'POST' | 'DELETE' | 'PATCH',
     path: string,
     body?: unknown,
+    signal?: AbortSignal,
   ): Promise<Response | null> {
     const url = `${API_PREFIX}${path}`;
     let response: Response;
@@ -88,7 +90,7 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
       // needs the JSON content type on every non-GET request.
       response =
         method === 'GET'
-          ? await fetcher(url, { method })
+          ? await fetcher(url, signal === undefined ? { method } : { method, signal })
           : await fetcher(url, {
               method,
               headers: { 'Content-Type': 'application/json' },
@@ -104,16 +106,17 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
     method: 'GET' | 'POST' | 'DELETE' | 'PATCH',
     path: string,
     body?: unknown,
+    signal?: AbortSignal,
   ): Promise<Sent> {
-    const response = await transmit(method, path, body);
+    const response = await transmit(method, path, body, signal);
     if (response === null) {
       return { ok: false, failure: 'failed' };
     }
     return response.ok ? { ok: true, response } : { ok: false, failure: failureFor(response.status) };
   }
 
-  async function read<T>(path: string, parser: Parser<T>): Promise<ApiResult<T>> {
-    const sent = await send('GET', path);
+  async function read<T>(path: string, parser: Parser<T>, signal?: AbortSignal): Promise<ApiResult<T>> {
+    const sent = await send('GET', path, undefined, signal);
     if (!sent.ok) {
       return sent;
     }
@@ -182,7 +185,7 @@ export function createApiClient(fetcher: Fetcher = (url, init) => fetch(url, ini
   }
 
   return {
-    config: () => read('/v1/config', ConfigResponse),
+    config: (signal) => read('/v1/config', ConfigResponse, signal),
     me: () => read('/v1/me', MeResponse),
     testLogin: (name) => write('/v1/auth/test-login', { name }),
     signOut: () => write('/v1/auth/logout', {}),

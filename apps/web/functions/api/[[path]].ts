@@ -2,7 +2,7 @@
 // allow-listed headers to the API origin from the environment, streams the body and keeps Set-Cookie. A browser can
 // never reach /__test/*, nor act as an agent through the site: Authorization and X-Agent-Version are dropped.
 
-import { PREVIEW_API_ORIGIN, validPreviewApiOrigin } from './preview-origin.ts';
+import { PREVIEW_API_ORIGIN, previewApiOriginOf, validPreviewApiOrigin } from './preview-origin.ts';
 
 export interface ProxyEnv {
   API_ORIGIN: string;
@@ -96,7 +96,8 @@ export async function proxyRequest(context: ProxyContext, upstream: Upstream): P
 }
 
 export function onRequest(context: ProxyContext): Promise<Response> {
-  return proxyRequest({ ...context, previewApiOrigin: PREVIEW_API_ORIGIN }, (target, init) =>
-    fetch(target, init),
+  return proxyRequest(
+    { ...context, previewApiOrigin: previewApiOriginOf(PREVIEW_API_ORIGIN) },
+    (target, init) => fetch(target, init),
   );
 }
