@@ -147,6 +147,8 @@ export interface AppConfig {
   readonly minAgentVersion: string;
   readonly siteOrigin: string;
   readonly trustProxyHops: number;
+  /** The commit of the running build, answered by `/healthz` (DLP-04); `unknown` when the environment names none. */
+  readonly buildSha?: string | undefined;
   /** `ROOM_DROP_TOLERANCE_SECONDS`: how long a member may be away before they leave their room. Default 60 (LBR-08). */
   readonly roomDropToleranceSeconds?: number | undefined;
   /** Battle.net sign-in settings (`BNET_*`, main/config.ts). Undefined: the login and callback routes answer 404. */
@@ -478,9 +480,11 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   });
 
   const typed = app.withTypeProvider<ZodTypeProvider>();
-  typed.get('/healthz', { schema: { response: { 200: z.object({ status: z.literal('ok') }) } } }, () => ({
-    status: 'ok' as const,
-  }));
+  typed.get(
+    '/healthz',
+    { schema: { response: { 200: z.object({ status: z.literal('ok'), version: z.string() }) } } },
+    () => ({ status: 'ok' as const, version: config.buildSha ?? 'unknown' }),
+  );
   typed.get('/v1/config', { schema: { response: { 200: ConfigResponse } } }, () => ({
     stagingEndpoints: config.stagingEndpoints,
     minAgentVersion: config.minAgentVersion,

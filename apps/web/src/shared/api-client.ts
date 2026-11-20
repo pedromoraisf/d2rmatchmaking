@@ -18,7 +18,8 @@ export interface Parser<T> {
 }
 
 /** `refused`: the queue answered 409 or 422 with the reason in `refusal` (QUE-03 … QUE-06). */
-export type ApiFailure = 'unauthenticated' | 'not-found' | 'invalid' | 'rate-limited' | 'refused' | 'failed';
+export type ApiFailure =
+  'unauthenticated' | 'not-found' | 'invalid' | 'rate-limited' | 'refused' | 'waking' | 'failed';
 export type ApiResult<T> =
   | { ok: true; value: T }
   | { ok: false; failure: ApiFailure; refusal?: QueueRefusalCode; secondsLeft?: number };
@@ -38,6 +39,9 @@ function failureFor(status: number): ApiFailure {
       return 'not-found';
     case 429:
       return 'rate-limited';
+    case 502:
+    case 503:
+      return 'waking';
     default:
       return 'failed';
   }
