@@ -11,7 +11,7 @@ commands. Today each half is true by construction but pinned in few places:
 
 - **Token reach.** `requireAgent` guards the agent's routes, and one scenario (AWS-11) proves the token is refused on
   one site route. Nothing stops a future route from adding `requireAgent` and widening what a stolen token can do. The
-  agent's surface is also wider than the PRD's wording ("heartbeat, observations and push"): it holds seven routes
+  agent's surface is also wider than the PRD's wording ("heartbeat, observations and push"): it holds eight routes
   (see Decisions).
 - **Revocation.** IDB-08 proves a heartbeat and the stream are cut after a revoke. The other agent routes (observation,
   characters, ready check, telemetry relay) are not proved.
@@ -38,8 +38,8 @@ commands. Today each half is true by construction but pinned in few places:
 ## Requirements
 
 - **AGT-01** — The API SHALL accept an agent token only on the agent routes: `POST /v1/agents/heartbeat`,
-  `GET /v1/agents/me/assignment`, `POST /v1/lobby-rooms/:id/observations`, `POST /v1/me/characters`, the ready-check
-  accept, `GET /v1/stream` and `POST /v1/telemetry/traces`. Every other route SHALL answer an agent token `401`, and
+  `GET /v1/agents/me/assignment`, `POST /v1/lobby-rooms/:id/observations`, `POST /v1/me/characters`,
+  `GET /v1/ready-checks/me`, `POST /v1/ready-checks/:id/accept`, `GET /v1/stream` and `POST /v1/telemetry/traces`. Every other route SHALL answer an agent token `401`, and
   every agent route SHALL answer a session cookie alone `401`. A test SHALL list every route registered by the app with
   the guards it uses, and fail when a route outside that list uses the agent guard, so widening the token's reach needs
   a visible change to the list.
@@ -103,10 +103,11 @@ commands. Today each half is true by construction but pinned in few places:
 
 ## Decisions (conservative defaults)
 
-- **The agent's route list is the one the code has**, seven routes, not the PRD's three words. The extra four are the
-  assignment read, the stream, the ready-check accept and the telemetry relay; each is already shipped and needed.
-  AGT-01 pins the list instead of narrowing it. To confirm in the phase review: whether the PRD's wording of NFR-06
-  should name the seven.
+- **The agent's route list is the one the code has**, eight routes, not the PRD's three words (the draft said seven; the
+  ready-check read, `GET /v1/ready-checks/me`, was missed and found while writing T1). The extra five are the
+  assignment read, the stream, the ready-check read and accept, and the telemetry relay; each is already shipped and
+  needed. AGT-01 pins the list instead of narrowing it. To confirm in the phase review: whether the PRD's wording of NFR-06
+  should name the eight.
 - **No new route, no contract change, no new Rust crate.** The work is tests, source rules and one span change. A task
   that touches a route or a crate runs the gate lessons require.
 - **Reading modules stay untouched except the span of AGT-07.** The change is two `span.record` calls and two declared

@@ -29,7 +29,7 @@ Rules:
 
 ## Batch 1
 
-- [ ] T1 — API: a test that lists every route the app registers with its guards and fails when a route outside the seven
+- [x] T1 — API: a test that lists every route the app registers with its guards and fails when a route outside the eight
       of AGT-01 uses the agent guard, plus a test that the agent token is refused on a sample of site routes and the
       session cookie alone on every agent route. Gate:
       `pnpm --filter @d2rmm/api exec vitest run && pnpm --filter @d2rmm/api test:integration`
