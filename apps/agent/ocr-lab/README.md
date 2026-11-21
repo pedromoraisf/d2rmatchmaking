@@ -36,9 +36,24 @@ it could not read it, so it posts nothing) or **wrong** (a false read, the worst
 heights from 720 to 2160), `aspect` (4:3 crop, 21:9 pad), `tone` (gamma, brightness, contrast, saturation, colour
 temperature), `blur` (gaussian and unsharp), `jpeg` (quality 90 to 30), `noise`, `quantise` (RGB565), `shift` (1 to 3 px),
 `border` (cropped or added edges) and `combo` (seeded mixes of two or three families). Run locally on Windows with
-`ocr-check.exe --variations [--combos N] [--summary out.md] [--json out.json] <folder>`.
+`ocr-check.exe --variations [--combos N] [--shard i/n] [--summary out.md] [--json out.json] <folder>`.
 
-- It is held to the quality ratchet (context `ocr`): after the run the job copies the JSON to `reports/ocr-variations.json`
+- It is sharded. One job read every print and hit the 120-minute cap (19 prints, 5 to 16 minutes each), so the job
+  `ocr-variations-shard` is a matrix of 8 Windows jobs. Shard `i` of 8 (`--shard i/8`) reads the prints at position `i - 1`
+  modulo 8 of the sorted list of the files present in the folder, so the shards partition the prints whatever their number.
+  Each shard decrypts the zip with the same secret and the same step, reads its prints with the same variations and combos,
+  and uploads a partial `ocr-variations.json` (`ocr-variations-shard-<i>`) that also carries a `shard` entry (index, count,
+  the prints of the folder and the shard's own). Each keeps `timeout-minutes: 120`.
+- Per-print budget: the variations of one print may take 20 minutes (`PRINT_BUDGET_MINUTES` in
+  `scripts/agent/ocr-variations-shards.mjs`, `--minutes 20` in the workflow). A print over it fails its shard with its name
+  and time, so slow reading code still fails, as the old job-wide cap made it.
+- The final job keeps the name `ocr-variations` (the required check). It `needs` the matrix and fails if a shard failed,
+  was cancelled or uploaded nothing. `scripts/agent/ocr-variations-shards.mjs merge` then rebuilds the one
+  `reports/ocr-variations.json` of an unsharded run (sums, per-print tables, variants) and fails when a shard is missing or
+  repeated, when shards disagree on the folder, seed or combos, or when a print is assigned or counted twice or not at all.
+  Locally, run each shard on a folder with `--shard i/n` and merge the partials with the script.
+
+- It is held to the quality ratchet (context `ocr`): after the merge the job writes the merged JSON to `reports/ocr-variations.json`
   and runs `quality-collect` and `quality-ratchet --context ocr`. The metrics `ocr.variations.wrong` (ceiling) and
   `ocr.variations.correct` (floor) read `/supported/wrong` and `/supported/correct`, the totals without the
   `unsupported-size` refusals (the log's `Supported totals:` line). More wrong reads or fewer correct ones fail the job; the
@@ -56,8 +71,8 @@ temperature), `blur` (gaussian and unsharp), `jpeg` (quality 90 to 30), `noise`,
   nearest 4x, bilinear 4x, nearest 5x, bilinear 5x): `match`, `masked`, `blank`, `1-edit`, `2-edits` or `far`; the summary
   counts them per variant for the revealed screenshots. Nothing else read is ever printed. The selection screens have no
   per-variant card results (`FrameReading` holds only the settled cards), so they have no such table.
-- The only artifact is `ocr-variations.json` (14 days). The extracted screenshots are never uploaded and are deleted at the
-  end of the job.
+- The artifacts are the partial `ocr-variations-shard-<i>` files and the merged `ocr-variations` (14 days), counts only. The
+  extracted screenshots are never uploaded and are deleted at the end of each shard.
 
 ## Replacing the zip (maintainer)
 

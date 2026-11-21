@@ -135,6 +135,11 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
   words in a wide area.** Why: "Screen: not recognised" in windowed mode.
 - **A diagnostic line in the agent window must reflect state changes.** Why: "waiting for the game" after a
   successful match was read as broken presence.
+- **Adding a print to `ocr-variations` costs 5–16 runner minutes; check the 120-min cap before a PR adds prints.**
+  Why: #107's seven automap and chat prints took the job past the cap twice, and every later PR would read them too.
+- **A revert that makes more variants readable can raise `wrong` as well as `correct`.** Compare the reasons per
+  print against the last green baseline run before choosing what to revert. Why: #104 spent two 70-minute runs on
+  reverts that did not touch the failing class.
 
 ## Harness
 
