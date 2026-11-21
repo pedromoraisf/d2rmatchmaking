@@ -11,10 +11,17 @@ use d2rmm_agent_domain::language::LanguagePack;
 
 use super::catalogue::{DEFAULT_COMBOS, Variation, catalogue};
 use super::outcome::classify_image_detailed;
+use super::popup_fields::{MemoReader, card_field_stats, lifted_card_field_stats};
 use super::report::{Report, VariantResult};
 #[cfg(test)]
 use crate::ocr_check::SCREENSHOTS;
-use crate::ocr_check::{folder_screenshots, read_screenshot};
+use crate::ocr_check::{MAINTAINER_CARDS, folder_screenshots, read_screenshot};
+
+/// The print whose card fields the report breaks down (the difficulty popup).
+/// The lifted diagnostic reads one variation in this many.
+const LIFT_EVERY: usize = 3;
+
+const POPUP_PRINT: &str = "maintainer-select-difficulty.png";
 
 /// The seed of the catalogue: fixed, so every run reads the same variations.
 pub const SEED: u64 = 20_261_118;
@@ -126,6 +133,11 @@ pub fn run_images(
     combos: usize,
     progress: &mut dyn FnMut(&str),
 ) -> Report {
+    let pack = LanguagePack::english();
+    // Both the reading and the card-field diagnostic read through the memo: one OCR pass per frame.
+    let plain = Arc::clone(&reader);
+    let memo = Arc::new(MemoReader::new(reader));
+    let reader: Arc<dyn TextReader + Send + Sync> = memo.clone();
     let screens = ScreenReader::new(Arc::clone(&reader), Arc::new(LanguagePack::english()));
     let mut report = Report {
         seed,
@@ -135,10 +147,20 @@ pub fn run_images(
     for (name, image) in images {
         let started = Instant::now();
         let first = report.results.len();
-        for variation in variations {
+        for (index, variation) in variations.iter().enumerate() {
             let varied = variation.apply(image);
+            memo.next_frame();
             let (verdict, field_variants) =
                 classify_image_detailed(name, &*reader, &screens, &varied);
+            let card_fields = (name == POPUP_PRINT).then(|| {
+                let mut fields = card_field_stats(&*reader, &varied, &pack, &MAINTAINER_CARDS);
+                // A popup whose column read no card: what the column agrees on once lifted (every third variation, for the
+                // per-print time budget; the memo holds the plain frame's reads, so the lifted frame is read through the engine).
+                if fields.is_empty() && index % LIFT_EVERY == 0 {
+                    fields = lifted_card_field_stats(&*plain, &varied, &pack, &MAINTAINER_CARDS);
+                }
+                fields
+            });
             drop(varied);
             report.results.push(VariantResult {
                 screenshot: name.clone(),
@@ -146,6 +168,7 @@ pub fn run_images(
                 family: variation.family,
                 verdict,
                 field_variants,
+                card_fields,
             });
         }
         let seconds = started.elapsed().as_secs_f64();

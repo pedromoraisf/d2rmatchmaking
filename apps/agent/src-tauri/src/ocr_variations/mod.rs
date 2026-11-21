@@ -2,6 +2,7 @@
 //! in memory from the maintainer's five screenshots, read with the production reading and counted; none is written to disk.
 pub mod catalogue;
 pub mod outcome;
+pub mod popup_fields;
 pub mod report;
 pub mod run;
 pub mod transforms;
