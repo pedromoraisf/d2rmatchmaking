@@ -5,13 +5,28 @@
 export class RateLimited extends Error {}
 
 const MAX_TRIES = 4;
+// A request can die before it is answered (a kept-alive socket the server has just closed): `fetch` throws and the request may
+// never have reached the API. Every call the bots make is safe to send again (a login finds its account, a join answers 409,
+// an observation carries its key), so a thrown request is sent again a few times before it fails.
+const MAX_NETWORK_TRIES = 4;
 
 export function createClient({ base, origin, version, fetch: send, sleep }) {
+  async function sendAgain(url, init) {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await send(url, init);
+      } catch (error) {
+        if (attempt >= MAX_NETWORK_TRIES) throw error;
+        await sleep(200 * attempt);
+      }
+    }
+  }
+
   async function call(path, { method = 'GET', headers = {}, body: given, noBackoff = false } = {}) {
     // Every non-GET route wants a JSON body (the same-origin guard): the site sends `{}` when it has nothing to say.
     const body = given === undefined && method !== 'GET' ? {} : given;
     for (let attempt = 1; ; attempt += 1) {
-      const response = await send(`${base}${path}`, {
+      const response = await sendAgain(`${base}${path}`, {
         method,
         headers: { ...headers, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),

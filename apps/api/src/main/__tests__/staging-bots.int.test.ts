@@ -129,8 +129,12 @@ async function human(
 async function roomIsClosedBy(alice: Bot): Promise<void> {
   const deadline = Date.now() + (process.env['DEBUG_BOTS'] === undefined ? 60_000 : 25_000);
   while (alice.state.roomId === undefined || !alice.state.stages.includes('active')) {
-    if (Date.now() > deadline)
-      throw new Error(`the room never became active: ${alice.state.stages.join(',')}`);
+    if (Date.now() > deadline) {
+      // What the bots said goes to stderr and into the message: nothing else shows why a room stalled on a runner.
+      const log = said.slice(-80).join('\n');
+      process.stderr.write(`bots said:\n${log}\n`);
+      throw new Error(`the room never became active: ${alice.state.stages.join(',')}\n${log}`);
+    }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   const closed = await fetch(`${base}/v1/lobby-rooms/${alice.state.roomId}/close`, {

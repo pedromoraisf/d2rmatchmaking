@@ -180,3 +180,30 @@ test('SBT-07 a bot that opens its agent stream late still accepts the ready chec
     'and accepts it',
   );
 });
+
+test('SBT-08 a request that dies before it is answered is sent again, and a run still completes', async () => {
+  const fake = createFakeApi();
+  let thrown = 0;
+  // The first write of each kind dies on the wire once, as a kept-alive socket closed by the server does.
+  const seen = new Set();
+  const flaky = async (url, init = {}) => {
+    const key = `${init.method ?? 'GET'} ${new URL(url).pathname}`;
+    if ((init.method ?? 'GET') === 'POST' && !seen.has(key)) {
+      seen.add(key);
+      thrown += 1;
+      throw new TypeError('fetch failed');
+    }
+    return fake.fetch(url, init);
+  };
+  const out = [];
+  const code = await run({
+    config: config(),
+    fetch: flaky,
+    write: (text) => out.push(text),
+    sleep: fastSleep,
+    random: () => 0,
+  });
+  assert.ok(thrown > 5, 'many different writes died once');
+  assert.equal(code, 0);
+  assert.equal(observationsOf(fake).length, 1, 'the sighting reached the API');
+});
