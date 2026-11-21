@@ -6,6 +6,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use d2rmm_agent_domain::capture_cascade::CascadeParams;
 use d2rmm_agent_domain::characters::{Card, reconcile_names};
 use d2rmm_agent_domain::frame_content::{FrameContent, summarize};
 use d2rmm_agent_domain::presence::game_running;
@@ -23,6 +24,11 @@ use crate::view::{CaptureView, DiagnosticsView, FieldDetailView, PartyLookView, 
 
 /// The interval between two looks at the game (CHR-03: at most once per second).
 pub const TICK: Duration = Duration::from_secs(1);
+
+/// The time to the next look: the configured interval, never under `TICK` (CHR-03, RCF-09).
+pub fn look_interval(configured_ms: u32) -> Duration {
+    Duration::from_millis(u64::from(configured_ms)).max(TICK)
+}
 
 /// The ports the screen loop uses (AHM-17): five trait objects and the gateway, and the Party step's group (AGN-01).
 pub struct ScreenPorts<G> {
@@ -42,8 +48,15 @@ pub async fn run<G: ApiGateway + Send + Sync + 'static>(
 ) {
     let mut posted = None;
     loop {
+        // The configuration in force at this look (RCF-08): the cascade's numbers and the time to the next look.
+        let cadence = device.config.borrow().cadence;
+        ports.frames.configure(CascadeParams {
+            demote_after: cadence.demote_after,
+            probe_every: cadence.probe_every,
+            rate_window: cadence.rate_window as usize,
+        });
         tick(&device, &ports, &mut posted).await;
-        tokio::time::sleep(TICK).await;
+        tokio::time::sleep(look_interval(cadence.look_interval_ms)).await;
     }
 }
 
@@ -1149,5 +1162,71 @@ mod tests {
         );
         let skipped = unseen_capture(CaptureStatus::default(), None);
         assert_eq!((skipped.reason, skipped.blank), (None, false));
+    }
+
+    /// RCF-07: the look interval is today's value, one look a second (CHR-03), before the configuration can replace it.
+    #[test]
+    fn the_look_interval_is_pinned_to_one_second() {
+        assert_eq!(super::TICK, std::time::Duration::from_secs(1));
+    }
+
+    use super::look_interval;
+    use std::time::Duration;
+
+    #[test]
+    fn the_look_interval_is_the_configured_one_and_never_under_a_second() {
+        for (configured, expected) in [
+            (0, 1_000),
+            (1, 1_000),
+            (999, 1_000),
+            (1_000, 1_000),
+            (1_001, 1_001),
+            (2_500, 2_500),
+            (10_000, 10_000),
+        ] {
+            assert_eq!(
+                look_interval(configured),
+                Duration::from_millis(expected),
+                "{configured} ms"
+            );
+        }
+    }
+
+    /// RCF-09: at every interval of the range, 600 seconds make at most 600 looks, and each look makes one capture and, with a
+    /// frame, one read.
+    #[test]
+    fn at_every_interval_six_hundred_seconds_make_at_most_six_hundred_looks_and_reads() {
+        for (interval_ms, looks) in [
+            (0, 600),
+            (999, 600),
+            (1_000, 600),
+            (2_000, 300),
+            (10_000, 60),
+        ] {
+            let captured = std::thread::spawn(move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_time()
+                    .start_paused(true)
+                    .build()
+                    .expect("a paused runtime")
+                    .block_on(async move {
+                        let rig = rig(true, true, frame(), selecting(vec![]));
+                        rig.device.config.send_modify(|config| {
+                            config.cadence.look_interval_ms = interval_ms;
+                        });
+                        let (frames, reader) = (Arc::clone(&rig.frames), Arc::clone(&rig.reader));
+                        tokio::spawn(super::run(Arc::new(rig.device), rig.ports));
+                        // Looks fall at 0 s, then every interval: this stops half a second before the 600th second ends.
+                        tokio::time::sleep(Duration::from_millis(599_500)).await;
+                        (
+                            frames.captures.load(Ordering::SeqCst),
+                            reader.reads.load(Ordering::SeqCst),
+                        )
+                    })
+            })
+            .join()
+            .expect("the scenario ran");
+            assert_eq!(captured, (looks, looks), "interval {interval_ms} ms");
+        }
     }
 }

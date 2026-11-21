@@ -18,6 +18,7 @@ import {
   RoomStageChangedEvent,
   AgentRoomStageChangedEvent,
 } from './events/stream.ts';
+import { AgentConfig } from './http/agent-config.ts';
 import { ClaimRequest, ClaimResponse, Heartbeat, PairingCodeResponse } from './http/agents.ts';
 import { RecordCharactersRequest } from './http/characters.ts';
 import { Assignment, Observation } from './http/lobby.ts';
@@ -71,6 +72,8 @@ const JSON_SCHEMA_SOURCES = {
   'heartbeat.json': Heartbeat,
   'assignment.json': Assignment,
   'observation.json': Observation,
+  // The remote configuration (remote-config RCF-02): the agent tests its defaults against the generated type.
+  'agent-config.json': AgentConfig,
   'agent-event-room-assigned.json': AgentRoomAssignedEvent,
   'agent-event-room-run-opened.json': AgentRoomRunOpenedEvent,
   'agent-event-room-stage-changed.json': AgentRoomStageChangedEvent,

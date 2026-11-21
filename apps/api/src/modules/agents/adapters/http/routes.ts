@@ -1,6 +1,7 @@
 // The Agents HTTP routes (design.md § Agents module): pairing, the one-time token claim, heartbeats and the site's view
 // of its agent. Agent routes need `X-Agent-Version` (426 before auth, AWS-12) and a bearer token where they need one.
 import {
+  AgentConfigResponse,
   AgentView,
   ClaimRequest,
   ClaimResponse,
@@ -36,6 +37,7 @@ export interface AgentsRouteDeps {
     | 'authenticateAgent'
     | 'recordHeartbeat'
     | 'getMyAgent'
+    | 'getAgentConfig'
     | 'revokeAgent'
   >;
   readonly guards: AgentsRouteGuards;
@@ -51,7 +53,7 @@ function bearerTokenOf(authorization: string | undefined): string {
   return /^Bearer (\S+)$/i.exec(authorization ?? '')?.[1] ?? '';
 }
 
-/** Registers the five Agents routes. Claim and pairing-code responses are never cached (`Cache-Control: no-store`). */
+/** Registers the Agents routes. Claim and pairing-code responses are never cached (`Cache-Control: no-store`). */
 export function agentsRoutes(app: FastifyInstance, deps: AgentsRouteDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
   const { useCases, guards } = deps;
@@ -159,6 +161,33 @@ export function agentsRoutes(app: FastifyInstance, deps: AgentsRouteDeps): void 
         screen: request.body.game.screen,
       });
       return reply.code(204).send(null);
+    },
+  );
+
+  // The remote configuration (RCF-01): the same document for every paired agent, tagged with its version. It carries no
+  // account data, so the handler reads no identity; the guards decide who may ask. The body is the exact text validated at
+  // start and served as is; `no-cache` makes a cache revalidate with the tag before it reuses the answer.
+  typed.get(
+    '/v1/agents/config',
+    {
+      preHandler: [guards.requireAgentVersion, guards.requireAgent],
+      schema: {
+        response: { 200: AgentConfigResponse, 304: z.undefined(), 401: ErrorResponse, 404: ErrorResponse },
+      },
+    },
+    async (request, reply) => {
+      const answer = await useCases.getAgentConfig({ ifNoneMatch: request.headers['if-none-match'] });
+      reply.header('cache-control', 'no-cache');
+      if (answer.status === 'none') {
+        return reply.code(404).send({ error: 'not-found' });
+      }
+      reply.header('etag', answer.etag);
+      if (answer.status === 'not-modified') {
+        return reply.code(304).send();
+      }
+      // The text is sent as it was validated, not re-serialised; the typed reply only accepts objects, so this one send
+      // is untyped. A string with a JSON content type is never run through the response serializer.
+      return (reply.code(200).type('application/json; charset=utf-8') as FastifyReply).send(answer.body);
     },
   );
 

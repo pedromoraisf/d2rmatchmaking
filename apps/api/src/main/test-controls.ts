@@ -1,13 +1,16 @@
 // The test controls of the acceptance stack (design.md § Composition roots, AD-045, AD-062): `POST /__test/reset`,
 // `POST /__test/clock`, `POST /__test/redeliver-match-formed` (the at-least-once redelivery of AWS-20) and the site-stream
-// controls of QUE-05 (`GET /__test/site-streams/:accountId`, `POST /__test/site-streams/:accountId/close`). Only `local.ts`
+// controls of QUE-05 (`GET /__test/site-streams/:accountId`, `POST /__test/site-streams/:accountId/close`) and the remote
+// configuration control of remote-config (`PUT /__test/agent-config`, RCF-05, RCF-06). Only `local.ts`
 // registers them, and only when `D2RMM_ACCEPTANCE=true`; `render.ts` never does, and they are never in `openapi.json`.
 import { timingSafeEqual } from 'node:crypto';
-import { ErrorResponse } from '@d2rmm/contracts';
+import { AGENT_CONFIG_MAX_BYTES, ErrorResponse } from '@d2rmm/contracts';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { sql, type Kysely } from 'kysely';
 import { z } from 'zod';
+import { digestOf } from '../modules/agents/adapters/file/agent-config-file.ts';
+import { servedConfigOf, type ServedAgentConfig } from '../modules/agents/domain/agent-config.ts';
 import type { AnyDomainEvent, Clock, EventBus } from '../shared-kernel/index.ts';
 import type { AppDatabase } from './app.ts';
 
@@ -17,6 +20,9 @@ export const TEST_CONTROL_HEADER = 'x-test-control';
 /** Reset and redelivery run only on a per-worker acceptance database and only on loopback (AD-045). */
 const ACCEPTANCE_DATABASE = /^acc_w\d+$/;
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1']);
+
+/** The largest text the agent-config control serves: twice the contract's 64 KiB, so a scenario can send one over it. */
+const MAX_AGENT_CONFIG_TEXT = AGENT_CONFIG_MAX_BYTES * 2;
 
 /** Largest clock advance in one call: one year. Scenarios move time by days, never by more. */
 const MAX_ADVANCE_MS = 365 * 24 * 60 * 60 * 1000;
@@ -60,6 +66,11 @@ export interface TestControlDeps {
     readonly joins: ClearableStore;
     /** The open ready checks (RDY-09): a scenario starts with none open. */
     readonly readyChecks: ClearableStore;
+    /** The served remote configuration: reset puts the committed document back; the control replaces it. */
+    readonly agentConfig: {
+      replace(served: ServedAgentConfig | undefined): void;
+      reset(): void;
+    };
   };
   readonly hub: {
     closeAll(): void;
@@ -139,6 +150,7 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
         deps.stores.queue.clear();
         deps.stores.joins.clear();
         deps.stores.readyChecks.clear();
+        deps.stores.agentConfig.reset();
         deps.hub.closeAll();
         // After the close: closing the streams schedules their site-closed drops, and those must not fire in the next scenario.
         deps.siteClosedTimers.clear();
@@ -195,6 +207,34 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
     },
     async (request, reply) => {
       return reply.code(200).send({ closed: deps.hub.closeSiteStreams(request.params.accountId) });
+    },
+  );
+
+  // RCF-05, RCF-06 (acceptance): what `GET /v1/agents/config` serves, as raw text. A scenario needs a value outside its
+  // range, an unknown field or a body that is not JSON, none of which the committed file may hold. `body: null` serves
+  // nothing (404); `version` is the version the ETag names. Reset puts the committed document back.
+  typed.put(
+    '/__test/agent-config',
+    {
+      preHandler: [requireSecret],
+      schema: {
+        body: z.object({
+          version: z.number().int().min(1).max(2147483647).optional(),
+          body: z.string().max(MAX_AGENT_CONFIG_TEXT).nullable(),
+        }),
+        response: { 204: z.null(), 403: ErrorResponse },
+      },
+    },
+    async (request, reply) => {
+      // Like reset: only on a per-worker acceptance database on loopback (AD-045), never on any other database.
+      if (!onAcceptanceDatabase(deps)) {
+        return reply.code(403).send({ error: 'forbidden' });
+      }
+      const { body, version } = request.body;
+      deps.stores.agentConfig.replace(
+        body === null ? undefined : servedConfigOf(version ?? 1, body, digestOf(body)),
+      );
+      return reply.code(204).send(null);
     },
   );
 
