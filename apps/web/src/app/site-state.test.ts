@@ -121,7 +121,7 @@ describe('applyStreamEvent: rooms (LBR-01, LBR-04, LBR-06, LBR-07)', () => {
   });
 
   it('marks a member elsewhere on the event and confirms them again on the return (ARL-10, ARL-11)', () => {
-    const away = applyStreamEvent(state, {
+    const away = applyStreamEvent<{ agent: null; room: RoomShown | null }>(state, {
       type: 'room.member_changed',
       data: {
         roomId: 'room-1',
