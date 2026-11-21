@@ -20,11 +20,22 @@ const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
 struct Served {
     answer: Arc<Mutex<(u16, Vec<u8>)>>,
     seen: Arc<Mutex<Vec<HeaderMap>>>,
+    /// Answer in chunks with no declared length, so the client has no `Content-Length` to refuse the body by.
+    chunked: Arc<std::sync::atomic::AtomicBool>,
 }
 
 async fn config(State(served): State<Served>, headers: HeaderMap) -> Response {
     served.seen.lock().expect("seen").push(headers);
     let (status, body) = served.answer.lock().expect("answer").clone();
+    if served.chunked.load(std::sync::atomic::Ordering::SeqCst) {
+        let chunks: Vec<Result<Vec<u8>, std::convert::Infallible>> =
+            body.chunks(1_000).map(|chunk| Ok(chunk.to_vec())).collect();
+        return (
+            StatusCode::from_u16(status).expect("a status"),
+            axum::body::Body::from_stream(tokio_stream::iter(chunks)),
+        )
+            .into_response();
+    }
     let mut response = (StatusCode::from_u16(status).expect("a status"), body).into_response();
     if status == 200 {
         response
@@ -168,4 +179,54 @@ async fn an_unreachable_api_is_a_network_failure() {
         client.config(&Secret::new(TOKEN), None).await,
         Fetched::Failed(ApiError::Network)
     );
+}
+
+#[tokio::test]
+async fn a_declared_length_over_the_limit_is_refused_before_the_body_is_read() {
+    let (client, served) = start().await;
+    answer(&served, 200, &vec![b'a'; 1_000_000]);
+
+    let Fetched::Body { bytes, .. } = client.config(&Secret::new(TOKEN), None).await else {
+        panic!("a body");
+    };
+
+    assert_eq!(bytes.len(), 65_537);
+    assert!(
+        bytes.iter().all(|byte| *byte == 0),
+        "nothing of the body was read"
+    );
+}
+
+#[tokio::test]
+async fn a_streamed_body_over_the_limit_is_cut_one_byte_past_it() {
+    let (client, served) = start().await;
+    served
+        .chunked
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    answer(&served, 200, &vec![b'a'; 1_000_000]);
+
+    let Fetched::Body { bytes, .. } = client.config(&Secret::new(TOKEN), None).await else {
+        panic!("a body");
+    };
+
+    assert_eq!(bytes.len(), 65_537);
+    assert!(
+        bytes.iter().all(|byte| *byte == b'a'),
+        "read from the stream, up to the cut"
+    );
+}
+
+#[tokio::test]
+async fn a_streamed_body_at_the_limit_is_read_whole() {
+    let (client, served) = start().await;
+    served
+        .chunked
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    answer(&served, 200, &vec![b'a'; 65_536]);
+
+    let Fetched::Body { bytes, .. } = client.config(&Secret::new(TOKEN), None).await else {
+        panic!("a body");
+    };
+
+    assert_eq!(bytes.len(), 65_536);
 }

@@ -304,6 +304,13 @@ impl ApiClient {
 /// The body, at most `MAX_BODY_BYTES` + 1 bytes of it: a body over the limit ends the read there and is handed on as it is, for the
 /// rule that refuses it (RCF-02, RCF-06).
 async fn bounded_body(response: &mut Response) -> Result<Vec<u8>, ApiError> {
+    // A length the answer declares over the limit is refused before a byte of the body is read.
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_BODY_BYTES as u64)
+    {
+        return Ok(vec![0; MAX_BODY_BYTES + 1]);
+    }
     let mut bytes = Vec::new();
     while let Some(chunk) = response.chunk().await.map_err(|_| ApiError::Network)? {
         bytes.extend_from_slice(&chunk);
