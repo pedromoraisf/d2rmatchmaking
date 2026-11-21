@@ -150,6 +150,27 @@ pub fn wanted_hotkeys(view: &AgentView) -> (Option<HotkeyChoice>, Option<HotkeyC
     )
 }
 
+/// What a received press of a registered hotkey asks for (RDY-02, AST-01).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Press {
+    Accept,
+    Fill,
+    /// The id matches neither combination the runtime holds now: a press that is received and dropped.
+    Unmatched,
+}
+
+/// Tells which combination a press belongs to. `id_of` gives the OS id of one combination, `None` when it does not map to
+/// a key (field test of 2026-11-21: a press that reached the app and matched nothing left no trace).
+pub fn press_of(pair: &HotkeyPair, id_of: &dyn Fn(HotkeyChoice) -> Option<u32>, id: u32) -> Press {
+    if id_of(pair.accept()) == Some(id) {
+        Press::Accept
+    } else if id_of(pair.fill()) == Some(id) {
+        Press::Fill
+    } else {
+        Press::Unmatched
+    }
+}
+
 /// The name of the key in the OS hotkey crate's code list (`KeyA`, `Digit7`, `F12`).
 pub fn code_name(key: HotkeyKey) -> String {
     match key {
@@ -244,9 +265,10 @@ mod shell {
     use d2rmm_agent_domain::typing::HotkeyChoice;
 
     use super::{
-        FileConsentStore, FileHotkeyStore, HotkeyRegistrar, Slot, app_context, apply_hotkey_change,
-        code_name, consent_store_in, handle_get_consent, handle_get_new_code, handle_set_consent,
-        is_app_url, reconcile_and_report, report_dispatch_failed, wanted_hotkeys,
+        FileConsentStore, FileHotkeyStore, HotkeyRegistrar, Press, Slot, app_context,
+        apply_hotkey_change, code_name, consent_store_in, handle_get_consent, handle_get_new_code,
+        handle_set_consent, is_app_url, press_of, reconcile_and_report, report_dispatch_failed,
+        wanted_hotkeys,
     };
     use crate::adapters::token_store::KeyringTokenStore;
     use crate::adapters::typing::{HeldModifiers, SendTyper};
@@ -462,15 +484,16 @@ mod shell {
             return;
         };
         let id_of = |choice: HotkeyChoice| os_hotkey(choice).map(|hotkey| hotkey.id());
-        let pair = handle.hotkeys();
-        if id_of(pair.accept()) == Some(event.id) {
-            handle.accept_ready_check();
-        } else if id_of(pair.fill()) == Some(event.id) {
-            // The fill runs on the runtime's own task; the press only starts it.
-            let handle = Arc::clone(&handle);
-            tauri::async_runtime::spawn(async move {
-                let _ = handle.fill_name();
-            });
+        match press_of(&handle.hotkeys(), &id_of, event.id) {
+            Press::Accept => handle.accept_ready_check(),
+            Press::Fill => {
+                // The fill runs on the runtime's own task; the press only starts it.
+                let handle = Arc::clone(&handle);
+                tauri::async_runtime::spawn(async move {
+                    let _ = handle.fill_name();
+                });
+            }
+            Press::Unmatched => handle.record_hotkey_unmatched(),
         }
     }
 
@@ -626,9 +649,9 @@ mod tests {
     use d2rmm_agent_domain::typing::{HotkeyChoice, HotkeyPair};
 
     use super::{
-        CodeRequester, FileHotkeyStore, Slot, app_context, apply_hotkey_change, code_name,
+        CodeRequester, FileHotkeyStore, Press, Slot, app_context, apply_hotkey_change, code_name,
         consent_store_in, handle_get_consent, handle_get_new_code, handle_set_consent, is_app_url,
-        reconcile_and_report, reconcile_slot, report_dispatch_failed, wanted_hotkeys,
+        press_of, reconcile_and_report, reconcile_slot, report_dispatch_failed, wanted_hotkeys,
     };
     use crate::config;
 
@@ -1067,6 +1090,24 @@ mod tests {
         assert_eq!(
             log.borrow()[1..],
             [(HotkeySlot::Accept, true), (HotkeySlot::Fill, true)]
+        );
+    }
+
+    #[test]
+    fn a_press_belongs_to_the_combination_whose_id_it_carries_and_any_other_id_is_unmatched() {
+        let pair = HotkeyPair::defaults();
+        let id_of = |choice: HotkeyChoice| match choice.to_string().as_str() {
+            "Ctrl+Shift+A" => Some(1),
+            "Ctrl+Shift+F" => Some(2),
+            _ => None,
+        };
+        assert_eq!(press_of(&pair, &id_of, 1), Press::Accept);
+        assert_eq!(press_of(&pair, &id_of, 2), Press::Fill);
+        assert_eq!(press_of(&pair, &id_of, 3), Press::Unmatched);
+        assert_eq!(
+            press_of(&pair, &|_| None, 1),
+            Press::Unmatched,
+            "a combination that maps to no OS key matches nothing"
         );
     }
 
