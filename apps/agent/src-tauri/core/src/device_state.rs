@@ -3,7 +3,7 @@
 //! are applied here, to the token store, the view and the update loop. No lock is held across an await.
 
 use std::num::NonZeroU64;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use d2rmm_agent_domain::paired_device::{DeviceEffect, PairedDevice};
@@ -53,6 +53,9 @@ pub struct DeviceState {
     confirmed_run: Mutex<Option<(String, NonZeroU64)>>,
     /// The last screen the agent recognised, kept while later frames read as unknown, for assisted typing (AST-04).
     last_known_screen: Mutex<Option<Screen>>,
+    /// `true` from the look that finds the screen out of the game until a look finds it in the game again: the Party look
+    /// kept for the run describes the game, so the window stops showing it meanwhile.
+    party_look_left_behind: AtomicBool,
     /// The two hotkeys the agent registers (AST-01); the app sets them from its local file at start.
     hotkeys: Mutex<HotkeyPair>,
 }
@@ -83,6 +86,7 @@ impl DeviceState {
             ready_check: Mutex::new(None),
             confirmed_run: Mutex::new(None),
             last_known_screen: Mutex::new(None),
+            party_look_left_behind: AtomicBool::new(false),
             hotkeys: Mutex::new(HotkeyPair::defaults()),
         }
     }
@@ -163,6 +167,11 @@ impl DeviceState {
         if screen != Screen::Unknown {
             *lock(&self.last_known_screen) = Some(screen);
         }
+        if matches!(screen, Screen::InGame | Screen::AutomapOpen) {
+            self.party_look_left_behind.store(false, Ordering::SeqCst);
+        } else if matches!(*self.screen.borrow(), Screen::InGame | Screen::AutomapOpen) {
+            self.party_look_left_behind.store(true, Ordering::SeqCst);
+        }
         self.screen.send_if_modified(|current| {
             if *current == screen {
                 false
@@ -171,6 +180,12 @@ impl DeviceState {
                 true
             }
         });
+    }
+
+    /// Whether the Party look kept for the run still describes the screen: `false` once the screen left the game (the
+    /// diagnostics must follow the state, not the last good look), until the game shows again.
+    pub fn party_look_describes_screen(&self) -> bool {
+        !self.party_look_left_behind.load(Ordering::SeqCst)
     }
 
     /// The last screen the agent recognised, or `None` when it never recognised one. An unknown frame does not clear it: the

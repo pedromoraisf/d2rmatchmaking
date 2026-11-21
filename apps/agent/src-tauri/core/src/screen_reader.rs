@@ -11,7 +11,7 @@ use d2rmm_agent_domain::anchors::{self, line_pad};
 use d2rmm_agent_domain::character_screen::{
     BandRead, Probes, is_enabled_label, is_gold, label_brightness, luma, read_screen,
 };
-use d2rmm_agent_domain::hud_track::{TrackRead, Tracker};
+use d2rmm_agent_domain::hud_track::{AUTOMAP_SEARCH_EVERY, LIST_SEARCH_EVERY, TrackRead, Tracker};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{ScreenRegion, screen_region, selection_band, supported_size};
 use d2rmm_agent_domain::presence::Screen;
@@ -29,13 +29,17 @@ pub struct ScreenReader {
     hud: Mutex<Tracker>,
     /// The same for the automap's "Difficulty:" line.
     automap: Mutex<Tracker>,
+    /// The same for the character list's "Create New" button, searched only when the fixed box missed.
+    create_new: Mutex<Tracker>,
 }
 
-/// How a frame's HUD or automap line was looked for (SCR-09): the tracked box held it, or the wide area was searched.
+/// How a frame's HUD, automap or list marker was looked for (SCR-09): the tracked box held it, the wide area was searched,
+/// or the search rested for the frame. The last tracker asked sets it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Search {
     Track,
     Band,
+    Rested,
 }
 
 /// The fixed words a frame's reading carries on its `agent.vision.read` span (`vision.screen`, `vision.search`,
@@ -50,6 +54,8 @@ fn vision_words(screen: Screen, search: Option<Search>) -> [&'static str; 3] {
     let (search_word, area_class) = match (search, screen) {
         (Some(Search::Track), _) => ("track", "box"),
         (Some(Search::Band), _) => ("band", "band"),
+        (Some(Search::Rested), Screen::CharacterSelect) => ("rested", "panel"),
+        (Some(Search::Rested), _) => ("rested", "box"),
         (None, Screen::Unknown) => ("none", "box"),
         (None, Screen::CharacterSelect) => ("fixed", "panel"),
         (None, _) => ("fixed", "box"),
@@ -75,7 +81,14 @@ impl ScreenReader {
             reader,
             language,
             hud: Mutex::new(Tracker::new(ScreenRegion::HudBand)),
-            automap: Mutex::new(Tracker::new(ScreenRegion::AutomapArea)),
+            automap: Mutex::new(Tracker::searching_every(
+                ScreenRegion::AutomapArea,
+                AUTOMAP_SEARCH_EVERY,
+            )),
+            create_new: Mutex::new(Tracker::searching_every(
+                ScreenRegion::CreateNewArea,
+                LIST_SEARCH_EVERY,
+            )),
         }
     }
 
@@ -88,10 +101,16 @@ impl ScreenReader {
         find: FindLabel,
         how: &Cell<Option<Search>>,
     ) -> Vec<Vec<TextLine>> {
-        let plan = tracker
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .next(frame.width, frame.height);
+        let plan = {
+            let mut held = tracker.lock().unwrap_or_else(PoisonError::into_inner);
+            let plan = held.next(frame.width, frame.height);
+            // A search of the wide area that found nothing last time rests for some frames (NFR-03 CPU).
+            if matches!(plan, Some(TrackRead::Search(_))) && held.rests(frame.width, frame.height) {
+                how.set(Some(Search::Rested));
+                return Vec::new();
+            }
+            plan
+        };
         let (area, tracked) = match plan {
             Some(TrackRead::Track(area)) => (area, true),
             Some(TrackRead::Search(area)) => (area, false),
@@ -138,6 +157,14 @@ impl ScreenReader {
                     frame,
                     &self.automap,
                     anchors::find_automap_in_variants,
+                    how,
+                );
+            }
+            ScreenRegion::CreateNewArea => {
+                return self.tracked_lines(
+                    frame,
+                    &self.create_new,
+                    anchors::find_create_new_in_variants,
                     how,
                 );
             }
@@ -1263,16 +1290,132 @@ mod hud_tests {
         *hud.lines.lock().expect("lines") = vec![life(436, 880)];
         assert_eq!(screens.read(&frame).screen, Screen::InGame);
         hud.take_asked();
+        // The search that found nothing rests one frame (NFR-03 CPU), then the area is read again.
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        assert_eq!(automap_reads(&hud.take_asked()), 0, "the search rests");
         assert_eq!(screens.read(&frame).screen, Screen::InGame);
         assert_eq!(automap_reads(&hud.take_asked()), 1);
     }
 
-    /// The reads of the whole automap area (about 560 px wide on the reference client), not of a box around a line.
+    /// The reads of the whole automap area (about 560 px wide on the reference client, at the top), not of a box around a
+    /// line.
     fn automap_reads(asked: &[Region]) -> usize {
         asked
             .iter()
-            .filter(|area| (500..1000).contains(&area.width))
+            .filter(|area| (500..1000).contains(&area.width) && area.y < 400)
             .count()
+    }
+
+    /// The reads of the whole area the character list's "Create New" button is searched in (about 560 px wide, at the
+    /// bottom right).
+    fn marker_area_reads(asked: &[Region]) -> usize {
+        asked
+            .iter()
+            .filter(|area| (500..1000).contains(&area.width) && area.y > 700)
+            .count()
+    }
+
+    fn create_new(x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: "Create New".to_string(),
+            region: Region {
+                x,
+                y,
+                width: 140,
+                height: 22,
+            },
+        }
+    }
+
+    #[test]
+    fn the_list_marker_is_found_by_its_word_where_the_fixed_box_misses_and_then_tracked() {
+        // 1920×1080 full screen: the button is at 1650,905, not in the fixed box. Rule 14: before this change the frame read
+        // `Unknown` (the pinned domain test of the previous commit).
+        let hud = Hud::new(vec![create_new(1650, 905)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::CharacterSelect);
+        let first = hud.take_asked();
+        assert_eq!(marker_area_reads(&first), 1, "searched: {first:?}");
+        for _ in 0..3 {
+            assert_eq!(screens.read(&frame).screen, Screen::CharacterSelect);
+            let steady = hud.take_asked();
+            assert_eq!(marker_area_reads(&steady), 0, "only tracked: {steady:?}");
+            assert!(
+                steady.iter().any(|area| area.width < 400
+                    && area.x <= 1650
+                    && area.y <= 905
+                    && area.y > 700),
+                "the box around the button is read: {steady:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_list_marker_that_moves_out_of_its_box_is_searched_again_once() {
+        let hud = Hud::new(vec![create_new(1650, 905)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::CharacterSelect);
+        hud.take_asked();
+        *hud.lines.lock().expect("lines") = vec![create_new(1500, 960)];
+        assert_eq!(screens.read(&frame).screen, Screen::CharacterSelect);
+        let miss = hud.take_asked();
+        assert_eq!(marker_area_reads(&miss), 1, "{miss:?}");
+        assert_eq!(screens.read(&frame).screen, Screen::CharacterSelect);
+        assert_eq!(marker_area_reads(&hud.take_asked()), 0, "tracked again");
+    }
+
+    #[test]
+    fn a_frame_that_is_neither_the_list_nor_the_game_reads_the_marker_area_every_second_frame_at_most()
+     {
+        // Steady state of a menu or a loading screen: nothing is found, so the area cannot be tracked. The search rests one
+        // frame after each miss (`LIST_SEARCH_EVERY`): one read in two frames, none in between.
+        let hud = Hud::new(vec![]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        let mut per_frame = Vec::new();
+        for _ in 0..6 {
+            assert_eq!(screens.read(&frame).screen, Screen::Unknown);
+            per_frame.push(marker_area_reads(&hud.take_asked()));
+        }
+        assert_eq!(per_frame, [1, 0, 1, 0, 1, 0]);
+    }
+
+    #[test]
+    fn an_in_game_or_automap_frame_never_reads_the_marker_area() {
+        // The steady state of the game adds no read for the list marker: the HUD or the automap is found first.
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        for _ in 0..4 {
+            assert_eq!(screens.read(&frame).screen, Screen::InGame);
+            assert_eq!(marker_area_reads(&hud.take_asked()), 0);
+        }
+        let map = Hud::new(vec![difficulty(1600, 120)]);
+        let screens = reader(&map);
+        for _ in 0..4 {
+            assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+            assert_eq!(marker_area_reads(&map.take_asked()), 0);
+        }
+    }
+
+    #[test]
+    fn bottom_right_text_that_is_not_the_marker_is_no_list() {
+        // Only the word is the marker: a part of it ("Create") does not make a frame the selection screen.
+        let hud = Hud::new(vec![TextLine {
+            text: "Create".to_string(),
+            region: Region {
+                x: 1650,
+                y: 905,
+                width: 70,
+                height: 22,
+            },
+        }]);
+        assert_eq!(
+            reader(&hud).read(&frame(1920, 1080)).screen,
+            Screen::Unknown
+        );
     }
 
     #[test]
@@ -1368,17 +1511,20 @@ mod hud_tests {
             (first.len(), automap_reads(&first), band_reads(&first)),
             (2, 1, 1)
         );
-        for _ in 0..3 {
+        // The automap area cannot be tracked, so it is searched on every second frame (`AUTOMAP_SEARCH_EVERY`): the
+        // ceiling is two reads, and the frame between reads only the tracked box.
+        for (frame_number, area_reads) in [(1, 0), (2, 1), (3, 0)] {
             assert_eq!(screens.read(&frame).screen, Screen::InGame);
             let steady = hud.take_asked();
             assert_eq!(
                 steady.len(),
-                2,
-                "the automap area and the tracked box: {steady:?}"
+                1 + area_reads,
+                "frame {frame_number}: the tracked box, and the automap area on every second frame: {steady:?}"
             );
             assert_eq!(
                 (automap_reads(&steady), small(&steady), band_reads(&steady)),
-                (1, 1, 0)
+                (area_reads, 1, 0),
+                "frame {frame_number}"
             );
         }
         // The label moves out of its box: the tracked box, then one band search; the next frame tracks the new place.
@@ -1391,8 +1537,9 @@ mod hud_tests {
             "{miss:?}"
         );
         assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        // The automap area's search of that frame found nothing again, so this frame reads only the tracked box.
         let resumed = hud.take_asked();
-        assert_eq!((resumed.len(), band_reads(&resumed)), (2, 0), "{resumed:?}");
+        assert_eq!((resumed.len(), band_reads(&resumed)), (1, 0), "{resumed:?}");
     }
 
     #[test]
@@ -1477,7 +1624,7 @@ mod hud_tests {
     }
 
     /// The `agent.vision.read` fields of one read, as `screen/search/area_class`.
-    fn words_of(screens: &ScreenReader, frame: &Rgba) -> String {
+    pub(super) fn words_of(screens: &ScreenReader, frame: &Rgba) -> String {
         let spans = Arc::new(Spans::default());
         let guard = tracing::subscriber::set_default(Arc::clone(&spans));
         tracing::callsite::rebuild_interest_cache();
@@ -1514,6 +1661,38 @@ mod hud_tests {
     }
 
     #[test]
+    fn the_read_span_of_a_frame_that_finds_nothing_is_pinned_frame_by_frame() {
+        let hud = Hud::new(vec![]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        let words: Vec<String> = (0..4).map(|_| words_of(&screens, &frame)).collect();
+        assert_eq!(
+            words,
+            [
+                "unknown/band/band",
+                "unknown/rested/box",
+                "unknown/band/band",
+                "unknown/rested/box"
+            ],
+            "changed expectation (#104 fix round 1, was band on every frame): the frame whose list-marker search rests says so"
+        );
+    }
+
+    #[test]
+    fn the_words_of_a_rested_frame_are_fixed_words() {
+        use super::{Search, vision_words};
+        use d2rmm_agent_domain::presence::Screen;
+        assert_eq!(
+            vision_words(Screen::Unknown, Some(Search::Rested)),
+            ["unknown", "rested", "box"]
+        );
+        assert_eq!(
+            vision_words(Screen::CharacterSelect, Some(Search::Rested)),
+            ["character_select", "rested", "panel"]
+        );
+    }
+
+    #[test]
     fn the_words_of_a_frame_with_no_search_are_fixed_or_none() {
         use super::{Search, vision_words};
         use d2rmm_agent_domain::presence::Screen;
@@ -1533,5 +1712,150 @@ mod hud_tests {
             vision_words(Screen::AutomapOpen, Some(Search::Track)),
             ["automap", "track", "box"]
         );
+    }
+}
+
+/// A popup over a list the game dims (screen-recognition T9): the cards behind it are as readable as their pixels are bright.
+#[cfg(test)]
+mod dim_tests {
+    use std::sync::{Arc, Mutex};
+
+    use d2rmm_agent_domain::language::LanguagePack;
+    use d2rmm_agent_domain::layout::{ScreenRegion, screen_region};
+    use d2rmm_agent_domain::presence::Screen;
+    use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
+
+    use super::ScreenReader;
+    use crate::ports::{FrameReader, ReadError, Rgba, TextReader};
+
+    /// How bright the brightest pixel of a region must be for the fake engine to read the text there.
+    const READABLE: u8 = 180;
+
+    /// A reader of a scene whose lines read only where the frame is bright; every area asked is recorded.
+    struct Dimmed {
+        lines: Vec<TextLine>,
+        asked: Mutex<Vec<Region>>,
+    }
+
+    impl Dimmed {
+        fn new(lines: Vec<TextLine>) -> Arc<Self> {
+            Arc::new(Self {
+                lines,
+                asked: Mutex::new(Vec::new()),
+            })
+        }
+
+        fn take_asked(&self) -> Vec<Region> {
+            std::mem::take(&mut *self.asked.lock().expect("asked"))
+        }
+
+        fn bright(image: &Rgba, area: Region) -> bool {
+            (area.y..area.bottom().min(image.height)).any(|y| {
+                (area.x..area.right().min(image.width)).any(|x| {
+                    let at = (y as usize * image.width as usize + x as usize) * 4;
+                    image.pixels[at] >= READABLE
+                })
+            })
+        }
+
+        fn inside(area: Region, line: &TextLine) -> bool {
+            let (x, y) = (line.region.middle_x(), line.region.middle_y());
+            area.x <= x && x < area.right() && area.y <= y && y < area.bottom()
+        }
+    }
+
+    impl TextReader for Dimmed {
+        fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            self.lines
+                .iter()
+                .find(|line| Self::inside(region, line) && Self::bright(image, line.region))
+                .map(|line| ReadText {
+                    text: line.text.clone(),
+                    confidence: 1.0,
+                })
+                .ok_or(ReadError::Failed)
+        }
+
+        fn read_lines(&self, image: &Rgba, region: Region) -> Vec<TextLine> {
+            self.asked.lock().expect("asked").push(region);
+            self.lines
+                .iter()
+                .filter(|line| Self::inside(region, line) && Self::bright(image, line.region))
+                .cloned()
+                .collect()
+        }
+    }
+
+    fn line(text: &str, x: u32, y: u32, width: u32) -> TextLine {
+        TextLine {
+            text: text.to_string(),
+            region: Region {
+                x,
+                y,
+                width,
+                height: 18,
+            },
+        }
+    }
+
+    /// The popup's four lines and the two cards behind it, at the 1920×1080 client's places.
+    fn scene() -> Vec<TextLine> {
+        vec![
+            line("Select Difficulty", 900, 360, 216),
+            line("Normal", 900, 430, 200),
+            line("Nightmare", 900, 500, 200),
+            line("Hell", 900, 570, 200),
+            line("vukVuka", 1576, 91, 236),
+            line("Level 88 Sorceress", 1576, 114, 236),
+            line("vukaDao", 1576, 181, 236),
+            line("Level 11 Sorceress", 1576, 204, 236),
+        ]
+    }
+
+    /// A frame with the popup bright and the card column at `column` brightness.
+    fn frame(column: u8) -> Rgba {
+        let (width, height) = (1920u32, 1080u32);
+        let mut pixels = vec![255u8; width as usize * height as usize * 4];
+        let area = screen_region(ScreenRegion::CardColumn, width, height).expect("column");
+        for y in area.y..area.bottom() {
+            for x in area.x..area.right() {
+                let at = (y as usize * width as usize + x as usize) * 4;
+                pixels[at..at + 3].fill(column);
+            }
+        }
+        Rgba {
+            width,
+            height,
+            pixels,
+        }
+    }
+
+    fn read(reader: &Arc<Dimmed>, frame: &Rgba) -> crate::messages::FrameReading {
+        ScreenReader::new(
+            Arc::clone(reader) as Arc<dyn TextReader + Send + Sync>,
+            Arc::new(LanguagePack::english()),
+        )
+        .read(frame)
+    }
+
+    #[test]
+    fn a_popup_over_a_bright_column_reads_both_cards_with_one_read_of_the_column() {
+        let reader = Dimmed::new(scene());
+        let reading = read(&reader, &frame(255));
+        assert_eq!(reading.screen, Screen::CharacterSelect);
+        assert_eq!(reading.cards.len(), 2);
+        let column = screen_region(ScreenRegion::CardColumn, 1920, 1080).expect("column");
+        let asked = reader.take_asked();
+        assert_eq!(asked.iter().filter(|area| **area == column).count(), 1);
+    }
+
+    #[test]
+    fn a_popup_over_a_column_too_dim_for_the_engine_reads_no_card() {
+        // Pinned before the change (the `slots0-options3` class): the dimmed text reads as nothing, so no slot is read.
+        let reader = Dimmed::new(scene());
+        let reading = read(&reader, &frame(70));
+        assert_eq!(reading.screen, Screen::CharacterSelect);
+        assert_eq!((reading.cards.len(), reading.slots_read), (0, 0));
+        assert_eq!(reading.popup_options, 3);
     }
 }

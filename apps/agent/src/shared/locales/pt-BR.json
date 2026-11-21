@@ -53,7 +53,20 @@
     "cards": "Cartões lidos: {{read}}, confirmados: {{settled}}",
     "popup": "Opções do pop-up encontradas: {{found}}",
     "rejected": "Cartão {{slot}} não confirmado: {{reason}}",
-    "post": "Último envio: {{outcome}}",
+    "post": {
+      "not-sent": "Último envio: nada enviado ainda",
+      "ok": "Último envio: enviado",
+      "unauthorized": "Último envio: recusado, não autorizado",
+      "upgrade-required": "Último envio: atualização necessária",
+      "rate-limited": "Último envio: muitas requisições, tentará de novo",
+      "gone": "Último envio: não está mais disponível",
+      "pending": "Último envio: aguardando o pareamento",
+      "server": "Último envio: erro no servidor",
+      "network": "Último envio: não conseguiu falar com o servidor",
+      "invalid": "Último envio: recusado como inválido",
+      "check-ended": "Último envio: a verificação de pronto terminou",
+      "other": "Último envio: {{outcome}}"
+    },
     "window": "Janela (com bordas): {{width}}×{{height}}",
     "content": {
       "blank": "Conteúdo do quadro: vazio (brilho {{brightness}})",

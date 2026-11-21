@@ -149,7 +149,7 @@ pub fn check_party_reads(
     expected: FieldRead,
     show_reads: bool,
 ) -> Result<(), String> {
-    let language = LanguagePack::english();
+    let language = crate::language_pack::shipped();
     if panel_region(PanelRegion::PartyPanel, image.width, image.height).is_none() {
         return Err(format!(
             "the Party panel layout is unknown for a {}x{} screenshot",
@@ -325,7 +325,7 @@ pub fn anchor_line(
 ) -> String {
     let yes = |found: bool| if found { "yes" } else { "no" };
     if name.starts_with("maintainer-party") {
-        let panel = read_panel_for(reader, &LanguagePack::english(), image, None, None);
+        let panel = read_panel_for(reader, &crate::language_pack::shipped(), image, None, None);
         return format!(
             "  anchors: title found {}, game-name label found {}, game-name field read {}",
             yes(panel.open),
@@ -378,7 +378,10 @@ pub fn party_wide_diagnostics(reader: &dyn TextReader, image: &Rgba) -> Vec<Stri
         height: image.height * 40 / 100,
     };
     let pack = LanguagePack::english();
-    let brazilian = LanguagePack::brazilian_party();
+    let shipped = crate::language_pack::shipped();
+    let brazilian = shipped
+        .fallback()
+        .expect("the shipped pack has the Brazilian fallback");
     let mut out = Vec::new();
     for (index, lines) in reader.read_line_variants(image, area).iter().enumerate() {
         out.push(format!(
@@ -387,7 +390,7 @@ pub fn party_wide_diagnostics(reader: &dyn TextReader, image: &Rgba) -> Vec<Stri
         ));
         for line in lines {
             let anchor = anchors::party_line_anchor(&pack, &line.text);
-            let portuguese = anchors::party_line_anchor(&brazilian, &line.text);
+            let portuguese = anchors::party_line_anchor(brazilian, &line.text);
             let clear = matches!(anchor, "title" | "label")
                 || matches!(portuguese, "title" | "label")
                 || is_generated_game_name(line.text.trim());

@@ -35,6 +35,8 @@ export async function projectStreamEvent(
         expectedGameName: payload.expectedGameName,
         members: [...payload.members],
       };
+      // The agent's copy keeps the key with no members: it reads the room, the run and the name (stream-egress SEG-03).
+      const agentData = { ...data, members: [] };
       const deliveries: Delivery[] = [];
       for (const member of payload.members) {
         deliveries.push({
@@ -44,7 +46,7 @@ export async function projectStreamEvent(
         });
         const agentId = await agents.currentAgentOf(member.accountId);
         if (agentId !== null) {
-          deliveries.push({ stream: 'agent', agentId, event: { type: 'room.assigned', data } });
+          deliveries.push({ stream: 'agent', agentId, event: { type: 'room.assigned', data: agentData } });
         }
       }
       return deliveries;
@@ -84,6 +86,8 @@ export async function projectStreamEvent(
         expectedGameName: payload.expectedGameName,
         members: [...payload.members],
       };
+      // The agent's copy keeps the key with no members, as the assignment's does (stream-egress SEG-03).
+      const agentData = { ...data, members: [] };
       const deliveries: Delivery[] = [];
       for (const member of payload.members) {
         deliveries.push({
@@ -93,7 +97,7 @@ export async function projectStreamEvent(
         });
         const agentId = await agents.currentAgentOf(member.accountId);
         if (agentId !== null) {
-          deliveries.push({ stream: 'agent', agentId, event: { type: 'room.run_opened', data } });
+          deliveries.push({ stream: 'agent', agentId, event: { type: 'room.run_opened', data: agentData } });
         }
       }
       return deliveries;
@@ -161,7 +165,12 @@ export async function projectStreamEvent(
         });
         const agentId = await agents.currentAgentOf(member.accountId);
         if (agentId !== null) {
-          deliveries.push({ stream: 'agent', agentId, event: { type: 'ready_check.started', data } });
+          // The agent's hotkey reads the id and the deadline: its copy keeps the key with no members (stream-egress SEG-03).
+          deliveries.push({
+            stream: 'agent',
+            agentId,
+            event: { type: 'ready_check.started', data: { ...data, members: [] } },
+          });
         }
       }
       return deliveries;

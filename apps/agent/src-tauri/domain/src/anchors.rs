@@ -7,7 +7,7 @@
 
 use crate::characters::Difficulty;
 use crate::language::{
-    DIFFICULTY_LABEL, GAME_NAME, LIFE, LanguagePack, MANA, PASSWORD, SELECT_DIFFICULTY,
+    CREATE_NEW, DIFFICULTY_LABEL, GAME_NAME, LIFE, LanguagePack, MANA, PASSWORD, SELECT_DIFFICULTY,
     TAB_OFFLINE, TAB_ONLINE,
 };
 use crate::layout::REFERENCE_HEIGHT;
@@ -272,6 +272,28 @@ pub fn find_hud(pack: &LanguagePack, lines: &[TextLine]) -> Option<Region> {
 /// The HUD's label line in any variant's lines: the first variant that found one gives its box.
 pub fn find_hud_in_variants(pack: &LanguagePack, variants: &[Vec<TextLine>]) -> Option<Region> {
     variants.iter().find_map(|lines| find_hud(pack, lines))
+}
+
+/// The first line of `lines` (top to bottom) that is the pack's "Create New" button, found anywhere in the bottom-right area
+/// (`ScreenRegion::CreateNewArea`), not at one fixed place: the character list's marker. The line must be the word itself
+/// (the rule of the fixed box), so another line of the area is never taken for it. Its box is what the tracker remembers.
+pub fn find_create_new(pack: &LanguagePack, lines: &[TextLine]) -> Option<Region> {
+    top_down(lines)
+        .into_iter()
+        .find(|line| {
+            pack.is_word(&line.text, CREATE_NEW) || pack.is_squashed_word(&line.text, CREATE_NEW)
+        })
+        .map(|line| line.region)
+}
+
+/// The "Create New" line in any variant's lines: the first variant that found one gives its box.
+pub fn find_create_new_in_variants(
+    pack: &LanguagePack,
+    variants: &[Vec<TextLine>],
+) -> Option<Region> {
+    variants
+        .iter()
+        .find_map(|lines| find_create_new(pack, lines))
 }
 
 /// Whether any word of `text` starts the pack's automap difficulty label ("Difficulty: Hell"): the line may begin with other

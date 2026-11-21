@@ -295,7 +295,7 @@ describe('diagnostics view', () => {
     expect(screen.getByText('Cards read: 2, settled: 1')).toBeTruthy();
     expect(screen.getByText('Popup options found: 2')).toBeTruthy();
     expect(screen.getByText('Card 2 not settled: name-disagree')).toBeTruthy();
-    expect(screen.getByText('Last send: not-sent')).toBeTruthy();
+    expect(screen.getByText('Last send: nothing sent yet')).toBeTruthy();
   });
 
   it('says which configuration version the agent runs, 0 being the built-in defaults (RCF-08)', () => {
@@ -314,7 +314,7 @@ describe('diagnostics view', () => {
 
     expect(screen.getByText('Diagnóstico')).toBeTruthy();
     expect(screen.getByText('Tela: Seleção de personagem')).toBeTruthy();
-    expect(screen.getByText('Último envio: not-sent')).toBeTruthy();
+    expect(screen.getByText('Último envio: nada enviado ainda')).toBeTruthy();
   });
 });
 
