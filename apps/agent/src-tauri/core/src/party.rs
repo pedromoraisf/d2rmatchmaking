@@ -311,7 +311,7 @@ pub fn read_panel(reader: &dyn TextReader, language: &LanguagePack, frame: &Rgba
     read_panel_for(reader, language, frame, None, None)
 }
 
-/// The Party anchors of the lines of `area`: the pack's words, and the Brazilian words when the pack's find no panel
+/// The Party anchors of the lines of `area`: the pack's words, and its fallback pack's (the Brazilian words) when the pack's find no panel
 /// (screen-recognition T6, SCR-04: the maintainer plays on a pt-BR client). Only the anchors change; the game name is matched
 /// as ever. One OCR call set per area.
 fn locate(
@@ -325,9 +325,11 @@ fn locate(
     if found.open {
         return found;
     }
-    let brazilian =
-        anchors::find_party_in_variants(&LanguagePack::brazilian_party(), &lines, frame.height);
-    if brazilian.open { brazilian } else { found }
+    let Some(fallback) = language.fallback() else {
+        return found;
+    };
+    let fallback = anchors::find_party_in_variants(fallback, &lines, frame.height);
+    if fallback.open { fallback } else { found }
 }
 
 /// `read_panel` as the agent looks at a frame (screen-recognition T6): the cheap areas first, the wide one only as a
@@ -1345,6 +1347,19 @@ mod anchored_tests {
         }
     }
 
+    /// The pack the agent reads with: English, and the Brazilian Party words (`resources/lang/pt-BR.json`, which the app
+    /// crate's test pins to these) as its fallback.
+    fn english_with_portuguese() -> LanguagePack {
+        let words = [
+            ("party", "Grupo"),
+            ("gameName", "Nome"),
+            ("password", "Senha"),
+        ]
+        .map(|(key, word)| (key.to_string(), word.to_string()));
+        LanguagePack::english()
+            .with_fallback(LanguagePack::from_words("pt-BR", words).expect("the pack builds"))
+    }
+
     fn frame(height: u32) -> Rgba {
         Rgba {
             width: 1920,
@@ -1410,7 +1425,11 @@ mod anchored_tests {
         let reading = read_panel(&english, &LanguagePack::english(), &frame(1045));
         assert!(reading.open && reading.label_found);
         assert_eq!(fields(&reading), ["mmbaalm-99"]);
-        let reading = read_panel(&portuguese_panel(), &LanguagePack::english(), &frame(1045));
+        let reading = read_panel(
+            &portuguese_panel(),
+            &english_with_portuguese(),
+            &frame(1045),
+        );
         assert!(reading.open && reading.label_found);
         assert_eq!(fields(&reading), ["mmbaalm-99"]);
     }
@@ -1418,7 +1437,11 @@ mod anchored_tests {
     #[test]
     fn a_pt_br_panel_never_confirms_another_rooms_name_and_a_pt_br_word_is_no_panel_elsewhere() {
         use d2rmm_agent_domain::game_name_match::{FieldRead, read_panel_field};
-        let reading = read_panel(&portuguese_panel(), &LanguagePack::english(), &frame(1045));
+        let reading = read_panel(
+            &portuguese_panel(),
+            &english_with_portuguese(),
+            &frame(1045),
+        );
         let reads: Vec<&str> = fields(&reading);
         assert_eq!(
             read_panel_field(reading.field_source, &reads, "mmbaalm-99"),
@@ -1436,7 +1459,7 @@ mod anchored_tests {
             line("INVENTARIO", 364, 136, 71),
             line("Nome", 264, 176, 40),
         ]);
-        let reading = read_panel(&closed, &LanguagePack::english(), &frame(1045));
+        let reading = read_panel(&closed, &english_with_portuguese(), &frame(1045));
         assert!(!reading.open && reading.field.is_empty());
     }
 
@@ -1462,7 +1485,7 @@ mod anchored_tests {
     fn the_box_under_the_found_label_is_read_too_so_a_clipped_line_read_does_not_hide_the_name() {
         use d2rmm_agent_domain::game_name_match::{FieldRead, read_panel_field};
         let reader = TwoBoxes(portuguese_panel_named("mmtzh-47"));
-        let reading = read_panel(&reader, &LanguagePack::english(), &frame(1045));
+        let reading = read_panel(&reader, &english_with_portuguese(), &frame(1045));
         let reads = fields(&reading);
         assert!(reads.contains(&"mm T zH-47"), "the line box: {reads:?}");
         assert!(
@@ -1530,7 +1553,7 @@ mod anchored_tests {
         use super::read_panel_for;
         use d2rmm_agent_domain::anchors::party_track_box;
         let pt = || portuguese_panel_named("mmbaalm-99");
-        let pack = LanguagePack::english();
+        let pack = english_with_portuguese();
         let size = frame(1045);
 
         let first = Counted::new(pt(), false);
@@ -1583,7 +1606,7 @@ mod anchored_tests {
     #[test]
     fn the_crop_under_the_label_is_read_only_when_the_line_read_missed_the_expected_name() {
         use super::read_panel_for;
-        let pack = LanguagePack::english();
+        let pack = english_with_portuguese();
         let size = frame(1045);
         let hit = Counted::new(portuguese_panel_named("mmtzh-47"), false);
         read_panel_for(&hit, &pack, &size, Some("mmtzh-47"), None);

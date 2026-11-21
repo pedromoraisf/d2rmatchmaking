@@ -199,8 +199,30 @@ export function diagnosticsLabels(diagnostics: Diagnostics): Label[] {
       key: 'diagnostics.rejected',
       values: { slot: rejected.slot + 1, reason: rejected.reason },
     })),
-    { key: 'diagnostics.post', values: { outcome: diagnostics.post } },
+    postLabel(diagnostics.post),
   ];
+}
+
+// The outcomes of the last character post the core publishes (`error_kind` and the two answers of `watch_screen`).
+const POST_OUTCOMES = new Set([
+  'not-sent',
+  'ok',
+  'unauthorized',
+  'upgrade-required',
+  'rate-limited',
+  'gone',
+  'pending',
+  'server',
+  'network',
+  'invalid',
+  'check-ended',
+]);
+
+// The "Last send" line: a known outcome has its own translated line; one this build does not know shows its code.
+function postLabel(outcome: string): Label {
+  return POST_OUTCOMES.has(outcome)
+    ? { key: `diagnostics.post.${outcome}` }
+    : { key: 'diagnostics.post.other', values: { outcome } };
 }
 
 // The capture lines of the diagnostics: the window size beside the frame (client) size, the frame content and the last Party

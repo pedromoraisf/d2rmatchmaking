@@ -13,7 +13,6 @@ use d2rmm_agent_domain::characters::{Card as Character, Difficulty};
 use d2rmm_agent_domain::game_name_match::{
     FieldRead, FieldSource, is_masked, normalise, read_field, read_panel_field,
 };
-use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::supported_size;
 #[cfg(test)]
 use d2rmm_agent_domain::name_diff::printable;
@@ -423,7 +422,7 @@ fn classify_party_image(
     expected_name: &str,
     expected: FieldRead,
 ) -> (Verdict, Vec<&'static str>) {
-    let panel = read_panel(reader, &LanguagePack::english(), image);
+    let panel = read_panel(reader, &crate::language_pack::shipped(), image);
     let field: Vec<&str> = panel.field.iter().map(|read| read.text.as_str()).collect();
     (
         classify_party_field(
@@ -441,6 +440,7 @@ fn classify_party_image(
 mod tests {
     use d2rmm_agent_core::messages::FrameReading;
     use d2rmm_agent_domain::characters::{Card as Character, Class, Mode, Title};
+    use d2rmm_agent_domain::language::LanguagePack;
 
     use super::*;
 
