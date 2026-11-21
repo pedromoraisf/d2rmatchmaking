@@ -14,7 +14,7 @@ use d2rmm_agent_domain::characters::{Class, Difficulty, Title};
 use d2rmm_agent_domain::game_name_match::{FieldRead, read_field, read_panel_field};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{PanelRegion, ScreenRegion, panel_region, screen_region};
-use d2rmm_agent_domain::name_diff::closest_reading_diff;
+use d2rmm_agent_domain::name_diff::{closest_reading_diff, edit_distance, edit_operations_with};
 use d2rmm_agent_domain::presence::Screen;
 use d2rmm_agent_domain::vision::{Region, TextLine};
 
@@ -226,6 +226,45 @@ pub struct ChatReading {
     pub found: [bool; CHAT_CANDIDATES.len()],
     pub name_read: bool,
     pub boxes: Vec<Region>,
+    /// Per language, the edit operations of the nearest read to a candidate phrase when no candidate was found: a stretch of
+    /// a line within one or two edits of a phrase, as `sub(read>expected)@i` (the phrases are game text, never a player
+    /// name; a character outside `[a-z0-9]` prints as `?`, or `~` when it is not ASCII).
+    pub near_phrase: Vec<(PrintLanguage, String)>,
+}
+
+/// A character of a chat read as it may be printed: `[a-z0-9]` as is, `~` outside ASCII, `?` for any other ASCII character.
+fn chat_glyph(c: char) -> char {
+    if c.is_ascii_lowercase() || c.is_ascii_digit() {
+        c
+    } else if c.is_ascii() {
+        '?'
+    } else {
+        '~'
+    }
+}
+
+/// The operations that turn the stretch of `text` nearest to `phrase` (one or two edits away, windows one character shorter
+/// or longer than the phrase included) into `phrase`; `None` when nothing is that near or the text holds the phrase.
+fn nearest_phrase_ops(text: &str, phrase: &str) -> Option<(usize, String)> {
+    let chars: Vec<char> = text.chars().collect();
+    let want = phrase.chars().count();
+    let mut best: Option<(usize, String)> = None;
+    for len in want.saturating_sub(1)..=want + 1 {
+        if len == 0 || len > chars.len() {
+            continue;
+        }
+        for window in chars.windows(len) {
+            let window: String = window.iter().collect();
+            let distance = edit_distance(&window, phrase);
+            if (1..=2).contains(&distance) && best.as_ref().is_none_or(|(d, _)| distance < *d) {
+                best = Some((
+                    distance,
+                    edit_operations_with(&window, phrase, chat_glyph).join(","),
+                ));
+            }
+        }
+    }
+    best
 }
 
 /// Reads the chat band as the agent reads a text area (every variant's lines) and keeps no text.
@@ -252,6 +291,24 @@ pub fn chat_reading(variants: &[Vec<TextLine>]) -> ChatReading {
         }
         if holds_one {
             reading.boxes.push(line.region);
+        }
+    }
+    if !reading.found.iter().any(|found| *found) {
+        for language in [PrintLanguage::English, PrintLanguage::Portuguese] {
+            let near = CHAT_CANDIDATES
+                .iter()
+                .filter(|(l, _, _)| *l == language)
+                .flat_map(|(_, _, phrase)| {
+                    let phrase = compact(phrase);
+                    variants
+                        .iter()
+                        .flatten()
+                        .filter_map(move |line| nearest_phrase_ops(&compact(&line.text), &phrase))
+                })
+                .min_by_key(|(distance, _)| *distance);
+            if let Some((_, ops)) = near {
+                reading.near_phrase.push((language, ops));
+            }
         }
     }
     reading

@@ -16,7 +16,7 @@ use d2rmm_agent_domain::game_name_match::{
 use d2rmm_agent_domain::layout::supported_size;
 #[cfg(test)]
 use d2rmm_agent_domain::name_diff::printable;
-use d2rmm_agent_domain::name_diff::{edit_distance, edit_operations};
+use d2rmm_agent_domain::name_diff::{edit_distance, edit_operations, edit_operations_with};
 use d2rmm_agent_domain::presence::Screen;
 
 use d2rmm_agent_domain::vision::TextLine;
@@ -68,6 +68,18 @@ fn verdict_owned(outcome: Outcome, reason: String) -> Verdict {
 /// The verdict of an image whose size the layout does not support.
 pub const UNSUPPORTED_SIZE: Verdict = verdict(Outcome::Refused, "unsupported-size");
 
+/// A character of a read as it may be printed in a reason: `[a-z0-9 -]` as is, `~` for a character outside ASCII (an engine's
+/// stand-in for a glyph it did not know), `?` for any other ASCII character. Never a player's text.
+fn field_glyph(c: char) -> char {
+    if c.is_ascii_lowercase() || c.is_ascii_digit() || c == ' ' || c == '-' {
+        c
+    } else if c.is_ascii() {
+        '?'
+    } else {
+        '~'
+    }
+}
+
 fn without_whitespace(text: &str) -> String {
     text.chars().filter(|c| !c.is_whitespace()).collect()
 }
@@ -101,7 +113,7 @@ fn other_reason(reads: &[&str], expected_name: &str) -> Cow<'static, str> {
     if expected_name == PARTY_ROOM_NAME || is_generated_game_name(expected_name) {
         Cow::Owned(format!(
             "{class}:{}",
-            edit_operations(&read, &expected).join(",")
+            edit_operations_with(&read, &expected, field_glyph).join(",")
         ))
     } else {
         Cow::Borrowed(class)
@@ -349,7 +361,16 @@ pub fn classify_chat(reading: &ChatReading, expected: ChatExpectation) -> Verdic
         Err(_) if reading.lines_per_variant.iter().sum::<usize>() == 0 => {
             return verdict(Outcome::Refused, "chat-no-lines");
         }
-        Err(_) => return verdict(Outcome::Refused, "chat-no-phrase"),
+        Err(_) => {
+            return match reading
+                .near_phrase
+                .iter()
+                .find(|(language, _)| *language == expected.language)
+            {
+                Some((_, ops)) => verdict_owned(Outcome::Refused, format!("chat-no-phrase:{ops}")),
+                None => verdict(Outcome::Refused, "chat-no-phrase"),
+            };
+        }
     };
     match (expected.class, found) {
         (Some(ChatClass::Joined), ChatClass::Left) => {
@@ -1155,5 +1176,43 @@ mod tests {
                 verdict(Outcome::Refused, "chat-both-classes")
             );
         }
+    }
+
+    #[test]
+    fn a_read_outside_ascii_prints_as_a_tilde_and_other_punctuation_as_a_question_mark() {
+        assert_eq!(
+            other_reason(&["mmbaa\u{e9}h-19"], "mmbaalh-19"),
+            "field-other-1-edit:sub(~>l)@5"
+        );
+        assert_eq!(
+            other_reason(&["mmbaa?h-19"], "mmbaalh-19"),
+            "field-other-1-edit:sub(?>l)@5"
+        );
+        assert_eq!(field_glyph('-'), '-');
+        assert_eq!(field_glyph('Z'), '?');
+    }
+
+    #[test]
+    fn a_chat_print_with_no_phrase_names_the_nearest_phrase_edits_of_its_language_only() {
+        use crate::ocr_check::{ChatExpectation, PrintLanguage, chat_reading};
+        let en = |class| ChatExpectation {
+            language: PrintLanguage::English,
+            class,
+        };
+        let near = chat_reading(&[lines(&["Bob joined our w0rld"])]);
+        assert_eq!(
+            classify_chat(&near, en(None)),
+            verdict_owned(Outcome::Refused, "chat-no-phrase:sub(0>o)@10".to_string())
+        );
+        let far = chat_reading(&[lines(&["Bob says hello"])]);
+        assert_eq!(
+            classify_chat(&far, en(None)),
+            verdict(Outcome::Refused, "chat-no-phrase")
+        );
+        let accented = chat_reading(&[lines(&["Bob left our w\u{f6}rld"])]);
+        assert_eq!(
+            classify_chat(&accented, en(None)),
+            verdict_owned(Outcome::Refused, "chat-no-phrase:sub(~>o)@8".to_string())
+        );
     }
 }
