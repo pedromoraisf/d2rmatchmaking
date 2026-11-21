@@ -58,7 +58,7 @@ export async function healthzAccepts(response, expectedSha) {
 }
 
 /**
- * The checks of one app. `site`: the page answers 200 with an HTML body, then the API behind its proxy answers
+ * The checks of one app. `site`: the page and the code signing policy page answer 200 with an HTML body, then the API behind its proxy answers
  * `/api/healthz` ok. `api`: `/healthz` answers the deployed SHA. Returns a list of failure messages (empty = pass).
  */
 async function describe(result) {
@@ -92,6 +92,15 @@ export async function smokeChecks(app, url, sha, io) {
       accept: async (r) => r.status === 200 && /text\/html/.test(r.headers.get('content-type') ?? ''),
     });
     if (!page.ok) failures.push(`the page ${base}/ did not answer 200 HTML (${await describe(page)})`);
+    // The code signing policy is a path of the single-page site (agent-release AGR-08): Pages must serve index.html for it.
+    const policy = await wakeAndRead(`${base}/code-signing`, {
+      ...asks,
+      accept: async (r) => r.status === 200 && /text\/html/.test(r.headers.get('content-type') ?? ''),
+    });
+    if (!policy.ok)
+      failures.push(
+        `the code signing policy ${base}/code-signing did not answer 200 HTML (${await describe(policy)})`,
+      );
     const api = await wakeAndRead(`${base}/api/healthz`, { ...asks, accept: (r) => healthzAccepts(r) });
     if (!api.ok)
       failures.push(

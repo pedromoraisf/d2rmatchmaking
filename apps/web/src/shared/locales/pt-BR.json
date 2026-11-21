@@ -6,7 +6,8 @@
     "error": "Algo deu errado. Tente novamente.",
     "notice": "D2R Match Making é um projeto da comunidade e não é afiliado à Blizzard Entertainment.",
     "downloadAgent": "Baixar o agente",
-    "smartScreenNote": "O instalador ainda não tem assinatura de código, por isso o Windows SmartScreen pode avisar antes de executá-lo."
+    "smartScreenNote": "O instalador ainda não tem assinatura de código, por isso o Windows SmartScreen pode avisar antes de executá-lo.",
+    "codeSigningLink": "Política de assinatura de código"
   },
   "nav": {
     "label": "Seções",
@@ -250,5 +251,24 @@
     "answerFailed": "Esta resposta não valeu. A confirmação pode ter terminado.",
     "hotkeyHint": "Também dá para aceitar com <kbd>{{hotkey}}</kbd> (o padrão; dá para mudar no agente) sem sair do jogo.",
     "penaltyNotice": "Recusar não gera penalidade. Não responder gera 5 minutos de espera."
+  },
+  "signing": {
+    "title": "Política de assinatura de código",
+    "project": "O D2R Match Making é um projeto comunitário, gratuito e de código aberto, publicado sob a licença MIT. Esta página é a política de assinatura de código do seu agente para Windows.",
+    "provider": "Assinatura de código gratuita fornecida pela SignPath.io, com certificado da SignPath Foundation.",
+    "rolesTitle": "Quem assina",
+    "rolesIntro": "Cada versão só é assinada depois que uma pessoa aprova o pedido de assinatura. Os papéis são exercidos por:",
+    "roles": {
+      "committers": "Autor (pode alterar o código que é assinado)",
+      "reviewers": "Revisor (lê cada alteração antes de uma versão)",
+      "approvers": "Aprovador (aprova cada pedido de assinatura)"
+    },
+    "programTitle": "O que o programa assinado faz",
+    "program": "O agente lê apenas os pixels da janela do Diablo II: Resurrected e sinais do sistema operacional, como saber se o jogo está aberto. Ele nunca lê nem escreve na memória do jogo, injeta código, intercepta o desenho gráfico, intercepta tráfego de rede, captura algo fora da janela do jogo, nem envia comandos que confirmem uma ação no jogo. Ele aceita dados do servidor, nunca comandos.",
+    "privacyTitle": "Privacidade",
+    "privacyRule": "Este programa não transferirá nenhuma informação para outros sistemas em rede, a menos que o usuário ou a pessoa que o instala ou opera peça isso especificamente.",
+    "privacyData": "Depois que você pareia o agente com a sua conta, ele informa ao servidor do D2R Match Making o que reconheceu: se o jogo está aberto, qual tela aparece, nome, classe e nível dos seus personagens, o nome da partida e os nomes dos jogadores que entram ou saem da sua sala. Ele não envia capturas de tela nem vídeo, e só lê a janela do jogo enquanto você tiver dado consentimento.",
+    "source": "Código-fonte",
+    "contact": "Falar com o mantenedor"
   }
 }
