@@ -84,6 +84,7 @@ describe('RoomPanel: what the room shows (LBR-12)', () => {
     show(room(), 'acc-alice');
 
     expect(screen.getByText(/You create a public game named mmbaalh-12 with no password/)).toBeTruthy();
+    expect(screen.getByText(/paste it with Ctrl\+V in the Game Creator/)).toBeTruthy();
     expect(screen.getByText(/open the Party panel and click the eye/)).toBeTruthy();
   });
 

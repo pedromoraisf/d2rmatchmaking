@@ -121,7 +121,7 @@
     "copyFailed": "Could not copy. The game name is selected: press Ctrl+C.",
     "stepsLabel": "What to do",
     "steps": {
-      "hostCreate": "You create a public game named {{name}} with no password.",
+      "hostCreate": "You create a public game named {{name}} with no password. The agent copies the name for you: paste it with Ctrl+V in the Game Creator.",
       "hostParty": "In the game, open the Party panel and click the eye so the agent can read the name.",
       "memberWait": "The host creates a public game named {{name}} with no password.",
       "memberJoin": "Join that game from the Game List.",

@@ -121,7 +121,7 @@
     "copyFailed": "Não foi possível copiar. O nome do jogo está selecionado: pressione Ctrl+C.",
     "stepsLabel": "O que fazer",
     "steps": {
-      "hostCreate": "Você cria um jogo público chamado {{name}} sem senha.",
+      "hostCreate": "Você cria um jogo público chamado {{name}} sem senha. O agente copia o nome para você: cole com Ctrl+V no Criador de jogo.",
       "hostParty": "No jogo, abra o painel Party e clique no olho para o agente conseguir ler o nome.",
       "memberWait": "O anfitrião cria um jogo público chamado {{name}} sem senha.",
       "memberJoin": "Entre nesse jogo pela Lista de Jogos.",

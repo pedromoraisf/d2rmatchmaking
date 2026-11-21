@@ -104,5 +104,5 @@ Rules:
       the span event per copy. Gate: `pnpm --filter @d2rmm/agent-ui test` and `CARGO nextest run -p d2rmm-agent-core --lib`
 - [x] T16 — Headless agent and acceptance steps for the new scenarios (fake clipboard, `copy-again` stdin command); run
       `pnpm exec turbo run test:acceptance -- --grep @AST-`. Gate: that command
-- [ ] T17 — Docs: `apps/agent/README.md` and the site's host instructions say "paste with Ctrl+V" instead of the hotkey.
+- [x] T17 — Docs: `apps/agent/README.md` and the site's host instructions say "paste with Ctrl+V" instead of the hotkey.
       Gate: `pnpm format:check && pnpm specs:check`
