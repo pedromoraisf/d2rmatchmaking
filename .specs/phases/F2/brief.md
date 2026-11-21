@@ -288,3 +288,13 @@ maintainer does not want that risk.
 it would send input that navigates the game, which ADR 010 forbids, and it carries the same terms-of-service risk.
 
 **Approved**: 2026-11-21 - user: "sobre o ctrl v (remover a feature de ctrl shift f), aprovo"
+
+## Revision 2 — observability in two tiers (2026-11-21)
+
+**Why.** Field tests on 2026-11-21 could not be followed in Grafana: 10% API sampling, no agent or site spans, no ids.
+**What changes.** ADR 037: on staging and test installers telemetry carries everything (ids, the player's names, OCR
+text and corrections, game data); in production it carries ids and all non-personal game data, never a person's name or
+text read from the screen. A new feature `observability-tiers` (agent, site and API spans by tier, with tests proving
+production redaction) joins F2; its spec and tasks are written by the orchestrator before dispatch.
+
+**Approved**: 2026-11-21 - user: "aprovo."
