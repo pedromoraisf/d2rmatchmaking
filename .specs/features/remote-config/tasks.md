@@ -144,7 +144,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
 > Captures = 601 + probes, probes = ⌊600 / probeEvery⌋ − ⌊demoteAfter / probeEvery⌋; frames = 600 − (demoteAfter − 1).
 > The screen loop adds no capture: one per look, at an interval of 1 s or more (`look_interval`).
 
-- [ ] T19 — Close the proofs. The PR's table: every range and its test, call counts at the extremes, the version fallback cases,
+- [x] T19 — Close the proofs. The PR's table: every range and its test, call counts at the extremes, the version fallback cases,
       `ocr-real` per print and `ocr-variations` before and after, and the threat table of the spec with the control that
       closes each line. Gate: `pnpm specs:check && pnpm test:harness`
 
