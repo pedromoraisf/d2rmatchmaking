@@ -6,7 +6,9 @@ import type {
   CaptureDiagnostics,
   Diagnostics,
   FillOutcome,
-  HotkeySlot,
+  HotkeyFailure,
+  HotkeyFault,
+  HotkeyPress,
   PairingState,
 } from '../shared/labels.ts';
 import { DiagnosticsView } from './DiagnosticsView.tsx';
@@ -19,8 +21,12 @@ const ptBR = translatorFor(createAgentI18n('pt-BR'));
 
 const DEFAULT_KEYS = { accept: 'Ctrl+Shift+A', fill: 'Ctrl+Shift+F' };
 const TYPED: FillOutcome = 'typed';
-const ACCEPT_REFUSED: HotkeySlot[] = ['accept'];
-const FILL_REFUSED: HotkeySlot[] = ['fill'];
+const ACCEPT_REFUSED: HotkeyFault[] = [{ slot: 'accept', reason: 'no-manager' }];
+const FILL_REFUSED: HotkeyFault[] = [{ slot: 'fill', reason: 'refused' }];
+const NONE_YET = 'none';
+const FILL_PRESS: HotkeyPress = 'fill';
+const PRESSES: HotkeyPress[] = ['accept', 'fill', 'unmatched'];
+const REASONS: HotkeyFailure[] = ['no-manager', 'refused', 'unmapped', 'dispatch'];
 
 const view = (overrides: Partial<AgentView> = {}): AgentView => ({
   pairing: 'paired',
@@ -218,13 +224,43 @@ describe('fill status and hotkeys (AST-01, AST-08)', () => {
     const { container, unmount } = renderStatus({ hotkeyUnavailable: FILL_REFUSED });
     expect(
       screen.getByText(
-        /The fill hotkey \(Ctrl\+Shift\+F\) could not be registered.*Choose another combination/,
+        /The fill hotkey \(Ctrl\+Shift\+F\) could not be registered.*Choose another combination.*\(reason: refused\)/,
       ),
     ).toBeTruthy();
     expect(container.textContent).not.toMatch(/accept hotkey/);
     unmount();
     render(<StatusView view={view({ hotkeyUnavailable: ACCEPT_REFUSED })} translate={ptBR} />);
-    expect(screen.getByText(/atalho de aceitar \(Ctrl\+Shift\+A\).*Escolha outra combinação/)).toBeTruthy();
+    expect(
+      screen.getByText(
+        /atalho de aceitar \(Ctrl\+Shift\+A\).*Escolha outra combinação.*\(motivo: no-manager\)/,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('shows each registration failure reason as its own code', () => {
+    for (const reason of REASONS) {
+      const { container, unmount } = renderStatus({ hotkeyUnavailable: [{ slot: 'fill', reason }] });
+      expect(container.textContent, reason).toContain(`(reason: ${reason})`);
+      unmount();
+    }
+  });
+
+  it('says in the diagnostics which hotkey press came last, or that none came', () => {
+    const seen = new Set<string>();
+    const { container, unmount } = render(
+      <DiagnosticsView diagnostics={null} lastPress={NONE_YET} translate={en} />,
+    );
+    expect(container.textContent).toContain('none since the agent started');
+    unmount();
+    for (const press of PRESSES) {
+      const view = render(<DiagnosticsView diagnostics={null} lastPress={press} translate={en} />);
+      const text = view.container.textContent ?? '';
+      expect(seen.has(text), `${press} has its own line`).toBe(false);
+      seen.add(text);
+      view.unmount();
+    }
+    render(<DiagnosticsView diagnostics={null} lastPress={FILL_PRESS} translate={ptBR} />);
+    expect(screen.getByText(/Último atalho pressionado: o de preencher/)).toBeTruthy();
   });
 
   it('says why a fill typed nothing, for every refusal and stop', () => {

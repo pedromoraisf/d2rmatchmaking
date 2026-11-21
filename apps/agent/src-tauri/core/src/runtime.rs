@@ -18,7 +18,7 @@ use crate::pair::{self, Command};
 use crate::ports::{ApiGateway, Rgba, StateSink, TokenStore};
 use crate::post_observation;
 use crate::ready_check;
-use crate::view::HotkeySlot;
+use crate::view::{HotkeyFailure, HotkeyPress, HotkeySlot};
 use crate::{beat, check_update, follow_stream, read_frame, watch_screen};
 
 const COMMAND_BUFFER: usize = 8;
@@ -138,14 +138,14 @@ impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
         self.device.set_hotkeys(pair);
     }
 
-    /// Shows that the OS refused a hotkey the agent wants, or that it holds it now (AST-01, AST-08).
-    pub fn set_hotkey_unavailable(&self, slot: HotkeySlot, unavailable: bool) {
-        self.device.set_hotkey_unavailable(slot, unavailable);
+    /// Shows why the OS refused a hotkey the agent wants, or (`None`) that it holds it now (AST-01, AST-08).
+    pub fn set_hotkey_unavailable(&self, slot: HotkeySlot, reason: Option<HotkeyFailure>) {
+        self.device.set_hotkey_unavailable(slot, reason);
     }
 
-    /// Records a hotkey press that matched no registered combination (field test of 2026-11-21).
-    pub fn record_hotkey_unmatched(&self) {
-        self.device.record_hotkey_unmatched();
+    /// Records a hotkey press the OS delivered: which combination it was, or that it matched none (field test of 2026-11-21).
+    pub fn record_hotkey_press(&self, press: HotkeyPress) {
+        self.device.record_hotkey_press(press);
     }
 
     /// "Get a new code": honoured only while the pairing loop is paused (AGS-34).
@@ -259,7 +259,7 @@ mod tests {
     };
     use crate::party::PartyPorts;
     use crate::ports::{SequentialIds, TokenStore, WallClock};
-    use crate::view::HotkeySlot;
+    use crate::view::{HotkeyFailure, HotkeyFault, HotkeyPress, HotkeySlot};
     use crate::watch_screen::ScreenPorts;
 
     use chrono::{DateTime, Utc};
@@ -418,27 +418,48 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn a_hotkey_the_os_refused_is_shown_in_the_view_until_a_registration_succeeds() {
+    async fn a_hotkey_the_os_refused_is_shown_with_its_reason_until_a_registration_succeeds() {
         let (handle, _probe, _keyboard) = started();
         assert!(handle.device.hub.snapshot().hotkey_unavailable.is_empty());
+        let fault = |slot, reason| HotkeyFault { slot, reason };
 
-        handle.set_hotkey_unavailable(HotkeySlot::Fill, true);
-        handle.set_hotkey_unavailable(HotkeySlot::Fill, true);
+        handle.set_hotkey_unavailable(HotkeySlot::Fill, Some(HotkeyFailure::Refused));
+        handle.set_hotkey_unavailable(HotkeySlot::Fill, Some(HotkeyFailure::Refused));
         assert_eq!(
             handle.device.hub.snapshot().hotkey_unavailable,
-            [HotkeySlot::Fill]
+            [fault(HotkeySlot::Fill, HotkeyFailure::Refused)]
         );
 
-        handle.set_hotkey_unavailable(HotkeySlot::Accept, true);
+        handle.set_hotkey_unavailable(HotkeySlot::Accept, Some(HotkeyFailure::Dispatch));
+        handle.set_hotkey_unavailable(HotkeySlot::Fill, Some(HotkeyFailure::NoManager));
         assert_eq!(
             handle.device.hub.snapshot().hotkey_unavailable,
-            [HotkeySlot::Accept, HotkeySlot::Fill]
+            [
+                fault(HotkeySlot::Accept, HotkeyFailure::Dispatch),
+                fault(HotkeySlot::Fill, HotkeyFailure::NoManager)
+            ]
         );
 
-        handle.set_hotkey_unavailable(HotkeySlot::Fill, false);
+        handle.set_hotkey_unavailable(HotkeySlot::Fill, None);
         assert_eq!(
             handle.device.hub.snapshot().hotkey_unavailable,
-            [HotkeySlot::Accept]
+            [fault(HotkeySlot::Accept, HotkeyFailure::Dispatch)]
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_last_hotkey_press_is_shown_and_absent_before_the_first() {
+        let (handle, _probe, _keyboard) = started();
+        assert_eq!(handle.device.hub.snapshot().last_press, None);
+        handle.record_hotkey_press(HotkeyPress::Fill);
+        assert_eq!(
+            handle.device.hub.snapshot().last_press,
+            Some(HotkeyPress::Fill)
+        );
+        handle.record_hotkey_press(HotkeyPress::Unmatched);
+        assert_eq!(
+            handle.device.hub.snapshot().last_press,
+            Some(HotkeyPress::Unmatched)
         );
     }
 

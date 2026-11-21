@@ -17,7 +17,7 @@ use crate::hub::Hub;
 use crate::messages::{CaptureReport, ReadyCheckOpen, Screen};
 use crate::party::PartyProgress;
 use crate::ports::{ApiError, StateSink, TokenStore};
-use crate::view::{HotkeySlot, PairingView, RoomView, UpdateView};
+use crate::view::{HotkeyFailure, HotkeyPress, HotkeySlot, PairingView, RoomView, UpdateView};
 
 /// What the loops share about the device: the aggregate, the room and the signals that wake the loops.
 pub struct DeviceState {
@@ -182,17 +182,28 @@ impl DeviceState {
         self.hub.set_hotkeys(&pair);
     }
 
-    /// Shows whether the OS refused a hotkey the agent wants (AST-01, AST-08). A refusal is one span event with the slot
-    /// and nothing else, never the OS error text (AGS-09); a retry that fails again records nothing more.
-    pub fn set_hotkey_unavailable(&self, slot: HotkeySlot, unavailable: bool) {
-        if self.hub.set_hotkey_unavailable(slot, unavailable) && unavailable {
-            tracing::warn!(slot = slot.as_str(), "hotkey.unavailable");
+    /// Shows why the OS refused a hotkey the agent wants, or (`None`) that it holds it now (AST-01, AST-08). A refusal is one
+    /// span event with the slot and a fixed reason word, never the OS error text (AGS-09); a retry that fails the same way
+    /// records nothing more.
+    pub fn set_hotkey_unavailable(&self, slot: HotkeySlot, reason: Option<HotkeyFailure>) {
+        if self.hub.set_hotkey_unavailable(slot, reason)
+            && let Some(reason) = reason
+        {
+            tracing::warn!(
+                slot = slot.as_str(),
+                reason = reason.as_str(),
+                "hotkey.unavailable"
+            );
         }
     }
 
-    /// Records a hotkey press that matched no registered combination, as one span event with a fixed word and nothing else.
-    pub fn record_hotkey_unmatched(&self) {
-        tracing::info!("hotkey.unmatched");
+    /// Records a hotkey press the OS delivered and shows it in the window. A press that matched no registered combination
+    /// is also one span event with a fixed word and nothing else.
+    pub fn record_hotkey_press(&self, press: HotkeyPress) {
+        if press == HotkeyPress::Unmatched {
+            tracing::info!("hotkey.unmatched");
+        }
+        self.hub.set_last_press(press);
     }
 
     /// Shows what a fill did and keeps it until the next one (AST-08). Records it as one span event with the outcome code
@@ -412,7 +423,7 @@ mod tests {
     use crate::fakes::{MemoryTokens, NullSink};
     use crate::ports::{ApiError, TokenStore};
     use crate::secret::Secret;
-    use crate::view::{HotkeySlot, PairingView, RoomView, UpdateView};
+    use crate::view::{HotkeyFailure, HotkeyPress, HotkeySlot, PairingView, RoomView, UpdateView};
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
 
@@ -487,15 +498,21 @@ mod tests {
         let guard = tracing::subscriber::set_default(Arc::clone(&events));
         tracing::callsite::rebuild_interest_cache();
 
-        device.set_hotkey_unavailable(HotkeySlot::Fill, true);
-        device.set_hotkey_unavailable(HotkeySlot::Fill, true);
-        device.set_hotkey_unavailable(HotkeySlot::Fill, false);
-        device.record_hotkey_unmatched();
+        device.set_hotkey_unavailable(HotkeySlot::Fill, Some(HotkeyFailure::Refused));
+        device.set_hotkey_unavailable(HotkeySlot::Fill, Some(HotkeyFailure::Refused));
+        device.set_hotkey_unavailable(HotkeySlot::Fill, Some(HotkeyFailure::NoManager));
+        device.set_hotkey_unavailable(HotkeySlot::Fill, None);
+        device.record_hotkey_press(HotkeyPress::Fill);
+        device.record_hotkey_press(HotkeyPress::Unmatched);
         drop(guard);
 
         assert_eq!(
             *events.0.lock().expect("events"),
-            ["hotkey.unavailable slot=fill", "hotkey.unmatched"]
+            [
+                "hotkey.unavailable slot=fill reason=refused",
+                "hotkey.unavailable slot=fill reason=no-manager",
+                "hotkey.unmatched"
+            ]
         );
     }
 

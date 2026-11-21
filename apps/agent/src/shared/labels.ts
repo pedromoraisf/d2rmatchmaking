@@ -107,6 +107,17 @@ export type FillOutcome =
 // A hotkey the OS did not let the agent register while it wants it (AST-01, AST-08, RDY-07).
 export type HotkeySlot = 'accept' | 'fill';
 
+// Why the OS did not let the agent register it: a closed set of codes from the core, no OS text.
+export type HotkeyFailure = 'no-manager' | 'refused' | 'unmapped' | 'dispatch';
+
+export interface HotkeyFault {
+  slot: HotkeySlot;
+  reason: HotkeyFailure;
+}
+
+// The last hotkey press the agent received from the OS; absent until the first one.
+export type HotkeyPress = 'accept' | 'fill' | 'unmatched';
+
 export interface AgentView {
   pairing: PairingState;
   connectivity: Connectivity;
@@ -119,7 +130,9 @@ export interface AgentView {
   // What the last press of the fill hotkey did (AST-08); absent before the first press.
   lastFill?: FillOutcome;
   // The hotkeys the OS refused to register while they are wanted (AST-01, AST-08); absent when all are registered.
-  hotkeyUnavailable?: HotkeySlot[];
+  hotkeyUnavailable?: HotkeyFault[];
+  // The last hotkey press the OS delivered to the agent (proves delivery); absent until the first one.
+  lastPress?: HotkeyPress;
   diagnostics: Diagnostics | null;
   // Absent until the first frame was captured.
   capture?: CaptureDiagnostics;
@@ -190,12 +203,18 @@ export function fillLabel(outcome: FillOutcome | undefined): Label | null {
   return outcome === undefined ? null : { key: `fill.${outcome}` };
 }
 
-// The lines for a hotkey the OS did not let the agent register, one per slot, so the player picks another combination.
-export function hotkeyUnavailableLabels(unavailable: HotkeySlot[] | undefined, hotkeys: Hotkeys): Label[] {
-  return (unavailable ?? []).map((slot) => ({
+// The lines for a hotkey the OS did not let the agent register, one per slot, with the reason as a short code the player can
+// read out (AST-08). The player picks another combination.
+export function hotkeyUnavailableLabels(faults: HotkeyFault[] | undefined, hotkeys: Hotkeys): Label[] {
+  return (faults ?? []).map(({ slot, reason }) => ({
     key: `${slot === 'fill' ? 'fill' : 'readyCheck'}.unavailable`,
-    values: { key: hotkeys[slot] },
+    values: { key: hotkeys[slot], reason },
   }));
+}
+
+// The diagnostics line with the last hotkey press the agent received, or that none came since it started.
+export function lastPressLabel(press: HotkeyPress | undefined): Label {
+  return { key: `diagnostics.hotkeyPress.${press ?? 'none'}` };
 }
 
 // The lines of the diagnostics section, one label each, in the order the window shows them.
