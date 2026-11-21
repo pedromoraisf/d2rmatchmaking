@@ -263,7 +263,7 @@ the recommendations would be followed for any item left unanswered. So items 1 t
 
 Items 8 to 10 remain inputs. They are tracked in `decisions.md → Waiting on the maintainer`.
 
-## Revision 1 — assisted typing becomes a clipboard copy (proposed 2026-11-21, waiting for the maintainer)
+## Revision 1 — assisted typing becomes a clipboard copy (2026-11-21)
 
 **Why.** In the field test of 2026-11-21 the maintainer found that the fill hotkey (Ctrl+Shift+F) is more work than the
 game's own behaviour: Ctrl+V already pastes into the Game Creator's name field (checked by the maintainer the same day).
@@ -286,3 +286,5 @@ maintainer does not want that risk.
 
 **Out of scope, recorded for later.** Filling the Game Creator or clicking through the game's menus for the player:
 it would send input that navigates the game, which ADR 010 forbids, and it carries the same terms-of-service risk.
+
+**Approved**: 2026-11-21 - user: "sobre o ctrl v (remover a feature de ctrl shift f), aprovo"
