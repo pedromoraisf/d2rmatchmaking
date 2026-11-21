@@ -7,12 +7,11 @@ use std::sync::Arc;
 use d2rmm_agent_domain::fusion::fuse;
 use d2rmm_agent_domain::remote_config::Effective;
 use d2rmm_agent_domain::room_assignment::Assignment;
-use d2rmm_agent_domain::typing::HotkeyPair;
+use d2rmm_agent_domain::typing::HotkeyChoice;
 use tokio::sync::{mpsc, watch};
 
 use crate::config::Config;
 use crate::device_state::DeviceState;
-use crate::fill_name::{self, FillControl, FillOutcome, FillPorts};
 use crate::groups::StreamPorts;
 use crate::groups::{Groups, ReadPorts};
 use crate::pair::{self, Command};
@@ -85,7 +84,6 @@ fn spawn<G: ApiGateway + Send + Sync + 'static>(
         read: Arc::new(read),
         ready,
         commands,
-        typing: None,
     }
 }
 
@@ -95,43 +93,11 @@ pub struct Handle<G> {
     read: Arc<ReadPorts<G>>,
     ready: Arc<StreamPorts<G>>,
     commands: mpsc::Sender<Command>,
-    /// The ports and the state of assisted typing (AST-01); none until the app supplies them.
-    typing: Option<Arc<Typing>>,
-}
-
-struct Typing {
-    ports: FillPorts,
-    control: FillControl,
 }
 
 impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
-    /// Gives the handle the three ports that type the game name (AST-06). Without them `fill_name` does nothing.
-    #[must_use]
-    pub fn with_typing(mut self, ports: FillPorts) -> Self {
-        self.typing = Some(Arc::new(Typing {
-            ports,
-            control: FillControl::new(),
-        }));
-        self
-    }
-
-    /// The fill hotkey's press (AST-01, AST-07): types the held room's game name and stops. Runs on its own task, so the
-    /// window's thread never waits for the typing; the task ends with the outcome, or `None` when the press changed nothing
-    /// of its own. `None` at once when the handle has no typing ports.
-    ///
-    /// It spawns with `tokio::spawn`, so it must be called inside the runtime's context (a task, or `Runtime::enter`): from a
-    /// plain thread it panics. The app calls it from `tauri::async_runtime::spawn`.
-    pub fn fill_name(&self) -> Option<tokio::task::JoinHandle<Option<FillOutcome>>> {
-        let typing = Arc::clone(self.typing.as_ref()?);
-        let device = Arc::clone(&self.device);
-        Some(tokio::spawn(async move {
-            let modifiers = device.hotkeys().fill().modifiers;
-            fill_name::press(&device, &typing.ports, &typing.control, modifiers).await
-        }))
-    }
-
     /// Starts the remote configuration loop (RCF-04): the last good body is applied at once, and the API is asked once the agent is
-    /// paired and then every `every`. Call it inside the runtime's context, as `with_typing`'s callers do.
+    /// paired and then every `every`. Call it inside the runtime's context.
     #[must_use]
     pub fn with_config<C: ConfigGateway + Send + Sync + 'static>(
         self,
@@ -154,17 +120,17 @@ impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
         self.device.config_fetch.subscribe()
     }
 
-    /// The hotkeys the agent registers now (AST-01).
-    pub fn hotkeys(&self) -> HotkeyPair {
+    /// The accept hotkey the agent registers now (RDY-07).
+    pub fn hotkeys(&self) -> HotkeyChoice {
         self.device.hotkeys()
     }
 
-    /// Holds the hotkeys the app read from its local file (AST-01).
-    pub fn set_hotkeys(&self, pair: HotkeyPair) {
-        self.device.set_hotkeys(pair);
+    /// Holds the accept hotkey the app read from its local file (RDY-07).
+    pub fn set_hotkeys(&self, accept: HotkeyChoice) {
+        self.device.set_hotkeys(accept);
     }
 
-    /// Shows why the OS refused a hotkey the agent wants, or (`None`) that it holds it now (AST-01, AST-08).
+    /// Shows why the OS refused a hotkey the agent wants, or (`None`) that it holds it now (AST-08).
     pub fn set_hotkey_unavailable(&self, slot: HotkeySlot, reason: Option<HotkeyFailure>) {
         self.device.set_hotkey_unavailable(slot, reason);
     }
@@ -270,16 +236,15 @@ mod tests {
     use d2rmm_agent_domain::language::LanguagePack;
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
 
-    use d2rmm_agent_domain::typing::{HotkeyChoice, HotkeyPair, Modifiers};
+    use d2rmm_agent_domain::typing::HotkeyChoice;
 
     use super::{Handle, Probe, Runtime};
     use crate::config::Config;
     use crate::device_state::DeviceState;
     use crate::fakes::{
-        FakeApiGateway, FakeKeyboard, MemoryTokens, NoConsent, NoFrameReader, NoFrames,
-        NoProcesses, NoText, NoUpdates, NullSink,
+        FakeApiGateway, MemoryTokens, NoConsent, NoFrameReader, NoFrames, NoProcesses, NoText,
+        NoUpdates, NullSink,
     };
-    use crate::fill_name::{FillOutcome, FillPorts};
     use crate::groups::{
         Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
     };
@@ -392,13 +357,7 @@ mod tests {
         assert!(tokens.load().is_none(), "the token store is shared");
     }
 
-    const KEYS: Modifiers = Modifiers {
-        ctrl: true,
-        shift: true,
-        alt: false,
-    };
-
-    fn started() -> (Handle<FakeApiGateway>, Probe, Arc<FakeKeyboard>) {
+    fn started() -> (Handle<FakeApiGateway>, Probe) {
         let gateway = Arc::new(FakeApiGateway::new());
         let tokens = Arc::new(MemoryTokens::default());
         let (handle, probe) = Runtime::start_with_probe(
@@ -408,79 +367,40 @@ mod tests {
             Arc::new(NullSink),
             groups(&gateway, &tokens),
         );
-        let keyboard = Arc::new(FakeKeyboard::focused());
-        let handle = handle.with_typing(FillPorts {
-            typer: keyboard.clone(),
-            focus: keyboard.clone(),
-            keys: keyboard.clone(),
-        });
-        (handle, probe, keyboard)
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn a_handle_without_typing_ports_types_nothing() {
-        let gateway = Arc::new(FakeApiGateway::new());
-        let tokens = Arc::new(MemoryTokens::default());
-        let handle = Runtime::start(
-            &Config {
-                version: "0.0.0".to_string(),
-            },
-            Arc::new(NullSink),
-            groups(&gateway, &tokens),
-        );
-        assert!(handle.fill_name().is_none());
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn the_fill_hotkey_types_the_held_name_with_its_own_modifiers() {
-        let (handle, probe, keyboard) = started();
-        probe.set_assignment(Some(assignment()));
-
-        let outcome = handle.fill_name().expect("typing is wired").await;
-
-        assert_eq!(outcome.expect("the task ends"), Some(FillOutcome::Typed));
-        assert_eq!(keyboard.typed(), "mmbaalh-12");
-        assert_eq!(handle.hotkeys().fill().modifiers, KEYS);
+        (handle, probe)
     }
 
     #[tokio::test(start_paused = true)]
     async fn a_hotkey_the_os_refused_is_shown_with_its_reason_until_a_registration_succeeds() {
-        let (handle, _probe, _keyboard) = started();
+        let (handle, _probe) = started();
         assert!(handle.device.hub.snapshot().hotkey_unavailable.is_empty());
         let fault = |slot, reason| HotkeyFault { slot, reason };
 
-        handle.set_hotkey_unavailable(HotkeySlot::Fill, Some(HotkeyFailure::Refused));
-        handle.set_hotkey_unavailable(HotkeySlot::Fill, Some(HotkeyFailure::Refused));
+        handle.set_hotkey_unavailable(HotkeySlot::Accept, Some(HotkeyFailure::Refused));
+        handle.set_hotkey_unavailable(HotkeySlot::Accept, Some(HotkeyFailure::Refused));
         assert_eq!(
             handle.device.hub.snapshot().hotkey_unavailable,
-            [fault(HotkeySlot::Fill, HotkeyFailure::Refused)]
+            [fault(HotkeySlot::Accept, HotkeyFailure::Refused)]
         );
 
         handle.set_hotkey_unavailable(HotkeySlot::Accept, Some(HotkeyFailure::Dispatch));
-        handle.set_hotkey_unavailable(HotkeySlot::Fill, Some(HotkeyFailure::NoManager));
-        assert_eq!(
-            handle.device.hub.snapshot().hotkey_unavailable,
-            [
-                fault(HotkeySlot::Accept, HotkeyFailure::Dispatch),
-                fault(HotkeySlot::Fill, HotkeyFailure::NoManager)
-            ]
-        );
-
-        handle.set_hotkey_unavailable(HotkeySlot::Fill, None);
         assert_eq!(
             handle.device.hub.snapshot().hotkey_unavailable,
             [fault(HotkeySlot::Accept, HotkeyFailure::Dispatch)]
         );
+
+        handle.set_hotkey_unavailable(HotkeySlot::Accept, None);
+        assert!(handle.device.hub.snapshot().hotkey_unavailable.is_empty());
     }
 
     #[tokio::test(start_paused = true)]
     async fn the_last_hotkey_press_is_shown_and_absent_before_the_first() {
-        let (handle, _probe, _keyboard) = started();
+        let (handle, _probe) = started();
         assert_eq!(handle.device.hub.snapshot().last_press, None);
-        handle.record_hotkey_press(HotkeyPress::Fill);
+        handle.record_hotkey_press(HotkeyPress::Accept);
         assert_eq!(
             handle.device.hub.snapshot().last_press,
-            Some(HotkeyPress::Fill)
+            Some(HotkeyPress::Accept)
         );
         handle.record_hotkey_press(HotkeyPress::Unmatched);
         assert_eq!(
@@ -490,17 +410,14 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn the_hotkeys_the_app_sets_are_held_and_shown_in_the_view() {
-        let (handle, _probe, _keyboard) = started();
-        assert_eq!(handle.hotkeys(), HotkeyPair::defaults());
+    async fn the_accept_hotkey_the_app_sets_is_held_and_shown_in_the_view() {
+        let (handle, _probe) = started();
+        assert_eq!(handle.hotkeys(), HotkeyChoice::default_accept());
 
-        let pair = HotkeyPair::defaults()
-            .with_fill(HotkeyChoice::parse("alt+g").expect("valid"))
-            .expect("a different key");
-        handle.set_hotkeys(pair);
+        let accept = HotkeyChoice::parse("alt+g").expect("valid");
+        handle.set_hotkeys(accept);
 
-        assert_eq!(handle.hotkeys(), pair);
-        assert_eq!(handle.device.hub.snapshot().hotkeys.fill, "Alt+G");
-        assert_eq!(handle.device.hub.snapshot().hotkeys.accept, "Ctrl+Shift+A");
+        assert_eq!(handle.hotkeys(), accept);
+        assert_eq!(handle.device.hub.snapshot().hotkeys.accept, "Alt+G");
     }
 }

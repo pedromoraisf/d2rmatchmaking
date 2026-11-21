@@ -1,11 +1,11 @@
-//! The two hotkeys on this PC (FR-28, AST-01): one small JSON file in the app's configuration directory, apart from the
+//! The accept hotkey on this PC (RDY-07): one small JSON file in the app's configuration directory, apart from the
 //! consent file so neither can overwrite the other. It holds no secret and is never sent. A missing, unreadable or unexpected
 //! file reads as "no choice", and the defaults apply.
 
 use std::fs;
 use std::path::PathBuf;
 
-use d2rmm_agent_domain::typing::{HotkeyChoice, HotkeyPair};
+use d2rmm_agent_domain::typing::HotkeyChoice;
 use serde_json::{Value, json};
 
 /// The file that holds the hotkeys, in the app's configuration directory.
@@ -28,22 +28,20 @@ impl FileHotkeyStore {
         }
     }
 
-    /// The saved pair, or `None` when there is none or it does not read as two valid, different hotkeys.
-    pub fn load(&self) -> Option<HotkeyPair> {
+    /// The saved accept hotkey, or `None` when there is none or it does not read as a valid one. A file an older version
+    /// wrote with a second key keeps its accept key; the rest is ignored.
+    pub fn load(&self) -> Option<HotkeyChoice> {
         let text = fs::read_to_string(self.path.as_ref()?).ok()?;
         let value: Value = serde_json::from_str(&text).ok()?;
-        let accept = HotkeyChoice::parse(value.get("accept")?.as_str()?).ok()?;
-        let fill = HotkeyChoice::parse(value.get("fill")?.as_str()?).ok()?;
-        HotkeyPair::new(accept, fill).ok()
+        HotkeyChoice::parse(value.get("accept")?.as_str()?).ok()
     }
 
-    pub fn save(&self, pair: &HotkeyPair) -> Result<(), HotkeysNotSaved> {
+    pub fn save(&self, accept: &HotkeyChoice) -> Result<(), HotkeysNotSaved> {
         let path = self.path.as_ref().ok_or(HotkeysNotSaved)?;
         if let Some(directory) = path.parent() {
             fs::create_dir_all(directory).map_err(|_| HotkeysNotSaved)?;
         }
-        let text = json!({ "accept": pair.accept().to_string(), "fill": pair.fill().to_string() })
-            .to_string();
+        let text = json!({ "accept": accept.to_string() }).to_string();
         // Written to a temporary file next to the real one and renamed over it, so a crash in the middle never leaves a
         // half-written file that reads as "no choice" and silently drops the player's keys.
         let temporary = path.with_extension("json.tmp");
@@ -60,7 +58,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use d2rmm_agent_domain::typing::{HotkeyChoice, HotkeyPair};
+    use d2rmm_agent_domain::typing::HotkeyChoice;
     use uuid::Uuid;
 
     use super::FileHotkeyStore;
@@ -93,37 +91,28 @@ mod tests {
         );
         assert!(
             FileHotkeyStore::in_directory(None)
-                .save(&HotkeyPair::defaults())
+                .save(&HotkeyChoice::default_accept())
                 .is_err()
         );
         assert!(FileHotkeyStore::in_directory(None).load().is_none());
     }
 
     #[test]
-    fn a_saved_pair_is_read_back() {
+    fn a_saved_hotkey_is_read_back() {
         let scratch = Scratch::new();
         let store = FileHotkeyStore::in_directory(Some(scratch.0.clone()));
-        let pair = HotkeyPair::defaults()
-            .with_fill(choice("Alt+G"))
-            .expect("a different key")
-            .with_accept(choice("Ctrl+Alt+Q"))
-            .expect("a different key");
+        let accept = choice("Ctrl+Alt+Q");
 
-        store.save(&pair).expect("the file is written");
+        store.save(&accept).expect("the file is written");
 
-        assert_eq!(store.load(), Some(pair));
+        assert_eq!(store.load(), Some(accept));
     }
 
     #[test]
     fn saving_replaces_the_file_whole_and_leaves_no_temporary_file() {
         let scratch = Scratch::new();
         let store = FileHotkeyStore::in_directory(Some(scratch.0.clone()));
-        let first = HotkeyPair::defaults()
-            .with_fill(choice("Alt+G"))
-            .expect("a different key");
-        let second = HotkeyPair::defaults()
-            .with_fill(choice("Alt+H"))
-            .expect("a different key");
+        let (first, second) = (choice("Alt+G"), choice("Alt+H"));
 
         store.save(&first).expect("the file is written");
         store.save(&second).expect("the file is replaced");
@@ -137,34 +126,33 @@ mod tests {
     }
 
     #[test]
-    fn a_swap_of_the_two_defaults_is_read_back() {
+    fn a_file_an_older_version_wrote_keeps_its_accept_key() {
         let scratch = Scratch::new();
         let store = FileHotkeyStore::in_directory(Some(scratch.0.clone()));
         fs::create_dir_all(&scratch.0).expect("the directory");
         fs::write(
             scratch.0.join("hotkeys.json"),
-            r#"{"accept":"Ctrl+Shift+F","fill":"Ctrl+Shift+A"}"#,
+            r#"{"accept":"Ctrl+Alt+Q","fill":"Ctrl+Shift+F"}"#,
         )
         .expect("the file");
 
-        let pair = store.load().expect("a valid swap");
-        assert_eq!(pair.accept().to_string(), "Ctrl+Shift+F");
-        assert_eq!(pair.fill().to_string(), "Ctrl+Shift+A");
+        assert_eq!(
+            store.load().map(|key| key.to_string()),
+            Some("Ctrl+Alt+Q".to_string())
+        );
     }
 
     #[test]
-    fn a_file_that_does_not_read_as_two_valid_different_hotkeys_gives_no_choice() {
+    fn a_file_that_does_not_read_as_a_valid_hotkey_gives_no_choice() {
         let scratch = Scratch::new();
         fs::create_dir_all(&scratch.0).expect("the directory");
         let store = FileHotkeyStore::in_directory(Some(scratch.0.clone()));
         for text in [
             "not json",
             "{}",
-            r#"{"accept":"Ctrl+Shift+A"}"#,
-            r#"{"accept":"A","fill":"Ctrl+Shift+F"}"#,
-            r#"{"accept":"Ctrl+Shift+Enter","fill":"Ctrl+Shift+F"}"#,
-            r#"{"accept":"Ctrl+Shift+Q","fill":"Ctrl+Shift+Q"}"#,
-            r#"{"accept":1,"fill":2}"#,
+            r#"{"accept":"A"}"#,
+            r#"{"accept":"Ctrl+Shift+Enter"}"#,
+            r#"{"accept":1}"#,
         ] {
             fs::write(scratch.0.join("hotkeys.json"), text).expect("the file");
             assert!(store.load().is_none(), "{text}");

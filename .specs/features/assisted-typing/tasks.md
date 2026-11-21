@@ -89,7 +89,7 @@ Rules:
 
 ## Batch 3 — copy instead of typing (brief revision 1)
 
-- [ ] T12 — Remove the typing: the fill hotkey, `fill_name`, `adapters/typing.rs`, `SendInput`/`GetAsyncKeyState`, the
+- [x] T12 — Remove the typing: the fill hotkey, `fill_name`, `adapters/typing.rs`, `SendInput`/`GetAsyncKeyState`, the
       `Win32_UI_Input_KeyboardAndMouse` feature and the AST-09 allow-list entries; tighten the source rules (AST-13) with a
       fixture each. Remove the tests that proved the withdrawn requirements together with their requirements (the brief
       revision withdraws them; no other test changes). Keep RDY-07's accept hotkey and AST-08's diagnostics.

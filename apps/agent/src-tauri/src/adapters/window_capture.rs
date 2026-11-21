@@ -2,7 +2,7 @@
 //! of the D2R game window only, in memory, and never the screen, another window or the desktop. The capture is a
 //! `PrintWindow` of that one window with `PW_CLIENTONLY | PW_RENDERFULLCONTENT`; the pixels stay in this process (AGS-20).
 //! The pure parts (the client size, the window choice, the channel order) are compiled and tested everywhere; the Win32
-//! calls exist on Windows only. This file, `toolhelp.rs`, `typing.rs` and `windows_ocr.rs` are the only four that may allow
+//! calls exist on Windows only. This file, `toolhelp.rs` and `windows_ocr.rs` are the only three that may allow
 //! `unsafe_code` (the policy of the agent rules).
 #![allow(unsafe_code)]
 
@@ -69,7 +69,7 @@ pub fn rgba_from_bgra(width: u32, height: u32, bgra: &[u8]) -> Option<Rgba> {
 }
 
 #[cfg(windows)]
-pub use game::{ForegroundGame, WindowMethods};
+pub use game::WindowMethods;
 
 #[cfg(windows)]
 mod game {
@@ -77,7 +77,7 @@ mod game {
 
     use std::sync::{Mutex, PoisonError};
 
-    use d2rmm_agent_core::ports::{ForegroundWindow, MethodSource, Miss, Rgba};
+    use d2rmm_agent_core::ports::{MethodSource, Miss, Rgba};
     use d2rmm_agent_domain::capture_cascade::CaptureMethod;
     use windows::Win32::Foundation::{HWND, LPARAM, RECT};
     use windows::Win32::Graphics::Gdi::{
@@ -87,8 +87,8 @@ mod game {
     };
     use windows::Win32::Storage::Xps::{PRINT_WINDOW_FLAGS, PW_CLIENTONLY, PrintWindow};
     use windows::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, GetClientRect, GetForegroundWindow, GetWindowRect, GetWindowThreadProcessId,
-        IsIconic, IsWindowVisible, PW_RENDERFULLCONTENT,
+        EnumWindows, GetClientRect, GetWindowRect, GetWindowThreadProcessId, IsIconic,
+        IsWindowVisible, PW_RENDERFULLCONTENT,
     };
     use windows::core::BOOL;
 
@@ -148,24 +148,6 @@ mod game {
 
         fn release(&self) {
             self.graphics.release();
-        }
-    }
-
-    /// Whether the foreground window belongs to a D2R process (AST-03): a read of which window has the focus, never an input.
-    #[derive(Debug, Default, Clone, Copy)]
-    pub struct ForegroundGame;
-
-    impl ForegroundWindow for ForegroundGame {
-        fn game_has_focus(&self) -> bool {
-            // SAFETY: a plain read of the handle of the foreground window; it takes no pointer.
-            let window = unsafe { GetForegroundWindow() };
-            if window.is_invalid() {
-                return false;
-            }
-            let mut pid = 0_u32;
-            // SAFETY: `pid` is a valid u32 that the call writes, and `window` was just returned by the system.
-            unsafe { GetWindowThreadProcessId(window, Some(std::ptr::addr_of_mut!(pid))) };
-            belongs_to_game(pid, &game_process_ids())
         }
     }
 

@@ -1,10 +1,8 @@
 //! The one state the core publishes to the agent window (design.md § Data Models). Serialized as camelCase; the window
 //! maps it to translated strings with a pure function, so the window holds no rule.
 
-use d2rmm_agent_domain::typing::HotkeyPair;
+use d2rmm_agent_domain::typing::HotkeyChoice;
 use serde::Serialize;
-
-use crate::fill_name::FillOutcome;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", rename_all_fields = "camelCase")]
@@ -129,29 +127,26 @@ pub struct CaptureView {
     pub reason: Option<&'static str>,
 }
 
-/// The two hotkeys as the window shows them, such as `Ctrl+Shift+A` (RDY-07, AST-01).
+/// The accept hotkey as the window shows it, such as `Ctrl+Shift+A` (RDY-07).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HotkeysView {
     pub accept: String,
-    pub fill: String,
 }
 
 impl HotkeysView {
-    pub fn of(pair: &HotkeyPair) -> Self {
+    pub fn of(accept: &HotkeyChoice) -> Self {
         Self {
-            accept: pair.accept().to_string(),
-            fill: pair.fill().to_string(),
+            accept: accept.to_string(),
         }
     }
 }
 
-/// One of the two hotkeys the agent registers with the OS (RDY-07, AST-01). The window's code for it.
+/// The hotkey the agent registers with the OS (RDY-07). The window's code for it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum HotkeySlot {
     Accept,
-    Fill,
 }
 
 impl HotkeySlot {
@@ -159,7 +154,6 @@ impl HotkeySlot {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Accept => "accept",
-            Self::Fill => "fill",
         }
     }
 }
@@ -203,7 +197,6 @@ pub struct HotkeyFault {
 #[serde(rename_all = "camelCase")]
 pub enum HotkeyPress {
     Accept,
-    Fill,
     Unmatched,
 }
 
@@ -216,12 +209,9 @@ pub struct AgentView {
     pub update: UpdateView,
     /// A ready check is open for the account: the window shows the hotkey that accepts it (RDY-07).
     pub ready_check_open: bool,
-    /// The keys that accept a ready check and fill the game name (AST-01).
+    /// The keys that accept a ready check (RDY-07).
     pub hotkeys: HotkeysView,
-    /// What the last press of the fill hotkey did (AST-08); absent until the first press. A closed set of codes, no text.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_fill: Option<FillOutcome>,
-    /// The hotkeys the OS did not let the agent register while it wants them (AST-01, AST-08; field test of 2026-11-21).
+    /// The hotkeys the OS did not let the agent register while it wants them (AST-08; field test of 2026-11-21).
     /// A closed set of codes, no OS text; absent while every wanted hotkey is registered.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub hotkey_unavailable: Vec<HotkeyFault>,
@@ -244,12 +234,12 @@ fn is_built_in_version(version: &u32) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use d2rmm_agent_domain::typing::HotkeyPair;
+    use d2rmm_agent_domain::typing::HotkeyChoice;
     use serde_json::json;
 
     use super::{
-        AgentView, Connectivity, DiagnosticsView, FillOutcome, HotkeyFailure, HotkeyFault,
-        HotkeyPress, HotkeySlot, HotkeysView, PairingView, RejectedSlot, RoomView, UpdateView,
+        AgentView, Connectivity, DiagnosticsView, HotkeyFailure, HotkeyFault, HotkeyPress,
+        HotkeySlot, HotkeysView, PairingView, RejectedSlot, RoomView, UpdateView,
     };
 
     #[test]
@@ -268,8 +258,7 @@ mod tests {
             }),
             update: UpdateView::Idle,
             ready_check_open: true,
-            hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
-            last_fill: None,
+            hotkeys: HotkeysView::of(&HotkeyChoice::default_accept()),
             hotkey_unavailable: Vec::new(),
             last_press: None,
             diagnostics: None,
@@ -285,7 +274,7 @@ mod tests {
                 "room": { "gameName": "mmbaalh-12", "needsReveal": true, "matched": false },
                 "update": "idle",
                 "readyCheckOpen": true,
-                "hotkeys": { "accept": "Ctrl+Shift+A", "fill": "Ctrl+Shift+F" },
+                "hotkeys": { "accept": "Ctrl+Shift+A" },
                 "diagnostics": null,
             })
         );
@@ -318,18 +307,11 @@ mod tests {
             room: None,
             update: UpdateView::Required,
             ready_check_open: false,
-            hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
-            last_fill: Some(FillOutcome::RefusedKeys),
-            hotkey_unavailable: vec![
-                HotkeyFault {
-                    slot: HotkeySlot::Accept,
-                    reason: HotkeyFailure::NoManager,
-                },
-                HotkeyFault {
-                    slot: HotkeySlot::Fill,
-                    reason: HotkeyFailure::Refused,
-                },
-            ],
+            hotkeys: HotkeysView::of(&HotkeyChoice::default_accept()),
+            hotkey_unavailable: vec![HotkeyFault {
+                slot: HotkeySlot::Accept,
+                reason: HotkeyFailure::NoManager,
+            }],
             last_press: Some(HotkeyPress::Unmatched),
             diagnostics: None,
             capture: None,
@@ -344,11 +326,9 @@ mod tests {
                 "room": null,
                 "update": "required",
                 "readyCheckOpen": false,
-                "hotkeys": { "accept": "Ctrl+Shift+A", "fill": "Ctrl+Shift+F" },
-                "lastFill": "refused-keys",
+                "hotkeys": { "accept": "Ctrl+Shift+A" },
                 "hotkeyUnavailable": [
                     { "slot": "accept", "reason": "no-manager" },
-                    { "slot": "fill", "reason": "refused" },
                 ],
                 "lastPress": "unmatched",
                 "diagnostics": null,
@@ -436,8 +416,7 @@ mod tests {
             room: None,
             update: UpdateView::Idle,
             ready_check_open: false,
-            hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
-            last_fill: None,
+            hotkeys: HotkeysView::of(&HotkeyChoice::default_accept()),
             diagnostics: None,
             capture: None,
             hotkey_unavailable: Vec::new(),

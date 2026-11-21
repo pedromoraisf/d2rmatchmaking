@@ -89,28 +89,15 @@ const METHOD_KEYS: Record<CaptureMethodWord, string> = {
 
 export interface Hotkeys {
   accept: string;
-  fill: string;
 }
-
-// What a press of the fill hotkey did: a closed set of codes from the core (AST-08, AST-10).
-export type FillOutcome =
-  | 'typed'
-  | 'stopped-focus'
-  | 'stopped-room'
-  | 'stopped-press'
-  | 'refused-room'
-  | 'refused-name'
-  | 'refused-focus'
-  | 'refused-screen'
-  | 'refused-keys';
 
 // The remote configuration the agent runs, as a line of the diagnostics: `0` is the built-in defaults (remote-config RCF-08).
 export function configLabel(version: number): Label {
   return { key: 'diagnostics.config', values: { version } };
 }
 
-// A hotkey the OS did not let the agent register while it wants it (AST-01, AST-08, RDY-07).
-export type HotkeySlot = 'accept' | 'fill';
+// A hotkey the OS did not let the agent register while it wants it (AST-08, RDY-07).
+export type HotkeySlot = 'accept';
 
 // Why the OS did not let the agent register it: a closed set of codes from the core, no OS text.
 export type HotkeyFailure = 'no-manager' | 'refused' | 'unmapped' | 'dispatch';
@@ -121,7 +108,7 @@ export interface HotkeyFault {
 }
 
 // The last hotkey press the agent received from the OS; absent until the first one.
-export type HotkeyPress = 'accept' | 'fill' | 'unmatched';
+export type HotkeyPress = 'accept' | 'unmatched';
 
 export interface AgentView {
   pairing: PairingState;
@@ -130,11 +117,9 @@ export interface AgentView {
   update: UpdateState;
   // A ready check is open for the account: the hotkey that accepts it is registered (RDY-07).
   readyCheckOpen: boolean;
-  // The keys that accept a ready check and fill the game name (RDY-07, AST-01), as the core spells them.
+  // The key that accepts a ready check (RDY-07), as the core spells it.
   hotkeys: Hotkeys;
-  // What the last press of the fill hotkey did (AST-08); absent before the first press.
-  lastFill?: FillOutcome;
-  // The hotkeys the OS refused to register while they are wanted (AST-01, AST-08); absent when all are registered.
+  // The hotkeys the OS refused to register while they are wanted (AST-08); absent when it is registered.
   hotkeyUnavailable?: HotkeyFault[];
   // The last hotkey press the OS delivered to the agent (proves delivery); absent until the first one.
   lastPress?: HotkeyPress;
@@ -200,21 +185,11 @@ export function readyCheckLabel(open: boolean, hotkeys: Hotkeys): Label | null {
   return open ? { key: 'readyCheck.hotkey', values: { key: hotkeys.accept } } : null;
 }
 
-// The line that says how to fill the game name while the agent holds a room (AST-01).
-export function fillHintLabel(room: RoomState | null, hotkeys: Hotkeys): Label | null {
-  return room === null ? null : { key: 'fill.hint', values: { key: hotkeys.fill } };
-}
-
-// What the last press of the fill hotkey did, one line per outcome; a full fill reminds the player to confirm (AST-08).
-export function fillLabel(outcome: FillOutcome | undefined): Label | null {
-  return outcome === undefined ? null : { key: `fill.${outcome}` };
-}
-
 // The lines for a hotkey the OS did not let the agent register, one per slot, with the reason as a short code the player can
 // read out (AST-08). The player picks another combination.
 export function hotkeyUnavailableLabels(faults: HotkeyFault[] | undefined, hotkeys: Hotkeys): Label[] {
   return (faults ?? []).map(({ slot, reason }) => ({
-    key: `${slot === 'fill' ? 'fill' : 'readyCheck'}.unavailable`,
+    key: 'readyCheck.unavailable',
     values: { key: hotkeys[slot], reason },
   }));
 }

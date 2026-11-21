@@ -1,0 +1,8 @@
+# Fixture for the windows feature allow-list rule (AST-13): Win32_UI_Input_KeyboardAndMouse is not on the list.
+[package]
+name = "d2rmm-agent"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_Input_KeyboardAndMouse"] }

@@ -1,33 +1,16 @@
-//! Assisted typing's values (FR-28, AST-01, AST-02, AST-06; ADR 010). The agent types a game name for the player and never
-//! confirms: the only text it can type is a `TypableName`, built from `TypableChar`s, and a `TypableChar` is one of
-//! `a`–`z`, `0`–`9` and `-`. Enter, Tab, Space, Escape, Backspace and every modifier are not representable, so no caller
-//! can ask for them. Pure rules: no I/O, no clock.
+//! The agent's values for FR-28 and RDY-07 (AST-11, AST-08; ADR 010). The agent copies a game name for the player and
+//! sends no input to any window: the only text it may write to the clipboard is a `TypableName` (the generated-name
+//! shape), and a `HotkeyChoice` is the accept hotkey the player chose. Pure rules: no I/O, no clock.
 
 use std::fmt;
 
-/// The most characters a game name may have (AST-02).
+/// The most characters a game name may have (AST-11).
 pub const MAX_NAME_LEN: usize = 32;
 
-/// The most digits of the run number in a game name (AST-02).
+/// The most digits of the run number in a game name (AST-11).
 const MAX_NUMBER_DIGITS: usize = 6;
 
-/// One character the agent may type: `a`–`z`, `0`–`9` or `-` (AST-06). The only way to make one is `new`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TypableChar(char);
-
-impl TypableChar {
-    /// `Some` for a lowercase ASCII letter, an ASCII digit or `-`; `None` for everything else.
-    pub fn new(character: char) -> Option<Self> {
-        (character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-')
-            .then_some(Self(character))
-    }
-
-    pub fn get(self) -> char {
-        self.0
-    }
-}
-
-/// Why a game name is not typed (AST-02).
+/// Why a game name is not copied (AST-11).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NameRefusal {
     Empty,
@@ -36,11 +19,10 @@ pub enum NameRefusal {
     WrongShape,
 }
 
-/// A game name that may be typed: `mm[a-z0-9]+-[0-9]{1,6}`, at most 32 characters (ADR 017, AST-02).
+/// A game name that may be copied: `mm[a-z0-9]+-[0-9]{1,6}`, at most 32 characters (ADR 017, AST-11).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypableName {
     text: String,
-    chars: Vec<TypableChar>,
 }
 
 impl TypableName {
@@ -54,24 +36,13 @@ impl TypableName {
         if !has_shape(name) {
             return Err(NameRefusal::WrongShape);
         }
-        // `has_shape` admits only typable characters, so every one converts.
-        let chars: Vec<TypableChar> = name.chars().filter_map(TypableChar::new).collect();
-        if chars.len() != name.len() {
-            return Err(NameRefusal::WrongShape);
-        }
         Ok(Self {
             text: name.to_string(),
-            chars,
         })
     }
 
     pub fn as_str(&self) -> &str {
         &self.text
-    }
-
-    /// The characters in typing order.
-    pub fn chars(&self) -> &[TypableChar] {
-        &self.chars
     }
 }
 
@@ -90,7 +61,7 @@ fn has_shape(name: &str) -> bool {
         && number.bytes().all(|byte| byte.is_ascii_digit())
 }
 
-/// The modifier keys of a hotkey (AST-01, AST-05).
+/// The modifier keys of a hotkey (RDY-07).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Modifiers {
     pub ctrl: bool,
@@ -112,7 +83,7 @@ pub enum HotkeyKey {
     Function(u8),
 }
 
-/// Why a hotkey is refused (AST-01).
+/// Why a hotkey is refused (RDY-07).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HotkeyRefusal {
     /// Plain keys would fire while the player types.
@@ -125,11 +96,9 @@ pub enum HotkeyRefusal {
     ConfirmingKey,
     /// Not a letter, a digit or F1–F12, or not readable as a combination.
     UnsupportedKey,
-    /// The accept and the fill hotkeys must differ.
-    SameAsOther,
 }
 
-/// A hotkey combination the player chose, such as `Ctrl+Shift+F` (AST-01).
+/// A hotkey combination the player chose, such as `Ctrl+Shift+A` (RDY-07).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HotkeyChoice {
     pub modifiers: Modifiers,
@@ -220,24 +189,6 @@ impl fmt::Display for HotkeyChoice {
     }
 }
 
-/// Which of the two hotkeys a change is for (AST-01).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HotkeyAction {
-    Accept,
-    Fill,
-}
-
-impl HotkeyAction {
-    /// `accept` or `fill`, as the window names them.
-    pub fn parse(name: &str) -> Option<Self> {
-        match name {
-            "accept" => Some(Self::Accept),
-            "fill" => Some(Self::Fill),
-            _ => None,
-        }
-    }
-}
-
 impl HotkeyRefusal {
     /// The code the window maps to its message for this refusal.
     pub fn code(self) -> &'static str {
@@ -247,77 +198,27 @@ impl HotkeyRefusal {
             Self::Reserved => "reserved",
             Self::ConfirmingKey => "confirming-key",
             Self::UnsupportedKey => "unsupported-key",
-            Self::SameAsOther => "same-as-other",
         }
     }
 }
 
-/// The two hotkeys of the agent: the one that accepts a ready check (RDY-07) and the one that fills the name (AST-01).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct HotkeyPair {
-    accept: HotkeyChoice,
-    fill: HotkeyChoice,
-}
-
-impl HotkeyPair {
-    /// Ctrl+Shift+A accepts, Ctrl+Shift+F fills.
-    pub fn defaults() -> Self {
-        let both = Modifiers {
-            ctrl: true,
-            shift: true,
-            alt: false,
-        };
+impl HotkeyChoice {
+    /// The default accept hotkey, Ctrl+Shift+A (RDY-07).
+    pub fn default_accept() -> Self {
         Self {
-            accept: HotkeyChoice {
-                modifiers: both,
-                key: HotkeyKey::Letter('A'),
+            modifiers: Modifiers {
+                ctrl: true,
+                shift: true,
+                alt: false,
             },
-            fill: HotkeyChoice {
-                modifiers: both,
-                key: HotkeyKey::Letter('F'),
-            },
+            key: HotkeyKey::Letter('A'),
         }
-    }
-
-    /// The pair of these two hotkeys, or why it is refused (they must differ).
-    pub fn new(accept: HotkeyChoice, fill: HotkeyChoice) -> Result<Self, HotkeyRefusal> {
-        if accept == fill {
-            return Err(HotkeyRefusal::SameAsOther);
-        }
-        Ok(Self { accept, fill })
-    }
-
-    pub fn accept(&self) -> HotkeyChoice {
-        self.accept
-    }
-
-    pub fn fill(&self) -> HotkeyChoice {
-        self.fill
-    }
-
-    /// The pair with a new accept hotkey, or why it is refused (it must differ from the fill hotkey).
-    pub fn with_accept(&self, accept: HotkeyChoice) -> Result<Self, HotkeyRefusal> {
-        if accept == self.fill {
-            return Err(HotkeyRefusal::SameAsOther);
-        }
-        Ok(Self { accept, ..*self })
-    }
-
-    /// The pair with a new fill hotkey, or why it is refused (it must differ from the accept hotkey).
-    pub fn with_fill(&self, fill: HotkeyChoice) -> Result<Self, HotkeyRefusal> {
-        if fill == self.accept {
-            return Err(HotkeyRefusal::SameAsOther);
-        }
-        Ok(Self { fill, ..*self })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        HotkeyChoice, HotkeyKey, HotkeyPair, HotkeyRefusal, MAX_NAME_LEN, NameRefusal, TypableChar,
-        TypableName,
-    };
+    use super::{HotkeyChoice, HotkeyKey, HotkeyRefusal, MAX_NAME_LEN, NameRefusal, TypableName};
 
     const ACTIVITIES: [&str; 9] = [
         "baal", "chaos", "cows", "tz", "heralds", "duel1v1", "duel2v2", "arena6", "mephisto",
@@ -331,8 +232,6 @@ mod tests {
                     let name = format!("mm{activity}{code}-{number}");
                     let typable = TypableName::new(&name).expect(&name);
                     assert_eq!(typable.as_str(), name);
-                    let typed: String = typable.chars().iter().map(|c| c.get()).collect();
-                    assert_eq!(typed, name, "the characters spell the name");
                 }
             }
         }
@@ -372,22 +271,6 @@ mod tests {
             TypableName::new(&too_long).err(),
             Some(NameRefusal::TooLong)
         );
-    }
-
-    #[test]
-    fn only_lowercase_letters_digits_and_the_hyphen_are_typable_characters() {
-        for typable in ('a'..='z').chain('0'..='9').chain(['-']) {
-            assert_eq!(
-                TypableChar::new(typable).map(TypableChar::get),
-                Some(typable)
-            );
-        }
-        for other in [
-            '\n', '\r', '\t', ' ', '\u{8}', '\u{1b}', 'A', 'Z', '/', '_', '.', '@', '\u{e9}',
-            '\u{0}',
-        ] {
-            assert!(TypableChar::new(other).is_none(), "{other:?}");
-        }
     }
 
     #[test]
@@ -520,20 +403,13 @@ mod tests {
     }
 
     #[test]
-    fn an_action_and_a_refusal_have_the_names_the_window_uses() {
-        use super::HotkeyAction;
-        assert_eq!(HotkeyAction::parse("accept"), Some(HotkeyAction::Accept));
-        assert_eq!(HotkeyAction::parse("fill"), Some(HotkeyAction::Fill));
-        for other in ["", "Fill", "confirm", "accept "] {
-            assert_eq!(HotkeyAction::parse(other), None, "{other:?}");
-        }
+    fn a_refusal_has_the_name_the_window_uses() {
         let codes: Vec<&str> = [
             HotkeyRefusal::NoModifier,
             HotkeyRefusal::NeedsCtrlOrAlt,
             HotkeyRefusal::Reserved,
             HotkeyRefusal::ConfirmingKey,
             HotkeyRefusal::UnsupportedKey,
-            HotkeyRefusal::SameAsOther,
         ]
         .map(HotkeyRefusal::code)
         .to_vec();
@@ -544,38 +420,17 @@ mod tests {
                 "needs-ctrl-or-alt",
                 "reserved",
                 "confirming-key",
-                "unsupported-key",
-                "same-as-other"
+                "unsupported-key"
             ]
         );
     }
 
     #[test]
-    fn the_two_hotkeys_differ_and_a_refusal_keeps_the_pair() {
-        let pair = HotkeyPair::defaults();
-        assert_eq!(pair.accept().to_string(), "Ctrl+Shift+A");
-        assert_eq!(pair.fill().to_string(), "Ctrl+Shift+F");
-        let same_as_fill = HotkeyChoice::parse("Ctrl+Shift+F").expect("valid");
+    fn the_default_accept_hotkey_is_ctrl_shift_a() {
+        assert_eq!(HotkeyChoice::default_accept().to_string(), "Ctrl+Shift+A");
         assert_eq!(
-            pair.with_accept(same_as_fill).err(),
-            Some(HotkeyRefusal::SameAsOther)
+            HotkeyChoice::parse("ctrl+shift+a").expect("valid"),
+            HotkeyChoice::default_accept()
         );
-        let same_as_accept = HotkeyChoice::parse("ctrl+shift+a").expect("valid");
-        assert_eq!(
-            pair.with_fill(same_as_accept).err(),
-            Some(HotkeyRefusal::SameAsOther)
-        );
-        assert_eq!(
-            HotkeyPair::new(same_as_fill, same_as_fill).err(),
-            Some(HotkeyRefusal::SameAsOther)
-        );
-        assert_eq!(
-            HotkeyPair::new(same_as_accept, same_as_fill).expect("two keys"),
-            pair
-        );
-        let other = HotkeyChoice::parse("Alt+G").expect("valid");
-        let changed = pair.with_fill(other).expect("a different key");
-        assert_eq!(changed.fill(), other);
-        assert_eq!(changed.accept(), pair.accept());
     }
 }

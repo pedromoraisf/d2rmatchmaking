@@ -7,7 +7,7 @@ import type { AgentView, PairingState, Translate } from '../shared/labels.ts';
 import { ConsentView } from '../views/ConsentView.tsx';
 import { PairingView } from '../views/PairingView.tsx';
 import { DiagnosticsView } from '../views/DiagnosticsView.tsx';
-import { HotkeysView, type HotkeyAction } from '../views/HotkeysView.tsx';
+import { HotkeysView } from '../views/HotkeysView.tsx';
 import { StatusView } from '../views/StatusView.tsx';
 
 const AGENT_STATE_EVENT = 'agent-state';
@@ -72,9 +72,9 @@ export function App({ translate }: AppProps) {
     );
   };
 
-  // The core stores the combination or refuses it with a reason code, which the view shows (AST-01).
-  const changeHotkey = async (action: HotkeyAction, combination: string) => {
-    await invoke(SET_HOTKEY_COMMAND, { action, combination });
+  // The core stores the combination or refuses it with a reason code, which the view shows (RDY-07).
+  const changeHotkey = async (combination: string) => {
+    await invoke(SET_HOTKEY_COMMAND, { combination });
   };
 
   return (
