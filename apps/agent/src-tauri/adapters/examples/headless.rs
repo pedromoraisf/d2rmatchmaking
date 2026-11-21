@@ -104,6 +104,14 @@ impl StateSink for Lines {
         if view.pairing == PairingView::Paired && !was_paired {
             let _ = self.events.send(json!({ "event": "paired" }));
         }
+        // The agent holds a ready check (RDY-07): the hotkey answers only a check it holds, so a press before this line
+        // is dropped. The acceptance step waits for the line before it presses.
+        let check_before = before
+            .as_ref()
+            .is_some_and(|previous| previous.ready_check_open);
+        if view.ready_check_open && !check_before {
+            let _ = self.events.send(json!({ "event": "ready-check" }));
+        }
         // The capture lines of the window (capture-cascade CAP-02, CAP-07): printed when the method or the reason changes.
         let capture_of = |view: &AgentView| {
             view.capture
