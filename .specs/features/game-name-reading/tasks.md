@@ -102,7 +102,7 @@ failure message carries a name read from a real print.
       `--show-reads`), and `ocr_variations` counts them in its totals. The tests of this file gain assertions, never lose
       one. Gate: `CARGO nextest run -p d2rmm-agent --lib ocr_check` and `pnpm test:harness`. Real-print proof: the PR's
       `ocr-real` lists the new files as PASS or FAIL with a reason class, and `ocr-variations` totals include them
-- [ ] T9 — **[R14]** Refusals of the seven generated-name prints (item e, GNR-01, GNR-05). From the PR's `ocr-variations`
+- [x] T9 — **[R14]** Refusals of the seven generated-name prints (item e, GNR-01, GNR-05). From the PR's `ocr-variations`
       summary, list the reason classes per print (the summary prints no player name; edit operations are against a generated
       name, which is public), pin the reads that work, then change the logic only where a class shows a rule that
       refuses a readable name. One change per commit, each pushed and proved: `ocr-real` green, the print's correct
