@@ -10,7 +10,9 @@ use std::sync::{Arc, Mutex, PoisonError};
 use d2rmm_agent_core::ports::{ReadError, Rgba, TextReader};
 use d2rmm_agent_core::screen_reader::readings_of;
 use d2rmm_agent_domain::anchors::{self, TitleLine};
-use d2rmm_agent_domain::character_screen::{parse_level_and_class, read_name, read_title};
+use d2rmm_agent_domain::character_screen::{
+    label_brightness, luma, parse_level_and_class, read_name, read_title,
+};
 use d2rmm_agent_domain::characters::{Class, Title};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{CARD_SLOTS, ScreenRegion, screen_region};
@@ -214,6 +216,72 @@ fn name_line(text: &str) -> Option<String> {
     read_name(&words.collect::<String>())
 }
 
+/// The brightest percent of the column reaches white and a column this bright already reads as it is.
+const READABLE_BRIGHTNESS: u8 = 200;
+const LIFTABLE_BRIGHTNESS: u8 = 24;
+
+/// A copy of `frame` with the brightness of `area` lifted so its brightest pixels reach white (the lift screen-recognition T9
+/// tried in #104 and reverted), or `None` when the area is already readable, has nothing to lift, or lies outside the frame.
+/// Diagnostic only: it shows what the lifted reads would have agreed on; the production reading does not lift.
+fn lifted(frame: &Rgba, area: Region) -> Option<Rgba> {
+    let rows = area.y..area.bottom().min(frame.height);
+    let columns = area.x..area.right().min(frame.width);
+    let at = |x: u32, y: u32| (y as usize * frame.width as usize + x as usize) * 4;
+    let lumas: Vec<u8> = rows
+        .clone()
+        .flat_map(|y| columns.clone().map(move |x| (x, y)))
+        .filter_map(|(x, y)| {
+            let pixel = frame.pixels.get(at(x, y)..at(x, y) + 3)?;
+            Some(luma(pixel[0], pixel[1], pixel[2]))
+        })
+        .collect();
+    let top = label_brightness(lumas)?;
+    if !(LIFTABLE_BRIGHTNESS..READABLE_BRIGHTNESS).contains(&top) {
+        return None;
+    }
+    let mut image = frame.clone();
+    for y in rows {
+        for x in columns.clone() {
+            let start = at(x, y);
+            for channel in image.pixels.get_mut(start..start + 3)? {
+                let value = u32::from(*channel) * 255 / u32::from(top);
+                *channel = u8::try_from(value.min(255)).unwrap_or(u8::MAX);
+            }
+        }
+    }
+    Some(image)
+}
+
+/// `card_field_stats` of the frame with its card column lifted, the fields named `lift-name`, `lift-level` and `lift-title`.
+/// Empty when the column is not liftable. `reader` must not be a memo of the plain frame: the pixels differ.
+pub fn lifted_card_field_stats(
+    reader: &dyn TextReader,
+    frame: &Rgba,
+    pack: &LanguagePack,
+    expected: &[Card],
+) -> Vec<FieldStats> {
+    let Some(column) = screen_region(ScreenRegion::CardColumn, frame.width, frame.height) else {
+        return Vec::new();
+    };
+    let Some(image) = lifted(frame, column) else {
+        return Vec::new();
+    };
+    card_field_stats(reader, &image, pack, expected)
+        .into_iter()
+        .map(|mut stats| {
+            stats.field = match stats.field {
+                "name" => "lift-name",
+                "level" => "lift-level",
+                "title" => "lift-title",
+                "title-unseen" => "lift-title-unseen",
+                "title-garbled" => "lift-title-garbled",
+                _ => "lift-title-absent",
+            };
+            stats
+        })
+        .collect()
+}
+
 /// The agreement on the name, level and title lines of each card slot of `frame`, found as the production reading finds
 /// them (the card column's lines, the cards by their level line, each field's box padded). `expected` are the cards the
 /// screenshot is known to show, by position. Empty when the frame has no card column.
@@ -386,6 +454,51 @@ mod tests {
         assert_eq!(super::name_line("vuka l Dao").as_deref(), Some("vukalDao"));
         assert_eq!(super::name_line("").as_deref(), None);
         assert_eq!(super::name_line("Level 88").as_deref(), None);
+    }
+
+    mod lift {
+        use d2rmm_agent_core::ports::Rgba;
+        use d2rmm_agent_domain::vision::Region;
+
+        use super::super::lifted;
+
+        fn frame(value: u8) -> Rgba {
+            Rgba {
+                width: 40,
+                height: 20,
+                pixels: [value, value, value, 255]
+                    .into_iter()
+                    .cycle()
+                    .take(40 * 20 * 4)
+                    .collect(),
+            }
+        }
+
+        const AREA: Region = Region {
+            x: 10,
+            y: 5,
+            width: 10,
+            height: 10,
+        };
+
+        #[test]
+        fn a_dim_area_is_scaled_so_its_brightest_pixels_reach_white_and_the_rest_is_left() {
+            let image = lifted(&frame(100), AREA).expect("liftable");
+            let inside = (7 * 40 + 12) * 4;
+            assert_eq!(image.pixels[inside], 255, "grey 100 scaled to white");
+            assert_eq!(image.pixels[inside + 3], 255);
+            assert_eq!(
+                &image.pixels[..4],
+                &[100, 100, 100, 255],
+                "outside the area"
+            );
+        }
+
+        #[test]
+        fn a_bright_or_black_area_is_not_lifted() {
+            assert!(lifted(&frame(255), AREA).is_none());
+            assert!(lifted(&frame(0), AREA).is_none());
+        }
     }
 
     mod memo {

@@ -373,7 +373,7 @@ impl Report {
                 count(|f| f.settled_expected),
             ));
         }
-        let mut by_reason: BTreeMap<(&str, &str), [usize; 6]> = BTreeMap::new();
+        let mut by_reason: BTreeMap<(&str, &str), [usize; 9]> = BTreeMap::new();
         for (result, fields) in &with {
             let ok = |field: &str| {
                 fields
@@ -381,11 +381,13 @@ impl Report {
                     .any(|f| f.slot == 0 && f.field == field && f.settled_expected)
             };
             let ok_all = |field: &str| {
-                fields
-                    .iter()
-                    .filter(|f| f.field == field)
-                    .all(|f| f.settled_expected)
+                let of: Vec<&FieldStats> = fields.iter().filter(|f| f.field == field).collect();
+                !of.is_empty() && of.iter().all(|f| f.settled_expected)
             };
+            let lift: Vec<&FieldStats> = fields
+                .iter()
+                .filter(|f| f.field.starts_with("lift-"))
+                .collect();
             let row = by_reason
                 .entry((
                     result.verdict.outcome.name(),
@@ -396,16 +398,21 @@ impl Report {
             row[1] += usize::from(ok("name"));
             row[2] += usize::from(ok("level"));
             row[3] += usize::from(ok("title"));
-            row[4] += usize::from(["name", "level", "title"].iter().all(|field| ok(field)));
-            row[5] += usize::from(["name", "level", "title"].iter().all(|field| ok_all(field)));
+            row[4] += usize::from(["name", "level"].iter().all(|field| ok(field)));
+            row[5] += usize::from(["name", "level"].iter().all(|field| ok_all(field)));
+            row[6] += usize::from(!lift.is_empty());
+            // Both cards' names and levels settle on the expected values in the lifted read.
+            row[7] += usize::from(lift.len() >= 4 && lift.iter().all(|f| f.settled_expected));
+            // Some lifted field settles on a value that is not the expected one: the way a lift reads WRONG.
+            row[8] += usize::from(lift.iter().any(|f| f.settled && !f.settled_expected));
         }
         text.push_str(
-            "\nPopup variations by outcome and reason: how many settle each field of slot 0 on the expected value (name, level, title; a title line the lines pass did not find is read through the pixels and shown here as no field), name and level together on slot 0, and on every slot:\n\n| outcome | reason | n | name ok | level ok | title ok | slot 0 name+level ok | all slots name+level ok |\n|---|---|---|---|---|---|---|---|\n",
+            "\nPopup variations by outcome and reason: how many settle each field of slot 0 on the expected value (name, level, title; a title line the lines pass did not find is read through the pixels and shown here as no field), name and level together on slot 0, and on every slot, then, for the variations whose plain read found no card and whose column was read again with its brightness lifted (diagnostic only, every third variation), how many read, how many settle both cards' names and levels on the expected values, and how many settle some field on a value that is not the expected one:\n\n| outcome | reason | n | name ok | level ok | title ok | slot 0 name+level ok | all slots name+level ok | lifted read | lifted all ok | lifted settles wrong |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
         );
         for ((outcome, reason), row) in by_reason {
             text.push_str(&format!(
-                "| {outcome} | {reason} | {} | {} | {} | {} | {} | {} |\n",
-                row[0], row[1], row[2], row[3], row[4], row[5]
+                "| {outcome} | {reason} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+                row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8]
             ));
         }
         text.push('\n');
@@ -988,7 +995,7 @@ mod tests {
         let text = report.markdown();
         assert!(text.contains("Popup card fields by slot, summed over 2 variations"));
         assert!(text.contains("| 0 | name | 2 | 12 | 4 | 2 | 2 | 0 | 2 | 4 | 0 | 2 | 1 |"));
-        assert!(text.contains("| refused | name-unread | 2 | 1 | 2 | 2 | 1 | 1 |"));
+        assert!(text.contains("| refused | name-unread | 2 | 1 | 2 | 2 | 1 | 1 | 0 | 0 | 0 |"));
         let value = report.json();
         assert_eq!(value["variants"][0]["card_fields"][0]["top"], 4);
         assert_eq!(value["variants"][0]["card_fields"][0]["field"], "name");
