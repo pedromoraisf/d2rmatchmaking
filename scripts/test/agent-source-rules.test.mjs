@@ -502,11 +502,14 @@ const RAW_UPLOAD = /multipart|octet-stream|\bimage\/|\.body\s*\(|Part::/;
 
 // The span exporter's client sends the protobuf batch with one `.body(...)`: the only raw body allowed, in that one file.
 const RELAY_CLIENT = 'adapters/src/telemetry/relay_client.rs';
+// The chat post (server-name-match) hands the HTTP adapter a name and nothing else: it names no frame type and sends no raw body.
+const CHAT_POST = 'core/src/chat_post.rs';
 const RAW_BODY = /\.body\s*\(/g;
 
 const outgoingDataViolations = (base) => {
   const files = rustFiles(base).filter(
-    ({ rel }) => (rel.startsWith('adapters/src/http/') || rel === RELAY_CLIENT) && !isTestFile(rel),
+    ({ rel }) =>
+      (rel.startsWith('adapters/src/http/') || rel === RELAY_CLIENT || rel === CHAT_POST) && !isTestFile(rel),
   );
   const manifest = crateFile(base, 'adapters/Cargo.toml') ?? '';
   return [
@@ -525,6 +528,21 @@ const outgoingDataViolations = (base) => {
     ...(/reqwest[^\n]*multipart/.test(manifest) ? ['adapters/Cargo.toml enables reqwest multipart'] : []),
   ];
 };
+
+// The chat post puts no name in a span, an event or a counter (SNM-04, ADR 036): no tracing call of `chat_post.rs` names the
+// player's name or the observation that holds it. Spans and events carry fixed words only.
+const TRACING_CALL =
+  /\b(?:tracing::)?(?:info_span|debug_span|trace_span|warn_span|error_span|span|info|debug|trace|warn|error|event)!\s*\(([^;]*?)\)\s*;/gs;
+const NAME_IN_TELEMETRY = /\bname\b|\bnames?\(\)|\bobservation\b|\bheld\b|\bevent\s*\.\s*1/;
+
+const chatPostTelemetryViolations = (base) =>
+  rustFiles(base)
+    .filter(({ rel }) => rel === CHAT_POST)
+    .flatMap(({ rel, text }) =>
+      [...codeOnly(nonTestText(text)).matchAll(TRACING_CALL)]
+        .filter((call) => NAME_IN_TELEMETRY.test(call[1]))
+        .map(() => `${rel} puts the name or the observation in a span, an event or a counter`),
+    );
 
 // Capture scope (ADR 010, capture-cascade CAP-04): the capture adapters see the game window and nothing else. No monitor, no
 // desktop or screen device context, no duplication of the output. The allowed `IGraphicsCaptureItemInterop` and
@@ -861,6 +879,21 @@ test('the stream variant rule rejects a new variant', () => {
 
 test('the HTTP adapters send contract bodies only: no frame, no raw body, no multipart', () => {
   assert.deepEqual(outgoingDataViolations(root), []);
+});
+
+test('the chat post names no frame type, sends no raw body and puts no name in telemetry', () => {
+  assert.deepEqual(outgoingDataViolations(root), []);
+  assert.deepEqual(chatPostTelemetryViolations(root), []);
+});
+
+test('the chat post rules reject a frame type, a raw body and a name in a span or an event', () => {
+  const base = fixtureBase('chat-post-leak');
+  const violations = outgoingDataViolations(base).join('\n');
+  assert.match(violations, /core\/src\/chat_post\.rs names a frame or pixel type/);
+  assert.match(violations, /core\/src\/chat_post\.rs sends a raw body, a multipart part or an image/);
+  const telemetry = chatPostTelemetryViolations(base);
+  assert.equal(telemetry.length, 3, telemetry.join('\n'));
+  assert.match(telemetry.join('\n'), /core\/src\/chat_post\.rs puts the name or the observation in a span/);
 });
 
 test('the outgoing data rule rejects a frame type and a raw body', () => {

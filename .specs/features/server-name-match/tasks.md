@@ -58,13 +58,13 @@ Rules:
       `ApiGateway::post_player_observation` port with its fake and adapter, and `player_observation_to_contract` to
       the adapters, validating the reading rule before a body is built (SNM-05, SNM-06). Unit tests on the body keys and on every refusal. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core -p d2rmm-agent-adapters --lib && cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings`
-- [ ] T8 — Agent core: `chat_post.rs` posts one observation per new joined or left event while an assignment is held for
+- [x] T8 — Agent core: `chat_post.rs` posts one observation per new joined or left event while an assignment is held for
       the current run, through a clock-injected 20-a-minute bucket, with the span and counter of the design (fixed
       words only). It does not use `post_observation::send` (it retries) or `confirm_run`, and never retries. Tests: no
       assignment, other run, line already posted, bad name, bucket full, post failed. Wire it in the screen loop
       (`watch_screen.rs`) through `chat_step::look_named`. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && node --test scripts/test/agent-source-rules.test.mjs`
-- [ ] T9 — Agent privacy rules: a unit test with the in-memory span subscriber that no span or counter of the chat post
+- [x] T9 — Agent privacy rules: a unit test with the in-memory span subscriber that no span or counter of the chat post
       holds the name; extend the AGT-05 source rule so `chat_post.rs` and the adapters name no frame type and send no
       raw body; a fixture that the rule must reject. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && node --test scripts/test/agent-source-rules.test.mjs`
