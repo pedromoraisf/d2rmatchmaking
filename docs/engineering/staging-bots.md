@@ -29,6 +29,24 @@ Spec: `.specs/features/staging-bots/spec.md` (SBT-01 to SBT-13, with the threat 
    name as members would.
 5. The bots leave when the room ends, after `minutes`, or when you cancel the run.
 
+## Run it from your PC
+
+The workflow lives on `phase/F2` until that phase reaches `main`, and GitHub shows no "Run workflow" button for a workflow
+that is not on the default branch. Meanwhile run the script yourself, from a checkout of a branch that has it. It needs only
+Node 18 or newer and no `pnpm install`.
+
+Set the same variables the workflow sets, then run it. `STAGING_API_URL` and `SITE_ORIGIN` are required; the `BOTS_*`
+variables are the inputs of the table under "Inputs", and an empty one takes its default: `BOTS_MODE`, `BOTS_DIFFICULTY`,
+`BOTS_REGION`, `BOTS_LADDER`, `BOTS_ERA`, `BOTS_HARDCORE`, `BOTS_ACTIVITY`, `BOTS_ROLE`, `BOTS_RULES`, `BOTS_MIN_LEVEL`,
+`BOTS_COUNT`, `BOTS_MINUTES`, `BOTS_HUMAN_FIRST` and `BOTS_HOST_POLICY`.
+
+```powershell
+$env:STAGING_API_URL="https://d2rmm-api.onrender.com"; $env:SITE_ORIGIN="https://d2rmatchmaking.pages.dev"; $env:BOTS_MODE="pvp"; $env:BOTS_MINUTES="15"; node scripts/staging/bots.mjs
+```
+
+Queue yourself first, as in "How to run". Ctrl+C makes the bots leave before the script ends. The safety is the same: the
+script refuses any API whose `/v1/config` does not say `stagingEndpoints: true`.
+
 ## Inputs
 
 | Input                  | Meaning                                                                                                                                                                     |
