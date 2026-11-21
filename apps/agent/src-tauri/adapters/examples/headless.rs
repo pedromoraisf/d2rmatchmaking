@@ -188,6 +188,18 @@ impl ApiGateway for Reporting {
         result
     }
 
+    async fn post_player_observation(
+        &self,
+        token: &Secret,
+        observation: &d2rmm_agent_core::messages::PlayerObservation,
+    ) -> Result<(), ApiError> {
+        let result = self.inner.post_player_observation(token, observation).await;
+        if result.is_ok() {
+            let _ = self.events.send(json!({ "event": "chat-observed" }));
+        }
+        result
+    }
+
     async fn post_characters(
         &self,
         token: &Secret,

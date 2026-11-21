@@ -624,7 +624,7 @@ async function tabUntilFocused(page: Page, control: Locator): Promise<void> {
 // Stops the headless agents and removes their fixtures after each scenario that started them.
 After(
   {
-    tags: '@AGT-04 or @AGT-05 or @ARL-01 or @ARL-03 or @LBR-01 or @LBR-02 or @LBR-03 or @LBR-04 or @LBR-05 or @LBR-06 or @LBR-07 or @LBR-08 or @LBR-09 or @LBR-10 or @LBR-12',
+    tags: '@AGT-04 or @AGT-05 or @SNM-05 or @SNM-06 or @ARL-01 or @ARL-03 or @LBR-01 or @LBR-02 or @LBR-03 or @LBR-04 or @LBR-05 or @LBR-06 or @LBR-07 or @LBR-08 or @LBR-09 or @LBR-10 or @LBR-12',
   },
   async ({ world }) => {
     const state = states.get(world);

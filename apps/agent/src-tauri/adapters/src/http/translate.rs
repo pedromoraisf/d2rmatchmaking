@@ -3,7 +3,8 @@
 //! reaches the message type unchanged. The pure mapping lives here; the HTTP calls live in `gateway.rs`.
 
 use d2rmm_agent_core::messages::{
-    GameNameObservation, InvalidPairingCode, IssuedCode, PairingCode, Presence, Screen,
+    GameNameObservation, InvalidPairingCode, IssuedCode, PairingCode, PlayerKind,
+    PlayerObservation, Presence, Screen,
 };
 use d2rmm_agent_domain::characters::{Card, Class, Difficulty, Mode};
 use d2rmm_agent_domain::room_assignment::{Assignment, GameName, Member, MemberRole, RoomId};
@@ -153,6 +154,25 @@ pub fn observation_to_contract(
         "type": "GAME_NAME_SEEN",
         "run": value.run.get(),
         "value": value.game_name,
+        "confidence": value.confidence,
+        "capturedAt": value.captured_at,
+    }))
+}
+
+/// A `PLAYER_JOINED_SEEN` or `PLAYER_LEFT_SEEN` observation in its contract shape. The domain checked the reading rule when it
+/// built the value (`PlayerObservation::of`), so a name that breaks it never reaches a body (SNM-06). The body holds the observation's own keys and nothing else.
+pub fn player_observation_to_contract(
+    value: &PlayerObservation,
+) -> Result<contract::Observation, serde_json::Error> {
+    let kind = match value.kind {
+        PlayerKind::Joined => "PLAYER_JOINED_SEEN",
+        PlayerKind::Left => "PLAYER_LEFT_SEEN",
+    };
+    serde_json::from_value(json!({
+        "idempotencyKey": value.key.to_string(),
+        "type": kind,
+        "run": value.run.get(),
+        "value": value.name(),
         "confidence": value.confidence,
         "capturedAt": value.captured_at,
     }))
@@ -545,5 +565,82 @@ mod tests {
             schema("observation.json").is_valid(&sent),
             "the body matches its schema"
         );
+    }
+
+    fn player(
+        kind: super::PlayerKind,
+        name: &str,
+    ) -> Result<super::PlayerObservation, d2rmm_agent_domain::player_observation::NameRefused> {
+        super::PlayerObservation::of(
+            kind,
+            Uuid::nil(),
+            NonZeroU64::new(3).expect("non-zero"),
+            Uuid::parse_str("6f9619ff-8b86-4011-b42d-00c04fc964ff").expect("a uuid"),
+            name,
+            0.75,
+            "2026-11-21T10:00:00Z"
+                .parse::<DateTime<Utc>>()
+                .expect("an instant"),
+        )
+    }
+
+    #[test]
+    fn a_player_observation_body_holds_only_the_observation_keys() {
+        for (kind, word) in [
+            (super::PlayerKind::Joined, "PLAYER_JOINED_SEEN"),
+            (super::PlayerKind::Left, "PLAYER_LEFT_SEEN"),
+        ] {
+            let observation = player(kind, "Hammer").expect("a name");
+            let body = serde_json::to_value(
+                super::player_observation_to_contract(&observation).expect("a body"),
+            )
+            .expect("json");
+            let keys: BTreeSet<&str> = body
+                .as_object()
+                .expect("an object")
+                .keys()
+                .map(String::as_str)
+                .collect();
+            assert_eq!(
+                keys,
+                BTreeSet::from([
+                    "capturedAt",
+                    "confidence",
+                    "idempotencyKey",
+                    "run",
+                    "type",
+                    "value"
+                ])
+            );
+            assert_eq!(body["type"], word);
+            assert_eq!(body["value"], "Hammer");
+            assert_eq!(body["run"], 3);
+            assert_eq!(body["confidence"], 0.75);
+            assert_eq!(
+                body["idempotencyKey"],
+                "6f9619ff-8b86-4011-b42d-00c04fc964ff"
+            );
+            assert_eq!(body["capturedAt"], "2026-11-21T10:00:00Z");
+        }
+    }
+
+    #[test]
+    fn a_name_that_breaks_the_rule_never_becomes_a_body() {
+        // The domain refuses the name when it builds the observation, so no value reaches `player_observation_to_contract`.
+        for name in [
+            "",
+            "A",
+            "1Bob",
+            "Bob-",
+            "B-o_b",
+            "Bo b",
+            "Bob!",
+            "Abcdefghijklmnop",
+        ] {
+            assert!(player(super::PlayerKind::Joined, name).is_err(), "{name:?}");
+            assert!(!d2rmm_agent_domain::player_observation::is_player_name(
+                name
+            ));
+        }
     }
 }

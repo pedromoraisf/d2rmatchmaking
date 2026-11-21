@@ -12,6 +12,7 @@ use d2rmm_agent_domain::frame_content::{FrameContent, summarize};
 use d2rmm_agent_domain::presence::game_running;
 
 use crate::automap_name;
+use crate::chat_post;
 use crate::chat_step;
 use crate::device_state::DeviceState;
 use crate::messages::{CaptureReport, FrameReading, Screen};
@@ -103,7 +104,8 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
     party::look(device, &ports.party, Arc::clone(&frame)).await;
     // The automap's name line and the chat's joined and left lines (game-name-reading), at most once a tick like the Party step.
     automap_name::look(device, &ports.party, Arc::clone(&frame)).await;
-    chat_step::look(device, &ports.party, Arc::clone(&frame)).await;
+    let chat_events = chat_step::look_named(device, &ports.party, Arc::clone(&frame)).await;
+    chat_post::post(device, &ports.party.read, chat_events).await;
     device.hub.set_capture(capture_of(
         content,
         ports.frames.window_size(),

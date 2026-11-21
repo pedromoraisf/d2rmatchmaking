@@ -18,6 +18,8 @@ pub mod name_diff;
 pub mod observation_retry;
 pub mod paired_device;
 pub mod pairing;
+pub mod player_observation;
+pub mod post_bucket;
 pub mod presence;
 pub mod reconnect;
 pub mod remote_config;
