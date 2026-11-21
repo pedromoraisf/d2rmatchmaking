@@ -66,7 +66,7 @@ Rules:
 - [ ] T10 — `acceptance.feature` with the `@SBT-09` scenario and the bot round on the acceptance stack (`@SBT-05`,
       `@SBT-06`, `@SBT-07`, `@SBT-10`), step definitions in `tests/acceptance/steps/`, and the coverage check. Gate:
       `pnpm test:acceptance --grep @SBT && pnpm acceptance:check`
-- [ ] T11 — `docs/engineering/staging-bots.md`: dispatch from the phone, the inputs, how a run reads, how to stop one,
+- [x] T11 — `docs/engineering/staging-bots.md`: dispatch from the phone, the inputs, how a run reads, how to stop one,
       and the statement that the bots exist only on staging (SBT-13). Link it from `docs/engineering/delivery.md`. Gate:
       `pnpm specs:check && pnpm lint`
 
