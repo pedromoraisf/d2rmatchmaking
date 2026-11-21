@@ -1,6 +1,6 @@
 import { err, ok, type Result } from '../../../shared-kernel/result.ts';
 
-/** The six observation types of the glossary. Anything else is `UNKNOWN` and is never stored (AWS-25). */
+/** The observation types of the glossary. Anything else is `UNKNOWN` and is never stored (AWS-25). */
 export const OBSERVATION_TYPES = [
   'GAME_NAME_SEEN',
   'PLAYER_JOINED_SEEN',
@@ -8,6 +8,7 @@ export const OBSERVATION_TYPES = [
   'SCREEN_CHANGED',
   'ROUND_REPORTED',
   'PLAYER_SLAIN_SEEN',
+  'OTHER_GAME_SEEN',
 ] as const;
 
 export type ObservationType = (typeof OBSERVATION_TYPES)[number];

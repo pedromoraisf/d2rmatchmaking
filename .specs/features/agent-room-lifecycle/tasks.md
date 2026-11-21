@@ -47,7 +47,7 @@ Rules:
 
 ## Batch 2 — the host in another game (maintainer's field test, 2026-11-21)
 
-- [ ] T8 — Contract first (ARL-09): `OTHER_GAME_SEEN`, an observation kind with no `value`; regenerate and commit
+- [x] T8 — Contract first (ARL-09): `OTHER_GAME_SEEN`, an observation kind with no `value`; regenerate and commit
       `openapi.json` / `asyncapi.json`; contract tests. Gate: `pnpm contracts:openapi && pnpm --filter @d2rmm/contracts test`
 - [ ] T9 — Domain and API (ARL-10): a member's presence `elsewhere`, set by an accepted `OTHER_GAME_SEEN` for the current
       run and cleared by a later `GAME_NAME_SEEN`; no stage transition; the stream event to the site. Prefer deriving it
