@@ -121,6 +121,34 @@ const presenceReads = (world: World): number =>
 const TEN_MINUTES = '10:00';
 const SETTLE_MS = 1_000;
 
+/**
+ * Waits until the page's own load is over as far as the agent's presence goes: the site's stream has been requested, the read
+ * that every stream open makes (`onOpen` re-reads the site, shared/stream.ts) has been asked after it, and no further read
+ * came in the next poll. The page reads the agent while it boots and again when the stream opens, and the stream may open
+ * after "Agent online" shows, so a count taken at that moment would put the open's read inside the ten minutes (SEG-05's
+ * budget is for the safety-net rereads only). The order of the requests is what tells the open's read from the boot's:
+ * a response log would do worse, since the page may drop a read's answer when it supersedes it.
+ */
+async function waitForStreamOpenRead(world: World): Promise<void> {
+  const visitor = world.currentVisitor;
+  let lastSeen = -1;
+  await expect
+    .poll(
+      () => {
+        const urls = visitor.requests.map((request) => request.url);
+        const streamAt = urls.findIndex((url) => url.includes('/api/v1/stream'));
+        const readAfterOpen =
+          streamAt >= 0 && urls.slice(streamAt + 1).some((url) => url.includes('/agents/me'));
+        const asked = presenceReads(world);
+        const quiet = readAfterOpen && asked === lastSeen;
+        lastSeen = readAfterOpen ? asked : -1;
+        return quiet;
+      },
+      { message: "the stream's open and its read of the agent", timeout: 10_000, intervals: [250] },
+    )
+    .toBe(true);
+}
+
 Given('a signed-in player whose site shows the agent online', async ({ world }) => {
   const agent = await world.pairAgent('Alice');
   expect((await agent.heartbeat(ONLINE)).status, "Alice's agent is online").toBe(204);
@@ -137,6 +165,7 @@ Given('a signed-in player whose site shows the agent online', async ({ world }) 
   }
   world.player('Alice').visitor = visitor;
   await expect(visitor.page.getByText('Agent online', { exact: true })).toBeVisible({ timeout: 10_000 });
+  await waitForStreamOpenRead(world);
   presenceReadsAtLoad.set(world, presenceReads(world));
 });
 
