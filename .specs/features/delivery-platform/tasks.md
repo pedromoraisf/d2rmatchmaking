@@ -73,5 +73,10 @@ Rules:
       **Lost with `deploy-web.yml`:** its `preview-comment` job, which commented "Preview of the site: <url>" on the pull
       request. No stage replicates it, and `site.yml` is a thin caller of stages by design, so it needs a decision.
 
-- [ ] T11b — Move `release-agent.yml` onto `stage-smoke` and `stage-promote`. **Waits for PR #111** (agent-release
-      reorders that file on `phase/F2`). Gate: `pnpm test:harness && pnpm format:check`
+- [x] T11b-1 — `release-agent.yml` calls `stage-smoke` (job `smoke`, before `build`) in place of its hand-written "Wake
+      the API" step; `smoke.mjs` gains an `agent` branch (`/healthz` ok for any build, a URL required). #111's order
+      (build, sign, publish; assets checked as a set) is unchanged. Gate: `pnpm test:harness && pnpm format:check`
+- [ ] T11b-2 — Agent promotion through `stage-promote`. Needs a design decision first: a tag-triggered release versus a
+      promoted staged build, the Windows runner (the Authenticode check), the `release` environment, `contents: write`,
+      and the `promotable.mjs` gate (`agent.yml` has no smoke stage). `stage-promote` serves only the site and the API
+      today and is not to be bent for them. Not implemented.

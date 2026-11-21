@@ -407,20 +407,38 @@ test('the release is published and marked latest only after the self-check, by t
   );
 });
 
-test('the API is woken, with retries, before the online self-check', () => {
-  const job = buildJob();
-  const isRun = (text) => (s) => typeof s.run === 'string' && s.run.includes(text);
-  const wake = indexOfStep(job, isRun('/healthz'));
-  const selfCheck = indexOfStep(job, isRun('--self-check --online'));
-  assert.ok(wake >= 0, 'a step probes /healthz');
-  assert.ok(wake < selfCheck, 'the wake comes before the self-check');
-  const step = stepsOf(job)[wake];
-  assert.equal(step.env.API_BASE, '${{ vars.API_BASE_URL }}', 'same variable the build embeds');
-  assert.ok(step.run.includes('curl -fsS'), 'a failing status is a failed probe');
-  assert.ok(step.run.includes('until curl'), 'the probe is retried');
-  assert.ok(step.run.includes('SECONDS + 90'), 'it waits up to 90 s');
-  assert.ok(step.run.includes('sleep "$delay"'), 'with a backoff');
-  assert.ok(step.run.includes('exit 1'), 'it fails when the API never wakes');
+const isRunStep = (text) => (s) => typeof s.run === 'string' && s.run.includes(text);
+
+test('the API is woken by the stage smoke before the online self-check (DLP-09)', () => {
+  const wf = releaseAgent();
+  const smoke = wf.jobs.smoke;
+  assert.equal(
+    smoke.uses,
+    './.github/workflows/stage-smoke.yml',
+    'the stage workflow, as site.yml and api.yml call it',
+  );
+  assert.deepEqual(smoke.with, {
+    app: 'agent',
+    environment: 'production',
+    sha: '${{ github.sha }}',
+    url: '${{ vars.API_BASE_URL }}',
+  });
+  assert.equal(smoke.secrets, undefined, 'the stage smoke needs no secret');
+  assert.equal(
+    smoke.permissions,
+    undefined,
+    'the caller adds no permission: the workflow-level contents: read',
+  );
+  assert.equal(wf.jobs.build.needs, 'smoke', 'the build, and so its online self-check, runs after the smoke');
+  assert.ok(
+    indexOfStep(wf.jobs.build, isRunStep('--self-check --online')) >= 0,
+    'the online self-check is in the build job',
+  );
+  assert.equal(
+    indexOfStep(wf.jobs.build, isRunStep('/healthz')),
+    -1,
+    'the build holds no hand-written wake of its own',
+  );
 });
 
 // Publish after sign (AGR-01, AGR-02): the release becomes public once, in its own job, after the signed assets are attached.
