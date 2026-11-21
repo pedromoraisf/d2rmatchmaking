@@ -49,7 +49,7 @@ Rules:
       reaches `active`, the bot leaves, and no token of the run authenticates after (SBT-05, SBT-06, SBT-07, SBT-10).
       A second case starts 7 bots for a Leveling group with a test player. Gate:
       `pnpm --filter @d2rmm/api test:integration -- staging-bots`
-- [ ] T7 — Production proof: an integration test that builds the app with `stagingEndpoints: false` and shows 404 on
+- [x] T7 — Production proof: an integration test that builds the app with `stagingEndpoints: false` and shows 404 on
       `/v1/auth/test-login` and `/v1/staging/match-formed`; a unit test that `refusalOf` refuses
       `ENABLE_STAGING_ENDPOINTS=true` outside `D2RMM_ENV=staging`; the route table lists every staging-only route and
       fails on an unlisted one (SBT-03). Gate: `pnpm --filter @d2rmm/api test:integration -- staging-bots-production`
