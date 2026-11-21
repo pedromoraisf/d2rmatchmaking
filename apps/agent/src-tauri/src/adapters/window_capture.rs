@@ -2,11 +2,16 @@
 //! of the D2R game window only, in memory, and never the screen, another window or the desktop. The capture is a
 //! `PrintWindow` of that one window with `PW_CLIENTONLY | PW_RENDERFULLCONTENT`; the pixels stay in this process (AGS-20).
 //! The pure parts (the client size, the window choice, the channel order) are compiled and tested everywhere; the Win32
-//! calls exist on Windows only. This file, `toolhelp.rs` and `windows_ocr.rs` are the only three that may allow
+//! calls exist on Windows only. This file, `toolhelp.rs`, `typing.rs` and `windows_ocr.rs` are the only four that may allow
 //! `unsafe_code` (the policy of the agent rules).
 #![allow(unsafe_code)]
 
 use d2rmm_agent_core::ports::Rgba;
+
+/// Whether the process that owns a window is one of the D2R processes (AST-03). A window with no process (`0`) never is.
+pub fn belongs_to_game(window_process: u32, game_processes: &[u32]) -> bool {
+    window_process != 0 && game_processes.contains(&window_process)
+}
 
 /// A rectangle in screen pixels, as the Win32 `RECT` gives it: left and top inclusive, right and bottom exclusive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,13 +69,16 @@ pub fn rgba_from_bgra(width: u32, height: u32, bgra: &[u8]) -> Option<Rgba> {
 }
 
 #[cfg(windows)]
-pub use game::WindowFrames;
+pub use game::{ForegroundGame, WindowMethods};
 
 #[cfg(windows)]
 mod game {
     use std::mem::size_of;
 
-    use d2rmm_agent_core::ports::{FrameSource, Rgba};
+    use std::sync::{Mutex, PoisonError};
+
+    use d2rmm_agent_core::ports::{ForegroundWindow, MethodSource, Miss, Rgba};
+    use d2rmm_agent_domain::capture_cascade::CaptureMethod;
     use windows::Win32::Foundation::{HWND, LPARAM, RECT};
     use windows::Win32::Graphics::Gdi::{
         BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleBitmap, CreateCompatibleDC,
@@ -79,30 +87,85 @@ mod game {
     };
     use windows::Win32::Storage::Xps::{PRINT_WINDOW_FLAGS, PW_CLIENTONLY, PrintWindow};
     use windows::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, GetClientRect, GetWindowRect, GetWindowThreadProcessId, IsIconic,
-        IsWindowVisible, PW_RENDERFULLCONTENT,
+        EnumWindows, GetClientRect, GetForegroundWindow, GetWindowRect, GetWindowThreadProcessId,
+        IsIconic, IsWindowVisible, PW_RENDERFULLCONTENT,
     };
     use windows::core::BOOL;
 
-    use super::{Rect, client_size, largest_client, rgba_from_bgra};
+    use super::{Rect, belongs_to_game, client_size, largest_client, rgba_from_bgra};
+    use crate::adapters::graphics_capture::{self, GraphicsFrames};
     use crate::adapters::toolhelp::game_process_ids;
 
-    /// The D2R game window, captured in memory when the screen loop asks for a frame.
-    #[derive(Debug, Default, Clone, Copy)]
-    pub struct WindowFrames;
+    /// The capture methods of the D2R game window (capture-cascade): `print-window` always, `graphics-capture` where Windows
+    /// offers it. The cascade (`d2rmm_agent_core::capturer::Capturer`) decides which one a look uses; each returns the client
+    /// area of the game window and nothing else (CAP-04, ADR 010).
+    #[derive(Default)]
+    pub struct WindowMethods {
+        graphics: GraphicsFrames,
+        /// The client size of the window the last capture used, so the cascade can refuse a frame of another size without a
+        /// second window lookup.
+        client: Mutex<Option<(u32, u32)>>,
+    }
 
-    impl FrameSource for WindowFrames {
-        fn capture(&self) -> Option<Rgba> {
-            let window = game_window()?;
-            // SAFETY: `window` is a window handle that `EnumWindows` returned a moment ago; the capture uses it only on this
-            // call, takes its device context from it and releases that context before it returns.
-            unsafe { client_frame(window) }
+    impl WindowMethods {
+        pub fn new() -> Self {
+            Self::default()
+        }
+    }
+
+    impl MethodSource for WindowMethods {
+        fn methods(&self) -> Vec<CaptureMethod> {
+            let mut methods = vec![CaptureMethod::PrintWindow];
+            if graphics_capture::supported() {
+                methods.push(CaptureMethod::GraphicsCapture);
+            }
+            methods
+        }
+
+        fn capture_with(&self, method: CaptureMethod) -> Result<Rgba, Miss> {
+            let window = game_window().ok_or(Miss::NoWindow)?;
+            // SAFETY: `window` is a window handle that `EnumWindows` returned a moment ago; it is used only on this call.
+            let size = unsafe { client_size_of(window) };
+            *self.client.lock().unwrap_or_else(PoisonError::into_inner) = size;
+            match method {
+                // SAFETY: as above; the capture takes its device context from the window and releases it before it returns.
+                CaptureMethod::PrintWindow => unsafe { client_frame(window) }.ok_or(Miss::Failed),
+                CaptureMethod::GraphicsCapture => self.graphics.capture(window),
+                // Built only if the field matrix needs it (capture-cascade T14).
+                CaptureMethod::ScreenCrop => Err(Miss::Failed),
+            }
+        }
+
+        fn client_size(&self) -> Option<(u32, u32)> {
+            *self.client.lock().unwrap_or_else(PoisonError::into_inner)
         }
 
         fn window_size(&self) -> Option<(u32, u32)> {
             let window = game_window()?;
             // SAFETY: `window` is a window handle that `EnumWindows` returned a moment ago; it is used only on this call.
             unsafe { window_size_of(window) }
+        }
+
+        fn release(&self) {
+            self.graphics.release();
+        }
+    }
+
+    /// Whether the foreground window belongs to a D2R process (AST-03): a read of which window has the focus, never an input.
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct ForegroundGame;
+
+    impl ForegroundWindow for ForegroundGame {
+        fn game_has_focus(&self) -> bool {
+            // SAFETY: a plain read of the handle of the foreground window; it takes no pointer.
+            let window = unsafe { GetForegroundWindow() };
+            if window.is_invalid() {
+                return false;
+            }
+            let mut pid = 0_u32;
+            // SAFETY: `pid` is a valid u32 that the call writes, and `window` was just returned by the system.
+            unsafe { GetWindowThreadProcessId(window, Some(std::ptr::addr_of_mut!(pid))) };
+            belongs_to_game(pid, &game_process_ids())
         }
     }
 
@@ -286,7 +349,7 @@ mod game {
 
 #[cfg(test)]
 mod tests {
-    use super::{Rect, client_size, largest_client, rgba_from_bgra};
+    use super::{Rect, belongs_to_game, client_size, largest_client, rgba_from_bgra};
 
     #[test]
     fn the_client_size_is_the_client_rectangle() {
@@ -382,5 +445,13 @@ mod tests {
     #[test]
     fn a_size_that_overflows_is_refused_not_allocated() {
         assert_eq!(rgba_from_bgra(u32::MAX, u32::MAX, &[]), None);
+    }
+
+    #[test]
+    fn a_window_belongs_to_the_game_only_when_its_process_is_one_of_d2rs() {
+        assert!(belongs_to_game(42, &[7, 42]));
+        assert!(!belongs_to_game(43, &[7, 42]));
+        assert!(!belongs_to_game(42, &[]));
+        assert!(!belongs_to_game(0, &[0, 7]), "no process is never the game");
     }
 }

@@ -19,7 +19,7 @@ use crate::fullscreen_fixture::{box_of, sidecar_lines};
 use crate::repo_root;
 
 /// The screens `draw-fixture screens` writes, by file stem. The sidecars are committed next to them.
-pub const SCREEN_FIXTURES: [&str; 9] = [
+pub const SCREEN_FIXTURES: [&str; 11] = [
     "in-game-window",
     "in-game-fullscreen",
     "in-game-mana-only",
@@ -29,6 +29,8 @@ pub const SCREEN_FIXTURES: [&str; 9] = [
     "bottom-text-only",
     "in-game-unsupported-size",
     "select-with-hud-text",
+    "in-game-window-with-title-bar",
+    "in-game-wrong-size-frame",
 ];
 
 /// The directory of the screen fixtures, relative to the repository root.
@@ -50,6 +52,17 @@ pub fn frame_height_of(sidecar: &Value) -> Result<u32, Box<dyn Error>> {
         .as_u64()
         .and_then(|height| u32::try_from(height).ok())
         .ok_or_else(|| "the sidecar has no numeric height".into())
+}
+
+/// The offset of the client area inside the frame, when the sidecar names a `client` rectangle; (0, 0) otherwise.
+fn client_offset(sidecar: &Value) -> (u32, u32) {
+    let number = |key: &str| {
+        sidecar["client"][key]
+            .as_u64()
+            .and_then(|value| u32::try_from(value).ok())
+            .unwrap_or(0)
+    };
+    (number("x"), number("y"))
 }
 
 /// The ink a line is drawn in: its `ink` triple, or the name ink.
@@ -92,7 +105,28 @@ pub fn render_screen_png(file: &str) -> Result<Vec<u8>, Box<dyn Error>> {
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    for ((text, area), line) in sidecar_lines(&sidecar)?.into_iter().zip(&raw_lines) {
+    // A frame that holds a title bar (capture-cascade): the lines are in client coordinates and are drawn below the bar, at the
+    // client's offset; the `chrome` lines (the title) are drawn where they say, outside the client.
+    let (client_x, client_y) = client_offset(&sidecar);
+    for ((text, mut area), line) in sidecar_lines(&sidecar)?.into_iter().zip(&raw_lines) {
+        area.x += client_x;
+        area.y += client_y;
+        draw_left(&mut pixels, &font, &text, 18.0, area, ink_of(line));
+    }
+    let chrome = Value::Object(
+        [(
+            "lines".to_string(),
+            sidecar.get("chrome").cloned().unwrap_or(Value::Null),
+        )]
+        .into_iter()
+        .collect(),
+    );
+    let raw_chrome = chrome
+        .get("lines")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    for ((text, area), line) in sidecar_lines(&chrome)?.into_iter().zip(&raw_chrome) {
         draw_left(&mut pixels, &font, &text, 18.0, area, ink_of(line));
     }
     encode(&pixels)

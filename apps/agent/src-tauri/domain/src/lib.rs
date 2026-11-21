@@ -3,6 +3,8 @@
 #![forbid(unsafe_code)]
 
 pub mod anchors;
+pub mod capture_cascade;
+pub mod capture_geometry;
 pub mod character_screen;
 pub mod characters;
 pub mod frame_content;
@@ -19,6 +21,7 @@ pub mod presence;
 pub mod reconnect;
 pub mod room_assignment;
 pub mod timings;
+pub mod typing;
 pub mod vision;
 pub mod vocabulary;
 

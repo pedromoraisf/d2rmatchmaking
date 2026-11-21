@@ -29,6 +29,32 @@ days). It is a test build: unsigned, with no updater artifacts, and it talks to 
   `%LOCALAPPDATA%\D2RMatchMaking` and the registry key
   `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\D2RMatchMaking`.
 
+## Assisted typing (FR-28)
+
+While the agent holds a room, **Ctrl+Shift+F** types the room's game name (for example `mmbaalh-12`) into the game. The key is
+changeable in the agent window, as is the accept key (Ctrl+Shift+A by default).
+
+What it does:
+
+- Types only the game name of your room, as Unicode characters (`a`–`z`, `0`–`9` and `-`), one down and up each.
+- Only while Diablo II: Resurrected has the focus, and not while the agent reads the in-game screen or the automap.
+- Waits up to 1 second for you to let go of the hotkey's keys, then types. It stops if the game loses focus, the room ends or
+  you press the key again.
+
+What it never does (ADR 010): press Enter, Tab, Space, Escape or Backspace, send any other key, a modifier, a mouse event or
+a clipboard paste, or type anything but the game name. It does not clear the field: open the Game Creator with an empty name
+field, press the hotkey, and press Enter yourself. The agent window says what the last press did.
+
+### Maintainer's check on a preview installer (Windows)
+
+Install the preview channel's installer (see above), pair it, and hold a room. On normal, nightmare and hell names:
+
+1. Open the Game Creator, click the name field and press Ctrl+Shift+F: the name appears and nothing is confirmed.
+2. Press Enter yourself and create the game.
+3. Try the refusals: press the hotkey with another window in front, with the keys held for more than a second, and in a game.
+   Each must type nothing and the window must say why.
+4. Change the fill key in the window (for example Alt+G), press the new key, and check the old one no longer types.
+
 ## The Party panel check (maintainer, Windows)
 
 The Windows OCR reading of the Party panel and the selection screen is checked on the maintainer's own screenshots. They

@@ -12,6 +12,8 @@ use std::sync::Arc;
 #[cfg(windows)]
 use d2rmm_agent_adapters::http::gateway::HttpGateway;
 #[cfg(windows)]
+use d2rmm_agent_core::capturer::Capturer;
+#[cfg(windows)]
 use d2rmm_agent_core::groups::{
     Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
 };
@@ -41,7 +43,7 @@ use adapters::toolhelp::ToolhelpProcessSource;
 #[cfg(windows)]
 use adapters::updater::TauriUpdater;
 #[cfg(windows)]
-use adapters::window_capture::WindowFrames;
+use adapters::window_capture::WindowMethods;
 #[cfg(windows)]
 use adapters::windows_ocr::WindowsOcr;
 
@@ -126,7 +128,8 @@ fn ports(app: AppHandle, gateway: Arc<HttpGateway>) -> Groups<HttpGateway> {
             gateway: Arc::clone(&gateway),
             tokens: Arc::clone(&tokens),
             processes,
-            frames: Arc::new(WindowFrames),
+            // The capture cascade over the methods this PC offers (capture-cascade).
+            frames: Arc::new(Capturer::new(WindowMethods::new())),
             reader: Arc::new(ScreenReader::new(
                 Arc::clone(&reader),
                 Arc::clone(&language),

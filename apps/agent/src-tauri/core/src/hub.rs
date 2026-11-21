@@ -3,9 +3,13 @@
 
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
+use d2rmm_agent_domain::typing::HotkeyPair;
+
+use crate::fill_name::FillOutcome;
 use crate::ports::StateSink;
 use crate::view::{
-    AgentView, CaptureView, Connectivity, DiagnosticsView, PairingView, RoomView, UpdateView,
+    AgentView, CaptureView, Connectivity, DiagnosticsView, HotkeysView, PairingView, RoomView,
+    UpdateView,
 };
 
 /// Owns the agent view and publishes every change through the state sink (AGS-34).
@@ -24,6 +28,8 @@ impl Hub {
                 room: None,
                 update: UpdateView::Idle,
                 ready_check_open: false,
+                hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
+                last_fill: None,
                 diagnostics: None,
                 capture: None,
             }),
@@ -58,6 +64,16 @@ impl Hub {
     /// Shows whether a ready check is open; the app keeps the hotkey registered while it is (RDY-07).
     pub fn set_ready_check_open(&self, open: bool) {
         self.change(|view| view.ready_check_open = open);
+    }
+
+    /// Shows the two hotkeys the agent registers (AST-01).
+    pub fn set_hotkeys(&self, pair: &HotkeyPair) {
+        self.change(|view| view.hotkeys = HotkeysView::of(pair));
+    }
+
+    /// Shows what the last press of the fill hotkey did (AST-08).
+    pub fn set_last_fill(&self, outcome: FillOutcome) {
+        self.change(|view| view.last_fill = Some(outcome));
     }
 
     /// Shows what the last look at the game read. An unchanged reading publishes nothing, so a once-a-second look does not

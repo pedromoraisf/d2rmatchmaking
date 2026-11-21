@@ -1,7 +1,10 @@
 //! The one state the core publishes to the agent window (design.md § Data Models). Serialized as camelCase; the window
 //! maps it to translated strings with a pure function, so the window holds no rule.
 
+use d2rmm_agent_domain::typing::HotkeyPair;
 use serde::Serialize;
+
+use crate::fill_name::FillOutcome;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", rename_all_fields = "camelCase")]
@@ -115,6 +118,32 @@ pub struct CaptureView {
     pub window_height: Option<u32>,
     /// The last Party look of the held run; `None` before one was made, or without a held room.
     pub party: Option<PartyLookView>,
+    /// The capture method of the last usable frame, as its fixed word (`print-window`, `graphics-capture`,
+    /// `screen-crop`), or `none` (CAP-07).
+    pub method: &'static str,
+    /// The usable share of the last looks, a whole percent (CAP-07).
+    pub read_rate_percent: u8,
+    /// Why there is no frame to read, as a fixed code: `nothing` when the game runs and no method gave a usable frame
+    /// (CAP-02). Absent while there is a frame, or while nothing is captured.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<&'static str>,
+}
+
+/// The two hotkeys as the window shows them, such as `Ctrl+Shift+A` (RDY-07, AST-01).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HotkeysView {
+    pub accept: String,
+    pub fill: String,
+}
+
+impl HotkeysView {
+    pub fn of(pair: &HotkeyPair) -> Self {
+        Self {
+            accept: pair.accept().to_string(),
+            fill: pair.fill().to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -126,6 +155,11 @@ pub struct AgentView {
     pub update: UpdateView,
     /// A ready check is open for the account: the window shows the hotkey that accepts it (RDY-07).
     pub ready_check_open: bool,
+    /// The keys that accept a ready check and fill the game name (AST-01).
+    pub hotkeys: HotkeysView,
+    /// What the last press of the fill hotkey did (AST-08); absent until the first press. A closed set of codes, no text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_fill: Option<FillOutcome>,
     /// The last look at the game window, once the agent has looked at one.
     pub diagnostics: Option<DiagnosticsView>,
     /// What the capture showed in the last look; absent until the first frame.
@@ -135,10 +169,12 @@ pub struct AgentView {
 
 #[cfg(test)]
 mod tests {
+    use d2rmm_agent_domain::typing::HotkeyPair;
     use serde_json::json;
 
     use super::{
-        AgentView, Connectivity, DiagnosticsView, PairingView, RejectedSlot, RoomView, UpdateView,
+        AgentView, Connectivity, DiagnosticsView, FillOutcome, HotkeysView, PairingView,
+        RejectedSlot, RoomView, UpdateView,
     };
 
     #[test]
@@ -157,6 +193,8 @@ mod tests {
             }),
             update: UpdateView::Idle,
             ready_check_open: true,
+            hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
+            last_fill: None,
             diagnostics: None,
             capture: None,
         };
@@ -169,6 +207,7 @@ mod tests {
                 "room": { "gameName": "mmbaalh-12", "needsReveal": true, "matched": false },
                 "update": "idle",
                 "readyCheckOpen": true,
+                "hotkeys": { "accept": "Ctrl+Shift+A", "fill": "Ctrl+Shift+F" },
                 "diagnostics": null,
             })
         );
@@ -201,6 +240,8 @@ mod tests {
             room: None,
             update: UpdateView::Required,
             ready_check_open: false,
+            hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
+            last_fill: Some(FillOutcome::RefusedKeys),
             diagnostics: None,
             capture: None,
         };
@@ -213,6 +254,8 @@ mod tests {
                 "room": null,
                 "update": "required",
                 "readyCheckOpen": false,
+                "hotkeys": { "accept": "Ctrl+Shift+A", "fill": "Ctrl+Shift+F" },
+                "lastFill": "refused-keys",
                 "diagnostics": null,
             })
         );
@@ -266,6 +309,9 @@ mod tests {
                     diff: Some("sub(l>9)@9".to_string()),
                 }),
             }),
+            method: "graphics-capture",
+            read_rate_percent: 97,
+            reason: None,
         };
 
         assert_eq!(
@@ -281,6 +327,8 @@ mod tests {
                     "matched": false,
                     "detail": { "source": "label", "variants": 3, "diff": "sub(l>9)@9" },
                 },
+                "method": "graphics-capture",
+                "readRatePercent": 97,
             })
         );
     }

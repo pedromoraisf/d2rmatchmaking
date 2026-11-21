@@ -248,7 +248,7 @@
     "accept": "Accept",
     "decline": "Decline",
     "answerFailed": "This answer did not count. The check may have ended.",
-    "hotkeyHint": "You can also accept with <kbd>{{hotkey}}</kbd> without leaving the game.",
+    "hotkeyHint": "You can also accept with <kbd>{{hotkey}}</kbd> (the default; you can change it in the agent) without leaving the game.",
     "penaltyNotice": "Declining has no penalty. Not answering gives a 5-minute wait."
   }
 }

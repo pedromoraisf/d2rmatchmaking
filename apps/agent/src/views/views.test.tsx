@@ -1,13 +1,23 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createAgentI18n, translatorFor } from '../shared/i18n.ts';
-import type { AgentView, CaptureDiagnostics, Diagnostics, PairingState } from '../shared/labels.ts';
+import type {
+  AgentView,
+  CaptureDiagnostics,
+  Diagnostics,
+  FillOutcome,
+  PairingState,
+} from '../shared/labels.ts';
 import { DiagnosticsView } from './DiagnosticsView.tsx';
+import { HotkeysView } from './HotkeysView.tsx';
 import { PairingView } from './PairingView.tsx';
 import { StatusView } from './StatusView.tsx';
 
 const en = translatorFor(createAgentI18n('en'));
 const ptBR = translatorFor(createAgentI18n('pt-BR'));
+
+const DEFAULT_KEYS = { accept: 'Ctrl+Shift+A', fill: 'Ctrl+Shift+F' };
+const TYPED: FillOutcome = 'typed';
 
 const view = (overrides: Partial<AgentView> = {}): AgentView => ({
   pairing: 'paired',
@@ -15,6 +25,7 @@ const view = (overrides: Partial<AgentView> = {}): AgentView => ({
   room: null,
   update: 'idle',
   readyCheckOpen: false,
+  hotkeys: DEFAULT_KEYS,
   diagnostics: null,
   ...overrides,
 });
@@ -173,6 +184,90 @@ describe('status view', () => {
   });
 });
 
+describe('fill status and hotkeys (AST-01, AST-08)', () => {
+  const room = { gameName: 'mmbaalh-12', needsReveal: false, matched: false };
+
+  it('names the fill hotkey while a room is held and says the agent never presses Enter', () => {
+    renderStatus({ room, hotkeys: { accept: 'Ctrl+Shift+A', fill: 'Alt+G' } });
+    expect(screen.getByText(/press Alt\+G with the Game Creator open/)).toBeTruthy();
+    expect(screen.getByText(/never presses Enter/)).toBeTruthy();
+  });
+
+  it('names a changed accept hotkey in the ready-check line', () => {
+    renderStatus({ readyCheckOpen: true, hotkeys: { accept: 'Alt+Q', fill: 'Ctrl+Shift+F' } });
+    expect(screen.getByText('A ready check is open: press Alt+Q to accept it.')).toBeTruthy();
+  });
+
+  it('shows no fill line without a room or before a press', () => {
+    const { container } = renderStatus({ pairing: 'requesting', room: null });
+    expect(container.querySelectorAll('li')).toHaveLength(0);
+  });
+
+  it('after a full fill says to press Enter in the game, in English and Portuguese', () => {
+    const { unmount } = renderStatus({ lastFill: TYPED });
+    expect(screen.getByText(/Press Enter in the game to confirm; the agent never does/)).toBeTruthy();
+    unmount();
+    render(<StatusView view={view({ lastFill: TYPED })} translate={ptBR} />);
+    expect(screen.getByText(/Aperte Enter no jogo para confirmar; o agente nunca faz isso/)).toBeTruthy();
+  });
+
+  it('says why a fill typed nothing, for every refusal and stop', () => {
+    const outcomes = [
+      'stopped-focus',
+      'stopped-room',
+      'stopped-press',
+      'refused-room',
+      'refused-name',
+      'refused-focus',
+      'refused-screen',
+      'refused-keys',
+    ] as const;
+    const seen = new Set<string>();
+    for (const lastFill of outcomes) {
+      const { container, unmount } = renderStatus({ lastFill });
+      const text = container.textContent ?? '';
+      expect(text, lastFill).not.toBe('');
+      expect(seen.has(text), `${lastFill} has its own line`).toBe(false);
+      seen.add(text);
+      unmount();
+    }
+  });
+
+  it('saves a hotkey through the callback and shows the saved line', async () => {
+    const onChange = vi.fn(async () => undefined);
+    render(<HotkeysView hotkeys={DEFAULT_KEYS} translate={en} onChange={onChange} />);
+    const field = screen.getByLabelText('Fill the game name');
+    fireEvent.change(field, { target: { value: 'Alt+G' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[1] as HTMLElement);
+    expect(onChange).toHaveBeenCalledWith('fill', 'Alt+G');
+    expect(await screen.findByText('Hotkey saved.')).toBeTruthy();
+  });
+
+  it('shows the reason the core refused a hotkey, and a generic line for an unknown failure', async () => {
+    const reasons = new Map([
+      ['no-modifier', 'Use Ctrl or Alt with the key.'],
+      ['needs-ctrl-or-alt', 'Use Ctrl or Alt with the key; Shift alone is not enough.'],
+      [
+        'reserved',
+        'That combination is already used by Windows or every program (such as Ctrl+C, Alt+F4 or the Windows key). Pick another.',
+      ],
+      ['confirming-key', 'Enter, Tab, Space, Escape and Backspace cannot be hotkeys.'],
+      ['unsupported-key', 'Use a letter, a digit or F1 to F12 (for example Ctrl+Shift+F).'],
+      ['same-as-other', 'The two hotkeys must differ.'],
+      ['boom', 'Could not save the hotkey. Try again.'],
+    ]);
+    for (const [reason, text] of reasons) {
+      const onChange = vi.fn(async () => {
+        throw reason;
+      });
+      const { unmount } = render(<HotkeysView hotkeys={DEFAULT_KEYS} translate={en} onChange={onChange} />);
+      fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0] as HTMLElement);
+      expect((await screen.findByRole('alert')).textContent, reason).toBe(text);
+      unmount();
+    }
+  });
+});
+
 describe('diagnostics view', () => {
   const diagnostics: Diagnostics = {
     screen: 'characterSelect',
@@ -229,6 +324,8 @@ describe('capture diagnostics', () => {
     windowWidth: 1936,
     windowHeight: 1095,
     party: { panelOpen: true, field: 'masked', matched: false },
+    method: 'print-window',
+    readRatePercent: 97,
   };
   const renderCapture = (overrides: Partial<CaptureDiagnostics> = {}, translate = en) =>
     render(
@@ -329,6 +426,41 @@ describe('capture diagnostics', () => {
     expect(screen.getByText('Campo do grupo, leitura mais próxima: sub(l>9)@9')).toBeTruthy();
   });
 
+  it('shows the capture method and the usable share', () => {
+    renderCapture({ method: 'graphics-capture', readRatePercent: 88 });
+
+    expect(screen.getByText('Capture method: Graphics capture')).toBeTruthy();
+    expect(screen.getByText('Usable frames: 88%')).toBeTruthy();
+  });
+
+  it('names each method and says None when no method gave a frame', () => {
+    renderCapture({ method: 'screen-crop' });
+    expect(screen.getByText('Capture method: Screen crop')).toBeTruthy();
+    cleanup();
+    renderCapture({ method: 'none' });
+    expect(screen.getByText('Capture method: None')).toBeTruthy();
+    expect(screen.queryByText(/Usable frames/)).toBeNull();
+  });
+
+  it('says the capture shows nothing, even before any frame was read', () => {
+    const seen: CaptureDiagnostics = {
+      ...capture,
+      method: 'none',
+      readRatePercent: 0,
+      blank: true,
+      reason: 'nothing',
+    };
+    render(<DiagnosticsView diagnostics={null} capture={seen} translate={en} />);
+
+    expect(screen.getByText('The capture shows nothing: no capture method gave a usable frame')).toBeTruthy();
+    expect(screen.getByText('Capture method: None')).toBeTruthy();
+  });
+
+  it('shows nothing without diagnostics and without a capture', () => {
+    const { container } = render(<DiagnosticsView diagnostics={null} translate={en} />);
+    expect(container.innerHTML).toBe('');
+  });
+
   it('shows no capture lines before the first frame', () => {
     render(<DiagnosticsView diagnostics={diagnostics} translate={en} />);
 
@@ -336,7 +468,9 @@ describe('capture diagnostics', () => {
   });
 
   it('is translated to pt-BR', () => {
-    renderCapture({ blank: true }, ptBR);
+    renderCapture({ blank: true, method: 'graphics-capture' }, ptBR);
+
+    expect(screen.getByText('Método de captura: Captura gráfica')).toBeTruthy();
 
     expect(screen.getByText('Janela (com bordas): 1936×1095')).toBeTruthy();
     expect(screen.getByText('Conteúdo do quadro: vazio (brilho 87)')).toBeTruthy();
