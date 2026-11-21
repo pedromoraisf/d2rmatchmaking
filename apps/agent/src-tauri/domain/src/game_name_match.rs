@@ -914,4 +914,13 @@ mod tests {
             }
         }
     }
+
+    /// Pins today's read of a `+` (game-name-reading T10, before it reads as `o`): a letter of its own.
+    #[test]
+    fn pin_a_plus_is_a_letter_of_its_own_before_it_reads_as_o() {
+        assert_eq!(normalise("mmcha+sh-20"), "mmcha+sh-20");
+        assert_eq!(read_field("mmcha+sh-20", "mmchaosh-20"), FieldRead::Other);
+        assert_eq!(normalise("DU+L NK"), "du+l nk");
+        assert_eq!(read_field("mmchaosh-20", "mmchaosh-20"), FieldRead::Matched);
+    }
 }
