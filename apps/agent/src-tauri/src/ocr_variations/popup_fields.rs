@@ -4,7 +4,10 @@
 //! title lines the way the production reading does and keeps, per field, COUNTS only: how many variants parsed, how many were
 //! blank, how many distinct readings, how many agree with the leading one, how far the others sit from it (edit-distance
 //! class), and how many equal the expected card. No read text, and so no character name, ever leaves this module.
-use d2rmm_agent_core::ports::{Rgba, TextReader};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, PoisonError};
+
+use d2rmm_agent_core::ports::{ReadError, Rgba, TextReader};
 use d2rmm_agent_core::screen_reader::readings_of;
 use d2rmm_agent_domain::anchors::{self, TitleLine};
 use d2rmm_agent_domain::character_screen::{parse_level_and_class, read_name, read_title};
@@ -12,8 +15,94 @@ use d2rmm_agent_domain::characters::{Class, Title};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{CARD_SLOTS, ScreenRegion, screen_region};
 use d2rmm_agent_domain::name_diff::edit_distance;
+use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 
 use crate::ocr_check::Card;
+
+type Key = (u32, u32, u32, u32);
+
+fn key(region: Region) -> Key {
+    (region.x, region.y, region.width, region.height)
+}
+
+#[derive(Default)]
+struct Memo {
+    read: HashMap<Key, Result<ReadText, ReadError>>,
+    variants: HashMap<Key, Vec<ReadText>>,
+    lines: HashMap<Key, Vec<TextLine>>,
+    line_variants: HashMap<Key, Vec<Vec<TextLine>>>,
+}
+
+/// A reader that remembers what it read of the current frame, so the production reading and the card-field diagnostic that
+/// follows it cost one OCR pass, not two (the popup print has to stay inside the per-print time budget). The same pixels and
+/// region always give the same text, so it changes no reading; `next_frame` forgets everything.
+pub struct MemoReader {
+    inner: Arc<dyn TextReader + Send + Sync>,
+    memo: Mutex<Memo>,
+}
+
+impl MemoReader {
+    pub fn new(inner: Arc<dyn TextReader + Send + Sync>) -> Self {
+        Self {
+            inner,
+            memo: Mutex::new(Memo::default()),
+        }
+    }
+
+    /// Forgets the readings of the previous frame.
+    pub fn next_frame(&self) {
+        *self.memo.lock().unwrap_or_else(PoisonError::into_inner) = Memo::default();
+    }
+
+    fn cached<V: Clone>(
+        &self,
+        table: impl Fn(&mut Memo) -> &mut HashMap<Key, V>,
+        region: Region,
+        read: impl FnOnce() -> V,
+    ) -> V {
+        let k = key(region);
+        {
+            let mut memo = self.memo.lock().unwrap_or_else(PoisonError::into_inner);
+            if let Some(found) = table(&mut memo).get(&k) {
+                return found.clone();
+            }
+        }
+        let value = read();
+        let mut memo = self.memo.lock().unwrap_or_else(PoisonError::into_inner);
+        table(&mut memo).insert(k, value.clone());
+        value
+    }
+}
+
+impl TextReader for MemoReader {
+    fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+        self.cached(|m| &mut m.read, region, || self.inner.read(image, region))
+    }
+
+    fn read_variants(&self, image: &Rgba, region: Region) -> Vec<ReadText> {
+        self.cached(
+            |m| &mut m.variants,
+            region,
+            || self.inner.read_variants(image, region),
+        )
+    }
+
+    fn read_lines(&self, image: &Rgba, region: Region) -> Vec<TextLine> {
+        self.cached(
+            |m| &mut m.lines,
+            region,
+            || self.inner.read_lines(image, region),
+        )
+    }
+
+    fn read_line_variants(&self, image: &Rgba, region: Region) -> Vec<Vec<TextLine>> {
+        self.cached(
+            |m| &mut m.line_variants,
+            region,
+            || self.inner.read_line_variants(image, region),
+        )
+    }
+}
 
 /// Agreement of the OCR variants on one field of one card slot: counts only.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -275,6 +364,70 @@ mod tests {
         let got = name_stats(&[Some("abx"), Some("abx"), Some("abx")], "abc");
         assert!(got.settled && !got.settled_expected);
         assert_eq!((got.top, got.expected), (3, 0));
+    }
+
+    mod memo {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        use d2rmm_agent_core::ports::{ReadError, Rgba, TextReader};
+        use d2rmm_agent_domain::vision::{ReadText, Region};
+
+        use super::super::MemoReader;
+
+        struct Counting(AtomicUsize);
+
+        impl TextReader for Counting {
+            fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Ok(ReadText {
+                    text: "x".to_string(),
+                    confidence: 1.0,
+                })
+            }
+        }
+
+        fn region(x: u32) -> Region {
+            Region {
+                x,
+                y: 0,
+                width: 5,
+                height: 5,
+            }
+        }
+
+        fn image() -> Rgba {
+            Rgba {
+                width: 10,
+                height: 10,
+                pixels: Vec::new(),
+            }
+        }
+
+        #[test]
+        fn a_region_read_twice_in_a_frame_is_read_once_and_a_new_frame_reads_again() {
+            let counting = Arc::new(Counting(AtomicUsize::new(0)));
+            let memo = MemoReader::new(counting.clone());
+            let image = image();
+            for _ in 0..3 {
+                assert_eq!(memo.read_variants(&image, region(1)).len(), 1);
+                assert_eq!(memo.read_lines(&image, region(1)).len(), 1);
+                assert_eq!(memo.read_line_variants(&image, region(1)).len(), 1);
+                assert!(memo.read(&image, region(1)).is_ok());
+            }
+            // One OCR call per method kind on the default impls: the three derived ones call `read` once each, plus `read`.
+            let first = counting.0.load(Ordering::SeqCst);
+            assert_eq!(first, 4);
+            memo.read(&image, region(2)).unwrap();
+            assert_eq!(
+                counting.0.load(Ordering::SeqCst),
+                first + 1,
+                "another region"
+            );
+            memo.next_frame();
+            memo.read(&image, region(1)).unwrap();
+            assert_eq!(counting.0.load(Ordering::SeqCst), first + 2, "a new frame");
+        }
     }
 
     mod frame {

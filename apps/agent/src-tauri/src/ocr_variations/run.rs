@@ -11,7 +11,7 @@ use d2rmm_agent_domain::language::LanguagePack;
 
 use super::catalogue::{DEFAULT_COMBOS, Variation, catalogue};
 use super::outcome::classify_image_detailed;
-use super::popup_fields::card_field_stats;
+use super::popup_fields::{MemoReader, card_field_stats};
 use super::report::{Report, VariantResult};
 #[cfg(test)]
 use crate::ocr_check::SCREENSHOTS;
@@ -131,6 +131,9 @@ pub fn run_images(
     progress: &mut dyn FnMut(&str),
 ) -> Report {
     let pack = LanguagePack::english();
+    // Both the reading and the card-field diagnostic read through the memo: one OCR pass per frame.
+    let memo = Arc::new(MemoReader::new(reader));
+    let reader: Arc<dyn TextReader + Send + Sync> = memo.clone();
     let screens = ScreenReader::new(Arc::clone(&reader), Arc::new(LanguagePack::english()));
     let mut report = Report {
         seed,
@@ -142,6 +145,7 @@ pub fn run_images(
         let first = report.results.len();
         for variation in variations {
             let varied = variation.apply(image);
+            memo.next_frame();
             let (verdict, field_variants) =
                 classify_image_detailed(name, &*reader, &screens, &varied);
             let card_fields = (name == POPUP_PRINT)
