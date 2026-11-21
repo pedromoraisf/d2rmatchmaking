@@ -116,17 +116,17 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
       are, the title-ink limits are not configurable), tests that pin today's
       value and the read at each client size the existing tests use (1033, 1045, 1056, 1080), passing on the unchanged code.
       No non-test line changes. Gate: `CARGO nextest run -p d2rmm-agent-domain -p d2rmm-agent-core --lib`
-- [ ] T16 — **[R14] Thresholds** from `Effective` (`thresholds.trackPad` into `hud_track.rs`, read by `core/src/screen_reader.rs`
+- [x] T16 — **[R14] Thresholds** from `Effective` (`thresholds.trackPad` into `hud_track.rs`, read by `core/src/screen_reader.rs`
       at each look). The search cadences (`AUTOMAP_SEARCH_EVERY`, `LIST_SEARCH_EVERY`) are not in the schema and are deferred to
       a later PR (orchestrator, 2026-11-21). One reading module per commit, the defaults unchanged, call counts at every extreme (RCF-09). Real-print proof in CI:
       `ocr-real` green, `ocr-variations` not regressing. Gate: as T15, plus
       `CARGO clippy -p d2rmm-agent-domain -p d2rmm-agent-core --all-targets -- -D warnings`
-- [ ] T17 — **[R14] Regions** from `Effective.regions` (`hudBand`, `automapArea`, `partyArea`): the area is the configured
+- [x] T17 — **[R14] Regions** from `Effective.regions` (`hudBand`, `automapArea`, `partyArea`): the area is the configured
       fraction when it passes the clamp and its pixel area at the client size does not exceed the default's (RCF-09), else the
       default; the zero-wrong-confirmation rule of the game-name match is not touched.
       Tests: a configured region moves the read at each client size; an out-of-range one is the default. Real-print proof
       as T16. Gate: as T16
-- [ ] T18 — **[R14] Phrases** per language from `Effective.phrases` (the Party words only: `party`, `gameName`, `password`; the chat
+- [x] T18 — **[R14] Phrases** per language from `Effective.phrases` (the Party words only: `party`, `gameName`, `password`; the chat
       "joined" and "left" phrases are not in the schema and are deferred to a later PR, orchestrator 2026-11-21), compared as literals by the existing rules; a phrase that fails its rule never reaches the
       reader. Tests with English and pt-BR phrases and with a hostile phrase. Real-print proof as T16. Gate: as T16
 
