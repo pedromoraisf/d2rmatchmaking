@@ -792,11 +792,13 @@ Given("Alice's agent is the headless agent", async ({ world }) => {
   await agent.waitFor('paired');
 });
 
-When("Alice presses the agent's accept hotkey", ({ world }) => {
+When("Alice presses the agent's accept hotkey", async ({ world }) => {
   const agent = stateOf(world).agent;
   if (agent === undefined) {
     throw new Error("Alice's agent is not the headless agent in this scenario");
   }
+  // The hotkey answers only the check the agent holds; a press before the stream or the API handed it over is dropped.
+  await agent.waitFor('ready-check', 30_000);
   agent.hotkey();
 });
 
