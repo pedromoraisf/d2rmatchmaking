@@ -214,6 +214,14 @@ export function createBot({
   }
 
   let assignment;
+  const stagesByRoom = new Map();
+  // Stage changes and assignments arrive on two streams; they are handled one at a time, in arrival order.
+  let queue = Promise.resolve();
+  const exclusive = (work) => {
+    const run = queue.then(work);
+    queue = run.catch(() => undefined);
+    return run;
+  };
   async function onAgentEvent(event) {
     if (event.type === 'ready_check.started') {
       const [low, high] = ACCEPT_DELAY_MS;
@@ -228,33 +236,54 @@ export function createBot({
       );
       say('bot.accepted', { status: answer.status });
     } else if (event.type === 'room.assigned' || event.type === 'room.run_opened') {
-      assignment = event.data;
-      state.roomId = assignment.roomId;
-      state.run = assignment.run;
-      state.pcState = 'IN_ROOM_JOINING';
-      state.ticketId = undefined;
-      const host = assignment.members.find((member) => member.accountId === state.accountId)?.role === 'host';
-      say('bot.assigned', { room: assignment.roomId, host });
-      // A real agent beats at once when its state changes; the heartbeat that names the room is what moves it on (LBR-02).
-      await heartbeat();
-      if (host && plan.hostPolicy === 'bot-reports') await observe(assignment);
+      await exclusive(async () => {
+        assignment = event.data;
+        state.roomId = assignment.roomId;
+        state.run = assignment.run;
+        state.pcState = 'IN_ROOM_JOINING';
+        state.ticketId = undefined;
+        state.stages = [];
+        state.stage = undefined;
+        say('bot.assigned', { room: assignment.roomId, host: isHost() });
+        // A real agent beats at once when its state changes; the heartbeat that names the room is what moves it on (LBR-02).
+        await heartbeat();
+        // The site stream may have delivered stages of this room before this event: they were kept, and apply now, in order.
+        for (const stage of [...(stagesByRoom.get(assignment.roomId) ?? [])]) await applyStage(stage);
+      });
     } else if (event.type === 'room.stage_changed') {
       // The agent's stream carries only the end of a room (closed or expired); the site's carries every stage.
       await onStage(event.data);
     }
   }
 
-  /** A stage change of the room the bot is in. A member observes once the host has created the game (LBR-04). */
+  const isHost = () =>
+    assignment?.members.find((member) => member.accountId === state.accountId)?.role === 'host';
+
+  /**
+   * A stage change of a room. The two streams are not ordered against each other, so a stage is kept by room and applied once
+   * the bot knows the room (on its `room.assigned`); until then nothing is lost. Changes apply one at a time.
+   */
   async function onStage(change) {
-    if (change.roomId !== state.roomId || state.stages.at(-1) === change.stage) return;
-    state.stage = change.stage;
-    state.stages.push(change.stage);
-    say('bot.stage', { stage: change.stage });
-    if (change.stage === 'created' && assignment !== undefined) {
-      const host = assignment.members.find((member) => member.accountId === state.accountId)?.role === 'host';
-      if (!host) await observe(assignment);
-    }
-    if (ENDED_STAGES.has(change.stage)) {
+    await exclusive(async () => {
+      const seen = stagesByRoom.get(change.roomId) ?? [];
+      if (seen.at(-1) !== change.stage) seen.push(change.stage);
+      stagesByRoom.set(change.roomId, seen);
+      if (change.roomId === state.roomId) await applyStage(change.stage);
+    });
+  }
+
+  /**
+   * What a stage asks of the bot. The host posts the game name once the room awaits it (`awaiting_host`): posted earlier, the
+   * API would take it and not move the room, and the same key could not be sent again. A member posts once the game is created.
+   */
+  async function applyStage(stage) {
+    if (state.stages.at(-1) === stage) return;
+    state.stage = stage;
+    state.stages.push(stage);
+    say('bot.stage', { stage });
+    if (stage === 'awaiting_host' && isHost() && plan.hostPolicy === 'bot-reports') await observe(assignment);
+    if (stage === 'created' && !isHost()) await observe(assignment);
+    if (ENDED_STAGES.has(stage)) {
       state.ended = true;
       state.pcState = 'IDLE';
       onEnded();

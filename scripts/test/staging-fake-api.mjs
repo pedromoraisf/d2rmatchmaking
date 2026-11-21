@@ -3,7 +3,15 @@
 // headers. It validates nothing the real API's own tests already cover.
 const TOKEN = `d2rmm_a_${'A'.repeat(43)}`;
 
-export function createFakeApi({ stagingEndpoints = true, pool = 2, host = true, roomScript = true } = {}) {
+export function createFakeApi({
+  stagingEndpoints = true,
+  pool = 2,
+  host = true,
+  roomScript = true,
+  siteStages = ['formed', 'awaiting_host', 'created'],
+  agentDelayMs = 0,
+  closeRoom = true,
+} = {}) {
   const calls = [];
   let accounts = 0;
   let poolSize = pool;
@@ -14,33 +22,41 @@ export function createFakeApi({ stagingEndpoints = true, pool = 2, host = true, 
       headers: { 'content-type': 'application/json', ...headers },
     });
 
+  const siteControllers = [];
+
+  function sse(type, data, id) {
+    return new TextEncoder().encode(`id: ${id}\nevent: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+  }
+
+  /** The agent stream carries the ready check, the assignment and the end of the room; the site stream carries the stages. */
   function stream(url, init) {
     const agent = String(init.headers?.Authorization ?? '').startsWith('Bearer ');
-    const encoder = new TextEncoder();
-    const events = [];
-    if (agent && roomScript) {
-      const me = state.lastAccountId;
-      events.push(['ready_check.started', { id: 'rc-1', members: [] }]);
-      events.push([
-        'room.assigned',
-        {
-          roomId: 'room-1',
-          run: 1,
-          expectedGameName: 'mmpvph-1',
-          members: [{ accountId: me, role: host ? 'host' : 'member', joinOrder: 1 }],
-        },
-      ]);
-      events.push(['room.stage_changed', { roomId: 'room-1', stage: 'created' }]);
-      events.push(['room.stage_changed', { roomId: 'room-1', stage: 'closed' }]);
-    }
     return new Response(
       new ReadableStream({
         start(controller) {
-          events.forEach(([type, data], at) =>
-            controller.enqueue(
-              encoder.encode(`id: ${at + 1}\nevent: ${type}\ndata: ${JSON.stringify(data)}\n\n`),
-            ),
-          );
+          let id = 0;
+          const send = (type, data) => controller.enqueue(sse(type, data, (id += 1)));
+          if (!agent) siteControllers.push(send);
+          if (!agent && roomScript) {
+            for (const stage of siteStages)
+              send('room.stage_changed', { roomId: 'room-1', stage, members: [] });
+          }
+          if (agent && roomScript) {
+            const me = state.lastAccountId;
+            const deliver = () => {
+              send('ready_check.started', { id: 'rc-1', members: [] });
+              send('room.assigned', {
+                roomId: 'room-1',
+                run: 1,
+                expectedGameName: 'mmpvph-1',
+                members: [{ accountId: me, role: host ? 'host' : 'member', joinOrder: 1 }],
+              });
+              if (closeRoom) send('room.stage_changed', { roomId: 'room-1', stage: 'closed' });
+            };
+            // The streams are not ordered against each other: the agent's events may come after the site's stages.
+            if (agentDelayMs > 0) setTimeout(deliver, agentDelayMs);
+            else deliver();
+          }
           init.signal?.addEventListener('abort', () => controller.error(new Error('aborted')), {
             once: true,
           });
@@ -79,7 +95,7 @@ export function createFakeApi({ stagingEndpoints = true, pool = 2, host = true, 
       );
     }
     if (key === 'POST /v1/agents/pairing-codes')
-      return json(201, { code: '123456', expiresAt: 'x', claimSecret: 'claimsecret-1234' });
+      return json(201, { code: '123456', expiresAt: 'x', claimSecret: 'fake-claim-secret' });
     if (key === 'POST /v1/agents/pair') return json(200, {});
     if (key === 'POST /v1/agents/pairing-codes/claim') return json(200, { token: TOKEN });
     if (key === 'GET /v1/agents/me') {
@@ -126,6 +142,7 @@ export function createFakeApi({ stagingEndpoints = true, pool = 2, host = true, 
     calls,
     state,
     token: TOKEN,
+    pushSite: (type, data) => siteControllers.forEach((send) => send(type, data)),
     setPool: (value) => {
       poolSize = value;
     },

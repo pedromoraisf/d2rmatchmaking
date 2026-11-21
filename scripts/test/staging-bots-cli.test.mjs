@@ -130,3 +130,30 @@ test('SBT-06 with human first, the sentinel queues alone, and the others join on
   assert.equal(code, 0);
   assert.equal(fake.state.agents.size, 0, 'every bot left');
 });
+
+const observationsOf = (fake) => fake.calls.filter((call) => call.path.endsWith('/observations'));
+
+test('SBT-07 a member posts its sighting once the game is created, even when the site stream delivered the stages before the assignment', async () => {
+  const fake = createFakeApi({ host: false, agentDelayMs: 50 });
+  const { code } = await runWith(fake);
+  assert.equal(code, 0);
+  assert.equal(observationsOf(fake).length, 1, 'the stages that came first were kept, not lost');
+});
+
+test('SBT-07 a host posts its sighting only once the room awaits it, never before', async () => {
+  const fake = createFakeApi({ host: true, siteStages: ['formed'], closeRoom: false });
+  const stop = new AbortController();
+  const finished = runWith(fake, {}, stop.signal);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  assert.ok(
+    fake.calls.some(
+      (call) => call.path === '/v1/lobby-rooms/room-1/leave' || call.path === '/v1/agents/heartbeat',
+    ),
+  );
+  assert.equal(observationsOf(fake).length, 0, 'the room is only formed: nothing is posted yet');
+  fake.pushSite('room.stage_changed', { roomId: 'room-1', stage: 'awaiting_host', members: [] });
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  assert.equal(observationsOf(fake).length, 1, 'the sighting follows awaiting_host');
+  stop.abort();
+  await finished;
+});
