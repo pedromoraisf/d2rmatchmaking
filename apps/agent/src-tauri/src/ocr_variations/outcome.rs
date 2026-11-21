@@ -1329,7 +1329,7 @@ mod tests {
         );
         assert_eq!(
             far("label zz: mmbaalh-18"),
-            "automap-other-1-edit:sub(8>9)@9"
+            "automap-other-far-after-label:1"
         );
     }
 }
