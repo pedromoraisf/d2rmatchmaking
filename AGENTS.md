@@ -13,6 +13,7 @@ desktop agent** confirms presence by reading the game window. Ranking is ELO per
 - Architecture: [`docs/architecture/design-doc.md`](docs/architecture/design-doc.md) and [`docs/adr/`](docs/adr/)
 - Domain: [`docs/domain/`](docs/domain/) — contexts, glossary, invariants, events
 - Engineering rules: [`docs/engineering/`](docs/engineering/)
+- Agent remote configuration: [`docs/engineering/remote-config.md`](docs/engineering/remote-config.md) — the served file, ranges, version and rollback
 - Work in flight: [`.specs/`](.specs/) — `STATE.md`, phases, features
 
 The project is open source (MIT), English-first UI with pt-BR i18n. Repo docs are in English; product source docs
