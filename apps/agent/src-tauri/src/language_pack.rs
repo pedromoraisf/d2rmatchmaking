@@ -34,9 +34,25 @@ pub fn shipped() -> LanguagePack {
 
 #[cfg(test)]
 mod tests {
-    use d2rmm_agent_domain::language::{GAME_NAME, LanguagePack, PARTY, PASSWORD};
+    use d2rmm_agent_domain::language::{
+        GAME_NAME, JOINED_GAME, LEFT_GAME, LanguagePack, PARTY, PASSWORD,
+    };
 
     use super::{shipped, shipped_english, shipped_portuguese};
+
+    /// Pin for the consolidation (rule 14): the shipped Portuguese file holds the words and the two chat phrases that
+    /// `LanguagePack::brazilian_party()` held in code, exactly.
+    #[test]
+    fn the_portuguese_file_holds_the_party_words_and_the_chat_phrases_of_the_brazilian_pack() {
+        let file = shipped_portuguese().expect("the Brazilian file parses");
+        let code = LanguagePack::brazilian_party();
+        assert_eq!(file.tag(), "pt-BR");
+        for key in [PARTY, GAME_NAME, PASSWORD, JOINED_GAME, LEFT_GAME] {
+            assert_eq!(file.word(key), code.word(key), "{key}");
+        }
+        assert_eq!(file.word(JOINED_GAME), Some("entrou em nosso mundo"));
+        assert_eq!(file.word(LEFT_GAME), Some("saiu de nosso mundo"));
+    }
 
     #[test]
     fn the_shipped_english_file_is_the_built_in_pack() {
@@ -47,9 +63,15 @@ mod tests {
     }
 
     #[test]
-    fn the_shipped_brazilian_file_is_the_three_measured_party_words() {
-        let words = [(PARTY, "Grupo"), (GAME_NAME, "Nome"), (PASSWORD, "Senha")]
-            .map(|(key, word)| (key.to_string(), word.to_string()));
+    fn the_shipped_brazilian_file_is_the_three_party_words_and_the_two_chat_phrases() {
+        let words = [
+            (PARTY, "Grupo"),
+            (GAME_NAME, "Nome"),
+            (PASSWORD, "Senha"),
+            (JOINED_GAME, "entrou em nosso mundo"),
+            (LEFT_GAME, "saiu de nosso mundo"),
+        ]
+        .map(|(key, word)| (key.to_string(), word.to_string()));
         assert_eq!(
             shipped_portuguese().expect("the shipped Brazilian pack parses"),
             LanguagePack::from_words("pt-BR", words).expect("the pack builds")
