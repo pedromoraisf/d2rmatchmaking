@@ -41,6 +41,7 @@ async function setup(served: ServedAgentConfig | undefined, allowed = true) {
       requireAgent: guard('agent', allowed),
       requireSession: guard('session', false),
       requireSameOrigin: guard('origin', false),
+      limitAgentStatus: guard('limit', true),
     },
   });
   return { app, source, order };
