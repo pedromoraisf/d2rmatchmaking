@@ -232,6 +232,12 @@ impl Report {
             all.refused,
             all.wrong
         ));
+        lines.extend(
+            self.card_field_table()
+                .lines()
+                .filter(|line| !line.is_empty())
+                .map(str::to_string),
+        );
         lines
     }
 
