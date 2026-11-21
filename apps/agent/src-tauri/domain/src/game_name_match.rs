@@ -655,4 +655,22 @@ mod tests {
             }
         }
     }
+
+    /// Pin before `k` reads as `h` (game-name-reading T10, rule 14): today a `k` is a letter of its own, so a read with a `k`
+    /// is another name, and a room name that holds a `k` (the Party room "DUEL NK LOCKS", no `-`) is normalised as it is.
+    #[test]
+    fn a_k_is_a_letter_of_its_own_today_and_the_room_name_with_a_k_keeps_it() {
+        assert_eq!(normalise("mmchaosk-20"), "mmchaosk-20");
+        assert_eq!(read_field("mmbaalk-19", "mmbaalh-19"), FieldRead::Other);
+        assert_eq!(read_field("mmchaosk-20", "mmchaosh-20"), FieldRead::Other);
+        assert_eq!(normalise("DUEL NK LOCKS"), "duol nk locks");
+        assert_eq!(
+            read_field("DUEL NH LOCHS", "DUEL NK LOCKS"),
+            FieldRead::Other
+        );
+        assert_eq!(
+            read_field("DUEL NK LOCKS", "DUEL NK LOCKS"),
+            FieldRead::Matched
+        );
+    }
 }
