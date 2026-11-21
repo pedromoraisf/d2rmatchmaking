@@ -43,6 +43,13 @@ pnpm check         # everything CI runs
 Diablo II: Resurrected is a trademark of Blizzard Entertainment, Inc. This is a community project and is not affiliated
 with or endorsed by Blizzard. No Blizzard assets are used.
 
+## Code signing policy
+
+The Windows agent's installer is signed through the SignPath Foundation once that is switched on. The policy (who commits,
+reviews and approves, what the program does, privacy) is on the site at `/code-signing`, and its roles are in
+`apps/web/src/app/signing-policy.ts`. Free code signing provided by [SignPath.io](https://signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
 ## License
 
 [MIT](LICENSE). Third-party notices in [NOTICE](NOTICE).

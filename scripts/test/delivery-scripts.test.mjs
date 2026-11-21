@@ -253,15 +253,39 @@ test('the api smoke fails when another build answers; the site smoke needs the p
     wait: async () => {},
     budgetMs: 0,
     request: async (url) =>
-      url.endsWith('/')
+      url.endsWith('/') || url.endsWith('/code-signing')
         ? { status: 200, headers: new Headers({ 'content-type': html ? 'text/html' : 'text/plain' }) }
         : json({ status: 'ok', version }),
   });
   assert.deepEqual(await smokeChecks('api', 'https://api.test', SHA, io(SHA)), []);
   assert.equal((await smokeChecks('api', 'https://api.test', SHA, io('f'.repeat(40)))).length, 1);
   assert.deepEqual(await smokeChecks('site', 'https://s.test/', undefined, io('unknown')), []);
-  assert.equal((await smokeChecks('site', 'https://s.test', undefined, io('unknown', false))).length, 1);
+  // A site that answers no HTML fails both the page and the code signing policy page (AGR-08).
+  assert.equal((await smokeChecks('site', 'https://s.test', undefined, io('unknown', false))).length, 2);
   assert.equal((await smokeChecks('agent', 'https://s.test', SHA, io(SHA))).length, 1);
+});
+
+test('the site smoke also needs the code signing policy page to answer 200 HTML (AGR-08)', async () => {
+  const html = { status: 200, headers: new Headers({ 'content-type': 'text/html' }) };
+  const io = (policy) => ({
+    wait: async () => {},
+    budgetMs: 0,
+    request: async (url) =>
+      url.endsWith('/code-signing')
+        ? policy
+        : url.endsWith('/')
+          ? html
+          : { status: 200, json: async () => ({ status: 'ok', version: 'unknown' }) },
+  });
+  assert.deepEqual(await smokeChecks('site', 'https://s.test', undefined, io(html)), []);
+  const missing = await smokeChecks(
+    'site',
+    'https://s.test',
+    undefined,
+    io({ status: 404, headers: new Headers(), text: async () => 'not found' }),
+  );
+  assert.equal(missing.length, 1);
+  assert.match(missing[0], /code signing policy https:\/\/s\.test\/code-signing did not answer 200 HTML/);
 });
 
 const WRANGLER = `

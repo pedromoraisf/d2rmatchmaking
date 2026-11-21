@@ -33,6 +33,8 @@ export interface AppProps {
   /** Test seam for the wait on a sleeping server (DLP-07). */
   sleep?: (ms: number) => Promise<void>;
   openStream?: StreamOpener;
+  /** Whether the latest installer is code-signed (AGR-09), read once in main.tsx and passed to every frame. */
+  installerSigned?: boolean;
 }
 
 interface Ready {
@@ -105,7 +107,12 @@ async function loadBoot(client: ApiClient, wake: WakeOptions): Promise<Boot> {
   };
 }
 
-export function App({ client = defaultClient, openStream = defaultOpenStream, sleep }: AppProps) {
+export function App({
+  client = defaultClient,
+  openStream = defaultOpenStream,
+  sleep,
+  installerSigned = false,
+}: AppProps) {
   const { t } = useTranslation();
   const [boot, setBoot] = useState<Boot>({ status: 'loading' });
   const signedIn = boot.status === 'ready' && boot.session !== null;
@@ -283,21 +290,21 @@ export function App({ client = defaultClient, openStream = defaultOpenStream, sl
 
   if (boot.status === 'loading') {
     return (
-      <Layout>
+      <Layout installerSigned={installerSigned}>
         <p>{t('app.loading')}</p>
       </Layout>
     );
   }
   if (boot.status === 'waking') {
     return (
-      <Layout>
+      <Layout installerSigned={installerSigned}>
         <p role="status">{t('app.waking')}</p>
       </Layout>
     );
   }
   if (boot.status === 'failed') {
     return (
-      <Layout>
+      <Layout installerSigned={installerSigned}>
         <p role="alert">{t('app.error')}</p>
       </Layout>
     );
@@ -310,6 +317,7 @@ export function App({ client = defaultClient, openStream = defaultOpenStream, sl
   const showPairing = session !== null && (agent?.status === 'none' || pairedNotice);
   return (
     <Layout
+      installerSigned={installerSigned}
       agent={session !== null ? <AgentPill agent={agent} /> : null}
       account={
         <SignInPanel
