@@ -1196,3 +1196,39 @@ mod band_tests {
         assert_eq!(ScreenRegion::ChatArea.key(), "chatArea");
     }
 }
+
+/// ocr-protection (remote-config T15, rule 14): the HUD band and the automap area at every client height of the maintainer's
+/// prints, exactly, as measured before `regions.hudBand` and `regions.automapArea` can replace them. They pass on the code
+/// as it was and must pass with the default threaded in.
+#[cfg(test)]
+mod pin_remote_config_regions {
+    use super::{ScreenRegion, screen_region};
+    use crate::vision::Region;
+
+    const fn r(x: u32, y: u32, width: u32, height: u32) -> Region {
+        Region {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    #[test]
+    fn the_hud_band_at_each_client_height() {
+        let band = |height| screen_region(ScreenRegion::HudBand, 1920, height);
+        assert_eq!(band(1033), Some(r(0, 775, 1920, 258)));
+        assert_eq!(band(1045), Some(r(0, 784, 1920, 261)));
+        assert_eq!(band(1056), Some(r(0, 792, 1920, 264)));
+        assert_eq!(band(1080), Some(r(0, 810, 1920, 270)));
+    }
+
+    #[test]
+    fn the_automap_area_at_each_client_height() {
+        let area = |height| screen_region(ScreenRegion::AutomapArea, 1920, height);
+        assert_eq!(area(1033), Some(r(1360, 20, 560, 220)));
+        assert_eq!(area(1045), Some(r(1353, 20, 567, 223)));
+        assert_eq!(area(1056), Some(r(1348, 20, 572, 225)));
+        assert_eq!(area(1080), Some(r(1335, 21, 585, 230)));
+    }
+}

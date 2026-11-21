@@ -111,7 +111,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
 
 ## Batch 3 — values into the reading modules, **[R14]** (needs `game-name-reading` and `feat/F2-screen-recognition-2` merged)
 
-- [ ] T15 — **[R14] Pin the reading constants first.** For each constant and area this batch will thread (`TRACK_PAD`, `HUD_BAND_TOP`,
+- [x] T15 — **[R14] Pin the reading constants first.** For each constant and area this batch will thread (`TRACK_PAD`, `HUD_BAND_TOP`,
       the HUD, automap and Party areas of `layout.rs`, the Party words of `language.rs`; the search cadences stay pinned where they
       are, the title-ink limits are not configurable), tests that pin today's
       value and the read at each client size the existing tests use (1033, 1045, 1056, 1080), passing on the unchanged code.

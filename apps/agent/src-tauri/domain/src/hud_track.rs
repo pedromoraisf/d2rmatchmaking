@@ -284,3 +284,64 @@ mod tests {
         assert_eq!(hud().search_area(1280, 1024), None);
     }
 }
+/// ocr-protection (remote-config T15, rule 14): the padding of the tracking box and the boxes it makes, as measured before
+/// `thresholds.trackPad` reaches this module. They pass on the code as it was and must pass with the default threaded in.
+#[cfg(test)]
+mod pin_track_pad {
+    use super::{TRACK_PAD, TrackRead, Tracker};
+    use crate::layout::ScreenRegion;
+    use crate::vision::Region;
+
+    const fn r(x: u32, y: u32, width: u32, height: u32) -> Region {
+        Region {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    #[test]
+    fn the_padding_is_24_pixels_of_the_reference_client() {
+        assert_eq!(TRACK_PAD, 24);
+    }
+
+    /// The pad is `24 * height / 1033` rounded down: 24 at 1033, 1045 and 1056, 25 at 1080.
+    #[test]
+    fn the_hud_tracking_box_at_each_client_height() {
+        let line = r(430, 860, 150, 20);
+        for (height, expected) in [
+            (1033, r(406, 836, 198, 68)),
+            (1045, r(406, 836, 198, 68)),
+            (1056, r(406, 836, 198, 68)),
+            (1080, r(405, 835, 200, 70)),
+        ] {
+            let mut tracker = Tracker::new(ScreenRegion::HudBand);
+            tracker.record(Some(line), 1920, height);
+            assert_eq!(
+                tracker.next(1920, height),
+                Some(TrackRead::Track(expected)),
+                "{height}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_automap_tracking_box_at_each_client_height() {
+        let line = r(1750, 52, 150, 16);
+        for (height, expected) in [
+            (1033, r(1726, 28, 194, 64)),
+            (1045, r(1726, 28, 194, 64)),
+            (1056, r(1726, 28, 194, 64)),
+            (1080, r(1725, 27, 195, 66)),
+        ] {
+            let mut tracker = Tracker::new(ScreenRegion::AutomapArea);
+            tracker.record(Some(line), 1920, height);
+            assert_eq!(
+                tracker.next(1920, height),
+                Some(TrackRead::Track(expected)),
+                "{height}"
+            );
+        }
+    }
+}
