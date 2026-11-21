@@ -17,6 +17,8 @@ export interface MatchMember {
   readonly team?: 'a' | 'b';
   /** Whether this member's agent confirmed the current run's game name (INV-06); present in a room's members only. */
   readonly confirmed?: boolean;
+  /** Whether this member's agent saw the member in another game for the current run (ARL-10); present in a room's members only. */
+  readonly elsewhere?: boolean;
 }
 
 /** A domain event: its type name and its payload. */
@@ -58,7 +60,7 @@ export interface RoomRunOpenedPayload {
 }
 
 /** What changed about a member of a room: confirmed, left (and the room's members after it), or the host changed. */
-export type RoomMemberChange = 'confirmed' | 'left' | 'host_changed';
+export type RoomMemberChange = 'confirmed' | 'left' | 'host_changed' | 'elsewhere' | 'returned';
 
 export interface RoomMemberChangedPayload {
   readonly roomId: string;

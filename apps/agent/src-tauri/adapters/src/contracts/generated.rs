@@ -589,6 +589,8 @@ pub struct AssignmentMembersItem {
     pub character_id: ::std::option::Option<AssignmentMembersItemCharacterId>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub confirmed: ::std::option::Option<bool>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub elsewhere: ::std::option::Option<bool>,
     #[serde(rename = "joinOrder")]
     pub join_order: ::std::num::NonZeroU64,
     pub role: AssignmentMembersItemRole,
@@ -2515,6 +2517,8 @@ pub struct RoomAssignedEventDataMembersItem {
     pub character_id: ::std::option::Option<RoomAssignedEventDataMembersItemCharacterId>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub confirmed: ::std::option::Option<bool>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub elsewhere: ::std::option::Option<bool>,
     #[serde(rename = "joinOrder")]
     pub join_order: ::std::num::NonZeroU64,
     pub role: RoomAssignedEventDataMembersItemRole,
@@ -2903,6 +2907,8 @@ pub struct RoomRunOpenedEventDataMembersItem {
     >,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub confirmed: ::std::option::Option<bool>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub elsewhere: ::std::option::Option<bool>,
     #[serde(rename = "joinOrder")]
     pub join_order: ::std::num::NonZeroU64,
     pub role: RoomRunOpenedEventDataMembersItemRole,

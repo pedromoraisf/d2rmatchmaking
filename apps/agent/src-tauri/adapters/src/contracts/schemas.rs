@@ -225,6 +225,9 @@ pub const SCHEMAS: &[(&str, &str)] = &[
           },
           "confirmed": {
             "type": "boolean"
+          },
+          "elsewhere": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -744,6 +747,9 @@ pub const SCHEMAS: &[(&str, &str)] = &[
               },
               "confirmed": {
                 "type": "boolean"
+              },
+              "elsewhere": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -841,6 +847,9 @@ pub const SCHEMAS: &[(&str, &str)] = &[
                 ]
               },
               "confirmed": {
+                "type": "boolean"
+              },
+              "elsewhere": {
                 "type": "boolean"
               }
             },

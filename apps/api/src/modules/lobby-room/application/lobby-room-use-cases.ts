@@ -59,6 +59,8 @@ export interface LobbyRoomDeps {
 /** A member as the room panel shows it: the room's member with the character's class and level. */
 export interface RoomMemberSnapshot extends MatchMember {
   readonly confirmed: boolean;
+  /** The member's agent saw the member in another game for the current run (ARL-10). */
+  readonly elsewhere: boolean;
   readonly class: CharacterClassName | null;
   readonly level: number | null;
 }
@@ -524,6 +526,7 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
       members.push({
         ...toMatchMember(member),
         confirmed: member.confirmed,
+        elsewhere: member.elsewhere,
         class: facts?.characterClass ?? null,
         level: facts?.level ?? null,
       });
