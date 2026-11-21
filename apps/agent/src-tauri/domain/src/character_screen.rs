@@ -272,23 +272,44 @@ where
     if !list && !popup_title && popup.is_none() {
         return Reading::without_cards(Screen::Unknown);
     }
+    let popup_open = popup_title || popup.is_some();
     let enabled = popup.filter(|difficulties| !difficulties.is_empty());
     let mut cards = Vec::new();
     let mut rejected = Vec::new();
     let mut slots_read = 0;
     let mut popup_applied = false;
-    let column = lines(ScreenRegion::CardColumn);
-    for (slot, anchor) in anchors::find_cards_in_variants(pack, &column, frame_height)
-        .into_iter()
-        .take(usize::from(CARD_SLOTS))
-        .enumerate()
-    {
+    let mut found =
+        anchors::find_cards_in_variants(pack, &lines(ScreenRegion::CardColumn), frame_height);
+    // The game dims the list behind the popup, and dim text is read only when it is bright enough: a popup over a column that
+    // read no card has the column read again with its brightness lifted. No other frame asks for it.
+    let mut lifted = false;
+    if found.is_empty() && popup_open {
+        found = anchors::find_cards_in_variants(
+            pack,
+            &lines(ScreenRegion::CardColumnLifted),
+            frame_height,
+        );
+        lifted = !found.is_empty();
+    }
+    // A lifted read is noisier than a plain one (the dim text is scaled up with its noise), and its wrong reads were the
+    // known letter swaps the agreement rule let through (#104): its fields settle only when every variant reads the same.
+    let mut card_field = |region: Region| -> Readings {
+        let readings = field(region);
+        if lifted {
+            readings.filter(|all| unanimous(all))
+        } else {
+            readings
+        }
+    };
+    for (slot, anchor) in found.into_iter().take(usize::from(CARD_SLOTS)).enumerate() {
         let slot = u8::try_from(slot).unwrap_or(u8::MAX);
         slots_read += 1;
         // A card with no title line has a blank title; a known title line is read like any other field; a line that is
         // there but is no title (the engine garbled it) settles nothing, so the card is refused with `title-unread`.
         let title = match anchor.title {
-            anchors::TitleLine::Known(region) => field(region).map(|r| (TitleSource::Found, r)),
+            anchors::TitleLine::Known(region) => {
+                card_field(region).map(|r| (TitleSource::Found, r))
+            }
             anchors::TitleLine::None if anchor.title_unseen => {
                 match anchors::title_band(anchor.name, frame_height) {
                     None => Some((TitleSource::Absent, vec![String::new()])),
@@ -306,8 +327,8 @@ where
             anchors::TitleLine::None => Some((TitleSource::Absent, vec![String::new()])),
             anchors::TitleLine::Unknown => None,
         };
-        let name = field(anchor.name);
-        let level = field(anchor.level);
+        let name = card_field(anchor.name);
+        let level = card_field(anchor.level);
         // The popup belongs to the selected card: the first card with the gold frame (CHR-18).
         let is_selected = enabled.is_some() && !popup_applied && (probes.selected)(anchor.name);
         if is_selected {
@@ -336,6 +357,16 @@ where
         popup_options,
         rejected,
     }
+}
+
+/// Whether every reading of a field is the same text: compared without the case and the spaces (a name has none, and the game
+/// draws it in small caps), so a variant that only spaced the glyphs differently still agrees.
+fn unanimous(readings: &[String]) -> bool {
+    let normal =
+        |read: &String| -> String { read.split_whitespace().collect::<String>().to_uppercase() };
+    let mut all = readings.iter().map(normal);
+    all.next()
+        .is_some_and(|first| all.all(|next| next == first))
 }
 
 /// How many of the popup's three difficulty words must read for the popup to count as open.
@@ -2265,6 +2296,40 @@ mod popup_column_tests {
     /// Reads a frame with the popup open and `column` as what the card column reads; returns the reading's screen, cards
     /// found and slots, and the areas asked in order.
     fn read_popup(column: Vec<Vec<TextLine>>) -> (Screen, usize, u8, Vec<ScreenRegion>) {
+        read_popup_lifted(column, Vec::new())
+    }
+
+    /// A frame that is neither the list nor the popup: its areas asked, in order.
+    fn read_unknown() -> (Screen, usize, u8, Vec<ScreenRegion>) {
+        let mut asked = Vec::new();
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |_| None,
+            |search| {
+                asked.push(search);
+                Vec::new()
+            },
+            |_| None,
+            Probes {
+                selected: |_| false,
+                lit: |_| true,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        (
+            reading.screen,
+            reading.cards.len(),
+            reading.slots_read,
+            asked,
+        )
+    }
+
+    /// `read_popup`, with `lifted` as what the lifted card column reads.
+    fn read_popup_lifted(
+        column: Vec<Vec<TextLine>>,
+        lifted: Vec<Vec<TextLine>>,
+    ) -> (Screen, usize, u8, Vec<ScreenRegion>) {
         let mut asked = Vec::new();
         let reading = read_screen(
             &LanguagePack::english(),
@@ -2275,6 +2340,7 @@ mod popup_column_tests {
                 match search {
                     ScreenRegion::PopupArea => popup(),
                     ScreenRegion::CardColumn => column.clone(),
+                    ScreenRegion::CardColumnLifted => lifted.clone(),
                     _ => Vec::new(),
                 }
             },
@@ -2295,7 +2361,8 @@ mod popup_column_tests {
 
     #[test]
     fn a_popup_over_a_column_no_reading_finds_cards_in_is_the_selection_screen_with_no_slot_read() {
-        // Pinned before the change: the popup decides the screen, the column is read once, nothing more is asked.
+        // The popup decides the screen. Changed expectation (screen-recognition T9, the specified change; was: the column read
+        // once and nothing more asked): the column is then read again, lifted, once, and nothing else is asked.
         let (screen, cards, slots, asked) = read_popup(Vec::new());
         assert_eq!((screen, cards, slots), (Screen::CharacterSelect, 0, 0));
         assert_eq!(
@@ -2305,7 +2372,49 @@ mod popup_column_tests {
                 .count(),
             1
         );
-        assert_eq!(asked.last(), Some(&ScreenRegion::CardColumn));
+        assert_eq!(
+            asked
+                .iter()
+                .filter(|r| **r == ScreenRegion::CardColumnLifted)
+                .count(),
+            1
+        );
+        assert_eq!(asked.last(), Some(&ScreenRegion::CardColumnLifted));
+    }
+
+    #[test]
+    fn the_lifted_column_is_read_only_when_the_popup_is_open_and_the_column_found_no_card() {
+        // Cards found by the plain read: no lifted read.
+        let (_, _, _, asked) = read_popup(list_cards());
+        assert!(!asked.contains(&ScreenRegion::CardColumnLifted));
+        // Cards found only by the lifted read: they register, with their slot read.
+        let (screen, _, slots, asked) = read_popup_lifted(Vec::new(), list_cards());
+        assert_eq!((screen, slots), (Screen::CharacterSelect, 1));
+        assert!(asked.contains(&ScreenRegion::CardColumnLifted));
+        // The list with no popup (the marker read, no popup lines): the column stays one read.
+        let mut asked = Vec::new();
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |region| (region == ScreenRegion::CreateNew).then(|| vec!["Create New".to_string()]),
+            |search| {
+                asked.push(search);
+                Vec::new()
+            },
+            |_| None,
+            Probes {
+                selected: |_| false,
+                lit: |_| true,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        assert_eq!(reading.slots_read, 0);
+        assert!(!asked.contains(&ScreenRegion::CardColumnLifted));
+        // Neither list nor popup: Unknown, and the column is not read at all.
+        let (screen, _, _, asked) = read_unknown();
+        assert_eq!(screen, Screen::Unknown);
+        assert!(!asked.contains(&ScreenRegion::CardColumn));
+        assert!(!asked.contains(&ScreenRegion::CardColumnLifted));
     }
 
     #[test]
@@ -2363,6 +2472,70 @@ mod popup_column_tests {
         assert_eq!(reading.cards.len(), 1, "{:?}", reading.rejected);
         assert_eq!(reading.cards[0].name(), "vukVuka");
         assert_eq!(reading.cards[0].level(), 88);
+    }
+
+    /// `read_fields` with the plain column empty and the cards found only in the lifted one.
+    fn read_lifted_fields(name: &[&str], level: &[&str]) -> super::Reading {
+        let said = |texts: &[&str]| -> Option<Vec<String>> {
+            Some(texts.iter().map(|t| (*t).to_string()).collect())
+        };
+        read_screen(
+            &LanguagePack::english(),
+            1080,
+            |_| None,
+            |search| match search {
+                ScreenRegion::PopupArea => popup(),
+                ScreenRegion::CardColumnLifted => list_cards(),
+                _ => Vec::new(),
+            },
+            |region| match region.y.saturating_sub(5) {
+                86..=96 => said(name),
+                109..=119 => said(level),
+                _ => None,
+            },
+            Probes {
+                selected: |_| false,
+                lit: |_| true,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        )
+    }
+
+    #[test]
+    fn a_lifted_card_settles_only_when_every_variant_reads_each_field_the_same() {
+        let level = [
+            "Level 88 Sorceress",
+            "Level 88 Sorceress",
+            "Level 88 Sorceress",
+        ];
+        // Every variant agrees (case and spacing aside): the card reads.
+        let reading = read_lifted_fields(&["vukVuka", "VUKVUKA", "vuk Vuka"], &level);
+        assert_eq!(reading.cards.len(), 1, "{:?}", reading.rejected);
+        assert_eq!(reading.cards[0].name(), "vukVuka");
+        // Two of three agree, the plain read would settle it: the lifted read refuses the name.
+        let reading = read_lifted_fields(&["vukVuka", "vukVuka", "vukVuko"], &level);
+        assert!(reading.cards.is_empty());
+        assert_eq!(reading.slots_read, 1);
+        // The level too.
+        let reading = read_lifted_fields(
+            &["vukVuka", "vukVuka", "vukVuka"],
+            &[
+                "Level 88 Sorceress",
+                "Level 88 Sorceress",
+                "Level 83 Sorceress",
+            ],
+        );
+        assert!(reading.cards.is_empty());
+    }
+
+    #[test]
+    fn unanimous_needs_one_reading_and_all_the_same() {
+        use super::unanimous;
+        let texts = |all: &[&str]| all.iter().map(|t| (*t).to_string()).collect::<Vec<_>>();
+        assert!(unanimous(&texts(&["a"])));
+        assert!(unanimous(&texts(&["Ab c", "aBC"])));
+        assert!(!unanimous(&texts(&["abc", "abd"])));
+        assert!(!unanimous(&[]));
     }
 
     #[test]
