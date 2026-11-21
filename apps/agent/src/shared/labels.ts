@@ -104,6 +104,9 @@ export type FillOutcome =
   | 'refused-screen'
   | 'refused-keys';
 
+// A hotkey the OS did not let the agent register while it wants it (AST-01, AST-08, RDY-07).
+export type HotkeySlot = 'accept' | 'fill';
+
 export interface AgentView {
   pairing: PairingState;
   connectivity: Connectivity;
@@ -115,6 +118,8 @@ export interface AgentView {
   hotkeys: Hotkeys;
   // What the last press of the fill hotkey did (AST-08); absent before the first press.
   lastFill?: FillOutcome;
+  // The hotkeys the OS refused to register while they are wanted (AST-01, AST-08); absent when all are registered.
+  hotkeyUnavailable?: HotkeySlot[];
   diagnostics: Diagnostics | null;
   // Absent until the first frame was captured.
   capture?: CaptureDiagnostics;
@@ -183,6 +188,14 @@ export function fillHintLabel(room: RoomState | null, hotkeys: Hotkeys): Label |
 // What the last press of the fill hotkey did, one line per outcome; a full fill reminds the player to confirm (AST-08).
 export function fillLabel(outcome: FillOutcome | undefined): Label | null {
   return outcome === undefined ? null : { key: `fill.${outcome}` };
+}
+
+// The lines for a hotkey the OS did not let the agent register, one per slot, so the player picks another combination.
+export function hotkeyUnavailableLabels(unavailable: HotkeySlot[] | undefined, hotkeys: Hotkeys): Label[] {
+  return (unavailable ?? []).map((slot) => ({
+    key: `${slot === 'fill' ? 'fill' : 'readyCheck'}.unavailable`,
+    values: { key: hotkeys[slot] },
+  }));
 }
 
 // The lines of the diagnostics section, one label each, in the order the window shows them.

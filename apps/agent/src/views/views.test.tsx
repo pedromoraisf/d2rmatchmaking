@@ -6,6 +6,7 @@ import type {
   CaptureDiagnostics,
   Diagnostics,
   FillOutcome,
+  HotkeySlot,
   PairingState,
 } from '../shared/labels.ts';
 import { DiagnosticsView } from './DiagnosticsView.tsx';
@@ -18,6 +19,8 @@ const ptBR = translatorFor(createAgentI18n('pt-BR'));
 
 const DEFAULT_KEYS = { accept: 'Ctrl+Shift+A', fill: 'Ctrl+Shift+F' };
 const TYPED: FillOutcome = 'typed';
+const ACCEPT_REFUSED: HotkeySlot[] = ['accept'];
+const FILL_REFUSED: HotkeySlot[] = ['fill'];
 
 const view = (overrides: Partial<AgentView> = {}): AgentView => ({
   pairing: 'paired',
@@ -209,6 +212,19 @@ describe('fill status and hotkeys (AST-01, AST-08)', () => {
     unmount();
     render(<StatusView view={view({ lastFill: TYPED })} translate={ptBR} />);
     expect(screen.getByText(/Aperte Enter no jogo para confirmar; o agente nunca faz isso/)).toBeTruthy();
+  });
+
+  it('says a hotkey could not be registered, per slot, in English and Portuguese, and says nothing otherwise', () => {
+    const { container, unmount } = renderStatus({ hotkeyUnavailable: FILL_REFUSED });
+    expect(
+      screen.getByText(
+        /The fill hotkey \(Ctrl\+Shift\+F\) could not be registered.*Choose another combination/,
+      ),
+    ).toBeTruthy();
+    expect(container.textContent).not.toMatch(/accept hotkey/);
+    unmount();
+    render(<StatusView view={view({ hotkeyUnavailable: ACCEPT_REFUSED })} translate={ptBR} />);
+    expect(screen.getByText(/atalho de aceitar \(Ctrl\+Shift\+A\).*Escolha outra combinação/)).toBeTruthy();
   });
 
   it('says why a fill typed nothing, for every refusal and stop', () => {

@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use d2rmm_agent_adapters::http::gateway::HttpGateway;
 use d2rmm_agent_core::ports::{ConsentStore, StoreError};
 use d2rmm_agent_core::runtime::Handle;
-use d2rmm_agent_core::view::AgentView;
+use d2rmm_agent_core::view::{AgentView, HotkeySlot};
 use d2rmm_agent_domain::typing::{HotkeyAction, HotkeyChoice, HotkeyKey, HotkeyPair};
 use tauri::Url;
 
@@ -87,12 +87,13 @@ impl Default for Slot {
 
 /// Brings one slot in line with the combination wanted now: `None` when the hotkey must not be registered (no ready check
 /// is open, no room is held). `registrar_for` gives the registrar of one combination. Each OS call is made once, only on a
-/// change; a refused call leaves the slot as it was, so the next change tries again (RDY-07, AST-01).
+/// change; a refused call leaves the slot as it was, so the next change tries again (RDY-07, AST-01). Returns whether the
+/// slot wants a combination the OS does not hold: the window must then say so (AST-08).
 pub fn reconcile_slot(
     slot: &Slot,
     wanted: Option<HotkeyChoice>,
     registrar_for: &dyn Fn(HotkeyChoice) -> Box<dyn HotkeyRegistrar>,
-) {
+) -> bool {
     if let Some(held) = slot.held().filter(|held| Some(*held) != wanted) {
         sync_hotkey(&slot.registered, false, registrar_for(held).as_ref());
         if !slot.registered.load(Ordering::SeqCst) {
@@ -104,6 +105,33 @@ pub fn reconcile_slot(
         if slot.registered.load(Ordering::SeqCst) {
             slot.set_held(Some(wanted));
         }
+    }
+    wanted.is_some() && slot.held() != wanted
+}
+
+/// Reconciles one slot and tells `report` whether the OS refused the combination wanted now: `true` while it is wanted and
+/// not held, `false` once it is held or no longer wanted (AST-01, AST-08). `report` is idempotent: it is called after every
+/// reconciliation.
+pub fn reconcile_and_report(
+    kind: HotkeySlot,
+    slot: &Slot,
+    wanted: Option<HotkeyChoice>,
+    registrar_for: &dyn Fn(HotkeyChoice) -> Box<dyn HotkeyRegistrar>,
+    report: &dyn Fn(HotkeySlot, bool),
+) {
+    report(kind, reconcile_slot(slot, wanted, registrar_for));
+}
+
+/// The main thread could not be asked to register: every combination wanted now is unavailable (AST-01, AST-08).
+pub fn report_dispatch_failed(
+    wanted: (Option<HotkeyChoice>, Option<HotkeyChoice>),
+    report: &dyn Fn(HotkeySlot, bool),
+) {
+    if wanted.0.is_some() {
+        report(HotkeySlot::Accept, true);
+    }
+    if wanted.1.is_some() {
+        report(HotkeySlot::Fill, true);
     }
 }
 
@@ -211,14 +239,14 @@ mod shell {
     use d2rmm_agent_core::ports::{StateSink, TokenStore};
     use d2rmm_agent_core::runtime::{Handle, Runtime};
     use d2rmm_agent_core::secret::Secret;
-    use d2rmm_agent_core::view::AgentView;
+    use d2rmm_agent_core::view::{AgentView, HotkeySlot};
 
     use d2rmm_agent_domain::typing::HotkeyChoice;
 
     use super::{
         FileConsentStore, FileHotkeyStore, HotkeyRegistrar, Slot, app_context, apply_hotkey_change,
         code_name, consent_store_in, handle_get_consent, handle_get_new_code, handle_set_consent,
-        is_app_url, reconcile_slot, wanted_hotkeys,
+        is_app_url, reconcile_and_report, report_dispatch_failed, wanted_hotkeys,
     };
     use crate::adapters::token_store::KeyringTokenStore;
     use crate::adapters::typing::{HeldModifiers, SendTyper};
@@ -256,13 +284,42 @@ mod shell {
         fn request(&self, view: &AgentView) {
             let (accept_wanted, fill_wanted) = wanted_hotkeys(view);
             let (accept, fill) = (self.accept.clone(), self.fill.clone());
-            let _ = self.app.run_on_main_thread(move || {
-                reconcile_slot(&accept, accept_wanted, &|choice| {
+            let app = self.app.clone();
+            let queued = self.app.run_on_main_thread(move || {
+                let report = reporter(&app);
+                let local = |choice: HotkeyChoice| -> Box<dyn HotkeyRegistrar> {
                     Box::new(LocalManager(choice))
-                });
-                reconcile_slot(&fill, fill_wanted, &|choice| Box::new(LocalManager(choice)));
+                };
+                reconcile_and_report(
+                    HotkeySlot::Accept,
+                    &accept,
+                    accept_wanted,
+                    &local,
+                    report.as_ref(),
+                );
+                reconcile_and_report(
+                    HotkeySlot::Fill,
+                    &fill,
+                    fill_wanted,
+                    &local,
+                    report.as_ref(),
+                );
             });
+            if queued.is_err() {
+                report_dispatch_failed((accept_wanted, fill_wanted), reporter(&self.app).as_ref());
+            }
         }
+    }
+
+    /// Tells the runtime whether a hotkey is unavailable, for the window (AST-01, AST-08). Before the runtime is managed
+    /// there is nobody to tell: the next view tries the registration again.
+    fn reporter(app: &AppHandle) -> Box<dyn Fn(HotkeySlot, bool)> {
+        let app = app.clone();
+        Box::new(move |slot, unavailable| {
+            if let Some(handle) = app.try_state::<Arc<Handle<HttpGateway>>>() {
+                handle.set_hotkey_unavailable(slot, unavailable);
+            }
+        })
     }
 
     /// The manager of the main thread, as the registrar of one combination.
@@ -565,12 +622,13 @@ mod tests {
 
     use tauri::Url;
 
+    use d2rmm_agent_core::view::HotkeySlot;
     use d2rmm_agent_domain::typing::{HotkeyChoice, HotkeyPair};
 
     use super::{
         CodeRequester, FileHotkeyStore, Slot, app_context, apply_hotkey_change, code_name,
         consent_store_in, handle_get_consent, handle_get_new_code, handle_set_consent, is_app_url,
-        reconcile_slot, wanted_hotkeys,
+        reconcile_and_report, reconcile_slot, report_dispatch_failed, wanted_hotkeys,
     };
     use crate::config;
 
@@ -868,6 +926,7 @@ mod tests {
             ready_check_open: false,
             hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
             last_fill: None,
+            hotkey_unavailable: Vec::new(),
             diagnostics: None,
             capture: None,
         };
@@ -897,6 +956,117 @@ mod tests {
             wanted_hotkeys(&view),
             (None, None),
             "a combination that does not read is never wanted"
+        );
+    }
+
+    /// What a reporter was told, in order.
+    type Reports = std::rc::Rc<std::cell::RefCell<Vec<(HotkeySlot, bool)>>>;
+
+    /// A reporter that records every call.
+    fn reported() -> (Reports, impl Fn(HotkeySlot, bool)) {
+        let log = Reports::default();
+        let writer = log.clone();
+        (log, move |slot, unavailable| {
+            writer.borrow_mut().push((slot, unavailable));
+        })
+    }
+
+    fn registrar_of(
+        log: &Recording,
+    ) -> impl Fn(HotkeyChoice) -> Box<dyn super::HotkeyRegistrar> + '_ {
+        move |choice| {
+            Box::new(Recorded {
+                choice,
+                log: Recording {
+                    calls: log.calls.clone(),
+                    accept: log.accept,
+                },
+            })
+        }
+    }
+
+    #[test]
+    fn a_refused_registration_is_reported_unavailable_and_a_later_success_clears_it() {
+        let slot = Slot::new();
+        let (log, report) = reported();
+        let wanted = HotkeyChoice::parse("Ctrl+Shift+F").ok();
+        let (refusing, accepting) = (recording(false), recording(true));
+
+        reconcile_and_report(
+            HotkeySlot::Fill,
+            &slot,
+            wanted,
+            &registrar_of(&refusing),
+            &report,
+        );
+        assert_eq!(*log.borrow(), [(HotkeySlot::Fill, true)]);
+
+        reconcile_and_report(
+            HotkeySlot::Fill,
+            &slot,
+            wanted,
+            &registrar_of(&accepting),
+            &report,
+        );
+        assert_eq!(
+            *log.borrow(),
+            [(HotkeySlot::Fill, true), (HotkeySlot::Fill, false)]
+        );
+    }
+
+    #[test]
+    fn a_slot_nobody_wants_is_never_unavailable_even_when_the_os_refuses() {
+        let slot = Slot::new();
+        let (log, report) = reported();
+        reconcile_and_report(
+            HotkeySlot::Accept,
+            &slot,
+            None,
+            &registrar_of(&recording(false)),
+            &report,
+        );
+        assert_eq!(*log.borrow(), [(HotkeySlot::Accept, false)]);
+    }
+
+    #[test]
+    fn a_refused_unregistration_of_the_old_key_leaves_the_new_one_unavailable() {
+        let slot = Slot::new();
+        let (log, report) = reported();
+        reconcile_and_report(
+            HotkeySlot::Fill,
+            &slot,
+            HotkeyChoice::parse("Ctrl+Shift+F").ok(),
+            &registrar_of(&recording(true)),
+            &report,
+        );
+        reconcile_and_report(
+            HotkeySlot::Fill,
+            &slot,
+            HotkeyChoice::parse("Alt+G").ok(),
+            &registrar_of(&recording(false)),
+            &report,
+        );
+        assert_eq!(
+            *log.borrow(),
+            [(HotkeySlot::Fill, false), (HotkeySlot::Fill, true)]
+        );
+    }
+
+    #[test]
+    fn a_failed_main_thread_dispatch_reports_every_wanted_hotkey_unavailable() {
+        let (log, report) = reported();
+        report_dispatch_failed((None, HotkeyChoice::parse("Ctrl+Shift+F").ok()), &report);
+        assert_eq!(*log.borrow(), [(HotkeySlot::Fill, true)]);
+        report_dispatch_failed(
+            (
+                HotkeyChoice::parse("Ctrl+Shift+A").ok(),
+                HotkeyChoice::parse("Ctrl+Shift+F").ok(),
+            ),
+            &report,
+        );
+        assert_eq!(
+            log.borrow()[1..],
+            [(HotkeySlot::Accept, true), (HotkeySlot::Fill, true)]
         );
     }
 

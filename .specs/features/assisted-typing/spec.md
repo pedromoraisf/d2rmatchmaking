@@ -59,6 +59,10 @@ The player confirms by pressing Enter (or clicking Create Game) themselves. The 
 - **AST-08** — WHEN a fill ends THEN the window SHALL say what happened (typed, or the refusal: not a held room, game
   not focused, in-game screen, keys still held, stopped) and, after a full fill, that the player must press Enter in
   the game. The agent SHALL do nothing after the last character.
+  WHEN the OS does not let the agent register a hotkey it wants (no hotkey manager, a refused `RegisterHotKey` because
+  another program holds the combination, or a failed main-thread dispatch) THEN the window SHALL say so and tell the
+  player to choose another combination, until a registration succeeds. Field test of 2026-11-21: the fill hotkey did
+  nothing and the window said nothing. The agent SHALL record one `hotkey.unavailable` span event with the slot only.
 - **AST-09** — The sensors SHALL stay closed except for one named, minimal exception. The `windows` feature
   `Win32_UI_Input_KeyboardAndMouse` SHALL be added to the allow-list for the typing adapter alone; `SendInput` and
   `GetAsyncKeyState` SHALL be allowed by a scoped `allow` in that file alone; `deny.toml` SHALL gain no crate. A source
