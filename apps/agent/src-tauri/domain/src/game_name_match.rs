@@ -960,4 +960,15 @@ mod tests {
             }
         }
     }
+
+    /// Pins today's read of a bullet (game-name-reading T10, before it reads as the `-`): it is no separator.
+    #[test]
+    fn pin_a_bullet_is_no_dash_before_it_reads_as_one() {
+        assert_eq!(normalise("mmchaosh\u{2022}20"), "mmchaosh\u{2022}2o");
+        assert_eq!(
+            read_field("mmchaosh\u{2022}20", "mmchaosh-20"),
+            FieldRead::Other
+        );
+        assert_eq!(read_field("mmchaosh-20", "mmchaosh-20"), FieldRead::Matched);
+    }
 }
