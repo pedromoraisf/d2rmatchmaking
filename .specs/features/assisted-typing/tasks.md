@@ -102,7 +102,7 @@ Rules:
       Gate: `pnpm test:harness && CARGO clippy --all-targets -- -D warnings`
 - [x] T15 — Window and view (AST-12, AST-10): the copied line, "copy again", the refusal and failure lines, en and pt-BR;
       the span event per copy. Gate: `pnpm --filter @d2rmm/agent-ui test` and `CARGO nextest run -p d2rmm-agent-core --lib`
-- [ ] T16 — Headless agent and acceptance steps for the new scenarios (fake clipboard, `copy-again` stdin command); run
+- [x] T16 — Headless agent and acceptance steps for the new scenarios (fake clipboard, `copy-again` stdin command); run
       `pnpm exec turbo run test:acceptance -- --grep @AST-`. Gate: that command
 - [ ] T17 — Docs: `apps/agent/README.md` and the site's host instructions say "paste with Ctrl+V" instead of the hotkey.
       Gate: `pnpm format:check && pnpm specs:check`

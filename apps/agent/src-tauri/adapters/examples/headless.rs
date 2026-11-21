@@ -9,7 +9,10 @@
 //! its sidecar `<png>.json` as the text of its regions (CHR-04, CHR-06, CHR-18); `consent on|off` gives or withdraws the
 //! player's consent in the agent's window (CHR-01); `capture print|graphics good|black|failed` scripts how a capture method
 //! answers and `minimize on|off` minimizes the game window (capture-cascade); a `capture` event prints when the window's
-//! capture method or reason changes. The composition runs in `run`, over injected input and output; `main`
+//! capture method or reason changes; `assign <name>` makes the agent hold a room (a `\n` in the name is a newline); the agent
+//! copies each run's game name to an in-memory clipboard and prints `clipboard` (the text and the write count) and `copy` (the
+//! outcome the window shows); `copy-again`, `clipboard replace` and `hotkey busy` drive the window's "copy again", another
+//! program taking the clipboard and another program holding the accept hotkey (a `hotkey-unavailable` event). The composition runs in `run`, over injected input and output; `main`
 //! wraps it over stdin and stdout. The server trusts the token and nothing else (ADR 010): this process only sends data.
 
 use std::path::{Path, PathBuf};
@@ -34,15 +37,15 @@ use d2rmm_agent_core::groups::{
 };
 use d2rmm_agent_core::messages::{GameNameObservation, IssuedCode, Presence};
 use d2rmm_agent_core::ports::{
-    ApiError, ApiGateway, ConsentStore, EventStream, FrameSource, MethodSource, Miss,
-    ProcessSource, ReadError, Rgba, SequentialIds, StateSink, StoreError, TextReader, TokenStore,
-    WallClock,
+    ApiError, ApiGateway, Clipboard, ClipboardError, ConsentStore, EventStream, FrameSource,
+    MethodSource, Miss, ProcessSource, ReadError, Rgba, SequentialIds, StateSink, StoreError,
+    TextReader, TokenStore, WallClock,
 };
 use d2rmm_agent_core::remote_config::{CHECK_EVERY, ConfigPorts, Outcome};
 use d2rmm_agent_core::runtime::{Handle, Probe, Runtime};
 use d2rmm_agent_core::screen_reader::ScreenReader;
 use d2rmm_agent_core::secret::Secret;
-use d2rmm_agent_core::view::{AgentView, PairingView, RoomView};
+use d2rmm_agent_core::view::{AgentView, HotkeyFailure, HotkeySlot, PairingView, RoomView};
 use d2rmm_agent_domain::capture_cascade::CaptureMethod;
 use d2rmm_agent_domain::capture_geometry::{crop_rgba, crop_to_client};
 use d2rmm_agent_domain::language::LanguagePack;
@@ -51,6 +54,7 @@ use d2rmm_agent_domain::layout::{
 };
 use d2rmm_agent_domain::remote_config::Effective;
 use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
+use d2rmm_agent_domain::typing::TypableName;
 use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
@@ -141,6 +145,27 @@ impl StateSink for Lines {
             && !held_before.is_some_and(|room| room.confirmed)
         {
             let _ = self.events.send(json!({ "event": "presence-confirmed" }));
+        }
+        // What the window says about copying the game name (AST-12) and about a hotkey the OS refused (AST-08): printed when
+        // the line changes. The outcome is a closed code; the name is never in it.
+        let copy_before = before.as_ref().and_then(|previous| previous.last_copy);
+        if let Some(outcome) = view.last_copy.filter(|now| Some(*now) != copy_before) {
+            let _ = self
+                .events
+                .send(json!({ "event": "copy", "outcome": outcome.as_str() }));
+        }
+        let unavailable_before = before
+            .as_ref()
+            .map(|previous| previous.hotkey_unavailable.clone())
+            .unwrap_or_default();
+        for fault in view
+            .hotkey_unavailable
+            .iter()
+            .filter(|fault| !unavailable_before.contains(fault))
+        {
+            let _ = self.events.send(
+                json!({ "event": "hotkey-unavailable", "slot": fault.slot.as_str(), "reason": fault.reason.as_str() }),
+            );
         }
         if let Some(room) = &view.room {
             let held = before.as_ref().and_then(|previous| previous.room.as_ref());
@@ -576,13 +601,55 @@ impl ConsentStore for SwitchConsent {
     }
 }
 
+/// The clipboard of the headless agent (AST-11, AST-14): plain in-memory state that prints one `clipboard` line per write of
+/// the agent. `replace` stands for the player copying something else, which the agent never sees. Nothing reaches an
+/// operating system.
+struct HeadlessClipboard {
+    held: Mutex<Option<String>>,
+    writes: std::sync::atomic::AtomicUsize,
+    events: UnboundedSender<Value>,
+}
+
+impl HeadlessClipboard {
+    fn new(events: UnboundedSender<Value>) -> Self {
+        Self {
+            held: Mutex::new(None),
+            writes: std::sync::atomic::AtomicUsize::new(0),
+            events,
+        }
+    }
+
+    fn replace(&self, text: &str) {
+        if let Ok(mut held) = self.held.lock() {
+            *held = Some(text.to_string());
+        }
+        let _ = self.events.send(json!({ "event": "clipboard-replaced" }));
+    }
+}
+
+impl Clipboard for HeadlessClipboard {
+    fn write(&self, name: &TypableName) -> Result<(), ClipboardError> {
+        let writes = self.writes.fetch_add(1, Ordering::SeqCst) + 1;
+        if let Ok(mut held) = self.held.lock() {
+            *held = Some(name.as_str().to_string());
+        }
+        let _ = self.events.send(json!({
+            "event": "clipboard",
+            "text": name.as_str(),
+            "writes": writes,
+        }));
+        Ok(())
+    }
+}
+
 /// The room the `assign` line makes the agent hold: the id is fixed, the name is the line's.
 const ASSIGNED_ROOM: &str = "7d9f2c1e-0000-4000-8000-000000000001";
 
-fn assignment_named(name: &str) -> Assignment {
+/// Every `assign` line is a new run of the same room, so a name is copied once per line and a repeated name is a new run.
+fn assignment_named(name: &str, run: u64) -> Assignment {
     Assignment {
         room: RoomId::new(ASSIGNED_ROOM),
-        run: std::num::NonZeroU64::MIN,
+        run: std::num::NonZeroU64::new(run).unwrap_or(std::num::NonZeroU64::MIN),
         expected_game_name: GameName::new(name),
         members: Vec::new(),
     }
@@ -608,8 +675,16 @@ pub enum Command {
     Capture(CaptureMethod, Behaviour),
     /// `minimize on|off`: the game window is minimized, or back.
     Minimize(bool),
-    /// `assign <name>`: the agent holds a room with this game name (assisted typing, FR-28).
+    /// `assign <name>`: the agent holds a room with this game name (FR-28). A `\n` in the name stands for a newline.
     Assign(String),
+    /// `room close`: the API ends the room, so the agent holds none.
+    CloseRoom,
+    /// `copy-again`: the player clicks "copy again" in the window (AST-12).
+    CopyAgain,
+    /// `clipboard replace`: something else puts its own text on the clipboard.
+    ReplaceClipboard,
+    /// `hotkey busy`: another program holds the accept hotkey's combination, so the OS refuses it (AST-08).
+    HotkeyBusy,
     Other,
 }
 
@@ -638,13 +713,17 @@ pub fn parse_command(line: &str) -> Command {
         return Command::Capture(method, behaviour);
     }
     if let Some(name) = line.strip_prefix("assign ") {
-        return Command::Assign(name.trim().to_string());
+        return Command::Assign(name.trim().replace("\\n", "\n"));
     }
     match line {
         "minimize on" => Command::Minimize(true),
         "minimize off" => Command::Minimize(false),
         "consent on" => Command::Consent(true),
         "consent off" => Command::Consent(false),
+        "room close" => Command::CloseRoom,
+        "copy-again" => Command::CopyAgain,
+        "clipboard replace" => Command::ReplaceClipboard,
+        "hotkey busy" => Command::HotkeyBusy,
         _ => Command::Other,
     }
 }
@@ -757,6 +836,7 @@ fn start(
     mode: ScreenMode,
     version: &str,
     events: UnboundedSender<Value>,
+    clipboard: &std::sync::Arc<HeadlessClipboard>,
     remote_config: Option<(PathBuf, Duration)>,
 ) -> Result<(Handle<Reporting>, Probe, TelemetryGuard), String> {
     let base = api_base.url().as_str().trim_end_matches('/').to_string();
@@ -865,6 +945,7 @@ fn start(
         last: Mutex::new(None),
     });
     let (handle, probe) = Runtime::start_with_probe(&config, sink, groups);
+    let handle = handle.with_clipboard(clipboard.clone());
     // The remote configuration loop (remote-config RCF-04): the agent's own API, the token it holds and the last good body in
     // the directory the scenario names. Without a directory the example runs no loop.
     let handle = match remote_config {
@@ -935,11 +1016,13 @@ where
     let (events, received) = mpsc::unbounded_channel();
     let writer = tokio::spawn(write_lines(output, received));
     let line_events = events.clone();
+    let clipboard = std::sync::Arc::new(HeadlessClipboard::new(events.clone()));
     let (handle, probe, guard) = start(
         &api_base,
         mode,
         &arguments.agent_version,
         events,
+        &clipboard,
         arguments
             .config_dir
             .clone()
@@ -952,6 +1035,8 @@ where
     }
 
     let mut lines = BufReader::new(input).lines();
+    // The API's own assignment is run 1 of the room, so the first `assign` line is already a new run.
+    let mut runs = 1_u64;
     while let Some(line) = lines
         .next_line()
         .await
@@ -973,7 +1058,18 @@ where
             Command::Consent(given) => consent.store(given, Ordering::SeqCst),
             Command::Capture(method, behaviour) => script.set(method, behaviour),
             Command::Minimize(minimized) => script.minimized.store(minimized, Ordering::SeqCst),
-            Command::Assign(name) => probe.set_assignment(Some(assignment_named(&name))),
+            Command::Assign(name) => {
+                runs += 1;
+                probe.set_assignment(Some(assignment_named(&name, runs)));
+            }
+            Command::CloseRoom => probe.set_assignment(None),
+            Command::CopyAgain => {
+                let _ = handle.copy_again();
+            }
+            Command::ReplaceClipboard => clipboard.replace("something else"),
+            Command::HotkeyBusy => {
+                handle.set_hotkey_unavailable(HotkeySlot::Accept, Some(HotkeyFailure::Refused));
+            }
             Command::Other => {}
         }
         // The agent's accept hotkey (RDY-07): the same accept path the Tauri global shortcut takes.
@@ -1231,6 +1327,91 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// The room the API hands the agent is copied once to the in-memory clipboard, and the window lines the acceptance steps
+    /// read (`copy`, `clipboard`, `room-dropped`, `hotkey-unavailable`) print as the agent's state changes (AST-11, AST-12).
+    #[tokio::test]
+    async fn the_example_copies_the_room_name_and_prints_what_the_window_would_say() {
+        let (base, _observations) = start_fake().await;
+        let dir = std::env::temp_dir().join(format!("d2rmm-headless-copy-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a temporary directory");
+        let fixture = dir.join("frame.png");
+        image::RgbaImage::new(1920, 1080)
+            .save(&fixture)
+            .expect("a PNG fixture");
+        std::fs::write(format!("{}.txt", fixture.display()), "mmbaalh-12")
+            .expect("the sidecar text");
+        let args = [
+            "--api-base".to_string(),
+            base,
+            "--read-fixture".to_string(),
+            fixture.display().to_string(),
+        ];
+        let (mut typed, input) = tokio::io::duplex(1024);
+        let (output, printed) = tokio::io::duplex(64 * 1024);
+        let example = tokio::spawn(async move { run(&args, input, output).await });
+        let mut printed = BufReader::new(printed).lines();
+        let mut seen = Vec::new();
+
+        // The fake API assigns `mmbaalh-12` right after pairing: the agent copies it at once.
+        for event in ["code", "paired", "assignment", "clipboard", "copy"] {
+            wait_for(&mut printed, &mut seen, event).await;
+        }
+        typed
+            .write_all(b"assign mmbaalh-13\n")
+            .await
+            .expect("the assign line");
+        wait_for(&mut printed, &mut seen, "clipboard").await;
+        typed
+            .write_all(b"clipboard replace\ncopy-again\n")
+            .await
+            .expect("the lines");
+        wait_for(&mut printed, &mut seen, "clipboard-replaced").await;
+        wait_for(&mut printed, &mut seen, "clipboard").await;
+        typed.write_all(b"hotkey busy\n").await.expect("the line");
+        wait_for(&mut printed, &mut seen, "hotkey-unavailable").await;
+        drop(typed);
+        example
+            .await
+            .expect("the example task joins")
+            .expect("the example returns Ok when its input ends");
+
+        let lines: Vec<Value> = seen
+            .iter()
+            .filter_map(|line| serde_json::from_str(line).ok())
+            .collect();
+        let of = |event: &str| -> Vec<&Value> {
+            lines.iter().filter(|line| line["event"] == event).collect()
+        };
+        let writes = of("clipboard");
+        let texts: Vec<&Value> = writes.iter().map(|write| &write["text"]).collect();
+        assert_eq!(
+            texts,
+            [
+                &json!("mmbaalh-12"),
+                &json!("mmbaalh-13"),
+                &json!("mmbaalh-13")
+            ],
+            "one copy for each run and one for the click"
+        );
+        assert_eq!(
+            of("copy").first().map(|copy| &copy["outcome"]),
+            Some(&json!("copied"))
+        );
+        assert_eq!(
+            of("hotkey-unavailable")
+                .first()
+                .map(|fault| (&fault["slot"], &fault["reason"])),
+            Some((&json!("accept"), &json!("refused")))
+        );
+        for line in &seen {
+            assert!(
+                !line.contains("\"input\""),
+                "the agent prints no input event"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// The input lines of the example: `read`, `show <png>`, `consent on|off`; any other line changes nothing.
     #[test]
     fn the_input_lines_are_commands() {
@@ -1261,6 +1442,18 @@ mod tests {
             parse_command("assign mmbaalh-12"),
             Command::Assign("mmbaalh-12".to_string())
         );
+        assert_eq!(
+            parse_command("assign mmbaalh-12\\n"),
+            Command::Assign("mmbaalh-12\n".to_string()),
+            "a backslash n stands for the newline a scenario cannot send in one line"
+        );
+        assert_eq!(parse_command("room close"), Command::CloseRoom);
+        assert_eq!(parse_command("copy-again"), Command::CopyAgain);
+        assert_eq!(
+            parse_command("clipboard replace"),
+            Command::ReplaceClipboard
+        );
+        assert_eq!(parse_command("hotkey busy"), Command::HotkeyBusy);
         assert_eq!(parse_command(""), Command::Other);
     }
 

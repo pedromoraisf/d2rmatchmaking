@@ -268,7 +268,7 @@ export class HeadlessAgent {
 
   /**
    * Sends one raw input line: how the scripted game window behaves from now on (`capture print black`, `minimize on`…)
-   * and the assisted typing (`assign`, `fill`, `focus`, `keys`, `fill-again-after`; FR-28).
+   * and the copy of the game name (`assign`, `room close`, `copy-again`, `clipboard replace`, `hotkey busy`; FR-28).
    */
   send(line: string): void {
     this.#child.stdin?.write(`${line}\n`);
