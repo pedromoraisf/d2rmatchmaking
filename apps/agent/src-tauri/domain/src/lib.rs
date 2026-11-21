@@ -20,6 +20,7 @@ pub mod paired_device;
 pub mod pairing;
 pub mod presence;
 pub mod reconnect;
+pub mod remote_config;
 pub mod room_assignment;
 pub mod timings;
 pub mod typing;

@@ -233,6 +233,13 @@ pub struct AgentView {
     /// What the capture showed in the last look; absent until the first frame.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capture: Option<CaptureView>,
+    /// The version of the remote configuration the agent runs, `0` for the built-in defaults (RCF-08). Left out while it is `0`.
+    #[serde(skip_serializing_if = "is_built_in_version")]
+    pub config_version: u32,
+}
+
+fn is_built_in_version(version: &u32) -> bool {
+    *version == 0
 }
 
 #[cfg(test)]
@@ -267,6 +274,7 @@ mod tests {
             last_press: None,
             diagnostics: None,
             capture: None,
+            config_version: 0,
         };
 
         assert_eq!(
@@ -325,6 +333,7 @@ mod tests {
             last_press: Some(HotkeyPress::Unmatched),
             diagnostics: None,
             capture: None,
+            config_version: 0,
         };
 
         assert_eq!(
@@ -417,5 +426,28 @@ mod tests {
                 "readRatePercent": 97,
             })
         );
+    }
+
+    #[test]
+    fn the_configuration_version_is_left_out_while_built_in_and_shown_once_it_is_not() {
+        let mut view = AgentView {
+            pairing: PairingView::Requesting,
+            connectivity: Connectivity::Connected,
+            room: None,
+            update: UpdateView::Idle,
+            ready_check_open: false,
+            hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
+            last_fill: None,
+            diagnostics: None,
+            capture: None,
+            hotkey_unavailable: Vec::new(),
+            last_press: None,
+            config_version: 0,
+        };
+        let built_in = serde_json::to_value(&view).expect("the view serializes");
+        assert!(built_in.get("configVersion").is_none());
+        view.config_version = 5;
+        let configured = serde_json::to_value(&view).expect("the view serializes");
+        assert_eq!(configured["configVersion"], 5);
     }
 }

@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use d2rmm_agent_domain::chat::ChatTracker;
 use d2rmm_agent_domain::paired_device::{DeviceEffect, PairedDevice};
+use d2rmm_agent_domain::remote_config::Effective;
 use d2rmm_agent_domain::room_assignment::{Assignment, RoomAssignment};
 use d2rmm_agent_domain::typing::HotkeyPair;
 use tokio::sync::{Notify, watch};
@@ -18,6 +19,7 @@ use crate::hub::Hub;
 use crate::messages::{CaptureReport, ReadyCheckOpen, Screen};
 use crate::party::PartyProgress;
 use crate::ports::{ApiError, StateSink, TokenStore};
+use crate::remote_config::ConfigFetch;
 use crate::view::{HotkeyFailure, HotkeyPress, HotkeySlot, PairingView, RoomView, UpdateView};
 
 /// What the loops share about the device: the aggregate, the room and the signals that wake the loops.
@@ -35,6 +37,10 @@ pub struct DeviceState {
     pub assignment: watch::Sender<RoomAssignment>,
     /// The screen the last frame showed (CHR-04). The heartbeat reports it and beats at once when it changes.
     pub screen: watch::Sender<Screen>,
+    /// The configuration the loops read at each look (RCF-08): the built-in defaults until a fetch applies a newer one.
+    pub config: watch::Sender<Effective>,
+    /// How the last fetch of the configuration ended, for the window and the headless agent (RCF-08, RCF-11).
+    pub config_fetch: watch::Sender<ConfigFetch>,
     /// What the capture is doing, for the heartbeat (CAP-07). It does not wake the heartbeat: it rides the next beat.
     capture_report: Mutex<CaptureReport>,
     /// Observations dropped after their retries ran out or were overtaken (AD-051).
@@ -75,6 +81,8 @@ impl DeviceState {
             update_now: Notify::new(),
             assignment: watch::channel(RoomAssignment::empty()).0,
             screen: watch::channel(Screen::Unknown).0,
+            config: watch::channel(Effective::built_in()).0,
+            config_fetch: watch::channel(ConfigFetch::default()).0,
             capture_report: Mutex::new(CaptureReport::default()),
             observations_dropped: AtomicU64::new(0),
             party: Mutex::new(PartyProgress::default()),

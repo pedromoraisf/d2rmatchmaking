@@ -49,6 +49,7 @@
       "unmatched": "Last hotkey press: a key that matches neither hotkey"
     },
     "heading": "Diagnostics",
+    "config": "Configuration: version {{version}}",
     "screen": {
       "unknown": "Screen: not recognised",
       "characterSelect": "Screen: Character selection",

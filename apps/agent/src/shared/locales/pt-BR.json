@@ -49,6 +49,7 @@
       "unmatched": "Último atalho pressionado: uma tecla que não é nenhum dos atalhos"
     },
     "heading": "Diagnóstico",
+    "config": "Configuração: versão {{version}}",
     "screen": {
       "unknown": "Tela: não reconhecida",
       "characterSelect": "Tela: Seleção de personagem",

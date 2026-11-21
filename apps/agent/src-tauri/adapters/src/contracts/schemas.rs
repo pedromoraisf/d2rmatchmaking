@@ -319,6 +319,215 @@ pub const SCHEMAS: &[(&str, &str)] = &[
   "additionalProperties": false
 }
 "##),
+    ("agent-config.json", r##"{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "cadence": {
+      "type": "object",
+      "properties": {
+        "demoteAfter": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "probeEvery": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 600
+        },
+        "rateWindow": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 600
+        },
+        "lookIntervalMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 10000
+        }
+      },
+      "additionalProperties": false
+    },
+    "thresholds": {
+      "type": "object",
+      "properties": {
+        "trackPad": {
+          "type": "integer",
+          "minimum": 8,
+          "maximum": 48
+        }
+      },
+      "additionalProperties": false
+    },
+    "regions": {
+      "type": "object",
+      "properties": {
+        "hudBand": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "width": {
+              "type": "number",
+              "minimum": 0.02,
+              "maximum": 1
+            },
+            "height": {
+              "type": "number",
+              "minimum": 0.02,
+              "maximum": 1
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "width",
+            "height"
+          ],
+          "additionalProperties": false
+        },
+        "automapArea": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "width": {
+              "type": "number",
+              "minimum": 0.02,
+              "maximum": 1
+            },
+            "height": {
+              "type": "number",
+              "minimum": 0.02,
+              "maximum": 1
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "width",
+            "height"
+          ],
+          "additionalProperties": false
+        },
+        "partyArea": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "width": {
+              "type": "number",
+              "minimum": 0.02,
+              "maximum": 1
+            },
+            "height": {
+              "type": "number",
+              "minimum": 0.02,
+              "maximum": 1
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "width",
+            "height"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "phrases": {
+      "type": "object",
+      "properties": {
+        "en": {
+          "type": "object",
+          "properties": {
+            "party": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "pattern": "^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$"
+            },
+            "gameName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "pattern": "^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$"
+            },
+            "password": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "pattern": "^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "pt-BR": {
+          "type": "object",
+          "properties": {
+            "party": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "pattern": "^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$"
+            },
+            "gameName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "pattern": "^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$"
+            },
+            "password": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "pattern": "^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "version"
+  ],
+  "additionalProperties": false
+}
+"##),
     ("agent-event-ready-check-resolved.json", r##"{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",

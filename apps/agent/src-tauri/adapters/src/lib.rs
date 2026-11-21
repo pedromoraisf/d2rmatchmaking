@@ -3,9 +3,11 @@
 #![forbid(unsafe_code)]
 
 pub mod config;
+pub mod config_store;
 pub mod contracts;
 pub mod http;
 pub mod language;
+pub mod remote_config;
 pub mod telemetry;
 
 #[cfg(test)]
