@@ -353,7 +353,29 @@ pub fn classify_automap(variants: &[Vec<TextLine>], expected_name: &str) -> Verd
         return verdict(Outcome::Correct, "name-line-as-expected");
     }
     let reason = other_reason(&texts, expected_name).replacen("field-", "automap-", 1);
-    verdict_owned(Outcome::Refused, reason)
+    verdict_owned(
+        Outcome::Refused,
+        with_label_distance(reason, &texts, expected_name),
+    )
+}
+
+/// An `automap-other-far` reason of a frame whose lines hold a label and a colon (`<label>: <name>`) gains
+/// `-after-label:<n>`, the edit distance (capped at 9) of the closest text after the last `:` or `;` to the generated name: a
+/// number only, no read text. It tells whether searching the name after the label would find it (game-name-reading T11).
+fn with_label_distance(reason: String, texts: &[&str], expected_name: &str) -> String {
+    if reason != "automap-other-far" || !is_generated_game_name(expected_name) {
+        return reason;
+    }
+    let expected = normalise(expected_name);
+    let closest = texts
+        .iter()
+        .filter_map(|text| text.rsplit_once([':', ';']).map(|(_, tail)| tail))
+        .map(|tail| edit_distance(&normalise(tail), &expected))
+        .min();
+    match closest {
+        Some(distance) => format!("{reason}-after-label:{}", distance.min(9)),
+        None => reason,
+    }
 }
 
 /// A chat print (GNR-11): Correct when exactly one class (joined or left) is found among the candidates of the print's
@@ -1195,8 +1217,8 @@ mod tests {
     #[test]
     fn a_read_outside_ascii_prints_as_its_code_point_and_other_punctuation_as_a_question_mark() {
         assert_eq!(
-            other_reason(&["mmbaa\u{e5}h-19"], "mmbaalh-19"),
-            "field-other-1-edit:sub(U+00E5>l)@5"
+            other_reason(&["mmbaa\u{df}h-19"], "mmbaalh-19"),
+            "field-other-1-edit:sub(U+00DF>l)@5"
         );
         assert_eq!(
             other_reason(&["mmbaa?h-19"], "mmbaalh-19"),
@@ -1290,5 +1312,24 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn a_far_automap_line_with_a_label_names_how_far_the_text_after_it_is() {
+        let name = "mmbaalh-19";
+        let far = |text: &str| classify_automap(&[lines(&[text])], name).reason;
+        assert_eq!(far("Hell"), "automap-other-far");
+        assert_eq!(
+            far("label zz: mmbxxxx-19"),
+            "automap-other-far-after-label:4"
+        );
+        assert_eq!(
+            far("label zz; qqqqqqqqqqqqqqq"),
+            "automap-other-far-after-label:9"
+        );
+        assert_eq!(
+            far("label zz: mmbaalh-18"),
+            "automap-other-far-after-label:1"
+        );
     }
 }
