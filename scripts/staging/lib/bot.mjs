@@ -235,21 +235,29 @@ export function createBot({
       state.ticketId = undefined;
       const host = assignment.members.find((member) => member.accountId === state.accountId)?.role === 'host';
       say('bot.assigned', { room: assignment.roomId, host });
+      // A real agent beats at once when its state changes; the heartbeat that names the room is what moves it on (LBR-02).
+      await heartbeat();
       if (host && plan.hostPolicy === 'bot-reports') await observe(assignment);
-    } else if (event.type === 'room.stage_changed' && event.data.roomId === state.roomId) {
-      state.stage = event.data.stage;
-      state.stages.push(event.data.stage);
-      say('bot.stage', { stage: event.data.stage });
-      if (event.data.stage === 'created' && assignment !== undefined) {
-        const host =
-          assignment.members.find((member) => member.accountId === state.accountId)?.role === 'host';
-        if (!host) await observe(assignment);
-      }
-      if (ENDED_STAGES.has(event.data.stage)) {
-        state.ended = true;
-        state.pcState = 'IDLE';
-        onEnded();
-      }
+    } else if (event.type === 'room.stage_changed') {
+      // The agent's stream carries only the end of a room (closed or expired); the site's carries every stage.
+      await onStage(event.data);
+    }
+  }
+
+  /** A stage change of the room the bot is in. A member observes once the host has created the game (LBR-04). */
+  async function onStage(change) {
+    if (change.roomId !== state.roomId || state.stages.at(-1) === change.stage) return;
+    state.stage = change.stage;
+    state.stages.push(change.stage);
+    say('bot.stage', { stage: change.stage });
+    if (change.stage === 'created' && assignment !== undefined) {
+      const host = assignment.members.find((member) => member.accountId === state.accountId)?.role === 'host';
+      if (!host) await observe(assignment);
+    }
+    if (ENDED_STAGES.has(change.stage)) {
+      state.ended = true;
+      state.pcState = 'IDLE';
+      onEnded();
     }
   }
 
@@ -275,7 +283,9 @@ export function createBot({
 
   function start() {
     keepAlive(heartbeat, HEARTBEAT_EVERY_MS);
-    holdStream('site', { Cookie: state.cookie }, async () => undefined);
+    holdStream('site', { Cookie: state.cookie }, async (event) => {
+      if (event.type === 'room.stage_changed') await onStage(event.data);
+    });
     holdStream(
       'agent',
       { Authorization: `Bearer ${state.token}`, 'X-Agent-Version': client.version },
