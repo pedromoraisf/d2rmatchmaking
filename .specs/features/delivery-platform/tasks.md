@@ -50,6 +50,28 @@ Rules:
 
 ## Batch 5 — remove what was replaced (PR 5)
 
-- [ ] T11 — Once each replacement has passed three real runs (links in the PR), remove `deploy-web.yml`,
-      `deploy-api.yml` and `preview-api.yml`, move `release-agent.yml` onto `stage-smoke` and `stage-promote`, and
-      update the harness tests (DLP-09). Gate: `pnpm test:harness && pnpm format:check`
+- [x] T11a — Remove what has three real runs of its replacement, and update the harness tests that named it (DLP-09).
+      Gate: `pnpm test:harness && pnpm format:check`. Evidence (`site.yml`, all four stages green: build, verify, deploy,
+      smoke), three pushes to `main` that deployed staging and passed its smoke: - https://github.com/pedromoraisf/d2rmatchmaking/actions/runs/44788285566 (2026-11-20 17:58) - https://github.com/pedromoraisf/d2rmatchmaking/actions/runs/44704773279 (2026-11-20 08:43) - https://github.com/pedromoraisf/d2rmatchmaking/actions/runs/44697645213 (2026-11-20 07:48)
+
+      and three same-repository pull-request previews, as green:
+      https://github.com/pedromoraisf/d2rmatchmaking/actions/runs/44813717362,
+      https://github.com/pedromoraisf/d2rmatchmaking/actions/runs/44804309171,
+      https://github.com/pedromoraisf/d2rmatchmaking/actions/runs/44803831419.
+
+      **Removed:** `deploy-web.yml` (replaced by `site.yml`), and the delivery branch from `site.yml`'s push trigger. The
+      five tests that guarded `deploy-web.yml` are now assertions on `site.yml` and `stage-deploy.yml`
+      (`delivery-workflows.test.mjs`, `preview-workflow.test.mjs`, `telemetry-flags.test.mjs`).
+      **Not removed, and why:**
+      - `deploy-api.yml`: `api.yml` has no real run of its deploy or smoke. Its one green run
+        (https://github.com/pedromoraisf/d2rmatchmaking/actions/runs/44788285713) built and skipped `deploy` and `smoke`,
+        because `API_STAGES_LIVE` is not `true`; the two before it ended in `startup_failure`. Removing `deploy-api.yml` goes
+        with the maintainer setting `API_STAGES_LIVE` (delivery.md, cutover step 4) and three real runs after it.
+      - `preview-api.yml`: it has no replacement yet. It creates the Neon branch and the Render preview service per labelled
+        pull request and publishes that preview's site; the stages deploy only the site's preview, and every `preview-api`
+        run so far was skipped (no `render-preview` label).
+      **Lost with `deploy-web.yml`:** its `preview-comment` job, which commented "Preview of the site: <url>" on the pull
+      request. No stage replicates it, and `site.yml` is a thin caller of stages by design, so it needs a decision.
+
+- [ ] T11b — Move `release-agent.yml` onto `stage-smoke` and `stage-promote`. **Waits for PR #111** (agent-release
+      reorders that file on `phase/F2`). Gate: `pnpm test:harness && pnpm format:check`

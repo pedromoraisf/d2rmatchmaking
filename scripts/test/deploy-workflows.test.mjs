@@ -11,7 +11,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const readText = (file) => readFileSync(path.join(root, file), 'utf8');
 const workflowText = (name) => readText(`.github/workflows/${name}`);
 const workflow = (name) => parse(workflowText(name));
-const WORKFLOWS = ['deploy-api.yml', 'deploy-web.yml'];
+const WORKFLOWS = ['deploy-api.yml'];
 const SHA_PINNED = /^[^@\s]+@[0-9a-f]{40}$/;
 
 const stepsOf = (job) => job.steps ?? [];
@@ -108,54 +108,6 @@ test('every third-party action is pinned to a full commit SHA', () => {
     assert.ok(uses.length > 0, `${name} uses no actions`);
     for (const reference of uses) {
       assert.match(reference, SHA_PINNED, `${name}: ${reference} is not pinned by commit SHA`);
-    }
-  }
-});
-
-test('deploy-web publishes previews only for same-repo PRs', () => {
-  const wf = workflow('deploy-web.yml');
-  assert.ok(wf.on.pull_request, 'deploy-web must run on pull requests');
-  const sameRepo = 'github.event.pull_request.head.repo.full_name == github.repository';
-  assert.ok(wf.jobs.deploy.if.includes(sameRepo), 'the deploy job must refuse PRs from forks');
-  assert.ok(wf.jobs.comment.if.includes(sameRepo), 'the comment job must refuse PRs from forks');
-  assert.ok(
-    !wf.jobs.deploy.if.includes("github.event_name == 'pull_request' ||"),
-    'a bare PR path must not deploy',
-  );
-});
-
-test('deploy-web deploys main on push and the build job holds no secrets', () => {
-  const wf = workflow('deploy-web.yml');
-  assert.deepEqual(wf.on.push.branches, ['main']);
-  assert.ok(!workflowTextOfJob('deploy-web.yml', 'build').includes('secrets.'));
-  assert.deepEqual(wf.permissions, { contents: 'read' });
-});
-
-test('deploy-web passes the branch name through env and quotes it in run', () => {
-  const deploy = workflow('deploy-web.yml').jobs.deploy;
-  const publish = stepsOf(deploy).find((step) => step.id === 'publish');
-  assert.ok(publish.env.DEPLOY_BRANCH.includes('github.head_ref'));
-  assert.ok(publish.run.includes('--branch "$DEPLOY_BRANCH"'));
-  assert.doesNotMatch(publish.run, /github\.head_ref/);
-});
-
-test('deploy-web fails the publish step when wrangler fails', () => {
-  const publish = stepsOf(workflow('deploy-web.yml').jobs.deploy).find((step) => step.id === 'publish');
-  assert.match(publish.run, /wrangler pages deploy .*\| tee /);
-  // Only an explicit `shell: bash` runs with pipefail; the default `bash -e` reports the exit code of tee.
-  assert.equal(publish.shell, 'bash');
-});
-
-test('pull-requests write is granted only on the comment job', () => {
-  const wf = workflow('deploy-web.yml');
-  assert.equal(wf.permissions['pull-requests'], undefined);
-  for (const [jobName, job] of Object.entries(wf.jobs)) {
-    const granted = job.permissions?.['pull-requests'];
-    if (jobName === 'comment') {
-      assert.equal(granted, 'write');
-    } else {
-      // The deploy job reads pull requests to bake the preview API (ADR 030); no job but the comment writes them.
-      assert.ok(granted === undefined || granted === 'read', `${jobName} must not write pull requests`);
     }
   }
 });

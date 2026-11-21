@@ -1,6 +1,6 @@
 // Pure helpers of the API preview workflows (ADR 030): find the Render preview service of a pull request, validate a
 // preview API origin, compute the Pages branch alias, and decide which preview API a branch's site is baked with. The
-// CLI at the bottom is what preview-api.yml and deploy-web.yml call, so both bake the same upstream.
+// CLI at the bottom is what preview-api.yml (`bake`) and the site's deploy stage (`config`) call.
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

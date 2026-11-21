@@ -1,11 +1,11 @@
 // The preview API a Pages preview proxies to (ADR 030). The committed value is `undefined`: production and previews of
-// branches without the `render-preview` label use API_ORIGIN. preview-api.yml and deploy-web.yml both run
-// `scripts/preview/preview.mjs bake` in their own workspace before `wrangler pages deploy`, which rewrites this line
-// when an open pull request into main from the branch carries the label. It is never committed.
+// branches without the `render-preview` label use API_ORIGIN. preview-api.yml runs `scripts/preview/preview.mjs bake`
+// in its own workspace before `wrangler pages deploy`, which rewrites this line when an open pull request into main from
+// the branch carries the label. It is never committed.
 
 // The target (ADR 033, DLP-03) is deploy configuration: the deploy stage writes the origin into preview-origin.json beside
 // the Functions before `wrangler pages deploy`, so the built bundle is never patched. The baked line above stays for
-// deploy-web.yml, which runs beside the new stages until it is removed (DLP-09).
+// preview-api.yml, which still publishes its own preview site (DLP-09: it goes with its replacement).
 import deployConfig from './preview-origin.json' with { type: 'json' };
 
 export const PREVIEW_API_ORIGIN: string | undefined = undefined;

@@ -61,16 +61,18 @@ test('SITE_ORIGIN is set between DATABASE_URL and the ready marker', () => {
   assert.equal(siteStep.env?.RENDER_API_KEY, undefined, 'pull request code runs without the Render key');
 });
 
-test('preview-api and deploy-web bake the upstream with the same script, and deploy-web only reads pull requests', () => {
+test('preview-api bakes the upstream, and the site deploy stage configures it with read-only access and no secret', () => {
   const bakeOf = (job) => stepsOf(job).find((s) => s.run?.includes('scripts/preview/preview.mjs bake'));
   assert.ok(bakeOf(wf.jobs.site));
   assert.equal(wf.jobs.site.permissions['pull-requests'], 'read');
-  const web = parse(readFileSync(path.join(root, '.github/workflows/deploy-web.yml'), 'utf8'));
-  const bake = bakeOf(web.jobs.deploy);
-  assert.ok(bake);
-  assert.equal(bake.run, bakeOf(wf.jobs.site).run);
-  assert.deepEqual(web.jobs.deploy.permissions, { contents: 'read', 'pull-requests': 'read' });
-  assert.ok(!JSON.stringify(bake).includes('secrets.'), 'the bake step holds no secret');
+  const stage = parse(readFileSync(path.join(root, '.github/workflows/stage-deploy.yml'), 'utf8'));
+  const configure = stepsOf(stage.jobs.deploy).find((s) =>
+    s.run?.includes('scripts/preview/preview.mjs config'),
+  );
+  assert.ok(configure, 'the deploy stage writes the preview API origin as deploy configuration');
+  assert.equal(configure.if, "inputs.app == 'site' && inputs.environment == 'preview'");
+  assert.deepEqual(stage.jobs.deploy.permissions, { contents: 'read', 'pull-requests': 'read' });
+  assert.ok(!JSON.stringify(configure).includes('secrets.'), 'the configuration step holds no secret');
 });
 
 test('the Render key is on the Render steps only, never job-wide or next to pull request code', () => {
