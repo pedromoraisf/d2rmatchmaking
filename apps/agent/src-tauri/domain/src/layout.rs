@@ -5,6 +5,7 @@
 //! edge from the centre). A frame outside the supported aspect-ratio range resolves no region, the same as F0's frame of
 //! another size: nothing is read from it.
 
+use crate::remote_config::{Area, Regions};
 use crate::vision::Region;
 
 /// The client size the boxes were measured on (the maintainer's screenshots, 1920×1033).
@@ -120,10 +121,63 @@ pub fn supported_size(width: u32, height: u32) -> bool {
 /// The pixels of `panel` in a client of `width` × `height`, or `None` when the size is not supported or the box does not
 /// resolve on it.
 pub fn panel_region(panel: PanelRegion, width: u32, height: u32) -> Option<Region> {
+    panel_region_with(panel, width, height, &Regions::default())
+}
+
+/// `panel_region` with the areas of the remote configuration: `regions.partyArea` replaces `PartyPanel` when it passes
+/// `configured_or`, and every other panel is the built-in box (RCF-05, RCF-09).
+pub fn panel_region_with(
+    panel: PanelRegion,
+    width: u32,
+    height: u32,
+    regions: &Regions,
+) -> Option<Region> {
     if !supported_size(width, height) {
         return None;
     }
-    panel_box(panel).resolve(width, height)
+    let built_in = panel_box(panel).resolve(width, height)?;
+    Some(match panel {
+        PanelRegion::PartyPanel => configured_or(built_in, regions.party_area, width, height),
+        _ => built_in,
+    })
+}
+
+/// The area a reading takes: the configured fractions of the client when they land inside it and cover no more pixels than
+/// the built-in area at this size, else the built-in area (RCF-05, RCF-09: a configured region never reads more pixels than
+/// its default). Integer arithmetic on the pixel counts, so the boundary is exact; a fraction that is not finite or not in
+/// 0 to 1 makes no region.
+fn configured_or(built_in: Region, area: Option<Area>, width: u32, height: u32) -> Region {
+    let Some(area) = area else {
+        return built_in;
+    };
+    let pixel = |fraction: f64, side: u32| -> Option<u32> {
+        (fraction.is_finite() && (0.0..=1.0).contains(&fraction))
+            .then(|| (fraction * f64::from(side)).round() as u32)
+    };
+    let (Some(x), Some(y), Some(w), Some(h)) = (
+        pixel(area.x, width),
+        pixel(area.y, height),
+        pixel(area.width, width),
+        pixel(area.height, height),
+    ) else {
+        return built_in;
+    };
+    let inside = w >= 1
+        && h >= 1
+        && u64::from(x) + u64::from(w) <= u64::from(width)
+        && u64::from(y) + u64::from(h) <= u64::from(height);
+    let reads = u64::from(w) * u64::from(h);
+    let built_in_reads = u64::from(built_in.width) * u64::from(built_in.height);
+    if inside && reads <= built_in_reads {
+        Region {
+            x,
+            y,
+            width: w,
+            height: h,
+        }
+    } else {
+        built_in
+    }
 }
 
 /// The client's regions the character screens read (CHR-04, CHR-06, CHR-18, CHR-19), measured on the maintainer's
@@ -257,6 +311,27 @@ pub fn selection_band(name: Region, width: u32, height: u32) -> Option<Region> {
 /// The pixels of a screen region in a client of `width` × `height`, or `None` when the size is not supported or the
 /// region does not resolve on it (CHR-19: an unsupported aspect ratio reads nothing).
 pub fn screen_region(region: ScreenRegion, width: u32, height: u32) -> Option<Region> {
+    screen_region_with(region, width, height, &Regions::default())
+}
+
+/// `screen_region` with the areas of the remote configuration: `regions.hudBand` replaces `HudBand` and
+/// `regions.automapArea` replaces `AutomapArea` when they pass `configured_or`; every other region is the built-in one
+/// (RCF-05, RCF-09).
+pub fn screen_region_with(
+    region: ScreenRegion,
+    width: u32,
+    height: u32,
+    regions: &Regions,
+) -> Option<Region> {
+    let built_in = built_in_screen_region(region, width, height)?;
+    Some(match region {
+        ScreenRegion::HudBand => configured_or(built_in, regions.hud_band, width, height),
+        ScreenRegion::AutomapArea => configured_or(built_in, regions.automap_area, width, height),
+        _ => built_in,
+    })
+}
+
+fn built_in_screen_region(region: ScreenRegion, width: u32, height: u32) -> Option<Region> {
     if !supported_size(width, height) {
         return None;
     }
@@ -1230,5 +1305,193 @@ mod pin_remote_config_regions {
         assert_eq!(area(1045), Some(r(1353, 20, 567, 223)));
         assert_eq!(area(1056), Some(r(1348, 20, 572, 225)));
         assert_eq!(area(1080), Some(r(1335, 21, 585, 230)));
+    }
+}
+
+/// remote-config T17: a configured region replaces the built-in one only inside the client and never above its pixels
+/// (RCF-05, RCF-09); with none configured every size reads exactly what `pin_remote_config_regions` pinned.
+#[cfg(test)]
+mod regions_threaded {
+    use super::{
+        PanelRegion, ScreenRegion, panel_region, panel_region_with, screen_region,
+        screen_region_with,
+    };
+    use crate::remote_config::{Area, Regions};
+    use crate::vision::Region;
+
+    const HEIGHTS: [u32; 4] = [1033, 1045, 1056, 1080];
+
+    const fn area(x: f64, y: f64, width: f64, height: f64) -> Area {
+        Area {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    fn pixels(region: Region) -> u64 {
+        u64::from(region.width) * u64::from(region.height)
+    }
+
+    #[test]
+    fn with_nothing_configured_every_region_is_the_built_in_one_at_every_height() {
+        let none = Regions::default();
+        for height in HEIGHTS {
+            for region in [ScreenRegion::HudBand, ScreenRegion::AutomapArea] {
+                assert_eq!(
+                    screen_region_with(region, 1920, height, &none),
+                    screen_region(region, 1920, height),
+                    "{region:?} {height}"
+                );
+            }
+            assert_eq!(
+                panel_region_with(PanelRegion::PartyPanel, 1920, height, &none),
+                panel_region(PanelRegion::PartyPanel, 1920, height),
+                "{height}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_smaller_configured_region_replaces_each_built_in_one_at_every_height() {
+        let regions = Regions {
+            hud_band: Some(area(0.0, 0.8, 0.5, 0.15)),
+            automap_area: Some(area(0.7, 0.02, 0.25, 0.1)),
+            party_area: Some(area(0.0, 0.0, 0.25, 0.25)),
+        };
+        for height in HEIGHTS {
+            let at = |region| screen_region_with(region, 1920, height, &regions).expect("resolves");
+            let band = at(ScreenRegion::HudBand);
+            assert_ne!(
+                Some(band),
+                screen_region(ScreenRegion::HudBand, 1920, height)
+            );
+            assert_eq!(band.x, 0);
+            assert_eq!(band.width, 960);
+            let automap = at(ScreenRegion::AutomapArea);
+            assert_eq!(automap.x, 1344);
+            assert_eq!(automap.width, 480);
+            let party = panel_region_with(PanelRegion::PartyPanel, 1920, height, &regions)
+                .expect("resolves");
+            assert_eq!((party.x, party.y, party.width), (0, 0, 480));
+        }
+    }
+
+    #[test]
+    fn a_region_with_exactly_the_built_in_pixels_is_taken_and_one_pixel_more_is_not() {
+        // The automap area at 1920x1080 is 585 x 230 px; the same pixels as fractions of the client.
+        let exact = area(
+            1335.0 / 1920.0,
+            21.0 / 1080.0,
+            585.0 / 1920.0,
+            230.0 / 1080.0,
+        );
+        let one_more = area(
+            1335.0 / 1920.0,
+            21.0 / 1080.0,
+            586.0 / 1920.0,
+            230.0 / 1080.0,
+        );
+        let built_in = screen_region(ScreenRegion::AutomapArea, 1920, 1080).expect("resolves");
+        let with = |area| {
+            let regions = Regions {
+                automap_area: Some(area),
+                ..Regions::default()
+            };
+            screen_region_with(ScreenRegion::AutomapArea, 1920, 1080, &regions).expect("resolves")
+        };
+        assert_eq!(with(exact), built_in);
+        assert_eq!(pixels(with(exact)), pixels(built_in));
+        // 586 x 230 is larger: the built-in one stays.
+        assert_eq!(with(one_more), built_in);
+        // And a taller one that is also wider than the built-in box is refused at the full client.
+        assert_eq!(with(area(0.0, 0.0, 1.0, 1.0)), built_in);
+    }
+
+    #[test]
+    fn a_region_that_is_larger_outside_or_not_a_fraction_is_the_built_in_one() {
+        for height in HEIGHTS {
+            for bad in [
+                area(0.0, 0.0, 1.0, 1.0),
+                area(0.9, 0.9, 0.5, 0.5),
+                area(f64::NAN, 0.0, 0.1, 0.1),
+                area(0.0, 0.0, f64::INFINITY, 0.1),
+                area(-0.1, 0.0, 0.1, 0.1),
+                area(0.0, 0.0, 0.0, 0.1),
+            ] {
+                let regions = Regions {
+                    hud_band: Some(bad),
+                    automap_area: Some(bad),
+                    party_area: Some(bad),
+                };
+                for region in [ScreenRegion::HudBand, ScreenRegion::AutomapArea] {
+                    assert_eq!(
+                        screen_region_with(region, 1920, height, &regions),
+                        screen_region(region, 1920, height),
+                        "{region:?} {height} {bad:?}"
+                    );
+                }
+                assert_eq!(
+                    panel_region_with(PanelRegion::PartyPanel, 1920, height, &regions),
+                    panel_region(PanelRegion::PartyPanel, 1920, height),
+                    "{height} {bad:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_region_never_reads_more_pixels_than_the_built_in_one_across_sizes() {
+        let candidates = [
+            area(0.0, 0.0, 0.3, 0.3),
+            area(0.5, 0.5, 0.5, 0.5),
+            area(0.0, 0.7, 1.0, 0.3),
+            area(0.0, 0.0, 0.2, 0.05),
+        ];
+        for (width, height) in [(1920, 1033), (1920, 1080), (2560, 1440), (1680, 1050)] {
+            for candidate in candidates {
+                let regions = Regions {
+                    hud_band: Some(candidate),
+                    automap_area: Some(candidate),
+                    party_area: Some(candidate),
+                };
+                for region in [ScreenRegion::HudBand, ScreenRegion::AutomapArea] {
+                    let built_in = screen_region(region, width, height).expect("resolves");
+                    let taken =
+                        screen_region_with(region, width, height, &regions).expect("resolves");
+                    assert!(
+                        pixels(taken) <= pixels(built_in),
+                        "{region:?} {width}x{height}"
+                    );
+                }
+                let built_in =
+                    panel_region(PanelRegion::PartyPanel, width, height).expect("resolves");
+                let taken = panel_region_with(PanelRegion::PartyPanel, width, height, &regions)
+                    .expect("resolves");
+                assert!(pixels(taken) <= pixels(built_in), "party {width}x{height}");
+            }
+        }
+    }
+
+    #[test]
+    fn an_unsupported_size_reads_nothing_whatever_is_configured() {
+        let regions = Regions {
+            hud_band: Some(area(0.0, 0.0, 0.1, 0.1)),
+            automap_area: Some(area(0.0, 0.0, 0.1, 0.1)),
+            party_area: Some(area(0.0, 0.0, 0.1, 0.1)),
+        };
+        assert_eq!(
+            screen_region_with(ScreenRegion::HudBand, 1280, 1024, &regions),
+            None
+        );
+        assert_eq!(
+            screen_region_with(ScreenRegion::AutomapArea, 0, 0, &regions),
+            None
+        );
+        assert_eq!(
+            panel_region_with(PanelRegion::PartyPanel, 1280, 1024, &regions),
+            None
+        );
     }
 }
