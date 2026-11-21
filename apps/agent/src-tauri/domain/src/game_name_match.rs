@@ -781,4 +781,22 @@ mod tests {
             }
         }
     }
+
+    /// Pin before `é` reads as `o` (game-name-reading T10, rule 14): today an `é` is a letter of its own, so a name whose `o`
+    /// was read as `é` is another name.
+    #[test]
+    fn an_e_acute_is_a_letter_of_its_own_today() {
+        assert_eq!(normalise("mmchaosh-20"), "mmchaosh-20");
+        assert_eq!(normalise("mmch\u{e9}osh-20"), "mmch\u{e9}osh-20");
+        assert_eq!(
+            read_field("mmcowsh-38", "mmcowsh-38"),
+            FieldRead::Matched,
+            "the control"
+        );
+        assert_eq!(
+            read_field("mmc\u{e9}wsh-38", "mmcowsh-38"),
+            FieldRead::Other
+        );
+        assert_eq!(normalise("DU\u{c9}L NK"), "du\u{e9}l nk");
+    }
 }
