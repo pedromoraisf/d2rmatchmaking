@@ -11,7 +11,14 @@ import { test } from 'node:test';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const readText = (file) => readFileSync(path.join(root, file), 'utf8');
 const FLAGS = ['VITE_TELEMETRY', 'D2RMM_TELEMETRY'];
-const RELEASE_AND_DEPLOY = ['deploy-api.yml', 'deploy-web.yml', 'release-agent.yml', 'release-please.yml'];
+const RELEASE_AND_DEPLOY = [
+  'deploy-api.yml',
+  'site.yml',
+  'stage-build.yml',
+  'stage-deploy.yml',
+  'release-agent.yml',
+  'release-please.yml',
+];
 
 /** The telemetry switches a workflow's text names, in the order of FLAGS. A word match: a longer name is not a match. */
 function flagsSetIn(text) {

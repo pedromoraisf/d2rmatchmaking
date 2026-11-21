@@ -2,7 +2,7 @@
 # with the tag it created, a maintainer's `agent-v*` tag push starts it, and workflow_dispatch re-runs a failed release. The
 # tag is resolved and validated once, in the first step, and reaches every later step only through `env:`.
 #
-# Order: `build` attaches the installer, latest.json and checksums to the DRAFT release and starts the binary; `sign`
+# Order: `smoke` (the stage workflow `stage-smoke`) wakes the API; `build` attaches the installer, latest.json and checksums to the DRAFT release and starts the binary; `sign`
 # (only when SIGNPATH_ENABLED) replaces them with the signed ones, still in the draft; `publish` checks the assets as a set
 # and the signature, then makes the release public, once. Nothing is public before the last job.
 # See docs/engineering/releases.md.
@@ -32,8 +32,22 @@ permissions:
   contents: read
 
 jobs:
+  # The stage `smoke` (ADR 033, DLP-04, DLP-09): wakes the API (Render's free tier sleeps 30-60 s) and checks /healthz, with
+  # the backoff every other app uses. It comes first because the build's online self-check needs the API awake and gives up
+  # after about 10 s. Any build answers (the agent has no SHA there); it needs no secret and reads the same variable the
+  # build embeds.
+  smoke:
+    name: smoke
+    uses: ./.github/workflows/stage-smoke.yml
+    with:
+      app: agent
+      environment: production
+      sha: ${{ github.sha }}
+      url: ${{ vars.API_BASE_URL }}
+
   build:
     name: build installer
+    needs: smoke
     runs-on: windows-latest
     timeout-minutes: 45
     environment: release
@@ -149,29 +163,6 @@ jobs:
           releaseDraft: true
           includeUpdaterJson: true
           args: --ci -- --locked
-
-      # Render's free tier sleeps after idle and takes 30-60 s to wake; the self-check's own health probe gives up after
-      # about 10 s. Wake the API first, with backoff, and leave the self-check unchanged.
-      - name: Wake the API (Render free tier sleeps)
-        env:
-          API_BASE: ${{ vars.API_BASE_URL }}
-        shell: bash
-        run: |
-          if [ -z "$API_BASE" ]; then
-            echo "::error::the API_BASE_URL variable is empty"
-            exit 1
-          fi
-          deadline=$((SECONDS + 90))
-          delay=2
-          until curl -fsS --max-time 20 "$API_BASE/healthz" > /dev/null; do
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              echo "::error::the API did not wake within 90 s"
-              exit 1
-            fi
-            echo "API not ready, retrying in ${delay}s"
-            sleep "$delay"
-            delay=$((delay * 2 > 15 ? 15 : delay * 2))
-          done
 
       - name: 'Smoke check: the release binary starts (--self-check --online)'
         shell: bash

@@ -59,7 +59,7 @@ export async function healthzAccepts(response, expectedSha) {
 
 /**
  * The checks of one app. `site`: the page and the code signing policy page answer 200 with an HTML body, then the API behind its proxy answers
- * `/api/healthz` ok. `api`: `/healthz` answers the deployed SHA. Returns a list of failure messages (empty = pass).
+ * `/api/healthz` ok. `api`: `/healthz` answers the deployed SHA. `agent`: `/healthz` answers ok, whatever the build. Returns a list of failure messages (empty = pass).
  */
 async function describe(result) {
   if (result.response === undefined) return 'no answer';
@@ -110,6 +110,17 @@ export async function smokeChecks(app, url, sha, io) {
     const health = await wakeAndRead(`${base}/healthz`, { ...asks, accept: (r) => healthzAccepts(r, sha) });
     if (!health.ok)
       failures.push(`${base}/healthz did not answer ok with version ${sha} (${await describe(health)})`);
+  } else if (app === 'agent') {
+    // The agent release needs the API awake for its online self-check; any build answers, so the SHA is not compared.
+    if (base === '') {
+      failures.push('the API base URL is empty, so there is no API to wake');
+    } else {
+      const health = await wakeAndRead(`${base}/healthz`, { ...asks, accept: (r) => healthzAccepts(r) });
+      if (!health.ok)
+        failures.push(
+          `${base}/healthz did not answer ok within ${WAKE_BUDGET_MS / 1000} s (${await describe(health)})`,
+        );
+    }
   } else {
     failures.push(`no smoke checks for app "${app}"`);
   }
