@@ -185,7 +185,10 @@ Then('the agent typed nothing before the modifier keys were released', async ({ 
   expect((await fillOf(world))['typedWhileHeld'], 'characters typed while the keys were held').toBe(0);
 });
 
-Then(/^the agent window says (.+)$/, async ({ world }, saying: string) => {
+// Only the phrases of the assisted-typing scenarios: another feature's own "the agent window says …" step must stay
+// unambiguous (bddgen refuses two definitions for one step).
+const SAYINGS = [...Object.keys(OUTCOME_OF_SAYING), 'the name was typed.*'].join('|');
+Then(new RegExp(`^the agent window says (${SAYINGS})$`), async ({ world }, saying: string) => {
   const saying_ = saying.startsWith('the name was typed') ? 'typed' : undefined;
   const outcome = saying_ ?? OUTCOME_OF_SAYING[saying];
   if (outcome === undefined) throw new Error(`no outcome says "${saying}"`);
