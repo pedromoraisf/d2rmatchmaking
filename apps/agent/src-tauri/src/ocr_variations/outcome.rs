@@ -68,14 +68,16 @@ fn verdict_owned(outcome: Outcome, reason: String) -> Verdict {
 /// The verdict of an image whose size the layout does not support.
 pub const UNSUPPORTED_SIZE: Verdict = verdict(Outcome::Refused, "unsupported-size");
 
-/// A character of a read as it may be printed in a reason: `[a-z0-9 -]` as is, any other ASCII character as `?`. A character
-/// outside ASCII (an engine's stand-in for a glyph it did not know) stays as it is here and `codepoints` turns it into its
-/// `U+XXXX`. Used only against a generated game name or the public Party room name, never in a chat reason.
+/// A character of a read as it may be printed in a reason: `[a-z0-9 -]` as is. Any other ASCII character (a letter of a
+/// generated name read as punctuation, `sub(U+F07E>o)@5`) becomes the private-use character `U+F000` plus its code, so that
+/// `codepoints` prints which ASCII glyph it was (`U+F07E` is `~`) without a bracket or comma of the operation syntax being
+/// mistaken for one. A character outside ASCII (an engine's stand-in for a glyph it did not know) stays as it is here and
+/// `codepoints` turns it into its `U+XXXX`. Used only against a generated game name or the public Party room name, never in a chat reason.
 fn field_glyph(c: char) -> char {
     if c.is_ascii_lowercase() || c.is_ascii_digit() || c == ' ' || c == '-' {
         c
     } else if c.is_ascii() {
-        '?'
+        char::from_u32(0xF000 + u32::from(c)).unwrap_or('?')
     } else {
         c
     }
@@ -1193,17 +1195,21 @@ mod tests {
     }
 
     #[test]
-    fn a_read_outside_ascii_prints_as_its_code_point_and_other_punctuation_as_a_question_mark() {
+    fn a_read_outside_ascii_prints_as_its_code_point_and_other_ascii_as_a_private_use_code() {
         assert_eq!(
             other_reason(&["mmbaa\u{e5}h-19"], "mmbaalh-19"),
             "field-other-1-edit:sub(U+00E5>l)@5"
         );
         assert_eq!(
             other_reason(&["mmbaa?h-19"], "mmbaalh-19"),
-            "field-other-1-edit:sub(?>l)@5"
+            "field-other-1-edit:sub(U+F03F>l)@5"
+        );
+        assert_eq!(
+            other_reason(&["mmbaa~h-19"], "mmbaalh-19"),
+            "field-other-1-edit:sub(U+F07E>l)@5"
         );
         assert_eq!(field_glyph('-'), '-');
-        assert_eq!(field_glyph('Z'), '?');
+        assert_eq!(field_glyph('Z'), '\u{f05a}');
     }
 
     #[test]
