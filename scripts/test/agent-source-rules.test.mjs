@@ -256,6 +256,50 @@ const clippyAllowViolations = (base) =>
         `${rel} allows clippy::disallowed_methods: the agent sends no input to any window (AST-13)`,
     );
 
+// The clipboard (AST-14, ADR 010). The agent writes the game name to it from one adapter file and reads it nowhere: any name
+// that writes the clipboard sits in `src/adapters/clipboard.rs` alone, no file names one that reads it, the window code
+// touches no clipboard, and the window's capability grants no clipboard permission.
+const CLIPBOARD_ADAPTER = 'src/adapters/clipboard.rs';
+const CLIPBOARD_WRITE_NAMES =
+  /\b(?:OpenClipboard|EmptyClipboard|SetClipboardData|CloseClipboard|write_text|write_html|write_image|set_text|set_image|clipboard_manager|ClipboardExt|tauri_plugin_clipboard_manager|arboard|clipboard_win)\b/;
+const CLIPBOARD_READ_NAMES =
+  /\b(?:GetClipboardData|GetClipboardOwner|GetClipboardSequenceNumber|IsClipboardFormatAvailable|EnumClipboardFormats|AddClipboardFormatListener|SetClipboardViewer|read_text|read_html|read_image|get_text|get_image)\b/;
+
+const clipboardViolations = (base) =>
+  rustFiles(base).flatMap(({ rel, text }) => {
+    const code = withoutComments(text);
+    const found = [];
+    if (rel !== CLIPBOARD_ADAPTER && CLIPBOARD_WRITE_NAMES.test(code)) {
+      found.push(`${rel} writes the clipboard, and only ${CLIPBOARD_ADAPTER} may`);
+    }
+    if (CLIPBOARD_READ_NAMES.test(code)) {
+      found.push(`${rel} reads the clipboard: the agent only writes it`);
+    }
+    return found;
+  });
+
+const clipboardWindowViolations = (base) => {
+  const windowDir = path.join(base, 'apps/agent/src');
+  const sources = existsSync(windowDir)
+    ? readdirSync(windowDir, { recursive: true })
+        .map((entry) => entry.split(path.sep).join('/'))
+        .filter((rel) => /\.tsx?$/.test(rel) && !/\.test\.tsx?$/.test(rel))
+        .map((rel) => ({
+          rel: `apps/agent/src/${rel}`,
+          text: readFileSync(path.join(windowDir, rel), 'utf8'),
+        }))
+    : [];
+  const capability = crateFile(base, 'capabilities/main.json') ?? '';
+  return [
+    ...sources
+      .filter(({ text }) => /clipboard/i.test(text))
+      .map(({ rel }) => `${rel} names the clipboard: the window asks the agent to copy, it never touches it`),
+    ...(/clipboard/i.test(capability)
+      ? ['capabilities/main.json grants a clipboard permission: the agent copies from Rust alone']
+      : []),
+  ];
+};
+
 const instrumentViolations = (base) =>
   rustFiles(base).flatMap(({ rel, text }) =>
     [...text.matchAll(/#\[\s*(?:tracing::)?instrument\b([^\]]*)\]/g)]
@@ -587,6 +631,26 @@ test('the keyboard-and-mouse windows feature is off the allow-list (AST-13)', ()
     windowsFeatureViolations(fixtureBase('windows-feature-keyboard')).join('\n'),
     /windows feature Win32_UI_Input_KeyboardAndMouse is not on the allow-list/,
   );
+});
+
+test('the agent writes the clipboard from one adapter file and reads it nowhere', () => {
+  assert.deepEqual(clipboardViolations(root), []);
+  assert.deepEqual(clipboardWindowViolations(root), []);
+});
+
+test('the clipboard rule rejects a write outside the adapter, a read anywhere and the window touching it', () => {
+  const outside = clipboardViolations(fixtureBase('clipboard-write-outside')).join('\n');
+  assert.match(
+    outside,
+    /src\/adapters\/window_capture\.rs writes the clipboard, and only src\/adapters\/clipboard\.rs may/,
+  );
+  assert.match(outside, /core\/src\/leak\.rs writes the clipboard/);
+  const read = clipboardViolations(fixtureBase('clipboard-read')).join('\n');
+  assert.match(read, /src\/adapters\/clipboard\.rs reads the clipboard: the agent only writes it/);
+  assert.doesNotMatch(read, /writes the clipboard/, 'the adapter itself may write');
+  const window = clipboardWindowViolations(fixtureBase('clipboard-window')).join('\n');
+  assert.match(window, /apps\/agent\/src\/app\/Copy\.tsx names the clipboard/);
+  assert.match(window, /capabilities\/main\.json grants a clipboard permission/);
 });
 
 test('the windows feature rule rejects a feature off the list', () => {
