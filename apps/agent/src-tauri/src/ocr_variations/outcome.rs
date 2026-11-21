@@ -1118,4 +1118,24 @@ mod tests {
             "the candidates of the other language do not count"
         );
     }
+
+    /// Pin (rule 14, before `classify_chat` accepts both classes): a print whose file names a class, and a print holding
+    /// both classes, stay Refused with the reason the classifier gives today.
+    #[test]
+    fn a_chat_print_holding_both_classes_is_refused_when_the_file_names_a_class() {
+        use crate::ocr_check::{ChatClass, ChatExpectation, PrintLanguage, chat_reading};
+        let both = chat_reading(&[lines(&["Bob joined our world", "Eve left our world"])]);
+        for class in [ChatClass::Joined, ChatClass::Left] {
+            assert_eq!(
+                classify_chat(
+                    &both,
+                    ChatExpectation {
+                        language: PrintLanguage::English,
+                        class: Some(class)
+                    }
+                ),
+                verdict(Outcome::Refused, "chat-both-classes")
+            );
+        }
+    }
 }
