@@ -1526,6 +1526,27 @@ mod name_line_tests {
         }
     }
 
+    /// T11 pin (rule 14): before the shape test learns to read through the spaces the engine puts inside a name, the lines
+    /// that are not a name stay refused with spaces in them, and the whole line is still tried before its end.
+    #[test]
+    fn pin_before_the_spacing_rule_spaced_lines_that_are_no_name_stay_refused() {
+        for text in [
+            "mm baalh",
+            "Game: mm baalh-",
+            "mm  -19",
+            "xx baalh-19",
+            "Game: mm baalh-1 x9",
+            "Dificuldade: Inferno 19",
+            "Level 88",
+        ] {
+            assert_eq!(found(&[drawn(text, 1033)]), None, "{text:?}");
+        }
+        assert_eq!(
+            found(&[drawn("Game: mmbaalh-19", 1033)]).as_deref(),
+            Some("mmbaalh-19")
+        );
+    }
+
     #[test]
     fn the_first_line_from_the_top_is_the_one() {
         let lines = [
