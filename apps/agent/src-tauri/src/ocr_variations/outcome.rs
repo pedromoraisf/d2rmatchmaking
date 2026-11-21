@@ -1257,6 +1257,14 @@ mod tests {
             reason(pt, "Qxz Vwk entr0u em nosso mundo"),
             "chat-no-phrase:sub(0>o)@4"
         );
+        // A name that ends in the phrase's first two letters, with the rest of the phrase lost: the stretch would begin
+        // inside the name and print its letters, so there are no operations.
+        assert_eq!(reason(en, "Qxjoab ed our world"), "chat-no-phrase");
+        // The same stretch after a space is the phrase's own and still prints.
+        assert_eq!(
+            reason(en, "Qxjoab joaned our world"),
+            "chat-no-phrase:sub(a>i)@2"
+        );
         // A start lost in the name (the `j` dropped) would need the window to begin inside it: no operations.
         assert_eq!(reason(en, "Joe ined our world"), "chat-no-phrase");
         assert_eq!(reason(en, "Qxz Vwk oined our world"), "chat-no-phrase");

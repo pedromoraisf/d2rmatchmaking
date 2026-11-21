@@ -270,8 +270,9 @@ fn substitutions(window: &[char], part: &[char], offset: usize) -> Option<String
 /// The substitutions of the stretch of `line` that is the misread part of `phrase` (a candidate of `language`), or `None`.
 /// A read character is printed only from the phrase's own span, never from the text before it where a player's name sits:
 /// - the line ends with the phrase's exact tail (`ourworld`, `nossomundo`): the stretch just before it as long as the rest of
-///   the phrase is compared with that rest, whose first two characters must be exact (so no character of the text before the
-///   phrase can fall on a printed position);
+///   the phrase is compared with that rest, whose first two characters must be exact, and which must begin at the line's
+///   start, after whitespace or after a non-alphanumeric character (so no character of the text before the phrase, a name
+///   included, can fall on a printed position);
 /// - or the line holds the phrase's exact rest right before its last characters: those last characters are compared with the
 ///   tail. They follow the rest, so the name (which precedes it) is never among them.
 ///
@@ -281,10 +282,33 @@ fn nearest_phrase_ops(language: PrintLanguage, line: &str, phrase: &str) -> Opti
     let phrase_chars: Vec<char> = phrase.chars().collect();
     let rest_len = phrase_chars.len().checked_sub(tail.len())?;
     let (rest, want_tail) = phrase_chars.split_at(rest_len);
-    let chars: Vec<char> = line.chars().collect();
+    // The line without its whitespace and lower-cased (as `compact`), with for each character whether whitespace or the line's
+    // start came right before it.
+    let mut chars: Vec<char> = Vec::new();
+    let mut after_gap: Vec<bool> = Vec::new();
+    let mut gap = true;
+    for c in line.chars() {
+        if c.is_whitespace() {
+            gap = true;
+        } else {
+            for lower in c.to_lowercase() {
+                chars.push(lower);
+                after_gap.push(gap);
+                gap = false;
+            }
+        }
+    }
     if chars.ends_with(want_tail) {
         let before = chars.len() - tail.len();
         let start = before.checked_sub(rest_len)?;
+        // The stretch must begin where the phrase begins: at the line's start, after whitespace, or after a character that is
+        // no letter or digit. Otherwise it may begin inside a player's name (one that ends in the phrase's first letters), and a
+        // character of the name could print as a substitution.
+        let begins_the_phrase =
+            start == 0 || after_gap[start] || !chars[start - 1].is_alphanumeric();
+        if !begins_the_phrase {
+            return None;
+        }
         let window = &chars[start..before];
         return if window.len() >= 2 && window[..2] == rest[..2] {
             substitutions(window, rest, 0)
@@ -333,9 +357,10 @@ pub fn chat_reading(variants: &[Vec<TextLine>]) -> ChatReading {
                 .filter(|(l, _, _)| *l == language)
                 .flat_map(|(_, _, phrase)| {
                     let phrase = compact(phrase);
-                    variants.iter().flatten().filter_map(move |line| {
-                        nearest_phrase_ops(language, &compact(&line.text), &phrase)
-                    })
+                    variants
+                        .iter()
+                        .flatten()
+                        .filter_map(move |line| nearest_phrase_ops(language, &line.text, &phrase))
                 })
                 .min_by_key(|ops| ops.matches("sub(").count());
             if let Some(ops) = near {
