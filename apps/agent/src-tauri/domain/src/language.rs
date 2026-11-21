@@ -5,6 +5,7 @@
 use std::collections::BTreeMap;
 
 use crate::characters::{Class, Difficulty, Title};
+use crate::remote_config::Phrases;
 use crate::vocabulary::{edit_distance, nearest, squash, threshold};
 
 /// The Party panel's title word.
@@ -176,6 +177,37 @@ impl LanguagePack {
     /// The pack tried when this one finds no Party panel, if any.
     pub fn fallback(&self) -> Option<&LanguagePack> {
         self.fallback.as_deref()
+    }
+
+    /// This pack with the Party words of the remote configuration (`phrases.<tag>.party`, `gameName`, `password`): the words
+    /// of the language whose tag the pack has replace the pack's, key by key, and a word that is absent or blank stays what
+    /// the pack holds. The fallback pack is treated the same with its own tag. Only these three keys can change, every other
+    /// word is untouched, and each configured word is a literal compared by the pack's own rules, never a pattern (RCF-05,
+    /// RCF-10). A pack of a tag the configuration does not name is returned as it is.
+    #[must_use]
+    pub fn with_phrases(&self, phrases: &Phrases) -> Self {
+        let words = match self.tag.as_str() {
+            "en" => Some(&phrases.en),
+            "pt-BR" => Some(&phrases.pt_br),
+            _ => None,
+        };
+        let mut pack = self.clone();
+        if let Some(words) = words {
+            for (key, word) in [
+                (PARTY, &words.party),
+                (GAME_NAME, &words.game_name),
+                (PASSWORD, &words.password),
+            ] {
+                if let Some(word) = word.as_deref().filter(|word| !word.trim().is_empty()) {
+                    pack.words.insert(key.to_string(), word.to_string());
+                }
+            }
+        }
+        pack.fallback = self
+            .fallback
+            .as_deref()
+            .map(|fallback| Box::new(fallback.with_phrases(phrases)));
+        pack
     }
 
     /// A pack from its tag and its words. The tag must not be empty; every required key must hold a word, and no word may be
@@ -631,5 +663,131 @@ mod tests {
             !english.is_word("Party", "level"),
             "a missing key matches nothing"
         );
+    }
+}
+
+/// remote-config T18: the Party words of the configuration replace the pack's, key by key, and nothing else.
+#[cfg(test)]
+mod phrases_threaded {
+    use super::{GAME_NAME, LIFE, LanguagePack, PARTY, PASSWORD};
+    use crate::remote_config::{Phrases, Words};
+
+    fn brazilian() -> LanguagePack {
+        let mut words: Vec<(String, String)> = LanguagePack::english().words.into_iter().collect();
+        for (key, word) in [(PARTY, "Grupo"), (GAME_NAME, "Nome"), (PASSWORD, "Senha")] {
+            words.retain(|(held, _)| held != key);
+            words.push((key.to_string(), word.to_string()));
+        }
+        LanguagePack::from_words("pt-BR", words).expect("the pack builds")
+    }
+
+    fn pack() -> LanguagePack {
+        LanguagePack::english().with_fallback(brazilian())
+    }
+
+    fn words(party: &str, game_name: &str, password: &str) -> Words {
+        Words {
+            party: Some(party.to_string()),
+            game_name: Some(game_name.to_string()),
+            password: Some(password.to_string()),
+        }
+    }
+
+    #[test]
+    fn nothing_configured_is_the_same_pack() {
+        assert_eq!(pack().with_phrases(&Phrases::default()), pack());
+    }
+
+    #[test]
+    fn the_english_words_replace_the_english_pack_and_not_its_fallback() {
+        let phrases = Phrases {
+            en: words("Group", "Game Title", "Secret"),
+            pt_br: Words::default(),
+        };
+        let configured = pack().with_phrases(&phrases);
+        assert_eq!(configured.word(PARTY), Some("Group"));
+        assert_eq!(configured.word(GAME_NAME), Some("Game Title"));
+        assert_eq!(configured.word(PASSWORD), Some("Secret"));
+        let fallback = configured.fallback().expect("the fallback stays");
+        assert_eq!(fallback, &brazilian());
+    }
+
+    #[test]
+    fn the_portuguese_words_replace_only_the_fallback() {
+        let phrases = Phrases {
+            en: Words::default(),
+            pt_br: words("Grupo novo", "Nome novo", "Senha nova"),
+        };
+        let configured = pack().with_phrases(&phrases);
+        assert_eq!(configured.word(PARTY), Some("Party"));
+        let fallback = configured.fallback().expect("the fallback stays");
+        assert_eq!(fallback.word(PARTY), Some("Grupo novo"));
+        assert_eq!(fallback.word(GAME_NAME), Some("Nome novo"));
+        assert_eq!(fallback.word(PASSWORD), Some("Senha nova"));
+    }
+
+    #[test]
+    fn a_word_that_is_absent_or_blank_stays_the_packs() {
+        let phrases = Phrases {
+            en: Words {
+                party: Some("Group".to_string()),
+                game_name: Some("   ".to_string()),
+                password: None,
+            },
+            pt_br: Words::default(),
+        };
+        let configured = pack().with_phrases(&phrases);
+        assert_eq!(configured.word(PARTY), Some("Group"));
+        assert_eq!(configured.word(GAME_NAME), Some("Game Name"));
+        assert_eq!(configured.word(PASSWORD), Some("Password"));
+    }
+
+    #[test]
+    fn only_the_three_party_keys_can_change_and_the_tag_stays() {
+        let phrases = Phrases {
+            en: words("A", "B", "C"),
+            pt_br: words("D", "E", "F"),
+        };
+        let configured = pack().with_phrases(&phrases);
+        let built_in = pack();
+        assert_eq!(configured.tag(), "en");
+        assert_eq!(configured.word(LIFE), built_in.word(LIFE));
+        let changed: Vec<&String> = configured
+            .words
+            .iter()
+            .filter(|(key, word)| built_in.words.get(*key) != Some(word))
+            .map(|(key, _)| key)
+            .collect();
+        assert_eq!(changed, [GAME_NAME, PARTY, PASSWORD]);
+    }
+
+    #[test]
+    fn a_pack_of_another_tag_is_returned_as_it_is() {
+        let spanish = LanguagePack::from_words(
+            "es",
+            LanguagePack::english()
+                .words
+                .into_iter()
+                .collect::<Vec<_>>(),
+        )
+        .expect("the pack builds");
+        let phrases = Phrases {
+            en: words("A", "B", "C"),
+            pt_br: words("D", "E", "F"),
+        };
+        assert_eq!(spanish.with_phrases(&phrases), spanish);
+    }
+
+    #[test]
+    fn a_configured_word_is_read_as_a_literal_by_the_packs_rules() {
+        let phrases = Phrases {
+            en: words("Group", "Game Title", "Secret"),
+            pt_br: Words::default(),
+        };
+        let configured = pack().with_phrases(&phrases);
+        assert!(configured.is_word("Group", PARTY));
+        assert!(!configured.is_word("Party", PARTY));
+        // A pattern-looking read is not a match: nothing is interpreted.
+        assert!(!configured.is_word("G.*p", PARTY));
     }
 }
