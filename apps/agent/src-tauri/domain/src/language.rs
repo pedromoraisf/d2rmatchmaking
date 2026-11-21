@@ -179,10 +179,10 @@ impl LanguagePack {
         self.fallback.as_deref()
     }
 
-    /// This pack with the Party words of the remote configuration (`phrases.<tag>.party`, `gameName`, `password`): the words
-    /// of the language whose tag the pack has replace the pack's, key by key, and a word that is absent or blank stays what
-    /// the pack holds. The fallback pack is treated the same with its own tag. Only these three keys can change, every other
-    /// word is untouched, and each configured word is a literal compared by the pack's own rules, never a pattern (RCF-05,
+    /// This pack with the words of the remote configuration (`phrases.<tag>.party`, `gameName`, `password`, and the chat
+    /// phrases `joinedGame`, `leftGame`): the words of the language whose tag the pack has replace the pack's, key by key, and
+    /// a word that is absent or blank stays what the pack holds. The fallback pack is treated the same with its own tag. Only
+    /// these five keys can change, every other word is untouched, and each configured word is a literal compared by the pack's own rules, never a pattern (RCF-05,
     /// RCF-10). A pack of a tag the configuration does not name is returned as it is.
     #[must_use]
     pub fn with_phrases(&self, phrases: &Phrases) -> Self {
@@ -197,6 +197,8 @@ impl LanguagePack {
                 (PARTY, &words.party),
                 (GAME_NAME, &words.game_name),
                 (PASSWORD, &words.password),
+                (JOINED_GAME, &words.joined_game),
+                (LEFT_GAME, &words.left_game),
             ] {
                 if let Some(word) = word.as_deref().filter(|word| !word.trim().is_empty()) {
                     pack.words.insert(key.to_string(), word.to_string());
@@ -684,7 +686,7 @@ mod tests {
 /// remote-config T18: the Party words of the configuration replace the pack's, key by key, and nothing else.
 #[cfg(test)]
 mod phrases_threaded {
-    use super::{GAME_NAME, LIFE, LanguagePack, PARTY, PASSWORD};
+    use super::{GAME_NAME, JOINED_GAME, LEFT_GAME, LIFE, LanguagePack, PARTY, PASSWORD};
     use crate::remote_config::{Phrases, Words};
 
     fn brazilian() -> LanguagePack {
@@ -776,6 +778,62 @@ mod phrases_threaded {
             .map(|(key, _)| key)
             .collect();
         assert_eq!(changed, [GAME_NAME, PARTY, PASSWORD]);
+    }
+
+    fn chat(joined: Option<&str>, left: Option<&str>) -> Words {
+        Words {
+            joined_game: joined.map(str::to_string),
+            left_game: left.map(str::to_string),
+            ..Words::default()
+        }
+    }
+
+    /// remote-config T26: the chat phrases of the configuration replace the pack's, per language, and `chat.rs`'s existing
+    /// rules compare them as literals.
+    #[test]
+    fn the_chat_phrases_replace_the_packs_in_each_language_and_chat_reads_them() {
+        use crate::chat::{ChatEvent, classify};
+        let phrases = Phrases {
+            en: chat(Some("entered the realm"), Some("quit the realm")),
+            pt_br: chat(Some("chegou ao mundo"), None),
+        };
+        let configured = pack().with_phrases(&phrases);
+        assert_eq!(configured.word(JOINED_GAME), Some("entered the realm"));
+        assert_eq!(configured.word(LEFT_GAME), Some("quit the realm"));
+        assert_eq!(
+            classify(&configured, "Bob entered the realm"),
+            Some((ChatEvent::Joined, "Bob".to_string()))
+        );
+        assert_eq!(
+            classify(&configured, "Bob quit the realm"),
+            Some((ChatEvent::Left, "Bob".to_string()))
+        );
+        assert_eq!(classify(&configured, "Bob joined our world"), None);
+        let fallback = configured.fallback().expect("the fallback stays");
+        assert_eq!(fallback.word(JOINED_GAME), Some("chegou ao mundo"));
+        assert_eq!(
+            classify(fallback, "Bob chegou ao mundo"),
+            Some((ChatEvent::Joined, "Bob".to_string()))
+        );
+        assert_eq!(
+            fallback.word(LEFT_GAME),
+            brazilian().word(LEFT_GAME),
+            "an absent phrase stays the pack's"
+        );
+    }
+
+    #[test]
+    fn a_blank_chat_phrase_stays_the_packs_and_a_pattern_is_a_literal() {
+        use crate::chat::classify;
+        let phrases = Phrases {
+            en: chat(Some("  "), Some(".* our world")),
+            pt_br: Words::default(),
+        };
+        let configured = pack().with_phrases(&phrases);
+        assert_eq!(configured.word(JOINED_GAME), pack().word(JOINED_GAME));
+        assert_eq!(configured.word(LEFT_GAME), Some(".* our world"));
+        assert_eq!(classify(&configured, "Bob left our world"), None);
+        assert_eq!(classify(&configured, "Bob x our world"), None);
     }
 
     #[test]
