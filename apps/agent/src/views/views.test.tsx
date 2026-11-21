@@ -324,6 +324,8 @@ describe('capture diagnostics', () => {
     windowWidth: 1936,
     windowHeight: 1095,
     party: { panelOpen: true, field: 'masked', matched: false },
+    method: 'print-window',
+    readRatePercent: 97,
   };
   const renderCapture = (overrides: Partial<CaptureDiagnostics> = {}, translate = en) =>
     render(
@@ -424,6 +426,41 @@ describe('capture diagnostics', () => {
     expect(screen.getByText('Campo do grupo, leitura mais próxima: sub(l>9)@9')).toBeTruthy();
   });
 
+  it('shows the capture method and the usable share', () => {
+    renderCapture({ method: 'graphics-capture', readRatePercent: 88 });
+
+    expect(screen.getByText('Capture method: Graphics capture')).toBeTruthy();
+    expect(screen.getByText('Usable frames: 88%')).toBeTruthy();
+  });
+
+  it('names each method and says None when no method gave a frame', () => {
+    renderCapture({ method: 'screen-crop' });
+    expect(screen.getByText('Capture method: Screen crop')).toBeTruthy();
+    cleanup();
+    renderCapture({ method: 'none' });
+    expect(screen.getByText('Capture method: None')).toBeTruthy();
+    expect(screen.queryByText(/Usable frames/)).toBeNull();
+  });
+
+  it('says the capture shows nothing, even before any frame was read', () => {
+    const seen: CaptureDiagnostics = {
+      ...capture,
+      method: 'none',
+      readRatePercent: 0,
+      blank: true,
+      reason: 'nothing',
+    };
+    render(<DiagnosticsView diagnostics={null} capture={seen} translate={en} />);
+
+    expect(screen.getByText('The capture shows nothing: no capture method gave a usable frame')).toBeTruthy();
+    expect(screen.getByText('Capture method: None')).toBeTruthy();
+  });
+
+  it('shows nothing without diagnostics and without a capture', () => {
+    const { container } = render(<DiagnosticsView diagnostics={null} translate={en} />);
+    expect(container.innerHTML).toBe('');
+  });
+
   it('shows no capture lines before the first frame', () => {
     render(<DiagnosticsView diagnostics={diagnostics} translate={en} />);
 
@@ -431,7 +468,9 @@ describe('capture diagnostics', () => {
   });
 
   it('is translated to pt-BR', () => {
-    renderCapture({ blank: true }, ptBR);
+    renderCapture({ blank: true, method: 'graphics-capture' }, ptBR);
+
+    expect(screen.getByText('Método de captura: Captura gráfica')).toBeTruthy();
 
     expect(screen.getByText('Janela (com bordas): 1936×1095')).toBeTruthy();
     expect(screen.getByText('Conteúdo do quadro: vazio (brilho 87)')).toBeTruthy();

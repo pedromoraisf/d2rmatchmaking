@@ -1,0 +1,34 @@
+{
+  "height": 1111,
+  "client": {
+    "x": 0,
+    "y": 31,
+    "width": 1920,
+    "height": 1080
+  },
+  "chrome": [
+    {
+      "text": "Diablo II: Resurrected",
+      "x": 8,
+      "y": 4,
+      "width": 320,
+      "height": 22
+    }
+  ],
+  "lines": [
+    {
+      "text": "Life: 925 / 925",
+      "x": 436,
+      "y": 880,
+      "width": 170,
+      "height": 22
+    },
+    {
+      "text": "Mana: 400 / 400",
+      "x": 1500,
+      "y": 880,
+      "width": 170,
+      "height": 22
+    }
+  ]
+}

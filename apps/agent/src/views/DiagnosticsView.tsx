@@ -16,12 +16,13 @@ interface DiagnosticsViewProps {
 }
 
 export function DiagnosticsView({ diagnostics, capture, translate }: DiagnosticsViewProps) {
-  if (diagnostics === null) {
+  // A game that runs and gives no frame has no read to show, but the capture still has something to say (CAP-02).
+  if (diagnostics === null && capture === undefined) {
     return null;
   }
   const heading = translate('diagnostics.heading');
   const labels = [
-    ...diagnosticsLabels(diagnostics),
+    ...(diagnostics === null ? [] : diagnosticsLabels(diagnostics)),
     ...(capture === undefined ? [] : captureLabels(capture)),
   ];
   return (

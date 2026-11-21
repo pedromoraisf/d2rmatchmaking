@@ -76,6 +76,16 @@
         "far": "Campo do grupo, leitura mais próxima: distante",
         "same": "Campo do grupo, leitura mais próxima: igual após normalizar"
       }
+    },
+    "capture": {
+      "method": {
+        "printWindow": "Método de captura: Impressão da janela",
+        "graphicsCapture": "Método de captura: Captura gráfica",
+        "screenCrop": "Método de captura: Recorte da tela",
+        "none": "Método de captura: Nenhum"
+      },
+      "rate": "Quadros utilizáveis: {{percent}}%",
+      "nothing": "A captura não mostra nada: nenhum método de captura deu um quadro utilizável"
     }
   },
   "fill": {

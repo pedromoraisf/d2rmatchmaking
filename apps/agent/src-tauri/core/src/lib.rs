@@ -3,6 +3,7 @@
 
 pub mod automap_name;
 pub mod beat;
+pub mod capturer;
 pub mod chat_step;
 pub mod check_update;
 pub mod config;
