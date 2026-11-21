@@ -80,6 +80,19 @@ impl ChatTracker {
     /// The events of the lines of one frame that were not in the previous frame, in the order the lines come. Lines no pack
     /// classifies are not events. The frame replaces the previous one.
     pub fn next(&mut self, packs: &[&LanguagePack], lines: &[&str]) -> Vec<ChatEvent> {
+        self.next_named(packs, lines)
+            .into_iter()
+            .map(|(event, _)| event)
+            .collect()
+    }
+
+    /// `next` with the name each new line says: the same events in the same order, each with the name as the line reads. The
+    /// name is for the one caller that posts it (server-name-match); nothing here logs or counts it.
+    pub fn next_named(
+        &mut self,
+        packs: &[&LanguagePack],
+        lines: &[&str],
+    ) -> Vec<(ChatEvent, String)> {
         let mut now: BTreeMap<String, usize> = BTreeMap::new();
         let mut events = Vec::new();
         for line in lines {
@@ -91,9 +104,9 @@ impl ChatTracker {
             *seen += 1;
             let before = self.previous.get(&key).copied().unwrap_or(0);
             if *seen > before
-                && let Some((event, _)) = classify_any(packs, line)
+                && let Some(named) = classify_any(packs, line)
             {
-                events.push(event);
+                events.push(named);
             }
         }
         self.previous = now;
@@ -372,6 +385,40 @@ mod tests {
         assert_eq!(
             super::classify_any(&[&en, &pt], "Bob saiu de nosso mundo"),
             Some((ChatEvent::Left, "Bob".to_string()))
+        );
+    }
+
+    #[test]
+    fn next_named_gives_the_same_events_with_the_names_in_the_same_order() {
+        let pack = english();
+        let mut named = ChatTracker::default();
+        let mut plain = ChatTracker::default();
+        let frames: [&[&str]; 3] = [
+            &["Bob joined our world", "Eve left our world"],
+            &[
+                "Bob joined our world",
+                "Eve left our world",
+                "Eve left our world",
+            ],
+            &["Bob: hi", "Hammer joined our world"],
+        ];
+        let mut seen = Vec::new();
+        for lines in frames {
+            let with_names = named.next_named(&[&pack], lines);
+            let events: Vec<ChatEvent> = with_names.iter().map(|(event, _)| *event).collect();
+            assert_eq!(events, plain.next(&[&pack], lines));
+            seen.push(with_names);
+        }
+        assert_eq!(
+            seen,
+            vec![
+                vec![
+                    (ChatEvent::Joined, "Bob".to_string()),
+                    (ChatEvent::Left, "Eve".to_string())
+                ],
+                vec![(ChatEvent::Left, "Eve".to_string())],
+                vec![(ChatEvent::Joined, "Hammer".to_string())],
+            ]
         );
     }
 }

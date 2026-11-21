@@ -1,8 +1,8 @@
 //! The chat step (design.md § The chat; GNR-07, GNR-10). While the agent holds a room, each captured frame's chat band is
 //! read, and the lines that say a player joined or left are told from the lines of the frame before: a line that stays on
-//! screen counts once. The events are counted with a fixed word (`joined` or `left`) and posted by nobody: no observation,
-//! no name, no text leaves the process, and no name is logged or put in a span or a label. A later feature
-//! (`server-name-match`) reads these events when it owns the contract. The OCR runs on a blocking thread.
+//! screen counts once. The events are counted with a fixed word (`joined` or `left`) and never logged: no name is logged
+//! or put in a span or a label here. `look_named` also hands the name to
+//! `chat_post` (`server-name-match`), the one step that posts it. The OCR runs on a blocking thread.
 
 use std::sync::Arc;
 
@@ -21,6 +21,20 @@ pub async fn look<G>(
     ports: &PartyPorts<G>,
     frame: Arc<Rgba>,
 ) -> Vec<ChatEvent> {
+    look_named(device, ports, frame)
+        .await
+        .into_iter()
+        .map(|(event, _)| event)
+        .collect()
+}
+
+/// `look` with the name of each new line, for the one step that posts it (`chat_post`, server-name-match). The name is
+/// handed over in memory and never logged, counted or put in a span here.
+pub async fn look_named<G>(
+    device: &DeviceState,
+    ports: &PartyPorts<G>,
+    frame: Arc<Rgba>,
+) -> Vec<(ChatEvent, String)> {
     if device.assignment.borrow().current().is_none() {
         device.with_chat(|tracker| tracker.reset());
         return Vec::new();
@@ -41,9 +55,9 @@ pub async fn look<G>(
     let span = tracing::info_span!("agent.vision.read-chat", events = tracing::field::Empty);
     let _entered = span.enter();
     let texts: Vec<&str> = lines.iter().map(|line| line.text.as_str()).collect();
-    let events = device.with_chat(|tracker| tracker.next(&packs, &texts));
+    let events = device.with_chat(|tracker| tracker.next_named(&packs, &texts));
     span.record("events", events.len());
-    for event in &events {
+    for (event, _) in &events {
         tracing::info!(kind = event.kind(), "agent.vision.chat_events");
     }
     events
@@ -60,7 +74,7 @@ mod tests {
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
     use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 
-    use super::look;
+    use super::{look, look_named};
     use crate::device_state::DeviceState;
     use crate::event_probe::EventProbe;
     use crate::fakes::{FakeApiGateway, MemoryTokens, NullSink};
@@ -329,5 +343,22 @@ mod tests {
             "Bob joined our world",
         ]);
         assert_eq!(look_at(&rig).await, [ChatEvent::Joined]);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn look_named_gives_the_names_of_the_new_lines_and_look_keeps_its_events() {
+        let rig = rig();
+        hold_a_room(&rig);
+        rig.chat
+            .say(&["Zzyzx joined our world", "Eve left our world"]);
+        let named = look_named(&rig.device, &rig.ports, Arc::new(frame(1920, 1033))).await;
+        assert_eq!(
+            named,
+            [
+                (ChatEvent::Joined, "Zzyzx".to_string()),
+                (ChatEvent::Left, "Eve".to_string())
+            ]
+        );
+        assert!(look_at(&rig).await.is_empty(), "both read the same tracker");
     }
 }

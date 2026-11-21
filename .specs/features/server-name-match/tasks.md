@@ -47,7 +47,7 @@ Rules:
 
 ## Batch 2 — agent (after `game-name-reading` is merged)
 
-- [ ] T7a — **[R14]** Name-carrying chat events. `ChatTracker::next` and `chat_step::look` drop the player name, so first pin
+- [x] T7a — **[R14]** Name-carrying chat events. `ChatTracker::next` and `chat_step::look` drop the player name, so first pin
       both at the points to be touched with tests (values from the drawn chat fixtures), then, in one commit, add
       `ChatTracker::next_named -> Vec<(ChatEvent, String)>` (with `next` mapping over it) and `chat_step::look_named`.
       The existing behaviour stays identical: same events, same order, same already-seen logic. The real-print proof
