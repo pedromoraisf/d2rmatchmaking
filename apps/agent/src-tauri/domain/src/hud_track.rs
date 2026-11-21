@@ -6,6 +6,7 @@
 
 use crate::anchors::padded;
 use crate::layout::{REFERENCE_HEIGHT, ScreenRegion, screen_region};
+use crate::remote_config::Ranges;
 use crate::vision::Region;
 
 /// How far around the remembered line the tracking box reaches, in pixels of the reference client: enough for the value
@@ -79,12 +80,20 @@ impl Tracker {
     /// The area to read on a frame of `width` × `height`. `None` when the size has no area. A label seen in a client of
     /// another size is forgotten: its box does not apply.
     pub fn next(&self, width: u32, height: u32) -> Option<TrackRead> {
+        self.next_padded(width, height, TRACK_PAD)
+    }
+
+    /// `next` with the tracking padding `track_pad` (`thresholds.trackPad`, pixels of the reference client) in place of the
+    /// built-in one. The agent's own range (`Ranges::TRACK_PAD`) clamps it here too, so the padding never leaves it whatever
+    /// the caller passes.
+    pub fn next_padded(&self, width: u32, height: u32, track_pad: u32) -> Option<TrackRead> {
         let area = screen_region(self.search, width, height)?;
         match self.seen {
             Some((line, seen_width, seen_height))
                 if (seen_width, seen_height) == (width, height) =>
             {
-                let pad = (u64::from(TRACK_PAD) * u64::from(height) / u64::from(REFERENCE_HEIGHT))
+                let track_pad = Ranges::TRACK_PAD.clamp(f64::from(track_pad));
+                let pad = (u64::from(track_pad) * u64::from(height) / u64::from(REFERENCE_HEIGHT))
                     .max(1) as u32;
                 Some(TrackRead::Track(padded(line, pad, width, height)))
             }
@@ -343,5 +352,62 @@ mod pin_track_pad {
                 "{height}"
             );
         }
+    }
+}
+
+/// remote-config T16: the tracking padding of `thresholds.trackPad` reaches `Tracker`, clamped to the agent's own range.
+#[cfg(test)]
+mod track_pad_threaded {
+    use super::{TRACK_PAD, TrackRead, Tracker};
+    use crate::layout::ScreenRegion;
+    use crate::vision::Region;
+
+    const fn r(x: u32, y: u32, width: u32, height: u32) -> Region {
+        Region {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    fn tracked(height: u32) -> Tracker {
+        let mut tracker = Tracker::new(ScreenRegion::HudBand);
+        tracker.record(Some(r(430, 860, 150, 20)), 1920, height);
+        tracker
+    }
+
+    #[test]
+    fn the_built_in_padding_gives_the_same_box_as_next_at_every_client_height() {
+        for height in [1033, 1045, 1056, 1080] {
+            let tracker = tracked(height);
+            assert_eq!(
+                tracker.next_padded(1920, height, TRACK_PAD),
+                tracker.next(1920, height),
+                "{height}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_padding_moves_the_box_inside_the_agents_range_and_never_outside_it() {
+        let tracker = tracked(1033);
+        let at = |pad| tracker.next_padded(1920, 1033, pad);
+        assert_eq!(at(8), Some(TrackRead::Track(r(422, 852, 166, 36))));
+        assert_eq!(at(48), Some(TrackRead::Track(r(382, 812, 246, 116))));
+        // Under the floor and over the ceiling the range holds, whatever the caller passes.
+        assert_eq!(at(0), at(8));
+        assert_eq!(at(7), at(8));
+        assert_eq!(at(49), at(48));
+        assert_eq!(at(u32::MAX), at(48));
+    }
+
+    #[test]
+    fn a_searching_tracker_ignores_the_padding() {
+        let tracker = Tracker::new(ScreenRegion::HudBand);
+        assert_eq!(
+            tracker.next_padded(1920, 1033, 48),
+            tracker.next(1920, 1033)
+        );
     }
 }
