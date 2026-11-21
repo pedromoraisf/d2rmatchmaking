@@ -139,7 +139,6 @@ async function roomIsClosedBy(alice: Bot): Promise<void> {
 function configFor(inputs: Record<string, string>): Record<string, unknown> {
   return {
     apiUrl: base,
-    expectedUrl: base,
     siteOrigin: SITE_ORIGIN,
     environment: undefined,
     runId: '7777',

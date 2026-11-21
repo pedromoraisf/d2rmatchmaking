@@ -48,7 +48,8 @@ So the server already has everything a bot needs. **This feature adds no server 
     An input outside its set SHALL fail the run before any request.
 - **SBT-02** — The script SHALL refuse a target that is not staging, before it makes any write:
   - the API origin comes only from the `staging` environment's variable `STAGING_API_URL` (never from an input, so a
-    dispatcher cannot type a URL), and the script SHALL refuse an origin that is not exactly that value;
+    dispatcher cannot type a URL), and the script SHALL refuse a value that is not an https origin (loopback http is
+    allowed for tests);
   - it SHALL call `GET /v1/config` first and exit non-zero unless `stagingEndpoints` is `true`;
   - it SHALL exit non-zero when the environment says `D2RMM_ENV=production`.
     Every refusal SHALL name the reason and make no request other than `/healthz` and `/v1/config`.

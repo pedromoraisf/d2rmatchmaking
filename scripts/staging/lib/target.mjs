@@ -27,22 +27,19 @@ function originOf(value, what) {
 
 /**
  * Refuses every target that is not the staging API.
- * @param {{ apiUrl: string | undefined, expectedUrl: string | undefined, environment: string | undefined, fetch: typeof fetch }} input
- *   `apiUrl` is the target; `expectedUrl` is the `STAGING_API_URL` variable of the `staging` environment; `environment` is
+ * @param {{ apiUrl: string | undefined, environment: string | undefined, fetch: typeof fetch }} input
+ *   `apiUrl` is the target, taken from the `staging` environment's `STAGING_API_URL` (never an input); `environment` is
  *   `D2RMM_ENV` as the process sees it.
  * @returns {Promise<{ origin: string, minAgentVersion: string }>}
  */
-export async function assertStaging({ apiUrl, expectedUrl, environment, fetch: send }) {
+export async function assertStaging({ apiUrl, environment, fetch: send }) {
   if (environment === 'production') {
     throw new TargetRefusal('D2RMM_ENV is production: the bots never run there');
   }
-  if (apiUrl === undefined || expectedUrl === undefined || apiUrl === '' || expectedUrl === '') {
+  if (apiUrl === undefined || apiUrl === '') {
     throw new TargetRefusal('STAGING_API_URL is not set: the target comes only from the staging environment');
   }
   const origin = originOf(apiUrl, 'the API URL');
-  if (origin !== originOf(expectedUrl, 'STAGING_API_URL')) {
-    throw new TargetRefusal("the API URL is not the staging environment's STAGING_API_URL");
-  }
   let config;
   try {
     const health = await send(`${origin}/healthz`, { method: 'GET', redirect: 'error' });

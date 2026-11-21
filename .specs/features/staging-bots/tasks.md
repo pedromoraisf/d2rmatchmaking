@@ -72,5 +72,5 @@ Rules:
 
 ## Review
 
-- [ ] T12 — Security review of the spec's threat model and of the diff before the PR merges (ADR 029). The gate is the
-      reviewer's verdict: `VERDICT PASS`.
+- [x] T12 — Security review of the spec's threat model and of the diff before the PR merges (ADR 029). The gate is the
+      reviewer's verdict: `VERDICT PASS`. Done: architecture and security both PASS on PR #123 (the review comments there).

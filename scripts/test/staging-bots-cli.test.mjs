@@ -6,7 +6,6 @@ import { createFakeApi } from './staging-fake-api.mjs';
 const API = 'https://d2rmm-api.example.com';
 const config = (extra = {}) => ({
   apiUrl: API,
-  expectedUrl: API,
   siteOrigin: 'https://site.example.com',
   environment: undefined,
   runId: '4242',
@@ -97,9 +96,9 @@ test('SBT-02 a production-shaped API is refused and nothing but /healthz and /v1
   );
 });
 
-test('SBT-02 a URL that is not the staging variable is refused with no request at all', async () => {
+test('SBT-02 a URL that is not an https origin is refused with no request at all', async () => {
   const fake = createFakeApi();
-  const { code } = await runWith(fake, { top: { apiUrl: 'https://other.example.com' } });
+  const { code } = await runWith(fake, { top: { apiUrl: 'http://other.example.com' } });
   assert.equal(code, 2);
   assert.equal(fake.calls.length, 0);
 });

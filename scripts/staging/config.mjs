@@ -4,8 +4,6 @@
 export function readConfig(env = process.env) {
   return {
     apiUrl: env.STAGING_API_URL,
-    // The target is checked against the same variable: the target comes only from the `staging` environment (SBT-02).
-    expectedUrl: env.STAGING_API_URL,
     siteOrigin: env.SITE_ORIGIN,
     environment: env.D2RMM_ENV,
     summaryPath: env.GITHUB_STEP_SUMMARY,

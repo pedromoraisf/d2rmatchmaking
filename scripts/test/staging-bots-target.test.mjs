@@ -15,7 +15,7 @@ function api({ stagingEndpoints = true, status = 200 } = {}) {
   return { fetch, seen };
 }
 
-const input = (extra = {}) => ({ apiUrl: API, expectedUrl: API, environment: undefined, ...extra });
+const input = (extra = {}) => ({ apiUrl: API, environment: undefined, ...extra });
 
 test('SBT-02 a staging API passes, after only /healthz and /v1/config', async () => {
   const fake = api();
@@ -32,22 +32,9 @@ test('SBT-02 a production-shaped API (stagingEndpoints false) is refused', async
   );
 });
 
-test('SBT-02 a URL that is not the environment variable is refused before any request', async () => {
-  const fake = api();
-  await assert.rejects(
-    assertStaging(input({ apiUrl: 'https://prod.example.com', fetch: fake.fetch })),
-    TargetRefusal,
-  );
-  assert.deepEqual(fake.seen, []);
-});
-
 test('SBT-02 an unset variable, a path, and a plain-http remote host are refused', async () => {
   const fake = api();
-  for (const bad of [
-    { expectedUrl: undefined },
-    { apiUrl: `${API}/v1`, expectedUrl: `${API}/v1` },
-    { apiUrl: 'http://x.example.com', expectedUrl: 'http://x.example.com' },
-  ]) {
+  for (const bad of [{ apiUrl: undefined }, { apiUrl: `${API}/v1` }, { apiUrl: 'http://x.example.com' }]) {
     await assert.rejects(assertStaging(input({ ...bad, fetch: fake.fetch })), TargetRefusal);
   }
   assert.deepEqual(fake.seen, []);

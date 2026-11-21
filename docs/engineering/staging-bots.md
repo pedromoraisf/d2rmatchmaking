@@ -11,7 +11,8 @@ Spec: `.specs/features/staging-bots/spec.md` (SBT-01 to SBT-13, with the threat 
 
 - The workflow takes the API from the `staging` environment's variable `STAGING_API_URL`, never from an input.
 - The script calls `GET /v1/config` first and stops unless the API says `stagingEndpoints: true`. It also stops on
-  `D2RMM_ENV=production` and on any URL that is not exactly `STAGING_API_URL`. It makes no write before these checks.
+  `D2RMM_ENV=production` and on a URL that is not an https origin. The gate is `/v1/config` saying `stagingEndpoints: true`,
+  not the name of the host. It makes no write before these checks.
 - The server has no bot route. Bots use the staging-only test sign-in (`POST /v1/auth/test-login`), which a production API
   answers with 404; `staging-bots-production.int.test.ts` proves it, and fails if a staging-only route is added unlisted.
 - Bots never sign in through Battle.net and hold no secret. The `staging` environment needs two **variables** (not secrets):
