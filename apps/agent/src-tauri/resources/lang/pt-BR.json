@@ -3,6 +3,8 @@
   "words": {
     "party": "Grupo",
     "gameName": "Nome",
-    "password": "Senha"
+    "password": "Senha",
+    "joinedGame": "entrou em nosso mundo",
+    "leftGame": "saiu de nosso mundo"
   }
 }

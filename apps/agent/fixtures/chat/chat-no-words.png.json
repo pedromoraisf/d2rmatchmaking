@@ -1,0 +1,19 @@
+{
+  "height": 1033,
+  "lines": [
+    {
+      "height": 18,
+      "text": "Bob: hello there",
+      "width": 530,
+      "x": 24,
+      "y": 656
+    },
+    {
+      "height": 18,
+      "text": "Eve: ready when you are",
+      "width": 530,
+      "x": 24,
+      "y": 770
+    }
+  ]
+}

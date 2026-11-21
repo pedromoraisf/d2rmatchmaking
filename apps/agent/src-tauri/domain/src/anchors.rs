@@ -6,6 +6,7 @@
 //! No I/O, no clock, no randomness.
 
 use crate::characters::Difficulty;
+use crate::game_name_match::normalise;
 use crate::language::{
     CREATE_NEW, DIFFICULTY_LABEL, GAME_NAME, LIFE, LanguagePack, MANA, PASSWORD, SELECT_DIFFICULTY,
     TAB_OFFLINE, TAB_ONLINE,
@@ -315,6 +316,64 @@ pub fn find_automap(pack: &LanguagePack, lines: &[TextLine]) -> Option<Region> {
 /// The automap's label line in any variant's lines: the first variant that found one gives its box.
 pub fn find_automap_in_variants(pack: &LanguagePack, variants: &[Vec<TextLine>]) -> Option<Region> {
     variants.iter().find_map(|lines| find_automap(pack, lines))
+}
+
+/// A line of the automap's text column that shows a game name (GNR-06): where the line sits and the text that has the shape of
+/// a generated name, which is the whole line or only its end.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NameLine {
+    /// The box of the whole line in the frame.
+    pub region: Region,
+    /// The text that parsed as a name: the line, the text after its last `:` or `;`, or its last word, in that order of
+    /// preference. Matched against the room's name by `game_name_match`, and never logged or sent.
+    pub text: String,
+}
+
+/// Whether `text` has the shape of a generated game name once normalised: `mm`, letters, `-`, digits (ADR 017). Only the
+/// shape; whether it is the room's name is `game_name_match`'s rule.
+fn has_name_shape(text: &str) -> bool {
+    // The engine may space a name it reads (`mm baalh-19`); a generated name holds no space, so they go before the shape test,
+    // as `game_name_match::read_field` drops them before the comparison.
+    let normal = normalise(&text.split_whitespace().collect::<String>());
+    let Some((letters, digits)) = normal.rsplit_once('-') else {
+        return false;
+    };
+    let kind = letters.strip_prefix("mm");
+    kind.is_some_and(|kind| !kind.is_empty() && kind.chars().all(|c| c.is_ascii_lowercase()))
+        && !digits.is_empty()
+        && digits.chars().all(|c| c.is_ascii_digit())
+}
+
+/// The text of a line that has the shape of a name: the whole line first, then what follows its last `:` or `;` (the automap
+/// writes `<label>: <name>` on one line and the engine may keep the label glued to the name), then its last word.
+fn name_in_line(text: &str) -> Option<String> {
+    let after_label = text.rsplit([':', ';']).next().unwrap_or(text);
+    let last_word = text.split_whitespace().next_back().unwrap_or("");
+    [text, after_label, last_word]
+        .into_iter()
+        .map(str::trim)
+        .find(|candidate| has_name_shape(candidate))
+        .map(str::to_string)
+}
+
+/// The first line of `lines` (top to bottom) that shows a game name, found anywhere in the top-right band
+/// (`ScreenRegion::AutomapName`): the automap shows the name on one line with its label, so there is no word to anchor on and
+/// the line is found by the shape of its text.
+pub fn find_name_line(lines: &[TextLine]) -> Option<NameLine> {
+    top_down(lines).into_iter().find_map(|line| {
+        Some(NameLine {
+            region: line.region,
+            text: name_in_line(&line.text)?,
+        })
+    })
+}
+
+/// The name line of each variant that has one, in the variants' order.
+pub fn find_name_line_in_variants(variants: &[Vec<TextLine>]) -> Vec<NameLine> {
+    variants
+        .iter()
+        .filter_map(|lines| find_name_line(lines))
+        .collect()
 }
 
 /// Whether a line of the popup area is the popup's title.
@@ -1339,5 +1398,228 @@ mod hud_tests {
         let variants = [vec![], vec![line("Life: 9 / 9", 400, 826)]];
         assert!(find_hud_in_variants(&english, &variants).is_some());
         assert_eq!(find_hud_in_variants(&english, &[vec![], vec![]]), None);
+    }
+}
+
+/// ocr-protection (game-name-reading T4): the automap's difficulty marker and the lines of the top-right column as they read
+/// before `find_name_line` joins them. A line that is only a game name is not the marker, and a name beside the label does
+/// not change the marker's box. These pass on the code as it was.
+#[cfg(test)]
+mod pin_before_name_line {
+    use super::find_automap;
+    use crate::language::LanguagePack;
+    use crate::vision::{Region, TextLine};
+
+    fn line(text: &str, x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: text.to_string(),
+            region: Region {
+                x,
+                y,
+                width: 160,
+                height: 14,
+            },
+        }
+    }
+
+    #[test]
+    fn a_game_name_alone_is_not_the_automap_marker() {
+        let english = LanguagePack::english();
+        for text in ["mmbaalh-19", "Game: mmbaalh-19", "mmchaosh-20"] {
+            assert_eq!(
+                find_automap(&english, &[line(text, 1735, 34)]),
+                None,
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_marker_is_found_beside_a_name_line_and_keeps_its_own_box() {
+        let english = LanguagePack::english();
+        let lines = [
+            line("Game: mmbaalh-19", 1735, 34),
+            line("Difficulty: Hell", 1750, 52),
+        ];
+        assert_eq!(find_automap(&english, &lines), Some(lines[1].region));
+    }
+}
+
+/// game-name-reading T4: the name line of the automap, by the shape of its text, at the sizes the maintainer plays at.
+#[cfg(test)]
+mod name_line_tests {
+    use super::{find_name_line, find_name_line_in_variants};
+    use crate::layout::{ScreenRegion, screen_region};
+    use crate::vision::{Region, TextLine};
+
+    fn line(text: &str, x: u32, y: u32, width: u32, height: u32) -> TextLine {
+        TextLine {
+            text: text.to_string(),
+            region: Region {
+                x,
+                y,
+                width,
+                height,
+            },
+        }
+    }
+
+    fn found(lines: &[TextLine]) -> Option<String> {
+        find_name_line(lines).map(|found| found.text)
+    }
+
+    /// A line drawn at the measured position of the English print (1920x1033: x 1735, y 34, 155x13) scaled to `height`.
+    fn drawn(text: &str, height: u32) -> TextLine {
+        let at = |reference: u32| reference * height / 1033;
+        line(text, 1735, at(34), 155, at(13).max(1))
+    }
+
+    #[test]
+    fn the_name_is_found_at_each_height_inside_the_band() {
+        for height in [1033, 1045, 1056, 1080] {
+            let band =
+                screen_region(ScreenRegion::AutomapName, 1920, height).expect("the band resolves");
+            for text in ["mmbaalh-19", "Game: mmbaalh-19", "Nome do Jogo: mmbaalh-19"] {
+                let lines = [drawn(text, height)];
+                let named = find_name_line(&lines).expect("the name line is found");
+                assert_eq!(named.region, lines[0].region);
+                assert_eq!(named.text, "mmbaalh-19");
+                let region = named.region;
+                assert!(
+                    band.x <= region.x && region.bottom() <= band.bottom(),
+                    "{height}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_whole_line_is_tried_before_its_end() {
+        assert_eq!(
+            found(&[drawn("mmchaosh-20", 1045)]).as_deref(),
+            Some("mmchaosh-20")
+        );
+        assert_eq!(
+            found(&[drawn(" mmpvpn-3 ", 1033)]).as_deref(),
+            Some("mmpvpn-3")
+        );
+    }
+
+    #[test]
+    fn a_label_glued_to_the_name_is_cut_at_the_last_colon_semicolon_or_word() {
+        for text in [
+            "Game Name: mmbaalh-19",
+            "Game Name; mmbaalh-19",
+            "Game Name:mmbaalh-19",
+            "Nome do Jogo: mmbaalh-19",
+            "label label mmbaalh-19",
+            "a: b: mmbaalh-19",
+        ] {
+            assert_eq!(
+                found(&[drawn(text, 1045)]).as_deref(),
+                Some("mmbaalh-19"),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_name_reads_through_the_glyph_table_not_through_an_edit_distance() {
+        // `B` read as 8 and the O as @: the shape test uses `normalise`, as the match does.
+        assert!(found(&[drawn("Game: mm8aalh-19", 1033)]).is_some());
+        assert!(found(&[drawn("Game: mmch@osh-20", 1033)]).is_some());
+        // The last digit of the Portuguese print read as `9a`: a letter in the run number is not a name (glyphs: T10).
+        assert_eq!(found(&[drawn("aaaa: mmchaosh-9a", 1045)]), None);
+    }
+
+    #[test]
+    fn other_lines_of_the_column_are_not_names() {
+        for text in [
+            "Difficulty: Hell",
+            "Dificuldade: Inferno",
+            "Rogue Encampment",
+            "Level 88",
+            "mm-19",
+            "mmbaalh-",
+            "mmbaalh",
+            "xxbaalh-19",
+            "mmbaalh-1x9",
+            "",
+        ] {
+            assert_eq!(found(&[drawn(text, 1033)]), None, "{text:?}");
+        }
+    }
+
+    /// T11 pin (rule 14): before the shape test learns to read through the spaces the engine puts inside a name, the lines
+    /// that are not a name stay refused with spaces in them, and the whole line is still tried before its end.
+    #[test]
+    fn pin_before_the_spacing_rule_spaced_lines_that_are_no_name_stay_refused() {
+        for text in [
+            "mm baalh",
+            "Game: mm baalh-",
+            "mm  -19",
+            "xx baalh-19",
+            "Game: mm baalh-1 x9",
+            "Dificuldade: Inferno 19",
+            "Level 88",
+        ] {
+            assert_eq!(found(&[drawn(text, 1033)]), None, "{text:?}");
+        }
+        assert_eq!(
+            found(&[drawn("Game: mmbaalh-19", 1033)]).as_deref(),
+            Some("mmbaalh-19")
+        );
+    }
+
+    /// T11 (GNR-06): the engine spaced the name on the automap (`automap-other-spacing`: 29 of 500 variations of the English
+    /// print, 10 of the Portuguese). The line is still the name line, and the room's match decides whether it is the room's.
+    #[test]
+    fn a_name_the_engine_spaced_is_still_a_name_line() {
+        for text in [
+            "mm baalh-19",
+            "mmbaalh - 19",
+            "Game: mm baalh-19",
+            "Nome do Jogo: mmbaalh - 19",
+            "mm baalh -19",
+        ] {
+            let named = find_name_line(&[drawn(text, 1033)]).unwrap_or_else(|| panic!("{text}"));
+            assert_eq!(
+                crate::game_name_match::read_field(&named.text, "mmbaalh-19"),
+                crate::game_name_match::FieldRead::Matched,
+                "{text}"
+            );
+            assert_eq!(
+                crate::game_name_match::read_field(&named.text, "mmbaalh-18"),
+                crate::game_name_match::FieldRead::Other,
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_first_line_from_the_top_is_the_one() {
+        let lines = [
+            line("Game: mmcowsh-5", 1735, 60, 155, 13),
+            line("Game: mmbaalh-19", 1735, 34, 155, 13),
+            line("Difficulty: Hell", 1750, 52, 150, 16),
+        ];
+        assert_eq!(found(&lines).as_deref(), Some("mmbaalh-19"));
+        assert_eq!(found(&[]), None);
+    }
+
+    #[test]
+    fn each_variant_that_has_a_name_gives_one() {
+        let variants = [
+            vec![line("aaaa: aaaaaaaa-9a", 1728, 46, 166, 15)],
+            vec![line("mmbaalh-19", 1728, 46, 166, 15)],
+            vec![],
+            vec![line("Game: mmbaalh-18", 1728, 46, 166, 15)],
+        ];
+        let names: Vec<String> = find_name_line_in_variants(&variants)
+            .into_iter()
+            .map(|named| named.text)
+            .collect();
+        assert_eq!(names, ["mmbaalh-19", "mmbaalh-18"]);
+        assert!(find_name_line_in_variants(&[vec![], vec![]]).is_empty());
     }
 }

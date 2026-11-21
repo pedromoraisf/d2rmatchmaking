@@ -66,6 +66,25 @@ function showPanel(world: World, field: string): void {
   setPartyPanel(png, { gameNameField: field });
 }
 
+/**
+ * What the Party steps hold for the scenario, for the steps of other features that drive the same headless agent
+ * (game-name-reading): the agent, its fixture directory (removed after the scenario) and the Party fixture's picture.
+ */
+export function partyAgentOf(world: World): { agent: HeadlessAgent; dir: string; png: string } {
+  const { agent, dir, png } = stateOf(world);
+  if (agent === undefined || dir === undefined || png === undefined) {
+    throw new Error(
+      'the agent\'s Party step is not running: "Alice\'s agent has capture consent" was not given',
+    );
+  }
+  return { agent, dir, png };
+}
+
+/** The game name of the host's room. */
+export function roomNameOfHost(world: World): string {
+  return roomOfHost(world).gameName;
+}
+
 // Scenario set: the agent gives the host's agent capture consent and pairs the example as that agent (AGN-01).
 Given(/^(.+)'s agent has capture consent$/, async ({ world }, name: string) => {
   test.setTimeout(START_TIMEOUT_MS);
@@ -124,8 +143,8 @@ Then(/^the agent tells the player "(.+)"$/, async ({ world }, text: string) => {
   await requireAgent(world).waitFor('reveal', 10_000, (item) => item['text'] === text);
 });
 
-// Closes the example and removes its fixture directory after each agent-game-name scenario.
-After({ tags: '@AGN-03 or @AGN-04' }, async ({ world }) => {
+// Closes the example and removes its fixture directory after each agent-game-name scenario (and each game-name-reading one).
+After({ tags: '@AGN-03 or @AGN-04 or @GNR-02 or @GNR-06' }, async ({ world }) => {
   const state = states.get(world);
   await state?.agent?.stop();
   if (state?.dir !== undefined) {

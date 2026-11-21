@@ -1,8 +1,10 @@
 //! Agent core: every rule the agent follows, behind ports. No Tauri, no Cargo features (AGS-01).
 #![forbid(unsafe_code)]
 
+pub mod automap_name;
 pub mod beat;
 pub mod capturer;
+pub mod chat_step;
 pub mod check_update;
 pub mod config;
 pub mod device_state;

@@ -17,6 +17,8 @@ const ALLOWED_FIELDS = new Set([
   // agent-trust AGT-07: a bool and a fixed FieldState code (notRead, empty, masked, text).
   'panel_open',
   'field',
+  // game-name-reading GNR-07, GNR-10: the count of new joined and left chat lines, never a line or a name.
+  'events',
   'screen',
   'cards',
   'vision.screen',
