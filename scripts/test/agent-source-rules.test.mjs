@@ -550,23 +550,40 @@ const codeOnly = (text) =>
     .replace(/\/\/[^\n]*/g, '')
     .replace(/"(?:[^"\\]|\\.)*"/g, '""');
 
+// The rule runs over every `.rs` file of the app crate (`src/**`): a safe-looking call in any other file would go unseen. The
+// window-scoped forms (`CreateForWindow`, `GetDC` on a window) are allowed only in the two capture adapters. The OCR engine's
+// `TryCreateFromLanguage` is not a capture item and is allowed only in its own adapter.
+const OCR_ADAPTER = 'src/adapters/windows_ocr.rs';
+const OCR_CONSTRUCTORS = ['TryCreateFromLanguage', 'TryCreateFromUserProfileLanguages'];
+// Screen device contexts by name: `GetDCEx` and `CreateDCW` reach the screen or any display, whatever their arguments.
+const SCREEN_DC_BY_NAME = ['GetDCEx', 'CreateDCW', 'CreateDCA'];
+
 const captureScopeViolations = (base) =>
-  CAPTURE_ADAPTERS.flatMap((rel) => {
-    const text = crateFile(base, rel);
-    if (text === undefined) return [];
-    const code = codeOnly(text);
-    return [
-      ...BANNED_CAPTURE_CALLS.filter((name) => new RegExp(`\\b${name}\\b`).test(code)).map(
-        (name) => `${rel} uses ${name}, which reaches beyond the game window`,
-      ),
-      ...(SCREEN_DC.test(code) ? [`${rel} calls GetDC on the screen, not on the game window`] : []),
-      ...[...code.matchAll(/\b(CreateFor\w+|TryCreateFrom\w+)\b/g)]
-        .map((match) => match[1])
-        .filter((name) => name !== 'CreateForWindow')
-        .filter((name, index, all) => all.indexOf(name) === index)
-        .map((name) => `${rel} uses ${name}; CreateForWindow is the only capture item constructor`),
-    ];
-  });
+  rustFiles(base)
+    .filter(({ rel }) => rel.startsWith('src/'))
+    .flatMap(({ rel, text }) => {
+      const inAdapter = CAPTURE_ADAPTERS.includes(rel);
+      const code = codeOnly(text);
+      return [
+        ...[...BANNED_CAPTURE_CALLS, ...SCREEN_DC_BY_NAME]
+          .filter((name) => new RegExp(`\\b${name}\\b`).test(code))
+          .map((name) => `${rel} uses ${name}, which reaches beyond the game window`),
+        ...(SCREEN_DC.test(code) ? [`${rel} calls GetDC on the screen, not on the game window`] : []),
+        ...(!inAdapter && /\bGetDC\b/.test(code)
+          ? [`${rel} calls GetDC outside the two capture adapters`]
+          : []),
+        ...[...code.matchAll(/\b(CreateFor\w+|TryCreateFrom\w+)\b/g)]
+          .map((match) => match[1])
+          .filter((name) => !(OCR_CONSTRUCTORS.includes(name) && rel === OCR_ADAPTER))
+          .filter((name) => !(name === 'CreateForWindow' && inAdapter))
+          .filter((name, index, all) => all.indexOf(name) === index)
+          .map((name) =>
+            name === 'CreateForWindow'
+              ? `${rel} uses CreateForWindow outside the two capture adapters`
+              : `${rel} uses ${name}; CreateForWindow is the only capture item constructor`,
+          ),
+      ];
+    });
 
 const fixtureBase = (name) => path.join(root, 'scripts/test/fixtures/agent-rules', name);
 
@@ -790,6 +807,17 @@ test('the capture scope rule rejects a screen device context and any other item 
     captureScopeViolations(fixtureBase('capture-scope-CreateForOther')).join('\n'),
     /graphics_capture\.rs uses CreateForSomething; CreateForWindow is the only capture item constructor/,
   );
+});
+
+test('the capture scope rule runs over every app-crate file, not only the two adapters (CAP-04)', () => {
+  const violations = captureScopeViolations(fixtureBase('capture-scope-other-file')).join('\n');
+  assert.match(
+    violations,
+    /src\/other\.rs uses TryCreateFromDisplayId, which reaches beyond the game window/,
+  );
+  assert.match(violations, /src\/other\.rs uses GetDCEx, which reaches beyond the game window/);
+  assert.match(violations, /src\/other\.rs calls GetDC outside the two capture adapters/);
+  assert.match(violations, /src\/other\.rs uses CreateForWindow outside the two capture adapters/);
 });
 
 test('the capture scope rule accepts CreateForWindow and GetDC on the game window (CAP-04)', () => {
