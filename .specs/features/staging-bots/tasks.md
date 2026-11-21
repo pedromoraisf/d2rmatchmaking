@@ -44,7 +44,7 @@ Rules:
 
 ## Batch 2 — Proof against the real app
 
-- [ ] T6 — API integration test `apps/api/src/main/__tests__/staging-bots.int.test.ts`: starts the real app with
+- [x] T6 — API integration test `apps/api/src/main/__tests__/staging-bots.int.test.ts`: starts the real app with
       `stagingEndpoints: true`; one bot and one test player form a duel, the bot accepts, posts its observation, the room
       reaches `active`, the bot leaves, and no token of the run authenticates after (SBT-05, SBT-06, SBT-07, SBT-10).
       A second case starts 7 bots for a Leveling group with a test player. Gate:
