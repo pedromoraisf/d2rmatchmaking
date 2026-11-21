@@ -40,16 +40,14 @@ mod tests {
 
     use super::{shipped, shipped_english, shipped_portuguese};
 
-    /// Pin for the consolidation (rule 14): the shipped Portuguese file holds the words and the two chat phrases that
-    /// `LanguagePack::brazilian_party()` held in code, exactly.
+    /// The shipped Portuguese file holds the Party words and the two chat phrases that were once held in code (rule 14).
     #[test]
     fn the_portuguese_file_holds_the_party_words_and_the_chat_phrases_of_the_brazilian_pack() {
         let file = shipped_portuguese().expect("the Brazilian file parses");
-        let code = LanguagePack::brazilian_party();
         assert_eq!(file.tag(), "pt-BR");
-        for key in [PARTY, GAME_NAME, PASSWORD, JOINED_GAME, LEFT_GAME] {
-            assert_eq!(file.word(key), code.word(key), "{key}");
-        }
+        assert_eq!(file.word(PARTY), Some("Grupo"));
+        assert_eq!(file.word(GAME_NAME), Some("Nome"));
+        assert_eq!(file.word(PASSWORD), Some("Senha"));
         assert_eq!(file.word(JOINED_GAME), Some("entrou em nosso mundo"));
         assert_eq!(file.word(LEFT_GAME), Some("saiu de nosso mundo"));
     }

@@ -132,7 +132,7 @@ failure message carries a name read from a real print.
       name line on the automap at 1920×1033, 1920×1045 and 1920×1080; the chat area's box; and the fixed phrases of the
       joined and left messages in English and Portuguese (game text, not a player name). If the Mac cannot read the prints,
       the first `ocr-real` diagnostics give the geometry.
-- [ ] O2 — After T6 merges into the branch: add `domain/src/chat.rs`, `core/src/automap_name.rs` and
+- [x] O2 — After T6 merges into the branch: add `domain/src/chat.rs`, `core/src/automap_name.rs` and
       `core/src/chat_step.rs` to `scripts/agent/reading-modules.json` (`examine_globs` already covers `domain/src/**` and
       `core/src/**`). The gate asks; the maintainer answers. Gate: `pnpm test:harness`
 

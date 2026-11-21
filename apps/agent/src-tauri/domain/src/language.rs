@@ -35,7 +35,7 @@ pub const TAB_ONLINE: &str = "tabOnline";
 pub const TAB_OFFLINE: &str = "tabOffline";
 
 /// The fixed phrase of the chat line that says a player joined the game ("<name> joined our world"), GNR-07. Measured on the
-/// maintainer's chat prints by `ocr-real` (English; the Portuguese phrase is in `brazilian_party`).
+/// maintainer's chat prints by `ocr-real` (English; the Portuguese phrases are in `resources/lang/pt-BR.json`).
 pub const JOINED_GAME: &str = "joinedGame";
 /// The fixed phrase of the chat line that says a player left the game ("<name> left our world"), GNR-07.
 pub const LEFT_GAME: &str = "leftGame";
@@ -161,25 +161,6 @@ impl LanguagePack {
                 .collect(),
             fallback: None,
         }
-    }
-
-    /// The words of a Brazilian Portuguese client: the Party panel's title "Grupo", the label "Nome" (the Game Name field's
-    /// label) and "Senha" (the Password label), measured on the maintainer's pt-BR prints (screen-recognition T6, SCR-04), and
-    /// the chat's two phrases "entrou em nosso mundo" and "saiu de nosso mundo", found on the four Portuguese chat prints by
-    /// `ocr-real` (game-name-reading GNR-07). The other words stay English: this pack is read for the Party panel and the chat.
-    pub fn brazilian_party() -> Self {
-        let mut pack = Self::english();
-        pack.tag = "pt-BR".to_string();
-        for (key, word) in [
-            ("party", "Grupo"),
-            ("gameName", "Nome"),
-            ("password", "Senha"),
-            (JOINED_GAME, "entrou em nosso mundo"),
-            (LEFT_GAME, "saiu de nosso mundo"),
-        ] {
-            pack.words.insert(key.to_string(), word.to_string());
-        }
-        pack
     }
 
     /// This pack with `fallback` as the pack the Party step tries when this one's words find no panel (screen-recognition T6,
