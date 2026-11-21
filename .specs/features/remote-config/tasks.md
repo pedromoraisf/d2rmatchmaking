@@ -182,7 +182,7 @@ schema never breaks an older agent; `agent-config.json` keeps serving today's va
       `core/src/screen_reader.rs`, one reading module per commit, byte-identical at the defaults; call counts at 2 and 10.
       Real-print proof in CI: `ocr-real` green, `ocr-variations` counts equal to the base. Gate: as T23, plus
       `CARGO clippy -p d2rmm-agent-domain -p d2rmm-agent-core --all-targets -- -D warnings`
-- [ ] T26 — **[R14] Chat phrases** from `Effective.phrases` into the language pack (`language.rs` `with_phrases`: add
+- [x] T26 — **[R14] Chat phrases** from `Effective.phrases` into the language pack (`language.rs` `with_phrases`: add
       `JOINED_GAME` and `LEFT_GAME` beside the Party words), compared as literals by `chat.rs`'s existing rules; tests with
       English and pt-BR phrases and a hostile one. Real-print proof as T25 (the chat prints). Gate: as T25
 - [ ] T27 — Close the proofs and the doc: the PR table (each new range and its test, call counts at the extremes,
