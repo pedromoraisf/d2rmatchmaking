@@ -5,8 +5,8 @@
 //! decides what to read next. No I/O, no clock, no randomness.
 
 use crate::anchors::padded;
-use crate::layout::{REFERENCE_HEIGHT, ScreenRegion, screen_region};
-use crate::remote_config::Ranges;
+use crate::layout::{REFERENCE_HEIGHT, ScreenRegion, screen_region_with};
+use crate::remote_config::{Ranges, Regions};
 use crate::vision::Region;
 
 /// How far around the remembered line the tracking box reaches, in pixels of the reference client: enough for the value
@@ -87,7 +87,20 @@ impl Tracker {
     /// built-in one. The agent's own range (`Ranges::TRACK_PAD`) clamps it here too, so the padding never leaves it whatever
     /// the caller passes.
     pub fn next_padded(&self, width: u32, height: u32, track_pad: u32) -> Option<TrackRead> {
-        let area = screen_region(self.search, width, height)?;
+        self.next_with(width, height, track_pad, &Regions::default())
+    }
+
+    /// `next_padded` with the areas of the remote configuration: the search area is `screen_region_with` of the tracker's
+    /// region (`regions.hudBand`, `regions.automapArea`), which keeps the built-in one unless the configured area passes its
+    /// checks (RCF-05, RCF-09).
+    pub fn next_with(
+        &self,
+        width: u32,
+        height: u32,
+        track_pad: u32,
+        regions: &Regions,
+    ) -> Option<TrackRead> {
+        let area = screen_region_with(self.search, width, height, regions)?;
         match self.seen {
             Some((line, seen_width, seen_height))
                 if (seen_width, seen_height) == (width, height) =>
@@ -103,7 +116,12 @@ impl Tracker {
 
     /// The area this tracker searches when its box misses.
     pub fn search_area(&self, width: u32, height: u32) -> Option<Region> {
-        screen_region(self.search, width, height)
+        self.search_area_with(width, height, &Regions::default())
+    }
+
+    /// `search_area` with the areas of the remote configuration (`next_with`).
+    pub fn search_area_with(&self, width: u32, height: u32, regions: &Regions) -> Option<Region> {
+        screen_region_with(self.search, width, height, regions)
     }
 
     /// Records what the frame showed: the label's line (to track it) or nothing (to search again).
@@ -407,6 +425,73 @@ mod track_pad_threaded {
         let tracker = Tracker::new(ScreenRegion::HudBand);
         assert_eq!(
             tracker.next_padded(1920, 1033, 48),
+            tracker.next(1920, 1033)
+        );
+    }
+
+    use crate::remote_config::{Area, Regions};
+
+    fn smaller_band() -> Regions {
+        Regions {
+            hud_band: Some(Area {
+                x: 0.0,
+                y: 0.8,
+                width: 0.5,
+                height: 0.15,
+            }),
+            ..Regions::default()
+        }
+    }
+
+    #[test]
+    fn no_configured_region_searches_and_tracks_as_before_at_every_client_height() {
+        for height in [1033, 1045, 1056, 1080] {
+            let searching = Tracker::new(ScreenRegion::HudBand);
+            assert_eq!(
+                searching.next_with(1920, height, TRACK_PAD, &Regions::default()),
+                searching.next(1920, height),
+                "{height}"
+            );
+            assert_eq!(
+                searching.search_area_with(1920, height, &Regions::default()),
+                searching.search_area(1920, height),
+                "{height}"
+            );
+            let tracker = tracked(height);
+            assert_eq!(
+                tracker.next_with(1920, height, TRACK_PAD, &Regions::default()),
+                tracker.next(1920, height),
+                "{height}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_configured_band_is_what_a_searching_tracker_reads_and_its_fallback() {
+        let regions = smaller_band();
+        let tracker = Tracker::new(ScreenRegion::HudBand);
+        let expected = r(0, 826, 960, 155);
+        assert_eq!(
+            tracker.next_with(1920, 1033, TRACK_PAD, &regions),
+            Some(TrackRead::Search(expected))
+        );
+        assert_eq!(
+            tracker.search_area_with(1920, 1033, &regions),
+            Some(expected)
+        );
+        // The default band stays what the other tracker kinds read: only the HUD's configured area moved.
+        let automap = Tracker::new(ScreenRegion::AutomapArea);
+        assert_eq!(
+            automap.next_with(1920, 1033, TRACK_PAD, &regions),
+            automap.next(1920, 1033)
+        );
+    }
+
+    #[test]
+    fn a_tracked_line_is_read_in_its_box_whatever_band_is_configured() {
+        let tracker = tracked(1033);
+        assert_eq!(
+            tracker.next_with(1920, 1033, TRACK_PAD, &smaller_band()),
             tracker.next(1920, 1033)
         );
     }
