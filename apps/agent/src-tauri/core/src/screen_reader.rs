@@ -102,6 +102,7 @@ impl ScreenReader {
         frame: &Rgba,
         tracker: &Mutex<Tracker>,
         find: FindLabel,
+        every: u32,
         how: &Cell<Option<Search>>,
         config: &Effective,
     ) -> Vec<Vec<TextLine>> {
@@ -146,7 +147,7 @@ impl ScreenReader {
         tracker
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .record(found, frame.width, frame.height);
+            .record_every(found, frame.width, frame.height, every);
         lines
     }
 
@@ -164,6 +165,7 @@ impl ScreenReader {
                     frame,
                     &self.hud,
                     anchors::find_hud_in_variants,
+                    1,
                     how,
                     config,
                 );
@@ -173,6 +175,7 @@ impl ScreenReader {
                     frame,
                     &self.automap,
                     anchors::find_automap_in_variants,
+                    config.cadence.automap_search_every,
                     how,
                     config,
                 );
@@ -182,6 +185,7 @@ impl ScreenReader {
                     frame,
                     &self.create_new,
                     anchors::find_create_new_in_variants,
+                    config.cadence.list_search_every,
                     how,
                     config,
                 );
@@ -1403,6 +1407,54 @@ mod hud_tests {
             per_frame.push(marker_area_reads(&hud.take_asked()));
         }
         assert_eq!(per_frame, [1, 0, 1, 0, 1, 0]);
+    }
+
+    /// ocr-protection (remote-config T23, rule 14): how often the two wide areas are searched while their marker is not
+    /// found, as measured before the cadences come from the configuration. 600 looks of a frame that shows nothing: the band
+    /// every look, the automap area and the list marker area every second look. They pass on the code as it was and must
+    /// pass with the defaults threaded in.
+    #[test]
+    fn six_hundred_looks_of_nothing_search_each_wide_area_three_hundred_times() {
+        let hud = Hud::new(vec![]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        let (mut band, mut automap, mut marker) = (0, 0, 0);
+        for _ in 0..600 {
+            assert_eq!(screens.read(&frame).screen, Screen::Unknown);
+            let asked = hud.take_asked();
+            band += band_reads(&asked);
+            automap += automap_reads(&asked);
+            marker += marker_area_reads(&asked);
+        }
+        assert_eq!((band, automap, marker), (600, 300, 300));
+    }
+
+    /// remote-config T25: the two search periods come from the configuration. 600 looks of a frame that shows nothing search
+    /// each wide area 300 times at the default and today's floor of 2, and 60 times at the ceiling of 10; the band is read on
+    /// every look whatever the periods.
+    #[test]
+    fn the_search_cadences_of_the_configuration_set_how_often_each_wide_area_is_read() {
+        let searches = |automap_every: u32, list_every: u32| {
+            let hud = Hud::new(vec![]);
+            let screens = reader(&hud);
+            let frame = frame(1920, 1080);
+            let mut config = d2rmm_agent_domain::remote_config::Effective::built_in();
+            config.cadence.automap_search_every = automap_every;
+            config.cadence.list_search_every = list_every;
+            let (mut band, mut automap, mut marker) = (0, 0, 0);
+            for _ in 0..600 {
+                assert_eq!(screens.read_with(&frame, &config).screen, Screen::Unknown);
+                let asked = hud.take_asked();
+                band += band_reads(&asked);
+                automap += automap_reads(&asked);
+                marker += marker_area_reads(&asked);
+            }
+            (band, automap, marker)
+        };
+        assert_eq!(searches(2, 2), (600, 300, 300), "today's period");
+        assert_eq!(searches(10, 10), (600, 60, 60), "the ceiling");
+        assert_eq!(searches(10, 2), (600, 60, 300), "each area on its own");
+        assert_eq!(searches(2, 10), (600, 300, 60), "each area on its own");
     }
 
     #[test]

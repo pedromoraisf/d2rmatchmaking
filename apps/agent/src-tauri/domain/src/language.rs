@@ -383,8 +383,11 @@ fn label_key(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{GAME_NAME, LanguagePack, PARTY, PASSWORD, PackError, same_label};
+    use super::{
+        GAME_NAME, JOINED_GAME, LEFT_GAME, LanguagePack, PARTY, PASSWORD, PackError, same_label,
+    };
     use crate::characters::{Class, Difficulty, Title};
+    use crate::remote_config::Phrases;
 
     fn words(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
         pairs
@@ -427,6 +430,18 @@ mod tests {
         assert_eq!(en.word(GAME_NAME), Some("Game Name"));
         assert_eq!(en.word(PASSWORD), Some("Password"));
         assert_eq!(en.tag(), "en");
+    }
+
+    /// ocr-protection (remote-config T23, rule 14): the chat phrases of the English pack, measured by `ocr-real` on the
+    /// maintainer's chat prints, before `phrases.<lang>.joinedGame` and `leftGame` can replace them.
+    #[test]
+    fn the_english_pack_holds_the_two_measured_chat_phrases() {
+        let en = LanguagePack::english();
+        assert_eq!(en.word(JOINED_GAME), Some("joined our world"));
+        assert_eq!(en.word(LEFT_GAME), Some("left our world"));
+        let configured = en.with_phrases(&Phrases::default());
+        assert_eq!(configured.word(JOINED_GAME), Some("joined our world"));
+        assert_eq!(configured.word(LEFT_GAME), Some("left our world"));
     }
 
     #[test]
@@ -690,6 +705,7 @@ mod phrases_threaded {
             party: Some(party.to_string()),
             game_name: Some(game_name.to_string()),
             password: Some(password.to_string()),
+            ..Words::default()
         }
     }
 
@@ -733,6 +749,7 @@ mod phrases_threaded {
                 party: Some("Group".to_string()),
                 game_name: Some("   ".to_string()),
                 password: None,
+                ..Words::default()
             },
             pt_br: Words::default(),
         };
