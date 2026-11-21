@@ -185,6 +185,6 @@ schema never breaks an older agent; `agent-config.json` keeps serving today's va
 - [x] T26 — **[R14] Chat phrases** from `Effective.phrases` into the language pack (`language.rs` `with_phrases`: add
       `JOINED_GAME` and `LEFT_GAME` beside the Party words), compared as literals by `chat.rs`'s existing rules; tests with
       English and pt-BR phrases and a hostile one. Real-print proof as T25 (the chat prints). Gate: as T25
-- [ ] T27 — Close the proofs and the doc: the PR table (each new range and its test, call counts at the extremes,
+- [x] T27 — Close the proofs and the doc: the PR table (each new range and its test, call counts at the extremes,
       `ocr-real` per print, `ocr-variations` before and after), and `docs/engineering/remote-config.md` gains the four
       fields. Gate: `pnpm specs:check && pnpm test:harness && pnpm format:check`
