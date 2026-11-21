@@ -38,9 +38,16 @@
     "notSaved": "Não foi possível salvar sua escolha. Tente novamente."
   },
   "readyCheck": {
-    "hotkey": "Há uma confirmação de partida: pressione {{key}} para aceitar."
+    "hotkey": "Há uma confirmação de partida: pressione {{key}} para aceitar.",
+    "unavailable": "Não foi possível registrar o atalho de aceitar ({{key}}): outro programa pode estar usando. Escolha outra combinação na seção Atalhos desta janela. (motivo: {{reason}})"
   },
   "diagnostics": {
+    "hotkeyPress": {
+      "none": "Último atalho pressionado: nenhum desde que o agente iniciou",
+      "accept": "Último atalho pressionado: o de aceitar",
+      "fill": "Último atalho pressionado: o de preencher",
+      "unmatched": "Último atalho pressionado: uma tecla que não é nenhum dos atalhos"
+    },
     "heading": "Diagnóstico",
     "screen": {
       "unknown": "Tela: não reconhecida",
@@ -52,7 +59,20 @@
     "cards": "Cartões lidos: {{read}}, confirmados: {{settled}}",
     "popup": "Opções do pop-up encontradas: {{found}}",
     "rejected": "Cartão {{slot}} não confirmado: {{reason}}",
-    "post": "Último envio: {{outcome}}",
+    "post": {
+      "not-sent": "Último envio: nada enviado ainda",
+      "ok": "Último envio: enviado",
+      "unauthorized": "Último envio: recusado, não autorizado",
+      "upgrade-required": "Último envio: atualização necessária",
+      "rate-limited": "Último envio: muitas requisições, tentará de novo",
+      "gone": "Último envio: não está mais disponível",
+      "pending": "Último envio: aguardando o pareamento",
+      "server": "Último envio: erro no servidor",
+      "network": "Último envio: não conseguiu falar com o servidor",
+      "invalid": "Último envio: recusado como inválido",
+      "check-ended": "Último envio: a verificação de pronto terminou",
+      "other": "Último envio: {{outcome}}"
+    },
     "window": "Janela (com bordas): {{width}}×{{height}}",
     "content": {
       "blank": "Conteúdo do quadro: vazio (brilho {{brightness}})",
@@ -98,7 +118,8 @@
     "refused-name": "Nada digitado: o nome da sala não é um que o agente digita.",
     "refused-focus": "Nada digitado: o jogo não está em foco.",
     "refused-screen": "Nada digitado: há uma partida em andamento. Preencha o nome pelo lobby.",
-    "refused-keys": "Nada digitado: solte as teclas do atalho e aperte de novo."
+    "refused-keys": "Nada digitado: solte as teclas do atalho e aperte de novo.",
+    "unavailable": "Não foi possível registrar o atalho de preencher ({{key}}): outro programa pode estar usando. Escolha outra combinação na seção Atalhos desta janela. (motivo: {{reason}})"
   },
   "hotkeys": {
     "heading": "Atalhos",

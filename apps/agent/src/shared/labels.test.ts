@@ -3,6 +3,7 @@ import en from './locales/en.json';
 import ptBR from './locales/pt-BR.json';
 import {
   connectivityLabel,
+  diagnosticsLabels,
   offersNewCode,
   pairingLabel,
   revealLabel,
@@ -87,5 +88,48 @@ describe('agent labels', () => {
       expect(keyPaths(en)).toContain(label?.key);
       expect(keyPaths(ptBR)).toContain(label?.key);
     }
+  });
+});
+
+describe('the last send line of the diagnostics', () => {
+  const outcomes = [
+    'not-sent',
+    'ok',
+    'unauthorized',
+    'upgrade-required',
+    'rate-limited',
+    'gone',
+    'pending',
+    'server',
+    'network',
+    'invalid',
+    'check-ended',
+  ];
+  const withPost = (post: string) =>
+    diagnosticsLabels({
+      screen: 'unknown',
+      frameWidth: 0,
+      frameHeight: 0,
+      cardsRead: 0,
+      cardsSettled: 0,
+      popupOptionsFound: 0,
+      rejected: [],
+      post,
+    }).at(-1);
+
+  it('has its own translated line for every outcome the core publishes', () => {
+    for (const outcome of outcomes) {
+      const label = withPost(outcome);
+      expect(label).toStrictEqual({ key: `diagnostics.post.${outcome}` });
+      expect(keyPaths(en)).toContain(label?.key);
+      expect(keyPaths(ptBR)).toContain(label?.key);
+    }
+  });
+
+  it('shows the code of an outcome this build does not know', () => {
+    expect(withPost('teapot')).toStrictEqual({
+      key: 'diagnostics.post.other',
+      values: { outcome: 'teapot' },
+    });
   });
 });

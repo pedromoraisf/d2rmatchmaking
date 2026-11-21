@@ -52,7 +52,7 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
     posted: &mut Option<Vec<Card>>,
 ) {
     let Some(frame) = capture(ports) else {
-        device.set_screen(Screen::Unknown);
+        show_nothing_read(device);
         let status = ports.frames.status();
         device.set_capture_report(report_of(status));
         // The window's size is looked up only when the game runs and gave nothing to read: not once a second while it is gone.
@@ -70,7 +70,7 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
     device.set_capture_report(report_of(status));
     if content.blank {
         // A blank frame is never read: no OCR call is made for it, and the Party step does not see it (CAP-02, NFR-02).
-        device.set_screen(Screen::Unknown);
+        show_nothing_read(device);
         device.hub.set_capture(CaptureView {
             reason: Some(NOTHING_SEEN),
             ..capture_of(
@@ -89,7 +89,10 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
     device.hub.set_capture(capture_of(
         content,
         ports.frames.window_size(),
-        device.with_party(|progress| progress.last_look()),
+        device
+            .party_look_describes_screen()
+            .then(|| device.with_party(|progress| progress.last_look()))
+            .flatten(),
         status,
     ));
     let mut diagnostics = diagnostics_of(&reading, &frame, previous_post(device));
@@ -126,6 +129,22 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
         }
         // Any other failure keeps the set unsent, so the next tick sends it again.
         Err(_) => {}
+    }
+}
+
+/// A look that read nothing: the screen is reported as `Unknown` and the diagnostics say the same, with no cards from an
+/// earlier frame. One value feeds the heartbeat and the window, so they never disagree (ARL-06, CHR-04).
+fn show_nothing_read(device: &DeviceState) {
+    device.set_screen(Screen::Unknown);
+    if let Some(shown) = device.hub.snapshot().diagnostics {
+        device.hub.set_diagnostics(DiagnosticsView {
+            screen: screen_code(Screen::Unknown),
+            cards_read: 0,
+            cards_settled: 0,
+            popup_options_found: 0,
+            rejected: Vec::new(),
+            ..shown
+        });
     }
 }
 
@@ -921,6 +940,57 @@ mod tests {
         }
     }
 
+    /// Field test 2026-11-21 (ARL-06, CHR-04): the window said "Em jogo" while the site showed an unknown screen, because a
+    /// look that gave no usable frame reported `Unknown` and left the last good read in the diagnostics. The window and the
+    /// heartbeat now come from one value: a look that sees nothing shows `unknown` in both.
+    #[tokio::test]
+    async fn a_blank_frame_after_a_game_read_shows_the_reported_screen_in_the_diagnostics() {
+        let mut rig = rig(
+            true,
+            true,
+            frame(),
+            FrameReading::without_cards(Screen::InGame),
+        );
+        look(&rig, &mut None).await;
+        assert_eq!(diagnostics(&rig).screen, "inGame");
+        assert_eq!(*rig.device.screen.borrow(), Screen::InGame);
+
+        rig.ports.frames = Arc::new(Frames {
+            frame: blank_frame(),
+            captures: AtomicUsize::new(0),
+        });
+        look(&rig, &mut None).await;
+
+        assert_eq!(*rig.device.screen.borrow(), Screen::Unknown);
+        let shown = diagnostics(&rig);
+        assert_eq!(shown.screen, "unknown", "what the heartbeat reports");
+        assert_eq!((shown.cards_read, shown.cards_settled), (0, 0));
+        assert!(shown.rejected.is_empty());
+        assert_eq!(shown.post, "not-sent", "the last post is not a screen read");
+    }
+
+    #[tokio::test]
+    async fn a_look_without_a_frame_after_a_game_read_shows_the_reported_screen_in_the_diagnostics()
+    {
+        let mut rig = rig(
+            true,
+            true,
+            frame(),
+            FrameReading::without_cards(Screen::InGame),
+        );
+        look(&rig, &mut None).await;
+        assert_eq!(diagnostics(&rig).screen, "inGame");
+
+        rig.ports.frames = Arc::new(Frames {
+            frame: None,
+            captures: AtomicUsize::new(0),
+        });
+        look(&rig, &mut None).await;
+
+        assert_eq!(*rig.device.screen.borrow(), Screen::Unknown);
+        assert_eq!(diagnostics(&rig).screen, "unknown");
+    }
+
     #[tokio::test]
     async fn the_capture_shows_a_blank_frame_and_no_party_look_without_a_room() {
         let rig = rig(
@@ -947,6 +1017,37 @@ mod tests {
         assert_eq!(capture.brightness, 0);
         assert_eq!((capture.window_width, capture.window_height), (None, None));
         assert_eq!(capture.party, None, "no room, no Party look");
+    }
+
+    /// Lesson "A diagnostic line in the agent window must reflect state changes": the Party line kept the look of the game
+    /// after the player left it (field test 2026-11-21: "panel open, name matches" on the character selection screen).
+    #[tokio::test]
+    async fn the_party_look_is_not_shown_once_the_screen_leaves_the_game() {
+        let rig = rig(
+            true,
+            true,
+            frame(),
+            FrameReading::without_cards(Screen::InGame),
+        );
+        rig.device.replace_assignment(Some(assignment()));
+        let party = |rig: &Rig| rig.device.hub.snapshot().capture.and_then(|c| c.party);
+
+        look(&rig, &mut None).await;
+        assert!(party(&rig).is_some(), "in the game the look is shown");
+
+        // The held run is done matching, so later looks do not replace the look the game left behind.
+        rig.device.set_paired(false);
+        *rig.reader.reading.lock().expect("the reading lock") = selecting(Vec::new());
+        look(&rig, &mut None).await;
+        assert_eq!(party(&rig), None, "left the game: no Party look");
+
+        look(&rig, &mut None).await;
+        assert_eq!(party(&rig), None, "and it stays hidden on the next look");
+
+        *rig.reader.reading.lock().expect("the reading lock") =
+            FrameReading::without_cards(Screen::InGame);
+        look(&rig, &mut None).await;
+        assert!(party(&rig).is_some(), "back in the game the look is shown");
     }
 
     #[tokio::test]

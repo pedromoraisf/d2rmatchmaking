@@ -6,6 +6,9 @@ import type {
   CaptureDiagnostics,
   Diagnostics,
   FillOutcome,
+  HotkeyFailure,
+  HotkeyFault,
+  HotkeyPress,
   PairingState,
 } from '../shared/labels.ts';
 import { DiagnosticsView } from './DiagnosticsView.tsx';
@@ -18,6 +21,12 @@ const ptBR = translatorFor(createAgentI18n('pt-BR'));
 
 const DEFAULT_KEYS = { accept: 'Ctrl+Shift+A', fill: 'Ctrl+Shift+F' };
 const TYPED: FillOutcome = 'typed';
+const ACCEPT_REFUSED: HotkeyFault[] = [{ slot: 'accept', reason: 'no-manager' }];
+const FILL_REFUSED: HotkeyFault[] = [{ slot: 'fill', reason: 'refused' }];
+const NONE_YET = 'none';
+const FILL_PRESS: HotkeyPress = 'fill';
+const PRESSES: HotkeyPress[] = ['accept', 'fill', 'unmatched'];
+const REASONS: HotkeyFailure[] = ['no-manager', 'refused', 'unmapped', 'dispatch'];
 
 const view = (overrides: Partial<AgentView> = {}): AgentView => ({
   pairing: 'paired',
@@ -211,6 +220,49 @@ describe('fill status and hotkeys (AST-01, AST-08)', () => {
     expect(screen.getByText(/Aperte Enter no jogo para confirmar; o agente nunca faz isso/)).toBeTruthy();
   });
 
+  it('says a hotkey could not be registered, per slot, in English and Portuguese, and says nothing otherwise', () => {
+    const { container, unmount } = renderStatus({ hotkeyUnavailable: FILL_REFUSED });
+    expect(
+      screen.getByText(
+        /The fill hotkey \(Ctrl\+Shift\+F\) could not be registered.*Choose another combination.*\(reason: refused\)/,
+      ),
+    ).toBeTruthy();
+    expect(container.textContent).not.toMatch(/accept hotkey/);
+    unmount();
+    render(<StatusView view={view({ hotkeyUnavailable: ACCEPT_REFUSED })} translate={ptBR} />);
+    expect(
+      screen.getByText(
+        /atalho de aceitar \(Ctrl\+Shift\+A\).*Escolha outra combinação.*\(motivo: no-manager\)/,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('shows each registration failure reason as its own code', () => {
+    for (const reason of REASONS) {
+      const { container, unmount } = renderStatus({ hotkeyUnavailable: [{ slot: 'fill', reason }] });
+      expect(container.textContent, reason).toContain(`(reason: ${reason})`);
+      unmount();
+    }
+  });
+
+  it('says in the diagnostics which hotkey press came last, or that none came', () => {
+    const seen = new Set<string>();
+    const { container, unmount } = render(
+      <DiagnosticsView diagnostics={null} lastPress={NONE_YET} translate={en} />,
+    );
+    expect(container.textContent).toContain('none since the agent started');
+    unmount();
+    for (const press of PRESSES) {
+      const view = render(<DiagnosticsView diagnostics={null} lastPress={press} translate={en} />);
+      const text = view.container.textContent ?? '';
+      expect(seen.has(text), `${press} has its own line`).toBe(false);
+      seen.add(text);
+      view.unmount();
+    }
+    render(<DiagnosticsView diagnostics={null} lastPress={FILL_PRESS} translate={ptBR} />);
+    expect(screen.getByText(/Último atalho pressionado: o de preencher/)).toBeTruthy();
+  });
+
   it('says why a fill typed nothing, for every refusal and stop', () => {
     const outcomes = [
       'stopped-focus',
@@ -295,7 +347,7 @@ describe('diagnostics view', () => {
     expect(screen.getByText('Cards read: 2, settled: 1')).toBeTruthy();
     expect(screen.getByText('Popup options found: 2')).toBeTruthy();
     expect(screen.getByText('Card 2 not settled: name-disagree')).toBeTruthy();
-    expect(screen.getByText('Last send: not-sent')).toBeTruthy();
+    expect(screen.getByText('Last send: nothing sent yet')).toBeTruthy();
   });
 
   it('is translated to pt-BR', () => {
@@ -303,7 +355,7 @@ describe('diagnostics view', () => {
 
     expect(screen.getByText('Diagnóstico')).toBeTruthy();
     expect(screen.getByText('Tela: Seleção de personagem')).toBeTruthy();
-    expect(screen.getByText('Último envio: not-sent')).toBeTruthy();
+    expect(screen.getByText('Último envio: nada enviado ainda')).toBeTruthy();
   });
 });
 
