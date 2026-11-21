@@ -32,6 +32,13 @@ Rules:
    starts its own Postgres, API and k6 containers, and it refuses any target it did not start (`LOAD_TARGET`, a
    non-empty `DATABASE_URL`, a remote Docker host). Its code lives in `scripts/load`; its unit tests live in `scripts/test/load`.
 
+9. The real-print OCR check (`.github/workflows/ocr-real.yml`, `apps/agent/ocr-lab/README.md`) runs on pull requests that
+   touch the agent. Its `ocr-variations` check is sharded: a matrix of 8 Windows jobs (`ocr-variations-shard`, each
+   `ocr-check --variations --shard i/8`, 120-minute cap) reads the prints, a 20-minute per-print budget fails a slow print,
+   and the final job `ocr-variations` merges the partial counts (`scripts/agent/ocr-variations-shards.mjs`) and holds the
+   totals to the quality ratchet, context `ocr`, exactly as the unsharded run did. A missing shard, or a print counted twice
+   or not at all, fails the merge.
+
 ## The nightly and its report
 
 The nightly (`.github/workflows/nightly.yml`) runs its suites as parallel jobs: agent mutation (a matrix per crate, two
