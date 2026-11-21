@@ -37,7 +37,7 @@ Rules:
 - [x] T4 — `scripts/staging/lib/cleanup.mjs`: the four leave steps in order, each failure logged and the rest still run,
       exit code from the failures; and `lib/log.mjs`: structured log lines and the job summary that hold no token or
       cookie (SBT-10, SBT-11). Gate: `node --test scripts/test/staging-bots-cleanup.test.mjs`
-- [ ] T5 — `scripts/staging/config.mjs` (the only reader of `process.env`) and `scripts/staging/bots.mjs` (the CLI:
+- [x] T5 — `scripts/staging/config.mjs` (the only reader of `process.env`) and `scripts/staging/bots.mjs` (the CLI:
       config → `assertStaging` → plan → bots → wait for the room to end or the time to pass → cleanup on every exit
       path, SIGINT and SIGTERM included) (SBT-02, SBT-08, SBT-10). Gate:
       `node --test scripts/test/staging-bots-cli.test.mjs`
