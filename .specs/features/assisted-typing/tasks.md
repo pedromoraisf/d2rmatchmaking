@@ -86,3 +86,23 @@ Rules:
       installer: fill the real Game Creator on normal, nightmare and hell names, press Enter by hand, confirm the agent
       never does, and try the refusals (Alt-Tab away, in-game, keys held). Gate:
       `pnpm format:check && pnpm specs:check && pnpm test:harness`
+
+## Batch 3 — copy instead of typing (brief revision 1)
+
+- [ ] T12 — Remove the typing: the fill hotkey, `fill_name`, `adapters/typing.rs`, `SendInput`/`GetAsyncKeyState`, the
+      `Win32_UI_Input_KeyboardAndMouse` feature and the AST-09 allow-list entries; tighten the source rules (AST-13) with a
+      fixture each. Remove the tests that proved the withdrawn requirements together with their requirements (the brief
+      revision withdraws them; no other test changes). Keep RDY-07's accept hotkey and AST-08's diagnostics.
+      Gate: `pnpm test:harness && CARGO clippy --all-targets -- -D warnings && CARGO nextest run`
+- [ ] T13 — Core: a `Clipboard` port and `copy_room_name` (AST-11): once per assigned run, only a `TypableName`; unit tests
+      with a fake port (copied once, a new run copies once more, a refused name never written, a failed write reported).
+      Gate: `CARGO nextest run -p d2rmm-agent-core --lib`
+- [ ] T14 — Adapter and sensor (AST-14): one clipboard adapter file, write-only; the source rule with fixtures. If it needs a
+      new crate or `windows` feature, the gate asks the maintainer; record the answer in `decisions.md`.
+      Gate: `pnpm test:harness && CARGO clippy --all-targets -- -D warnings`
+- [ ] T15 — Window and view (AST-12, AST-10): the copied line, "copy again", the refusal and failure lines, en and pt-BR;
+      the span event per copy. Gate: `pnpm --filter @d2rmm/agent-ui test` and `CARGO nextest run -p d2rmm-agent-core --lib`
+- [ ] T16 — Headless agent and acceptance steps for the new scenarios (fake clipboard, `copy-again` stdin command); run
+      `pnpm exec turbo run test:acceptance -- --grep @AST-`. Gate: that command
+- [ ] T17 — Docs: `apps/agent/README.md` and the site's host instructions say "paste with Ctrl+V" instead of the hotkey.
+      Gate: `pnpm format:check && pnpm specs:check`

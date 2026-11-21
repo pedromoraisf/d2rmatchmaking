@@ -79,6 +79,32 @@ The player confirms by pressing Enter (or clicking Create Game) themselves. The 
   or key. Every new string SHALL have English and pt-BR versions (NFR-12), including the site's accept-hotkey hint,
   which SHALL say the accept key is Ctrl+Shift+A by default and can be changed in the agent.
 
+## Revision 1 — copy, not typing (brief revision 1, approved 2026-11-21)
+
+The maintainer's field test found the fill hotkey more work than the game's own Ctrl+V, and typing by synthetic
+keystrokes is the riskiest thing the agent did with respect to Blizzard's terms. **AST-01 to AST-07 and AST-09 are
+withdrawn**; their code, the fill hotkey and the sensor exception are removed. AST-08 now covers the accept hotkey
+(RDY-07) only. The table "Where assisted typing stops" above is replaced by: the agent writes the game name to the
+clipboard and sends no input to any window, ever.
+
+- **AST-11** — WHEN the agent is assigned a room, or a new run of its held room starts, THEN it SHALL write that run's
+  game name to the Windows clipboard **once**, and only when the name passes the generated-name rule (`TypableName`:
+  `a–z`, `0–9`, `-`, the ADR 017 shape). It SHALL never write anything else to the clipboard, never read it, and never
+  write again for the same run unless the player asks (AST-12).
+- **AST-12** — WHILE the agent holds a room, its window SHALL say "game name copied — paste it with Ctrl+V in the Game
+  Creator and create the game yourself" and offer a **copy again** button that writes the same name on the player's
+  click. With no held room there SHALL be no button. When the name was refused or the clipboard write failed, the window
+  SHALL say so and point to the site's copy button.
+- **AST-13** — The agent SHALL send no input to any window. `SendInput`, `GetAsyncKeyState` and the `windows` feature
+  `Win32_UI_Input_KeyboardAndMouse` SHALL be removed, the AST-09 allow-list entries withdrawn, and a source rule SHALL
+  fail when any file names them again (each rule with a fixture it rejects). Sensors only tighten here (rule 4).
+- **AST-14** — Writing the clipboard SHALL go through one core port and one adapter file; a source rule SHALL fail when
+  any other file writes the clipboard or when any file reads it. The adapter SHALL use the smallest dependency that does
+  it without `unsafe` outside the FFI boundary (prefer Tauri's official clipboard plugin); a new crate or `windows`
+  feature needs the maintainer's yes through the gate (rule 4), recorded in `decisions.md`.
+- **AST-10** (revised) — Every copy SHALL record one span event with the outcome (`copied`, `copied-again`,
+  `refused-name`, `failed`) and no name or text. Every new string SHALL have English and pt-BR versions (NFR-12).
+
 ## Sources
 
 | ID     | Source                                                                                                                          |
@@ -111,19 +137,17 @@ The player confirms by pressing Enter (or clicking Create Game) themselves. The 
 
 ## Requirement Traceability
 
-| Requirement ID | Story            | Proof                                                                                                              |
-| -------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------ |
-| AST-01         | Choose the key   | Rust unit tests (domain: combination rules; core: registered while a room is held) + window component test         |
-| AST-02         | Only the name    | Rust unit tests (domain: the typable name) + acceptance `@AST-02`                                                  |
-| AST-03         | D2R has focus    | Rust unit tests (core, fake focus source) + acceptance `@AST-03`                                                   |
-| AST-04         | Not during a run | Rust unit tests (core, fake screen) + acceptance `@AST-04`                                                         |
-| AST-05         | Keys let go      | Rust unit tests (core, fake key state) + acceptance `@AST-05`                                                      |
-| AST-06         | Only characters  | Rust unit tests (events from a fake sink) + `agent-source-rules.test.mjs` + acceptance `@AST-06`                   |
-| AST-07         | One press        | Rust unit tests (core) + acceptance `@AST-07`                                                                      |
-| AST-08         | Say what         | Rust unit tests (view) + window component test + acceptance `@AST-08`                                              |
-| AST-09         | Sensors closed   | `pnpm test:harness` (rules and their rejected fixtures) + `cargo deny --locked check` + `cargo clippy -D warnings` |
-| AST-10         | Telemetry, i18n  | Rust unit tests with the in-memory exporter; locales tests; web component test                                     |
-| (all)          | The real game    | The maintainer's check on a preview channel installer (DLP-06): fills the real Game Creator, never presses Enter   |
+| Requirement ID | Story              | Proof                                                                                            |
+| -------------- | ------------------ | ------------------------------------------------------------------------------------------------ |
+| AST-08         | Hotkey diagnostics | Rust unit tests (view) + window component test + acceptance `@AST-08`                            |
+| AST-10         | Telemetry, i18n    | Rust unit tests with the in-memory exporter; locales tests; web component test                   |
+| AST-11         | Copy once          | Rust unit tests (core, fake clipboard port) + acceptance `@AST-11`                               |
+| AST-12         | Say what, again    | Rust unit tests (view) + window component test + acceptance `@AST-12`                            |
+| AST-13         | No input at all    | `pnpm test:harness` (source rules and their rejected fixtures) + `cargo deny` + `cargo clippy`   |
+| AST-14         | One clipboard door | `pnpm test:harness` (clipboard source rule and fixtures) + Rust unit tests of the port           |
+| (all)          | The real game      | The maintainer's check on a preview installer: Ctrl+V pastes the room's name in the Game Creator |
+
+AST-01 to AST-07 and AST-09 are withdrawn by brief revision 1 (see "Revision 1" above).
 
 ## Decisions (conservative defaults)
 
