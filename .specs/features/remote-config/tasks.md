@@ -163,7 +163,7 @@ Batch 3 left out the screen search cadences and the chat "joined"/"left" phrases
 (decisions.md → To confirm). RCF-03 names both, so they close here. Agents ignore unknown fields (RCF-05), so a newer
 schema never breaks an older agent; `agent-config.json` keeps serving today's values.
 
-- [ ] T22 — **Contract first** (ADR 020, rule 2). Add to `AgentConfig` (`packages/contracts/src/http/agent-config.ts`):
+- [x] T22 — **Contract first** (ADR 020, rule 2). Add to `AgentConfig` (`packages/contracts/src/http/agent-config.ts`):
       `cadence.automapSearchEvery` and `cadence.listSearchEvery` (whole, range **2–10**: the floor is today's
       `AUTOMAP_SEARCH_EVERY` / `LIST_SEARCH_EVERY` = 2, so no value searches more often than today), and per language
       `phrases.<lang>.joinedGame` and `phrases.<lang>.leftGame` (the existing phrase rule: 1–40 safe characters, literals).

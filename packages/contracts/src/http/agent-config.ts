@@ -15,6 +15,10 @@ export const AGENT_CONFIG_RANGES = {
   probeEvery: { min: 60, max: 600 },
   /** The window of looks the read rate is measured over (`RATE_WINDOW`). */
   rateWindow: { min: 10, max: 600 },
+  /** Looks between two searches for the automap marker while it is not found (`AUTOMAP_SEARCH_EVERY`); the floor is today's value, so no configuration searches more often than today (RCF-09). */
+  automapSearchEvery: { min: 2, max: 10 },
+  /** Looks between two searches for the list marker while it is not found (`LIST_SEARCH_EVERY`); the floor is today's value (RCF-09). */
+  listSearchEvery: { min: 2, max: 10 },
   /** Milliseconds between two looks at the game (`TICK`); the floor keeps CHR-03's at most one look per second. */
   lookIntervalMs: { min: 1000, max: 10000 },
   /** The padding, in pixels of the reference client, around the HUD track (`TRACK_PAD`). */
@@ -56,6 +60,8 @@ export const AgentConfigWords = z
     party: Phrase.optional(),
     gameName: Phrase.optional(),
     password: Phrase.optional(),
+    joinedGame: Phrase.optional(),
+    leftGame: Phrase.optional(),
   })
   .strict();
 export type AgentConfigWords = z.infer<typeof AgentConfigWords>;
@@ -70,6 +76,8 @@ export const AgentConfig = z
         probeEvery: ranged(AGENT_CONFIG_RANGES.probeEvery),
         rateWindow: ranged(AGENT_CONFIG_RANGES.rateWindow),
         lookIntervalMs: ranged(AGENT_CONFIG_RANGES.lookIntervalMs),
+        automapSearchEvery: ranged(AGENT_CONFIG_RANGES.automapSearchEvery),
+        listSearchEvery: ranged(AGENT_CONFIG_RANGES.listSearchEvery),
       })
       .strict()
       .optional(),
