@@ -847,4 +847,17 @@ mod tests {
             }
         }
     }
+
+    /// Pins today's read of an `å` (game-name-reading T10, before it reads as `a`): it is a letter of its own, in a generated
+    /// name and in a name with no `-`.
+    #[test]
+    fn pin_an_a_ring_is_a_letter_of_its_own_before_it_reads_as_a() {
+        assert_eq!(normalise("mmb\u{e5}\u{e5}lh-19"), "mmo\u{e5}\u{e5}lh-19");
+        assert_eq!(
+            read_field("mmb\u{e5}\u{e5}lh-19", "mmbaalh-19"),
+            FieldRead::Other
+        );
+        assert_eq!(normalise("DU\u{c5}L NK"), "du\u{e5}l nk");
+        assert_eq!(read_field("mmbaalh-19", "mmbaalh-19"), FieldRead::Matched);
+    }
 }
