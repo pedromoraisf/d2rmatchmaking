@@ -60,14 +60,32 @@ mod tests {
         );
     }
 
+    /// The words of the file: the Party words, the chat phrases, and the words read on the maintainer's pt-BR screenshots of
+    /// 2026-11-21 (selection screen, difficulty popup, HUD). A class or title nobody has seen on a print is not here.
     #[test]
-    fn the_shipped_brazilian_file_is_the_three_party_words_and_the_two_chat_phrases() {
+    fn the_shipped_brazilian_file_is_exactly_the_words_read_on_real_prints() {
         let words = [
             (PARTY, "Grupo"),
             (GAME_NAME, "Nome"),
             (PASSWORD, "Senha"),
             (JOINED_GAME, "entrou em nosso mundo"),
             (LEFT_GAME, "saiu de nosso mundo"),
+            ("characterLevel", "Nv."),
+            ("classAmazon", "Amazona"),
+            ("classAssassin", "Assassina"),
+            ("classNecromancer", "Necromante"),
+            ("classSorceress", "Maga"),
+            ("titleMatriarch", "Matriarca"),
+            ("createNew", "Criar novo"),
+            ("life", "Vida:"),
+            ("mana", "Mana:"),
+            ("difficultyLabel", "Dificuldade:"),
+            ("selectDifficulty", "Selecionar dificuldade"),
+            ("difficultyNormal", "Normal"),
+            ("difficultyNightmare", "Pesadelo"),
+            ("difficultyHell", "Tormento"),
+            ("tabOnline", "Online"),
+            ("tabOffline", "Offline"),
         ]
         .map(|(key, word)| (key.to_string(), word.to_string()));
         assert_eq!(

@@ -738,8 +738,19 @@ mod tests {
             dimmed: &[ScreenRegion],
             ink: impl FnMut(Region, Region) -> super::BandRead,
         ) -> Reading {
+            self.read_with_pack(&LanguagePack::english(), selected, dimmed, ink)
+        }
+
+        /// Reads the scene with `pack`'s words.
+        fn read_with_pack(
+            &self,
+            pack: &LanguagePack,
+            selected: &[u8],
+            dimmed: &[ScreenRegion],
+            ink: impl FnMut(Region, Region) -> super::BandRead,
+        ) -> Reading {
             read_screen(
-                &LanguagePack::english(),
+                pack,
                 HEIGHT,
                 |region| self.readings(region),
                 |search| self.lines(search),
@@ -787,6 +798,147 @@ mod tests {
             (ScreenRegion::CardName(1), "vukaDao"),
             (ScreenRegion::CardLevel(1), "Level 11 Sorceress"),
         ]
+    }
+
+    /// The pt-BR pack as `resources/lang/pt-BR.json` held it before the field bug: the Party words and the two chat phrases.
+    fn brazilian_party_only() -> LanguagePack {
+        pack_of(&[
+            ("party", "Grupo"),
+            ("gameName", "Nome"),
+            ("password", "Senha"),
+        ])
+    }
+
+    /// The pt-BR pack with the words read on the maintainer's own pt-BR screenshots (2026-11-21): the selection screen, the
+    /// difficulty popup and the HUD. No class or title that was not seen is here.
+    fn brazilian_screens() -> LanguagePack {
+        pack_of(&[
+            ("party", "Grupo"),
+            ("gameName", "Nome"),
+            ("password", "Senha"),
+            ("createNew", "Criar novo"),
+            ("tabOnline", "Online"),
+            ("tabOffline", "Offline"),
+            ("characterLevel", "Nv."),
+            ("titleMatriarch", "Matriarca"),
+            ("classSorceress", "Maga"),
+            ("classAmazon", "Amazona"),
+            ("classNecromancer", "Necromante"),
+            ("classAssassin", "Assassina"),
+            ("selectDifficulty", "Selecionar dificuldade"),
+            ("difficultyNormal", "Normal"),
+            ("difficultyNightmare", "Pesadelo"),
+            ("difficultyHell", "Tormento"),
+            ("life", "Vida:"),
+            ("mana", "Mana:"),
+            ("difficultyLabel", "Dificuldade:"),
+        ])
+    }
+
+    fn pack_of(words: &[(&str, &str)]) -> LanguagePack {
+        LanguagePack::from_words(
+            "pt-BR",
+            words
+                .iter()
+                .map(|(key, word)| ((*key).to_string(), (*word).to_string())),
+        )
+        .expect("the pack builds")
+    }
+
+    /// A pt-BR selection screen with a titled Matriarca (slot 0, gold frame) and an untitled Maga (slot 1), and the popup.
+    fn lista() -> Vec<(ScreenRegion, &'static str)> {
+        vec![
+            (ScreenRegion::CreateNew, "Criar novo"),
+            (ScreenRegion::CardTitle(0), "Matriarca"),
+            (ScreenRegion::CardName(0), "vukVuka"),
+            (ScreenRegion::CardLevel(0), "Nv. 88 Maga"),
+            (ScreenRegion::CardTitle(1), ""),
+            (ScreenRegion::CardName(1), "vukaDao"),
+            (ScreenRegion::CardLevel(1), "Nv. 11 Maga"),
+            (ScreenRegion::SelectDifficulty, "Selecionar dificuldade"),
+            (ScreenRegion::PopupNormal, "Normal"),
+            (ScreenRegion::PopupNightmare, "Pesadelo"),
+            (ScreenRegion::PopupHell, "Tormento"),
+        ]
+    }
+
+    fn read_pt(pack: &LanguagePack, pairs: &[(ScreenRegion, &str)], selected: &[u8]) -> Reading {
+        single(pairs).read_with_pack(pack, selected, &[], |_, _| super::BandRead::NoInk)
+    }
+
+    #[test]
+    fn the_pt_br_pack_with_only_the_party_words_reads_no_character_screen_and_no_hud() {
+        // Pin of the field bug (pt-BR client, "Tela: não reconhecida"): the pack held only the Party words, so the words
+        // of the selection screen, the popup and the HUD found nothing and every frame read Unknown.
+        let pack = brazilian_party_only();
+        assert_eq!(read_pt(&pack, &lista(), &[0]).screen, Screen::Unknown);
+        let hud = [(ScreenRegion::Life, "Vida: 925 / 925")];
+        assert_eq!(read_pt(&pack, &hud, &[]).screen, Screen::Unknown);
+        let automap = [(ScreenRegion::AreaDifficulty, "Dificuldade: Tormento")];
+        assert_eq!(read_pt(&pack, &automap, &[]).screen, Screen::Unknown);
+    }
+
+    #[test]
+    fn the_pt_br_selection_screen_reads_its_cards_and_its_popup_with_the_observed_words() {
+        let reading = read_pt(&brazilian_screens(), &lista(), &[0]);
+        assert_eq!(reading.screen, Screen::CharacterSelect);
+        assert_eq!(reading.cards.len(), 2);
+        let matriarca = &reading.cards[0];
+        assert_eq!(matriarca.name(), "vukVuka");
+        assert_eq!(matriarca.class(), Class::Sorceress);
+        assert_eq!(matriarca.level(), 88);
+        assert_eq!(matriarca.title(), Some(Title::Matriarch));
+        assert_eq!(
+            matriarca.unlocked_difficulties(),
+            vec![Normal, Nightmare, Hell]
+        );
+        let untitled = &reading.cards[1];
+        assert_eq!(untitled.class(), Class::Sorceress);
+        assert_eq!(untitled.level(), 11);
+        assert_eq!(untitled.title(), None);
+        assert_eq!(untitled.unlocked_difficulties(), vec![Normal]);
+    }
+
+    #[test]
+    fn the_nv_prefix_of_a_pt_br_card_is_data_the_card_parser_reads_like_the_english_level_word() {
+        // "Nv." is not a word: its comparison form is "NV". It works as data because the reader squashes the pack word and
+        // the read alike (punctuation dropped) and takes the first token of the line as the level word.
+        let pack = brazilian_screens();
+        assert_eq!(
+            parse_level_and_class("Nv. 88 Maga", &pack),
+            Some((88, Class::Sorceress))
+        );
+        assert_eq!(
+            parse_level_and_class("NV. 5 AMAZONA", &pack),
+            Some((5, Class::Amazon))
+        );
+        assert_eq!(
+            parse_level_and_class("Nv. 45 Necromante", &pack),
+            Some((45, Class::Necromancer))
+        );
+        assert_eq!(
+            parse_level_and_class("Nv. 7 Assassina", &pack),
+            Some((7, Class::Assassin))
+        );
+        for text in [
+            "Level 88 Maga",
+            "Nv. 88 Sorceress",
+            "Nv. 88 Bárbaro",
+            "Nv. 88",
+        ] {
+            assert_eq!(parse_level_and_class(text, &pack), None, "{text:?}");
+        }
+    }
+
+    #[test]
+    fn the_pt_br_hud_and_automap_read_in_game_and_the_english_words_do_not() {
+        let pack = brazilian_screens();
+        let hud = [(ScreenRegion::Life, "Vida: 925 / 925")];
+        assert_eq!(read_pt(&pack, &hud, &[]).screen, Screen::InGame);
+        let automap = [(ScreenRegion::AreaDifficulty, "Dificuldade: Tormento")];
+        assert_eq!(read_pt(&pack, &automap, &[]).screen, Screen::AutomapOpen);
+        let english = [(ScreenRegion::Life, "Life: 925 / 925")];
+        assert_eq!(read_pt(&pack, &english, &[]).screen, Screen::Unknown);
     }
 
     #[test]
