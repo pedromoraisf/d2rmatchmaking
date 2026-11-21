@@ -350,6 +350,16 @@ pub const SCHEMAS: &[(&str, &str)] = &[
           "type": "integer",
           "minimum": 1000,
           "maximum": 10000
+        },
+        "automapSearchEvery": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 10
+        },
+        "listSearchEvery": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 10
         }
       },
       "additionalProperties": false
@@ -490,6 +500,18 @@ pub const SCHEMAS: &[(&str, &str)] = &[
               "minLength": 1,
               "maxLength": 40,
               "pattern": "^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$"
+            },
+            "joinedGame": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "pattern": "^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$"
+            },
+            "leftGame": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "pattern": "^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$"
             }
           },
           "additionalProperties": false
@@ -510,6 +532,18 @@ pub const SCHEMAS: &[(&str, &str)] = &[
               "pattern": "^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$"
             },
             "password": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "pattern": "^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$"
+            },
+            "joinedGame": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "pattern": "^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$"
+            },
+            "leftGame": {
               "type": "string",
               "minLength": 1,
               "maxLength": 40,

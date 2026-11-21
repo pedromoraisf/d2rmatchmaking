@@ -9,6 +9,7 @@
 //! the list grows until the change is reviewed (RCF-10).
 
 use crate::capture_cascade::{DEMOTE_AFTER, PROBE_EVERY, RATE_WINDOW};
+use crate::hud_track::{AUTOMAP_SEARCH_EVERY, LIST_SEARCH_EVERY};
 
 /// A body over this many bytes is refused whole (RCF-02, RCF-06). The API's own limit is the same number.
 pub const MAX_BODY_BYTES: usize = 64 * 1024;
@@ -27,12 +28,14 @@ pub const TRACK_PAD_DEFAULT: u32 = 24;
 
 /// Every field of the configuration the agent reads, by its wire name (RCF-10); a region is four fractions `x`, `y`, `width`
 /// and `height`. A new field needs a review.
-pub const FIELDS: [&str; 15] = [
+pub const FIELDS: [&str; 21] = [
     "version",
     "cadence.demoteAfter",
     "cadence.probeEvery",
     "cadence.rateWindow",
     "cadence.lookIntervalMs",
+    "cadence.automapSearchEvery",
+    "cadence.listSearchEvery",
     "thresholds.trackPad",
     "regions.hudBand",
     "regions.automapArea",
@@ -40,9 +43,13 @@ pub const FIELDS: [&str; 15] = [
     "phrases.en.party",
     "phrases.en.gameName",
     "phrases.en.password",
+    "phrases.en.joinedGame",
+    "phrases.en.leftGame",
     "phrases.pt-BR.party",
     "phrases.pt-BR.gameName",
     "phrases.pt-BR.password",
+    "phrases.pt-BR.joinedGame",
+    "phrases.pt-BR.leftGame",
 ];
 
 /// The interval the agent accepts for one number, inclusive. Never read from the server.
@@ -78,6 +85,10 @@ impl Ranges {
         min: 1000,
         max: 10_000,
     };
+    /// The floor is today's period of 2 (`AUTOMAP_SEARCH_EVERY`): no configuration searches the automap area more often.
+    pub const AUTOMAP_SEARCH_EVERY: Range = Range { min: 2, max: 10 };
+    /// The floor is today's period of 2 (`LIST_SEARCH_EVERY`): no configuration searches the list marker area more often.
+    pub const LIST_SEARCH_EVERY: Range = Range { min: 2, max: 10 };
     pub const TRACK_PAD: Range = Range { min: 8, max: 48 };
     /// A whole version number the agent takes.
     pub const VERSION_MAX: u32 = 2_147_483_647;
@@ -98,11 +109,17 @@ pub struct Words {
     pub party: Option<String>,
     pub game_name: Option<String>,
     pub password: Option<String>,
+    pub joined_game: Option<String>,
+    pub left_game: Option<String>,
 }
 
 impl Words {
     fn is_configured(&self) -> bool {
-        self.party.is_some() || self.game_name.is_some() || self.password.is_some()
+        self.party.is_some()
+            || self.game_name.is_some()
+            || self.password.is_some()
+            || self.joined_game.is_some()
+            || self.left_game.is_some()
     }
 }
 
@@ -112,6 +129,10 @@ pub struct Cadence {
     pub probe_every: u32,
     pub rate_window: u32,
     pub look_interval_ms: u32,
+    /// Looks between two searches of the automap area while its line is not found (`hud_track::AUTOMAP_SEARCH_EVERY`).
+    pub automap_search_every: u32,
+    /// Looks between two searches of the list marker area while the marker is not found (`hud_track::LIST_SEARCH_EVERY`).
+    pub list_search_every: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -161,6 +182,8 @@ impl Effective {
                 probe_every: PROBE_EVERY,
                 rate_window: RATE_WINDOW as u32,
                 look_interval_ms: LOOK_INTERVAL_DEFAULT_MS,
+                automap_search_every: AUTOMAP_SEARCH_EVERY,
+                list_search_every: LIST_SEARCH_EVERY,
             },
             thresholds: Thresholds {
                 track_pad: TRACK_PAD_DEFAULT,
@@ -175,11 +198,15 @@ impl Effective {
                     party: None,
                     game_name: None,
                     password: None,
+                    joined_game: None,
+                    left_game: None,
                 },
                 pt_br: Words {
                     party: None,
                     game_name: None,
                     password: None,
+                    joined_game: None,
+                    left_game: None,
                 },
             },
         }
@@ -201,6 +228,8 @@ pub struct Wire {
     pub probe_every: Option<f64>,
     pub rate_window: Option<f64>,
     pub look_interval_ms: Option<f64>,
+    pub automap_search_every: Option<f64>,
+    pub list_search_every: Option<f64>,
     pub track_pad: Option<f64>,
     pub hud_band: Option<WireArea>,
     pub automap_area: Option<WireArea>,
@@ -222,6 +251,8 @@ pub struct WireWords {
     pub party: Option<String>,
     pub game_name: Option<String>,
     pub password: Option<String>,
+    pub joined_game: Option<String>,
+    pub left_game: Option<String>,
 }
 
 /// What a body came to against the version the agent holds (RCF-06, RCF-11).
@@ -310,6 +341,16 @@ fn effective_of(wire: &Wire, version: u32) -> Effective {
                 Ranges::LOOK_INTERVAL_MS,
                 built_in.cadence.look_interval_ms,
             ),
+            automap_search_every: take(
+                wire.automap_search_every,
+                Ranges::AUTOMAP_SEARCH_EVERY,
+                built_in.cadence.automap_search_every,
+            ),
+            list_search_every: take(
+                wire.list_search_every,
+                Ranges::LIST_SEARCH_EVERY,
+                built_in.cadence.list_search_every,
+            ),
         },
         thresholds: Thresholds {
             track_pad: take(
@@ -356,6 +397,8 @@ fn words_of(wire: &WireWords) -> Words {
         party: wire.party.as_deref().and_then(phrase_of),
         game_name: wire.game_name.as_deref().and_then(phrase_of),
         password: wire.password.as_deref().and_then(phrase_of),
+        joined_game: wire.joined_game.as_deref().and_then(phrase_of),
+        left_game: wire.left_game.as_deref().and_then(phrase_of),
     }
 }
 
@@ -403,6 +446,8 @@ mod tests {
         assert_eq!(built_in.cadence.probe_every, 60);
         assert_eq!(built_in.cadence.rate_window, 60);
         assert_eq!(built_in.cadence.look_interval_ms, 1000);
+        assert_eq!(built_in.cadence.automap_search_every, 2);
+        assert_eq!(built_in.cadence.list_search_every, 2);
         assert_eq!(built_in.thresholds.track_pad, 24);
         assert_eq!(built_in.regions, Regions::default());
         assert!(!built_in.phrases.is_configured());
@@ -434,6 +479,8 @@ mod tests {
             }
         );
         assert_eq!(Ranges::TRACK_PAD, Range { min: 8, max: 48 });
+        assert_eq!(Ranges::AUTOMAP_SEARCH_EVERY, Range { min: 2, max: 10 });
+        assert_eq!(Ranges::LIST_SEARCH_EVERY, Range { min: 2, max: 10 });
         assert_eq!(Ranges::VERSION_MAX, 2_147_483_647);
     }
 
@@ -442,7 +489,7 @@ mod tests {
     fn every_number_is_clamped_at_each_edge() {
         type Set = fn(&mut Wire, f64);
         type Get = fn(&Effective) -> u32;
-        let fields: [(Range, Set, Get); 5] = [
+        let fields: [(Range, Set, Get); 7] = [
             (
                 Ranges::DEMOTE_AFTER,
                 |w, v| w.demote_after = Some(v),
@@ -467,6 +514,16 @@ mod tests {
                 Ranges::TRACK_PAD,
                 |w, v| w.track_pad = Some(v),
                 |e| e.thresholds.track_pad,
+            ),
+            (
+                Ranges::AUTOMAP_SEARCH_EVERY,
+                |w, v| w.automap_search_every = Some(v),
+                |e| e.cadence.automap_search_every,
+            ),
+            (
+                Ranges::LIST_SEARCH_EVERY,
+                |w, v| w.list_search_every = Some(v),
+                |e| e.cadence.list_search_every,
             ),
         ];
         for (range, set, get) in fields {
@@ -540,6 +597,7 @@ mod tests {
             party: Some("Party".into()),
             game_name: Some("Game Name".into()),
             password: Some("Password".into()),
+            ..WireWords::default()
         };
         body.pt_br = words("Grupo Açaí 2");
         let effective = applied(&body);
@@ -551,6 +609,32 @@ mod tests {
             Some("Grupo Açaí 2")
         );
         assert!(effective.phrases.is_configured());
+    }
+
+    #[test]
+    fn the_chat_phrases_follow_the_phrase_rule_in_each_language() {
+        let mut body = wire(2.0);
+        body.en = WireWords {
+            joined_game: Some("joined our world".into()),
+            left_game: Some(".*".into()),
+            ..WireWords::default()
+        };
+        body.pt_br = WireWords {
+            joined_game: Some("entrou em nosso mundo".into()),
+            left_game: Some("saiu de nosso mundo".into()),
+            ..WireWords::default()
+        };
+        let effective = applied(&body);
+        let en = &effective.phrases.en;
+        assert_eq!(en.joined_game.as_deref(), Some("joined our world"));
+        assert_eq!(en.left_game, None, "a pattern is dropped");
+        let pt = &effective.phrases.pt_br;
+        assert_eq!(pt.joined_game.as_deref(), Some("entrou em nosso mundo"));
+        assert_eq!(pt.left_game.as_deref(), Some("saiu de nosso mundo"));
+        assert!(effective.phrases.is_configured());
+        let mut long = wire(2.0);
+        long.en.joined_game = Some("a".repeat(41));
+        assert_eq!(applied(&long).phrases.en.joined_game, None);
     }
 
     #[test]
@@ -585,6 +669,7 @@ mod tests {
             party: Some("(a+)+$".into()),
             game_name: Some("Game Name".into()),
             password: None,
+            ..WireWords::default()
         };
         let effective = applied(&body);
         assert_eq!(effective.phrases.en.party, None);
@@ -744,7 +829,7 @@ mod tests {
 
     #[test]
     fn the_field_list_is_the_closed_set_the_agent_reads() {
-        assert_eq!(FIELDS.len(), 15);
+        assert_eq!(FIELDS.len(), 21);
         assert!(FIELDS.contains(&"cadence.probeEvery"));
         assert!(!FIELDS.iter().any(|field| field.contains("command")
             || field.contains("path")

@@ -175,7 +175,7 @@ schema never breaks an older agent; `agent-config.json` keeps serving today's va
       search call counts over 600 looks while the automap or the list marker is not found) and today's chat phrases per
       language (`joinedGame`, `leftGame` from the language packs, the classify results of `chat.rs`'s existing cases). No
       non-test line changes. Gate: `CARGO nextest run -p d2rmm-agent-domain -p d2rmm-agent-core --lib`
-- [ ] T24 — **[R14] Parse** the four fields in `domain/src/remote_config.rs` (clamp into the same ranges; a phrase only when
+- [x] T24 — **[R14] Parse** the four fields in `domain/src/remote_config.rs` (clamp into the same ranges; a phrase only when
       it passes its rule), add them to `FIELDS` and to the source-rule test; defaults equal today's constants (RCF-07).
       Gate: as T23
 - [ ] T25 — **[R14] Search cadences** from `Effective.cadence` into the automap and list-marker trackers read by

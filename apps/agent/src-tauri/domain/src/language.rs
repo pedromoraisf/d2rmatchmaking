@@ -705,6 +705,7 @@ mod phrases_threaded {
             party: Some(party.to_string()),
             game_name: Some(game_name.to_string()),
             password: Some(password.to_string()),
+            ..Words::default()
         }
     }
 
@@ -748,6 +749,7 @@ mod phrases_threaded {
                 party: Some("Group".to_string()),
                 game_name: Some("   ".to_string()),
                 password: None,
+                ..Words::default()
             },
             pt_br: Words::default(),
         };
