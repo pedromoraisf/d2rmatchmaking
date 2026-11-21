@@ -1,8 +1,7 @@
 # Staging bots — Specification
 
 **Phase**: F2 (covered by the brief's approval, ADR 029) · **Size**: Medium (Complex in its security surface) ·
-**Security review**: yes (a staging-only identity, agent tokens, a workflow that creates sessions) · **Status**: DRAFT
-(batch 0, awaiting the orchestrator's review; no code yet)
+**Security review**: yes (a staging-only identity, agent tokens, a workflow that creates sessions) · **Status**: APPROVED by the orchestrator, 2026-11-21 (batches 1 to 3 in progress)
 
 ## Problem
 
@@ -43,6 +42,8 @@ So the server already has everything a bot needs. **This feature adds no server 
     (QUE-07);
   - for `leveling`: `activity` and the bots' `role` (QUE-02);
   - `bots`: how many, from 1 to the group size minus 1 (SBT-06);
+  - `human_first` (default `true`): the bots queue only after a non-bot waits in the bucket (SBT-06);
+  - `host_policy`: what a bot does when the match still names it host, `bot-reports` (default) or `bot-silent` (SBT-07);
   - `minutes`: how long they stay, from 1 to 60 (default 15).
     An input outside its set SHALL fail the run before any request.
 - **SBT-02** — The script SHALL refuse a target that is not staging, before it makes any write:
@@ -78,6 +79,13 @@ So the server already has everything a bot needs. **This feature adds no server 
      before the join.
 - **SBT-06** — The bots SHALL join the same queue bucket as the maintainer (mode, region, difficulty, ladder, era and,
   in Leveling, activity and the level floor), `bots` of them, and stay queued until the group forms.
+  - With `human_first` (the default) the first bot is a **sentinel**: it queues, reads `poolSize` of
+    `GET /v1/queue/tickets/me` (the number the site shows as "N jogadores nesta fila"; the API counts a bucket only for
+    an account that holds a ticket), and the other bots queue only when `poolSize` minus the bots of this run already
+    queued is at least 1, so a non-bot waits. The sentinel waits at most `minutes`, then the run ends cleanly. The human
+    hosts when they queued before the sentinel and no bot has the `teleporter` role (`matcher.ts`: PvP hosts the first
+    ticket, Leveling the teleporter, else the first); bots never take `teleporter`, and the maintainer queues first and
+    dispatches after. With `human_first: false` every bot queues at once.
   - The group size is 2 for a PvP duel and 8 for Leveling (QUE-07). `bots` SHALL be at most size − 1, so the bots can
     never form a group among themselves: the group forms only when the maintainer joins. The default is size − 1.
   - A bot whose ready check failed returns to the queue through the API's own rules (RDY-04, RDY-05) and nothing else
@@ -99,6 +107,9 @@ So the server already has everything a bot needs. **This feature adds no server 
     `concurrency` group of one run at a time, `cancel-in-progress: false`;
   - one request at a time per bot after the join, never faster than the API's rate limits (the heartbeat route's
     bucket, the observation bucket); a `429` backs off by `Retry-After` and is never a failure of the run;
+  - a run of N bots spends N of the 10 pairing codes an IP may ask per hour (`IP_CODE_REQUESTS`), so a second large run
+    from the same runner IP within the hour can be refused; the script reads that 429 as "wait for the hour", fails
+    before it queues anyone and never asks for the limit to be raised;
   - a second dispatch with the same inputs creates no duplicate accounts (test accounts are found by name) and no
     duplicate tickets (a second join is a `409` the script reads as "already queued").
 - **SBT-09** — Bots SHALL be visibly bots on the site. Wherever the site shows a player's display name (queue,
@@ -127,7 +138,8 @@ So the server already has everything a bot needs. **This feature adds no server 
     (the script's `main/`, rule 13 III), never in the libraries.
     If the design needs a secret, the implementation SHALL stop and report which one (rule 6).
 - **SBT-13** — The maintainer SHALL find the runbook in `docs/engineering/staging-bots.md`: how to dispatch from the
-  phone, what each input means, how a run reads, and how to stop one. It states that the bots exist only on staging.
+  phone, what each input means, how a run reads, and how to stop one. It states that the bots exist only on staging, and
+  the "how to run" section below.
 
 ## Threat model of the bot identity (for the security reviewer)
 
@@ -216,14 +228,23 @@ for staging sign-in) is out of scope and would be a new secret, the maintainer's
 - Bots are staging-only by construction: production cannot be reached from the workflow because the URL is the staging
   environment's variable.
 
-## Open questions for the maintainer
+## How to run (the runbook's core)
 
-1. **Who hosts?** The room's host is chosen by the match (join order). If a bot is host and posts the game name, the
-   room reaches `created` with no real game, so the maintainer cannot join it in D2R. Do they want (a) _bot-reports_
-   (the default above: test the member path and the site's states), (b) _bot-silent_ (a bot host posts nothing, so the
-   room expires at 3 minutes and the lifecycle's expiry can be tested), or (c) _human-first_ (bots wait until a
-   marker the maintainer sets; needs a second dispatch)? The draft builds (a) and (b) as an input `host_policy`.
-2. **`STAGING_API_URL` and `SITE_ORIGIN`** must exist as variables (not secrets) of the `staging` GitHub environment. Do they
-   already? If not, the maintainer sets them (repository settings are theirs).
-3. **Re-run in the same minute.** Should a second dispatch with bots still alive cancel the first run (`cancel-in-progress`)
-   or queue behind it? The draft queues (`false`), so a stale run cannot be cut mid-cleanup.
+1. Join the queue yourself first, on the site you already use, with the bucket you want (mode, difficulty, region,
+   ladder, era, and in Leveling the activity).
+2. Dispatch `staging-bots` from the GitHub phone app with the same bucket, and the number of bots (default: group size
+   minus 1).
+3. The sentinel sees you waiting, the others queue, the group forms and the ready check opens on your site. Accept it.
+4. The bots leave when the room ends or after `minutes`. Cancel the run to make them leave at once.
+
+Today the staging API **is** the service the maintainer already uses: `https://d2rmm-api.onrender.com`, whose
+`GET /v1/config` answers `stagingEndpoints: true`; the production service does not exist yet. The `staging` environment
+variables are `STAGING_API_URL=https://d2rmm-api.onrender.com` and `SITE_ORIGIN=https://d2rmatchmaking.pages.dev`. The
+script still trusts `/v1/config`, never the name of the host, because that host may change (SBT-02). The maintainer adds
+the two variables; the repository settings are theirs.
+
+## Decisions taken with the orchestrator (2026-11-21)
+
+- The human hosts: `human_first` is the default, with the sentinel above. A bot named host follows `host_policy`.
+- A second dispatch queues behind the first (`cancel-in-progress: false`).
+- The rate limits stay as they are (notes.md A3).

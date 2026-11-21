@@ -14,7 +14,7 @@ Rules:
 
 ## Batch 0 — Verify what the draft assumes (no code; findings go in `decisions.md` of the feature)
 
-- [ ] T0 — Confirm the four assumptions the spec rests on, each with the file and line, and write the result in
+- [x] T0 — Confirm the four assumptions the spec rests on, each with the file and line, and write the result in
       `.specs/features/staging-bots/notes.md`: (A1) how the match names the host (join order?) and what `GAME_NAME_SEEN`
       of a member does before `created`; (A2) a Battle.net display name never contains `-` (`displayNameOf`, BattleTag
       rules in the Battle.net docs the repo already cites); (A3) the staging rate limits (per IP, per agent) against 8
@@ -25,7 +25,7 @@ Rules:
 
 - [ ] T1 — `scripts/staging/lib/plan.mjs`: validates the dispatch inputs and returns the plan (group size 2 or 8,
       `bots` default and cap, `minutes` cap, names `bot-<tag>-<n>`, character names, the declared ladder and era)
-      (SBT-01, SBT-04, SBT-06, SBT-08). Gate: `node --test scripts/test/staging-bots-plan.test.mjs`
+      (SBT-01, SBT-04, SBT-06, SBT-08), including `human_first` and `host_policy`, and refuses the `teleporter` role. Gate: `node --test scripts/test/staging-bots-plan.test.mjs`
 - [ ] T2 — `scripts/staging/lib/target.mjs`: `assertStaging({ apiUrl, expectedUrl, environment, fetch })` refuses a wrong
       origin, `stagingEndpoints:false`, `D2RMM_ENV=production`, and an unreachable `/v1/config`, with no request but
       `/healthz` and `/v1/config` (SBT-02). Cover every refusal with a production-shaped fake API. Gate:
