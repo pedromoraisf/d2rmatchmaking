@@ -48,6 +48,16 @@ impl Outcome {
     }
 }
 
+/// What the loop knows of the configuration it holds besides its values (RCF-06).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Held {
+    /// The tag of the last body the server served and the agent kept, sent back as `If-None-Match`.
+    pub etag: Option<String>,
+    /// Whether the server has answered with a valid document since the agent started. Until it has, the configuration the
+    /// agent runs may be the stored one alone, and a stored file never outranks what the server serves (see `fetch_once`).
+    pub confirmed: bool,
+}
+
 /// What the last fetch came to, with a count so a watcher sees every one, also two in a row with the same outcome.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ConfigFetch {
@@ -88,12 +98,12 @@ pub async fn run<G: ConfigGateway + Send + Sync + 'static>(
     every: Duration,
 ) {
     load_stored(&device, &ports);
-    let mut etag: Option<String> = None;
+    let mut held = Held::default();
     let mut backoff = RECONNECT_MIN;
     loop {
         device.wait_until_allowed(DeviceState::api_allowed).await;
         let started = Instant::now();
-        let outcome = fetch_traced(&device, &ports, &mut etag).await;
+        let outcome = fetch_traced(&device, &ports, &mut held).await;
         publish(&device, outcome);
         let wait = if outcome == Outcome::Unreachable {
             let wait = backoff;
@@ -115,14 +125,14 @@ pub async fn run<G: ConfigGateway + Send + Sync + 'static>(
 async fn fetch_traced<G: ConfigGateway + Send + Sync>(
     device: &DeviceState,
     ports: &ConfigPorts<G>,
-    etag: &mut Option<String>,
+    held: &mut Held,
 ) -> Outcome {
     let span = tracing::info_span!(
         "agent.config.fetch",
         "config.outcome" = tracing::field::Empty,
         "config.version" = tracing::field::Empty,
     );
-    let outcome = fetch_once(device, ports, etag)
+    let outcome = fetch_once(device, ports, held)
         .instrument(span.clone())
         .await;
     let version = device.config.borrow().version;
@@ -140,15 +150,26 @@ fn publish(device: &DeviceState, outcome: Outcome) {
 }
 
 /// One request and what it did to the configuration the agent runs.
+///
+/// The version rule (RCF-06). Once the server has answered with a valid document, the agent holds its version and a body that
+/// is not newer is refused: an old document replayed does not undo a fix. Before the first valid answer the agent may run
+/// only what its own file stored, and a stored version is not evidence of what the server serves (a file edited by hand or
+/// written from a bad release could hold the largest version and refuse every later document). So the first valid body of a
+/// run is compared with 0: the stored file never outranks the server's document, and from then on the server's own versions
+/// are the floor.
 pub async fn fetch_once<G: ConfigGateway + Send + Sync>(
     device: &DeviceState,
     ports: &ConfigPorts<G>,
-    etag: &mut Option<String>,
+    held: &mut Held,
 ) -> Outcome {
     let Some(token) = ports.tokens.load() else {
         return Outcome::Unreachable;
     };
-    match ports.gateway.fetch_config(&token, etag.as_deref()).await {
+    match ports
+        .gateway
+        .fetch_config(&token, held.etag.as_deref())
+        .await
+    {
         Fetched::NotModified | Fetched::Absent => Outcome::Unchanged,
         Fetched::Failed(error) => {
             if matches!(error, ApiError::Unauthorized | ApiError::UpgradeRequired) {
@@ -160,19 +181,25 @@ pub async fn fetch_once<G: ConfigGateway + Send + Sync>(
             bytes,
             etag: served,
         } => {
-            let held = device.config.borrow().version;
+            let running = device.config.borrow().version;
+            let floor = if held.confirmed { running } else { 0 };
             let wire = ports.reader.read(&bytes);
-            match from_wire(wire.as_ref(), held) {
+            match from_wire(wire.as_ref(), floor) {
                 Verdict::Applied(effective) => {
                     apply(device, ports, *effective, &bytes);
-                    *etag = served;
+                    held.etag = served;
+                    held.confirmed = true;
                     Outcome::Applied
                 }
                 Verdict::Unchanged => {
-                    *etag = served;
+                    held.etag = served;
+                    held.confirmed = true;
                     Outcome::Unchanged
                 }
-                Verdict::Stale => Outcome::Stale,
+                Verdict::Stale => {
+                    held.confirmed = true;
+                    Outcome::Stale
+                }
                 Verdict::Invalid => Outcome::Invalid,
             }
         }
@@ -195,7 +222,9 @@ mod tests {
 
     use d2rmm_agent_domain::remote_config::{Effective, Wire};
 
-    use super::{CHECK_EVERY, ConfigFetch, ConfigPorts, Outcome, fetch_once, load_stored, run};
+    use super::{
+        CHECK_EVERY, ConfigFetch, ConfigPorts, Held, Outcome, fetch_once, load_stored, run,
+    };
     use crate::device_state::DeviceState;
     use crate::fakes::{CALL_LIMIT, MemoryTokens, NullSink, fails_fast, trip_bound};
     use crate::ports::{
@@ -327,15 +356,15 @@ mod tests {
     async fn a_newer_body_is_applied_and_kept() {
         let rig = rig(true, MemoryStore::default());
         rig.gateway.script([served(5, 30, "\"a\"")]);
-        let mut etag = None;
+        let mut held = Held::default();
 
-        let outcome = fetch_once(&rig.device, &rig.ports, &mut etag).await;
+        let outcome = fetch_once(&rig.device, &rig.ports, &mut held).await;
 
         assert_eq!(outcome, Outcome::Applied);
         assert_eq!(running(&rig.device).version, 5);
         assert_eq!(running(&rig.device).cadence.probe_every, 30);
         assert_eq!(rig.store.load(), Some(body(5, 30)));
-        assert_eq!(etag.as_deref(), Some("\"a\""));
+        assert_eq!(held.etag.as_deref(), Some("\"a\""));
         assert_eq!(
             rig.device.hub.snapshot().config_version,
             5,
@@ -348,10 +377,10 @@ mod tests {
         let rig = rig(true, MemoryStore::default());
         rig.gateway
             .script([served(5, 30, "\"a\""), Fetched::NotModified]);
-        let mut etag = None;
-        fetch_once(&rig.device, &rig.ports, &mut etag).await;
+        let mut held = Held::default();
+        fetch_once(&rig.device, &rig.ports, &mut held).await;
 
-        let outcome = fetch_once(&rig.device, &rig.ports, &mut etag).await;
+        let outcome = fetch_once(&rig.device, &rig.ports, &mut held).await;
 
         assert_eq!(outcome, Outcome::Unchanged);
         assert_eq!(rig.gateway.asked(), vec![None, Some("\"a\"".to_string())]);
@@ -363,7 +392,7 @@ mod tests {
         let rig = rig(true, MemoryStore::default());
         rig.gateway.script([Fetched::Absent]);
 
-        let outcome = fetch_once(&rig.device, &rig.ports, &mut None).await;
+        let outcome = fetch_once(&rig.device, &rig.ports, &mut Held::default()).await;
 
         assert_eq!(outcome, Outcome::Unchanged);
         assert_eq!(running(&rig.device), Effective::built_in());
@@ -375,10 +404,10 @@ mod tests {
         let rig = rig(true, MemoryStore::default());
         rig.gateway
             .script([served(5, 30, "\"a\""), served(5, 90, "\"b\"")]);
-        let mut etag = None;
-        fetch_once(&rig.device, &rig.ports, &mut etag).await;
+        let mut held = Held::default();
+        fetch_once(&rig.device, &rig.ports, &mut held).await;
 
-        let outcome = fetch_once(&rig.device, &rig.ports, &mut etag).await;
+        let outcome = fetch_once(&rig.device, &rig.ports, &mut held).await;
 
         assert_eq!(outcome, Outcome::Unchanged);
         assert_eq!(running(&rig.device).cadence.probe_every, 30);
@@ -390,17 +419,21 @@ mod tests {
         let rig = rig(true, MemoryStore::default());
         rig.gateway
             .script([served(5, 30, "\"a\""), served(4, 90, "\"b\"")]);
-        let mut etag = None;
-        fetch_once(&rig.device, &rig.ports, &mut etag).await;
+        let mut held = Held::default();
+        fetch_once(&rig.device, &rig.ports, &mut held).await;
 
-        let outcome = fetch_once(&rig.device, &rig.ports, &mut etag).await;
+        let outcome = fetch_once(&rig.device, &rig.ports, &mut held).await;
 
         assert_eq!(outcome, Outcome::Stale);
         assert_eq!(running(&rig.device).version, 5);
         assert_eq!(running(&rig.device).cadence.probe_every, 30);
         assert_eq!(rig.device.hub.snapshot().config_version, 5);
         assert_eq!(rig.store.load(), Some(body(5, 30)));
-        assert_eq!(etag.as_deref(), Some("\"a\""), "the tag of what is held");
+        assert_eq!(
+            held.etag.as_deref(),
+            Some("\"a\""),
+            "the tag of what is held"
+        );
     }
 
     #[tokio::test]
@@ -413,15 +446,15 @@ mod tests {
                 etag: Some("\"b\"".into()),
             },
         ]);
-        let mut etag = None;
-        fetch_once(&rig.device, &rig.ports, &mut etag).await;
+        let mut held = Held::default();
+        fetch_once(&rig.device, &rig.ports, &mut held).await;
 
-        let outcome = fetch_once(&rig.device, &rig.ports, &mut etag).await;
+        let outcome = fetch_once(&rig.device, &rig.ports, &mut held).await;
 
         assert_eq!(outcome, Outcome::Invalid);
         assert_eq!(running(&rig.device).version, 5);
         assert_eq!(rig.store.load(), Some(body(5, 30)));
-        assert_eq!(etag.as_deref(), Some("\"a\""));
+        assert_eq!(held.etag.as_deref(), Some("\"a\""));
     }
 
     #[tokio::test]
@@ -431,7 +464,7 @@ mod tests {
             bytes: b"x:30".to_vec(),
             etag: None,
         }]);
-        let outcome = fetch_once(&rig.device, &rig.ports, &mut None).await;
+        let outcome = fetch_once(&rig.device, &rig.ports, &mut Held::default()).await;
         assert_eq!(outcome, Outcome::Invalid);
         assert_eq!(running(&rig.device), Effective::built_in());
         assert_eq!(rig.store.load(), None);
@@ -443,10 +476,10 @@ mod tests {
             let rig = rig(true, MemoryStore::default());
             rig.gateway
                 .script([served(5, 30, "\"a\""), Fetched::Failed(error)]);
-            let mut etag = None;
-            fetch_once(&rig.device, &rig.ports, &mut etag).await;
+            let mut held = Held::default();
+            fetch_once(&rig.device, &rig.ports, &mut held).await;
 
-            let outcome = fetch_once(&rig.device, &rig.ports, &mut etag).await;
+            let outcome = fetch_once(&rig.device, &rig.ports, &mut held).await;
 
             assert_eq!(outcome, Outcome::Unreachable);
             assert_eq!(running(&rig.device).version, 5);
@@ -459,7 +492,7 @@ mod tests {
         rig.gateway
             .script([Fetched::Failed(ApiError::Unauthorized)]);
 
-        let outcome = fetch_once(&rig.device, &rig.ports, &mut None).await;
+        let outcome = fetch_once(&rig.device, &rig.ports, &mut Held::default()).await;
 
         assert_eq!(outcome, Outcome::Unreachable);
         assert!(!rig.device.is_paired());
@@ -471,7 +504,7 @@ mod tests {
         rig.gateway
             .script([Fetched::Failed(ApiError::UpgradeRequired)]);
 
-        fetch_once(&rig.device, &rig.ports, &mut None).await;
+        fetch_once(&rig.device, &rig.ports, &mut Held::default()).await;
 
         assert!(!rig.device.api_allowed());
     }
@@ -487,7 +520,7 @@ mod tests {
         );
         rig.gateway.script([served(5, 30, "\"a\"")]);
 
-        let outcome = fetch_once(&rig.device, &rig.ports, &mut None).await;
+        let outcome = fetch_once(&rig.device, &rig.ports, &mut Held::default()).await;
 
         assert_eq!(outcome, Outcome::Applied);
         assert_eq!(running(&rig.device).cadence.probe_every, 30);
@@ -498,7 +531,7 @@ mod tests {
         let rig = rig(false, MemoryStore::default());
         rig.gateway.script([served(5, 30, "\"a\"")]);
 
-        let outcome = fetch_once(&rig.device, &rig.ports, &mut None).await;
+        let outcome = fetch_once(&rig.device, &rig.ports, &mut Held::default()).await;
 
         assert_eq!(outcome, Outcome::Unreachable);
         assert!(rig.gateway.asked().is_empty());
@@ -769,9 +802,9 @@ mod tests {
         let guard = tracing::subscriber::set_default(Arc::clone(&spans));
         tracing::callsite::rebuild_interest_cache();
 
-        let mut etag = None;
+        let mut held = Held::default();
         for _ in 0..5 {
-            super::fetch_traced(&rig.device, &rig.ports, &mut etag).await;
+            super::fetch_traced(&rig.device, &rig.ports, &mut held).await;
         }
         drop(guard);
 
@@ -808,5 +841,128 @@ mod tests {
                 pair("unreachable", "5"),
             ]
         );
+    }
+
+    fn rig_storing(version: u32) -> Rig {
+        rig(
+            true,
+            MemoryStore {
+                body: Mutex::new(Some(body(version, 30))),
+                ..MemoryStore::default()
+            },
+        )
+    }
+
+    /// A stored file never outranks the server: a stored version at the top of the range does not refuse the server's document.
+    #[tokio::test]
+    async fn a_stored_version_at_the_top_does_not_refuse_the_servers_document() {
+        let rig = rig_storing(2_147_483_647);
+        load_stored(&rig.device, &rig.ports);
+        assert_eq!(running(&rig.device).version, 2_147_483_647);
+        rig.gateway.script([served(3, 90, "\"a\"")]);
+        let mut held = Held::default();
+
+        let outcome = fetch_once(&rig.device, &rig.ports, &mut held).await;
+
+        assert_eq!(outcome, Outcome::Applied);
+        assert_eq!(running(&rig.device).version, 3);
+        assert_eq!(running(&rig.device).cadence.probe_every, 90);
+        assert_eq!(
+            rig.store.load(),
+            Some(body(3, 90)),
+            "the file follows the server"
+        );
+        assert_eq!(rig.device.hub.snapshot().config_version, 3);
+    }
+
+    /// A stored version lower than the server's, equal to it or higher: the first valid document of the run is the server's.
+    #[tokio::test]
+    async fn the_first_valid_document_of_a_run_is_the_servers_whatever_the_stored_version() {
+        for stored in [1, 4, 5, 6, 100] {
+            let rig = rig_storing(stored);
+            load_stored(&rig.device, &rig.ports);
+            rig.gateway.script([served(5, 90, "\"a\"")]);
+
+            let outcome = fetch_once(&rig.device, &rig.ports, &mut Held::default()).await;
+
+            assert_eq!(outcome, Outcome::Applied, "stored {stored}");
+            assert_eq!(running(&rig.device).version, 5, "stored {stored}");
+            assert_eq!(
+                running(&rig.device).cadence.probe_every,
+                90,
+                "stored {stored}"
+            );
+        }
+    }
+
+    /// RCF-06's replay protection holds for fetched bodies: once the server has answered, an older document is refused.
+    #[tokio::test]
+    async fn after_the_first_valid_answer_an_older_document_is_refused() {
+        let rig = rig_storing(2_147_483_647);
+        load_stored(&rig.device, &rig.ports);
+        rig.gateway.script([
+            served(3, 90, "\"a\""),
+            served(2, 10, "\"b\""),
+            served(3, 70, "\"c\""),
+        ]);
+        let mut held = Held::default();
+        fetch_once(&rig.device, &rig.ports, &mut held).await;
+
+        assert_eq!(
+            fetch_once(&rig.device, &rig.ports, &mut held).await,
+            Outcome::Stale
+        );
+        assert_eq!(
+            fetch_once(&rig.device, &rig.ports, &mut held).await,
+            Outcome::Unchanged
+        );
+        assert_eq!(running(&rig.device).version, 3);
+        assert_eq!(running(&rig.device).cadence.probe_every, 90);
+    }
+
+    /// A server answer that is no valid document, or no answer, does not confirm anything: the stored file still runs.
+    #[tokio::test]
+    async fn an_answer_that_is_no_document_keeps_the_stored_file_and_confirms_nothing() {
+        let rig = rig_storing(5);
+        load_stored(&rig.device, &rig.ports);
+        rig.gateway.script([
+            Fetched::Body {
+                bytes: b"broken".to_vec(),
+                etag: None,
+            },
+            Fetched::Failed(ApiError::Network),
+            Fetched::Absent,
+            served(4, 90, "\"a\""),
+        ]);
+        let mut held = Held::default();
+        for expected in [Outcome::Invalid, Outcome::Unreachable, Outcome::Unchanged] {
+            assert_eq!(
+                fetch_once(&rig.device, &rig.ports, &mut held).await,
+                expected
+            );
+            assert_eq!(running(&rig.device).version, 5, "the stored file runs");
+            assert!(!held.confirmed);
+        }
+
+        assert_eq!(
+            fetch_once(&rig.device, &rig.ports, &mut held).await,
+            Outcome::Applied
+        );
+        assert_eq!(running(&rig.device).version, 4);
+        assert!(held.confirmed);
+    }
+
+    #[tokio::test]
+    async fn with_nothing_stored_the_rule_is_the_plain_one() {
+        let rig = rig(true, MemoryStore::default());
+        rig.gateway
+            .script([served(5, 30, "\"a\""), served(4, 90, "\"b\"")]);
+        let mut held = Held::default();
+        fetch_once(&rig.device, &rig.ports, &mut held).await;
+        assert_eq!(
+            fetch_once(&rig.device, &rig.ports, &mut held).await,
+            Outcome::Stale
+        );
+        assert_eq!(running(&rig.device).version, 5);
     }
 }

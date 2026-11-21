@@ -68,6 +68,11 @@ agent's domain and never read from the server.
   is not greater than the one the agent holds, THEN the agent SHALL keep what it holds. The agent SHALL keep the last
   good configuration on its PC and load it at the next start after validating it again; with none, it SHALL run on the
   built-in defaults.
+  The stored file SHALL NEVER outrank what the server serves: until the server has answered with a valid document in this
+  run, the agent runs the stored one, and the first valid document it is served is applied whatever its version, the stored
+  one included (a stored version at the top of the range, from a bad release or an edited file, must not refuse every later
+  document until a reinstall). From that answer on, the version the agent holds is the server's, and an older or equal
+  fetched body is refused as before, so a replayed document does not undo a fix.
 - **RCF-07** — The built-in defaults SHALL equal the constants the agent has today, and an agent that never receives a
   configuration SHALL read exactly as it does now. Tests SHALL pin each default before any constant is replaced.
 - **RCF-08** — A configuration that is applied SHALL take effect at the next look of each loop with no restart, and the
@@ -172,3 +177,11 @@ agent's domain and never read from the server.
 - **Order of work.** The API and contract side (batch 1) starts as soon as the phase branch allows. The agent side needs
   `capture-cascade` (merged or its constants known) and the reading side needs `game-name-reading` for the chat phrases and
   `feat/F2-screen-recognition-2` for the search cadences; until they merge, their fields are not in the schema.
+- **A stored file never outranks the server (fix round 1, security minor 1).** Options: (a) compare a fetched body with the
+  stored version always (a stored version of 2^31−1 refuses every later document until a reinstall); (b) drop the stored
+  file when the server serves a lower version (it would also drop a good file on one stale answer from a lagging instance);
+  (c) **chosen:** the first valid document the server serves in a run is compared with 0, so it is applied, and every later
+  body is compared with the version the server has served. It is the smallest change that keeps RCF-06's replay protection for
+  fetched bodies, and it costs one `Held.confirmed` flag in the loop. A body that is invalid, a failed fetch and a `404` do not
+  confirm anything, so the stored file still runs when the API is gone. An agent restart applies the served document once
+  (outcome `applied`) even when it equals the stored one.
