@@ -47,7 +47,7 @@ is **blank** when `frame_content::summarize` says so (uniform or near-black); a 
 - **CAP-04** — Every method SHALL copy only the pixels of the game window's client area, and SHALL reduce its output to
   exactly that area before the frame leaves the capture adapter (title bar and borders of a windowed game cropped
   away, a frame whose size is not the client's size refused). `graphics-capture` SHALL be created from the game window
-  itself, with the cursor and the window border off where Windows allows it. `screen-crop` SHALL copy only the client
+  itself, with the cursor off; the window border stays on, the visible sign of capture. `screen-crop` SHALL copy only the client
   rectangle, and only WHILE the game window is the foreground window, visible and not minimized. No method SHALL capture
   a monitor, the desktop or another window (ADR 010).
 - **CAP-05** — WHILE the game window is minimized, has no client area or is not running, or WHILE consent is not given,
@@ -121,7 +121,7 @@ is **blank** when `frame_content::summarize` says so (uniform or near-black); a 
 | CAP-02 | A blank-frame retry loop spins and costs CPU, or hides a failure                                                         | Three looks before demotion; unusable frames never reach OCR; the reason is a fixed code                                                                                                                                                                                                                                          |
 | CAP-03 | The probe becomes a second capture every look (CPU, and more pixels read than needed)                                    | One probe per sixty looks, capture only; call-count tests fail if the steady state makes two captures                                                                                                                                                                                                                             |
 | CAP-04 | `screen-crop` copies pixels of another window drawn over the game (a chat overlay, a password manager) or of the desktop | Only the client rectangle, only while the game is the foreground, visible and not minimized; the frame is never stored or sent; on any doubt the method returns no frame; WGC and `print-window` are window-bound by construction. Residual risk (a topmost overlay inside the rectangle) is named in the PR and the decision log |
-| CAP-04 | Windows' capture border or cursor leaks cursor pixels or alarms the player                                               | Cursor capture off; the border is Windows' own indicator and is left on where Windows requires it (a visible sign of capture)                                                                                                                                                                                                     |
+| CAP-04 | Windows' capture border or cursor leaks cursor pixels or alarms the player                                               | Cursor capture off; the border is Windows' own indicator and stays on (a visible sign of capture)                                                                                                                                                                                                                                 |
 | CAP-05 | Capture continues after consent is withdrawn or while the game is minimized                                              | The consent and window checks run before any method; sessions are closed on withdrawal (unit-tested)                                                                                                                                                                                                                              |
 | CAP-06 | A frame of the wrong size reads regions of another layout                                                                | A size mismatch refuses the frame; the reader's supported-size rule stays (`UNKNOWN`)                                                                                                                                                                                                                                             |
 | CAP-07 | The method word or read rate leaks something identifying                                                                 | Three fixed words and a number; no title, process, path or size                                                                                                                                                                                                                                                                   |
@@ -153,11 +153,11 @@ is **blank** when `frame_content::summarize` says so (uniform or near-black); a 
   configuration is required of the player).
 - **Orchestrator answers to the draft (F2-ORQ004).** `screen-crop` stays conditional on the field matrix (T14). The
   sensor edit O1 is the orchestrator's. `graphics-capture` uses the `windows` crate's WinRT and Direct3D features, no new
-  crate. The Windows capture border stays on where the OS requires it. `readRate` is the share of usable captures. The
+  crate. The Windows capture border stays on (kept by both re-reviews). `readRate` is the share of usable captures. The
   3 and 60 constants live in the domain, pinned by tests.
 - **A kept frame stands for a still window for at most 15 seconds** (fix round 1, `MAX_FRAME_AGE`). Windows delivers a Graphics
   Capture frame on change only, so a still menu sends none and the session returns its last frame; past 15 s the session is
-  treated as stalled (`Miss::Failed`), reopens, and the cascade can demote. A closed capture item ends the session at once.
+  treated as stalled (`Miss::Failed`), reopens, and the cascade can demote. A closed capture item ends the session within `MAX_FRAME_AGE` (15 s).
 - **`Closed` is not subscribed: the bound covers it** (fix round 1). A closed or silent capture item turns into `Miss::Failed`
   within `MAX_FRAME_AGE`, and the session is re-checked on every look. Subscribing needs a `TypedEventHandler` allow-list
   entry, which is for the maintainer to confirm.
