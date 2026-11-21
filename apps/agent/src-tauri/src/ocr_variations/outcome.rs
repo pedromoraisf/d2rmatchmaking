@@ -360,8 +360,8 @@ pub fn classify_automap(variants: &[Vec<TextLine>], expected_name: &str) -> Verd
 }
 
 /// An `automap-other-far` reason of a frame whose lines hold a label and a colon (`<label>: <name>`) gains
-/// `-after-label:<n>`, the edit distance (capped at 9) of the closest text after the last `:` or `;` to the generated name: a
-/// number only, no read text. It tells whether searching the name after the label would find it (game-name-reading T11).
+/// `-after-label:<n>`, the edit distance (capped at 9) of the closest text after the last `:` or `;` to the generated name and, at one
+/// or two edits, the operations against it (the name is public): a number and glyphs of the generated name, no read text. It tells whether searching the name after the label would find it (game-name-reading T11).
 fn with_label_distance(reason: String, texts: &[&str], expected_name: &str) -> String {
     if reason != "automap-other-far" || !is_generated_game_name(expected_name) {
         return reason;
@@ -369,11 +369,19 @@ fn with_label_distance(reason: String, texts: &[&str], expected_name: &str) -> S
     let expected = normalise(expected_name);
     let closest = texts
         .iter()
-        .filter_map(|text| text.rsplit_once([':', ';']).map(|(_, tail)| tail))
-        .map(|tail| edit_distance(&normalise(tail), &expected))
-        .min();
+        .filter_map(|text| {
+            text.rsplit_once([':', ';'])
+                .map(|(_, tail)| normalise(tail))
+        })
+        .map(|tail| (edit_distance(&tail, &expected), tail))
+        .min_by_key(|(distance, _)| *distance);
     match closest {
-        Some(distance) => format!("{reason}-after-label:{}", distance.min(9)),
+        // At one or two edits the operations against the (public) generated name are named, as `other_reason` does.
+        Some((distance @ 1..=2, tail)) => format!(
+            "{reason}-after-label:{distance}:{}",
+            codepoints(&edit_operations_with(&tail, &expected, field_glyph).join(","))
+        ),
+        Some((distance, _)) => format!("{reason}-after-label:{}", distance.min(9)),
         None => reason,
     }
 }
@@ -1329,7 +1337,7 @@ mod tests {
         );
         assert_eq!(
             far("label zz: mmbaalh-18"),
-            "automap-other-far-after-label:1"
+            "automap-other-far-after-label:1:sub(8>9)@9"
         );
     }
 }
