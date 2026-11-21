@@ -157,9 +157,9 @@
       }
     },
     "ocr.variations.correct": {
-      "value": 1028,
+      "value": 5665,
       "direction": "higher",
-      "floor": 1028,
+      "floor": 5665,
       "contexts": [
         "ocr"
       ],
