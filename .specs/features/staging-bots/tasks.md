@@ -30,7 +30,7 @@ Rules:
       origin, `stagingEndpoints:false`, `D2RMM_ENV=production`, and an unreachable `/v1/config`, with no request but
       `/healthz` and `/v1/config` (SBT-02). Cover every refusal with a production-shaped fake API. Gate:
       `node --test scripts/test/staging-bots-target.test.mjs`
-- [ ] T3 — `scripts/staging/lib/bot.mjs`: one bot's lifecycle over the real contract (test-login, pair, claim, register
+- [x] T3 — `scripts/staging/lib/bot.mjs`: one bot's lifecycle over the real contract (test-login, pair, claim, register
       character, heartbeat, site and agent streams with reconnect, join, accept, observe, leave) (SBT-05, SBT-07).
       Bodies are validated with `@d2rmm/contracts` before they are sent. Gate:
       `node --test scripts/test/staging-bots-bot.test.mjs`
