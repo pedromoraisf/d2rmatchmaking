@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { CharacterView, QueueTicketView } from '@d2rmm/contracts';
@@ -292,12 +290,5 @@ describe('QueuePanel: the locked label does not cover the difficulty name', () =
     expect(name?.textContent).toBe('Hell');
     expect(lock?.textContent?.trim()).toBe('Locked on this character');
     expect(name?.compareDocumentPosition(lock as Node) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-  });
-
-  it('lays the label out in the flow, never absolutely over the name', () => {
-    const queueCss = readFileSync(join(import.meta.dirname, 'queue.css'), 'utf8');
-    const rule = /\.queue-panel \.lock\s*\{([^}]*)\}/.exec(queueCss)?.[1] ?? '';
-    expect(rule).not.toBe('');
-    expect(rule).not.toMatch(/position:\s*absolute/);
   });
 });

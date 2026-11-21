@@ -36,7 +36,14 @@ test('every activity the API can generate is in the agent collision list', () =>
     ),
     '`export type Activity =` in queue-ticket.ts',
   )[1];
-  const api = [...quoted(union), 'pvp'];
+  // A formed match carries `activity: 'pvp' | Activity` (matcher.ts): the literal beside `Activity` is the PvP code, read
+  // from the source, so a renamed PvP activity fails here instead of passing on a hard-coded name (UPK-10, #81 review).
+  const matchActivity = required(
+    source('apps/api/src/modules/matchmaking/domain/matcher.ts').match(/readonly activity: ([^;]*);/),
+    '`readonly activity:` in matcher.ts',
+  )[1];
+  const api = [...new Set([...quoted(union), ...quoted(matchActivity)])];
+  assert.ok(quoted(matchActivity).length > 0, 'a formed match names its non-leveling activity as a literal');
   assert.ok(api.length > 1, 'the Activity union has members');
   const agentActivities = agentList('AGENT_ACTIVITIES');
   for (const activity of api) {

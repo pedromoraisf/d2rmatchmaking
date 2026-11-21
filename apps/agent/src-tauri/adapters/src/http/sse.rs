@@ -12,7 +12,7 @@ use d2rmm_agent_domain::room_assignment::RoomId;
 
 use crate::contracts::generated::{
     Assignment, ReadyCheckResolvedEventData, ReadyCheckStartedEventData, RoomAssignedEventData,
-    RoomRunOpenedEventData,
+    RoomRunOpenedEventData, RoomStageChangedEventData, RoomStageChangedEventDataStage,
 };
 
 /// The stream event the agent acts on first: the room assignment.
@@ -64,25 +64,19 @@ pub fn handle(name: &str, data: &str) -> StreamEffect {
     }
 }
 
-/// The two fields of a `room.stage_changed` event the agent reads; the others are not needed.
-#[derive(serde::Deserialize)]
-struct StageChanged {
-    #[serde(rename = "roomId")]
-    room_id: String,
-    stage: String,
-}
-
-/// The room of a stage change to `expired` or `closed`; any other stage, or data of another shape, gives `None`.
+/// The room of a stage change to `expired` or `closed`; any other stage, or data of another shape, gives `None`. The data
+/// is the contract's generated type (UPK-01, ADR 009), so a change of the event's schema changes this parse.
 fn room_ended_from(data: &str) -> Option<RoomEnd> {
-    let event: StageChanged = serde_json::from_str(data).ok()?;
-    let reason = match event.stage.as_str() {
-        "expired" => RoomEndReason::Expired,
-        "closed" => RoomEndReason::Closed,
+    let event: RoomStageChangedEventData = serde_json::from_str(data).ok()?;
+    let reason = match event.stage {
+        RoomStageChangedEventDataStage::Expired => RoomEndReason::Expired,
+        RoomStageChangedEventDataStage::Closed => RoomEndReason::Closed,
         _ => return None,
     };
-    Uuid::parse_str(&event.room_id).ok()?;
+    let room_id = String::from(event.room_id);
+    Uuid::parse_str(&room_id).ok()?;
     Some(RoomEnd {
-        room: RoomId::new(event.room_id),
+        room: RoomId::new(room_id),
         reason,
     })
 }
@@ -643,5 +637,18 @@ mod room_end_tests {
         assert_eq!(ended_room(r#"{"stage":"expired"}"#), None);
         assert_eq!(ended_room(&stage("not-a-uuid", "expired")), None);
         assert_eq!(ended_room("nope"), None);
+    }
+
+    #[test]
+    fn an_unknown_stage_is_ignored() {
+        assert_eq!(ended_room(&stage(ROOM, "paused")), None);
+        assert_eq!(ended_room(&lean_stage(ROOM, "paused")), None);
+    }
+
+    #[test]
+    fn a_missing_members_list_ends_the_room_since_the_agents_copy_is_lean() {
+        // The agent's stage event is the room and the stage only (stream-egress SEG-01): no member list is the normal shape.
+        let no_members = format!(r#"{{"roomId":"{ROOM}","stage":"expired"}}"#);
+        assert_eq!(ended_room(&no_members), Some(ROOM.to_string()));
     }
 }

@@ -15,7 +15,7 @@ const jobs = workflow.jobs;
 const { quality, report, load, acceptance } = jobs;
 const agent = jobs['agent-mutation'];
 const api = jobs['api-mutation'];
-const DOWNLOAD = 'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093';
+const DOWNLOAD = 'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333';
 const FULL_SHA = /^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/u;
 
 const stepNamed = (job, name) => job.steps.find((step) => step.name === name);
@@ -150,6 +150,18 @@ test('load builds the two images with buildx and its cache, runs the full ladder
   const check = runs(load).indexOf('node --test scripts/load/check/full-summary.check.mjs');
   assert.ok(run >= 0 && check > run, 'the check follows the run');
   assert.equal(stepNamed(load, 'Check the full summary')['continue-on-error'], true);
+});
+
+test('the load run uses the images the job just built (UPK-06)', () => {
+  const names = load.steps.map((step) => step.name ?? '');
+  const lastBuild = Math.max(
+    ...load.steps.map((step, i) =>
+      String(step.uses ?? '').startsWith('docker/build-push-action@') ? i : -1,
+    ),
+  );
+  const run = names.indexOf('Load test (full ladder)');
+  assert.ok(run > lastBuild, 'the run follows both builds');
+  assert.equal(load.steps[run].env.LOAD_IMAGES_PREBUILT, '1');
 });
 
 test('the load job sets no target, so the harness refuses nothing and starts its own containers', () => {

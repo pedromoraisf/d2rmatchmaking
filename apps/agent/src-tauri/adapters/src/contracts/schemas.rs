@@ -660,6 +660,48 @@ pub const SCHEMAS: &[(&str, &str)] = &[
   "additionalProperties": false
 }
 "##),
+    ("agent-event-room-stage-changed.json", r##"{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "room.stage_changed"
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "roomId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "stage": {
+          "type": "string",
+          "enum": [
+            "formed",
+            "awaiting_host",
+            "created",
+            "active",
+            "closed",
+            "expired"
+          ]
+        }
+      },
+      "required": [
+        "roomId",
+        "stage"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "type",
+    "data"
+  ],
+  "additionalProperties": false
+}
+"##),
     ("record-characters-request.json", r##"{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
