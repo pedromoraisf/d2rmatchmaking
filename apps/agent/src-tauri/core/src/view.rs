@@ -146,6 +146,67 @@ impl HotkeysView {
     }
 }
 
+/// One of the two hotkeys the agent registers with the OS (RDY-07, AST-01). The window's code for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum HotkeySlot {
+    Accept,
+    Fill,
+}
+
+impl HotkeySlot {
+    /// The slot as the span event spells it.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Accept => "accept",
+            Self::Fill => "fill",
+        }
+    }
+}
+
+/// Why the OS does not hold a hotkey the agent wants: a closed set of codes, never the OS error text (AGS-09).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum HotkeyFailure {
+    /// The hotkey manager could not be created, so nothing can register.
+    NoManager,
+    /// The OS refused the registration (another program holds the combination, or the OS said no).
+    Refused,
+    /// The combination maps to no OS key.
+    Unmapped,
+    /// The registration could not be queued on the main thread.
+    Dispatch,
+}
+
+impl HotkeyFailure {
+    /// The reason as the span event and the window spell it.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::NoManager => "no-manager",
+            Self::Refused => "refused",
+            Self::Unmapped => "unmapped",
+            Self::Dispatch => "dispatch",
+        }
+    }
+}
+
+/// One hotkey the OS did not let the agent register, and why.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HotkeyFault {
+    pub slot: HotkeySlot,
+    pub reason: HotkeyFailure,
+}
+
+/// The last hotkey event the agent received from the OS: which combination it was, or that it matched none.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum HotkeyPress {
+    Accept,
+    Fill,
+    Unmatched,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentView {
@@ -160,6 +221,13 @@ pub struct AgentView {
     /// What the last press of the fill hotkey did (AST-08); absent until the first press. A closed set of codes, no text.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_fill: Option<FillOutcome>,
+    /// The hotkeys the OS did not let the agent register while it wants them (AST-01, AST-08; field test of 2026-11-21).
+    /// A closed set of codes, no OS text; absent while every wanted hotkey is registered.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub hotkey_unavailable: Vec<HotkeyFault>,
+    /// The last hotkey press the agent received, which proves the OS delivers presses at all; absent until the first one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_press: Option<HotkeyPress>,
     /// The last look at the game window, once the agent has looked at one.
     pub diagnostics: Option<DiagnosticsView>,
     /// What the capture showed in the last look; absent until the first frame.
@@ -173,8 +241,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        AgentView, Connectivity, DiagnosticsView, FillOutcome, HotkeysView, PairingView,
-        RejectedSlot, RoomView, UpdateView,
+        AgentView, Connectivity, DiagnosticsView, FillOutcome, HotkeyFailure, HotkeyFault,
+        HotkeyPress, HotkeySlot, HotkeysView, PairingView, RejectedSlot, RoomView, UpdateView,
     };
 
     #[test]
@@ -195,6 +263,8 @@ mod tests {
             ready_check_open: true,
             hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
             last_fill: None,
+            hotkey_unavailable: Vec::new(),
+            last_press: None,
             diagnostics: None,
             capture: None,
         };
@@ -242,6 +312,17 @@ mod tests {
             ready_check_open: false,
             hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
             last_fill: Some(FillOutcome::RefusedKeys),
+            hotkey_unavailable: vec![
+                HotkeyFault {
+                    slot: HotkeySlot::Accept,
+                    reason: HotkeyFailure::NoManager,
+                },
+                HotkeyFault {
+                    slot: HotkeySlot::Fill,
+                    reason: HotkeyFailure::Refused,
+                },
+            ],
+            last_press: Some(HotkeyPress::Unmatched),
             diagnostics: None,
             capture: None,
         };
@@ -256,6 +337,11 @@ mod tests {
                 "readyCheckOpen": false,
                 "hotkeys": { "accept": "Ctrl+Shift+A", "fill": "Ctrl+Shift+F" },
                 "lastFill": "refused-keys",
+                "hotkeyUnavailable": [
+                    { "slot": "accept", "reason": "no-manager" },
+                    { "slot": "fill", "reason": "refused" },
+                ],
+                "lastPress": "unmatched",
                 "diagnostics": null,
             })
         );

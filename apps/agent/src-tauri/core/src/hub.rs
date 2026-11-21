@@ -8,8 +8,8 @@ use d2rmm_agent_domain::typing::HotkeyPair;
 use crate::fill_name::FillOutcome;
 use crate::ports::StateSink;
 use crate::view::{
-    AgentView, CaptureView, Connectivity, DiagnosticsView, HotkeysView, PairingView, RoomView,
-    UpdateView,
+    AgentView, CaptureView, Connectivity, DiagnosticsView, HotkeyFailure, HotkeyFault, HotkeyPress,
+    HotkeySlot, HotkeysView, PairingView, RoomView, UpdateView,
 };
 
 /// Owns the agent view and publishes every change through the state sink (AGS-34).
@@ -30,6 +30,8 @@ impl Hub {
                 ready_check_open: false,
                 hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
                 last_fill: None,
+                hotkey_unavailable: Vec::new(),
+                last_press: None,
                 diagnostics: None,
                 capture: None,
             }),
@@ -74,6 +76,34 @@ impl Hub {
     /// Shows what the last press of the fill hotkey did (AST-08).
     pub fn set_last_fill(&self, outcome: FillOutcome) {
         self.change(|view| view.last_fill = Some(outcome));
+    }
+
+    /// Shows why the OS did not let the agent register a hotkey it wants, or (`None`) that it holds it now (AST-01, AST-08).
+    /// An unchanged answer publishes nothing, so a retry that fails the same way does not publish again. Returns whether the
+    /// view changed.
+    pub fn set_hotkey_unavailable(&self, slot: HotkeySlot, reason: Option<HotkeyFailure>) -> bool {
+        let wanted = reason.map(|reason| HotkeyFault { slot, reason });
+        let unchanged = lock(&self.view)
+            .hotkey_unavailable
+            .iter()
+            .find(|fault| fault.slot == slot)
+            .copied()
+            == wanted;
+        if unchanged {
+            return false;
+        }
+        self.change(|view| {
+            view.hotkey_unavailable.retain(|fault| fault.slot != slot);
+            view.hotkey_unavailable.extend(wanted);
+            view.hotkey_unavailable
+                .sort_by_key(|fault| fault.slot.as_str());
+        });
+        true
+    }
+
+    /// Shows the last hotkey press the agent received (every press is published: it proves the OS delivers them).
+    pub fn set_last_press(&self, press: HotkeyPress) {
+        self.change(|view| view.last_press = Some(press));
     }
 
     /// Shows what the last look at the game read. An unchanged reading publishes nothing, so a once-a-second look does not

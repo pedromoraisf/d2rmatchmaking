@@ -17,7 +17,7 @@ use crate::hub::Hub;
 use crate::messages::{CaptureReport, ReadyCheckOpen, Screen};
 use crate::party::PartyProgress;
 use crate::ports::{ApiError, StateSink, TokenStore};
-use crate::view::{PairingView, RoomView, UpdateView};
+use crate::view::{HotkeyFailure, HotkeyPress, HotkeySlot, PairingView, RoomView, UpdateView};
 
 /// What the loops share about the device: the aggregate, the room and the signals that wake the loops.
 pub struct DeviceState {
@@ -195,6 +195,30 @@ impl DeviceState {
     pub fn set_hotkeys(&self, pair: HotkeyPair) {
         *lock(&self.hotkeys) = pair;
         self.hub.set_hotkeys(&pair);
+    }
+
+    /// Shows why the OS refused a hotkey the agent wants, or (`None`) that it holds it now (AST-01, AST-08). A refusal is one
+    /// span event with the slot and a fixed reason word, never the OS error text (AGS-09); a retry that fails the same way
+    /// records nothing more.
+    pub fn set_hotkey_unavailable(&self, slot: HotkeySlot, reason: Option<HotkeyFailure>) {
+        if self.hub.set_hotkey_unavailable(slot, reason)
+            && let Some(reason) = reason
+        {
+            tracing::warn!(
+                slot = slot.as_str(),
+                reason = reason.as_str(),
+                "hotkey.unavailable"
+            );
+        }
+    }
+
+    /// Records a hotkey press the OS delivered and shows it in the window. A press that matched no registered combination
+    /// is also one span event with a fixed word and nothing else.
+    pub fn record_hotkey_press(&self, press: HotkeyPress) {
+        if press == HotkeyPress::Unmatched {
+            tracing::info!("hotkey.unmatched");
+        }
+        self.hub.set_last_press(press);
     }
 
     /// Shows what a fill did and keeps it until the next one (AST-08). Records it as one span event with the outcome code
@@ -405,7 +429,7 @@ fn lock<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU64;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
@@ -414,7 +438,7 @@ mod tests {
     use crate::fakes::{MemoryTokens, NullSink};
     use crate::ports::{ApiError, TokenStore};
     use crate::secret::Secret;
-    use crate::view::{PairingView, RoomView, UpdateView};
+    use crate::view::{HotkeyFailure, HotkeyPress, HotkeySlot, PairingView, RoomView, UpdateView};
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
 
@@ -436,6 +460,75 @@ mod tests {
             expected_game_name: GameName::new("mmbaalh-12"),
             members: Vec::new(),
         }
+    }
+
+    /// Every event recorded while it is the default subscriber, as `message slot=value`.
+    #[derive(Default)]
+    struct Events(Mutex<Vec<String>>);
+
+    struct Line(String);
+
+    impl tracing::field::Visit for Line {
+        fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+            self.0.push_str(&format!(" {}={value}", field.name()));
+        }
+
+        fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+            if field.name() == "message" {
+                self.0.insert_str(0, &format!("{value:?}"));
+            } else {
+                self.0.push_str(&format!(" {}={value:?}", field.name()));
+            }
+        }
+    }
+
+    impl tracing::Subscriber for Events {
+        fn enabled(&self, _metadata: &tracing::Metadata<'_>) -> bool {
+            true
+        }
+
+        fn new_span(&self, _attrs: &tracing::span::Attributes<'_>) -> tracing::Id {
+            tracing::Id::from_u64(1)
+        }
+
+        fn record(&self, _span: &tracing::Id, _values: &tracing::span::Record<'_>) {}
+
+        fn record_follows_from(&self, _span: &tracing::Id, _follows: &tracing::Id) {}
+
+        fn event(&self, event: &tracing::Event<'_>) {
+            let mut line = Line(String::new());
+            event.record(&mut line);
+            self.0.lock().expect("events").push(line.0);
+        }
+
+        fn enter(&self, _span: &tracing::Id) {}
+
+        fn exit(&self, _span: &tracing::Id) {}
+    }
+
+    #[test]
+    fn a_refused_hotkey_is_one_event_with_the_slot_and_a_retry_that_fails_again_adds_none() {
+        let (device, _tokens) = paired();
+        let events = Arc::new(Events::default());
+        let guard = tracing::subscriber::set_default(Arc::clone(&events));
+        tracing::callsite::rebuild_interest_cache();
+
+        device.set_hotkey_unavailable(HotkeySlot::Fill, Some(HotkeyFailure::Refused));
+        device.set_hotkey_unavailable(HotkeySlot::Fill, Some(HotkeyFailure::Refused));
+        device.set_hotkey_unavailable(HotkeySlot::Fill, Some(HotkeyFailure::NoManager));
+        device.set_hotkey_unavailable(HotkeySlot::Fill, None);
+        device.record_hotkey_press(HotkeyPress::Fill);
+        device.record_hotkey_press(HotkeyPress::Unmatched);
+        drop(guard);
+
+        assert_eq!(
+            *events.0.lock().expect("events"),
+            [
+                "hotkey.unavailable slot=fill reason=refused",
+                "hotkey.unavailable slot=fill reason=no-manager",
+                "hotkey.unmatched"
+            ]
+        );
     }
 
     #[test]
