@@ -171,8 +171,7 @@ mod capture {
     }
 
     /// Opens a session for `window`: the capture item of that window, a device, a one-buffer frame pool and the session, with
-    /// the cursor off and, where Windows allows it, the border off (a border Windows requires stays: it shows that the window
-    /// is captured).
+    /// the cursor off. The window border stays on: it is the visible sign that the window is captured (NFR-05).
     fn open(window: HWND) -> windows::core::Result<Session> {
         let interop = factory::<GraphicsCaptureItem, IGraphicsCaptureItemInterop>()?;
         // SAFETY: `window` is a window handle that the caller got from the window lookup a moment ago.

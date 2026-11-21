@@ -550,21 +550,38 @@ const codeOnly = (text) =>
     .replace(/\/\/[^\n]*/g, '')
     .replace(/"(?:[^"\\]|\\.)*"/g, '""');
 
+// The rule runs over every `.rs` file under `src-tauri` (the app crate's `src/`, `build.rs` and `examples/`, and the adapters,
+// core, domain and xtask crates with their `examples/` and `tests/`): a call in any other file would go unseen. Paths stay
+// relative to `src-tauri`, so the allowances below name `src/adapters/...` exactly. The
+// window-scoped forms (`CreateForWindow`, `GetDC` on a window) are allowed only in the two capture adapters. The OCR engine's
+// `TryCreateFromLanguage` is not a capture item and is allowed only in its own adapter.
+const OCR_ADAPTER = 'src/adapters/windows_ocr.rs';
+const OCR_CONSTRUCTORS = ['TryCreateFromLanguage', 'TryCreateFromUserProfileLanguages'];
+// Screen device contexts by name: `GetDCEx` and `CreateDCW` reach the screen or any display, whatever their arguments.
+const SCREEN_DC_BY_NAME = ['GetDCEx', 'CreateDCW', 'CreateDCA'];
+
 const captureScopeViolations = (base) =>
-  CAPTURE_ADAPTERS.flatMap((rel) => {
-    const text = crateFile(base, rel);
-    if (text === undefined) return [];
+  rustFiles(base).flatMap(({ rel, text }) => {
+    const inAdapter = CAPTURE_ADAPTERS.includes(rel);
     const code = codeOnly(text);
     return [
-      ...BANNED_CAPTURE_CALLS.filter((name) => new RegExp(`\\b${name}\\b`).test(code)).map(
-        (name) => `${rel} uses ${name}, which reaches beyond the game window`,
-      ),
+      ...[...BANNED_CAPTURE_CALLS, ...SCREEN_DC_BY_NAME]
+        .filter((name) => new RegExp(`\\b${name}\\b`).test(code))
+        .map((name) => `${rel} uses ${name}, which reaches beyond the game window`),
       ...(SCREEN_DC.test(code) ? [`${rel} calls GetDC on the screen, not on the game window`] : []),
+      ...(!inAdapter && /\bGetDC\b/.test(code)
+        ? [`${rel} calls GetDC outside the two capture adapters`]
+        : []),
       ...[...code.matchAll(/\b(CreateFor\w+|TryCreateFrom\w+)\b/g)]
         .map((match) => match[1])
-        .filter((name) => name !== 'CreateForWindow')
+        .filter((name) => !(OCR_CONSTRUCTORS.includes(name) && rel === OCR_ADAPTER))
+        .filter((name) => !(name === 'CreateForWindow' && inAdapter))
         .filter((name, index, all) => all.indexOf(name) === index)
-        .map((name) => `${rel} uses ${name}; CreateForWindow is the only capture item constructor`),
+        .map((name) =>
+          name === 'CreateForWindow'
+            ? `${rel} uses CreateForWindow outside the two capture adapters`
+            : `${rel} uses ${name}; CreateForWindow is the only capture item constructor`,
+        ),
     ];
   });
 
@@ -790,6 +807,23 @@ test('the capture scope rule rejects a screen device context and any other item 
     captureScopeViolations(fixtureBase('capture-scope-CreateForOther')).join('\n'),
     /graphics_capture\.rs uses CreateForSomething; CreateForWindow is the only capture item constructor/,
   );
+});
+
+test('the capture scope rule runs over every app-crate file, not only the two adapters (CAP-04)', () => {
+  const violations = captureScopeViolations(fixtureBase('capture-scope-other-file')).join('\n');
+  assert.match(
+    violations,
+    /src\/other\.rs uses TryCreateFromDisplayId, which reaches beyond the game window/,
+  );
+  assert.match(violations, /src\/other\.rs uses GetDCEx, which reaches beyond the game window/);
+  assert.match(violations, /src\/other\.rs calls GetDC outside the two capture adapters/);
+  assert.match(violations, /src\/other\.rs uses CreateForWindow outside the two capture adapters/);
+});
+
+test('the capture scope rule also scans build scripts and the other agent crates (CAP-04)', () => {
+  const violations = captureScopeViolations(fixtureBase('capture-scope-other-crates')).join('\n');
+  assert.match(violations, /^build\.rs uses GetDCEx, which reaches beyond the game window$/m);
+  assert.match(violations, /^core\/src\/x\.rs uses GetDCEx, which reaches beyond the game window$/m);
 });
 
 test('the capture scope rule accepts CreateForWindow and GetDC on the game window (CAP-04)', () => {
