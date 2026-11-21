@@ -39,6 +39,10 @@ Given('a room of two players whose host has an agent online', async ({ world }) 
   // Both streams are open before the room ends, so each holds what it is sent.
   await world.agentStreamOf(agent);
   await world.siteStreamOf('Alice');
+  // The second player is present too: an agent that is online and a site that is open (FR-32 drops a member away for 60 s).
+  const guest = await world.pairAgent('Bob');
+  expect((await guest.heartbeat(ONLINE)).status, "Bob's agent is online").toBe(204);
+  await world.siteStreamOf('Bob');
 });
 
 When('the room expires', async ({ world }) => {
@@ -47,6 +51,7 @@ When('the room expires', async ({ world }) => {
   for (let passed = 0; passed < ROOM_EXPIRES_AFTER_MS + CHUNK_MS; passed += CHUNK_MS) {
     await world.stack.advanceClock(CHUNK_MS);
     expect((await agent.heartbeat(ONLINE)).status, 'the heartbeat that keeps the agent online').toBe(204);
+    expect((await world.currentAgentOf('Bob').heartbeat(ONLINE)).status, "the guest's heartbeat").toBe(204);
   }
   await expectStage(world, 'Alice', 'expired');
 });
