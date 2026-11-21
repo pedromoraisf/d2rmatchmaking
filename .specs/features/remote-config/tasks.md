@@ -74,7 +74,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
       counts they produce (they exist; add the ones that are missing). No non-test line changes. Gate:
       `CARGO nextest run -p d2rmm-agent-domain -p d2rmm-agent-core --lib` and
       `CARGO clippy -p d2rmm-agent-domain -p d2rmm-agent-core --all-targets -- -D warnings`
-- [ ] T9 — The pure type (RCF-05, RCF-06, RCF-07, RCF-10). New `agent/domain/src/remote_config.rs`: `Ranges`, `Defaults`, `Effective`,
+- [x] T9 — The pure type (RCF-05, RCF-06, RCF-07, RCF-10). New `agent/domain/src/remote_config.rs`: `Ranges`, `Defaults`, `Effective`,
       `from_wire(body, held_version)` and the version rule. Tests: every field at, below and above its range; an unknown field;
       a phrase with a forbidden character, an over-length one and an empty one; a region outside the client or under the
       minimum size; an older, an equal and a newer version; an empty body; a body over 64 KiB; each section falling back on
