@@ -116,7 +116,15 @@ mod tests {
     }
 
     fn portuguese() -> LanguagePack {
-        LanguagePack::brazilian_party()
+        let words = [
+            ("party", "Grupo"),
+            ("gameName", "Nome"),
+            ("password", "Senha"),
+            ("joinedGame", "entrou em nosso mundo"),
+            ("leftGame", "saiu de nosso mundo"),
+        ]
+        .map(|(key, word)| (key.to_string(), word.to_string()));
+        LanguagePack::from_words("pt-BR", words).expect("the pack builds")
     }
 
     /// The four phrases CI found on the maintainer's chat prints (`ocr-real`, job 136538900128), with made-up names.

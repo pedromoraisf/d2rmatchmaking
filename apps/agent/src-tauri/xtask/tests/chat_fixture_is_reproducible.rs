@@ -79,7 +79,15 @@ fn the_english_frames_say_joined_left_both_or_nothing() {
 
 #[test]
 fn the_portuguese_pair_says_joined_and_left_with_the_portuguese_words() {
-    let pack = LanguagePack::brazilian_party();
+    let words = [
+        ("party", "Grupo"),
+        ("gameName", "Nome"),
+        ("password", "Senha"),
+        ("joinedGame", "entrou em nosso mundo"),
+        ("leftGame", "saiu de nosso mundo"),
+    ]
+    .map(|(key, word)| (key.to_string(), word.to_string()));
+    let pack = LanguagePack::from_words("pt-BR", words).expect("the pack builds");
     assert_eq!(
         events_of(&fixture("chat-pt-joined"), &pack),
         [ChatEvent::Joined]

@@ -34,12 +34,14 @@ pub async fn look<G>(
     let Ok(lines) = lines else {
         return Vec::new();
     };
-    // The shipped pack first, then the Brazilian one: the chat of a pt-BR client says the same things in other words.
-    let brazilian = LanguagePack::brazilian_party();
+    // The shipped pack first, then its fallback (the Brazilian one): the chat of a pt-BR client says the same things in
+    // other words.
+    let mut packs: Vec<&LanguagePack> = vec![&ports.language];
+    packs.extend(ports.language.fallback());
     let span = tracing::info_span!("agent.vision.read-chat", events = tracing::field::Empty);
     let _entered = span.enter();
     let texts: Vec<&str> = lines.iter().map(|line| line.text.as_str()).collect();
-    let events = device.with_chat(|tracker| tracker.next(&[&ports.language, &brazilian], &texts));
+    let events = device.with_chat(|tracker| tracker.next(&packs, &texts));
     span.record("events", events.len());
     for event in &events {
         tracing::info!(kind = event.kind(), "agent.vision.chat_events");
@@ -141,7 +143,7 @@ mod tests {
                 gateway: Arc::clone(&gateway),
                 tokens: tokens as Arc<dyn TokenStore + Send + Sync>,
             },
-            language: Arc::new(LanguagePack::english()),
+            language: Arc::new(LanguagePack::english().with_fallback(brazilian())),
         };
         Rig {
             device,
@@ -149,6 +151,19 @@ mod tests {
             gateway,
             chat,
         }
+    }
+
+    /// The pack of `resources/lang/pt-BR.json` (the app crate's test pins the file to these words).
+    fn brazilian() -> LanguagePack {
+        let words = [
+            ("party", "Grupo"),
+            ("gameName", "Nome"),
+            ("password", "Senha"),
+            ("joinedGame", "entrou em nosso mundo"),
+            ("leftGame", "saiu de nosso mundo"),
+        ]
+        .map(|(key, word)| (key.to_string(), word.to_string()));
+        LanguagePack::from_words("pt-BR", words).expect("the pack builds")
     }
 
     fn hold_a_room(rig: &Rig) {
