@@ -713,4 +713,15 @@ mod tests {
             }
         }
     }
+
+    /// Pin before `rn` reads as `m` (game-name-reading T10, rule 14): today the two letters are two letters, so a name whose
+    /// `m` was read as `rn` is another name, and a name with no `-` is untouched.
+    #[test]
+    fn an_rn_is_two_letters_today() {
+        assert_eq!(normalise("rnmchaosh-20"), "rnmchaosh-20");
+        assert_eq!(read_field("rnmchaosh-20", "mmchaosh-20"), FieldRead::Other);
+        assert_eq!(read_field("mrnchaosh-20", "mmchaosh-20"), FieldRead::Other);
+        assert_eq!(read_field("mmbaalrn-99", "mmbaalm-99"), FieldRead::Other);
+        assert_eq!(normalise("rn lorn"), "rn lorn");
+    }
 }
