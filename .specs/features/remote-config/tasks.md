@@ -79,7 +79,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
       a phrase with a forbidden character, an over-length one and an empty one; a region outside the client or under the
       minimum size; an older, an equal and a newer version; an empty body; a body over 64 KiB; each section falling back on
       its own. No clock, randomness or I/O. Gate: as T8
-- [ ] T10 — The generated type and the pinning of defaults. Run the contracts generator so
+- [x] T10 — The generated type and the pinning of defaults. Run the contracts generator so
       `agent/adapters/src/contracts/generated.rs` and `schemas.rs` gain `AgentConfig`; a test that every `Defaults` field equals
       the value in the committed `agent-config.json` (read from the repository file) and in the constants it replaces. Gate:
       `pnpm contracts:check && CARGO nextest run -p d2rmm-agent-domain -p d2rmm-agent-adapters --lib`

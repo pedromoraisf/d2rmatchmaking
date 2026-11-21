@@ -33,6 +33,7 @@ describe('contract documents', () => {
 
   it('writes one JSON Schema per agent message', () => {
     expect(Object.keys(buildJsonSchemaFiles()).sort()).toStrictEqual([
+      'agent-config.json',
       'agent-event-ready-check-resolved.json',
       'agent-event-ready-check-started.json',
       'agent-event-room-assigned.json',

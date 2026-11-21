@@ -23,6 +23,7 @@ pub const CONTRACTS: &[(&str, &str)] = &[
     ("heartbeat.json", "Heartbeat"),
     ("assignment.json", "Assignment"),
     ("observation.json", "Observation"),
+    ("agent-config.json", "AgentConfig"),
     (
         "agent-event-ready-check-resolved.json",
         "ReadyCheckResolvedEvent",
