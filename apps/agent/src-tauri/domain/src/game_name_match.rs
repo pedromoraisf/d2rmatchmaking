@@ -125,7 +125,8 @@ pub fn normalise(name: &str) -> String {
 /// generated name holds a `k` or an `rn` (read there as the `m` it was drawn from: `del(r),sub(n>m)` on five prints), and a
 /// room name with no `-` (the Party room "DUEL NK LOCKS") keeps its `k`. The `o` read as `é` (`sub(U+00E9>o)`, 31 variations
 /// on five prints) is the same `o` glyph, folded here too; no generated name holds an `é`. The `a` read as `å`
-/// (`sub(U+00E5>a)`, two variations of the English automap print) folds the same way; no generated name holds an `å`.
+/// (`sub(U+00E5>a)`, two variations of the English automap print) folds the same way; no generated name holds an `å`. The `o` read as `+` (`sub(U+F02B>o)`,
+/// three variations of the Portuguese automap print) is the `⊕` family read short, folded too; no generated name holds a `+`.
 fn letters_with_k(part: &str) -> String {
     letters_of(part)
         .chars()
@@ -133,6 +134,7 @@ fn letters_with_k(part: &str) -> String {
             'k' => 'h',
             '\u{e9}' => 'o',
             '\u{e5}' => 'a',
+            '+' => 'o',
             other => other,
         })
         .collect()
@@ -915,12 +917,47 @@ mod tests {
         }
     }
 
-    /// Pins today's read of a `+` (game-name-reading T10, before it reads as `o`): a letter of its own.
+    /// An `o` read as `+` in a generated name matches it (game-name-reading T10): `sub(U+F02B>o)` is on the Portuguese automap
+    /// print, three variations. A name with no `-` keeps its `+`, and the number never holds one.
     #[test]
-    fn pin_a_plus_is_a_letter_of_its_own_before_it_reads_as_o() {
-        assert_eq!(normalise("mmcha+sh-20"), "mmcha+sh-20");
-        assert_eq!(read_field("mmcha+sh-20", "mmchaosh-20"), FieldRead::Other);
+    fn a_plus_reads_as_o_in_a_generated_name_and_a_name_without_a_dash_keeps_it() {
+        assert_eq!(normalise("mmchaos+-20"), "mmchaoso-20");
+        assert_eq!(read_field("mmcha+sh-20", "mmchaosh-20"), FieldRead::Matched);
+        assert_eq!(read_field("mmc+wsh-38", "mmcowsh-38"), FieldRead::Matched);
+        // The names it must not match: a `+` in the number, another number, another letter, another room.
+        assert_eq!(read_field("mmcowsh-3+", "mmcowsh-38"), FieldRead::Other);
+        assert_eq!(read_field("mmc+wsh-37", "mmcowsh-38"), FieldRead::Other);
+        assert_eq!(read_field("mmc+wxh-38", "mmcowsh-38"), FieldRead::Other);
+        assert_eq!(read_field("mmc+wsh-38", "mmchaosh-38"), FieldRead::Other);
+        // A name with no `-` keeps its `+`.
         assert_eq!(normalise("DU+L NK"), "du+l nk");
-        assert_eq!(read_field("mmchaosh-20", "mmchaosh-20"), FieldRead::Matched);
+    }
+
+    /// The collision proof for the `+` fold: every generated name with each of its `o` (and the letters the table already
+    /// folds to `o`) read as `+`, and all at once, matches its own name and normalises to no other room's, across every
+    /// activity, difficulty code and run number up to 9999.
+    #[test]
+    fn a_plus_read_for_o_matches_its_own_name_and_no_other_up_to_9999() {
+        let mut seen = std::collections::HashMap::new();
+        for activity in AGENT_ACTIVITIES {
+            for difficulty in AGENT_DIFFICULTY_CODES {
+                for n in 1..=9999u32 {
+                    let name = format!("mm{activity}{difficulty}-{n}");
+                    let (letters, number) = name.rsplit_once('-').expect("a dash");
+                    let mut reads = vec![format!("{}-{number}", letters.replace('o', "+"))];
+                    for (at, _) in letters.char_indices().filter(|(_, c)| *c == 'o') {
+                        let mut one = letters.to_string();
+                        one.replace_range(at..at + 1, "+");
+                        reads.push(format!("{one}-{number}"));
+                    }
+                    for read in &reads {
+                        assert_eq!(read_field(read, &name), FieldRead::Matched, "{read}");
+                    }
+                    if let Some(other) = seen.insert(normalise(&name), name.clone()) {
+                        panic!("{name} and {other} collide once an o reads as +");
+                    }
+                }
+            }
+        }
     }
 }
