@@ -8,6 +8,9 @@
 pub mod consent_store;
 
 #[cfg(any(windows, test))]
+pub mod graphics_capture;
+
+#[cfg(any(windows, test))]
 pub mod hotkey_store;
 
 #[cfg(any(windows, test))]

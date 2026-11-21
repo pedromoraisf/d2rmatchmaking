@@ -36,6 +36,48 @@ describe('projectStreamEvent', () => {
     ]);
   });
 
+  it("the agent's copy of an assignment keeps the key with no members; the site's keeps them (SEG-03)", async () => {
+    const deliveries = await projectStreamEvent(assignment, agents);
+
+    for (const delivery of deliveries.filter((candidate) => candidate.stream === 'agent')) {
+      expect(delivery.event).toStrictEqual({
+        type: 'room.assigned',
+        data: { roomId: 'room-1', run: 1, expectedGameName: 'mmbaalh-1', members: [] },
+      });
+      expect(JSON.stringify(delivery.event)).not.toContain('account-');
+    }
+    for (const delivery of deliveries.filter((candidate) => candidate.stream === 'site')) {
+      expect(delivery.event).toStrictEqual({
+        type: 'room.assigned',
+        data: { roomId: 'room-1', run: 1, expectedGameName: 'mmbaalh-1', members },
+      });
+    }
+  });
+
+  it("the agent's copy of a new run keeps the key with no members; the site's keeps them (SEG-03)", async () => {
+    const opened: AnyDomainEvent = {
+      type: 'RoomRunOpened',
+      payload: { roomId: 'room-1', run: 2, expectedGameName: 'mmbaalh-2', members },
+    };
+
+    const deliveries = await projectStreamEvent(opened, agents);
+
+    const toAgents = deliveries.filter((candidate) => candidate.stream === 'agent');
+    expect(toAgents).toHaveLength(2);
+    for (const delivery of toAgents) {
+      expect(delivery.event).toStrictEqual({
+        type: 'room.run_opened',
+        data: { roomId: 'room-1', run: 2, expectedGameName: 'mmbaalh-2', members: [] },
+      });
+    }
+    for (const delivery of deliveries.filter((candidate) => candidate.stream === 'site')) {
+      expect(delivery.event).toStrictEqual({
+        type: 'room.run_opened',
+        data: { roomId: 'room-1', run: 2, expectedGameName: 'mmbaalh-2', members },
+      });
+    }
+  });
+
   it('an assignment to a member without an agent gives only the site recipient', async () => {
     const withoutAgent: CurrentAgentLookup = { currentAgentOf: async () => null };
 
@@ -345,6 +387,29 @@ describe('projectStreamEvent: ready checks (RDY-01, RDY-02, RDY-03)', () => {
         ],
       },
     });
+  });
+
+  it("gives the agent's copy of the open check no members, and the site's its members (SEG-03)", async () => {
+    const deliveries = await projectStreamEvent(started, agents);
+
+    const toAgents = deliveries.filter((delivery) => delivery.stream === 'agent');
+    expect(toAgents).toHaveLength(2);
+    for (const delivery of toAgents) {
+      expect(delivery.event).toStrictEqual({
+        type: 'ready_check.started',
+        data: {
+          id: 'rc-1',
+          mode: 'pvp',
+          difficulty: 'hell',
+          deadline: '2026-11-10T12:01:00.000Z',
+          now: '2026-11-10T12:00:00.000Z',
+          members: [],
+        },
+      });
+    }
+    for (const delivery of deliveries.filter((candidate) => candidate.stream === 'site')) {
+      expect(delivery.event.type === 'ready_check.started' && delivery.event.data.members).toHaveLength(2);
+    }
   });
 
   it('never carries an account id in the check body the recipient reads', async () => {

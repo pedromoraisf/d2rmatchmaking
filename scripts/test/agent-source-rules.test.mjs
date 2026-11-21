@@ -29,12 +29,64 @@ const WINDOWS_FEATURE_ALLOW_LIST = [
   'Win32_Graphics_Gdi',
   'Win32_Storage_Xps',
   'Win32_UI_WindowsAndMessaging',
+  // The Windows Graphics Capture of the game window (capture-cascade CAP-01, CAP-04; maintainer exception O1, 2026-11-20).
+  // The capture item, one Direct3D 11 device that copies one texture to the CPU, and the window's visible bounds: no
+  // feature here reaches process memory, input, hooks or process handles.
+  'Graphics', // SizeInt32, the capture item's size
+  'Graphics_Capture', // GraphicsCaptureItem, Direct3D11CaptureFramePool, GraphicsCaptureSession
+  'Graphics_DirectX', // DirectXPixelFormat of the frame pool (B8G8R8A8)
+  'Graphics_DirectX_Direct3D11', // IDirect3DDevice, the WinRT view of the device the frame pool needs
+  'Win32_Graphics_Direct3D', // D3D_DRIVER_TYPE_HARDWARE, to create the device
+  'Win32_Graphics_Direct3D11', // the device, its context and the staging texture that copies one frame
+  'Win32_Graphics_Dxgi', // IDXGIDevice, to make the WinRT device from the D3D device
+  'Win32_Graphics_Dxgi_Common', // D3D11_TEXTURE2D_DESC is gated behind it
+  'Win32_Graphics_Dwm', // DwmGetWindowAttribute(EXTENDED_FRAME_BOUNDS): where the client sits in the frame
+  'Win32_System_WinRT', // RoInitialize, the capture thread's apartment
+  'Win32_System_WinRT_Direct3D11', // CreateDirect3D11DeviceFromDXGIDevice, IDirect3DDxgiInterfaceAccess
+  'Win32_System_WinRT_Graphics_Capture', // IGraphicsCaptureItemInterop::CreateForWindow, from the game window's handle
   // Assisted typing (FR-28, AST-09): Unicode character keystrokes and the hotkey's own modifier keys, in `typing.rs` alone.
   'Win32_UI_Input_KeyboardAndMouse',
 ];
 
-// The only four files that may allow unsafe_code, each with the windows:: paths it may name.
+// The only five files that may allow unsafe_code, each with the windows:: paths it may name.
 const UNSAFE_ADAPTERS = {
+  // The Windows Graphics Capture of the game window (capture-cascade O1): the item is made from the game window's own
+  // handle, one frame is copied through a staging texture, and the client rectangle is located in the window frame.
+  'src/adapters/graphics_capture.rs': [
+    'Graphics::Capture',
+    'Graphics::DirectX',
+    'HMODULE',
+    'HWND',
+    'POINT',
+    'RECT',
+    'E_FAIL',
+    'D3D_DRIVER_TYPE_HARDWARE',
+    'D3D11CreateDevice',
+    'D3D11_CPU_ACCESS_READ',
+    'D3D11_CREATE_DEVICE_BGRA_SUPPORT',
+    'D3D11_MAP_READ',
+    'D3D11_MAPPED_SUBRESOURCE',
+    'D3D11_SDK_VERSION',
+    'D3D11_TEXTURE2D_DESC',
+    'D3D11_USAGE_STAGING',
+    'ID3D11Device',
+    'ID3D11DeviceContext',
+    'ID3D11Texture2D',
+    'DWMWA_EXTENDED_FRAME_BOUNDS',
+    'DwmGetWindowAttribute',
+    'IDXGIDevice',
+    'ClientToScreen',
+    'GetClientRect',
+    'CreateDirect3D11DeviceFromDXGIDevice',
+    'IDirect3DDxgiInterfaceAccess',
+    'IGraphicsCaptureItemInterop',
+    'RO_INIT_MULTITHREADED',
+    'RoInitialize',
+    'core::Interface',
+    'core::factory',
+    'core::Result',
+    'core::Error',
+  ],
   'src/adapters/window_capture.rs': [
     'HWND',
     'LPARAM',
@@ -159,7 +211,7 @@ const windowsFeatureViolations = (base) => {
 const unsafeLocationViolations = (base) =>
   rustFiles(base)
     .filter(({ rel, text }) => /allow\(\s*unsafe_code\s*\)/.test(text) && !(rel in UNSAFE_ADAPTERS))
-    .map(({ rel }) => `${rel} allows unsafe_code outside the four adapters`);
+    .map(({ rel }) => `${rel} allows unsafe_code outside the five adapters`);
 
 const adapterPathViolations = (base) =>
   Object.entries(UNSAFE_ADAPTERS).flatMap(([rel, allowed]) => {
@@ -474,13 +526,72 @@ const outgoingDataViolations = (base) => {
   ];
 };
 
+// Capture scope (ADR 010, capture-cascade CAP-04): the capture adapters see the game window and nothing else. No monitor, no
+// desktop or screen device context, no duplication of the output. The allowed `IGraphicsCaptureItemInterop` and
+// `Graphics::Capture` imports reach these through method calls, so the rule matches calls and uses, not import paths.
+const CAPTURE_ADAPTERS = ['src/adapters/graphics_capture.rs', 'src/adapters/window_capture.rs'];
+const BANNED_CAPTURE_CALLS = [
+  'CreateForMonitor',
+  'TryCreateFromDisplayId',
+  'DuplicateOutput',
+  'GetDesktopWindow',
+  'GetWindowDC',
+  'MonitorFromWindow',
+  'BitBlt',
+];
+// `GetDC(None)`, `GetDC(Some(None))`-style nulls, `GetDC(HWND(0))`, `GetDC(HWND::default())`, `GetDC(null)`: the screen's DC.
+const SCREEN_DC =
+  /\bGetDC\s*\(\s*(?:Some\s*\(\s*)?(?:None|0\b|(?:std::|core::)?(?:ptr::)?null(?:_mut)?\s*\(\s*\)|HWND\s*\(\s*(?:0\b[^)]*|[\w:]*null(?:_mut)?\s*\(\s*\))\)|HWND::default\s*\(\s*\))/;
+
+// Source text without comments and string literals, so a doc line that names a call is not one.
+const codeOnly = (text) =>
+  text
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '')
+    .replace(/"(?:[^"\\]|\\.)*"/g, '""');
+
+// The rule runs over every `.rs` file under `src-tauri` (the app crate's `src/`, `build.rs` and `examples/`, and the adapters,
+// core, domain and xtask crates with their `examples/` and `tests/`): a call in any other file would go unseen. Paths stay
+// relative to `src-tauri`, so the allowances below name `src/adapters/...` exactly. The
+// window-scoped forms (`CreateForWindow`, `GetDC` on a window) are allowed only in the two capture adapters. The OCR engine's
+// `TryCreateFromLanguage` is not a capture item and is allowed only in its own adapter.
+const OCR_ADAPTER = 'src/adapters/windows_ocr.rs';
+const OCR_CONSTRUCTORS = ['TryCreateFromLanguage', 'TryCreateFromUserProfileLanguages'];
+// Screen device contexts by name: `GetDCEx` and `CreateDCW` reach the screen or any display, whatever their arguments.
+const SCREEN_DC_BY_NAME = ['GetDCEx', 'CreateDCW', 'CreateDCA'];
+
+const captureScopeViolations = (base) =>
+  rustFiles(base).flatMap(({ rel, text }) => {
+    const inAdapter = CAPTURE_ADAPTERS.includes(rel);
+    const code = codeOnly(text);
+    return [
+      ...[...BANNED_CAPTURE_CALLS, ...SCREEN_DC_BY_NAME]
+        .filter((name) => new RegExp(`\\b${name}\\b`).test(code))
+        .map((name) => `${rel} uses ${name}, which reaches beyond the game window`),
+      ...(SCREEN_DC.test(code) ? [`${rel} calls GetDC on the screen, not on the game window`] : []),
+      ...(!inAdapter && /\bGetDC\b/.test(code)
+        ? [`${rel} calls GetDC outside the two capture adapters`]
+        : []),
+      ...[...code.matchAll(/\b(CreateFor\w+|TryCreateFrom\w+)\b/g)]
+        .map((match) => match[1])
+        .filter((name) => !(OCR_CONSTRUCTORS.includes(name) && rel === OCR_ADAPTER))
+        .filter((name) => !(name === 'CreateForWindow' && inAdapter))
+        .filter((name, index, all) => all.indexOf(name) === index)
+        .map((name) =>
+          name === 'CreateForWindow'
+            ? `${rel} uses CreateForWindow outside the two capture adapters`
+            : `${rel} uses ${name}; CreateForWindow is the only capture item constructor`,
+        ),
+    ];
+  });
+
 const fixtureBase = (name) => path.join(root, 'scripts/test/fixtures/agent-rules', name);
 
 test('windows features stay on the allow-list', () => {
   assert.deepEqual(windowsFeatureViolations(root), []);
 });
 
-test('unsafe is allowed only in the four adapters', () => {
+test('unsafe is allowed only in the five adapters', () => {
   assert.deepEqual(unsafeLocationViolations(root), []);
 });
 
@@ -648,7 +759,7 @@ test('the windows feature rule rejects a feature off the list', () => {
 test('the unsafe location rule rejects an allow outside the adapters', () => {
   assert.match(
     unsafeLocationViolations(fixtureBase('unsafe-outside-adapters')).join('\n'),
-    /src\/adapters\/http\.rs allows unsafe_code outside the four adapters/,
+    /src\/adapters\/http\.rs allows unsafe_code outside the five adapters/,
   );
 });
 
@@ -668,6 +779,55 @@ test('the window capture rule rejects input, hook and blit calls', () => {
       `${name} must fail the window capture allow-list`,
     );
   }
+});
+
+test('the capture adapters reach no monitor, no desktop DC and no constructor but CreateForWindow', () => {
+  assert.deepEqual(captureScopeViolations(root), []);
+});
+
+test('the capture scope rule rejects every monitor and desktop call (ADR 010, CAP-04)', () => {
+  for (const name of BANNED_CAPTURE_CALLS) {
+    assert.match(
+      captureScopeViolations(fixtureBase(`capture-scope-${name}`)).join('\n'),
+      new RegExp(`graphics_capture\\.rs uses ${name}, which reaches beyond the game window`),
+      `${name} must fail the capture scope rule`,
+    );
+  }
+});
+
+test('the capture scope rule rejects a screen device context and any other item constructor (CAP-04)', () => {
+  for (const fixture of ['capture-scope-GetDC-None', 'capture-scope-GetDC-HWND0']) {
+    assert.match(
+      captureScopeViolations(fixtureBase(fixture)).join('\n'),
+      /window_capture\.rs calls GetDC on the screen, not on the game window/,
+      fixture,
+    );
+  }
+  assert.match(
+    captureScopeViolations(fixtureBase('capture-scope-CreateForOther')).join('\n'),
+    /graphics_capture\.rs uses CreateForSomething; CreateForWindow is the only capture item constructor/,
+  );
+});
+
+test('the capture scope rule runs over every app-crate file, not only the two adapters (CAP-04)', () => {
+  const violations = captureScopeViolations(fixtureBase('capture-scope-other-file')).join('\n');
+  assert.match(
+    violations,
+    /src\/other\.rs uses TryCreateFromDisplayId, which reaches beyond the game window/,
+  );
+  assert.match(violations, /src\/other\.rs uses GetDCEx, which reaches beyond the game window/);
+  assert.match(violations, /src\/other\.rs calls GetDC outside the two capture adapters/);
+  assert.match(violations, /src\/other\.rs uses CreateForWindow outside the two capture adapters/);
+});
+
+test('the capture scope rule also scans build scripts and the other agent crates (CAP-04)', () => {
+  const violations = captureScopeViolations(fixtureBase('capture-scope-other-crates')).join('\n');
+  assert.match(violations, /^build\.rs uses GetDCEx, which reaches beyond the game window$/m);
+  assert.match(violations, /^core\/src\/x\.rs uses GetDCEx, which reaches beyond the game window$/m);
+});
+
+test('the capture scope rule accepts CreateForWindow and GetDC on the game window (CAP-04)', () => {
+  assert.deepEqual(captureScopeViolations(fixtureBase('capture-scope-accepted')), []);
 });
 
 test('only the wrapper, the token store and the two clients call expose, and none logs an event', () => {

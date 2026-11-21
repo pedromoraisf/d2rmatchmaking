@@ -38,9 +38,16 @@
     "notSaved": "Could not save your choice. Try again."
   },
   "readyCheck": {
-    "hotkey": "A ready check is open: press {{key}} to accept it."
+    "hotkey": "A ready check is open: press {{key}} to accept it.",
+    "unavailable": "The accept hotkey ({{key}}) could not be registered: another program may be using it. Choose another combination in the Hotkeys section of this window. (reason: {{reason}})"
   },
   "diagnostics": {
+    "hotkeyPress": {
+      "none": "Last hotkey press: none since the agent started",
+      "accept": "Last hotkey press: the accept key",
+      "fill": "Last hotkey press: the fill key",
+      "unmatched": "Last hotkey press: a key that matches neither hotkey"
+    },
     "heading": "Diagnostics",
     "screen": {
       "unknown": "Screen: not recognised",
@@ -52,7 +59,20 @@
     "cards": "Cards read: {{read}}, settled: {{settled}}",
     "popup": "Popup options found: {{found}}",
     "rejected": "Card {{slot}} not settled: {{reason}}",
-    "post": "Last send: {{outcome}}",
+    "post": {
+      "not-sent": "Last send: nothing sent yet",
+      "ok": "Last send: sent",
+      "unauthorized": "Last send: refused, not authorised",
+      "upgrade-required": "Last send: update required",
+      "rate-limited": "Last send: too many requests, will retry",
+      "gone": "Last send: no longer available",
+      "pending": "Last send: waiting for pairing",
+      "server": "Last send: server error",
+      "network": "Last send: could not reach the server",
+      "invalid": "Last send: refused as invalid",
+      "check-ended": "Last send: the ready check ended",
+      "other": "Last send: {{outcome}}"
+    },
     "window": "Window (with borders): {{width}}×{{height}}",
     "content": {
       "blank": "Frame content: blank (brightness {{brightness}})",
@@ -76,6 +96,16 @@
         "far": "Party field, closest reading: far",
         "same": "Party field, closest reading: same after normalising"
       }
+    },
+    "capture": {
+      "method": {
+        "printWindow": "Capture method: Window print",
+        "graphicsCapture": "Capture method: Graphics capture",
+        "screenCrop": "Capture method: Screen crop",
+        "none": "Capture method: None"
+      },
+      "rate": "Usable frames: {{percent}}%",
+      "nothing": "The capture shows nothing: no capture method gave a usable frame"
     }
   },
   "fill": {
@@ -88,7 +118,8 @@
     "refused-name": "Nothing typed: the room's name is not one the agent types.",
     "refused-focus": "Nothing typed: the game does not have focus.",
     "refused-screen": "Nothing typed: a game is running. Fill the name from the lobby.",
-    "refused-keys": "Nothing typed: let go of the hotkey's keys and press it again."
+    "refused-keys": "Nothing typed: let go of the hotkey's keys and press it again.",
+    "unavailable": "The fill hotkey ({{key}}) could not be registered: another program may be using it. Choose another combination in the Hotkeys section of this window. (reason: {{reason}})"
   },
   "hotkeys": {
     "heading": "Hotkeys",

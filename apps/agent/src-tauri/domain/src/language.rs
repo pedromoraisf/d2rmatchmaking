@@ -127,6 +127,8 @@ pub fn title_key(title: Title) -> &'static str {
 pub struct LanguagePack {
     tag: String,
     words: BTreeMap<String, String>,
+    /// Another language's pack, tried by the Party step when this one finds no panel (`with_fallback`).
+    fallback: Option<Box<LanguagePack>>,
 }
 
 /// Why a pack is refused.
@@ -149,23 +151,23 @@ impl LanguagePack {
                 .iter()
                 .map(|(key, word)| ((*key).to_string(), (*word).to_string()))
                 .collect(),
+            fallback: None,
         }
     }
 
-    /// The Party panel's words of a Brazilian Portuguese client (screen-recognition T6, SCR-04): the title "Grupo", the label
-    /// "Nome" (the Game Name field's label) and "Senha" (the Password label), measured on the maintainer's pt-BR prints.
-    /// The other words stay English: this pack is only read for the Party panel, which holds no other word.
-    pub fn brazilian_party() -> Self {
-        let mut pack = Self::english();
-        pack.tag = "pt-BR".to_string();
-        for (key, word) in [
-            ("party", "Grupo"),
-            ("gameName", "Nome"),
-            ("password", "Senha"),
-        ] {
-            pack.words.insert(key.to_string(), word.to_string());
-        }
-        pack
+    /// This pack with `fallback` as the pack the Party step tries when this one's words find no panel (screen-recognition T6,
+    /// SCR-04: the maintainer plays on a pt-BR client, whose panel the English words never find). The fallback's words come
+    /// from its file (`resources/lang/pt-BR.json`), not from code; only the Party anchors are read with them, and the game
+    /// name is matched as ever.
+    #[must_use]
+    pub fn with_fallback(mut self, fallback: LanguagePack) -> Self {
+        self.fallback = Some(Box::new(fallback));
+        self
+    }
+
+    /// The pack tried when this one finds no Party panel, if any.
+    pub fn fallback(&self) -> Option<&LanguagePack> {
+        self.fallback.as_deref()
     }
 
     /// A pack from its tag and its words. The tag must not be empty; every required key must hold a word, and no word may be
@@ -188,7 +190,11 @@ impl LanguagePack {
                 Some(_) => {}
             }
         }
-        Ok(Self { tag, words })
+        Ok(Self {
+            tag,
+            words,
+            fallback: None,
+        })
     }
 
     /// The language tag the pack was made for.
@@ -347,6 +353,26 @@ mod tests {
             .collect()
     }
 
+    /// The words of `resources/lang/pt-BR.json` (the app crate's test pins the file to these).
+    fn brazilian() -> LanguagePack {
+        LanguagePack::from_words(
+            "pt-BR",
+            words(&[(PARTY, "Grupo"), (GAME_NAME, "Nome"), (PASSWORD, "Senha")]),
+        )
+        .expect("the pack builds")
+    }
+
+    #[test]
+    fn a_pack_keeps_the_fallback_it_is_given_and_has_none_otherwise() {
+        let english = LanguagePack::english();
+        assert_eq!(english.fallback(), None);
+        let with = english.with_fallback(brazilian());
+        assert_eq!(with.tag(), "en", "the pack itself is unchanged");
+        assert_eq!(with.fallback().map(LanguagePack::tag), Some("pt-BR"));
+        assert_eq!(with.fallback().and_then(|pt| pt.fallback()), None);
+        assert_eq!(with.word(PARTY), Some("Party"));
+    }
+
     #[test]
     fn the_english_pack_holds_the_in_game_hud_words_and_the_party_words_unchanged() {
         // Pin added for rule 14 (the MANA word of f42623b9 and the Brazilian pack of 0a2d82c4 changed this file without one):
@@ -366,7 +392,7 @@ mod tests {
     #[test]
     fn the_brazilian_party_words_read_the_measured_noisy_forms_and_not_the_english_ones() {
         // The reads are those of the six 1920x1045 prints (the `ocr-real` wide-pass diagnostics).
-        let pt = LanguagePack::brazilian_party();
+        let pt = brazilian();
         let en = LanguagePack::english();
         assert_eq!(pt.tag(), "pt-BR");
         assert!(pt.party_panel_open("GRUPO"));
@@ -380,6 +406,25 @@ mod tests {
             assert!(!pt.is_label(read, GAME_NAME, &[PASSWORD]), "{read}");
         }
         assert!(!pt.is_label("GAME NAME", GAME_NAME, &[PASSWORD]));
+    }
+
+    #[test]
+    fn the_brazilian_party_pack_holds_the_three_measured_words_and_nothing_the_panel_reads_besides()
+    {
+        // Pin before the words move to `resources/lang/pt-BR.json` (rule 14): the tag, the three words of the Party panel
+        // and their order of lookup. The Party anchors read no other key (`find_party`), so only these three matter.
+        let pt = brazilian();
+        assert_eq!(pt.tag(), "pt-BR");
+        assert_eq!(pt.word(PARTY), Some("Grupo"));
+        assert_eq!(pt.word(GAME_NAME), Some("Nome"));
+        assert_eq!(pt.word(PASSWORD), Some("Senha"));
+        assert!(pt.is_title_prefix("GRU", PARTY), "a tooltip over the title");
+        assert!(
+            !pt.is_title_prefix("GR", PARTY),
+            "two letters are not enough"
+        );
+        assert!(pt.is_squashed_word("S E N H A", PASSWORD));
+        assert!(pt.is_squashed_word("nome", GAME_NAME));
     }
 
     #[test]

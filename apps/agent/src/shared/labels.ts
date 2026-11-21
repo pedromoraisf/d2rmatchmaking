@@ -69,7 +69,23 @@ export interface CaptureDiagnostics {
   windowWidth: number | null;
   windowHeight: number | null;
   party: PartyLook | null;
+  // The method that gave the last usable frame, as the core's fixed word, or `none` (capture-cascade CAP-07).
+  method: CaptureMethodWord;
+  // The usable share of the last looks, a whole percent.
+  readRatePercent: number;
+  // Present when the game runs and no method gave a usable frame (CAP-02).
+  reason?: 'nothing';
 }
+
+export type CaptureMethodWord = 'print-window' | 'graphics-capture' | 'screen-crop' | 'none';
+
+// The key of each capture method's name in the locale files.
+const METHOD_KEYS: Record<CaptureMethodWord, string> = {
+  'print-window': 'diagnostics.capture.method.printWindow',
+  'graphics-capture': 'diagnostics.capture.method.graphicsCapture',
+  'screen-crop': 'diagnostics.capture.method.screenCrop',
+  none: 'diagnostics.capture.method.none',
+};
 
 export interface Hotkeys {
   accept: string;
@@ -88,6 +104,20 @@ export type FillOutcome =
   | 'refused-screen'
   | 'refused-keys';
 
+// A hotkey the OS did not let the agent register while it wants it (AST-01, AST-08, RDY-07).
+export type HotkeySlot = 'accept' | 'fill';
+
+// Why the OS did not let the agent register it: a closed set of codes from the core, no OS text.
+export type HotkeyFailure = 'no-manager' | 'refused' | 'unmapped' | 'dispatch';
+
+export interface HotkeyFault {
+  slot: HotkeySlot;
+  reason: HotkeyFailure;
+}
+
+// The last hotkey press the agent received from the OS; absent until the first one.
+export type HotkeyPress = 'accept' | 'fill' | 'unmatched';
+
 export interface AgentView {
   pairing: PairingState;
   connectivity: Connectivity;
@@ -99,6 +129,10 @@ export interface AgentView {
   hotkeys: Hotkeys;
   // What the last press of the fill hotkey did (AST-08); absent before the first press.
   lastFill?: FillOutcome;
+  // The hotkeys the OS refused to register while they are wanted (AST-01, AST-08); absent when all are registered.
+  hotkeyUnavailable?: HotkeyFault[];
+  // The last hotkey press the OS delivered to the agent (proves delivery); absent until the first one.
+  lastPress?: HotkeyPress;
   diagnostics: Diagnostics | null;
   // Absent until the first frame was captured.
   capture?: CaptureDiagnostics;
@@ -169,6 +203,20 @@ export function fillLabel(outcome: FillOutcome | undefined): Label | null {
   return outcome === undefined ? null : { key: `fill.${outcome}` };
 }
 
+// The lines for a hotkey the OS did not let the agent register, one per slot, with the reason as a short code the player can
+// read out (AST-08). The player picks another combination.
+export function hotkeyUnavailableLabels(faults: HotkeyFault[] | undefined, hotkeys: Hotkeys): Label[] {
+  return (faults ?? []).map(({ slot, reason }) => ({
+    key: `${slot === 'fill' ? 'fill' : 'readyCheck'}.unavailable`,
+    values: { key: hotkeys[slot], reason },
+  }));
+}
+
+// The diagnostics line with the last hotkey press the agent received, or that none came since it started.
+export function lastPressLabel(press: HotkeyPress | undefined): Label {
+  return { key: `diagnostics.hotkeyPress.${press ?? 'none'}` };
+}
+
 // The lines of the diagnostics section, one label each, in the order the window shows them.
 export function diagnosticsLabels(diagnostics: Diagnostics): Label[] {
   return [
@@ -183,14 +231,41 @@ export function diagnosticsLabels(diagnostics: Diagnostics): Label[] {
       key: 'diagnostics.rejected',
       values: { slot: rejected.slot + 1, reason: rejected.reason },
     })),
-    { key: 'diagnostics.post', values: { outcome: diagnostics.post } },
+    postLabel(diagnostics.post),
   ];
+}
+
+// The outcomes of the last character post the core publishes (`error_kind` and the two answers of `watch_screen`).
+const POST_OUTCOMES = new Set([
+  'not-sent',
+  'ok',
+  'unauthorized',
+  'upgrade-required',
+  'rate-limited',
+  'gone',
+  'pending',
+  'server',
+  'network',
+  'invalid',
+  'check-ended',
+]);
+
+// The "Last send" line: a known outcome has its own translated line; one this build does not know shows its code.
+function postLabel(outcome: string): Label {
+  return POST_OUTCOMES.has(outcome)
+    ? { key: `diagnostics.post.${outcome}` }
+    : { key: 'diagnostics.post.other', values: { outcome } };
 }
 
 // The capture lines of the diagnostics: the window size beside the frame (client) size, the frame content and the last Party
 // look of the held run. Shown after the lines `diagnosticsLabels` gives.
 export function captureLabels(capture: CaptureDiagnostics): Label[] {
-  const labels: Label[] = [];
+  const labels: Label[] = [{ key: METHOD_KEYS[capture.method] }];
+  if (capture.reason === 'nothing') {
+    labels.push({ key: 'diagnostics.capture.nothing' });
+  } else if (capture.method !== 'none') {
+    labels.push({ key: 'diagnostics.capture.rate', values: { percent: capture.readRatePercent } });
+  }
   if (capture.windowWidth !== null && capture.windowHeight !== null) {
     labels.push({
       key: 'diagnostics.window',

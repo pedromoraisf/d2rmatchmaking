@@ -22,9 +22,21 @@ const ALLOWED_FIELDS = new Set([
   'vision.screen',
   'vision.search',
   'vision.area_class',
+  // The capture cascade's span (capture-cascade CAP-08): the method and the outcome, as fixed words.
+  'capture.method',
+  'capture.outcome',
 ]);
 // The only values a `vision.*` field may be recorded with: the fixed-word variables of `vision_words`.
 const WORD_VARIABLES = new Set(['screen_word', 'search_word', 'area_class']);
+// The only values a `capture.*` field may be declared or recorded with: a method's fixed word, the outcome words and the
+// constants that hold them. Never a size, a coordinate, a window title or a pixel (CAP-08).
+const CAPTURE_WORDS = new Set([
+  'method.word()',
+  'NO_METHOD',
+  'OUTCOME_SKIPPED',
+  'outcome_text',
+  'tracing::field::Empty',
+]);
 
 // The non-test part of a Rust source: tests build their own subscribers and spans.
 const nonTest = (source) => source.split('#[cfg(test)]')[0];
@@ -37,6 +49,13 @@ export function visionSpanViolations(source) {
     for (const field of span[1].matchAll(/(?:^|,)\s*("[^"]+"|[A-Za-z_][\w.]*)\s*=/g)) {
       const name = field[1].replaceAll('"', '');
       if (!ALLOWED_FIELDS.has(name)) violations.push(`the span declares the field ${name}`);
+      else if (name.startsWith('capture.')) {
+        const declared = span[1].match(new RegExp(`"${name.replace('.', '\\.')}"\\s*=\\s*([^,]+)`));
+        const value = declared?.[1].trim() ?? '';
+        if (!CAPTURE_WORDS.has(value)) {
+          violations.push(`the field ${name} is declared with ${value}, not a fixed word`);
+        }
+      }
     }
   }
   if (!/info_span!\(\s*"agent\.vision/.test(code)) return violations;
@@ -44,6 +63,9 @@ export function visionSpanViolations(source) {
     const [, name, value] = record;
     if (!ALLOWED_FIELDS.has(name)) violations.push(`the span records the field ${name}`);
     if (name.startsWith('vision.') && !WORD_VARIABLES.has(value.trim())) {
+      violations.push(`the field ${name} is recorded with ${value.trim()}, not a fixed word`);
+    }
+    if (name.startsWith('capture.') && !CAPTURE_WORDS.has(value.trim())) {
       violations.push(`the field ${name} is recorded with ${value.trim()}, not a fixed word`);
     }
   }
@@ -75,6 +97,27 @@ test('the rule rejects a read text, a region or a coordinate in a vision span', 
   ]);
   const coordinate = `fn f() { let span = tracing::info_span!("agent.vision.read"); span.record("x", 12); }`;
   assert.deepEqual(visionSpanViolations(coordinate), ['the span records the field x']);
+});
+
+test('the rule sees the capture span of the capturer and accepts its fixed words', () => {
+  const source = readFileSync(path.join(coreSrc, 'capturer.rs'), 'utf8');
+  assert.match(nonTest(source), /info_span!\(\s*"agent\.vision\.capture"/);
+  assert.match(nonTest(source), /span\.record\("capture\.outcome", outcome_text\)/);
+  assert.deepEqual(visionSpanViolations(source), []);
+});
+
+test('the rule rejects a size, a title or a coordinate in the capture span', () => {
+  const size = `fn f() { let span = tracing::info_span!("agent.vision.capture", "capture.method" = size.width, "capture.outcome" = tracing::field::Empty); }`;
+  assert.deepEqual(visionSpanViolations(size), [
+    'the field capture.method is declared with size.width, not a fixed word',
+  ]);
+  const title = `fn f() { let span = tracing::info_span!("agent.vision.capture", "capture.method" = method.word(), "capture.window" = title); }`;
+  assert.deepEqual(visionSpanViolations(title), ['the span declares the field capture.window']);
+  const recorded = `fn f() { let span = tracing::info_span!("agent.vision.capture", "capture.outcome" = tracing::field::Empty);
+    span.record("capture.outcome", frame.width); }`;
+  assert.deepEqual(visionSpanViolations(recorded), [
+    'the field capture.outcome is recorded with frame.width, not a fixed word',
+  ]);
 });
 
 test('the rule accepts the fixed words and leaves other spans alone', () => {

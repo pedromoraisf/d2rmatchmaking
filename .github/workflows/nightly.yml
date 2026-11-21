@@ -228,6 +228,17 @@ jobs:
       - name: Record the check's verdict
         if: ${{ !cancelled() && hashFiles('reports/load/summary.json') != '' }}
         run: echo '{"verdict":"${{ steps.check.outcome == 'success' && 'passed' || 'failed' }}"}' > reports/load/check.json
+      # The numbers of the run in the job's log, where a person (or a session that cannot download artifacts) reads them. Only
+      # counts: the summary holds no cookie, token or password (the check above refuses it).
+      - name: Print the egress numbers
+        if: ${{ !cancelled() && hashFiles('reports/load/summary.json') != '' }}
+        run: |
+          node -e "
+            const s = JSON.parse(require('fs').readFileSync('reports/load/summary.json', 'utf8'));
+            console.log('egress bytesPerPlayerHour', s.bytesPerPlayerHour, 'matchesPerPlayerHour', s.matchesPerPlayerHour);
+            console.log('egress bytesByEventPerPlayerHour', JSON.stringify(s.bytesByEventPerPlayerHour));
+            for (const step of s.steps ?? []) console.log('egress step', step.players ?? step.step, JSON.stringify(step.bytesByEvent));
+          "
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

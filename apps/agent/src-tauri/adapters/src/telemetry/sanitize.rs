@@ -16,10 +16,12 @@ pub const MAX_STRING_CHARS: usize = 128;
 /// Span names must start with this prefix; any other span is dropped.
 pub const SPAN_NAME_PREFIX: &str = "agent.";
 /// The only attribute keys a span keeps. The match is exact: `http.url` is not `http.request.method`.
-pub const ALLOWED_ATTRIBUTE_KEYS: [&str; 10] = [
+pub const ALLOWED_ATTRIBUTE_KEYS: [&str; 12] = [
     "vision.screen",
     "vision.search",
     "vision.area_class",
+    "capture.method",
+    "capture.outcome",
     "status",
     "d2r.room.id",
     "d2r.agent.version",
@@ -30,13 +32,22 @@ pub const ALLOWED_ATTRIBUTE_KEYS: [&str; 10] = [
 ];
 /// The values a vision attribute may carry (screen-recognition T8, SCR-09): fixed words, never a coordinate, a read text or a
 /// pixel. Any other value of these keys is dropped with its key.
-pub const VISION_VALUES: [(&str, &[&str]); 3] = [
+pub const VISION_VALUES: [(&str, &[&str]); 5] = [
     (
         "vision.screen",
         &["in_game", "automap", "character_select", "unknown"],
     ),
-    ("vision.search", &["track", "band", "fixed", "none"]),
+    (
+        "vision.search",
+        &["track", "band", "fixed", "none", "rested", "lifted"],
+    ),
     ("vision.area_class", &["box", "band", "panel"]),
+    // The capture cascade's span (capture-cascade CAP-08): the method and what the capture gave, never a size or a title.
+    (
+        "capture.method",
+        &["print-window", "graphics-capture", "screen-crop", "none"],
+    ),
+    ("capture.outcome", &["frame", "blank", "failed", "skipped"]),
 ];
 
 /// Whether an attribute may leave the machine: its key is allowed and, for a vision key, its value is one of the fixed words.
@@ -201,6 +212,28 @@ mod tests {
     }
 
     #[test]
+    fn the_search_words_of_a_rested_or_lifted_frame_are_kept_and_others_dropped() {
+        for word in ["track", "band", "fixed", "none", "rested", "lifted"] {
+            let kept = sanitize_span(span(
+                "agent.vision.read",
+                vec![KeyValue::new("vision.search", word)],
+                Status::Unset,
+            ))
+            .expect("an agent span is kept");
+            assert_eq!(keys(&kept), ["vision.search"], "{word}");
+        }
+        for word in ["searched", "tracked", "Rested", "lifted "] {
+            let dropped = sanitize_span(span(
+                "agent.vision.read",
+                vec![KeyValue::new("vision.search", word)],
+                Status::Unset,
+            ))
+            .expect("an agent span is kept");
+            assert!(keys(&dropped).is_empty(), "{word}");
+        }
+    }
+
+    #[test]
     fn a_vision_attribute_keeps_only_its_fixed_words() {
         let fixture = span(
             "agent.vision.read",
@@ -233,6 +266,54 @@ mod tests {
             ["status"],
             "any other value goes with its key"
         );
+    }
+
+    #[test]
+    fn a_capture_attribute_keeps_only_its_fixed_words() {
+        let words = span(
+            "agent.vision.capture",
+            vec![
+                KeyValue::new("capture.method", "graphics-capture"),
+                KeyValue::new("capture.outcome", "blank"),
+            ],
+            Status::Unset,
+        );
+        let clean = sanitize_span(words).expect("an agent span is kept");
+        assert_eq!(keys(&clean), ["capture.method", "capture.outcome"]);
+        // Every method and outcome word is kept, and nothing else: a size, a title, a path, a number.
+        for method in ["print-window", "graphics-capture", "screen-crop", "none"] {
+            let one = span(
+                "agent.vision.capture",
+                vec![KeyValue::new("capture.method", method)],
+                Status::Unset,
+            );
+            assert_eq!(keys(&sanitize_span(one).expect("kept")), ["capture.method"]);
+        }
+        for outcome in ["frame", "blank", "failed", "skipped"] {
+            let one = span(
+                "agent.vision.capture",
+                vec![KeyValue::new("capture.outcome", outcome)],
+                Status::Unset,
+            );
+            assert_eq!(
+                keys(&sanitize_span(one).expect("kept")),
+                ["capture.outcome"]
+            );
+        }
+        let other = span(
+            "agent.vision.capture",
+            vec![
+                KeyValue::new("capture.method", "1936x1063"),
+                KeyValue::new("capture.outcome", "Diablo II Resurrected - Alice"),
+                KeyValue::new("capture.size", "1920x1080"),
+                KeyValue::new("capture.window", "D2R"),
+                KeyValue::new("capture.method.extra", "print-window"),
+                KeyValue::new("capture.outcome", 3_i64),
+            ],
+            Status::Unset,
+        );
+        let clean = sanitize_span(other).expect("an agent span is kept");
+        assert!(keys(&clean).is_empty(), "{:?}", keys(&clean));
     }
 
     #[test]

@@ -454,6 +454,38 @@ mod tests {
         assert!(!valid_ready_check_id("rc_1"));
     }
 
+    /// The API's copy for an agent leaves the member list empty (stream-egress SEG-03): the agent reads none of it, and an
+    /// agent from before the change, which still wants the key, reads `[]` as it reads a full list. Both shapes are held.
+    #[test]
+    fn an_assignment_event_holds_with_its_members_or_with_an_empty_list() {
+        let lean = r#"{"roomId":"7d9f2c1e-0000-4000-8000-000000000001","run":2,"expectedGameName":"mmbaalh-13","members":[]}"#;
+        for name in ["room.assigned", "room.run_opened"] {
+            for data in [ASSIGNED, lean] {
+                assert!(
+                    matches!(handle(name, data), StreamEffect::SetAssignment(_)),
+                    "{name} must hold {data}"
+                );
+            }
+        }
+        let StreamEffect::SetAssignment(assignment) = handle("room.assigned", lean) else {
+            panic!("the lean event holds");
+        };
+        assert_eq!(assignment.expected_game_name.as_str(), "mmbaalh-13");
+        assert_eq!(assignment.run.get(), 2);
+    }
+
+    #[test]
+    fn a_ready_check_event_holds_with_its_members_or_with_an_empty_list() {
+        let lean = r#"{"id":"rc-1","mode":"pvp","difficulty":"hell","deadline":"2026-11-10T12:01:00.000Z","now":"2026-11-10T12:00:00.000Z","members":[]}"#;
+        for data in [READY_CHECK, lean] {
+            let StreamEffect::ReadyCheckStarted(check) = handle("ready_check.started", data) else {
+                panic!("a ready_check.started holds: {data}");
+            };
+            assert_eq!(check.id, "rc-1");
+            assert_eq!(check.remaining, Duration::from_secs(60));
+        }
+    }
+
     /// The server sends data, never commands (AGT-04): an event named like an action, or carrying an action field, is
     /// ignored, and a known event with an extra field acts exactly as the same event without it.
     #[test]

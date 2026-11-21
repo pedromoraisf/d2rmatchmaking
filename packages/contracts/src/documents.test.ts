@@ -10,13 +10,16 @@ describe('contract documents', () => {
     });
   });
 
-  it('builds an AsyncAPI 3.0 document with the stream channel and its eleven messages', () => {
+  it('builds an AsyncAPI 3.0 document with the stream channel and its fourteen messages', () => {
     const document = buildAsyncApiDocument();
     expect(document.asyncapi).toBe('3.0.0');
     expect(document.channels.stream.address).toBe('/v1/stream');
     expect(Object.keys(document.channels.stream.messages)).toStrictEqual([
       'RoomAssigned',
       'RoomStageChanged',
+      'AgentRoomAssigned',
+      'AgentRoomRunOpened',
+      'AgentReadyCheckStarted',
       'AgentRoomStageChanged',
       'RoomRunOpened',
       'RoomMemberChanged',

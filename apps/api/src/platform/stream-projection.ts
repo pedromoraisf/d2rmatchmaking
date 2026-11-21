@@ -48,6 +48,8 @@ export async function projectStreamEvent(
         expectedGameName: payload.expectedGameName,
         members: [...payload.members],
       };
+      // The agent's copy keeps the key with no members: it reads the room, the run and the name (stream-egress SEG-03).
+      const agentData = { ...data, members: [] };
       return perAccount(
         payload.members.map((member) => member.accountId),
         agents,
@@ -55,7 +57,13 @@ export async function projectStreamEvent(
           { stream: 'site', accountId, event: { type: 'room.assigned', data } },
           ...(agentId === null
             ? []
-            : [{ stream: 'agent' as const, agentId, event: { type: 'room.assigned' as const, data } }]),
+            : [
+                {
+                  stream: 'agent' as const,
+                  agentId,
+                  event: { type: 'room.assigned' as const, data: agentData },
+                },
+              ]),
         ],
       );
     }
@@ -92,6 +100,8 @@ export async function projectStreamEvent(
         expectedGameName: payload.expectedGameName,
         members: [...payload.members],
       };
+      // The agent's copy keeps the key with no members, as the assignment's does (stream-egress SEG-03).
+      const agentData = { ...data, members: [] };
       return perAccount(
         payload.members.map((member) => member.accountId),
         agents,
@@ -99,7 +109,13 @@ export async function projectStreamEvent(
           { stream: 'site', accountId, event: { type: 'room.run_opened', data } },
           ...(agentId === null
             ? []
-            : [{ stream: 'agent' as const, agentId, event: { type: 'room.run_opened' as const, data } }]),
+            : [
+                {
+                  stream: 'agent' as const,
+                  agentId,
+                  event: { type: 'room.run_opened' as const, data: agentData },
+                },
+              ]),
         ],
       );
     }
@@ -161,6 +177,8 @@ export async function projectStreamEvent(
         agents,
         (accountId, agentId) => {
           const data = readyCheckViewFor(payload, accountId);
+          // The agent's hotkey reads the id and the deadline: its copy keeps the key with no members (stream-egress SEG-03).
+          const agentData = { ...data, members: [] };
           return [
             { stream: 'site', accountId, event: { type: 'ready_check.started', data } },
             ...(agentId === null
@@ -169,7 +187,7 @@ export async function projectStreamEvent(
                   {
                     stream: 'agent' as const,
                     agentId,
-                    event: { type: 'ready_check.started' as const, data },
+                    event: { type: 'ready_check.started' as const, data: agentData },
                   },
                 ]),
           ];

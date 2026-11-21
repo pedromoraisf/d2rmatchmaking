@@ -39,6 +39,8 @@ fn the_fixtures_cover_every_mode_of_the_scenarios() {
             "bottom-text-only",
             "in-game-unsupported-size",
             "select-with-hud-text",
+            "in-game-window-with-title-bar",
+            "in-game-wrong-size-frame",
         ]
     );
 }
@@ -85,7 +87,9 @@ fn every_frame_is_1920_wide_and_the_heights_are_those_of_the_modes() {
         .collect();
     assert_eq!(
         heights,
-        [1056, 1080, 1056, 1080, 1056, 1080, 1080, 1920, 1080]
+        [
+            1056, 1080, 1056, 1080, 1056, 1080, 1080, 1920, 1080, 1111, 1056
+        ]
     );
     let gold = screen_sidecar("select-with-hud-text").expect("sidecar");
     assert!(box_of(&gold["gold"]).is_ok());

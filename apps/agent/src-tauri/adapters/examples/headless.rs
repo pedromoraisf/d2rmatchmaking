@@ -7,12 +7,14 @@
 //! the event `code`, `paired`, `stream-open` (the stream is open, after the assignment fetch), `assignment`, `observed`, `reveal` or `assignment`. Input, one command per line: `read` calls
 //! `Handle::read_once` once for the room the agent holds; `show <png>` makes the agent capture that picture from now on, with
 //! its sidecar `<png>.json` as the text of its regions (CHR-04, CHR-06, CHR-18); `consent on|off` gives or withdraws the
-//! player's consent in the agent's window (CHR-01). The composition runs in `run`, over injected input and output; `main`
+//! player's consent in the agent's window (CHR-01); `capture print|graphics good|black|failed` scripts how a capture method
+//! answers and `minimize on|off` minimizes the game window (capture-cascade); a `capture` event prints when the window's
+//! capture method or reason changes. The composition runs in `run`, over injected input and output; `main`
 //! wraps it over stdin and stdout. The server trusts the token and nothing else (ADR 010): this process only sends data.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use chrono::{DateTime, Utc};
@@ -22,6 +24,7 @@ use d2rmm_agent_adapters::http::client::client;
 use d2rmm_agent_adapters::http::gateway::HttpGateway;
 use d2rmm_agent_adapters::telemetry::relay_client::HeaderSource;
 use d2rmm_agent_adapters::telemetry::{self, ExportConfig, Mode, TelemetryGuard};
+use d2rmm_agent_core::capturer::Capturer;
 use d2rmm_agent_core::config::Config;
 use d2rmm_agent_core::fakes::{MemoryTokens, NoConsent, NoFrames, NoUpdates};
 use d2rmm_agent_core::fill_name::FillPorts;
@@ -30,14 +33,17 @@ use d2rmm_agent_core::groups::{
 };
 use d2rmm_agent_core::messages::{GameNameObservation, IssuedCode, Presence};
 use d2rmm_agent_core::ports::{
-    ApiError, ApiGateway, ConsentStore, EventStream, FrameSource, ProcessSource, ReadError, Rgba,
-    SequentialIds, StateSink, StoreError, TextReader, TokenStore, WallClock,
+    ApiError, ApiGateway, ConsentStore, EventStream, FrameSource, MethodSource, Miss,
+    ProcessSource, ReadError, Rgba, SequentialIds, StateSink, StoreError, TextReader, TokenStore,
+    WallClock,
 };
 use d2rmm_agent_core::ports::{ForegroundWindow, KeyTyper, ModifierState};
 use d2rmm_agent_core::runtime::{Handle, Probe, Runtime};
 use d2rmm_agent_core::screen_reader::ScreenReader;
 use d2rmm_agent_core::secret::Secret;
 use d2rmm_agent_core::view::{AgentView, PairingView, RoomView};
+use d2rmm_agent_domain::capture_cascade::CaptureMethod;
+use d2rmm_agent_domain::capture_geometry::{crop_rgba, crop_to_client};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{
     PanelRegion, ScreenRegion, panel_region, screen_region, screen_text_regions,
@@ -93,6 +99,19 @@ impl StateSink for Lines {
             .is_some_and(|previous| previous.pairing == PairingView::Paired);
         if view.pairing == PairingView::Paired && !was_paired {
             let _ = self.events.send(json!({ "event": "paired" }));
+        }
+        // The capture lines of the window (capture-cascade CAP-02, CAP-07): printed when the method or the reason changes.
+        let capture_of = |view: &AgentView| {
+            view.capture
+                .as_ref()
+                .map(|capture| (capture.method, capture.reason))
+        };
+        if let Some((method, reason)) =
+            capture_of(&view).filter(|now| Some(*now) != before.as_ref().and_then(capture_of))
+        {
+            let _ = self
+                .events
+                .send(json!({ "event": "capture", "method": method, "reason": reason }));
         }
         let hinted =
             |room: Option<&RoomView>| room.is_some_and(|room| room.needs_reveal && !room.matched);
@@ -389,13 +408,136 @@ impl TextReader for ShownText {
     }
 }
 
-/// The frame the example captures: the shown picture, or none before the first `show` (the game window is not there).
-struct ShownFrame(SharedShot);
+/// What a scripted capture method returns (the `capture` input lines): the shown frame, a black frame of its size, or none.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Behaviour {
+    Good,
+    Black,
+    Failed,
+}
 
-impl FrameSource for ShownFrame {
-    fn capture(&self) -> Option<Rgba> {
-        let shown = self.0.lock().ok()?;
-        shown.as_ref().map(|shot| shot.frame.clone())
+impl Behaviour {
+    const fn code(self) -> u8 {
+        match self {
+            Self::Good => 0,
+            Self::Black => 1,
+            Self::Failed => 2,
+        }
+    }
+
+    const fn from_code(code: u8) -> Self {
+        match code {
+            1 => Self::Black,
+            2 => Self::Failed,
+            _ => Self::Good,
+        }
+    }
+}
+
+/// How the scripted game window behaves, switched by the `capture` and `minimize` input lines.
+#[derive(Default)]
+pub struct Script {
+    print_window: AtomicU8,
+    graphics_capture: AtomicU8,
+    minimized: AtomicBool,
+}
+
+impl Script {
+    fn behaviour_of(&self, method: CaptureMethod) -> Behaviour {
+        let slot = match method {
+            CaptureMethod::PrintWindow => &self.print_window,
+            _ => &self.graphics_capture,
+        };
+        Behaviour::from_code(slot.load(Ordering::SeqCst))
+    }
+
+    fn set(&self, method: CaptureMethod, behaviour: Behaviour) {
+        let slot = match method {
+            CaptureMethod::PrintWindow => &self.print_window,
+            _ => &self.graphics_capture,
+        };
+        slot.store(behaviour.code(), Ordering::SeqCst);
+    }
+}
+
+/// The client area a sidecar names: `client` (a rectangle inside a frame that holds a title bar), which the capture crops to,
+/// or `clientSize` (what the window reports, with the frame left as it is, so a frame of another size is refused).
+fn client_of(sidecar: &Value) -> Option<((u32, u32), (u32, u32))> {
+    let number = |value: &Value, key: &str| u32::try_from(value.get(key)?.as_u64()?).ok();
+    if let Some(client) = sidecar.get("client") {
+        return Some((
+            (number(client, "x")?, number(client, "y")?),
+            (number(client, "width")?, number(client, "height")?),
+        ));
+    }
+    let size = sidecar.get("clientSize")?;
+    Some(((0, 0), (number(size, "width")?, number(size, "height")?)))
+}
+
+/// The capture methods of the example, scripted: both return the shown picture (cropped to its client area when the sidecar
+/// names one), a black frame or nothing, as the `capture` lines say. No picture shown, or a minimized window, is no game window.
+struct ScriptedMethods {
+    shared: SharedShot,
+    script: std::sync::Arc<Script>,
+}
+
+impl ScriptedMethods {
+    fn sidecar_value(&self) -> Option<Value> {
+        let shown = self.shared.lock().ok()?;
+        let text = std::fs::read_to_string(&shown.as_ref()?.sidecar).ok()?;
+        serde_json::from_str(&text).ok()
+    }
+}
+
+impl MethodSource for ScriptedMethods {
+    fn methods(&self) -> Vec<CaptureMethod> {
+        vec![CaptureMethod::PrintWindow, CaptureMethod::GraphicsCapture]
+    }
+
+    fn capture_with(&self, method: CaptureMethod) -> Result<Rgba, Miss> {
+        if self.script.minimized.load(Ordering::SeqCst) {
+            return Err(Miss::NoWindow);
+        }
+        let shown = self.shared.lock().map_err(|_| Miss::Failed)?;
+        let frame = shown.as_ref().ok_or(Miss::NoWindow)?.frame.clone();
+        drop(shown);
+        // A sidecar with a `client` rectangle describes a frame that holds a title bar: the capture keeps the client area only.
+        let sidecar = self.sidecar_value();
+        let frame = match sidecar
+            .as_ref()
+            .filter(|sidecar| sidecar.get("client").is_some())
+        {
+            Some(sidecar) => {
+                let (offset, size) = client_of(sidecar).ok_or(Miss::Failed)?;
+                let rect = crop_to_client((frame.width, frame.height), offset, size)
+                    .ok_or(Miss::Failed)?;
+                Rgba {
+                    width: rect.width,
+                    height: rect.height,
+                    pixels: crop_rgba(&frame.pixels, frame.width, rect).ok_or(Miss::Failed)?,
+                }
+            }
+            None => frame,
+        };
+        match self.script.behaviour_of(method) {
+            Behaviour::Good => Ok(frame),
+            Behaviour::Black => Ok(Rgba {
+                pixels: vec![0; frame.pixels.len()],
+                ..frame
+            }),
+            Behaviour::Failed => Err(Miss::Failed),
+        }
+    }
+
+    fn client_size(&self) -> Option<(u32, u32)> {
+        // The sidecar's client rectangle or reported client size, else the shown picture's own size (a window with no title bar).
+        if let Some((_, size)) = self.sidecar_value().as_ref().and_then(client_of) {
+            return Some(size);
+        }
+        let shown = self.shared.lock().ok()?;
+        shown
+            .as_ref()
+            .map(|shot| (shot.frame.width, shot.frame.height))
     }
 }
 
@@ -530,6 +672,7 @@ enum ScreenMode {
     Screens {
         shared: SharedShot,
         consent: std::sync::Arc<AtomicBool>,
+        script: std::sync::Arc<Script>,
     },
 }
 
@@ -539,6 +682,10 @@ pub enum Command {
     Read,
     Show(PathBuf),
     Consent(bool),
+    /// `capture print|graphics good|black|failed`: how a capture method answers from now on (capture-cascade).
+    Capture(CaptureMethod, Behaviour),
+    /// `minimize on|off`: the game window is minimized, or back.
+    Minimize(bool),
     /// `assign <name>`: the agent holds a room with this game name (assisted typing, FR-28).
     Assign(String),
     /// `fill`: the player presses the fill hotkey.
@@ -568,6 +715,21 @@ pub fn parse_command(line: &str) -> Command {
     if let Some(path) = line.strip_prefix("show ") {
         return Command::Show(PathBuf::from(path.trim()));
     }
+    if let Some(rest) = line.strip_prefix("capture ") {
+        let mut words = rest.split_whitespace();
+        let method = match words.next() {
+            Some("print") => CaptureMethod::PrintWindow,
+            Some("graphics") => CaptureMethod::GraphicsCapture,
+            _ => return Command::Other,
+        };
+        let behaviour = match words.next() {
+            Some("good") => Behaviour::Good,
+            Some("black") => Behaviour::Black,
+            Some("failed") => Behaviour::Failed,
+            _ => return Command::Other,
+        };
+        return Command::Capture(method, behaviour);
+    }
     if let Some(name) = line.strip_prefix("assign ") {
         return Command::Assign(name.trim().to_string());
     }
@@ -588,6 +750,8 @@ pub fn parse_command(line: &str) -> Command {
         });
     }
     match line {
+        "minimize on" => Command::Minimize(true),
+        "minimize off" => Command::Minimize(false),
         "consent on" => Command::Consent(true),
         "consent off" => Command::Consent(false),
         "fill" => Command::Fill,
@@ -707,9 +871,17 @@ fn start(
             std::sync::Arc::new(NoConsent),
             std::sync::Arc::new(Sidecar(String::new())),
         ),
-        ScreenMode::Screens { shared, consent } => (
+        ScreenMode::Screens {
+            shared,
+            consent,
+            script,
+        } => (
             std::sync::Arc::new(ShownText(std::sync::Arc::clone(&shared))),
-            std::sync::Arc::new(ShownFrame(std::sync::Arc::clone(&shared))),
+            // The screen loop captures through the cascade, over the scripted methods (capture-cascade).
+            std::sync::Arc::new(Capturer::new(ScriptedMethods {
+                shared: std::sync::Arc::clone(&shared),
+                script,
+            })),
             std::sync::Arc::new(SwitchConsent(consent)),
             std::sync::Arc::new(ShownText(shared)),
         ),
@@ -822,6 +994,7 @@ where
     let frame = decode_png(&arguments.fixture).map_err(|message| failure(1, message))?;
     let shared: SharedShot = std::sync::Arc::new(Mutex::new(None));
     let consent = std::sync::Arc::new(AtomicBool::new(arguments.consent));
+    let script = std::sync::Arc::new(Script::default());
     let mode = if arguments.party {
         // The first frame is the fixture picture, shown from the start; `show <png>` replaces it.
         *shared
@@ -833,6 +1006,7 @@ where
         ScreenMode::Screens {
             shared: std::sync::Arc::clone(&shared),
             consent: std::sync::Arc::clone(&consent),
+            script: std::sync::Arc::clone(&script),
         }
     } else {
         let sidecar = std::fs::read_to_string(sidecar_path(&arguments.fixture))
@@ -871,6 +1045,8 @@ where
                 Err(message) => eprintln!("{message}"),
             },
             Command::Consent(given) => consent.store(given, Ordering::SeqCst),
+            Command::Capture(method, behaviour) => script.set(method, behaviour),
+            Command::Minimize(minimized) => script.minimized.store(minimized, Ordering::SeqCst),
             Command::Assign(name) => probe.set_assignment(Some(assignment_named(&name))),
             Command::Fill => press_fill(&handle, &keyboard, &fill_events),
             Command::FillAgainAfter(count) => {
@@ -939,6 +1115,8 @@ async fn main() -> std::process::ExitCode {
 
 #[cfg(test)]
 mod tests {
+    use crate::Behaviour;
+    use d2rmm_agent_domain::capture_cascade::CaptureMethod;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -1150,6 +1328,18 @@ mod tests {
         assert_eq!(parse_command("consent on"), Command::Consent(true));
         assert_eq!(parse_command("consent off"), Command::Consent(false));
         assert_eq!(parse_command("consent maybe"), Command::Other);
+        assert_eq!(
+            parse_command("capture print black"),
+            Command::Capture(CaptureMethod::PrintWindow, Behaviour::Black)
+        );
+        assert_eq!(
+            parse_command("capture graphics failed"),
+            Command::Capture(CaptureMethod::GraphicsCapture, Behaviour::Failed)
+        );
+        assert_eq!(parse_command("capture crop good"), Command::Other);
+        assert_eq!(parse_command("capture print"), Command::Other);
+        assert_eq!(parse_command("minimize on"), Command::Minimize(true));
+        assert_eq!(parse_command("minimize off"), Command::Minimize(false));
         assert_eq!(
             parse_command("assign mmbaalh-12"),
             Command::Assign("mmbaalh-12".to_string())
