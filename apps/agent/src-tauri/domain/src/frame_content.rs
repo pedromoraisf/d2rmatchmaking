@@ -110,6 +110,16 @@ mod tests {
     }
 
     #[test]
+    fn a_dark_but_drawn_frame_is_not_blank() {
+        // A low-brightness HUD: mean 30, spread 40 (pixel 0 is sampled). It is drawn, not a blank capture (CAP-06).
+        let dark = summarize(&frame(100, 20, 0, 60));
+        assert_eq!(dark.brightness, 30);
+        assert!(!dark.blank);
+        // The same grey with nothing drawn on it is uniform, and is blank.
+        assert!(summarize(&frame(100, 20, 0, 20)).blank);
+    }
+
+    #[test]
     fn a_brightest_pixel_of_eight_is_near_black_and_nine_is_not() {
         let at_limit = summarize(&frame(100, 0, 0, NEAR_BLACK));
         let beyond = summarize(&frame(100, 0, 0, NEAR_BLACK + 1));

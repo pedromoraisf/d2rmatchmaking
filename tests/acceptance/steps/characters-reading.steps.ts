@@ -25,7 +25,7 @@ interface HeadlessState {
 const headlessStates = new WeakMap<World, HeadlessState>();
 
 /** The headless agent state of a scenario. Its own store: the Party steps (agent-game-name) keep theirs. */
-function stateOf(world: World): HeadlessState {
+export function stateOf(world: World): HeadlessState {
   let state = headlessStates.get(world);
   if (state === undefined) {
     state = {};
@@ -294,8 +294,8 @@ function playerOf(world: World): string {
   return player;
 }
 
-// Closes the example and removes its fixture directory after each character screen scenario.
-After({ tags: '@AGT-06 or @CHR-04 or @CHR-06 or @CHR-18 or @CHR-20' }, async ({ world }) => {
+/** Closes the example and removes its fixture directory; the scenarios of other features that start the example reuse it. */
+export async function stopHeadless(world: World): Promise<void> {
   const state = headlessStates.get(world);
   await state?.agent?.stop();
   if (state?.dir !== undefined) {
@@ -303,4 +303,9 @@ After({ tags: '@AGT-06 or @CHR-04 or @CHR-06 or @CHR-18 or @CHR-20' }, async ({ 
   }
   headlessStates.delete(world);
   lastShown.delete(world);
+}
+
+// Closes the example and removes its fixture directory after each character screen scenario.
+After({ tags: '@AGT-06 or @CHR-04 or @CHR-06 or @CHR-18 or @CHR-20' }, async ({ world }) => {
+  await stopHeadless(world);
 });

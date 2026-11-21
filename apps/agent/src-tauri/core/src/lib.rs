@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 pub mod beat;
+pub mod capturer;
 pub mod check_update;
 pub mod config;
 pub mod device_state;

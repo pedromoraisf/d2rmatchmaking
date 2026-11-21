@@ -58,6 +58,7 @@ async fn beat<G: ApiGateway + Send + Sync>(
     let presence = Presence {
         game_running: game_running(&ports.processes.names()),
         screen: *device.screen.borrow(),
+        capture: device.capture_report(),
     };
     // A version the contract refuses fails in the gateway's translation, before anything is sent, and shows as unreachable.
     match ports.gateway.heartbeat(&token, &presence, version).await {
@@ -78,7 +79,7 @@ mod tests {
     use crate::device_state::DeviceState;
     use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NullSink, fails_fast};
     use crate::groups::HeartbeatPorts;
-    use crate::messages::{Presence, Screen};
+    use crate::messages::{CaptureReport, Presence, Screen};
     use crate::ports::{ApiError, ProcessSource, TokenStore};
     use crate::secret::Secret;
     use crate::view::Connectivity;
@@ -144,6 +145,7 @@ mod tests {
             let running = Presence {
                 game_running: true,
                 screen: Screen::Unknown,
+                capture: CaptureReport::default(),
             };
             for call in beats(&gateway) {
                 assert_eq!(
@@ -183,6 +185,7 @@ mod tests {
                     presence: Presence {
                         game_running: false,
                         screen: Screen::CharacterSelect,
+                        capture: CaptureReport::default(),
                     },
                     version: "0.0.1".to_string(),
                 },

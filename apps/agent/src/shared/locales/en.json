@@ -76,6 +76,16 @@
         "far": "Party field, closest reading: far",
         "same": "Party field, closest reading: same after normalising"
       }
+    },
+    "capture": {
+      "method": {
+        "printWindow": "Capture method: Window print",
+        "graphicsCapture": "Capture method: Graphics capture",
+        "screenCrop": "Capture method: Screen crop",
+        "none": "Capture method: None"
+      },
+      "rate": "Usable frames: {{percent}}%",
+      "nothing": "The capture shows nothing: no capture method gave a usable frame"
     }
   },
   "fill": {

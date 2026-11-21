@@ -14,7 +14,7 @@ use tokio::time::Instant;
 
 use crate::fill_name::FillOutcome;
 use crate::hub::Hub;
-use crate::messages::{ReadyCheckOpen, Screen};
+use crate::messages::{CaptureReport, ReadyCheckOpen, Screen};
 use crate::party::PartyProgress;
 use crate::ports::{ApiError, StateSink, TokenStore};
 use crate::view::{PairingView, RoomView, UpdateView};
@@ -34,6 +34,8 @@ pub struct DeviceState {
     pub assignment: watch::Sender<RoomAssignment>,
     /// The screen the last frame showed (CHR-04). The heartbeat reports it and beats at once when it changes.
     pub screen: watch::Sender<Screen>,
+    /// What the capture is doing, for the heartbeat (CAP-07). It does not wake the heartbeat: it rides the next beat.
+    capture_report: Mutex<CaptureReport>,
     /// Observations dropped after their retries ran out or were overtaken (AD-051).
     observations_dropped: AtomicU64,
     /// What the Party step has seen for the held run (AGN-05). It follows the assignment and is forgotten with it.
@@ -67,6 +69,7 @@ impl DeviceState {
             update_now: Notify::new(),
             assignment: watch::channel(RoomAssignment::empty()).0,
             screen: watch::channel(Screen::Unknown).0,
+            capture_report: Mutex::new(CaptureReport::default()),
             observations_dropped: AtomicU64::new(0),
             party: Mutex::new(PartyProgress::default()),
             ready_check: Mutex::new(None),
@@ -129,6 +132,22 @@ impl DeviceState {
             drop(held);
             self.hub.set_ready_check_open(false);
         }
+    }
+
+    /// Records what the capture is doing (the method of the last usable frame and its read rate) for the next heartbeat.
+    pub fn set_capture_report(&self, report: CaptureReport) {
+        *self
+            .capture_report
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = report;
+    }
+
+    /// What the heartbeat reports of the capture (CAP-07).
+    pub fn capture_report(&self) -> CaptureReport {
+        *self
+            .capture_report
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Records the screen the last frame showed. Only a change wakes the heartbeat (CHR-05).
