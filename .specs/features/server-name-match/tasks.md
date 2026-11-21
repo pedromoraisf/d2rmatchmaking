@@ -47,14 +47,22 @@ Rules:
 
 ## Batch 2 — agent (after `game-name-reading` is merged)
 
-- [ ] T7 — Merge `origin/phase/F2` and check that `ChatEvent` and the chat step exist; add `PlayerObservation` to the
-      agent's messages and `player_observation_to_contract` to the adapters, validating the reading rule before a body
-      is built (SNM-05, SNM-06). Unit tests on the body keys and on every refusal. Gate:
+- [ ] T7a — **[R14]** Name-carrying chat events. `ChatTracker::next` and `chat_step::look` drop the player name, so first pin
+      both at the points to be touched with tests (values from the drawn chat fixtures), then, in one commit, add
+      `ChatTracker::next_named -> Vec<(ChatEvent, String)>` (with `next` mapping over it) and `chat_step::look_named`.
+      The existing behaviour stays identical: same events, same order, same already-seen logic. The real-print proof
+      (`ocr-real`, `ocr-variations`, ratchet) runs in CI on the PR. Gate:
+      `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain -p d2rmm-agent-core --lib`
+- [ ] T7 — `origin/phase/F2` already holds `ChatEvent` and the chat step (branch cut from it). Add `PlayerObservation`
+      and its reading-rule check (`domain/src/player_observation.rs`, no generated types) to the agent's messages, the
+      `ApiGateway::post_player_observation` port with its fake and adapter, and `player_observation_to_contract` to
+      the adapters, validating the reading rule before a body is built (SNM-05, SNM-06). Unit tests on the body keys and on every refusal. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core -p d2rmm-agent-adapters --lib && cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --all-targets -- -D warnings`
 - [ ] T8 — Agent core: `chat_post.rs` posts one observation per new joined or left event while an assignment is held for
       the current run, through a clock-injected 20-a-minute bucket, with the span and counter of the design (fixed
-      words only). Tests: no assignment, other run, line already posted, bad name, bucket full, post failed. Wire it in
-      the screen loop without editing a reading module. Gate:
+      words only). It does not use `post_observation::send` (it retries) or `confirm_run`, and never retries. Tests: no
+      assignment, other run, line already posted, bad name, bucket full, post failed. Wire it in the screen loop
+      (`watch_screen.rs`) through `chat_step::look_named`. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-core --lib && node --test scripts/test/agent-source-rules.test.mjs`
 - [ ] T9 — Agent privacy rules: a unit test with the in-memory span subscriber that no span or counter of the chat post
       holds the name; extend the AGT-05 source rule so `chat_post.rs` and the adapters name no frame type and send no
@@ -68,7 +76,8 @@ Rules:
       Gate: `pnpm exec turbo run test:acceptance -- --grep "@SNM-01|@SNM-02|@SNM-03|@SNM-04|@SNM-07|@SNM-08"`
 - [ ] T11 — First put the three scenarios of `@SNM-05` and `@SNM-06` back into `acceptance.feature` **verbatim from commit `f1f6c78`**
       (T10 left them out and gave each requirement a `not-scenario` line; delete those two lines). Then write the acceptance steps for `@SNM-05` and `@SNM-06` with the headless agent, the drawn chat fixture of
-      `game-name-reading` and the recording proxy (`support/agent-wire.ts`: add `@SNM-05 or @SNM-06` to its `Before`
+      `game-name-reading` (it draws "Bob": the step rewrites the sidecar line to "Hammer", as the Party steps do; if the
+      headless example does not read the chat sidecar, stop and report) and the recording proxy (`support/agent-wire.ts`: add `@SNM-05 or @SNM-06` to its `Before`
       and `After` tags and to the headless cleanup tags). If the fixture does not exist, return the task. Then close the
       feature. Gate:
       `pnpm exec turbo run test:acceptance -- --grep @SNM- && pnpm acceptance:check && pnpm specs:check`
