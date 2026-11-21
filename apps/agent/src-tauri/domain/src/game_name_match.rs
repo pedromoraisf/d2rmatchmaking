@@ -110,10 +110,24 @@ pub fn normalise(name: &str) -> String {
         Some(at) => {
             let letters = &lower[..at];
             let number = &lower[at + 1..];
-            format!("{}-{}", letters_of(letters), digits_of(number))
+            format!(
+                "{}-{}",
+                letters_with_k(letters).replace("rn", "m"),
+                digits_of(number)
+            )
         }
         None => letters_of(&lower),
     }
+}
+
+/// `letters_of` for a name that holds a `-`, where the engine also reads the `h` of the difficulty code (and of `chaos`,
+/// `heralds`) as `k`: seen in the `ocr-variations` summaries on four prints (`sub(k>h)`). No activity or difficulty code of a
+/// generated name holds a `k` or an `rn` (read there as the `m` it was drawn from: `del(r),sub(n>m)` on five prints), and a room name with no `-` (the Party room "DUEL NK LOCKS") keeps its `k`.
+fn letters_with_k(part: &str) -> String {
+    letters_of(part)
+        .chars()
+        .map(|c| if c == 'k' { 'h' } else { c })
+        .collect()
 }
 
 /// The part of a name before its last `-`: the glyphs of zero and the slashed zero, and the O drawn as `⊕` with every way
@@ -650,6 +664,118 @@ mod tests {
                     let name = format!("mm{activity}{difficulty}-{n}");
                     if let Some(other) = seen.insert(normalise(&name), name.clone()) {
                         panic!("{name} and {other} collide");
+                    }
+                }
+            }
+        }
+    }
+
+    /// A `k` read for the `h` of a generated name matches it (game-name-reading T10): `sub(k>h)` is on four prints. A name with
+    /// no `-` keeps its `k`, and a `k` is no other letter.
+    #[test]
+    fn a_k_reads_as_h_in_a_generated_name_and_the_room_name_with_a_k_keeps_it() {
+        assert_eq!(normalise("mmchaosk-20"), "mmchaosh-20");
+        assert_eq!(read_field("mmbaalk-19", "mmbaalh-19"), FieldRead::Matched);
+        assert_eq!(read_field("MMCHAOSK-20", "mmchaosh-20"), FieldRead::Matched);
+        assert_eq!(
+            read_field("mmkeraldsh-56", "mmheraldsh-56"),
+            FieldRead::Matched
+        );
+        assert_eq!(read_field("mmtzk-47", "mmtzh-47"), FieldRead::Matched);
+        // The name it must not match: another letter, another number, another activity.
+        assert_eq!(read_field("mmbaalx-19", "mmbaalh-19"), FieldRead::Other);
+        assert_eq!(read_field("mmbaalk-18", "mmbaalh-19"), FieldRead::Other);
+        assert_eq!(read_field("mmchaosk-20", "mmcowsh-20"), FieldRead::Other);
+        assert_eq!(read_field("mmbaalk-19", "mmbaaln-19"), FieldRead::Other);
+        // The Party room name has no `-`: its `k` is untouched.
+        assert_eq!(normalise("DUEL NK LOCKS"), "duol nk locks");
+        assert_eq!(
+            read_field("DUEL NH LOCHS", "DUEL NK LOCKS"),
+            FieldRead::Other
+        );
+        assert_eq!(
+            read_field("DUEL NK LOCKS", "DUEL NK LOCKS"),
+            FieldRead::Matched
+        );
+    }
+
+    /// The collision proof for the `k` fold: every generated name with its `h` read as `k` matches its own name and normalises
+    /// to no other room's, across every activity, difficulty code and run number up to 9999.
+    #[test]
+    fn a_k_read_for_h_matches_its_own_name_and_no_other_up_to_9999() {
+        let mut seen = std::collections::HashMap::new();
+        for activity in AGENT_ACTIVITIES {
+            for difficulty in AGENT_DIFFICULTY_CODES {
+                for n in 1..=9999u32 {
+                    let name = format!("mm{activity}{difficulty}-{n}");
+                    let as_k = name.replace('h', "k");
+                    assert_eq!(read_field(&as_k, &name), FieldRead::Matched, "{as_k}");
+                    if let Some(other) = seen.insert(normalise(&as_k), name.clone()) {
+                        panic!("{name} and {other} collide once their h reads as k");
+                    }
+                }
+            }
+        }
+    }
+
+    /// An `rn` read for the `m` of a generated name matches it (game-name-reading T10): `del(r),sub(n>m)` is on five prints.
+    /// A name with no `-` keeps its `rn`, and the names it must not match stay refused.
+    #[test]
+    fn an_rn_reads_as_m_in_a_generated_name_and_a_name_without_a_dash_keeps_it() {
+        assert_eq!(normalise("rnmchaosh-20"), "mmchaosh-20");
+        assert_eq!(
+            read_field("rnmchaosh-20", "mmchaosh-20"),
+            FieldRead::Matched
+        );
+        assert_eq!(
+            read_field("mrnchaosh-20", "mmchaosh-20"),
+            FieldRead::Matched
+        );
+        assert_eq!(
+            read_field("rnrnchaosh-20", "mmchaosh-20"),
+            FieldRead::Matched
+        );
+        assert_eq!(read_field("mmbaalrn-99", "mmbaalm-99"), FieldRead::Matched);
+        assert_eq!(
+            read_field("RNMCHAOSH-20", "mmchaosh-20"),
+            FieldRead::Matched
+        );
+        // The names it must not match: a lone `r` or `n`, another number, another difficulty code.
+        assert_eq!(read_field("rmchaosh-20", "mmchaosh-20"), FieldRead::Other);
+        assert_eq!(read_field("nmchaosh-20", "mmchaosh-20"), FieldRead::Other);
+        assert_eq!(read_field("rnmchaosh-21", "mmchaosh-20"), FieldRead::Other);
+        assert_eq!(read_field("mmbaalrn-99", "mmbaaln-99"), FieldRead::Other);
+        assert_eq!(read_field("mmbaalrn-99", "mmbaalh-99"), FieldRead::Other);
+        // A name with no `-` keeps its `rn`.
+        assert_eq!(normalise("rn lorn"), "rn lorn");
+        assert_eq!(read_field("m lom", "rn lorn"), FieldRead::Other);
+    }
+
+    /// The collision proof for the `rn` fold: every generated name with each of its `m` letters read as `rn`, and all of them
+    /// at once, matches its own name and normalises to no other room's, across every activity, difficulty code and run number
+    /// up to 9999.
+    #[test]
+    fn an_rn_read_for_m_matches_its_own_name_and_no_other_up_to_9999() {
+        let mut seen = std::collections::HashMap::new();
+        for activity in AGENT_ACTIVITIES {
+            for difficulty in AGENT_DIFFICULTY_CODES {
+                for n in 1..=9999u32 {
+                    let name = format!("mm{activity}{difficulty}-{n}");
+                    let (letters, number) = name.rsplit_once('-').expect("a dash");
+                    let each: Vec<String> = letters
+                        .match_indices('m')
+                        .map(|(at, _)| {
+                            format!("{}rn{}-{number}", &letters[..at], &letters[at + 1..])
+                        })
+                        .collect();
+                    for read in each
+                        .iter()
+                        .chain([&format!("{}-{number}", letters.replace('m', "rn"))])
+                    {
+                        assert_eq!(read_field(read, &name), FieldRead::Matched, "{read}");
+                    }
+                    if let Some(other) = seen.insert(normalise(&each[0]), name.clone()) {
+                        panic!("{name} and {other} collide once an m reads as rn");
                     }
                 }
             }

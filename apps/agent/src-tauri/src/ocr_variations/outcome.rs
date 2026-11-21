@@ -16,7 +16,7 @@ use d2rmm_agent_domain::game_name_match::{
 use d2rmm_agent_domain::layout::supported_size;
 #[cfg(test)]
 use d2rmm_agent_domain::name_diff::printable;
-use d2rmm_agent_domain::name_diff::{edit_distance, edit_operations};
+use d2rmm_agent_domain::name_diff::{edit_distance, edit_operations, edit_operations_with};
 use d2rmm_agent_domain::presence::Screen;
 
 use d2rmm_agent_domain::vision::TextLine;
@@ -68,6 +68,32 @@ fn verdict_owned(outcome: Outcome, reason: String) -> Verdict {
 /// The verdict of an image whose size the layout does not support.
 pub const UNSUPPORTED_SIZE: Verdict = verdict(Outcome::Refused, "unsupported-size");
 
+/// A character of a read as it may be printed in a reason: `[a-z0-9 -]` as is, any other ASCII character as `?`. A character
+/// outside ASCII (an engine's stand-in for a glyph it did not know) stays as it is here and `codepoints` turns it into its
+/// `U+XXXX`. Used only against a generated game name or the public Party room name, never in a chat reason.
+fn field_glyph(c: char) -> char {
+    if c.is_ascii_lowercase() || c.is_ascii_digit() || c == ' ' || c == '-' {
+        c
+    } else if c.is_ascii() {
+        '?'
+    } else {
+        c
+    }
+}
+
+/// `text` with each character outside ASCII written as its code point (`U+00E9`).
+fn codepoints(text: &str) -> String {
+    text.chars()
+        .map(|c| {
+            if c.is_ascii() {
+                c.to_string()
+            } else {
+                format!("U+{:04X}", u32::from(c))
+            }
+        })
+        .collect()
+}
+
 fn without_whitespace(text: &str) -> String {
     text.chars().filter(|c| !c.is_whitespace()).collect()
 }
@@ -101,7 +127,7 @@ fn other_reason(reads: &[&str], expected_name: &str) -> Cow<'static, str> {
     if expected_name == PARTY_ROOM_NAME || is_generated_game_name(expected_name) {
         Cow::Owned(format!(
             "{class}:{}",
-            edit_operations(&read, &expected).join(",")
+            codepoints(&edit_operations_with(&read, &expected, field_glyph).join(","))
         ))
     } else {
         Cow::Borrowed(class)
@@ -333,15 +359,32 @@ pub fn classify_automap(variants: &[Vec<TextLine>], expected_name: &str) -> Verd
 /// A chat print (GNR-11): Correct when exactly one class (joined or left) is found among the candidates of the print's
 /// language, equal to the expected one when the file names it, with a name read before the phrase
 /// (`chat-event-as-expected`, or `chat-event-found` when the file names no class). The other class found is Wrong
-/// (`chat-event-left-for-joined`); no phrase, both classes and a missing name are Refused. Reasons are fixed words.
+/// (`chat-event-left-for-joined`); no phrase, both classes (unless the file names no class, then `chat-event-found-both`) and a missing name are Refused. Reasons are fixed words.
 pub fn classify_chat(reading: &ChatReading, expected: ChatExpectation) -> Verdict {
     let found = match reading.class_for(expected.language) {
         Ok(class) => class,
+        // A print whose file names no event may hold both a joined and a left line: the rule `check_chat_reading` applies.
+        Err("both") if expected.class.is_none() => {
+            return if reading.name_read {
+                verdict(Outcome::Correct, "chat-event-found-both")
+            } else {
+                verdict(Outcome::Refused, "chat-no-name")
+            };
+        }
         Err("both") => return verdict(Outcome::Refused, "chat-both-classes"),
         Err(_) if reading.lines_per_variant.iter().sum::<usize>() == 0 => {
             return verdict(Outcome::Refused, "chat-no-lines");
         }
-        Err(_) => return verdict(Outcome::Refused, "chat-no-phrase"),
+        Err(_) => {
+            return match reading
+                .near_phrase
+                .iter()
+                .find(|(language, _)| *language == expected.language)
+            {
+                Some((_, ops)) => verdict_owned(Outcome::Refused, format!("chat-no-phrase:{ops}")),
+                None => verdict(Outcome::Refused, "chat-no-phrase"),
+            };
+        }
     };
     match (expected.class, found) {
         (Some(ChatClass::Joined), ChatClass::Left) => {
@@ -1089,15 +1132,25 @@ mod tests {
             classify_chat(&chat_reading(&[vec![]]), pt(None)),
             verdict(Outcome::Refused, "chat-no-lines")
         );
+        let both = chat_reading(&[lines(&[
+            "Bob entrou em nosso mundo",
+            "Bob saiu do nosso mundo",
+        ])]);
+        assert_eq!(
+            classify_chat(&both, pt(None)),
+            verdict(Outcome::Correct, "chat-event-found-both")
+        );
+        assert_eq!(
+            classify_chat(&both, pt(Some(ChatClass::Joined))),
+            verdict(Outcome::Refused, "chat-both-classes")
+        );
         assert_eq!(
             classify_chat(
-                &chat_reading(&[lines(&[
-                    "Bob entrou em nosso mundo",
-                    "Bob saiu do nosso mundo"
-                ])]),
+                &chat_reading(&[lines(&["entrou em nosso mundo", "saiu do nosso mundo"])]),
                 pt(None)
             ),
-            verdict(Outcome::Refused, "chat-both-classes")
+            verdict(Outcome::Refused, "chat-no-name"),
+            "both classes still need a name before a phrase"
         );
         assert_eq!(
             classify_chat(
@@ -1117,5 +1170,125 @@ mod tests {
             verdict(Outcome::Refused, "chat-no-phrase"),
             "the candidates of the other language do not count"
         );
+    }
+
+    /// Pin (rule 14, before `classify_chat` accepts both classes): a print whose file names a class, and a print holding
+    /// both classes, stay Refused with the reason the classifier gives today.
+    #[test]
+    fn a_chat_print_holding_both_classes_is_refused_when_the_file_names_a_class() {
+        use crate::ocr_check::{ChatClass, ChatExpectation, PrintLanguage, chat_reading};
+        let both = chat_reading(&[lines(&["Bob joined our world", "Eve left our world"])]);
+        for class in [ChatClass::Joined, ChatClass::Left] {
+            assert_eq!(
+                classify_chat(
+                    &both,
+                    ChatExpectation {
+                        language: PrintLanguage::English,
+                        class: Some(class)
+                    }
+                ),
+                verdict(Outcome::Refused, "chat-both-classes")
+            );
+        }
+    }
+
+    #[test]
+    fn a_read_outside_ascii_prints_as_its_code_point_and_other_punctuation_as_a_question_mark() {
+        assert_eq!(
+            other_reason(&["mmbaa\u{e9}h-19"], "mmbaalh-19"),
+            "field-other-1-edit:sub(U+00E9>l)@5"
+        );
+        assert_eq!(
+            other_reason(&["mmbaa?h-19"], "mmbaalh-19"),
+            "field-other-1-edit:sub(?>l)@5"
+        );
+        assert_eq!(field_glyph('-'), '-');
+        assert_eq!(field_glyph('Z'), '?');
+    }
+
+    #[test]
+    fn a_chat_print_with_no_phrase_names_the_nearest_phrase_edits_of_its_language_only() {
+        use crate::ocr_check::{ChatExpectation, PrintLanguage, chat_reading};
+        let en = |class| ChatExpectation {
+            language: PrintLanguage::English,
+            class,
+        };
+        let near = chat_reading(&[lines(&["Bob joined our w0rld"])]);
+        assert_eq!(
+            classify_chat(&near, en(None)),
+            verdict_owned(Outcome::Refused, "chat-no-phrase:sub(0>o)@10".to_string())
+        );
+        let far = chat_reading(&[lines(&["Bob says hello"])]);
+        assert_eq!(
+            classify_chat(&far, en(None)),
+            verdict(Outcome::Refused, "chat-no-phrase")
+        );
+        let accented = chat_reading(&[lines(&["Bob left our w\u{f6}rld"])]);
+        assert_eq!(
+            classify_chat(&accented, en(None)),
+            verdict_owned(Outcome::Refused, "chat-no-phrase:sub(~>o)@8".to_string())
+        );
+    }
+
+    /// A made-up name next to a misread phrase never reaches the reason: the printed stretch is the phrase's own span, and a
+    /// stretch that would begin inside the name prints no operations at all.
+    #[test]
+    fn no_character_of_a_name_next_to_a_misread_phrase_reaches_the_reason() {
+        use crate::ocr_check::{ChatExpectation, PrintLanguage, chat_reading};
+        let reason = |language, text: &str| {
+            classify_chat(
+                &chat_reading(&[lines(&[text])]),
+                ChatExpectation {
+                    language,
+                    class: None,
+                },
+            )
+            .reason
+            .into_owned()
+        };
+        let en = PrintLanguage::English;
+        let pt = PrintLanguage::Portuguese;
+        // The phrase's own span is printed, the name is not.
+        assert_eq!(
+            reason(en, "Qxz Vwk jo1ned our world"),
+            "chat-no-phrase:sub(1>i)@2"
+        );
+        assert_eq!(
+            reason(pt, "Qxz Vwk entr0u em nosso mundo"),
+            "chat-no-phrase:sub(0>o)@4"
+        );
+        // A name that ends in the phrase's first two letters, with the rest of the phrase lost: the stretch would begin
+        // inside the name and print its letters, so there are no operations.
+        assert_eq!(reason(en, "Qxjoab ed our world"), "chat-no-phrase");
+        // The same stretch after a space is the phrase's own and still prints.
+        assert_eq!(
+            reason(en, "Qxjoab joaned our world"),
+            "chat-no-phrase:sub(a>i)@2"
+        );
+        // A start lost in the name (the `j` dropped) would need the window to begin inside it: no operations.
+        assert_eq!(reason(en, "Joe ined our world"), "chat-no-phrase");
+        assert_eq!(reason(en, "Qxz Vwk oined our world"), "chat-no-phrase");
+        assert_eq!(reason(en, "Qxz Vwk"), "chat-no-phrase");
+        // Misreads in the tail print the tail's characters, which follow the phrase's exact start.
+        assert_eq!(
+            reason(en, "Qxz Vwk left our w0rld"),
+            "chat-no-phrase:sub(0>o)@8"
+        );
+        // No reason, whatever the line, holds a letter that only the name has.
+        for text in [
+            "Qxz Vwk jo1ned our world",
+            "Qxz Vwk entr0u em nosso mundo",
+            "Qxz Vwk left our w\u{f6}rld",
+            "Qxz Vwk oined our world",
+            "Qxz Vwk",
+        ] {
+            for language in [en, pt] {
+                let said = reason(language, text);
+                assert!(
+                    !said.contains(['q', 'x', 'z', 'v', 'w', 'k', 'Q', 'X', 'Z', 'V', 'W', 'K']),
+                    "{text} -> {said}"
+                );
+            }
+        }
     }
 }

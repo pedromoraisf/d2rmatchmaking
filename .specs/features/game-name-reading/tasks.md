@@ -114,15 +114,29 @@ failure message carries a name read from a real print.
       match, and the collision test over every activity, code and run number up to 9999 and the drift test green. A glyph
       with no observed read is never added; the `n` and `m` prints (`mmpvpn-10`, `mmbaalm-99`) are read in this task too.
       Gate: as T6
+      Progress (PR #126): `k`>`h` (df2e5892, +19 correct) and `rn`>`m` (88759a3e, +144 correct) are done, each with its glyph,
+      must-not-match and collision tests over every activity, code and run number up to 9999; wrong stays 45. Still open:
+      `~`>`o` (a non-ASCII read for `o`, 36 variations on 5 prints), awaiting the `U+XXXX` evidence of the next run.
 - [ ] T11 — **[R14]** Automap and chat refusals (GNR-06, GNR-07, GNR-11). Same loop as T9 on the automap and chat prints:
       classes of reason first, then the smallest change per class (the name line searched in a wider band, as the HUD is; the
       chat words of Portuguese added as data in `resources/lang/pt-BR.json` from O1's note). A frame with no joined or left
       line must still classify nothing (the drawn lines of T5). Gate: as T6
-- [ ] T12 — Close the proofs (GNR-01, GNR-02, GNR-11). Write the PR's table: `ocr-real` per print, `ocr-variations` counts
+      Progress (PR #126): the EN chat print holding both classes is read as found (the classifier now applies the rule
+      `ocr-real` already used): `chat-en-mmbaalh-19` 5 to 390 correct, wrong 0. Still open: `chat-no-phrase` (43 per chat
+      print) shows no near-misread operations inside the phrase's own span, so there is no evidence to change the reader.
+- [x] T12 — Close the proofs (GNR-01, GNR-02, GNR-11). Write the PR's table: `ocr-real` per print, `ocr-variations` counts
       before (`phase/F2` baseline) and after, the share correct per generated-name print, and the wrong count of game names
       (must be 0). If the share on the seven prints is under 95%, say which reason classes remain and stop: tuning on the
       maintainer's new prints is a later batch. Propose a ratchet move to the maintainer in the PR; never edit
       `.quality-baseline.json`. Gate: `pnpm specs:check && pnpm test:harness`
+      Proof (PR #126, `ocr-variations` correct, wrong 45 throughout): phase/F2 baseline 44878086374 5117; chat `Both` 5502
+      (53eab138); `k`>`h` 5521 (df2e5892); `rn`>`m` 5665 (88759a3e, run 44893457909). Share correct on the seven generated-name
+      party prints: 1862 of 3500 (53.2%) to 1982 of 3500 (56.6%); automap prints 647 to 690 of 1000. Under 95%, so stop.
+      Remaining on the party prints (1518 refused): `panel-not-open` 798, `unsupported-size` 455,
+      `label-not-found-layout-other` 243 (screen-recognition's, 1496 of 1518); this feature's own: `field-other-1-edit` 10,
+      `field-other-2-edits` 3, `field-other-far` 2, `label-not-found-layout-mask-for-revealed` 7. Automap: `unsupported-size`
+      130, `automap-other-far` 98, `automap-no-lines` 56, `automap-other-1-edit` 18, `automap-other-2-edits` 8.
+      Ratchet proposal (the maintainer's): `ocr.variations.correct` 5117 to 5665, wrong stays 45.
 
 ## Orchestrator (local, the maintainer answers the gate)
 
