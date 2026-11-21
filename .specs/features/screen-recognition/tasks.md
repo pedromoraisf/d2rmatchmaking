@@ -107,6 +107,18 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
       identical to the baseline). The old lift's gain was 45 correct for one new wrong (`card1-level=1`, combo-154); the JSON
       holds no readings, so no rule between majority and unanimity can be shown to refuse that one wrong and keep the gains.
       Reverted. A later attempt needs the field readings of those variations (a local diagnostic), not a guess.
+      Part 3 attempt 2 (batch 4, PR #132, run 44948588412): no code change; the diagnostic the note asked for. `ocr-variations`
+      now counts, for the popup print, per card slot and field, how the OCR variants agree (counts only, no text), and, for the
+      173 variations that read no card (`slots0`), the same on the column lifted as #104 did (every third variation, 42 read).
+      What it shows (popup print, 500 variations, 61 correct, 430 refused, 9 wrong, unchanged): (1) of those 42 lifted reads the
+      majority rule settles both cards' name and level on the expected values in 25 and on a wrong value in 1 (the #104 wrong:
+      a level read as `1` for `11`); only 4 are unanimous on all four fields. (2) The title is the blocker: the lifted title
+      line settles on the expected title in 9 of 40 and on another value in 7 (a blank line settling as "no title", the
+      `title=None` wrong), and the plain read's known title line (112 slot-0 variations) never reads the expected title. A rule
+      that keeps name and level by majority and requires the title read as production does gains at most the 9 whose title
+      reads, about 3 per 10 of the 173, with the 1 wrong still possible unless every name and level field is unanimous (4 of 42,
+      so a gain of a handful). That is not worth a new `ScreenRegion`, a frame copy and a second column read in a reading
+      module, so nothing is changed and the box stays open. The class that remains is `title-unread` on a dimmed title line.
 - [x] T10 — **[R14]** Unrecognised selection screens (item f, SCR-05). Same loop as T9 for the 104 screens read as
       `Unknown`: classes of reason first, then the smallest change per class (the list marker searched by its word in a
       wider area, as the HUD is). A frame that is not the selection screen must still read `Unknown` (the drawn
@@ -114,7 +126,7 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
       _Part 2 (code and unit proofs): `ScreenRegion::CreateNewArea`, `find_create_new`, a tracker of the marker in the core
       reader, searched every second frame while not found; the pins and the call-count tests are in `domain` and `core`.
       The real-print proof (`not-the-select-screen`, 107 variations of run 44751561205) waits for the PR's `ocr-variations`._
-- [ ] T11 — Close the proofs (SCR-06, SCR-05). Write the PR's table: `ocr-real` per print (12), `ocr-variations` counts
+- [x] T11 — Close the proofs (SCR-06, SCR-05). Write the PR's table: `ocr-real` per print (12), `ocr-variations` counts
       before (`phase/F2` baseline) and after, and the share of selection and popup variations correct. If the supported
       selection or popup share is under 95%, say which reason classes remain and stop: tuning on the maintainer's new
       prints is a later batch. Propose a ratchet move to the maintainer in the PR; never edit `.quality-baseline.json`.

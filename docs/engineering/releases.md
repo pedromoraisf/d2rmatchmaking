@@ -14,11 +14,13 @@ publishes it. Installed agents read `latest.json` from the latest release (AGS-2
    (`force-tag-creation: true`; GitHub makes no tag for a draft). The site's download link and installed agents'
    `latest.json` still point at the previous release.
 3. The same workflow calls `release-agent.yml` with that tag (a tag made with `GITHUB_TOKEN` starts no `push: tags`
-   run, so the call is the path). Three jobs run in order, and **nothing is public until the last one** (agent-release,
-   AGR-01, AGR-02):
+   run, so the call is the path). Four jobs run in order (`smoke → build → sign → publish`), and **nothing is public until the last one**
+   (agent-release, AGR-01, AGR-02):
+   - `smoke` (the stage workflow `stage-smoke`, `app: agent`): wakes the API (`/healthz`, retried for up to 90 s, Render's free
+     tier sleeps) and checks that it answers ok. Any build answers, so no SHA is compared. It needs no secret; `build` waits for it.
    - `build` (`windows-latest`, `release` environment): reads `SIGNPATH_ENABLED` once (the output `signing`, which `sign`
      and `publish` use), refuses a release that is already public, then `tauri-action` attaches the installer, its updater signature and
-     `latest.json` to the draft. The API is woken (`/healthz`, retried for up to 90 s), then `--self-check --online` and
+     `latest.json` to the draft. With the API awake (`smoke`), `--self-check --online` and
      the `--read-fixture` refusal run. Only after they pass does it attach `D2RMatchMaking-setup.exe` (a fixed name, so
      the site's download link never changes) and `SHA256SUMS`.
    - `sign` (only when `SIGNPATH_ENABLED` is `true`): SignPath signs the installer, the updater signature is redone, and

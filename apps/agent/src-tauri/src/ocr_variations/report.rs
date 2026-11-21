@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 
 use super::catalogue::{COMBO_FAMILY, FAMILIES};
 use super::outcome::{Outcome, UNSUPPORTED_SIZE, Verdict};
+use super::popup_fields::FieldStats;
 
 /// How many variations of a family read correctly, were refused and read wrong.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -61,6 +62,8 @@ pub struct VariantResult {
     pub verdict: Verdict,
     /// For a Party frame: the class of each OCR variant's reading of the field, in reader order; `None` for other screens.
     pub field_variants: Option<Vec<&'static str>>,
+    /// For the popup print: how the OCR variants agree on each card field, as counts (`popup_fields`); `None` elsewhere.
+    pub card_fields: Option<Vec<FieldStats>>,
 }
 
 /// Every result of a run, in the order they were read, and the seconds each screenshot took.
@@ -229,6 +232,12 @@ impl Report {
             all.refused,
             all.wrong
         ));
+        lines.extend(
+            self.card_field_table()
+                .lines()
+                .filter(|line| !line.is_empty())
+                .map(str::to_string),
+        );
         lines
     }
 
@@ -317,6 +326,111 @@ impl Report {
         text
     }
 
+    /// How the OCR variants agree on each card field of the popup print, as counts, or nothing when no result carries them.
+    /// Two tables: per slot and field, the sums over the variations; and per reason class, how many variations settle each
+    /// field on the expected value by the production majority rule. No read text.
+    fn card_field_table(&self) -> String {
+        let with: Vec<(&VariantResult, &Vec<FieldStats>)> = self
+            .results
+            .iter()
+            .filter_map(|result| result.card_fields.as_ref().map(|fields| (result, fields)))
+            .collect();
+        if with.is_empty() {
+            return String::new();
+        }
+        let mut keys: Vec<(u8, &'static str)> = with
+            .iter()
+            .flat_map(|(_, fields)| fields.iter().map(|f| (f.slot, f.field)))
+            .collect();
+        keys.sort_unstable();
+        keys.dedup();
+        let mut text = format!(
+            "Popup card fields by slot, summed over {} variations (v = OCR readings, unp = did not parse, blank, d1/d2/far = parsed readings 1 edit, 2 edits or further from the leading one, exp = equal to the expected card, unan = every reading agreed, settled and ok = the majority rule settles / settles on the expected value):\n\n| slot | field | n | v | unp | blank | d1 | d2 | far | exp | unan | settled | ok |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
+            with.len()
+        );
+        for (slot, field) in keys {
+            let rows: Vec<&FieldStats> = with
+                .iter()
+                .flat_map(|(_, fields)| fields.iter())
+                .filter(|f| f.slot == slot && f.field == field)
+                .collect();
+            let sum = |value: fn(&FieldStats) -> u8| -> usize {
+                rows.iter().map(|f| usize::from(value(f))).sum()
+            };
+            let count = |test: fn(&FieldStats) -> bool| rows.iter().filter(|f| test(f)).count();
+            text.push_str(&format!(
+                "| {slot} | {field} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+                rows.len(),
+                sum(|f| f.variants),
+                sum(|f| f.unparsed),
+                sum(|f| f.blank),
+                sum(|f| f.near1),
+                sum(|f| f.near2),
+                sum(|f| f.far),
+                sum(|f| f.expected),
+                count(|f| f.variants > 0 && f.top == f.variants),
+                count(|f| f.settled),
+                count(|f| f.settled_expected),
+            ));
+        }
+        let mut by_reason: BTreeMap<(&str, &str), [usize; 12]> = BTreeMap::new();
+        for (result, fields) in &with {
+            let ok = |field: &str| {
+                fields
+                    .iter()
+                    .any(|f| f.slot == 0 && f.field == field && f.settled_expected)
+            };
+            let ok_all = |field: &str| {
+                let of: Vec<&FieldStats> = fields.iter().filter(|f| f.field == field).collect();
+                !of.is_empty() && of.iter().all(|f| f.settled_expected)
+            };
+            let lift: Vec<&FieldStats> = fields
+                .iter()
+                .filter(|f| f.field == "lift-name" || f.field == "lift-level")
+                .collect();
+            let lift_title: Vec<&FieldStats> =
+                fields.iter().filter(|f| f.field == "lift-title").collect();
+            let row = by_reason
+                .entry((
+                    result.verdict.outcome.name(),
+                    result.verdict.reason.as_ref(),
+                ))
+                .or_default();
+            row[0] += 1;
+            row[1] += usize::from(ok("name"));
+            row[2] += usize::from(ok("level"));
+            row[3] += usize::from(ok("title"));
+            row[4] += usize::from(["name", "level"].iter().all(|field| ok(field)));
+            row[5] += usize::from(["name", "level"].iter().all(|field| ok_all(field)));
+            row[6] += usize::from(!lift.is_empty());
+            // Both cards' names and levels settle on the expected values in the lifted read.
+            row[7] += usize::from(lift.len() >= 4 && lift.iter().all(|f| f.settled_expected));
+            // Some lifted name or level settles on a value that is not the expected one: how a lift reads WRONG.
+            row[8] += usize::from(lift.iter().any(|f| f.settled && !f.settled_expected));
+            // The lifted title of a card settles on a value that is not the expected one, or on the expected one.
+            row[9] += usize::from(lift_title.iter().any(|f| f.settled && !f.settled_expected));
+            row[10] += usize::from(lift_title.iter().any(|f| f.settled_expected));
+            // Every variant read agrees, on the expected value, for all four name and level fields.
+            row[11] += usize::from(
+                lift.len() >= 4
+                    && lift
+                        .iter()
+                        .all(|f| f.variants > 0 && f.expected == f.variants),
+            );
+        }
+        text.push_str(
+            "\nPopup variations by outcome and reason: how many settle each field of slot 0 on the expected value (name, level, title; a title line the lines pass did not find is read through the pixels and shown here as no field), name and level together on slot 0, and on every slot, then, for the variations whose plain read found no card and whose column was read again with its brightness lifted (diagnostic only, every third variation), how many read, how many settle both cards' names and levels on the expected values, how many settle a name or level on a value that is not the expected one, how many settle the title on another value or on the expected one, and how many read all four name and level fields identically and as expected:\n\n| outcome | reason | n | name ok | level ok | title ok | slot 0 name+level ok | all slots name+level ok | lifted read | lifted name+level ok | lifted name/level settles wrong | lifted title settles wrong | lifted title ok | lifted name+level unanimous |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
+        );
+        for ((outcome, reason), row) in by_reason {
+            text.push_str(&format!(
+                "| {outcome} | {reason} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+                row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11]
+            ));
+        }
+        text.push('\n');
+        text
+    }
+
     /// The markdown for the job summary: a family by screenshot table of `correct/refused/wrong`, the totals and the ids of
     /// the variants that read wrong.
     pub fn markdown(&self) -> String {
@@ -359,6 +473,7 @@ impl Report {
             all.wrong
         ));
         text.push_str(&self.field_variant_table());
+        text.push_str(&self.card_field_table());
         text.push_str(&self.reason_table(Outcome::Refused));
         text.push_str(&self.reason_table(Outcome::Wrong));
         let wrong = self.wrong_ids();
@@ -428,6 +543,20 @@ impl Report {
                 if let Some(variants) = &result.field_variants {
                     entry["field_variants"] = json!(variants);
                 }
+                if let Some(fields) = &result.card_fields {
+                    entry["card_fields"] = fields
+                        .iter()
+                        .map(|f| {
+                            json!({
+                                "slot": f.slot, "field": f.field, "variants": f.variants,
+                                "unparsed": f.unparsed, "blank": f.blank, "distinct": f.distinct,
+                                "top": f.top, "near1": f.near1, "near2": f.near2, "far": f.far,
+                                "expected": f.expected, "settled": f.settled,
+                                "settled_expected": f.settled_expected,
+                            })
+                        })
+                        .collect();
+                }
                 entry
             })
             .collect();
@@ -458,6 +587,7 @@ mod tests {
                 reason: "reason".into(),
             },
             field_variants: None,
+            card_fields: None,
         }
     }
 
@@ -715,6 +845,7 @@ mod tests {
     fn the_variant_table_counts_each_class_per_position_for_the_revealed_party_frames() {
         let party = |screenshot: &str, classes: &[&'static str]| VariantResult {
             field_variants: Some(classes.to_vec()),
+            card_fields: None,
             ..result(screenshot, "a", "shift", Outcome::Refused)
         };
         let report = Report {
@@ -824,5 +955,122 @@ mod tests {
             json!({"variations": 4, "correct": 1, "refused": 1, "wrong": 2})
         );
         assert_eq!(value["totals"]["refused"], 2);
+    }
+
+    #[test]
+    fn the_card_field_tables_sum_the_counts_by_slot_and_by_reason_and_the_json_carries_them() {
+        let field = |slot, name, settled_expected| FieldStats {
+            slot,
+            field: name,
+            variants: 6,
+            unparsed: 2,
+            blank: 1,
+            distinct: 2,
+            top: 4,
+            near1: 1,
+            near2: 0,
+            far: 1,
+            expected: if settled_expected { 4 } else { 0 },
+            settled: true,
+            settled_expected,
+        };
+        let popup = |reason: &str, name_ok: bool| VariantResult {
+            verdict: Verdict {
+                outcome: Outcome::Refused,
+                reason: reason.to_string().into(),
+            },
+            card_fields: Some(vec![
+                field(0, "name", name_ok),
+                field(0, "level", true),
+                field(0, "title", true),
+            ]),
+            ..result(
+                "maintainer-select-difficulty.png",
+                "a",
+                "tone",
+                Outcome::Refused,
+            )
+        };
+        let report = Report {
+            results: vec![
+                popup("name-unread", true),
+                popup("name-unread", false),
+                result(
+                    "maintainer-party-revealed.png",
+                    "b",
+                    "tone",
+                    Outcome::Correct,
+                ),
+            ],
+            ..Report::default()
+        };
+        let text = report.markdown();
+        assert!(text.contains("Popup card fields by slot, summed over 2 variations"));
+        assert!(text.contains("| 0 | name | 2 | 12 | 4 | 2 | 2 | 0 | 2 | 4 | 0 | 2 | 1 |"));
+        assert!(
+            text.contains(
+                "| refused | name-unread | 2 | 1 | 2 | 2 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |"
+            )
+        );
+        let value = report.json();
+        assert_eq!(value["variants"][0]["card_fields"][0]["top"], 4);
+        assert_eq!(value["variants"][0]["card_fields"][0]["field"], "name");
+        assert!(value["variants"][2].get("card_fields").is_none());
+        assert!(
+            !Report::default().markdown().contains("Popup card fields"),
+            "no popup results, no table"
+        );
+    }
+
+    #[test]
+    fn the_lifted_columns_split_name_and_level_from_the_title_and_count_unanimity() {
+        let lifted = |slot, name, ok: bool, unanimous: bool| FieldStats {
+            slot,
+            field: name,
+            variants: 6,
+            unparsed: 0,
+            blank: 0,
+            distinct: 1,
+            top: 6,
+            near1: 0,
+            near2: 0,
+            far: 0,
+            expected: if unanimous { 6 } else { 4 },
+            settled: true,
+            settled_expected: ok,
+        };
+        let row = |fields: Vec<FieldStats>| VariantResult {
+            card_fields: Some(fields),
+            ..result(
+                "maintainer-select-difficulty.png",
+                "a",
+                "tone",
+                Outcome::Refused,
+            )
+        };
+        let four = |ok: bool, unanimous: bool| {
+            vec![
+                lifted(0, "lift-name", ok, unanimous),
+                lifted(0, "lift-level", true, unanimous),
+                lifted(1, "lift-name", true, unanimous),
+                lifted(1, "lift-level", true, unanimous),
+            ]
+        };
+        let mut wrong_title = four(true, true);
+        wrong_title.push(lifted(0, "lift-title", false, false));
+        let text = Report {
+            results: vec![
+                row(four(true, true)),
+                row(four(false, false)),
+                row(wrong_title),
+            ],
+            ..Report::default()
+        }
+        .markdown();
+        // 3 variations read; 2 settle every name and level as expected; 1 settles one wrong; 1 title settles wrong; 2 unanimous.
+        assert!(
+            text.contains("| refused | reason | 3 | 0 | 0 | 0 | 0 | 0 | 3 | 2 | 1 | 1 | 0 | 2 |"),
+            "{text}"
+        );
     }
 }

@@ -17,7 +17,8 @@ build, then sign, then publish, in [`releases.md`](releases.md). Preview and sta
 ## Stages
 
 `build → verify → deploy → smoke → promote`. Reusable workflows `stage-build`, `stage-deploy`, `stage-smoke`,
-`stage-promote`, called by `site.yml` and `api.yml` (built) and `agent.yml` (_planned_); `release-agent.yml` already calls `stage-smoke`. Job names are always the stage names.
+`stage-promote`, called by `site.yml` and `api.yml` (built) and `agent.yml` (_planned_); `release-agent.yml` already
+calls `stage-smoke`. Job names are always the stage names.
 
 | Stage   | Does                                                                                         | Triggered by         |
 | ------- | -------------------------------------------------------------------------------------------- | -------------------- |
