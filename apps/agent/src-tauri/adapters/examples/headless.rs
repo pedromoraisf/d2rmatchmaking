@@ -19,9 +19,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use chrono::{DateTime, Utc};
 use d2rmm_agent_adapters::config::{AllowLoopbackHttp, ApiBase};
+use d2rmm_agent_adapters::config_store::FileConfigStore;
 use d2rmm_agent_adapters::http::api_client::ApiClient;
 use d2rmm_agent_adapters::http::client::client;
 use d2rmm_agent_adapters::http::gateway::HttpGateway;
+use d2rmm_agent_adapters::remote_config::WireReader;
 use d2rmm_agent_adapters::telemetry::relay_client::HeaderSource;
 use d2rmm_agent_adapters::telemetry::{self, ExportConfig, Mode, TelemetryGuard};
 use d2rmm_agent_core::capturer::Capturer;
@@ -38,6 +40,7 @@ use d2rmm_agent_core::ports::{
     WallClock,
 };
 use d2rmm_agent_core::ports::{ForegroundWindow, KeyTyper, ModifierState};
+use d2rmm_agent_core::remote_config::{CHECK_EVERY, ConfigPorts, Outcome};
 use d2rmm_agent_core::runtime::{Handle, Probe, Runtime};
 use d2rmm_agent_core::screen_reader::ScreenReader;
 use d2rmm_agent_core::secret::Secret;
@@ -48,6 +51,7 @@ use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{
     PanelRegion, ScreenRegion, panel_region, screen_region, screen_text_regions,
 };
+use d2rmm_agent_domain::remote_config::Effective;
 use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
 use d2rmm_agent_domain::typing::{Modifiers, TypableChar};
 use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
@@ -800,6 +804,11 @@ struct Arguments {
     agent_version: String,
     /// The player has given capture consent before the run starts (`--consent`, CHR-01).
     consent: bool,
+    /// Where the last good remote configuration is kept (`--config-dir`, remote-config RCF-06). Without it the example runs
+    /// no configuration loop.
+    config_dir: Option<PathBuf>,
+    /// The interval between fetches of the configuration (`--config-every-ms`; six hours in the product).
+    config_every: Duration,
 }
 
 fn parse_arguments(args: &[String]) -> Result<Arguments, String> {
@@ -808,6 +817,8 @@ fn parse_arguments(args: &[String]) -> Result<Arguments, String> {
     let mut party = false;
     let mut agent_version = None;
     let mut consent = false;
+    let mut config_dir = None;
+    let mut config_every = CHECK_EVERY;
     let mut rest = args.iter();
     while let Some(flag) = rest.next() {
         if flag == "--consent" {
@@ -818,6 +829,13 @@ fn parse_arguments(args: &[String]) -> Result<Arguments, String> {
         match flag.as_str() {
             "--api-base" => api_base = Some(value.clone()),
             "--agent-version" => agent_version = Some(value.clone()),
+            "--config-dir" => config_dir = Some(PathBuf::from(value)),
+            "--config-every-ms" => {
+                let millis: u64 = value
+                    .parse()
+                    .map_err(|_| format!("--config-every-ms needs a whole number, not {value}"))?;
+                config_every = Duration::from_millis(millis);
+            }
             "--read-fixture" => fixture = Some(PathBuf::from(value)),
             "--party-fixture" => {
                 fixture = Some(PathBuf::from(value));
@@ -832,6 +850,8 @@ fn parse_arguments(args: &[String]) -> Result<Arguments, String> {
         party,
         agent_version: agent_version.unwrap_or_else(|| VERSION.to_string()),
         consent,
+        config_dir,
+        config_every,
     })
 }
 
@@ -868,6 +888,7 @@ fn start(
     version: &str,
     events: UnboundedSender<Value>,
     keyboard: &std::sync::Arc<HeadlessKeyboard>,
+    remote_config: Option<(PathBuf, Duration)>,
 ) -> Result<(Handle<Reporting>, Probe, TelemetryGuard), String> {
     let base = api_base.url().as_str().trim_end_matches('/').to_string();
     // The F0 read path reads the sidecar text. The screen mode captures the shown frames with the player's consent and reads
@@ -960,7 +981,7 @@ fn start(
                 language: std::sync::Arc::new(d2rmm_agent_domain::language::LanguagePack::english()),
             },
             gateway,
-            tokens,
+            tokens: std::sync::Arc::clone(&tokens),
             processes: std::sync::Arc::new(GameOpen),
             frames,
             reader: screen_reader,
@@ -980,6 +1001,25 @@ fn start(
         focus: keyboard.clone(),
         keys: keyboard.clone(),
     });
+    // The remote configuration loop (remote-config RCF-04): the agent's own API, the token it holds and the last good body in
+    // the directory the scenario names. Without a directory the example runs no loop.
+    let handle = match remote_config {
+        None => handle,
+        Some((directory, every)) => {
+            let http = client(api_base).map_err(|error| error.to_string())?;
+            handle.with_config(
+                ConfigPorts {
+                    gateway: std::sync::Arc::new(HttpGateway::new(ApiClient::new(
+                        version, api_base, http,
+                    ))),
+                    tokens: std::sync::Arc::clone(&tokens),
+                    store: std::sync::Arc::new(FileConfigStore::in_directory(Some(directory))),
+                    reader: std::sync::Arc::new(WireReader),
+                },
+                every,
+            )
+        }
+    };
     Ok((handle, probe, guard))
 }
 
@@ -1032,10 +1072,22 @@ where
     let writer = tokio::spawn(write_lines(output, received));
     let keyboard = std::sync::Arc::new(HeadlessKeyboard::default());
     let fill_events = events.clone();
-    let (handle, probe, guard) =
-        start(&api_base, mode, &arguments.agent_version, events, &keyboard)
-            .map_err(|message| failure(1, message))?;
+    let (handle, probe, guard) = start(
+        &api_base,
+        mode,
+        &arguments.agent_version,
+        events,
+        &keyboard,
+        arguments
+            .config_dir
+            .clone()
+            .map(|directory| (directory, arguments.config_every)),
+    )
+    .map_err(|message| failure(1, message))?;
     let handle = std::sync::Arc::new(handle);
+    if arguments.config_dir.is_some() {
+        report_configuration(&handle, &fill_events);
+    }
 
     let mut lines = BufReader::new(input).lines();
     while let Some(line) = lines
@@ -1087,6 +1139,37 @@ where
     let _ = guard.shutdown();
     writer.abort();
     Ok(())
+}
+
+/// One line per fetch of the remote configuration: `{"event":"config","version":<n>,"outcome":"…","probeEvery":<n>,
+/// "phrases":"built-in|configured"}`. A last good body applied at start prints its line at once, with no fetch behind it, so a
+/// restart with the API gone still says which version runs (RCF-06, RCF-08).
+fn report_configuration(
+    handle: &std::sync::Arc<Handle<Reporting>>,
+    events: &UnboundedSender<Value>,
+) {
+    let held = handle.config();
+    if held.version > 0 {
+        let _ = events.send(config_line(&held, Outcome::Applied));
+    }
+    let (handle, events) = (std::sync::Arc::clone(handle), events.clone());
+    tokio::spawn(async move {
+        let mut fetches = handle.config_fetches();
+        while fetches.changed().await.is_ok() {
+            let outcome = fetches.borrow_and_update().outcome;
+            let _ = events.send(config_line(&handle.config(), outcome));
+        }
+    });
+}
+
+fn config_line(effective: &Effective, outcome: Outcome) -> Value {
+    json!({
+        "event": "config",
+        "version": effective.version,
+        "outcome": outcome.word(),
+        "probeEvery": effective.cadence.probe_every,
+        "phrases": if effective.phrases.is_configured() { "configured" } else { "built-in" },
+    })
 }
 
 /// One press of the fill hotkey: prints `fill` with the outcome, what was typed and how much of it went out while the
@@ -1463,6 +1546,64 @@ mod tests {
         assert!(
             parse_arguments(&given).expect("parses").consent,
             "the flag gives consent"
+        );
+    }
+
+    #[test]
+    fn the_configuration_flags_name_a_directory_and_an_interval() {
+        use super::{CHECK_EVERY, parse_arguments};
+
+        let base = [
+            "--api-base",
+            "http://127.0.0.1:1",
+            "--party-fixture",
+            "frame.png",
+        ]
+        .map(str::to_string);
+        let none = parse_arguments(&base).expect("parses");
+        assert_eq!(none.config_dir, None, "no directory, no loop");
+        assert_eq!(none.config_every, CHECK_EVERY, "six hours by default");
+
+        let mut given = base.to_vec();
+        given.extend(
+            ["--config-dir", "/tmp/config", "--config-every-ms", "500"].map(str::to_string),
+        );
+        let given = parse_arguments(&given).expect("parses");
+        assert_eq!(
+            given.config_dir,
+            Some(std::path::PathBuf::from("/tmp/config"))
+        );
+        assert_eq!(given.config_every, Duration::from_millis(500));
+
+        let mut broken = base.to_vec();
+        broken.extend(["--config-every-ms", "soon"].map(str::to_string));
+        assert!(parse_arguments(&broken).is_err());
+    }
+
+    #[test]
+    fn the_config_line_says_the_version_the_outcome_the_cadence_and_the_phrases() {
+        use super::config_line;
+        use d2rmm_agent_core::remote_config::Outcome;
+        use d2rmm_agent_domain::remote_config::{Effective, Words};
+
+        let mut effective = Effective::built_in();
+        assert_eq!(
+            config_line(&effective, Outcome::Unchanged),
+            serde_json::json!({
+                "event": "config", "version": 0, "outcome": "unchanged", "probeEvery": 60, "phrases": "built-in",
+            })
+        );
+        effective.version = 5;
+        effective.cadence.probe_every = 30;
+        effective.phrases.en = Words {
+            party: Some("Party".into()),
+            ..Words::default()
+        };
+        assert_eq!(
+            config_line(&effective, Outcome::Applied),
+            serde_json::json!({
+                "event": "config", "version": 5, "outcome": "applied", "probeEvery": 30, "phrases": "configured",
+            })
         );
     }
 }

@@ -25,6 +25,7 @@ pub const CONTRACTS: &[(&str, &str)] = &[
     ("heartbeat.json", "Heartbeat"),
     ("assignment.json", "Assignment"),
     ("observation.json", "Observation"),
+    ("agent-config.json", "AgentConfig"),
     (
         "agent-event-ready-check-resolved.json",
         "ReadyCheckResolvedEvent",
@@ -35,6 +36,10 @@ pub const CONTRACTS: &[(&str, &str)] = &[
     ),
     ("agent-event-room-assigned.json", "RoomAssignedEvent"),
     ("agent-event-room-run-opened.json", "RoomRunOpenedEvent"),
+    (
+        "agent-event-room-stage-changed.json",
+        "RoomStageChangedEvent",
+    ),
     ("record-characters-request.json", "RecordCharactersRequest"),
 ];
 

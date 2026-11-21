@@ -122,6 +122,7 @@ export const dockerPort = {
     if (result.code !== 0) throw new Error(`docker stats of ${name} failed`);
     return linesOf(result.stdout).map((line) => JSON.parse(line));
   },
+  imageExists: async (tag) => (await runDocker(['image', 'inspect', tag])).code === 0,
   build: ({ file, context, tag }) => runDocker(['build', '-f', file, '-t', tag, context]),
   list: () => listLabelled(),
   rm: (name) => runDocker(['rm', '-f', name]),

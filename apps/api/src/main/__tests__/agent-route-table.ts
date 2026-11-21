@@ -40,6 +40,7 @@ export const ROUTE_REACH: readonly RouteReach[] = [
 
   { method: 'POST', path: '/v1/agents/heartbeat', reach: 'agent' },
   { method: 'GET', path: '/v1/agents/me/assignment', reach: 'agent' },
+  { method: 'GET', path: '/v1/agents/config', reach: 'agent' },
   { method: 'POST', path: '/v1/lobby-rooms/{id}/observations', reach: 'agent' },
   { method: 'POST', path: '/v1/me/characters', reach: 'agent' },
 

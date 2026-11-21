@@ -28,7 +28,7 @@ async function collectMetrics(record: (metrics: OtelQueueMetrics) => void) {
   const reader = new PeriodicExportingMetricReader({ exporter, exportIntervalMillis: 60_000 });
   const provider = new MeterProvider({ readers: [reader] });
   const metrics = new OtelQueueMetrics(provider.getMeter(APP_METER_NAME));
-  let scopes: ReturnType<InMemoryMetricExporter['getMetrics']> = [];
+  let scopes: ReturnType<InMemoryMetricExporter['getMetrics']>;
   try {
     record(metrics);
     await reader.forceFlush();

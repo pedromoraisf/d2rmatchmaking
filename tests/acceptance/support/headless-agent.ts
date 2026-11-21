@@ -183,6 +183,8 @@ export class HeadlessAgent {
     party?: boolean;
     consent?: boolean;
     agentVersion?: string;
+    /** More arguments for the example, after the ones above (remote-config: `--config-dir <dir>`). */
+    extraArgs?: readonly string[];
   }): HeadlessAgent {
     const versionArgs = options.agentVersion === undefined ? [] : ['--agent-version', options.agentVersion];
     const consentArgs = options.consent === false ? [] : ['--consent'];
@@ -200,6 +202,7 @@ export class HeadlessAgent {
         options.fixture,
         ...versionArgs,
         ...consentArgs,
+        ...(options.extraArgs ?? []),
       ],
       { cwd: repoRoot, env: cargoEnv(), detached: true, stdio: ['pipe', 'pipe', 'pipe'] },
     );

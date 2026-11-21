@@ -4,14 +4,16 @@
 
 use std::time::Duration;
 
-use reqwest::header::{ACCEPT, AUTHORIZATION, HeaderValue, RETRY_AFTER};
+use reqwest::header::{ACCEPT, AUTHORIZATION, ETAG, HeaderValue, IF_NONE_MATCH, RETRY_AFTER};
 use reqwest::{Client, Method, RequestBuilder, Response, StatusCode};
 use serde::de::DeserializeOwned;
 use tracing::field::Empty;
 use tracing::{Instrument, Span, info_span};
 use uuid::Uuid;
 
+use d2rmm_agent_core::ports::Fetched;
 use d2rmm_agent_core::secret::Secret;
+use d2rmm_agent_domain::remote_config::MAX_BODY_BYTES;
 
 use crate::config::ApiBase;
 use crate::contracts::generated::{
@@ -229,6 +231,45 @@ impl ApiClient {
         .await
     }
 
+    /// `GET /v1/agents/config` (remote-config RCF-04): the same document for every agent, asked with the tag of the one the
+    /// agent holds. The body is read up to one byte over the size limit and no further, so a hostile answer never fills memory;
+    /// the reader refuses it as too large. No frame, no read text and no account data goes out: the token, the agent version and
+    /// the tag.
+    pub async fn config(&self, token: &Secret, held_etag: Option<&str>) -> Fetched {
+        let span = info_span!("agent.http.config", status = Empty);
+        async {
+            let mut request = match self.authorized(Method::GET, "/v1/agents/config", token) {
+                Ok(request) => request,
+                Err(error) => return Fetched::Failed(error),
+            };
+            if let Some(tag) = held_etag.and_then(|tag| HeaderValue::from_str(tag).ok()) {
+                request = request.header(IF_NONE_MATCH, tag);
+            }
+            let mut response = match self.send(request).await {
+                Ok(response) => response,
+                Err(error) => return Fetched::Failed(error),
+            };
+            match reading(Route::Config, response.status()) {
+                Reading::Success => {
+                    let etag = response
+                        .headers()
+                        .get(ETAG)
+                        .and_then(|value| value.to_str().ok())
+                        .map(str::to_string);
+                    match bounded_body(&mut response).await {
+                        Ok(bytes) => Fetched::Body { bytes, etag },
+                        Err(error) => Fetched::Failed(error),
+                    }
+                }
+                Reading::NotModified => Fetched::NotModified,
+                Reading::NoConfig => Fetched::Absent,
+                _ => Fetched::Failed(failure(&response)),
+            }
+        }
+        .instrument(span)
+        .await
+    }
+
     /// A request without a token, carrying the version and the traceparent of the current span.
     fn anonymous(&self, method: Method, path: &str) -> RequestBuilder {
         let url = format!("{}{path}", self.base);
@@ -260,6 +301,27 @@ impl ApiClient {
     }
 }
 
+/// The body, at most `MAX_BODY_BYTES` + 1 bytes of it: a body over the limit ends the read there and is handed on as it is, for the
+/// rule that refuses it (RCF-02, RCF-06).
+async fn bounded_body(response: &mut Response) -> Result<Vec<u8>, ApiError> {
+    // A length the answer declares over the limit is refused before a byte of the body is read.
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_BODY_BYTES as u64)
+    {
+        return Ok(vec![0; MAX_BODY_BYTES + 1]);
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|_| ApiError::Network)? {
+        bytes.extend_from_slice(&chunk);
+        if bytes.len() > MAX_BODY_BYTES {
+            bytes.truncate(MAX_BODY_BYTES + 1);
+            break;
+        }
+    }
+    Ok(bytes)
+}
+
 async fn json_body<T: DeserializeOwned>(response: Response) -> Result<T, ApiError> {
     response.json::<T>().await.map_err(|error| {
         if error.is_decode() {
@@ -289,6 +351,7 @@ enum Route {
     Characters,
     Stream,
     ReadyCheck,
+    Config,
 }
 
 /// What a route makes of the status it answered with. Only `Success` reads a body.
@@ -302,6 +365,10 @@ enum Reading {
     Ended,
     /// `404` on the assignment route: the agent holds no room.
     NoRoom,
+    /// `304` on the configuration route: the agent holds what the API serves.
+    NotModified,
+    /// `404` on the configuration route: the API serves none.
+    NoConfig,
     /// Any other status: `failure_for` maps it to an error.
     Error,
 }
@@ -316,10 +383,13 @@ fn reading(route: Route, status: StatusCode) -> Reading {
         | (Route::Observation, StatusCode::ACCEPTED)
         | (Route::Characters, StatusCode::NO_CONTENT)
         | (Route::ReadyCheck, StatusCode::NO_CONTENT)
+        | (Route::Config, StatusCode::OK)
         | (Route::Stream, StatusCode::OK) => Reading::Success,
         (Route::Claim, StatusCode::ACCEPTED) => Reading::Pending,
         (Route::ReadyCheck, StatusCode::NOT_FOUND | StatusCode::CONFLICT) => Reading::Ended,
         (Route::Assignment, StatusCode::NOT_FOUND) => Reading::NoRoom,
+        (Route::Config, StatusCode::NOT_MODIFIED) => Reading::NotModified,
+        (Route::Config, StatusCode::NOT_FOUND) => Reading::NoConfig,
         _ => Reading::Error,
     }
 }
@@ -519,6 +589,38 @@ mod tests {
         for (status, retry_after, expected) in table {
             assert_eq!(failure_for(status, retry_after), expected, "{status}");
         }
+    }
+
+    #[test]
+    fn the_configuration_route_reads_200_304_and_404_and_nothing_else_as_a_body() {
+        assert_eq!(reading(Route::Config, StatusCode::OK), Reading::Success);
+        assert_eq!(
+            reading(Route::Config, StatusCode::NOT_MODIFIED),
+            Reading::NotModified
+        );
+        assert_eq!(
+            reading(Route::Config, StatusCode::NOT_FOUND),
+            Reading::NoConfig
+        );
+        for status in [
+            StatusCode::NO_CONTENT,
+            StatusCode::ACCEPTED,
+            StatusCode::UNAUTHORIZED,
+            StatusCode::UPGRADE_REQUIRED,
+            StatusCode::TOO_MANY_REQUESTS,
+            StatusCode::INTERNAL_SERVER_ERROR,
+        ] {
+            assert_eq!(reading(Route::Config, status), Reading::Error, "{status}");
+        }
+        // Other routes do not read a 304 or a 404 as the configuration route does.
+        assert_eq!(
+            reading(Route::Heartbeat, StatusCode::NOT_MODIFIED),
+            Reading::Error
+        );
+        assert_eq!(
+            reading(Route::Observation, StatusCode::NOT_FOUND),
+            Reading::Error
+        );
     }
 
     #[test]

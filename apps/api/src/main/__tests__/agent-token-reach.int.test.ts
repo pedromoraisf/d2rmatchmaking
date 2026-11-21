@@ -90,13 +90,14 @@ describe('the agent token reaches only the agent routes (AGT-01)', () => {
     expect(live).toEqual(classified);
   });
 
-  it('keeps the agent token reach to the eight routes of the spec', () => {
+  it('keeps the agent token reach to the nine routes of the spec', () => {
     expect(
       agentRoutes()
         .map((route) => `${route.method} ${route.path}`)
         .sort(),
     ).toEqual(
       [
+        'GET /v1/agents/config',
         'GET /v1/agents/me/assignment',
         'GET /v1/ready-checks/me',
         'GET /v1/stream',

@@ -27,6 +27,9 @@ const ALLOWED_FIELDS = new Set([
   // The capture cascade's span (capture-cascade CAP-08): the method and the outcome, as fixed words.
   'capture.method',
   'capture.outcome',
+  // The configuration fetch's span (remote-config RCF-11): how a fetch ended, as a fixed word, and the whole version number.
+  'config.outcome',
+  'config.version',
 ]);
 // The only values a `vision.*` field may be recorded with: the fixed-word variables of `vision_words`.
 const WORD_VARIABLES = new Set(['screen_word', 'search_word', 'area_class']);
@@ -40,6 +43,10 @@ const CAPTURE_WORDS = new Set([
   'tracing::field::Empty',
 ]);
 
+// The only values a `config.*` field may be declared or recorded with: the outcome's fixed word and the version number the
+// agent runs. Never a body, a field name or a value of the configuration (RCF-11).
+const CONFIG_WORDS = new Set(['outcome_word', 'version', 'tracing::field::Empty']);
+
 // The non-test part of a Rust source: tests build their own subscribers and spans.
 const nonTest = (source) => source.split('#[cfg(test)]')[0];
 
@@ -47,11 +54,19 @@ const nonTest = (source) => source.split('#[cfg(test)]')[0];
 export function visionSpanViolations(source) {
   const code = nonTest(source);
   const violations = [];
-  for (const span of code.matchAll(/info_span!\(\s*"agent\.vision[^"]*"((?:[^()]|\([^()]*\))*)\)/g)) {
+  for (const span of code.matchAll(
+    /info_span!\(\s*"agent\.(?:vision|config)[^"]*"((?:[^()]|\([^()]*\))*)\)/g,
+  )) {
     for (const field of span[1].matchAll(/(?:^|,)\s*("[^"]+"|[A-Za-z_][\w.]*)\s*=/g)) {
       const name = field[1].replaceAll('"', '');
       if (!ALLOWED_FIELDS.has(name)) violations.push(`the span declares the field ${name}`);
-      else if (name.startsWith('capture.')) {
+      else if (name.startsWith('config.')) {
+        const declared = span[1].match(new RegExp(`"${name.replace('.', '\\.')}"\\s*=\\s*([^,]+)`));
+        const value = declared?.[1].trim() ?? '';
+        if (!CONFIG_WORDS.has(value)) {
+          violations.push(`the field ${name} is declared with ${value}, not a fixed word`);
+        }
+      } else if (name.startsWith('capture.')) {
         const declared = span[1].match(new RegExp(`"${name.replace('.', '\\.')}"\\s*=\\s*([^,]+)`));
         const value = declared?.[1].trim() ?? '';
         if (!CAPTURE_WORDS.has(value)) {
@@ -60,11 +75,14 @@ export function visionSpanViolations(source) {
       }
     }
   }
-  if (!/info_span!\(\s*"agent\.vision/.test(code)) return violations;
+  if (!/info_span!\(\s*"agent\.(?:vision|config)/.test(code)) return violations;
   for (const record of code.matchAll(/\bspan\.record\(\s*"([^"]+)"\s*,\s*([^)]*(?:\([^)]*\))?[^)]*)\)/g)) {
     const [, name, value] = record;
     if (!ALLOWED_FIELDS.has(name)) violations.push(`the span records the field ${name}`);
     if (name.startsWith('vision.') && !WORD_VARIABLES.has(value.trim())) {
+      violations.push(`the field ${name} is recorded with ${value.trim()}, not a fixed word`);
+    }
+    if (name.startsWith('config.') && !CONFIG_WORDS.has(value.trim())) {
       violations.push(`the field ${name} is recorded with ${value.trim()}, not a fixed word`);
     }
     if (name.startsWith('capture.') && !CAPTURE_WORDS.has(value.trim())) {
@@ -120,6 +138,30 @@ test('the rule rejects a size, a title or a coordinate in the capture span', () 
   assert.deepEqual(visionSpanViolations(recorded), [
     'the field capture.outcome is recorded with frame.width, not a fixed word',
   ]);
+});
+
+test('the rule sees the configuration fetch span of core and accepts its fixed words', () => {
+  const source = readFileSync(path.join(coreSrc, 'remote_config.rs'), 'utf8');
+  assert.match(nonTest(source), /info_span!\(\s*"agent\.config\.fetch"/);
+  assert.match(nonTest(source), /span\.record\("config\.outcome", outcome_word\)/);
+  assert.match(nonTest(source), /span\.record\("config\.version", version\)/);
+  assert.deepEqual(visionSpanViolations(source), []);
+});
+
+test('the rule rejects a body, a field name or a value in the configuration fetch span', () => {
+  const body = `fn f() { let span = tracing::info_span!("agent.config.fetch", "config.outcome" = tracing::field::Empty, "config.body" = text); }`;
+  assert.deepEqual(visionSpanViolations(body), ['the span declares the field config.body']);
+  const declared = `fn f() { let span = tracing::info_span!("agent.config.fetch", "config.outcome" = body.text); }`;
+  assert.deepEqual(visionSpanViolations(declared), [
+    'the field config.outcome is declared with body.text, not a fixed word',
+  ]);
+  const recorded = `fn f() { let span = tracing::info_span!("agent.config.fetch", "config.outcome" = tracing::field::Empty);
+    span.record("config.outcome", body); }`;
+  assert.deepEqual(visionSpanViolations(recorded), [
+    'the field config.outcome is recorded with body, not a fixed word',
+  ]);
+  const other = `fn f() { let span = tracing::info_span!("agent.config.fetch"); span.record("config.phrase", version); }`;
+  assert.deepEqual(visionSpanViolations(other), ['the span records the field config.phrase']);
 });
 
 test('the rule accepts the fixed words and leaves other spans alone', () => {

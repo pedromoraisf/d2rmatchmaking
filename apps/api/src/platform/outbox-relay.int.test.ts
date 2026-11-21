@@ -282,4 +282,66 @@ describe('the trace of a relayed row', () => {
     expect(relaySpans[0]?.attributes[D2R_OUTBOX_EVENT_TYPE]).toBe('RoomStageChanged');
     expect((await rows()).every((row) => row.published)).toBe(true);
   });
+
+  describe('quiesce', () => {
+    it('waits for a running drain, and for the drain its handler wakes, before it resolves', async () => {
+      await commitRows([stageChanged('66666666-6666-4666-8666-666666666666')]);
+      const clock = new FakeClock(START);
+      const bus = new InMemoryEventBus();
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      bus.subscribe('RoomStageChanged', async () => {
+        await gate;
+      });
+      const relay = new OutboxRelay({
+        db: database.db,
+        bus,
+        scheduler: new FakeScheduler(clock),
+        clock,
+        log: silentLog,
+      });
+      void relay.sweep();
+      let quiet = false;
+      const waiting = relay.quiesce().then(() => {
+        quiet = true;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(quiet, 'the drain is held open by its handler').toBe(false);
+
+      release();
+      await waiting;
+
+      expect(quiet).toBe(true);
+      expect((await rows()).every((row) => row.published)).toBe(true);
+    });
+
+    it('lets a truncate run while a handler of the drain writes through its own connection', async () => {
+      await commitRows([stageChanged('77777777-7777-4777-8777-777777777777')]);
+      const clock = new FakeClock(START);
+      const bus = new InMemoryEventBus();
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      bus.subscribe('RoomStageChanged', async () => {
+        await gate;
+        // As the MatchFormed handler does: a transaction of its own while the drain's is open.
+        await database.pool.query('select count(*) from platform.outbox');
+      });
+      const relay = new OutboxRelay({
+        db: database.db,
+        bus,
+        scheduler: new FakeScheduler(clock),
+        clock,
+        log: silentLog,
+      });
+      void relay.sweep();
+      const reset = relay.quiesce().then(() => database.pool.query('truncate table platform.outbox'));
+      release();
+
+      await expect(reset).resolves.toBeDefined();
+    });
+  });
 });

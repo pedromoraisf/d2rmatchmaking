@@ -5,7 +5,7 @@
 use d2rmm_agent_core::messages::{
     GameNameObservation, IssuedCode, PlayerObservation, Presence, ReadyCheckOpen,
 };
-use d2rmm_agent_core::ports::{ApiError, ApiGateway, EventStream};
+use d2rmm_agent_core::ports::{ApiError, ApiGateway, ConfigGateway, EventStream, Fetched};
 use d2rmm_agent_core::secret::Secret;
 use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::room_assignment::Assignment;
@@ -107,5 +107,11 @@ impl ApiGateway for HttpGateway {
             response,
             resume.map(str::to_string),
         )))
+    }
+}
+
+impl ConfigGateway for HttpGateway {
+    async fn fetch_config(&self, token: &Secret, held_etag: Option<&str>) -> Fetched {
+        self.api.config(token, held_etag).await
     }
 }

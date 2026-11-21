@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compare } from '../nightly/trend.mjs';
 import { toMarkdown } from '../nightly/render.mjs';
+import { fromLoadSummary } from '../nightly/load.mjs';
 import { buildReport, discover, fromJobs, main, readingModulesFrom, suitesFrom } from '../nightly/report.mjs';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'nightly');
@@ -236,5 +237,40 @@ test('the CLI reads downloaded artifacts, merges shards and writes the .md and .
     assert.match(readFileSync(path.join(root, 'out', 'nightly-report.md'), 'utf8'), /^# Nightly report/);
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('load p95 is rounded to two decimals, null when absent, and its trend carries no float residue (UPK-05)', () => {
+  const summary = (p95) => ({
+    maxConcurrentPlayers: 100,
+    steps: [{ players: 100, errors: 0, latencyP95Ms: p95, passed: true }],
+  });
+  assert.equal(fromLoadSummary(summary(12.300000000000001)).steps[0].p95Ms, 12.3);
+  assert.equal(fromLoadSummary(summary(2.346)).steps[0].p95Ms, 2.35);
+  assert.equal(fromLoadSummary(summary(7)).steps[0].p95Ms, 7);
+  assert.equal(fromLoadSummary(summary(undefined)).steps[0].p95Ms, null);
+  assert.equal(fromLoadSummary(summary(Number.NaN)).steps[0].p95Ms, null);
+  const before = build();
+  before.load.steps[0].p95Ms = 12.3;
+  const now = build();
+  now.load.steps[0].p95Ms = 12.4;
+  assert.equal(compare(now, before).load.p95Ms, 0.1);
+});
+
+test('the committed reading-modules.json is a list or an object with modules or files, and names real files (UPK-08)', () => {
+  const repoRoot = path.resolve(dir, '..', '..', '..', '..');
+  const file = path.join(repoRoot, 'scripts', 'agent', 'reading-modules.json');
+  const json = JSON.parse(readFileSync(file, 'utf8'));
+  const keys = Array.isArray(json)
+    ? ['list']
+    : ['modules', 'files'].filter((key) => Array.isArray(json[key]));
+  assert.equal(keys.length >= 1, true, `${file} is a list, or has a "modules" or "files" list`);
+  const paths = readingModulesFrom(json);
+  assert.ok(paths.length > 0, 'it names at least one reading module');
+  for (const modulePath of paths) {
+    assert.ok(
+      existsSync(path.join(repoRoot, 'apps', 'agent', 'src-tauri', modulePath)),
+      `${modulePath} exists`,
+    );
   }
 });

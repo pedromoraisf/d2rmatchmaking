@@ -34,6 +34,7 @@ impl Hub {
                 last_press: None,
                 diagnostics: None,
                 capture: None,
+                config_version: 0,
             }),
         }
     }
@@ -120,6 +121,14 @@ impl Hub {
         let unchanged = lock(&self.view).capture.as_ref() == Some(&capture);
         if !unchanged {
             self.change(|view| view.capture = Some(capture));
+        }
+    }
+
+    /// Shows the version of the configuration the agent runs (RCF-08). An unchanged version publishes nothing.
+    pub fn set_config_version(&self, version: u32) {
+        let unchanged = lock(&self.view).config_version == version;
+        if !unchanged {
+            self.change(|view| view.config_version = version);
         }
     }
 

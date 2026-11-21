@@ -67,3 +67,22 @@ export async function retryOnPortInUse<T>(start: (attempt: number) => Promise<T>
     }
   }
 }
+
+/**
+ * Runs `make` on the first call and hands every later call the same promise, a failure included. The traced stacks of one
+ * worker share one telemetry-site build, so the retry of a stack on new ports never builds the site again (UPK-10).
+ */
+export function onceAsync<T>(make: () => Promise<T>): () => Promise<T> {
+  let started: Promise<T> | undefined;
+  return () => (started ??= make());
+}
+
+/** The account id a signed-in player has, or an error that names the player (UPK-10: `openSiteFor` had no message). */
+export function requireAccountId(name: string, accountId: string | undefined): string {
+  if (accountId === undefined || accountId === '') {
+    throw new Error(
+      `"${name}" has no account id: sign the player in (world.sessionOf) before waiting for the stream`,
+    );
+  }
+  return accountId;
+}

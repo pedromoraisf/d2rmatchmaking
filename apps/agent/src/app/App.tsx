@@ -90,6 +90,7 @@ export function App({ translate }: AppProps) {
         <DiagnosticsView
           diagnostics={view.diagnostics}
           capture={view.capture}
+          configVersion={view.configVersion}
           lastPress={view.lastPress ?? NO_PRESS}
           translate={translate}
         />

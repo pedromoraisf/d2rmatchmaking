@@ -22,6 +22,7 @@ pub mod player_observation;
 pub mod post_bucket;
 pub mod presence;
 pub mod reconnect;
+pub mod remote_config;
 pub mod room_assignment;
 pub mod timings;
 pub mod typing;

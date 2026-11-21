@@ -57,6 +57,7 @@ function setup() {
     bus,
     cache,
     presence,
+    configSource: { current: () => undefined },
   });
   bus.subscribe('AgentRevoked', useCases.evictRevokedAgent);
   return { clock, hasher, agents, bus, cache, presence, rateLimits, useCases };

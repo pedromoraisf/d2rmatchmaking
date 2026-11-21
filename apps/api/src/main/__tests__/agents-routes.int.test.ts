@@ -385,3 +385,22 @@ function revokeAgent(agentId: string, cookie: string) {
     payload: {},
   });
 }
+
+describe('GET /v1/agents/me limits one account to 60 requests a minute (UPK-02)', () => {
+  it('answers 429 rate-limited with Retry-After to the 61st read, for that account only', async () => {
+    const alice = await sessionFor(uniquePlayerName());
+    const bob = await sessionFor(uniquePlayerName());
+    for (let i = 0; i < 60; i += 1) {
+      expect((await myAgent(alice)).statusCode).toBe(200);
+    }
+
+    const limited = await myAgent(alice);
+
+    expect(limited.statusCode).toBe(429);
+    expect(bodyOf(limited)).toEqual({ error: 'rate-limited' });
+    expect(limited.headers['retry-after']).toBe('60');
+    expect((await myAgent(bob)).statusCode).toBe(200);
+    clock.advance(60_000);
+    expect((await myAgent(alice)).statusCode).toBe(200);
+  });
+});

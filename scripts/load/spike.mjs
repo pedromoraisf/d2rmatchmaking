@@ -281,7 +281,7 @@ async function main() {
   process.on('SIGTERM', onSignal);
   process.on('SIGHUP', onSignal);
 
-  let ok = false;
+  let ok;
   try {
     const build = await docker([
       'build',

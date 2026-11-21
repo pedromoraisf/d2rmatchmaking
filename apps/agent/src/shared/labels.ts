@@ -104,6 +104,11 @@ export type FillOutcome =
   | 'refused-screen'
   | 'refused-keys';
 
+// The remote configuration the agent runs, as a line of the diagnostics: `0` is the built-in defaults (remote-config RCF-08).
+export function configLabel(version: number): Label {
+  return { key: 'diagnostics.config', values: { version } };
+}
+
 // A hotkey the OS did not let the agent register while it wants it (AST-01, AST-08, RDY-07).
 export type HotkeySlot = 'accept' | 'fill';
 
@@ -136,6 +141,8 @@ export interface AgentView {
   diagnostics: Diagnostics | null;
   // Absent until the first frame was captured.
   capture?: CaptureDiagnostics;
+  // The version of the remote configuration the agent runs; absent for the built-in defaults, version 0 (RCF-08).
+  configVersion?: number;
 }
 
 export interface Label {
