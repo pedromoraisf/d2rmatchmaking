@@ -22,7 +22,7 @@ describe('OtelRoomMetrics', () => {
     const provider = new MeterProvider({ readers: [reader] });
     const metrics = new OtelRoomMetrics(provider.getMeter(APP_METER_NAME));
 
-    let scopes: ReturnType<typeof collectScopes> = [];
+    let scopes: ReturnType<typeof collectScopes>;
     try {
       metrics.stageLeft('awaiting_host', 'hell', 'leveling', 90);
       await reader.forceFlush();

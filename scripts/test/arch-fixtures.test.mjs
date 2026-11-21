@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..', '..');
 const config = path.join(root, '.dependency-cruiser.cjs');
-const depcruise = path.join(root, 'node_modules', 'dependency-cruiser', 'bin', 'dependency-cruise.mjs');
+const depcruise = path.join(root, 'node_modules', 'dependency-cruiser', 'bin', 'dependency-cruiser.mjs');
 const fixtures = path.join(here, 'fixtures', 'arch');
 
 // The exit code comes from the `err` reporter (exit = number of error violations). The `json` reporter always exits 0,

@@ -183,7 +183,7 @@ function reachesPreset(file: string, pkg: string, root: string, seen = new Set<s
 
 // `err` exits with the number of error violations; `json` always exits 0, so the rule names come from its output.
 function cruise(root: string, dir: string, outputType: 'err' | 'json') {
-  const depcruiseBin = path.join(root, 'node_modules', 'dependency-cruiser', 'bin', 'dependency-cruise.mjs');
+  const depcruiseBin = path.join(root, 'node_modules', 'dependency-cruiser', 'bin', 'dependency-cruiser.mjs');
   return spawnSync(
     process.execPath,
     [

@@ -6,6 +6,9 @@ import {
 } from '../load/lib/bytes.mjs';
 
 const round = (n) => Math.round(n);
+/** A latency in milliseconds at two decimals, so a float residue (`12.300000000000001`) never reaches the report (UPK-05). */
+export const roundMs = (n) =>
+  typeof n === 'number' && Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
 
 function bytesOfStep(step) {
   const players = step.players;
@@ -43,7 +46,7 @@ export function fromLoadSummary(summary, budget = EGRESS_BYTES_PER_PLAYER_HOUR, 
     return {
       players: step.players,
       errors: step.errors ?? 0,
-      p95Ms: step.latencyP95Ms ?? null,
+      p95Ms: roundMs(step.latencyP95Ms),
       bytesPerPlayerHour: perHour,
       bytesByEvent: byEventOfStep(step),
       matchesPerPlayerHour: oneDecimal(step.matchesPerPlayerHour),
