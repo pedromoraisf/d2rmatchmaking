@@ -16,6 +16,7 @@ use d2rmm_agent_domain::typing::HotkeyChoice;
 use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
+use crate::copy_room_name::CopyOutcome;
 use crate::hub::Hub;
 use crate::messages::{CaptureReport, ReadyCheckOpen, Screen};
 use crate::party::PartyProgress;
@@ -226,6 +227,18 @@ impl DeviceState {
             tracing::info!("hotkey.unmatched");
         }
         self.hub.set_last_press(press);
+    }
+
+    /// Shows what a copy of the game name came to and keeps it while the room is held (AST-12). Records it as one span event
+    /// with the outcome code and nothing else: no name, no text (AST-10).
+    pub fn record_copy(&self, outcome: CopyOutcome) {
+        tracing::info!(outcome = outcome.as_str(), "agent.copy");
+        self.hub.set_last_copy(Some(outcome));
+    }
+
+    /// The room is gone, so the window shows no copy line and no "copy again" (AST-12).
+    pub fn clear_copy(&self) {
+        self.hub.set_last_copy(None);
     }
 
     /// Whether a token is held.
@@ -445,6 +458,7 @@ mod tests {
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
 
     use super::DeviceState;
+    use crate::copy_room_name::CopyOutcome;
     use crate::fakes::{MemoryTokens, NullSink};
     use crate::ports::{ApiError, TokenStore};
     use crate::secret::Secret;
@@ -539,6 +553,57 @@ mod tests {
                 "hotkey.unmatched"
             ]
         );
+    }
+
+    #[test]
+    fn a_copy_is_one_event_with_the_outcome_and_no_name() {
+        let (device, _tokens) = paired();
+        let events = Arc::new(Events::default());
+        let guard = tracing::subscriber::set_default(Arc::clone(&events));
+        tracing::callsite::rebuild_interest_cache();
+
+        device.replace_assignment(Some(assignment()));
+        for outcome in [
+            CopyOutcome::Copied,
+            CopyOutcome::CopiedAgain,
+            CopyOutcome::RefusedName,
+            CopyOutcome::Failed,
+        ] {
+            device.record_copy(outcome);
+        }
+        device.clear_copy();
+        drop(guard);
+
+        let lines = events.0.lock().expect("events").clone();
+        assert_eq!(
+            lines,
+            [
+                "agent.copy outcome=copied",
+                "agent.copy outcome=copied-again",
+                "agent.copy outcome=refused-name",
+                "agent.copy outcome=failed"
+            ]
+        );
+        for line in &lines {
+            assert!(
+                !line.contains("mmbaalh"),
+                "no span event carries the game name: {line}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_view_shows_the_last_copy_until_the_room_is_gone() {
+        let (device, _tokens) = paired();
+        assert_eq!(device.hub.snapshot().last_copy, None);
+
+        device.record_copy(CopyOutcome::Copied);
+        assert_eq!(device.hub.snapshot().last_copy, Some(CopyOutcome::Copied));
+        device.record_copy(CopyOutcome::Failed);
+        assert_eq!(device.hub.snapshot().last_copy, Some(CopyOutcome::Failed));
+
+        device.clear_copy();
+        assert_eq!(device.hub.snapshot().last_copy, None);
     }
 
     #[test]

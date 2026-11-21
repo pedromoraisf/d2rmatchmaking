@@ -406,6 +406,13 @@ mod shell {
         Ok(())
     }
 
+    /// The player's "copy again" (AST-12): writes the held room's game name to the clipboard once more. How it went reaches the
+    /// window in the view, so the command answers nothing.
+    #[tauri::command]
+    fn copy_again(handle: State<'_, Arc<Handle<HttpGateway>>>) {
+        let _ = handle.copy_again();
+    }
+
     /// Logs the location of a panic and never its payload, which can carry secrets (AGS-09).
     fn install_panic_hook() {
         std::panic::set_hook(Box::new(|info| match info.location() {
@@ -559,7 +566,8 @@ mod shell {
                 get_new_code,
                 get_consent,
                 set_consent,
-                set_hotkey
+                set_hotkey,
+                copy_again
             ])
             .setup(move |app| {
                 let app_handle = app.handle().clone();
@@ -932,6 +940,7 @@ mod tests {
             update: UpdateView::Idle,
             ready_check_open: false,
             hotkeys: HotkeysView::of(&HotkeyChoice::default_accept()),
+            last_copy: None,
             hotkey_unavailable: Vec::new(),
             last_press: None,
             diagnostics: None,

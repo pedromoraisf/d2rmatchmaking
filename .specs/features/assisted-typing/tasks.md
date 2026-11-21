@@ -100,7 +100,7 @@ Rules:
 - [ ] T14 — Adapter and sensor (AST-14): one clipboard adapter file, write-only; the source rule with fixtures. If it needs a
       new crate or `windows` feature, the gate asks the maintainer; record the answer in `decisions.md`.
       Gate: `pnpm test:harness && CARGO clippy --all-targets -- -D warnings`
-- [ ] T15 — Window and view (AST-12, AST-10): the copied line, "copy again", the refusal and failure lines, en and pt-BR;
+- [x] T15 — Window and view (AST-12, AST-10): the copied line, "copy again", the refusal and failure lines, en and pt-BR;
       the span event per copy. Gate: `pnpm --filter @d2rmm/agent-ui test` and `CARGO nextest run -p d2rmm-agent-core --lib`
 - [ ] T16 — Headless agent and acceptance steps for the new scenarios (fake clipboard, `copy-again` stdin command); run
       `pnpm exec turbo run test:acceptance -- --grep @AST-`. Gate: that command

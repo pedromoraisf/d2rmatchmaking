@@ -15,6 +15,7 @@ const GET_NEW_CODE_COMMAND = 'get_new_code';
 const GET_CONSENT_COMMAND = 'get_consent';
 const SET_CONSENT_COMMAND = 'set_consent';
 const SET_HOTKEY_COMMAND = 'set_hotkey';
+const COPY_AGAIN_COMMAND = 'copy_again';
 // Shown until the core publishes its first state: the window is asking for a code.
 const NO_PRESS = 'none';
 const PAIRING_BEFORE_FIRST_STATE: PairingState = 'requesting';
@@ -72,6 +73,11 @@ export function App({ translate }: AppProps) {
     );
   };
 
+  // The player's "copy again" (AST-12): the agent writes the game name; how it went comes back in the view.
+  const copyAgain = () => {
+    void invoke(COPY_AGAIN_COMMAND);
+  };
+
   // The core stores the combination or refuses it with a reason code, which the view shows (RDY-07).
   const changeHotkey = async (combination: string) => {
     await invoke(SET_HOTKEY_COMMAND, { combination });
@@ -82,7 +88,7 @@ export function App({ translate }: AppProps) {
       <h1>{title}</h1>
       <ConsentView consent={consent} failed={consentFailed} translate={translate} onChange={changeConsent} />
       <PairingView pairing={pairing} translate={translate} onNewCode={requestNewCode} />
-      {view === null ? null : <StatusView view={view} translate={translate} />}
+      {view === null ? null : <StatusView view={view} translate={translate} onCopyAgain={copyAgain} />}
       {view === null ? null : (
         <HotkeysView hotkeys={view.hotkeys} translate={translate} onChange={changeHotkey} />
       )}

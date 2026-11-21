@@ -4,6 +4,8 @@
 use d2rmm_agent_domain::typing::HotkeyChoice;
 use serde::Serialize;
 
+use crate::copy_room_name::CopyOutcome;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum PairingView {
@@ -211,6 +213,10 @@ pub struct AgentView {
     pub ready_check_open: bool,
     /// The keys that accept a ready check (RDY-07).
     pub hotkeys: HotkeysView,
+    /// What the last copy of the room's game name came to (AST-12); absent with no held room and before the first copy. A
+    /// closed set of codes: no name, no text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_copy: Option<CopyOutcome>,
     /// The hotkeys the OS did not let the agent register while it wants them (AST-08; field test of 2026-11-21).
     /// A closed set of codes, no OS text; absent while every wanted hotkey is registered.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -259,6 +265,7 @@ mod tests {
             update: UpdateView::Idle,
             ready_check_open: true,
             hotkeys: HotkeysView::of(&HotkeyChoice::default_accept()),
+            last_copy: None,
             hotkey_unavailable: Vec::new(),
             last_press: None,
             diagnostics: None,
@@ -308,6 +315,7 @@ mod tests {
             update: UpdateView::Required,
             ready_check_open: false,
             hotkeys: HotkeysView::of(&HotkeyChoice::default_accept()),
+            last_copy: None,
             hotkey_unavailable: vec![HotkeyFault {
                 slot: HotkeySlot::Accept,
                 reason: HotkeyFailure::NoManager,
@@ -334,6 +342,43 @@ mod tests {
                 "diagnostics": null,
             })
         );
+    }
+
+    #[test]
+    fn the_last_copy_serialises_as_a_code_and_is_left_out_when_absent() {
+        use crate::copy_room_name::CopyOutcome;
+        let mut view = AgentView {
+            pairing: PairingView::Paired,
+            connectivity: Connectivity::Connected,
+            room: None,
+            update: UpdateView::Idle,
+            ready_check_open: false,
+            hotkeys: HotkeysView::of(&HotkeyChoice::default_accept()),
+            last_copy: None,
+            hotkey_unavailable: Vec::new(),
+            last_press: None,
+            diagnostics: None,
+            capture: None,
+            config_version: 0,
+        };
+        assert!(
+            serde_json::to_value(&view)
+                .expect("the view serializes")
+                .get("lastCopy")
+                .is_none()
+        );
+        for (outcome, code) in [
+            (CopyOutcome::Copied, "copied"),
+            (CopyOutcome::CopiedAgain, "copied-again"),
+            (CopyOutcome::RefusedName, "refused-name"),
+            (CopyOutcome::Failed, "failed"),
+        ] {
+            view.last_copy = Some(outcome);
+            assert_eq!(
+                serde_json::to_value(&view).expect("the view serializes")["lastCopy"],
+                code
+            );
+        }
     }
 
     #[test]
@@ -417,6 +462,7 @@ mod tests {
             update: UpdateView::Idle,
             ready_check_open: false,
             hotkeys: HotkeysView::of(&HotkeyChoice::default_accept()),
+            last_copy: None,
             diagnostics: None,
             capture: None,
             hotkey_unavailable: Vec::new(),

@@ -1,4 +1,4 @@
-// Generates the permissions of the app's commands (allow-get-new-code, allow-get-consent, allow-set-consent, allow-set-hotkey) and the capability schema checks (AGS-01, AGS-04).
+// Generates the permissions of the app's commands (allow-get-new-code, allow-get-consent, allow-set-consent, allow-set-hotkey, allow-copy-again) and the capability schema checks (AGS-01, AGS-04).
 // Every command registered in `generate_handler!` must be listed here and allowed in capabilities/main.json.
 //
 // The API base (`D2RMM_API_BASE`) is read with `option_env!` in config.rs. A build without it compiles but cannot start, and
@@ -13,6 +13,7 @@ fn main() {
             "get_consent",
             "set_consent",
             "set_hotkey",
+            "copy_again",
         ]),
     ))
     .expect("failed to run tauri-build");

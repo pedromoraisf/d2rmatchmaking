@@ -60,6 +60,15 @@ describe('App', () => {
     expect(invoke).toHaveBeenCalledWith('set_hotkey', { combination: 'Alt+Q' });
   });
 
+  it('asks the agent to copy the game name again through the copy_again command (AST-12)', () => {
+    render(<App translate={en} />);
+    publish(view({ room: { gameName: 'mmbaalh-12', needsReveal: false, matched: false } }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy again' }));
+
+    expect(invoke).toHaveBeenCalledWith('copy_again');
+  });
+
   it('paused view requests a new code through the get_new_code command', () => {
     render(<App translate={en} />);
     publish(view({ pairing: 'paused' }));

@@ -897,12 +897,14 @@ test('tauri.conf.json keeps the hardened shell', () => {
   );
 });
 
-test('the window gets exactly listen, unlisten, get_new_code, get_consent, set_consent and set_hotkey', () => {
+test('the window gets exactly listen, unlisten, get_new_code, get_consent, set_consent, set_hotkey and copy_again', () => {
   const capability = readJson(`${agentTauri}/capabilities/main.json`);
   assert.deepEqual(capability.windows, ['main']);
   assert.deepEqual(
     [...capability.permissions].sort(),
     [
+      // The window asks the agent to copy the game name again (AST-12); the agent writes the clipboard, the window never does.
+      'allow-copy-again',
       'allow-get-consent',
       'allow-get-new-code',
       'allow-set-consent',

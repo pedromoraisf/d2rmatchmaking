@@ -4,6 +4,7 @@ import { createAgentI18n, translatorFor } from '../shared/i18n.ts';
 import type {
   AgentView,
   CaptureDiagnostics,
+  CopyOutcome,
   Diagnostics,
   HotkeyFailure,
   HotkeyFault,
@@ -21,6 +22,11 @@ const ptBR = translatorFor(createAgentI18n('pt-BR'));
 const DEFAULT_KEYS = { accept: 'Ctrl+Shift+A' };
 const ACCEPT_REFUSED: HotkeyFault[] = [{ slot: 'accept', reason: 'no-manager' }];
 const NONE_YET = 'none';
+const COPIED: CopyOutcome = 'copied';
+const COPIED_AGAIN: CopyOutcome = 'copied-again';
+const REFUSED_NAME: CopyOutcome = 'refused-name';
+const COPY_FAILED: CopyOutcome = 'failed';
+const HELD_ROOM = { gameName: 'mmbaalh-12', needsReveal: false, matched: false };
 const ACCEPT_PRESS: HotkeyPress = 'accept';
 const PRESSES: HotkeyPress[] = ['accept', 'unmatched'];
 const REASONS: HotkeyFailure[] = ['no-manager', 'refused', 'unmapped', 'dispatch'];
@@ -271,6 +277,70 @@ describe('accept hotkey status and hotkeys (RDY-07, AST-08)', () => {
       expect((await screen.findByRole('alert')).textContent, reason).toBe(text);
       unmount();
     }
+  });
+});
+
+describe('copying the game name (AST-12, AST-10)', () => {
+  it('tells the player to paste with Ctrl+V and create the game, in English and Portuguese', () => {
+    const { unmount } = renderStatus({ room: HELD_ROOM, lastCopy: COPIED });
+    expect(
+      screen.getByText(
+        'Game name copied. Paste it with Ctrl+V in the Game Creator and create the game yourself.',
+      ),
+    ).toBeTruthy();
+    unmount();
+    render(<StatusView view={view({ room: HELD_ROOM, lastCopy: COPIED })} translate={ptBR} />);
+    expect(screen.getByText(/Cole com Ctrl\+V no Criador de jogo e crie a partida você mesmo/)).toBeTruthy();
+  });
+
+  it('says a refused name or a failed write could not be copied and points to the site, in both languages', () => {
+    for (const [lastCopy, english, portuguese] of [
+      [
+        REFUSED_NAME,
+        /not a name the agent recognises.*copy button on the site/,
+        /não é um nome que o agente reconhece.*botão de copiar no site/,
+      ],
+      [
+        COPY_FAILED,
+        /could not be copied\. Use the copy button on the site/,
+        /Não foi possível copiar.*botão de copiar no site/,
+      ],
+    ] as const) {
+      const first = renderStatus({ room: HELD_ROOM, lastCopy });
+      expect(first.container.textContent, lastCopy).toMatch(english);
+      first.unmount();
+      const second = render(<StatusView view={view({ room: HELD_ROOM, lastCopy })} translate={ptBR} />);
+      expect(second.container.textContent, lastCopy).toMatch(portuguese);
+      second.unmount();
+    }
+  });
+
+  it('gives every outcome its own line and shows none without a room', () => {
+    const seen = new Set<string>();
+    for (const lastCopy of [COPIED, COPIED_AGAIN, REFUSED_NAME, COPY_FAILED]) {
+      const { container, unmount } = renderStatus({ room: HELD_ROOM, lastCopy });
+      const text = container.textContent ?? '';
+      expect(seen.has(text), `${lastCopy} has its own line`).toBe(false);
+      seen.add(text);
+      unmount();
+    }
+    const { container } = renderStatus({ pairing: 'requesting', room: null, lastCopy: COPIED });
+    expect(container.textContent).toBe('');
+  });
+
+  it('offers "copy again" only while a room is held and asks for the copy on a click', () => {
+    const onCopyAgain = vi.fn();
+    const { unmount } = render(
+      <StatusView view={view({ room: HELD_ROOM })} translate={en} onCopyAgain={onCopyAgain} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Copy again' }));
+    expect(onCopyAgain).toHaveBeenCalledTimes(1);
+    unmount();
+    render(<StatusView view={view({ room: HELD_ROOM })} translate={ptBR} onCopyAgain={onCopyAgain} />);
+    expect(screen.getByRole('button', { name: 'Copiar de novo' })).toBeTruthy();
+    cleanup();
+    render(<StatusView view={view({ room: null })} translate={en} onCopyAgain={onCopyAgain} />);
+    expect(screen.queryByRole('button', { name: 'Copy again' })).toBeNull();
   });
 });
 

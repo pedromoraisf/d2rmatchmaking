@@ -1,6 +1,6 @@
 {
   "identifier": "main",
-  "description": "The agent window: listen to agent-state, ask for a new pairing code, and read and save the capture consent (allow-get-consent, allow-set-consent), and set the accept hotkey (allow-set-hotkey). Nothing else.",
+  "description": "The agent window: listen to agent-state, ask for a new pairing code, and read and save the capture consent (allow-get-consent, allow-set-consent), set the accept hotkey (allow-set-hotkey), and ask the agent to copy the game name again (allow-copy-again). Nothing else.",
   "windows": ["main"],
   "permissions": [
     "core:event:allow-listen",
@@ -8,6 +8,7 @@
     "allow-get-new-code",
     "allow-get-consent",
     "allow-set-consent",
-    "allow-set-hotkey"
+    "allow-set-hotkey",
+    "allow-copy-again"
   ]
 }

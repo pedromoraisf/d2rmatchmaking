@@ -3,11 +3,12 @@
 //! name shape), never reads the clipboard and sends no key to any window.
 
 use std::num::NonZeroU64;
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::typing::TypableName;
 
+use crate::device_state::DeviceState;
 use crate::ports::Clipboard;
 
 /// What one copy came to: a closed set of codes with no name and no text (AST-10).
@@ -109,6 +110,34 @@ pub fn copy_again(
         clipboard,
         CopyOutcome::CopiedAgain,
     ))
+}
+
+/// The loop that copies: it looks at the assignment now and at every change, copies a new run once and shows the outcome. A
+/// closed room clears what the window shows. It ends with the device state's channel, which lives as long as the process.
+pub async fn run(
+    device: Arc<DeviceState>,
+    clipboard: Arc<dyn Clipboard + Send + Sync>,
+    ledger: Arc<CopyLedger>,
+) {
+    let mut assignments = device.assignment.subscribe();
+    loop {
+        let (held, outcome) = {
+            let slot = assignments.borrow_and_update();
+            let held = slot.current().is_some();
+            (
+                held,
+                on_assignment(slot.current(), clipboard.as_ref(), &ledger),
+            )
+        };
+        match outcome {
+            Some(outcome) => device.record_copy(outcome),
+            None if !held => device.clear_copy(),
+            None => {}
+        }
+        if assignments.changed().await.is_err() {
+            return;
+        }
+    }
 }
 
 #[cfg(test)]

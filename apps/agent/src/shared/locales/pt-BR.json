@@ -22,6 +22,13 @@
     "confirmed": "Sala {{gameName}} — presença confirmada",
     "revealHint": "Abra o painel Party (P) e clique no olho para mostrar o nome do jogo."
   },
+  "copy": {
+    "copied": "Nome da partida copiado. Cole com Ctrl+V no Criador de jogo e crie a partida você mesmo.",
+    "copied-again": "Nome da partida copiado de novo. Cole com Ctrl+V no Criador de jogo e crie a partida você mesmo.",
+    "refused-name": "Não foi possível copiar o nome da partida: não é um nome que o agente reconhece. Use o botão de copiar no site.",
+    "failed": "Não foi possível copiar o nome da partida. Use o botão de copiar no site.",
+    "again": "Copiar de novo"
+  },
   "update": {
     "failed": "Falha na atualização — tentará novamente",
     "required": "Atualização necessária"

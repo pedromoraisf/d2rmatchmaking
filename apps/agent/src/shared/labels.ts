@@ -91,6 +91,9 @@ export interface Hotkeys {
   accept: string;
 }
 
+// What the last copy of the room's game name came to: a closed set of codes from the core (AST-12, AST-10).
+export type CopyOutcome = 'copied' | 'copied-again' | 'refused-name' | 'failed';
+
 // The remote configuration the agent runs, as a line of the diagnostics: `0` is the built-in defaults (remote-config RCF-08).
 export function configLabel(version: number): Label {
   return { key: 'diagnostics.config', values: { version } };
@@ -119,6 +122,8 @@ export interface AgentView {
   readyCheckOpen: boolean;
   // The key that accepts a ready check (RDY-07), as the core spells it.
   hotkeys: Hotkeys;
+  // What the last copy of the room's game name came to (AST-12); absent with no held room and before the first copy.
+  lastCopy?: CopyOutcome;
   // The hotkeys the OS refused to register while they are wanted (AST-08); absent when it is registered.
   hotkeyUnavailable?: HotkeyFault[];
   // The last hotkey press the OS delivered to the agent (proves delivery); absent until the first one.
@@ -178,6 +183,17 @@ export function roomLabel(room: RoomState | null): Label | null {
 // match has come for this run (AGN-04).
 export function revealLabel(room: RoomState | null): Label | null {
   return room !== null && room.needsReveal && !room.matched ? { key: 'room.revealHint' } : null;
+}
+
+// The line about copying the game name while the agent holds a room: "copied, paste it with Ctrl+V and create the game
+// yourself", or why nothing was copied and the site's copy button instead (AST-12). Nothing without a room.
+export function copyLabel(room: RoomState | null, outcome: CopyOutcome | undefined): Label | null {
+  return room === null || outcome === undefined ? null : { key: `copy.${outcome}` };
+}
+
+// The "copy again" button exists only while the agent holds a room (AST-12).
+export function offersCopyAgain(room: RoomState | null): boolean {
+  return room !== null;
 }
 
 // The hotkey line while a ready check is open (RDY-07, en and pt-BR): the window names the key, and only while it is open.

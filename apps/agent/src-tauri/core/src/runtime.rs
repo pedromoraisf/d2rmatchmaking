@@ -11,11 +11,12 @@ use d2rmm_agent_domain::typing::HotkeyChoice;
 use tokio::sync::{mpsc, watch};
 
 use crate::config::Config;
+use crate::copy_room_name::{self, CopyLedger, CopyOutcome};
 use crate::device_state::DeviceState;
 use crate::groups::StreamPorts;
 use crate::groups::{Groups, ReadPorts};
 use crate::pair::{self, Command};
-use crate::ports::{ApiGateway, ConfigGateway, Rgba, StateSink, TokenStore};
+use crate::ports::{ApiGateway, Clipboard, ConfigGateway, Rgba, StateSink, TokenStore};
 use crate::post_observation;
 use crate::ready_check;
 use crate::remote_config::{self, ConfigFetch, ConfigPorts};
@@ -84,6 +85,7 @@ fn spawn<G: ApiGateway + Send + Sync + 'static>(
         read: Arc::new(read),
         ready,
         commands,
+        clipboard: None,
     }
 }
 
@@ -93,9 +95,34 @@ pub struct Handle<G> {
     read: Arc<ReadPorts<G>>,
     ready: Arc<StreamPorts<G>>,
     commands: mpsc::Sender<Command>,
+    /// The clipboard of the app, once it supplies one (AST-11); none until then, and `copy_again` does nothing without it.
+    clipboard: Option<Arc<dyn Clipboard + Send + Sync>>,
 }
 
 impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
+    /// Gives the handle the clipboard and starts the loop that copies each run's game name once (AST-11). Call it inside the
+    /// runtime's context.
+    #[must_use]
+    pub fn with_clipboard(mut self, clipboard: Arc<dyn Clipboard + Send + Sync>) -> Self {
+        tokio::spawn(copy_room_name::run(
+            Arc::clone(&self.device),
+            Arc::clone(&clipboard),
+            Arc::new(CopyLedger::new()),
+        ));
+        self.clipboard = Some(clipboard);
+        self
+    }
+
+    /// The player's "copy again" (AST-12): writes the held room's game name once more and shows how it went. `None` with no
+    /// held room or no clipboard.
+    pub fn copy_again(&self) -> Option<CopyOutcome> {
+        let clipboard = self.clipboard.as_ref()?;
+        let held = self.device.assignment.borrow().current().cloned();
+        let outcome = copy_room_name::copy_again(held.as_ref(), clipboard.as_ref())?;
+        self.device.record_copy(outcome);
+        Some(outcome)
+    }
+
     /// Starts the remote configuration loop (RCF-04): the last good body is applied at once, and the API is asked once the agent is
     /// paired and then every `every`. Call it inside the runtime's context.
     #[must_use]
@@ -236,14 +263,16 @@ mod tests {
     use d2rmm_agent_domain::language::LanguagePack;
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
 
+    use crate::copy_room_name::CopyOutcome;
+
     use d2rmm_agent_domain::typing::HotkeyChoice;
 
     use super::{Handle, Probe, Runtime};
     use crate::config::Config;
     use crate::device_state::DeviceState;
     use crate::fakes::{
-        FakeApiGateway, MemoryTokens, NoConsent, NoFrameReader, NoFrames, NoProcesses, NoText,
-        NoUpdates, NullSink,
+        FakeApiGateway, FakeClipboard, MemoryTokens, NoConsent, NoFrameReader, NoFrames,
+        NoProcesses, NoText, NoUpdates, NullSink,
     };
     use crate::groups::{
         Groups, HeartbeatPorts, PairingPorts, ReadPorts, StreamPorts, UpdatePorts,
@@ -368,6 +397,101 @@ mod tests {
             groups(&gateway, &tokens),
         );
         (handle, probe)
+    }
+
+    fn with_clipboard() -> (Handle<FakeApiGateway>, Probe, Arc<FakeClipboard>) {
+        let (handle, probe) = started();
+        let clipboard = Arc::new(FakeClipboard::default());
+        (handle.with_clipboard(clipboard.clone()), probe, clipboard)
+    }
+
+    async fn settle() {
+        for _ in 0..8 {
+            tokio::task::yield_now().await;
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_room_that_opens_is_copied_once_and_shown() {
+        let (handle, probe, clipboard) = with_clipboard();
+        settle().await;
+        assert_eq!(clipboard.writes(), 0, "no room, nothing copied");
+
+        probe.set_assignment(Some(assignment()));
+        settle().await;
+        assert_eq!(clipboard.held().as_deref(), Some("mmbaalh-12"));
+        assert_eq!(
+            handle.device.hub.snapshot().last_copy,
+            Some(CopyOutcome::Copied)
+        );
+
+        // The same run stated again copies nothing more.
+        probe.set_assignment(Some(assignment()));
+        settle().await;
+        assert_eq!(clipboard.writes(), 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_closed_room_clears_the_copy_line_and_copy_again_does_nothing() {
+        let (handle, probe, clipboard) = with_clipboard();
+        probe.set_assignment(Some(assignment()));
+        settle().await;
+
+        probe.set_assignment(None);
+        settle().await;
+
+        assert_eq!(handle.device.hub.snapshot().last_copy, None);
+        assert_eq!(handle.copy_again(), None);
+        assert_eq!(clipboard.writes(), 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn copy_again_writes_the_held_name_and_shows_it() {
+        let (handle, probe, clipboard) = with_clipboard();
+        probe.set_assignment(Some(assignment()));
+        settle().await;
+        clipboard.replace("something else");
+
+        assert_eq!(handle.copy_again(), Some(CopyOutcome::CopiedAgain));
+
+        assert_eq!(clipboard.held().as_deref(), Some("mmbaalh-12"));
+        assert_eq!(
+            handle.device.hub.snapshot().last_copy,
+            Some(CopyOutcome::CopiedAgain)
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_handle_without_a_clipboard_copies_nothing() {
+        let (handle, probe) = started();
+        probe.set_assignment(Some(assignment()));
+        settle().await;
+        assert_eq!(handle.copy_again(), None);
+        assert_eq!(handle.device.hub.snapshot().last_copy, None);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_failed_write_is_shown_and_a_refused_name_is_never_written() {
+        let (handle, probe, clipboard) = with_clipboard();
+        clipboard.set_failing(true);
+        probe.set_assignment(Some(assignment()));
+        settle().await;
+        assert_eq!(
+            handle.device.hub.snapshot().last_copy,
+            Some(CopyOutcome::Failed)
+        );
+
+        clipboard.set_failing(false);
+        let mut odd = assignment();
+        odd.run = std::num::NonZeroU64::new(2).expect("a run number");
+        odd.expected_game_name = GameName::new("MMBAALH-12");
+        probe.set_assignment(Some(odd));
+        settle().await;
+        assert_eq!(
+            handle.device.hub.snapshot().last_copy,
+            Some(CopyOutcome::RefusedName)
+        );
+        assert_eq!(clipboard.writes(), 0);
     }
 
     #[tokio::test(start_paused = true)]

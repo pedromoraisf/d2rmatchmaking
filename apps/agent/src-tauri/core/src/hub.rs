@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use d2rmm_agent_domain::typing::HotkeyChoice;
 
+use crate::copy_room_name::CopyOutcome;
 use crate::ports::StateSink;
 use crate::view::{
     AgentView, CaptureView, Connectivity, DiagnosticsView, HotkeyFailure, HotkeyFault, HotkeyPress,
@@ -28,6 +29,7 @@ impl Hub {
                 update: UpdateView::Idle,
                 ready_check_open: false,
                 hotkeys: HotkeysView::of(&HotkeyChoice::default_accept()),
+                last_copy: None,
                 hotkey_unavailable: Vec::new(),
                 last_press: None,
                 diagnostics: None,
@@ -70,6 +72,14 @@ impl Hub {
     /// Shows the accept hotkey the agent registers (RDY-07).
     pub fn set_hotkeys(&self, accept: &HotkeyChoice) {
         self.change(|view| view.hotkeys = HotkeysView::of(accept));
+    }
+
+    /// Shows what the last copy of the game name came to, or (`None`) that there is none to show (AST-12). An unchanged
+    /// answer publishes nothing.
+    pub fn set_last_copy(&self, outcome: Option<CopyOutcome>) {
+        if lock(&self.view).last_copy != outcome {
+            self.change(|view| view.last_copy = outcome);
+        }
     }
 
     /// Shows why the OS did not let the agent register a hotkey it wants, or (`None`) that it holds it now (AST-08).
