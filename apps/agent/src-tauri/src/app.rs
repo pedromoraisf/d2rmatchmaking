@@ -271,10 +271,9 @@ mod shell {
     use d2rmm_agent_domain::typing::HotkeyChoice;
 
     use super::{
-        FileConsentStore, FileHotkeyStore, HotkeyRegistrar, Press, Slot, app_context,
-        apply_hotkey_change, code_name, consent_store_in, handle_get_consent, handle_get_new_code,
-        handle_set_consent, is_app_url, press_of, reconcile_and_report, report_dispatch_failed,
-        wanted_hotkeys,
+        FileConsentStore, FileHotkeyStore, HotkeyRegistrar, Slot, app_context, apply_hotkey_change,
+        code_name, consent_store_in, handle_get_consent, handle_get_new_code, handle_set_consent,
+        is_app_url, press_of, reconcile_and_report, report_dispatch_failed, wanted_hotkeys,
     };
     use crate::adapters::token_store::KeyringTokenStore;
     use crate::adapters::typing::{HeldModifiers, SendTyper};
