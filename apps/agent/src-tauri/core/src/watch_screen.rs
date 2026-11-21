@@ -89,7 +89,10 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
     device.hub.set_capture(capture_of(
         content,
         ports.frames.window_size(),
-        device.with_party(|progress| progress.last_look()),
+        device
+            .party_look_describes_screen()
+            .then(|| device.with_party(|progress| progress.last_look()))
+            .flatten(),
         status,
     ));
     let mut diagnostics = diagnostics_of(&reading, &frame, previous_post(device));
@@ -1014,6 +1017,37 @@ mod tests {
         assert_eq!(capture.brightness, 0);
         assert_eq!((capture.window_width, capture.window_height), (None, None));
         assert_eq!(capture.party, None, "no room, no Party look");
+    }
+
+    /// Lesson "A diagnostic line in the agent window must reflect state changes": the Party line kept the look of the game
+    /// after the player left it (field test 2026-11-21: "panel open, name matches" on the character selection screen).
+    #[tokio::test]
+    async fn the_party_look_is_not_shown_once_the_screen_leaves_the_game() {
+        let rig = rig(
+            true,
+            true,
+            frame(),
+            FrameReading::without_cards(Screen::InGame),
+        );
+        rig.device.replace_assignment(Some(assignment()));
+        let party = |rig: &Rig| rig.device.hub.snapshot().capture.and_then(|c| c.party);
+
+        look(&rig, &mut None).await;
+        assert!(party(&rig).is_some(), "in the game the look is shown");
+
+        // The held run is done matching, so later looks do not replace the look the game left behind.
+        rig.device.set_paired(false);
+        *rig.reader.reading.lock().expect("the reading lock") = selecting(Vec::new());
+        look(&rig, &mut None).await;
+        assert_eq!(party(&rig), None, "left the game: no Party look");
+
+        look(&rig, &mut None).await;
+        assert_eq!(party(&rig), None, "and it stays hidden on the next look");
+
+        *rig.reader.reading.lock().expect("the reading lock") =
+            FrameReading::without_cards(Screen::InGame);
+        look(&rig, &mut None).await;
+        assert!(party(&rig).is_some(), "back in the game the look is shown");
     }
 
     #[tokio::test]
