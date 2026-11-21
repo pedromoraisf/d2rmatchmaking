@@ -16,6 +16,7 @@ const GET_CONSENT_COMMAND = 'get_consent';
 const SET_CONSENT_COMMAND = 'set_consent';
 const SET_HOTKEY_COMMAND = 'set_hotkey';
 // Shown until the core publishes its first state: the window is asking for a code.
+const NO_PRESS = 'none';
 const PAIRING_BEFORE_FIRST_STATE: PairingState = 'requesting';
 
 interface AppProps {
@@ -86,7 +87,13 @@ export function App({ translate }: AppProps) {
         <HotkeysView hotkeys={view.hotkeys} translate={translate} onChange={changeHotkey} />
       )}
       {view === null ? null : (
-        <DiagnosticsView diagnostics={view.diagnostics} capture={view.capture} translate={translate} />
+        <DiagnosticsView
+          diagnostics={view.diagnostics}
+          capture={view.capture}
+          configVersion={view.configVersion}
+          lastPress={view.lastPress ?? NO_PRESS}
+          translate={translate}
+        />
       )}
     </main>
   );

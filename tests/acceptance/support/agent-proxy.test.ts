@@ -86,6 +86,32 @@ describe('the recording proxy', () => {
   });
 });
 
+describe('the recording proxy and a chat sighting', () => {
+  it('keeps the type and the value of a chat sighting and no value of any other body', async () => {
+    proxy = await startRecordingProxy(upstreamUrl);
+    const send = (body: unknown) =>
+      fetch(`${proxy?.url}/v1/lobby-rooms/r/observations`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    await send({ type: 'PLAYER_JOINED_SEEN', value: 'Hammer', run: 1 });
+    await send({ type: 'PLAYER_LEFT_SEEN', value: 'Eve', run: 1 });
+    await send({ type: 'GAME_NAME_SEEN', value: 'mmbaalh-1', run: 1 });
+    await expect
+      .poll(() => proxy?.requests().filter((record) => record.bodyKeys !== undefined).length)
+      .toBe(3);
+
+    const records = proxy?.requests() ?? [];
+    expect(records.map((record) => record.chat)).toStrictEqual([
+      { type: 'PLAYER_JOINED_SEEN', value: 'Hammer' },
+      { type: 'PLAYER_LEFT_SEEN', value: 'Eve' },
+      undefined,
+    ]);
+    expect(JSON.stringify(records)).not.toContain('mmbaalh-1');
+  });
+});
+
 describe('the recording proxy streams', () => {
   it('hands the headers of an event stream on at once, before any body chunk', async () => {
     let release: (() => void) | undefined;

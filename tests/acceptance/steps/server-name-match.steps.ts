@@ -1,11 +1,19 @@
 // Steps of server-name-match, the API half (SNM-01, SNM-02, SNM-03, SNM-04, SNM-07, SNM-08): a player's agent reports a name
 // it read, the API matches it to the room's members or to the account's characters, and keeps only the match. Simulated
-// agents only; no browser. The agent half (SNM-05, SNM-06) has its steps with the headless agent in batch 2.
+// agents only; no browser. The agent half (SNM-05, SNM-06) uses the headless agent, the drawn chat fixture of game-name-reading
+// and the recording proxy (`support/agent-wire.ts`).
 import { randomUUID } from 'node:crypto';
+import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { expect } from '@playwright/test';
-import { Given, Then, When } from '../fixtures.ts';
+import { After, Before, Given, Then, When, test } from '../fixtures.ts';
+import { awaitRequest } from '../support/agent-proxy.ts';
+import { closeWires, enableWire, wireOf } from '../support/agent-wire.ts';
+import { HeadlessAgent } from '../support/headless-agent.ts';
 import { SESSION_COOKIE, type World } from '../support/world.ts';
-import { expectStage, roomViewOf } from './lobby-rooms.steps.ts';
+import { agentOf } from './characters-reading.steps.ts';
+import { expectStage, headlessOf, roomViewOf, startHeadless } from './lobby-rooms.steps.ts';
 import {
   HAMMER_OF_BOB,
   SORC_OF_ALICE,
@@ -235,4 +243,143 @@ Then("Alice's character list shows two characters", async ({ world }) => {
     listed.map((character) => `${character.name}/${character.level}`),
     "Alice's characters",
   ).toHaveLength(2);
+});
+
+// --- SNM-05, SNM-06: the agent posts the chat's joined and left messages ----------------------------------------------------
+
+const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..', '..');
+const CHAT_FIXTURES = path.join(REPO_ROOT, 'apps', 'agent', 'fixtures', 'chat');
+const START_TIMEOUT_MS = 480_000;
+const CHAT_WAIT_MS = 20_000;
+const CHAT_KEYS = ['capturedAt', 'confidence', 'idempotencyKey', 'run', 'type', 'value'];
+
+/** The chat picture the scenario's agent captures, and what the room held before the chat showed anything. */
+interface Chat {
+  readonly png: string;
+  readonly roomId: string | undefined;
+  readonly before: number;
+}
+
+const chats = new WeakMap<World, Chat>();
+
+Before({ tags: '@SNM-05 or @SNM-06' }, ({ world }) => {
+  enableWire(world);
+});
+
+After({ tags: '@SNM-05 or @SNM-06' }, async ({ world }) => {
+  await closeWires(world);
+});
+
+/** Copies a drawn chat fixture into a directory of the scenario and shows it, with no line yet, to the player's agent. */
+function prepareChat(fixture: string): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'd2rmm-chat-'));
+  const png = path.join(dir, `${fixture}.png`);
+  copyFileSync(path.join(CHAT_FIXTURES, `${fixture}.png`), png);
+  const drawn = JSON.parse(readFileSync(path.join(CHAT_FIXTURES, `${fixture}.png.json`), 'utf8')) as {
+    height: number;
+  };
+  writeFileSync(`${png}.json`, JSON.stringify({ height: drawn.height, lines: [] }));
+  return png;
+}
+
+Given(
+  /^(\w+)'s agent holds the room and sees the chat fixture "([^"]+)"$/,
+  async ({ world }, name: string, fixture: string) => {
+    test.setTimeout(START_TIMEOUT_MS);
+    await HeadlessAgent.build();
+    const roomId = world.player(name).room?.roomId;
+    await startHeadless(world, name, (await roomViewOf(world, name)).expectedGameName);
+    const png = prepareChat(fixture);
+    headlessOf(world, name).agent.show(png);
+    chats.set(world, {
+      png,
+      roomId,
+      before: roomId === undefined ? 0 : await world.stack.observationCount(roomId),
+    });
+  },
+);
+
+/** The agent of Alice in this scenario: the one that holds the room, or the one with consent and no room. */
+function aliceAgent(world: World): HeadlessAgent {
+  try {
+    return headlessOf(world, 'Alice').agent;
+  } catch {
+    return agentOf(world);
+  }
+}
+
+When(/^the chat shows that "([^"]+)" joined the game$/, async ({ world }, name: string) => {
+  let chat = chats.get(world);
+  if (chat === undefined) {
+    // An agent with no room: the chat is shown to it from now on, with the line already on it.
+    chat = { png: prepareChat('chat-joined'), roomId: undefined, before: 0 };
+    chats.set(world, chat);
+  }
+  const drawn = JSON.parse(readFileSync(path.join(CHAT_FIXTURES, 'chat-joined.png.json'), 'utf8')) as {
+    height: number;
+    lines: { text: string; x: number; y: number; width: number; height: number }[];
+  };
+  const [line] = drawn.lines;
+  if (line === undefined) throw new Error('the chat fixture draws no line');
+  writeFileSync(
+    `${chat.png}.json`,
+    JSON.stringify({ height: drawn.height, lines: [{ ...line, text: `${name} joined our world` }] }),
+  );
+  aliceAgent(world).show(chat.png);
+});
+
+Then("the API holds one joined sighting for Bob's character", async ({ world }) => {
+  const chat = chats.get(world);
+  if (chat?.roomId === undefined) throw new Error('no room holds the chat sighting in this scenario');
+  const roomId = chat.roomId;
+  await expect
+    .poll(() => world.stack.observationCount(roomId), {
+      timeout: CHAT_WAIT_MS,
+      message: 'the sighting of the chat line',
+    })
+    .toBe(chat.before + 1);
+  const rows = await world.stack.observationRows(roomId);
+  const kept = rows.slice(chat.before);
+  const bob = (await roomViewOf(world, 'Bob')).members.find((member) => member.role !== 'host');
+  expect(kept, 'the observations the chat line added').toEqual([
+    { type: 'PLAYER_JOINED_SEEN', value: String(bob?.joinOrder ?? 2) },
+  ]);
+});
+
+Then('the agent sent no observation', async ({ world }) => {
+  // The agent has no room, so it reads no chat; a chat line it would post would be posted within the wait.
+  await new Promise((resolve) => setTimeout(resolve, 5_000));
+  const sent = aliceAgent(world).events.filter((event) =>
+    ['observed', 'chat-observed'].includes(event.event),
+  );
+  expect(sent, "the observations Alice's agent sent").toEqual([]);
+});
+
+/** The chat sightings Alice's agent sent, as the recording proxy saw them. */
+async function chatSightings(world: World) {
+  const wire = wireOf(world, 'Alice');
+  await awaitRequest(wire, 'the chat sighting', (record) => record.chat !== undefined, CHAT_WAIT_MS);
+  // The body of the last request is read once it ends; a moment lets it finish.
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  return wire.requests().filter((record) => record.chat !== undefined);
+}
+
+Then(
+  "every chat observation Alice's agent sent holds only the keys of the observation contract",
+  async ({ world }) => {
+    const sightings = await chatSightings(world);
+    expect(sightings.length, 'the chat observations the agent sent').toBeGreaterThan(0);
+    for (const record of sightings) {
+      expect(record.bodyKeys, `${record.method} ${record.path}`).toEqual(CHAT_KEYS);
+      expect(record.contentType, 'the media type of a chat observation').toBe('application/json');
+    }
+  },
+);
+
+Then('its value is the name and nothing else', async ({ world }) => {
+  const sightings = await chatSightings(world);
+  expect(
+    sightings.map((record) => record.chat),
+    'the type and the value of each chat observation',
+  ).toEqual([{ type: 'PLAYER_JOINED_SEEN', value: 'Hammer' }]);
 });

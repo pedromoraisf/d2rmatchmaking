@@ -36,6 +36,48 @@ describe('projectStreamEvent', () => {
     ]);
   });
 
+  it("the agent's copy of an assignment keeps the key with no members; the site's keeps them (SEG-03)", async () => {
+    const deliveries = await projectStreamEvent(assignment, agents);
+
+    for (const delivery of deliveries.filter((candidate) => candidate.stream === 'agent')) {
+      expect(delivery.event).toStrictEqual({
+        type: 'room.assigned',
+        data: { roomId: 'room-1', run: 1, expectedGameName: 'mmbaalh-1', members: [] },
+      });
+      expect(JSON.stringify(delivery.event)).not.toContain('account-');
+    }
+    for (const delivery of deliveries.filter((candidate) => candidate.stream === 'site')) {
+      expect(delivery.event).toStrictEqual({
+        type: 'room.assigned',
+        data: { roomId: 'room-1', run: 1, expectedGameName: 'mmbaalh-1', members },
+      });
+    }
+  });
+
+  it("the agent's copy of a new run keeps the key with no members; the site's keeps them (SEG-03)", async () => {
+    const opened: AnyDomainEvent = {
+      type: 'RoomRunOpened',
+      payload: { roomId: 'room-1', run: 2, expectedGameName: 'mmbaalh-2', members },
+    };
+
+    const deliveries = await projectStreamEvent(opened, agents);
+
+    const toAgents = deliveries.filter((candidate) => candidate.stream === 'agent');
+    expect(toAgents).toHaveLength(2);
+    for (const delivery of toAgents) {
+      expect(delivery.event).toStrictEqual({
+        type: 'room.run_opened',
+        data: { roomId: 'room-1', run: 2, expectedGameName: 'mmbaalh-2', members: [] },
+      });
+    }
+    for (const delivery of deliveries.filter((candidate) => candidate.stream === 'site')) {
+      expect(delivery.event).toStrictEqual({
+        type: 'room.run_opened',
+        data: { roomId: 'room-1', run: 2, expectedGameName: 'mmbaalh-2', members },
+      });
+    }
+  });
+
   it('an assignment to a member without an agent gives only the site recipient', async () => {
     const withoutAgent: CurrentAgentLookup = { currentAgentOf: async () => null };
 
@@ -347,6 +389,29 @@ describe('projectStreamEvent: ready checks (RDY-01, RDY-02, RDY-03)', () => {
     });
   });
 
+  it("gives the agent's copy of the open check no members, and the site's its members (SEG-03)", async () => {
+    const deliveries = await projectStreamEvent(started, agents);
+
+    const toAgents = deliveries.filter((delivery) => delivery.stream === 'agent');
+    expect(toAgents).toHaveLength(2);
+    for (const delivery of toAgents) {
+      expect(delivery.event).toStrictEqual({
+        type: 'ready_check.started',
+        data: {
+          id: 'rc-1',
+          mode: 'pvp',
+          difficulty: 'hell',
+          deadline: '2026-11-10T12:01:00.000Z',
+          now: '2026-11-10T12:00:00.000Z',
+          members: [],
+        },
+      });
+    }
+    for (const delivery of deliveries.filter((candidate) => candidate.stream === 'site')) {
+      expect(delivery.event.type === 'ready_check.started' && delivery.event.data.members).toHaveLength(2);
+    }
+  });
+
   it('never carries an account id in the check body the recipient reads', async () => {
     const deliveries = await projectStreamEvent(started, agents);
     // The routing fields (`accountId`, `agentId`) stay in the envelope; the event body names nobody.
@@ -372,4 +437,56 @@ describe('projectStreamEvent: ready checks (RDY-01, RDY-02, RDY-03)', () => {
       event: { type: 'ready_check.resolved', data: { id: 'rc-1', outcome: 'timed-out' } },
     });
   });
+});
+
+describe('projectStreamEvent looks the agents up together (UPK-04)', () => {
+  /** A lookup that records when each call starts and answers only when released, last call first. */
+  function gatedLookup() {
+    const started: string[] = [];
+    const release: Array<() => void> = [];
+    const lookup: CurrentAgentLookup = {
+      currentAgentOf: (accountId) =>
+        new Promise((resolve) => {
+          started.push(accountId);
+          release.push(() => resolve(agentOf[accountId] ?? null));
+        }),
+    };
+    return { lookup, started, releaseLastFirst: () => [...release].reverse().forEach((run) => run()) };
+  }
+
+  const events: Array<[string, AnyDomainEvent]> = [
+    ['an assignment', assignment],
+    ['an ended room', { type: 'RoomStageChanged', payload: { roomId: 'room-1', stage: 'closed', members } }],
+    [
+      'a new run',
+      {
+        type: 'RoomRunOpened',
+        payload: { roomId: 'room-1', run: 2, expectedGameName: 'mmbaalh-2', members },
+      },
+    ],
+    [
+      'a resolved ready check',
+      {
+        type: 'ReadyCheckResolved',
+        payload: { readyCheckId: 'rc-1', outcome: 'timed-out', accountIds: ['account-1', 'account-2'] },
+      },
+    ],
+  ];
+
+  it.each(events)(
+    '%s: every lookup starts before any answers, and the order is the members’',
+    async (_name, event) => {
+      const { lookup, started, releaseLastFirst } = gatedLookup();
+
+      const pending = projectStreamEvent(event, lookup);
+      await Promise.resolve();
+      expect(started).toEqual(['account-1', 'account-2']);
+      releaseLastFirst();
+      const deliveries = await pending;
+
+      expect(
+        deliveries.map((delivery) => (delivery.stream === 'site' ? delivery.accountId : delivery.agentId)),
+      ).toEqual(['account-1', 'agent-1', 'account-2', 'agent-2']);
+    },
+  );
 });

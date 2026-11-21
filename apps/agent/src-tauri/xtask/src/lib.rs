@@ -10,7 +10,9 @@ use std::path::{Path, PathBuf};
 use syn::{Fields, Item, parse_quote};
 use typify::{TypeSpace, TypeSpaceSettings};
 
+pub mod automap_name_fixture;
 pub mod character_fixture;
+pub mod chat_fixture;
 pub mod fixture;
 pub mod fullscreen_fixture;
 pub mod screen_fixture;
@@ -23,6 +25,7 @@ pub const CONTRACTS: &[(&str, &str)] = &[
     ("heartbeat.json", "Heartbeat"),
     ("assignment.json", "Assignment"),
     ("observation.json", "Observation"),
+    ("agent-config.json", "AgentConfig"),
     (
         "agent-event-ready-check-resolved.json",
         "ReadyCheckResolvedEvent",
@@ -33,6 +36,10 @@ pub const CONTRACTS: &[(&str, &str)] = &[
     ),
     ("agent-event-room-assigned.json", "RoomAssignedEvent"),
     ("agent-event-room-run-opened.json", "RoomRunOpenedEvent"),
+    (
+        "agent-event-room-stage-changed.json",
+        "RoomStageChangedEvent",
+    ),
     ("record-characters-request.json", "RecordCharactersRequest"),
 ];
 

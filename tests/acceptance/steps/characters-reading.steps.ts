@@ -158,6 +158,22 @@ export function showFixture(world: World, fixture: string, unreadable?: string):
 // The player has consent and no room: the agent reads the character screens of the scenario (CHR-04, CHR-06, CHR-18).
 // Its own step, not agent-game-name's: that one expects the player to hold a room (AGN-01).
 Given(/^(.+)'s agent has capture consent and no room$/, async ({ world }, name: string) => {
+  // A scenario whose Background formed a room (server-name-match) closes it first: "no room" is what the step promises.
+  const held = world.player(name).room;
+  if (held !== undefined) {
+    const closed = await fetch(`${world.site.api}/v1/lobby-rooms/${encodeURIComponent(held.roomId)}/close`, {
+      method: 'POST',
+      headers: {
+        Cookie: `${SESSION_COOKIE}=${await world.sessionOf(name)}`,
+        Origin: world.site.site,
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+      signal: AbortSignal.timeout(10_000),
+    });
+    expect(closed.status, `closing the room of "${name}"`).toBe(204);
+    delete world.player(name).room;
+  }
   expect(world.player(name).room, `the room of "${name}"`).toBeUndefined();
   await startHeadless(world, name, true);
 });
@@ -306,6 +322,6 @@ export async function stopHeadless(world: World): Promise<void> {
 }
 
 // Closes the example and removes its fixture directory after each character screen scenario.
-After({ tags: '@AGT-06 or @CHR-04 or @CHR-06 or @CHR-18 or @CHR-20' }, async ({ world }) => {
+After({ tags: '@AGT-06 or @CHR-04 or @CHR-06 or @CHR-18 or @CHR-20 or @SNM-05' }, async ({ world }) => {
   await stopHeadless(world);
 });

@@ -4,6 +4,7 @@
 import { fileURLToPath } from 'node:url';
 import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
+import { AGENT_CONFIG_FILE, loadAgentConfig } from '../modules/agents/adapters/file/agent-config-file.ts';
 import { migrateToLatest } from '../platform/postgres/migrator.ts';
 import { buildApp, type AppDatabase } from './app.ts';
 import { loadConfig, type Config } from './config.ts';
@@ -21,13 +22,18 @@ export interface LocalServer {
 }
 
 /** Starts the local API on loopback and returns its address. The caller owns `close()`. */
-export async function startLocal(config: Config): Promise<LocalServer> {
+export async function startLocal(
+  config: Config,
+  agentConfigFile: URL | string = AGENT_CONFIG_FILE,
+): Promise<LocalServer> {
   if (config.databaseUrl === undefined) {
     throw new Error('DATABASE_URL is required');
   }
   if (config.acceptance && config.testControlSecret === undefined) {
     throw new Error('TEST_CONTROL_SECRET is required when D2RMM_ACCEPTANCE=true');
   }
+  // The committed agent configuration is read and validated once, before any connection: a bad file stops the start (RCF-12).
+  const agentConfig = loadAgentConfig(agentConfigFile);
   const databaseUrl = new URL(config.databaseUrl);
   const pool = new pg.Pool({ connectionString: config.databaseUrl });
   const db = new Kysely<AppDatabase>({ dialect: new PostgresDialect({ pool }) });
@@ -51,6 +57,7 @@ export async function startLocal(config: Config): Promise<LocalServer> {
       random: new NodeRandomSource(),
       ids: new RandomUuidGenerator(),
       telemetryBackend: { endpoint: config.telemetry.endpoint, headers: config.telemetry.headers },
+      agentConfig,
     });
     if (controllable !== undefined && config.testControlSecret !== undefined) {
       registerTestControls(built.app, {

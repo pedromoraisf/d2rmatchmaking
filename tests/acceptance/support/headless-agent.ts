@@ -98,6 +98,9 @@ function cargoEnv(): Record<string, string> {
 /** The drawn character screens (`xtask draw-fixture characters`): a picture and its sidecar with the text of each region. */
 export const CHARACTER_FIXTURE_DIR = path.join(repoRoot, 'apps', 'agent', 'fixtures', 'characters');
 
+/** The drawn automap frames with a game name (`xtask draw-fixture automap-name`, game-name-reading): a picture and its lines. */
+export const AUTOMAP_NAME_FIXTURE_DIR = path.join(repoRoot, 'apps', 'agent', 'fixtures', 'automap-name');
+
 /** The per-mode screens (`xtask draw-fixture screens`, screen-recognition): in-game and automap at window and full screen. */
 export const SCREEN_FIXTURE_DIR = path.join(repoRoot, 'apps', 'agent', 'fixtures', 'screens');
 
@@ -180,6 +183,8 @@ export class HeadlessAgent {
     party?: boolean;
     consent?: boolean;
     agentVersion?: string;
+    /** More arguments for the example, after the ones above (remote-config: `--config-dir <dir>`). */
+    extraArgs?: readonly string[];
   }): HeadlessAgent {
     const versionArgs = options.agentVersion === undefined ? [] : ['--agent-version', options.agentVersion];
     const consentArgs = options.consent === false ? [] : ['--consent'];
@@ -197,6 +202,7 @@ export class HeadlessAgent {
         options.fixture,
         ...versionArgs,
         ...consentArgs,
+        ...(options.extraArgs ?? []),
       ],
       { cwd: repoRoot, env: cargoEnv(), detached: true, stdio: ['pipe', 'pipe', 'pipe'] },
     );

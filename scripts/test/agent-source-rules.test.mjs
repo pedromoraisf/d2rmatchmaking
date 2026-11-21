@@ -502,11 +502,14 @@ const RAW_UPLOAD = /multipart|octet-stream|\bimage\/|\.body\s*\(|Part::/;
 
 // The span exporter's client sends the protobuf batch with one `.body(...)`: the only raw body allowed, in that one file.
 const RELAY_CLIENT = 'adapters/src/telemetry/relay_client.rs';
+// The chat post (server-name-match) hands the HTTP adapter a name and nothing else: it names no frame type and sends no raw body.
+const CHAT_POST = 'core/src/chat_post.rs';
 const RAW_BODY = /\.body\s*\(/g;
 
 const outgoingDataViolations = (base) => {
   const files = rustFiles(base).filter(
-    ({ rel }) => (rel.startsWith('adapters/src/http/') || rel === RELAY_CLIENT) && !isTestFile(rel),
+    ({ rel }) =>
+      (rel.startsWith('adapters/src/http/') || rel === RELAY_CLIENT || rel === CHAT_POST) && !isTestFile(rel),
   );
   const manifest = crateFile(base, 'adapters/Cargo.toml') ?? '';
   return [
@@ -525,6 +528,21 @@ const outgoingDataViolations = (base) => {
     ...(/reqwest[^\n]*multipart/.test(manifest) ? ['adapters/Cargo.toml enables reqwest multipart'] : []),
   ];
 };
+
+// The chat post and the HTTP adapters that carry its body put no name in a span, an event or a counter (SNM-04, ADR 036): no
+// tracing call of `chat_post.rs` or of `adapters/src/http/**` names the player's name or the observation that holds it. Spans and events carry fixed words only.
+const TRACING_CALL =
+  /\b(?:tracing::)?(?:info_span|debug_span|trace_span|warn_span|error_span|span|info|debug|trace|warn|error|event)!\s*\(([^;]*?)\)\s*;/gs;
+const NAME_IN_TELEMETRY = /\bname\b|\bnames?\(\)|\bobservation\b|\bheld\b|\bevent\s*\.\s*1/;
+
+const chatPostTelemetryViolations = (base) =>
+  rustFiles(base)
+    .filter(({ rel }) => (rel === CHAT_POST || rel.startsWith('adapters/src/http/')) && !isTestFile(rel))
+    .flatMap(({ rel, text }) =>
+      [...codeOnly(nonTestText(text)).matchAll(TRACING_CALL)]
+        .filter((call) => NAME_IN_TELEMETRY.test(call[1]))
+        .map(() => `${rel} puts the name or the observation in a span, an event or a counter`),
+    );
 
 // Capture scope (ADR 010, capture-cascade CAP-04): the capture adapters see the game window and nothing else. No monitor, no
 // desktop or screen device context, no duplication of the output. The allowed `IGraphicsCaptureItemInterop` and
@@ -550,21 +568,38 @@ const codeOnly = (text) =>
     .replace(/\/\/[^\n]*/g, '')
     .replace(/"(?:[^"\\]|\\.)*"/g, '""');
 
+// The rule runs over every `.rs` file under `src-tauri` (the app crate's `src/`, `build.rs` and `examples/`, and the adapters,
+// core, domain and xtask crates with their `examples/` and `tests/`): a call in any other file would go unseen. Paths stay
+// relative to `src-tauri`, so the allowances below name `src/adapters/...` exactly. The
+// window-scoped forms (`CreateForWindow`, `GetDC` on a window) are allowed only in the two capture adapters. The OCR engine's
+// `TryCreateFromLanguage` is not a capture item and is allowed only in its own adapter.
+const OCR_ADAPTER = 'src/adapters/windows_ocr.rs';
+const OCR_CONSTRUCTORS = ['TryCreateFromLanguage', 'TryCreateFromUserProfileLanguages'];
+// Screen device contexts by name: `GetDCEx` and `CreateDCW` reach the screen or any display, whatever their arguments.
+const SCREEN_DC_BY_NAME = ['GetDCEx', 'CreateDCW', 'CreateDCA'];
+
 const captureScopeViolations = (base) =>
-  CAPTURE_ADAPTERS.flatMap((rel) => {
-    const text = crateFile(base, rel);
-    if (text === undefined) return [];
+  rustFiles(base).flatMap(({ rel, text }) => {
+    const inAdapter = CAPTURE_ADAPTERS.includes(rel);
     const code = codeOnly(text);
     return [
-      ...BANNED_CAPTURE_CALLS.filter((name) => new RegExp(`\\b${name}\\b`).test(code)).map(
-        (name) => `${rel} uses ${name}, which reaches beyond the game window`,
-      ),
+      ...[...BANNED_CAPTURE_CALLS, ...SCREEN_DC_BY_NAME]
+        .filter((name) => new RegExp(`\\b${name}\\b`).test(code))
+        .map((name) => `${rel} uses ${name}, which reaches beyond the game window`),
       ...(SCREEN_DC.test(code) ? [`${rel} calls GetDC on the screen, not on the game window`] : []),
+      ...(!inAdapter && /\bGetDC\b/.test(code)
+        ? [`${rel} calls GetDC outside the two capture adapters`]
+        : []),
       ...[...code.matchAll(/\b(CreateFor\w+|TryCreateFrom\w+)\b/g)]
         .map((match) => match[1])
-        .filter((name) => name !== 'CreateForWindow')
+        .filter((name) => !(OCR_CONSTRUCTORS.includes(name) && rel === OCR_ADAPTER))
+        .filter((name) => !(name === 'CreateForWindow' && inAdapter))
         .filter((name, index, all) => all.indexOf(name) === index)
-        .map((name) => `${rel} uses ${name}; CreateForWindow is the only capture item constructor`),
+        .map((name) =>
+          name === 'CreateForWindow'
+            ? `${rel} uses CreateForWindow outside the two capture adapters`
+            : `${rel} uses ${name}; CreateForWindow is the only capture item constructor`,
+        ),
     ];
   });
 
@@ -792,6 +827,23 @@ test('the capture scope rule rejects a screen device context and any other item 
   );
 });
 
+test('the capture scope rule runs over every app-crate file, not only the two adapters (CAP-04)', () => {
+  const violations = captureScopeViolations(fixtureBase('capture-scope-other-file')).join('\n');
+  assert.match(
+    violations,
+    /src\/other\.rs uses TryCreateFromDisplayId, which reaches beyond the game window/,
+  );
+  assert.match(violations, /src\/other\.rs uses GetDCEx, which reaches beyond the game window/);
+  assert.match(violations, /src\/other\.rs calls GetDC outside the two capture adapters/);
+  assert.match(violations, /src\/other\.rs uses CreateForWindow outside the two capture adapters/);
+});
+
+test('the capture scope rule also scans build scripts and the other agent crates (CAP-04)', () => {
+  const violations = captureScopeViolations(fixtureBase('capture-scope-other-crates')).join('\n');
+  assert.match(violations, /^build\.rs uses GetDCEx, which reaches beyond the game window$/m);
+  assert.match(violations, /^core\/src\/x\.rs uses GetDCEx, which reaches beyond the game window$/m);
+});
+
 test('the capture scope rule accepts CreateForWindow and GetDC on the game window (CAP-04)', () => {
   assert.deepEqual(captureScopeViolations(fixtureBase('capture-scope-accepted')), []);
 });
@@ -827,6 +879,30 @@ test('the stream variant rule rejects a new variant', () => {
 
 test('the HTTP adapters send contract bodies only: no frame, no raw body, no multipart', () => {
   assert.deepEqual(outgoingDataViolations(root), []);
+});
+
+test('the chat post names no frame type, sends no raw body and puts no name in telemetry', () => {
+  assert.deepEqual(outgoingDataViolations(root), []);
+  assert.deepEqual(chatPostTelemetryViolations(root), []);
+});
+
+test('the chat post rules reject a frame type, a raw body and a name in a span or an event', () => {
+  const base = fixtureBase('chat-post-leak');
+  const violations = outgoingDataViolations(base).join('\n');
+  assert.match(violations, /core\/src\/chat_post\.rs names a frame or pixel type/);
+  assert.match(violations, /core\/src\/chat_post\.rs sends a raw body, a multipart part or an image/);
+  const telemetry = chatPostTelemetryViolations(base);
+  assert.equal(telemetry.length, 3, telemetry.join('\n'));
+  assert.match(telemetry.join('\n'), /core\/src\/chat_post\.rs puts the name or the observation in a span/);
+});
+
+test('the name-in-telemetry rule also rejects a name in a span or an event of the HTTP adapters', () => {
+  const telemetry = chatPostTelemetryViolations(fixtureBase('adapters-http-leak'));
+  assert.equal(telemetry.length, 2, telemetry.join('\n'));
+  assert.match(
+    telemetry.join('\n'),
+    /adapters\/src\/http\/leak\.rs puts the name or the observation in a span/,
+  );
 });
 
 test('the outgoing data rule rejects a frame type and a raw body', () => {
@@ -1097,7 +1173,9 @@ test('mutation covers the core rule modules', () => {
     'adapters/src/telemetry/queue.rs',
     'adapters/src/telemetry/relay_client.rs',
     'adapters/src/telemetry/sanitize.rs',
+    'core/src/automap_name.rs',
     'core/src/beat.rs',
+    'core/src/chat_step.rs',
     'core/src/check_update.rs',
     'core/src/follow_stream.rs',
     'core/src/pair.rs',

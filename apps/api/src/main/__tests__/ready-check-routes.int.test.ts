@@ -16,6 +16,7 @@ const AGENT_TOKEN = 'Bearer d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE';
 
 let database: MigratedTestDatabase<AppDatabase>;
 let app: BuiltApp;
+let clock: FakeClock;
 
 const silentSink = new Writable({
   write(_chunk, _encoding, callback) {
@@ -32,7 +33,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  const clock = new FakeClock(START);
+  clock = new FakeClock(START);
   app = await buildApp({
     db: database.db,
     config: { stagingEndpoints: true, minAgentVersion: '0.0.1', siteOrigin: SITE_ORIGIN, trustProxyHops: 1 },
@@ -144,5 +145,46 @@ describe('POST /v1/ready-checks/:id/decline', () => {
     });
     expect(response.statusCode).toBe(404);
     expect(response.json()).toStrictEqual({ error: 'not-found' });
+  });
+});
+
+describe('the ready-check routes limit one account to 60 requests a minute (UPK-03)', () => {
+  const read = (cookie: string) =>
+    app.app.inject({ method: 'GET', url: '/v1/ready-checks/me', headers: { cookie } });
+
+  it('answers 429 rate-limited with Retry-After to the 61st read, and keeps another account out of it', async () => {
+    const alice = await signedInCookie('Alice');
+    const bob = await signedInCookie('Bob');
+    for (let i = 0; i < 60; i += 1) {
+      expect((await read(alice)).statusCode).toBe(204);
+    }
+
+    const limited = await read(alice);
+
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json()).toStrictEqual({ error: 'rate-limited' });
+    expect(limited.headers['retry-after']).toBe('60');
+    expect((await read(bob)).statusCode).toBe(204);
+    clock.advance(60_000);
+    expect((await read(alice)).statusCode).toBe(204);
+  });
+
+  it('counts the answers in the same window, and leaves the refusals inside the limit as they are', async () => {
+    const alice = await signedInCookie('Alice');
+    const answer = (answerPath: string) =>
+      app.app.inject({
+        method: 'POST',
+        url: `/v1/ready-checks/rc-1/${answerPath}`,
+        headers: { cookie: alice, origin: SITE_ORIGIN, 'content-type': 'application/json' },
+        payload: {},
+      });
+    for (let i = 0; i < 30; i += 1) {
+      expect((await answer('accept')).statusCode).toBe(404);
+      expect((await answer('decline')).statusCode).toBe(404);
+    }
+
+    expect((await answer('accept')).statusCode).toBe(429);
+    expect((await answer('decline')).statusCode).toBe(429);
+    expect((await read(alice)).statusCode).toBe(429);
   });
 });

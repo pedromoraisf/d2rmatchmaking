@@ -10,13 +10,16 @@ describe('contract documents', () => {
     });
   });
 
-  it('builds an AsyncAPI 3.0 document with the stream channel and its eleven messages', () => {
+  it('builds an AsyncAPI 3.0 document with the stream channel and its fourteen messages', () => {
     const document = buildAsyncApiDocument();
     expect(document.asyncapi).toBe('3.0.0');
     expect(document.channels.stream.address).toBe('/v1/stream');
     expect(Object.keys(document.channels.stream.messages)).toStrictEqual([
       'RoomAssigned',
       'RoomStageChanged',
+      'AgentRoomAssigned',
+      'AgentRoomRunOpened',
+      'AgentReadyCheckStarted',
       'AgentRoomStageChanged',
       'RoomRunOpened',
       'RoomMemberChanged',
@@ -33,10 +36,12 @@ describe('contract documents', () => {
 
   it('writes one JSON Schema per agent message', () => {
     expect(Object.keys(buildJsonSchemaFiles()).sort()).toStrictEqual([
+      'agent-config.json',
       'agent-event-ready-check-resolved.json',
       'agent-event-ready-check-started.json',
       'agent-event-room-assigned.json',
       'agent-event-room-run-opened.json',
+      'agent-event-room-stage-changed.json',
       'assignment.json',
       'claim-request.json',
       'claim.json',
@@ -94,5 +99,17 @@ describe('the player name value (SNM-01)', () => {
   ])('refuses %s', async (value) => {
     const { PlayerNameValue } = await import('./http/lobby.ts');
     expect(PlayerNameValue.safeParse(value).success).toBe(false);
+  });
+
+  it("lets the agent's stage change accept a member list, and no other agent event accept extra data", () => {
+    const files = buildJsonSchemaFiles();
+    const dataOf = (name: string) =>
+      (files[name]?.['properties'] as Record<string, Record<string, unknown>>)['data']?.[
+        'additionalProperties'
+      ];
+    expect(dataOf('agent-event-room-stage-changed.json')).toBe(true);
+    for (const name of ['agent-event-room-assigned.json', 'agent-event-room-run-opened.json']) {
+      expect(dataOf(name), name).not.toBe(true);
+    }
   });
 });

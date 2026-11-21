@@ -4,6 +4,9 @@
 import { z } from 'zod';
 import {
   AgentPresenceChangedEvent,
+  AgentRoomAssignedEvent,
+  AgentReadyCheckStartedEvent,
+  AgentRoomRunOpenedEvent,
   CharactersUpdatedEvent,
   QueueUpdatedEvent,
   ReadyCheckResolvedEvent,
@@ -15,6 +18,7 @@ import {
   RoomStageChangedEvent,
   AgentRoomStageChangedEvent,
 } from './events/stream.ts';
+import { AgentConfig } from './http/agent-config.ts';
 import { ClaimRequest, ClaimResponse, Heartbeat, PairingCodeResponse } from './http/agents.ts';
 import { RecordCharactersRequest } from './http/characters.ts';
 import { Assignment, Observation } from './http/lobby.ts';
@@ -44,7 +48,10 @@ export type JsonSchema = z.core.JSONSchema.BaseSchema;
 const STREAM_MESSAGES = {
   RoomAssigned: { name: 'room.assigned', schema: RoomAssignedEvent },
   RoomStageChanged: { name: 'room.stage_changed', schema: RoomStageChangedEvent },
-  // The agent's copy: the room and the stage, no members (stream-egress SEG-01).
+  // The agent's copies: no member list, or an empty one (stream-egress SEG-01, SEG-03).
+  AgentRoomAssigned: { name: 'room.assigned', schema: AgentRoomAssignedEvent },
+  AgentRoomRunOpened: { name: 'room.run_opened', schema: AgentRoomRunOpenedEvent },
+  AgentReadyCheckStarted: { name: 'ready_check.started', schema: AgentReadyCheckStartedEvent },
   AgentRoomStageChanged: { name: 'room.stage_changed', schema: AgentRoomStageChangedEvent },
   RoomRunOpened: { name: 'room.run_opened', schema: RoomRunOpenedEvent },
   RoomMemberChanged: { name: 'room.member_changed', schema: RoomMemberChangedEvent },
@@ -65,10 +72,13 @@ const JSON_SCHEMA_SOURCES = {
   'heartbeat.json': Heartbeat,
   'assignment.json': Assignment,
   'observation.json': Observation,
-  'agent-event-room-assigned.json': RoomAssignedEvent,
-  'agent-event-room-run-opened.json': RoomRunOpenedEvent,
+  // The remote configuration (remote-config RCF-02): the agent tests its defaults against the generated type.
+  'agent-config.json': AgentConfig,
+  'agent-event-room-assigned.json': AgentRoomAssignedEvent,
+  'agent-event-room-run-opened.json': AgentRoomRunOpenedEvent,
+  'agent-event-room-stage-changed.json': AgentRoomStageChangedEvent,
   'record-characters-request.json': RecordCharactersRequest,
-  'agent-event-ready-check-started.json': ReadyCheckStartedEvent,
+  'agent-event-ready-check-started.json': AgentReadyCheckStartedEvent,
   'agent-event-ready-check-resolved.json': ReadyCheckResolvedEvent,
 } as const;
 
@@ -106,11 +116,26 @@ export function buildAsyncApiDocument(): AsyncApiDocument {
   };
 }
 
+// The agent's stage change is the room and the stage only (stream-egress SEG-01), yet an agent keeps hearing the end of a room
+// from an API that still sends the member list (docs/engineering/stream-events.md: the agent accepts a dropped field). Its
+// `data` therefore allows extra properties in the agent's schema, so the generated type has no `deny_unknown_fields`. The API's
+// own schema stays strict: it strips the member list, so none leaks onto the agent's stream.
+const TOLERANT_DATA = new Set<string>(['agent-event-room-stage-changed.json']);
+
+function allowExtraData(schema: JsonSchema): JsonSchema {
+  const properties = schema['properties'] as Record<string, Record<string, unknown>> | undefined;
+  const data = properties?.['data'];
+  if (data === undefined) {
+    throw new Error('an agent event schema has no data object to relax');
+  }
+  return { ...schema, properties: { ...properties, data: { ...data, additionalProperties: true } } };
+}
+
 export function buildJsonSchemaFiles(): Record<string, JsonSchema> {
   return Object.fromEntries(
-    Object.entries(JSON_SCHEMA_SOURCES).map(([fileName, schema]) => [
-      fileName,
-      z.toJSONSchema(schema, { target: AGENT_JSON_SCHEMA_TARGET }),
-    ]),
+    Object.entries(JSON_SCHEMA_SOURCES).map(([fileName, schema]) => {
+      const generated = z.toJSONSchema(schema, { target: AGENT_JSON_SCHEMA_TARGET });
+      return [fileName, TOLERANT_DATA.has(fileName) ? allowExtraData(generated) : generated];
+    }),
   );
 }

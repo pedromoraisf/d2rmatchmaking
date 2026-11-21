@@ -8,19 +8,23 @@ use d2rmm_agent_core::messages::FrameReading;
 use d2rmm_agent_core::party::read_panel;
 use d2rmm_agent_core::ports::{FrameReader, Rgba, TextReader};
 use d2rmm_agent_core::screen_reader::ScreenReader;
+use d2rmm_agent_domain::anchors;
 use d2rmm_agent_domain::characters::{Card as Character, Difficulty};
 use d2rmm_agent_domain::game_name_match::{
-    FieldRead, FieldSource, is_masked, normalise, read_panel_field,
+    FieldRead, FieldSource, is_masked, normalise, read_field, read_panel_field,
 };
-use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::supported_size;
 #[cfg(test)]
 use d2rmm_agent_domain::name_diff::printable;
-use d2rmm_agent_domain::name_diff::{edit_distance, edit_operations};
+use d2rmm_agent_domain::name_diff::{edit_distance, edit_operations, edit_operations_with};
 use d2rmm_agent_domain::presence::Screen;
 
+use d2rmm_agent_domain::vision::TextLine;
+
 use crate::ocr_check::{
-    Card, MAINTAINER_CARDS, PARTY_ROOM_NAME, is_generated_game_name, party_expectation,
+    Card, ChatClass, ChatExpectation, ChatReading, MAINTAINER_CARDS, PARTY_ROOM_NAME,
+    automap_expectation, chat_expectation, is_generated_game_name, party_expectation, read_automap,
+    read_chat,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,6 +68,32 @@ fn verdict_owned(outcome: Outcome, reason: String) -> Verdict {
 /// The verdict of an image whose size the layout does not support.
 pub const UNSUPPORTED_SIZE: Verdict = verdict(Outcome::Refused, "unsupported-size");
 
+/// A character of a read as it may be printed in a reason: `[a-z0-9 -]` as is, any other ASCII character as `?`. A character
+/// outside ASCII (an engine's stand-in for a glyph it did not know) stays as it is here and `codepoints` turns it into its
+/// `U+XXXX`. Used only against a generated game name or the public Party room name, never in a chat reason.
+fn field_glyph(c: char) -> char {
+    if c.is_ascii_lowercase() || c.is_ascii_digit() || c == ' ' || c == '-' {
+        c
+    } else if c.is_ascii() {
+        '?'
+    } else {
+        c
+    }
+}
+
+/// `text` with each character outside ASCII written as its code point (`U+00E9`).
+fn codepoints(text: &str) -> String {
+    text.chars()
+        .map(|c| {
+            if c.is_ascii() {
+                c.to_string()
+            } else {
+                format!("U+{:04X}", u32::from(c))
+            }
+        })
+        .collect()
+}
+
 fn without_whitespace(text: &str) -> String {
     text.chars().filter(|c| !c.is_whitespace()).collect()
 }
@@ -97,7 +127,7 @@ fn other_reason(reads: &[&str], expected_name: &str) -> Cow<'static, str> {
     if expected_name == PARTY_ROOM_NAME || is_generated_game_name(expected_name) {
         Cow::Owned(format!(
             "{class}:{}",
-            edit_operations(&read, &expected).join(",")
+            codepoints(&edit_operations_with(&read, &expected, field_glyph).join(","))
         ))
     } else {
         Cow::Borrowed(class)
@@ -297,6 +327,78 @@ pub fn classify_image(
     classify_image_detailed(name, reader, screens, image).0
 }
 
+/// The automap's name line (GNR-11): Correct when some line of some variant reads as the expected generated name by the
+/// production match; otherwise Refused, with the class of how close the closest line is (`automap-other-1-edit:sub(o>0)@9`,
+/// the operations being against the generated name, which is public), or `automap-no-lines` when the band read no line. The
+/// agent only accepts an exact match, so a refused read is never Wrong.
+pub fn classify_automap(variants: &[Vec<TextLine>], expected_name: &str) -> Verdict {
+    let texts: Vec<&str> = variants
+        .iter()
+        .flatten()
+        .map(|line| line.text.as_str())
+        .collect();
+    if texts.is_empty() {
+        return verdict(Outcome::Refused, "automap-no-lines");
+    }
+    // The agent's own rule: the name line of a variant is found by its shape, whole or after the label (`find_name_line`), and
+    // only then matched; a read of the whole line that matches is correct as before.
+    let by_the_agents_rule = anchors::find_name_line_in_variants(variants)
+        .iter()
+        .any(|named| read_field(&named.text, expected_name) == FieldRead::Matched);
+    if by_the_agents_rule
+        || texts
+            .iter()
+            .any(|text| read_field(text, expected_name) == FieldRead::Matched)
+    {
+        return verdict(Outcome::Correct, "name-line-as-expected");
+    }
+    let reason = other_reason(&texts, expected_name).replacen("field-", "automap-", 1);
+    verdict_owned(Outcome::Refused, reason)
+}
+
+/// A chat print (GNR-11): Correct when exactly one class (joined or left) is found among the candidates of the print's
+/// language, equal to the expected one when the file names it, with a name read before the phrase
+/// (`chat-event-as-expected`, or `chat-event-found` when the file names no class). The other class found is Wrong
+/// (`chat-event-left-for-joined`); no phrase, both classes (unless the file names no class, then `chat-event-found-both`) and a missing name are Refused. Reasons are fixed words.
+pub fn classify_chat(reading: &ChatReading, expected: ChatExpectation) -> Verdict {
+    let found = match reading.class_for(expected.language) {
+        Ok(class) => class,
+        // A print whose file names no event may hold both a joined and a left line: the rule `check_chat_reading` applies.
+        Err("both") if expected.class.is_none() => {
+            return if reading.name_read {
+                verdict(Outcome::Correct, "chat-event-found-both")
+            } else {
+                verdict(Outcome::Refused, "chat-no-name")
+            };
+        }
+        Err("both") => return verdict(Outcome::Refused, "chat-both-classes"),
+        Err(_) if reading.lines_per_variant.iter().sum::<usize>() == 0 => {
+            return verdict(Outcome::Refused, "chat-no-lines");
+        }
+        Err(_) => {
+            return match reading
+                .near_phrase
+                .iter()
+                .find(|(language, _)| *language == expected.language)
+            {
+                Some((_, ops)) => verdict_owned(Outcome::Refused, format!("chat-no-phrase:{ops}")),
+                None => verdict(Outcome::Refused, "chat-no-phrase"),
+            };
+        }
+    };
+    match (expected.class, found) {
+        (Some(ChatClass::Joined), ChatClass::Left) => {
+            verdict(Outcome::Wrong, "chat-event-left-for-joined")
+        }
+        (Some(ChatClass::Left), ChatClass::Joined) => {
+            verdict(Outcome::Wrong, "chat-event-joined-for-left")
+        }
+        _ if !reading.name_read => verdict(Outcome::Refused, "chat-no-name"),
+        (Some(_), _) => verdict(Outcome::Correct, "chat-event-as-expected"),
+        (None, _) => verdict(Outcome::Correct, "chat-event-found"),
+    }
+}
+
 /// The class of each OCR variant's reading of the Party field, in reader order (nearest 3x, bilinear 3x, nearest 4x,
 /// bilinear 4x, nearest 5x, bilinear 5x): `match`, `masked`, `blank`, `1-edit`, `2-edits` or `far` against the expected name.
 /// Only the class is kept; a variant that failed in the engine is left out by the reader, so the list may be shorter.
@@ -335,6 +437,15 @@ pub fn classify_image_detailed(
         let (verdict, variants) = classify_party_image(reader, image, expected_name, expected);
         return (verdict, Some(variants));
     }
+    if let Some(expected_name) = automap_expectation(name) {
+        return (
+            classify_automap(&read_automap(reader, image), expected_name),
+            None,
+        );
+    }
+    if let Some(expected) = chat_expectation(name) {
+        return (classify_chat(&read_chat(reader, image), expected), None);
+    }
     match name {
         "maintainer-select-screen.png" => (
             classify_select(&screens.read(image), &MAINTAINER_CARDS),
@@ -354,7 +465,7 @@ fn classify_party_image(
     expected_name: &str,
     expected: FieldRead,
 ) -> (Verdict, Vec<&'static str>) {
-    let panel = read_panel(reader, &LanguagePack::english(), image);
+    let panel = read_panel(reader, &crate::language_pack::shipped(), image);
     let field: Vec<&str> = panel.field.iter().map(|read| read.text.as_str()).collect();
     (
         classify_party_field(
@@ -372,6 +483,7 @@ fn classify_party_image(
 mod tests {
     use d2rmm_agent_core::messages::FrameReading;
     use d2rmm_agent_domain::characters::{Card as Character, Class, Mode, Title};
+    use d2rmm_agent_domain::language::LanguagePack;
 
     use super::*;
 
@@ -882,10 +994,301 @@ mod tests {
             "maintainer-party-masked.png",
             "maintainer-select-screen.png",
             "maintainer-select-difficulty.png",
+            "maintainer-automap-en-mmbaalh-19.png",
+            "maintainer-chat-pt-joined-open-1.png",
             "something-else.png",
         ] {
             let got = classify_image(name, &*reader, &screens, &frame);
             assert_eq!(got.outcome, Outcome::Refused, "{name}: {got:?}");
+        }
+        assert_eq!(
+            classify_image(
+                "maintainer-automap-en-mmbaalh-19.png",
+                &*reader,
+                &screens,
+                &frame
+            ),
+            verdict(Outcome::Refused, "automap-no-lines")
+        );
+        assert_eq!(
+            classify_image(
+                "maintainer-chat-pt-joined-open-1.png",
+                &*reader,
+                &screens,
+                &frame
+            ),
+            verdict(Outcome::Refused, "chat-no-lines")
+        );
+    }
+
+    fn lines(texts: &[&str]) -> Vec<TextLine> {
+        texts
+            .iter()
+            .enumerate()
+            .map(|(index, text)| TextLine {
+                text: (*text).to_string(),
+                region: d2rmm_agent_domain::vision::Region {
+                    x: 0,
+                    y: 20 * index as u32,
+                    width: 200,
+                    height: 18,
+                },
+            })
+            .collect()
+    }
+
+    #[test]
+    fn an_automap_name_line_is_correct_when_a_variant_reads_the_name_and_refused_with_its_class_otherwise()
+     {
+        let name = "mmbaalh-19";
+        assert_eq!(
+            classify_automap(&[lines(&["Vuk#1234"]), lines(&["MM8AALH-19"])], name),
+            verdict(Outcome::Correct, "name-line-as-expected")
+        );
+        assert_eq!(
+            classify_automap(&[vec![], vec![]], name),
+            verdict(Outcome::Refused, "automap-no-lines")
+        );
+        assert_eq!(
+            classify_automap(&[lines(&["mmbaalh-18"])], name),
+            verdict(Outcome::Refused, "automap-other-1-edit:sub(8>9)@9")
+        );
+        assert_eq!(
+            classify_automap(&[lines(&["mmbaalh-1"])], name).reason,
+            "automap-other-1-edit:ins(9)@9"
+        );
+        // GNR-05 (T9): a generated name the engine spaced is read as itself, so it is no longer refused for its spacing; the
+        // spacing class stays for the public room name, which keeps its own spaces (`another_name_is_refused_by_how_close...`).
+        assert_eq!(
+            classify_automap(&[lines(&["mmb a alh-19"])], name),
+            verdict(Outcome::Correct, "name-line-as-expected")
+        );
+        assert_eq!(
+            classify_automap(&[lines(&["mmb a alh-18"])], name).outcome,
+            Outcome::Refused
+        );
+        assert_eq!(
+            classify_automap(&[lines(&["Hell"])], name),
+            verdict(Outcome::Refused, "automap-other-far")
+        );
+        assert_eq!(
+            classify_automap(&[lines(&["  "])], name),
+            verdict(Outcome::Refused, "automap-other-blank")
+        );
+    }
+
+    #[test]
+    fn an_automap_name_after_its_label_is_correct_by_the_agents_own_rule_and_another_name_is_not() {
+        let name = "mmchaosh-20";
+        assert_eq!(
+            classify_automap(&[lines(&["Nome do Jogo: mmchaosh-20"])], name),
+            verdict(Outcome::Correct, "name-line-as-expected")
+        );
+        assert_eq!(
+            classify_automap(&[lines(&["Game; mm chaosh - 20"])], name),
+            verdict(Outcome::Correct, "name-line-as-expected")
+        );
+        assert_eq!(
+            classify_automap(&[lines(&["Game: mmchaosh-21"])], name).outcome,
+            Outcome::Refused
+        );
+        assert_eq!(
+            classify_automap(&[lines(&["Game: mmchaosm-20"])], name).outcome,
+            Outcome::Refused
+        );
+    }
+
+    #[test]
+    fn a_chat_print_is_correct_on_its_event_wrong_on_the_other_and_refused_without_a_phrase_or_a_name()
+     {
+        use crate::ocr_check::{ChatClass, ChatExpectation, PrintLanguage, chat_reading};
+        let pt = |class| ChatExpectation {
+            language: PrintLanguage::Portuguese,
+            class,
+        };
+        let joined = chat_reading(&[lines(&["Bob entrou em nosso mundo"])]);
+        assert_eq!(
+            classify_chat(&joined, pt(Some(ChatClass::Joined))),
+            verdict(Outcome::Correct, "chat-event-as-expected")
+        );
+        assert_eq!(
+            classify_chat(&joined, pt(None)),
+            verdict(Outcome::Correct, "chat-event-found")
+        );
+        assert_eq!(
+            classify_chat(&joined, pt(Some(ChatClass::Left))),
+            verdict(Outcome::Wrong, "chat-event-joined-for-left")
+        );
+        let left = chat_reading(&[lines(&["Bob saiu de nosso mundo"])]);
+        assert_eq!(
+            classify_chat(&left, pt(Some(ChatClass::Joined))),
+            verdict(Outcome::Wrong, "chat-event-left-for-joined")
+        );
+        assert_eq!(
+            classify_chat(&chat_reading(&[lines(&["Bob says hello"])]), pt(None)),
+            verdict(Outcome::Refused, "chat-no-phrase")
+        );
+        assert_eq!(
+            classify_chat(&chat_reading(&[vec![]]), pt(None)),
+            verdict(Outcome::Refused, "chat-no-lines")
+        );
+        let both = chat_reading(&[lines(&[
+            "Bob entrou em nosso mundo",
+            "Bob saiu do nosso mundo",
+        ])]);
+        assert_eq!(
+            classify_chat(&both, pt(None)),
+            verdict(Outcome::Correct, "chat-event-found-both")
+        );
+        assert_eq!(
+            classify_chat(&both, pt(Some(ChatClass::Joined))),
+            verdict(Outcome::Refused, "chat-both-classes")
+        );
+        assert_eq!(
+            classify_chat(
+                &chat_reading(&[lines(&["entrou em nosso mundo", "saiu do nosso mundo"])]),
+                pt(None)
+            ),
+            verdict(Outcome::Refused, "chat-no-name"),
+            "both classes still need a name before a phrase"
+        );
+        assert_eq!(
+            classify_chat(
+                &chat_reading(&[lines(&["entrou em nosso mundo"])]),
+                pt(Some(ChatClass::Joined))
+            ),
+            verdict(Outcome::Refused, "chat-no-name")
+        );
+        assert_eq!(
+            classify_chat(
+                &joined,
+                ChatExpectation {
+                    language: PrintLanguage::English,
+                    class: None
+                }
+            ),
+            verdict(Outcome::Refused, "chat-no-phrase"),
+            "the candidates of the other language do not count"
+        );
+    }
+
+    /// Pin (rule 14, before `classify_chat` accepts both classes): a print whose file names a class, and a print holding
+    /// both classes, stay Refused with the reason the classifier gives today.
+    #[test]
+    fn a_chat_print_holding_both_classes_is_refused_when_the_file_names_a_class() {
+        use crate::ocr_check::{ChatClass, ChatExpectation, PrintLanguage, chat_reading};
+        let both = chat_reading(&[lines(&["Bob joined our world", "Eve left our world"])]);
+        for class in [ChatClass::Joined, ChatClass::Left] {
+            assert_eq!(
+                classify_chat(
+                    &both,
+                    ChatExpectation {
+                        language: PrintLanguage::English,
+                        class: Some(class)
+                    }
+                ),
+                verdict(Outcome::Refused, "chat-both-classes")
+            );
+        }
+    }
+
+    #[test]
+    fn a_read_outside_ascii_prints_as_its_code_point_and_other_punctuation_as_a_question_mark() {
+        assert_eq!(
+            other_reason(&["mmbaa\u{e5}h-19"], "mmbaalh-19"),
+            "field-other-1-edit:sub(U+00E5>l)@5"
+        );
+        assert_eq!(
+            other_reason(&["mmbaa?h-19"], "mmbaalh-19"),
+            "field-other-1-edit:sub(?>l)@5"
+        );
+        assert_eq!(field_glyph('-'), '-');
+        assert_eq!(field_glyph('Z'), '?');
+    }
+
+    #[test]
+    fn a_chat_print_with_no_phrase_names_the_nearest_phrase_edits_of_its_language_only() {
+        use crate::ocr_check::{ChatExpectation, PrintLanguage, chat_reading};
+        let en = |class| ChatExpectation {
+            language: PrintLanguage::English,
+            class,
+        };
+        let near = chat_reading(&[lines(&["Bob joined our w0rld"])]);
+        assert_eq!(
+            classify_chat(&near, en(None)),
+            verdict_owned(Outcome::Refused, "chat-no-phrase:sub(0>o)@10".to_string())
+        );
+        let far = chat_reading(&[lines(&["Bob says hello"])]);
+        assert_eq!(
+            classify_chat(&far, en(None)),
+            verdict(Outcome::Refused, "chat-no-phrase")
+        );
+        let accented = chat_reading(&[lines(&["Bob left our w\u{f6}rld"])]);
+        assert_eq!(
+            classify_chat(&accented, en(None)),
+            verdict_owned(Outcome::Refused, "chat-no-phrase:sub(~>o)@8".to_string())
+        );
+    }
+
+    /// A made-up name next to a misread phrase never reaches the reason: the printed stretch is the phrase's own span, and a
+    /// stretch that would begin inside the name prints no operations at all.
+    #[test]
+    fn no_character_of_a_name_next_to_a_misread_phrase_reaches_the_reason() {
+        use crate::ocr_check::{ChatExpectation, PrintLanguage, chat_reading};
+        let reason = |language, text: &str| {
+            classify_chat(
+                &chat_reading(&[lines(&[text])]),
+                ChatExpectation {
+                    language,
+                    class: None,
+                },
+            )
+            .reason
+            .into_owned()
+        };
+        let en = PrintLanguage::English;
+        let pt = PrintLanguage::Portuguese;
+        // The phrase's own span is printed, the name is not.
+        assert_eq!(
+            reason(en, "Qxz Vwk jo1ned our world"),
+            "chat-no-phrase:sub(1>i)@2"
+        );
+        assert_eq!(
+            reason(pt, "Qxz Vwk entr0u em nosso mundo"),
+            "chat-no-phrase:sub(0>o)@4"
+        );
+        // A name that ends in the phrase's first two letters, with the rest of the phrase lost: the stretch would begin
+        // inside the name and print its letters, so there are no operations.
+        assert_eq!(reason(en, "Qxjoab ed our world"), "chat-no-phrase");
+        // The same stretch after a space is the phrase's own and still prints.
+        assert_eq!(
+            reason(en, "Qxjoab joaned our world"),
+            "chat-no-phrase:sub(a>i)@2"
+        );
+        // A start lost in the name (the `j` dropped) would need the window to begin inside it: no operations.
+        assert_eq!(reason(en, "Joe ined our world"), "chat-no-phrase");
+        assert_eq!(reason(en, "Qxz Vwk oined our world"), "chat-no-phrase");
+        assert_eq!(reason(en, "Qxz Vwk"), "chat-no-phrase");
+        // Misreads in the tail print the tail's characters, which follow the phrase's exact start.
+        assert_eq!(
+            reason(en, "Qxz Vwk left our w0rld"),
+            "chat-no-phrase:sub(0>o)@8"
+        );
+        // No reason, whatever the line, holds a letter that only the name has.
+        for text in [
+            "Qxz Vwk jo1ned our world",
+            "Qxz Vwk entr0u em nosso mundo",
+            "Qxz Vwk left our w\u{f6}rld",
+            "Qxz Vwk oined our world",
+            "Qxz Vwk",
+        ] {
+            for language in [en, pt] {
+                let said = reason(language, text);
+                assert!(
+                    !said.contains(['q', 'x', 'z', 'v', 'w', 'k', 'Q', 'X', 'Z', 'V', 'W', 'K']),
+                    "{text} -> {said}"
+                );
+            }
         }
     }
 }

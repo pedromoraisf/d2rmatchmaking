@@ -258,6 +258,12 @@ where
     if !list && anchors::find_hud_in_variants(pack, &lines(ScreenRegion::HudBand)).is_some() {
         return Reading::without_cards(Screen::InGame);
     }
+    // The list's "Create New" button, searched for by its word in the bottom-right area when the fixed box above missed (the
+    // same window and full-screen drift): only a frame that is neither the automap nor in game gets here, so an in-game
+    // frame costs no read of this area.
+    let list = list
+        || anchors::find_create_new_in_variants(pack, &lines(ScreenRegion::CreateNewArea))
+            .is_some();
     let popup_lines = lines(ScreenRegion::PopupArea);
     let popup_title = anchors::popup_title_in_variants(pack, &popup_lines);
     let popup_options = u8::try_from(anchors::popup_options_in_variants(pack, &popup_lines).len())
@@ -2119,10 +2125,352 @@ mod hud_band_tests {
         assert_eq!(reads, 1);
     }
 
+    /// Reads a frame whose fixed "Create New" box reads nothing, with `marker` the lines of the marker's wide area and the
+    /// card column showing a list. Returns the screen and the areas read, in order.
+    fn read_with_list_column(marker: Vec<Vec<TextLine>>) -> (Screen, Vec<ScreenRegion>) {
+        let column = vec![vec![
+            line("SORCERESS", 1576, 91),
+            line("Level 88 Sorceress", 1576, 114),
+        ]];
+        let mut asked = Vec::new();
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |_| None,
+            |search| {
+                asked.push(search);
+                match search {
+                    ScreenRegion::CardColumn => column.clone(),
+                    ScreenRegion::CreateNewArea => marker.clone(),
+                    _ => Vec::new(),
+                }
+            },
+            |_| None,
+            Probes {
+                selected: |_| false,
+                lit: |_| false,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        (reading.screen, asked)
+    }
+
+    /// Changed expectation (screen-recognition T10, the specified change; was `Unknown` with no wide marker area read): a list
+    /// whose fixed "Create New" box reads nothing is the character selection screen when the word is found in the wider
+    /// bottom-right area, read after the automap's and the HUD band's.
+    #[test]
+    fn a_list_whose_fixed_marker_misses_is_found_by_its_word_in_the_wide_area_after_the_other_areas()
+     {
+        let (screen, asked) = read_with_list_column(vec![vec![line("Create New", 1650, 905)]]);
+        assert_eq!(screen, Screen::CharacterSelect);
+        assert_eq!(
+            asked[..4],
+            [
+                ScreenRegion::AutomapArea,
+                ScreenRegion::HudBand,
+                ScreenRegion::CreateNewArea,
+                ScreenRegion::PopupArea
+            ]
+        );
+    }
+
+    #[test]
+    fn a_list_whose_marker_is_nowhere_stays_unknown_and_other_bottom_right_text_is_no_marker() {
+        let (screen, asked) = read_with_list_column(Vec::new());
+        assert_eq!(screen, Screen::Unknown);
+        assert!(asked.contains(&ScreenRegion::CreateNewArea));
+        for other in ["Exit", "Create", "New Game", "Create New Character"] {
+            let (screen, _) = read_with_list_column(vec![vec![line(other, 1650, 905)]]);
+            assert_eq!(screen, Screen::Unknown, "{other}");
+        }
+    }
+
+    #[test]
+    fn a_noisy_read_of_the_marker_still_counts_when_it_is_the_word_with_stray_spaces_or_case() {
+        for read in ["CREATE NEW", "C R E A T E  N E W", "create new"] {
+            let (screen, _) = read_with_list_column(vec![vec![line(read, 1650, 905)]]);
+            assert_eq!(screen, Screen::CharacterSelect, "{read}");
+        }
+    }
+
+    #[test]
+    fn the_marker_area_is_read_only_when_neither_the_fixed_box_nor_an_earlier_area_decided() {
+        // The fixed box reads the marker: no wide read. In game (the band): decided before it. The automap: decided before.
+        let in_game = vec![vec![line("Life: 925 / 925", 436, 868)]];
+        let (screen, asked) = read_areas(Vec::new(), in_game, "");
+        assert_eq!(screen, Screen::InGame);
+        assert!(!asked.contains(&ScreenRegion::CreateNewArea));
+        let automap = vec![vec![line("Difficulty: Hell", 1700, 90)]];
+        let (screen, asked) = read_areas(automap, Vec::new(), "");
+        assert_eq!(screen, Screen::AutomapOpen);
+        assert!(!asked.contains(&ScreenRegion::CreateNewArea));
+        let (_, asked) = read_areas(Vec::new(), Vec::new(), "Create New");
+        assert!(!asked.contains(&ScreenRegion::CreateNewArea));
+    }
+
+    /// Rule 14 pin: a frame that shows neither the list marker nor the HUD, the automap or a popup is `Unknown`, whatever
+    /// else it shows at the bottom right.
+    #[test]
+    fn text_at_the_bottom_right_that_is_not_the_marker_is_unknown() {
+        let (screen, _) = read(vec![vec![line("Exit", 1700, 900)]], "Exit");
+        assert_eq!(screen, Screen::Unknown);
+    }
+
     #[test]
     fn the_character_list_never_reads_the_band() {
         let (screen, reads) = read(vec![vec![line("Life: 925 / 925", 400, 844)]], "Create New");
         assert_eq!(reads, 0, "the band is read only without the list");
         assert_ne!(screen, Screen::InGame);
+    }
+}
+
+/// The popup over a dimmed list whose cards no reading finds (screen-recognition T9; the `cards-refused-0of2-slots0-options3`
+/// class, 155 variations of the last `ocr-variations`).
+#[cfg(test)]
+mod popup_column_tests {
+    use super::{BandRead, Probes, read_screen};
+    use crate::language::LanguagePack;
+    use crate::layout::ScreenRegion;
+    use crate::presence::Screen;
+    use crate::vision::{Region, TextLine};
+
+    fn line(text: &str, x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: text.to_string(),
+            region: Region {
+                x,
+                y,
+                width: 200,
+                height: 20,
+            },
+        }
+    }
+
+    fn popup() -> Vec<Vec<TextLine>> {
+        vec![vec![
+            line("Select Difficulty", 940, 360),
+            line("Normal", 940, 430),
+            line("Nightmare", 940, 500),
+            line("Hell", 940, 570),
+        ]]
+    }
+
+    fn list_cards() -> Vec<Vec<TextLine>> {
+        vec![vec![
+            line("vukVuka", 1576, 91),
+            line("Level 88 Sorceress", 1576, 114),
+        ]]
+    }
+
+    /// Reads a frame with the popup open and `column` as what the card column reads; returns the reading's screen, cards
+    /// found and slots, and the areas asked in order.
+    fn read_popup(column: Vec<Vec<TextLine>>) -> (Screen, usize, u8, Vec<ScreenRegion>) {
+        let mut asked = Vec::new();
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |_| None,
+            |search| {
+                asked.push(search);
+                match search {
+                    ScreenRegion::PopupArea => popup(),
+                    ScreenRegion::CardColumn => column.clone(),
+                    _ => Vec::new(),
+                }
+            },
+            |_| None,
+            Probes {
+                selected: |_| false,
+                lit: |_| true,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        (
+            reading.screen,
+            reading.cards.len(),
+            reading.slots_read,
+            asked,
+        )
+    }
+
+    #[test]
+    fn a_popup_over_a_column_no_reading_finds_cards_in_is_the_selection_screen_with_no_slot_read() {
+        // Pinned before the change: the popup decides the screen, the column is read once, nothing more is asked.
+        let (screen, cards, slots, asked) = read_popup(Vec::new());
+        assert_eq!((screen, cards, slots), (Screen::CharacterSelect, 0, 0));
+        assert_eq!(
+            asked
+                .iter()
+                .filter(|r| **r == ScreenRegion::CardColumn)
+                .count(),
+            1
+        );
+        assert_eq!(asked.last(), Some(&ScreenRegion::CardColumn));
+    }
+
+    #[test]
+    fn a_popup_over_a_column_that_reads_cards_registers_them_with_one_column_read() {
+        let (screen, _, slots, asked) = read_popup(list_cards());
+        assert_eq!((screen, slots), (Screen::CharacterSelect, 1));
+        assert_eq!(
+            asked
+                .iter()
+                .filter(|r| **r == ScreenRegion::CardColumn)
+                .count(),
+            1
+        );
+    }
+
+    /// The popup over a column whose cards read, with `name` and `level` as what the fields pass reads of each card's lines.
+    fn read_fields(name: &[&str], level: &[&str]) -> super::Reading {
+        let said = |texts: &[&str]| -> Option<Vec<String>> {
+            Some(texts.iter().map(|t| (*t).to_string()).collect())
+        };
+        read_screen(
+            &LanguagePack::english(),
+            1080,
+            |_| None,
+            |search| match search {
+                ScreenRegion::PopupArea => popup(),
+                ScreenRegion::CardColumn => list_cards(),
+                _ => Vec::new(),
+            },
+            |region| match region.y.saturating_sub(5) {
+                86..=96 => said(name),
+                109..=119 => said(level),
+                _ => None,
+            },
+            Probes {
+                selected: |_| false,
+                lit: |_| true,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        )
+    }
+
+    #[test]
+    fn a_card_under_the_popup_settles_on_two_agreeing_readings_of_its_fields() {
+        // Pinned before the lifted read is made stricter: a field read by three variants settles when two agree and no other
+        // value matches in count, so a rival reading in the third does not refuse the card.
+        let reading = read_fields(
+            &["vukVuka", "vukVuka", "vukVuko"],
+            &[
+                "Level 88 Sorceress",
+                "Level 88 Sorceress",
+                "Level 83 Sorceress",
+            ],
+        );
+        assert_eq!(reading.cards.len(), 1, "{:?}", reading.rejected);
+        assert_eq!(reading.cards[0].name(), "vukVuka");
+        assert_eq!(reading.cards[0].level(), 88);
+    }
+
+    #[test]
+    fn a_card_under_the_popup_with_three_different_name_readings_is_refused() {
+        let reading = read_fields(
+            &["vukVuka", "vukVuko", "vukVukb"],
+            &[
+                "Level 88 Sorceress",
+                "Level 88 Sorceress",
+                "Level 88 Sorceress",
+            ],
+        );
+        assert!(reading.cards.is_empty());
+        assert_eq!(reading.rejected.len(), 1);
+    }
+}
+
+/// A card whose title line the lines pass reads as no title in any variant (screen-recognition T9; the `title-unread` class,
+/// about 235 of the selection and popup variations of the last `ocr-variations`).
+#[cfg(test)]
+mod garbled_title_tests {
+    use super::{BandRead, Probes, RejectReason, read_screen};
+    use crate::language::LanguagePack;
+    use crate::layout::ScreenRegion;
+    use crate::vision::{Region, TextLine};
+
+    fn region(y: u32) -> Region {
+        Region {
+            x: 1576,
+            y,
+            width: 236,
+            height: 18,
+        }
+    }
+
+    fn line(text: &str, y: u32) -> TextLine {
+        TextLine {
+            text: text.to_string(),
+            region: region(y),
+        }
+    }
+
+    /// A list (the marker reads) with one card: the title line `title_lines` reads (in the lines pass), the name and the
+    /// level, and `title_field` as what the fields pass reads of the title region. Returns the reading and the regions the
+    /// fields pass was asked for.
+    fn read(title_lines: &str, title_field: &[&str]) -> (super::Reading, Vec<Region>) {
+        let column = vec![vec![
+            line(title_lines, 60),
+            line("vukVuka", 91),
+            line("Level 88 Sorceress", 114),
+        ]];
+        let mut asked = Vec::new();
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |text_region| {
+                (text_region == ScreenRegion::CreateNew).then(|| vec!["Create New".to_string()])
+            },
+            |search| {
+                if search == ScreenRegion::CardColumn {
+                    column.clone()
+                } else {
+                    Vec::new()
+                }
+            },
+            |asked_region| {
+                asked.push(asked_region);
+                let said = |texts: &[&str]| Some(texts.iter().map(|t| (*t).to_string()).collect());
+                match asked_region.y {
+                    60 => said(title_field),
+                    91 => said(&["vukVuka", "vukVuka", "vukVuka"]),
+                    114 => said(&[
+                        "Level 88 Sorceress",
+                        "Level 88 Sorceress",
+                        "Level 88 Sorceress",
+                    ]),
+                    _ => None,
+                }
+            },
+            Probes {
+                selected: |_| false,
+                lit: |_| true,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        (reading, asked)
+    }
+
+    const MATRIARCH: [&str; 3] = ["Matriarch", "MATRIARCH", "Matriarch"];
+
+    #[test]
+    fn a_known_title_line_is_read_again_as_a_field_and_the_card_reads() {
+        let (reading, asked) = read("Matriarch", &MATRIARCH);
+        assert_eq!(reading.cards.len(), 1);
+        assert!(asked.contains(&region(60)), "the title line is read again");
+    }
+
+    #[test]
+    fn a_title_line_that_reads_as_no_title_refuses_the_card_and_is_not_read_again() {
+        // Pinned before the change: the field pass is never asked for a line the lines pass read as no title ("Marshal" is
+        // none of the pack's), even when it would read as one.
+        let (reading, asked) = read("Marshal", &MATRIARCH);
+        assert!(reading.cards.is_empty());
+        assert_eq!(reading.rejected.len(), 1);
+        assert_eq!(reading.rejected[0].reason, RejectReason::TitleUnread);
+        assert!(
+            !asked.contains(&region(60)),
+            "no read of that line: {asked:?}"
+        );
     }
 }

@@ -63,7 +63,7 @@ export async function healthzAccepts(response, expectedSha) {
  */
 async function describe(result) {
   if (result.response === undefined) return 'no answer';
-  let body = '';
+  let body;
   try {
     body = (await result.response.text()).slice(0, 200).replace(/\s+/g, ' ');
   } catch {

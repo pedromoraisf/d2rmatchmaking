@@ -11,11 +11,12 @@ use d2rmm_agent_core::ports::{FrameReader, Rgba, TextReader};
 use d2rmm_agent_core::screen_reader::ScreenReader;
 use d2rmm_agent_domain::anchors;
 use d2rmm_agent_domain::characters::{Class, Difficulty, Title};
-use d2rmm_agent_domain::game_name_match::{FieldRead, read_panel_field};
+use d2rmm_agent_domain::game_name_match::{FieldRead, read_field, read_panel_field};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{PanelRegion, ScreenRegion, panel_region, screen_region};
+use d2rmm_agent_domain::name_diff::closest_reading_diff;
 use d2rmm_agent_domain::presence::Screen;
-use d2rmm_agent_domain::vision::Region;
+use d2rmm_agent_domain::vision::{Region, TextLine};
 
 /// The five screenshots the check reads, in the order it prints them: three Party frames, then the selection screen and its
 /// difficulty popup. `scripts/agent/ocr-check.mjs` names the same five files.
@@ -74,15 +75,529 @@ pub fn is_generated_game_name(name: &str) -> bool {
         && number.bytes().all(|b| b.is_ascii_digit())
 }
 
-/// The files the check reads in `dir`: the five known ones, then every `maintainer-party-<gamename>.png` found there, sorted
-/// by name. A file of any other name is left alone.
+const AUTOMAP_PREFIX: &str = "maintainer-automap-";
+const CHAT_PREFIX: &str = "maintainer-chat-";
+
+/// The language of the client a print was taken on, from its file name (`en` or `pt`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrintLanguage {
+    English,
+    Portuguese,
+}
+
+/// What a chat line says happened: a player joined the game or left it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChatClass {
+    Joined,
+    Left,
+    /// A print that holds a joined and a left line, and whose file name names no event (`maintainer-chat-en-mmbaalh-19.png`).
+    /// Only a verdict reports it, for a file that says no event; a file name never expects it.
+    Both,
+}
+
+impl ChatClass {
+    fn word(self) -> &'static str {
+        match self {
+            ChatClass::Joined => "joined",
+            ChatClass::Left => "left",
+            ChatClass::Both => "both",
+        }
+    }
+}
+
+/// What a chat print expects: the client's language, and the event class when the file name says it (`joined-` or `left-`
+/// after the language). `None` for the class means the file does not say: the verdict then only needs exactly one class found,
+/// and its diagnostics print which (a class is a fixed word, never a read text).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChatExpectation {
+    pub language: PrintLanguage,
+    pub class: Option<ChatClass>,
+}
+
+/// The language and the rest of a `<prefix><language>-<rest>.png` file name.
+fn language_and_rest<'a>(file: &'a str, prefix: &str) -> Option<(PrintLanguage, &'a str)> {
+    let tail = file.strip_prefix(prefix)?.strip_suffix(PNG_SUFFIX)?;
+    let (language, rest) = tail.split_once('-')?;
+    let language = match language {
+        "en" => PrintLanguage::English,
+        "pt" => PrintLanguage::Portuguese,
+        _ => return None,
+    };
+    (!rest.is_empty()).then_some((language, rest))
+}
+
+/// The generated game name the automap of `maintainer-automap-<language>-<gamename>.png` shows
+/// (`maintainer-automap-en-mmbaalh-19.png` is `mmbaalh-19`). `None` for any other file and for a name that lacks the shape of
+/// a generated game name.
+pub fn automap_expectation(file: &str) -> Option<&str> {
+    let (_, name) = language_and_rest(file, AUTOMAP_PREFIX)?;
+    is_generated_game_name(name).then_some(name)
+}
+
+/// What `maintainer-chat-<language>-<what>.png` expects. `<what>` is `joined-...` or `left-...` (the event), or any other
+/// lower-case word, digit and dash run (a generated name, for a print whose event the file does not say). `None` for any
+/// other file.
+pub fn chat_expectation(file: &str) -> Option<ChatExpectation> {
+    let (language, rest) = language_and_rest(file, CHAT_PREFIX)?;
+    if !rest
+        .bytes()
+        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+    {
+        return None;
+    }
+    let class = if rest.starts_with("joined-") {
+        Some(ChatClass::Joined)
+    } else if rest.starts_with("left-") {
+        Some(ChatClass::Left)
+    } else {
+        None
+    };
+    Some(ChatExpectation { language, class })
+}
+
+/// The wide area the automap check reads for the game name line: the whole width of the top quarter of the client. The name
+/// sits at the top of the automap, and where it sits across window and full screen is what the first `ocr-real` diagnostics
+/// measure (game-name-reading O1), so this is a band, never one box. Diagnostics only until `ScreenRegion::AutomapName`.
+pub fn automap_band(width: u32, height: u32) -> Region {
+    Region {
+        x: 0,
+        y: 0,
+        width,
+        height: height / 4,
+    }
+}
+
+/// The wide area the chat check reads: the left three fifths of the client, from half its height to 95%. D2R draws the chat at
+/// the bottom left, open or fading; where its lines sit is what the first `ocr-real` diagnostics measure (game-name-reading
+/// O1). Diagnostics only until `ScreenRegion::ChatArea`.
+pub fn chat_band(width: u32, height: u32) -> Region {
+    Region {
+        x: 0,
+        y: height / 2,
+        width: width * 3 / 5,
+        height: height * 45 / 100,
+    }
+}
+
+/// The candidate phrases of the chat's joined and left lines, in game text (never a player name). They are not product data:
+/// a candidate only becomes one when `ocr-real` shows it found on the matching print (game-name-reading, O1 note). Compared
+/// lower-case with the whitespace removed on both sides, since the engine spaces the words unevenly.
+const CHAT_CANDIDATES: [(PrintLanguage, ChatClass, &str); 6] = [
+    (
+        PrintLanguage::English,
+        ChatClass::Joined,
+        "joined our world",
+    ),
+    (PrintLanguage::English, ChatClass::Left, "left our world"),
+    (
+        PrintLanguage::Portuguese,
+        ChatClass::Joined,
+        "entrou em nosso mundo",
+    ),
+    (
+        PrintLanguage::Portuguese,
+        ChatClass::Joined,
+        "entrou no nosso mundo",
+    ),
+    (
+        PrintLanguage::Portuguese,
+        ChatClass::Left,
+        "saiu do nosso mundo",
+    ),
+    (
+        PrintLanguage::Portuguese,
+        ChatClass::Left,
+        "saiu de nosso mundo",
+    ),
+];
+
+fn compact(text: &str) -> String {
+    text.chars()
+        .filter(|c| !c.is_whitespace())
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+/// What the chat band showed, with no text: per variant the number of lines, which candidates were found in some line, whether
+/// a line holding one had something before it (the player's name was read) and the boxes of the lines holding one.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ChatReading {
+    pub lines_per_variant: Vec<usize>,
+    pub found: [bool; CHAT_CANDIDATES.len()],
+    pub name_read: bool,
+    pub boxes: Vec<Region>,
+    /// Per language, the edit operations of the nearest read to a candidate phrase when no candidate was found: a stretch of
+    /// a line within one or two edits of a phrase, as `sub(read>expected)@i` (the phrases are game text, never a player
+    /// name; a character outside `[a-z0-9]` prints as `?`, or `~` when it is not ASCII).
+    pub near_phrase: Vec<(PrintLanguage, String)>,
+}
+
+/// A character of a chat read as it may be printed: `[a-z0-9]` as is, `~` outside ASCII, `?` for any other ASCII character.
+fn chat_glyph(c: char) -> char {
+    if c.is_ascii_lowercase() || c.is_ascii_digit() {
+        c
+    } else if c.is_ascii() {
+        '?'
+    } else {
+        '~'
+    }
+}
+
+/// The fixed end of a candidate phrase of `language`, which sits at the end of its line: the stretch the diagnostic anchors on.
+fn phrase_tail(language: PrintLanguage) -> &'static str {
+    match language {
+        PrintLanguage::English => "ourworld",
+        PrintLanguage::Portuguese => "nossomundo",
+    }
+}
+
+/// The substitutions that turn `window` into `part` (equal lengths) as `sub(read>expected)@i`, `i` counting from `offset` in
+/// the phrase; `None` unless one or two characters differ.
+fn substitutions(window: &[char], part: &[char], offset: usize) -> Option<String> {
+    if window.len() != part.len() {
+        return None;
+    }
+    let ops: Vec<String> = window
+        .iter()
+        .zip(part)
+        .enumerate()
+        .filter(|(_, (read, want))| read != want)
+        .map(|(i, (read, want))| format!("sub({}>{want})@{}", chat_glyph(*read), offset + i))
+        .collect();
+    (1..=2).contains(&ops.len()).then(|| ops.join(","))
+}
+
+/// The substitutions of the stretch of `line` that is the misread part of `phrase` (a candidate of `language`), or `None`.
+/// A read character is printed only from the phrase's own span, never from the text before it where a player's name sits:
+/// - the line ends with the phrase's exact tail (`ourworld`, `nossomundo`): the stretch just before it as long as the rest of
+///   the phrase is compared with that rest, whose first two characters must be exact, and which must begin at the line's
+///   start, after whitespace or after a non-alphanumeric character (so no character of the text before the phrase, a name
+///   included, can fall on a printed position);
+/// - or the line holds the phrase's exact rest right before its last characters: those last characters are compared with the
+///   tail. They follow the rest, so the name (which precedes it) is never among them.
+///
+/// Anything else, including a stretch that would need to begin in the text before the phrase, gives `None`.
+fn nearest_phrase_ops(language: PrintLanguage, line: &str, phrase: &str) -> Option<String> {
+    let tail: Vec<char> = phrase_tail(language).chars().collect();
+    let phrase_chars: Vec<char> = phrase.chars().collect();
+    let rest_len = phrase_chars.len().checked_sub(tail.len())?;
+    let (rest, want_tail) = phrase_chars.split_at(rest_len);
+    // The line without its whitespace and lower-cased (as `compact`), with for each character whether whitespace or the line's
+    // start came right before it.
+    let mut chars: Vec<char> = Vec::new();
+    let mut after_gap: Vec<bool> = Vec::new();
+    let mut gap = true;
+    for c in line.chars() {
+        if c.is_whitespace() {
+            gap = true;
+        } else {
+            for lower in c.to_lowercase() {
+                chars.push(lower);
+                after_gap.push(gap);
+                gap = false;
+            }
+        }
+    }
+    if chars.ends_with(want_tail) {
+        let before = chars.len() - tail.len();
+        let start = before.checked_sub(rest_len)?;
+        // The stretch must begin where the phrase begins: at the line's start, after whitespace, or after a character that is
+        // no letter or digit. Otherwise it may begin inside a player's name (one that ends in the phrase's first letters), and a
+        // character of the name could print as a substitution.
+        let begins_the_phrase =
+            start == 0 || after_gap[start] || !chars[start - 1].is_alphanumeric();
+        if !begins_the_phrase {
+            return None;
+        }
+        let window = &chars[start..before];
+        return if window.len() >= 2 && window[..2] == rest[..2] {
+            substitutions(window, rest, 0)
+        } else {
+            None
+        };
+    }
+    let from = chars.len().checked_sub(tail.len())?;
+    let rest_at = from.checked_sub(rest_len)?;
+    if chars[rest_at..from] == *rest {
+        return substitutions(&chars[from..], want_tail, rest_len);
+    }
+    None
+}
+
+/// Reads the chat band as the agent reads a text area (every variant's lines) and keeps no text.
+pub fn read_chat(reader: &dyn TextReader, image: &Rgba) -> ChatReading {
+    let area = chat_band(image.width, image.height);
+    chat_reading(&reader.read_line_variants(image, area))
+}
+
+/// `read_chat` over lines already read.
+pub fn chat_reading(variants: &[Vec<TextLine>]) -> ChatReading {
+    let mut reading = ChatReading {
+        lines_per_variant: variants.iter().map(Vec::len).collect(),
+        ..ChatReading::default()
+    };
+    for line in variants.iter().flatten() {
+        let text = compact(&line.text);
+        let mut holds_one = false;
+        for (index, (_, _, phrase)) in CHAT_CANDIDATES.iter().enumerate() {
+            if let Some(at) = text.find(&compact(phrase)) {
+                reading.found[index] = true;
+                reading.name_read |= at > 0;
+                holds_one = true;
+            }
+        }
+        if holds_one {
+            reading.boxes.push(line.region);
+        }
+    }
+    if !reading.found.iter().any(|found| *found) {
+        for language in [PrintLanguage::English, PrintLanguage::Portuguese] {
+            let near = CHAT_CANDIDATES
+                .iter()
+                .filter(|(l, _, _)| *l == language)
+                .flat_map(|(_, _, phrase)| {
+                    let phrase = compact(phrase);
+                    variants
+                        .iter()
+                        .flatten()
+                        .filter_map(move |line| nearest_phrase_ops(language, &line.text, &phrase))
+                })
+                .min_by_key(|ops| ops.matches("sub(").count());
+            if let Some(ops) = near {
+                reading.near_phrase.push((language, ops));
+            }
+        }
+    }
+    reading
+}
+
+impl ChatReading {
+    /// Whether a candidate phrase of `language` and `class` was found.
+    pub fn found_class(&self, language: PrintLanguage, class: ChatClass) -> bool {
+        CHAT_CANDIDATES
+            .iter()
+            .zip(self.found)
+            .any(|((l, c, _), found)| *l == language && *c == class && found)
+    }
+
+    /// The class found among the candidates of `language`: `Ok` when exactly one class was found, else `none` or `both`.
+    pub fn class_for(&self, language: PrintLanguage) -> Result<ChatClass, &'static str> {
+        match (
+            self.found_class(language, ChatClass::Joined),
+            self.found_class(language, ChatClass::Left),
+        ) {
+            (true, false) => Ok(ChatClass::Joined),
+            (false, true) => Ok(ChatClass::Left),
+            (true, true) => Err("both"),
+            (false, false) => Err("none"),
+        }
+    }
+}
+
+/// The chat verdict: exactly one class found among the candidates of the print's language, equal to the expected class when the
+/// file names it, with the player's name read before the phrase. The error holds counts, classes and booleans only.
+pub fn check_chat_reading(
+    reading: &ChatReading,
+    expected: ChatExpectation,
+) -> Result<ChatClass, String> {
+    let lines: usize = reading.lines_per_variant.iter().sum();
+    let found = match reading.class_for(expected.language) {
+        Ok(class) => class,
+        // A print whose file names no event may hold both a joined and a left line.
+        Err("both") if expected.class.is_none() => ChatClass::Both,
+        Err(which) => {
+            return Err(format!(
+                "joined or left phrase: {which} found among the candidates of the print's language, {lines} chat lines over {} variants",
+                reading.lines_per_variant.len()
+            ));
+        }
+    };
+    if let Some(class) = expected.class
+        && class != found
+    {
+        return Err(format!(
+            "the event is {}, expected {}",
+            found.word(),
+            class.word()
+        ));
+    }
+    if !reading.name_read {
+        return Err(format!(
+            "the {} phrase is found but nothing is read before it (no name)",
+            found.word()
+        ));
+    }
+    Ok(found)
+}
+
+/// The chat diagnostics of one print: per variant the line count, then one boolean per candidate phrase (`found` or
+/// `not found`, never the text read), the class found per language, whether a name was read before the phrase, and the pixel
+/// box of every line that holds a candidate. No line's text is printed.
+pub fn chat_diagnostics(reading: &ChatReading) -> Vec<String> {
+    let mut out = Vec::new();
+    for (index, lines) in reading.lines_per_variant.iter().enumerate() {
+        out.push(format!("  chat band, variant {index}: {lines} lines"));
+    }
+    for (index, ((language, class, _), found)) in
+        CHAT_CANDIDATES.iter().zip(reading.found).enumerate()
+    {
+        let language = match language {
+            PrintLanguage::English => "en",
+            PrintLanguage::Portuguese => "pt",
+        };
+        out.push(format!(
+            "  phrase-candidate-{}={} ({language}, {})",
+            index + 1,
+            if found { "found" } else { "not found" },
+            class.word()
+        ));
+    }
+    for (name, language) in [
+        ("en", PrintLanguage::English),
+        ("pt", PrintLanguage::Portuguese),
+    ] {
+        let class = match reading.class_for(language) {
+            Ok(class) => class.word(),
+            Err(which) => which,
+        };
+        out.push(format!("  chat event class ({name} candidates): {class}"));
+    }
+    out.push(format!(
+        "  chat name read before the phrase: {}",
+        if reading.name_read { "yes" } else { "no" }
+    ));
+    for line_box in &reading.boxes {
+        out.push(format!(
+            "  chat line holding a phrase: x {} y {} width {} height {}",
+            line_box.x, line_box.y, line_box.width, line_box.height
+        ));
+    }
+    out
+}
+
+/// The lines the automap band's line pass returned, per variant.
+pub fn read_automap(reader: &dyn TextReader, image: &Rgba) -> Vec<Vec<TextLine>> {
+    reader.read_line_variants(image, automap_band(image.width, image.height))
+}
+
+/// Whether a line of the automap band has the shape of a generated game name (public, so its text may be printed).
+fn name_shaped(text: &str) -> bool {
+    is_generated_game_name(&text.trim().to_lowercase())
+}
+
+/// What of a line may be the name: the whole line, what follows its last `:` or `;` (the automap writes `<label>: <name>`), and
+/// its last word, the same three reads `anchors::find_name_line` makes.
+fn name_candidates(text: &str) -> [&str; 3] {
+    [
+        text,
+        text.rsplit([':', ';']).next().unwrap_or(text),
+        text.split_whitespace().next_back().unwrap_or(""),
+    ]
+}
+
+/// Per variant, how the closest read of the band differs from the expected generated name (public: the name is generated), as
+/// edit operations in the fixed alphabet of `name_diff` (`far` past four edits). It names the glyph the engine returned for a
+/// letter or digit of the name, never a line's text.
+pub fn automap_edit_diagnostics(variants: &[Vec<TextLine>], expected_name: &str) -> Vec<String> {
+    variants
+        .iter()
+        .enumerate()
+        .map(|(index, lines)| {
+            let reads: Vec<&str> = lines
+                .iter()
+                .flat_map(|line| name_candidates(&line.text))
+                .collect();
+            let diff = closest_reading_diff(&reads, expected_name)
+                .unwrap_or_else(|| "no text".to_string());
+            format!("  automap name line, variant {index}: closest read differs by [{diff}]")
+        })
+        .collect()
+}
+
+/// The automap verdict: some line of some variant reads as the room's generated name by the production match
+/// (`read_field`). The error holds counts and the name-shaped reads (a generated name is public); every other line's text
+/// stays out, the band holding other players' text.
+pub fn check_automap_reading(
+    variants: &[Vec<TextLine>],
+    expected_name: &str,
+) -> Result<(), String> {
+    let lines: Vec<&TextLine> = variants.iter().flatten().collect();
+    if lines.iter().any(|line| {
+        name_candidates(&line.text)
+            .iter()
+            .any(|candidate| read_field(candidate, expected_name) == FieldRead::Matched)
+    }) {
+        return Ok(());
+    }
+    let shaped: Vec<&str> = lines
+        .iter()
+        .map(|line| line.text.trim())
+        .filter(|text| name_shaped(text))
+        .collect();
+    Err(format!(
+        "no line of the automap band reads as the expected name: {} lines over {} variants, {} shaped like a generated name {shaped:?}",
+        lines.len(),
+        variants.len(),
+        shaped.len()
+    ))
+}
+
+/// The automap diagnostics of one print: per variant the number of lines, and per line its box and whether it is shaped like a
+/// generated name. A shaped line prints its text (a generated name is public); any other line prints its shape (a letter,
+/// a digit or another character each) and never its text.
+pub fn automap_diagnostics(variants: &[Vec<TextLine>]) -> Vec<String> {
+    let mut out = Vec::new();
+    for (index, lines) in variants.iter().enumerate() {
+        out.push(format!(
+            "  automap band, variant {index}: {} lines",
+            lines.len()
+        ));
+        for line in lines {
+            let shaped = name_shaped(&line.text);
+            let shown: String = if shaped {
+                line.text.trim().to_string()
+            } else {
+                line.text
+                    .chars()
+                    .map(|c| {
+                        if c.is_alphabetic() {
+                            'a'
+                        } else if c.is_numeric() {
+                            '9'
+                        } else {
+                            c
+                        }
+                    })
+                    .collect()
+            };
+            out.push(format!(
+                "    x {} y {} width {} height {}: name-shaped {} [{}]",
+                line.region.x,
+                line.region.y,
+                line.region.width,
+                line.region.height,
+                if shaped { "yes" } else { "no" },
+                shown
+            ));
+        }
+    }
+    out
+}
+
+/// The files the check reads in `dir`: the five known ones, then every `maintainer-party-<gamename>.png`,
+/// `maintainer-automap-<language>-<gamename>.png` and `maintainer-chat-<language>-<what>.png` found there, sorted by name. A
+/// file of any other name is left alone.
 pub fn folder_screenshots(dir: &Path) -> Vec<String> {
     let mut extra: Vec<String> = std::fs::read_dir(dir)
         .into_iter()
         .flatten()
         .flatten()
         .filter_map(|entry| entry.file_name().into_string().ok())
-        .filter(|file| generated_name_of(file).is_some())
+        .filter(|file| {
+            generated_name_of(file).is_some()
+                || automap_expectation(file).is_some()
+                || chat_expectation(file).is_some()
+        })
         .collect();
     extra.sort();
     SCREENSHOTS
@@ -149,7 +664,7 @@ pub fn check_party_reads(
     expected: FieldRead,
     show_reads: bool,
 ) -> Result<(), String> {
-    let language = LanguagePack::english();
+    let language = crate::language_pack::shipped();
     if panel_region(PanelRegion::PartyPanel, image.width, image.height).is_none() {
         return Err(format!(
             "the Party panel layout is unknown for a {}x{} screenshot",
@@ -273,6 +788,22 @@ fn spots(name: &str, width: u32, height: u32) -> Vec<Spot> {
         let personal = label.ends_with(" name");
         (label, screen_region(region, width, height), personal)
     };
+    // The automap band and the chat area are wide areas whose text is personal until a name is told from it: their reads print
+    // only with `--show-reads`, the boxes of what they find print always (`automap_diagnostics`, `chat_diagnostics`).
+    if name.starts_with("maintainer-automap") {
+        return vec![(
+            "Automap name band".to_string(),
+            Some(automap_band(width, height)),
+            true,
+        )];
+    }
+    if name.starts_with("maintainer-chat") {
+        return vec![(
+            "Chat area".to_string(),
+            Some(chat_band(width, height)),
+            true,
+        )];
+    }
     if name.starts_with("maintainer-party") {
         return vec![
             panel("Party title", PanelRegion::PartyTitle),
@@ -325,12 +856,30 @@ pub fn anchor_line(
 ) -> String {
     let yes = |found: bool| if found { "yes" } else { "no" };
     if name.starts_with("maintainer-party") {
-        let panel = read_panel_for(reader, &LanguagePack::english(), image, None, None);
+        let panel = read_panel_for(reader, &crate::language_pack::shipped(), image, None, None);
         return format!(
             "  anchors: title found {}, game-name label found {}, game-name field read {}",
             yes(panel.open),
             yes(panel.label_found),
             yes(!panel.field.is_empty())
+        );
+    }
+    if name.starts_with("maintainer-automap") {
+        let variants = read_automap(reader, image);
+        let shaped = variants
+            .iter()
+            .flatten()
+            .filter(|line| name_shaped(&line.text))
+            .count();
+        return format!("  anchors: name-shaped lines found {shaped}");
+    }
+    if name.starts_with("maintainer-chat") {
+        let reading = read_chat(reader, image);
+        return format!(
+            "  anchors: phrase candidates found {} of {}, name read {}",
+            reading.found.iter().filter(|found| **found).count(),
+            reading.found.len(),
+            yes(reading.name_read)
         );
     }
     let counts = screens.anchor_counts(image);
@@ -378,7 +927,10 @@ pub fn party_wide_diagnostics(reader: &dyn TextReader, image: &Rgba) -> Vec<Stri
         height: image.height * 40 / 100,
     };
     let pack = LanguagePack::english();
-    let brazilian = LanguagePack::brazilian_party();
+    let shipped = crate::language_pack::shipped();
+    let brazilian = shipped
+        .fallback()
+        .expect("the shipped pack has the Brazilian fallback");
     let mut out = Vec::new();
     for (index, lines) in reader.read_line_variants(image, area).iter().enumerate() {
         out.push(format!(
@@ -387,7 +939,7 @@ pub fn party_wide_diagnostics(reader: &dyn TextReader, image: &Rgba) -> Vec<Stri
         ));
         for line in lines {
             let anchor = anchors::party_line_anchor(&pack, &line.text);
-            let portuguese = anchors::party_line_anchor(&brazilian, &line.text);
+            let portuguese = anchors::party_line_anchor(brazilian, &line.text);
             let clear = matches!(anchor, "title" | "label")
                 || matches!(portuguese, "title" | "label")
                 || is_generated_game_name(line.text.trim());
@@ -464,6 +1016,12 @@ fn verdict(
     if let Some((expected_name, expected)) = party_expectation(name) {
         return check_party_reads(reader, image, expected_name, expected, show_reads);
     }
+    if let Some(expected_name) = automap_expectation(name) {
+        return check_automap_reading(&read_automap(reader, image), expected_name);
+    }
+    if let Some(expected) = chat_expectation(name) {
+        return check_chat_reading(&read_chat(reader, image), expected).map(|_| ());
+    }
     match name {
         "maintainer-select-screen.png" => check_screen_reads(
             &screens.read(image),
@@ -532,6 +1090,22 @@ pub fn check_folder(
                         println!("{line}");
                     }
                     for line in party_wide_diagnostics(&*reader, &image) {
+                        println!("{line}");
+                    }
+                }
+                if name.starts_with("maintainer-automap") {
+                    let variants = read_automap(&*reader, &image);
+                    for line in automap_diagnostics(&variants) {
+                        println!("{line}");
+                    }
+                    if let Some(expected) = automap_expectation(name) {
+                        for line in automap_edit_diagnostics(&variants, expected) {
+                            println!("{line}");
+                        }
+                    }
+                }
+                if name.starts_with("maintainer-chat") {
+                    for line in chat_diagnostics(&read_chat(&*reader, &image)) {
                         println!("{line}");
                     }
                 }
@@ -1030,6 +1604,12 @@ mod tests {
             "maintainer-party-mmbaalh-19.png",
             "maintainer-party-revealed.png",
             "maintainer-party-.png",
+            "maintainer-automap-pt-mmchaosh-20.png",
+            "maintainer-automap-en-mmbaalh-19.png",
+            "maintainer-automap-fr-mmbaalh-19.png",
+            "maintainer-chat-pt-left-open-1.png",
+            "maintainer-chat-en-mmbaalh-19.png",
+            "maintainer-chat-en-Bob.png",
             "notes.txt",
         ] {
             std::fs::write(dir.join(file), b"").unwrap();
@@ -1040,6 +1620,10 @@ mod tests {
         assert_eq!(
             listed[5..],
             [
+                "maintainer-automap-en-mmbaalh-19.png",
+                "maintainer-automap-pt-mmchaosh-20.png",
+                "maintainer-chat-en-mmbaalh-19.png",
+                "maintainer-chat-pt-left-open-1.png",
                 "maintainer-party-mmbaalh-19.png",
                 "maintainer-party-mmtzh-47.png"
             ]
@@ -1048,6 +1632,344 @@ mod tests {
             folder_screenshots(std::path::Path::new("/does/not/exist")).len(),
             5,
             "an unreadable folder lists the five known files"
+        );
+    }
+
+    #[test]
+    fn an_automap_file_names_its_generated_game_name_and_a_chat_file_its_language_and_event() {
+        use super::{
+            ChatClass, ChatExpectation, PrintLanguage, automap_expectation, chat_expectation,
+        };
+        assert_eq!(
+            automap_expectation("maintainer-automap-en-mmbaalh-19.png"),
+            Some("mmbaalh-19")
+        );
+        assert_eq!(
+            automap_expectation("maintainer-automap-pt-mmchaosh-20.png"),
+            Some("mmchaosh-20")
+        );
+        for file in [
+            "maintainer-automap-fr-mmbaalh-19.png",
+            "maintainer-automap-en-someone.png",
+            "maintainer-automap-en-.png",
+            "maintainer-automap-en-mmbaalh-19.jpg",
+            "maintainer-automap-mmbaalh-19.png",
+            "maintainer-party-mmbaalh-19.png",
+        ] {
+            assert_eq!(automap_expectation(file), None, "{file}");
+        }
+        let chat = |file| chat_expectation(file);
+        assert_eq!(
+            chat("maintainer-chat-en-mmbaalh-19.png"),
+            Some(ChatExpectation {
+                language: PrintLanguage::English,
+                class: None
+            })
+        );
+        assert_eq!(
+            chat("maintainer-chat-pt-joined-closed-1.png"),
+            Some(ChatExpectation {
+                language: PrintLanguage::Portuguese,
+                class: Some(ChatClass::Joined)
+            })
+        );
+        assert_eq!(
+            chat("maintainer-chat-pt-left-open-1.png"),
+            Some(ChatExpectation {
+                language: PrintLanguage::Portuguese,
+                class: Some(ChatClass::Left)
+            })
+        );
+        for file in [
+            "maintainer-chat-fr-joined-1.png",
+            "maintainer-chat-en-.png",
+            "maintainer-chat-en-Bob.png",
+            "maintainer-chat-en-joined-1.jpg",
+            "maintainer-chat-joined-1.png",
+        ] {
+            assert_eq!(chat(file), None, "{file}");
+        }
+    }
+
+    #[test]
+    fn the_automap_and_chat_files_list_their_band_and_hide_its_read_without_show_reads() {
+        for (file, label) in [
+            ("maintainer-automap-en-mmbaalh-19.png", "Automap name band"),
+            ("maintainer-chat-pt-joined-open-1.png", "Chat area"),
+        ] {
+            let hidden = diagnostics(file, &name_variants(), &frame(), false);
+            assert_eq!(hidden.len(), 3, "{file}: size, region, hidden: {hidden:?}");
+            assert!(
+                hidden[1].starts_with(&format!("  {label}: at ")),
+                "{}",
+                hidden[1]
+            );
+            assert!(hidden[2].contains("--show-reads"), "{}", hidden[2]);
+            assert!(!hidden.join("\n").contains("VUKVUKA"), "{file}");
+            let shown = diagnostics(file, &name_variants(), &frame(), true);
+            assert_eq!(shown.len(), 3, "{file}");
+            assert!(shown[2].contains("VUKVUKA"), "{file}: {}", shown[2]);
+        }
+    }
+
+    #[test]
+    fn the_bands_are_wide_areas_that_scale_with_the_client() {
+        use super::{automap_band, chat_band};
+        let top = automap_band(1920, 1080);
+        assert_eq!((top.x, top.y, top.width, top.height), (0, 0, 1920, 270));
+        let top = automap_band(1920, 1033);
+        assert_eq!((top.x, top.y, top.width, top.height), (0, 0, 1920, 258));
+        let chat = chat_band(1920, 1080);
+        assert_eq!(
+            (chat.x, chat.y, chat.width, chat.height),
+            (0, 540, 1152, 486)
+        );
+        assert!(chat.bottom() <= 1080 && chat_band(1920, 1033).bottom() <= 1033);
+    }
+
+    fn text_line(text: &str, x: u32, y: u32) -> d2rmm_agent_domain::vision::TextLine {
+        d2rmm_agent_domain::vision::TextLine {
+            text: text.to_string(),
+            region: Region {
+                x,
+                y,
+                width: 300,
+                height: 18,
+            },
+        }
+    }
+
+    #[test]
+    fn a_chat_reading_finds_each_candidate_by_its_words_whatever_the_spacing_and_case() {
+        use super::{ChatClass, PrintLanguage, chat_reading};
+        let reading = chat_reading(&[
+            vec![
+                text_line("Bob JOINED  our world", 10, 700),
+                text_line("nothing to see", 10, 730),
+            ],
+            vec![text_line("Alicesaiu do nosso mundo", 10, 760)],
+        ]);
+        assert_eq!(reading.lines_per_variant, [2, 1]);
+        assert_eq!(reading.found, [true, false, false, false, true, false]);
+        assert!(reading.name_read);
+        assert_eq!(reading.boxes.len(), 2);
+        assert_eq!(
+            (reading.boxes[0].x, reading.boxes[0].y),
+            (10, 700),
+            "the line's box, not its text"
+        );
+        assert_eq!(
+            reading.class_for(PrintLanguage::English),
+            Ok(ChatClass::Joined)
+        );
+        assert_eq!(
+            reading.class_for(PrintLanguage::Portuguese),
+            Ok(ChatClass::Left)
+        );
+        let none = chat_reading(&[vec![text_line("Bob says hello", 10, 700)]]);
+        assert_eq!(none.found, [false; 6]);
+        assert_eq!(none.class_for(PrintLanguage::English), Err("none"));
+        let both = chat_reading(&[vec![
+            text_line("Bob joined our world", 10, 700),
+            text_line("Bob left our world", 10, 730),
+        ]]);
+        assert_eq!(both.class_for(PrintLanguage::English), Err("both"));
+    }
+
+    #[test]
+    fn the_chat_verdict_needs_one_class_of_its_language_the_expected_event_and_a_name() {
+        use super::{ChatClass, ChatExpectation, PrintLanguage, chat_reading, check_chat_reading};
+        let english = |class| ChatExpectation {
+            language: PrintLanguage::English,
+            class,
+        };
+        let joined = chat_reading(&[vec![text_line("Bob joined our world", 10, 700)]]);
+        assert_eq!(
+            check_chat_reading(&joined, english(Some(ChatClass::Joined))),
+            Ok(ChatClass::Joined)
+        );
+        assert_eq!(
+            check_chat_reading(&joined, english(None)),
+            Ok(ChatClass::Joined),
+            "a print whose file names no event reports the class it found"
+        );
+        assert_eq!(
+            check_chat_reading(&joined, english(Some(ChatClass::Left))).unwrap_err(),
+            "the event is joined, expected left"
+        );
+        let portuguese = ChatExpectation {
+            language: PrintLanguage::Portuguese,
+            class: Some(ChatClass::Joined),
+        };
+        let error = check_chat_reading(&joined, portuguese).unwrap_err();
+        assert!(
+            error.starts_with("joined or left phrase: none found"),
+            "{error}"
+        );
+        assert!(error.contains("1 chat lines over 1 variants"), "{error}");
+        let nameless = chat_reading(&[vec![text_line("joined our world", 10, 700)]]);
+        assert!(
+            check_chat_reading(&nameless, english(None))
+                .unwrap_err()
+                .contains("no name")
+        );
+    }
+
+    #[test]
+    fn a_chat_print_that_names_no_event_accepts_both_and_one_that_names_an_event_does_not() {
+        use super::{ChatClass, ChatExpectation, PrintLanguage, chat_reading, check_chat_reading};
+        let english = |class| ChatExpectation {
+            language: PrintLanguage::English,
+            class,
+        };
+        // The shape of `maintainer-chat-en-mmbaalh-19.png`: one joined line and one left line (made-up names).
+        let both = chat_reading(&[vec![
+            text_line("Bob joined our world", 24, 656),
+            text_line("Eve left our world", 24, 770),
+        ]]);
+        assert_eq!(
+            check_chat_reading(&both, english(None)),
+            Ok(ChatClass::Both),
+            "a file that names no event accepts both and records it as such"
+        );
+        for class in [ChatClass::Joined, ChatClass::Left] {
+            let error = check_chat_reading(&both, english(Some(class))).unwrap_err();
+            assert!(
+                error.starts_with("joined or left phrase: both found"),
+                "a file naming {class:?} does not accept both: {error}"
+            );
+        }
+        // Both is still refused in the other language, and still needs a name before the phrase.
+        let portuguese = ChatExpectation {
+            language: PrintLanguage::Portuguese,
+            class: None,
+        };
+        assert!(
+            check_chat_reading(&both, portuguese)
+                .unwrap_err()
+                .starts_with("joined or left phrase: none found")
+        );
+        let nameless = chat_reading(&[vec![
+            text_line("joined our world", 24, 656),
+            text_line("left our world", 24, 770),
+        ]]);
+        assert!(
+            check_chat_reading(&nameless, english(None))
+                .unwrap_err()
+                .contains("no name")
+        );
+    }
+
+    #[test]
+    fn the_chat_diagnostics_print_booleans_classes_and_boxes_and_never_a_line() {
+        use super::{chat_diagnostics, chat_reading};
+        let reading = chat_reading(&[vec![
+            text_line("Secretname joined our world", 11, 701),
+            text_line("Another secret line", 10, 730),
+        ]]);
+        let lines = chat_diagnostics(&reading);
+        assert_eq!(lines[0], "  chat band, variant 0: 2 lines");
+        assert_eq!(lines[1], "  phrase-candidate-1=found (en, joined)");
+        assert_eq!(lines[2], "  phrase-candidate-2=not found (en, left)");
+        assert_eq!(lines[6], "  phrase-candidate-6=not found (pt, left)");
+        assert_eq!(lines[7], "  chat event class (en candidates): joined");
+        assert_eq!(lines[8], "  chat event class (pt candidates): none");
+        assert_eq!(lines[9], "  chat name read before the phrase: yes");
+        assert_eq!(
+            lines[10],
+            "  chat line holding a phrase: x 11 y 701 width 300 height 18"
+        );
+        let all = lines.join("\n").to_lowercase();
+        assert!(!all.contains("secret"), "{all}");
+        assert!(!all.contains("another"), "{all}");
+    }
+
+    #[test]
+    fn the_automap_verdict_matches_the_generated_name_by_the_production_rule() {
+        use super::{automap_diagnostics, check_automap_reading};
+        let spaced_glyph = vec![vec![
+            text_line("Vuk#1234", 900, 20),
+            text_line("MM8AALH-19", 1500, 40),
+        ]];
+        assert_eq!(check_automap_reading(&spaced_glyph, "mmbaalh-19"), Ok(()));
+        let other = vec![
+            vec![text_line("Vuk#1234", 900, 20)],
+            vec![text_line("mmbaalh-18", 1500, 40)],
+        ];
+        let error = check_automap_reading(&other, "mmbaalh-19").unwrap_err();
+        assert_eq!(
+            error,
+            "no line of the automap band reads as the expected name: 2 lines over 2 variants, 1 shaped like a generated name [\"mmbaalh-18\"]"
+        );
+        assert!(!error.contains("Vuk"), "{error}");
+        assert!(check_automap_reading(&[], "mmbaalh-19").is_err());
+        let lines = automap_diagnostics(&other);
+        assert_eq!(lines[0], "  automap band, variant 0: 1 lines");
+        assert_eq!(
+            lines[1],
+            "    x 900 y 20 width 300 height 18: name-shaped no [aaa#9999]"
+        );
+        assert_eq!(lines[2], "  automap band, variant 1: 1 lines");
+        assert_eq!(
+            lines[3],
+            "    x 1500 y 40 width 300 height 18: name-shaped yes [mmbaalh-18]"
+        );
+        assert!(!lines.join("\n").contains("Vuk"));
+    }
+
+    #[test]
+    fn the_automap_verdict_reads_what_follows_the_label_and_the_edits_name_the_glyph() {
+        use super::{automap_edit_diagnostics, check_automap_reading};
+        let labelled = vec![vec![text_line("Label: mmbaalh-19", 1700, 40)]];
+        assert_eq!(check_automap_reading(&labelled, "mmbaalh-19"), Ok(()));
+        let glued = vec![vec![text_line("Label;MMBAALH-19", 1700, 40)]];
+        assert_eq!(check_automap_reading(&glued, "mmbaalh-19"), Ok(()));
+        let misread = vec![
+            vec![text_line("Label: mmbaalh-1Z", 1700, 40)],
+            vec![text_line("Vuk#1234", 900, 20)],
+        ];
+        assert!(check_automap_reading(&misread, "mmbaalh-19").is_err());
+        let lines = automap_edit_diagnostics(&misread, "mmbaalh-19");
+        assert_eq!(
+            lines,
+            vec![
+                "  automap name line, variant 0: closest read differs by [sub(z>9)@9]",
+                "  automap name line, variant 1: closest read differs by [far]",
+            ]
+        );
+        assert!(!lines.join("\n").contains("Vuk"));
+    }
+
+    #[test]
+    fn the_anchor_line_of_an_automap_or_chat_print_counts_and_names_no_text() {
+        use d2rmm_agent_core::screen_reader::ScreenReader;
+        use d2rmm_agent_domain::language::LanguagePack;
+        let image = Rgba {
+            width: 1920,
+            height: 1080,
+            pixels: Vec::new(),
+        };
+        let reader: Arc<dyn TextReader + Send + Sync> = Arc::new(LinesReader(vec![
+            line("mmbaalh-19", 40),
+            line("Secretname joined our world", 700),
+        ]));
+        let screens = ScreenReader::new(Arc::clone(&reader), Arc::new(LanguagePack::english()));
+        let automap = super::anchor_line(
+            "maintainer-automap-en-mmbaalh-19.png",
+            &*reader,
+            &screens,
+            &image,
+        );
+        assert_eq!(automap, "  anchors: name-shaped lines found 1");
+        let chat = super::anchor_line(
+            "maintainer-chat-en-mmbaalh-19.png",
+            &*reader,
+            &screens,
+            &image,
+        );
+        assert_eq!(
+            chat,
+            "  anchors: phrase candidates found 1 of 6, name read yes"
         );
     }
 }

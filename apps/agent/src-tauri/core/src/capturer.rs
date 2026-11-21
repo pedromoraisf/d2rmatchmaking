@@ -6,7 +6,7 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use d2rmm_agent_domain::capture_cascade::{CaptureMethod, Cascade, Outcome, Step};
+use d2rmm_agent_domain::capture_cascade::{CaptureMethod, Cascade, CascadeParams, Outcome, Step};
 use d2rmm_agent_domain::frame_content::{FrameContent, summarize};
 
 use crate::ports::{CaptureStatus, FrameSource, MethodSource, Miss, Rgba};
@@ -175,6 +175,10 @@ impl<M: MethodSource + Send + Sync> FrameSource for Capturer<M> {
     fn release(&self) {
         let mut state = self.lock();
         self.stop(&mut state);
+    }
+
+    fn configure(&self, params: CascadeParams) {
+        self.lock().cascade.set_params(params);
     }
 }
 
@@ -749,5 +753,114 @@ mod tests {
         }
         // Only the two looks before the demotion are lost: a probe look still returns the current method's frame.
         assert_eq!(frames, 178);
+    }
+
+    use d2rmm_agent_domain::capture_cascade::CascadeParams;
+
+    /// The extremes of each range of the configuration, and the defaults between them.
+    const DEMOTE_AFTERS: [u32; 3] = [1, 3, 10];
+    const PROBE_EVERYS: [u32; 4] = [60, 61, 300, 600];
+    const RATE_WINDOWS: [usize; 3] = [10, 60, 600];
+
+    /// RCF-09, CAP-03: whatever the cascade's numbers, 600 looks on the first method make exactly 600 captures of it, one per
+    /// look, and none of any other method.
+    #[test]
+    fn at_every_extreme_six_hundred_steady_looks_make_six_hundred_captures() {
+        for demote_after in DEMOTE_AFTERS {
+            for probe_every in PROBE_EVERYS {
+                for rate_window in RATE_WINDOWS {
+                    let script = Scripted::new(&[PrintWindow, GraphicsCapture, ScreenCrop]);
+                    script.say(PrintWindow, Say::Good);
+                    let capturer = capturer(&script);
+                    capturer.configure(CascadeParams {
+                        demote_after,
+                        probe_every,
+                        rate_window,
+                    });
+
+                    for _ in 0..600 {
+                        assert!(capturer.capture().is_some());
+                    }
+
+                    assert_eq!(script.calls_of(PrintWindow), 600);
+                    assert_eq!(script.total_calls(), 600);
+                    assert_eq!(capturer.status().read_rate_percent, 100);
+                }
+            }
+        }
+    }
+
+    /// RCF-09: with the first method black, a look makes one capture, plus one probe on every `probe_every`-th look, and the
+    /// demotion looks at the start. Never more than two captures in a look once the demotion is over, never a frame the reader
+    /// would read twice, and the total is bounded by today's: 611 at the fastest probe the range allows (60).
+    #[test]
+    fn at_every_extreme_six_hundred_looks_on_the_second_method_stay_within_the_bound() {
+        for demote_after in DEMOTE_AFTERS {
+            for probe_every in PROBE_EVERYS {
+                let script = Scripted::new(&[PrintWindow, GraphicsCapture]);
+                script.say(PrintWindow, Say::Black);
+                script.say(GraphicsCapture, Say::Good);
+                let capturer = capturer(&script);
+                capturer.configure(CascadeParams {
+                    demote_after,
+                    probe_every,
+                    rate_window: 60,
+                });
+
+                let mut frames = 0;
+                let mut before = 0;
+                for look in 1..=600_u32 {
+                    if capturer.capture().is_some() {
+                        frames += 1;
+                    }
+                    let made = script.total_calls() - before;
+                    before = script.total_calls();
+                    if look > demote_after {
+                        assert!(made <= 2, "look {look} made {made} captures");
+                    }
+                }
+
+                // A probe falls on each multiple of `probe_every` after the look that demoted.
+                let probes =
+                    600 / probe_every as usize - demote_after as usize / probe_every as usize;
+                assert_eq!(
+                    script.calls_of(PrintWindow),
+                    demote_after as usize + probes,
+                    "the looks to demote, then one probe every {probe_every}"
+                );
+                assert_eq!(frames, 600 - (demote_after as usize - 1));
+                // Today's default (3 and 60) makes 611: 598 of the second method, 3 + 10 of the first. Nothing in the range makes more.
+                assert!(
+                    script.total_calls() <= 611,
+                    "{} captures",
+                    script.total_calls()
+                );
+                assert!(frames <= 600, "one frame to read per look at most");
+            }
+        }
+    }
+
+    #[test]
+    fn the_numbers_move_a_capturer_that_has_already_looked() {
+        let script = Scripted::new(&[PrintWindow, GraphicsCapture]);
+        script.say(PrintWindow, Say::Black);
+        script.say(GraphicsCapture, Say::Good);
+        let capturer = capturer(&script);
+        capturer.capture();
+        capturer.capture();
+        capturer.configure(CascadeParams {
+            demote_after: 3,
+            probe_every: 60,
+            rate_window: 60,
+        });
+        // The third blank look demotes, as it would have by default.
+        capturer.capture();
+        assert_eq!(capturer.status().method, Some(GraphicsCapture));
+        // Looks 4 to 60 make one capture each; look 60 adds a probe of the first method.
+        let before = script.total_calls();
+        for _ in 4..=60 {
+            capturer.capture();
+        }
+        assert_eq!(script.total_calls() - before, 58);
     }
 }

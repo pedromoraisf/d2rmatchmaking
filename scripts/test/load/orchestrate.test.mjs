@@ -226,6 +226,10 @@ function fakeDocker(fs, options) {
       state.calls.push(['stats', name]);
       return [{ CPUPerc: '12.50%', MemUsage: '64MiB / 512MiB' }];
     },
+    async imageExists(tag) {
+      state.calls.push(['imageExists', tag]);
+      return options.images?.includes(tag) ?? false;
+    },
     async build(spec) {
       state.calls.push(['build', spec.tag]);
       return options.failBuild?.(spec) ?? ok();
@@ -333,6 +337,7 @@ function scenario(options = {}) {
     failRemove: options.failRemove,
     failRun: options.failRun,
     failBuild: options.failBuild,
+    images: options.images,
     sweepFound: options.sweepFound,
     staleContainers: options.staleContainers,
     existingVolumes: options.existingVolumes,
@@ -401,6 +406,42 @@ test('sequence and cleanup on every exit path', { timeout: SLOW_TEST_MS }, async
     assert.equal(scn.docker.state.planModes[0], 0o600, 'the plan is written at mode 0600');
     assertClean(scn);
   });
+
+  await t.test(
+    'prebuilt images are not built again when the flag is set and both exist (UPK-06)',
+    async () => {
+      const scn = scenario({
+        profile: 'smoke',
+        env: { LOAD_IMAGES_PREBUILT: '1' },
+        images: [API_IMAGE_TAG, K6_IMAGE_TAG],
+      });
+      await runLoad(scn.input);
+      assert.deepEqual(
+        scn.docker.state.calls.filter((call) => call[0] === 'build'),
+        [],
+      );
+    },
+  );
+
+  await t.test(
+    'the flag with one image missing builds both, and no flag never asks Docker (UPK-06)',
+    async () => {
+      const half = scenario({
+        profile: 'smoke',
+        env: { LOAD_IMAGES_PREBUILT: '1' },
+        images: [API_IMAGE_TAG],
+      });
+      await runLoad(half.input);
+      assert.deepEqual(
+        half.docker.state.calls.filter((call) => call[0] === 'build').map((call) => call[1]),
+        [API_IMAGE_TAG, K6_IMAGE_TAG],
+      );
+      const plain = scenario({ profile: 'smoke', images: [API_IMAGE_TAG, K6_IMAGE_TAG] });
+      await runLoad(plain.input);
+      assert.equal(plain.docker.state.calls.filter((call) => call[0] === 'imageExists').length, 0);
+      assert.equal(plain.docker.state.calls.filter((call) => call[0] === 'build').length, 2);
+    },
+  );
 
   await t.test(
     'the containers start in the order of the sequence and the images are built first',

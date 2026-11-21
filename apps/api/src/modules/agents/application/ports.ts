@@ -1,4 +1,5 @@
 import type { Agent } from '../domain/agent.ts';
+import type { ServedAgentConfig } from '../domain/agent-config.ts';
 import type { PairingCode } from '../domain/pairing-code.ts';
 import type { Presence } from '../domain/presence.ts';
 import type { Transaction } from '../../../shared-kernel/index.ts';
@@ -63,4 +64,12 @@ export interface PresenceStore {
   get(agentId: string): PresenceEntry | undefined;
   set(entry: PresenceEntry): void;
   list(): PresenceEntry[];
+}
+
+/**
+ * The remote configuration the API serves (RCF-01, RCF-12): one document for every agent, or none. The production
+ * source holds the committed file read at start; the staging source can be replaced by a test control (T6).
+ */
+export interface AgentConfigSource {
+  current(): ServedAgentConfig | undefined;
 }

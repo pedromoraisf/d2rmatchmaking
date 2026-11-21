@@ -7,16 +7,18 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
-use d2rmm_agent_domain::capture_cascade::CaptureMethod;
+use d2rmm_agent_domain::capture_cascade::{CaptureMethod, CascadeParams};
 use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::frame_content::FrameContent;
+use d2rmm_agent_domain::remote_config::Wire;
 use d2rmm_agent_domain::room_assignment::{Assignment, RoomId};
 use d2rmm_agent_domain::typing::{Modifiers, TypableChar};
 use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 use uuid::Uuid;
 
 use crate::messages::{
-    FrameReading, GameNameObservation, IssuedCode, Presence, ReadyCheckEnd, ReadyCheckOpen,
+    FrameReading, GameNameObservation, IssuedCode, PlayerObservation, Presence, ReadyCheckEnd,
+    ReadyCheckOpen,
 };
 use crate::secret::Secret;
 use crate::view::AgentView;
@@ -149,6 +151,9 @@ pub trait FrameSource {
     /// Ends every capture session the source holds, when the player withdrew consent or the game is gone (CAP-05, CAP-09).
     /// Idempotent; a source that holds none does nothing.
     fn release(&self) {}
+
+    /// Hands the source the cascade's numbers before a look (RCF-08). A source with one fixed way to capture has no cascade.
+    fn configure(&self, _params: CascadeParams) {}
 }
 
 /// What a frame source says about its capture (CAP-07): the method that gave the last usable frame, the share of the last
@@ -250,6 +255,12 @@ pub trait ApiGateway {
         &self,
         token: &Secret,
         observation: &GameNameObservation,
+    ) -> impl Future<Output = Result<(), ApiError>> + Send;
+    /// Posts one chat sighting (a player joined or left) to its room, once: the caller never retries it (server-name-match).
+    fn post_player_observation(
+        &self,
+        token: &Secret,
+        observation: &PlayerObservation,
     ) -> impl Future<Output = Result<(), ApiError>> + Send;
     /// Sends the complete cards of one character selection screen, 1 to 24 of them (CHR-09).
     fn post_characters(
@@ -529,4 +540,46 @@ pub trait ForegroundWindow {
 /// no other key.
 pub trait ModifierState {
     fn any_held(&self, modifiers: Modifiers) -> bool;
+}
+
+/// What one request for the remote configuration came to (remote-config RCF-04). The body is bytes: the core never reads JSON,
+/// the `ConfigReader` port does, and `from_wire` decides.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Fetched {
+    /// A `200`: the body and the `ETag` the API gave it.
+    Body {
+        bytes: Vec<u8>,
+        etag: Option<String>,
+    },
+    /// A `304`: the API still serves what the agent holds.
+    NotModified,
+    /// A `404`: the API serves no configuration, so the agent keeps what it holds (the built-in defaults with none).
+    Absent,
+    /// The request failed.
+    Failed(ApiError),
+}
+
+/// The API's configuration route, on the agent's own API base only (RCF-04, ADR 010). The request carries the token, the agent
+/// version and the tag of what the agent holds; nothing else.
+pub trait ConfigGateway {
+    fn fetch_config(
+        &self,
+        token: &Secret,
+        held_etag: Option<&str>,
+    ) -> impl Future<Output = Fetched> + Send;
+}
+
+/// Keeps the last good body on the PC (RCF-06): written whole or not at all, read back through the same rules as a fetched body.
+pub trait ConfigStore {
+    /// The stored body, or `None` when there is none.
+    fn load(&self) -> Option<Vec<u8>>;
+    fn save(&self, body: &[u8]) -> Result<(), StoreError>;
+    /// Removes a stored body that failed its rules.
+    fn delete(&self);
+}
+
+/// Reads a body into the closed set of fields the agent knows (RCF-02, RCF-10): `None` when it is not a JSON object or is over
+/// the size limit. Unknown fields are not carried.
+pub trait ConfigReader {
+    fn read(&self, body: &[u8]) -> Option<Wire>;
 }

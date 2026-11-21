@@ -102,7 +102,7 @@ jobs:
         run: mkdir -p reports/mutation
       # ADR 026 (AHM-23): mutants are caught by the unit tests (--lib) of each crate, never by tests/ or the app crate.
       - run: cargo mutants --manifest-path apps/agent/src-tauri/Cargo.toml --package d2rmm-agent-${{ matrix.crate }} ${{ matrix.in_place }} ${{ matrix.shard }} --output reports/mutation/${{ matrix.out }} -- --lib
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: ${{ matrix.artifact }}
@@ -131,7 +131,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Mutation (one layer)
         run: pnpm exec turbo run test:mutation --filter=@d2rmm/api -- --layer ${{ matrix.layer }}
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: api-mutation-${{ matrix.layer }}
@@ -171,7 +171,7 @@ jobs:
           fi
       - name: Acceptance (BDD scenarios from .specs)
         run: pnpm run test:acceptance
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: acceptance-report
@@ -216,6 +216,9 @@ jobs:
           cache-from: type=gha,scope=load-k6
           cache-to: type=gha,scope=load-k6,mode=max
       - name: Load test (full ladder)
+        # The two images were just built with the cache: the run uses them instead of building them again (UPK-06).
+        env:
+          LOAD_IMAGES_PREBUILT: '1'
         run: pnpm test:load
       - name: Check the full summary
         id: check
@@ -225,7 +228,18 @@ jobs:
       - name: Record the check's verdict
         if: ${{ !cancelled() && hashFiles('reports/load/summary.json') != '' }}
         run: echo '{"verdict":"${{ steps.check.outcome == 'success' && 'passed' || 'failed' }}"}' > reports/load/check.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      # The numbers of the run in the job's log, where a person (or a session that cannot download artifacts) reads them. Only
+      # counts: the summary holds no cookie, token or password (the check above refuses it).
+      - name: Print the egress numbers
+        if: ${{ !cancelled() && hashFiles('reports/load/summary.json') != '' }}
+        run: |
+          node -e "
+            const s = JSON.parse(require('fs').readFileSync('reports/load/summary.json', 'utf8'));
+            console.log('egress bytesPerPlayerHour', s.bytesPerPlayerHour, 'matchesPerPlayerHour', s.matchesPerPlayerHour);
+            console.log('egress bytesByEventPerPlayerHour', JSON.stringify(s.bytesByEventPerPlayerHour));
+            for (const step of s.steps ?? []) console.log('egress step', step.players ?? step.step, JSON.stringify(step.bytesByEvent));
+          "
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: load-report
@@ -256,14 +270,14 @@ jobs:
       # (CRF-17).
       - name: Download the agent's mutation reports
         if: needs.agent-mutation.result != 'skipped'
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         continue-on-error: true
         with:
           pattern: agent-mutation-*
           path: reports/agent-shards
       - name: Download the API mutation reports
         if: needs.api-mutation.result != 'skipped'
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         continue-on-error: true
         with:
           pattern: api-mutation-*
@@ -276,7 +290,7 @@ jobs:
         run: |
           pnpm run quality:collect
           pnpm run quality:ratchet -- --context nightly --current reports/quality.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: nightly-quality
@@ -301,7 +315,7 @@ jobs:
         with:
           node-version-file: .nvmrc
       - name: Download every artifact of the run
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         continue-on-error: true
         with:
           path: reports/artifacts
@@ -320,7 +334,7 @@ jobs:
         run: node scripts/nightly/report.mjs --in reports/artifacts --out reports/nightly --commit "$GITHUB_SHA" --branch "$GITHUB_REF_NAME" --run "$GITHUB_RUN_ID" --suites "$SUITES" --jobs reports/jobs.json --previous reports/previous/nightly-report.json
       - name: Publish the job summary
         run: cat reports/nightly/nightly-report.md >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nightly-report
           path: reports/nightly/
