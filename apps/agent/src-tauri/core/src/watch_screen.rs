@@ -1044,4 +1044,10 @@ mod tests {
         let skipped = unseen_capture(CaptureStatus::default(), None);
         assert_eq!((skipped.reason, skipped.blank), (None, false));
     }
+
+    /// RCF-07: the look interval is today's value, one look a second (CHR-03), before the configuration can replace it.
+    #[test]
+    fn the_look_interval_is_pinned_to_one_second() {
+        assert_eq!(super::TICK, std::time::Duration::from_secs(1));
+    }
 }

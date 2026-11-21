@@ -69,7 +69,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
 
 ## Batch 2 — the agent loop, runs in the cloud (needs `capture-cascade` merged)
 
-- [ ] T8 — **Pin the capture constants first (tests only, RCF-07).** In `agent/domain/src/capture_cascade.rs`, `agent/core/src/watch_screen.rs`
+- [x] T8 — **Pin the capture constants first (tests only, RCF-07).** In `agent/domain/src/capture_cascade.rs`, `agent/core/src/watch_screen.rs`
       and `agent/core/src/capturer.rs`, tests that pin `DEMOTE_AFTER`, `PROBE_EVERY`, `RATE_WINDOW` and `TICK` and the call
       counts they produce (they exist; add the ones that are missing). No non-test line changes. Gate:
       `CARGO nextest run -p d2rmm-agent-domain -p d2rmm-agent-core --lib` and
