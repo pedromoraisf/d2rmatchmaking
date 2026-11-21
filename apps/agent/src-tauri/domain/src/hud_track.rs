@@ -126,8 +126,17 @@ impl Tracker {
 
     /// Records what the frame showed: the label's line (to track it) or nothing (to search again).
     pub fn record(&mut self, found: Option<Region>, width: u32, height: u32) {
+        self.record_every(found, width, height, self.every);
+    }
+
+    /// `record` with the search period `every` (`cadence.automapSearchEvery`, `cadence.listSearchEvery`) in place of the one
+    /// the tracker was made with. The agent's own ceiling (10) bounds it here too, and 0 counts as 1, whatever the caller
+    /// passes. A tracker made to search every frame (the HUD's band) passes 1 and keeps searching every frame; the floor of
+    /// 2 for the two wide areas is the clamp of `from_wire`, which no configuration passes.
+    pub fn record_every(&mut self, found: Option<Region>, width: u32, height: u32, every: u32) {
+        let every = every.clamp(1, Ranges::AUTOMAP_SEARCH_EVERY.max);
         self.seen = found.map(|line| (line, width, height));
-        self.resting = if found.is_some() { 0 } else { self.every - 1 };
+        self.resting = if found.is_some() { 0 } else { every - 1 };
         self.rest_size = (width, height);
     }
 }
@@ -323,6 +332,40 @@ mod tests {
             }
             assert_eq!(searches, 300, "{search:?}");
         }
+    }
+
+    /// remote-config T25: the search period given on a record replaces the one the tracker was made with.
+    #[test]
+    fn the_period_of_a_record_sets_how_many_looks_rest_and_is_bounded_at_ten() {
+        let rests_after = |every: u32| {
+            let mut tracker = Tracker::searching_every(ScreenRegion::AutomapArea, 2);
+            tracker.record_every(None, 1920, 1080, every);
+            (0..20).take_while(|_| tracker.rests(1920, 1080)).count()
+        };
+        assert_eq!(rests_after(0), 0);
+        assert_eq!(rests_after(1), 0);
+        assert_eq!(rests_after(2), 1);
+        assert_eq!(rests_after(10), 9);
+        assert_eq!(rests_after(11), 9, "never over the agent's own ceiling");
+        assert_eq!(rests_after(u32::MAX), 9);
+        let mut recorded = Tracker::searching_every(ScreenRegion::AutomapArea, 5);
+        recorded.record(None, 1920, 1080);
+        let mut same = Tracker::searching_every(ScreenRegion::AutomapArea, 5);
+        same.record_every(None, 1920, 1080, 5);
+        assert_eq!(recorded, same, "record is record_every at its own period");
+    }
+
+    #[test]
+    fn six_hundred_looks_that_find_nothing_search_sixty_times_at_a_period_of_ten() {
+        let mut tracker = Tracker::searching_every(ScreenRegion::CreateNewArea, 2);
+        let mut searches = 0;
+        for _ in 0..600 {
+            if !tracker.rests(1920, 1080) {
+                searches += 1;
+                tracker.record_every(None, 1920, 1080, 10);
+            }
+        }
+        assert_eq!(searches, 60);
     }
 
     #[test]
