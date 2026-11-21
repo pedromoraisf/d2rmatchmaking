@@ -15,8 +15,9 @@ use d2rmm_agent_domain::game_name_match::{
     FieldRead, FieldSource, read_field, read_field_variants, read_panel_field,
 };
 use d2rmm_agent_domain::language::LanguagePack;
-use d2rmm_agent_domain::layout::{PanelRegion, panel_region};
+use d2rmm_agent_domain::layout::{PanelRegion, panel_region, panel_region_with};
 use d2rmm_agent_domain::name_diff::closest_reading_diff;
+use d2rmm_agent_domain::remote_config::Regions;
 use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::{ReadText, Region};
 
@@ -269,8 +270,17 @@ pub async fn look<G: ApiGateway + Send + Sync>(
     let expected = assignment.expected_game_name.as_str().to_string();
     let tracked = device.with_party(|progress| progress.tracked_area(frame.width, frame.height));
     let size = (frame.width, frame.height);
+    // The area of the Party panel the configuration of this look names (RCF-08).
+    let regions = device.config.borrow().regions;
     let reading = tokio::task::spawn_blocking(move || {
-        read_panel_for(reader.as_ref(), &language, &frame, Some(&expected), tracked)
+        read_panel_with(
+            reader.as_ref(),
+            &language,
+            &frame,
+            Some(&expected),
+            tracked,
+            &regions,
+        )
     })
     .await;
     let Ok(reading) = reading else {
@@ -344,11 +354,31 @@ pub fn read_panel_for(
     expected: Option<&str>,
     tracked: Option<Region>,
 ) -> PanelReading {
+    read_panel_with(
+        reader,
+        language,
+        frame,
+        expected,
+        tracked,
+        &Regions::default(),
+    )
+}
+
+/// `read_panel_for` with the areas of the remote configuration: `regions.partyArea` replaces the wide fallback area
+/// (`PartyPanel`) when it passes the layout's checks, and never reads more pixels than that area (RCF-05, RCF-09).
+pub fn read_panel_with(
+    reader: &dyn TextReader,
+    language: &LanguagePack,
+    frame: &Rgba,
+    expected: Option<&str>,
+    tracked: Option<Region>,
+    regions: &Regions,
+) -> PanelReading {
     let mut best: Option<anchors::PartyAnchors> = None;
     let areas = [
         tracked,
         panel_region(PanelRegion::PartyFixed, frame.width, frame.height),
-        panel_region(PanelRegion::PartyPanel, frame.width, frame.height),
+        panel_region_with(PanelRegion::PartyPanel, frame.width, frame.height, regions),
     ];
     for (index, area) in areas.into_iter().enumerate() {
         let Some(area) = area else { continue };
@@ -1509,6 +1539,8 @@ mod anchored_tests {
         inner: Lines,
         calls: std::sync::atomic::AtomicUsize,
         label_only_in_the_wide_area: bool,
+        /// Every area `read_lines` was asked about, in order.
+        areas: std::sync::Mutex<Vec<Region>>,
     }
 
     impl Counted {
@@ -1517,7 +1549,12 @@ mod anchored_tests {
                 inner,
                 calls: std::sync::atomic::AtomicUsize::new(0),
                 label_only_in_the_wide_area,
+                areas: std::sync::Mutex::new(Vec::new()),
             }
+        }
+
+        fn areas(&self) -> Vec<Region> {
+            self.areas.lock().expect("the areas lock").clone()
         }
 
         fn calls(&self) -> usize {
@@ -1533,6 +1570,7 @@ mod anchored_tests {
 
         fn read_lines(&self, image: &Rgba, area: Region) -> Vec<TextLine> {
             self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.areas.lock().expect("the areas lock").push(area);
             let mut lines = self.inner.read_lines(image, area);
             let fixed = d2rmm_agent_domain::layout::panel_region(
                 d2rmm_agent_domain::layout::PanelRegion::PartyFixed,
@@ -1601,6 +1639,92 @@ mod anchored_tests {
         let reading = read_panel_for(&next, &pack, &size, Some("mmbaalm-99"), tracked);
         assert!(reading.open && reading.label_found);
         assert_eq!(next.calls(), 2);
+    }
+
+    /// remote-config T17: the wide fallback area of the Party panel is the configured one when it passes the layout's checks.
+    mod party_area {
+        use super::{Counted, english_with_portuguese, frame, portuguese_panel_named};
+        use crate::party::{read_panel_for, read_panel_with};
+        use d2rmm_agent_domain::remote_config::{Area, Regions};
+        use d2rmm_agent_domain::vision::Region;
+
+        fn configured(area: Area) -> Regions {
+            Regions {
+                party_area: Some(area),
+                ..Regions::default()
+            }
+        }
+
+        /// The areas asked when a title is found without its label, so the wide area is read (the pt-BR client).
+        fn asked_with(regions: &Regions) -> (Vec<Region>, bool) {
+            let pack = english_with_portuguese();
+            let size = frame(1045);
+            let wide = Counted::new(portuguese_panel_named("mmbaalm-99"), true);
+            let reading = read_panel_with(&wide, &pack, &size, Some("mmbaalm-99"), None, regions);
+            (wide.areas(), reading.open && reading.label_found)
+        }
+
+        #[test]
+        fn a_smaller_configured_area_is_the_wide_area_read() {
+            let regions = configured(Area {
+                x: 0.0,
+                y: 0.0,
+                width: 0.2,
+                height: 0.3,
+            });
+            let (asked, found) = asked_with(&regions);
+            assert!(found, "the label is still found in the configured area");
+            let own = Region {
+                x: 0,
+                y: 0,
+                width: 384,
+                height: 314,
+            };
+            let built_in = Region {
+                x: 0,
+                y: 0,
+                width: 583,
+                height: 418,
+            };
+            assert!(asked.contains(&own), "{asked:?}");
+            assert!(!asked.contains(&built_in), "{asked:?}");
+        }
+
+        #[test]
+        fn a_larger_configured_area_leaves_the_built_in_one() {
+            let regions = configured(Area {
+                x: 0.0,
+                y: 0.0,
+                width: 1.0,
+                height: 1.0,
+            });
+            let (asked, _) = asked_with(&regions);
+            assert!(
+                asked
+                    .iter()
+                    .all(|area| area.width <= 583 && area.height <= 418),
+                "{asked:?}"
+            );
+            assert!(
+                asked.contains(&Region {
+                    x: 0,
+                    y: 0,
+                    width: 583,
+                    height: 418
+                }),
+                "{asked:?}"
+            );
+        }
+
+        #[test]
+        fn no_configured_area_reads_the_areas_read_panel_for_does() {
+            let pack = english_with_portuguese();
+            let size = frame(1045);
+            let before = Counted::new(portuguese_panel_named("mmbaalm-99"), true);
+            read_panel_for(&before, &pack, &size, Some("mmbaalm-99"), None);
+            let (asked, _) = asked_with(&Regions::default());
+            assert_eq!(asked, before.areas());
+        }
     }
 
     #[test]
