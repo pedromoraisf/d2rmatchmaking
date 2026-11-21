@@ -1405,6 +1405,26 @@ mod hud_tests {
         assert_eq!(per_frame, [1, 0, 1, 0, 1, 0]);
     }
 
+    /// ocr-protection (remote-config T23, rule 14): how often the two wide areas are searched while their marker is not
+    /// found, as measured before the cadences come from the configuration. 600 looks of a frame that shows nothing: the band
+    /// every look, the automap area and the list marker area every second look. They pass on the code as it was and must
+    /// pass with the defaults threaded in.
+    #[test]
+    fn six_hundred_looks_of_nothing_search_each_wide_area_three_hundred_times() {
+        let hud = Hud::new(vec![]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        let (mut band, mut automap, mut marker) = (0, 0, 0);
+        for _ in 0..600 {
+            assert_eq!(screens.read(&frame).screen, Screen::Unknown);
+            let asked = hud.take_asked();
+            band += band_reads(&asked);
+            automap += automap_reads(&asked);
+            marker += marker_area_reads(&asked);
+        }
+        assert_eq!((band, automap, marker), (600, 300, 300));
+    }
+
     #[test]
     fn an_in_game_or_automap_frame_never_reads_the_marker_area() {
         // The steady state of the game adds no read for the list marker: the HUD or the automap is found first.

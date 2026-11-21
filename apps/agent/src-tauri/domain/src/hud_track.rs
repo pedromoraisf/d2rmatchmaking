@@ -304,6 +304,27 @@ mod tests {
         assert_eq!(tracker.next(1920, 1080), Some(TrackRead::Search(area)));
     }
 
+    /// ocr-protection (remote-config T23, rule 14): a search that finds nothing rests `every - 1` looks, so 600 looks make 300
+    /// searches at today's cadence of 2.
+    #[test]
+    fn six_hundred_looks_that_find_nothing_search_three_hundred_times_at_a_period_of_two() {
+        for (search, every) in [
+            (ScreenRegion::AutomapArea, super::AUTOMAP_SEARCH_EVERY),
+            (ScreenRegion::CreateNewArea, super::LIST_SEARCH_EVERY),
+        ] {
+            let mut tracker = Tracker::searching_every(search, every);
+            let mut searches = 0;
+            for _ in 0..600 {
+                // A rested look reads nothing and records nothing (`ScreenReader::tracked_lines`).
+                if !tracker.rests(1920, 1080) {
+                    searches += 1;
+                    tracker.record(None, 1920, 1080);
+                }
+            }
+            assert_eq!(searches, 300, "{search:?}");
+        }
+    }
+
     #[test]
     fn an_unsupported_size_reads_nothing() {
         assert_eq!(hud().next(1280, 1024), None);

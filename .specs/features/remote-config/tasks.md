@@ -171,7 +171,7 @@ schema never breaks an older agent; `agent-config.json` keeps serving today's va
       (`pnpm contracts:openapi`); contract tests for each bound and a hostile phrase; `agent-config.json` unchanged except
       what the schema now requires (nothing). Gate: `pnpm contracts:openapi && git diff --exit-code -- packages/contracts`
       after the commit, `pnpm --filter @d2rmm/contracts test` and the API agent-config tests
-- [ ] T23 — **[R14] Pin first**: tests that pin today's search cadences (`AUTOMAP_SEARCH_EVERY`, `LIST_SEARCH_EVERY`, the
+- [x] T23 — **[R14] Pin first**: tests that pin today's search cadences (`AUTOMAP_SEARCH_EVERY`, `LIST_SEARCH_EVERY`, the
       search call counts over 600 looks while the automap or the list marker is not found) and today's chat phrases per
       language (`joinedGame`, `leftGame` from the language packs, the classify results of `chat.rs`'s existing cases). No
       non-test line changes. Gate: `CARGO nextest run -p d2rmm-agent-domain -p d2rmm-agent-core --lib`
