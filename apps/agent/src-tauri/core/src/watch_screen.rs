@@ -52,7 +52,7 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
     posted: &mut Option<Vec<Card>>,
 ) {
     let Some(frame) = capture(ports) else {
-        device.set_screen(Screen::Unknown);
+        show_nothing_read(device);
         let status = ports.frames.status();
         device.set_capture_report(report_of(status));
         // The window's size is looked up only when the game runs and gave nothing to read: not once a second while it is gone.
@@ -70,7 +70,7 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
     device.set_capture_report(report_of(status));
     if content.blank {
         // A blank frame is never read: no OCR call is made for it, and the Party step does not see it (CAP-02, NFR-02).
-        device.set_screen(Screen::Unknown);
+        show_nothing_read(device);
         device.hub.set_capture(CaptureView {
             reason: Some(NOTHING_SEEN),
             ..capture_of(
@@ -126,6 +126,22 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
         }
         // Any other failure keeps the set unsent, so the next tick sends it again.
         Err(_) => {}
+    }
+}
+
+/// A look that read nothing: the screen is reported as `Unknown` and the diagnostics say the same, with no cards from an
+/// earlier frame. One value feeds the heartbeat and the window, so they never disagree (ARL-06, CHR-04).
+fn show_nothing_read(device: &DeviceState) {
+    device.set_screen(Screen::Unknown);
+    if let Some(shown) = device.hub.snapshot().diagnostics {
+        device.hub.set_diagnostics(DiagnosticsView {
+            screen: screen_code(Screen::Unknown),
+            cards_read: 0,
+            cards_settled: 0,
+            popup_options_found: 0,
+            rejected: Vec::new(),
+            ..shown
+        });
     }
 }
 
@@ -919,6 +935,57 @@ mod tests {
             expected_game_name: GameName::new("mmbaalh-16"),
             members: Vec::new(),
         }
+    }
+
+    /// Field test 2026-11-21 (ARL-06, CHR-04): the window said "Em jogo" while the site showed an unknown screen, because a
+    /// look that gave no usable frame reported `Unknown` and left the last good read in the diagnostics. The window and the
+    /// heartbeat now come from one value: a look that sees nothing shows `unknown` in both.
+    #[tokio::test]
+    async fn a_blank_frame_after_a_game_read_shows_the_reported_screen_in_the_diagnostics() {
+        let mut rig = rig(
+            true,
+            true,
+            frame(),
+            FrameReading::without_cards(Screen::InGame),
+        );
+        look(&rig, &mut None).await;
+        assert_eq!(diagnostics(&rig).screen, "inGame");
+        assert_eq!(*rig.device.screen.borrow(), Screen::InGame);
+
+        rig.ports.frames = Arc::new(Frames {
+            frame: blank_frame(),
+            captures: AtomicUsize::new(0),
+        });
+        look(&rig, &mut None).await;
+
+        assert_eq!(*rig.device.screen.borrow(), Screen::Unknown);
+        let shown = diagnostics(&rig);
+        assert_eq!(shown.screen, "unknown", "what the heartbeat reports");
+        assert_eq!((shown.cards_read, shown.cards_settled), (0, 0));
+        assert!(shown.rejected.is_empty());
+        assert_eq!(shown.post, "not-sent", "the last post is not a screen read");
+    }
+
+    #[tokio::test]
+    async fn a_look_without_a_frame_after_a_game_read_shows_the_reported_screen_in_the_diagnostics()
+    {
+        let mut rig = rig(
+            true,
+            true,
+            frame(),
+            FrameReading::without_cards(Screen::InGame),
+        );
+        look(&rig, &mut None).await;
+        assert_eq!(diagnostics(&rig).screen, "inGame");
+
+        rig.ports.frames = Arc::new(Frames {
+            frame: None,
+            captures: AtomicUsize::new(0),
+        });
+        look(&rig, &mut None).await;
+
+        assert_eq!(*rig.device.screen.borrow(), Screen::Unknown);
+        assert_eq!(diagnostics(&rig).screen, "unknown");
     }
 
     #[tokio::test]
