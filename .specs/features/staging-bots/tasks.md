@@ -34,7 +34,7 @@ Rules:
       character, heartbeat, site and agent streams with reconnect, join, accept, observe, leave) (SBT-05, SBT-07).
       Bodies are validated with `@d2rmm/contracts` before they are sent. Gate:
       `node --test scripts/test/staging-bots-bot.test.mjs`
-- [ ] T4 — `scripts/staging/lib/cleanup.mjs`: the four leave steps in order, each failure logged and the rest still run,
+- [x] T4 — `scripts/staging/lib/cleanup.mjs`: the four leave steps in order, each failure logged and the rest still run,
       exit code from the failures; and `lib/log.mjs`: structured log lines and the job summary that hold no token or
       cookie (SBT-10, SBT-11). Gate: `node --test scripts/test/staging-bots-cleanup.test.mjs`
 - [ ] T5 — `scripts/staging/config.mjs` (the only reader of `process.env`) and `scripts/staging/bots.mjs` (the CLI:
