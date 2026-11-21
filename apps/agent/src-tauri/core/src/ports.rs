@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
-use d2rmm_agent_domain::capture_cascade::CaptureMethod;
+use d2rmm_agent_domain::capture_cascade::{CaptureMethod, CascadeParams};
 use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::frame_content::FrameContent;
 use d2rmm_agent_domain::remote_config::Wire;
@@ -150,6 +150,9 @@ pub trait FrameSource {
     /// Ends every capture session the source holds, when the player withdrew consent or the game is gone (CAP-05, CAP-09).
     /// Idempotent; a source that holds none does nothing.
     fn release(&self) {}
+
+    /// Hands the source the cascade's numbers before a look (RCF-08). A source with one fixed way to capture has no cascade.
+    fn configure(&self, _params: CascadeParams) {}
 }
 
 /// What a frame source says about its capture (CAP-07): the method that gave the last usable frame, the share of the last

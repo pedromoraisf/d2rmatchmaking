@@ -13,6 +13,25 @@ pub const PROBE_EVERY: u32 = 60;
 /// The looks the read rate is taken over (CAP-07).
 pub const RATE_WINDOW: usize = 60;
 
+/// The three numbers that move the cascade: today's constants until the remote configuration says otherwise (remote-config
+/// RCF-08). Each is clamped into its range by `remote_config::from_wire` before it gets here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CascadeParams {
+    pub demote_after: u32,
+    pub probe_every: u32,
+    pub rate_window: usize,
+}
+
+impl Default for CascadeParams {
+    fn default() -> Self {
+        Self {
+            demote_after: DEMOTE_AFTER,
+            probe_every: PROBE_EVERY,
+            rate_window: RATE_WINDOW,
+        }
+    }
+}
+
 /// One way to get the game window's pixels into the agent's memory. Each one returns the client area of the game window and
 /// nothing else (CAP-04, ADR 010).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -72,6 +91,7 @@ pub struct Cascade {
     looks: u32,
     probes: usize,
     recent: VecDeque<bool>,
+    params: CascadeParams,
 }
 
 impl Cascade {
@@ -89,6 +109,16 @@ impl Cascade {
             looks: 0,
             probes: 0,
             recent: VecDeque::with_capacity(RATE_WINDOW),
+            params: CascadeParams::default(),
+        }
+    }
+
+    /// Moves the cascade to new numbers from the next look. The counters keep their values, so a look in flight is not lost;
+    /// a window that shrinks drops the oldest looks at once.
+    pub fn set_params(&mut self, params: CascadeParams) {
+        self.params = params;
+        while self.recent.len() > params.rate_window {
+            self.recent.pop_front();
         }
     }
 
@@ -100,7 +130,12 @@ impl Cascade {
     /// The earlier method to capture with before this look's own capture, when a probe is due: every `PROBE_EVERY`-th look
     /// while a later method is in use. Each probe takes the next earlier method in turn.
     pub fn probe(&self) -> Option<CaptureMethod> {
-        if self.current == 0 || !self.looks.wrapping_add(1).is_multiple_of(PROBE_EVERY) {
+        if self.current == 0
+            || !self
+                .looks
+                .wrapping_add(1)
+                .is_multiple_of(self.params.probe_every)
+        {
             return None;
         }
         self.methods.get(self.probes % self.current).copied()
@@ -125,7 +160,7 @@ impl Cascade {
     /// unusable looks, and the third unusable look in a row moves to the next method.
     pub fn record(&mut self, outcome: Outcome) -> Step {
         self.looks = self.looks.wrapping_add(1);
-        if self.recent.len() == RATE_WINDOW {
+        while self.recent.len() >= self.params.rate_window.max(1) {
             self.recent.pop_front();
         }
         self.recent.push_back(outcome.usable());
@@ -134,7 +169,7 @@ impl Cascade {
             return Step::Stay;
         }
         self.unusable_run = self.unusable_run.saturating_add(1);
-        if self.unusable_run < DEMOTE_AFTER {
+        if self.unusable_run < self.params.demote_after {
             return Step::Stay;
         }
         match self.methods.get(self.current + 1).copied() {
@@ -147,7 +182,7 @@ impl Cascade {
         }
     }
 
-    /// The share of the last `RATE_WINDOW` looks that gave a usable frame, as a whole percent (0 with no look).
+    /// The share of the last `rate_window` looks that gave a usable frame, as a whole percent (0 with no look).
     pub fn read_rate_percent(&self) -> u8 {
         let looks = self.recent.len();
         if looks == 0 {
@@ -356,5 +391,140 @@ mod tests {
         assert_eq!(probes, 10);
         assert_eq!(captures, 610);
         assert_eq!(cascade.current(), Some(GraphicsCapture));
+    }
+
+    use super::CascadeParams;
+
+    #[test]
+    fn the_default_parameters_are_the_pinned_constants() {
+        assert_eq!(
+            CascadeParams::default(),
+            CascadeParams {
+                demote_after: 3,
+                probe_every: 60,
+                rate_window: 60
+            }
+        );
+    }
+
+    fn with(demote_after: u32, probe_every: u32, rate_window: usize) -> Cascade {
+        let mut cascade = Cascade::new(&[PrintWindow, GraphicsCapture]);
+        cascade.set_params(CascadeParams {
+            demote_after,
+            probe_every,
+            rate_window,
+        });
+        cascade
+    }
+
+    /// The demotion follows the configured run of unusable looks, at each end of its range.
+    #[test]
+    fn the_demotion_follows_the_configured_run() {
+        for demote_after in [1_u32, 2, 3, 10] {
+            let mut cascade = with(demote_after, 60, 60);
+            for _ in 1..demote_after {
+                assert_eq!(cascade.record(Outcome::Blank), Step::Stay);
+            }
+            assert_eq!(
+                cascade.record(Outcome::Blank),
+                Step::Demoted(GraphicsCapture),
+                "after {demote_after}"
+            );
+        }
+    }
+
+    /// Looks 1 to 600 on the second method: a probe on every `probe_every`-th look and no other, at each end of its range.
+    #[test]
+    fn the_probe_follows_the_configured_cadence() {
+        for probe_every in [10_u32, 11, 30, 60, 600] {
+            let mut cascade = with(1, probe_every, 60);
+            cascade.record(Outcome::Blank);
+            let mut probes = Vec::new();
+            for look in 2..=601_u32 {
+                if cascade.probe().is_some() {
+                    probes.push(look);
+                }
+                cascade.record(Outcome::Frame);
+            }
+            let expected: Vec<u32> = (1..=601_u32 / probe_every)
+                .map(|n| n * probe_every)
+                .filter(|look| *look >= 2)
+                .collect();
+            assert_eq!(probes, expected, "every {probe_every}");
+            assert!(probes.len() <= 60, "at most one look in ten probes");
+        }
+    }
+
+    #[test]
+    fn the_read_rate_follows_the_configured_window() {
+        for window in [10_usize, 11, 60, 600] {
+            let mut cascade = with(3, 60, window);
+            for _ in 0..window {
+                cascade.record(Outcome::Frame);
+            }
+            assert_eq!(cascade.read_rate_percent(), 100);
+            // One usable look in `window` falls out for each unusable one that comes in.
+            for _ in 0..(window / 2) {
+                cascade.record(Outcome::Blank);
+            }
+            let unusable = window / 2;
+            let expected = u8::try_from((window - unusable) * 100 / window).expect("a percent");
+            assert_eq!(cascade.read_rate_percent(), expected, "window {window}");
+        }
+    }
+
+    #[test]
+    fn a_window_that_shrinks_drops_the_oldest_looks_at_once() {
+        let mut cascade = Cascade::new(&[PrintWindow, GraphicsCapture]);
+        for _ in 0..60 {
+            cascade.record(Outcome::Frame);
+        }
+        for _ in 0..10 {
+            cascade.record(Outcome::Blank);
+        }
+        assert_eq!(cascade.read_rate_percent(), 83);
+        cascade.set_params(CascadeParams {
+            rate_window: 10,
+            ..CascadeParams::default()
+        });
+        assert_eq!(
+            cascade.read_rate_percent(),
+            0,
+            "the ten blank looks are all that is left"
+        );
+    }
+
+    #[test]
+    fn a_window_that_grows_keeps_the_looks_it_has() {
+        let mut cascade = Cascade::new(&[PrintWindow, GraphicsCapture]);
+        for _ in 0..60 {
+            cascade.record(Outcome::Frame);
+        }
+        cascade.set_params(CascadeParams {
+            rate_window: 600,
+            ..CascadeParams::default()
+        });
+        cascade.record(Outcome::Blank);
+        assert_eq!(
+            cascade.read_rate_percent(),
+            98,
+            "sixty usable looks and one blank"
+        );
+    }
+
+    #[test]
+    fn new_numbers_keep_the_counters_a_look_in_flight_built() {
+        let mut cascade = with(10, 60, 60);
+        for _ in 0..2 {
+            cascade.record(Outcome::Blank);
+        }
+        cascade.set_params(CascadeParams {
+            demote_after: 3,
+            ..CascadeParams::default()
+        });
+        assert_eq!(
+            cascade.record(Outcome::Blank),
+            Step::Demoted(GraphicsCapture)
+        );
     }
 }

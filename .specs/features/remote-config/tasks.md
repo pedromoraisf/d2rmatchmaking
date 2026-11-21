@@ -90,7 +90,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
       stale, unreachable, a restart with the API gone, a corrupted stored file. Gate:
       `CARGO nextest run -p d2rmm-agent-domain -p d2rmm-agent-core -p d2rmm-agent-adapters -p d2rmm-agent --lib` and
       `CARGO clippy -p d2rmm-agent-domain -p d2rmm-agent-core -p d2rmm-agent-adapters --all-targets -- -D warnings`
-- [ ] T12 — Apply the cadence (RCF-08, RCF-09). `capture_cascade` takes `demote_after`, `probe_every` and `rate_window` from
+- [x] T12 — Apply the cadence (RCF-08, RCF-09). `capture_cascade` takes `demote_after`, `probe_every` and `rate_window` from
       `Effective`; `watch_screen::run` sleeps `look_interval` (never under one second). Call-count tests at the extremes of
       every range: captures and reads per 600 looks never exceed today's. Gate: as T11
 - [ ] T13 — Telemetry and the window (RCF-08, RCF-11). `agent.config.fetch` span with `config.outcome` and `config.version`;
