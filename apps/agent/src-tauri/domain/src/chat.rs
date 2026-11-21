@@ -320,4 +320,58 @@ mod tests {
             vec![ChatEvent::Left, ChatEvent::Joined]
         );
     }
+
+    /// A pin (rule 14): the events of a scripted run over the drawn fixtures' lines, frame by frame. A later change that adds
+    /// the names to the events must leave this sequence as it is.
+    #[test]
+    fn a_scripted_run_of_the_fixture_lines_gives_these_events_in_this_order() {
+        let pack = english();
+        let mut tracker = ChatTracker::default();
+        let frames: [&[&str]; 6] = [
+            &["Bob joined our world"],
+            &["Bob joined our world", "Eve left our world"],
+            &["Bob joined our world", "Eve left our world"],
+            &[
+                "Eve left our world",
+                "Bob joined our world",
+                "Bob joined our world",
+            ],
+            &[],
+            &["Eve left our world", "no words here"],
+        ];
+        let seen: Vec<Vec<ChatEvent>> = frames
+            .iter()
+            .map(|lines| tracker.next(&[&pack], lines))
+            .collect();
+        assert_eq!(
+            seen,
+            vec![
+                vec![ChatEvent::Joined],
+                vec![ChatEvent::Left],
+                vec![],
+                vec![ChatEvent::Joined],
+                vec![],
+                vec![ChatEvent::Left],
+            ]
+        );
+    }
+
+    /// A pin (rule 14): the name `classify` finds for each fixture line, as the line reads.
+    #[test]
+    fn the_names_of_the_fixture_lines_are_these() {
+        let en = english();
+        let pt = portuguese();
+        assert_eq!(
+            classify(&en, "Bob joined our world"),
+            Some((ChatEvent::Joined, "Bob".to_string()))
+        );
+        assert_eq!(
+            classify(&en, "Eve left our world"),
+            Some((ChatEvent::Left, "Eve".to_string()))
+        );
+        assert_eq!(
+            super::classify_any(&[&en, &pt], "Bob saiu de nosso mundo"),
+            Some((ChatEvent::Left, "Bob".to_string()))
+        );
+    }
 }

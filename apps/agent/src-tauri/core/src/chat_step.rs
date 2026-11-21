@@ -313,4 +313,21 @@ mod tests {
         }
         assert_eq!(seen, ["joined", "left"]);
     }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_pin_of_the_fixture_frames_through_look() {
+        // Rule 14 pin: the drawn fixtures' lines (chat-both, then chat-joined-later's height) give these events.
+        let rig = rig();
+        hold_a_room(&rig);
+        rig.chat
+            .say(&["Bob joined our world", "Eve left our world"]);
+        assert_eq!(look_at(&rig).await, [ChatEvent::Joined, ChatEvent::Left]);
+        assert!(look_at(&rig).await.is_empty(), "the same frame again");
+        rig.chat.say(&[
+            "Eve left our world",
+            "Bob joined our world",
+            "Bob joined our world",
+        ]);
+        assert_eq!(look_at(&rig).await, [ChatEvent::Joined]);
+    }
 }
