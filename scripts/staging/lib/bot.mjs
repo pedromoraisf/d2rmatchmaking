@@ -162,7 +162,16 @@ export function createBot({
     );
   }
 
-  function holdStream(label, headers, handle) {
+  /**
+   * Holds one stream for the life of the bot and reconnects it. Resolves once it has opened for the first time: the API counts
+   * the account's site stream and agent as connected only from then (INV-03). `onOpen` runs at each open, as a real agent
+   * re-reads its state when its stream opens, because the stream replays only what carries an id.
+   */
+  function holdStream(label, headers, handle, onOpen) {
+    let opened;
+    const first = new Promise((resolve) => {
+      opened = resolve;
+    });
     tasks.push(
       (async () => {
         let lastId;
@@ -175,6 +184,8 @@ export function createBot({
               signal: abort.signal,
             });
             if (stream.status !== 200) throw new BotError(`the ${label} stream answered ${stream.status}`);
+            opened();
+            await onOpen?.();
             for await (const event of stream.events) {
               if (event.id !== undefined) lastId = event.id;
               await handle(event);
@@ -190,6 +201,7 @@ export function createBot({
         }
       })(),
     );
+    return first;
   }
 
   async function observe(assignment) {
@@ -222,37 +234,63 @@ export function createBot({
     queue = run.catch(() => undefined);
     return run;
   };
+  const accepted = new Set();
+
+  async function acceptReadyCheck(id) {
+    if (accepted.has(id)) return;
+    accepted.add(id);
+    const [low, high] = ACCEPT_DELAY_MS;
+    await sleep(low + random() * (high - low), abort.signal);
+    const answer = await client.agent(`/v1/ready-checks/${encodeURIComponent(id)}/accept`, state.token, {
+      method: 'POST',
+      body: {},
+    });
+    say('bot.accepted', { status: answer.status });
+  }
+
+  async function takeAssignment(data) {
+    await exclusive(async () => {
+      if (state.roomId === data.roomId && state.run === data.run) return;
+      assignment = data;
+      state.roomId = assignment.roomId;
+      state.run = assignment.run;
+      state.pcState = 'IN_ROOM_JOINING';
+      state.ticketId = undefined;
+      state.stages = [];
+      state.stage = undefined;
+      say('bot.assigned', { room: assignment.roomId, host: isHost() });
+      // A real agent beats at once when its state changes; the heartbeat that names the room is what moves it on (LBR-02).
+      await heartbeat();
+      // The site stream may have delivered stages of this room before this event: they were kept, and apply now, in order.
+      for (const stage of [...(stagesByRoom.get(assignment.roomId) ?? [])]) await applyStage(stage);
+    });
+  }
+
   async function onAgentEvent(event) {
     if (event.type === 'ready_check.started') {
-      const [low, high] = ACCEPT_DELAY_MS;
-      await sleep(low + random() * (high - low), abort.signal);
-      const answer = await client.agent(
-        `/v1/ready-checks/${encodeURIComponent(event.data.id)}/accept`,
-        state.token,
-        {
-          method: 'POST',
-          body: {},
-        },
-      );
-      say('bot.accepted', { status: answer.status });
+      await acceptReadyCheck(event.data.id);
     } else if (event.type === 'room.assigned' || event.type === 'room.run_opened') {
-      await exclusive(async () => {
-        assignment = event.data;
-        state.roomId = assignment.roomId;
-        state.run = assignment.run;
-        state.pcState = 'IN_ROOM_JOINING';
-        state.ticketId = undefined;
-        state.stages = [];
-        state.stage = undefined;
-        say('bot.assigned', { room: assignment.roomId, host: isHost() });
-        // A real agent beats at once when its state changes; the heartbeat that names the room is what moves it on (LBR-02).
-        await heartbeat();
-        // The site stream may have delivered stages of this room before this event: they were kept, and apply now, in order.
-        for (const stage of [...(stagesByRoom.get(assignment.roomId) ?? [])]) await applyStage(stage);
-      });
+      await takeAssignment(event.data);
     } else if (event.type === 'room.stage_changed') {
       // The agent's stream carries only the end of a room (closed or expired); the site's carries every stage.
       await onStage(event.data);
+    }
+  }
+
+  /** What a real agent reads when its stream opens: its open ready check and its assignment (RDY-11). */
+  async function catchUpAgent() {
+    const check = await client.agent('/v1/ready-checks/me', state.token);
+    if (check.status === 200 && check.body?.id !== undefined)
+      void acceptReadyCheck(check.body.id).catch(() => undefined);
+    const held = await client.agent('/v1/agents/me/assignment', state.token);
+    if (held.status === 200 && held.body?.roomId !== undefined) await takeAssignment(held.body);
+  }
+
+  /** What the site reads when its stream opens: the room it is in, so a stage that went by is not lost. */
+  async function catchUpSite() {
+    const room = await client.site('/v1/me/room', state.cookie);
+    if (room.status === 200 && room.body?.roomId !== undefined) {
+      await onStage({ roomId: room.body.roomId, stage: room.body.stage });
     }
   }
 
@@ -310,16 +348,28 @@ export function createBot({
     return answer.status === 200 ? answer.body?.ticket?.poolSize : undefined;
   }
 
-  function start() {
+  /**
+   * Brings the bot online: the first heartbeat, then the site stream and the agent stream, and returns once both are open. The
+   * queue refuses a join until the agent is online and the site is connected (INV-03), so the join waits for this.
+   */
+  async function start() {
+    await heartbeat();
     keepAlive(heartbeat, HEARTBEAT_EVERY_MS);
-    holdStream('site', { Cookie: state.cookie }, async (event) => {
-      if (event.type === 'room.stage_changed') await onStage(event.data);
-    });
-    holdStream(
+    const site = holdStream(
+      'site',
+      { Cookie: state.cookie },
+      async (event) => {
+        if (event.type === 'room.stage_changed') await onStage(event.data);
+      },
+      catchUpSite,
+    );
+    const agentStream = holdStream(
       'agent',
       { Authorization: `Bearer ${state.token}`, 'X-Agent-Version': client.version },
       onAgentEvent,
+      catchUpAgent,
     );
+    await Promise.all([site, agentStream]);
   }
 
   /** The leave steps of SBT-10, in order. Each is safe to run when its subject is gone. */

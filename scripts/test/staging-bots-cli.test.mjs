@@ -157,3 +157,26 @@ test('SBT-07 a host posts its sighting only once the room awaits it, never befor
   stop.abort();
   await finished;
 });
+
+test('SBT-06 a bot joins only once its agent is online and its site stream is open, however slow they are', async () => {
+  const fake = createFakeApi({ strictJoin: true, streamDelayMs: 80 });
+  const { code } = await runWith(fake, {}, AbortSignal.timeout(10_000));
+  assert.equal(code, 0, 'the join was not refused as agent-offline or site-not-open');
+  const order = fake.calls.map((call) => `${call.method} ${call.path}`);
+  assert.ok(order.indexOf('POST /v1/agents/heartbeat') < order.indexOf('POST /v1/queue/tickets'));
+  assert.equal(fake.calls.filter((call) => call.path === '/v1/stream').length >= 2, true);
+});
+
+test('SBT-07 a bot that opens its agent stream late still accepts the ready check it finds open', async () => {
+  const fake = createFakeApi({ roomScript: false, readyCheckOpen: true });
+  const { code } = await runWith(fake, {}, AbortSignal.timeout(400));
+  assert.equal(code, 0);
+  assert.ok(
+    fake.calls.some((call) => call.path === '/v1/ready-checks/me'),
+    'it reads its open ready check on connect',
+  );
+  assert.ok(
+    fake.calls.some((call) => call.path === '/v1/ready-checks/rc-1/accept'),
+    'and accepts it',
+  );
+});

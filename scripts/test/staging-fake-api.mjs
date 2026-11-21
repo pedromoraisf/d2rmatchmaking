@@ -11,11 +11,21 @@ export function createFakeApi({
   siteStages = ['formed', 'awaiting_host', 'created'],
   agentDelayMs = 0,
   closeRoom = true,
+  strictJoin = false,
+  readyCheckOpen = false,
+  streamDelayMs = 0,
 } = {}) {
   const calls = [];
   let accounts = 0;
   let poolSize = pool;
-  const state = { tickets: new Set(), agents: new Set(), sessions: new Set(), aborted: false };
+  const state = {
+    tickets: new Set(),
+    agents: new Set(),
+    sessions: new Set(),
+    aborted: false,
+    heartbeats: 0,
+    siteStreams: 0,
+  };
   const json = (status, body, headers = {}) =>
     new Response(body === undefined ? null : JSON.stringify(body), {
       status,
@@ -119,13 +129,27 @@ export function createFakeApi({
       });
     }
     if (method === 'PATCH' && pathname.startsWith('/v1/me/characters/')) return json(200, {});
-    if (key === 'POST /v1/agents/heartbeat') return json(204);
+    if (key === 'POST /v1/agents/heartbeat') {
+      state.heartbeats += 1;
+      return json(204);
+    }
+    if (key === 'GET /v1/ready-checks/me')
+      return readyCheckOpen ? json(200, { id: 'rc-1', members: [] }) : json(204);
+    if (key === 'GET /v1/agents/me/assignment' || key === 'GET /v1/me/room')
+      return json(404, { error: 'not-found' });
     if (key === 'POST /v1/queue/tickets') {
+      // The API refuses a join until the agent is online and the site stream is open (INV-03).
+      if (strictJoin && state.heartbeats === 0) return json(422, { error: 'agent-offline' });
+      if (strictJoin && state.siteStreams === 0) return json(422, { error: 'site-not-open' });
       state.tickets.add('ticket-1');
       return json(201, { id: 'ticket-1', status: 'waiting', poolSize });
     }
     if (key === 'GET /v1/queue/tickets/me') return json(200, { ticket: { id: 'ticket-1', poolSize } });
-    if (key === 'GET /v1/stream') return stream(url, init);
+    if (key === 'GET /v1/stream') {
+      if (streamDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, streamDelayMs));
+      if (!String(headers.Authorization ?? '').startsWith('Bearer ')) state.siteStreams += 1;
+      return stream(url, init);
+    }
     if (key === 'POST /v1/ready-checks/rc-1/accept') return json(204);
     if (key === 'POST /v1/lobby-rooms/room-1/observations') return json(202, {});
     if (key === 'POST /v1/lobby-rooms/room-1/leave') return json(204);

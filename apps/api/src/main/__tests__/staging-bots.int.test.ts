@@ -17,7 +17,7 @@ interface Bot {
   readonly name: string;
   readonly state: { cookie: string; roomId?: string; stages: string[]; ended: boolean };
   provision(): Promise<void>;
-  start(): void;
+  start(): Promise<void>;
   join(): Promise<void>;
   leaveSteps(): Array<[string, () => Promise<unknown>]>;
 }
@@ -61,6 +61,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  said.length = 0;
   const clock = new SystemClock();
   built = await buildApp({
     db: database.db,
@@ -82,10 +83,14 @@ afterEach(async () => {
   await built.app.close();
 });
 
+/** What the bots said, kept so a failure can show it: a CI runner prints nothing else about a stalled room. */
+const said: string[] = [];
+const remember = (line: string): void => {
+  said.push(line.trimEnd());
+  if (process.env['DEBUG_BOTS'] !== undefined) process.stderr.write(`${line}\n`);
+};
 const quiet = (): { line: (event: string, fields?: object) => void; secret: () => void } => ({
-  line: (event, fields) => {
-    if (process.env['DEBUG_BOTS'] !== undefined) process.stderr.write(`${event} ${JSON.stringify(fields)}\n`);
-  },
+  line: (event, fields) => remember(`${event} ${JSON.stringify(fields)}`),
   secret: () => undefined,
 });
 
@@ -116,7 +121,7 @@ async function human(
     random: () => 0,
   });
   await alice.provision();
-  alice.start();
+  await alice.start();
   await alice.join();
   return alice;
 }
@@ -163,9 +168,7 @@ describe('the staging bots fill a group on the real app', () => {
     const finished = scripts.run({
       config: configFor(inputs),
       fetch,
-      write: (text) => {
-        if (process.env['DEBUG_BOTS'] !== undefined) process.stderr.write(text);
-      },
+      write: remember,
       random: () => 0,
     });
     try {
@@ -186,7 +189,7 @@ describe('the staging bots fill a group on the real app', () => {
     const finished = scripts.run({
       config: configFor(inputs),
       fetch,
-      write: () => undefined,
+      write: remember,
       random: () => 0,
     });
     try {

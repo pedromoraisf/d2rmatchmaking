@@ -81,7 +81,7 @@ export async function run({
   try {
     for (const bot of bots) {
       await bot.provision();
-      bot.start();
+      await bot.start();
     }
     const [sentinel, ...others] = bots;
     if (plan.humanFirst) {
