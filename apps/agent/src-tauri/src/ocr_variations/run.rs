@@ -11,10 +11,14 @@ use d2rmm_agent_domain::language::LanguagePack;
 
 use super::catalogue::{DEFAULT_COMBOS, Variation, catalogue};
 use super::outcome::classify_image_detailed;
+use super::popup_fields::card_field_stats;
 use super::report::{Report, VariantResult};
 #[cfg(test)]
 use crate::ocr_check::SCREENSHOTS;
-use crate::ocr_check::{folder_screenshots, read_screenshot};
+use crate::ocr_check::{MAINTAINER_CARDS, folder_screenshots, read_screenshot};
+
+/// The print whose card fields the report breaks down (the difficulty popup).
+const POPUP_PRINT: &str = "maintainer-select-difficulty.png";
 
 /// The seed of the catalogue: fixed, so every run reads the same variations.
 pub const SEED: u64 = 20_261_118;
@@ -126,6 +130,7 @@ pub fn run_images(
     combos: usize,
     progress: &mut dyn FnMut(&str),
 ) -> Report {
+    let pack = LanguagePack::english();
     let screens = ScreenReader::new(Arc::clone(&reader), Arc::new(LanguagePack::english()));
     let mut report = Report {
         seed,
@@ -139,6 +144,8 @@ pub fn run_images(
             let varied = variation.apply(image);
             let (verdict, field_variants) =
                 classify_image_detailed(name, &*reader, &screens, &varied);
+            let card_fields = (name == POPUP_PRINT)
+                .then(|| card_field_stats(&*reader, &varied, &pack, &MAINTAINER_CARDS));
             drop(varied);
             report.results.push(VariantResult {
                 screenshot: name.clone(),
@@ -146,6 +153,7 @@ pub fn run_images(
                 family: variation.family,
                 verdict,
                 field_variants,
+                card_fields,
             });
         }
         let seconds = started.elapsed().as_secs_f64();
