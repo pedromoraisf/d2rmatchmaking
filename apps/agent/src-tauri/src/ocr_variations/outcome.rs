@@ -1195,8 +1195,8 @@ mod tests {
     #[test]
     fn a_read_outside_ascii_prints_as_its_code_point_and_other_punctuation_as_a_question_mark() {
         assert_eq!(
-            other_reason(&["mmbaa\u{e9}h-19"], "mmbaalh-19"),
-            "field-other-1-edit:sub(U+00E9>l)@5"
+            other_reason(&["mmbaa\u{e5}h-19"], "mmbaalh-19"),
+            "field-other-1-edit:sub(U+00E5>l)@5"
         );
         assert_eq!(
             other_reason(&["mmbaa?h-19"], "mmbaalh-19"),

@@ -122,11 +122,17 @@ pub fn normalise(name: &str) -> String {
 
 /// `letters_of` for a name that holds a `-`, where the engine also reads the `h` of the difficulty code (and of `chaos`,
 /// `heralds`) as `k`: seen in the `ocr-variations` summaries on four prints (`sub(k>h)`). No activity or difficulty code of a
-/// generated name holds a `k` or an `rn` (read there as the `m` it was drawn from: `del(r),sub(n>m)` on five prints), and a room name with no `-` (the Party room "DUEL NK LOCKS") keeps its `k`.
+/// generated name holds a `k` or an `rn` (read there as the `m` it was drawn from: `del(r),sub(n>m)` on five prints), and a
+/// room name with no `-` (the Party room "DUEL NK LOCKS") keeps its `k`. The `o` read as `é` (`sub(U+00E9>o)`, 31 variations
+/// on five prints) is the same `o` glyph, folded here too; no generated name holds an `é`.
 fn letters_with_k(part: &str) -> String {
     letters_of(part)
         .chars()
-        .map(|c| if c == 'k' { 'h' } else { c })
+        .map(|c| match c {
+            'k' => 'h',
+            '\u{e9}' => 'o',
+            other => other,
+        })
         .collect()
 }
 
@@ -776,6 +782,66 @@ mod tests {
                     }
                     if let Some(other) = seen.insert(normalise(&each[0]), name.clone()) {
                         panic!("{name} and {other} collide once an m reads as rn");
+                    }
+                }
+            }
+        }
+    }
+
+    /// An `o` read as `é` in a generated name matches it (game-name-reading T10): `sub(U+00E9>o)` is on five prints, 31
+    /// variations. A name with no `-` keeps its `é`, and a genuine `e` is no new match.
+    #[test]
+    fn an_e_acute_reads_as_o_in_a_generated_name_and_a_name_without_a_dash_keeps_it() {
+        assert_eq!(normalise("mmch\u{e9}osh-20"), "mmchoosh-20");
+        assert_eq!(
+            read_field("mmc\u{e9}wsh-38", "mmcowsh-38"),
+            FieldRead::Matched
+        );
+        assert_eq!(
+            read_field("MMC\u{c9}WSH-38", "mmcowsh-38"),
+            FieldRead::Matched
+        );
+        assert_eq!(
+            read_field("mmchaos\u{e9}-20", "mmchaosh-20"),
+            FieldRead::Other
+        );
+        assert_eq!(
+            read_field("mmcowsh-3\u{e9}", "mmcowsh-38"),
+            FieldRead::Other
+        );
+        assert_eq!(read_field("mmcxwsh-38", "mmcowsh-38"), FieldRead::Other);
+        assert_eq!(read_field("mmbaalh-19", "mmbaalh-19"), FieldRead::Matched);
+        // A name with no `-` keeps its `é`.
+        assert_eq!(normalise("DU\u{c9}L NK"), "du\u{e9}l nk");
+    }
+
+    /// The collision proof for the `é` fold: every generated name with each of its `o` (and each of its `e`, which the table
+    /// already folds to `o`) read as `é`, and all at once, matches its own name and normalises to no other room's, across every
+    /// activity, difficulty code and run number up to 9999.
+    #[test]
+    fn an_e_acute_read_for_o_matches_its_own_name_and_no_other_up_to_9999() {
+        let mut seen = std::collections::HashMap::new();
+        for activity in AGENT_ACTIVITIES {
+            for difficulty in AGENT_DIFFICULTY_CODES {
+                for n in 1..=9999u32 {
+                    let name = format!("mm{activity}{difficulty}-{n}");
+                    let (letters, number) = name.rsplit_once('-').expect("a dash");
+                    let all = format!("{}-{number}", letters.replace(['o', 'e'], "\u{e9}"));
+                    assert_eq!(read_field(&all, &name), FieldRead::Matched, "{all}");
+                    let mut reads = vec![all];
+                    for (at, c) in letters
+                        .char_indices()
+                        .filter(|(_, c)| matches!(c, 'o' | 'e'))
+                    {
+                        let mut one = letters.to_string();
+                        one.replace_range(at..at + c.len_utf8(), "\u{e9}");
+                        reads.push(format!("{one}-{number}"));
+                    }
+                    for read in &reads {
+                        assert_eq!(read_field(read, &name), FieldRead::Matched, "{read}");
+                    }
+                    if let Some(other) = seen.insert(normalise(&name), name.clone()) {
+                        panic!("{name} and {other} collide once an o reads as é");
                     }
                 }
             }
