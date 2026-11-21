@@ -44,7 +44,7 @@ hour" and fails with that reason before it queues anyone. The runbook says so: a
 
 ## Decisions of the implementation (batch 3)
 
-- **SBT-09 is blocked.** The site shows no other player's name: ready-check members come "by position and class mark, never
+- **SBT-09: no badge (decided 2026-11-21, option b).** The site shows no other player's name: ready-check members come "by position and class mark, never
   by name", and the room panel's `RoomMemberView` carries class and level only (`packages/contracts/src/http/lobby.ts`,
   `ready-checks.ts`). The only display name the site shows is the signed-in player's own (`SignInPanel.tsx:53`). A "Bot" badge
   beside a member's name therefore has nothing to attach to. Showing it needs a contract and server change (for example an

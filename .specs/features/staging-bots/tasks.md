@@ -57,15 +57,15 @@ Rules:
 
 ## Batch 3 — Site, workflow, docs
 
-- [ ] T8 — **BLOCKED (notes.md): the site shows no other player's name; needs a contract flag or no badge. Not started.** Site: `isBotName` in `apps/web/src/shared`, the "Bot" badge wherever a display name shows, with en and pt-BR
-      strings (SBT-09, rule 9). Test first: component tests for the queue, ready-check and room members. Gate:
-      `pnpm --filter @d2rmm/web test`
+- [~] T8 — **DROPPED (2026-11-21, maintainer's orchestrator): no site badge.** The site shows no other player's name, so a
+  badge needs a contract and server change, which a test tool does not earn. SBT-09 now says how a bot is told apart: the job
+  summary, the logs and the `Bot…` level 90 characters (notes.md).
 - [x] T9 — `.github/workflows/staging-bots.yml` and its harness test (inputs, environment `staging`, no `secrets.`,
       `contents: read`, pinned actions, `timeout-minutes`, `concurrency` with `cancel-in-progress: false`, the job
       summary step) (SBT-01, SBT-08, SBT-12). Gate: `pnpm test:harness`
 - [x] T10 — `acceptance.feature`: one scenario, `@SBT-03` (a production-like API has no test sign-in), with the steps of
       AWS-03, and a `not-scenario` line with its proof for every other requirement. The bot round is proved by T6 on a real clock;
-      `@SBT-09` is blocked with T8 (notes.md). Gate: `pnpm test:acceptance --grep @SBT-03 && pnpm acceptance:check`
+      SBT-09 needs no scenario (T8 dropped). Gate: `pnpm test:acceptance --grep @SBT-03 && pnpm acceptance:check`
 - [x] T11 — `docs/engineering/staging-bots.md`: dispatch from the phone, the inputs, how a run reads, how to stop one,
       and the statement that the bots exist only on staging (SBT-13). Link it from `docs/engineering/delivery.md`. Gate:
       `pnpm specs:check && pnpm lint`

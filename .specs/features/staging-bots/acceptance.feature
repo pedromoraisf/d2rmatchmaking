@@ -12,7 +12,7 @@
 # not-scenario: SBT-06 — integration tests of a duel and a Leveling group against the real app, and unit tests on the bounds
 # not-scenario: SBT-07 — integration test: accept and observation reach `active`; the contract schemas validate every body
 # not-scenario: SBT-08 — unit tests (bounds, back-off) and a harness test (timeout, concurrency)
-# not-scenario: SBT-09 — BLOCKED, see notes.md: the site shows no other player's name (the contract carries none)
+# not-scenario: SBT-09 — no site change (T8 dropped): the job summary and the logs name the bots, tested with SBT-11
 # not-scenario: SBT-10 — integration test: after the room closes the bot's agent is revoked and its streams are closed
 # not-scenario: SBT-11 — unit test: the log and the summary of a full run hold no token or cookie value
 # not-scenario: SBT-12 — harness test on the workflow file

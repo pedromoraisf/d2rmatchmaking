@@ -112,10 +112,12 @@ So the server already has everything a bot needs. **This feature adds no server 
     before it queues anyone and never asks for the limit to be raised;
   - a second dispatch with the same inputs creates no duplicate accounts (test accounts are found by name) and no
     duplicate tickets (a second join is a `409` the script reads as "already queued").
-- **SBT-09** — **BLOCKED, see notes.md: the site shows no other player's name, so a badge has nothing to attach to; the maintainer chooses between a contract flag and no badge.** Bots SHALL be visibly bots on the site. Wherever the site shows a player's display name (queue,
-  ready-check members, room members), a name that starts with `bot-` SHALL carry a "Bot" badge, in English and pt-BR
-  (rule 9). The test is a pure function in the web app (`isBotName`), unit-tested, with no server field and no schema
-  change. The site shows the badge in every environment: in production it can never appear (SBT-04).
+- **SBT-09** — The maintainer SHALL be able to tell a bot from a player without any change to the site or the contract
+  (decision 2026-11-21: no badge; a test tool earns no server or contract change, and the site shows no other player's
+  name). A bot is told apart by:
+  - the job summary, which lists the bots' names (`bot-<tag>-<n>`) and each room;
+  - the structured log, which names each bot on every line;
+  - its character, named `Bot…` at level 90, so the class marks of a group show bots of level 90 only.
 - **SBT-10** — The bots SHALL leave cleanly. They do so when the room ends (`room.closed`, or their own `room.member_changed`
   with `left`), when `minutes` pass, when the run is cancelled (SIGINT, SIGTERM) and when the script fails. Leaving is:
   1. `POST /v1/lobby-rooms/{id}/leave` when in a room, or `DELETE /v1/queue/tickets/{id}` when queued;
@@ -167,7 +169,7 @@ maintainer input.
 | --- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
 | T1  | The script runs against production                              | URL only from the `staging` environment variable, never an input; exact-match check; `/v1/config` must say `stagingEndpoints: true`; refuses `D2RMM_ENV=production`; no write before the checks | SBT-02 unit tests with a production-shaped fake |
 | T2  | Production serves the bot identity                              | No new route. `test-login` exists only with `stagingEndpoints`; `render.ts` refuses the flag outside `D2RMM_ENV=staging`; `render.yaml` sets `'false'` on production                            | SBT-03 integration test and route-table test    |
-| T3  | A bot is mistaken for a real player, or a real player for a bot | `bot-` names, a site badge, a `Bot` character prefix. BattleTags cannot hold `-`, so Battle.net accounts never carry the marker                                                                 | SBT-04, SBT-09 tests                            |
+| T3  | A bot is mistaken for a real player, or a real player for a bot | `bot-` names, the job summary and log naming each bot, a `Bot` character prefix. BattleTags cannot hold `-`, so Battle.net accounts never carry the marker                                      | SBT-04, SBT-09 tests                            |
 | T4  | A bot token leaks (log, artifact, summary)                      | Memory only; never printed; masked; the summary lists names and rooms only; the agent is deleted at exit, which revokes the token; staging tokens cannot touch production (separate database)   | SBT-10, SBT-11 tests                            |
 | T5  | Bots flood or exhaust staging                                   | At most 7 bots and 60 minutes; one run at a time; rate-limit aware back-off; heartbeats at the real 15 s cadence                                                                                | SBT-08 tests                                    |
 | T6  | Bots grief other staging users (a real tester stuck waiting)    | `bots` ≤ size − 1, so a bot never fills a group alone; bots accept their ready checks and leave on time; staging users are the maintainer and invited testers                                   | SBT-06, SBT-10 tests                            |
@@ -209,7 +211,7 @@ for staging sign-in) is out of scope and would be a new secret, the maintainer's
 | SBT-06         | Join          | `node --test` on the plan (bounds) + integration test: a duel with one bot and one test player forms |
 | SBT-07         | Fake agent    | integration test: accept + observation reach `active`; schema-validation unit test                   |
 | SBT-08         | Bounded       | unit tests (bounds, back-off) + harness test (timeout, concurrency)                                  |
-| SBT-09         | Marker        | component test + acceptance `@SBT-09`                                                                |
+| SBT-09         | Marker        | the summary test of SBT-11 (names listed); no site change                                            |
 | SBT-10         | Clean leave   | integration test: after the run no token authenticates; failing step does not stop the rest          |
 | SBT-11         | No secret     | unit test: the log and summary of a full run hold no token or cookie value                           |
 | SBT-12         | No new secret | harness test on `staging-bots.yml`                                                                   |

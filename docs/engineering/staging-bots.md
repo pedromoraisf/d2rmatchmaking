@@ -19,8 +19,8 @@ Spec: `.specs/features/staging-bots/spec.md` (SBT-01 to SBT-13, with the threat 
 
 ## How to run
 
-1. Open the staging site, join the queue yourself with the bucket you want (mode, difficulty, region, ladder, era; in
-   Leveling the activity). Join first: the human hosts only if they queued before the bots.
+1. **Queue first, then dispatch.** Open the staging site, join the queue yourself with the bucket you want (mode, difficulty, region, ladder, era; in
+   Leveling the activity). The human hosts only if they queued before the bots, and with `human_first` the bots wait until you are in the queue.
 2. In GitHub (the phone app works), run **staging-bots** with the same bucket.
 3. The first bot queues and reads the pool (the number the site shows as "N jogadores nesta fila"). When another player waits,
    the others queue, the group forms, and the ready check opens on your site. Accept it.
@@ -54,6 +54,11 @@ Spec: `.specs/features/staging-bots/spec.md` (SBT-01 to SBT-13, with the threat 
 - A run of N bots spends N of the 10 pairing codes one IP may ask per hour. A second large run from the same runner IP inside
   the hour can be refused with `rate-limited`; wait for the hour. The limit is not raised for the bots.
 - A second dispatch waits for the first to finish; it never cuts a cleanup.
+
+## Telling a bot from a player
+
+The site shows no other player's name, so there is no badge. A bot is named `bot-<tag>-<n>` in the job summary and in every log
+line, and its character is `Bot…` at level 90.
 
 ## To stop one
 
