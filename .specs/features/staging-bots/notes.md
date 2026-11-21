@@ -41,3 +41,23 @@ hour" and fails with that reason before it queues anyone. The runbook says so: a
 ## A4 — `/v1/config`
 
 `GET /v1/config` has no guard (`main/app.ts:490`): it answers without a session on any environment.
+
+## Decisions of the implementation (batch 3)
+
+- **SBT-09 is blocked.** The site shows no other player's name: ready-check members come "by position and class mark, never
+  by name", and the room panel's `RoomMemberView` carries class and level only (`packages/contracts/src/http/lobby.ts`,
+  `ready-checks.ts`). The only display name the site shows is the signed-in player's own (`SignInPanel.tsx:53`). A "Bot" badge
+  beside a member's name therefore has nothing to attach to. Showing it needs a contract and server change (for example an
+  `isBot` flag on `Member` or `RoomMemberView`, computed from the `bot-` prefix), which touches production code and the
+  contract and is outside "no server change". Not built. Options: (a) add the flag (one field in two schemas, computed in
+  the projection, openapi regenerated); (b) accept that bots are visible by their names in the job summary and logs, and by
+  their `Bot…` class marks in the room. The maintainer's choice.
+- **The bot round is proved by the integration test, not Gherkin.** `staging-bots.int.test.ts` runs the real script against
+  the real app on a real clock (a duel and a Leveling group of eight). The acceptance stack drives the matcher with a
+  controlled clock and a browser, which the bots do not use, so the scenarios would repeat the integration test at a higher
+  cost. The one scenario that fits is SBT-03, with the steps of AWS-03.
+- **The load harness's request builders are not reused.** `scripts/load/lib/provision-requests.mjs` accepts only
+  `http://127.0.0.1:<port>` so a provisioning request can reach nothing else. The bots must reach the staging origin, so
+  `scripts/staging/lib/http.mjs` builds its own requests, validated by the contract schemas. The shapes are the same.
+- **The agent stream carries only the end of a room.** The bots read `created` and `active` on the site stream, as the load
+  journey does, and a heartbeat that names the room is what moves a room to `awaiting_host` (found by the integration test).

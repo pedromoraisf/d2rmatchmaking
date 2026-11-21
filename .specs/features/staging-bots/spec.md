@@ -112,7 +112,7 @@ So the server already has everything a bot needs. **This feature adds no server 
     before it queues anyone and never asks for the limit to be raised;
   - a second dispatch with the same inputs creates no duplicate accounts (test accounts are found by name) and no
     duplicate tickets (a second join is a `409` the script reads as "already queued").
-- **SBT-09** — Bots SHALL be visibly bots on the site. Wherever the site shows a player's display name (queue,
+- **SBT-09** — **BLOCKED, see notes.md: the site shows no other player's name, so a badge has nothing to attach to; the maintainer chooses between a contract flag and no badge.** Bots SHALL be visibly bots on the site. Wherever the site shows a player's display name (queue,
   ready-check members, room members), a name that starts with `bot-` SHALL carry a "Bot" badge, in English and pt-BR
   (rule 9). The test is a pure function in the web app (`isBotName`), unit-tested, with no server field and no schema
   change. The site shows the badge in every environment: in production it can never appear (SBT-04).
