@@ -42,6 +42,7 @@
   },
   "diagnostics": {
     "heading": "Diagnóstico",
+    "config": "Configuração: versão {{version}}",
     "screen": {
       "unknown": "Tela: não reconhecida",
       "characterSelect": "Tela: Seleção de personagem",

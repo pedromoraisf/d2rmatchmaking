@@ -10,6 +10,7 @@ use std::time::Duration;
 use d2rmm_agent_domain::remote_config::{Effective, Verdict, from_wire};
 use d2rmm_agent_domain::timings::{RECONNECT_MAX, RECONNECT_MIN};
 use tokio::time::Instant;
+use tracing::Instrument;
 
 use crate::device_state::DeviceState;
 use crate::ports::{ApiError, ConfigGateway, ConfigReader, ConfigStore, Fetched, TokenStore};
@@ -72,6 +73,7 @@ pub fn load_stored(device: &DeviceState, ports: &ConfigPorts<impl Sized>) {
     let wire = ports.reader.read(&body);
     match from_wire(wire.as_ref(), 0) {
         Verdict::Applied(effective) => {
+            device.hub.set_config_version(effective.version);
             device.config.send_replace(*effective);
         }
         Verdict::Unchanged | Verdict::Stale | Verdict::Invalid => ports.store.delete(),
@@ -91,7 +93,7 @@ pub async fn run<G: ConfigGateway + Send + Sync + 'static>(
     loop {
         device.wait_until_allowed(DeviceState::api_allowed).await;
         let started = Instant::now();
-        let outcome = fetch_once(&device, &ports, &mut etag).await;
+        let outcome = fetch_traced(&device, &ports, &mut etag).await;
         publish(&device, outcome);
         let wait = if outcome == Outcome::Unreachable {
             let wait = backoff;
@@ -106,6 +108,28 @@ pub async fn run<G: ConfigGateway + Send + Sync + 'static>(
             .sleep_while_allowed(started + wait, DeviceState::api_allowed)
             .await;
     }
+}
+
+/// One fetch as one span (RCF-11): how it ended, as a fixed word, and the version the agent runs after it. No body, no field name
+/// and no value of the configuration is ever an attribute.
+async fn fetch_traced<G: ConfigGateway + Send + Sync>(
+    device: &DeviceState,
+    ports: &ConfigPorts<G>,
+    etag: &mut Option<String>,
+) -> Outcome {
+    let span = tracing::info_span!(
+        "agent.config.fetch",
+        "config.outcome" = tracing::field::Empty,
+        "config.version" = tracing::field::Empty,
+    );
+    let outcome = fetch_once(device, ports, etag)
+        .instrument(span.clone())
+        .await;
+    let version = device.config.borrow().version;
+    let outcome_word = outcome.word();
+    span.record("config.outcome", outcome_word);
+    span.record("config.version", version);
+    outcome
 }
 
 fn publish(device: &DeviceState, outcome: Outcome) {
@@ -159,6 +183,7 @@ pub async fn fetch_once<G: ConfigGateway + Send + Sync>(
 /// store that refuses the write changes nothing about what runs now.
 fn apply<G>(device: &DeviceState, ports: &ConfigPorts<G>, effective: Effective, body: &[u8]) {
     let _ = ports.store.save(body);
+    device.hub.set_config_version(effective.version);
     device.config.send_replace(effective);
 }
 
@@ -311,6 +336,11 @@ mod tests {
         assert_eq!(running(&rig.device).cadence.probe_every, 30);
         assert_eq!(rig.store.load(), Some(body(5, 30)));
         assert_eq!(etag.as_deref(), Some("\"a\""));
+        assert_eq!(
+            rig.device.hub.snapshot().config_version,
+            5,
+            "the window says which version runs"
+        );
     }
 
     #[tokio::test]
@@ -368,6 +398,7 @@ mod tests {
         assert_eq!(outcome, Outcome::Stale);
         assert_eq!(running(&rig.device).version, 5);
         assert_eq!(running(&rig.device).cadence.probe_every, 30);
+        assert_eq!(rig.device.hub.snapshot().config_version, 5);
         assert_eq!(rig.store.load(), Some(body(5, 30)));
         assert_eq!(etag.as_deref(), Some("\"a\""), "the tag of what is held");
     }
@@ -487,6 +518,7 @@ mod tests {
 
         assert_eq!(running(&rig.device).version, 5);
         assert_eq!(running(&rig.device).cadence.probe_every, 30);
+        assert_eq!(rig.device.hub.snapshot().config_version, 5);
         assert!(rig.gateway.asked().is_empty());
     }
 
@@ -666,5 +698,115 @@ mod tests {
             );
             assert!(rig.gateway.asked().is_empty());
         });
+    }
+
+    /// Every span's name and fields as text, in creation order, with later records applied.
+    type SpanFields = Vec<(String, String)>;
+
+    #[derive(Default)]
+    struct Spans {
+        recorded: Mutex<Vec<(String, SpanFields)>>,
+    }
+
+    struct Writer<'a>(&'a mut Vec<(String, String)>);
+
+    impl tracing::field::Visit for Writer<'_> {
+        fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+            self.0.push((field.name().to_string(), value.to_string()));
+        }
+
+        fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+            self.0
+                .push((field.name().to_string(), format!("{value:?}")));
+        }
+    }
+
+    impl tracing::Subscriber for Spans {
+        fn enabled(&self, _metadata: &tracing::Metadata<'_>) -> bool {
+            true
+        }
+
+        fn new_span(&self, attrs: &tracing::span::Attributes<'_>) -> tracing::Id {
+            let mut fields = Vec::new();
+            attrs.record(&mut Writer(&mut fields));
+            let mut recorded = self.recorded.lock().expect("spans");
+            recorded.push((attrs.metadata().name().to_string(), fields));
+            tracing::Id::from_u64(recorded.len() as u64)
+        }
+
+        fn record(&self, span: &tracing::Id, values: &tracing::span::Record<'_>) {
+            let mut recorded = self.recorded.lock().expect("spans");
+            if let Some((_, fields)) = recorded.get_mut(span.into_u64() as usize - 1) {
+                values.record(&mut Writer(fields));
+            }
+        }
+
+        fn record_follows_from(&self, _span: &tracing::Id, _follows: &tracing::Id) {}
+
+        fn event(&self, _event: &tracing::Event<'_>) {}
+
+        fn enter(&self, _span: &tracing::Id) {}
+
+        fn exit(&self, _span: &tracing::Id) {}
+    }
+
+    /// RCF-11: each fetch is one span with two fixed fields, the outcome word and the version the agent runs, and no body, no
+    /// field name and no value of the configuration anywhere in it.
+    #[tokio::test]
+    async fn each_fetch_is_one_span_with_the_outcome_and_the_version_and_nothing_else() {
+        let rig = rig(true, MemoryStore::default());
+        rig.gateway.script([
+            served(5, 30, "\"a\""),
+            Fetched::NotModified,
+            Fetched::Body {
+                bytes: b"broken".to_vec(),
+                etag: None,
+            },
+            served(4, 90, "\"b\""),
+            Fetched::Failed(ApiError::Network),
+        ]);
+        let spans = Arc::new(Spans::default());
+        let guard = tracing::subscriber::set_default(Arc::clone(&spans));
+        tracing::callsite::rebuild_interest_cache();
+
+        let mut etag = None;
+        for _ in 0..5 {
+            super::fetch_traced(&rig.device, &rig.ports, &mut etag).await;
+        }
+        drop(guard);
+
+        let recorded = spans.recorded.lock().expect("spans");
+        let seen: Vec<(String, String)> = recorded
+            .iter()
+            .map(|(name, fields)| {
+                assert_eq!(name, "agent.config.fetch");
+                let keys: Vec<&str> = fields.iter().map(|(field, _)| field.as_str()).collect();
+                assert!(
+                    keys.iter()
+                        .all(|key| ["config.outcome", "config.version"].contains(key)),
+                    "only the two fixed fields: {keys:?}"
+                );
+                let get = |key: &str| {
+                    fields
+                        .iter()
+                        .rev()
+                        .find(|(field, _)| field == key)
+                        .map(|(_, value)| value.clone())
+                        .unwrap_or_default()
+                };
+                (get("config.outcome"), get("config.version"))
+            })
+            .collect();
+        let pair = |outcome: &str, version: &str| (outcome.to_string(), version.to_string());
+        assert_eq!(
+            seen,
+            vec![
+                pair("applied", "5"),
+                pair("unchanged", "5"),
+                pair("invalid", "5"),
+                pair("stale", "5"),
+                pair("unreachable", "5"),
+            ]
+        );
     }
 }

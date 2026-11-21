@@ -86,7 +86,12 @@ export function App({ translate }: AppProps) {
         <HotkeysView hotkeys={view.hotkeys} translate={translate} onChange={changeHotkey} />
       )}
       {view === null ? null : (
-        <DiagnosticsView diagnostics={view.diagnostics} capture={view.capture} translate={translate} />
+        <DiagnosticsView
+          diagnostics={view.diagnostics}
+          capture={view.capture}
+          configVersion={view.configVersion}
+          translate={translate}
+        />
       )}
     </main>
   );

@@ -885,6 +885,7 @@ mod tests {
             last_fill: None,
             diagnostics: None,
             capture: None,
+            config_version: 0,
         };
         assert_eq!(wanted_hotkeys(&view), (None, None));
         view.ready_check_open = true;

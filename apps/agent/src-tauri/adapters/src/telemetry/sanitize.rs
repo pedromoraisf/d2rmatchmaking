@@ -16,12 +16,14 @@ pub const MAX_STRING_CHARS: usize = 128;
 /// Span names must start with this prefix; any other span is dropped.
 pub const SPAN_NAME_PREFIX: &str = "agent.";
 /// The only attribute keys a span keeps. The match is exact: `http.url` is not `http.request.method`.
-pub const ALLOWED_ATTRIBUTE_KEYS: [&str; 12] = [
+pub const ALLOWED_ATTRIBUTE_KEYS: [&str; 14] = [
     "vision.screen",
     "vision.search",
     "vision.area_class",
     "capture.method",
     "capture.outcome",
+    "config.outcome",
+    "config.version",
     "status",
     "d2r.room.id",
     "d2r.agent.version",
@@ -32,7 +34,7 @@ pub const ALLOWED_ATTRIBUTE_KEYS: [&str; 12] = [
 ];
 /// The values a vision attribute may carry (screen-recognition T8, SCR-09): fixed words, never a coordinate, a read text or a
 /// pixel. Any other value of these keys is dropped with its key.
-pub const VISION_VALUES: [(&str, &[&str]); 5] = [
+pub const VISION_VALUES: [(&str, &[&str]); 6] = [
     (
         "vision.screen",
         &["in_game", "automap", "character_select", "unknown"],
@@ -45,13 +47,26 @@ pub const VISION_VALUES: [(&str, &[&str]); 5] = [
         &["print-window", "graphics-capture", "screen-crop", "none"],
     ),
     ("capture.outcome", &["frame", "blank", "failed", "skipped"]),
+    // The configuration fetch's span (remote-config RCF-11): how the fetch ended, never a body or a value.
+    (
+        "config.outcome",
+        &["applied", "unchanged", "invalid", "stale", "unreachable"],
+    ),
 ];
+
+/// The configuration version a span may carry (RCF-11): a whole number from 0 (the built-in defaults) to the largest the agent
+/// takes. Anything else, a text included, is dropped with its key.
+const CONFIG_VERSION_KEY: &str = "config.version";
+const CONFIG_VERSION_MAX: i64 = 2_147_483_647;
 
 /// Whether an attribute may leave the machine: its key is allowed and, for a vision key, its value is one of the fixed words.
 fn attribute_allowed(attribute: &KeyValue) -> bool {
     let key = attribute.key.as_str();
     if !ALLOWED_ATTRIBUTE_KEYS.contains(&key) {
         return false;
+    }
+    if key == CONFIG_VERSION_KEY {
+        return matches!(&attribute.value, Value::I64(version) if (0..=CONFIG_VERSION_MAX).contains(version));
     }
     match VISION_VALUES.iter().find(|(name, _)| *name == key) {
         None => true,
@@ -284,6 +299,57 @@ mod tests {
                 KeyValue::new("capture.window", "D2R"),
                 KeyValue::new("capture.method.extra", "print-window"),
                 KeyValue::new("capture.outcome", 3_i64),
+            ],
+            Status::Unset,
+        );
+        let clean = sanitize_span(other).expect("an agent span is kept");
+        assert!(keys(&clean).is_empty(), "{:?}", keys(&clean));
+    }
+
+    #[test]
+    fn keeps_the_configuration_fetch_words_and_a_whole_version_only() {
+        let fetch = span(
+            "agent.config.fetch",
+            vec![
+                KeyValue::new("config.outcome", "applied"),
+                KeyValue::new("config.version", 5_i64),
+            ],
+            Status::Unset,
+        );
+        let clean = sanitize_span(fetch).expect("an agent span is kept");
+        assert_eq!(keys(&clean), ["config.outcome", "config.version"]);
+        for outcome in ["applied", "unchanged", "invalid", "stale", "unreachable"] {
+            let one = span(
+                "agent.config.fetch",
+                vec![KeyValue::new("config.outcome", outcome)],
+                Status::Unset,
+            );
+            assert_eq!(keys(&sanitize_span(one).expect("kept")), ["config.outcome"]);
+        }
+        for version in [0_i64, 1, 2_147_483_647] {
+            let one = span(
+                "agent.config.fetch",
+                vec![KeyValue::new("config.version", version)],
+                Status::Unset,
+            );
+            assert_eq!(
+                keys(&sanitize_span(one).expect("kept")),
+                ["config.version"],
+                "{version}"
+            );
+        }
+        let other = span(
+            "agent.config.fetch",
+            vec![
+                KeyValue::new("config.outcome", "{\"version\":5}"),
+                KeyValue::new("config.outcome", 3_i64),
+                KeyValue::new("config.version", "5"),
+                KeyValue::new("config.version", -1_i64),
+                KeyValue::new("config.version", 2_147_483_648_i64),
+                KeyValue::new("config.version", 1.5_f64),
+                KeyValue::new("config.body", "{}"),
+                KeyValue::new("config.phrase", "Party"),
+                KeyValue::new("config.probeEvery", 30_i64),
             ],
             Status::Unset,
         );

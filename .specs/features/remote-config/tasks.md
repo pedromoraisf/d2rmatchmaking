@@ -93,7 +93,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
 - [x] T12 — Apply the cadence (RCF-08, RCF-09). `capture_cascade` takes `demote_after`, `probe_every` and `rate_window` from
       `Effective`; `watch_screen::run` sleeps `look_interval` (never under one second). Call-count tests at the extremes of
       every range: captures and reads per 600 looks never exceed today's. Gate: as T11
-- [ ] T13 — Telemetry and the window (RCF-08, RCF-11). `agent.config.fetch` span with `config.outcome` and `config.version`;
+- [x] T13 — Telemetry and the window (RCF-08, RCF-11). `agent.config.fetch` span with `config.outcome` and `config.version`;
       the sanitiser keeps both with fixed values only; the vision-span source rule is extended to the new span the way
       `capture.*` was; the window shows the version in the diagnostics (`diagnostics.config`), en and pt-BR. A source-rule test
       lists the fields of the configuration and fails on a new one (RCF-10). Gate: as T11, plus

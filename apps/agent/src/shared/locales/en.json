@@ -42,6 +42,7 @@
   },
   "diagnostics": {
     "heading": "Diagnostics",
+    "config": "Configuration: version {{version}}",
     "screen": {
       "unknown": "Screen: not recognised",
       "characterSelect": "Screen: Character selection",

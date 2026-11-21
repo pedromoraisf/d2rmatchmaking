@@ -298,6 +298,17 @@ describe('diagnostics view', () => {
     expect(screen.getByText('Last send: not-sent')).toBeTruthy();
   });
 
+  it('says which configuration version the agent runs, 0 being the built-in defaults (RCF-08)', () => {
+    const { rerender } = render(<DiagnosticsView diagnostics={diagnostics} translate={en} />);
+    expect(screen.getByText('Configuration: version 0')).toBeTruthy();
+
+    rerender(<DiagnosticsView diagnostics={diagnostics} configVersion={7} translate={en} />);
+    expect(screen.getByText('Configuration: version 7')).toBeTruthy();
+
+    rerender(<DiagnosticsView diagnostics={diagnostics} configVersion={7} translate={ptBR} />);
+    expect(screen.getByText('Configuração: versão 7')).toBeTruthy();
+  });
+
   it('is translated to pt-BR', () => {
     render(<DiagnosticsView diagnostics={diagnostics} translate={ptBR} />);
 

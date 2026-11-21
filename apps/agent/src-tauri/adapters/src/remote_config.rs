@@ -78,7 +78,7 @@ mod tests {
     use std::path::PathBuf;
 
     use d2rmm_agent_domain::language::LanguagePack;
-    use d2rmm_agent_domain::remote_config::{Effective, Verdict, Words, from_wire};
+    use d2rmm_agent_domain::remote_config::{Effective, FIELDS, Verdict, Words, from_wire};
     use serde_json::json;
 
     use super::wire_of;
@@ -193,5 +193,98 @@ mod tests {
         at_the_limit.extend_from_slice(b"\"}");
         assert_eq!(at_the_limit.len(), 65_536);
         assert!(wire_of(&at_the_limit).is_some());
+    }
+
+    /// The leaf fields of a schema, by dotted path; a region (four fractions) counts as one field.
+    fn leaf_paths(schema: &serde_json::Value, prefix: &str, found: &mut Vec<String>) {
+        let Some(properties) = schema.get("properties").and_then(|value| value.as_object()) else {
+            found.push(prefix.to_string());
+            return;
+        };
+        let is_region = ["x", "y", "width", "height"]
+            .iter()
+            .all(|side| properties.contains_key(*side));
+        if is_region {
+            found.push(prefix.to_string());
+            return;
+        }
+        for (name, child) in properties {
+            let path = if prefix.is_empty() {
+                name.clone()
+            } else {
+                format!("{prefix}.{name}")
+            };
+            leaf_paths(child, &path, found);
+        }
+    }
+
+    /// RCF-10: the fields the contract carries are exactly the fields the agent reads (`FIELDS`). A new field in the contract
+    /// fails this test until the agent's rules and this list are reviewed together.
+    #[test]
+    fn the_fields_of_the_contract_are_the_fields_the_agent_reads() {
+        let (_, text) = crate::contracts::schemas::SCHEMAS
+            .iter()
+            .find(|(name, _)| *name == "agent-config.json")
+            .expect("the schema of the configuration");
+        let schema: serde_json::Value = serde_json::from_str(text).expect("a schema");
+        let mut found = Vec::new();
+        leaf_paths(&schema, "", &mut found);
+        found.sort();
+        let mut read: Vec<String> = FIELDS.iter().map(ToString::to_string).collect();
+        read.sort();
+        assert_eq!(found, read);
+        assert_eq!(
+            schema["additionalProperties"], false,
+            "the contract is closed"
+        );
+    }
+
+    /// Every field of the list is read from a body that sets it, under the name the contract gives it.
+    #[test]
+    fn every_field_the_agent_reads_is_read_from_its_wire_name() {
+        let region = |x: f64| json!({ "x": x, "y": 0.1, "width": 0.3, "height": 0.3 });
+        let wire = wire_of(&body(&json!({
+            "version": 9,
+            "cadence": { "demoteAfter": 1, "probeEvery": 2, "rateWindow": 3, "lookIntervalMs": 4 },
+            "thresholds": { "trackPad": 5 },
+            "regions": { "hudBand": region(0.1), "automapArea": region(0.2), "partyArea": region(0.3) },
+            "phrases": {
+                "en": { "party": "a", "gameName": "b", "password": "c" },
+                "pt-BR": { "party": "d", "gameName": "e", "password": "f" },
+            },
+        })))
+        .expect("a document");
+        assert_eq!(wire.version, Some(9.0));
+        assert_eq!(
+            [
+                wire.demote_after,
+                wire.probe_every,
+                wire.rate_window,
+                wire.look_interval_ms,
+                wire.track_pad
+            ],
+            [Some(1.0), Some(2.0), Some(3.0), Some(4.0), Some(5.0)]
+        );
+        let x = |area: Option<d2rmm_agent_domain::remote_config::WireArea>| area.and_then(|a| a.x);
+        assert_eq!(
+            [x(wire.hud_band), x(wire.automap_area), x(wire.party_area)],
+            [Some(0.1), Some(0.2), Some(0.3)]
+        );
+        let area = wire.hud_band.expect("an area");
+        assert_eq!(
+            (area.y, area.width, area.height),
+            (Some(0.1), Some(0.3), Some(0.3))
+        );
+        let words = |w: &d2rmm_agent_domain::remote_config::WireWords| {
+            [w.party.clone(), w.game_name.clone(), w.password.clone()]
+        };
+        assert_eq!(
+            words(&wire.en),
+            [Some("a".into()), Some("b".into()), Some("c".into())]
+        );
+        assert_eq!(
+            words(&wire.pt_br),
+            [Some("d".into()), Some("e".into()), Some("f".into())]
+        );
     }
 }
