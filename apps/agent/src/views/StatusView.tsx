@@ -4,6 +4,7 @@ import {
   connectivityLabel,
   fillHintLabel,
   fillLabel,
+  hotkeyUnavailableLabels,
   readyCheckLabel,
   revealLabel,
   roomLabel,
@@ -40,6 +41,7 @@ export function StatusView({ view, translate }: StatusViewProps) {
   if (fill !== null) {
     labels.push(fill);
   }
+  labels.push(...hotkeyUnavailableLabels(view.hotkeyUnavailable, view.hotkeys));
   const update = updateLabel(view.update);
   if (update !== null) {
     labels.push(update);

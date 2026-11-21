@@ -38,9 +38,16 @@
     "notSaved": "Could not save your choice. Try again."
   },
   "readyCheck": {
-    "hotkey": "A ready check is open: press {{key}} to accept it."
+    "hotkey": "A ready check is open: press {{key}} to accept it.",
+    "unavailable": "The accept hotkey ({{key}}) could not be registered: another program may be using it. Choose another combination in the Hotkeys section of this window. (reason: {{reason}})"
   },
   "diagnostics": {
+    "hotkeyPress": {
+      "none": "Last hotkey press: none since the agent started",
+      "accept": "Last hotkey press: the accept key",
+      "fill": "Last hotkey press: the fill key",
+      "unmatched": "Last hotkey press: a key that matches neither hotkey"
+    },
     "heading": "Diagnostics",
     "config": "Configuration: version {{version}}",
     "screen": {
@@ -112,7 +119,8 @@
     "refused-name": "Nothing typed: the room's name is not one the agent types.",
     "refused-focus": "Nothing typed: the game does not have focus.",
     "refused-screen": "Nothing typed: a game is running. Fill the name from the lobby.",
-    "refused-keys": "Nothing typed: let go of the hotkey's keys and press it again."
+    "refused-keys": "Nothing typed: let go of the hotkey's keys and press it again.",
+    "unavailable": "The fill hotkey ({{key}}) could not be registered: another program may be using it. Choose another combination in the Hotkeys section of this window. (reason: {{reason}})"
   },
   "hotkeys": {
     "heading": "Hotkeys",
