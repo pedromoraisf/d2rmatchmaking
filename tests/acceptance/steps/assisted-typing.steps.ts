@@ -12,6 +12,7 @@ import { agentOf, reportedScreen, showFixture, startHeadless } from './character
 
 const EVENT_WAIT_MS = 15_000;
 const SCREEN_WAIT_MS = 10_000;
+const START_WAIT_MS = 30_000;
 /** How long a step waits to be sure the agent printed nothing more. */
 const QUIET_MS = 1_000;
 /** The agent ignores a press within 2 seconds of the last fill (AST-07); a step waits this long for a fresh press. */
@@ -58,6 +59,9 @@ async function fillOf(world: World): Promise<AgentEvent> {
 async function holdingRoom(world: World, name: string): Promise<HeadlessAgent> {
   await startHeadless(world, 'Alice', true);
   const agent = agentOf(world);
+  // The agent fetches its assignment right after pairing and drops a room it holds when the API answers "none": the room is
+  // assigned once that fetch is over, which is when the stream opens (a slow runner answers the fetch after `paired`).
+  await agent.waitFor('stream-open', START_WAIT_MS);
   if (name !== '') agent.send(`assign ${name}`);
   return agent;
 }
