@@ -109,7 +109,11 @@ export async function signInThroughApi(
   const prefix = `${SESSION_COOKIE}=`;
   const cookie = response.headers.getSetCookie().find((value) => value.startsWith(prefix));
   if (cookie === undefined) {
-    throw new Error(`test sign-in of "${name}" set no session cookie`);
+    const body = await response.text().catch(() => '<unreadable>');
+    const names = response.headers.getSetCookie().map((value) => value.split('=')[0]);
+    throw new Error(
+      `test sign-in of "${name}" set no session cookie: status ${response.status}, set-cookie names [${names.join(', ')}], content-type ${response.headers.get('content-type')}, body ${body.slice(0, 300)}`,
+    );
   }
   const me = MeResponse.parse(await response.json());
   return { accountId: me.accountId, session: cookie.slice(prefix.length).split(';')[0] ?? '' };
