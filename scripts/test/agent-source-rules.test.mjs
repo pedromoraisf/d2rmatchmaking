@@ -529,15 +529,15 @@ const outgoingDataViolations = (base) => {
   ];
 };
 
-// The chat post puts no name in a span, an event or a counter (SNM-04, ADR 036): no tracing call of `chat_post.rs` names the
-// player's name or the observation that holds it. Spans and events carry fixed words only.
+// The chat post and the HTTP adapters that carry its body put no name in a span, an event or a counter (SNM-04, ADR 036): no
+// tracing call of `chat_post.rs` or of `adapters/src/http/**` names the player's name or the observation that holds it. Spans and events carry fixed words only.
 const TRACING_CALL =
   /\b(?:tracing::)?(?:info_span|debug_span|trace_span|warn_span|error_span|span|info|debug|trace|warn|error|event)!\s*\(([^;]*?)\)\s*;/gs;
 const NAME_IN_TELEMETRY = /\bname\b|\bnames?\(\)|\bobservation\b|\bheld\b|\bevent\s*\.\s*1/;
 
 const chatPostTelemetryViolations = (base) =>
   rustFiles(base)
-    .filter(({ rel }) => rel === CHAT_POST)
+    .filter(({ rel }) => (rel === CHAT_POST || rel.startsWith('adapters/src/http/')) && !isTestFile(rel))
     .flatMap(({ rel, text }) =>
       [...codeOnly(nonTestText(text)).matchAll(TRACING_CALL)]
         .filter((call) => NAME_IN_TELEMETRY.test(call[1]))
@@ -894,6 +894,15 @@ test('the chat post rules reject a frame type, a raw body and a name in a span o
   const telemetry = chatPostTelemetryViolations(base);
   assert.equal(telemetry.length, 3, telemetry.join('\n'));
   assert.match(telemetry.join('\n'), /core\/src\/chat_post\.rs puts the name or the observation in a span/);
+});
+
+test('the name-in-telemetry rule also rejects a name in a span or an event of the HTTP adapters', () => {
+  const telemetry = chatPostTelemetryViolations(fixtureBase('adapters-http-leak'));
+  assert.equal(telemetry.length, 2, telemetry.join('\n'));
+  assert.match(
+    telemetry.join('\n'),
+    /adapters\/src\/http\/leak\.rs puts the name or the observation in a span/,
+  );
 });
 
 test('the outgoing data rule rejects a frame type and a raw body', () => {
