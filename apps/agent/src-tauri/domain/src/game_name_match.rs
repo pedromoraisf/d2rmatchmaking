@@ -110,7 +110,11 @@ pub fn normalise(name: &str) -> String {
         Some(at) => {
             let letters = &lower[..at];
             let number = &lower[at + 1..];
-            format!("{}-{}", letters_with_k(letters), digits_of(number))
+            format!(
+                "{}-{}",
+                letters_with_k(letters).replace("rn", "m"),
+                digits_of(number)
+            )
         }
         None => letters_of(&lower),
     }
@@ -118,7 +122,7 @@ pub fn normalise(name: &str) -> String {
 
 /// `letters_of` for a name that holds a `-`, where the engine also reads the `h` of the difficulty code (and of `chaos`,
 /// `heralds`) as `k`: seen in the `ocr-variations` summaries on four prints (`sub(k>h)`). No activity or difficulty code of a
-/// generated name holds a `k`, and a room name with no `-` (the Party room "DUEL NK LOCKS") keeps its `k`.
+/// generated name holds a `k` or an `rn` (read there as the `m` it was drawn from: `del(r),sub(n>m)` on five prints), and a room name with no `-` (the Party room "DUEL NK LOCKS") keeps its `k`.
 fn letters_with_k(part: &str) -> String {
     letters_of(part)
         .chars()
@@ -714,14 +718,67 @@ mod tests {
         }
     }
 
-    /// Pin before `rn` reads as `m` (game-name-reading T10, rule 14): today the two letters are two letters, so a name whose
-    /// `m` was read as `rn` is another name, and a name with no `-` is untouched.
+    /// An `rn` read for the `m` of a generated name matches it (game-name-reading T10): `del(r),sub(n>m)` is on five prints.
+    /// A name with no `-` keeps its `rn`, and the names it must not match stay refused.
     #[test]
-    fn an_rn_is_two_letters_today() {
-        assert_eq!(normalise("rnmchaosh-20"), "rnmchaosh-20");
-        assert_eq!(read_field("rnmchaosh-20", "mmchaosh-20"), FieldRead::Other);
-        assert_eq!(read_field("mrnchaosh-20", "mmchaosh-20"), FieldRead::Other);
-        assert_eq!(read_field("mmbaalrn-99", "mmbaalm-99"), FieldRead::Other);
+    fn an_rn_reads_as_m_in_a_generated_name_and_a_name_without_a_dash_keeps_it() {
+        assert_eq!(normalise("rnmchaosh-20"), "mmchaosh-20");
+        assert_eq!(
+            read_field("rnmchaosh-20", "mmchaosh-20"),
+            FieldRead::Matched
+        );
+        assert_eq!(
+            read_field("mrnchaosh-20", "mmchaosh-20"),
+            FieldRead::Matched
+        );
+        assert_eq!(
+            read_field("rnrnchaosh-20", "mmchaosh-20"),
+            FieldRead::Matched
+        );
+        assert_eq!(read_field("mmbaalrn-99", "mmbaalm-99"), FieldRead::Matched);
+        assert_eq!(
+            read_field("RNMCHAOSH-20", "mmchaosh-20"),
+            FieldRead::Matched
+        );
+        // The names it must not match: a lone `r` or `n`, another number, another difficulty code.
+        assert_eq!(read_field("rmchaosh-20", "mmchaosh-20"), FieldRead::Other);
+        assert_eq!(read_field("nmchaosh-20", "mmchaosh-20"), FieldRead::Other);
+        assert_eq!(read_field("rnmchaosh-21", "mmchaosh-20"), FieldRead::Other);
+        assert_eq!(read_field("mmbaalrn-99", "mmbaaln-99"), FieldRead::Other);
+        assert_eq!(read_field("mmbaalrn-99", "mmbaalh-99"), FieldRead::Other);
+        // A name with no `-` keeps its `rn`.
         assert_eq!(normalise("rn lorn"), "rn lorn");
+        assert_eq!(read_field("m lom", "rn lorn"), FieldRead::Other);
+    }
+
+    /// The collision proof for the `rn` fold: every generated name with each of its `m` letters read as `rn`, and all of them
+    /// at once, matches its own name and normalises to no other room's, across every activity, difficulty code and run number
+    /// up to 9999.
+    #[test]
+    fn an_rn_read_for_m_matches_its_own_name_and_no_other_up_to_9999() {
+        let mut seen = std::collections::HashMap::new();
+        for activity in AGENT_ACTIVITIES {
+            for difficulty in AGENT_DIFFICULTY_CODES {
+                for n in 1..=9999u32 {
+                    let name = format!("mm{activity}{difficulty}-{n}");
+                    let (letters, number) = name.rsplit_once('-').expect("a dash");
+                    let each: Vec<String> = letters
+                        .match_indices('m')
+                        .map(|(at, _)| {
+                            format!("{}rn{}-{number}", &letters[..at], &letters[at + 1..])
+                        })
+                        .collect();
+                    for read in each
+                        .iter()
+                        .chain([&format!("{}-{number}", letters.replace('m', "rn"))])
+                    {
+                        assert_eq!(read_field(read, &name), FieldRead::Matched, "{read}");
+                    }
+                    if let Some(other) = seen.insert(normalise(&each[0]), name.clone()) {
+                        panic!("{name} and {other} collide once an m reads as rn");
+                    }
+                }
+            }
+        }
     }
 }
