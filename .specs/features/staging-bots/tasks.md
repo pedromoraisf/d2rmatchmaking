@@ -60,7 +60,7 @@ Rules:
 - [ ] T8 — Site: `isBotName` in `apps/web/src/shared`, the "Bot" badge wherever a display name shows, with en and pt-BR
       strings (SBT-09, rule 9). Test first: component tests for the queue, ready-check and room members. Gate:
       `pnpm --filter @d2rmm/web test`
-- [ ] T9 — `.github/workflows/staging-bots.yml` and its harness test (inputs, environment `staging`, no `secrets.`,
+- [x] T9 — `.github/workflows/staging-bots.yml` and its harness test (inputs, environment `staging`, no `secrets.`,
       `contents: read`, pinned actions, `timeout-minutes`, `concurrency` with `cancel-in-progress: false`, the job
       summary step) (SBT-01, SBT-08, SBT-12). Gate: `pnpm test:harness`
 - [ ] T10 — `acceptance.feature` with the `@SBT-09` scenario and the bot round on the acceptance stack (`@SBT-05`,
