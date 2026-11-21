@@ -128,6 +128,7 @@ Every item needs a proof in the phase review.
 | stream-egress        | Medium | nightly-report                           | yes                    | cloud               | NFR-14 (egress)                  |
 | upkeep               | Medium | —                                        | yes (fills free slots) | cloud               | CI, review items of #77/#80/#81  |
 | agent-release        | Medium | agent-room-lifecycle, screen-recognition | no                     | cloud + CI          | FR-29, ADR 015, ADR 016          |
+| observability-tiers  | Large  | —                                        | yes                    | cloud + CI          | NFR-09, NFR-04, ADR 037          |
 
 Notes:
 
