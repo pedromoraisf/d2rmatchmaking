@@ -4,7 +4,7 @@
 //!
 //! Arguments: `--api-base <url>` (loopback HTTP allowed), `--read-fixture <png>` or `--party-fixture <png>` (the first frame
 //! the agent captures), and `--consent` (the player has given capture consent, CHR-01). Output: one JSON object per line with
-//! the event `code`, `paired`, `assignment`, `observed`, `reveal` or `assignment`. Input, one command per line: `read` calls
+//! the event `code`, `paired`, `stream-open` (the stream is open, after the assignment fetch), `assignment`, `observed`, `reveal` or `assignment`. Input, one command per line: `read` calls
 //! `Handle::read_once` once for the room the agent holds; `show <png>` makes the agent capture that picture from now on, with
 //! its sidecar `<png>.json` as the text of its regions (CHR-04, CHR-06, CHR-18); `consent on|off` gives or withdraws the
 //! player's consent in the agent's window (CHR-01). The composition runs in `run`, over injected input and output; `main`
@@ -178,7 +178,13 @@ impl ApiGateway for Reporting {
         token: &Secret,
         last_event_id: Option<&str>,
     ) -> Result<Box<dyn EventStream>, ApiError> {
-        self.inner.open_stream(token, last_event_id).await
+        let opened = self.inner.open_stream(token, last_event_id).await;
+        if opened.is_ok() {
+            // The connection fetched the assignment before it opened the stream, so a room the `assign` line sets from now on
+            // is not dropped by that fetch's answer (a fetch that says "none" drops the room the agent holds).
+            let _ = self.events.send(json!({ "event": "stream-open" }));
+        }
+        opened
     }
 
     async fn accept_ready_check(&self, token: &Secret, check_id: &str) -> Result<(), ApiError> {
