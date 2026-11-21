@@ -101,6 +101,12 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
       Moved out of this PR (#104 fix round 2): the popup column lift (7d53fe17, `CardColumnLifted`, `lift_dimmed`) is
       reverted. It gained 53 correct (2356 to 2409) but cost 3 wrong (43 to 46, ceiling 43), see the spec Decisions. It can
       come back together with a stricter lifted read.
+      Part 3 attempt 1 (#120, run 44873170168): the lift came back with every field required unanimous across variants. The
+      lift ran (102 of the popup print's 500 variations changed reason, `slots0` fell from 173 to 71) but no variation became
+      correct: every one now refuses on `name-unread`, `level-unread` or `title-unread` (counts 2365/2810/45, popup 61/430/9,
+      identical to the baseline). The old lift's gain was 45 correct for one new wrong (`card1-level=1`, combo-154); the JSON
+      holds no readings, so no rule between majority and unanimity can be shown to refuse that one wrong and keep the gains.
+      Reverted. A later attempt needs the field readings of those variations (a local diagnostic), not a guess.
 - [x] T10 — **[R14]** Unrecognised selection screens (item f, SCR-05). Same loop as T9 for the 104 screens read as
       `Unknown`: classes of reason first, then the smallest change per class (the list marker searched by its word in a
       wider area, as the HUD is). A frame that is not the selection screen must still read `Unknown` (the drawn

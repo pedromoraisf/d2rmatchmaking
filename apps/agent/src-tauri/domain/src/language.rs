@@ -34,6 +34,12 @@ pub const DIFFICULTY_HELL: &str = "difficultyHell";
 pub const TAB_ONLINE: &str = "tabOnline";
 pub const TAB_OFFLINE: &str = "tabOffline";
 
+/// The fixed phrase of the chat line that says a player joined the game ("<name> joined our world"), GNR-07. Measured on the
+/// maintainer's chat prints by `ocr-real` (English; the Portuguese phrases are in `resources/lang/pt-BR.json`).
+pub const JOINED_GAME: &str = "joinedGame";
+/// The fixed phrase of the chat line that says a player left the game ("<name> left our world"), GNR-07.
+pub const LEFT_GAME: &str = "leftGame";
+
 /// The keys a pack must hold for the Party reading. A pack without one of them is refused.
 pub const REQUIRED_KEYS: [&str; 3] = [PARTY, GAME_NAME, PASSWORD];
 
@@ -81,6 +87,8 @@ const ENGLISH: &[(&str, &str)] = &[
     (DIFFICULTY_HELL, "Hell"),
     (TAB_ONLINE, "Online"),
     (TAB_OFFLINE, "Offline"),
+    (JOINED_GAME, "joined our world"),
+    (LEFT_GAME, "left our world"),
 ];
 
 /// The pack key of a class name.

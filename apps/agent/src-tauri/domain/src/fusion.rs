@@ -193,6 +193,38 @@ mod tests {
         }
     }
 
+    /// GNR-02 pin: the whole observation of a matched read, and nothing for a masked read or another room's name.
+    #[test]
+    fn fuse_gives_the_whole_observation_for_a_match_and_nothing_for_a_masked_or_another_name() {
+        let observation = fuse(&read("MMBAALH-12", 0.5), &assignment(), now(), key);
+        assert_eq!(
+            observation,
+            Some(GameNameObservation {
+                room: ROOM.parse::<Uuid>().expect("a UUID room"),
+                run: NonZeroU64::new(3).expect("a non-zero run"),
+                key: key(),
+                game_name: "mmbaalh-12".to_string(),
+                confidence: 0.5,
+                captured_at: now(),
+            })
+        );
+        assert_eq!(
+            fuse(&read("xxxxxxxxxx", 0.9), &assignment(), now(), key),
+            None,
+            "masked"
+        );
+        assert_eq!(
+            fuse(&read("mmbaalm-12", 0.9), &assignment(), now(), key),
+            None,
+            "the same room number on another difficulty"
+        );
+        assert_eq!(
+            fuse(&read("mmcowsh-1", 0.9), &assignment(), now(), key),
+            None,
+            "another name"
+        );
+    }
+
     #[test]
     fn fuse_draws_a_key_only_on_a_match() {
         let drawn = Cell::new(0_u32);

@@ -79,7 +79,7 @@ export interface TestControlDeps {
     /** Closes the open site streams of an account, as a dropped connection would (QUE-05, QUE-14). */
     closeSiteStreams(accountId: string): number;
   };
-  readonly relay: { sweep(): Promise<void> };
+  readonly relay: { sweep(): Promise<void>; quiesce(): Promise<void> };
   /** The pending site-closed drops: reset cancels them, after the streams close (QUE-14). */
   readonly siteClosedTimers: ClearableStore;
   /** The bus the redelivery publishes on: the one the relay and the consumers of this process share (AD-062). */
@@ -135,23 +135,32 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
       preHandler: [requireSecret],
       schema: { response: { 204: z.null(), 403: ErrorResponse } },
     },
-    async (_request, reply) => {
+    async (request, reply) => {
       if (!onAcceptanceDatabase(deps)) {
         return reply.code(403).send({ error: 'forbidden' });
       }
-      await sql`truncate table ${sql.raw(TABLES.join(', '))} restart identity cascade`.execute(deps.db);
-      await sql`alter sequence lobby.game_name_seq restart with 1`.execute(deps.db);
-      deps.stores.presence.clear();
-      deps.stores.rateLimits.clear();
-      deps.stores.tokenCache.clear();
-      deps.stores.queue.clear();
-      deps.stores.joins.clear();
-      deps.stores.readyChecks.clear();
-      deps.stores.agentConfig.reset();
-      deps.hub.closeAll();
-      // After the close: closing the streams schedules their site-closed drops, and those must not fire in the next scenario.
-      deps.siteClosedTimers.clear();
-      await deps.relay.sweep();
+      try {
+        // A drain still running from the last scenario holds locks the truncate needs (see OutboxRelay.quiesce).
+        await deps.relay.quiesce();
+        await sql`truncate table ${sql.raw(TABLES.join(', '))} restart identity cascade`.execute(deps.db);
+        await sql`alter sequence lobby.game_name_seq restart with 1`.execute(deps.db);
+        deps.stores.presence.clear();
+        deps.stores.rateLimits.clear();
+        deps.stores.tokenCache.clear();
+        deps.stores.queue.clear();
+        deps.stores.joins.clear();
+        deps.stores.readyChecks.clear();
+        deps.stores.agentConfig.reset();
+        deps.hub.closeAll();
+        // After the close: closing the streams schedules their site-closed drops, and those must not fire in the next scenario.
+        deps.siteClosedTimers.clear();
+        await deps.relay.sweep();
+      } catch (error) {
+        // Test controls only: names the database error (40P01 deadlock, 55P03 lock timeout…) a bare 503 hides.
+        const code = (error as { code?: unknown }).code;
+        request.log.error({ errorCode: code, message: (error as Error).message }, 'acceptance reset failed');
+        throw error;
+      }
       return reply.code(204).send(null);
     },
   );

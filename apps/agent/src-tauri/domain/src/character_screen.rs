@@ -2320,6 +2320,64 @@ mod popup_column_tests {
             1
         );
     }
+
+    /// The popup over a column whose cards read, with `name` and `level` as what the fields pass reads of each card's lines.
+    fn read_fields(name: &[&str], level: &[&str]) -> super::Reading {
+        let said = |texts: &[&str]| -> Option<Vec<String>> {
+            Some(texts.iter().map(|t| (*t).to_string()).collect())
+        };
+        read_screen(
+            &LanguagePack::english(),
+            1080,
+            |_| None,
+            |search| match search {
+                ScreenRegion::PopupArea => popup(),
+                ScreenRegion::CardColumn => list_cards(),
+                _ => Vec::new(),
+            },
+            |region| match region.y.saturating_sub(5) {
+                86..=96 => said(name),
+                109..=119 => said(level),
+                _ => None,
+            },
+            Probes {
+                selected: |_| false,
+                lit: |_| true,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        )
+    }
+
+    #[test]
+    fn a_card_under_the_popup_settles_on_two_agreeing_readings_of_its_fields() {
+        // Pinned before the lifted read is made stricter: a field read by three variants settles when two agree and no other
+        // value matches in count, so a rival reading in the third does not refuse the card.
+        let reading = read_fields(
+            &["vukVuka", "vukVuka", "vukVuko"],
+            &[
+                "Level 88 Sorceress",
+                "Level 88 Sorceress",
+                "Level 83 Sorceress",
+            ],
+        );
+        assert_eq!(reading.cards.len(), 1, "{:?}", reading.rejected);
+        assert_eq!(reading.cards[0].name(), "vukVuka");
+        assert_eq!(reading.cards[0].level(), 88);
+    }
+
+    #[test]
+    fn a_card_under_the_popup_with_three_different_name_readings_is_refused() {
+        let reading = read_fields(
+            &["vukVuka", "vukVuko", "vukVukb"],
+            &[
+                "Level 88 Sorceress",
+                "Level 88 Sorceress",
+                "Level 88 Sorceress",
+            ],
+        );
+        assert!(reading.cards.is_empty());
+        assert_eq!(reading.rejected.len(), 1);
+    }
 }
 
 /// A card whose title line the lines pass reads as no title in any variant (screen-recognition T9; the `title-unread` class,

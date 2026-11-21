@@ -34,9 +34,23 @@ pub fn shipped() -> LanguagePack {
 
 #[cfg(test)]
 mod tests {
-    use d2rmm_agent_domain::language::{GAME_NAME, LanguagePack, PARTY, PASSWORD};
+    use d2rmm_agent_domain::language::{
+        GAME_NAME, JOINED_GAME, LEFT_GAME, LanguagePack, PARTY, PASSWORD,
+    };
 
     use super::{shipped, shipped_english, shipped_portuguese};
+
+    /// The shipped Portuguese file holds the Party words and the two chat phrases that were once held in code (rule 14).
+    #[test]
+    fn the_portuguese_file_holds_the_party_words_and_the_chat_phrases_of_the_brazilian_pack() {
+        let file = shipped_portuguese().expect("the Brazilian file parses");
+        assert_eq!(file.tag(), "pt-BR");
+        assert_eq!(file.word(PARTY), Some("Grupo"));
+        assert_eq!(file.word(GAME_NAME), Some("Nome"));
+        assert_eq!(file.word(PASSWORD), Some("Senha"));
+        assert_eq!(file.word(JOINED_GAME), Some("entrou em nosso mundo"));
+        assert_eq!(file.word(LEFT_GAME), Some("saiu de nosso mundo"));
+    }
 
     #[test]
     fn the_shipped_english_file_is_the_built_in_pack() {
@@ -47,9 +61,15 @@ mod tests {
     }
 
     #[test]
-    fn the_shipped_brazilian_file_is_the_three_measured_party_words() {
-        let words = [(PARTY, "Grupo"), (GAME_NAME, "Nome"), (PASSWORD, "Senha")]
-            .map(|(key, word)| (key.to_string(), word.to_string()));
+    fn the_shipped_brazilian_file_is_the_three_party_words_and_the_two_chat_phrases() {
+        let words = [
+            (PARTY, "Grupo"),
+            (GAME_NAME, "Nome"),
+            (PASSWORD, "Senha"),
+            (JOINED_GAME, "entrou em nosso mundo"),
+            (LEFT_GAME, "saiu de nosso mundo"),
+        ]
+        .map(|(key, word)| (key.to_string(), word.to_string()));
         assert_eq!(
             shipped_portuguese().expect("the shipped Brazilian pack parses"),
             LanguagePack::from_words("pt-BR", words).expect("the pack builds")

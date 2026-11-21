@@ -5,7 +5,9 @@ use std::error::Error;
 use std::fs;
 use std::process::ExitCode;
 
+use xtask::automap_name_fixture::draw_automap_name_fixtures;
 use xtask::character_fixture::draw_character_fixtures;
+use xtask::chat_fixture::draw_chat_fixtures;
 use xtask::fixture::{draw_party_fixtures, fixture_path, render_png};
 use xtask::fullscreen_fixture::draw_fullscreen_fixtures;
 use xtask::screen_fixture::draw_screen_fixtures;
@@ -60,6 +62,20 @@ fn draw_screens() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn draw_automap_name() -> Result<(), Box<dyn Error>> {
+    for path in draw_automap_name_fixtures()? {
+        println!("wrote {}", path.display());
+    }
+    Ok(())
+}
+
+fn draw_chat() -> Result<(), Box<dyn Error>> {
+    for path in draw_chat_fixtures()? {
+        println!("wrote {}", path.display());
+    }
+    Ok(())
+}
+
 fn main() -> ExitCode {
     match std::env::args().nth(1).as_deref() {
         Some("contracts") => match contracts() {
@@ -105,16 +121,30 @@ fn main() -> ExitCode {
                     ExitCode::FAILURE
                 }
             },
+            Some("automap-name") => match draw_automap_name() {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("xtask draw-fixture automap-name: {error}");
+                    ExitCode::FAILURE
+                }
+            },
+            Some("chat") => match draw_chat() {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("xtask draw-fixture chat: {error}");
+                    ExitCode::FAILURE
+                }
+            },
             Some(_) => {
                 eprintln!(
-                    "usage: cargo run -p xtask -- draw-fixture [party | characters | fullscreen | screens]"
+                    "usage: cargo run -p xtask -- draw-fixture [party | characters | fullscreen | screens | automap-name | chat]"
                 );
                 ExitCode::from(2)
             }
         },
         _ => {
             eprintln!(
-                "usage: cargo run -p xtask -- contracts | draw-fixture [party | characters | fullscreen | screens]"
+                "usage: cargo run -p xtask -- contracts | draw-fixture [party | characters | fullscreen | screens | automap-name | chat]"
             );
             ExitCode::from(2)
         }
