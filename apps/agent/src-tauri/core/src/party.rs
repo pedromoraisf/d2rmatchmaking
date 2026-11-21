@@ -17,7 +17,7 @@ use d2rmm_agent_domain::game_name_match::{
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{PanelRegion, panel_region, panel_region_with};
 use d2rmm_agent_domain::name_diff::closest_reading_diff;
-use d2rmm_agent_domain::remote_config::Regions;
+use d2rmm_agent_domain::remote_config::{Phrases, Regions};
 use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::{ReadText, Region};
 
@@ -266,7 +266,8 @@ pub async fn look<G: ApiGateway + Send + Sync>(
         return;
     }
     let reader = Arc::clone(&ports.read.reader);
-    let language = Arc::clone(&ports.language);
+    // The Party words of the configuration of this look, over the shipped pack (RCF-08).
+    let language = language_for(&ports.language, &device.config.borrow().phrases);
     let expected = assignment.expected_game_name.as_str().to_string();
     let tracked = device.with_party(|progress| progress.tracked_area(frame.width, frame.height));
     let size = (frame.width, frame.height);
@@ -340,6 +341,16 @@ fn locate(
     };
     let fallback = anchors::find_party_in_variants(fallback, &lines, frame.height);
     if fallback.open { fallback } else { found }
+}
+
+/// The pack a look reads with: the shipped pack, or a copy with the Party words of the configuration when it names any
+/// (RCF-05, RCF-08). The same `Arc` comes back when nothing is configured, so the default path allocates nothing.
+fn language_for(base: &Arc<LanguagePack>, phrases: &Phrases) -> Arc<LanguagePack> {
+    if phrases.is_configured() {
+        Arc::new(base.with_phrases(phrases))
+    } else {
+        Arc::clone(base)
+    }
 }
 
 /// `read_panel` as the agent looks at a frame (screen-recognition T6): the cheap areas first, the wide one only as a
@@ -691,8 +702,9 @@ mod look_tests {
     use std::sync::{Arc, Mutex};
 
     use d2rmm_agent_domain::fusion::GameNameObservation;
-    use d2rmm_agent_domain::language::LanguagePack;
+    use d2rmm_agent_domain::language::{LanguagePack, PARTY};
     use d2rmm_agent_domain::layout::{PanelRegion, panel_region};
+    use d2rmm_agent_domain::remote_config::{Phrases, Words};
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
     use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 
@@ -865,6 +877,48 @@ mod look_tests {
             room(&rig).is_some_and(|room| room.matched),
             "the room shows the match"
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_party_word_of_the_configuration_opens_the_panel_from_the_next_look() {
+        // RCF-08: the shipped English word is "Party"; the configuration names "Group", and the look after it reads with it.
+        let rig = rig();
+        rig.device
+            .replace_assignment(Some(assignment(1, "mmcowsh-1")));
+        rig.gateway.script_post_observation([Ok(())]);
+        show(&rig.panel, "GROUP", "MMC⊕WSH-1");
+
+        look_at(&rig).await;
+        assert!(
+            posts(&rig.gateway).is_empty(),
+            "no panel under the shipped word"
+        );
+
+        rig.device.config.send_modify(|config| {
+            config.phrases.en.party = Some("Group".to_string());
+        });
+        look_at(&rig).await;
+        assert_eq!(posts(&rig.gateway).len(), 1, "the configured word opens it");
+    }
+
+    #[test]
+    fn the_shipped_pack_itself_is_used_when_nothing_is_configured() {
+        let base = Arc::new(LanguagePack::english());
+        assert!(Arc::ptr_eq(
+            &base,
+            &super::language_for(&base, &Phrases::default())
+        ));
+        let configured = Phrases {
+            en: Words {
+                party: Some("Group".to_string()),
+                ..Words::default()
+            },
+            ..Phrases::default()
+        };
+        let own = super::language_for(&base, &configured);
+        assert!(!Arc::ptr_eq(&base, &own));
+        assert_eq!(own.word(PARTY), Some("Group"));
+        assert_eq!(base.word(PARTY), Some("Party"));
     }
 
     #[tokio::test(start_paused = true)]
