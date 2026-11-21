@@ -13,8 +13,11 @@ use d2rmm_agent_domain::character_screen::{
 };
 use d2rmm_agent_domain::hud_track::{AUTOMAP_SEARCH_EVERY, LIST_SEARCH_EVERY, TrackRead, Tracker};
 use d2rmm_agent_domain::language::LanguagePack;
-use d2rmm_agent_domain::layout::{ScreenRegion, screen_region, selection_band, supported_size};
+use d2rmm_agent_domain::layout::{
+    ScreenRegion, screen_region, screen_region_with, selection_band, supported_size,
+};
 use d2rmm_agent_domain::presence::Screen;
+use d2rmm_agent_domain::remote_config::Effective;
 use d2rmm_agent_domain::vision::{Region, TextLine};
 
 use crate::messages::FrameReading;
@@ -100,10 +103,16 @@ impl ScreenReader {
         tracker: &Mutex<Tracker>,
         find: FindLabel,
         how: &Cell<Option<Search>>,
+        config: &Effective,
     ) -> Vec<Vec<TextLine>> {
         let plan = {
             let mut held = tracker.lock().unwrap_or_else(PoisonError::into_inner);
-            let plan = held.next(frame.width, frame.height);
+            let plan = held.next_with(
+                frame.width,
+                frame.height,
+                config.thresholds.track_pad,
+                &config.regions,
+            );
             // A search of the wide area that found nothing last time rests for some frames (NFR-03 CPU).
             if matches!(plan, Some(TrackRead::Search(_))) && held.rests(frame.width, frame.height) {
                 how.set(Some(Search::Rested));
@@ -128,7 +137,7 @@ impl ScreenReader {
             let search = tracker
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
-                .search_area(frame.width, frame.height);
+                .search_area_with(frame.width, frame.height, &config.regions);
             if let Some(search) = search {
                 lines = self.reader.read_line_variants(frame, search);
                 found = find(&self.language, &lines);
@@ -147,10 +156,17 @@ impl ScreenReader {
         frame: &Rgba,
         search: ScreenRegion,
         how: &Cell<Option<Search>>,
+        config: &Effective,
     ) -> Vec<Vec<TextLine>> {
         match search {
             ScreenRegion::HudBand => {
-                return self.tracked_lines(frame, &self.hud, anchors::find_hud_in_variants, how);
+                return self.tracked_lines(
+                    frame,
+                    &self.hud,
+                    anchors::find_hud_in_variants,
+                    how,
+                    config,
+                );
             }
             ScreenRegion::AutomapArea => {
                 return self.tracked_lines(
@@ -158,6 +174,7 @@ impl ScreenReader {
                     &self.automap,
                     anchors::find_automap_in_variants,
                     how,
+                    config,
                 );
             }
             ScreenRegion::CreateNewArea => {
@@ -166,11 +183,12 @@ impl ScreenReader {
                     &self.create_new,
                     anchors::find_create_new_in_variants,
                     how,
+                    config,
                 );
             }
             _ => {}
         }
-        screen_region(search, frame.width, frame.height)
+        screen_region_with(search, frame.width, frame.height, &config.regions)
             .map(|area| self.reader.read_line_variants(frame, area))
             .unwrap_or_default()
     }
@@ -180,16 +198,17 @@ impl ScreenReader {
         if !supported_size(frame.width, frame.height) {
             return AnchorCounts::default();
         }
+        let built_in = Effective::built_in();
         AnchorCounts {
             cards: anchors::find_cards_in_variants(
                 &self.language,
-                &self.lines_of(frame, ScreenRegion::CardColumn, &Cell::new(None)),
+                &self.lines_of(frame, ScreenRegion::CardColumn, &Cell::new(None), &built_in),
                 frame.height,
             )
             .len(),
             popup_options: anchors::popup_options_in_variants(
                 &self.language,
-                &self.lines_of(frame, ScreenRegion::PopupArea, &Cell::new(None)),
+                &self.lines_of(frame, ScreenRegion::PopupArea, &Cell::new(None), &built_in),
             )
             .len(),
         }
@@ -237,6 +256,10 @@ pub fn readings_of(reader: &dyn TextReader, frame: &Rgba, area: Region) -> Vec<S
 
 impl FrameReader for ScreenReader {
     fn read(&self, frame: &Rgba) -> FrameReading {
+        self.read_with(frame, &Effective::built_in())
+    }
+
+    fn read_with(&self, frame: &Rgba, config: &Effective) -> FrameReading {
         if !supported_size(frame.width, frame.height) {
             return FrameReading::without_cards(Screen::Unknown);
         }
@@ -263,7 +286,7 @@ impl FrameReader for ScreenReader {
             &self.language,
             frame.height,
             text,
-            |search| self.lines_of(frame, search, &how),
+            |search| self.lines_of(frame, search, &how, config),
             field,
             Probes {
                 selected: |name| is_selected(frame, name),
@@ -1857,5 +1880,176 @@ mod dim_tests {
         assert_eq!(reading.screen, Screen::CharacterSelect);
         assert_eq!((reading.cards.len(), reading.slots_read), (0, 0));
         assert_eq!(reading.popup_options, 3);
+    }
+}
+
+/// remote-config T16/T17: the configuration reaches the areas the reader asks the text port to read, and none configured
+/// reads exactly as `read` does.
+#[cfg(test)]
+mod config_threaded {
+    use std::sync::{Arc, Mutex};
+
+    use d2rmm_agent_domain::language::LanguagePack;
+    use d2rmm_agent_domain::presence::Screen;
+    use d2rmm_agent_domain::remote_config::{Area, Effective};
+    use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
+
+    use super::ScreenReader;
+    use crate::ports::{FrameReader, ReadError, Rgba, TextReader};
+
+    /// Shows one Life line wherever it is asked about, and records every area asked.
+    struct Life {
+        asked: Mutex<Vec<Region>>,
+        shown: bool,
+    }
+
+    impl Life {
+        fn new(shown: bool) -> Arc<Self> {
+            Arc::new(Self {
+                asked: Mutex::new(Vec::new()),
+                shown,
+            })
+        }
+
+        fn take_asked(&self) -> Vec<Region> {
+            std::mem::take(&mut *self.asked.lock().expect("asked"))
+        }
+    }
+
+    impl TextReader for Life {
+        fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
+            Err(ReadError::Failed)
+        }
+
+        fn read_lines(&self, _image: &Rgba, region: Region) -> Vec<TextLine> {
+            self.asked.lock().expect("asked").push(region);
+            let line = Region {
+                x: 436,
+                y: 880,
+                width: 160,
+                height: 22,
+            };
+            let inside = region.x <= line.middle_x()
+                && line.middle_x() < region.right()
+                && region.y <= line.middle_y()
+                && line.middle_y() < region.bottom();
+            if self.shown && inside {
+                vec![TextLine {
+                    text: "Life: 925 / 925".to_string(),
+                    region: line,
+                }]
+            } else {
+                Vec::new()
+            }
+        }
+    }
+
+    fn frame() -> Rgba {
+        Rgba {
+            width: 1920,
+            height: 1080,
+            pixels: vec![0; 1920 * 1080 * 4],
+        }
+    }
+
+    fn reader(text: &Arc<Life>) -> ScreenReader {
+        ScreenReader::new(
+            Arc::clone(text) as Arc<dyn TextReader + Send + Sync>,
+            Arc::new(LanguagePack::english()),
+        )
+    }
+
+    /// The box the second look reads around a line the first one found, for a tracking padding of `pad`.
+    fn tracked_box(pad: u32) -> Region {
+        let text = Life::new(true);
+        let screens = reader(&text);
+        let mut config = Effective::built_in();
+        config.thresholds.track_pad = pad;
+        assert_eq!(screens.read_with(&frame(), &config).screen, Screen::InGame);
+        text.take_asked();
+        assert_eq!(screens.read_with(&frame(), &config).screen, Screen::InGame);
+        text.take_asked()
+            .into_iter()
+            .find(|area| area.width < 400)
+            .expect("a tracked box is read")
+    }
+
+    #[test]
+    fn the_built_in_configuration_asks_the_same_areas_as_read_look_after_look() {
+        let plain = Life::new(true);
+        let configured = Life::new(true);
+        let (plain_reader, configured_reader) = (reader(&plain), reader(&configured));
+        for _ in 0..4 {
+            assert_eq!(
+                plain_reader.read(&frame()),
+                configured_reader.read_with(&frame(), &Effective::built_in())
+            );
+            assert_eq!(plain.take_asked(), configured.take_asked());
+        }
+    }
+
+    #[test]
+    fn a_configured_hud_band_is_the_area_searched_in_place_of_the_built_in_one() {
+        let mut config = Effective::built_in();
+        config.regions.hud_band = Some(Area {
+            x: 0.0,
+            y: 0.8,
+            width: 0.5,
+            height: 0.15,
+        });
+        let text = Life::new(false);
+        reader(&text).read_with(&frame(), &config);
+        let asked = text.take_asked();
+        assert!(
+            asked.contains(&Region {
+                x: 0,
+                y: 864,
+                width: 960,
+                height: 162
+            }),
+            "{asked:?}"
+        );
+        assert!(
+            !asked.iter().any(|area| area.width == 1920),
+            "the built-in band is not read: {asked:?}"
+        );
+    }
+
+    #[test]
+    fn a_configured_band_larger_than_the_built_in_one_is_not_read() {
+        let mut config = Effective::built_in();
+        config.regions.hud_band = Some(Area {
+            x: 0.0,
+            y: 0.0,
+            width: 1.0,
+            height: 1.0,
+        });
+        let text = Life::new(false);
+        reader(&text).read_with(&frame(), &config);
+        let asked = text.take_asked();
+        assert!(
+            asked.contains(&Region {
+                x: 0,
+                y: 810,
+                width: 1920,
+                height: 270
+            }),
+            "the built-in band is: {asked:?}"
+        );
+        assert!(
+            !asked.iter().any(|area| area.height == 1080),
+            "the whole client is not: {asked:?}"
+        );
+    }
+
+    #[test]
+    fn the_tracking_padding_comes_from_the_configuration_inside_its_range() {
+        let (built_in, wide, narrow) = (tracked_box(24), tracked_box(48), tracked_box(8));
+        // 24 is today's padding (25 px at 1080); 48 and 8 move each side by the difference scaled to the client.
+        assert_eq!(wide.width - built_in.width, 2 * (50 - 25));
+        assert_eq!(built_in.width - narrow.width, 2 * (25 - 8));
+        // Outside the range the agent's own limits hold, whatever the configuration says.
+        assert_eq!(tracked_box(1000), wide);
+        assert_eq!(tracked_box(0), narrow);
     }
 }

@@ -10,7 +10,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use d2rmm_agent_domain::capture_cascade::{CaptureMethod, CascadeParams};
 use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::frame_content::FrameContent;
-use d2rmm_agent_domain::remote_config::Wire;
+use d2rmm_agent_domain::remote_config::{Effective, Wire};
 use d2rmm_agent_domain::room_assignment::{Assignment, RoomId};
 use d2rmm_agent_domain::typing::{Modifiers, TypableChar};
 use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
@@ -213,6 +213,12 @@ pub trait ConsentStore {
 /// A card with any field it could not read is left out. The reader holds no state between frames.
 pub trait FrameReader {
     fn read(&self, frame: &Rgba) -> FrameReading;
+
+    /// `read` under the configuration the agent runs now (RCF-08): the reader takes the values it uses at this look. A reader
+    /// that uses none reads as `read` does.
+    fn read_with(&self, frame: &Rgba, _config: &Effective) -> FrameReading {
+        self.read(frame)
+    }
 }
 
 /// Why an update check did not install a version (AGS-26).
