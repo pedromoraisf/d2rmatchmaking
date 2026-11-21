@@ -338,7 +338,7 @@ pub const SCHEMAS: &[(&str, &str)] = &[
         },
         "probeEvery": {
           "type": "integer",
-          "minimum": 10,
+          "minimum": 60,
           "maximum": 600
         },
         "rateWindow": {

@@ -759,7 +759,7 @@ mod tests {
 
     /// The extremes of each range of the configuration, and the defaults between them.
     const DEMOTE_AFTERS: [u32; 3] = [1, 3, 10];
-    const PROBE_EVERYS: [u32; 4] = [10, 60, 300, 600];
+    const PROBE_EVERYS: [u32; 4] = [60, 61, 300, 600];
     const RATE_WINDOWS: [usize; 3] = [10, 60, 600];
 
     /// RCF-09, CAP-03: whatever the cascade's numbers, 600 looks on the first method make exactly 600 captures of it, one per
@@ -792,7 +792,7 @@ mod tests {
 
     /// RCF-09: with the first method black, a look makes one capture, plus one probe on every `probe_every`-th look, and the
     /// demotion looks at the start. Never more than two captures in a look once the demotion is over, never a frame the reader
-    /// would read twice, and the total is bounded by the range: 660 at the fastest probe against today's 610.
+    /// would read twice, and the total is bounded by today's: 611 at the fastest probe the range allows (60).
     #[test]
     fn at_every_extreme_six_hundred_looks_on_the_second_method_stay_within_the_bound() {
         for demote_after in DEMOTE_AFTERS {
@@ -829,7 +829,12 @@ mod tests {
                     "the looks to demote, then one probe every {probe_every}"
                 );
                 assert_eq!(frames, 600 - (demote_after as usize - 1));
-                assert!(script.total_calls() <= 600 + 60 + demote_after as usize);
+                // Today's default (3 and 60) makes 611: 598 of the second method, 3 + 10 of the first. Nothing in the range makes more.
+                assert!(
+                    script.total_calls() <= 611,
+                    "{} captures",
+                    script.total_calls()
+                );
                 assert!(frames <= 600, "one frame to read per look at most");
             }
         }
@@ -845,17 +850,17 @@ mod tests {
         capturer.capture();
         capturer.configure(CascadeParams {
             demote_after: 3,
-            probe_every: 10,
+            probe_every: 60,
             rate_window: 60,
         });
         // The third blank look demotes, as it would have by default.
         capturer.capture();
         assert_eq!(capturer.status().method, Some(GraphicsCapture));
-        // Looks 4 to 9 make one capture each; look 10 adds a probe of the first method.
+        // Looks 4 to 60 make one capture each; look 60 adds a probe of the first method.
         let before = script.total_calls();
-        for _ in 4..=10 {
+        for _ in 4..=60 {
             capturer.capture();
         }
-        assert_eq!(script.total_calls() - before, 8);
+        assert_eq!(script.total_calls() - before, 58);
     }
 }

@@ -67,12 +67,12 @@ impl Range {
 }
 
 /// The agent's own limits (RCF-05, RCF-09). Every extreme keeps the call counts of the capture cascade and the reading within
-/// today's: the look interval never goes under one second, the probe cadence never under ten looks.
+/// today's: the look interval never goes under one second, the probe cadence never under today's sixty looks.
 pub struct Ranges;
 
 impl Ranges {
     pub const DEMOTE_AFTER: Range = Range { min: 1, max: 10 };
-    pub const PROBE_EVERY: Range = Range { min: 10, max: 600 };
+    pub const PROBE_EVERY: Range = Range { min: 60, max: 600 };
     pub const RATE_WINDOW: Range = Range { min: 10, max: 600 };
     pub const LOOK_INTERVAL_MS: Range = Range {
         min: 1000,
@@ -424,7 +424,7 @@ mod tests {
     #[test]
     fn the_ranges_are_the_agents_own() {
         assert_eq!(Ranges::DEMOTE_AFTER, Range { min: 1, max: 10 });
-        assert_eq!(Ranges::PROBE_EVERY, Range { min: 10, max: 600 });
+        assert_eq!(Ranges::PROBE_EVERY, Range { min: 60, max: 600 });
         assert_eq!(Ranges::RATE_WINDOW, Range { min: 10, max: 600 });
         assert_eq!(
             Ranges::LOOK_INTERVAL_MS,
@@ -495,8 +495,8 @@ mod tests {
     #[test]
     fn a_fraction_rounds_down_inside_the_range() {
         let mut body = wire(2.0);
-        body.probe_every = Some(30.9);
-        assert_eq!(applied(&body).cadence.probe_every, 30);
+        body.probe_every = Some(120.9);
+        assert_eq!(applied(&body).cadence.probe_every, 120);
     }
 
     #[test]
@@ -511,9 +511,9 @@ mod tests {
     #[test]
     fn a_missing_number_keeps_its_default_and_the_rest_still_applies() {
         let mut body = wire(2.0);
-        body.probe_every = Some(30.0);
+        body.probe_every = Some(120.0);
         let effective = applied(&body);
-        assert_eq!(effective.cadence.probe_every, 30);
+        assert_eq!(effective.cadence.probe_every, 120);
         assert_eq!(effective.cadence.demote_after, 3);
         assert_eq!(effective.cadence.rate_window, 60);
         assert_eq!(effective.cadence.look_interval_ms, 1000);
@@ -580,7 +580,7 @@ mod tests {
     #[test]
     fn a_dropped_phrase_leaves_the_other_phrases_and_sections_applied() {
         let mut body = wire(2.0);
-        body.probe_every = Some(30.0);
+        body.probe_every = Some(120.0);
         body.en = WireWords {
             party: Some("(a+)+$".into()),
             game_name: Some("Game Name".into()),
@@ -589,7 +589,7 @@ mod tests {
         let effective = applied(&body);
         assert_eq!(effective.phrases.en.party, None);
         assert_eq!(effective.phrases.en.game_name.as_deref(), Some("Game Name"));
-        assert_eq!(effective.cadence.probe_every, 30);
+        assert_eq!(effective.cadence.probe_every, 120);
     }
 
     fn area(x: f64, y: f64, width: f64, height: f64) -> WireArea {
@@ -720,7 +720,7 @@ mod tests {
     #[test]
     fn an_invalid_body_never_changes_a_held_version_even_with_valid_fields() {
         let body = Wire {
-            probe_every: Some(30.0),
+            probe_every: Some(120.0),
             ..Wire::default()
         };
         assert_eq!(from_wire(Some(&body), 3), Verdict::Invalid);
@@ -751,5 +751,21 @@ mod tests {
             || field.contains("url")
             || field.contains("script")
             || field.contains("pattern")));
+    }
+
+    /// RCF-09: the probe cadence never goes under today's sixty looks, so no configuration makes the cascade capture more than it
+    /// does now (611 captures in 600 looks on the second method).
+    #[test]
+    fn the_probe_cadence_never_goes_under_today_s_sixty_looks() {
+        for sent in [0.0, 1.0, 10.0, 30.0, 59.0, -5.0, f64::NEG_INFINITY] {
+            let mut body = wire(2.0);
+            body.probe_every = Some(sent);
+            assert_eq!(applied(&body).cadence.probe_every, 60, "{sent}");
+        }
+        let mut body = wire(2.0);
+        body.probe_every = Some(60.0);
+        assert_eq!(applied(&body).cadence.probe_every, 60);
+        body.probe_every = Some(61.0);
+        assert_eq!(applied(&body).cadence.probe_every, 61);
     }
 }

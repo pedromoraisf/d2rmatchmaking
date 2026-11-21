@@ -126,6 +126,21 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
 - [ ] T18 — **[R14] Phrases** per language from `Effective.phrases` (the Party words and the chat "joined" and "left" phrases of
       `game-name-reading`), compared as literals by the existing rules; a phrase that fails its rule never reaches the
       reader. Tests with English and pt-BR phrases and with a hostile phrase. Real-print proof as T16. Gate: as T16
+
+> **Call counts at the extremes (fix round 1, RCF-09; measured by `capturer.rs` tests, 600 looks).** Today's default is
+> `demoteAfter` 3, `probeEvery` 60. `probeEvery` is 60–600 (floor = today's), so nothing in the range captures more than today.
+>
+> | Situation                           | `demoteAfter` | `probeEvery` | Captures | Frames read (≤ 1 per look) |
+> | ----------------------------------- | ------------- | ------------ | -------- | -------------------------- |
+> | First method works (steady state)   | any           | any          | 600      | 600                        |
+> | Second method in use, today (3, 60) | 3             | 60           | 611      | 598                        |
+> | Second method in use, floor         | 1             | 60           | 611      | 600                        |
+> | Second method in use, floor         | 10            | 60           | 611      | 591                        |
+> | Second method in use, ceiling       | 3             | 600          | 602      | 598                        |
+>
+> Captures = 601 + probes, probes = ⌊600 / probeEvery⌋ − ⌊demoteAfter / probeEvery⌋; frames = 600 − (demoteAfter − 1).
+> The screen loop adds no capture: one per look, at an interval of 1 s or more (`look_interval`).
+
 - [ ] T19 — Close the proofs. The PR's table: every range and its test, call counts at the extremes, the version fallback cases,
       `ocr-real` per print and `ocr-variations` before and after, and the threat table of the spec with the control that
       closes each line. Gate: `pnpm specs:check && pnpm test:harness`

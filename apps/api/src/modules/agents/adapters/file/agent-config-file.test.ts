@@ -57,7 +57,7 @@ describe('the committed agent configuration (RCF-12)', () => {
 describe('parseAgentConfig', () => {
   it('tags the same version with another tag when the bytes change (an edit without a version bump)', () => {
     const first = parseAgentConfig('{"version":3}');
-    const second = parseAgentConfig('{"version":3,"cadence":{"probeEvery":30}}');
+    const second = parseAgentConfig('{"version":3,"cadence":{"probeEvery":90}}');
     expect(first.ok && second.ok).toBe(true);
     if (first.ok && second.ok) {
       expect(first.value.version).toBe(second.value.version);

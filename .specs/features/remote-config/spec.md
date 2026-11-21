@@ -167,7 +167,7 @@ agent's domain and never read from the server.
   patterns (ReDoS). (4) No signature in F2; a signed configuration is a later hardening (**to confirm by the maintainer**).
   (5) The screen search-cadence fields join the schema in the PR that merges after `feat/F2-screen-recognition-2`, and the
   chat-phrase fields after `game-name-reading`; until then `phrases` holds the Party panel's words only. (6) Ranges:
-  `probeEvery` 10–600, `demoteAfter` 1–10, `rateWindow` 10–600, `lookIntervalMs` 1000–10000 (the floor keeps CHR-03's at
+  `probeEvery` 60–600, `demoteAfter` 1–10, `rateWindow` 10–600, `lookIntervalMs` 1000–10000 (the floor keeps CHR-03's at
   most one look per second); `trackPad` 8–48 pixels; a region's origin 0–1 and size 0.02–1, inside the client.
 - **Where batch 1 put things.** Only adapters import contracts (architecture rule), so the validation of the file
   (`parseAgentConfig`, `loadAgentConfig`) is in `modules/agents/adapters/file/agent-config-file.ts`; the domain holds the
@@ -185,3 +185,9 @@ agent's domain and never read from the server.
   fetched bodies, and it costs one `Held.confirmed` flag in the loop. A body that is invalid, a failed fetch and a `404` do not
   confirm anything, so the stored file still runs when the API is gone. An agent restart applies the served document once
   (outcome `applied`) even when it equals the stored one.
+- **The probe cadence floor is 60, today's value (fix round 1, RCF-03, RCF-09).** A floor of 10 let a configuration probe six
+  times as often (660 captures in 600 looks on the second method against today's 611). Conservative default: `probeEvery` is
+  60–600, so no configuration makes the agent capture more than it does now. The scenarios of RCF-05 and RCF-06 follow:
+  the clamp example below the floor is `1 → 60`, the floor itself is `60 → 60`, above the ceiling is `100000 → 600`, and
+  `-5 → 60`; the examples that sent 30 as a valid cadence now send 120 (30 would clamp). No assertion was weakened: each
+  example and each check stays, with the numbers the new range gives. Done on the orchestrator's instruction.

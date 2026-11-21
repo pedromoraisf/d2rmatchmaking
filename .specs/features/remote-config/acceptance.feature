@@ -53,10 +53,10 @@ Feature: The agent is tuned by a bounded, versioned configuration the API serves
 
   @RCF-05 @RCF-08 @agent
   Scenario: A newer configuration is applied without a restart
-    Given the API serves the configuration version 2 with a probe cadence of 30
+    Given the API serves the configuration version 2 with a probe cadence of 120
     When Alice's agent starts
     Then the agent runs the configuration version 2
-    And the agent's probe cadence is 30
+    And the agent's probe cadence is 120
     When the API serves the configuration version 3 with a probe cadence of 90
     Then the agent runs the configuration version 3
     And the agent's probe cadence is 90
@@ -70,9 +70,10 @@ Feature: The agent is tuned by a bounded, versioned configuration the API serves
 
     Examples:
       | sent    | used |
-      | 1       | 10   |
+      | 1       | 60   |
+      | 60      | 60   |
       | 100000  | 600  |
-      | -5      | 10   |
+      | -5      | 60   |
 
   @RCF-05 @agent
   Scenario: A field the agent does not know is ignored
@@ -90,19 +91,19 @@ Feature: The agent is tuned by a bounded, versioned configuration the API serves
 
   @RCF-06 @agent
   Scenario: An older configuration does not replace the one the agent holds
-    Given the API serves the configuration version 5 with a probe cadence of 30
+    Given the API serves the configuration version 5 with a probe cadence of 120
     And Alice's agent has started
     When the API serves the configuration version 4 with a probe cadence of 90
     Then the agent runs the configuration version 5
-    And the agent's probe cadence is 30
+    And the agent's probe cadence is 120
 
   @RCF-06 @agent
   Scenario: A broken configuration keeps the last good one
-    Given the API serves the configuration version 5 with a probe cadence of 30
+    Given the API serves the configuration version 5 with a probe cadence of 120
     And Alice's agent has started
     When the API serves a configuration that is not valid JSON
     Then the agent runs the configuration version 5
-    And the agent's probe cadence is 30
+    And the agent's probe cadence is 120
 
   @RCF-06 @agent
   Scenario: With no configuration the agent runs on its built-in values
@@ -113,7 +114,7 @@ Feature: The agent is tuned by a bounded, versioned configuration the API serves
 
   @RCF-06 @agent
   Scenario: The last good configuration survives a restart with the API gone
-    Given the API serves the configuration version 5 with a probe cadence of 30
+    Given the API serves the configuration version 5 with a probe cadence of 120
     And Alice's agent has started
     When the agent restarts while the API does not answer
     Then the agent runs the configuration version 5

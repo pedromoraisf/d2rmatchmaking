@@ -19,7 +19,7 @@ afterEach(async () => {
   app = undefined;
 });
 
-const BODY = '{"version":2,"cadence":{"probeEvery":30}}';
+const BODY = '{"version":2,"cadence":{"probeEvery":90}}';
 
 async function setup(served: ServedAgentConfig | undefined, allowed = true) {
   const source = new MemoryAgentConfigSource(served);

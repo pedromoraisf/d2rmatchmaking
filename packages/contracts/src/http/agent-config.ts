@@ -11,8 +11,8 @@ export const AGENT_CONFIG_MAX_BYTES = 65536;
 export const AGENT_CONFIG_RANGES = {
   /** Looks without a capture reading before the capture cascade demotes its method (capture cascade `DEMOTE_AFTER`). */
   demoteAfter: { min: 1, max: 10 },
-  /** Looks between two probes of the better capture method (`PROBE_EVERY`). */
-  probeEvery: { min: 10, max: 600 },
+  /** Looks between two probes of the better capture method (`PROBE_EVERY`); the floor is today's value, so no configuration makes more captures than today (RCF-09). */
+  probeEvery: { min: 60, max: 600 },
   /** The window of looks the read rate is measured over (`RATE_WINDOW`). */
   rateWindow: { min: 10, max: 600 },
   /** Milliseconds between two looks at the game (`TICK`); the floor keeps CHR-03's at most one look per second. */

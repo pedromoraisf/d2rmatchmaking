@@ -355,15 +355,15 @@ mod tests {
     #[tokio::test]
     async fn a_newer_body_is_applied_and_kept() {
         let rig = rig(true, MemoryStore::default());
-        rig.gateway.script([served(5, 30, "\"a\"")]);
+        rig.gateway.script([served(5, 120, "\"a\"")]);
         let mut held = Held::default();
 
         let outcome = fetch_once(&rig.device, &rig.ports, &mut held).await;
 
         assert_eq!(outcome, Outcome::Applied);
         assert_eq!(running(&rig.device).version, 5);
-        assert_eq!(running(&rig.device).cadence.probe_every, 30);
-        assert_eq!(rig.store.load(), Some(body(5, 30)));
+        assert_eq!(running(&rig.device).cadence.probe_every, 120);
+        assert_eq!(rig.store.load(), Some(body(5, 120)));
         assert_eq!(held.etag.as_deref(), Some("\"a\""));
         assert_eq!(
             rig.device.hub.snapshot().config_version,
@@ -376,7 +376,7 @@ mod tests {
     async fn the_next_request_names_the_tag_it_holds_and_a_304_changes_nothing() {
         let rig = rig(true, MemoryStore::default());
         rig.gateway
-            .script([served(5, 30, "\"a\""), Fetched::NotModified]);
+            .script([served(5, 120, "\"a\""), Fetched::NotModified]);
         let mut held = Held::default();
         fetch_once(&rig.device, &rig.ports, &mut held).await;
 
@@ -403,22 +403,22 @@ mod tests {
     async fn the_same_version_changes_nothing_and_writes_nothing() {
         let rig = rig(true, MemoryStore::default());
         rig.gateway
-            .script([served(5, 30, "\"a\""), served(5, 90, "\"b\"")]);
+            .script([served(5, 120, "\"a\""), served(5, 90, "\"b\"")]);
         let mut held = Held::default();
         fetch_once(&rig.device, &rig.ports, &mut held).await;
 
         let outcome = fetch_once(&rig.device, &rig.ports, &mut held).await;
 
         assert_eq!(outcome, Outcome::Unchanged);
-        assert_eq!(running(&rig.device).cadence.probe_every, 30);
-        assert_eq!(rig.store.load(), Some(body(5, 30)));
+        assert_eq!(running(&rig.device).cadence.probe_every, 120);
+        assert_eq!(rig.store.load(), Some(body(5, 120)));
     }
 
     #[tokio::test]
     async fn an_older_version_keeps_what_the_agent_holds() {
         let rig = rig(true, MemoryStore::default());
         rig.gateway
-            .script([served(5, 30, "\"a\""), served(4, 90, "\"b\"")]);
+            .script([served(5, 120, "\"a\""), served(4, 90, "\"b\"")]);
         let mut held = Held::default();
         fetch_once(&rig.device, &rig.ports, &mut held).await;
 
@@ -426,9 +426,9 @@ mod tests {
 
         assert_eq!(outcome, Outcome::Stale);
         assert_eq!(running(&rig.device).version, 5);
-        assert_eq!(running(&rig.device).cadence.probe_every, 30);
+        assert_eq!(running(&rig.device).cadence.probe_every, 120);
         assert_eq!(rig.device.hub.snapshot().config_version, 5);
-        assert_eq!(rig.store.load(), Some(body(5, 30)));
+        assert_eq!(rig.store.load(), Some(body(5, 120)));
         assert_eq!(
             held.etag.as_deref(),
             Some("\"a\""),
@@ -440,7 +440,7 @@ mod tests {
     async fn a_broken_body_keeps_the_last_good_one() {
         let rig = rig(true, MemoryStore::default());
         rig.gateway.script([
-            served(5, 30, "\"a\""),
+            served(5, 120, "\"a\""),
             Fetched::Body {
                 bytes: b"not a document".to_vec(),
                 etag: Some("\"b\"".into()),
@@ -453,7 +453,7 @@ mod tests {
 
         assert_eq!(outcome, Outcome::Invalid);
         assert_eq!(running(&rig.device).version, 5);
-        assert_eq!(rig.store.load(), Some(body(5, 30)));
+        assert_eq!(rig.store.load(), Some(body(5, 120)));
         assert_eq!(held.etag.as_deref(), Some("\"a\""));
     }
 
@@ -475,7 +475,7 @@ mod tests {
         for error in [ApiError::Network, ApiError::Server, ApiError::Invalid] {
             let rig = rig(true, MemoryStore::default());
             rig.gateway
-                .script([served(5, 30, "\"a\""), Fetched::Failed(error)]);
+                .script([served(5, 120, "\"a\""), Fetched::Failed(error)]);
             let mut held = Held::default();
             fetch_once(&rig.device, &rig.ports, &mut held).await;
 
@@ -518,18 +518,18 @@ mod tests {
                 ..MemoryStore::default()
             },
         );
-        rig.gateway.script([served(5, 30, "\"a\"")]);
+        rig.gateway.script([served(5, 120, "\"a\"")]);
 
         let outcome = fetch_once(&rig.device, &rig.ports, &mut Held::default()).await;
 
         assert_eq!(outcome, Outcome::Applied);
-        assert_eq!(running(&rig.device).cadence.probe_every, 30);
+        assert_eq!(running(&rig.device).cadence.probe_every, 120);
     }
 
     #[tokio::test]
     async fn without_a_token_nothing_is_requested() {
         let rig = rig(false, MemoryStore::default());
-        rig.gateway.script([served(5, 30, "\"a\"")]);
+        rig.gateway.script([served(5, 120, "\"a\"")]);
 
         let outcome = fetch_once(&rig.device, &rig.ports, &mut Held::default()).await;
 
@@ -542,7 +542,7 @@ mod tests {
         let rig = rig(
             true,
             MemoryStore {
-                body: Mutex::new(Some(body(5, 30))),
+                body: Mutex::new(Some(body(5, 120))),
                 ..MemoryStore::default()
             },
         );
@@ -550,7 +550,7 @@ mod tests {
         load_stored(&rig.device, &rig.ports);
 
         assert_eq!(running(&rig.device).version, 5);
-        assert_eq!(running(&rig.device).cadence.probe_every, 30);
+        assert_eq!(running(&rig.device).cadence.probe_every, 120);
         assert_eq!(rig.device.hub.snapshot().config_version, 5);
         assert!(rig.gateway.asked().is_empty());
     }
@@ -619,7 +619,7 @@ mod tests {
         fails_fast(|| async {
             let rig = rig(true, MemoryStore::default());
             rig.gateway.script([
-                served(5, 30, "\"a\""),
+                served(5, 120, "\"a\""),
                 Fetched::NotModified,
                 Fetched::NotModified,
             ]);
@@ -675,7 +675,7 @@ mod tests {
             let rig = rig(true, MemoryStore::default());
             rig.gateway.script([
                 Fetched::Failed(ApiError::Network),
-                served(5, 30, "\"a\""),
+                served(5, 120, "\"a\""),
                 Fetched::NotModified,
             ]);
             tokio::spawn(run(Arc::clone(&rig.device), rig.ports, CHECK_EVERY));
@@ -696,7 +696,7 @@ mod tests {
     fn the_loop_does_not_fetch_while_unpaired_and_fetches_once_paired() {
         fails_fast(|| async {
             let rig = rig(false, MemoryStore::default());
-            rig.gateway.script([served(5, 30, "\"a\"")]);
+            rig.gateway.script([served(5, 120, "\"a\"")]);
             let tokens = Arc::clone(&rig.ports.tokens);
             tokio::spawn(run(Arc::clone(&rig.device), rig.ports, CHECK_EVERY));
 
@@ -717,7 +717,7 @@ mod tests {
             let rig = rig(
                 false,
                 MemoryStore {
-                    body: Mutex::new(Some(body(5, 30))),
+                    body: Mutex::new(Some(body(5, 120))),
                     ..MemoryStore::default()
                 },
             );
@@ -789,7 +789,7 @@ mod tests {
     async fn each_fetch_is_one_span_with_the_outcome_and_the_version_and_nothing_else() {
         let rig = rig(true, MemoryStore::default());
         rig.gateway.script([
-            served(5, 30, "\"a\""),
+            served(5, 120, "\"a\""),
             Fetched::NotModified,
             Fetched::Body {
                 bytes: b"broken".to_vec(),
@@ -956,7 +956,7 @@ mod tests {
     async fn with_nothing_stored_the_rule_is_the_plain_one() {
         let rig = rig(true, MemoryStore::default());
         rig.gateway
-            .script([served(5, 30, "\"a\""), served(4, 90, "\"b\"")]);
+            .script([served(5, 120, "\"a\""), served(4, 90, "\"b\"")]);
         let mut held = Held::default();
         fetch_once(&rig.device, &rig.ports, &mut held).await;
         assert_eq!(
