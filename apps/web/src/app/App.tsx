@@ -243,7 +243,10 @@ export function App({
         }
         if (
           event.type === 'room.assigned' ||
-          (event.type === 'room.member_changed' && event.data.change !== 'confirmed')
+          (event.type === 'room.member_changed' &&
+            event.data.change !== 'confirmed' &&
+            event.data.change !== 'elsewhere' &&
+            event.data.change !== 'returned')
         ) {
           void refreshRoomMarks(event.data.roomId);
         }

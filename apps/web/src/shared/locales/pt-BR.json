@@ -135,7 +135,8 @@
     "unknownCharacter": "Personagem não exibido",
     "presence": {
       "waiting": "Aguardando",
-      "confirmed": "Confirmado pelo agente"
+      "confirmed": "Confirmado pelo agente",
+      "elsewhere": "Em outro jogo"
     },
     "runsLabel": "Corridas",
     "run": "Corrida {{run}}",

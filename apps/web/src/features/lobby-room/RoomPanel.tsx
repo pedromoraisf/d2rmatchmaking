@@ -19,6 +19,8 @@ export interface RoomMemberShown {
   joinOrder: number;
   role: 'host' | 'member';
   confirmed: boolean;
+  /** The member's agent saw the member in another game for this run (ARL-11). */
+  elsewhere?: boolean;
   class: CharacterClass | null;
   level: number | null;
 }
@@ -181,8 +183,18 @@ export function RoomPanel({ room, you, client, onActed }: RoomPanelProps) {
             {member.role === 'host' ? <span className="tag hostmark">{t('room.host')}</span> : null}
             {member.accountId === you ? <span className="tag">{t('room.you')}</span> : null}
             {open ? (
-              <span className={member.confirmed ? 'pres ok' : 'pres wait'}>
-                {t(member.confirmed ? 'room.presence.confirmed' : 'room.presence.waiting')}
+              <span
+                className={
+                  member.elsewhere === true ? 'pres away' : member.confirmed ? 'pres ok' : 'pres wait'
+                }
+              >
+                {t(
+                  member.elsewhere === true
+                    ? 'room.presence.elsewhere'
+                    : member.confirmed
+                      ? 'room.presence.confirmed'
+                      : 'room.presence.waiting',
+                )}
               </span>
             ) : null}
           </li>

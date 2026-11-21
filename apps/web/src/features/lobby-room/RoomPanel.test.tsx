@@ -107,6 +107,30 @@ describe('RoomPanel: what the room shows (LBR-12)', () => {
     expect(rows[1]?.textContent).toContain('Waiting');
   });
 
+  it('shows a member in another game as such, in place of confirmed (ARL-11)', () => {
+    show(
+      room({ stage: 'created', members: [{ ...ALICE, confirmed: true, elsewhere: true }, BOB] }),
+      'acc-bob',
+    );
+
+    const rows = within(screen.getByRole('list', { name: 'Members' })).getAllByRole('listitem');
+    expect(rows[0]?.textContent).toContain('In another game');
+    expect(rows[0]?.textContent).not.toContain('Confirmed by the agent');
+    expect(rows[1]?.textContent).toContain('Waiting');
+  });
+
+  it('shows a member in another game in pt-BR (ARL-11)', () => {
+    show(
+      room({ stage: 'active', members: [{ ...ALICE, confirmed: true, elsewhere: true }, BOB] }),
+      'acc-bob',
+      ['pt-BR'],
+    );
+
+    const rows = within(screen.getByRole('list', { name: 'Membros' })).getAllByRole('listitem');
+    expect(rows[0]?.textContent).toContain('Em outro jogo');
+    expect(rows[0]?.textContent).not.toContain('Confirmado pelo agente');
+  });
+
   it('shows a member whose character is unknown without inventing one', () => {
     show(room({ members: [{ ...ALICE, class: null, level: null }, BOB] }), 'acc-bob');
 

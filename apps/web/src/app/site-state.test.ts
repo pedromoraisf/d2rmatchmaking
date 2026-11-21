@@ -120,6 +120,37 @@ describe('applyStreamEvent: rooms (LBR-01, LBR-04, LBR-06, LBR-07)', () => {
     ]);
   });
 
+  it('marks a member elsewhere on the event and confirms them again on the return (ARL-10, ARL-11)', () => {
+    const away = applyStreamEvent(state, {
+      type: 'room.member_changed',
+      data: {
+        roomId: 'room-1',
+        change: 'elsewhere',
+        accountId: 'acc-1',
+        members: [{ ...host, confirmed: true, elsewhere: true }, guest],
+      },
+    });
+    expect(away.room?.members.map((member) => [member.confirmed, member.elsewhere])).toEqual([
+      [true, true],
+      [false, false],
+    ]);
+    expect(away.room?.stage).toBe(state.room?.stage);
+
+    const back = applyStreamEvent(away, {
+      type: 'room.member_changed',
+      data: {
+        roomId: 'room-1',
+        change: 'returned',
+        accountId: 'acc-1',
+        members: [{ ...host, confirmed: true }, guest],
+      },
+    });
+    expect(back.room?.members.map((member) => [member.confirmed, member.elsewhere])).toEqual([
+      [true, false],
+      [false, false],
+    ]);
+  });
+
   it('adds the next run once, with nobody confirmed', () => {
     const opened: SiteStreamEvent = {
       type: 'room.run_opened',
