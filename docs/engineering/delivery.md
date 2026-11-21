@@ -52,6 +52,10 @@ docs; the first real staging deploy proves it). `stage-build` for the API compil
 (`api-<sha>`); the build-once deviation stays recorded in ADR 033. If the maintainer confirms that the free plan runs a
 prebuilt image, only `stage-build` and the deploy step change.
 
+## Staging bots
+
+A lone tester fills a group with synthetic players on staging only: see [`staging-bots.md`](staging-bots.md).
+
 ## Rules
 
 - `ci.yml`, `nightly.yml`, `ocr-real.yml` are frozen. A new workflow runs beside the one it replaces for three real

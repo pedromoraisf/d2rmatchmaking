@@ -1,0 +1,124 @@
+# Staging bots (staging-bots SBT-01, SBT-08, SBT-12; ADR 032 XII). The maintainer starts it by hand, from the GitHub phone app
+# too, to put synthetic players in the STAGING queue so a lone tester reaches a ready check and a room. Never production: the
+# target is the `staging` environment's variable STAGING_API_URL (not an input), and the script refuses it unless the API answers
+# `stagingEndpoints: true`. It holds no secret: STAGING_API_URL and SITE_ORIGIN are public URLs. Join the queue first, then
+# dispatch (docs/engineering/staging-bots.md).
+name: staging-bots
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Queue mode
+        type: choice
+        required: true
+        options: [pvp, leveling]
+      difficulty:
+        description: Difficulty
+        type: choice
+        required: true
+        options: [hell, nightmare, normal]
+      region:
+        description: Game region
+        type: choice
+        default: americas
+        options: [americas, europe, asia]
+      ladder:
+        description: Ladder the bots' characters declare
+        type: choice
+        required: true
+        options: [ladder, non-ladder]
+      era:
+        description: Era the bots' characters declare
+        type: choice
+        required: true
+        options: [rotw, lod, classic]
+      hardcore:
+        description: Hardcore characters
+        type: boolean
+        default: false
+      rules:
+        description: PvP rules (pvp only)
+        type: choice
+        default: gm
+        options: [gm, bm]
+      activity:
+        description: Activity (leveling only)
+        type: choice
+        default: baal
+        options: [baal, chaos, cows, tz, heralds]
+      role:
+        description: The bots' role (leveling only; never teleporter)
+        type: choice
+        default: killer
+        options: [killer, bo, leech]
+      min_level:
+        description: Minimum level (leveling only; empty is the difficulty's floor)
+        type: string
+        default: ''
+      bots:
+        description: How many bots (empty is the group size minus one; at most 7)
+        type: string
+        default: ''
+      minutes:
+        description: How long they stay, 1 to 60
+        type: string
+        default: '15'
+      human_first:
+        description: Queue the bots only after another player waits in the bucket
+        type: boolean
+        default: true
+      host_policy:
+        description: What a bot does if the match names it host
+        type: choice
+        default: bot-reports
+        options: [bot-reports, bot-silent]
+
+permissions:
+  contents: read
+
+# One run at a time: a second dispatch waits for the first to finish its cleanup instead of cutting it.
+concurrency:
+  group: staging-bots
+  cancel-in-progress: false
+
+jobs:
+  bots:
+    name: bots
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 75
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Run the bots
+        env:
+          STAGING_API_URL: ${{ vars.STAGING_API_URL }}
+          SITE_ORIGIN: ${{ vars.SITE_ORIGIN }}
+          BOTS_MODE: ${{ inputs.mode }}
+          BOTS_DIFFICULTY: ${{ inputs.difficulty }}
+          BOTS_REGION: ${{ inputs.region }}
+          BOTS_LADDER: ${{ inputs.ladder }}
+          BOTS_ERA: ${{ inputs.era }}
+          BOTS_HARDCORE: ${{ inputs.hardcore }}
+          BOTS_RULES: ${{ inputs.rules }}
+          BOTS_ACTIVITY: ${{ inputs.activity }}
+          BOTS_ROLE: ${{ inputs.role }}
+          BOTS_MIN_LEVEL: ${{ inputs.min_level }}
+          BOTS_COUNT: ${{ inputs.bots }}
+          BOTS_MINUTES: ${{ inputs.minutes }}
+          BOTS_HUMAN_FIRST: ${{ inputs.human_first }}
+          BOTS_HOST_POLICY: ${{ inputs.host_policy }}
+        # The script appends its summary to GITHUB_STEP_SUMMARY and cleans up on SIGINT and SIGTERM, which a cancel sends.
+        run: node scripts/staging/bots.mjs
