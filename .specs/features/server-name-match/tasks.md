@@ -53,7 +53,7 @@ Rules:
       The existing behaviour stays identical: same events, same order, same already-seen logic. The real-print proof
       (`ocr-real`, `ocr-variations`, ratchet) runs in CI on the PR. Gate:
       `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain -p d2rmm-agent-core --lib`
-- [ ] T7 — `origin/phase/F2` already holds `ChatEvent` and the chat step (branch cut from it). Add `PlayerObservation`
+- [x] T7 — `origin/phase/F2` already holds `ChatEvent` and the chat step (branch cut from it). Add `PlayerObservation`
       and its reading-rule check (`domain/src/player_observation.rs`, no generated types) to the agent's messages, the
       `ApiGateway::post_player_observation` port with its fake and adapter, and `player_observation_to_contract` to
       the adapters, validating the reading rule before a body is built (SNM-05, SNM-06). Unit tests on the body keys and on every refusal. Gate:

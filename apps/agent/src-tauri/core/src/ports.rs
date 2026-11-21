@@ -16,7 +16,8 @@ use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 use uuid::Uuid;
 
 use crate::messages::{
-    FrameReading, GameNameObservation, IssuedCode, Presence, ReadyCheckEnd, ReadyCheckOpen,
+    FrameReading, GameNameObservation, IssuedCode, PlayerObservation, Presence, ReadyCheckEnd,
+    ReadyCheckOpen,
 };
 use crate::secret::Secret;
 use crate::view::AgentView;
@@ -250,6 +251,12 @@ pub trait ApiGateway {
         &self,
         token: &Secret,
         observation: &GameNameObservation,
+    ) -> impl Future<Output = Result<(), ApiError>> + Send;
+    /// Posts one chat sighting (a player joined or left) to its room, once: the caller never retries it (server-name-match).
+    fn post_player_observation(
+        &self,
+        token: &Secret,
+        observation: &PlayerObservation,
     ) -> impl Future<Output = Result<(), ApiError>> + Send;
     /// Sends the complete cards of one character selection screen, 1 to 24 of them (CHR-09).
     fn post_characters(
