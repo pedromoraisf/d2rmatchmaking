@@ -557,6 +557,27 @@ mod tests {
         }
     }
 
+    /// T9 pin (game-name-reading, rule 14): what the match accepts and refuses at the point the spacing rule will change. A room
+    /// name that holds spaces (the public Party room name) keeps them: a read without its spaces stays another name. A
+    /// generated name read exactly, and a generated name read as another room's, keep their verdict.
+    #[test]
+    fn pin_before_the_spacing_rule_the_exact_reads_and_the_spaced_room_name_keep_their_verdict() {
+        assert_eq!(
+            read_field("DUELNK LOCKS", "DUEL NK LOCKS"),
+            FieldRead::Other
+        );
+        assert_eq!(
+            read_field("DUEL NK  LOCKS", "DUEL NK LOCKS"),
+            FieldRead::Other
+        );
+        assert_eq!(read_field("mmbaalh-19", "mmbaalh-19"), FieldRead::Matched);
+        assert_eq!(read_field("mmbaalh-18", "mmbaalh-19"), FieldRead::Other);
+        assert_eq!(read_field("mmbaalm-19", "mmbaalh-19"), FieldRead::Other);
+        assert_eq!(read_field("mmbaalh-1", "mmbaalh-19"), FieldRead::Other);
+        assert_eq!(read_field("xxxxxxxx", "mmbaalh-19"), FieldRead::Masked);
+        assert_eq!(read_field("  ", "mmbaalh-19"), FieldRead::Masked);
+    }
+
     #[test]
     fn no_two_generated_names_collide_for_any_run_number_up_to_9999() {
         // The API's run number is a global sequence, not bounded by 99.
