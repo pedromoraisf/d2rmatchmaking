@@ -124,13 +124,15 @@ pub fn normalise(name: &str) -> String {
 /// `heralds`) as `k`: seen in the `ocr-variations` summaries on four prints (`sub(k>h)`). No activity or difficulty code of a
 /// generated name holds a `k` or an `rn` (read there as the `m` it was drawn from: `del(r),sub(n>m)` on five prints), and a
 /// room name with no `-` (the Party room "DUEL NK LOCKS") keeps its `k`. The `o` read as `é` (`sub(U+00E9>o)`, 31 variations
-/// on five prints) is the same `o` glyph, folded here too; no generated name holds an `é`.
+/// on five prints) is the same `o` glyph, folded here too; no generated name holds an `é`. The `a` read as `å`
+/// (`sub(U+00E5>a)`, two variations of the English automap print) folds the same way; no generated name holds an `å`.
 fn letters_with_k(part: &str) -> String {
     letters_of(part)
         .chars()
         .map(|c| match c {
             'k' => 'h',
             '\u{e9}' => 'o',
+            '\u{e5}' => 'a',
             other => other,
         })
         .collect()
@@ -848,16 +850,68 @@ mod tests {
         }
     }
 
-    /// Pins today's read of an `å` (game-name-reading T10, before it reads as `a`): it is a letter of its own, in a generated
-    /// name and in a name with no `-`.
+    /// An `a` read as `å` in a generated name matches it (game-name-reading T10): `sub(U+00E5>a)` is on the English automap
+    /// print, two variations with both `a` of `baal` read so. A name with no `-` keeps its `å`, and no other letter is one.
     #[test]
-    fn pin_an_a_ring_is_a_letter_of_its_own_before_it_reads_as_a() {
-        assert_eq!(normalise("mmb\u{e5}\u{e5}lh-19"), "mmo\u{e5}\u{e5}lh-19");
+    fn an_a_ring_reads_as_a_in_a_generated_name_and_a_name_without_a_dash_keeps_it() {
+        assert_eq!(normalise("mmb\u{e5}\u{e5}lh-19"), "mmoaalh-19");
         assert_eq!(
             read_field("mmb\u{e5}\u{e5}lh-19", "mmbaalh-19"),
+            FieldRead::Matched
+        );
+        assert_eq!(
+            read_field("mmb\u{e5}alh-19", "mmbaalh-19"),
+            FieldRead::Matched
+        );
+        assert_eq!(
+            read_field("MMB\u{c5}\u{c5}LH-19", "mmbaalh-19"),
+            FieldRead::Matched
+        );
+        // The names it must not match: an `å` in the number, another letter, another number, another room.
+        assert_eq!(
+            read_field("mmbaalh-1\u{e5}", "mmbaalh-19"),
             FieldRead::Other
         );
+        assert_eq!(
+            read_field("mmb\u{e5}\u{e5}lh-18", "mmbaalh-19"),
+            FieldRead::Other
+        );
+        assert_eq!(
+            read_field("mmb\u{e5}xlh-19", "mmbaalh-19"),
+            FieldRead::Other
+        );
+        assert_eq!(
+            read_field("mmb\u{e5}\u{e5}lh-19", "mmcowsh-19"),
+            FieldRead::Other
+        );
+        // A name with no `-` keeps its `å`.
         assert_eq!(normalise("DU\u{c5}L NK"), "du\u{e5}l nk");
-        assert_eq!(read_field("mmbaalh-19", "mmbaalh-19"), FieldRead::Matched);
+    }
+
+    /// The collision proof for the `å` fold: every generated name with each of its `a` read as `å`, and all at once, matches
+    /// its own name and normalises to no other room's, across every activity, difficulty code and run number up to 9999.
+    #[test]
+    fn an_a_ring_read_for_a_matches_its_own_name_and_no_other_up_to_9999() {
+        let mut seen = std::collections::HashMap::new();
+        for activity in AGENT_ACTIVITIES {
+            for difficulty in AGENT_DIFFICULTY_CODES {
+                for n in 1..=9999u32 {
+                    let name = format!("mm{activity}{difficulty}-{n}");
+                    let (letters, number) = name.rsplit_once('-').expect("a dash");
+                    let mut reads = vec![format!("{}-{number}", letters.replace('a', "\u{e5}"))];
+                    for (at, _) in letters.char_indices().filter(|(_, c)| *c == 'a') {
+                        let mut one = letters.to_string();
+                        one.replace_range(at..at + 1, "\u{e5}");
+                        reads.push(format!("{one}-{number}"));
+                    }
+                    for read in &reads {
+                        assert_eq!(read_field(read, &name), FieldRead::Matched, "{read}");
+                    }
+                    if let Some(other) = seen.insert(normalise(&name), name.clone()) {
+                        panic!("{name} and {other} collide once an a reads as å");
+                    }
+                }
+            }
+        }
     }
 }
