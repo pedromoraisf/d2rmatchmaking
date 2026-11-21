@@ -310,7 +310,9 @@ pub struct NameLine {
 /// Whether `text` has the shape of a generated game name once normalised: `mm`, letters, `-`, digits (ADR 017). Only the
 /// shape; whether it is the room's name is `game_name_match`'s rule.
 fn has_name_shape(text: &str) -> bool {
-    let normal = normalise(text);
+    // The engine may space a name it reads (`mm baalh-19`); a generated name holds no space, so they go before the shape test,
+    // as `game_name_match::read_field` drops them before the comparison.
+    let normal = normalise(&text.split_whitespace().collect::<String>());
     let Some((letters, digits)) = normal.rsplit_once('-') else {
         return false;
     };
@@ -1545,6 +1547,31 @@ mod name_line_tests {
             found(&[drawn("Game: mmbaalh-19", 1033)]).as_deref(),
             Some("mmbaalh-19")
         );
+    }
+
+    /// T11 (GNR-06): the engine spaced the name on the automap (`automap-other-spacing`: 29 of 500 variations of the English
+    /// print, 10 of the Portuguese). The line is still the name line, and the room's match decides whether it is the room's.
+    #[test]
+    fn a_name_the_engine_spaced_is_still_a_name_line() {
+        for text in [
+            "mm baalh-19",
+            "mmbaalh - 19",
+            "Game: mm baalh-19",
+            "Nome do Jogo: mmbaalh - 19",
+            "mm baalh -19",
+        ] {
+            let named = find_name_line(&[drawn(text, 1033)]).unwrap_or_else(|| panic!("{text}"));
+            assert_eq!(
+                crate::game_name_match::read_field(&named.text, "mmbaalh-19"),
+                crate::game_name_match::FieldRead::Matched,
+                "{text}"
+            );
+            assert_eq!(
+                crate::game_name_match::read_field(&named.text, "mmbaalh-18"),
+                crate::game_name_match::FieldRead::Other,
+                "{text}"
+            );
+        }
     }
 
     #[test]
