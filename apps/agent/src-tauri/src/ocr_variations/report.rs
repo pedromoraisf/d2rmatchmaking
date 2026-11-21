@@ -400,7 +400,7 @@ impl Report {
             row[5] += usize::from(["name", "level", "title"].iter().all(|field| ok_all(field)));
         }
         text.push_str(
-            "\nPopup variations by outcome and reason: how many settle each field of slot 0 on the expected value (name, level, title), all three of slot 0, and every field of every slot:\n\n| outcome | reason | n | name ok | level ok | title ok | slot 0 ok | all slots ok |\n|---|---|---|---|---|---|---|---|\n",
+            "\nPopup variations by outcome and reason: how many settle each field of slot 0 on the expected value (name, level, title; a title line the lines pass did not find is read through the pixels and shown here as no field), name and level together on slot 0, and on every slot:\n\n| outcome | reason | n | name ok | level ok | title ok | slot 0 name+level ok | all slots name+level ok |\n|---|---|---|---|---|---|---|---|\n",
         );
         for ((outcome, reason), row) in by_reason {
             text.push_str(&format!(

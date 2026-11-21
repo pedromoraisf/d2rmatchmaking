@@ -201,6 +201,19 @@ fn lineless(slot: u8, field: &'static str) -> FieldStats {
     stats::<u8>(slot, field, &[], 0, None, |_, _| 3)
 }
 
+/// One reading of a name line as the production reading takes it (`character_screen::read_name_line`, private there): the
+/// words joined, after a lone leading stroke (`i`, `l`, `|`) is dropped. Kept in step by `a_name_line_drops_a_lone_stroke...`.
+fn name_line(text: &str) -> Option<String> {
+    let mut words = text.split_whitespace().peekable();
+    if words
+        .peek()
+        .is_some_and(|first| matches!(*first, "i" | "l" | "|"))
+    {
+        words.next();
+    }
+    read_name(&words.collect::<String>())
+}
+
 /// The agreement on the name, level and title lines of each card slot of `frame`, found as the production reading finds
 /// them (the card column's lines, the cards by their level line, each field's box padded). `expected` are the cards the
 /// screenshot is known to show, by position. Empty when the frame has no card column.
@@ -227,7 +240,7 @@ pub fn card_field_stats(
         let names = readings(anchor.name);
         let parsed: Vec<Option<String>> = names
             .iter()
-            .map(|text| read_name(text).map(|name| name.to_lowercase()))
+            .map(|text| name_line(text).map(|name| name.to_lowercase()))
             .collect();
         let blank = names.iter().filter(|t| t.trim().is_empty()).count();
         let wanted_name = wanted.map(|(name, ..)| name.to_lowercase());
@@ -364,6 +377,15 @@ mod tests {
         let got = name_stats(&[Some("abx"), Some("abx"), Some("abx")], "abc");
         assert!(got.settled && !got.settled_expected);
         assert_eq!((got.top, got.expected), (3, 0));
+    }
+
+    #[test]
+    fn a_name_line_drops_a_lone_stroke_and_joins_the_words_of_a_gap() {
+        assert_eq!(super::name_line("i vuKVUKA").as_deref(), Some("vuKVUKA"));
+        assert_eq!(super::name_line("vuka Dao").as_deref(), Some("vukaDao"));
+        assert_eq!(super::name_line("vuka l Dao").as_deref(), Some("vukalDao"));
+        assert_eq!(super::name_line("").as_deref(), None);
+        assert_eq!(super::name_line("Level 88").as_deref(), None);
     }
 
     mod memo {
