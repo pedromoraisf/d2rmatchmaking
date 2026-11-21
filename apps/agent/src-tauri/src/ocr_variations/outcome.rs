@@ -333,10 +333,18 @@ pub fn classify_automap(variants: &[Vec<TextLine>], expected_name: &str) -> Verd
 /// A chat print (GNR-11): Correct when exactly one class (joined or left) is found among the candidates of the print's
 /// language, equal to the expected one when the file names it, with a name read before the phrase
 /// (`chat-event-as-expected`, or `chat-event-found` when the file names no class). The other class found is Wrong
-/// (`chat-event-left-for-joined`); no phrase, both classes and a missing name are Refused. Reasons are fixed words.
+/// (`chat-event-left-for-joined`); no phrase, both classes (unless the file names no class, then `chat-event-found-both`) and a missing name are Refused. Reasons are fixed words.
 pub fn classify_chat(reading: &ChatReading, expected: ChatExpectation) -> Verdict {
     let found = match reading.class_for(expected.language) {
         Ok(class) => class,
+        // A print whose file names no event may hold both a joined and a left line: the rule `check_chat_reading` applies.
+        Err("both") if expected.class.is_none() => {
+            return if reading.name_read {
+                verdict(Outcome::Correct, "chat-event-found-both")
+            } else {
+                verdict(Outcome::Refused, "chat-no-name")
+            };
+        }
         Err("both") => return verdict(Outcome::Refused, "chat-both-classes"),
         Err(_) if reading.lines_per_variant.iter().sum::<usize>() == 0 => {
             return verdict(Outcome::Refused, "chat-no-lines");
@@ -1089,15 +1097,25 @@ mod tests {
             classify_chat(&chat_reading(&[vec![]]), pt(None)),
             verdict(Outcome::Refused, "chat-no-lines")
         );
+        let both = chat_reading(&[lines(&[
+            "Bob entrou em nosso mundo",
+            "Bob saiu do nosso mundo",
+        ])]);
+        assert_eq!(
+            classify_chat(&both, pt(None)),
+            verdict(Outcome::Correct, "chat-event-found-both")
+        );
+        assert_eq!(
+            classify_chat(&both, pt(Some(ChatClass::Joined))),
+            verdict(Outcome::Refused, "chat-both-classes")
+        );
         assert_eq!(
             classify_chat(
-                &chat_reading(&[lines(&[
-                    "Bob entrou em nosso mundo",
-                    "Bob saiu do nosso mundo"
-                ])]),
+                &chat_reading(&[lines(&["entrou em nosso mundo", "saiu do nosso mundo"])]),
                 pt(None)
             ),
-            verdict(Outcome::Refused, "chat-both-classes")
+            verdict(Outcome::Refused, "chat-no-name"),
+            "both classes still need a name before a phrase"
         );
         assert_eq!(
             classify_chat(
