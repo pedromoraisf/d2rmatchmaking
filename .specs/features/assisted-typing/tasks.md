@@ -94,7 +94,7 @@ Rules:
       fixture each. Remove the tests that proved the withdrawn requirements together with their requirements (the brief
       revision withdraws them; no other test changes). Keep RDY-07's accept hotkey and AST-08's diagnostics.
       Gate: `pnpm test:harness && CARGO clippy --all-targets -- -D warnings && CARGO nextest run`
-- [ ] T13 — Core: a `Clipboard` port and `copy_room_name` (AST-11): once per assigned run, only a `TypableName`; unit tests
+- [x] T13 — Core: a `Clipboard` port and `copy_room_name` (AST-11): once per assigned run, only a `TypableName`; unit tests
       with a fake port (copied once, a new run copies once more, a refused name never written, a failed write reported).
       Gate: `CARGO nextest run -p d2rmm-agent-core --lib`
 - [ ] T14 — Adapter and sensor (AST-14): one clipboard adapter file, write-only; the source rule with fixtures. If it needs a

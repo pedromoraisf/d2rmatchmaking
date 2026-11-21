@@ -12,6 +12,7 @@ use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::frame_content::FrameContent;
 use d2rmm_agent_domain::remote_config::{Effective, Wire};
 use d2rmm_agent_domain::room_assignment::{Assignment, RoomId};
+use d2rmm_agent_domain::typing::TypableName;
 use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 use uuid::Uuid;
 
@@ -527,6 +528,18 @@ mod read_lines_tests {
         }
         assert!(Broken.read_lines(&frame(), REGION).is_empty());
     }
+}
+
+/// The clipboard write failed. It carries no cause (AGS-09): the window says "could not copy" and nothing more.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("the clipboard write failed")]
+pub struct ClipboardError;
+
+/// Writes the game name to the clipboard (AST-11, AST-14, ADR 010). The only text it accepts is a `TypableName`, and the
+/// port has no read method and no other write, so the agent cannot ask for anything else to be copied and never reads what
+/// the player copied. Only the app crate's clipboard adapter implements it.
+pub trait Clipboard {
+    fn write(&self, name: &TypableName) -> Result<(), ClipboardError>;
 }
 
 /// What one request for the remote configuration came to (remote-config RCF-04). The body is bytes: the core never reads JSON,

@@ -11,6 +11,7 @@ use std::sync::{Mutex, PoisonError};
 
 use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::room_assignment::Assignment;
+use d2rmm_agent_domain::typing::TypableName;
 use d2rmm_agent_domain::vision::{ReadText, Region};
 
 use crate::check_update::Updater;
@@ -19,9 +20,9 @@ use crate::messages::{
     Screen,
 };
 use crate::ports::{
-    ApiError, ApiGateway, ConsentStore, EndReason, EventStream, FrameReader, FrameSource,
-    ProcessSource, ReadError, Rgba, StateSink, StoreError, StreamItem, TextReader, TokenStore,
-    UpdateOutcome,
+    ApiError, ApiGateway, Clipboard, ClipboardError, ConsentStore, EndReason, EventStream,
+    FrameReader, FrameSource, ProcessSource, ReadError, Rgba, StateSink, StoreError, StreamItem,
+    TextReader, TokenStore, UpdateOutcome,
 };
 use crate::secret::Secret;
 use crate::view::AgentView;
@@ -540,5 +541,50 @@ mod tests {
                 },
             ]
         );
+    }
+}
+
+/// An in-memory clipboard: it keeps what was written, counts the writes and can be made to refuse them. Plain state, no
+/// script. `replace` stands for something else taking the clipboard over, which the agent never sees.
+#[derive(Debug, Default)]
+pub struct FakeClipboard {
+    held: Mutex<Option<String>>,
+    writes: Mutex<u32>,
+    failing: Mutex<bool>,
+}
+
+impl FakeClipboard {
+    /// What the clipboard holds now, or `None` when nothing was written or put there.
+    pub fn held(&self) -> Option<String> {
+        self.held
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// How many times the agent wrote (a refused write is not counted).
+    pub fn writes(&self) -> u32 {
+        *self.writes.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Something other than the agent puts `text` on the clipboard.
+    pub fn replace(&self, text: &str) {
+        *self.held.lock().unwrap_or_else(PoisonError::into_inner) = Some(text.to_string());
+    }
+
+    /// The next writes fail until `set_failing(false)`.
+    pub fn set_failing(&self, failing: bool) {
+        *self.failing.lock().unwrap_or_else(PoisonError::into_inner) = failing;
+    }
+}
+
+impl Clipboard for FakeClipboard {
+    fn write(&self, name: &TypableName) -> Result<(), ClipboardError> {
+        if *self.failing.lock().unwrap_or_else(PoisonError::into_inner) {
+            return Err(ClipboardError);
+        }
+        *self.writes.lock().unwrap_or_else(PoisonError::into_inner) += 1;
+        *self.held.lock().unwrap_or_else(PoisonError::into_inner) = Some(name.as_str().to_string());
+        Ok(())
     }
 }
