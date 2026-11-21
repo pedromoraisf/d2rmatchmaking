@@ -2,7 +2,8 @@
 // `traceparent` of the span that opened it, so the proxy knows each request's trace id before the backend's search can
 // find the trace. The proxy forwards bytes unchanged (the stream is long-lived, so the response is piped as it comes) and
 // only keeps the method, the path, the traceparent, the content type and, for a JSON body, the names of its top-level keys
-// (agent-trust, AGT-05). It never keeps a value of a body or a header other than those.
+// (agent-trust, AGT-05). It never keeps a value of a body or a header other than those, except the type and the value of a chat
+// sighting (server-name-match SNM-06), which a scenario sends with a made-up name.
 import http from 'node:http';
 
 /** One request the agent sent: its method, its path without the query string, and the traceparent it carried. */
@@ -14,6 +15,11 @@ export interface AgentRequestRecord {
   readonly contentType?: string | undefined;
   /** The names of the top-level keys of a JSON object body, once the body was read; undefined for another body. */
   readonly bodyKeys?: readonly string[] | undefined;
+  /**
+   * The type and the value of a chat sighting (`PLAYER_JOINED_SEEN`, `PLAYER_LEFT_SEEN`) once its body was read (server-name-match
+   * SNM-06). The scenarios send made-up names only; no other value of a body is ever kept.
+   */
+  readonly chat?: { readonly type: string; readonly value: unknown } | undefined;
 }
 
 /** What the proxy writes in a record once it has read the request. */
@@ -74,6 +80,10 @@ export async function startRecordingProxy(upstream: string): Promise<RecordingPr
         const value = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
         if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
           record.bodyKeys = Object.keys(value).sort();
+          const type = (value as { type?: unknown }).type;
+          if (type === 'PLAYER_JOINED_SEEN' || type === 'PLAYER_LEFT_SEEN') {
+            record.chat = { type, value: (value as { value?: unknown }).value };
+          }
         }
       } catch {
         // A body that is not JSON keeps no keys.

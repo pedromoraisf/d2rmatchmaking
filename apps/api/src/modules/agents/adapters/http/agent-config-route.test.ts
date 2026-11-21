@@ -41,7 +41,8 @@ async function setup(served: ServedAgentConfig | undefined, allowed = true) {
       requireAgent: guard('agent', allowed),
       requireSession: guard('session', false),
       requireSameOrigin: guard('origin', false),
-      limitAgentStatus: guard('limit', false),
+      // /v1/agents/me (UPK-02) is the route that uses it; the config route does not, so it stays out of `order`.
+      limitAgentStatus: () => Promise.resolve(undefined),
     },
   });
   return { app, source, order };

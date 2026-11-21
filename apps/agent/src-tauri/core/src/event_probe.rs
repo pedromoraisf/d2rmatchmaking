@@ -15,6 +15,7 @@ pub struct Recorded {
 #[derive(Debug, Clone, Default)]
 pub struct EventProbe {
     events: Arc<Mutex<Vec<Recorded>>>,
+    spans: Arc<Mutex<Vec<Recorded>>>,
 }
 
 impl EventProbe {
@@ -22,12 +23,18 @@ impl EventProbe {
     pub fn install(&self) -> tracing::subscriber::DefaultGuard {
         tracing::subscriber::set_default(Collector {
             events: Arc::clone(&self.events),
+            spans: Arc::clone(&self.spans),
         })
     }
 
     /// The events seen so far.
     pub fn events(&self) -> Vec<Recorded> {
         self.events.lock().expect("the event lock").clone()
+    }
+
+    /// The spans seen so far: `message` is the span's name, `fields` its attributes and the values recorded on it later.
+    pub fn spans(&self) -> Vec<Recorded> {
+        self.spans.lock().expect("the span lock").clone()
     }
 
     /// The events with this message.
@@ -41,6 +48,7 @@ impl EventProbe {
 
 struct Collector {
     events: Arc<Mutex<Vec<Recorded>>>,
+    spans: Arc<Mutex<Vec<Recorded>>>,
 }
 
 struct Writer<'a>(&'a mut Recorded);
@@ -61,11 +69,27 @@ impl tracing::Subscriber for Collector {
         true
     }
 
-    fn new_span(&self, _attrs: &tracing::span::Attributes<'_>) -> tracing::Id {
-        tracing::Id::from_u64(1)
+    fn new_span(&self, attrs: &tracing::span::Attributes<'_>) -> tracing::Id {
+        let mut recorded = Recorded {
+            message: attrs.metadata().name().to_string(),
+            fields: BTreeMap::new(),
+        };
+        attrs.record(&mut Writer(&mut recorded));
+        let mut spans = self.spans.lock().expect("the span lock");
+        spans.push(recorded);
+        tracing::Id::from_u64(spans.len() as u64)
     }
 
-    fn record(&self, _span: &tracing::Id, _values: &tracing::span::Record<'_>) {}
+    fn record(&self, span: &tracing::Id, values: &tracing::span::Record<'_>) {
+        let mut spans = self.spans.lock().expect("the span lock");
+        if let Some(recorded) = usize::try_from(span.into_u64())
+            .ok()
+            .and_then(|id| id.checked_sub(1))
+            .and_then(|index| spans.get_mut(index))
+        {
+            values.record(&mut Writer(recorded));
+        }
+    }
 
     fn record_follows_from(&self, _span: &tracing::Id, _follows: &tracing::Id) {}
 

@@ -1,8 +1,5 @@
 # Acceptance scenarios for server-name-match (ADR 023). English Gherkin. Executed as-is by tests/acceptance (playwright-bdd).
 
-# not-scenario: SNM-05 — its two scenarios need the headless agent and the chat fixture of game-name-reading; they are added with their steps in batch 2 (T11), verbatim from commit f1f6c78
-# not-scenario: SNM-06 — the same: added with T11
-
 Feature: A name read on screen stands for a known character, or for nothing
   Players and their agents read character names off the screen and the chat, and the screen misreads letters. The API
   matches a read name to the characters it knows and keeps only the match: never the name that was read.
@@ -60,6 +57,25 @@ Feature: A name read on screen stands for a known character, or for nothing
   Scenario: Nothing the API answers or shows carries the name that was read
     When Bob's agent reports "Zzyzx" as a player who joined
     Then no answer of the API and no room view of Alice or Bob holds "Zzyzx"
+
+  @SNM-05 @FR-27 @agent
+  Scenario: The agent posts the joined message of a member
+    Given Alice's agent holds the room and sees the chat fixture "chat-joined"
+    When the chat shows that "Hammer" joined the game
+    Then the API holds one joined sighting for Bob's character
+
+  @SNM-05 @FR-27 @agent
+  Scenario: The agent posts nothing when it holds no room
+    Given Alice's agent has capture consent and no room
+    When the chat shows that "Hammer" joined the game
+    Then the agent sent no observation
+
+  @SNM-06 @NFR-04 @agent
+  Scenario: Only the observation's own keys leave the PC for a chat message
+    Given Alice's agent holds the room and sees the chat fixture "chat-joined"
+    When the chat shows that "Hammer" joined the game
+    Then every chat observation Alice's agent sent holds only the keys of the observation contract
+    And its value is the name and nothing else
 
   @SNM-07 @FR-02 @api
   Scenario: A character whose name the screen misread is not added twice
