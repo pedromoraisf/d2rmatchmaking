@@ -68,16 +68,30 @@ fn verdict_owned(outcome: Outcome, reason: String) -> Verdict {
 /// The verdict of an image whose size the layout does not support.
 pub const UNSUPPORTED_SIZE: Verdict = verdict(Outcome::Refused, "unsupported-size");
 
-/// A character of a read as it may be printed in a reason: `[a-z0-9 -]` as is, `~` for a character outside ASCII (an engine's
-/// stand-in for a glyph it did not know), `?` for any other ASCII character. Never a player's text.
+/// A character of a read as it may be printed in a reason: `[a-z0-9 -]` as is, any other ASCII character as `?`. A character
+/// outside ASCII (an engine's stand-in for a glyph it did not know) stays as it is here and `codepoints` turns it into its
+/// `U+XXXX`. Used only against a generated game name or the public Party room name, never in a chat reason.
 fn field_glyph(c: char) -> char {
     if c.is_ascii_lowercase() || c.is_ascii_digit() || c == ' ' || c == '-' {
         c
     } else if c.is_ascii() {
         '?'
     } else {
-        '~'
+        c
     }
+}
+
+/// `text` with each character outside ASCII written as its code point (`U+00E9`).
+fn codepoints(text: &str) -> String {
+    text.chars()
+        .map(|c| {
+            if c.is_ascii() {
+                c.to_string()
+            } else {
+                format!("U+{:04X}", u32::from(c))
+            }
+        })
+        .collect()
 }
 
 fn without_whitespace(text: &str) -> String {
@@ -113,7 +127,7 @@ fn other_reason(reads: &[&str], expected_name: &str) -> Cow<'static, str> {
     if expected_name == PARTY_ROOM_NAME || is_generated_game_name(expected_name) {
         Cow::Owned(format!(
             "{class}:{}",
-            edit_operations_with(&read, &expected, field_glyph).join(",")
+            codepoints(&edit_operations_with(&read, &expected, field_glyph).join(","))
         ))
     } else {
         Cow::Borrowed(class)
@@ -1179,10 +1193,10 @@ mod tests {
     }
 
     #[test]
-    fn a_read_outside_ascii_prints_as_a_tilde_and_other_punctuation_as_a_question_mark() {
+    fn a_read_outside_ascii_prints_as_its_code_point_and_other_punctuation_as_a_question_mark() {
         assert_eq!(
             other_reason(&["mmbaa\u{e9}h-19"], "mmbaalh-19"),
-            "field-other-1-edit:sub(~>l)@5"
+            "field-other-1-edit:sub(U+00E9>l)@5"
         );
         assert_eq!(
             other_reason(&["mmbaa?h-19"], "mmbaalh-19"),
