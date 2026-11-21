@@ -95,6 +95,8 @@ export interface Stack {
    * (server-name-match SNM-03), so the scenarios read what was kept from the table, not from the answer.
    */
   observationCount(roomId: string): Promise<number>;
+  /** The type and the value of each observation the API stored for the room, oldest first. */
+  observationRows(roomId: string): Promise<readonly { readonly type: string; readonly value: string }[]>;
   /** Estimated API clock in epoch ms: the start of the API processes plus every advance so far. */
   apiClockMs(): number;
   /** Stops every child process and returns when they have exited. */
@@ -500,6 +502,19 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
           [roomId],
         );
         return Number(counted.rows[0]?.n ?? 0);
+      } finally {
+        await client.end();
+      }
+    },
+    async observationRows(roomId: string) {
+      const client = new pg.Client({ connectionString: databaseUrl });
+      await client.connect();
+      try {
+        const rows = await client.query(
+          'select type, value from lobby.observations where room_id = $1::uuid order by received_at, captured_at',
+          [roomId],
+        );
+        return rows.rows.map((row) => ({ type: String(row.type), value: String(row.value) }));
       } finally {
         await client.end();
       }

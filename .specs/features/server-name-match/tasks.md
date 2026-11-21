@@ -74,7 +74,7 @@ Rules:
 - [x] T10 — Acceptance steps for `@SNM-01`, `@SNM-02`, `@SNM-03`, `@SNM-04`, `@SNM-07` and `@SNM-08` (simulated agents;
       the room and characters come from the existing queue and room steps; reuse `agents.steps.ts` for "the API answers").
       Gate: `pnpm exec turbo run test:acceptance -- --grep "@SNM-01|@SNM-02|@SNM-03|@SNM-04|@SNM-07|@SNM-08"`
-- [ ] T11 — First put the three scenarios of `@SNM-05` and `@SNM-06` back into `acceptance.feature` **verbatim from commit `f1f6c78`**
+- [x] T11 — First put the three scenarios of `@SNM-05` and `@SNM-06` back into `acceptance.feature` **verbatim from commit `f1f6c78`**
       (T10 left them out and gave each requirement a `not-scenario` line; delete those two lines). Then write the acceptance steps for `@SNM-05` and `@SNM-06` with the headless agent, the drawn chat fixture of
       `game-name-reading` (it draws "Bob": the step rewrites the sidecar line to "Hammer", as the Party steps do; if the
       headless example does not read the chat sidecar, stop and report) and the recording proxy (`support/agent-wire.ts`: add `@SNM-05 or @SNM-06` to its `Before`
