@@ -373,7 +373,7 @@ impl Report {
                 count(|f| f.settled_expected),
             ));
         }
-        let mut by_reason: BTreeMap<(&str, &str), [usize; 9]> = BTreeMap::new();
+        let mut by_reason: BTreeMap<(&str, &str), [usize; 12]> = BTreeMap::new();
         for (result, fields) in &with {
             let ok = |field: &str| {
                 fields
@@ -386,8 +386,10 @@ impl Report {
             };
             let lift: Vec<&FieldStats> = fields
                 .iter()
-                .filter(|f| f.field.starts_with("lift-"))
+                .filter(|f| f.field == "lift-name" || f.field == "lift-level")
                 .collect();
+            let lift_title: Vec<&FieldStats> =
+                fields.iter().filter(|f| f.field == "lift-title").collect();
             let row = by_reason
                 .entry((
                     result.verdict.outcome.name(),
@@ -403,16 +405,26 @@ impl Report {
             row[6] += usize::from(!lift.is_empty());
             // Both cards' names and levels settle on the expected values in the lifted read.
             row[7] += usize::from(lift.len() >= 4 && lift.iter().all(|f| f.settled_expected));
-            // Some lifted field settles on a value that is not the expected one: the way a lift reads WRONG.
+            // Some lifted name or level settles on a value that is not the expected one: how a lift reads WRONG.
             row[8] += usize::from(lift.iter().any(|f| f.settled && !f.settled_expected));
+            // The lifted title of a card settles on a value that is not the expected one, or on the expected one.
+            row[9] += usize::from(lift_title.iter().any(|f| f.settled && !f.settled_expected));
+            row[10] += usize::from(lift_title.iter().any(|f| f.settled_expected));
+            // Every variant read agrees, on the expected value, for all four name and level fields.
+            row[11] += usize::from(
+                lift.len() >= 4
+                    && lift
+                        .iter()
+                        .all(|f| f.variants > 0 && f.expected == f.variants),
+            );
         }
         text.push_str(
-            "\nPopup variations by outcome and reason: how many settle each field of slot 0 on the expected value (name, level, title; a title line the lines pass did not find is read through the pixels and shown here as no field), name and level together on slot 0, and on every slot, then, for the variations whose plain read found no card and whose column was read again with its brightness lifted (diagnostic only, every third variation), how many read, how many settle both cards' names and levels on the expected values, and how many settle some field on a value that is not the expected one:\n\n| outcome | reason | n | name ok | level ok | title ok | slot 0 name+level ok | all slots name+level ok | lifted read | lifted all ok | lifted settles wrong |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+            "\nPopup variations by outcome and reason: how many settle each field of slot 0 on the expected value (name, level, title; a title line the lines pass did not find is read through the pixels and shown here as no field), name and level together on slot 0, and on every slot, then, for the variations whose plain read found no card and whose column was read again with its brightness lifted (diagnostic only, every third variation), how many read, how many settle both cards' names and levels on the expected values, how many settle a name or level on a value that is not the expected one, how many settle the title on another value or on the expected one, and how many read all four name and level fields identically and as expected:\n\n| outcome | reason | n | name ok | level ok | title ok | slot 0 name+level ok | all slots name+level ok | lifted read | lifted name+level ok | lifted name/level settles wrong | lifted title settles wrong | lifted title ok | lifted name+level unanimous |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
         );
         for ((outcome, reason), row) in by_reason {
             text.push_str(&format!(
-                "| {outcome} | {reason} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
-                row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8]
+                "| {outcome} | {reason} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+                row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11]
             ));
         }
         text.push('\n');
@@ -995,7 +1007,11 @@ mod tests {
         let text = report.markdown();
         assert!(text.contains("Popup card fields by slot, summed over 2 variations"));
         assert!(text.contains("| 0 | name | 2 | 12 | 4 | 2 | 2 | 0 | 2 | 4 | 0 | 2 | 1 |"));
-        assert!(text.contains("| refused | name-unread | 2 | 1 | 2 | 2 | 1 | 1 | 0 | 0 | 0 |"));
+        assert!(
+            text.contains(
+                "| refused | name-unread | 2 | 1 | 2 | 2 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |"
+            )
+        );
         let value = report.json();
         assert_eq!(value["variants"][0]["card_fields"][0]["top"], 4);
         assert_eq!(value["variants"][0]["card_fields"][0]["field"], "name");
@@ -1003,6 +1019,58 @@ mod tests {
         assert!(
             !Report::default().markdown().contains("Popup card fields"),
             "no popup results, no table"
+        );
+    }
+
+    #[test]
+    fn the_lifted_columns_split_name_and_level_from_the_title_and_count_unanimity() {
+        let lifted = |slot, name, ok: bool, unanimous: bool| FieldStats {
+            slot,
+            field: name,
+            variants: 6,
+            unparsed: 0,
+            blank: 0,
+            distinct: 1,
+            top: 6,
+            near1: 0,
+            near2: 0,
+            far: 0,
+            expected: if unanimous { 6 } else { 4 },
+            settled: true,
+            settled_expected: ok,
+        };
+        let row = |fields: Vec<FieldStats>| VariantResult {
+            card_fields: Some(fields),
+            ..result(
+                "maintainer-select-difficulty.png",
+                "a",
+                "tone",
+                Outcome::Refused,
+            )
+        };
+        let four = |ok: bool, unanimous: bool| {
+            vec![
+                lifted(0, "lift-name", ok, unanimous),
+                lifted(0, "lift-level", true, unanimous),
+                lifted(1, "lift-name", true, unanimous),
+                lifted(1, "lift-level", true, unanimous),
+            ]
+        };
+        let mut wrong_title = four(true, true);
+        wrong_title.push(lifted(0, "lift-title", false, false));
+        let text = Report {
+            results: vec![
+                row(four(true, true)),
+                row(four(false, false)),
+                row(wrong_title),
+            ],
+            ..Report::default()
+        }
+        .markdown();
+        // 3 variations read; 2 settle every name and level as expected; 1 settles one wrong; 1 title settles wrong; 2 unanimous.
+        assert!(
+            text.contains("| refused | reason | 3 | 0 | 0 | 0 | 0 | 0 | 3 | 2 | 1 | 1 | 0 | 2 |"),
+            "{text}"
         );
     }
 }
