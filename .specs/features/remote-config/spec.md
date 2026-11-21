@@ -81,7 +81,8 @@ agent's domain and never read from the server.
 - **RCF-09** — WHATEVER the configuration says, the agent SHALL look at the game at most once per second (CHR-03), SHALL
   make at most one capture per look in steady state (CAP-03), and SHALL NOT read more areas per look than the built-in
   defaults do. Every range SHALL be chosen so that its extreme value keeps the call counts of the capture cascade and the
-  screen reader within the NFR-02 tests, and tests SHALL run those counts at each extreme.
+  screen reader within the NFR-02 tests, and tests SHALL run those counts at each extreme. A configured region never
+  reads more pixels than its default: at the same client size, a region whose area exceeds the default's is the default.
 - **RCF-10** — The configuration SHALL be data only (AGT-04): the agent's parser SHALL map a closed set of fields to typed
   values and SHALL NOT interpret a string as a command, a path or a pattern. A source-rule test SHALL list the fields of
   the configuration and fail on a new one until it is reviewed. No configuration request, answer, log line or span SHALL

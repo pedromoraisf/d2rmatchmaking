@@ -105,26 +105,29 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
 
 ## Orchestrator (local; the maintainer answers the gate where it asks)
 
-- [ ] O1 — Before batch 3: add `agent/domain/src/remote_config.rs` to `scripts/agent/reading-modules.json` (it decides the
+- [x] O1 — Before batch 3: add `agent/domain/src/remote_config.rs` to `scripts/agent/reading-modules.json` (it decides the
       thresholds and areas the reading uses), and any `windows` or source-rule list the loop needs (none expected). Gate:
       `pnpm test:harness`
 
 ## Batch 3 — values into the reading modules, **[R14]** (needs `game-name-reading` and `feat/F2-screen-recognition-2` merged)
 
-- [ ] T15 — **[R14] Pin the reading constants first.** For each constant and area this batch will thread (`TRACK_PAD`, `HUD_BAND_TOP`,
-      the HUD, automap and Party areas of `layout.rs`, the search cadences, the title-ink limits), tests that pin today's
+- [x] T15 — **[R14] Pin the reading constants first.** For each constant and area this batch will thread (`TRACK_PAD`, `HUD_BAND_TOP`,
+      the HUD, automap and Party areas of `layout.rs`, the Party words of `language.rs`; the search cadences stay pinned where they
+      are, the title-ink limits are not configurable), tests that pin today's
       value and the read at each client size the existing tests use (1033, 1045, 1056, 1080), passing on the unchanged code.
       No non-test line changes. Gate: `CARGO nextest run -p d2rmm-agent-domain -p d2rmm-agent-core --lib`
-- [ ] T16 — **[R14] Thresholds and search cadences** from `Effective` (`thresholds`, the search cadences of `cadence`), one
-      reading module per commit, the defaults unchanged, call counts at every extreme (RCF-09). Real-print proof in CI:
+- [x] T16 — **[R14] Thresholds** from `Effective` (`thresholds.trackPad` into `hud_track.rs`, read by `core/src/screen_reader.rs`
+      at each look). The search cadences (`AUTOMAP_SEARCH_EVERY`, `LIST_SEARCH_EVERY`) are not in the schema and are deferred to
+      a later PR (orchestrator, 2026-11-21). One reading module per commit, the defaults unchanged, call counts at every extreme (RCF-09). Real-print proof in CI:
       `ocr-real` green, `ocr-variations` not regressing. Gate: as T15, plus
       `CARGO clippy -p d2rmm-agent-domain -p d2rmm-agent-core --all-targets -- -D warnings`
-- [ ] T17 — **[R14] Regions** from `Effective.regions` (`hudBand`, `automapArea`, `partyArea`): the area is the configured
-      fraction when it passes the clamp, else the default; the zero-wrong-confirmation rule of the game-name match is not touched.
+- [x] T17 — **[R14] Regions** from `Effective.regions` (`hudBand`, `automapArea`, `partyArea`): the area is the configured
+      fraction when it passes the clamp and its pixel area at the client size does not exceed the default's (RCF-09), else the
+      default; the zero-wrong-confirmation rule of the game-name match is not touched.
       Tests: a configured region moves the read at each client size; an out-of-range one is the default. Real-print proof
       as T16. Gate: as T16
-- [ ] T18 — **[R14] Phrases** per language from `Effective.phrases` (the Party words and the chat "joined" and "left" phrases of
-      `game-name-reading`), compared as literals by the existing rules; a phrase that fails its rule never reaches the
+- [x] T18 — **[R14] Phrases** per language from `Effective.phrases` (the Party words only: `party`, `gameName`, `password`; the chat
+      "joined" and "left" phrases are not in the schema and are deferred to a later PR, orchestrator 2026-11-21), compared as literals by the existing rules; a phrase that fails its rule never reaches the
       reader. Tests with English and pt-BR phrases and with a hostile phrase. Real-print proof as T16. Gate: as T16
 
 > **Call counts at the extremes (fix round 1, RCF-09; measured by `capturer.rs` tests, 600 looks).** Today's default is
@@ -141,7 +144,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
 > Captures = 601 + probes, probes = ⌊600 / probeEvery⌋ − ⌊demoteAfter / probeEvery⌋; frames = 600 − (demoteAfter − 1).
 > The screen loop adds no capture: one per look, at an interval of 1 s or more (`look_interval`).
 
-- [ ] T19 — Close the proofs. The PR's table: every range and its test, call counts at the extremes, the version fallback cases,
+- [x] T19 — Close the proofs. The PR's table: every range and its test, call counts at the extremes, the version fallback cases,
       `ocr-real` per print and `ocr-variations` before and after, and the threat table of the spec with the control that
       closes each line. Gate: `pnpm specs:check && pnpm test:harness`
 

@@ -10,6 +10,7 @@ use d2rmm_agent_domain::capture_cascade::CascadeParams;
 use d2rmm_agent_domain::characters::{Card, reconcile_names};
 use d2rmm_agent_domain::frame_content::{FrameContent, summarize};
 use d2rmm_agent_domain::presence::game_running;
+use d2rmm_agent_domain::remote_config::Effective;
 
 use crate::automap_name;
 use crate::chat_post;
@@ -99,7 +100,8 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
         return;
     }
     let frame = Arc::new(frame);
-    let reading = read_screen(ports, &frame).await;
+    let config = device.config.borrow().clone();
+    let reading = read_screen(ports, &frame, config).await;
     device.set_screen(reading.screen);
     party::look(device, &ports.party, Arc::clone(&frame)).await;
     // The automap's name line and the chat's joined and left lines (game-name-reading), at most once a tick like the Party step.
@@ -297,7 +299,11 @@ fn capture<G>(ports: &ScreenPorts<G>) -> Option<Rgba> {
 /// What the frame shows: its screen, and its cards on the character selection screen. The OCR runs on a blocking thread, as
 /// the Party step's does, so a read never holds the async worker. The reader reads the card regions only for the selection
 /// screen (`domain::character_screen::read_screen`). A reader that panics shows nothing (`Unknown`).
-async fn read_screen<G>(ports: &ScreenPorts<G>, frame: &Arc<Rgba>) -> FrameReading {
+async fn read_screen<G>(
+    ports: &ScreenPorts<G>,
+    frame: &Arc<Rgba>,
+    config: Effective,
+) -> FrameReading {
     let span = tracing::info_span!(
         "agent.vision.read-characters",
         screen = tracing::field::Empty,
@@ -305,7 +311,7 @@ async fn read_screen<G>(ports: &ScreenPorts<G>, frame: &Arc<Rgba>) -> FrameReadi
     );
     let reader = Arc::clone(&ports.reader);
     let frame = Arc::clone(frame);
-    let reading = tokio::task::spawn_blocking(move || reader.read(&frame))
+    let reading = tokio::task::spawn_blocking(move || reader.read_with(&frame, &config))
         .await
         .unwrap_or_else(|_| FrameReading::without_cards(Screen::Unknown));
     span.record("screen", tracing::field::debug(&reading.screen));
@@ -365,12 +371,22 @@ mod tests {
     struct Reader {
         reading: Mutex<FrameReading>,
         reads: AtomicUsize,
+        /// The tracking padding of the configuration each look passed down (`read_with`).
+        pads: Mutex<Vec<u32>>,
     }
 
     impl FrameReader for Reader {
         fn read(&self, _frame: &Rgba) -> FrameReading {
             self.reads.fetch_add(1, Ordering::SeqCst);
             self.reading.lock().expect("the reading lock").clone()
+        }
+
+        fn read_with(&self, frame: &Rgba, config: &super::Effective) -> FrameReading {
+            self.pads
+                .lock()
+                .expect("the pads lock")
+                .push(config.thresholds.track_pad);
+            self.read(frame)
         }
     }
 
@@ -439,6 +455,7 @@ mod tests {
         let reader = Arc::new(Reader {
             reading: Mutex::new(reading),
             reads: AtomicUsize::new(0),
+            pads: Mutex::new(Vec::new()),
         });
         let consent = Arc::new(Consent(AtomicBool::new(consent)));
         let ports = ScreenPorts {
@@ -1230,5 +1247,40 @@ mod tests {
             .expect("the scenario ran");
             assert_eq!(captured, (looks, looks), "interval {interval_ms} ms");
         }
+    }
+
+    #[test]
+    fn each_look_reads_under_the_configuration_of_that_moment() {
+        // RCF-08: a configuration applied between two looks is the one the next look reads under, with no restart.
+        let pads = std::thread::spawn(|| {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .start_paused(true)
+                .build()
+                .expect("a paused runtime")
+                .block_on(async {
+                    let rig = rig(true, true, frame(), selecting(vec![]));
+                    rig.device.config.send_modify(|config| {
+                        config.thresholds.track_pad = 40;
+                    });
+                    let device = Arc::new(rig.device);
+                    let reader = Arc::clone(&rig.reader);
+                    tokio::spawn(super::run(Arc::clone(&device), rig.ports));
+                    tokio::time::sleep(Duration::from_millis(2_500)).await;
+                    device.config.send_modify(|config| {
+                        config.thresholds.track_pad = 12;
+                    });
+                    tokio::time::sleep(Duration::from_millis(3_000)).await;
+                    reader.pads.lock().expect("the pads lock").clone()
+                })
+        })
+        .join()
+        .expect("the scenario ran");
+        assert_eq!(pads.first(), Some(&40), "{pads:?}");
+        assert_eq!(pads.last(), Some(&12), "{pads:?}");
+        assert!(
+            pads.windows(2).all(|pair| pair[0] == 40 || pair[1] == 12),
+            "{pads:?}"
+        );
     }
 }
