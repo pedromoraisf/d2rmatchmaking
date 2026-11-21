@@ -178,7 +178,7 @@ schema never breaks an older agent; `agent-config.json` keeps serving today's va
 - [x] T24 — **[R14] Parse** the four fields in `domain/src/remote_config.rs` (clamp into the same ranges; a phrase only when
       it passes its rule), add them to `FIELDS` and to the source-rule test; defaults equal today's constants (RCF-07).
       Gate: as T23
-- [ ] T25 — **[R14] Search cadences** from `Effective.cadence` into the automap and list-marker trackers read by
+- [x] T25 — **[R14] Search cadences** from `Effective.cadence` into the automap and list-marker trackers read by
       `core/src/screen_reader.rs`, one reading module per commit, byte-identical at the defaults; call counts at 2 and 10.
       Real-print proof in CI: `ocr-real` green, `ocr-variations` counts equal to the base. Gate: as T23, plus
       `CARGO clippy -p d2rmm-agent-domain -p d2rmm-agent-core --all-targets -- -D warnings`
