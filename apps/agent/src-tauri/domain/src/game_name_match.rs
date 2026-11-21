@@ -105,7 +105,8 @@ pub fn is_masked(read: &str) -> bool {
 /// The normal form of a game name: trimmed, lower-cased, with the glyph rules of the module doc applied on each side of the
 /// last `-`. A name without `-` is all letters.
 pub fn normalise(name: &str) -> String {
-    let lower = name.trim().to_lowercase();
+    // The engine reads the `-` of a generated name as a bullet (`sub(U+2022>-)`, three variations on two prints).
+    let lower = name.trim().to_lowercase().replace('\u{2022}', "-");
     match lower.rfind('-') {
         Some(at) => {
             let letters = &lower[..at];
@@ -961,14 +962,56 @@ mod tests {
         }
     }
 
-    /// Pins today's read of a bullet (game-name-reading T10, before it reads as the `-`): it is no separator.
+    /// A bullet read for the `-` of a generated name is the dash (game-name-reading T10): `sub(U+2022>-)` is on three variations
+    /// of two prints. A name with no `-` and no bullet is untouched, and a bullet in the number is no digit.
     #[test]
-    fn pin_a_bullet_is_no_dash_before_it_reads_as_one() {
-        assert_eq!(normalise("mmchaosh\u{2022}20"), "mmchaosh\u{2022}2o");
+    fn a_bullet_reads_as_the_dash_of_a_generated_name() {
+        assert_eq!(normalise("mmchaosh\u{2022}20"), "mmchaosh-20");
         assert_eq!(
             read_field("mmchaosh\u{2022}20", "mmchaosh-20"),
+            FieldRead::Matched
+        );
+        assert_eq!(
+            read_field("mmbaalh\u{2022}o9", "mmbaalh-09"),
+            FieldRead::Matched
+        );
+        // The names it must not match: another number, another activity, no number, a bullet inside the number.
+        assert_eq!(
+            read_field("mmchaosh\u{2022}21", "mmchaosh-20"),
             FieldRead::Other
         );
-        assert_eq!(read_field("mmchaosh-20", "mmchaosh-20"), FieldRead::Matched);
+        assert_eq!(
+            read_field("mmchaosh\u{2022}20", "mmbaalh-20"),
+            FieldRead::Other
+        );
+        assert_eq!(
+            read_field("mmchaosh\u{2022}", "mmchaosh-20"),
+            FieldRead::Other
+        );
+        assert_eq!(
+            read_field("mmchaosh-2\u{2022}0", "mmchaosh-20"),
+            FieldRead::Other
+        );
+        // A name with no dash keeps what it has.
+        assert_eq!(normalise("DUEL NK LOCKS"), "duol nk locks");
+    }
+
+    /// The collision proof for the bullet: every generated name with its `-` read as a bullet matches its own name and
+    /// normalises to no other room's, across every activity, difficulty code and run number up to 9999.
+    #[test]
+    fn a_bullet_read_for_the_dash_matches_its_own_name_and_no_other_up_to_9999() {
+        let mut seen = std::collections::HashMap::new();
+        for activity in AGENT_ACTIVITIES {
+            for difficulty in AGENT_DIFFICULTY_CODES {
+                for n in 1..=9999u32 {
+                    let name = format!("mm{activity}{difficulty}-{n}");
+                    let bullet = name.replace('-', "\u{2022}");
+                    assert_eq!(read_field(&bullet, &name), FieldRead::Matched, "{bullet}");
+                    if let Some(other) = seen.insert(normalise(&bullet), name.clone()) {
+                        panic!("{name} and {other} collide once the dash reads as a bullet");
+                    }
+                }
+            }
+        }
     }
 }
