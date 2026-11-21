@@ -98,7 +98,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
       `capture.*` was; the window shows the version in the diagnostics (`diagnostics.config`), en and pt-BR. A source-rule test
       lists the fields of the configuration and fails on a new one (RCF-10). Gate: as T11, plus
       `pnpm test:harness && pnpm --filter @d2rmm/agent test && pnpm --filter @d2rmm/agent typecheck`
-- [ ] T14 — The headless agent and the agent acceptance steps (RCF-05, RCF-06, RCF-08). The example prints a `config` line (version
+- [x] T14 — The headless agent and the agent acceptance steps (RCF-05, RCF-06, RCF-08). The example prints a `config` line (version
       and the effective probe cadence); steps in `remote-config.steps.ts` use the T6 test control. Never edit
       `acceptance.feature`. Gate **(CI)**: `pnpm exec turbo run test:acceptance -- --grep @RCF-` and
       `node scripts/acceptance-check.mjs remote-config`

@@ -137,6 +137,8 @@ impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
         ports: ConfigPorts<C>,
         every: std::time::Duration,
     ) -> Self {
+        // The last good body runs from the first look, not from the loop's first poll.
+        remote_config::load_stored(&self.device, &ports);
         tokio::spawn(remote_config::run(Arc::clone(&self.device), ports, every));
         self
     }
