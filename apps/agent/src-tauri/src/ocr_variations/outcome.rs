@@ -8,6 +8,7 @@ use d2rmm_agent_core::messages::FrameReading;
 use d2rmm_agent_core::party::read_panel;
 use d2rmm_agent_core::ports::{FrameReader, Rgba, TextReader};
 use d2rmm_agent_core::screen_reader::ScreenReader;
+use d2rmm_agent_domain::anchors;
 use d2rmm_agent_domain::characters::{Card as Character, Difficulty};
 use d2rmm_agent_domain::game_name_match::{
     FieldRead, FieldSource, is_masked, normalise, read_field, read_panel_field,
@@ -314,9 +315,15 @@ pub fn classify_automap(variants: &[Vec<TextLine>], expected_name: &str) -> Verd
     if texts.is_empty() {
         return verdict(Outcome::Refused, "automap-no-lines");
     }
-    if texts
+    // The agent's own rule: the name line of a variant is found by its shape, whole or after the label (`find_name_line`), and
+    // only then matched; a read of the whole line that matches is correct as before.
+    let by_the_agents_rule = anchors::find_name_line_in_variants(variants)
         .iter()
-        .any(|text| read_field(text, expected_name) == FieldRead::Matched)
+        .any(|named| read_field(&named.text, expected_name) == FieldRead::Matched);
+    if by_the_agents_rule
+        || texts
+            .iter()
+            .any(|text| read_field(text, expected_name) == FieldRead::Matched)
     {
         return verdict(Outcome::Correct, "name-line-as-expected");
     }
@@ -1007,9 +1014,15 @@ mod tests {
             classify_automap(&[lines(&["mmbaalh-1"])], name).reason,
             "automap-other-1-edit:ins(9)@9"
         );
+        // GNR-05 (T9): a generated name the engine spaced is read as itself, so it is no longer refused for its spacing; the
+        // spacing class stays for the public room name, which keeps its own spaces (`another_name_is_refused_by_how_close...`).
         assert_eq!(
             classify_automap(&[lines(&["mmb a alh-19"])], name),
-            verdict(Outcome::Refused, "automap-other-spacing")
+            verdict(Outcome::Correct, "name-line-as-expected")
+        );
+        assert_eq!(
+            classify_automap(&[lines(&["mmb a alh-18"])], name).outcome,
+            Outcome::Refused
         );
         assert_eq!(
             classify_automap(&[lines(&["Hell"])], name),
@@ -1018,6 +1031,27 @@ mod tests {
         assert_eq!(
             classify_automap(&[lines(&["  "])], name),
             verdict(Outcome::Refused, "automap-other-blank")
+        );
+    }
+
+    #[test]
+    fn an_automap_name_after_its_label_is_correct_by_the_agents_own_rule_and_another_name_is_not() {
+        let name = "mmchaosh-20";
+        assert_eq!(
+            classify_automap(&[lines(&["Nome do Jogo: mmchaosh-20"])], name),
+            verdict(Outcome::Correct, "name-line-as-expected")
+        );
+        assert_eq!(
+            classify_automap(&[lines(&["Game; mm chaosh - 20"])], name),
+            verdict(Outcome::Correct, "name-line-as-expected")
+        );
+        assert_eq!(
+            classify_automap(&[lines(&["Game: mmchaosh-21"])], name).outcome,
+            Outcome::Refused
+        );
+        assert_eq!(
+            classify_automap(&[lines(&["Game: mmchaosm-20"])], name).outcome,
+            Outcome::Refused
         );
     }
 
