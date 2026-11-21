@@ -14,7 +14,7 @@ use d2rmm_agent_domain::characters::{Class, Difficulty, Title};
 use d2rmm_agent_domain::game_name_match::{FieldRead, read_field, read_panel_field};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{PanelRegion, ScreenRegion, panel_region, screen_region};
-use d2rmm_agent_domain::name_diff::{closest_reading_diff, edit_distance, edit_operations_with};
+use d2rmm_agent_domain::name_diff::closest_reading_diff;
 use d2rmm_agent_domain::presence::Screen;
 use d2rmm_agent_domain::vision::{Region, TextLine};
 
@@ -243,28 +243,61 @@ fn chat_glyph(c: char) -> char {
     }
 }
 
-/// The operations that turn the stretch of `text` nearest to `phrase` (one or two edits away, windows one character shorter
-/// or longer than the phrase included) into `phrase`; `None` when nothing is that near or the text holds the phrase.
-fn nearest_phrase_ops(text: &str, phrase: &str) -> Option<(usize, String)> {
-    let chars: Vec<char> = text.chars().collect();
-    let want = phrase.chars().count();
-    let mut best: Option<(usize, String)> = None;
-    for len in want.saturating_sub(1)..=want + 1 {
-        if len == 0 || len > chars.len() {
-            continue;
-        }
-        for window in chars.windows(len) {
-            let window: String = window.iter().collect();
-            let distance = edit_distance(&window, phrase);
-            if (1..=2).contains(&distance) && best.as_ref().is_none_or(|(d, _)| distance < *d) {
-                best = Some((
-                    distance,
-                    edit_operations_with(&window, phrase, chat_glyph).join(","),
-                ));
-            }
-        }
+/// The fixed end of a candidate phrase of `language`, which sits at the end of its line: the stretch the diagnostic anchors on.
+fn phrase_tail(language: PrintLanguage) -> &'static str {
+    match language {
+        PrintLanguage::English => "ourworld",
+        PrintLanguage::Portuguese => "nossomundo",
     }
-    best
+}
+
+/// The substitutions that turn `window` into `part` (equal lengths) as `sub(read>expected)@i`, `i` counting from `offset` in
+/// the phrase; `None` unless one or two characters differ.
+fn substitutions(window: &[char], part: &[char], offset: usize) -> Option<String> {
+    if window.len() != part.len() {
+        return None;
+    }
+    let ops: Vec<String> = window
+        .iter()
+        .zip(part)
+        .enumerate()
+        .filter(|(_, (read, want))| read != want)
+        .map(|(i, (read, want))| format!("sub({}>{want})@{}", chat_glyph(*read), offset + i))
+        .collect();
+    (1..=2).contains(&ops.len()).then(|| ops.join(","))
+}
+
+/// The substitutions of the stretch of `line` that is the misread part of `phrase` (a candidate of `language`), or `None`.
+/// A read character is printed only from the phrase's own span, never from the text before it where a player's name sits:
+/// - the line ends with the phrase's exact tail (`ourworld`, `nossomundo`): the stretch just before it as long as the rest of
+///   the phrase is compared with that rest, whose first two characters must be exact (so no character of the text before the
+///   phrase can fall on a printed position);
+/// - or the line holds the phrase's exact rest right before its last characters: those last characters are compared with the
+///   tail. They follow the rest, so the name (which precedes it) is never among them.
+///
+/// Anything else, including a stretch that would need to begin in the text before the phrase, gives `None`.
+fn nearest_phrase_ops(language: PrintLanguage, line: &str, phrase: &str) -> Option<String> {
+    let tail: Vec<char> = phrase_tail(language).chars().collect();
+    let phrase_chars: Vec<char> = phrase.chars().collect();
+    let rest_len = phrase_chars.len().checked_sub(tail.len())?;
+    let (rest, want_tail) = phrase_chars.split_at(rest_len);
+    let chars: Vec<char> = line.chars().collect();
+    if chars.ends_with(want_tail) {
+        let before = chars.len() - tail.len();
+        let start = before.checked_sub(rest_len)?;
+        let window = &chars[start..before];
+        return if window.len() >= 2 && window[..2] == rest[..2] {
+            substitutions(window, rest, 0)
+        } else {
+            None
+        };
+    }
+    let from = chars.len().checked_sub(tail.len())?;
+    let rest_at = from.checked_sub(rest_len)?;
+    if chars[rest_at..from] == *rest {
+        return substitutions(&chars[from..], want_tail, rest_len);
+    }
+    None
 }
 
 /// Reads the chat band as the agent reads a text area (every variant's lines) and keeps no text.
@@ -300,13 +333,12 @@ pub fn chat_reading(variants: &[Vec<TextLine>]) -> ChatReading {
                 .filter(|(l, _, _)| *l == language)
                 .flat_map(|(_, _, phrase)| {
                     let phrase = compact(phrase);
-                    variants
-                        .iter()
-                        .flatten()
-                        .filter_map(move |line| nearest_phrase_ops(&compact(&line.text), &phrase))
+                    variants.iter().flatten().filter_map(move |line| {
+                        nearest_phrase_ops(language, &compact(&line.text), &phrase)
+                    })
                 })
-                .min_by_key(|(distance, _)| *distance);
-            if let Some((_, ops)) = near {
+                .min_by_key(|ops| ops.matches("sub(").count());
+            if let Some(ops) = near {
                 reading.near_phrase.push((language, ops));
             }
         }

@@ -1215,4 +1215,58 @@ mod tests {
             verdict_owned(Outcome::Refused, "chat-no-phrase:sub(~>o)@8".to_string())
         );
     }
+
+    /// A made-up name next to a misread phrase never reaches the reason: the printed stretch is the phrase's own span, and a
+    /// stretch that would begin inside the name prints no operations at all.
+    #[test]
+    fn no_character_of_a_name_next_to_a_misread_phrase_reaches_the_reason() {
+        use crate::ocr_check::{ChatExpectation, PrintLanguage, chat_reading};
+        let reason = |language, text: &str| {
+            classify_chat(
+                &chat_reading(&[lines(&[text])]),
+                ChatExpectation {
+                    language,
+                    class: None,
+                },
+            )
+            .reason
+            .into_owned()
+        };
+        let en = PrintLanguage::English;
+        let pt = PrintLanguage::Portuguese;
+        // The phrase's own span is printed, the name is not.
+        assert_eq!(
+            reason(en, "Qxz Vwk jo1ned our world"),
+            "chat-no-phrase:sub(1>i)@2"
+        );
+        assert_eq!(
+            reason(pt, "Qxz Vwk entr0u em nosso mundo"),
+            "chat-no-phrase:sub(0>o)@4"
+        );
+        // A start lost in the name (the `j` dropped) would need the window to begin inside it: no operations.
+        assert_eq!(reason(en, "Joe ined our world"), "chat-no-phrase");
+        assert_eq!(reason(en, "Qxz Vwk oined our world"), "chat-no-phrase");
+        assert_eq!(reason(en, "Qxz Vwk"), "chat-no-phrase");
+        // Misreads in the tail print the tail's characters, which follow the phrase's exact start.
+        assert_eq!(
+            reason(en, "Qxz Vwk left our w0rld"),
+            "chat-no-phrase:sub(0>o)@8"
+        );
+        // No reason, whatever the line, holds a letter that only the name has.
+        for text in [
+            "Qxz Vwk jo1ned our world",
+            "Qxz Vwk entr0u em nosso mundo",
+            "Qxz Vwk left our w\u{f6}rld",
+            "Qxz Vwk oined our world",
+            "Qxz Vwk",
+        ] {
+            for language in [en, pt] {
+                let said = reason(language, text);
+                assert!(
+                    !said.contains(['q', 'x', 'z', 'v', 'w', 'k', 'Q', 'X', 'Z', 'V', 'W', 'K']),
+                    "{text} -> {said}"
+                );
+            }
+        }
+    }
 }
