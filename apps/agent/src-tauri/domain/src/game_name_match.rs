@@ -30,11 +30,21 @@ pub fn read_field(read: &str, expected: &str) -> FieldRead {
     if expected.trim().is_empty() {
         return FieldRead::Other;
     }
-    if normalise(read) == normalise(expected) {
+    let expected = normalise(expected);
+    let read = normalise(read);
+    // A generated name holds no space (ADR 017), so a read of it that the engine spaced (`mm baalh-19`) is the same name once
+    // the spaces go. A room name that holds spaces keeps them: its read must have them where the name has them.
+    let spaced_read_of_a_name_without_spaces =
+        !expected.chars().any(char::is_whitespace) && without_whitespace(&read) == expected;
+    if read == expected || spaced_read_of_a_name_without_spaces {
         FieldRead::Matched
     } else {
         FieldRead::Other
     }
+}
+
+fn without_whitespace(text: &str) -> String {
+    text.chars().filter(|c| !c.is_whitespace()).collect()
 }
 
 /// Classifies several readings of the field (the OCR variants, characters-reading T21) against the expected game name. The
@@ -134,7 +144,7 @@ fn digits_of(part: &str) -> String {
 mod tests {
     use super::{
         FieldRead, FieldSource, is_masked, normalise, read_field, read_field_variants,
-        read_panel_field,
+        read_panel_field, without_whitespace,
     };
 
     #[test]
@@ -576,6 +586,58 @@ mod tests {
         assert_eq!(read_field("mmbaalh-1", "mmbaalh-19"), FieldRead::Other);
         assert_eq!(read_field("xxxxxxxx", "mmbaalh-19"), FieldRead::Masked);
         assert_eq!(read_field("  ", "mmbaalh-19"), FieldRead::Masked);
+    }
+
+    /// T9 (GNR-01, GNR-05): the engine spaces a generated name (`mm baalh-19`, `mmbaalh - 19`; 80 of 500 variations of one
+    /// real print came back so, `field-other-spacing`). The spaces go before the comparison, for a name that has none; the
+    /// public room name keeps its own spaces.
+    #[test]
+    fn a_spaced_read_of_a_generated_name_matches_it_and_no_other_name() {
+        for name in PRINT_NAMES {
+            let chars: Vec<char> = name.chars().collect();
+            for at in 1..chars.len() {
+                let spaced: String = chars[..at]
+                    .iter()
+                    .chain(std::iter::once(&' '))
+                    .chain(chars[at..].iter())
+                    .collect();
+                assert_eq!(read_field(&spaced, name), FieldRead::Matched, "{spaced}");
+                for other in PRINT_NAMES.iter().filter(|other| **other != name) {
+                    assert_eq!(read_field(&spaced, other), FieldRead::Other, "{spaced}");
+                }
+            }
+            let twice = name.replace('-', " - ");
+            assert_eq!(read_field(&twice, name), FieldRead::Matched, "{twice}");
+        }
+        assert_eq!(read_field("mm baalh-18", "mmbaalh-19"), FieldRead::Other);
+        assert_eq!(read_field("mm baalm-19", "mmbaalh-19"), FieldRead::Other);
+        assert_eq!(read_field("mm baalh-19 x", "mmbaalh-19"), FieldRead::Other);
+        assert_eq!(
+            read_field("Label: mmbaalh-19", "mmbaalh-19"),
+            FieldRead::Other
+        );
+        assert_eq!(read_field("mm baalh-19", "mm baalh-19"), FieldRead::Matched);
+        assert_eq!(read_field("mmbaalh-19", "mm baalh-19"), FieldRead::Other);
+    }
+
+    /// The same fold over the whole vocabulary: a name read with a space inside, after the digit fold, is still its own name
+    /// and no other (no collision is made by dropping spaces: a generated name holds none).
+    #[test]
+    fn a_spaced_name_collides_with_no_other_across_every_activity_and_difficulty_code() {
+        let mut seen = std::collections::HashMap::new();
+        for activity in AGENT_ACTIVITIES {
+            for difficulty in AGENT_DIFFICULTY_CODES {
+                for n in 1..=9999u32 {
+                    let name = format!("mm{activity}{difficulty}-{n}");
+                    let spaced = format!("mm {activity}{difficulty} - {n}");
+                    assert_eq!(read_field(&spaced, &name), FieldRead::Matched, "{spaced}");
+                    let key = without_whitespace(&normalise(&spaced));
+                    if let Some(other) = seen.insert(key, name.clone()) {
+                        panic!("{name} and {other} collide once spaced");
+                    }
+                }
+            }
+        }
     }
 
     #[test]
