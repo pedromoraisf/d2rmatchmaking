@@ -7,12 +7,14 @@ import type { AgentView, PairingState, Translate } from '../shared/labels.ts';
 import { ConsentView } from '../views/ConsentView.tsx';
 import { PairingView } from '../views/PairingView.tsx';
 import { DiagnosticsView } from '../views/DiagnosticsView.tsx';
+import { HotkeysView, type HotkeyAction } from '../views/HotkeysView.tsx';
 import { StatusView } from '../views/StatusView.tsx';
 
 const AGENT_STATE_EVENT = 'agent-state';
 const GET_NEW_CODE_COMMAND = 'get_new_code';
 const GET_CONSENT_COMMAND = 'get_consent';
 const SET_CONSENT_COMMAND = 'set_consent';
+const SET_HOTKEY_COMMAND = 'set_hotkey';
 // Shown until the core publishes its first state: the window is asking for a code.
 const PAIRING_BEFORE_FIRST_STATE: PairingState = 'requesting';
 
@@ -69,12 +71,20 @@ export function App({ translate }: AppProps) {
     );
   };
 
+  // The core stores the combination or refuses it with a reason code, which the view shows (AST-01).
+  const changeHotkey = async (action: HotkeyAction, combination: string) => {
+    await invoke(SET_HOTKEY_COMMAND, { action, combination });
+  };
+
   return (
     <main>
       <h1>{title}</h1>
       <ConsentView consent={consent} failed={consentFailed} translate={translate} onChange={changeConsent} />
       <PairingView pairing={pairing} translate={translate} onNewCode={requestNewCode} />
       {view === null ? null : <StatusView view={view} translate={translate} />}
+      {view === null ? null : (
+        <HotkeysView hotkeys={view.hotkeys} translate={translate} onChange={changeHotkey} />
+      )}
       {view === null ? null : (
         <DiagnosticsView diagnostics={view.diagnostics} capture={view.capture} translate={translate} />
       )}

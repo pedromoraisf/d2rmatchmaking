@@ -1,7 +1,10 @@
 //! The one state the core publishes to the agent window (design.md § Data Models). Serialized as camelCase; the window
 //! maps it to translated strings with a pure function, so the window holds no rule.
 
+use d2rmm_agent_domain::typing::HotkeyPair;
 use serde::Serialize;
+
+use crate::fill_name::FillOutcome;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", rename_all_fields = "camelCase")]
@@ -117,6 +120,23 @@ pub struct CaptureView {
     pub party: Option<PartyLookView>,
 }
 
+/// The two hotkeys as the window shows them, such as `Ctrl+Shift+A` (RDY-07, AST-01).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HotkeysView {
+    pub accept: String,
+    pub fill: String,
+}
+
+impl HotkeysView {
+    pub fn of(pair: &HotkeyPair) -> Self {
+        Self {
+            accept: pair.accept().to_string(),
+            fill: pair.fill().to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentView {
@@ -126,6 +146,11 @@ pub struct AgentView {
     pub update: UpdateView,
     /// A ready check is open for the account: the window shows the hotkey that accepts it (RDY-07).
     pub ready_check_open: bool,
+    /// The keys that accept a ready check and fill the game name (AST-01).
+    pub hotkeys: HotkeysView,
+    /// What the last press of the fill hotkey did (AST-08); absent until the first press. A closed set of codes, no text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_fill: Option<FillOutcome>,
     /// The last look at the game window, once the agent has looked at one.
     pub diagnostics: Option<DiagnosticsView>,
     /// What the capture showed in the last look; absent until the first frame.
@@ -135,10 +160,12 @@ pub struct AgentView {
 
 #[cfg(test)]
 mod tests {
+    use d2rmm_agent_domain::typing::HotkeyPair;
     use serde_json::json;
 
     use super::{
-        AgentView, Connectivity, DiagnosticsView, PairingView, RejectedSlot, RoomView, UpdateView,
+        AgentView, Connectivity, DiagnosticsView, FillOutcome, HotkeysView, PairingView,
+        RejectedSlot, RoomView, UpdateView,
     };
 
     #[test]
@@ -157,6 +184,8 @@ mod tests {
             }),
             update: UpdateView::Idle,
             ready_check_open: true,
+            hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
+            last_fill: None,
             diagnostics: None,
             capture: None,
         };
@@ -169,6 +198,7 @@ mod tests {
                 "room": { "gameName": "mmbaalh-12", "needsReveal": true, "matched": false },
                 "update": "idle",
                 "readyCheckOpen": true,
+                "hotkeys": { "accept": "Ctrl+Shift+A", "fill": "Ctrl+Shift+F" },
                 "diagnostics": null,
             })
         );
@@ -201,6 +231,8 @@ mod tests {
             room: None,
             update: UpdateView::Required,
             ready_check_open: false,
+            hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
+            last_fill: Some(FillOutcome::RefusedKeys),
             diagnostics: None,
             capture: None,
         };
@@ -213,6 +245,8 @@ mod tests {
                 "room": null,
                 "update": "required",
                 "readyCheckOpen": false,
+                "hotkeys": { "accept": "Ctrl+Shift+A", "fill": "Ctrl+Shift+F" },
+                "lastFill": "refused-keys",
                 "diagnostics": null,
             })
         );

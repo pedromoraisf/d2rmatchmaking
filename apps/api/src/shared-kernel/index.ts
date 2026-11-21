@@ -15,6 +15,8 @@ export {
 } from './tracing.ts';
 export type { SpanAttributes } from './tracing.ts';
 export type { IdGenerator } from './id-generator.ts';
+export { matchCharacterName } from './character-name-match.ts';
+export type { NameMatch } from './character-name-match.ts';
 export { err, isErr, isOk, ok } from './result.ts';
 export type { Err, Ok, Result } from './result.ts';
 export type {

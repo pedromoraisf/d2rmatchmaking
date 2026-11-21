@@ -1,7 +1,9 @@
 import { fitsAccountLimit, parseCharacterBatch, type CharacterInput } from '../domain/character/character.ts';
+import { reconcileCards } from '../domain/character/reconcile.ts';
 import {
   err,
   ok,
+  annotateActiveSpan,
   withSpan,
   type Clock,
   type Outbox,
@@ -40,11 +42,22 @@ export function createRecordCharacters(deps: RecordCharactersDeps) {
         return deps.uow.run(
           async (tx): Promise<Result<{ readonly count: number }, RecordCharactersError>> => {
             await deps.characters.lockAccount(tx, input.accountId);
-            const stored = await deps.characters.storedNames(tx, input.accountId);
-            if (!fitsAccountLimit(stored, batch.value)) {
+            const stored = await deps.characters.storedCharacters(tx, input.accountId);
+            // A card the screen misread takes the spelling of the stored character it stands for (SNM-07); the misread
+            // name is dropped here and only the count is recorded.
+            const { characters, reconciled } = reconcileCards(batch.value, stored);
+            if (reconciled > 0) {
+              annotateActiveSpan({ 'd2r.characters.reconciled': reconciled });
+            }
+            if (
+              !fitsAccountLimit(
+                stored.map((character) => character.name),
+                characters,
+              )
+            ) {
               return err('too-many-characters');
             }
-            await deps.characters.upsertMany(tx, input.accountId, batch.value, readAt);
+            await deps.characters.upsertMany(tx, input.accountId, characters, readAt);
             await deps.outbox.append(tx, [
               { type: 'CharactersRecorded', payload: { accountId: input.accountId } },
             ]);

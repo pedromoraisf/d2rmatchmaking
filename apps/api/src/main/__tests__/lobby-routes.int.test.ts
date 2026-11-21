@@ -276,6 +276,23 @@ describe('lobby routes', () => {
     expect(stored).toHaveLength(0);
   });
 
+  it('answers the 21st observation of a minute 429 rate-limited with Retry-After, and stores no more', async () => {
+    const cookie = await sessionFor(uniquePlayerName());
+    const token = await pairNewAgent(cookie);
+    await formTestMatch(cookie);
+    const room = bodyOf<RoomBody>(await myRoom(cookie));
+
+    const answers = [];
+    for (let i = 0; i < 21; i += 1) {
+      answers.push(await observe(token, room.roomId, observationBody('mmnotit-1', { key: `limit-${i}` })));
+    }
+
+    expect(answers.slice(0, 20).map((answer) => answer.statusCode)).toEqual(Array(20).fill(202));
+    expect(answers[20]?.statusCode).toBe(429);
+    expect(bodyOf(answers[20] ?? { body: '{}' })).toEqual({ error: 'rate-limited' });
+    expect(Number(answers[20]?.headers['retry-after'])).toBeGreaterThanOrEqual(1);
+  });
+
   it('a 5 KB body answers 413', async () => {
     const cookie = await sessionFor(uniquePlayerName());
     const token = await pairNewAgent(cookie);

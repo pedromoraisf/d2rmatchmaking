@@ -13,6 +13,7 @@ import {
   RoomMemberChangedEvent,
   RoomRunOpenedEvent,
   RoomStageChangedEvent,
+  AgentRoomStageChangedEvent,
 } from './events/stream.ts';
 import { ClaimRequest, ClaimResponse, Heartbeat, PairingCodeResponse } from './http/agents.ts';
 import { RecordCharactersRequest } from './http/characters.ts';
@@ -43,6 +44,8 @@ export type JsonSchema = z.core.JSONSchema.BaseSchema;
 const STREAM_MESSAGES = {
   RoomAssigned: { name: 'room.assigned', schema: RoomAssignedEvent },
   RoomStageChanged: { name: 'room.stage_changed', schema: RoomStageChangedEvent },
+  // The agent's copy: the room and the stage, no members (stream-egress SEG-01).
+  AgentRoomStageChanged: { name: 'room.stage_changed', schema: AgentRoomStageChangedEvent },
   RoomRunOpened: { name: 'room.run_opened', schema: RoomRunOpenedEvent },
   RoomMemberChanged: { name: 'room.member_changed', schema: RoomMemberChangedEvent },
   AgentPresenceChanged: { name: 'agent.presence_changed', schema: AgentPresenceChangedEvent },

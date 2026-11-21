@@ -6,6 +6,7 @@ import {
   type Declaration,
 } from '../../domain/character/character.ts';
 import type { CharacterRepository, StoredCharacter } from '../../application/character-ports.ts';
+import type { StoredFacts } from '../../domain/character/reconcile.ts';
 import type { Transaction } from '../../../../shared-kernel/index.ts';
 import type { IdentityDatabase } from './schema.ts';
 
@@ -53,13 +54,31 @@ export class PostgresCharacterRepository implements CharacterRepository {
       .execute();
   }
 
-  async storedNames(tx: Transaction, accountId: string): Promise<readonly string[]> {
+  async storedCharacters(tx: Transaction, accountId: string): Promise<readonly StoredFacts[]> {
     const rows = await executorOf(tx)
       .selectFrom('identity.characters')
-      .select('name')
+      .select(['name', 'class', 'level', 'hardcore'])
       .where('account_id', '=', accountId)
       .execute();
-    return rows.map((row) => row.name);
+    return rows.flatMap((row) => {
+      const parsed = parseCharacter({
+        name: row.name,
+        class: row.class,
+        level: row.level,
+        hardcore: row.hardcore,
+        unlockedDifficulties: ['normal'],
+      });
+      return parsed.ok
+        ? [
+            {
+              name: parsed.value.name,
+              class: parsed.value.class,
+              level: parsed.value.level,
+              hardcore: parsed.value.hardcore,
+            },
+          ]
+        : [];
+    });
   }
 
   async upsertMany(
@@ -110,6 +129,28 @@ export class PostgresCharacterRepository implements CharacterRepository {
       .where('id', '=', characterId)
       .executeTakeFirst();
     return Number(result.numUpdatedRows) > 0;
+  }
+
+  async namesOf(
+    pairs: readonly { readonly accountId: string; readonly characterId: string }[],
+  ): Promise<(string | null)[]> {
+    if (pairs.length === 0) {
+      return [];
+    }
+    // One query for every pair; the account must own the character, as the one-by-one read required.
+    const rows = await this.#db
+      .selectFrom('identity.characters')
+      .select(['id', 'account_id', 'name'])
+      .where(
+        'id',
+        'in',
+        pairs.map((pair) => pair.characterId),
+      )
+      .execute();
+    return pairs.map(
+      (pair) =>
+        rows.find((row) => row.id === pair.characterId && row.account_id === pair.accountId)?.name ?? null,
+    );
   }
 
   async listByAccount(accountId: string): Promise<StoredCharacter[]> {

@@ -160,6 +160,37 @@ test('a run without the 100-player step is refused', () => {
   assert.equal(plan.allowed, false, 'a full run without the 100-player step does not pass, so it is refused');
 });
 
+test('the baseline carries matches per player-hour and the bytes by event type when the run has them', () => {
+  const counts = { site: { 'room.assigned': 90_000 }, agent: { 'room.assigned': 40_000 } };
+  const text = publishPlan(
+    buildSummary({
+      profile: 'full',
+      steps: [step(25), step(50), step(100, { bytesByEvent: counts })],
+      limits: { cpus: '0.5', memory: '512m', k6Memory: '1500m' },
+      versions: {
+        k6: '2.3.0',
+        sseExtension: '0.2.0',
+        node: '26',
+        postgres: '17',
+        openssl: 'x',
+        apiImage: 'd2rmm-load-api',
+      },
+      commit: 'abc1234',
+      times: { startedAt: '2026-11-03T10:00:00.000Z', endedAt: '2026-11-03T10:20:00.000Z' },
+    }),
+  ).text;
+  assert.match(text, /Matches a player plays per hour at 100 players \(`matchesPerPlayerHour`\) \| 160 \|/);
+  assert.match(text, /Bytes per match at 100 players \(`bytesPerMatch`\) \| 437\.5 \|/);
+  assert.match(text, /## Bytes per player-hour by event type/);
+  assert.match(text, /\| site \| `room\.assigned` \| 36000 \|/);
+  assert.match(text, /\| agent \| `room\.assigned` \| 16000 \|/);
+  assert.match(text, /\| other \| HTTP bodies, headers and framing \|/);
+});
+
+test('the baseline has no by-event section when the run has no breakdown', () => {
+  assert.doesNotMatch(publishPlan(fullSummary()).text, /by event type/);
+});
+
 test('the baseline publishes the telemetry bytes per player-hour of each signal', () => {
   const summary = buildSummary({
     profile: 'full',

@@ -11,6 +11,9 @@ are built by the batches of `.specs/features/delivery-platform/tasks.md`.
 | API   | Render PR preview with its own Neon branch (030)   | Render `d2rmm-api`, `D2RMM_ENV=staging`      | Render `d2rmm-api-production`          |
 | agent | installer artifact `com.d2rmm.agent.preview`       | installer artifact `com.d2rmm.agent.staging` | GitHub Release `com.d2rmm.agent` (015) |
 
+The agent's production release is public only after it is signed (when signing is on) and its assets are checked as a set:
+build, then sign, then publish, in [`releases.md`](releases.md). Preview and staging installers are never GitHub Releases.
+
 ## Stages
 
 `build → verify → deploy → smoke → promote`. Reusable workflows `stage-build`, `stage-deploy`, `stage-smoke`,

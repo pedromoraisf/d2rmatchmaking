@@ -263,6 +263,11 @@ export class HeadlessAgent {
     this.#child.stdin?.write(`consent ${given ? 'on' : 'off'}\n`);
   }
 
+  /** Sends one raw input line (assisted typing: `assign`, `fill`, `focus`, `keys`, `fill-again-after`; FR-28). */
+  send(line: string): void {
+    this.#child.stdin?.write(`${line}\n`);
+  }
+
   /** Sends one `hotkey` line: the example presses the agent's accept hotkey (RDY-07), as the global shortcut does. */
   hotkey(): void {
     this.#child.stdin?.write('hotkey\n');

@@ -2,8 +2,14 @@
 // the Summary out. The output is built field by field from a whitelist, never by a spread, so a cookie or a token that a
 // caller passes in cannot reach the file (LB-15; AGENTS.md rule 6).
 
-import { bytesPerPlayerHour, withinEgressBudget } from './bytes.mjs';
-import { kindOf } from './journey-state.mjs';
+import {
+  bytesPerMatch,
+  bytesPerPlayerHour,
+  matchesPerPlayerHour,
+  perPlayerHourByEvent,
+  withinEgressBudget,
+} from './bytes.mjs';
+import { EVENT_NAMES, STREAMS, kindOf } from './journey-state.mjs';
 import { PROVISION_ROUTES } from './provision-requests.mjs';
 import { containsSecret } from './redact.mjs';
 import {
@@ -141,8 +147,13 @@ function stepOf(step) {
   if (kindTotal !== errors) {
     throw new TypeError(`errorsByKind adds up to ${kindTotal}, the step has ${errors} errors`);
   }
+  const players = numberOf('players', step.players, 1);
+  const windowSeconds = numberOf('windowSeconds', step.windowSeconds, Number.MIN_VALUE);
+  const bytesReceived = numberOf('bytesReceived', step.bytesReceived, 0);
+  const iterations = numberOf('iterations', step.iterations, 0);
+  const matches = matchesPerPlayerHour(iterations, players, windowSeconds);
   return {
-    players: numberOf('players', step.players, 1),
+    players,
     latencyP95Ms: nullableNumberOf('latencyP95Ms', step.latencyP95Ms),
     latencyCount: numberOf('latencyCount', step.latencyCount, 0),
     errors,
@@ -150,12 +161,15 @@ function stepOf(step) {
     errorsByPlayerRange: passed ? null : quartersOf(step.errorsByPlayerRange, errors),
     provisionMsByRoute: provisionMsByRouteOf(step.provisionMsByRoute),
     requests: numberOf('requests', step.requests, 0),
-    iterations: numberOf('iterations', step.iterations, 0),
+    iterations,
     errorRatio: numberOf('errorRatio', step.errorRatio, 0),
-    bytesReceived: numberOf('bytesReceived', step.bytesReceived, 0),
+    bytesReceived,
+    bytesByEvent: bytesByEventOf(step.bytesByEvent, bytesReceived),
+    matchesPerPlayerHour: matches,
+    bytesPerMatch: bytesPerMatch(bytesPerPlayerHour(bytesReceived, players, windowSeconds), matches),
     telemetryBytes: numberOf('telemetryBytes', step.telemetryBytes, 0),
+    windowSeconds,
     telemetryBytesBySignal: signalBytesOf(step.telemetryBytesBySignal),
-    windowSeconds: numberOf('windowSeconds', step.windowSeconds, Number.MIN_VALUE),
     peakCpuPercent: numberOf('peakCpuPercent', step.peakCpuPercent, 0),
     peakMemoryBytes: numberOf('peakMemoryBytes', step.peakMemoryBytes, 0),
     roomsCreated: numberOf('roomsCreated', step.roomsCreated, 0),
@@ -167,6 +181,29 @@ function stepOf(step) {
     passed,
     failedRule: passed ? null : failedRule,
   };
+}
+
+/**
+ * The bytes of each event type of a step (stream-egress SEG-02): the counts of each stream (`unlisted` for a name the
+ * journey does not know) and `other`, the rest of the metered bytes (HTTP bodies, headers, framing). A step file from before
+ * this field gives null, so an older summary still builds.
+ */
+function bytesByEventOf(value, total) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const byEvent = {};
+  let counted = 0;
+  for (const stream of STREAMS) {
+    byEvent[stream] = {};
+    for (const name of [...EVENT_NAMES, 'unlisted']) {
+      const bytes = numberOf(`bytesByEvent.${stream}.${name}`, value[stream]?.[name] ?? 0, 0);
+      byEvent[stream][name] = bytes;
+      counted += bytes;
+    }
+  }
+  byEvent.other = Math.max(0, total - counted);
+  return byEvent;
 }
 
 /** The steps up to the first failure, all passing: the prefix that counts for the highest passing step. */
@@ -191,6 +228,12 @@ function referenceNumbersOf(reference) {
       REFERENCE_PLAYERS,
       reference.windowSeconds,
     ),
+    bytesByEventPerPlayerHour:
+      reference.bytesByEvent === null
+        ? null
+        : perPlayerHourByEvent(reference.bytesByEvent, REFERENCE_PLAYERS, reference.windowSeconds),
+    matchesPerPlayerHour: reference.matchesPerPlayerHour,
+    bytesPerMatch: reference.bytesPerMatch,
     telemetry,
     telemetryBySignal: telemetryBytesPerPlayerHourBySignal(
       reference.telemetryBytesBySignal,
@@ -242,6 +285,9 @@ export function buildSummary({ profile, steps, limits, versions, commit, times, 
     maxConcurrentPlayers,
     maxConcurrentRooms: highest?.roomsCreated ?? 0,
     bytesPerPlayerHour: bph,
+    bytesByEventPerPlayerHour: numbers?.bytesByEventPerPlayerHour ?? null,
+    matchesPerPlayerHour: numbers?.matchesPerPlayerHour ?? null,
+    bytesPerMatch: numbers?.bytesPerMatch ?? null,
     p95StateLatencyMs: numbers?.p95StateLatencyMs ?? null,
     passed: errorText === null && minimumMet,
     failure,

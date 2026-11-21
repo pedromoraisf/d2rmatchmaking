@@ -41,6 +41,30 @@ function stepRow(step) {
   return `| ${numberText(step.players)} | ${numberText(step.latencyP95Ms)} | ${numberText(step.errorRatio)} | ${numberText(step.bytesReceived)} | ${numberText(step.peakCpuPercent)} | ${numberText(step.peakMemoryBytes)} | ${result} |`;
 }
 
+/** The rows of the by-event table: each stream's event types, then the rest; empty when the run has no breakdown. */
+function byEventLines(byEvent) {
+  if (byEvent === null || byEvent === undefined) {
+    return [];
+  }
+  const rows = [];
+  for (const stream of ['site', 'agent']) {
+    for (const [name, bytes] of Object.entries(byEvent[stream] ?? {})) {
+      rows.push(`| ${stream} | \`${name}\` | ${numberText(bytes)} |`);
+    }
+  }
+  rows.push(`| other | HTTP bodies, headers and framing | ${numberText(byEvent.other)} |`);
+  return [
+    '## Bytes per player-hour by event type',
+    '',
+    'At 100 players (`bytesByEventPerPlayerHour`). The stream rows are the frames as written; `other` is the rest of the metered bytes.',
+    '',
+    '| Stream | Event | Bytes per player-hour |',
+    '| --- | --- | --- |',
+    ...rows,
+    '',
+  ];
+}
+
 /** One row per OTLP signal; none when the summary has no split (a summary written before it existed). */
 function signalRows(split) {
   if (split === null || split === undefined) return [];
@@ -71,6 +95,8 @@ function documentOf(summary) {
     `| p95 state latency at 100 players, ms (\`p95StateLatencyMs\`) | ${numberText(summary.p95StateLatencyMs)} |`,
     `| Bytes per player-hour at 100 players (\`bytesPerPlayerHour\`) | ${numberText(summary.bytesPerPlayerHour)} |`,
     `| Within the 70 000 bytes per player-hour budget (\`withinEgressBudget\`) | ${yesNo(summary.withinEgressBudget)} |`,
+    `| Matches a player plays per hour at 100 players (\`matchesPerPlayerHour\`) | ${numberText(summary.matchesPerPlayerHour)} |`,
+    `| Bytes per match at 100 players (\`bytesPerMatch\`) | ${numberText(summary.bytesPerMatch)} |`,
     `| Telemetry bytes per player-hour (\`telemetryBytesPerPlayerHour\`) | ${numberText(summary.telemetryBytesPerPlayerHour)} |`,
     ...signalRows(summary.telemetryBytesPerPlayerHourBySignal),
     `| Telemetry bytes a month at 100 players (\`telemetryMonthlyBytes\`) | ${numberText(summary.telemetryMonthlyBytes)} |`,
@@ -81,6 +107,7 @@ function documentOf(summary) {
     '',
     'Telemetry is report-only in F0 (AD-128): a share above 0.10 does not fail the run. Reducing telemetry is a condition of setting `OTEL_EXPORTER_OTLP_ENDPOINT` in production.',
     '',
+    ...byEventLines(summary.bytesByEventPerPlayerHour),
     '## Limits',
     '',
     '| Limit | Value |',
