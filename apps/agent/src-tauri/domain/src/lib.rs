@@ -16,6 +16,7 @@ pub mod language;
 pub mod layout;
 pub mod name_diff;
 pub mod observation_retry;
+pub mod other_game;
 pub mod paired_device;
 pub mod pairing;
 pub mod player_observation;

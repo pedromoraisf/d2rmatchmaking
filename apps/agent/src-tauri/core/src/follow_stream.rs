@@ -254,6 +254,7 @@ mod tests {
                     needs_reveal: false,
                     matched: false,
                     confirmed: false,
+                    elsewhere: false,
                 }),
                 "the latest room.assigned wins"
             );

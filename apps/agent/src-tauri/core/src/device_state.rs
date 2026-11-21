@@ -16,6 +16,7 @@ use d2rmm_agent_domain::typing::HotkeyPair;
 use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
+use crate::elsewhere::Watch;
 use crate::fill_name::FillOutcome;
 use crate::hub::Hub;
 use crate::messages::{CaptureReport, ReadyCheckOpen, Screen};
@@ -61,6 +62,8 @@ pub struct DeviceState {
     /// The run the API last accepted an observation for (ARL-03): its room and run number. It counts only while the held
     /// assignment names the same run.
     confirmed_run: Mutex<Option<(String, NonZeroU64)>>,
+    /// Whether the Party panel showed another game's name on two looks in a row for the held run (ARL-08). Counts and flags only.
+    elsewhere: Mutex<Watch>,
     /// The last screen the agent recognised, kept while later frames read as unknown, for assisted typing (AST-04).
     last_known_screen: Mutex<Option<Screen>>,
     /// `true` from the look that finds the screen out of the game until a look finds it in the game again: the Party look
@@ -97,6 +100,7 @@ impl DeviceState {
             chat_posts: Mutex::new(PostBucket::per_minute(CHAT_POSTS_PER_MINUTE)),
             ready_check: Mutex::new(None),
             confirmed_run: Mutex::new(None),
+            elsewhere: Mutex::new(Watch::default()),
             last_known_screen: Mutex::new(None),
             party_look_left_behind: AtomicBool::new(false),
             hotkeys: Mutex::new(HotkeyPair::defaults()),
@@ -271,6 +275,9 @@ impl DeviceState {
     /// older one.
     pub fn replace_assignment(&self, assignment: Option<Assignment>) {
         lock(&self.party).follow(assignment.as_ref());
+        if assignment.is_none() {
+            lock(&self.elsewhere).forget();
+        }
         self.assignment.send_modify(|slot| match assignment {
             Some(assignment) => {
                 slot.receive(assignment);
@@ -282,6 +289,18 @@ impl DeviceState {
     /// Runs `apply` on the Party progress of the held run (AGN-05). Publish the room after a change with `publish_room`.
     pub fn with_party<T>(&self, apply: impl FnOnce(&mut PartyProgress) -> T) -> T {
         apply(&mut lock(&self.party))
+    }
+
+    /// Runs `apply` on the elsewhere watch of the held run (ARL-08). Publish the room after a change with `publish_room`.
+    pub fn with_elsewhere<T>(&self, apply: impl FnOnce(&mut Watch) -> T) -> T {
+        apply(&mut lock(&self.elsewhere))
+    }
+
+    /// Whether the API accepted the observation of the run `assignment` names (ARL-03).
+    pub fn run_confirmed(&self, assignment: &Assignment) -> bool {
+        lock(&self.confirmed_run)
+            .as_ref()
+            .is_some_and(|(room, run)| room == assignment.room.as_str() && *run == assignment.run)
     }
 
     /// Runs `apply` on the chat tracker (the chat step, GNR-07).
@@ -309,6 +328,8 @@ impl DeviceState {
                 needs_reveal: progress.needs_reveal(),
                 matched: progress.matched(),
                 confirmed,
+                elsewhere: confirmed
+                    && lock(&self.elsewhere).is_elsewhere(assignment.room.as_str(), assignment.run),
             }
         });
         if self.hub.snapshot().room != room {
@@ -570,6 +591,7 @@ mod tests {
             needs_reveal: false,
             matched: false,
             confirmed: false,
+            elsewhere: false,
         }));
         let epoch = device.epoch();
 

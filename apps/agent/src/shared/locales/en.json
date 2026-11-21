@@ -20,6 +20,7 @@
   "room": {
     "waiting": "Room {{gameName}} — waiting for the game",
     "confirmed": "Room {{gameName}} — presence confirmed",
+    "elsewhere": "You are in another game (not {{gameName}})",
     "revealHint": "Open the Party panel (P) and click the eye to show the game name."
   },
   "update": {

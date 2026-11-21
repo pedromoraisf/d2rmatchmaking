@@ -53,7 +53,7 @@ Rules:
       run and cleared by a later `GAME_NAME_SEEN`; no stage transition; the stream event to the site. Prefer deriving it
       from the stored observations over a new column; if a migration is needed it is a new file. Domain unit tests with
       fakes, API integration test. Gate: `pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`
-- [ ] T10 — Agent core (ARL-08, ARL-09): compare the Party panel's read with the held name; two looks in a row, an edit
+- [x] T10 — Agent core (ARL-08, ARL-09): compare the Party panel's read with the held name; two looks in a row, an edit
       distance above 2, never the other name in a log, span or post; post once per change; the window line. Unit tests
       with fakes. Not a reading-module change (the comparison lives in core's room step, not in the readers); if a
       reading module must change, rule 14 applies. Gate: `CARGO nextest run -p d2rmm-agent-core --lib`

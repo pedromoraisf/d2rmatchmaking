@@ -1017,6 +1017,7 @@ mod tests {
             needs_reveal: false,
             matched: false,
             confirmed: false,
+            elsewhere: false,
         });
         let (accept, fill) = wanted_hotkeys(&view);
         assert!(accept.is_none());

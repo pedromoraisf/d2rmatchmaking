@@ -45,6 +45,11 @@ pub struct RoomView {
     /// confirmed" instead of "waiting for the game". A new run or a dropped room clears it (ARL-04).
     #[serde(skip_serializing_if = "is_false")]
     pub confirmed: bool,
+    /// The Party panel showed another game's name on two looks in a row after the presence was confirmed (ARL-08). Sent only
+    /// when true; the window then says "You are in another game". The name is never in the view. The held name read again
+    /// clears it, and so does a new run or a dropped room.
+    #[serde(skip_serializing_if = "is_false")]
+    pub elsewhere: bool,
 }
 
 fn is_false(value: &bool) -> bool {
@@ -265,6 +270,7 @@ mod tests {
                 needs_reveal: true,
                 matched: false,
                 confirmed: false,
+                elsewhere: false,
             }),
             update: UpdateView::Idle,
             ready_check_open: true,
@@ -298,6 +304,7 @@ mod tests {
             needs_reveal: false,
             matched: true,
             confirmed,
+            elsewhere: false,
         };
 
         assert_eq!(
@@ -307,6 +314,26 @@ mod tests {
         assert_eq!(
             serde_json::to_value(room(false)).expect("the room serializes"),
             json!({ "gameName": "mmbaalh-12", "needsReveal": false, "matched": true })
+        );
+    }
+
+    #[test]
+    fn an_elsewhere_room_serialises_its_flag_and_never_a_name() {
+        let room = |elsewhere| RoomView {
+            game_name: "mmbaalh-12".to_string(),
+            needs_reveal: false,
+            matched: true,
+            confirmed: true,
+            elsewhere,
+        };
+
+        assert_eq!(
+            serde_json::to_value(room(true)).expect("the room serializes"),
+            json!({ "gameName": "mmbaalh-12", "needsReveal": false, "matched": true, "confirmed": true, "elsewhere": true })
+        );
+        assert_eq!(
+            serde_json::to_value(room(false)).expect("the room serializes"),
+            json!({ "gameName": "mmbaalh-12", "needsReveal": false, "matched": true, "confirmed": true })
         );
     }
 
