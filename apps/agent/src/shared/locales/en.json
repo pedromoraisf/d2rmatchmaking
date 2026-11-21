@@ -52,7 +52,20 @@
     "cards": "Cards read: {{read}}, settled: {{settled}}",
     "popup": "Popup options found: {{found}}",
     "rejected": "Card {{slot}} not settled: {{reason}}",
-    "post": "Last send: {{outcome}}",
+    "post": {
+      "not-sent": "Last send: nothing sent yet",
+      "ok": "Last send: sent",
+      "unauthorized": "Last send: refused, not authorised",
+      "upgrade-required": "Last send: update required",
+      "rate-limited": "Last send: too many requests, will retry",
+      "gone": "Last send: no longer available",
+      "pending": "Last send: waiting for pairing",
+      "server": "Last send: server error",
+      "network": "Last send: could not reach the server",
+      "invalid": "Last send: refused as invalid",
+      "check-ended": "Last send: the ready check ended",
+      "other": "Last send: {{outcome}}"
+    },
     "window": "Window (with borders): {{width}}×{{height}}",
     "content": {
       "blank": "Frame content: blank (brightness {{brightness}})",
