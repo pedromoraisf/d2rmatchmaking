@@ -10,3 +10,6 @@ f686b8cf0d8d578a2f3775daa9d06b47979ce2c7:scripts/test/load/provision-requests.te
 6d5306e5b285bf8e215a611254b3113e33c3b616:packages/contracts/src/http/lobby.test.ts:generic-api-key:5
 # The first replacement of that value, 'observation-1', also read as a secret; the maintainer approved this line.
 5fffdc7720adfba91690c18264a2369afddee420:packages/contracts/src/http/lobby.test.ts:generic-api-key:5
+# A drawn minisign test key id ('0123456789ABCDEF', the pair generated at run time); the maintainer approved this line
+# on 2026-11-20 (#111). The fixture now derives the id at run time.
+a95557bfefb544591eefe6213f54bebfb958cb0d:scripts/test/release-assets.test.mjs:generic-api-key:26

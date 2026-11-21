@@ -1,6 +1,11 @@
-# Agent release build (ADR 015, AGS-28, AGS-33). Three triggers: release-please.yml calls it with the tag it created,
-# a maintainer's `agent-v*` tag push starts it, and workflow_dispatch re-runs a failed release. The tag is resolved and
-# validated once, in the first step, and reaches every later step only through `env:`. See docs/engineering/releases.md.
+# Agent release build (ADR 015, AGS-28, AGS-33, agent-release AGR-01 to AGR-06). Three triggers: release-please.yml calls it
+# with the tag it created, a maintainer's `agent-v*` tag push starts it, and workflow_dispatch re-runs a failed release. The
+# tag is resolved and validated once, in the first step, and reaches every later step only through `env:`.
+#
+# Order: `build` attaches the installer, latest.json and checksums to the DRAFT release and starts the binary; `sign`
+# (only when SIGNPATH_ENABLED) replaces them with the signed ones, still in the draft; `publish` checks the assets as a set
+# and the signature, then makes the release public, once. Nothing is public before the last job.
+# See docs/engineering/releases.md.
 name: release-agent
 
 on:
@@ -36,6 +41,8 @@ jobs:
       contents: write
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      # Whether this release is built for signing, decided once here: sign and publish use this output, never the variable.
+      signing: ${{ steps.signing.outputs.enabled }}
       unsigned-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
     steps:
       - name: Resolve and validate the tag
@@ -49,6 +56,39 @@ jobs:
             exit 1
           fi
           echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Read the signing switch once
+        id: signing
+        env:
+          SIGNPATH_ENABLED: ${{ vars.SIGNPATH_ENABLED }}
+        shell: bash
+        run: |
+          if [ "$SIGNPATH_ENABLED" = true ]; then enabled=true; else enabled=false; fi
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
+
+      # A --clobber below replaces assets of a release, which is only ever done on a draft: a public release is refused.
+      # Only an explicit "release not found" (a maintainer's tag) is fine: the first build creates the draft. Any other error
+      # (auth, rate limit, network) fails: the guard never reads an error as "no release".
+      - name: Refuse a release that is already public
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        shell: bash
+        run: |
+          err="$(mktemp)"
+          if state="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>"$err")"; then
+            if [ "$state" != "true" ]; then
+              echo "::error::$TAG is already public; a public release is never edited or clobbered"
+              exit 1
+            fi
+          elif grep -q 'release not found' "$err"; then
+            echo "no release for $TAG yet; the first build creates the draft"
+          else
+            cat "$err" >&2
+            echo "::error::could not read the release of $TAG, so it is not known to be a draft"
+            exit 1
+          fi
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -156,7 +196,8 @@ jobs:
             exit 1
           fi
 
-      - name: Publish the fixed-name installer and SHA256SUMS
+      # --clobber: a re-run of the tag finds the assets of the failed run in the draft (the guard above refused a public one).
+      - name: Attach the fixed-name installer and SHA256SUMS to the draft
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.tag.outputs.tag }}
@@ -167,24 +208,11 @@ jobs:
           cp "$installer" "$versioned"
           cp "$installer" D2RMatchMaking-setup.exe
           sha256sum "$versioned" D2RMatchMaking-setup.exe > SHA256SUMS
-          gh release upload "$TAG" D2RMatchMaking-setup.exe SHA256SUMS
-
-      # The release is a draft (release-please creates it so, tauri-action keeps it); it goes public only now, after the binary started and every
-      # asset is attached.
-      - name: Publish the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.tag.outputs.tag }}
-        shell: bash
-        # "latest" only for the newest agent tag: a rerun for an older tag must not move the pointer back.
-        run: |
-          newest="$(git ls-remote --tags --refs origin 'agent-v*' | sed 's#.*refs/tags/##' | sort -V | tail -n1)"
-          if [ "$TAG" = "$newest" ]; then latest=--latest; else latest=--latest=false; fi
-          gh release edit "$TAG" --draft=false "$latest"
+          gh release upload "$TAG" D2RMatchMaking-setup.exe SHA256SUMS --clobber
 
       - name: Keep the unsigned installer for SignPath
         id: unsigned
-        if: vars.SIGNPATH_ENABLED == 'true'
+        if: steps.signing.outputs.enabled == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: unsigned-installer
@@ -193,12 +221,14 @@ jobs:
           retention-days: 1
 
   sign:
-    # Opt-in SignPath signing (AD-053, AGS-29). Runs only when the repository variable SIGNPATH_ENABLED is 'true' (secrets
-    # cannot be read in `if:`). SignPath signs the installer; the updater signature is redone for the signed file and
-    # latest.json takes the new Windows signature. The release assets are replaced here, the only --clobber in this file.
+    # Opt-in SignPath signing (AD-053, AGS-29). Runs only when `build` found the repository variable SIGNPATH_ENABLED to be
+    # 'true' (its `signing` output; secrets cannot be read in `if:`). SignPath signs the installer; the updater signature is redone for the signed file and
+    # latest.json takes the new Windows signature. The assets of the DRAFT release are replaced here with --clobber, after
+    # a guard that refuses a public release (`build` clobbers on a re-run in the same way, `publish` never does); the
+    # release is not public until the `publish` job (AGR-01, AGR-02).
     name: sign installer
     needs: build
-    if: vars.SIGNPATH_ENABLED == 'true'
+    if: needs.build.outputs.signing == 'true'
     runs-on: windows-latest
     timeout-minutes: 60
     environment: release
@@ -261,6 +291,30 @@ jobs:
           gh release download "$TAG" --pattern latest.json --dir .
           node scripts/agent/latest-json.mjs --latest latest.json --signature "$installer.sig" --out latest.json
 
+      # A --clobber below replaces assets of a release, which is only ever done on a draft: a public release is refused.
+      # Only an explicit "release not found" (a maintainer's tag) is fine: the first build creates the draft. Any other error
+      # (auth, rate limit, network) fails: the guard never reads an error as "no release".
+      - name: Refuse a release that is already public
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        shell: bash
+        run: |
+          err="$(mktemp)"
+          if state="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>"$err")"; then
+            if [ "$state" != "true" ]; then
+              echo "::error::$TAG is already public; a public release is never edited or clobbered"
+              exit 1
+            fi
+          elif grep -q 'release not found' "$err"; then
+            echo "no release for $TAG yet; the first build creates the draft"
+          else
+            cat "$err" >&2
+            echo "::error::could not read the release of $TAG, so it is not known to be a draft"
+            exit 1
+          fi
+
       - name: Replace the release assets with the signed ones
         env:
           GH_TOKEN: ${{ github.token }}
@@ -271,3 +325,90 @@ jobs:
           cp "$installer" D2RMatchMaking-setup.exe
           sha256sum "$(basename "$installer")" D2RMatchMaking-setup.exe > SHA256SUMS
           gh release upload "$TAG" "$installer" "$installer.sig" D2RMatchMaking-setup.exe SHA256SUMS latest.json --clobber
+
+  publish:
+    # The only job that makes a release public (AGR-01, AGR-02). It runs when signing was skipped (unsigned flow) or
+    # succeeded, never after a failed or rejected signing request: that leaves the draft and its tag as they are. It reads
+    # no secret; the token is the job's own `contents: write`.
+    name: publish release
+    needs: [build, sign]
+    if: always() && needs.build.result == 'success' && (needs.sign.result == 'success' || (needs.sign.result == 'skipped' && needs.build.outputs.signing != 'true'))
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Resolve and validate the tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ needs.build.outputs.tag }}
+        shell: bash
+        run: |
+          if ! printf '%s' "$INPUT_TAG" | grep -Eq '^agent-v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::not an agent release tag: $INPUT_TAG"
+            exit 1
+          fi
+          echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Download the assets of the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        shell: bash
+        run: gh release download "$TAG" --dir assets
+
+      # SignPath's output must be a valid signature by the expected publisher on both installers, or nothing is public.
+      # SIGNPATH_PUBLISHER unset reads "not configured" and refuses (AGR-04).
+      - name: Verify the Authenticode signature of the installers
+        if: needs.build.outputs.signing == 'true'
+        env:
+          EXPECTED_PUBLISHER: ${{ vars.SIGNPATH_PUBLISHER }}
+        shell: pwsh
+        run: |
+          $failed = $false
+          foreach ($file in Get-ChildItem assets -Filter '*-setup.exe') {
+            $signature = Get-AuthenticodeSignature $file.FullName
+            $subject = if ($signature.SignerCertificate) { $signature.SignerCertificate.Subject } else { '' }
+            $answer = @{ status = $signature.Status.ToString(); subject = $subject } | ConvertTo-Json -Compress
+            Write-Host "$($file.Name): $($signature.Status)"
+            $answer | node scripts/agent/signature-verdict.mjs --expected "$env:EXPECTED_PUBLISHER"
+            if ($LASTEXITCODE -ne 0) { $failed = $true }
+          }
+          if ($failed) { exit 1 }
+
+      # The URLs must be this repository's, and every .sig must verify with the updater key the tag ships (tauri.conf.json).
+      - name: Check the assets as a set (installers, checksums, latest.json)
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: node scripts/agent/release-assets.mjs --dir assets --tag "$TAG" --repo "$GITHUB_REPOSITORY" --tauri-conf apps/agent/src-tauri/tauri.conf.json
+
+      # "latest" only for the newest agent tag: a rerun for an older tag must not move the pointer back, and a release that
+      # is already public is left alone (AGR-06).
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        shell: bash
+        run: |
+          is_draft="$(gh release view "$TAG" --json isDraft --jq .isDraft)"
+          # git ls-remote needs no credentials here: the repository is public, so `origin` answers anonymously even though the
+          # checkout kept none (persist-credentials: false).
+          tags="$(git ls-remote --tags --refs origin 'agent-v*')"
+          decision="$(node scripts/agent/publish-release.mjs --tag "$TAG" --draft "$is_draft" --tags "$tags")"
+          case "$decision" in
+            skip) echo "$TAG is already public; nothing to do"; exit 0 ;;
+            latest) latest=--latest ;;
+            not-latest) latest=--latest=false ;;
+            *) echo "::error::unexpected publication decision: $decision"; exit 1 ;;
+          esac
+          gh release edit "$TAG" --draft=false "$latest"

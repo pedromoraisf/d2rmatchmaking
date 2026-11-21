@@ -210,6 +210,33 @@ describe('sweep', () => {
     });
   });
 
+  it('tells again when an agent that came back goes quiet a second time, one event per agent (SEG-04)', async () => {
+    const { bus, clock, useCases } = setup();
+    const beat = (agentId: string, accountId: string) =>
+      useCases.recordHeartbeat({ agentId, accountId, gameRunning: true, screen: 'UNKNOWN' });
+    await beat('agent-1', 'account-1');
+    await beat('agent-2', 'account-2');
+    clock.advance(45_000);
+    await useCases.sweep();
+    const offline = () =>
+      bus.published.filter(
+        (message) =>
+          message.kind === 'transient' &&
+          message.event.type === 'AgentPresenceChanged' &&
+          !message.event.payload.online,
+      );
+    expect(offline()).toHaveLength(2);
+
+    await beat('agent-1', 'account-1');
+    clock.advance(44_999);
+    await useCases.sweep();
+    expect(offline(), 'agent-1 is not overdue yet').toHaveLength(2);
+    clock.advance(1);
+    await useCases.sweep();
+    await useCases.sweep();
+    expect(offline(), 'agent-1 is told once more, agent-2 not again').toHaveLength(3);
+  });
+
   it('prunes rate-limit timestamps older than the widest window', async () => {
     const { rateLimits, clock, useCases } = setup();
     await rateLimits.record('ip:203.0.113.7', clock.now());

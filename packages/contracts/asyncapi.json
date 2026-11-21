@@ -14,6 +14,9 @@
         "RoomStageChanged": {
           "$ref": "#/components/messages/RoomStageChanged"
         },
+        "AgentRoomStageChanged": {
+          "$ref": "#/components/messages/AgentRoomStageChanged"
+        },
         "RoomRunOpened": {
           "$ref": "#/components/messages/RoomRunOpened"
         },
@@ -242,6 +245,51 @@
                 "roomId",
                 "stage",
                 "members"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "AgentRoomStageChanged": {
+        "name": "room.stage_changed",
+        "contentType": "application/json",
+        "payload": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "room.stage_changed"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "roomId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "stage": {
+                  "type": "string",
+                  "enum": [
+                    "formed",
+                    "awaiting_host",
+                    "created",
+                    "active",
+                    "closed",
+                    "expired"
+                  ]
+                }
+              },
+              "required": [
+                "roomId",
+                "stage"
               ],
               "additionalProperties": false
             }

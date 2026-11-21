@@ -52,6 +52,8 @@ export async function projectStreamEvent(
     case 'RoomStageChanged': {
       const { payload } = event;
       const data = { roomId: payload.roomId, stage: payload.stage, members: [...payload.members] };
+      // The agent's copy is the room and the stage: it reads nothing of the members (stream-egress SEG-01).
+      const agentData = { roomId: payload.roomId, stage: payload.stage };
       const deliveries: Delivery[] = [];
       for (const member of payload.members) {
         deliveries.push({
@@ -63,7 +65,11 @@ export async function projectStreamEvent(
         if (payload.stage === 'expired' || payload.stage === 'closed') {
           const agentId = await agents.currentAgentOf(member.accountId);
           if (agentId !== null) {
-            deliveries.push({ stream: 'agent', agentId, event: { type: 'room.stage_changed', data } });
+            deliveries.push({
+              stream: 'agent',
+              agentId,
+              event: { type: 'room.stage_changed', data: agentData },
+            });
           }
         }
       }

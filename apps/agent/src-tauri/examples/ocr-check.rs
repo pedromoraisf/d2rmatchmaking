@@ -62,7 +62,7 @@ fn main() -> std::process::ExitCode {
     }
 }
 
-/// `ocr-check --variations [--combos N] [--summary <file.md>] [--json <file.json>] <folder>`: reads hundreds of in-memory
+/// `ocr-check --variations [--combos N] [--shard i/n] [--summary <file.md>] [--json <file.json>] <folder>`: reads hundreds of in-memory
 /// variations of each screenshot with the production reading and reports, per transform family, how many read correctly, were
 /// refused and read wrong. It measures: the exit code is 0 whatever the counts. Nothing is written but the two report files
 /// (counts and variant ids, no text read); no variation image is kept.
@@ -80,7 +80,7 @@ fn variations(args: &[String]) -> std::process::ExitCode {
         Err(error) => {
             eprintln!("{error}");
             eprintln!(
-                "usage: ocr-check --variations [--combos N] [--summary <file.md>] [--json <file.json>] <folder>"
+                "usage: ocr-check --variations [--combos N] [--shard i/n] [--summary <file.md>] [--json <file.json>] <folder>"
             );
             return ExitCode::from(2);
         }
@@ -98,6 +98,7 @@ fn variations(args: &[String]) -> std::process::ExitCode {
         Path::new(&options.folder),
         Arc::new(reader),
         options.combos,
+        options.shard,
         &mut |line| println!("{line}"),
     ) {
         Ok(report) => report,
