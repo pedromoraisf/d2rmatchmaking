@@ -20,6 +20,7 @@ pub mod ports;
 pub mod post_observation;
 pub mod read_frame;
 pub mod ready_check;
+pub mod remote_config;
 pub mod runtime;
 pub mod screen_reader;
 pub mod secret;

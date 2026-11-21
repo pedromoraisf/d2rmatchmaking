@@ -202,13 +202,16 @@ mod shell {
     use tauri::{AppHandle, Emitter, Manager, State, WebviewWindowBuilder};
 
     use d2rmm_agent_adapters::config::ApiBase;
+    use d2rmm_agent_adapters::config_store::FileConfigStore;
     use d2rmm_agent_adapters::http::api_client::ApiClient;
     use d2rmm_agent_adapters::http::gateway::HttpGateway;
+    use d2rmm_agent_adapters::remote_config::WireReader;
     use d2rmm_agent_adapters::telemetry::relay_client::HeaderSource;
     use d2rmm_agent_adapters::telemetry::{self, ExportConfig, Mode};
     use d2rmm_agent_core::fill_name::FillPorts;
     use d2rmm_agent_core::groups::Groups;
     use d2rmm_agent_core::ports::{StateSink, TokenStore};
+    use d2rmm_agent_core::remote_config::{CHECK_EVERY, ConfigPorts};
     use d2rmm_agent_core::runtime::{Handle, Runtime};
     use d2rmm_agent_core::secret::Secret;
     use d2rmm_agent_core::view::AgentView;
@@ -525,15 +528,27 @@ mod shell {
                 let gateway = Arc::new(HttpGateway::new(ApiClient::new(
                     &version, &api_base, client,
                 )));
+                // The remote configuration (remote-config RCF-04, RCF-06): the agent's own API, the token it already holds and one
+                // small file of the last good body in the app's configuration directory.
+                let config_ports = ConfigPorts {
+                    gateway: Arc::clone(&gateway),
+                    tokens: Arc::new(KeyringTokenStore::new()),
+                    store: Arc::new(FileConfigStore::in_directory(
+                        app.path().app_config_dir().ok(),
+                    )),
+                    reader: Arc::new(WireReader),
+                };
                 let groups = build(app_handle, gateway);
                 let handle = Arc::new(tauri::async_runtime::block_on(async move {
                     // The three ports of assisted typing (FR-28): the one place the agent can send input, and only as
                     // Unicode characters of a game name (ADR 010, AST-06).
-                    Runtime::start(&core_config, sink, groups).with_typing(FillPorts {
-                        typer: Arc::new(SendTyper),
-                        focus: Arc::new(ForegroundGame),
-                        keys: Arc::new(HeldModifiers),
-                    })
+                    Runtime::start(&core_config, sink, groups)
+                        .with_typing(FillPorts {
+                            typer: Arc::new(SendTyper),
+                            focus: Arc::new(ForegroundGame),
+                            keys: Arc::new(HeldModifiers),
+                        })
+                        .with_config(config_ports, CHECK_EVERY)
                 }));
                 if let Some(saved) = hotkey_store(app.handle()).load() {
                     handle.set_hotkeys(saved);

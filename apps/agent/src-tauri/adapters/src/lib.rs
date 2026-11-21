@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 pub mod config;
+pub mod config_store;
 pub mod contracts;
 pub mod http;
 pub mod language;

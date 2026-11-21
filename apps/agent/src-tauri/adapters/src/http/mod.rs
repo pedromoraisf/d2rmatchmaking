@@ -9,3 +9,6 @@ pub mod health;
 pub mod sse;
 pub mod sse_stream;
 pub mod translate;
+
+#[cfg(test)]
+mod config_route_tests;

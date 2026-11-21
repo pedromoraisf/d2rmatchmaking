@@ -2,8 +2,19 @@
 //! domain's `Wire` (a closed set of typed fields) and the domain's `from_wire` clamps and decides. The body is never kept: a
 //! field the agent does not know is not carried, a field of the wrong type is `None`, and nothing in it is interpreted.
 
+use d2rmm_agent_core::ports::ConfigReader;
 use d2rmm_agent_domain::remote_config::{Wire, WireArea, WireWords, body_fits};
 use serde_json::Value;
+
+/// The reader the agent runs with: bytes to the closed set of fields (RCF-02).
+#[derive(Debug, Default, Clone, Copy)]
+pub struct WireReader;
+
+impl ConfigReader for WireReader {
+    fn read(&self, body: &[u8]) -> Option<Wire> {
+        wire_of(body)
+    }
+}
 
 /// What the agent read from a body: `None` when the body is over the size limit or is not a JSON object.
 pub fn wire_of(body: &[u8]) -> Option<Wire> {

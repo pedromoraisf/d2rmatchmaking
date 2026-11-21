@@ -83,7 +83,7 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
       `agent/adapters/src/contracts/generated.rs` and `schemas.rs` gain `AgentConfig`; a test that every `Defaults` field equals
       the value in the committed `agent-config.json` (read from the repository file) and in the constants it replaces. Gate:
       `pnpm contracts:check && CARGO nextest run -p d2rmm-agent-domain -p d2rmm-agent-adapters --lib`
-- [ ] T11 — The fetch loop (RCF-04, RCF-06). `agent/core/src/ports.rs` (`ConfigGateway`, `ConfigStore`), new `agent/core/src/remote_config.rs`
+- [x] T11 — The fetch loop (RCF-04, RCF-06). `agent/core/src/ports.rs` (`ConfigGateway`, `ConfigStore`), new `agent/core/src/remote_config.rs`
       (`run`: fetch at start and after pairing, every six hours, conditional request, backoff, apply through a `watch`
       channel, persist the last good body), the HTTP gateway call on the agent's API base only, and `agent/src/adapters/config_store.rs`
       (atomic write, read back through `from_wire`, a corrupted file deleted). Tests with fakes: applied, unchanged, invalid,

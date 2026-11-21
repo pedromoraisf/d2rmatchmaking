@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use d2rmm_agent_domain::fusion::fuse;
+use d2rmm_agent_domain::remote_config::Effective;
 use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::typing::HotkeyPair;
 use tokio::sync::{mpsc, watch};
@@ -15,9 +16,10 @@ use crate::fill_name::{self, FillControl, FillOutcome, FillPorts};
 use crate::groups::StreamPorts;
 use crate::groups::{Groups, ReadPorts};
 use crate::pair::{self, Command};
-use crate::ports::{ApiGateway, Rgba, StateSink, TokenStore};
+use crate::ports::{ApiGateway, ConfigGateway, Rgba, StateSink, TokenStore};
 use crate::post_observation;
 use crate::ready_check;
+use crate::remote_config::{self, ConfigFetch, ConfigPorts};
 use crate::{beat, check_update, follow_stream, read_frame, watch_screen};
 
 const COMMAND_BUFFER: usize = 8;
@@ -125,6 +127,28 @@ impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
             let modifiers = device.hotkeys().fill().modifiers;
             fill_name::press(&device, &typing.ports, &typing.control, modifiers).await
         }))
+    }
+
+    /// Starts the remote configuration loop (RCF-04): the last good body is applied at once, and the API is asked once the agent is
+    /// paired and then every `every`. Call it inside the runtime's context, as `with_typing`'s callers do.
+    #[must_use]
+    pub fn with_config<C: ConfigGateway + Send + Sync + 'static>(
+        self,
+        ports: ConfigPorts<C>,
+        every: std::time::Duration,
+    ) -> Self {
+        tokio::spawn(remote_config::run(Arc::clone(&self.device), ports, every));
+        self
+    }
+
+    /// The configuration the agent runs now (RCF-08): the built-in defaults until a fetch applies a newer one.
+    pub fn config(&self) -> Effective {
+        self.device.config.borrow().clone()
+    }
+
+    /// Every fetch of the configuration as it ends, with a count (RCF-08, RCF-11).
+    pub fn config_fetches(&self) -> watch::Receiver<ConfigFetch> {
+        self.device.config_fetch.subscribe()
     }
 
     /// The hotkeys the agent registers now (AST-01).
