@@ -311,6 +311,18 @@ export function createBot({
   }
 
   /**
+   * The assignment as the API holds it now. The roles in the `room.assigned` event are not reliable when it arrives (a CI run
+   * showed both members of a duel as `member` and the room waiting for a host forever), so the bot reads them again at the
+   * stages that depend on who hosts.
+   */
+  async function refreshAssignment() {
+    const held = await client.agent('/v1/agents/me/assignment', state.token);
+    if (held.status === 200 && held.body?.roomId === state.roomId && held.body?.run === state.run) {
+      assignment = held.body;
+    }
+  }
+
+  /**
    * What a stage asks of the bot. The host posts the game name once the room awaits it (`awaiting_host`): posted earlier, the
    * API would take it and not move the room, and the same key could not be sent again. A member posts once the game is created.
    */
@@ -319,6 +331,7 @@ export function createBot({
     state.stage = stage;
     state.stages.push(stage);
     say('bot.stage', { stage });
+    if (stage === 'awaiting_host' || stage === 'created') await refreshAssignment();
     if (stage === 'awaiting_host' && isHost() && plan.hostPolicy === 'bot-reports') await observe(assignment);
     if (stage === 'created' && !isHost()) await observe(assignment);
     if (ENDED_STAGES.has(stage)) {

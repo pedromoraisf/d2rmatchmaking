@@ -13,6 +13,8 @@ export function createFakeApi({
   closeRoom = true,
   strictJoin = false,
   readyCheckOpen = false,
+  staleRoles = false,
+  assignmentHeld = true,
   streamDelayMs = 0,
 } = {}) {
   const calls = [];
@@ -59,7 +61,7 @@ export function createFakeApi({
                 roomId: 'room-1',
                 run: 1,
                 expectedGameName: 'mmpvph-1',
-                members: [{ accountId: me, role: host ? 'host' : 'member', joinOrder: 1 }],
+                members: [{ accountId: me, role: host && !staleRoles ? 'host' : 'member', joinOrder: 1 }],
               });
               if (closeRoom) send('room.stage_changed', { roomId: 'room-1', stage: 'closed' });
             };
@@ -135,6 +137,15 @@ export function createFakeApi({
     }
     if (key === 'GET /v1/ready-checks/me')
       return readyCheckOpen ? json(200, { id: 'rc-1', members: [] }) : json(204);
+    if (key === 'GET /v1/agents/me/assignment' && roomScript && assignmentHeld && state.assigned) {
+      // What the API holds now: the host's role is right here even when the event named nobody host.
+      return json(200, {
+        roomId: 'room-1',
+        run: 1,
+        expectedGameName: 'mmpvph-1',
+        members: [{ accountId: state.lastAccountId, role: host ? 'host' : 'member', joinOrder: 1 }],
+      });
+    }
     if (key === 'GET /v1/agents/me/assignment' || key === 'GET /v1/me/room')
       return json(404, { error: 'not-found' });
     if (key === 'POST /v1/queue/tickets') {
@@ -150,7 +161,11 @@ export function createFakeApi({
       if (!String(headers.Authorization ?? '').startsWith('Bearer ')) state.siteStreams += 1;
       return stream(url, init);
     }
-    if (key === 'POST /v1/ready-checks/rc-1/accept') return json(204);
+    if (key === 'POST /v1/ready-checks/rc-1/accept') {
+      // The API holds an assignment only once the group has accepted.
+      state.assigned = true;
+      return json(204);
+    }
     if (key === 'POST /v1/lobby-rooms/room-1/observations') return json(202, {});
     if (key === 'POST /v1/lobby-rooms/room-1/leave') return json(204);
     if (method === 'DELETE' && pathname.startsWith('/v1/queue/tickets/')) return json(204);

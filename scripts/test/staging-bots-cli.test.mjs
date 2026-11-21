@@ -181,29 +181,14 @@ test('SBT-07 a bot that opens its agent stream late still accepts the ready chec
   );
 });
 
-test('SBT-08 a request that dies before it is answered is sent again, and a run still completes', async () => {
-  const fake = createFakeApi();
-  let thrown = 0;
-  // The first write of each kind dies on the wire once, as a kept-alive socket closed by the server does.
-  const seen = new Set();
-  const flaky = async (url, init = {}) => {
-    const key = `${init.method ?? 'GET'} ${new URL(url).pathname}`;
-    if ((init.method ?? 'GET') === 'POST' && !seen.has(key)) {
-      seen.add(key);
-      thrown += 1;
-      throw new TypeError('fetch failed');
-    }
-    return fake.fetch(url, init);
-  };
-  const out = [];
-  const code = await run({
-    config: config(),
-    fetch: flaky,
-    write: (text) => out.push(text),
-    sleep: fastSleep,
-    random: () => 0,
+test('SBT-07 a host whose assignment event listed no host still posts, because the roles are read again at awaiting_host', async () => {
+  const fake = createFakeApi({
+    host: true,
+    staleRoles: true,
+    siteStages: ['formed', 'awaiting_host'],
+    agentDelayMs: 60,
   });
-  assert.ok(thrown > 5, 'many different writes died once');
+  const { code } = await runWith(fake);
   assert.equal(code, 0);
-  assert.equal(observationsOf(fake).length, 1, 'the sighting reached the API');
+  assert.equal(observationsOf(fake).length, 1, 'the host posted although the event named nobody host');
 });

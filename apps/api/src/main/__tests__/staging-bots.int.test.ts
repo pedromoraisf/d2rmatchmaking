@@ -96,6 +96,7 @@ const quiet = (): { line: (event: string, fields?: object) => void; secret: () =
 
 /** The human of the test: the same account kind and agent a player has, queued first (the maintainer's side). */
 async function human(
+  name: string,
   inputs: Record<string, string>,
   queueOverride: Record<string, unknown> = {},
 ): Promise<Bot> {
@@ -111,7 +112,7 @@ async function human(
   });
   const bots = (member as unknown as { bots: Array<Record<string, unknown>> }).bots;
   const alice = scripts.createBot({
-    member: { ...bots[0], name: 'alice-test' },
+    member: { ...bots[0], name },
     plan: botPlan,
     client,
     base,
@@ -145,12 +146,12 @@ async function roomIsClosedBy(alice: Bot): Promise<void> {
   expect(closed.status).toBe(204);
 }
 
-function configFor(inputs: Record<string, string>): Record<string, unknown> {
+function configFor(inputs: Record<string, string>, runId: string): Record<string, unknown> {
   return {
     apiUrl: base,
     siteOrigin: SITE_ORIGIN,
     environment: undefined,
-    runId: '7777',
+    runId,
     inputs: { ...inputs, minutes: '2' },
   };
 }
@@ -168,9 +169,10 @@ async function agentsLeft(): Promise<number> {
 describe('the staging bots fill a group on the real app', () => {
   it('a duel: one bot and one player form a group, accept, confirm, and the bot leaves when the room closes (SBT-05, SBT-06, SBT-07, SBT-10)', async () => {
     const inputs = { mode: 'pvp', difficulty: 'hell', ladder: 'ladder', era: 'rotw' };
-    const alice = await human(inputs);
+    // Each test has its own accounts: a bot or a player left in a room by the other test is never reused.
+    const alice = await human('alice-duel', inputs);
     const finished = scripts.run({
-      config: configFor(inputs),
+      config: configFor(inputs, '7701'),
       fetch,
       write: remember,
       random: () => 0,
@@ -189,9 +191,9 @@ describe('the staging bots fill a group on the real app', () => {
   it('Leveling: seven bots and one player form a group of eight, and every bot leaves (SBT-06, SBT-10)', async () => {
     const inputs = { mode: 'leveling', difficulty: 'hell', ladder: 'ladder', era: 'rotw', activity: 'baal' };
     // The player is the teleporter, so the match names them host and the bots (killers) never host.
-    const alice = await human(inputs, { role: 'teleporter' });
+    const alice = await human('alice-lvl', inputs, { role: 'teleporter' });
     const finished = scripts.run({
-      config: configFor(inputs),
+      config: configFor(inputs, '7702'),
       fetch,
       write: remember,
       random: () => 0,
