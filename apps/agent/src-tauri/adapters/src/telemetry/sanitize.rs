@@ -37,7 +37,10 @@ pub const VISION_VALUES: [(&str, &[&str]); 5] = [
         "vision.screen",
         &["in_game", "automap", "character_select", "unknown"],
     ),
-    ("vision.search", &["track", "band", "fixed", "none"]),
+    (
+        "vision.search",
+        &["track", "band", "fixed", "none", "rested", "lifted"],
+    ),
     ("vision.area_class", &["box", "band", "panel"]),
     // The capture cascade's span (capture-cascade CAP-08): the method and what the capture gave, never a size or a title.
     (
@@ -206,6 +209,28 @@ mod tests {
             .iter()
             .map(|attribute| attribute.key.as_str().to_string())
             .collect()
+    }
+
+    #[test]
+    fn the_search_words_of_a_rested_or_lifted_frame_are_kept_and_others_dropped() {
+        for word in ["track", "band", "fixed", "none", "rested", "lifted"] {
+            let kept = sanitize_span(span(
+                "agent.vision.read",
+                vec![KeyValue::new("vision.search", word)],
+                Status::Unset,
+            ))
+            .expect("an agent span is kept");
+            assert_eq!(keys(&kept), ["vision.search"], "{word}");
+        }
+        for word in ["searched", "tracked", "Rested", "lifted "] {
+            let dropped = sanitize_span(span(
+                "agent.vision.read",
+                vec![KeyValue::new("vision.search", word)],
+                Status::Unset,
+            ))
+            .expect("an agent span is kept");
+            assert!(keys(&dropped).is_empty(), "{word}");
+        }
     }
 
     #[test]

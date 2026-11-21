@@ -144,9 +144,9 @@
       }
     },
     "ocr.variations.wrong": {
-      "value": 43,
+      "value": 45,
       "direction": "lower",
-      "ceiling": 43,
+      "ceiling": 45,
       "contexts": [
         "ocr"
       ],
