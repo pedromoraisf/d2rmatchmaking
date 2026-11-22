@@ -119,6 +119,9 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
       reads, about 3 per 10 of the 173, with the 1 wrong still possible unless every name and level field is unanimous (4 of 42,
       so a gain of a handful). That is not worth a new `ScreenRegion`, a frame copy and a second column read in a reading
       module, so nothing is changed and the box stays open. The class that remains is `title-unread` on a dimmed title line.
+      Part 3 attempt 3 (batch 9): the reason classes of PR #154's run grouped by cause, with the refusing rule of each, in
+      [`t9-analysis.md`](t9-analysis.md); pins for them in `character_screen.rs`. No class shows a rule that refuses a
+      readable card, so no reading-module line changes; the box stays open.
 - [x] T10 — **[R14]** Unrecognised selection screens (item f, SCR-05). Same loop as T9 for the 104 screens read as
       `Unknown`: classes of reason first, then the smallest change per class (the list marker searched by its word in a
       wider area, as the HUD is). A frame that is not the selection screen must still read `Unknown` (the drawn
