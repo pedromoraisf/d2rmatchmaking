@@ -1984,6 +1984,112 @@ mod hud_tests {
             ["automap", "track", "box"]
         );
     }
+
+    // NFR-03: the in-game HUD and the automap at client sizes other than 1920×1080 (tests only; they pin today's reading).
+
+    const FULL_SIZES: [(u32, u32); 8] = [
+        (1280, 720),
+        (1366, 768),
+        (1600, 900),
+        (1920, 1080),
+        (2560, 1440),
+        (3840, 2160),
+        (1920, 1200),
+        (2560, 1600),
+    ];
+    const WINDOWED_SIZES: [(u32, u32); 8] = [
+        (1280, 689),
+        (1366, 735),
+        (1600, 861),
+        (1920, 1033),
+        (2560, 1378),
+        (3840, 2067),
+        (1920, 1148),
+        (2560, 1531),
+    ];
+    const UNSUPPORTED_SIZES: [(u32, u32); 4] =
+        [(2560, 1080), (3440, 1440), (1280, 1024), (1024, 768)];
+
+    /// A line of the measured print (`print_x`, `print_y`, 1920 wide, `print_height` tall) as a client of `width`×`height`
+    /// draws it: scaled with the height; the HUD (`centred`) keeps its offset from the centre line, the top-right text its
+    /// distance from the right edge. The rule is the layout's (linear in the height); no real print of another size exists.
+    fn scaled_line(
+        text: &str,
+        print: (u32, u32, u32),
+        size: (u32, u32),
+        centred: bool,
+        box_size: (u32, u32),
+    ) -> TextLine {
+        let (print_x, print_y, print_height) = print;
+        let (width, height) = size;
+        let scale = f64::from(height) / f64::from(print_height);
+        let x = if centred {
+            f64::from(width) / 2.0 + (f64::from(print_x) - 960.0) * scale
+        } else {
+            f64::from(width) - (1920.0 - f64::from(print_x)) * scale
+        };
+        TextLine {
+            text: text.to_string(),
+            region: Region {
+                x: x.round() as u32,
+                y: (f64::from(print_y) * scale).round() as u32,
+                width: (f64::from(box_size.0) * scale).round() as u32,
+                height: (f64::from(box_size.1) * scale).round() as u32,
+            },
+        }
+    }
+
+    /// The life label and the automap's difficulty line of a client: full screen from the 1920×1080 prints, windowed from the
+    /// 1920×1056 ones.
+    fn hud_of(width: u32, height: u32, windowed: bool) -> (TextLine, TextLine) {
+        let (life_at, print_height) = if windowed {
+            ((400, 846), 1056)
+        } else {
+            ((436, 880), 1080)
+        };
+        (
+            scaled_line(
+                "Life: 925 / 925",
+                (life_at.0, life_at.1, print_height),
+                (width, height),
+                true,
+                (160, 22),
+            ),
+            scaled_line(
+                "Difficulty: Hell",
+                (1600, 120, print_height),
+                (width, height),
+                false,
+                (150, 18),
+            ),
+        )
+    }
+
+    #[test]
+    fn the_hud_and_the_automap_read_at_every_supported_size_full_screen_or_windowed() {
+        for (windowed, sizes) in [(false, FULL_SIZES), (true, WINDOWED_SIZES)] {
+            for (width, height) in sizes {
+                let at = format!("{width}×{height} windowed={windowed}");
+                let (life, difficulty) = hud_of(width, height, windowed);
+                let in_game = reader(&Hud::new(vec![life.clone()])).read(&frame(width, height));
+                assert_eq!(in_game.screen, Screen::InGame, "{at}");
+                assert!(in_game.cards.is_empty(), "{at}");
+                let automap = reader(&Hud::new(vec![life, difficulty])).read(&frame(width, height));
+                assert_eq!(automap.screen, Screen::AutomapOpen, "{at}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_hud_and_the_automap_of_an_unsupported_size_read_unknown_and_ask_the_engine_nothing() {
+        for (width, height) in UNSUPPORTED_SIZES {
+            let (life, difficulty) = hud_of(width, height.min(1080), false);
+            let hud = Hud::new(vec![life, difficulty]);
+            let reading = reader(&hud).read(&frame(width, height));
+            assert_eq!(reading.screen, Screen::Unknown, "{width}×{height}");
+            assert!(hud.take_asked().is_empty(), "{width}×{height}");
+        }
+    }
 }
 
 /// A popup over a list the game dims (screen-recognition T9): the cards behind it are as readable as their pixels are bright.
