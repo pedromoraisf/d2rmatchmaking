@@ -14,7 +14,6 @@ pub mod elsewhere;
 #[cfg(test)]
 mod event_probe;
 pub mod fakes;
-pub mod fill_name;
 pub mod follow_stream;
 pub mod groups;
 pub mod hub;
