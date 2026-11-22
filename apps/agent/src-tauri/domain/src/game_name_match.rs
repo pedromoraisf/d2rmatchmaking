@@ -962,6 +962,17 @@ mod tests {
         }
     }
 
+    /// A free-form name with no dash but a bullet (#133's review): the bullet is made a dash first, so the name is split
+    /// there like a generated one. The tail goes through the digit look-alikes (`o` is `0`, `i` is `1`), the head through the
+    /// letter rules (`b` is `o`, `k` is `h`). Pinned as it is today; not a promise that such a name is a good one.
+    #[test]
+    fn a_dashless_free_form_name_with_a_bullet_is_split_at_the_bullet() {
+        assert_eq!(normalise("my\u{2022}party room"), "my-party r00m");
+        assert_eq!(normalise("rank\u{2022}king 2"), "ranh-k1ng 2");
+        assert_eq!(normalise("big\u{2022}boss"), "oig-b0ss");
+        assert_eq!(normalise("\u{2022}"), "-");
+    }
+
     /// A bullet read for the `-` of a generated name is the dash (game-name-reading T10): `sub(U+2022>-)` is on three variations
     /// of two prints. A name with no `-` and no bullet is untouched, and a bullet in the number is no digit.
     #[test]
