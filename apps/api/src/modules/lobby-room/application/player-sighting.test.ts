@@ -325,3 +325,22 @@ describe('the member names are read in one query (security review of #101)', () 
     expect(characters.nameLookups).toEqual([2, 2]);
   });
 });
+
+describe('a sighting that names two members (SNM-02)', () => {
+  it('stores nothing and says on the span that the name was ambiguous', async () => {
+    const { useCases, observations, characters } = await setup();
+    characters.add('account-2', 'char-2', 'paladin', 90, 'Sorc');
+    exporter.reset();
+
+    const result = await useCases.recordObservation({
+      agentId: 'agent-1',
+      roomId: 'room-1',
+      body: sighting('Sorc'),
+    });
+
+    expect(result).toEqual({ ok: true, value: { stored: true } });
+    expect(observations.stored).toEqual([]);
+    const span = exporter.getFinishedSpans().find((finished) => finished.name === 'lobby.record-observation');
+    expect(span?.attributes['d2r.observation.match']).toBe('ambiguous');
+  });
+});
