@@ -25,9 +25,9 @@ export interface Config {
   readonly siteOrigin: string;
   /** `ENABLE_STAGING_ENDPOINTS`, default false. */
   readonly stagingEndpoints: boolean;
-  /** `D2RMM_ENV`, default `local`. */
+  /** `D2RMM_ENV`, default `local` (test controls, cookies and CORS keep reading it; the tier below does not follow it). */
   readonly environment: DeployEnvironment;
-  /** The detail tier of `D2RMM_ENV` (OBT-01): read here, in `main/`, and nowhere else. */
+  /** The detail tier of `D2RMM_ENV` (OBT-01, OBT-18): read here, in `main/`, and nowhere else. `production` when it is unset or empty. */
   readonly telemetryTier: TelemetryTier;
   /** `AGENT_MIN_VERSION`, default `0.0.0`. */
   readonly agentMinVersion: string;
@@ -211,7 +211,10 @@ function samplerArgOf(raw: string | undefined): string {
 
 /** Reads the settings from the environment. Invalid values throw; absent values take their defaults. */
 export function loadConfig(env: Environment = process.env): Config {
-  const rawEnvironment = env['D2RMM_ENV'] ?? 'local';
+  const declaredEnvironment = env['D2RMM_ENV'];
+  const environmentSet = declaredEnvironment !== undefined && declaredEnvironment !== '';
+  // The environment keeps its `local` default; only the telemetry tier fails closed when `D2RMM_ENV` is not set (OBT-18).
+  const rawEnvironment = environmentSet ? declaredEnvironment : 'local';
   if (!ENVIRONMENTS.has(rawEnvironment)) {
     throw new Error('D2RMM_ENV must be local, staging or production');
   }
@@ -230,7 +233,7 @@ export function loadConfig(env: Environment = process.env): Config {
     siteOrigin: env['SITE_ORIGIN'] ?? 'http://localhost:8788',
     stagingEndpoints: flag('ENABLE_STAGING_ENDPOINTS', env['ENABLE_STAGING_ENDPOINTS']),
     environment: rawEnvironment as DeployEnvironment,
-    telemetryTier: tierOfEnvironment(rawEnvironment),
+    telemetryTier: environmentSet ? tierOfEnvironment(rawEnvironment) : 'production',
     agentMinVersion,
     trustProxyHops: integer('TRUST_PROXY_HOPS', env['TRUST_PROXY_HOPS'], 1, 0),
     roomDropToleranceSeconds: integer(

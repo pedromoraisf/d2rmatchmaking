@@ -37,7 +37,9 @@ in either tier. The **production** tier keeps the rule above whole.
 Two tiers, one value per app: **full** (staging, previews, local) and **production**. The tier comes from the environment
 the app runs in (API: `D2RMM_ENV`; site: the boot configuration's `telemetryTier`; agent: the compile-time channel, where
 `preview` and `staging` are full and `production`, none and any unknown value are production). An unknown input is always
-production. Every span says which tier it was made in: the resource attribute `d2r.telemetry.tier` is `full` or
+production, and so is a missing one: an API started without `D2RMM_ENV` (unset or empty) is in the production tier, so a
+forgotten variable never exports names (OBT-18); `D2RMM_ENV` itself still defaults to `local` for test controls, cookies
+and CORS, only the tier fails closed. A developer who wants full detail runs `local.ts` with `D2RMM_ENV=local`. Every span says which tier it was made in: the resource attribute `d2r.telemetry.tier` is `full` or
 `production`, so `{ resource.d2r.telemetry.tier = "full" }` selects staging in TraceQL.
 
 In every tier, credentials never leave (tokens, cookies, pairing codes, authorization headers, IP addresses, user agents,

@@ -72,6 +72,10 @@ What exists today:
 - **OBT-11** — Credentials SHALL never be exported in any tier: tokens, cookies, pairing codes, authorization headers,
   IP addresses, user agents, pixels and crops stay redacted as today (OBS-28, OBS-29, AD-107).
 
+- **OBT-18** — WHEN the API's `D2RMM_ENV` is unset or empty THEN it SHALL run in the production tier (fail closed), and
+  only the full tier of `staging` and `local` set explicitly SHALL carry names; the environment value keeps its `local`
+  default for every other behaviour (ADR 037, security review of #148).
+
 ### Using it
 
 - **OBT-12** — WHEN the site runs in the full tier THEN it SHALL show a notice on every page that everything done on
@@ -98,7 +102,7 @@ What exists today:
 
 ## Sources
 
-- ADR 037 (accepted 2026-11-21), brief Revision 2 (approved 2026-11-21): OBT-01 to OBT-13.
+- ADR 037 (accepted 2026-11-21), brief Revision 2 (approved 2026-11-21): OBT-01 to OBT-13, OBT-18.
 - NFR-09 (OpenTelemetry in the three apps): OBT-02, OBT-03, OBT-05, OBT-07.
 - NFR-04 (privacy) as amended for telemetry by ADR 037: OBT-06, OBT-08, OBT-09, OBT-10.
 - ADR 032 (config from the environment, read in `main/`), ADR 033 (build once, promote): OBT-01.
@@ -127,6 +131,7 @@ What exists today:
 | OBT-15         | Default, persist      | Rust unit tests on the settings store (default on, read back, existing unreadable → off, failed write keeps the choice)                                                                                                          |
 | OBT-16         | Zero export           | Rust unit tests: switch off → the exporter is never called, spans never queued; live toggle                                                                                                                                      |
 | OBT-17         | Matchmaking untouched | `diagnosticsSwitchViolations` in `scripts/test/agent-source-rules.test.mjs` ("the diagnostics switch is read only by the span processor and the export loop (OBT-17)") with the `diagnostics-switch-leak` fixture it must reject |
+| OBT-18         | Fail closed           | API unit test on `loadConfig` (unset, empty, `local`, `staging`, unknown)                                                                                                                                                        |
 
 ## Decisions (conservative defaults)
 
