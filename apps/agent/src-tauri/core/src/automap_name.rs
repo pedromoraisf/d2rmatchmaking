@@ -536,4 +536,87 @@ mod tests {
         }
         assert_eq!(seen, expected);
     }
+
+    // NFR-03: the automap's name line at client sizes other than 1920×1080 (tests only; they pin today's reading).
+
+    const FULL_SIZES: [(u32, u32); 8] = [
+        (1280, 720),
+        (1366, 768),
+        (1600, 900),
+        (1920, 1080),
+        (2560, 1440),
+        (3840, 2160),
+        (1920, 1200),
+        (2560, 1600),
+    ];
+    const WINDOWED_SIZES: [(u32, u32); 8] = [
+        (1280, 689),
+        (1366, 735),
+        (1600, 861),
+        (1920, 1033),
+        (2560, 1378),
+        (3840, 2067),
+        (1920, 1148),
+        (2560, 1531),
+    ];
+    const UNSUPPORTED_SIZES: [(u32, u32); 4] =
+        [(2560, 1080), (3440, 1440), (1280, 1024), (1024, 768)];
+
+    /// The name line of the 1920×1033 print (x 1735, y 34, 155×13) as a client of `width`×`height` draws it: scaled with the
+    /// height, at the same distance from the right edge. The rule is the layout's (linear in the height); no real print of
+    /// another size exists to check it.
+    fn show_scaled(column: &Column, text: &str, width: u32, height: u32) {
+        let scale = f64::from(height) / 1033.0;
+        let right = (f64::from(1920 - 1735 - 155) * scale).round() as u32;
+        let line_width = (155.0 * scale).round() as u32;
+        show_at(
+            column,
+            text,
+            width - right - line_width,
+            (34.0 * scale).round() as u32,
+        );
+        column.lines.lock().expect("the column lock")[0]
+            .region
+            .width = line_width;
+        column.lines.lock().expect("the column lock")[0]
+            .region
+            .height = (13.0 * scale).round() as u32;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_expected_name_posts_once_at_every_supported_size_and_another_name_never() {
+        for (width, height) in FULL_SIZES.into_iter().chain(WINDOWED_SIZES) {
+            let rig = rig();
+            held(&rig, "mmcowsh-1");
+            rig.gateway.script_post_observation([Ok(())]);
+            show_scaled(&rig.column, "Game: mmcowsh-2", width, height);
+            look(&rig.device, &rig.ports, Arc::new(frame(width, height))).await;
+            assert!(
+                posts(&rig.gateway).is_empty(),
+                "{width}×{height}: another name"
+            );
+
+            show_scaled(&rig.column, "Game: mmcowsh-1", width, height);
+            look(&rig.device, &rig.ports, Arc::new(frame(width, height))).await;
+            let posted = posts(&rig.gateway);
+            assert_eq!(posted.len(), 1, "{width}×{height}");
+            assert_eq!(posted[0].game_name, "mmcowsh-1", "{width}×{height}");
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_21_9_5_4_and_4_3_sizes_read_no_automap_name() {
+        for (width, height) in UNSUPPORTED_SIZES {
+            let rig = rig();
+            held(&rig, "mmcowsh-1");
+            show_scaled(&rig.column, "Game: mmcowsh-1", width, height.min(1080));
+            look(&rig.device, &rig.ports, Arc::new(frame(width, height))).await;
+            assert_eq!(
+                rig.column.reads.load(Ordering::SeqCst),
+                0,
+                "{width}×{height}"
+            );
+            assert!(posts(&rig.gateway).is_empty(), "{width}×{height}");
+        }
+    }
 }
