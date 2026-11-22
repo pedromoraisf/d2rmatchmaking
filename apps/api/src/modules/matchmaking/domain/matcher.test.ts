@@ -638,3 +638,58 @@ describe('snakeTeams: ordering and the draft pattern (QUE-12)', () => {
     ]);
   });
 });
+
+describe('formGroups: the seed reaches both edges of its band when it fills a larger group (QUE-08, QUE-11)', () => {
+  const fresh = (id: string, rating: number, seconds: number) =>
+    pvp({ id, rating, format: '2v2', joinedAt: ago(seconds) });
+
+  it('takes the second-oldest ticket rated exactly at the low edge of the seed band into the group', () => {
+    const pool = [
+      fresh('seed', 1500, 9),
+      fresh('edge', 1450, 8),
+      fresh('b', 1500, 7),
+      fresh('c', 1500, 6),
+      fresh('d', 1500, 5),
+    ];
+
+    const result = formGroups(pool, NOW);
+
+    expect(idsOf(result.groups[0]?.members ?? [])).toStrictEqual(['seed', 'edge', 'b', 'c']);
+    expect(idsOf(result.remaining)).toStrictEqual(['d']);
+  });
+
+  it('takes the second-oldest ticket rated exactly at the high edge of the seed band into the group', () => {
+    const pool = [
+      fresh('seed', 1500, 9),
+      fresh('edge', 1550, 8),
+      fresh('b', 1500, 7),
+      fresh('c', 1500, 6),
+      fresh('d', 1500, 5),
+    ];
+
+    const result = formGroups(pool, NOW);
+
+    expect(idsOf(result.groups[0]?.members ?? [])).toStrictEqual(['seed', 'edge', 'b', 'c']);
+    expect(idsOf(result.remaining)).toStrictEqual(['d']);
+  });
+});
+
+describe('formGroups: a leveling group lists its members in join order (QUE-12)', () => {
+  it('lists the teleporter and the BO where they joined, not where the matcher picked them', () => {
+    const pool = [
+      leveling({ id: 'k1', joinedAt: ago(9) }),
+      leveling({ id: 'k2', joinedAt: ago(8) }),
+      leveling({ id: 'k3', joinedAt: ago(7) }),
+      leveling({ id: 'k4', joinedAt: ago(6) }),
+      leveling({ id: 'k5', joinedAt: ago(5) }),
+      leveling({ id: 'k6', joinedAt: ago(4) }),
+      leveling({ id: 'tp', role: 'teleporter', joinedAt: ago(2) }),
+      leveling({ id: 'bo', role: 'bo', joinedAt: ago(1) }),
+    ];
+
+    const group = formGroups(pool, NOW).groups[0];
+
+    expect(idsOf(group?.members ?? [])).toStrictEqual(['k1', 'k2', 'k3', 'k4', 'k5', 'k6', 'tp', 'bo']);
+    expect(group?.hostTicketId).toBe('tp');
+  });
+});
