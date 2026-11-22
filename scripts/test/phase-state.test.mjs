@@ -149,3 +149,25 @@ test('the phase waits for approval, runs, then asks for the review and the merge
     'closed',
   );
 });
+
+test('a closed phase stays closed: no discovered spec or old open box reopens it (F1 shape)', () => {
+  const approved = '**Approved**: 2026-12-01 - user: "ok"';
+  const st = derivePhaseState({
+    phase: 'F1',
+    brief: brief(),
+    review: approved,
+    mergedToMain: true,
+    specRows: [{ feature: 'late', size: 'Medium', dependsOn: [] }],
+    file: (f, n) => (n === 'tasks.md' ? '- [x] T1 — a\n- [ ] T2 — old open box' : null),
+    merged: () => true,
+  });
+  assert.equal(st.next, 'closed');
+  assert.deepEqual(st.runnable, []);
+  assert.deepEqual(
+    st.features.map((f) => [f.feature, f.next]),
+    [
+      ['alpha', 'done'],
+      ['beta', 'done'],
+    ],
+  );
+});
