@@ -11,6 +11,7 @@ pub mod chat;
 pub mod frame_content;
 pub mod fusion;
 pub mod game_name_match;
+pub mod hotkey;
 pub mod hud_track;
 pub mod language;
 pub mod layout;
@@ -26,7 +27,6 @@ pub mod reconnect;
 pub mod remote_config;
 pub mod room_assignment;
 pub mod timings;
-pub mod typing;
 pub mod vision;
 pub mod vocabulary;
 

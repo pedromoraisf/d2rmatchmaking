@@ -8,22 +8,21 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use chrono::{DateTime, Utc};
 use d2rmm_agent_domain::chat::ChatTracker;
+use d2rmm_agent_domain::hotkey::HotkeyChoice;
 use d2rmm_agent_domain::paired_device::{DeviceEffect, PairedDevice};
 use d2rmm_agent_domain::post_bucket::PostBucket;
 use d2rmm_agent_domain::remote_config::Effective;
 use d2rmm_agent_domain::room_assignment::{Assignment, RoomAssignment};
-use d2rmm_agent_domain::typing::HotkeyPair;
 use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
 use crate::elsewhere::Watch;
-use crate::fill_name::FillOutcome;
 use crate::hub::Hub;
 use crate::messages::{CaptureReport, ReadyCheckOpen, Screen};
 use crate::party::PartyProgress;
 use crate::ports::{ApiError, StateSink, TokenStore};
 use crate::remote_config::ConfigFetch;
-use crate::view::{HotkeyFailure, HotkeyPress, HotkeySlot, PairingView, RoomView, UpdateView};
+use crate::view::{HotkeyFailure, HotkeyPress, PairingView, RoomView, UpdateView};
 
 /// How many chat sightings the agent posts in a minute (server-name-match).
 const CHAT_POSTS_PER_MINUTE: usize = 20;
@@ -64,13 +63,11 @@ pub struct DeviceState {
     confirmed_run: Mutex<Option<(String, NonZeroU64)>>,
     /// Whether the Party panel showed another game's name on two looks in a row for the held run (ARL-08). Counts and flags only.
     elsewhere: Mutex<Watch>,
-    /// The last screen the agent recognised, kept while later frames read as unknown, for assisted typing (AST-04).
-    last_known_screen: Mutex<Option<Screen>>,
     /// `true` from the look that finds the screen out of the game until a look finds it in the game again: the Party look
     /// kept for the run describes the game, so the window stops showing it meanwhile.
     party_look_left_behind: AtomicBool,
-    /// The two hotkeys the agent registers (AST-01); the app sets them from its local file at start.
-    hotkeys: Mutex<HotkeyPair>,
+    /// The accept hotkey the agent registers (RDY-07, AST-01); the app sets it from its local file at start.
+    hotkey: Mutex<HotkeyChoice>,
 }
 
 /// A held ready check and the monotonic instant its time runs out: the time left came from the server (RDY-11).
@@ -101,9 +98,8 @@ impl DeviceState {
             ready_check: Mutex::new(None),
             confirmed_run: Mutex::new(None),
             elsewhere: Mutex::new(Watch::default()),
-            last_known_screen: Mutex::new(None),
             party_look_left_behind: AtomicBool::new(false),
-            hotkeys: Mutex::new(HotkeyPair::defaults()),
+            hotkey: Mutex::new(HotkeyChoice::default_accept()),
         }
     }
 
@@ -180,9 +176,6 @@ impl DeviceState {
 
     /// Records the screen the last frame showed. Only a change wakes the heartbeat (CHR-05).
     pub fn set_screen(&self, screen: Screen) {
-        if screen != Screen::Unknown {
-            *lock(&self.last_known_screen) = Some(screen);
-        }
         if matches!(screen, Screen::InGame | Screen::AutomapOpen) {
             self.party_look_left_behind.store(false, Ordering::SeqCst);
         } else if matches!(*self.screen.borrow(), Screen::InGame | Screen::AutomapOpen) {
@@ -204,35 +197,24 @@ impl DeviceState {
         !self.party_look_left_behind.load(Ordering::SeqCst)
     }
 
-    /// The last screen the agent recognised, or `None` when it never recognised one. An unknown frame does not clear it: the
-    /// agent cannot tell a game it fails to read from a menu, so it remembers what it last knew (AST-04).
-    pub fn last_known_screen(&self) -> Option<Screen> {
-        *lock(&self.last_known_screen)
+    /// The accept hotkey the agent registers now.
+    pub fn hotkey(&self) -> HotkeyChoice {
+        *lock(&self.hotkey)
     }
 
-    /// The hotkeys the agent registers now.
-    pub fn hotkeys(&self) -> HotkeyPair {
-        *lock(&self.hotkeys)
+    /// Holds the accept hotkey and shows it in the window (AST-01).
+    pub fn set_hotkey(&self, choice: HotkeyChoice) {
+        *lock(&self.hotkey) = choice;
+        self.hub.set_hotkey(&choice);
     }
 
-    /// Holds the hotkeys and shows them in the window (AST-01).
-    pub fn set_hotkeys(&self, pair: HotkeyPair) {
-        *lock(&self.hotkeys) = pair;
-        self.hub.set_hotkeys(&pair);
-    }
-
-    /// Shows why the OS refused a hotkey the agent wants, or (`None`) that it holds it now (AST-01, AST-08). A refusal is one
-    /// span event with the slot and a fixed reason word, never the OS error text (AGS-09); a retry that fails the same way
-    /// records nothing more.
-    pub fn set_hotkey_unavailable(&self, slot: HotkeySlot, reason: Option<HotkeyFailure>) {
-        if self.hub.set_hotkey_unavailable(slot, reason)
+    /// Shows why the OS refused the hotkey the agent wants, or (`None`) that it holds it now (RDY-07). A refusal is one span
+    /// event with a fixed reason word, never the OS error text (AGS-09); a retry that fails the same way records nothing more.
+    pub fn set_hotkey_unavailable(&self, reason: Option<HotkeyFailure>) {
+        if self.hub.set_hotkey_unavailable(reason)
             && let Some(reason) = reason
         {
-            tracing::warn!(
-                slot = slot.as_str(),
-                reason = reason.as_str(),
-                "hotkey.unavailable"
-            );
+            tracing::warn!(reason = reason.as_str(), "hotkey.unavailable");
         }
     }
 
@@ -243,13 +225,6 @@ impl DeviceState {
             tracing::info!("hotkey.unmatched");
         }
         self.hub.set_last_press(press);
-    }
-
-    /// Shows what a fill did and keeps it until the next one (AST-08). Records it as one span event with the outcome code
-    /// and nothing else: no name, no text, no key (AST-10).
-    pub fn record_fill(&self, outcome: FillOutcome) {
-        tracing::info!(outcome = outcome.as_str(), "agent.fill");
-        self.hub.set_last_fill(outcome);
     }
 
     /// Whether a token is held.
@@ -489,7 +464,7 @@ mod tests {
     use crate::fakes::{MemoryTokens, NullSink};
     use crate::ports::{ApiError, TokenStore};
     use crate::secret::Secret;
-    use crate::view::{HotkeyFailure, HotkeyPress, HotkeySlot, PairingView, RoomView, UpdateView};
+    use crate::view::{HotkeyFailure, HotkeyPress, PairingView, RoomView, UpdateView};
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
 
@@ -558,25 +533,25 @@ mod tests {
     }
 
     #[test]
-    fn a_refused_hotkey_is_one_event_with_the_slot_and_a_retry_that_fails_again_adds_none() {
+    fn a_refused_hotkey_is_one_event_with_its_reason_and_a_retry_that_fails_again_adds_none() {
         let (device, _tokens) = paired();
         let events = Arc::new(Events::default());
         let guard = tracing::subscriber::set_default(Arc::clone(&events));
         tracing::callsite::rebuild_interest_cache();
 
-        device.set_hotkey_unavailable(HotkeySlot::Fill, Some(HotkeyFailure::Refused));
-        device.set_hotkey_unavailable(HotkeySlot::Fill, Some(HotkeyFailure::Refused));
-        device.set_hotkey_unavailable(HotkeySlot::Fill, Some(HotkeyFailure::NoManager));
-        device.set_hotkey_unavailable(HotkeySlot::Fill, None);
-        device.record_hotkey_press(HotkeyPress::Fill);
+        device.set_hotkey_unavailable(Some(HotkeyFailure::Refused));
+        device.set_hotkey_unavailable(Some(HotkeyFailure::Refused));
+        device.set_hotkey_unavailable(Some(HotkeyFailure::NoManager));
+        device.set_hotkey_unavailable(None);
+        device.record_hotkey_press(HotkeyPress::Accept);
         device.record_hotkey_press(HotkeyPress::Unmatched);
         drop(guard);
 
         assert_eq!(
             *events.0.lock().expect("events"),
             [
-                "hotkey.unavailable slot=fill reason=refused",
-                "hotkey.unavailable slot=fill reason=no-manager",
+                "hotkey.unavailable reason=refused",
+                "hotkey.unavailable reason=no-manager",
                 "hotkey.unmatched"
             ]
         );

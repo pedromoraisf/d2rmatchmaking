@@ -2,9 +2,7 @@
 // the update line. Nothing is shown for an idle update.
 import {
   connectivityLabel,
-  fillHintLabel,
-  fillLabel,
-  hotkeyUnavailableLabels,
+  hotkeyUnavailableLabel,
   readyCheckLabel,
   revealLabel,
   roomLabel,
@@ -33,20 +31,15 @@ export function StatusView({ view, translate }: StatusViewProps) {
   if (reveal !== null) {
     labels.push(reveal);
   }
-  const fillHint = fillHintLabel(view.room, view.hotkeys);
-  if (fillHint !== null) {
-    labels.push(fillHint);
+  const unavailable = hotkeyUnavailableLabel(view.hotkeyUnavailable, view.hotkey);
+  if (unavailable !== null) {
+    labels.push(unavailable);
   }
-  const fill = fillLabel(view.lastFill);
-  if (fill !== null) {
-    labels.push(fill);
-  }
-  labels.push(...hotkeyUnavailableLabels(view.hotkeyUnavailable, view.hotkeys));
   const update = updateLabel(view.update);
   if (update !== null) {
     labels.push(update);
   }
-  const readyCheck = readyCheckLabel(view.readyCheckOpen, view.hotkeys);
+  const readyCheck = readyCheckLabel(view.readyCheckOpen, view.hotkey);
   if (readyCheck !== null) {
     labels.push(readyCheck);
   }
