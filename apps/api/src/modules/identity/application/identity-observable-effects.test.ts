@@ -8,7 +8,7 @@ import {
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 import { D2R_ACCOUNT_ID } from '@d2rmm/telemetry';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { FakeClock } from '../../../shared-kernel/clock.ts';
 import { SequentialIdGenerator } from '../../../shared-kernel/id-generator.ts';
 import { SeededRandomSource } from '../../../shared-kernel/random-source.ts';
@@ -35,6 +35,11 @@ beforeAll(() => {
   trace.setGlobalTracerProvider(
     new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] }),
   );
+});
+
+afterAll(() => {
+  context.disable();
+  trace.disable();
 });
 
 beforeEach(() => {
