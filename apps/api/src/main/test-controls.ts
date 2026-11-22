@@ -91,6 +91,17 @@ function onAcceptanceDatabase(deps: TestControlDeps): boolean {
   return ACCEPTANCE_DATABASE.test(deps.database.name) && LOOPBACK_HOSTS.has(deps.database.host);
 }
 
+/**
+ * What reset stops before it touches the database: the streams and the pending site-closed drops write to the database
+ * when they fire, so a drop alive during the truncate holds row locks the truncate queues behind, and its next
+ * statement queues behind the truncate (40P01, answered 503). Closing the streams schedules their drops, so the timers
+ * are cleared after the close.
+ */
+export function stopLeftoverWork(deps: Pick<TestControlDeps, 'hub' | 'siteClosedTimers'>): void {
+  deps.hub.closeAll();
+  deps.siteClosedTimers.clear();
+}
+
 /** Every table of the API, truncated in one statement by reset (design.md § Data Models). */
 const TABLES = [
   'identity.sessions',
@@ -140,6 +151,7 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
         return reply.code(403).send({ error: 'forbidden' });
       }
       try {
+        stopLeftoverWork(deps);
         // A drain still running from the last scenario holds locks the truncate needs (see OutboxRelay.quiesce).
         await deps.relay.quiesce();
         await sql`truncate table ${sql.raw(TABLES.join(', '))} restart identity cascade`.execute(deps.db);
@@ -151,9 +163,6 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
         deps.stores.joins.clear();
         deps.stores.readyChecks.clear();
         deps.stores.agentConfig.reset();
-        deps.hub.closeAll();
-        // After the close: closing the streams schedules their site-closed drops, and those must not fire in the next scenario.
-        deps.siteClosedTimers.clear();
         await deps.relay.sweep();
       } catch (error) {
         // Test controls only: names the database error (40P01 deadlock, 55P03 lock timeout…) a bare 503 hides.

@@ -5,9 +5,7 @@ import type {
   AgentView,
   CaptureDiagnostics,
   Diagnostics,
-  FillOutcome,
   HotkeyFailure,
-  HotkeyFault,
   HotkeyPress,
   PairingState,
 } from '../shared/labels.ts';
@@ -19,13 +17,12 @@ import { StatusView } from './StatusView.tsx';
 const en = translatorFor(createAgentI18n('en'));
 const ptBR = translatorFor(createAgentI18n('pt-BR'));
 
-const DEFAULT_KEYS = { accept: 'Ctrl+Shift+A', fill: 'Ctrl+Shift+F' };
-const TYPED: FillOutcome = 'typed';
-const ACCEPT_REFUSED: HotkeyFault[] = [{ slot: 'accept', reason: 'no-manager' }];
-const FILL_REFUSED: HotkeyFault[] = [{ slot: 'fill', reason: 'refused' }];
+const DEFAULT_KEY = 'Ctrl+Shift+A';
 const NONE_YET = 'none';
-const FILL_PRESS: HotkeyPress = 'fill';
-const PRESSES: HotkeyPress[] = ['accept', 'fill', 'unmatched'];
+const ACCEPT_PRESS: HotkeyPress = 'accept';
+const PRESSES: HotkeyPress[] = ['accept', 'unmatched'];
+const REFUSED: HotkeyFailure = 'refused';
+const NO_MANAGER: HotkeyFailure = 'no-manager';
 const REASONS: HotkeyFailure[] = ['no-manager', 'refused', 'unmapped', 'dispatch'];
 
 const view = (overrides: Partial<AgentView> = {}): AgentView => ({
@@ -34,7 +31,7 @@ const view = (overrides: Partial<AgentView> = {}): AgentView => ({
   room: null,
   update: 'idle',
   readyCheckOpen: false,
-  hotkeys: DEFAULT_KEYS,
+  hotkey: DEFAULT_KEY,
   diagnostics: null,
   ...overrides,
 });
@@ -216,53 +213,37 @@ describe('status view', () => {
   });
 });
 
-describe('fill status and hotkeys (AST-01, AST-08)', () => {
-  const room = { gameName: 'mmbaalh-12', needsReveal: false, matched: false };
-
-  it('names the fill hotkey while a room is held and says the agent never presses Enter', () => {
-    renderStatus({ room, hotkeys: { accept: 'Ctrl+Shift+A', fill: 'Alt+G' } });
-    expect(screen.getByText(/press Alt\+G with the Game Creator open/)).toBeTruthy();
-    expect(screen.getByText(/never presses Enter/)).toBeTruthy();
-  });
-
+describe('hotkey status and settings (AST-01, AST-08)', () => {
   it('names a changed accept hotkey in the ready-check line', () => {
-    renderStatus({ readyCheckOpen: true, hotkeys: { accept: 'Alt+Q', fill: 'Ctrl+Shift+F' } });
+    renderStatus({ readyCheckOpen: true, hotkey: 'Alt+Q' });
     expect(screen.getByText('A ready check is open: press Alt+Q to accept it.')).toBeTruthy();
   });
 
-  it('shows no fill line without a room or before a press', () => {
+  it('shows no hotkey line while no ready check is open and nothing failed', () => {
     const { container } = renderStatus({ pairing: 'requesting', room: null });
     expect(container.querySelectorAll('li')).toHaveLength(0);
   });
 
-  it('after a full fill says to press Enter in the game, in English and Portuguese', () => {
-    const { unmount } = renderStatus({ lastFill: TYPED });
-    expect(screen.getByText(/Press Enter in the game to confirm; the agent never does/)).toBeTruthy();
-    unmount();
-    render(<StatusView view={view({ lastFill: TYPED })} translate={ptBR} />);
-    expect(screen.getByText(/Aperte Enter no jogo para confirmar; o agente nunca faz isso/)).toBeTruthy();
-  });
-
-  it('says a hotkey could not be registered, per slot, in English and Portuguese, and says nothing otherwise', () => {
-    const { container, unmount } = renderStatus({ hotkeyUnavailable: FILL_REFUSED });
+  it('says the hotkey could not be registered, in English and Portuguese, and says nothing otherwise', () => {
+    const { container, unmount } = renderStatus({ hotkeyUnavailable: REFUSED });
     expect(
       screen.getByText(
-        /The fill hotkey \(Ctrl\+Shift\+F\) could not be registered.*Choose another combination.*\(reason: refused\)/,
+        /The accept hotkey \(Ctrl\+Shift\+A\) could not be registered.*Choose another combination.*\(reason: refused\)/,
       ),
     ).toBeTruthy();
-    expect(container.textContent).not.toMatch(/accept hotkey/);
     unmount();
-    render(<StatusView view={view({ hotkeyUnavailable: ACCEPT_REFUSED })} translate={ptBR} />);
+    render(<StatusView view={view({ hotkeyUnavailable: NO_MANAGER })} translate={ptBR} />);
     expect(
       screen.getByText(
         /atalho de aceitar \(Ctrl\+Shift\+A\).*Escolha outra combinação.*\(motivo: no-manager\)/,
       ),
     ).toBeTruthy();
+    expect(container.textContent).not.toMatch(/could not be registered/);
   });
 
   it('shows each registration failure reason as its own code', () => {
     for (const reason of REASONS) {
-      const { container, unmount } = renderStatus({ hotkeyUnavailable: [{ slot: 'fill', reason }] });
+      const { container, unmount } = renderStatus({ hotkeyUnavailable: reason });
       expect(container.textContent, reason).toContain(`(reason: ${reason})`);
       unmount();
     }
@@ -282,39 +263,17 @@ describe('fill status and hotkeys (AST-01, AST-08)', () => {
       seen.add(text);
       view.unmount();
     }
-    render(<DiagnosticsView diagnostics={null} lastPress={FILL_PRESS} translate={ptBR} />);
-    expect(screen.getByText(/Último atalho pressionado: o de preencher/)).toBeTruthy();
-  });
-
-  it('says why a fill typed nothing, for every refusal and stop', () => {
-    const outcomes = [
-      'stopped-focus',
-      'stopped-room',
-      'stopped-press',
-      'refused-room',
-      'refused-name',
-      'refused-focus',
-      'refused-screen',
-      'refused-keys',
-    ] as const;
-    const seen = new Set<string>();
-    for (const lastFill of outcomes) {
-      const { container, unmount } = renderStatus({ lastFill });
-      const text = container.textContent ?? '';
-      expect(text, lastFill).not.toBe('');
-      expect(seen.has(text), `${lastFill} has its own line`).toBe(false);
-      seen.add(text);
-      unmount();
-    }
+    render(<DiagnosticsView diagnostics={null} lastPress={ACCEPT_PRESS} translate={ptBR} />);
+    expect(screen.getByText(/Último atalho pressionado: o de aceitar/)).toBeTruthy();
   });
 
   it('saves a hotkey through the callback and shows the saved line', async () => {
     const onChange = vi.fn(async () => undefined);
-    render(<HotkeysView hotkeys={DEFAULT_KEYS} translate={en} onChange={onChange} />);
-    const field = screen.getByLabelText('Fill the game name');
+    render(<HotkeysView hotkey={DEFAULT_KEY} translate={en} onChange={onChange} />);
+    const field = screen.getByLabelText('Accept a ready check');
     fireEvent.change(field, { target: { value: 'Alt+G' } });
-    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[1] as HTMLElement);
-    expect(onChange).toHaveBeenCalledWith('fill', 'Alt+G');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onChange).toHaveBeenCalledWith('Alt+G');
     expect(await screen.findByText('Hotkey saved.')).toBeTruthy();
   });
 
@@ -328,15 +287,14 @@ describe('fill status and hotkeys (AST-01, AST-08)', () => {
       ],
       ['confirming-key', 'Enter, Tab, Space, Escape and Backspace cannot be hotkeys.'],
       ['unsupported-key', 'Use a letter, a digit or F1 to F12 (for example Ctrl+Shift+F).'],
-      ['same-as-other', 'The two hotkeys must differ.'],
       ['boom', 'Could not save the hotkey. Try again.'],
     ]);
     for (const [reason, text] of reasons) {
       const onChange = vi.fn(async () => {
         throw reason;
       });
-      const { unmount } = render(<HotkeysView hotkeys={DEFAULT_KEYS} translate={en} onChange={onChange} />);
-      fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0] as HTMLElement);
+      const { unmount } = render(<HotkeysView hotkey={DEFAULT_KEY} translate={en} onChange={onChange} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
       expect((await screen.findByRole('alert')).textContent, reason).toBe(text);
       unmount();
     }
