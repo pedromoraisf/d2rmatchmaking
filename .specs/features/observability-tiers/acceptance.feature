@@ -1,4 +1,5 @@
 # Acceptance scenarios for observability-tiers (ADR 023). English Gherkin. Executed as-is by tests/acceptance (playwright-bdd).
+# not-scenario: OBT-18 — proved by the API unit test on loadConfig (an unset or empty D2RMM_ENV is the production tier)
 # not-scenario: OBT-02 — proved by unit tests on each app's resource builder
 # not-scenario: OBT-05 — proved by Rust unit tests on the export config and the sanitizer (the Windows agent is not in the acceptance stack)
 # not-scenario: OBT-06 — proved by Rust unit tests on the sanitizer in the full tier
