@@ -1479,6 +1479,153 @@ mod tests {
         assert!(!is_lit(&image, Region { y: 0, ..inside }));
         assert!(is_lit(&image, Region { y: 1, ..inside }));
     }
+
+    /// A text reader that counts each kind of read asked of it, to put a frame's cost in engine calls: the production reader
+    /// makes one engine call for `read` and `read_lines` and six for `read_variants` and `read_line_variants` (nearest 3x
+    /// and the five extra variants of `windows_ocr.rs`).
+    struct Metered {
+        shown: Sidecar,
+        asked: Mutex<[usize; 4]>,
+    }
+
+    /// Engine calls one read of each kind makes in production: `read`, `read_variants`, `read_lines`, `read_line_variants`.
+    const ENGINE_CALLS: [usize; 4] = [1, 6, 1, 6];
+
+    impl Metered {
+        fn showing(json: &str) -> Arc<Self> {
+            Arc::new(Self {
+                shown: Sidecar::of(json, 1920, 1080),
+                asked: Mutex::new([0; 4]),
+            })
+        }
+
+        fn ask(&self, kind: usize) {
+            self.asked.lock().expect("the asked counts")[kind] += 1;
+        }
+
+        /// The reads asked since the last call, by kind.
+        fn take(&self) -> [usize; 4] {
+            std::mem::take(&mut *self.asked.lock().expect("the asked counts"))
+        }
+    }
+
+    impl TextReader for Metered {
+        fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            self.ask(0);
+            self.shown.read(image, region)
+        }
+
+        fn read_variants(&self, image: &Rgba, region: Region) -> Vec<ReadText> {
+            self.ask(1);
+            self.shown.read_variants(image, region)
+        }
+
+        fn read_lines(&self, image: &Rgba, region: Region) -> Vec<TextLine> {
+            self.ask(2);
+            self.shown.read_lines(image, region)
+        }
+
+        fn read_line_variants(&self, image: &Rgba, region: Region) -> Vec<Vec<TextLine>> {
+            self.ask(3);
+            vec![self.shown.read_lines(image, region)]
+        }
+    }
+
+    /// A desktop window in front of the game: text of no screen of either language.
+    const DESKTOP: &str = r#"{ "lines": [
+        { "text": "File Edit View", "x": 40, "y": 20, "width": 200, "height": 24 },
+        { "text": "Downloads", "x": 400, "y": 500, "width": 200, "height": 24 }
+    ] }"#;
+
+    /// The engine calls of each of `frames` frames of `json`, read by `pack` as a reader of its own.
+    fn engine_calls(json: &str, pack: Arc<LanguagePack>, frames: usize) -> Vec<usize> {
+        let metered = Metered::showing(json);
+        let image = frame(&metered.shown, Some(0), &[]);
+        let reader = ScreenReader::new(
+            Arc::clone(&metered) as Arc<dyn TextReader + Send + Sync>,
+            pack,
+        );
+        (0..frames)
+            .map(|_| {
+                reader.read(&image);
+                let asked = metered.take();
+                asked.iter().zip(ENGINE_CALLS).map(|(n, c)| n * c).sum()
+            })
+            .collect()
+    }
+
+    fn shipped_calls(json: &str, frames: usize) -> Vec<usize> {
+        engine_calls(json, shipped_like(), frames)
+    }
+
+    #[test]
+    fn an_english_client_in_steady_state_pays_one_pass_per_frame() {
+        // Selection screen 60 engine calls a frame, HUD 12, open automap 6: the English pass, and no pt-BR read at all, so
+        // each frame costs what an English-only reader pays for it.
+        for (json, per_frame) in [(SELECT_NORMAL, 60), (IN_GAME, 12), (AUTOMAP, 6)] {
+            let english_only = engine_calls(json, Arc::new(LanguagePack::english()), 6);
+            assert_eq!(english_only, [per_frame; 6]);
+            assert_eq!(shipped_calls(json, 6), english_only);
+        }
+    }
+
+    #[test]
+    fn a_pt_br_client_in_steady_state_pays_one_pass_per_frame_after_the_first_frame() {
+        // The first frame pays the English miss as well (the cost of learning the language); then the pt-BR pass alone, the
+        // same cost per frame as an English client's.
+        for (json, first, per_frame) in [
+            (PT_SELECT, 102, 60),
+            (PT_IN_GAME, 54, 12),
+            (PT_AUTOMAP, 48, 6),
+        ] {
+            let calls = shipped_calls(json, 6);
+            assert_eq!(calls[0], first);
+            assert_eq!(calls[1..], [per_frame; 5]);
+            assert_eq!(
+                calls[1..],
+                engine_calls(json, Arc::new(brazilian()), 6)[1..]
+            );
+        }
+    }
+
+    #[test]
+    fn a_frame_unknown_in_both_languages_asks_both_packs_every_frame_and_never_settles() {
+        // A main menu, a loading screen (no text) or a desktop window reads `Unknown` in both packs, so each frame pays the
+        // English pass and the pt-BR pass: the language that "read the last frame" first never exists. Each pack's wide
+        // searches rest on their own cadence, so the cost alternates between two values and does not fall.
+        for json in [MENU, "{}", DESKTOP] {
+            let both = shipped_calls(json, 600);
+            let english = engine_calls(json, Arc::new(LanguagePack::english()), 600);
+            let portuguese = engine_calls(json, Arc::new(brazilian()), 600);
+            let sum: Vec<usize> = english
+                .iter()
+                .zip(&portuguese)
+                .map(|(e, p)| e + p)
+                .collect();
+            assert_eq!(both, sum, "two passes on every frame, in a fixed order");
+            assert_eq!(both[..4], [84, 60, 84, 60]);
+            assert_eq!(
+                both.iter().sum::<usize>(),
+                600 * 72,
+                "72 engine calls a frame on average"
+            );
+            assert_eq!(both[596..], [84, 60, 84, 60], "it does not settle");
+            // One English-only pass costs half of it: the second pack doubles the cost of an unknown frame.
+            assert_eq!(
+                english.iter().sum::<usize>() * 2,
+                both.iter().sum::<usize>()
+            );
+        }
+    }
+
+    #[test]
+    fn an_unknown_frame_costs_more_than_any_known_screen_of_an_english_client() {
+        let unknown = shipped_calls(MENU, 600).iter().sum::<usize>() / 600;
+        let hud = shipped_calls(IN_GAME, 6)[5];
+        let select = shipped_calls(SELECT_NORMAL, 6)[5];
+        assert_eq!((unknown, hud, select), (72, 12, 60));
+        assert!(unknown > select && select > hud);
+    }
 }
 
 #[cfg(test)]

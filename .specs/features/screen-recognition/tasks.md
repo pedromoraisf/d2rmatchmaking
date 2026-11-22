@@ -154,3 +154,14 @@ These wait; nothing in batches 1 and 2 depends on them.
       maintainer's hand (`apps/agent/ocr-lab/README.md`). Gate: as T3
 - [ ] T14 — CPU over a 30-minute field session below 2% with the tracker on, from the agent's CPU telemetry, and no FPS
       drop the maintainer can notice (NFR-02, SCR-02). Needs the maintainer's PC.
+
+## Batch 7 (CPU of the pt-BR fallback)
+
+Measures what the pt-BR fallback pack costs in CPU (NFR-02, brief exit criterion "Performance") without changing a
+non-test line of a reading module (rule 14). Estimate: `cpu-fallback.md`.
+
+- [x] T15 — Pin the OCR passes per frame (test lines only): an English client in steady state (selection, HUD, automap), a
+      pt-BR client in steady state (the first frame pays both packs, then one), and frames `Unknown` in both languages (a
+      menu, an empty frame, a desktop window), over 600 frames: every frame pays both packs and the cost never settles.
+      The Party panel and the chat make no second OCR pass for the fallback. Gate:
+      `cargo nextest run -p d2rmm-agent-core --lib` in `apps/agent/src-tauri`
