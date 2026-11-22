@@ -116,6 +116,46 @@ run (ADR 035) writes `telemetryBytesPerPlayerHourBySignal`; the first measuremen
 must be taken and put here and in `load-baseline.md`, and the 5 GiB egress budget (AD-128) checked against it. Until then
 the production sampling ratio of the agent and the site stays at the default 10%.
 
+**First re-measure (2026-11-22, API alone, full tier): AD-128's 0.10 share is not met.**
+
+- **Source.** Nightly run 45037822441 (`workflow_dispatch` on `phase/F2`, commit `431fa30`, profile `full`, 400 players,
+  300 rooms, passed), `load-report` artifact 14762014360, `summary.json`; the reference is the 100-player step. The
+  figures were relayed by the F2 orchestrator from that file; the session that wrote this note could not download the
+  artifact (its host is blocked by the cloud session's network policy), so it did not re-read the file. They are
+  internally consistent (the three signals add up to the total; the monthly bytes and the share follow the formula) and the
+  stream egress of the same file, 413 917 bytes per player-hour, matches the job log.
+- **Numbers (bytes per player-hour at 100 players).**
+
+  | Signal    | Bytes per player-hour |
+  | --------- | --------------------: |
+  | traces    |                62 877 |
+  | metrics   |                 1 380 |
+  | logs      |                16 743 |
+  | **total** |            **81 000** |
+
+  Per month at 100 players (× 720 h): 5 831 970 448 bytes (5.43 GiB), a **share of 1.086** of the 5 GiB egress budget
+  against the 0.10 limit, so `withinTelemetryBudget` is false. Traces are 78% of the bytes, logs 21%, metrics 2%. The
+  relay allowance (480 MiB a month, 503 316 480 bytes) is reported beside it and is not added.
+
+- **Against the old figure.** 754 888 bytes per player-hour (2026-11-04, JSON, API alone) became 81 000, about nine times
+  less, with protobuf and gzip; the share went from 10.12 to 1.086. The limit needs 536 870 912 bytes a month, that is
+  7 457 bytes per player-hour: the API alone is still about 10.9 times over it.
+- **Grafana Cloud free (50 GB a month).** 5.83 GB is 0.117 of it for the API alone at 100 players, so the free tier holds
+  with the API alone; the agent and site spans are not in that figure.
+- **Which tier the figures describe.** The load API runs with `D2RMM_ENV=staging`, so it is the **full tier**; the
+  harness does not set `OTEL_TRACES_SAMPLER_ARG`, so the API sampler is the default 0.1. Production-tier figures were not
+  measured; the production tier carries fewer attributes, so they are expected to be lower, but that is an estimate.
+- **What is not in the figure.** The k6 journey drives HTTP and SSE only: it runs no site exporter and no agent exporter
+  and posts nothing to the relay (`/v1/telemetry/traces`). `site` and `agent` in the egress lines of the run log are SSE
+  subscriber classes (stream bytes), not telemetry. So the number is a **lower bound**: the agent and site spans
+  (the agent at 100% on staging, 10% in production) are not measured. Task T12 of `observability-tiers` bounds them from
+  span counts per room; until then the true share is at least 1.086.
+- **Formula.** `telemetryMonthlyBytes = telemetryBytesPerPlayerHour × 100 players × 720 h`; the share is that over
+  5 GiB (5 368 709 120 bytes). The wire format is protobuf with gzip (see below).
+- **Decision for the maintainer, not taken here.** The share is over the limit by about 10.9 times with the API alone. The
+  sampling ratios were not changed by this note; reducing traces (78%) and logs (21%) is a separate decision, and the
+  production endpoint stays on the 2026-11-20 decision below.
+
 ## Production backend
 
 The API (`d2rmm-api` on Render) exports its traces, metrics and logs over OTLP/HTTP to **Grafana Cloud** (ADR 013). The
@@ -150,8 +190,8 @@ provider appears only in `apps/api/src/main/` (`config.ts` reads the environment
   at 100 players. It is a decision to revisit as traffic grows, not a finding that the limit is met.
 - **Per-signal numbers**: the load harness now counts the sink's wire bytes per signal (`/v1/traces`, `/v1/metrics`,
   `/v1/logs`) and writes `telemetryBytesPerPlayerHourBySignal` to the summary and the published baseline. The first
-  measurement with gzip protobuf has not been taken yet: it runs in the nightly (ADR 035), and the numbers go here and into
-  `load-baseline.md` when it does. Until then, the 755 KB figure above is the JSON, uncompressed one.
+  measurement with gzip protobuf is in "Egress must be re-measured" above (81 000 bytes per player-hour, API alone, full
+  tier, nightly run 45037822441); the 755 KB figure above is the older JSON, uncompressed one.
 - **Dashboards**: `infra/observability/dashboards/*.json` are portable (a `datasource` variable, queries filtered on
   `job="d2rmm-api"`, which the OTLP to Prometheus mapping sets from `service.name`). The `publish-dashboards` workflow
   (`.github/workflows/publish-dashboards.yml`) upserts them into the Grafana Cloud folder **D2RMM** with
