@@ -164,7 +164,7 @@ log record and metric.
 
 - **Method.** `LOAD_PROFILE=full LOAD_MAX_STEPS=1 LOAD_TELEMETRY_CAPTURE_DIR=<dir> node scripts/load/run.mjs` runs the
   first step of the full ladder (25 players, 20 s ramp, 120 s hold; 19 rooms, 358 requests, 0 errors) with the sink
-  writing each OTLP body to `<dir>`; then `node scripts/load/telemetry-breakdown.mjs <dir>` decodes the protobuf (after
+  writing each OTLP body to `<dir>` (the bodies hold attribute values, so the harness refuses, before the run starts, a `<dir>` that resolves inside the repository, symlinks and `..` included: use a directory under `$TMPDIR`); then `node scripts/load/telemetry-breakdown.mjs <dir>` decodes the protobuf (after
   gzip) and ranks by span name, by log scope, severity and event name (or the body when it is a fixed phrase), and by
   metric name. Output holds names and attribute keys only, never a value. Both variables are off by default and the
   profile, ratchets, ceilings and sampling are unchanged (API sampler 0.1, the harness sets none). The capture covers the

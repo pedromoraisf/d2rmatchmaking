@@ -12,6 +12,7 @@
 
 import { join } from 'node:path';
 import { cleanupPlan, sweepPlan } from './lib/cleanup-plan.mjs';
+import { captureDirProblem } from './lib/capture-dir.mjs';
 import { containerOk, peakOf } from './lib/container-health.mjs';
 import {
   apiArgs,
@@ -158,6 +159,9 @@ export async function runLoad(input) {
     const refusal = guardTarget(env) ?? guardDocker(env);
     if (refusal !== null) return refused(refusal.message);
     limits = limitsFrom(env);
+    const captureDir = env.LOAD_TELEMETRY_CAPTURE_DIR;
+    const captureRefusal = captureDir ? captureDirProblem(captureDir, paths.root) : null;
+    if (captureRefusal !== null) return refused(captureRefusal);
   } catch (error) {
     return refused(messageOf(error));
   }

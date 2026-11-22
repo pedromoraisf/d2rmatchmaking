@@ -600,6 +600,15 @@ test('sequence and cleanup on every exit path', { timeout: SLOW_TEST_MS }, async
     assert.match(result.refusal, /LOAD_TARGET/u);
     assert.equal(scn.docker.state.calls.length, 0, 'the guard refuses before the first Docker call');
   });
+
+  await t.test('a capture directory inside the repository is refused before any Docker call', async () => {
+    const scn = scenario({ env: { LOAD_TELEMETRY_CAPTURE_DIR: `${ROOT}/captures` } });
+    const result = await runLoad(scn.input);
+
+    assert.equal(result.exitCode, 2);
+    assert.match(result.refusal, /LOAD_TELEMETRY_CAPTURE_DIR/u);
+    assert.equal(scn.docker.state.calls.length, 0, 'the guard refuses before the first Docker call');
+  });
 });
 
 test('no secret in arguments or logs', { timeout: SLOW_TEST_MS }, async () => {
