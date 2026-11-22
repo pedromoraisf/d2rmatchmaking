@@ -402,6 +402,23 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn the_fallback_pack_reads_the_chat_with_no_second_ocr_pass() {
+        // One `read_lines` of the chat area a look, whichever language the lines are in: the Brazilian phrases are matched
+        // against the same lines.
+        for said in [
+            "Bob joined our world",
+            "Bob entrou em nosso mundo",
+            "nothing here",
+        ] {
+            let rig = rig();
+            hold_a_room(&rig);
+            rig.chat.say(&[said]);
+            look_at(&rig).await;
+            assert_eq!(rig.chat.reads.load(Ordering::SeqCst), 1, "{said}");
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn a_line_outside_the_chat_band_or_an_unsupported_size_is_not_read() {
         let rig = rig();
         hold_a_room(&rig);

@@ -18,7 +18,7 @@ pub const MAX_STRING_CHARS: usize = 128;
 /// Span names must start with this prefix; any other span is dropped.
 pub const SPAN_NAME_PREFIX: &str = "agent.";
 /// The only attribute keys a span keeps. The match is exact: `http.url` is not `http.request.method`.
-pub const ALLOWED_ATTRIBUTE_KEYS: [&str; 20] = [
+pub const ALLOWED_ATTRIBUTE_KEYS: [&str; 21] = [
     "vision.screen",
     "vision.search",
     "vision.area_class",
@@ -26,6 +26,7 @@ pub const ALLOWED_ATTRIBUTE_KEYS: [&str; 20] = [
     "capture.outcome",
     "config.outcome",
     "config.version",
+    "post.outcome",
     "status",
     "d2r.room.id",
     "d2r.agent.version",
@@ -53,7 +54,7 @@ pub const FULL_TIER_KEYS: [&str; 4] = [
 ];
 /// The values a vision attribute may carry (screen-recognition T8, SCR-09): fixed words, never a coordinate, a read text or a
 /// pixel. Any other value of these keys is dropped with its key.
-pub const VISION_VALUES: [(&str, &[&str]); 6] = [
+pub const VISION_VALUES: [(&str, &[&str]); 7] = [
     (
         "vision.screen",
         &["in_game", "automap", "character_select", "unknown"],
@@ -74,6 +75,8 @@ pub const VISION_VALUES: [(&str, &[&str]); 6] = [
         "config.outcome",
         &["applied", "unchanged", "invalid", "stale", "unreachable"],
     ),
+    // The other-game post's span (`agent.other_game.post`): whether the post went through, never a body or an error text.
+    ("post.outcome", &["posted", "failed"]),
 ];
 
 /// The configuration version a span may carry (RCF-11): a whole number from 0 (the built-in defaults) to the largest the agent
@@ -457,6 +460,27 @@ mod tests {
         );
         let clean = sanitize_span(other).expect("an agent span is kept");
         assert!(keys(&clean).is_empty(), "{:?}", keys(&clean));
+    }
+
+    #[test]
+    fn keeps_the_post_outcome_words_only_in_both_tiers() {
+        for tier in [TelemetryTier::Production, TelemetryTier::Full] {
+            for outcome in ["posted", "failed"] {
+                let kept = in_tier(tier, vec![KeyValue::new("post.outcome", outcome)]);
+                assert_eq!(kept, ["post.outcome"], "{tier:?} {outcome}");
+            }
+            let dropped = in_tier(
+                tier,
+                vec![
+                    KeyValue::new("post.outcome", "timeout: connection refused"),
+                    KeyValue::new("post.outcome", "Posted"),
+                    KeyValue::new("post.outcome", ""),
+                    KeyValue::new("post.outcome", 1_i64),
+                    KeyValue::new("post.outcome", true),
+                ],
+            );
+            assert!(dropped.is_empty(), "{tier:?} {dropped:?}");
+        }
     }
 
     #[test]

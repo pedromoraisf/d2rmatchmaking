@@ -299,7 +299,7 @@ O agente é um app Tauri 2 para Windows que fica na bandeja. O núcleo em Rust f
 | `fusion` | Combina sinais numa observação com confiança; compara com o nome esperado por distância de edição |
 | `outbox` | Fila local em SQLite com reenvio, idempotência e limite de tamanho |
 | `api_client` | REST, SSE e heartbeat; propaga `traceparent` |
-| `hotkeys` | Atalhos globais configuráveis; preencher digita o nome da partida só com o D2R em foco e nunca aperta Enter |
+| `hotkeys` | Atalho global configurável para aceitar a confirmação de partida; o agente não digita nem cola nada no jogo (o jogador copia o nome no site e cola com o Ctrl+V do próprio jogo) |
 | `telemetry` | OpenTelemetry com exportação OTLP para a API |
 
 **O que o agente nunca faz**, verificado em revisão e documentado no site: abrir o processo do jogo, ler ou escrever memória, injetar código, interceptar rede, capturar fora da janela do jogo, executar comandos vindos do servidor, confirmar ações no jogo pelo jogador.

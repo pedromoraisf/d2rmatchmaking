@@ -3,7 +3,7 @@
 ## Jobs
 
 ```text
-detect ──┬─ agent-mutation (matrix: core · domain 1/2 · domain 2/2 · adapters 1/2 · adapters 2/2)
+detect ──┬─ agent-mutation (matrix: core · domain 1/4 … 4/4 · adapters 1/2 · adapters 2/2)
          ├─ api-mutation   (matrix: domain · application)
          ├─ acceptance
          ├─ load
@@ -15,7 +15,7 @@ report   (needs every job above; if: always())               — builds nightly-
 - Each job runs only when `inputs.suites` selects it. The schedule has no inputs and runs all of them, so the
   condition is `github.event_name == 'schedule' || inputs.suites == 'all' || inputs.suites == '<suite>'`.
 - **Agent mutation**: `cargo mutants --package <crate> [--shard k/n] --output reports/mutation/agent-<crate>[-k] -- --lib`.
-  `core` keeps `--in-place`. Each shard uploads `agent-mutation-<crate>[-k]`. Both crate shards use `rust-cache`.
+  `core` and `adapters` run `--in-place` (their tests read files outside the copied workspace). Each shard uploads `agent-mutation-<crate>[-k]`. Both crate shards use `rust-cache`.
 - **API mutation**: `pnpm --filter @d2rmm/api run test:mutation -- --layer <layer>`, or the existing plan script's
   per-layer entry; the worker checks `apps/api/scripts/mutation-plan.ts`. Each layer uploads
   `api-mutation-<layer>`.
@@ -55,7 +55,7 @@ and a Playwright JSON. Tests live in `scripts/test/nightly-*.test.mjs`.
   "commit": "…",
   "branch": "…",
   "suites": ["mutation", "load", "acceptance"],
-  "jobs": [{ "name": "agent-mutation (domain 1/2)", "result": "success", "minutes": 11.2 }],
+  "jobs": [{ "name": "agent-mutation (domain 1/4)", "result": "success", "minutes": 11.2 }],
   "mutation": [
     {
       "target": "agent-domain",

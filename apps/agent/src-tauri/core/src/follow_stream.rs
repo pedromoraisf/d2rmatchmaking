@@ -496,6 +496,36 @@ mod room_end_tests {
     }
 
     #[test]
+    fn a_connection_with_no_room_held_and_none_assigned_records_no_drop() {
+        fails_fast(|| async {
+            let probe = EventProbe::default();
+            let _guard = probe.install();
+            let gateway = Arc::new(FakeApiGateway::new());
+            gateway.script_assignment([Ok(None)]);
+            gateway.script_open_stream([Ok(Vec::new())]);
+            gateway.hold_streams();
+            let tokens = Arc::new(MemoryTokens::default());
+            tokens
+                .save(&Secret::new(
+                    "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE",
+                ))
+                .expect("the memory store accepts a write");
+            let device = Arc::new(DeviceState::new(Arc::new(NullSink)));
+            device.set_paired(true);
+            let ports = StreamPorts { gateway, tokens };
+            tokio::spawn(run(Arc::clone(&device), ports));
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            assert!(device.assignment.borrow().current().is_none());
+            assert_eq!(device.hub.snapshot().room, None);
+            assert!(
+                probe.named("agent.assignment.dropped").is_empty(),
+                "nothing was held, so nothing was dropped"
+            );
+        });
+    }
+
+    #[test]
     fn an_ended_event_for_another_room_keeps_the_held_one() {
         fails_fast(|| async {
             let device = follow_with(OTHER).await;
