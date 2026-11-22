@@ -789,6 +789,116 @@ mod tests {
         }
     }
 
+    /// A text reader that counts the reads asked of it and shows the sidecar it was last given: one pass of a reader asks a
+    /// fixed number of reads for a frame, so the count says how many passes (English, pt-BR) a frame cost.
+    struct Counting {
+        shown: Mutex<Sidecar>,
+        asked: std::sync::atomic::AtomicUsize,
+    }
+
+    impl Counting {
+        fn showing(json: &str) -> Arc<Self> {
+            Arc::new(Self {
+                shown: Mutex::new(Sidecar::of(json, 1920, 1080)),
+                asked: std::sync::atomic::AtomicUsize::new(0),
+            })
+        }
+
+        fn show(&self, json: &str) {
+            *self.shown.lock().expect("the shown sidecar") = Sidecar::of(json, 1920, 1080);
+        }
+
+        /// The frame of the sidecar on show.
+        fn frame(&self) -> Rgba {
+            frame(&self.shown.lock().expect("the shown sidecar"), Some(0), &[])
+        }
+
+        /// The reads asked since the last call.
+        fn take(&self) -> usize {
+            self.asked.swap(0, std::sync::atomic::Ordering::Relaxed)
+        }
+
+        fn count(&self) {
+            self.asked
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    impl TextReader for Counting {
+        fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            self.count();
+            self.shown
+                .lock()
+                .expect("the shown sidecar")
+                .read(image, region)
+        }
+
+        fn read_variants(&self, image: &Rgba, region: Region) -> Vec<ReadText> {
+            self.count();
+            self.shown
+                .lock()
+                .expect("the shown sidecar")
+                .read_variants(image, region)
+        }
+
+        fn read_lines(&self, image: &Rgba, region: Region) -> Vec<TextLine> {
+            self.count();
+            self.shown
+                .lock()
+                .expect("the shown sidecar")
+                .read_lines(image, region)
+        }
+    }
+
+    /// The reads one fresh pass of `pack` costs on the frame of `json` (a reader with no fallback).
+    fn one_pass_cost(json: &str, pack: LanguagePack) -> usize {
+        let counting = Counting::showing(json);
+        let image = counting.frame();
+        ScreenReader::new(
+            Arc::clone(&counting) as Arc<dyn TextReader + Send + Sync>,
+            Arc::new(pack),
+        )
+        .read(&image);
+        counting.take()
+    }
+
+    #[test]
+    fn the_language_that_read_the_last_frame_is_read_first_and_no_english_read_happens() {
+        let pt_pass = one_pass_cost(PT_SELECT, brazilian());
+        let english_miss = one_pass_cost(PT_SELECT, LanguagePack::english());
+        let english_pass = one_pass_cost(SELECT_NORMAL, LanguagePack::english());
+        assert!(pt_pass > 0 && english_miss > 0 && english_pass > 0);
+
+        let counting = Counting::showing(PT_SELECT);
+        let pt_image = counting.frame();
+        let reader = ScreenReader::new(
+            Arc::clone(&counting) as Arc<dyn TextReader + Send + Sync>,
+            shipped_like(),
+        );
+        // The first pt-BR frame: English first finds nothing, then pt-BR reads it.
+        assert_eq!(reader.read(&pt_image).screen, Screen::CharacterSelect);
+        assert_eq!(counting.take(), english_miss + pt_pass);
+        // The next ones: pt-BR first, one pass, no English read.
+        for _ in 0..2 {
+            assert_eq!(reader.read(&pt_image).screen, Screen::CharacterSelect);
+            assert_eq!(counting.take(), pt_pass);
+        }
+        // A known English frame: pt-BR first finds nothing, English reads it, and the order flips back.
+        counting.show(SELECT_NORMAL);
+        let english_image = counting.frame();
+        assert_eq!(reader.read(&english_image).screen, Screen::CharacterSelect);
+        assert_eq!(
+            counting.take(),
+            one_pass_cost(SELECT_NORMAL, brazilian()) + english_pass
+        );
+        assert_eq!(reader.read(&english_image).screen, Screen::CharacterSelect);
+        assert_eq!(counting.take(), english_pass);
+        // And back to pt-BR: English first again (a miss, its trackers warm), so more than the one pt-BR pass.
+        counting.show(PT_SELECT);
+        assert_eq!(reader.read(&pt_image).screen, Screen::CharacterSelect);
+        assert!(counting.take() > pt_pass);
+    }
+
     fn read(json: &str, selected: Option<u8>) -> FrameReading {
         read_at(json, 1920, 1080, selected)
     }
