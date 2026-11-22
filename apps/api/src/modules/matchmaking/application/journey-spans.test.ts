@@ -70,4 +70,33 @@ describe('matchmaking spans carry the journey ids (OBT-03)', () => {
     expect(answer['d2r.ready_check.id']).toBe(checkId);
     expect(answer['d2r.account.id']).toBe('alice');
   });
+
+  it('a refused join span still carries the mode and the difficulty asked for', async () => {
+    const t = queueSetup();
+    t.readyPlayer('alice', 'c-sorc');
+    t.facts.setLinked('alice', false);
+    const refused = await t.queue.joinQueue({ accountId: 'alice', request: duel('c-sorc') });
+    expect(refused).toStrictEqual({ ok: false, error: 'not-linked' });
+
+    const join = spanNamed('matchmaking.join').attributes;
+    expect(join['d2r.queue.mode']).toBe('pvp');
+    expect(join['d2r.difficulty']).toBe('hell');
+  });
+
+  it('the open span carries the mode and difficulty of the group, and the resolve span the check id', async () => {
+    const t = queueSetup();
+    t.readyPlayer('alice', 'c-sorc');
+    t.readyPlayer('bob', 'c-hammer');
+    await t.queue.joinQueue({ accountId: 'alice', request: duel('c-sorc') });
+    await t.queue.joinQueue({ accountId: 'bob', request: duel('c-hammer') });
+    const checkId = t.bus.readyChecksStarted()[0]?.readyCheckId;
+
+    const open = spanNamed('matchmaking.ready-check.open').attributes;
+    expect(open['d2r.queue.mode']).toBe('pvp');
+    expect(open['d2r.difficulty']).toBe('hell');
+
+    t.clock.advance(60_000);
+    await t.queue.runMatcher();
+    expect(spanNamed('matchmaking.ready-check.resolve').attributes['d2r.ready_check.id']).toBe(checkId);
+  });
 });
