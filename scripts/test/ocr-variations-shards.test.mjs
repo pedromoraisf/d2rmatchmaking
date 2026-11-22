@@ -264,3 +264,13 @@ test('the merge command prints the refusal reasons per print and for all prints'
   assert.match(run.stdout, /^all prints: refused: no-card 3, title-unseen 1$/m);
   assert.deepEqual(JSON.parse(readFileSync(out, 'utf8')).refusal_reasons, unsharded().refusal_reasons);
 });
+
+test('chat-no-phrase ops are counted under the bare class and never printed', () => {
+  const counts = refusalReasons([
+    { outcome: 'refused', reason_class: 'chat-no-phrase:sub(a>b)@3' },
+    { outcome: 'refused', reason_class: 'chat-no-phrase:del(c)@1' },
+    { outcome: 'refused', reason_class: 'no-card' },
+  ]);
+  assert.deepEqual(counts, { 'chat-no-phrase': 2, 'no-card': 1 });
+  assert.equal(formatRefusals(counts), 'refused: chat-no-phrase 2, no-card 1');
+});

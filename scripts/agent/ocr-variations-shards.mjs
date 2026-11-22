@@ -37,12 +37,18 @@ function addCounts(into, from) {
   for (const key of COUNT_KEYS) into[key] = (into[key] ?? 0) + from[key];
 }
 
-/** Counts the refused variants by reason class: `{ [reason_class]: n }`. Reason classes only, never read text. */
+/**
+ * Counts the refused variants by reason class: `{ [reason_class]: n }`. Reason classes only, never read text; every
+ * `chat-no-phrase:<ops>` is counted under the bare `chat-no-phrase` (its ops may carry characters not from a public string).
+ */
 export function refusalReasons(variants) {
   const counts = {};
   for (const variant of variants) {
     if (variant.outcome !== 'refused') continue;
-    counts[variant.reason_class] = (counts[variant.reason_class] ?? 0) + 1;
+    const reason = variant.reason_class.startsWith('chat-no-phrase:')
+      ? 'chat-no-phrase'
+      : variant.reason_class;
+    counts[reason] = (counts[reason] ?? 0) + 1;
   }
   return counts;
 }
