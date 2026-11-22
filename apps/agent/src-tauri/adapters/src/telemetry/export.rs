@@ -80,14 +80,24 @@ pub async fn export_loop<E, R>(
     loop {
         ticks.tick().await;
         let batch = lock(&queue).drain(EXPORT_BATCH);
-        if !switch.is_on() || batch.is_empty() {
-            continue;
-        }
         let now = tokio::time::Instant::now().into_std();
-        if exporter.export(batch).await.is_err() && gate.allow(now) {
+        if export_if_on(&exporter, &switch, batch).await.is_err() && gate.allow(now) {
             report("the span export failed");
         }
     }
+}
+
+/// Exports one batch unless the switch is off at this very moment. The switch is read here, right before the call, and not
+/// when the batch was drained, so a batch drained just before the player turned diagnostics off is discarded, not sent (OBT-16).
+async fn export_if_on<E: SpanExporter>(
+    exporter: &E,
+    switch: &DiagnosticsSwitch,
+    batch: Vec<SpanData>,
+) -> OTelSdkResult {
+    if batch.is_empty() || !switch.is_on() {
+        return Ok(());
+    }
+    exporter.export(batch).await
 }
 
 #[cfg(test)]
@@ -104,7 +114,9 @@ mod tests {
     use opentelemetry_sdk::error::{OTelSdkError, OTelSdkResult};
     use opentelemetry_sdk::trace::{SpanData, SpanEvents, SpanExporter, SpanLinks, SpanProcessor};
 
-    use super::{DropOldestProcessor, EXPORT_BATCH, EXPORT_INTERVAL, SpanQueue, export_loop};
+    use super::{
+        DropOldestProcessor, EXPORT_BATCH, EXPORT_INTERVAL, SpanQueue, export_if_on, export_loop,
+    };
     use crate::telemetry::queue::{BoundedQueue, SPAN_QUEUE_CAPACITY};
     use crate::telemetry::switch::DiagnosticsSwitch;
 
@@ -298,6 +310,26 @@ mod tests {
             1,
             "turned on again, spans queue at once"
         );
+    }
+
+    #[tokio::test]
+    async fn a_batch_drained_before_the_toggle_is_not_sent() {
+        let exporter = Recording::default();
+        let switch = DiagnosticsSwitch::on();
+        let batch = vec![span(0), span(1)];
+
+        // The batch is in hand and the player turns diagnostics off before the call.
+        switch.set(false);
+        export_if_on(&exporter, &switch, batch)
+            .await
+            .expect("nothing to fail");
+        assert!(exporter.0.lock().expect("the sizes").is_empty());
+
+        switch.set(true);
+        export_if_on(&exporter, &switch, vec![span(2)])
+            .await
+            .expect("sent");
+        assert_eq!(*exporter.0.lock().expect("the sizes"), vec![1]);
     }
 
     #[tokio::test(start_paused = true)]
