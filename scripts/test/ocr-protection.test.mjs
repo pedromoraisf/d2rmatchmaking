@@ -76,10 +76,29 @@ test('an exclusion regex with a literal line or column fails unless it is positi
     problems[0],
     /^exclusion ".*pair.*87:20: delete ! in pair_once" holds a literal line or column/,
   );
-  assert.ok(
-    /^ {2}"[^"]*:\d+:[^"]*",$/m.test(toml) && toml.includes('# Position-bound:'),
-    'the position-bound entries of the config say why',
+  // Per entry: every literal-position entry of the real config carries its own `Position-bound:` line.
+  const literal = toml.match(/^ {2}"[^"]*:\d+:[^"]*",$/gm) ?? [];
+  assert.ok(literal.length > 0, 'the config holds a position-bound entry');
+  assert.deepEqual(
+    exclusionProblems(toml).filter((problem) => problem.includes('literal line or column')),
+    [],
+    'every literal-position entry has a Position-bound line in its own comment block',
   );
+  // Negative: a position-bound entry whose own block lacks the line is reported, even when other entries have one.
+  const lines = toml.split('\n');
+  const at = lines.indexOf(literal[0]);
+  assert.ok(at > 0, 'the fixture found the entry');
+  let start = at - 1;
+  while (start >= 0 && lines[start].trim().startsWith('#')) start -= 1;
+  const stripped = lines.filter(
+    (line, index) => !(index > start && index < at && /^\s*#\s?Position-bound:/.test(line)),
+  );
+  assert.ok(stripped.length < lines.length, "the fixture removed the entry's Position-bound line");
+  const reported = exclusionProblems(stripped.join('\n')).filter((problem) =>
+    problem.includes('literal line or column'),
+  );
+  assert.equal(reported.length, 1);
+  assert.ok(reported[0].includes(literal[0].trim().slice(1, -2)), 'the stripped entry is the one reported');
 });
 
 // OCP-01: the rule is where every agent reads first, and both copies name the list of reading modules.
