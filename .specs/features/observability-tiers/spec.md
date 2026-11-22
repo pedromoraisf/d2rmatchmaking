@@ -122,11 +122,11 @@ What exists today:
 | OBT-10         | Source rule           | harness test with a fixture that sets a staging-only key outside the tier module                                                                                                                                                 |
 | OBT-11         | Credentials           | the existing redaction tests, run in both tiers                                                                                                                                                                                  |
 | OBT-12         | Notice                | component test (en, pt-BR) + acceptance `@OBT-12`                                                                                                                                                                                |
+| OBT-13         | Docs                  | `telemetry.md` in review; the TraceQL query run once on `grafanacloud-traces`                                                                                                                                                    |
 | OBT-14         | Notice                | agent window component test (en, pt-BR); not in acceptance (the agent window is not in the stack)                                                                                                                                |
 | OBT-15         | Default, persist      | Rust unit tests on the settings store (default on, read back, existing unreadable → off, failed write keeps the choice)                                                                                                          |
 | OBT-16         | Zero export           | Rust unit tests: switch off → the exporter is never called, spans never queued; live toggle                                                                                                                                      |
 | OBT-17         | Matchmaking untouched | `diagnosticsSwitchViolations` in `scripts/test/agent-source-rules.test.mjs` ("the diagnostics switch is read only by the span processor and the export loop (OBT-17)") with the `diagnostics-switch-leak` fixture it must reject |
-| OBT-13         | Docs                  | `telemetry.md` in review; the TraceQL query run once on `grafanacloud-traces`                                                                                                                                                    |
 
 ## Decisions (conservative defaults)
 
