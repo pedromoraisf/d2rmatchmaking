@@ -218,6 +218,12 @@ pub fn diagnostics_store_in(directory: Option<PathBuf>) -> FileDiagnosticsStore 
     FileDiagnosticsStore::in_directory(directory)
 }
 
+/// The start-up decision (OBT-15, OBT-16): the switch starts off, so nothing is sent before the saved choice is known, and
+/// this turns it to the saved choice: on when saved on or when none was saved, off when saved off or unreadable.
+pub fn apply_saved_diagnostics(store: &dyn DiagnosticsStore, switch: &DiagnosticsSwitch) {
+    switch.set(store.load());
+}
+
 /// What the window shows of the diagnostics (OBT-14): whether the switch is on and this build's tier, so the notice names
 /// what the build carries.
 pub fn handle_get_diagnostics(
@@ -306,9 +312,10 @@ mod shell {
 
     use super::{
         FileConsentStore, FileHotkeyStore, HotkeyRegistrar, Slot, app_context, apply_hotkey_change,
-        code_name, consent_store_in, diagnostics_store_in, handle_get_consent,
-        handle_get_diagnostics, handle_get_new_code, handle_set_consent, handle_set_diagnostics,
-        is_app_url, press_of, reconcile_and_report, report_dispatch_failed, wanted_hotkeys,
+        apply_saved_diagnostics, code_name, consent_store_in, diagnostics_store_in,
+        handle_get_consent, handle_get_diagnostics, handle_get_new_code, handle_set_consent,
+        handle_set_diagnostics, is_app_url, press_of, reconcile_and_report, report_dispatch_failed,
+        wanted_hotkeys,
     };
     use crate::adapters::token_store::KeyringTokenStore;
     use crate::adapters::typing::{HeldModifiers, SendTyper};
@@ -681,7 +688,10 @@ mod shell {
                     #[cfg(feature = "fixture-read")]
                     fixture,
                 });
-                diagnostics.set(diagnostics_store_in(app.path().app_config_dir().ok()).load());
+                apply_saved_diagnostics(
+                    &diagnostics_store_in(app.path().app_config_dir().ok()),
+                    &diagnostics,
+                );
                 app.manage(diagnostics.clone());
                 start_hotkey(&app_handle);
                 let sink: Arc<dyn StateSink + Send + Sync> = window_sink.clone();
@@ -752,10 +762,11 @@ mod tests {
     };
 
     use super::{
-        CodeRequester, FileHotkeyStore, Slot, app_context, apply_hotkey_change, code_name,
-        consent_store_in, diagnostics_store_in, handle_get_consent, handle_get_diagnostics,
-        handle_get_new_code, handle_set_consent, handle_set_diagnostics, is_app_url, press_of,
-        reconcile_and_report, reconcile_slot, report_dispatch_failed, wanted_hotkeys,
+        CodeRequester, FileHotkeyStore, Slot, app_context, apply_hotkey_change,
+        apply_saved_diagnostics, code_name, consent_store_in, diagnostics_store_in,
+        handle_get_consent, handle_get_diagnostics, handle_get_new_code, handle_set_consent,
+        handle_set_diagnostics, is_app_url, press_of, reconcile_and_report, reconcile_slot,
+        report_dispatch_failed, wanted_hotkeys,
     };
     use crate::config;
 
@@ -902,6 +913,21 @@ mod tests {
         assert!(switch.is_on());
 
         let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn the_start_up_turns_the_switch_to_the_saved_choice() {
+        let cases = [
+            (InMemoryDiagnosticsStore::saved(true), true),
+            (InMemoryDiagnosticsStore::saved(false), false),
+            (InMemoryDiagnosticsStore::missing(), true),
+            (InMemoryDiagnosticsStore::unreadable(), false),
+        ];
+        for (store, expected) in cases {
+            let switch = DiagnosticsSwitch::new(false);
+            apply_saved_diagnostics(&store, &switch);
+            assert_eq!(switch.is_on(), expected);
+        }
     }
 
     #[test]
