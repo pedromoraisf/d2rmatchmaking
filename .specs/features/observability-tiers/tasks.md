@@ -23,7 +23,7 @@ Rules:
       personal words (`battletag`, dropped in production only); the redacting exporters take the tier. Unit tests: every
       staging-only key dropped in production and kept in full; every credential word dropped in both (OBT-08, OBT-11).
       Gate: `pnpm --filter @d2rmm/telemetry test`
-- [ ] T2 — API tier (OBT-01, OBT-02): `main/config.ts` maps `D2RMM_ENV` (`staging`, `local` → full; `production`, other →
+- [x] T2 — API tier (OBT-01, OBT-02): `main/config.ts` maps `D2RMM_ENV` (`staging`, `local` → full; `production`, other →
       production); resource gets `deployment.environment` and `d2r.telemetry.tier`; contract first, the boot configuration
       gains `telemetryTier`; regenerate `openapi.json`. Unit tests on the mapping and the resource.
       Gate: `pnpm contracts:openapi && pnpm --filter @d2rmm/contracts test && pnpm --filter @d2rmm/api test`

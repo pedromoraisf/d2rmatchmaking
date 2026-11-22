@@ -51,6 +51,8 @@ export function startSiteTelemetry(env: TelemetryEnv, target: NavigationTarget):
     ...(env.VITE_TELEMETRY_RATIO === undefined ? {} : { ratio: env.VITE_TELEMETRY_RATIO }),
     relayPath: TELEMETRY_RELAY_PATH,
     serviceVersion: SITE_SERVICE_VERSION,
+    // Replaced by the tier of the boot configuration in the site's start (OBT-01, T5); production is the safe default.
+    tier: 'production',
     environment: env.MODE,
   });
   traceNavigation(target);

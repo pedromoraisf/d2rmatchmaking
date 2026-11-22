@@ -22,6 +22,9 @@ export const ConfigResponse = z.object({
   minAgentVersion: SemVer,
   // True when Battle.net sign-in is configured: the site offers its button only then (IDB-06).
   bnetSignIn: z.boolean(),
+  // The detail tier of the environment's telemetry (ADR 037, OBT-01): the site reads it once at start. `full` is staging
+  // and local; everything else is `production`.
+  telemetryTier: z.enum(['full', 'production']),
 });
 export type ConfigResponse = z.infer<typeof ConfigResponse>;
 

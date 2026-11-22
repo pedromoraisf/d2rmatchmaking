@@ -46,6 +46,7 @@ export async function startLocal(
       config: {
         stagingEndpoints: config.stagingEndpoints,
         minAgentVersion: config.agentMinVersion,
+        telemetryTier: config.telemetryTier,
         siteOrigin: config.siteOrigin,
         trustProxyHops: config.trustProxyHops,
         roomDropToleranceSeconds: config.roomDropToleranceSeconds,

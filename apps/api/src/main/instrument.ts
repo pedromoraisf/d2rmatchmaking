@@ -45,6 +45,7 @@ function installTelemetry(): void {
     serviceName: SERVICE_NAME,
     serviceVersion: config.buildSha,
     environment: config.environment,
+    tier: config.telemetryTier,
     endpoint: settings.endpoint,
     headers: { ...settings.headers },
     samplerArg: settings.samplerArg,

@@ -3,7 +3,7 @@
 import cookie from '@fastify/cookie';
 import swagger from '@fastify/swagger';
 import { ConfigResponse } from '@d2rmm/contracts';
-import { APP_METER_NAME } from '@d2rmm/telemetry';
+import { APP_METER_NAME, type TelemetryTier } from '@d2rmm/telemetry';
 import Fastify, { type FastifyInstance } from 'fastify';
 import {
   jsonSchemaTransform,
@@ -150,6 +150,8 @@ export function appLoggerOptions(sink?: Writable) {
 export interface AppConfig {
   readonly stagingEndpoints: boolean;
   readonly minAgentVersion: string;
+  /** The telemetry detail tier from `D2RMM_ENV` (main/config.ts), answered to the site; `production` when unset (OBT-01). */
+  readonly telemetryTier?: TelemetryTier | undefined;
   readonly siteOrigin: string;
   readonly trustProxyHops: number;
   /** The commit of the running build, answered by `/healthz` (DLP-04); `unknown` when the environment names none. */
@@ -501,6 +503,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     stagingEndpoints: config.stagingEndpoints,
     minAgentVersion: config.minAgentVersion,
     bnetSignIn: config.bnet !== undefined,
+    telemetryTier: config.telemetryTier ?? 'production',
   }));
   identityRoutes(app, {
     useCases: identity,
