@@ -15,7 +15,7 @@ The first measured load of the main journey (NFR-14). Measured on 2026-11-04 at 
 | Telemetry bytes a month at 100 players (`telemetryMonthlyBytes`)                      | 54351900000 |
 | Telemetry share of the 5 GiB monthly budget, limit 0.10 (`telemetryShareOfBudget`)    | 10.1238     |
 | Within the telemetry limit of 0.10, report-only in F0 (`withinTelemetryBudget`)       | no          |
-| Relay allowance a month, reported beside the telemetry (`relayAllowanceMonthlyBytes`) | 503316000   |
+| Relay allowance a month, reported beside the telemetry (`relayAllowanceMonthlyBytes`) | 503316480   |
 | Ceiling of 400 players reached (`ceilingReached`)                                     | yes         |
 
 Telemetry is report-only in F0 (AD-128): a share above 0.10 does not fail the run. Reducing telemetry is a condition of setting `OTEL_EXPORTER_OTLP_ENDPOINT` in production.
