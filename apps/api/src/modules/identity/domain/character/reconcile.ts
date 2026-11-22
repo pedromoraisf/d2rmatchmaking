@@ -23,14 +23,10 @@ export interface Reconciled {
  * leaves the card as read, a new character: a duplicate on the site costs less than an overwritten level (SNM-07).
  */
 export function reconcileCards(batch: readonly Character[], stored: readonly StoredFacts[]): Reconciled {
-  const heldKeys = new Set(stored.map((character) => characterKey(character.name)));
   const taken = new Set(batch.map((card) => characterKey(card.name)));
   const storedNames = stored.map((character) => character.name);
   let reconciled = 0;
   const characters = batch.map((card) => {
-    if (heldKeys.has(characterKey(card.name))) {
-      return card;
-    }
     const match = matchCharacterName(card.name, storedNames);
     const target = match.kind === 'one' ? stored[match.index] : undefined;
     if (

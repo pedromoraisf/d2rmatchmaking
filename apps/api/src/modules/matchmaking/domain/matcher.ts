@@ -146,8 +146,9 @@ function reachableBy(seed: PvpTicket, byRating: readonly QueueTicket[], now: Dat
     }
   }
   const reach: PvpTicket[] = [];
-  for (let index = lo; index < byRating.length; index += 1) {
+  for (let index = lo; ; index += 1) {
     const candidate = byRating[index];
+    // An undefined candidate (past the end of the array) is what ends this `for (;;)` loop.
     if (candidate === undefined || candidate.rating > high) {
       break;
     }
