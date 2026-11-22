@@ -16,6 +16,7 @@ use crate::automap_name;
 use crate::chat_post;
 use crate::chat_step;
 use crate::device_state::DeviceState;
+use crate::elsewhere;
 use crate::messages::{CaptureReport, FrameReading, Screen};
 use crate::party::{self, PartyLook, PartyPorts};
 use crate::ports::{
@@ -104,6 +105,8 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
     let reading = read_screen(ports, &frame, config).await;
     device.set_screen(reading.screen);
     party::look(device, &ports.party, Arc::clone(&frame)).await;
+    // Once the presence is confirmed, the Party panel is read again to tell a player who left for another game (ARL-08).
+    elsewhere::look(device, &ports.party, Arc::clone(&frame)).await;
     // The automap's name line and the chat's joined and left lines (game-name-reading), at most once a tick like the Party step.
     automap_name::look(device, &ports.party, Arc::clone(&frame)).await;
     let chat_events = chat_step::look_named(device, &ports.party, Arc::clone(&frame)).await;

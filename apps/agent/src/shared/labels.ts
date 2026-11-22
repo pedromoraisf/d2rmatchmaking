@@ -23,6 +23,9 @@ export interface RoomState {
   matched: boolean;
   // The API accepted the observation for the held run (ARL-03). The core omits it while false.
   confirmed?: boolean;
+  // The Party panel showed another game's name on two looks in a row after the presence was confirmed (ARL-08). The core
+  // omits it while false, and never sends the other name.
+  elsewhere?: boolean;
 }
 
 export interface RejectedSlot {
@@ -185,7 +188,8 @@ export function roomLabel(room: RoomState | null): Label | null {
   if (room === null) {
     return null;
   }
-  const key = room.confirmed === true ? 'room.confirmed' : 'room.waiting';
+  const key =
+    room.elsewhere === true ? 'room.elsewhere' : room.confirmed === true ? 'room.confirmed' : 'room.waiting';
   return { key, values: { gameName: room.gameName } };
 }
 

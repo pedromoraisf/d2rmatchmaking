@@ -870,6 +870,8 @@ pub struct AssignmentMembersItem {
     pub character_id: ::std::option::Option<AssignmentMembersItemCharacterId>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub confirmed: ::std::option::Option<bool>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub elsewhere: ::std::option::Option<bool>,
     #[serde(rename = "joinOrder")]
     pub join_order: ::std::num::NonZeroU64,
     pub role: AssignmentMembersItemRole,
@@ -1687,7 +1689,7 @@ pub struct Observation {
     >,
     #[serde(rename = "type")]
     pub type_: ObservationType,
-    ///What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and never keeps it, and its answer is the same whether it matched or not (ADR 036). Other types: free text of at most 64 characters.
+    ///What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and never keeps it, and its answer is the same whether it matched or not (ADR 036). OTHER_GAME_SEEN: always the empty string, never the name of the other game (ARL-09). Other types: free text of at most 64 characters.
     pub value: ObservationValue,
 }
 ///`ObservationIdempotencyKey`
@@ -1828,6 +1830,8 @@ pub enum ObservationType {
     RoundReported,
     #[serde(rename = "PLAYER_SLAIN_SEEN")]
     PlayerSlainSeen,
+    #[serde(rename = "OTHER_GAME_SEEN")]
+    OtherGameSeen,
     #[serde(rename = "UNKNOWN")]
     Unknown,
 }
@@ -1840,6 +1844,7 @@ impl ::std::fmt::Display for ObservationType {
             Self::ScreenChanged => f.write_str("SCREEN_CHANGED"),
             Self::RoundReported => f.write_str("ROUND_REPORTED"),
             Self::PlayerSlainSeen => f.write_str("PLAYER_SLAIN_SEEN"),
+            Self::OtherGameSeen => f.write_str("OTHER_GAME_SEEN"),
             Self::Unknown => f.write_str("UNKNOWN"),
         }
     }
@@ -1856,6 +1861,7 @@ impl ::std::str::FromStr for ObservationType {
             "SCREEN_CHANGED" => Ok(Self::ScreenChanged),
             "ROUND_REPORTED" => Ok(Self::RoundReported),
             "PLAYER_SLAIN_SEEN" => Ok(Self::PlayerSlainSeen),
+            "OTHER_GAME_SEEN" => Ok(Self::OtherGameSeen),
             "UNKNOWN" => Ok(Self::Unknown),
             _ => Err("invalid value".into()),
         }
@@ -1882,7 +1888,7 @@ impl ::std::default::Default for ObservationType {
         ObservationType::Unknown
     }
 }
-///What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and never keeps it, and its answer is the same whether it matched or not (ADR 036). Other types: free text of at most 64 characters.
+///What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and never keeps it, and its answer is the same whether it matched or not (ADR 036). OTHER_GAME_SEEN: always the empty string, never the name of the other game (ARL-09). Other types: free text of at most 64 characters.
 #[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[serde(transparent)]
 pub struct ObservationValue(::std::string::String);
@@ -2792,6 +2798,8 @@ pub struct RoomAssignedEventDataMembersItem {
     pub character_id: ::std::option::Option<RoomAssignedEventDataMembersItemCharacterId>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub confirmed: ::std::option::Option<bool>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub elsewhere: ::std::option::Option<bool>,
     #[serde(rename = "joinOrder")]
     pub join_order: ::std::num::NonZeroU64,
     pub role: RoomAssignedEventDataMembersItemRole,
@@ -3180,6 +3188,8 @@ pub struct RoomRunOpenedEventDataMembersItem {
     >,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub confirmed: ::std::option::Option<bool>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub elsewhere: ::std::option::Option<bool>,
     #[serde(rename = "joinOrder")]
     pub join_order: ::std::num::NonZeroU64,
     pub role: RoomRunOpenedEventDataMembersItemRole,

@@ -198,6 +198,21 @@ describe('room.run_opened and room.member_changed', () => {
     expect(AgentStreamEvent.safeParse(runOpened).success).toBe(false);
   });
 
+  it('accepts the elsewhere and returned changes with the member flag (ARL-10)', () => {
+    for (const change of ['elsewhere', 'returned']) {
+      const event = {
+        type: 'room.member_changed',
+        data: {
+          roomId: '4821',
+          change,
+          accountId: 'acc-host',
+          members: [{ ...members[0], confirmed: true, elsewhere: change === 'elsewhere' }],
+        },
+      };
+      expect(SiteStreamEvent.parse(event)).toStrictEqual(event);
+    }
+  });
+
   it('accepts the room.member_changed example on the site stream only', () => {
     expect(RoomMemberChangedEvent.parse(memberChanged)).toStrictEqual(memberChanged);
     expect(SiteStreamEvent.parse(memberChanged)).toStrictEqual(memberChanged);

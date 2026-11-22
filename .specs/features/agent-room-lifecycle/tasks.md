@@ -44,3 +44,20 @@ Rules:
       `pnpm --filter @d2rmm/web exec vitest run && pnpm --filter @d2rmm/web lint`
 - [x] T7 — Acceptance steps for the `@ARL-` scenarios, with the headless agent where an agent acts. Gate:
       `pnpm exec turbo run test:acceptance -- --grep @ARL-`
+
+## Batch 2 — the host in another game (maintainer's field test, 2026-11-21)
+
+- [x] T8 — Contract first (ARL-09): `OTHER_GAME_SEEN`, an observation kind with no `value`; regenerate and commit
+      `openapi.json` / `asyncapi.json`; contract tests. Gate: `pnpm contracts:openapi && pnpm --filter @d2rmm/contracts test`
+- [x] T9 — Domain and API (ARL-10): a member's presence `elsewhere`, set by an accepted `OTHER_GAME_SEEN` for the current
+      run and cleared by a later `GAME_NAME_SEEN`; no stage transition; the stream event to the site. Prefer deriving it
+      from the stored observations over a new column; if a migration is needed it is a new file. Domain unit tests with
+      fakes, API integration test. Gate: `pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`
+- [x] T10 — Agent core (ARL-08, ARL-09): compare the Party panel's read with the held name; two looks in a row, an edit
+      distance above 2, never the other name in a log, span or post; post once per change; the window line. Unit tests
+      with fakes. Not a reading-module change (the comparison lives in core's room step, not in the readers); if a
+      reading module must change, rule 14 applies. Gate: `CARGO nextest run -p d2rmm-agent-core --lib`
+- [x] T11 — Site (ARL-11): "In another game" / "Em outro jogo" in the members list; component test.
+      Gate: `pnpm --filter @d2rmm/web exec vitest run src/features/lobby-room && pnpm --filter @d2rmm/web lint`
+- [x] T12 — Acceptance steps for the new `@ARL-` scenarios with the headless agent (a fake Party read). Gate:
+      `pnpm exec turbo run test:acceptance -- --grep @ARL-`

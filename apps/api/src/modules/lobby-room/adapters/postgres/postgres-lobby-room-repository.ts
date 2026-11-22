@@ -75,7 +75,11 @@ export class PostgresLobbyRoomRepository implements LobbyRoomRepository {
     for (const member of room.members) {
       await executor
         .updateTable('lobby.members')
-        .set({ role: member.role, confirmed_run: member.confirmed ? room.currentRun : null })
+        .set({
+          role: member.role,
+          confirmed_run: member.confirmed ? room.currentRun : null,
+          elsewhere_run: member.elsewhere ? room.currentRun : null,
+        })
         .where('room_id', '=', room.id)
         .where('account_id', '=', member.accountId)
         .execute();
@@ -183,7 +187,7 @@ export class PostgresLobbyRoomRepository implements LobbyRoomRepository {
   async #restore(db: Kysely<LobbyDatabase>, row: RoomRow): Promise<LobbyRoom> {
     const members = await db
       .selectFrom('lobby.members')
-      .select(['account_id', 'character_id', 'role', 'join_order', 'confirmed_run'])
+      .select(['account_id', 'character_id', 'role', 'join_order', 'confirmed_run', 'elsewhere_run'])
       .where('room_id', '=', row.id)
       .where('left_at', 'is', null)
       .execute();
@@ -218,6 +222,7 @@ export class PostgresLobbyRoomRepository implements LobbyRoomRepository {
         joinOrder: member.join_order,
         role: member.role,
         confirmed: member.confirmed_run === row.current_run,
+        elsewhere: member.elsewhere_run === row.current_run,
       })),
     });
     if (!restored.ok) {
@@ -235,6 +240,7 @@ function toMemberRow(roomId: string, member: MatchMember | RoomMember, run: numb
     role: member.role,
     join_order: member.joinOrder,
     confirmed_run: member.confirmed === true ? run : null,
+    elsewhere_run: member.elsewhere === true ? run : null,
     left_at: null,
   };
 }

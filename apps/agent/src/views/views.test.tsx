@@ -137,6 +137,29 @@ describe('status view', () => {
     expect(screen.getByText('Sala mmbaalh-12 — presença confirmada')).toBeTruthy();
   });
 
+  it('says the player is in another game, without naming it, and keeps presence confirmed otherwise (ARL-08)', () => {
+    const { unmount } = renderStatus({
+      room: { gameName: 'mmbaalh-28', needsReveal: false, matched: true, confirmed: true, elsewhere: true },
+    });
+    expect(screen.getByText('You are in another game (not mmbaalh-28)')).toBeTruthy();
+    expect(screen.queryByText('Room mmbaalh-28 — presence confirmed')).toBeNull();
+    unmount();
+
+    renderStatus({
+      room: { gameName: 'mmbaalh-28', needsReveal: false, matched: true, confirmed: true },
+    });
+    expect(screen.getByText('Room mmbaalh-28 — presence confirmed')).toBeTruthy();
+  });
+
+  it('says the player is in another game in pt-BR (ARL-08)', () => {
+    const away = view({
+      room: { gameName: 'mmbaalh-28', needsReveal: false, matched: true, confirmed: true, elsewhere: true },
+    });
+    render(<StatusView view={away} translate={ptBR} />);
+
+    expect(screen.getByText('Você está em outro jogo (não mmbaalh-28)')).toBeTruthy();
+  });
+
   it('tells the player to reveal the game name while it is masked (AGN-04)', () => {
     const { unmount } = renderStatus({
       room: { gameName: 'mmbaalh-12', needsReveal: true, matched: false },

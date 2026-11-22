@@ -39,6 +39,7 @@ describe('the outbox migrations', () => {
       '0008_characters_declared_ladder_era',
       '0009_matchmaking_penalties',
       '0010_lobby_room_stages',
+      '0011_lobby_member_elsewhere',
     ]);
     expect(await traceContextColumn()).toEqual({ data_type: 'text', is_nullable: 'YES' });
 
@@ -55,6 +56,7 @@ describe('the outbox migrations', () => {
       '0008_characters_declared_ladder_era',
       '0009_matchmaking_penalties',
       '0010_lobby_room_stages',
+      '0011_lobby_member_elsewhere',
     ]);
     expect(await traceContextColumn()).toEqual({ data_type: 'text', is_nullable: 'YES' });
   });

@@ -38,6 +38,11 @@ export interface RecordingProxy {
    * API had sent it. Returns how many streams got it. The test's way to hand the agent an event the API never sends.
    */
   injectIntoStream(text: string): number;
+  /**
+   * From now on, notes whether any request body carries `text` (compared in lower case, in any body of at most 256 KB, JSON
+   * or not). Keeps the answer only, never a body: the way a scenario shows the agent never sent a name (agent-room-lifecycle).
+   */
+  watch(text: string): { carried(): boolean };
   /** Stops listening and closes the connections still open. */
   close(): Promise<void>;
 }
@@ -56,6 +61,7 @@ export async function startRecordingProxy(upstream: string): Promise<RecordingPr
   const target = new URL(upstream);
   const records: MutableRecord[] = [];
   const streams = new Set<http.ServerResponse>();
+  const watched: { readonly needle: string; carried: boolean }[] = [];
   const server = http.createServer((request, response) => {
     const requestUrl = request.url ?? '/';
     const traceparent = request.headers['traceparent'];
@@ -75,6 +81,12 @@ export async function startRecordingProxy(upstream: string): Promise<RecordingPr
       if (size <= MAX_BODY_BYTES) chunks.push(chunk);
     });
     request.on('end', () => {
+      if (watched.length > 0 && size <= MAX_BODY_BYTES) {
+        const body = Buffer.concat(chunks).toString('latin1').toLowerCase();
+        for (const entry of watched) {
+          if (body.includes(entry.needle)) entry.carried = true;
+        }
+      }
       if (record.contentType !== 'application/json' || size > MAX_BODY_BYTES) return;
       try {
         const value = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
@@ -136,6 +148,11 @@ export async function startRecordingProxy(upstream: string): Promise<RecordingPr
     injectIntoStream: (text) => {
       for (const response of streams) response.write(text);
       return streams.size;
+    },
+    watch: (text) => {
+      const entry = { needle: text.toLowerCase(), carried: false };
+      watched.push(entry);
+      return { carried: () => entry.carried };
     },
     close: () =>
       new Promise<void>((resolve) => {

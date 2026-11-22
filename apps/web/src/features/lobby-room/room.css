@@ -79,7 +79,8 @@
   color: var(--ok);
 }
 
-.room-panel .pres.wait {
+.room-panel .pres.wait,
+.room-panel .pres.away {
   color: var(--warn);
 }
 

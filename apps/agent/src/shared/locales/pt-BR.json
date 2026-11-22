@@ -20,6 +20,7 @@
   "room": {
     "waiting": "Sala {{gameName}} — aguardando o jogo",
     "confirmed": "Sala {{gameName}} — presença confirmada",
+    "elsewhere": "Você está em outro jogo (não {{gameName}})",
     "revealHint": "Abra o painel Party (P) e clique no olho para mostrar o nome do jogo."
   },
   "update": {

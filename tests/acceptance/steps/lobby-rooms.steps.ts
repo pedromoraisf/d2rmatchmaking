@@ -123,11 +123,11 @@ function memberRows(page: Page): Locator {
 }
 
 /** The row of a player in the members list, found by the class and level of the player's character. */
-function memberRow(page: Page, name: string): Locator {
+export function memberRow(page: Page, name: string): Locator {
   return memberRows(page).filter({ hasText: ROW_TEXT[name] ?? name });
 }
 
-async function expectSiteStage(page: Page, label: string): Promise<void> {
+export async function expectSiteStage(page: Page, label: string): Promise<void> {
   await expect(currentStep(page), `the room as ${label}`).toHaveText(label, { timeout: SITE_LIMIT_MS });
 }
 

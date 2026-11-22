@@ -135,7 +135,8 @@
     "unknownCharacter": "Character not shown",
     "presence": {
       "waiting": "Waiting",
-      "confirmed": "Confirmed by the agent"
+      "confirmed": "Confirmed by the agent",
+      "elsewhere": "In another game"
     },
     "runsLabel": "Runs",
     "run": "Run {{run}}",

@@ -225,6 +225,9 @@ pub const SCHEMAS: &[(&str, &str)] = &[
           },
           "confirmed": {
             "type": "boolean"
+          },
+          "elsewhere": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -266,7 +269,8 @@ pub const SCHEMAS: &[(&str, &str)] = &[
             "PLAYER_LEFT_SEEN",
             "SCREEN_CHANGED",
             "ROUND_REPORTED",
-            "PLAYER_SLAIN_SEEN"
+            "PLAYER_SLAIN_SEEN",
+            "OTHER_GAME_SEEN"
           ]
         },
         {
@@ -283,7 +287,7 @@ pub const SCHEMAS: &[(&str, &str)] = &[
     "value": {
       "type": "string",
       "maxLength": 64,
-      "description": "What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and never keeps it, and its answer is the same whether it matched or not (ADR 036). Other types: free text of at most 64 characters."
+      "description": "What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and never keeps it, and its answer is the same whether it matched or not (ADR 036). OTHER_GAME_SEEN: always the empty string, never the name of the other game (ARL-09). Other types: free text of at most 64 characters."
     },
     "confidence": {
       "type": "number",
@@ -777,6 +781,9 @@ pub const SCHEMAS: &[(&str, &str)] = &[
               },
               "confirmed": {
                 "type": "boolean"
+              },
+              "elsewhere": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -874,6 +881,9 @@ pub const SCHEMAS: &[(&str, &str)] = &[
                 ]
               },
               "confirmed": {
+                "type": "boolean"
+              },
+              "elsewhere": {
                 "type": "boolean"
               }
             },
