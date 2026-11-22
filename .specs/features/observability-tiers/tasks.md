@@ -66,3 +66,15 @@ Rules:
       backend" section updated (AD-098 lifted by ADR 037), how to follow a journey by `d2r.room.id`, `d2r.account.id`,
       `d2r.ticket.id`, and the egress re-measure note. The orchestrator runs the TraceQL query on `grafanacloud-traces`
       once after staging deploys and fills the result. Gate: `pnpm format:check && pnpm specs:check`
+
+## Open
+
+- [ ] T12 — Bound the egress of the agent and the site (OBT-13, AD-128): the load journey measures the API's OTLP bytes
+      only. Measure spans per room from a staging trace sample (TraceQL count of agent and site spans per `d2r.room.id`),
+      take the bytes per span from the relay's request sizes, and add rooms per player-hour × spans per room × bytes per
+      span × the tier's sampling ratio to the API figure of `telemetryBytesPerPlayerHour`. Write the sum and the
+      resulting AD-128 share in `telemetry.md` and `load-baseline.md`. A doc-only task: no code, no ratio changes.
+      Gate: `pnpm format:check && pnpm specs:check`
+- [ ] T13 — Read the first re-measure: copy `telemetryBytesPerPlayerHourBySignal`, the total, the monthly bytes and the
+      share from the `load-report` artifact of nightly run 45037822441 into `telemetry.md` and `load-baseline.md`, and
+      state whether AD-128's 0.10 is met. Needs a session that can download artifacts. Gate: same as T12.

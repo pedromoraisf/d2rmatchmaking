@@ -18,6 +18,13 @@ The first measured load of the main journey (NFR-14). Measured on 2026-11-04 at 
 | Relay allowance a month, reported beside the telemetry (`relayAllowanceMonthlyBytes`) | 503316000   |
 | Ceiling of 400 players reached (`ceilingReached`)                                     | yes         |
 
+**Telemetry rows are the API alone.** The load journey runs no site or agent exporter and no relay call, so the
+telemetry rows count only what the API exports to the sink (traces, metrics, logs), on 2026-11-04 in JSON and since then
+as protobuf with gzip. The 754 888 above is out of date. The first re-measure (nightly run 45037822441 on `phase/F2`,
+2026-11-22, `telemetryBytesPerPlayerHourBySignal`) is still to be read from its `load-report` artifact and written here
+by `pnpm load:publish`; see `telemetry.md` § "Egress must be re-measured". The agent and site share is not measured by
+the journey (task T12 of `observability-tiers`).
+
 Telemetry is report-only in F0 (AD-128): a share above 0.10 does not fail the run. Reducing telemetry is a condition of setting `OTEL_EXPORTER_OTLP_ENDPOINT` in production.
 
 ## Limits

@@ -114,6 +114,29 @@ run (ADR 035) writes `telemetryBytesPerPlayerHourBySignal`; the first measuremen
 must be taken and put here and in `load-baseline.md`, and the 5 GiB egress budget (AD-128) checked against it. Until then
 the production sampling ratio of the agent and the site stays at the default 10%.
 
+**Status (2026-11-22): the first measurement is incomplete, and the numbers are not read yet.**
+
+- **What the load run measures.** The sink of the load harness (`scripts/load/containers/sink.mjs`) counts the wire bytes
+  of the OTLP/HTTP requests the **API alone** sends to `OTEL_EXPORTER_OTLP_ENDPOINT` (traces, metrics, logs). The k6
+  journey (`scripts/load/k6/journey.mjs`) drives HTTP and SSE only: it runs no site exporter and no agent exporter, and
+  posts nothing to the relay (`/v1/telemetry/traces`). `site` and `agent` in the egress lines of the run log are SSE
+  subscriber classes (bytes of stream events), not telemetry. So `telemetryBytesPerPlayerHourBySignal` of any load run
+  **does not include the agent or the site spans**; the share below is a lower bound until the agent and site part is
+  bounded (task T12 of `observability-tiers`). The relay allowance (16 MiB a day, 480 MiB a month) is reported beside it
+  and is not added.
+- **Source run.** Nightly run 45037822441 (`workflow_dispatch`, `phase/F2`, 2026-11-22, full ladder 25 to 400 players, the
+  100-player step is the reference). The `load-report` artifact (`summary.json`) holds the figures; the session that
+  wrote this note could not download it (the artifact host is blocked by the network policy of the cloud session) and the
+  job log prints only the stream egress, not the telemetry bytes. **Numbers to fill in** from `summary.json`:
+  `telemetryBytesPerPlayerHourBySignal` (traces, metrics, logs), `telemetryBytesPerPlayerHour`, `telemetryMonthlyBytes`,
+  `telemetryShareOfBudget`. The comparison run is the latest `main` nightly with the artifact.
+- **Formula.** `telemetryMonthlyBytes = telemetryBytesPerPlayerHour × 100 players × 720 h`; the share is that over
+  5 GiB (5 368 709 120 bytes); AD-128 is met when the share is at most 0.10, that is 536 870 912 bytes a month, or
+  745 654 bytes per player-hour. The Grafana Cloud free tier check is the same monthly bytes against 50 GB a month. The wire format is protobuf with gzip (see below).
+- **AD-128 verdict: not decided.** The 755 KB per player-hour of 2026-11-04 was JSON and is 0.101 over the line; the
+  protobuf and gzip exporter and the 10% sampler default are what bring the API alone under it, and only the artifact
+  figure can say by how much.
+
 ## Production backend
 
 The API (`d2rmm-api` on Render) exports its traces, metrics and logs over OTLP/HTTP to **Grafana Cloud** (ADR 013). The
