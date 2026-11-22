@@ -32,11 +32,95 @@ composition root (`main/span-detail.ts`) gives the full tier and withholds from 
 keys in production again. A name is still never in a log line, metric label, outbox row, event, stored row or response,
 in either tier. The **production** tier keeps the rule above whole.
 
+## What each tier carries (ADR 037)
+
+Two tiers, one value per app: **full** (staging, previews, local) and **production**. The tier comes from the environment
+the app runs in (API: `D2RMM_ENV`; site: the boot configuration's `telemetryTier`; agent: the compile-time channel, where
+`preview` and `staging` are full and `production`, none and any unknown value are production). An unknown input is always
+production. Every span says which tier it was made in: the resource attribute `d2r.telemetry.tier` is `full` or
+`production`, so `{ resource.d2r.telemetry.tier = "full" }` selects staging in TraceQL.
+
+In every tier, credentials never leave (tokens, cookies, pairing codes, authorization headers, IP addresses, user agents,
+pixels, crops), and the agent's exporter drops every event, link, status text, URL, path and window title.
+
+**API** (spans; metrics keep bounded labels and never gain an id):
+
+| Data                                                                                                                            | Production |   Full    |
+| ------------------------------------------------------------------------------------------------------------------------------- | :--------: | :-------: |
+| `d2r.account.id`, `d2r.agent.id`, `d2r.room.id`, `d2r.run.id` (`<room id>/<run number>`), `d2r.ticket.id`, `d2r.ready_check.id` |    yes     |    yes    |
+| `d2r.game.name` (the generated name), `d2r.difficulty`, `d2r.queue.mode`, `d2r.room.stage`                                      |    yes     |    yes    |
+| `d2r.account.battletag`, `d2r.character.name`                                                                                   |     no     |    yes    |
+| `d2r.observation.read_text`, `d2r.observation.read_names` (on `lobby.record-observation` and `identity.record-characters`)      |     no     |    yes    |
+| Sampling                                                                                                                        | the ratio  | the ratio |
+
+**Desktop agent** (spans through the relay; `d2r.telemetry.tier` and `deployment.environment` = the channel on the resource):
+
+| Data                                                                                                                  | Production |  Full   |
+| --------------------------------------------------------------------------------------------------------------------- | :--------: | :-----: |
+| `d2r.room.id`, `d2r.run.id`, `d2r.game.name`, `d2r.ocr.confidence` of a posted observation (`agent.observation.post`) |    yes     |   yes   |
+| Recognised screen (`vision.screen`), capture method and outcome (`capture.*`), search words (`vision.search`)         |    yes     |   yes   |
+| `d2r.step.duration_ms` of the observation post and of the character-screen read                                       |    yes     |   yes   |
+| `d2r.ocr.corrections` (correction classes such as `rn>m`, never a name), `d2r.agent.id`                               |  allowed   | allowed |
+| `d2r.ocr.names` (the character names read on the selection screen)                                                    |     no     |   yes   |
+| `d2r.ocr.text`, `d2r.character.name`, `d2r.account.battletag`                                                         |     no     | allowed |
+| Sampling                                                                                                              |    10%     |  100%   |
+
+"Allowed" means the sanitizer lets the key through (the value must have the fixed shape of its key: a correction list,
+a confidence from 0 to 1, a generated game name, a timing up to an hour) and the agent does not record it yet:
+`d2r.ocr.corrections`, the OCR text and the Party and chat names are held by the reading modules (`reading-modules.json`),
+which this feature leaves untouched (rule 14, the real-print proof), and the agent does not know its own id (the pairing
+answer gives it a token only), so the API's spans of the same agent carry `d2r.agent.id`. Recording them is a follow-up
+that needs the `ocr-real` and `ocr-variations` counts.
+
+**Site** (spans through the relay):
+
+| Data                                                                                                        | Production | Full |
+| ----------------------------------------------------------------------------------------------------------- | :--------: | :--: |
+| `d2r.account.id`, `d2r.room.id`, `d2r.ticket.id`, `d2r.ready_check.id`, the action (`site.<area>.<action>`) |    yes     | yes  |
+| The signed-in BattleTag (`d2r.account.battletag`)                                                           |     no     | yes  |
+| A notice on every page that everything done there is recorded for debugging (en, pt-BR)                     |     no     | yes  |
+
+**How the tier is enforced.** The tier modules apply it before export: `packages/telemetry/src/redact-attributes.ts`
+(`redactForTier`, used by the API and the site), the agent's `adapters/src/telemetry/sanitize.rs` (`FULL_TIER_KEYS`, by
+tier) and `core/src/detail.rs` (the one agent module that names a full-tier key; a production process does not build it).
+`scripts/test/telemetry-tier-source.test.mjs` fails when another agent or site source names a staging-only key, so a new
+field cannot skip the tier (OBT-10). `scripts/test/telemetry-flags.test.mjs` keeps the old agent switch
+(`D2RMM_TELEMETRY`) out of the workflows and the agent sources.
+
+### Following a journey in Grafana
+
+All ids are span attributes (never metric labels). In Explore → the Tempo data source (`grafanacloud-traces`):
+
+```text
+{ span.d2r.room.id = "<room id>" }                      every span of one room: site, API, agent
+{ span.d2r.account.id = "<account id>" }                everything one player did
+{ span.d2r.ticket.id = "<ticket id>" }                  one queue ticket, from the join to the match
+{ span.d2r.run.id = "<room id>/<run number>" }          one run of a room
+{ span.d2r.room.id = "<room id>" && resource.d2r.telemetry.tier = "full" }    the same, staging only
+```
+
+A field test is read in this order: the ticket (`d2r.ticket.id`) to the match, the room (`d2r.room.id`) to the ready check
+and the agent's reads, the run (`d2r.run.id`) to the observation that confirmed it. On staging the span of
+`lobby.record-observation` also shows what the agent read (`d2r.observation.read_text`).
+
+TraceQL result, run once on `grafanacloud-traces` after the staging deploy: _to be filled by the orchestrator (query, trace
+count, date)_.
+
+### Egress must be re-measured
+
+The agent and the site export in production now, and staging samples the agent at 100%, so the numbers of the production
+backend section below (755 KB per player-hour measured before this, with the API alone) are out of date. The nightly load
+run (ADR 035) writes `telemetryBytesPerPlayerHourBySignal`; the first measurement with the agent and the site exporting
+must be taken and put here and in `load-baseline.md`, and the 5 GiB egress budget (AD-128) checked against it. Until then
+the production sampling ratio of the agent and the site stays at the default 10%.
+
 ## Production backend
 
 The API (`d2rmm-api` on Render) exports its traces, metrics and logs over OTLP/HTTP to **Grafana Cloud** (ADR 013). The
-site and the desktop agent keep production telemetry **off** (AD-098); only the API exports. The provider appears only in
-`apps/api/src/main/` (`config.ts` reads the environment), never in a module or in `packages/telemetry`.
+site and the desktop agent export their spans too, through the API's relay (`/v1/telemetry/traces`): ADR 037 lifted AD-098
+(production off), and what leaves in production is limited by the tier (see above), never a name or a read text. The
+provider appears only in `apps/api/src/main/` (`config.ts` reads the environment), never in a module or in
+`packages/telemetry`.
 
 - **Stack**: one Grafana Cloud stack, region `sa-east-1`.
 - **Wire format**: protobuf, gzip-compressed (`@opentelemetry/exporter-*-otlp-proto` 0.223.0 with `CompressionAlgorithm.GZIP`
@@ -86,12 +170,13 @@ Every span name below was read from the code (`git grep` on `withSpan`, `withRec
 
 - **Agent requests.** Every request of the desktop agent carries the `traceparent` of the agent's own `agent.http.<op>`
   span (AGS-12; `apps/agent/src-tauri/adapters/src/http/api_client.rs`). The API's HTTP server span follows that remote
-  parent. Production agent telemetry is off (AD-098), so the parent span is never exported and Grafana shows the trace
-  without its root. The API spans of that trace are complete; only the agent's side is missing. The `<op>` values are
+  parent. The agent exports in every release build (ADR 037 lifted AD-098), but production samples it at 10% and a span can
+  be lost in transit, so a trace can still show without its root; on staging the agent samples 100%. The API spans of that
+  trace are complete; only the agent's side can be missing. The `<op>` values are
   `request_code`, `claim`, `heartbeat`, `assignment`, `observation`, `ready_check`, `my_ready_check`, `characters` and
   `stream`.
-- **Site requests** are true roots: production site telemetry is off too, so the browser sends no `traceparent` that
-  leads to an exported span.
+- **Site requests** carry the `traceparent` of the site's span; the site exports too (ADR 037), under the same sampling
+  caveat as the agent.
 - **To list only the traces whose root arrived**, use a TraceQL query on the structural root, in Explore → Tempo:
   `{ resource.service.name = "d2rmm-api" && nestedSetParent = -1 }`. A trace whose first API span has a remote parent that
   was never received has no span with `nestedSetParent = -1` from the agent, so it does not match. This query was written

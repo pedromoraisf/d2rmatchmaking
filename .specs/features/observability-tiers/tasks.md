@@ -62,7 +62,7 @@ Rules:
       Gate: `CARGO nextest run -p d2rmm-agent-core --lib && CARGO clippy --all-targets -- -D warnings`
 - [x] T10 — Source rule (OBT-10): a harness test fails when an agent or site source sets a staging-only key outside the
       module that applies the tier; one fixture that breaks it, one that passes. Gate: `pnpm test:harness`
-- [ ] T11 — Docs (OBT-13): `docs/engineering/telemetry.md` — one table per app of what each tier carries, the "Production
+- [x] T11 — Docs (OBT-13): `docs/engineering/telemetry.md` — one table per app of what each tier carries, the "Production
       backend" section updated (AD-098 lifted by ADR 037), how to follow a journey by `d2r.room.id`, `d2r.account.id`,
       `d2r.ticket.id`, and the egress re-measure note. The orchestrator runs the TraceQL query on `grafanacloud-traces`
       once after staging deploys and fills the result. Gate: `pnpm format:check && pnpm specs:check`
