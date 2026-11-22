@@ -215,6 +215,8 @@ interface ApiEnvInput {
   readonly site: string;
   readonly staging: boolean;
   readonly controlSecret: string;
+  /** `D2RMM_ENV` of the API, which sets its telemetry tier (ADR 037): `staging` and `local` are full. Default `local`. */
+  readonly environment?: 'local' | 'staging' | 'production';
   readonly telemetry?: { readonly otlpEndpoint: string };
   /** The Battle.net settings of the API: its client and the provider's base URL. Absent: Battle.net sign-in is off (IDB-06). */
   readonly bnet?: { readonly baseUrl: string };
@@ -241,7 +243,7 @@ function apiEnv(input: ApiEnvInput): Record<string, string> {
     // apps/agent): the minimum is lowered for that stack only, so the example can pair. The plain stack keeps 0.0.1.
     AGENT_MIN_VERSION: input.telemetry === undefined ? '0.0.1' : '0.0.0',
     D2RMM_ACCEPTANCE: 'true',
-    D2RMM_ENV: 'local',
+    D2RMM_ENV: input.environment ?? 'local',
     D2RMM_BUILD_SHA: ACCEPTANCE_BUILD_SHA,
     TEST_CONTROL_SECRET: input.controlSecret,
     ...(input.telemetry === undefined
@@ -590,6 +592,11 @@ export interface TracedStack {
 export interface TracedStackOptions {
   /** The OTLP/HTTP endpoint the traced API exports to: the local backend, or a FakeTelemetryBackend in relay scenarios. */
   readonly otlpEndpoint: string;
+  /**
+   * `D2RMM_ENV` of the traced API, which sets its telemetry tier (OBT-01). Default `production`: the trace scenarios of
+   * OBS-28 and OBS-29 scan the spans for names and need the tier that carries none.
+   */
+  readonly environment?: 'local' | 'staging' | 'production';
 }
 
 /** Starts the traced stack. The database name is per process, so two traced stacks of one run never share a database. */
@@ -661,6 +668,7 @@ async function startTracedProcesses(options: TracedStackOptions): Promise<Traced
           site: origins.site,
           staging: true,
           controlSecret,
+          environment: options.environment ?? 'production',
           telemetry: { otlpEndpoint: options.otlpEndpoint },
         }),
       },

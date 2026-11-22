@@ -973,6 +973,7 @@ fn start(
         ratio: EXPORT_RATIO,
         agent_version: version.to_string(),
         environment: "headless".to_string(),
+        tier: telemetry::TelemetryTier::Full,
     };
     let guard = telemetry::init(Mode::Release, Some(export)).map_err(|error| error.to_string())?;
 

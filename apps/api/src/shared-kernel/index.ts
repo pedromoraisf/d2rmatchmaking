@@ -14,6 +14,10 @@ export {
   withSpan,
 } from './tracing.ts';
 export type { SpanAttributes } from './tracing.ts';
+export { ACTIVE_SPAN_DETAIL, NO_SPAN_DETAIL } from './span-detail.ts';
+export type { SpanDetail } from './span-detail.ts';
+export { gameFacts, journeyIds, runIdOf } from './journey-attributes.ts';
+export type { GameFacts, JourneyIds } from './journey-attributes.ts';
 export type { IdGenerator } from './id-generator.ts';
 export { matchCharacterName } from './character-name-match.ts';
 export type { NameMatch } from './character-name-match.ts';

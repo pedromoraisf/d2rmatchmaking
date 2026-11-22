@@ -16,6 +16,7 @@ import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import './app/theme.css';
 import { createI18n } from './app/i18n.ts';
+import { createApiClient } from './shared/api-client.ts';
 import { startSiteTelemetry } from './shared/telemetry.ts';
 
 const container = document.getElementById('root');
@@ -23,8 +24,12 @@ if (container === null) {
   throw new Error('index.html has no #root element');
 }
 
-// Telemetry starts before the first render, and only in the builds that turn it on (OBS-44).
-startSiteTelemetry(import.meta.env, window);
+// Telemetry starts in every build with the tier the API reports (OBT-01). The page renders at once; spans start when the
+// tier is known, and the tier is production until then and whenever it cannot be read.
+void startSiteTelemetry(import.meta.env, window, async () => {
+  const config = await createApiClient((url, init) => fetch(url, init)).config();
+  return config.ok ? config.value.telemetryTier : null;
+});
 
 // Whether the latest installer is code-signed is read here, once, and passed down (AGR-09).
 const installerSigned = installerIsSigned(import.meta.env);

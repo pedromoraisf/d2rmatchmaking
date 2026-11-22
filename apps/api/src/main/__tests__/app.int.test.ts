@@ -85,7 +85,20 @@ describe('buildApp', () => {
     const response = await app.app.inject({ method: 'GET', url: '/v1/config' });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ stagingEndpoints: false, minAgentVersion: '1.2.3', bnetSignIn: false });
+    expect(response.json()).toEqual({
+      stagingEndpoints: false,
+      minAgentVersion: '1.2.3',
+      bnetSignIn: false,
+      telemetryTier: 'production',
+    });
+  });
+
+  it('/v1/config answers the full tier when the composition root gives it (OBT-01)', async () => {
+    const { app } = await startApp({ ...CONFIG, telemetryTier: 'full' });
+
+    const response = await app.app.inject({ method: 'GET', url: '/v1/config' });
+
+    expect(response.json()).toMatchObject({ telemetryTier: 'full' });
   });
 
   it('with stagingEndpoints false the test-login and match-formed routes answer 404', async () => {

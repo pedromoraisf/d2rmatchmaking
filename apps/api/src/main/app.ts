@@ -3,7 +3,7 @@
 import cookie from '@fastify/cookie';
 import swagger from '@fastify/swagger';
 import { ConfigResponse } from '@d2rmm/contracts';
-import { APP_METER_NAME } from '@d2rmm/telemetry';
+import { APP_METER_NAME, type TelemetryTier } from '@d2rmm/telemetry';
 import Fastify, { type FastifyInstance } from 'fastify';
 import {
   jsonSchemaTransform,
@@ -24,6 +24,7 @@ import { PostgresObservationRepository } from '../modules/lobby-room/adapters/po
 import { PostgresRoomTraceContexts } from '../modules/lobby-room/adapters/postgres/postgres-room-trace-contexts.ts';
 import type { LobbyDatabase } from '../modules/lobby-room/adapters/postgres/schema.ts';
 import { OtelRoomMetrics } from '../modules/lobby-room/adapters/telemetry/otel-room-metrics.ts';
+import { spanDetailFor } from './span-detail.ts';
 import { createLobbyRoomUseCases } from '../modules/lobby-room/index.ts';
 import { openRoomForMatch } from './match-formed.ts';
 import { matchmakingRoutes } from '../modules/matchmaking/adapters/http/routes.ts';
@@ -150,6 +151,8 @@ export function appLoggerOptions(sink?: Writable) {
 export interface AppConfig {
   readonly stagingEndpoints: boolean;
   readonly minAgentVersion: string;
+  /** The telemetry detail tier from `D2RMM_ENV` (main/config.ts), answered to the site; `production` when unset (OBT-01). */
+  readonly telemetryTier?: TelemetryTier | undefined;
   readonly siteOrigin: string;
   readonly trustProxyHops: number;
   /** The commit of the running build, answered by `/healthz` (DLP-04); `unknown` when the environment names none. */
@@ -255,7 +258,9 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
           fetch: (url, init) => fetch(url, init),
         });
 
+  const spanDetail = spanDetailFor(config.telemetryTier);
   const identity = createIdentityUseCases({
+    spanDetail,
     accounts: new PostgresAccountRepository(db as unknown as Kysely<IdentityDatabase>, clock),
     sessions: new PostgresSessionRepository(db as unknown as Kysely<IdentityDatabase>),
     hasher,
@@ -266,6 +271,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     stagingEndpoints: config.stagingEndpoints,
   });
   const characters = createCharacterUseCases({
+    spanDetail,
     characters: new PostgresCharacterRepository(db as unknown as Kysely<IdentityDatabase>),
     uow,
     outbox,
@@ -309,6 +315,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   const siteClosedAt = new Map<string, Date>();
   // The Lobby Room opens one room per `MatchFormed` it consumes (AWS-19, idempotent by match id).
   const lobby = createLobbyRoomUseCases({
+    spanDetail,
     rooms: new PostgresLobbyRoomRepository(db as unknown as Kysely<LobbyDatabase>, clock),
     observations: new PostgresObservationRepository(db as unknown as Kysely<LobbyDatabase>, clock),
     sequence: new PostgresGameNameSequence(db as unknown as Kysely<LobbyDatabase>),
@@ -501,6 +508,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     stagingEndpoints: config.stagingEndpoints,
     minAgentVersion: config.minAgentVersion,
     bnetSignIn: config.bnet !== undefined,
+    telemetryTier: config.telemetryTier ?? 'production',
   }));
   identityRoutes(app, {
     useCases: identity,

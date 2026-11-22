@@ -1,10 +1,20 @@
 // The only reader of process.env in the API (design.md § Composition roots; AWS-31). Every other file takes its settings
 // through the composition root's arguments.
 
+import type { TelemetryTier } from '@d2rmm/telemetry';
+
 export type DeployEnvironment = 'local' | 'staging' | 'production';
 
 const ENVIRONMENTS: ReadonlySet<string> = new Set<DeployEnvironment>(['local', 'staging', 'production']);
 const SEMVER = /^\d+\.\d+\.\d+$/;
+
+/**
+ * The telemetry detail tier of an environment (ADR 037, OBT-01): `staging` and `local` carry the full detail, `production`
+ * and any other name carry the production tier. The stricter tier is the safe failure.
+ */
+export function tierOfEnvironment(environment: string): TelemetryTier {
+  return environment === 'staging' || environment === 'local' ? 'full' : 'production';
+}
 
 export interface Config {
   /** `DATABASE_URL`: the local or Neon connection string. Undefined when unset. */
@@ -17,6 +27,8 @@ export interface Config {
   readonly stagingEndpoints: boolean;
   /** `D2RMM_ENV`, default `local`. */
   readonly environment: DeployEnvironment;
+  /** The detail tier of `D2RMM_ENV` (OBT-01): read here, in `main/`, and nowhere else. */
+  readonly telemetryTier: TelemetryTier;
   /** `AGENT_MIN_VERSION`, default `0.0.0`. */
   readonly agentMinVersion: string;
   /** `TRUST_PROXY_HOPS`, default 1 (Render has one proxy in front of the API). */
@@ -218,6 +230,7 @@ export function loadConfig(env: Environment = process.env): Config {
     siteOrigin: env['SITE_ORIGIN'] ?? 'http://localhost:8788',
     stagingEndpoints: flag('ENABLE_STAGING_ENDPOINTS', env['ENABLE_STAGING_ENDPOINTS']),
     environment: rawEnvironment as DeployEnvironment,
+    telemetryTier: tierOfEnvironment(rawEnvironment),
     agentMinVersion,
     trustProxyHops: integer('TRUST_PROXY_HOPS', env['TRUST_PROXY_HOPS'], 1, 0),
     roomDropToleranceSeconds: integer(

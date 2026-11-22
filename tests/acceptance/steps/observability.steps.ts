@@ -35,12 +35,18 @@ import {
   type Trace,
 } from '../support/trace-reader.ts';
 import { submitPairingCode } from '../support/world.ts';
+import { signInPlayerOnSite } from './identity.steps.ts';
 
 /** The backend is started once per worker, by the first trace scenario that needs it (design § Local backend). */
 let backend: Promise<TelemetryBackend> | undefined;
 
 function telemetryBackend(): Promise<TelemetryBackend> {
   backend ??= startTelemetryBackend();
+  return backend;
+}
+
+/** The backend of this worker when a scenario started it, or undefined (the tier scenarios use a fake one then). */
+export function startedBackend(): Promise<TelemetryBackend> | undefined {
   return backend;
 }
 
@@ -145,6 +151,10 @@ Given('the telemetry backend is running locally', async ({ world }) => {
 });
 
 When(/^"(.+)" starts a test match on the site$/, async ({ world }, name: string) => {
+  // A scenario that does not sign the player in first (the tier scenarios) gets a signed-in visitor here.
+  if (world.player(name).visitor === undefined) {
+    await signInPlayerOnSite(world, name);
+  }
   const page = world.player(name).visitor?.page;
   if (page === undefined) {
     throw new Error(`"${name}" has not signed in on the site in this scenario`);
