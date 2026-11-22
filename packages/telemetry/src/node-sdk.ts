@@ -13,6 +13,7 @@ import {
   type ResourceMetrics,
 } from '@opentelemetry/sdk-metrics';
 import { BasicTracerProvider, BatchSpanProcessor, type ReadableSpan } from '@opentelemetry/sdk-trace-base';
+import type { TelemetryTier } from './redact-attributes.ts';
 import { RedactingLogRecordExporter, RedactingSpanExporter } from './sdk/redacting-exporters.ts';
 import { createResource } from './sdk/resource.ts';
 import { samplerFrom } from './sdk/sampler.ts';
@@ -25,6 +26,8 @@ export interface NodeTelemetryOptions {
   serviceName: string;
   serviceVersion: string;
   environment: string;
+  /** The detail tier (ADR 037); the caller maps its environment to it in `main/`. */
+  tier: TelemetryTier;
   /** The OTLP/HTTP base URL; the signal paths `/v1/traces`, `/v1/metrics` and `/v1/logs` are appended. */
   endpoint: string;
   headers?: Record<string, string>;
@@ -132,6 +135,7 @@ export function startNodeTelemetry(options: NodeTelemetryOptions): TelemetryHand
     serviceName: options.serviceName,
     serviceVersion: options.serviceVersion,
     environment: options.environment,
+    tier: options.tier,
   });
   const reporter = new ExportErrorReporter(options.onExportError, now);
   const config = (signal: 'traces' | 'metrics' | 'logs'): OtlpConfig => ({
@@ -145,7 +149,7 @@ export function startNodeTelemetry(options: NodeTelemetryOptions): TelemetryHand
     sampler: samplerFrom(options.samplerArg, now),
     spanProcessors: [
       new BatchSpanProcessor(
-        new RedactingSpanExporter(new ReportingTraceExporter(config('traces'), reporter)),
+        new RedactingSpanExporter(new ReportingTraceExporter(config('traces'), reporter), options.tier),
       ),
     ],
   });
@@ -165,7 +169,11 @@ export function startNodeTelemetry(options: NodeTelemetryOptions): TelemetryHand
     resource,
     processors: [
       new BatchLogRecordProcessor({
-        exporter: new RedactingLogRecordExporter(new ReportingLogExporter(config('logs'), reporter), now),
+        exporter: new RedactingLogRecordExporter(
+          new ReportingLogExporter(config('logs'), reporter),
+          options.tier,
+          now,
+        ),
       }),
     ],
   });

@@ -1,4 +1,11 @@
-import { err, ok, withSpan, type Result } from '../../../shared-kernel/index.ts';
+import {
+  annotateActiveSpan,
+  err,
+  journeyIds,
+  ok,
+  withSpan,
+  type Result,
+} from '../../../shared-kernel/index.ts';
 import type { AgentRepository, AgentTokenCache, SecretHasher } from './ports.ts';
 
 export interface AgentIdentity {
@@ -39,6 +46,7 @@ export function createAuthenticateAgent(deps: AuthenticateAgentDeps) {
         const tokenHash = deps.hasher.hash('agent', input.token);
         const cached = deps.cache.get(tokenHash);
         if (cached !== undefined) {
+          annotateActiveSpan(journeyIds(cached));
           return ok(cached);
         }
         if (opts?.beforeLookup !== undefined && !opts.beforeLookup()) {
@@ -55,6 +63,7 @@ export function createAuthenticateAgent(deps: AuthenticateAgentDeps) {
         }
         const identity: AgentIdentity = { agentId: agent.id, accountId: agent.accountId };
         deps.cache.set(tokenHash, identity);
+        annotateActiveSpan(journeyIds(identity));
         return ok(identity);
       },
     );

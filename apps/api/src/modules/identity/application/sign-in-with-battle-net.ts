@@ -6,13 +6,17 @@ import {
 } from '../domain/account.ts';
 import { Session } from '../domain/session.ts';
 import {
+  annotateActiveSpan,
   err,
+  journeyIds,
+  NO_SPAN_DETAIL,
   ok,
   withSpan,
   type Clock,
   type IdGenerator,
   type RandomSource,
   type Result,
+  type SpanDetail,
 } from '../../../shared-kernel/index.ts';
 import type { AccountRepository, BattleNetOAuth, SecretHasher, SessionRepository } from './ports.ts';
 import { newSessionToken } from './session-token.ts';
@@ -25,6 +29,8 @@ export interface SignInWithBattleNetDeps {
   readonly random: RandomSource;
   readonly ids: IdGenerator;
   readonly battleNet: BattleNetOAuth;
+  /** Full-tier span fields (OBT-04); nothing is recorded when unset. */
+  readonly spanDetail?: SpanDetail;
 }
 
 export interface BattleNetSignIn {
@@ -56,6 +62,9 @@ export function createSignInWithBattleNet(deps: SignInWithBattleNetDeps) {
         }
         const { sub, battletag } = exchanged.value;
         const account = await accountForSignIn(deps, sub, battletag);
+        annotateActiveSpan(journeyIds({ accountId: account.id }));
+        // The player's BattleTag: the full tier only (OBT-04).
+        (deps.spanDetail ?? NO_SPAN_DETAIL).annotate({ 'd2r.account.battletag': battletag });
         const session = Session.open(account.id, deps.clock.now());
         const sessionToken = newSessionToken(deps.random);
         await deps.sessions.insert({

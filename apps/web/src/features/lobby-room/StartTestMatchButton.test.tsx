@@ -37,6 +37,7 @@ describe('StartTestMatchButton', () => {
       relayPath: '/api/v1/telemetry/traces',
       serviceVersion: 'test',
       environment: 'test',
+      tier: 'production',
     });
     const { fetch, calls } = routeFetch({ 'POST /api/v1/staging/match-formed': () => jsonResponse(202) });
     renderInLanguage(

@@ -26,21 +26,41 @@ describe('MeResponse', () => {
 
 describe('ConfigResponse', () => {
   it('accepts the feature flags, the minimum agent version and the Battle.net sign-in flag', () => {
-    const config = { stagingEndpoints: true, minAgentVersion: '0.0.1', bnetSignIn: true };
+    const config = {
+      stagingEndpoints: true,
+      minAgentVersion: '0.0.1',
+      bnetSignIn: true,
+      telemetryTier: 'full',
+    };
     expect(ConfigResponse.parse(config)).toStrictEqual(config);
+  });
+
+  it('accepts the two telemetry tiers and rejects any other value or none (OBT-01)', () => {
+    const base = { stagingEndpoints: false, minAgentVersion: '1.0.0', bnetSignIn: false };
+    expect(ConfigResponse.safeParse({ ...base, telemetryTier: 'production' }).success).toBe(true);
+    expect(ConfigResponse.safeParse({ ...base, telemetryTier: 'staging' }).success).toBe(false);
+    expect(ConfigResponse.safeParse(base).success).toBe(false);
   });
 
   it('rejects a minimum agent version that is not semantic', () => {
     expect(
-      ConfigResponse.safeParse({ stagingEndpoints: false, minAgentVersion: '1.0', bnetSignIn: false })
-        .success,
+      ConfigResponse.safeParse({
+        stagingEndpoints: false,
+        minAgentVersion: '1.0',
+        bnetSignIn: false,
+        telemetryTier: 'production',
+      }).success,
     ).toBe(false);
   });
 
   it('rejects a config that does not say whether Battle.net sign-in is offered', () => {
-    expect(ConfigResponse.safeParse({ stagingEndpoints: false, minAgentVersion: '1.0.0' }).success).toBe(
-      false,
-    );
+    expect(
+      ConfigResponse.safeParse({
+        stagingEndpoints: false,
+        minAgentVersion: '1.0.0',
+        telemetryTier: 'production',
+      }).success,
+    ).toBe(false);
   });
 });
 

@@ -4,10 +4,12 @@ import {
   err,
   ok,
   annotateActiveSpan,
+  NO_SPAN_DETAIL,
   withSpan,
   type Clock,
   type Outbox,
   type Result,
+  type SpanDetail,
   type UnitOfWork,
 } from '../../../shared-kernel/index.ts';
 import type { CharacterRepository } from './character-ports.ts';
@@ -17,6 +19,8 @@ export interface RecordCharactersDeps {
   readonly uow: UnitOfWork;
   readonly outbox: Outbox;
   readonly clock: Clock;
+  /** Full-tier span fields (OBT-04); nothing is recorded when unset. */
+  readonly spanDetail?: SpanDetail;
 }
 
 /**
@@ -34,6 +38,10 @@ export function createRecordCharacters(deps: RecordCharactersDeps) {
       'identity.record-characters',
       { 'd2r.characters.count': input.characters.length },
       async (): Promise<Result<{ readonly count: number }, RecordCharactersError>> => {
+        // The names the agent read, before they are checked: the full tier only (OBT-04); production records none.
+        (deps.spanDetail ?? NO_SPAN_DETAIL).annotate({
+          'd2r.observation.read_names': input.characters.map((character) => character.name).join(', '),
+        });
         const batch = parseCharacterBatch(input.characters);
         if (!batch.ok) {
           return err('invalid-characters');

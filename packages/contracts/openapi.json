@@ -203,12 +203,20 @@
                     },
                     "bnetSignIn": {
                       "type": "boolean"
+                    },
+                    "telemetryTier": {
+                      "type": "string",
+                      "enum": [
+                        "full",
+                        "production"
+                      ]
                     }
                   },
                   "required": [
                     "stagingEndpoints",
                     "minAgentVersion",
-                    "bnetSignIn"
+                    "bnetSignIn",
+                    "telemetryTier"
                   ],
                   "additionalProperties": false
                 }
