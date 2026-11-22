@@ -258,6 +258,7 @@ mod shell {
         code_name, consent_store_in, handle_get_consent, handle_get_new_code, handle_set_consent,
         is_app_url, press_of, reconcile_and_report, report_dispatch_failed, wanted_hotkey,
     };
+    use crate::adapters::clipboard::TauriClipboard;
     use crate::adapters::token_store::KeyringTokenStore;
     use crate::config;
     use crate::fixture_read;
@@ -562,6 +563,7 @@ mod shell {
 
         tauri::Builder::default()
             .plugin(tauri_plugin_updater::Builder::new().build())
+            .plugin(crate::adapters::clipboard::plugin())
             .invoke_handler(tauri::generate_handler![
                 get_new_code,
                 get_consent,
@@ -599,9 +601,12 @@ mod shell {
                     )),
                     reader: Arc::new(WireReader),
                 };
+                let clipboard_app = app_handle.clone();
                 let groups = build(app_handle, gateway);
                 let handle = Arc::new(tauri::async_runtime::block_on(async move {
+                    // The game name copy (FR-28, AST-11): the one clipboard writer, from Rust; the window cannot reach it.
                     Runtime::start(&core_config, sink, groups)
+                        .with_clipboard(Arc::new(TauriClipboard::new(clipboard_app)))
                         .with_config(config_ports, CHECK_EVERY)
                 }));
                 if let Some(saved) = hotkey_store(app.handle()).load() {

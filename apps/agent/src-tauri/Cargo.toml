@@ -32,6 +32,8 @@ png = "0.18"
 # The ready-check hotkey (RDY-07): registers the key combination with the OS (RegisterHotKey), no keyboard hook, no input.
 global-hotkey = "0.8"
 keyring = { version = "3", features = ["windows-native"] }
+# The game name copy (AST-11, AST-14): written from Rust in `adapters/clipboard.rs` alone; no capability reaches the webview.
+tauri-plugin-clipboard-manager = "2"
 windows = { version = "0.62", features = ["Foundation", "Globalization", "Graphics", "Graphics_Capture", "Graphics_DirectX", "Graphics_DirectX_Direct3D11", "Graphics_Imaging", "Media_Ocr", "Storage_Streams", "Win32_Foundation", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D11", "Win32_Graphics_Dwm", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_Graphics_Gdi", "Win32_Storage_Xps", "Win32_System_Diagnostics_ToolHelp", "Win32_System_WinRT", "Win32_System_WinRT_Direct3D11", "Win32_System_WinRT_Graphics_Capture", "Win32_UI_WindowsAndMessaging"] }
 
 [features]

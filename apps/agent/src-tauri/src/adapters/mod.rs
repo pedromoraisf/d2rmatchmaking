@@ -21,6 +21,9 @@ pub mod window_capture;
 pub mod ocr_pixels;
 
 #[cfg(windows)]
+pub mod clipboard;
+
+#[cfg(windows)]
 pub mod system;
 
 #[cfg(windows)]

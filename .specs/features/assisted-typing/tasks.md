@@ -97,7 +97,7 @@ Rules:
 - [x] T13 — Core: a `Clipboard` port and `copy_room_name` (AST-11): once per assigned run, only a `TypableName`; unit tests
       with a fake port (copied once, a new run copies once more, a refused name never written, a failed write reported).
       Gate: `CARGO nextest run -p d2rmm-agent-core --lib`
-- [ ] T14 — Adapter and sensor (AST-14): one clipboard adapter file, write-only; the source rule with fixtures. If it needs a
+- [x] T14 — Adapter and sensor (AST-14): one clipboard adapter file, write-only; the source rule with fixtures. If it needs a
       new crate or `windows` feature, the gate asks the maintainer; record the answer in `decisions.md`.
       Gate: `pnpm test:harness && CARGO clippy --all-targets -- -D warnings`
 - [x] T15 — Window and view (AST-12, AST-10): the copied line, "copy again", the refusal and failure lines, en and pt-BR;
