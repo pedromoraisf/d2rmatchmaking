@@ -893,7 +893,8 @@ mod tests {
         let directory =
             std::env::temp_dir().join(format!("d2rmm-app-diagnostics-{}", uuid::Uuid::new_v4()));
         let store = diagnostics_store_in(Some(directory.clone()));
-        let switch = DiagnosticsSwitch::new(store.load());
+        let switch = DiagnosticsSwitch::new(false);
+        apply_saved_diagnostics(&store, &switch);
 
         assert!(switch.is_on(), "no file reads as on (OBT-15)");
         assert_eq!(
