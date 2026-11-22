@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use d2rmm_agent_core::ports::StoreError;
+use d2rmm_agent_core::ports::{DiagnosticsStore, StoreError};
 use serde_json::{Value, json};
 
 /// The file that holds the switch, in the app's configuration directory.
@@ -43,14 +43,6 @@ impl Default for DiagnosticsSwitch {
     fn default() -> Self {
         Self::on()
     }
-}
-
-/// Where the player's diagnostics choice is kept, the way `ConsentStore` keeps the consent. The composition uses this port; the
-/// file store implements it and `InMemoryDiagnosticsStore` stands in for it in tests.
-pub trait DiagnosticsStore {
-    /// The stored choice: on when none was made (the default), off when it cannot be read (OBT-15).
-    fn load(&self) -> bool;
-    fn save(&self, on: bool) -> Result<(), StoreError>;
 }
 
 /// The switch in a file at `directory`. With no directory nothing is kept and the switch reads as on.

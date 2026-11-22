@@ -31,9 +31,7 @@ use export::{DropOldestProcessor, EXPORT_INTERVAL, SpanQueue, export_loop};
 use queue::{BoundedQueue, SPAN_QUEUE_CAPACITY};
 use relay_client::{HeaderSource, RelayHttpClient};
 use sanitize::SanitizingExporter;
-pub use switch::{
-    DiagnosticsStore, DiagnosticsSwitch, FileDiagnosticsStore, InMemoryDiagnosticsStore,
-};
+pub use switch::{DiagnosticsSwitch, FileDiagnosticsStore, InMemoryDiagnosticsStore};
 pub use tier::{TelemetryTier, ratio_of, tier_of};
 
 const INSTRUMENTATION_SCOPE: &str = "d2rmm-agent";

@@ -10,10 +10,8 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use d2rmm_agent_adapters::http::gateway::HttpGateway;
-use d2rmm_agent_adapters::telemetry::{
-    DiagnosticsStore, DiagnosticsSwitch, FileDiagnosticsStore, TelemetryTier,
-};
-use d2rmm_agent_core::ports::{ConsentStore, StoreError};
+use d2rmm_agent_adapters::telemetry::{DiagnosticsSwitch, FileDiagnosticsStore, TelemetryTier};
+use d2rmm_agent_core::ports::{ConsentStore, DiagnosticsStore, StoreError};
 use d2rmm_agent_core::runtime::Handle;
 use d2rmm_agent_core::view::{AgentView, HotkeyFailure, HotkeyPress, HotkeySlot};
 use d2rmm_agent_domain::typing::{HotkeyAction, HotkeyChoice, HotkeyKey, HotkeyPair};
@@ -758,8 +756,9 @@ mod tests {
     use d2rmm_agent_domain::typing::{HotkeyChoice, HotkeyPair};
 
     use d2rmm_agent_adapters::telemetry::{
-        DiagnosticsStore, DiagnosticsSwitch, InMemoryDiagnosticsStore, TelemetryTier,
+        DiagnosticsSwitch, InMemoryDiagnosticsStore, TelemetryTier,
     };
+    use d2rmm_agent_core::ports::DiagnosticsStore;
 
     use super::{
         CodeRequester, FileHotkeyStore, Slot, app_context, apply_hotkey_change,
