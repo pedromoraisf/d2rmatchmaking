@@ -108,20 +108,36 @@ failure message carries a name read from a real print.
       refuses a readable name. One change per commit, each pushed and proved: `ocr-real` green, the print's correct
       count up, `wrong` not up. A class that is a missed panel goes to `screen-recognition`; a class that is not in the frame
       stays refused and is written in the PR with its count. Gate: as T6
-- [ ] T10 — **[R14]** Misread glyphs from observed reads (GNR-03, GNR-04, GNR-09). For each glyph the summaries show
+- [x] T10 — **[R14]** Misread glyphs from observed reads (GNR-03, GNR-04, GNR-09). For each glyph the summaries show
       the engine returning for a letter or digit of a generated name (`sub(o>0)@9`-style operations name the pair), add it to
       the table for its part of the name only, with the unit test of the glyph, the unit test of the name it must not
       match, and the collision test over every activity, code and run number up to 9999 and the drift test green. A glyph
       with no observed read is never added; the `n` and `m` prints (`mmpvpn-10`, `mmbaalm-99`) are read in this task too.
       Gate: as T6
-      Progress (PR #126): `k`>`h` (df2e5892, +19 correct) and `rn`>`m` (88759a3e, +144 correct) are done, each with its glyph,
+      Progress (PR #133, `ocr-variations` correct from the #130 baseline 5687, wrong 45 throughout, `ocr-real` green each time):
+      `å`>`a` (+13, 5700), `+`>`o` (+5, 5705), a bullet U+2022 read for the `-` (+22, 5727), each with glyph, must-not-match and
+      collision tests over every activity, code and run number up to 9999. `n`/`m` prints (`mmpvpn-10`, `mmbaalm-99`): the only
+      op left is `sub(c>l)@5` on `mmbaalm-99` (1 variation), a letter shift, not a glyph. Not added (one variation each, or a
+      real letter of another name, so no safe fold): `2`>`z`, `3`>`b`/`s`, `5`>`s`, U+20AC>`c`, `$`>`s`, `(`>`c`, `&`>`o`,
+      `a`>`o` and `s`>`o` at the `o` of `chaos` (5 variations on `mmchaosh-20`; `a` and `s` are letters of other names, so the
+      fold needs the maintainer's call), `sub( >m)`, `t>c`, `s>a`. `sub(U+00E9>o)` and `sub(o>d)` on `maintainer-party-revealed*`
+      are the room name `DUEL NK LOCKS` (no `-`), not a generated name.
+      Earlier (PR #126): `k`>`h` (df2e5892, +19 correct) and `rn`>`m` (88759a3e, +144 correct) are done, each with its glyph,
       must-not-match and collision tests over every activity, code and run number up to 9999; wrong stays 45. Still open:
       `~`>`o` (a non-ASCII read for `o`, 36 variations on 5 prints), awaiting the `U+XXXX` evidence of the next run.
-- [ ] T11 — **[R14]** Automap and chat refusals (GNR-06, GNR-07, GNR-11). Same loop as T9 on the automap and chat prints:
+- [x] T11 — **[R14]** Automap and chat refusals (GNR-06, GNR-07, GNR-11). Same loop as T9 on the automap and chat prints:
       classes of reason first, then the smallest change per class (the name line searched in a wider band, as the HUD is; the
       chat words of Portuguese added as data in `resources/lang/pt-BR.json` from O1's note). A frame with no joined or left
       line must still classify nothing (the drawn lines of T5). Gate: as T6
-      Progress (PR #126): the EN chat print holding both classes is read as found (the classifier now applies the rule
+      Progress (PR #133): no reader change. Evidence added instead: a far automap reason with a label and colon now names the
+      distance (and, at 1-2 edits, the operations) of the text after the label. Result: PT automap 8 variations are 1 edit off after
+      the label (`sub(a>o)@5` 3, `sub(s>o)@5` 2, `sub(3>s)@6` 2, `del(?)@9` 1), EN 4 are 1-2 edits off (`sub(?>o)@2` 2,
+      `sub(4>a)@4`, bullet+`o>9`); 15 PT and 11 EN are 7+ off or have no label (`automap-other-far` 20 PT), 56 `automap-no-lines`
+      (no line in the band). So the name line is found after the label already; what is left is glyphs (see T10) and lines the
+      engine does not read. Chat: `chat-no-phrase` 43-50 per print and `chat-no-lines` 1-5 are unchanged, with no near-misread
+      operation in the phrase span, so no change to the reader or to `pt-BR.json`; a frame with no joined or left line still
+      classifies nothing.
+      Earlier (PR #126): the EN chat print holding both classes is read as found (the classifier now applies the rule
       `ocr-real` already used): `chat-en-mmbaalh-19` 5 to 390 correct, wrong 0. Still open: `chat-no-phrase` (43 per chat
       print) shows no near-misread operations inside the phrase's own span, so there is no evidence to change the reader.
 - [x] T12 — Close the proofs (GNR-01, GNR-02, GNR-11). Write the PR's table: `ocr-real` per print, `ocr-variations` counts

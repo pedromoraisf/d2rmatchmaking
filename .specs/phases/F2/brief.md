@@ -262,3 +262,39 @@ the recommendations would be followed for any item left unanswered. So items 1 t
 7. The ADR 017 amendment.
 
 Items 8 to 10 remain inputs. They are tracked in `decisions.md → Waiting on the maintainer`.
+
+## Revision 1 — assisted typing becomes a clipboard copy (2026-11-21)
+
+**Why.** In the field test of 2026-11-21 the maintainer found that the fill hotkey (Ctrl+Shift+F) is more work than the
+game's own behaviour: Ctrl+V already pastes into the Game Creator's name field (checked by the maintainer the same day).
+Typing by synthetic keystrokes is also the riskiest thing the agent does with respect to Blizzard's terms, and the
+maintainer does not want that risk.
+
+**What changes.**
+
+- FR-28 is met by a **copy, not by typing**: when the agent holds a room and knows its game name, it writes that name
+  to the Windows clipboard once, when the room opens, and its window says "Nome da sala copiado — use Ctrl+V". It never
+  sends a key to the game. The site's copy button stays as the fallback.
+- **Removed**: the fill hotkey, `SendInput` and `GetAsyncKeyState` (AST-01 to AST-07 and AST-09). The sensor exception
+  approved for AST-09 is withdrawn, so the agent's adapters go back to sending no input at all (AGENTS.md rule 5).
+- The ready check's accept hotkey (RDY-07) is not affected.
+- The exit criterion "Assisted typing (FR-28)" reads: _when a room opens, the agent copies its game name to the
+  clipboard, never types into the game and never presses a key. Proof: unit tests, the source-rule test that the agent
+  sends no input, the security review and the maintainer's check (Ctrl+V in the Game Creator)._
+- `assisted-typing`'s spec, scenarios and tasks are rewritten for the copy (a new batch); its merged typing code is
+  removed in the same PR.
+
+**Out of scope, recorded for later.** Filling the Game Creator or clicking through the game's menus for the player:
+it would send input that navigates the game, which ADR 010 forbids, and it carries the same terms-of-service risk.
+
+**Approved**: 2026-11-21 - user: "sobre o ctrl v (remover a feature de ctrl shift f), aprovo"
+
+## Revision 2 — observability in two tiers (2026-11-21)
+
+**Why.** Field tests on 2026-11-21 could not be followed in Grafana: 10% API sampling, no agent or site spans, no ids.
+**What changes.** ADR 037: on staging and test installers telemetry carries everything (ids, the player's names, OCR
+text and corrections, game data); in production it carries ids and all non-personal game data, never a person's name or
+text read from the screen. A new feature `observability-tiers` (agent, site and API spans by tier, with tests proving
+production redaction) joins F2; its spec and tasks are written by the orchestrator before dispatch.
+
+**Approved**: 2026-11-21 - user: "aprovo."

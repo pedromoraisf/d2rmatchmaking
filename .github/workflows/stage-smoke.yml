@@ -1,5 +1,6 @@
 # Stage `smoke` (ADR 033, DLP-04): wakes the service with a backoff of up to 90 s, then checks what answers: the page and
-# the API behind it for the site, the deployed SHA on /healthz for the API. Requests are at least 5 s apart,
+# the API behind it for the site, the deployed SHA on /healthz for the API, and for the agent (called by release-agent.yml
+# before its build) only that the API's /healthz answers ok, whatever the build. Requests are at least 5 s apart,
 # so the smoke cannot trip the host's rate limiting. It needs no secret.
 name: stage-smoke
 

@@ -5,6 +5,7 @@
 //! the process (AGS-20). A frame in an unsupported client size shows nothing (CHR-19).
 
 use std::cell::Cell;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use d2rmm_agent_domain::anchors::{self, line_pad};
@@ -34,6 +35,12 @@ pub struct ScreenReader {
     automap: Mutex<Tracker>,
     /// The same for the character list's "Create New" button, searched only when the fixed box missed.
     create_new: Mutex<Tracker>,
+    /// The reader of the pack's fallback language (the pt-BR client, whose words the English ones never find), with its own
+    /// trackers: tried when the pack's own words read the frame as `Unknown`. `None` when the pack has no fallback.
+    fallback: Option<Box<ScreenReader>>,
+    /// Whether the fallback language read the last frame it could: it is then tried first, so a pt-BR client does not pay
+    /// an English read of every frame.
+    prefers_fallback: AtomicBool,
 }
 
 /// How a frame's HUD, automap or list marker was looked for (SCR-09): the tracked box held it, the wide area was searched,
@@ -80,7 +87,12 @@ pub struct AnchorCounts {
 
 impl ScreenReader {
     pub fn new(reader: Arc<dyn TextReader + Send + Sync>, language: Arc<LanguagePack>) -> Self {
+        let fallback = language
+            .fallback()
+            .map(|pack| Box::new(Self::new(Arc::clone(&reader), Arc::new(pack.clone()))));
         Self {
+            fallback,
+            prefers_fallback: AtomicBool::new(false),
             reader,
             language,
             hud: Mutex::new(Tracker::new(ScreenRegion::HudBand)),
@@ -264,6 +276,34 @@ impl FrameReader for ScreenReader {
     }
 
     fn read_with(&self, frame: &Rgba, config: &Effective) -> FrameReading {
+        let Some(fallback) = self.fallback.as_deref() else {
+            return self.read_own(frame, config);
+        };
+        // The pack's own words first (the last language that read a frame first); the other language only when the first
+        // finds nothing, so a frame that is no known screen in either stays `Unknown`.
+        let fallback_first = self.prefers_fallback.load(Ordering::Relaxed);
+        let (first, second) = if fallback_first {
+            (fallback, self)
+        } else {
+            (self, fallback)
+        };
+        let reading = first.read_own(frame, config);
+        if reading.screen != Screen::Unknown {
+            return reading;
+        }
+        let other = second.read_own(frame, config);
+        if other.screen == Screen::Unknown {
+            return reading;
+        }
+        self.prefers_fallback
+            .store(!fallback_first, Ordering::Relaxed);
+        other
+    }
+}
+
+impl ScreenReader {
+    /// A frame read with this reader's own pack only.
+    fn read_own(&self, frame: &Rgba, config: &Effective) -> FrameReading {
         if !supported_size(frame.width, frame.height) {
             return FrameReading::without_cards(Screen::Unknown);
         }
@@ -598,8 +638,12 @@ mod tests {
             }
         };
         let pack = LanguagePack::english();
+        let brazilian = brazilian();
         for line in &sidecar.lines {
-            let Some(difficulty) = pack.read_difficulty(&line.text) else {
+            let Some(difficulty) = pack
+                .read_difficulty(&line.text)
+                .or_else(|| brazilian.read_difficulty(&line.text))
+            else {
                 continue;
             };
             let level = if dimmed.contains(&difficulty) {
@@ -617,6 +661,8 @@ mod tests {
                 && text.chars().all(char::is_alphabetic)
                 && pack.read_title_word(text).is_none()
                 && pack.read_difficulty(text).is_none()
+                && brazilian.read_difficulty(text).is_none()
+                && brazilian.read_title_word(text).is_none()
         }) {
             let area = line.region;
             let mut x = area.x + 1;
@@ -644,6 +690,106 @@ mod tests {
             width,
             height,
             pixels,
+        }
+    }
+
+    /// The Brazilian pack the app ships (`resources/lang/pt-BR.json`, the app crate's test pins the file to these words).
+    fn brazilian() -> LanguagePack {
+        let words = [
+            ("party", "Grupo"),
+            ("gameName", "Nome"),
+            ("password", "Senha"),
+            ("characterLevel", "Nv."),
+            ("classAmazon", "Amazona"),
+            ("classAssassin", "Assassina"),
+            ("classNecromancer", "Necromante"),
+            ("classSorceress", "Maga"),
+            ("titleMatriarch", "Matriarca"),
+            ("createNew", "Criar novo"),
+            ("life", "Vida:"),
+            ("mana", "Mana:"),
+            ("difficultyLabel", "Dificuldade:"),
+            ("selectDifficulty", "Selecionar dificuldade"),
+            ("difficultyNormal", "Normal"),
+            ("difficultyNightmare", "Pesadelo"),
+            ("difficultyHell", "Tormento"),
+            ("tabOnline", "Online"),
+            ("tabOffline", "Offline"),
+        ]
+        .map(|(key, word)| (key.to_string(), word.to_string()));
+        LanguagePack::from_words("pt-BR", words).expect("the pack builds")
+    }
+
+    /// The pack the agent reads with: English, with the Brazilian words as the fallback.
+    fn shipped_like() -> Arc<LanguagePack> {
+        Arc::new(LanguagePack::english().with_fallback(brazilian()))
+    }
+
+    fn read_shipped(json: &str, selected: Option<u8>) -> FrameReading {
+        let sidecar = Sidecar::of(json, 1920, 1080);
+        let image = frame(&sidecar, selected, &[]);
+        ScreenReader::new(Arc::new(sidecar), shipped_like()).read(&image)
+    }
+
+    const PT_SELECT: &str = r#"{
+        "createNew": "Criar novo",
+        "cardTitle0": "Matriarca", "cardName0": "vukVuka", "cardLevel0": "Nv. 88 Maga",
+        "cardTitle1": "", "cardName1": "vukaDao", "cardLevel1": "Nv. 11 Maga",
+        "selectDifficulty": "Selecionar dificuldade",
+        "popupNormal": "Normal", "popupNightmare": "Pesadelo", "popupHell": "Tormento"
+    }"#;
+    const PT_IN_GAME: &str = r#"{ "life": "Vida: 925 / 925" }"#;
+    const PT_AUTOMAP: &str = r#"{ "areaDifficulty": "Dificuldade: Tormento" }"#;
+
+    #[test]
+    fn a_pt_br_client_reads_its_selection_screen_its_popup_and_its_hud_through_the_fallback_pack() {
+        // The field bug: the English words alone read "Unknown" on a pt-BR client.
+        for json in [PT_SELECT, PT_IN_GAME, PT_AUTOMAP] {
+            let sidecar = Sidecar::of(json, 1920, 1080);
+            let image = frame(&sidecar, Some(0), &[]);
+            let english_only =
+                ScreenReader::new(Arc::new(sidecar), Arc::new(LanguagePack::english()));
+            assert_eq!(english_only.read(&image).screen, Screen::Unknown);
+        }
+        let reading = read_shipped(PT_SELECT, Some(0));
+        assert_eq!(reading.screen, Screen::CharacterSelect);
+        assert_eq!(names(&reading), ["vukVuka", "vukaDao"]);
+        assert_eq!(reading.cards[0].level(), 88);
+        assert_eq!(
+            reading.cards[0].title(),
+            Some(d2rmm_agent_domain::characters::Title::Matriarch)
+        );
+        assert_eq!(reading.popup_options, 3);
+        assert_eq!(read_shipped(PT_IN_GAME, None).screen, Screen::InGame);
+        assert_eq!(read_shipped(PT_AUTOMAP, None).screen, Screen::AutomapOpen);
+    }
+
+    #[test]
+    fn the_fallback_pack_leaves_an_english_client_and_an_unknown_frame_as_they_were() {
+        for (json, screen) in [
+            (SELECT_NORMAL, Screen::CharacterSelect),
+            (IN_GAME, Screen::InGame),
+            (AUTOMAP, Screen::AutomapOpen),
+            (MENU, Screen::Unknown),
+        ] {
+            assert_eq!(read_shipped(json, Some(0)).screen, screen);
+            assert_eq!(read(json, Some(0)).screen, screen);
+        }
+        assert_eq!(
+            names(&read_shipped(SELECT_NORMAL, Some(0))),
+            names(&read(SELECT_NORMAL, Some(0)))
+        );
+    }
+
+    #[test]
+    fn a_reader_that_read_the_fallback_language_keeps_reading_it_frame_after_frame() {
+        let sidecar = Sidecar::of(PT_SELECT, 1920, 1080);
+        let image = frame(&sidecar, Some(0), &[]);
+        let reader = ScreenReader::new(Arc::new(sidecar), shipped_like());
+        for _ in 0..3 {
+            let reading = reader.read(&image);
+            assert_eq!(reading.screen, Screen::CharacterSelect);
+            assert_eq!(names(&reading), ["vukVuka", "vukaDao"]);
         }
     }
 
