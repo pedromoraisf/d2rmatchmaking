@@ -1,6 +1,7 @@
 //! The player's "send diagnostics" switch (OBT-14 to OBT-17; NFR-04, NFR-05). One shared flag the span processor and the export
 //! loop read, and one small file in the app's configuration directory that keeps it across restarts, apart from the consent,
-//! hotkeys and remote-config files. It holds no secret. The default is on; a missing, unreadable or unexpected file reads as on.
+//! hotkeys and remote-config files. It holds no secret. The default is on: with no file the switch reads as on. A file that exists but cannot be read as a
+//! boolean flag reads as off, so a half-written file never turns diagnostics back on after an opt-out (OBT-15).
 
 use std::fs;
 use std::path::PathBuf;
@@ -57,15 +58,17 @@ impl FileDiagnosticsStore {
         }
     }
 
-    /// The stored choice; on when there is none or the file is unreadable or not a boolean flag (OBT-15).
+    /// The stored choice: on when there is no file (the default); off when a file exists but is unreadable, malformed or
+    /// not a boolean flag, the conservative reading once a choice may have been made (OBT-15).
     pub fn load(&self) -> bool {
-        self.read().unwrap_or(true)
-    }
-
-    fn read(&self) -> Option<bool> {
-        let text = fs::read_to_string(self.path.as_ref()?).ok()?;
-        let settings: Value = serde_json::from_str(&text).ok()?;
-        settings.get(SEND_DIAGNOSTICS)?.as_bool()
+        let Some(path) = self.path.as_ref().filter(|path| path.exists()) else {
+            return true;
+        };
+        fs::read_to_string(path)
+            .ok()
+            .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+            .and_then(|settings| settings.get(SEND_DIAGNOSTICS)?.as_bool())
+            .unwrap_or(false)
     }
 
     pub fn save(&self, on: bool) -> Result<(), StoreError> {
@@ -73,7 +76,14 @@ impl FileDiagnosticsStore {
         if let Some(directory) = path.parent() {
             fs::create_dir_all(directory).map_err(|_| StoreError)?;
         }
-        fs::write(path, json!({ SEND_DIAGNOSTICS: on }).to_string()).map_err(|_| StoreError)
+        // Written beside the file and renamed over it, so a crash mid-write leaves the previous choice whole.
+        let temporary = path.with_extension("json.tmp");
+        let written = fs::write(&temporary, json!({ SEND_DIAGNOSTICS: on }).to_string())
+            .and_then(|()| fs::rename(&temporary, path));
+        written.map_err(|_| {
+            let _ = fs::remove_file(&temporary);
+            StoreError
+        })
     }
 }
 
@@ -147,14 +157,53 @@ mod tests {
     }
 
     #[test]
-    fn an_unreadable_or_unexpected_file_reads_as_on() {
+    fn an_existing_file_that_is_not_a_flag_reads_as_off() {
         let scratch = Scratch::new();
         fs::create_dir_all(&scratch.0).expect("the directory");
         let file = scratch.0.join(DIAGNOSTICS_FILE);
-        for text in ["not json", "{}", r#"{"sendDiagnostics":"no"}"#, "[]"] {
+        for text in [
+            "",
+            "not json",
+            "{",
+            "{}",
+            r#"{"sendDiagnostics":"no"}"#,
+            "[]",
+        ] {
             fs::write(&file, text).expect("written");
-            assert!(scratch.store().load(), "{text:?} reads as on");
+            assert!(!scratch.store().load(), "{text:?} reads as off");
         }
+        fs::remove_file(&file).expect("removed");
+        assert!(scratch.store().load(), "a missing file still reads as on");
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_reads_as_off() {
+        let scratch = Scratch::new();
+        fs::create_dir_all(scratch.0.join(DIAGNOSTICS_FILE)).expect("a directory in its place");
+        assert!(!scratch.store().load());
+    }
+
+    #[test]
+    fn a_failed_write_leaves_the_previous_choice() {
+        let scratch = Scratch::new();
+        let store = scratch.store();
+        store.save(false).expect("saved");
+        // A directory where the temporary file goes makes the write fail before the rename.
+        fs::create_dir_all(scratch.0.join("diagnostics.json.tmp")).expect("a blocker");
+
+        assert!(store.save(true).is_err());
+        assert!(!store.load(), "the opt-out still stands");
+        assert_eq!(
+            fs::read_to_string(scratch.0.join(DIAGNOSTICS_FILE)).expect("the file"),
+            r#"{"sendDiagnostics":false}"#
+        );
+    }
+
+    #[test]
+    fn a_save_leaves_no_temporary_file() {
+        let scratch = Scratch::new();
+        scratch.store().save(true).expect("saved");
+        assert!(!scratch.0.join("diagnostics.json.tmp").exists());
     }
 
     #[test]

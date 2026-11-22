@@ -87,8 +87,9 @@ What exists today:
   text; in the full tier, also the names and the text read, and that the full tier exists on staging and preview builds
   only.
 - **OBT-15** — The "Send diagnostics" switch SHALL be on by default and SHALL persist across restarts in the agent's own
-  settings on this PC, never on the server. WHEN the file is missing, unreadable or unexpected THEN the switch SHALL read
-  as on.
+  settings on this PC, never on the server. WHEN the file is missing THEN the switch SHALL read as on; WHEN the file exists but is unreadable, malformed
+  or not a boolean flag THEN it SHALL read as off. A save SHALL write a temporary file beside it and rename it, so a failed
+  write leaves the previous choice.
 - **OBT-16** — WHILE the switch is off the agent SHALL export no span: every ended span is dropped before it is queued
   and the export loop discards what was queued, so the relay client is never called and no request leaves the PC for the
   relay. The change SHALL take effect at once, without a restart.
@@ -122,7 +123,7 @@ What exists today:
 | OBT-11         | Credentials           | the existing redaction tests, run in both tiers                                                                                                                                                                                  |
 | OBT-12         | Notice                | component test (en, pt-BR) + acceptance `@OBT-12`                                                                                                                                                                                |
 | OBT-14         | Notice                | agent window component test (en, pt-BR); not in acceptance (the agent window is not in the stack)                                                                                                                                |
-| OBT-15         | Default, persist      | Rust unit tests on the settings store (default on, read back, unreadable → on)                                                                                                                                                   |
+| OBT-15         | Default, persist      | Rust unit tests on the settings store (default on, read back, existing unreadable → off, failed write keeps the choice)                                                                                                          |
 | OBT-16         | Zero export           | Rust unit tests: switch off → the exporter is never called, spans never queued; live toggle                                                                                                                                      |
 | OBT-17         | Matchmaking untouched | `diagnosticsSwitchViolations` in `scripts/test/agent-source-rules.test.mjs` ("the diagnostics switch is read only by the span processor and the export loop (OBT-17)") with the `diagnostics-switch-leak` fixture it must reject |
 | OBT-13         | Docs                  | `telemetry.md` in review; the TraceQL query run once on `grafanacloud-traces`                                                                                                                                                    |
