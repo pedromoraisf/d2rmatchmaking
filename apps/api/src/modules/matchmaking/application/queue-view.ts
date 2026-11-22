@@ -66,5 +66,6 @@ export function setAttributesOf(ticket: QueueTicket): Record<string, string> {
 
 /** The key of a metric attribute set, so the sizes of one set are reported together. */
 export function attributeKey(attributes: QueueAttributes): string {
+  // The '|' stays meaningful only while each attribute's vocabulary is fixed and prefix-free (mode, difficulty, ladder, era); revisit it if one changes.
   return [attributes.mode, attributes.difficulty, attributes.ladder, attributes.era].join('|');
 }
