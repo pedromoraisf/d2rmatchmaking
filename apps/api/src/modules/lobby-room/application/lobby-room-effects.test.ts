@@ -77,11 +77,14 @@ class CountingRooms extends InMemoryLobbyRoomRepository {
   newestOverride: LobbyRoom | null = null;
   /** When set, the next `findById` waits for it (the third caller of a room's lock must not overtake it). */
   gate: Promise<void> | null = null;
+  /** Called when a read starts waiting on `gate`, so a test needs no guess about how many awaits come before it. */
+  onGated: (() => void) | null = null;
 
   override async findById(roomId: string): Promise<LobbyRoom | null> {
     this.findByIdCalls += 1;
     const gate = this.gate;
     if (gate !== null && this.findByIdCalls === 2) {
+      this.onGated?.();
       await gate;
     }
     return super.findById(roomId);
@@ -213,14 +216,20 @@ describe('the actions of one room run one after the other (LBR-06, LBR-07)', () 
       release = resolve;
     });
 
+    const gated = new Promise<void>((resolve) => {
+      world.rooms.onGated = resolve;
+    });
+
     const first = world.useCases.leaveRoom({ accountId: 'account-3', roomId: 'room-1' });
     const second = world.useCases.leaveRoom({ accountId: 'account-2', roomId: 'room-1' });
-    await first;
-    // The second action now holds the room, waiting on its read; a later action must queue behind it.
+    // The second action now holds the room, waiting on its read (the first is done); a later action must queue behind it.
+    await gated;
+    expect((await first).ok).toBe(true);
     const third = world.useCases.closeRoom({ accountId: 'account-1', roomId: 'room-1' });
-    for (let tick = 0; tick < 20; tick += 1) {
-      await Promise.resolve();
-    }
+    // A macrotask turn runs every pending microtask, however many awaits a use case makes before its read.
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
     expect(world.rooms.findByIdCalls).toBe(2);
 
     release();
