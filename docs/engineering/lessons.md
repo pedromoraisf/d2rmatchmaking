@@ -91,6 +91,12 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
   its next statement queues behind the truncate: Postgres ends that as a deadlock (40P01) after its 1 s timeout, and the
   API answers 503. Why: CI run 45038986776, one 1.0 s `reset ... answered 503` on SNM-03 that did not repeat locally
   (376 passed); the artifact was not readable, so the cause is inferred from the 1.0 s and the order of the reset.
+- **Never key a cargo-mutants `exclude_re` on a line number.** Match the file, the mutation text and the function
+  (`anchors\.rs:\d+:\d+: replace … in find_cards_in_variants`). Why: lines moved in `anchors.rs` and `layout.rs` and
+  three excluded equivalent mutants came back as nightly survivors (nightly 45037822441, #167).
+- **A mutation job needs every file its tests read inside the tree cargo-mutants copies, or `--in-place`.** Why: the
+  adapters baseline failed in the nightly because `remote_config.rs` tests read the API's `agent-config.json`, and no
+  adapters mutant ran (#165).
 
 ## Observability and load
 

@@ -137,10 +137,10 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
 
 ## Orchestrator (local, the maintainer answers the gate)
 
-- [ ] O1 — After T3 merges into the branch: add `domain/src/hud_track.rs` to `scripts/agent/reading-modules.json`
+- [x] O1 — (done: `hud_track.rs` is in `scripts/agent/reading-modules.json` on phase/F2, 2026-11-22) After T3 merges into the branch: add `domain/src/hud_track.rs` to `scripts/agent/reading-modules.json`
       (`examine_globs` already covers `domain/src/**`). The gate asks; the maintainer answers. Gate:
       `pnpm test:harness`
-- [ ] O2 — For T6: measure the Party panel's lines on the six 1920×1045 prints with an `xtask` geometry command run on
+- [x] O2 — (closed: T6 merged with its `ocr-real` proof, so this input is no longer needed, 2026-11-22) For T6: measure the Party panel's lines on the six 1920×1045 prints with an `xtask` geometry command run on
       the Mac against the local path of the prints (counts and pixel boxes, never a pixel written to the repository),
       and put the numbers in the PR for the worker. If the Mac cannot read the prints, the first `ocr-real` diagnostics
       give the same geometry.

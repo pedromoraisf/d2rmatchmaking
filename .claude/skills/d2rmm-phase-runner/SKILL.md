@@ -79,6 +79,8 @@ repeat until nothing is runnable. Runnable features run in parallel.
    - [ ] T1 — <what, in one line> — gate: `<command that proves it>`
    ```
 
+   A box counts as a task only with an id (`T<n>` or `O<n>`); a plain `- [ ]` box is not counted by `pnpm phase:status`.
+
    Run each gate command once before writing it (see lessons). Mutation never appears in a task gate (ADR 029).
    A task that needs real game screenshots reads them from a local path (an `xtask` command on the maintainer's
    machine) and commits only fixtures drawn by `xtask`; never plan a task that commits a capture (lessons, 2026-11-11).
