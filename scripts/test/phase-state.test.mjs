@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { briefFeatures, derivePhaseState, featureState, taskCount } from '../lib/phase-state.mjs';
+import { briefFeatures, derivePhaseState, featureState, specRow, taskCount } from '../lib/phase-state.mjs';
 
 const brief = (approved = true) => `# F1
 
@@ -81,6 +81,31 @@ test('with an open task a merged phase is not ready for review', () => {
   assert.deepEqual(
     st.runnable.map((r) => r.feature),
     ['beta'],
+  );
+});
+
+test('a spec of the phase that the brief does not list is a feature of the phase', () => {
+  assert.deepEqual(specRow('bots', '# T\n\n**Phase**: F1 (covered) · **Size**: Large · **x**: y', 'F1'), {
+    feature: 'bots',
+    size: 'Large',
+    dependsOn: [],
+  });
+  assert.equal(specRow('old', '**Phase**: F0 · **Size**: Medium', 'F1'), null);
+  const st = derivePhaseState({
+    phase: 'F1',
+    brief: brief(),
+    review: null,
+    mergedToMain: false,
+    specRows: [
+      { feature: 'bots', size: 'Medium', dependsOn: [] },
+      { feature: 'alpha', size: 'Medium', dependsOn: [] },
+    ],
+    file: () => null,
+    merged: () => false,
+  });
+  assert.deepEqual(
+    st.features.map((f) => f.feature),
+    ['alpha', 'beta', 'bots'],
   );
 });
 

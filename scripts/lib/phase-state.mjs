@@ -49,6 +49,17 @@ export function taskCount(tasksText) {
   return { done, total, open: total - done, waiting };
 }
 
+/**
+ * A spec that declares `**Phase**: F<n>` belongs to that phase even when the brief's table does not list it (a feature
+ * added after the brief, covered by its approval). Returns its row, or null when it belongs to another phase.
+ */
+export function specRow(feature, specText, phase) {
+  const head = String(specText ?? '').match(/^\*\*Phase\*\*:\s*(F\d+)\b.*$/m);
+  if (!head || head[1] !== phase) return null;
+  const size = /\*\*Size\*\*:\s*(\w+)/.exec(head[0]);
+  return { feature, size: size ? size[1] : 'Medium', dependsOn: [] };
+}
+
 const NEEDS_DESIGN = /^(large|complex)$/i;
 
 /**
@@ -68,11 +79,14 @@ export function featureState(row, { file, merged }) {
 
 /**
  * @param {{ phase: string, brief: string|null, review: string|null, mergedToMain: boolean,
+ *           specRows?: { feature: string, size: string, dependsOn: string[] }[],
  *           file: (feature: string, name: string) => string|null, merged: (feature: string) => boolean }} ev
  */
 export function derivePhaseState(ev) {
   if (ev.brief === null) return { phase: ev.phase, next: 'kickoff', features: [], runnable: [] };
-  const rows = briefFeatures(ev.brief);
+  const inBrief = briefFeatures(ev.brief);
+  const known = new Set(inBrief.map((r) => r.feature));
+  const rows = [...inBrief, ...(ev.specRows ?? []).filter((r) => !known.has(r.feature))];
   const features = rows.map((row) => ({
     feature: row.feature,
     dependsOn: row.dependsOn,

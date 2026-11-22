@@ -4,14 +4,14 @@
 //   node scripts/phase-status.mjs [F<n>]          summary + what may run now
 //   node scripts/phase-status.mjs [F<n>] --json   machine-readable state
 //
-// What counts as a task and a waiting task: `taskCount` in lib/phase-state.mjs.
+// What counts as a task, a waiting task and a phase feature: `taskCount` and `specRow` in lib/phase-state.mjs.
 // Task = any `- [ ] T<n>` / `O<n>` box, at any indent, in any section; criteria boxes without an id are not counted.
 // Open boxes that wait on the maintainer or the phase merge may stay open at review; any other open box keeps the
 // feature at `execute`, merged or not.
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { derivePhaseState } from './lib/phase-state.mjs';
+import { derivePhaseState, specRow } from './lib/phase-state.mjs';
 
 const root = process.cwd();
 const args = process.argv.slice(2);
@@ -39,8 +39,15 @@ const merged = (feature) =>
     phaseRefs.some((p) => isAncestor(b, p)),
   );
 
+// Features whose spec says `**Phase**: F<n>` but that the brief's table does not list.
+const featuresDir = path.join(root, '.specs/features');
+const specRows = (existsSync(featuresDir) ? readdirSync(featuresDir).sort() : [])
+  .map((f) => specRow(f, read(`.specs/features/${f}/spec.md`), phase))
+  .filter(Boolean);
+
 const state = derivePhaseState({
   phase,
+  specRows,
   brief: read(`.specs/phases/${phase}/brief.md`),
   review: read(`.specs/phases/${phase}/review.md`),
   mergedToMain: phaseRefs.some((p) => isAncestor(p, 'origin/main') || isAncestor(p, 'main')),
