@@ -1,5 +1,12 @@
 // The site's view of a waiting ticket (contract `QueueTicketView`) and the metric attributes of a ticket (QUE-15, QUE-16).
-import { D2R_DIFFICULTY, D2R_ERA, D2R_LADDER, D2R_QUEUE_MODE } from '@d2rmm/telemetry';
+import {
+  D2R_ACCOUNT_ID,
+  D2R_DIFFICULTY,
+  D2R_ERA,
+  D2R_LADDER,
+  D2R_QUEUE_MODE,
+  D2R_TICKET_ID,
+} from '@d2rmm/telemetry';
 import { bandAt } from '../domain/band.ts';
 import { isPvpTicket, type QueueTicket } from '../domain/queue-ticket/queue-ticket.ts';
 import type { QueueOptionsSnapshot, QueueTicketSnapshot } from '../../../shared-kernel/index.ts';
@@ -48,6 +55,8 @@ export function attributesOf(ticket: QueueTicket): QueueAttributes {
 /** The span attributes of a ticket: the four bounded keys of QUE-16 and nothing else. */
 export function setAttributesOf(ticket: QueueTicket): Record<string, string> {
   return {
+    [D2R_ACCOUNT_ID]: ticket.accountId,
+    [D2R_TICKET_ID]: ticket.id,
     [D2R_QUEUE_MODE]: ticket.mode,
     [D2R_DIFFICULTY]: ticket.difficulty,
     [D2R_LADDER]: ticket.ladder,

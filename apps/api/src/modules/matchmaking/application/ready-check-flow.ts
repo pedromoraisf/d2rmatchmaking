@@ -17,7 +17,9 @@ import {
 import { penaltyUntil } from '../domain/ready-check/penalty.ts';
 import type { QueueTicket } from '../domain/queue-ticket/queue-ticket.ts';
 import {
+  annotateActiveSpan,
   err,
+  journeyIds,
   ok,
   withRecordingSpan,
   type Cancel,
@@ -144,7 +146,9 @@ export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
     if (ended === check || outcome === null) {
       return;
     }
-    await withRecordingSpan('matchmaking.ready-check.resolve', {}, () => settle(ended, outcome, now));
+    await withRecordingSpan('matchmaking.ready-check.resolve', journeyIds({ readyCheckId: check.id }), () =>
+      settle(ended, outcome, now),
+    );
   }
 
   return {
@@ -154,6 +158,7 @@ export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
         { [D2R_QUEUE_MODE]: group.mode, [D2R_DIFFICULTY]: group.difficulty },
         async () => {
           const check = openReadyCheck(deps.ids.next(), group, now);
+          annotateActiveSpan(journeyIds({ readyCheckId: check.id }));
           await deps.checks.put(check);
           await deps.checks.pruneEndedBefore(new Date(now.getTime() - ENDED_CHECK_KEEP_MS));
           await deps.bus.publish({
@@ -179,7 +184,7 @@ export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
     answer(input) {
       return withRecordingSpan(
         'matchmaking.ready-check.answer',
-        {},
+        journeyIds({ readyCheckId: input.checkId, accountId: input.accountId }),
         async (): Promise<Result<void, ReadyCheckAnswerRefusal>> => {
           const check = await deps.checks.find(input.checkId);
           if (check === undefined) {
