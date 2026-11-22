@@ -41,7 +41,7 @@ Rules:
       (unknown → production); spans carry the ids; the BattleTag only in full; the exporter redacts with `redactForTier`;
       a recording notice on every page in the full tier, en and pt-BR. Component and unit tests.
       Gate: `pnpm --filter @d2rmm/web exec vitest run src/shared src/app && pnpm --filter @d2rmm/web lint`
-- [ ] T6 — Acceptance steps for `@OBT-01`, `@OBT-03`, `@OBT-04`, `@OBT-12` (a staging API and a production API in the
+- [x] T6 — Acceptance steps for `@OBT-01`, `@OBT-03`, `@OBT-04`, `@OBT-12` (a staging API and a production API in the
       stack; traces read from the local backend by trace id, lessons). Gate:
       `pnpm exec turbo run test:acceptance -- --grep @OBT- --workers=1`
 

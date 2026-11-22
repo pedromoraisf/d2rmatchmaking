@@ -36,9 +36,10 @@ Given(/^the API runs as "(.+)"$/, async ({ world }, name: string) => {
   let otlpEndpoint: string;
   if (running === undefined) {
     // No trace is read in this scenario: the API exports to a backend that only records.
-    state.fake ??= new FakeTelemetryBackend();
-    await state.fake.start();
-    otlpEndpoint = state.fake.url;
+    const fake = new FakeTelemetryBackend();
+    await fake.start();
+    state.fake = fake;
+    otlpEndpoint = fake.url;
   } else {
     otlpEndpoint = (await running).otlpUrl;
   }
@@ -107,7 +108,18 @@ Then('the site says that everything done here is recorded for debugging', async 
 
 Then('the site shows no recording notice', async ({ world }) => {
   const page = world.currentVisitor.page;
-  // The tier arrives with a request of its own: wait until the page is quiet before looking for the notice.
-  await page.waitForLoadState('networkidle');
+  // The tier arrives with a request of its own (the site reads the configuration twice: the page and the telemetry start).
+  // Wait for both answers before looking for the notice, or an absent notice could mean "not yet".
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            performance.getEntriesByType('resource').filter((entry) => entry.name.includes('/v1/config'))
+              .length,
+        ),
+      { message: 'the configuration reads of the site', timeout: 30_000 },
+    )
+    .toBeGreaterThanOrEqual(2);
   await expect(page.getByRole('note'), 'the recording notice').toHaveCount(0);
 });
