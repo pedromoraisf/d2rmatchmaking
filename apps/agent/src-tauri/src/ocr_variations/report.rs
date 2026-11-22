@@ -167,6 +167,33 @@ impl Report {
             .collect()
     }
 
+    /// How many variations were refused for each reason class, in `screenshot` (all when `None`). Reason classes only.
+    pub fn refusal_reasons(&self, screenshot: Option<&str>) -> BTreeMap<String, usize> {
+        let mut counts = BTreeMap::new();
+        for result in &self.results {
+            if result.verdict.outcome == Outcome::Refused
+                && screenshot.is_none_or(|name| name == result.screenshot)
+            {
+                *counts.entry(result.verdict.reason.to_string()).or_insert(0) += 1;
+            }
+        }
+        counts
+    }
+
+    /// `refused: no-card 120, title-unseen 30`, most frequent class first (then by name), or `None` when nothing was refused.
+    pub fn refusal_line(&self, screenshot: Option<&str>) -> Option<String> {
+        let mut rows: Vec<(String, usize)> = self.refusal_reasons(screenshot).into_iter().collect();
+        if rows.is_empty() {
+            return None;
+        }
+        rows.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        let list: Vec<String> = rows
+            .iter()
+            .map(|(reason, count)| format!("{reason} {count}"))
+            .collect();
+        Some(format!("refused: {}", list.join(", ")))
+    }
+
     /// How many variations of each screenshot ended `outcome` for each reason class, most frequent first (then by reason).
     pub fn reason_counts(&self, outcome: Outcome) -> Vec<(String, BTreeMap<String, usize>, usize)> {
         let mut by_reason: BTreeMap<String, BTreeMap<String, usize>> = BTreeMap::new();
@@ -215,6 +242,15 @@ impl Report {
     pub fn log_lines(&self) -> Vec<String> {
         let mut lines = vec!["Reasons for the wrong reads:".to_string()];
         lines.extend(self.reason_lines(Outcome::Wrong, usize::MAX));
+        lines.push("Refused by reason class, per print:".to_string());
+        for name in self.screenshots() {
+            if let Some(line) = self.refusal_line(Some(name)) {
+                lines.push(format!("  {name}: {line}"));
+            }
+        }
+        if let Some(line) = self.refusal_line(None) {
+            lines.push(format!("  all prints: {line}"));
+        }
         lines.push("Reasons for the refused reads (top 40 rows):".to_string());
         lines.extend(self.reason_lines(Outcome::Refused, 40));
         for name in self.screenshots() {
@@ -560,9 +596,21 @@ impl Report {
                 entry
             })
             .collect();
+        let reasons_json = |map: BTreeMap<String, usize>| json!(map);
+        let mut refusal_by_screenshot = serde_json::Map::new();
+        for name in self.screenshots() {
+            refusal_by_screenshot.insert(
+                name.to_string(),
+                reasons_json(self.refusal_reasons(Some(name))),
+            );
+        }
         json!({
             "seed": self.seed,
             "combos": self.combos,
+            "refusal_reasons": {
+                "total": reasons_json(self.refusal_reasons(None)),
+                "by_screenshot": refusal_by_screenshot,
+            },
             "totals": counts_json(self.totals(None)),
             "supported": supported,
             "totals_by_screenshot": totals,
@@ -654,6 +702,59 @@ mod tests {
         assert_eq!(
             report.screenshots(),
             [revealed, "maintainer-select-screen.png"]
+        );
+    }
+
+    #[test]
+    fn refusal_reasons_count_only_refused_variations_by_class() {
+        let with = |screenshot: &str, outcome, reason: &'static str| VariantResult {
+            verdict: Verdict {
+                outcome,
+                reason: reason.into(),
+            },
+            ..result(screenshot, "x", "tone", outcome)
+        };
+        let report = Report {
+            results: vec![
+                with("a.png", Outcome::Refused, "no-card"),
+                with("a.png", Outcome::Refused, "no-card"),
+                with("a.png", Outcome::Refused, "title-unseen"),
+                with("b.png", Outcome::Refused, "title-unseen"),
+                with("b.png", Outcome::Refused, "title-unseen"),
+                with("b.png", Outcome::Wrong, "no-card"),
+                with("b.png", Outcome::Correct, "no-card"),
+            ],
+            ..Report::default()
+        };
+        let a = report.refusal_reasons(Some("a.png"));
+        assert_eq!(a["no-card"], 2);
+        assert_eq!(a["title-unseen"], 1);
+        assert_eq!(report.refusal_reasons(Some("b.png"))["title-unseen"], 2);
+        assert_eq!(report.refusal_reasons(Some("b.png")).get("no-card"), None);
+        assert_eq!(report.refusal_reasons(None)["title-unseen"], 3);
+        assert_eq!(
+            report.refusal_line(None).as_deref(),
+            Some("refused: title-unseen 3, no-card 2")
+        );
+        assert_eq!(
+            report.refusal_line(Some("a.png")).as_deref(),
+            Some("refused: no-card 2, title-unseen 1")
+        );
+        assert_eq!(report.refusal_line(Some("c.png")), None);
+        let json = report.json();
+        assert_eq!(json["refusal_reasons"]["total"]["no-card"], 2);
+        assert_eq!(
+            json["refusal_reasons"]["by_screenshot"]["b.png"]["title-unseen"],
+            2
+        );
+        let log = report.log_lines().join("\n");
+        assert!(
+            log.contains("  a.png: refused: no-card 2, title-unseen 1"),
+            "{log}"
+        );
+        assert!(
+            log.contains("  all prints: refused: title-unseen 3, no-card 2"),
+            "{log}"
         );
     }
 

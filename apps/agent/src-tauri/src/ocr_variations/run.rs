@@ -12,7 +12,7 @@ use d2rmm_agent_domain::language::LanguagePack;
 use super::catalogue::{DEFAULT_COMBOS, Variation, catalogue};
 use super::outcome::classify_image_detailed;
 use super::popup_fields::{MemoReader, card_field_stats, lifted_card_field_stats};
-use super::report::{Report, VariantResult};
+use super::report::{Report, VariantResult, short_name};
 #[cfg(test)]
 use crate::ocr_check::SCREENSHOTS;
 use crate::ocr_check::{MAINTAINER_CARDS, folder_screenshots, read_screenshot};
@@ -180,6 +180,9 @@ pub fn run_images(
         };
         for line in this.family_lines(name) {
             progress(&line);
+        }
+        if let Some(line) = this.refusal_line(Some(name)) {
+            progress(&format!("  {} {line}", short_name(name)));
         }
         let all = this.totals(None);
         progress(&format!(
@@ -474,8 +477,13 @@ mod tests {
         assert_eq!(report.elapsed.len(), 3);
         assert_eq!(
             lines.len(),
-            3 * 2,
-            "a family line and a total line per screenshot: {lines:?}"
+            3 * 3,
+            "a family line, a refusal-reason line and a total line per screenshot: {lines:?}"
+        );
+        assert!(
+            lines.iter().any(|line| line
+                == "  party-revealed refused: blank-read-as-masked 2, unsupported-size 1"),
+            "{lines:?}"
         );
         assert!(
             lines
