@@ -53,14 +53,33 @@ test('an exclusion without evidence fails and is named (OCP-06)', () => {
   const noEvidence = toml.replace(/^# Evidence:.*\n# and .*\n/m, '');
   assert.notEqual(noEvidence, toml, 'the fixture dropped the evidence');
   assert.deepEqual(exclusionProblems(noEvidence), [
-    'exclusion "delete ! in pair_once" lacks an "Evidence:" line',
+    String.raw`exclusion "pair\\.rs:\\d+:\\d+: delete ! in pair_once" lacks an "Evidence:" line`,
   ]);
 
-  const bare = toml.replace('  "delete ! in pair_once",\n', '  "delete ! in pair_once",\n  "x in y",\n');
+  const pairEntry = String.raw`  "pair\\.rs:\\d+:\\d+: delete ! in pair_once",` + '\n';
+  const bare = toml.replace(pairEntry, `${pairEntry}  "x in y",\n`);
   assert.notEqual(bare, toml, 'the fixture added a bare entry');
   assert.deepEqual(exclusionProblems(bare), [
     'exclusion "x in y" lacks a file:line, an "Evidence:" line, the reason',
   ]);
+});
+
+test('an exclusion regex with a literal line or column fails unless it is position-bound (OCP-06)', () => {
+  const pinned = toml.replace(
+    '"pair\\\\.rs:\\\\d+:\\\\d+: delete ! in pair_once"',
+    '"pair\\\\.rs:87:20: delete ! in pair_once"',
+  );
+  assert.notEqual(pinned, toml, 'the fixture pinned a line');
+  const problems = exclusionProblems(pinned);
+  assert.equal(problems.length, 1);
+  assert.match(
+    problems[0],
+    /^exclusion ".*pair.*87:20: delete ! in pair_once" holds a literal line or column/,
+  );
+  assert.ok(
+    /^ {2}"[^"]*:\d+:[^"]*",$/m.test(toml) && toml.includes('# Position-bound:'),
+    'the position-bound entries of the config say why',
+  );
 });
 
 // OCP-01: the rule is where every agent reads first, and both copies name the list of reading modules.
