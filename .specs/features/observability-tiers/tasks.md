@@ -75,6 +75,6 @@ Rules:
       span × the tier's sampling ratio to the API figure of `telemetryBytesPerPlayerHour`. Write the sum and the
       resulting AD-128 share in `telemetry.md` and `load-baseline.md`. A doc-only task: no code, no ratio changes.
       Gate: `pnpm format:check && pnpm specs:check`
-- [ ] T13 — Read the first re-measure: copy `telemetryBytesPerPlayerHourBySignal`, the total, the monthly bytes and the
-      share from the `load-report` artifact of nightly run 45037822441 into `telemetry.md` and `load-baseline.md`, and
-      state whether AD-128's 0.10 is met. Needs a session that can download artifacts. Gate: same as T12.
+- [x] T13 — First re-measure written down: nightly run 45037822441 (API alone, full tier, 81 000 bytes per player-hour,
+      share 1.086, AD-128 not met) in `telemetry.md` and `load-baseline.md`. The figures were relayed by the orchestrator;
+      re-read `summary.json` of artifact 14762014360 where the host is reachable. Gate: same as T12.
