@@ -1,10 +1,20 @@
 // The only reader of process.env in the API (design.md § Composition roots; AWS-31). Every other file takes its settings
 // through the composition root's arguments.
 
+import type { TelemetryTier } from '@d2rmm/telemetry';
+
 export type DeployEnvironment = 'local' | 'staging' | 'production';
 
 const ENVIRONMENTS: ReadonlySet<string> = new Set<DeployEnvironment>(['local', 'staging', 'production']);
 const SEMVER = /^\d+\.\d+\.\d+$/;
+
+/**
+ * The telemetry detail tier of an environment (ADR 037, OBT-01): `staging` and `local` carry the full detail, `production`
+ * and any other name carry the production tier. The stricter tier is the safe failure.
+ */
+export function tierOfEnvironment(environment: string): TelemetryTier {
+  return environment === 'staging' || environment === 'local' ? 'full' : 'production';
+}
 
 export interface Config {
   /** `DATABASE_URL`: the local or Neon connection string. Undefined when unset. */
@@ -15,8 +25,10 @@ export interface Config {
   readonly siteOrigin: string;
   /** `ENABLE_STAGING_ENDPOINTS`, default false. */
   readonly stagingEndpoints: boolean;
-  /** `D2RMM_ENV`, default `local`. */
+  /** `D2RMM_ENV`, default `local` (test controls, cookies and CORS keep reading it; the tier below does not follow it). */
   readonly environment: DeployEnvironment;
+  /** The detail tier of `D2RMM_ENV` (OBT-01, OBT-18): read here, in `main/`, and nowhere else. `production` when it is unset or empty. */
+  readonly telemetryTier: TelemetryTier;
   /** `AGENT_MIN_VERSION`, default `0.0.0`. */
   readonly agentMinVersion: string;
   /** `TRUST_PROXY_HOPS`, default 1 (Render has one proxy in front of the API). */
@@ -199,7 +211,10 @@ function samplerArgOf(raw: string | undefined): string {
 
 /** Reads the settings from the environment. Invalid values throw; absent values take their defaults. */
 export function loadConfig(env: Environment = process.env): Config {
-  const rawEnvironment = env['D2RMM_ENV'] ?? 'local';
+  const declaredEnvironment = env['D2RMM_ENV'];
+  const environmentSet = declaredEnvironment !== undefined && declaredEnvironment !== '';
+  // The environment keeps its `local` default; only the telemetry tier fails closed when `D2RMM_ENV` is not set (OBT-18).
+  const rawEnvironment = environmentSet ? declaredEnvironment : 'local';
   if (!ENVIRONMENTS.has(rawEnvironment)) {
     throw new Error('D2RMM_ENV must be local, staging or production');
   }
@@ -218,6 +233,7 @@ export function loadConfig(env: Environment = process.env): Config {
     siteOrigin: env['SITE_ORIGIN'] ?? 'http://localhost:8788',
     stagingEndpoints: flag('ENABLE_STAGING_ENDPOINTS', env['ENABLE_STAGING_ENDPOINTS']),
     environment: rawEnvironment as DeployEnvironment,
+    telemetryTier: environmentSet ? tierOfEnvironment(rawEnvironment) : 'production',
     agentMinVersion,
     trustProxyHops: integer('TRUST_PROXY_HOPS', env['TRUST_PROXY_HOPS'], 1, 0),
     roomDropToleranceSeconds: integer(

@@ -49,14 +49,16 @@ test('the report names the suites that ran: all on the schedule, the input other
 });
 
 // NGT-01: parallel jobs, matrix per crate with shards, matrix per API layer.
-test('agent mutation is a matrix per crate, with two shards for domain and adapters, and does not stop at one failure', () => {
+test('agent mutation is a matrix per crate, with four shards for domain and two for adapters, and does not stop at one failure', () => {
   assert.equal(agent.strategy['fail-fast'], false);
   assert.deepEqual(
     agent.strategy.matrix.include.map((entry) => [entry.crate, entry.shard]),
     [
       ['core', ''],
-      ['domain', '--shard 0/2'],
-      ['domain', '--shard 1/2'],
+      ['domain', '--shard 0/4'],
+      ['domain', '--shard 1/4'],
+      ['domain', '--shard 2/4'],
+      ['domain', '--shard 3/4'],
       ['adapters', '--shard 0/2'],
       ['adapters', '--shard 1/2'],
     ],
@@ -65,11 +67,11 @@ test('agent mutation is a matrix per crate, with two shards for domain and adapt
   assert.equal(agent.needs, 'detect');
 });
 
-test('core keeps --in-place, and every shard writes its own output and artifact', () => {
+test('core and adapters run --in-place, and every shard writes its own output and artifact', () => {
   const entries = agent.strategy.matrix.include;
   assert.deepEqual(
     entries.filter((entry) => entry.in_place === '--in-place').map((entry) => entry.crate),
-    ['core'],
+    ['core', 'adapters', 'adapters'],
   );
   assert.equal(new Set(entries.map((entry) => entry.out)).size, entries.length, 'one output per shard');
   assert.equal(

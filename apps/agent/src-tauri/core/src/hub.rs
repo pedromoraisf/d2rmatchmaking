@@ -3,13 +3,12 @@
 
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use d2rmm_agent_domain::typing::HotkeyPair;
+use d2rmm_agent_domain::hotkey::HotkeyChoice;
 
-use crate::fill_name::FillOutcome;
 use crate::ports::StateSink;
 use crate::view::{
-    AgentView, CaptureView, Connectivity, DiagnosticsView, HotkeyFailure, HotkeyFault, HotkeyPress,
-    HotkeySlot, HotkeysView, PairingView, RoomView, UpdateView,
+    AgentView, CaptureView, Connectivity, DiagnosticsView, HotkeyFailure, HotkeyPress, PairingView,
+    RoomView, UpdateView,
 };
 
 /// Owns the agent view and publishes every change through the state sink (AGS-34).
@@ -28,9 +27,8 @@ impl Hub {
                 room: None,
                 update: UpdateView::Idle,
                 ready_check_open: false,
-                hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
-                last_fill: None,
-                hotkey_unavailable: Vec::new(),
+                hotkey: HotkeyChoice::default_accept().to_string(),
+                hotkey_unavailable: None,
                 last_press: None,
                 diagnostics: None,
                 capture: None,
@@ -69,36 +67,19 @@ impl Hub {
         self.change(|view| view.ready_check_open = open);
     }
 
-    /// Shows the two hotkeys the agent registers (AST-01).
-    pub fn set_hotkeys(&self, pair: &HotkeyPair) {
-        self.change(|view| view.hotkeys = HotkeysView::of(pair));
+    /// Shows the accept hotkey the agent registers (RDY-07).
+    pub fn set_hotkey(&self, choice: &HotkeyChoice) {
+        self.change(|view| view.hotkey = choice.to_string());
     }
 
-    /// Shows what the last press of the fill hotkey did (AST-08).
-    pub fn set_last_fill(&self, outcome: FillOutcome) {
-        self.change(|view| view.last_fill = Some(outcome));
-    }
-
-    /// Shows why the OS did not let the agent register a hotkey it wants, or (`None`) that it holds it now (AST-01, AST-08).
+    /// Shows why the OS did not let the agent register the hotkey it wants, or (`None`) that it holds it now (RDY-07).
     /// An unchanged answer publishes nothing, so a retry that fails the same way does not publish again. Returns whether the
     /// view changed.
-    pub fn set_hotkey_unavailable(&self, slot: HotkeySlot, reason: Option<HotkeyFailure>) -> bool {
-        let wanted = reason.map(|reason| HotkeyFault { slot, reason });
-        let unchanged = lock(&self.view)
-            .hotkey_unavailable
-            .iter()
-            .find(|fault| fault.slot == slot)
-            .copied()
-            == wanted;
-        if unchanged {
+    pub fn set_hotkey_unavailable(&self, reason: Option<HotkeyFailure>) -> bool {
+        if lock(&self.view).hotkey_unavailable == reason {
             return false;
         }
-        self.change(|view| {
-            view.hotkey_unavailable.retain(|fault| fault.slot != slot);
-            view.hotkey_unavailable.extend(wanted);
-            view.hotkey_unavailable
-                .sort_by_key(|fault| fault.slot.as_str());
-        });
+        self.change(|view| view.hotkey_unavailable = reason);
         true
     }
 

@@ -1,10 +1,7 @@
 //! The one state the core publishes to the agent window (design.md § Data Models). Serialized as camelCase; the window
 //! maps it to translated strings with a pure function, so the window holds no rule.
 
-use d2rmm_agent_domain::typing::HotkeyPair;
 use serde::Serialize;
-
-use crate::fill_name::FillOutcome;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", rename_all_fields = "camelCase")]
@@ -134,42 +131,7 @@ pub struct CaptureView {
     pub reason: Option<&'static str>,
 }
 
-/// The two hotkeys as the window shows them, such as `Ctrl+Shift+A` (RDY-07, AST-01).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HotkeysView {
-    pub accept: String,
-    pub fill: String,
-}
-
-impl HotkeysView {
-    pub fn of(pair: &HotkeyPair) -> Self {
-        Self {
-            accept: pair.accept().to_string(),
-            fill: pair.fill().to_string(),
-        }
-    }
-}
-
-/// One of the two hotkeys the agent registers with the OS (RDY-07, AST-01). The window's code for it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum HotkeySlot {
-    Accept,
-    Fill,
-}
-
-impl HotkeySlot {
-    /// The slot as the span event spells it.
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Accept => "accept",
-            Self::Fill => "fill",
-        }
-    }
-}
-
-/// Why the OS does not hold a hotkey the agent wants: a closed set of codes, never the OS error text (AGS-09).
+/// Why the OS does not hold the hotkey the agent wants: a closed set of codes, never the OS error text (AGS-09).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum HotkeyFailure {
@@ -195,20 +157,11 @@ impl HotkeyFailure {
     }
 }
 
-/// One hotkey the OS did not let the agent register, and why.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HotkeyFault {
-    pub slot: HotkeySlot,
-    pub reason: HotkeyFailure,
-}
-
 /// The last hotkey event the agent received from the OS: which combination it was, or that it matched none.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum HotkeyPress {
     Accept,
-    Fill,
     Unmatched,
 }
 
@@ -221,15 +174,12 @@ pub struct AgentView {
     pub update: UpdateView,
     /// A ready check is open for the account: the window shows the hotkey that accepts it (RDY-07).
     pub ready_check_open: bool,
-    /// The keys that accept a ready check and fill the game name (AST-01).
-    pub hotkeys: HotkeysView,
-    /// What the last press of the fill hotkey did (AST-08); absent until the first press. A closed set of codes, no text.
+    /// The keys that accept a ready check, such as `Ctrl+Shift+A` (RDY-07, AST-01).
+    pub hotkey: String,
+    /// Why the OS did not let the agent register the hotkey while it wants it (field test of 2026-11-21). A closed set of
+    /// codes, no OS text; absent while the hotkey is registered or not wanted.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_fill: Option<FillOutcome>,
-    /// The hotkeys the OS did not let the agent register while it wants them (AST-01, AST-08; field test of 2026-11-21).
-    /// A closed set of codes, no OS text; absent while every wanted hotkey is registered.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub hotkey_unavailable: Vec<HotkeyFault>,
+    pub hotkey_unavailable: Option<HotkeyFailure>,
     /// The last hotkey press the agent received, which proves the OS delivers presses at all; absent until the first one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_press: Option<HotkeyPress>,
@@ -249,12 +199,11 @@ fn is_built_in_version(version: &u32) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use d2rmm_agent_domain::typing::HotkeyPair;
     use serde_json::json;
 
     use super::{
-        AgentView, Connectivity, DiagnosticsView, FillOutcome, HotkeyFailure, HotkeyFault,
-        HotkeyPress, HotkeySlot, HotkeysView, PairingView, RejectedSlot, RoomView, UpdateView,
+        AgentView, Connectivity, DiagnosticsView, HotkeyFailure, HotkeyPress, PairingView,
+        RejectedSlot, RoomView, UpdateView,
     };
 
     #[test]
@@ -274,9 +223,8 @@ mod tests {
             }),
             update: UpdateView::Idle,
             ready_check_open: true,
-            hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
-            last_fill: None,
-            hotkey_unavailable: Vec::new(),
+            hotkey: "Ctrl+Shift+A".to_string(),
+            hotkey_unavailable: None,
             last_press: None,
             diagnostics: None,
             capture: None,
@@ -291,7 +239,7 @@ mod tests {
                 "room": { "gameName": "mmbaalh-12", "needsReveal": true, "matched": false },
                 "update": "idle",
                 "readyCheckOpen": true,
-                "hotkeys": { "accept": "Ctrl+Shift+A", "fill": "Ctrl+Shift+F" },
+                "hotkey": "Ctrl+Shift+A",
                 "diagnostics": null,
             })
         );
@@ -345,18 +293,8 @@ mod tests {
             room: None,
             update: UpdateView::Required,
             ready_check_open: false,
-            hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
-            last_fill: Some(FillOutcome::RefusedKeys),
-            hotkey_unavailable: vec![
-                HotkeyFault {
-                    slot: HotkeySlot::Accept,
-                    reason: HotkeyFailure::NoManager,
-                },
-                HotkeyFault {
-                    slot: HotkeySlot::Fill,
-                    reason: HotkeyFailure::Refused,
-                },
-            ],
+            hotkey: "Ctrl+Shift+A".to_string(),
+            hotkey_unavailable: Some(HotkeyFailure::NoManager),
             last_press: Some(HotkeyPress::Unmatched),
             diagnostics: None,
             capture: None,
@@ -371,12 +309,8 @@ mod tests {
                 "room": null,
                 "update": "required",
                 "readyCheckOpen": false,
-                "hotkeys": { "accept": "Ctrl+Shift+A", "fill": "Ctrl+Shift+F" },
-                "lastFill": "refused-keys",
-                "hotkeyUnavailable": [
-                    { "slot": "accept", "reason": "no-manager" },
-                    { "slot": "fill", "reason": "refused" },
-                ],
+                "hotkey": "Ctrl+Shift+A",
+                "hotkeyUnavailable": "no-manager",
                 "lastPress": "unmatched",
                 "diagnostics": null,
             })
@@ -463,11 +397,10 @@ mod tests {
             room: None,
             update: UpdateView::Idle,
             ready_check_open: false,
-            hotkeys: HotkeysView::of(&HotkeyPair::defaults()),
-            last_fill: None,
+            hotkey: "Ctrl+Shift+A".to_string(),
             diagnostics: None,
             capture: None,
-            hotkey_unavailable: Vec::new(),
+            hotkey_unavailable: None,
             last_press: None,
             config_version: 0,
         };

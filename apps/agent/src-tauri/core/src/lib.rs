@@ -8,12 +8,12 @@ pub mod chat_post;
 pub mod chat_step;
 pub mod check_update;
 pub mod config;
+pub mod detail;
 pub mod device_state;
 pub mod elsewhere;
 #[cfg(test)]
 mod event_probe;
 pub mod fakes;
-pub mod fill_name;
 pub mod follow_stream;
 pub mod groups;
 pub mod hub;
@@ -28,6 +28,8 @@ pub mod remote_config;
 pub mod runtime;
 pub mod screen_reader;
 pub mod secret;
+#[cfg(test)]
+mod test_interest;
 pub mod title_ink;
 pub mod view;
 pub mod watch_screen;

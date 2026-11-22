@@ -1,5 +1,13 @@
 import { Session } from '../domain/session.ts';
-import { err, ok, withSpan, type Clock, type Result } from '../../../shared-kernel/index.ts';
+import {
+  annotateActiveSpan,
+  err,
+  journeyIds,
+  ok,
+  withSpan,
+  type Clock,
+  type Result,
+} from '../../../shared-kernel/index.ts';
 import type { SecretHasher, SessionRepository } from './ports.ts';
 import { hasSessionTokenShape } from './session-token.ts';
 
@@ -32,6 +40,7 @@ export function createAuthenticateSession(deps: AuthenticateSessionDeps) {
         if (!session.isValidAt(deps.clock.now())) {
           return err('unauthenticated');
         }
+        annotateActiveSpan(journeyIds({ accountId: session.accountId }));
         return ok({ accountId: session.accountId, expiresAt: session.expiresAt });
       },
     );

@@ -449,7 +449,7 @@ describe('the room panel snapshot (LBR-12)', () => {
 });
 
 describe('telemetry (LBR-13)', () => {
-  it('opens a span per use case with the room, run, difficulty and activity, and no name', async () => {
+  it('opens a span per use case with the room, run, game data and no name (LBR-13, OBT-03)', async () => {
     const world = await active();
     exporter.reset();
 
@@ -476,6 +476,9 @@ describe('telemetry (LBR-13)', () => {
       'd2r.difficulty': 'hell',
       'd2r.room.activity': 'baal',
       'd2r.queue.mode': 'leveling',
+      'd2r.run.id': 'room-1/2',
+      'd2r.game.name': 'mmbaalh-2',
+      'd2r.room.stage': 'awaiting_host',
     });
     for (const span of spans) {
       expect(Object.keys(span.attributes)).not.toContain('accountId');

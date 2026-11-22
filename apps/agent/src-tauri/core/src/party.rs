@@ -684,6 +684,31 @@ mod tests {
     }
 
     #[test]
+    fn the_tracked_box_applies_only_at_the_size_it_was_seen_in_and_is_forgotten_after_a_miss() {
+        use d2rmm_agent_domain::vision::Region;
+        let area = Region {
+            x: 10,
+            y: 20,
+            width: 30,
+            height: 40,
+        };
+        let mut progress = PartyProgress::default();
+        assert_eq!(
+            progress.tracked_area(1920, 1045),
+            None,
+            "none before a find"
+        );
+
+        progress.track_area(Some(area), 1920, 1045);
+        assert_eq!(progress.tracked_area(1920, 1045), Some(area));
+        assert_eq!(progress.tracked_area(1920, 1080), None, "another height");
+        assert_eq!(progress.tracked_area(1280, 1045), None, "another width");
+
+        progress.track_area(None, 1920, 1045);
+        assert_eq!(progress.tracked_area(1920, 1045), None, "a miss forgets it");
+    }
+
+    #[test]
     fn forgetting_the_assignment_clears_the_run() {
         let mut progress = PartyProgress::default();
         progress.follow(Some(&assignment(1, "mmbaalh-12")));
@@ -1198,6 +1223,7 @@ mod look_tests {
     /// recorded under `cargo test` (one process) as under nextest (one process per test).
     fn record_spans() -> (Arc<Spans>, tracing::subscriber::DefaultGuard) {
         let spans = Arc::new(Spans::default());
+        crate::test_interest::always();
         let guard = tracing::subscriber::set_default(Arc::clone(&spans));
         tracing::callsite::rebuild_interest_cache();
         (spans, guard)
@@ -1674,6 +1700,26 @@ mod anchored_tests {
             }
             lines
         }
+    }
+
+    /// A title found in the tracked box without its label stays the reading when the fixed box then finds no title: the
+    /// first area that found the title is kept (party.rs `read_panel_with`).
+    #[test]
+    fn a_title_found_in_the_tracked_box_is_kept_when_the_fixed_box_finds_none() {
+        use super::read_panel_for;
+        let pack = english_with_portuguese();
+        let size = frame(1045);
+        // Rows 600..700 lie outside the fixed (100..270) and wide (0..413) boxes at this height.
+        let tracked = Region {
+            x: 230,
+            y: 600,
+            width: 250,
+            height: 100,
+        };
+        let reader = Lines(vec![line("PARTY", 366, 650, 60)]);
+        let reading = read_panel_for(&reader, &pack, &size, Some("mmbaalm-99"), Some(tracked));
+        assert!(reading.open, "the tracked box's title is kept");
+        assert!(!reading.label_found);
     }
 
     #[test]
