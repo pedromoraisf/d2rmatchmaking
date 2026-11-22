@@ -23,11 +23,30 @@ export function briefFeatures(briefText) {
   return rows;
 }
 
-/** `- [ ] T1 …` / `- [x] T1 …` lines of a tasks.md. */
+/**
+ * Task boxes of a tasks.md. A task is a checkbox line, at any indent and under any `##` section, whose label starts
+ * with an id: `T<n>` (`T11b-2` too) or `O<n>` (the orchestrator's own steps): `- [ ] T1 — …`, `- [x] O2 — …`.
+ * Boxes with no id (the acceptance criteria listed under a task, "- [ ] All tests pass") belong to their task and are
+ * not counted. An open task is *waiting* when it is outside the cloud's reach by design, so a feature may reach
+ * review with it open: its first line carries `**Waiting**` or `**Runs after the phase PR merges`, or it sits under a
+ * `##` heading that says "waits for the maintainer" (the field batches). Every other open task blocks `done`.
+ */
+export const WAITING_TASK = /\*\*(?:Waiting\*\*|Runs after the phase PR merges)/;
+export const WAITING_SECTION = /\bwaits? for the maintainer/i;
 export function taskCount(tasksText) {
-  const boxes = String(tasksText ?? '').match(/^\s*- \[[ xX]\] T\d+/gm) ?? [];
-  const done = boxes.filter((b) => /\[[xX]\]/.test(b)).length;
-  return { done, total: boxes.length };
+  let done = 0;
+  let total = 0;
+  let waiting = 0;
+  let sectionWaits = false;
+  for (const line of String(tasksText ?? '').split('\n')) {
+    if (/^#{1,2} /.test(line)) sectionWaits = WAITING_SECTION.test(line);
+    const m = /^\s*- \[([ xX])\] [TO]\d+/.exec(line);
+    if (!m) continue;
+    total += 1;
+    if (m[1] !== ' ') done += 1;
+    else if (sectionWaits || WAITING_TASK.test(line)) waiting += 1;
+  }
+  return { done, total, open: total - done, waiting };
 }
 
 const NEEDS_DESIGN = /^(large|complex)$/i;
@@ -38,7 +57,8 @@ const NEEDS_DESIGN = /^(large|complex)$/i;
  */
 export function featureState(row, { file, merged }) {
   const tasks = taskCount(file('tasks.md'));
-  if (merged) return { next: 'done', tasks };
+  // Merged: done unless a task that is not waiting is still open (ADR 029: a box is a promise).
+  if (merged) return { next: tasks.open - tasks.waiting > 0 ? 'execute' : 'done', tasks };
   if (file('spec.md') === null || file('acceptance.feature') === null) return { next: 'specify', tasks };
   if (NEEDS_DESIGN.test(row.size) && file('design.md') === null) return { next: 'design', tasks };
   if (file('tasks.md') === null || tasks.total === 0) return { next: 'tasks', tasks };

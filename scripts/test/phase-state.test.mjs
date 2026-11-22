@@ -25,7 +25,63 @@ test('counts task checkboxes', () => {
   assert.deepEqual(taskCount('- [x] T1 a\n- [ ] T2 b\n  - [X] T3 c\n- [ ] not a task'), {
     done: 2,
     total: 3,
+    open: 1,
+    waiting: 0,
   });
+});
+
+test('counts nested and orchestrator boxes, never criteria without an id', () => {
+  const text = [
+    '## Batch 1',
+    '- [x] T1 — a',
+    '  - [ ] acceptance criterion under T1',
+    '## Orchestrator (local)',
+    '- [ ] O1 — b',
+    '- [ ] T11b-2 — c',
+    '    - [x] T3 — nested',
+  ].join('\n');
+  assert.deepEqual(taskCount(text), { done: 2, total: 4, open: 2, waiting: 0 });
+});
+
+test('an open task waits when marked, or under a "waits for the maintainer" section', () => {
+  const text = [
+    '## Batch 2',
+    '- [ ] T8 — x. **Runs after the phase PR merges into `main`**',
+    '- [ ] T9 — y. **Waiting**: input',
+    '- [ ] T10 — z',
+    "## Batch 3 — waits for the maintainer's field matrix",
+    '- [ ] T11 — field',
+    '## Batch 4',
+    '- [ ] T12 — back to work',
+  ].join('\n');
+  assert.deepEqual(taskCount(text), { done: 0, total: 5, open: 5, waiting: 3 });
+});
+
+test('a merged feature is done only when no open task is left that is not waiting', () => {
+  const row = { feature: 'x', size: 'Medium' };
+  const file = (t) => (n) => (n === 'tasks.md' ? t : '');
+  assert.equal(featureState(row, { file: file('- [x] T1\n- [ ] T2'), merged: true }).next, 'execute');
+  assert.equal(featureState(row, { file: file('- [x] T1\n- [ ] O1'), merged: true }).next, 'execute');
+  const waiting = featureState(row, { file: file('- [x] T1\n- [ ] T2 **Waiting**: x'), merged: true });
+  assert.equal(waiting.next, 'done');
+  assert.equal(waiting.tasks.waiting, 1);
+});
+
+test('with an open task a merged phase is not ready for review', () => {
+  const ev = {
+    phase: 'F1',
+    brief: brief(),
+    review: null,
+    mergedToMain: false,
+    file: (f, n) => (n === 'tasks.md' && f === 'beta' ? '- [ ] T1 — open' : null),
+    merged: () => true,
+  };
+  const st = derivePhaseState(ev);
+  assert.equal(st.next, 'run');
+  assert.deepEqual(
+    st.runnable.map((r) => r.feature),
+    ['beta'],
+  );
 });
 
 test('a feature moves through specify, design, tasks, execute, pr and done', () => {

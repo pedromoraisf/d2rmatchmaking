@@ -3,6 +3,11 @@
 //
 //   node scripts/phase-status.mjs [F<n>]          summary + what may run now
 //   node scripts/phase-status.mjs [F<n>] --json   machine-readable state
+//
+// What counts as a task and a waiting task: `taskCount` in lib/phase-state.mjs.
+// Task = any `- [ ] T<n>` / `O<n>` box, at any indent, in any section; criteria boxes without an id are not counted.
+// Open boxes that wait on the maintainer or the phase merge may stay open at review; any other open box keeps the
+// feature at `execute`, merged or not.
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -48,9 +53,12 @@ if (args.includes('--json')) {
 } else {
   console.log(`phase ${phase}: next = ${state.next}`);
   for (const f of state.features) {
-    const wait = f.waitingOn.length ? ` (waiting on ${f.waitingOn.join(', ')})` : '';
+    const dep = f.next !== 'done' && f.waitingOn.length ? ` (waiting on ${f.waitingOn.join(', ')})` : '';
+    const open = f.tasks.open - f.tasks.waiting;
+    const field = f.tasks.waiting ? ` (${f.tasks.waiting} waiting on field)` : '';
     console.log(
-      `  ${f.next.padEnd(8)} ${f.feature.padEnd(22)} tasks ${f.tasks.done}/${f.tasks.total}${wait}`,
+      `  ${f.next.padEnd(8)} ${f.feature.padEnd(22)} tasks ${f.tasks.done}/${f.tasks.total}` +
+        `${open ? `, ${open} open` : ''}${field}${dep}`,
     );
   }
   if (state.runnable.length)
