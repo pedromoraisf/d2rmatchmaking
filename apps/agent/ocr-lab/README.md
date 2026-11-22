@@ -61,7 +61,7 @@ temperature), `blur` (gaussian and unsharp), `jpeg` (quality 90 to 30), `noise`,
 - Privacy limits: a variation lives in memory only while it is read, then it is dropped; none is written to disk, uploaded or
   committed. The log, the job summary and the JSON hold counts, family names, variant ids (`gamma-0.8`, `combo-017`),
   screenshot file names, outcome classes and reason classes only: no pixel and no read text beyond what follows. The summary
-  lists the reason classes of the refused and of the wrong reads per screenshot, most frequent first.
+  lists the reason classes of the refused and of the wrong reads per screenshot, most frequent first. The per-print and all-prints refusal lines and the `refusal_reasons` JSON field (also in the merged shards) keep the `chat-no-phrase` ops out and count every `chat-no-phrase:<ops>` under the bare `chat-no-phrase`, because those ops may carry characters that do not come from a public string.
 - What a reason may print, because it is public already: a card read that differs names the value read for its title,
   class and level (game vocabulary: `card0-title=None`, `card0-level=86`); a name is only `name=card0`, `name=card1` (it
   equals an expected card's name, committed in `src/ocr_check.rs`) or `name=other`, never the text. A Party field one or
