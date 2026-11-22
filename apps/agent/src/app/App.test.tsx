@@ -110,11 +110,47 @@ describe('App', () => {
     vi.mocked(invoke).mockImplementation(async () => undefined);
   });
 
-  it('shows no diagnostics section when the store does not answer', async () => {
+  it('keeps the switch, as on, with an error line when the store does not answer', async () => {
     vi.mocked(invoke).mockImplementation(async () => undefined);
     render(<App translate={en} />);
 
-    expect(await screen.findByRole('button', { name: 'Allow capture' })).toBeTruthy();
-    expect(screen.queryByRole('switch', { name: 'Send diagnostics' })).toBeNull();
+    const control = (await screen.findByRole('switch', { name: 'Send diagnostics' })) as HTMLInputElement;
+    expect(control.checked).toBe(true);
+    expect(screen.getByRole('alert').textContent).toContain('Could not read your diagnostics setting');
+  });
+
+  it('keeps the switch, as on, when get_diagnostics is rejected', async () => {
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === 'get_diagnostics') {
+        throw new Error('refused');
+      }
+      return undefined;
+    });
+    render(<App translate={en} />);
+
+    const control = (await screen.findByRole('switch', { name: 'Send diagnostics' })) as HTMLInputElement;
+    expect(control.checked).toBe(true);
+    expect(screen.getByRole('alert').textContent).toContain('Could not read your diagnostics setting');
+    vi.mocked(invoke).mockImplementation(async () => undefined);
+  });
+
+  it('says the choice was not saved when set_diagnostics is rejected, and keeps the switch as it was', async () => {
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === 'get_diagnostics') {
+        return { enabled: true, tier: 'production' };
+      }
+      if (command === 'set_diagnostics') {
+        throw new Error('refused');
+      }
+      return undefined;
+    });
+    render(<App translate={en} />);
+
+    const control = (await screen.findByRole('switch', { name: 'Send diagnostics' })) as HTMLInputElement;
+    fireEvent.click(control);
+
+    expect(await screen.findByText('Could not save your choice. Try again.')).toBeTruthy();
+    expect((screen.getByRole('switch', { name: 'Send diagnostics' }) as HTMLInputElement).checked).toBe(true);
+    vi.mocked(invoke).mockImplementation(async () => undefined);
   });
 });

@@ -21,13 +21,15 @@ const SET_DIAGNOSTICS_COMMAND = 'set_diagnostics';
 // Shown until the core publishes its first state: the window is asking for a code.
 const NO_PRESS = 'none';
 const PAIRING_BEFORE_FIRST_STATE: PairingState = 'requesting';
+const DIAGNOSTICS_UNREADABLE: DiagnosticsAnswer = { enabled: true, tier: null };
 
 interface DiagnosticsAnswer {
   enabled: boolean;
-  tier: TelemetryTier;
+  // `null`: the window could not read the setting, so it shows the switch as on (the default) with an error line.
+  tier: TelemetryTier | null;
 }
 
-// The answer is shown only when it has the expected shape; anything else shows no diagnostics section.
+// The answer is used only when it has the expected shape; anything else shows the switch as on, with an error line.
 function isDiagnosticsAnswer(value: unknown): value is DiagnosticsAnswer {
   if (typeof value !== 'object' || value === null) {
     return false;
@@ -80,11 +82,19 @@ export function App({ translate }: AppProps) {
 
   useEffect(() => {
     let disposed = false;
-    void invoke<unknown>(GET_DIAGNOSTICS_COMMAND).then((stored) => {
-      if (!disposed && isDiagnosticsAnswer(stored)) {
-        setDiagnostics(stored);
-      }
-    });
+    // The opt-out never disappears: a failed or unexpected answer leaves the switch on screen (OBT-14, OBT-15).
+    invoke<unknown>(GET_DIAGNOSTICS_COMMAND).then(
+      (stored) => {
+        if (!disposed) {
+          setDiagnostics(isDiagnosticsAnswer(stored) ? stored : DIAGNOSTICS_UNREADABLE);
+        }
+      },
+      () => {
+        if (!disposed) {
+          setDiagnostics(DIAGNOSTICS_UNREADABLE);
+        }
+      },
+    );
     return () => {
       disposed = true;
     };

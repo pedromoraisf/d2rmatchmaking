@@ -27,6 +27,19 @@ describe('telemetry view (OBT-14, OBT-15, OBT-17)', () => {
     expect(screen.getByText(/staging and preview builds only/)).toBeTruthy();
   });
 
+  it('shows an error line instead of a notice, with the switch, when the tier is unknown (en, pt-BR)', () => {
+    const onChange = vi.fn();
+    render(<TelemetryView enabled tier={null} failed={false} translate={en} onChange={onChange} />);
+    expect(screen.getByRole('alert').textContent).toContain('Could not read your diagnostics setting');
+    fireEvent.click(screen.getByRole('switch', { name: 'Send diagnostics' }));
+    expect(onChange).toHaveBeenCalledWith(false);
+    cleanup();
+
+    render(<TelemetryView enabled tier={null} failed={false} translate={ptBR} onChange={vi.fn()} />);
+    expect(screen.getByRole('alert').textContent).toContain('Não foi possível ler sua configuração');
+    expect(screen.getByRole('switch', { name: 'Enviar diagnósticos' })).toBeTruthy();
+  });
+
   it('shows the switch on and turns it off on a press', () => {
     const onChange = vi.fn();
     render(<TelemetryView enabled tier={production} failed={false} translate={en} onChange={onChange} />);

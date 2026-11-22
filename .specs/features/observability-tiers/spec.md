@@ -85,7 +85,7 @@ What exists today:
 - **OBT-14** — The agent window SHALL show a notice of what the diagnostics carry in this build's tier, in English and
   pt-BR, next to a "Send diagnostics" switch: in the production tier, ids, game data and timings and no names or read
   text; in the full tier, also the names and the text read, and that the full tier exists on staging and preview builds
-  only.
+  only. WHEN the window cannot read the setting THEN it SHALL still show the switch, as on, with an error line.
 - **OBT-15** — The "Send diagnostics" switch SHALL be on by default and SHALL persist across restarts in the agent's own
   settings on this PC, never on the server. WHEN the file is missing THEN the switch SHALL read as on; WHEN the file exists but is unreadable, malformed
   or not a boolean flag THEN it SHALL read as off. A save SHALL write a temporary file beside it and rename it, so a failed

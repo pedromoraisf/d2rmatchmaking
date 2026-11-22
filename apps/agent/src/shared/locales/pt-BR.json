@@ -46,7 +46,8 @@
     "effect": "A mudança vale na hora. Os batimentos e tudo o que o matchmaking precisa são enviados de qualquer jeito.",
     "on": "Os diagnósticos estão ligados.",
     "off": "Os diagnósticos estão desligados. O agente não envia nenhum.",
-    "notSaved": "Não foi possível salvar sua escolha. Tente de novo."
+    "notSaved": "Não foi possível salvar sua escolha. Tente de novo.",
+    "unreadable": "Não foi possível ler sua configuração de diagnósticos. A chave aparece ligada; desligue-a se não quiser enviá-los."
   },
   "readyCheck": {
     "hotkey": "Há uma confirmação de partida: pressione {{key}} para aceitar.",

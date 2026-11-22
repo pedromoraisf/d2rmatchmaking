@@ -6,14 +6,18 @@ export type TelemetryTier = 'full' | 'production';
 
 interface TelemetryViewProps {
   enabled: boolean;
-  tier: TelemetryTier;
+  // `null` when the window could not read the setting: no notice, an error line, and the switch still there.
+  tier: TelemetryTier | null;
   failed: boolean;
   translate: Translate;
   onChange: (enabled: boolean) => void;
 }
 
 export function TelemetryView({ enabled, tier, failed, translate, onChange }: TelemetryViewProps) {
-  const notice = translate(tier === 'full' ? 'telemetry.noticeFull' : 'telemetry.noticeProduction');
+  const notice =
+    tier === null
+      ? translate('telemetry.unreadable')
+      : translate(tier === 'full' ? 'telemetry.noticeFull' : 'telemetry.noticeProduction');
   const heading = translate('telemetry.heading');
   const label = translate('telemetry.switch');
   const state = translate(enabled ? 'telemetry.on' : 'telemetry.off');
@@ -22,7 +26,7 @@ export function TelemetryView({ enabled, tier, failed, translate, onChange }: Te
   return (
     <section aria-labelledby="telemetry-heading">
       <h2 id="telemetry-heading">{heading}</h2>
-      <p>{notice}</p>
+      {tier === null ? <p role="alert">{notice}</p> : <p>{notice}</p>}
       <label>
         <input
           type="checkbox"
