@@ -12,18 +12,30 @@ Uma sessão só, na ordem. Fecha: `game-name-reading` T13–T14, `capture-cascad
   não assinado, 14 dias). Um push em `main` produz `agent-staging-<sha>`. Não há `workflow_dispatch` em `agent.yml`.
 - **O orquestrador** informa o PR e o SHA a usar (o PR mais recente em `phase/F2` que toca `apps/agent`, ou um PR de
   teste dele). Se não houver artefato dentro dos 14 dias, ele abre um PR que toque `apps/agent` para gerar outro.
-- Baixe: Actions → run `agent` do PR → Artifacts → `agent-preview-<sha>` (zip). Rode o `.exe` da pasta `nsis`.
+- Baixe: Actions → run `agent` do PR → Artifacts → `agent-preview-<sha>` (zip). Rode o `.exe` da pasta `nsis`. **Use este
+  artefato (canal `preview`).** O `agent-installer-windows` do job `agent-build` do `ci.yml` (descrito em
+  `apps/agent/README.md`, "Testing a pull request's installer") é outro build, de teste de CI, que fala com a API do
+  `API_BASE_URL`: não é o canal `preview`; não o use nesta sessão.
+- **Pré-requisito**: o instalador deve ser construído de um SHA de `phase/F2` que **inclua o PR #156**
+  (`feat/F2-telemetry-consent`, brief Revision 4): é ele que traz a chave de diagnósticos usada na etapa 2. O orquestrador
+  informa esse SHA; sem ele, não comece.
+- **Site e API do instalador preview**: o agente é compilado com `D2RMM_API_BASE` escolhida em `stage-build.yml`
+  ("Choose the API the agent is built for"): o canal `preview` segue a **API de preview do PR** quando ela existe (site:
+  o deploy de branch do Pages desse PR, com proxy para essa API); senão usa a **API de staging** (`API_BASE_URL`; site
+  `https://staging.d2rmatchmaking.pages.dev`). `https://d2rmatchmaking.pages.dev` é **produção**: não use
+  (`docs/engineering/delivery.md`). O orquestrador diz qual par (site, API) vale para o SHA.
 - Windows 11 com Smart App Control bloqueia o instalador não assinado: desligue para testar. SmartScreen: "Mais
   informações" → "Executar assim mesmo" (`apps/agent/README.md`, "Testing a pull request's installer").
 - Se a janela fechar na hora: `Start-Process <exe> -RedirectStandardError $env:TEMP\d2rmm-err.txt -Wait` e leia o arquivo.
-- Versão instalada: Configurações → Aplicativos → `D2RMatchMaking` (a janela do agente não mostra a versão).
+- Versão instalada: Configurações → Aplicativos → `D2RMatchMaking Preview` (nome do produto no canal `preview`, `apps/agent/src-tauri/channels.json`; a janela do agente não mostra a versão). No Task Manager, o processo é `d2rmm-agent.exe`.
 
 ## 2. Preparação
 
-1. Site: https://d2rmatchmaking.pages.dev (staging). Entre com a conta Battle.net e crie ao menos um personagem.
+1. Site: o do par (site, API) que o orquestrador informou na etapa 1 (staging: `https://staging.d2rmatchmaking.pages.dev`; **nunca** `https://d2rmatchmaking.pages.dev`, que é produção). Entre com a conta Battle.net e crie ao menos um personagem.
 2. Pareie o agente pelo código de pareamento do site; dê o consentimento de captura (AGN-01, NFR-05).
-3. Janela do agente: o botão "enviar diagnósticos" vem **ligado** (brief, Revision 3, `observability-tiers`). Deixe
-   ligado: é ele que alimenta o Grafana para a análise depois. Desligado, o agente não exporta nenhum span.
+3. Janela do agente: a chave **"Enviar diagnósticos"** (seção "Diagnósticos"; `telemetry.switch` em
+   `apps/agent/src/shared/locales/pt-BR.json`, PR #156, brief Revision 4, `observability-tiers`) vem **ligada**. Só existe
+   em instalador que inclui o #156 (etapa 1). Deixe ligada: é ele que alimenta o Grafana para a análise depois. Desligado, o agente não exporta nenhum span.
 4. Idioma do jogo: pt-BR (os prints reais são pt-BR: "Grupo", "Nome", "Senha", SCR-05). Gráficos modernos.
 5. Abra o Task Manager (Detalhes) e o Gerenciador de Desempenho para a etapa 5.
 
@@ -71,20 +83,25 @@ Grupo) e se o quadro ficou **em branco** ou não. Só nomes de método e de tela
 - Para cada método que funcionou na matriz, uma sessão de **≥ 30 minutos** com o agente pareado, o rastreador ligado e o
   jogo em partida (de preferência com uma sala ativa).
 - **Limite (NFR-02): média de CPU do agente < 2 %**, e nenhuma queda de FPS perceptível.
-- Medição: Task Manager → Detalhes → `d2rmm-agent.exe` (ou `D2RMatchMaking`) → coluna CPU, anotada a cada 5 min; ou
+- Medição: Task Manager → Detalhes → `d2rmm-agent.exe` → coluna CPU, anotada a cada 5 min; ou
   `Get-Counter '\Process(d2rmm*)\% Processor Time' -SampleInterval 10 -MaxSamples 180` no PowerShell, que dá 30 min.
   **Divida pelo número de núcleos lógicos** (o contador do PowerShell não normaliza; o Task Manager sim).
 - Reporte: método, modo, média, pico, e "FPS: sem queda perceptível" ou onde caiu.
-- Atenção: o repositório **não tem** métrica de CPU do agente exportada (veja "Lacunas"); a medição é a do Windows.
+- Atenção: `screen-recognition` T14 pede a CPU "da telemetria do agente". Se o agente exportar CPU (Grafana, com
+  "Enviar diagnósticos" ligada), anote **os dois números** (Windows e telemetria); hoje o código não exporta essa métrica
+  (veja "Lacunas"), então vale o do Windows e a T14 precisa de emenda do orquestrador antes de ser ticada.
 
 ## 6. Tela de seleção em pt-BR (screen-recognition, SCR-05) e remote-config T20
 
 - **SCR-05**: na tela de seleção de personagem do cliente pt-BR (em cada modo da matriz), o site deve mostrar "seleção de
   personagem" e o personagem lido deve bater com a sua conta; o agente nunca deve ler um nome errado ("O" no lugar do
-  nome; brief, critério 4). Anote quantas olhadas deram certo e se algum nome foi lido errado.
+  nome; brief, critério "Character and screen reading"). Anote quantas olhadas deram certo e se algum nome foi lido errado.
+  Confira também **no site** que o personagem da sua conta foi **casado** (não só que a leitura não é "O"): a correção do
+  "O" depende desse casamento no lado do site.
 - **remote-config T20** (RCF-08 e outros, `docs/engineering/remote-config.md`): com o instalador de PR, o orquestrador
-  serve na API de staging uma configuração com `cadence.probeEvery` diferente (faixa 60…600, padrão 60) e uma região
-  alterada, com `version` maior. Confirme na janela do agente que a versão e o efeito mudam **sem reiniciar**.
+  serve na API do par da etapa 1 uma configuração com `cadence.probeEvery` diferente (faixa 60…600, padrão 60) e uma região
+  alterada (um dos campos `regions.hudBand`, `regions.automapArea` ou `regions.partyArea`, tabela "Fields and ranges" de
+  `docs/engineering/remote-config.md`), com `version` maior. Confirme na janela do agente que a versão e o efeito mudam **sem reiniciar**.
   Depois o orquestrador retira a configuração da API: o agente deve **manter a última boa**. Quem muda o arquivo é o
   orquestrador (PR revisado; `agent-config.json`), não você.
 
@@ -108,7 +125,7 @@ consertos (R14: fixture desenhada primeiro).
 ## Lacunas (o que o repositório não responde)
 
 - **Log local do agente**: não há arquivo de log local no código do agente (`apps/agent/src-tauri`). O que existe: a
-  linha de diagnóstico da janela do agente (método e tela, lição de 2026-11-19) e os spans exportados com "enviar
+  linha de diagnóstico da janela do agente (método e tela, lição de 2026-11-19) e os spans exportados com "Enviar
   diagnósticos" ligado. Se a T14 pedia "linhas do log do próprio agente", o que vale é o site ("Confirmed by the agent")
   mais o Grafana. Confirmar com o orquestrador.
 - **Telemetria de CPU do agente**: o brief fala de "CPU telemetry", mas nenhum código exporta uma métrica de CPU (só
