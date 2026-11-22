@@ -8,11 +8,6 @@
 
 use d2rmm_agent_core::ports::Rgba;
 
-/// Whether the process that owns a window is one of the D2R processes (AST-03). A window with no process (`0`) never is.
-pub fn belongs_to_game(window_process: u32, game_processes: &[u32]) -> bool {
-    window_process != 0 && game_processes.contains(&window_process)
-}
-
 /// A rectangle in screen pixels, as the Win32 `RECT` gives it: left and top inclusive, right and bottom exclusive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rect {
@@ -92,7 +87,7 @@ mod game {
     };
     use windows::core::BOOL;
 
-    use super::{Rect, belongs_to_game, client_size, largest_client, rgba_from_bgra};
+    use super::{Rect, client_size, largest_client, rgba_from_bgra};
     use crate::adapters::graphics_capture::{self, GraphicsFrames};
     use crate::adapters::toolhelp::game_process_ids;
 
@@ -331,7 +326,7 @@ mod game {
 
 #[cfg(test)]
 mod tests {
-    use super::{Rect, belongs_to_game, client_size, largest_client, rgba_from_bgra};
+    use super::{Rect, client_size, largest_client, rgba_from_bgra};
 
     #[test]
     fn the_client_size_is_the_client_rectangle() {
@@ -427,13 +422,5 @@ mod tests {
     #[test]
     fn a_size_that_overflows_is_refused_not_allocated() {
         assert_eq!(rgba_from_bgra(u32::MAX, u32::MAX, &[]), None);
-    }
-
-    #[test]
-    fn a_window_belongs_to_the_game_only_when_its_process_is_one_of_d2rs() {
-        assert!(belongs_to_game(42, &[7, 42]));
-        assert!(!belongs_to_game(43, &[7, 42]));
-        assert!(!belongs_to_game(42, &[]));
-        assert!(!belongs_to_game(0, &[0, 7]), "no process is never the game");
     }
 }
