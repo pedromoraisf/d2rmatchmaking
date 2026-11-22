@@ -561,6 +561,7 @@ mod tests {
     fn a_refused_hotkey_is_one_event_with_the_slot_and_a_retry_that_fails_again_adds_none() {
         let (device, _tokens) = paired();
         let events = Arc::new(Events::default());
+        crate::test_interest::always();
         let guard = tracing::subscriber::set_default(Arc::clone(&events));
         tracing::callsite::rebuild_interest_cache();
 

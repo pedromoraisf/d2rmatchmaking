@@ -1198,6 +1198,7 @@ mod look_tests {
     /// recorded under `cargo test` (one process) as under nextest (one process per test).
     fn record_spans() -> (Arc<Spans>, tracing::subscriber::DefaultGuard) {
         let spans = Arc::new(Spans::default());
+        crate::test_interest::always();
         let guard = tracing::subscriber::set_default(Arc::clone(&spans));
         tracing::callsite::rebuild_interest_cache();
         (spans, guard)
