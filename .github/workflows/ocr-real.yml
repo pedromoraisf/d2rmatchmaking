@@ -14,6 +14,13 @@ on:
 permissions:
   contents: read
 
+# A new push (or an update-branch) to a pull request cancels the run on the superseded SHA, so it stops holding Windows
+# runners (ocr-real and the ocr-variations shards are in this workflow). The newest SHA still runs the full check: this
+# does not relax the sensor.
+concurrency:
+  group: ocr-real-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ocr-real:
     name: ocr-real

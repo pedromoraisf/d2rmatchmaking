@@ -143,3 +143,51 @@ describe('the queue lock', () => {
     expect(formed).toHaveLength(0);
   });
 });
+
+describe('the queue size metric (QUE-16)', () => {
+  const hellPool = { mode: 'pvp', difficulty: 'hell', ladder: 'sc-ladder', era: 'rotw' } as const;
+  const normalPool = { ...hellPool, difficulty: 'normal' } as const;
+
+  it('reports the waiting count of the pool after a join', async () => {
+    const t = queueSetup();
+    t.readyPlayer('alice', 'c-sorc');
+    await t.queue.joinQueue({ accountId: 'alice', request: duel('c-sorc') });
+
+    // One report from the join itself and one from the matcher run that follows it.
+    expect(t.metrics.sizes).toStrictEqual([
+      { attributes: hellPool, size: 1 },
+      { attributes: hellPool, size: 1 },
+    ]);
+  });
+
+  it('reports each pool on its own', async () => {
+    const t = queueSetup();
+    t.readyPlayer('alice', 'c-sorc');
+    t.readyPlayer('bob', 'c-hammer');
+    await t.queue.joinQueue({ accountId: 'alice', request: duel('c-sorc') });
+    await t.queue.joinQueue({ accountId: 'bob', request: { ...duel('c-hammer'), difficulty: 'normal' } });
+
+    expect(t.metrics.sizes.slice(-2)).toStrictEqual([
+      { attributes: hellPool, size: 1 },
+      { attributes: normalPool, size: 1 },
+    ]);
+  });
+
+  it('reports the pool as empty after the player leaves it', async () => {
+    const t = queueSetup();
+    t.readyPlayer('alice', 'c-sorc');
+    const joined = await t.queue.joinQueue({ accountId: 'alice', request: duel('c-sorc') });
+    await t.queue.leaveQueue({ accountId: 'alice', ticketId: joined.ok ? joined.value.id : '' });
+
+    expect(t.metrics.sizes.at(-1)).toStrictEqual({ attributes: hellPool, size: 0 });
+  });
+
+  it('reports the pool as empty after the platform drops the ticket', async () => {
+    const t = queueSetup();
+    t.readyPlayer('alice', 'c-sorc');
+    await t.queue.joinQueue({ accountId: 'alice', request: duel('c-sorc') });
+    await t.queue.dropTicket({ accountId: 'alice', reason: 'agent-offline' });
+
+    expect(t.metrics.sizes.at(-1)).toStrictEqual({ attributes: hellPool, size: 0 });
+  });
+});

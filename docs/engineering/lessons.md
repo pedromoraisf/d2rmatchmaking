@@ -91,6 +91,12 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
   its next statement queues behind the truncate: Postgres ends that as a deadlock (40P01) after its 1 s timeout, and the
   API answers 503. Why: CI run 45038986776, one 1.0 s `reset ... answered 503` on SNM-03 that did not repeat locally
   (376 passed); the artifact was not readable, so the cause is inferred from the 1.0 s and the order of the reset.
+- **Never key a cargo-mutants `exclude_re` on a line number.** Match the file, the mutation text and the function
+  (`anchors\.rs:\d+:\d+: replace … in find_cards_in_variants`). Why: lines moved in `anchors.rs` and `layout.rs` and
+  three excluded equivalent mutants came back as nightly survivors (nightly 45037822441, #167).
+- **A mutation job needs every file its tests read inside the tree cargo-mutants copies, or `--in-place`.** Why: the
+  adapters baseline failed in the nightly because `remote_config.rs` tests read the API's `agent-config.json`, and no
+  adapters mutant ran (#165).
 
 ## Observability and load
 
@@ -145,6 +151,12 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
 - **A revert that makes more variants readable can raise `wrong` as well as `correct`.** Compare the reasons per
   print against the last green baseline run before choosing what to revert. Why: #104 spent two 70-minute runs on
   reverts that did not touch the failing class.
+- **A test that records `tracing` spans or events must have a process-wide global subscriber that enables everything
+  (`core/src/test_interest.rs`), not only `set_default` plus `rebuild_interest_cache`.** Why: `tracing` caches each
+  callsite's interest for the whole process, a callsite first registered by another test's thread can cache "never", and
+  the span tests then failed at random under `cargo test` (one process) while passing under nextest. The nightly's
+  cargo-mutants baseline runs `cargo test`, so `the_span_of_a_closed_panel_says_neither` failed it on 2026-11-21 and 22
+  (about 10% of party-only runs, 1% of whole-suite runs before the fix, 0 of 500 after).
 
 ## Harness
 

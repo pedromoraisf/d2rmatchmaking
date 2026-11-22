@@ -35,7 +35,7 @@ jobs:
 
   agent-mutation:
     # Linux: the three crates have no Windows-only code, and integration already builds the adapters on Ubuntu (AD-149).
-    # One job per crate; the two crates that take more than 15 minutes run in two shards (NGT-01).
+    # One job per crate; domain runs in four shards and adapters in two, so each job fits well under 40 minutes (NGT-01).
     name: agent-mutation (${{ matrix.name }})
     needs: detect
     if: >-
@@ -47,7 +47,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # core runs --in-place: its tests include_str! sidecars from apps/agent/fixtures, outside the workspace cargo-mutants copies.
+          # core and adapters run --in-place: their tests read files outside the workspace cargo-mutants copies (core:
+          # include_str! of apps/agent/fixtures; adapters: apps/api/src/modules/agents/config/agent-config.json). Every job has its
+          # own checkout, so the shards of a crate mutate in place without touching each other.
           - {
               name: core,
               crate: core,
@@ -57,26 +59,42 @@ jobs:
               artifact: agent-mutation-core,
             }
           - {
-              name: domain 1/2,
+              name: domain 1/4,
               crate: domain,
-              shard: '--shard 0/2',
+              shard: '--shard 0/4',
               in_place: '',
               out: agent-domain-1,
               artifact: agent-mutation-domain-1,
             }
           - {
-              name: domain 2/2,
+              name: domain 2/4,
               crate: domain,
-              shard: '--shard 1/2',
+              shard: '--shard 1/4',
               in_place: '',
               out: agent-domain-2,
               artifact: agent-mutation-domain-2,
             }
           - {
+              name: domain 3/4,
+              crate: domain,
+              shard: '--shard 2/4',
+              in_place: '',
+              out: agent-domain-3,
+              artifact: agent-mutation-domain-3,
+            }
+          - {
+              name: domain 4/4,
+              crate: domain,
+              shard: '--shard 3/4',
+              in_place: '',
+              out: agent-domain-4,
+              artifact: agent-mutation-domain-4,
+            }
+          - {
               name: adapters 1/2,
               crate: adapters,
               shard: '--shard 0/2',
-              in_place: '',
+              in_place: '--in-place',
               out: agent-adapters-1,
               artifact: agent-mutation-adapters-1,
             }
@@ -84,7 +102,7 @@ jobs:
               name: adapters 2/2,
               crate: adapters,
               shard: '--shard 1/2',
-              in_place: '',
+              in_place: '--in-place',
               out: agent-adapters-2,
               artifact: agent-mutation-adapters-2,
             }

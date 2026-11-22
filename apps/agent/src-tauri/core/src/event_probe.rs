@@ -21,6 +21,7 @@ pub struct EventProbe {
 impl EventProbe {
     /// Installs the probe as this thread's subscriber until the guard drops.
     pub fn install(&self) -> tracing::subscriber::DefaultGuard {
+        crate::test_interest::always();
         tracing::subscriber::set_default(Collector {
             events: Arc::clone(&self.events),
             spans: Arc::clone(&self.spans),
