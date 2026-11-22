@@ -1,11 +1,14 @@
 // The resource every bootstrap exports with (OBS-32). Service identity only: no host and no process detector, so no
 // machine name, address or instance id reaches the backend.
 import { resourceFromAttributes, type Resource } from '@opentelemetry/resources';
+import type { TelemetryTier } from '../redact-attributes.ts';
 
 export type ResourceInput = {
   serviceName: string;
   serviceVersion: string;
   environment: string;
+  /** The detail tier of the process (OBT-02), exported as `d2r.telemetry.tier`. */
+  tier: TelemetryTier;
   agentVersion?: string;
 };
 
@@ -15,6 +18,7 @@ export function createResource(input: ResourceInput): Resource {
     'service.name': input.serviceName,
     'service.version': input.serviceVersion,
     'deployment.environment': input.environment,
+    'd2r.telemetry.tier': input.tier,
   };
   if (input.agentVersion !== undefined) attributes['d2r.agent.version'] = input.agentVersion;
   return resourceFromAttributes(attributes);

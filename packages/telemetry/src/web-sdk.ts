@@ -6,6 +6,7 @@ import { context, SpanKind, SpanStatusCode, trace, type Span } from '@openteleme
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { StackContextManager, WebTracerProvider } from '@opentelemetry/sdk-trace-web';
+import type { TelemetryTier } from './redact-attributes.ts';
 import { RedactingSpanExporter } from './sdk/redacting-exporters.ts';
 import { createResource } from './sdk/resource.ts';
 import { samplerFrom } from './sdk/sampler.ts';
@@ -29,6 +30,8 @@ export interface WebTelemetryOptions {
   readonly relayPath: string;
   readonly serviceVersion: string;
   readonly environment: string;
+  /** The detail tier the API's boot configuration gave; `production` when it is unknown (OBT-01). */
+  readonly tier: TelemetryTier;
   /** Milliseconds from an arbitrary origin; defaults to `Date.now`. Injected by tests. */
   readonly now?: () => number;
 }
@@ -85,9 +88,12 @@ export function startWebTelemetry(options: WebTelemetryOptions): WebTelemetryHan
       serviceName: WEB_SERVICE_NAME,
       serviceVersion: options.serviceVersion,
       environment: options.environment,
+      tier: options.tier,
     }),
     sampler: samplerFrom(options.ratio, options.now),
-    spanProcessors: [new BatchSpanProcessor(new RedactingSpanExporter(exporter), BATCH_OPTIONS)],
+    spanProcessors: [
+      new BatchSpanProcessor(new RedactingSpanExporter(exporter, options.tier), BATCH_OPTIONS),
+    ],
   });
   provider.register({ contextManager: new StackContextManager(), propagator });
   return {

@@ -18,7 +18,7 @@ Rules:
 
 ## Batch 1 — the shared package, the API and the site
 
-- [ ] T1 — `packages/telemetry`: `TelemetryTier`, the staging-only key list (OBT-04, OBT-06, OBT-07 keys) and a pure
+- [x] T1 — `packages/telemetry`: `TelemetryTier`, the staging-only key list (OBT-04, OBT-06, OBT-07 keys) and a pure
       `redactForTier(attributes, tier)`; split `FORBIDDEN_WORDS` into credential words (dropped in every tier, OBT-11) and
       personal words (`battletag`, dropped in production only); the redacting exporters take the tier. Unit tests: every
       staging-only key dropped in production and kept in full; every credential word dropped in both (OBT-08, OBT-11).

@@ -45,6 +45,7 @@ const ENABLED = {
   relayPath: RELAY_PATH,
   serviceVersion: '0.0.0-test',
   environment: 'test',
+  tier: 'production',
 } as const;
 
 describe('web telemetry', () => {
