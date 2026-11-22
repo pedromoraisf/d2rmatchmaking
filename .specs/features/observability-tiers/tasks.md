@@ -47,7 +47,7 @@ Rules:
 
 ## Batch 2 — the agent, the source rule and the docs
 
-- [ ] T7 — Agent tier (OBT-01, OBT-02, OBT-05): `adapters/src/telemetry/tier.rs` with a pure `tier_of(channel)`
+- [x] T7 — Agent tier (OBT-01, OBT-02, OBT-05): `adapters/src/telemetry/tier.rs` with a pure `tier_of(channel)`
       (`preview`, `staging` → full; `production`, none, unknown → production); `src/app.rs` builds `ExportConfig` in every
       release build (AD-098 lifted, the `D2RMM_TELEMETRY` switch removed), `deployment.environment` = the channel, ratio
       1.0 in full; resource gets `d2r.telemetry.tier`. Unit tests on `tier_of`.

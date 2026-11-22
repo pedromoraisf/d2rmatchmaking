@@ -80,11 +80,12 @@ fn attribute_allowed(attribute: &KeyValue) -> bool {
 }
 
 /// The only resource attributes the exporter sends.
-pub const ALLOWED_RESOURCE_KEYS: [&str; 4] = [
+pub const ALLOWED_RESOURCE_KEYS: [&str; 5] = [
     "service.name",
     "service.version",
     "deployment.environment",
     "d2r.agent.version",
+    "d2r.telemetry.tier",
 ];
 
 /// Sanitizes one span. A span whose name does not start with `agent.` is dropped (`None`).
@@ -108,7 +109,7 @@ pub fn sanitize_span(span: SpanData) -> Option<SpanData> {
     })
 }
 
-/// Keeps the four resource attributes the exporter sends and no other.
+/// Keeps the five resource attributes the exporter sends and no other.
 pub fn sanitize_resource_key(key: &str) -> bool {
     ALLOWED_RESOURCE_KEYS.contains(&key)
 }
