@@ -40,6 +40,18 @@ pub fn millis(elapsed: Duration) -> i64 {
     i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX)
 }
 
+/// The span of one read of the character selection screen. It declares the full-tier `d2r.ocr.names` here, so no other
+/// module of the agent names a staging-only key (OBT-10).
+pub fn characters_span() -> Span {
+    tracing::info_span!(
+        "agent.vision.read-characters",
+        screen = tracing::field::Empty,
+        cards = tracing::field::Empty,
+        "d2r.ocr.names" = tracing::field::Empty,
+        "d2r.step.duration_ms" = tracing::field::Empty,
+    )
+}
+
 /// Records the ids and game data of an observation on `span`: the room, the run, the generated game name and the read's
 /// confidence. All four are allowed in both tiers. The span declares the fields as `tracing::field::Empty`.
 pub fn record_observation(span: &Span, room: &str, run: u64, game_name: &str, confidence: f64) {

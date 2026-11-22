@@ -305,13 +305,7 @@ async fn read_screen<G>(
     frame: &Arc<Rgba>,
     config: Effective,
 ) -> FrameReading {
-    let span = tracing::info_span!(
-        "agent.vision.read-characters",
-        screen = tracing::field::Empty,
-        cards = tracing::field::Empty,
-        "d2r.ocr.names" = tracing::field::Empty,
-        "d2r.step.duration_ms" = tracing::field::Empty,
-    );
+    let span = detail::characters_span();
     let started = std::time::Instant::now();
     let reader = Arc::clone(&ports.reader);
     let frame = Arc::clone(frame);
