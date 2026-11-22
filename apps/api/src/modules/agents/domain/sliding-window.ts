@@ -39,16 +39,23 @@ function expandIPv6(address: string): number[] | null {
     tailGroups = v4;
     text = `${bare.slice(0, lastColon + 1)}`;
   }
-  const halves = text.split('::');
-  if (halves.length > 2) {
+  const gap = text.indexOf('::');
+  if (gap !== -1 && text.includes('::', gap + 2)) {
     return null;
   }
-  const head = (halves[0] ?? '').split(':').filter((g) => g !== '');
-  const tail = (halves[1] ?? '').split(':').filter((g) => g !== '');
+  const groupsOf = (part: string): string[] => part.split(':').filter((g) => g !== '');
   const groups =
-    halves.length === 2
-      ? [...head, ...new Array<string>(8 - head.length - tail.length - tailGroups.length).fill('0'), ...tail]
-      : head;
+    gap === -1
+      ? groupsOf(text)
+      : (() => {
+          const head = groupsOf(text.slice(0, gap));
+          const tail = groupsOf(text.slice(gap + 2));
+          return [
+            ...head,
+            ...new Array<string>(8 - head.length - tail.length - tailGroups.length).fill('0'),
+            ...tail,
+          ];
+        })();
   const all = [...groups, ...tailGroups];
   if (all.length !== 8 || !all.every((g) => HEX_GROUP.test(g))) {
     return null;
@@ -61,9 +68,6 @@ function expandIPv6(address: string): number[] | null {
  * cannot evade the limit by rotating addresses inside its prefix. Anything that does not parse is keyed as given.
  */
 export function rateLimitKey(ip: string): string {
-  if (!ip.includes(':')) {
-    return ip;
-  }
   const groups = expandIPv6(ip);
   if (groups === null) {
     return ip;
