@@ -320,3 +320,32 @@ real goal of FR-27 is that real rooms confirm.
 - The ratchet floor of `ocr.variations.correct` moves from 5665 to 5727 (the count after #133), approved the same day.
 
 **Approved**: 2026-11-22 - user: "Opção 2" (the read-rate decision) and "Ok" (the ratchet floor 5727)
+
+## Revision 4 — no assisted typing in the agent; telemetry consent; the load target moves (2026-11-22)
+
+**Why.** The agent's clipboard copy of Revision 1 pulled a BSL-1.0 dependency (`arboard`) that `deny.toml` refuses, and
+it duplicates what the site already does: the player copies the name on the site and pastes it with the game's own
+Ctrl+V. The security review of #148 found that agent release builds export spans with no notice and no opt-out. The load
+bytes per player-hour are 412,510 on the nightly against the 125,000 target, and the stream-egress cuts took 5.6 %.
+
+**What changes.**
+
+- **Assisted typing is discontinued in the agent.** The agent never types, pastes, writes the clipboard or listens to a
+  hotkey for the game name; the code already on `phase/F2` is removed (`feat/F2-assisted-typing-removal`), #145 is
+  closed, and the sensor entries kept only for it go. FR-28 is met by the site's copy button (with its select-and-Ctrl+C
+  fallback) and the game's native Ctrl+V. The exit criterion "Assisted typing (FR-28)" reads: _the site copies the game
+  name; the agent sends no input and touches no clipboard. Proof: the site's unit test, the source-rule test that the
+  agent sends no input, and the removal PR._
+- **Telemetry consent in the agent.** The agent window shows what its diagnostics carry in its tier and a "send
+  diagnostics" switch, on by default, en and pt-BR; off means the agent exports no span at all
+  (`feat/F2-telemetry-consent`, `observability-tiers`). Matchmaking traffic is not affected.
+- **Load.** The bytes target of 125,000 per player-hour moves to **F3**. F2 keeps the ratchet: baseline 405,334 and
+  ceiling 447,000 in `.quality-baseline.json` (already applied). The criterion "Load" reads: _100 or more players with 0
+  errors on the real journey, run by the nightly, and bytes per player-hour at or below the ratchet ceiling._
+- **Staging follows the phase branch.** A push to `phase/**` that touches the API deploys the staging API through the
+  existing stages (`feat/F2-delivery-platform-7`), so no manual Render step is needed during a phase.
+
+**Approved**: 2026-11-22 - user: "sobre esse ctrl+v, vamos descontinuar essa feature. o usuario copia o valor pelo site,
+e da ctrl+v nativo no jogo. não existe codigo nem feature aqui, além do de copiar o nome do jogo pelo site" (assisted
+typing), "aceito o recomendado" (consent: notice and switch), "aplica" (load) and "seja pragmatico e remova complexidade
+desnecessaria" (staging)
