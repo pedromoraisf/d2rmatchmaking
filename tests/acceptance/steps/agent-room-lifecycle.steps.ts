@@ -188,10 +188,15 @@ After({ tags: '@ARL-08' }, async ({ world }) => {
   await closeWires(world);
 });
 
-async function hostWithConfirmedPresence(world: World): Promise<void> {
+async function hostWithConfirmedPresence(world: World, scenarioRoom: string): Promise<void> {
   test.setTimeout(SCENARIO_TIMEOUT_MS);
   enableWire(world);
   await formRoom(world);
+  // The scenario's room name stands for the stack's real room: it must resolve to the room Alice hosts.
+  expect(
+    panelTextFor((await roomViewOf(world, 'Alice')).expectedGameName, scenarioRoom),
+    `the room "${scenarioRoom}" of the scenario is Alice's room`,
+  ).toBe((await roomViewOf(world, 'Alice')).expectedGameName);
   await toStage(world, true, 'created');
   const confirmed = await headlessOf(world, 'Alice').agent.waitFor('presence-confirmed', DROP_WAIT_MS);
   expect(confirmed.event, "Alice's window says presence confirmed").toBe('presence-confirmed');
@@ -205,20 +210,23 @@ function lineOf(world: World, name: string): string | undefined {
 
 Given(
   'Alice hosts a room {string} with Bob, and her headless agent confirmed her presence',
-  async ({ world }) => {
-    await hostWithConfirmedPresence(world);
+  async ({ world }, room: string) => {
+    await hostWithConfirmedPresence(world, room);
   },
 );
 
-Given("Alice's headless agent shows her in another game for her room {string}", async ({ world }) => {
-  await hostWithConfirmedPresence(world);
-  showPanel(world, 'Alice', 'duels');
-  await headlessOf(world, 'Alice').agent.waitFor(
-    'room-line',
-    ELSEWHERE_WAIT_MS,
-    (event) => event['line'] === 'elsewhere',
-  );
-});
+Given(
+  "Alice's headless agent shows her in another game for her room {string}",
+  async ({ world }, room: string) => {
+    await hostWithConfirmedPresence(world, room);
+    showPanel(world, 'Alice', 'duels');
+    await headlessOf(world, 'Alice').agent.waitFor(
+      'room-line',
+      ELSEWHERE_WAIT_MS,
+      (event) => event['line'] === 'elsewhere',
+    );
+  },
+);
 
 When(
   "Alice's agent reads the game name {string} in the Party panel on two looks in a row",
