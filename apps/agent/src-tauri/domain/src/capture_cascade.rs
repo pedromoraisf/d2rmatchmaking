@@ -495,6 +495,22 @@ mod tests {
     }
 
     #[test]
+    fn a_window_as_long_as_the_looks_taken_drops_none_of_them() {
+        // The boundary of `set_params`: four blank looks then a frame, a window of exactly five keeps all five (20 %).
+        let mut cascade = Cascade::new(&[PrintWindow, GraphicsCapture]);
+        for _ in 0..4 {
+            cascade.record(Outcome::Blank);
+        }
+        cascade.record(Outcome::Frame);
+        cascade.set_params(CascadeParams {
+            rate_window: 5,
+            demote_after: 100,
+            ..CascadeParams::default()
+        });
+        assert_eq!(cascade.read_rate_percent(), 20);
+    }
+
+    #[test]
     fn a_window_that_grows_keeps_the_looks_it_has() {
         let mut cascade = Cascade::new(&[PrintWindow, GraphicsCapture]);
         for _ in 0..60 {

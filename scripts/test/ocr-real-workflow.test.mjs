@@ -180,3 +180,9 @@ test('the merged counts are held to the ratchet in the ocr context, after the me
   assert.equal(steps[upload].with.name, 'ocr-variations');
   assert.equal(steps[upload].with.path, 'reports/ocr-variations.json');
 });
+
+test('a new push cancels the run on the superseded SHA of the same pull request', () => {
+  assert.ok(wf.concurrency, 'the workflow has a concurrency block');
+  assert.match(wf.concurrency.group, /github\.event\.pull_request\.number/);
+  assert.equal(wf.concurrency['cancel-in-progress'], true);
+});

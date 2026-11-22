@@ -6,6 +6,9 @@ import {
 } from '@opentelemetry/sdk-trace-base';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { MatchFormedEvent } from '../../../shared-kernel/index.ts';
+import { createQueueNotifier } from './queue-notifier.ts';
+import { InMemoryQueueStore } from './testing/queue-fakes.ts';
+import { createMatchNow } from './run-matcher.ts';
 import { queueSetup, READY_CHARACTER } from './testing/queue-setup.ts';
 import type { QueueSetup } from './testing/queue-setup.ts';
 
@@ -281,5 +284,41 @@ describe('runMatcher: an idle tick (T8)', () => {
     await t.queue.runMatcher();
 
     expect(exporter.getFinishedSpans().filter((span) => span.name === 'matchmaking.match')).toHaveLength(1);
+  });
+});
+
+describe('runMatcher: a tick that forms no group', () => {
+  it('leaves the queue store untouched and opens no ready check', async () => {
+    const t = queueSetup();
+    t.readyPlayer('alice', 'c-sorc');
+    await t.queue.joinQueue({ accountId: 'alice', request: duel('c-sorc') });
+    const [ticket] = await t.store.all();
+    if (ticket === undefined) throw new Error('expected a waiting ticket');
+
+    const removed: Array<readonly string[]> = [];
+    const store = new InMemoryQueueStore();
+    await store.add(ticket);
+    const remove = store.remove.bind(store);
+    store.remove = async (ids) => {
+      removed.push(ids);
+      await remove(ids);
+    };
+    const opened: unknown[] = [];
+    const matchNow = createMatchNow({
+      store,
+      clock: t.clock,
+      notifier: createQueueNotifier({ bus: t.bus, metrics: t.metrics }),
+      readyChecks: {
+        open: async (group) => {
+          opened.push(group);
+        },
+      },
+    });
+
+    await matchNow();
+
+    expect(removed).toStrictEqual([]);
+    expect(opened).toStrictEqual([]);
+    expect(await store.all()).toHaveLength(1);
   });
 });
