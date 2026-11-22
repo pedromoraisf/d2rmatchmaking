@@ -4,9 +4,11 @@
 name: ci
 
 on:
-  # Only main on push: a branch with a pull request would otherwise run everything twice. deploy-api needs this push run.
+  # main and phase/** on push; any other branch with a pull request would run everything twice. deploy-api needs the
+  # main push run; stage-deploy's verify needs a ci run of the exact SHA a phase merge creates on phase/** (the phase
+  # PR into main runs on its own merge ref, a different SHA).
   push:
-    branches: [main]
+    branches: [main, 'phase/**']
   pull_request:
   # Started by release-please.yml on the release PR branch: a GITHUB_TOKEN PR gets no pull_request run (ADR 015).
   workflow_dispatch:
