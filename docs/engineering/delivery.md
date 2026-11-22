@@ -28,6 +28,16 @@ calls `stage-smoke`. Job names are always the stage names.
 | smoke   | wakes the service (backoff ≤ 90 s), then checks `/healthz` SHA, the page, `--self-check`     | after deploy         |
 | promote | `workflow_dispatch` on a SHA that passed staging smoke; deploys the same artifact, smokes it | the runner (ADR 028) |
 
+## Staging during a phase
+
+During a phase, staging follows `phase/<F>`: a push to `phase/**` that touches the API runs build → deploy → smoke
+against staging with the repository-level staging secrets, with no `API_STAGES_LIVE` needed, and the Render service
+points at that branch. `stage-deploy`'s `verify` needs a green `ci` run of the pushed SHA, and a merge into `phase/<F>` creates a SHA that no
+pull request ran, so `ci.yml` also runs on a push to `phase/**` (its concurrency group is per ref, so a superseded run is
+cancelled). Pushes share one serial group (nothing is cancelled). When the phase merges into `main`, staging
+follows `main` again and the Render service branch goes back to `main`. A phase push never reaches `production`:
+promotion stays a dispatch of `main`.
+
 ## Which build answers
 
 `GET /healthz` answers `{ "status": "ok", "version": "<sha>" }`. The SHA comes from `D2RMM_BUILD_SHA`, falling back
