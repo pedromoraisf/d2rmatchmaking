@@ -23,7 +23,14 @@ or the length of it.
 | Agent chat post (batch 2)             | fixed words `joined` and `left`, and `posted`, `dropped`, `failed`                                 |
 
 `apps/api/src/main/__tests__/name-leak-scan.ts` is the harness that scans spans, logs, answers and stored rows for a name;
-every path that takes a read name has a test with it.
+every path that takes a read name has a test with it, and each runs in both telemetry tiers.
+
+**The staging exception (ADR 037, OBT-04, OBT-09).** In the **full** tier (staging, local) a name may be on a span, and
+only there, under the keys the tier carries (`d2r.account.battletag`, `d2r.character.name`, `d2r.observation.read_text`,
+`d2r.observation.read_names`, and the agent's `d2r.ocr.*`). Use cases set them through the `SpanDetail` port, which the
+composition root (`main/span-detail.ts`) gives the full tier and withholds from production; the exporter drops the same
+keys in production again. A name is still never in a log line, metric label, outbox row, event, stored row or response,
+in either tier. The **production** tier keeps the rule above whole.
 
 ## Production backend
 

@@ -31,7 +31,7 @@ Rules:
       `d2r.ticket.id`, `d2r.ready_check.id`, `d2r.game.name`, `d2r.difficulty`, `d2r.queue.mode`, `d2r.room.stage` where
       each use case knows them (journey table in `telemetry.md`); the attribute builders are pure functions with unit
       tests (lessons: extract and unit-test). No metric gains an id label. Gate: `pnpm --filter @d2rmm/api test`
-- [ ] T4 — API full-tier fields (OBT-04, OBT-09): a `SpanDetail` port (shared-kernel interface, implementation in `main/`
+- [x] T4 — API full-tier fields (OBT-04, OBT-09): a `SpanDetail` port (shared-kernel interface, implementation in `main/`
       from the tier) through which use cases set `d2r.account.battletag`, `d2r.character.name`,
       `d2r.observation.read_text`, `d2r.observation.read_names`; `name-leak-scan` runs its scenarios in both tiers
       (production: no name anywhere; full: names only in spans and logs, never in rows, outbox, events or answers);

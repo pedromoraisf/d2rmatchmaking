@@ -2,6 +2,8 @@ import {
   D2R_DIFFICULTY,
   D2R_QUEUE_MODE,
   D2R_ROOM_ACTIVITY,
+  D2R_OBSERVATION_READ_NAMES,
+  D2R_OBSERVATION_READ_TEXT,
   D2R_ROOM_ID,
   D2R_ROOM_RUN,
 } from '@d2rmm/telemetry';
@@ -12,6 +14,7 @@ import {
   annotateActiveSpan,
   gameFacts,
   journeyIds,
+  NO_SPAN_DETAIL,
   runIdOf,
   matchCharacterName,
   err,
@@ -26,6 +29,7 @@ import {
   type Outbox,
   type Result,
   type RoomStage,
+  type SpanDetail,
   type UnitOfWork,
 } from '../../../shared-kernel/index.ts';
 import { GameName } from '../domain/game-name.ts';
@@ -55,6 +59,8 @@ export interface LobbyRoomDeps {
   readonly traceContexts: RoomTraceContexts;
   readonly connectivity: MemberConnectivity;
   readonly characters: RoomCharacters;
+  /** Full-tier span fields (OBT-04); nothing is recorded when unset. */
+  readonly spanDetail?: SpanDetail;
   /** How long a member's agent may stay offline, or their site stream closed, before they leave the room (FR-32). */
   readonly dropToleranceMs: number;
 }
@@ -344,6 +350,12 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
         if (body.type === 'UNKNOWN') {
           return ok({ stored: false });
         }
+        // What the agent read: the full tier only (OBT-04). A sighting is a name; any other value is text.
+        (deps.spanDetail ?? NO_SPAN_DETAIL).annotate(
+          isPlayerSighting(body.type)
+            ? { [D2R_OBSERVATION_READ_NAMES]: body.value }
+            : { [D2R_OBSERVATION_READ_TEXT]: body.value },
+        );
         // A chat sighting carries one character name as the screen read it. It is checked, matched to a member of this room
         // and dropped: only the member's join order is stored, and nothing about the name reaches a span or a log (SNM-04).
         if (isPlayerSighting(body.type) && !isPlayerNameReading(body.value)) {

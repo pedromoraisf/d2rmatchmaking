@@ -8,6 +8,7 @@ import { context, trace } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { D2R_ROOM_ID } from '@d2rmm/telemetry';
+import { ACTIVE_SPAN_DETAIL, type SpanDetail } from '../../../shared-kernel/index.ts';
 import {
   FakeClock,
   SequentialIdGenerator,
@@ -44,7 +45,7 @@ beforeEach(() => {
   exporter.reset();
 });
 
-function setup() {
+function setup(spanDetail?: SpanDetail) {
   const clock = new FakeClock(OPENED_AT);
   const rooms = new InMemoryLobbyRoomRepository(clock);
   const observations = new InMemoryObservationRepository();
@@ -66,6 +67,7 @@ function setup() {
     connectivity: new FakeMemberConnectivity(),
     characters: new FakeRoomCharacters(),
     dropToleranceMs: 60_000,
+    ...(spanDetail === undefined ? {} : { spanDetail }),
   });
   agents.pair('agent-1', 'account-1');
   agents.pair('agent-2', 'account-2');
@@ -561,5 +563,35 @@ describe('hasOpenRoom (INV-04)', () => {
     await useCases.onMatchFormed(match());
 
     expect(await useCases.hasOpenRoom('account-3')).toBe(false);
+  });
+});
+
+describe('the read text on the observation span (OBT-04)', () => {
+  it('is recorded through the span detail of the full tier, a sighting as a name', async () => {
+    const { useCases } = setup(ACTIVE_SPAN_DETAIL);
+    await useCases.onMatchFormed(match());
+    await useCases.recordObservation({
+      agentId: 'agent-1',
+      roomId: 'room-1',
+      body: { ...body(), type: 'PLAYER_JOINED_SEEN', value: 'Gxzqy' },
+    });
+    expect(finishedSpan('lobby.record-observation').attributes['d2r.observation.read_names']).toBe('Gxzqy');
+  });
+
+  it('is recorded as text for any other observation type', async () => {
+    const { useCases } = setup(ACTIVE_SPAN_DETAIL);
+    await useCases.onMatchFormed(match());
+    await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
+    const attributes = finishedSpan('lobby.record-observation').attributes;
+    expect(attributes['d2r.observation.read_text']).toBeDefined();
+    expect(attributes).not.toHaveProperty('d2r.observation.read_names');
+  });
+
+  it('is not recorded without a span detail, which is the production tier', async () => {
+    const { useCases } = setup();
+    await useCases.onMatchFormed(match());
+    await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
+    const keys = Object.keys(finishedSpan('lobby.record-observation').attributes);
+    expect(keys.filter((key) => key.startsWith('d2r.observation.read_'))).toEqual([]);
   });
 });
