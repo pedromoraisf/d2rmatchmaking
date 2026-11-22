@@ -42,7 +42,7 @@ afterEach(async () => {
 });
 
 describe('the recording proxy', () => {
-  it('forwards the request unchanged and records its method, path and traceparent', async () => {
+  it('forwards the request unchanged and records its method, path, traceparent, content type and body keys', async () => {
     proxy = await startRecordingProxy(upstreamUrl);
     const response = await fetch(`${proxy.url}/v1/lobby-rooms/mmbaalh-1/observations?x=1`, {
       method: 'POST',
@@ -65,7 +65,13 @@ describe('the recording proxy', () => {
       traceparent: TRACEPARENT,
     });
     expect(proxy.requests()).toStrictEqual([
-      { method: 'POST', path: '/v1/lobby-rooms/mmbaalh-1/observations', traceparent: TRACEPARENT },
+      {
+        method: 'POST',
+        path: '/v1/lobby-rooms/mmbaalh-1/observations',
+        traceparent: TRACEPARENT,
+        contentType: 'application/json',
+        bodyKeys: ['room'],
+      },
     ]);
   });
 

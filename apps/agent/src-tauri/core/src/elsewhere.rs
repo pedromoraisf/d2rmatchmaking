@@ -18,6 +18,7 @@ use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::name_diff::edit_distance;
 use d2rmm_agent_domain::other_game::OtherGameObservation;
 use d2rmm_agent_domain::room_assignment::Assignment;
+use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::device_state::DeviceState;
@@ -259,11 +260,20 @@ async fn post_elsewhere<G: ApiGateway + Send + Sync>(
         1.0,
         ports.read.clock.now_utc(),
     );
+    let span = tracing::info_span!(
+        "agent.other_game.post",
+        "post.outcome" = tracing::field::Empty
+    );
     let posted = ports
         .read
         .gateway
         .post_other_game(&token, &observation)
+        .instrument(span.clone())
         .await;
+    span.record(
+        "post.outcome",
+        if posted.is_ok() { "posted" } else { "failed" },
+    );
     if let Err(error) = posted {
         device.handle_api_error(&error, ports.read.tokens.as_ref());
         device.with_elsewhere(|watch| watch.undo(step));
@@ -717,6 +727,44 @@ mod tests {
         assert_eq!(view(&rig), None);
         hold(&rig, 1, true);
         assert_eq!(view(&rig), Some((true, false)), "a dropped room forgot it");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_other_game_post_is_one_span_with_its_outcome_and_nothing_else() {
+        let probe = crate::event_probe::EventProbe::default();
+        let _guard = probe.install();
+        let rig = rig();
+        hold(&rig, 1, true);
+        rig.gateway
+            .script_post_other_game([Ok(()), Err(ApiError::Network)]);
+        show(&rig, "duels");
+        look_at(&rig).await;
+        look_at(&rig).await;
+        // The posted look returns, then another game again: a second post, which fails.
+        show(&rig, HELD);
+        rig.gateway.script_post_observation([Ok(())]);
+        look_at(&rig).await;
+        show(&rig, "duels");
+        look_at(&rig).await;
+        look_at(&rig).await;
+
+        let spans: Vec<_> = probe
+            .spans()
+            .into_iter()
+            .filter(|span| span.message == "agent.other_game.post")
+            .collect();
+        let outcomes: Vec<_> = spans
+            .iter()
+            .map(|span| span.fields.iter().collect::<Vec<_>>())
+            .collect();
+        assert_eq!(
+            outcomes,
+            vec![
+                vec![(&"post.outcome".to_string(), &"\"posted\"".to_string())],
+                vec![(&"post.outcome".to_string(), &"\"failed\"".to_string())],
+            ],
+            "one span per post, only its fixed outcome word"
+        );
     }
 
     #[tokio::test(start_paused = true)]
