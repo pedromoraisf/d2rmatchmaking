@@ -829,6 +829,17 @@ mod tests {
     }
 
     #[test]
+    fn the_hud_band_box_spans_from_its_top_to_the_bottom_of_the_reference_client() {
+        // Pins today (rule 14, `screen_box`): the band starts at row 775 and ends at the reference height 1033, so it is
+        // 258 px high on the full 1920 x 1033 reference client (maintainer's prints).
+        use super::{ScreenRegion, screen_box};
+        assert_eq!(
+            screen_box(ScreenRegion::HudBand),
+            PanelBox::new(Anchor::Left, 0, 775, 1920, 258)
+        );
+    }
+
+    #[test]
     fn the_field_box_is_pinned_at_1920x1033() {
         assert_eq!(
             field_at(1920, 1033),

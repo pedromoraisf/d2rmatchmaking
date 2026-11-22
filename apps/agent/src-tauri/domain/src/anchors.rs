@@ -1138,6 +1138,20 @@ mod tests {
     }
 
     #[test]
+    fn a_label_without_a_field_does_not_outrank_a_later_variant_with_both() {
+        // Pins today (rule 14, `find_party_in_variants`): only a variant with a label AND a field competes on the field's
+        // height. A drawn field line of height 0 ties a label-only variant's 0, so the first-wins tie would keep the
+        // label-only variant (no field) if it competed.
+        use super::find_party_in_variants;
+        let label_only = party(153, 192, None, 262);
+        let mut both = party(153, 190, Some(220), 262);
+        both[3].region.height = 0;
+        let found = find_party_in_variants(&pack(), &[label_only, both], 1080);
+        assert_eq!(found.label.map(centre), Some(190));
+        assert!(found.field.is_some(), "the variant with the field");
+    }
+
+    #[test]
     fn of_two_variants_with_label_and_field_of_the_same_size_the_first_is_chosen() {
         // Pins today (screen-recognition T6): the first variant with a label and a field gives the field's box.
         use super::find_party_in_variants;
