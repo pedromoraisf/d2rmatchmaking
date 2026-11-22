@@ -5,6 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { AgentView, PairingState, Translate } from '../shared/labels.ts';
 import { ConsentView } from '../views/ConsentView.tsx';
+import { TelemetryView, type TelemetryTier } from '../views/TelemetryView.tsx';
 import { PairingView } from '../views/PairingView.tsx';
 import { DiagnosticsView } from '../views/DiagnosticsView.tsx';
 import { HotkeysView, type HotkeyAction } from '../views/HotkeysView.tsx';
@@ -15,9 +16,25 @@ const GET_NEW_CODE_COMMAND = 'get_new_code';
 const GET_CONSENT_COMMAND = 'get_consent';
 const SET_CONSENT_COMMAND = 'set_consent';
 const SET_HOTKEY_COMMAND = 'set_hotkey';
+const GET_DIAGNOSTICS_COMMAND = 'get_diagnostics';
+const SET_DIAGNOSTICS_COMMAND = 'set_diagnostics';
 // Shown until the core publishes its first state: the window is asking for a code.
 const NO_PRESS = 'none';
 const PAIRING_BEFORE_FIRST_STATE: PairingState = 'requesting';
+
+interface DiagnosticsAnswer {
+  enabled: boolean;
+  tier: TelemetryTier;
+}
+
+// The answer is shown only when it has the expected shape; anything else shows no diagnostics section.
+function isDiagnosticsAnswer(value: unknown): value is DiagnosticsAnswer {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const { enabled, tier } = value as Record<string, unknown>;
+  return typeof enabled === 'boolean' && (tier === 'full' || tier === 'production');
+}
 
 interface AppProps {
   translate: Translate;
@@ -28,6 +45,8 @@ export function App({ translate }: AppProps) {
   // No consent until the store answers: the window never shows a capture as allowed before it is.
   const [consent, setConsent] = useState(false);
   const [consentFailed, setConsentFailed] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<DiagnosticsAnswer | null>(null);
+  const [diagnosticsFailed, setDiagnosticsFailed] = useState(false);
 
   useEffect(() => {
     let disposed = false;
@@ -59,6 +78,18 @@ export function App({ translate }: AppProps) {
     };
   }, []);
 
+  useEffect(() => {
+    let disposed = false;
+    void invoke<unknown>(GET_DIAGNOSTICS_COMMAND).then((stored) => {
+      if (!disposed && isDiagnosticsAnswer(stored)) {
+        setDiagnostics(stored);
+      }
+    });
+    return () => {
+      disposed = true;
+    };
+  }, []);
+
   const title = translate('app.title');
   const pairing: PairingState = view?.pairing ?? PAIRING_BEFORE_FIRST_STATE;
   const requestNewCode = () => {
@@ -72,6 +103,15 @@ export function App({ translate }: AppProps) {
     );
   };
 
+  const changeDiagnostics = (enabled: boolean) => {
+    setDiagnosticsFailed(false);
+    invoke<boolean>(SET_DIAGNOSTICS_COMMAND, { enabled }).then(
+      (stored) =>
+        setDiagnostics((current) => (current === null ? current : { ...current, enabled: stored === true })),
+      () => setDiagnosticsFailed(true),
+    );
+  };
+
   // The core stores the combination or refuses it with a reason code, which the view shows (AST-01).
   const changeHotkey = async (action: HotkeyAction, combination: string) => {
     await invoke(SET_HOTKEY_COMMAND, { action, combination });
@@ -81,6 +121,15 @@ export function App({ translate }: AppProps) {
     <main>
       <h1>{title}</h1>
       <ConsentView consent={consent} failed={consentFailed} translate={translate} onChange={changeConsent} />
+      {diagnostics === null ? null : (
+        <TelemetryView
+          enabled={diagnostics.enabled}
+          tier={diagnostics.tier}
+          failed={diagnosticsFailed}
+          translate={translate}
+          onChange={changeDiagnostics}
+        />
+      )}
       <PairingView pairing={pairing} translate={translate} onNewCode={requestNewCode} />
       {view === null ? null : <StatusView view={view} translate={translate} />}
       {view === null ? null : (

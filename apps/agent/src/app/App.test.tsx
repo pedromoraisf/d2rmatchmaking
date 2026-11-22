@@ -90,4 +90,31 @@ describe('App', () => {
     expect(await screen.findByRole('button', { name: 'Allow capture' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Withdraw consent' })).toBeNull();
   });
+
+  it('shows the diagnostics the store holds and asks the store to change them on a press', async () => {
+    vi.mocked(invoke).mockImplementation(async (command: string) =>
+      command === 'get_diagnostics'
+        ? { enabled: true, tier: 'production' }
+        : command === 'set_diagnostics'
+          ? false
+          : undefined,
+    );
+    render(<App translate={en} />);
+
+    const control = (await screen.findByRole('switch', { name: 'Send diagnostics' })) as HTMLInputElement;
+    expect(control.checked).toBe(true);
+    fireEvent.click(control);
+
+    expect(invoke).toHaveBeenCalledWith('set_diagnostics', { enabled: false });
+    expect(await screen.findByText('Diagnostics are off. The agent sends none.')).toBeTruthy();
+    vi.mocked(invoke).mockImplementation(async () => undefined);
+  });
+
+  it('shows no diagnostics section when the store does not answer', async () => {
+    vi.mocked(invoke).mockImplementation(async () => undefined);
+    render(<App translate={en} />);
+
+    expect(await screen.findByRole('button', { name: 'Allow capture' })).toBeTruthy();
+    expect(screen.queryByRole('switch', { name: 'Send diagnostics' })).toBeNull();
+  });
 });
