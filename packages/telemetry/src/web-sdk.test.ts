@@ -7,7 +7,15 @@ import {
   WebTracerProvider,
 } from '@opentelemetry/sdk-trace-web';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { startWebTelemetry, tracingFetcher, type Fetcher, type WebTelemetryHandle } from './web-sdk.ts';
+import { RedactingSpanExporter } from './sdk/redacting-exporters.ts';
+import {
+  JourneyProcessor,
+  setWebJourney,
+  startWebTelemetry,
+  tracingFetcher,
+  type Fetcher,
+  type WebTelemetryHandle,
+} from './web-sdk.ts';
 
 // The OTLP exporter the site creates is recorded, so a test can see whether one was created and where it posts.
 const created = vi.hoisted(() => [] as { url: string | undefined }[]);
@@ -92,5 +100,51 @@ describe('web telemetry', () => {
     expect(JSON.stringify(finished?.attributes)).not.toContain('probe');
     expect(finished?.spanContext().traceId).toBe(sent[0]?.headers.get('traceparent')?.split('-')[1]);
     await provider.shutdown();
+  });
+});
+
+describe('the journey of the site (OBT-07)', () => {
+  afterEach(() => {
+    setWebJourney({
+      'd2r.account.id': undefined,
+      'd2r.room.id': undefined,
+      'd2r.account.battletag': undefined,
+    });
+  });
+
+  async function exported(tier: 'full' | 'production') {
+    const memory = new InMemorySpanExporter();
+    const provider = new WebTracerProvider({
+      spanProcessors: [
+        new JourneyProcessor(),
+        new SimpleSpanProcessor(new RedactingSpanExporter(memory, tier)),
+      ],
+    });
+    provider.getTracer('test').startSpan('web.action.x').end();
+    const attributes = memory.getFinishedSpans()[0]?.attributes;
+    await provider.shutdown();
+    return attributes;
+  }
+
+  it('puts the ids on every span started after they are set, in both tiers', async () => {
+    setWebJourney({ 'd2r.account.id': 'a-1', 'd2r.room.id': 'r-1' });
+    for (const tier of ['full', 'production'] as const) {
+      expect(await exported(tier)).toStrictEqual({ 'd2r.account.id': 'a-1', 'd2r.room.id': 'r-1' });
+    }
+  });
+
+  it('the BattleTag leaves the full tier only', async () => {
+    setWebJourney({ 'd2r.account.id': 'a-1', 'd2r.account.battletag': 'Foo#1234' });
+    expect(await exported('full')).toStrictEqual({
+      'd2r.account.id': 'a-1',
+      'd2r.account.battletag': 'Foo#1234',
+    });
+    expect(await exported('production')).toStrictEqual({ 'd2r.account.id': 'a-1' });
+  });
+
+  it('removes a key set to undefined', async () => {
+    setWebJourney({ 'd2r.room.id': 'r-1' });
+    setWebJourney({ 'd2r.room.id': undefined });
+    expect(await exported('full')).toStrictEqual({});
   });
 });

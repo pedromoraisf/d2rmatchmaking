@@ -1,6 +1,6 @@
 // Site root: reads the configuration, the signed-in player, the agent and the room, then keeps them current from the
 // stream. Every stream open and every action re-reads what it may have changed.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type {
   AgentView,
   CharacterView,
@@ -21,7 +21,8 @@ import { ReadyCheckOverlay } from '../features/matchmaking/ReadyCheckOverlay.tsx
 import { SearchingPanel } from '../features/matchmaking/SearchingPanel.tsx';
 import { StartTestMatchButton } from '../features/lobby-room/StartTestMatchButton.tsx';
 import { type ApiClient, createApiClient } from '../shared/api-client.ts';
-import { tracingFetcher } from '../shared/telemetry.ts';
+import { setSiteJourney, tracingFetcher } from '../shared/telemetry.ts';
+import { currentTier, subscribeTier } from '../shared/telemetry-tier.ts';
 import { openSiteStream, type StreamOpener } from '../shared/stream.ts';
 import { Layout } from './Layout.tsx';
 import { readWhenAwake, type WakeOptions } from './wake-retry.ts';
@@ -116,6 +117,26 @@ export function App({
   const { t } = useTranslation();
   const [boot, setBoot] = useState<Boot>({ status: 'loading' });
   const signedIn = boot.status === 'ready' && boot.session !== null;
+
+  // The ids of this player's journey go on the site's spans from now on (OBT-07); the BattleTag only in the full tier.
+  const tier = useSyncExternalStore(subscribeTier, currentTier);
+  const journeyAccount = boot.status === 'ready' ? (boot.session?.accountId ?? null) : null;
+  const journeyName = boot.status === 'ready' ? (boot.session?.displayName ?? null) : null;
+  const journeyRoom = boot.status === 'ready' ? (boot.room?.roomId ?? null) : null;
+  const journeyTicket = boot.status === 'ready' ? (boot.queue?.id ?? null) : null;
+  const journeyCheck = boot.status === 'ready' ? (boot.readyCheck?.id ?? null) : null;
+  useEffect(() => {
+    setSiteJourney(
+      {
+        accountId: journeyAccount ?? undefined,
+        battletag: journeyName ?? undefined,
+        roomId: journeyRoom ?? undefined,
+        ticketId: journeyTicket ?? undefined,
+        readyCheckId: journeyCheck ?? undefined,
+      },
+      tier,
+    );
+  }, [journeyAccount, journeyName, journeyRoom, journeyTicket, journeyCheck, tier]);
 
   // The Battle.net callback's failure flag is read once, on the first render, and then removed from the address bar.
   const [signInFailed] = useState(() => signInFailedIn(window.location.search));

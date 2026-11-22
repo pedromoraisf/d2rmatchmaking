@@ -4,7 +4,7 @@
 // the browser as OTLP JSON to the relay path, which the same-origin Pages proxy carries to the API.
 import { context, SpanKind, SpanStatusCode, trace, type Span } from '@opentelemetry/api';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { BatchSpanProcessor, type Span as SdkSpan, type SpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { StackContextManager, WebTracerProvider } from '@opentelemetry/sdk-trace-web';
 import type { TelemetryTier } from './redact-attributes.ts';
 import { RedactingSpanExporter } from './sdk/redacting-exporters.ts';
@@ -44,6 +44,27 @@ export interface WebTelemetryHandle {
 const OFF: WebTelemetryHandle = { shutdown: () => Promise.resolve() };
 
 const propagator = new TraceparentOnlyPropagator();
+
+// The ids (and, in the full tier, the BattleTag) of the person using the site now; every span started afterwards carries
+// them (OBT-07). The exporter redacts the full-tier keys again in production.
+let journey: Record<string, string> = {};
+
+/** Sets the span attributes of the journey; a key set to `undefined` is removed. Spans already started keep theirs. */
+export function setWebJourney(next: Readonly<Record<string, string | undefined>>): void {
+  const merged: Record<string, string | undefined> = { ...journey, ...next };
+  journey = Object.fromEntries(
+    Object.entries(merged).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  );
+}
+
+export class JourneyProcessor implements SpanProcessor {
+  onStart(span: SdkSpan): void {
+    span.setAttributes(journey);
+  }
+  onEnd(): void {}
+  async forceFlush(): Promise<void> {}
+  async shutdown(): Promise<void> {}
+}
 
 const headerSetter = {
   set: (carrier: Headers, key: string, value: string) => {
@@ -92,6 +113,7 @@ export function startWebTelemetry(options: WebTelemetryOptions): WebTelemetryHan
     }),
     sampler: samplerFrom(options.ratio, options.now),
     spanProcessors: [
+      new JourneyProcessor(),
       new BatchSpanProcessor(new RedactingSpanExporter(exporter, options.tier), BATCH_OPTIONS),
     ],
   });

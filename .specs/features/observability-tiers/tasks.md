@@ -37,7 +37,7 @@ Rules:
       (production: no name anywhere; full: names only in spans and logs, never in rows, outbox, events or answers);
       update `docs/engineering/telemetry.md` § "Names read on screen" for the staging exception.
       Gate: `pnpm --filter @d2rmm/api test && pnpm --filter @d2rmm/api test:integration`
-- [ ] T5 — Site (OBT-01, OBT-07, OBT-12): telemetry starts in every build with the tier from the boot configuration
+- [x] T5 — Site (OBT-01, OBT-07, OBT-12): telemetry starts in every build with the tier from the boot configuration
       (unknown → production); spans carry the ids; the BattleTag only in full; the exporter redacts with `redactForTier`;
       a recording notice on every page in the full tier, en and pt-BR. Component and unit tests.
       Gate: `pnpm --filter @d2rmm/web exec vitest run src/shared src/app && pnpm --filter @d2rmm/web lint`

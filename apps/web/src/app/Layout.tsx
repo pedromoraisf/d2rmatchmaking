@@ -1,8 +1,9 @@
 // The frame of every page (SHL-02, SHL-03, SHL-05, SHL-06): a sticky header with the brand, the sections that exist, the
 // agent's state and the account (or the sign-in controls); a main column; a status column with the agent panel and the
 // agent download (AWS-17, AWS-38); and the footer with the non-affiliation notice.
-import type { ReactNode } from 'react';
+import { useSyncExternalStore, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { currentTier, subscribeTier } from '../shared/telemetry-tier.ts';
 import { CODE_SIGNING_PATH } from './signing-policy.ts';
 
 export const AGENT_DOWNLOAD_URL =
@@ -29,8 +30,14 @@ export function Layout({
   installerSigned = false,
 }: LayoutProps) {
   const { t } = useTranslation();
+  const tier = useSyncExternalStore(subscribeTier, currentTier);
   return (
     <>
+      {tier === 'full' ? (
+        <p className="recording-notice" role="note">
+          {t('app.recordingNotice')}
+        </p>
+      ) : null}
       <header className="top">
         <div className="top-in">
           <div className="brand">
