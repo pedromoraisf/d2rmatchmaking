@@ -44,18 +44,18 @@ function expandIPv6(address: string): number[] | null {
     return null;
   }
   const groupsOf = (part: string): string[] => part.split(':').filter((g) => g !== '');
-  const groups =
-    gap === -1
-      ? groupsOf(text)
-      : (() => {
-          const head = groupsOf(text.slice(0, gap));
-          const tail = groupsOf(text.slice(gap + 2));
-          return [
-            ...head,
-            ...new Array<string>(8 - head.length - tail.length - tailGroups.length).fill('0'),
-            ...tail,
-          ];
-        })();
+  let groups: string[];
+  if (gap === -1) {
+    groups = groupsOf(text);
+  } else {
+    const head = groupsOf(text.slice(0, gap));
+    const tail = groupsOf(text.slice(gap + 2));
+    groups = [
+      ...head,
+      ...new Array<string>(8 - head.length - tail.length - tailGroups.length).fill('0'),
+      ...tail,
+    ];
+  }
   const all = [...groups, ...tailGroups];
   if (all.length !== 8 || !all.every((g) => HEX_GROUP.test(g))) {
     return null;
