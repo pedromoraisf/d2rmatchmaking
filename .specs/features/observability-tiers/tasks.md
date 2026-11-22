@@ -66,3 +66,14 @@ Rules:
       backend" section updated (AD-098 lifted by ADR 037), how to follow a journey by `d2r.room.id`, `d2r.account.id`,
       `d2r.ticket.id`, and the egress re-measure note. The orchestrator runs the TraceQL query on `grafanacloud-traces`
       once after staging deploys and fills the result. Gate: `pnpm format:check && pnpm specs:check`
+
+## Batch 4 — the player's diagnostics switch (OBT-14 to OBT-17; maintainer decision 2026-11-22)
+
+- [x] T-D1 — Spec: OBT-14 to OBT-17 in `spec.md`, `not-scenario` lines in `acceptance.feature` (the agent window is not in
+      the acceptance stack). Gate: `node scripts/acceptance-check.mjs observability-tiers && pnpm specs:check`
+- [x] T-D2 — Agent: `DiagnosticsSwitch` and `FileDiagnosticsStore` (`adapters/src/telemetry/switch.rs`), read by the span
+      processor and the export loop; `get_diagnostics` / `set_diagnostics` commands. Gate:
+      `cargo nextest run -p d2rmm-agent-domain -p d2rmm-agent-core -p d2rmm-agent-adapters --lib`
+- [x] T-D3 — Window: `TelemetryView` (notice and switch), en and pt-BR, component tests. Gate:
+      `pnpm --filter @d2rmm/agent test && pnpm --filter @d2rmm/agent build`
+- [x] T-D4 — Docs: `telemetry.md` paragraph under the agent table.

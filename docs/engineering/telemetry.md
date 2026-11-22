@@ -65,6 +65,13 @@ pixels, crops), and the agent's exporter drops every event, link, status text, U
 | `d2r.ocr.text`, `d2r.character.name`, `d2r.account.battletag`                                                         |     no     | allowed |
 | Sampling                                                                                                              |    10%     |  100%   |
 
+**The player's switch (OBT-14 to OBT-17).** The agent window shows a notice of what its diagnostics carry in the build's
+tier (en, pt-BR) and a "Send diagnostics" switch, on by default. The choice is kept in `diagnostics.json` in the agent's
+configuration directory on the player's PC, never on the server, and applies at once, without a restart. While it is off
+no span is queued and the export loop never calls the relay client, so no request leaves the PC for the relay; the agent
+starts with the switch off until the saved choice is read, so a player who opted out sends nothing from start-up either.
+The switch governs spans only: heartbeats, observations, pairing and the remote configuration are sent either way.
+
 "Allowed" means the sanitizer lets the key through (the value must have the fixed shape of its key: a correction list,
 a confidence from 0 to 1, a generated game name, a timing up to an hour) and the agent does not record it yet:
 `d2r.ocr.corrections`, the OCR text and the Party and chat names are held by the reading modules (`reading-modules.json`),
