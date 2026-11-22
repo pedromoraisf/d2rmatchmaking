@@ -165,3 +165,11 @@ non-test line of a reading module (rule 14). Estimate: `cpu-fallback.md`.
       menu, an empty frame, a desktop window), over 600 frames: every frame pays both packs and the cost never settles.
       The Party panel and the chat make no second OCR pass for the fallback. Gate:
       `cargo nextest run -p d2rmm-agent-core --lib` in `apps/agent/src-tauri`
+- [x] T16 — Estimate the cost of the fallback (`cpu-fallback.md`): scenario × passes per frame × engine calls per pass ×
+      share of the 2% budget, with the source of each number and the assumed time per call labelled. Result: the
+      `Unknown`-in-both case pays two passes every frame (72 engine calls a frame on average, 36 of them the fallback) and
+      exceeds half the budget. Gate: `pnpm format:check && pnpm specs:check`
+- [ ] T17 — **[R14]** Guard the second pack: skip the pt-BR (or English) pass when the first found no anchor at all, so an
+      `Unknown` frame pays one pass instead of two. Changes a non-test line of `core/src/screen_reader.rs`: **rule 14 —
+      needs ocr-real proof** (`ocr-real` and `ocr-variations` green, the ratchet not regressing, before and after counts
+      in the PR). Pin the current behaviour first (T15's tests), not implemented in this batch. Gate: as T3
