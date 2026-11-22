@@ -9,9 +9,11 @@
 
 The agent has a documented way to retire an equivalent mutant: an `.cargo/mutants.toml` entry with `file:line`, a reason
 and an `Evidence:` line, checked by `scripts/agent/mutation-config.mjs` (AGENTS.md rule 14 (3)). The API (StrykerJS) has
-none, so an equivalent mutant stays a survivor forever. Tonight's nightly (45037822441) and PRs #168, #170 and #171
+none, so an equivalent mutant stays a survivor forever. Nightly run 45037822441 and PRs #168, #170 and #171
 show it: api-domain keeps `lobby-room.ts:118,189,449` (defensive invariant guards) and `matcher.ts:230` (the message of
-an unreachable `throw`); api-application keeps about 14 more (lock-map cleanup lines and similar).
+an unreachable `throw`); api-application keeps about 14 more (lock-map cleanup lines and similar). The
+counts here ("61 of 190" below, "about 14") come from that run's Stryker mutation report, a CI artifact of the nightly
+workflow and not a file in the repository; a reader without Actions access cannot re-check them from the repo alone.
 
 The API's Stryker `mutate` globs (`apps/api/scripts/mutation-plan.ts`, ADR 014) are:
 
@@ -28,19 +30,35 @@ in AGENTS.md is the precedent.
 
 ## Decision
 
-Both parts are proposed; nothing is applied in this branch.
+The three items below are proposed; nothing is applied in this branch.
 
 1. **Equivalent mutants.** The preferred path stays refactoring the redundancy away (done in #168 where possible). Where
    a mutant is truly equivalent and cannot be removed, the source may carry
    `// Stryker disable next-line <Mutator>: equivalent — <reason>`. A harness check (`scripts/api/mutation-disables.mjs`,
    modelled on `mutation-config.mjs`, with a harness test and wired into `pnpm check`) fails on a `Stryker disable`
    comment with no reason, with no mutator name, or with the blanket `Stryker disable all` / `Stryker disable-line`
-   without a mutator. Each disable names one line and one mutator, so it is visible in review and counted by the check.
-2. **Scope.** Take test-support code out of `mutate`: add `!src/modules/*/application/testing/**` (and
-   `!src/**/testing/**` for any future support folder) to the globs in `mutation-plan.ts`. A test-support folder is any
-   `testing/` directory under `src`; the harness check also confirms no product file lives in one.
+   without a mutator. Stryker supports the `// Stryker disable next-line <Mutator>: <reason>` form natively. The check also
+   flags a **stale** disable, since a disable survives line moves silently. What it can verify without running Stryker:
+   the line after the comment must still contain a construct the named mutator produces (e.g. `StringLiteral` needs a
+   string or template literal, `ConditionalExpression` an `if`/ternary/logical operand, `BlockStatement` a block), and
+   no comment may be followed by a blank line, another comment or end of file. Whether the mutant was actually generated
+   and survived in the last nightly report is not checkable without that report, so the nightly summary lists disables
+   that matched no mutant (Stryker reports them as ignored with no match) and the phase review carries that count.
+   Each disable names one line and one mutator, so it is visible in review and counted by the check.
+2. **Scope.** Take test-support code out of `mutate`: exclude `src/modules/*/application/testing/**` (and
+   `src/**/testing/**` for any future support folder). A test-support folder is any `testing/` directory under `src`; the
+   harness check also confirms no product file lives in one. Where it lives matters: `SOURCE_GLOBS` in
+   `mutation-plan.ts` has no negations and its patterns go to `fs.glob` literally, so a `!` pattern added to that list
+   would be taken as a literal path. The exclusion is therefore added in two places that read from one shared list of
+   excluded patterns: (a) in `layerConfig`, next to the existing `!src/**/*.test.ts` entry of `mutate` (the nightly's
+   Stryker config), and (b) as the same filter in `planLayer`, next to its `.endsWith('.test.ts')` filter (the
+   `--changed` runs). A unit test of `mutation-plan.ts` asserts both agree: for a fixture tree with a fake under
+   `application/testing/`, `layerConfig(...).mutate` negates it and `planLayer` omits it.
 3. **Baseline.** Removing the fakes changes the score denominator. The floors `mutation.api.application` (and the
-   `break` value in `mutation-plan.ts`) are re-measured on one nightly after the change. Because the removed mutants were
+   `break` value in `mutation-plan.ts`) are re-measured on one nightly after the change. The `break` value in `mutation-plan.ts` and the floor in
+   `.quality-baseline.json` change in the same commit (the file's own comment says they mirror each other), and the
+   first nightly after the change is the re-measurement: `quality:ratchet` must not read a score against the stale
+   baseline of that night as a regression, so the baseline commit and the nightly are reviewed together. Because the removed mutants were
    mostly survivors the score is expected to rise, so the floors can only stay or rise; any lowering is the maintainer's
    decision (rule 4), not the runner's.
 
