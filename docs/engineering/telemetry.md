@@ -157,6 +157,89 @@ the production sampling ratio of the agent and the site stays at the default 10%
   sampling ratios were not changed by this note; reducing traces (78%) and logs (21%) is a separate decision, and the
   production endpoint stays on the 2026-11-20 decision below.
 
+### Where the telemetry bytes go (local profile, 2026-11-22, aa455127)
+
+The nightly's 81 000 bytes per player-hour (share 1.086) say how much, not what. This is the first split by span name,
+log record and metric.
+
+- **Method.** `LOAD_PROFILE=full LOAD_MAX_STEPS=1 LOAD_TELEMETRY_CAPTURE_DIR=<dir> node scripts/load/run.mjs` runs the
+  first step of the full ladder (25 players, 20 s ramp, 120 s hold; 19 rooms, 358 requests, 0 errors) with the sink
+  writing each OTLP body to `<dir>`; then `node scripts/load/telemetry-breakdown.mjs <dir>` decodes the protobuf (after
+  gzip) and ranks by span name, by log scope, severity and event name (or the body when it is a fixed phrase), and by
+  metric name. Output holds names and attribute keys only, never a value. Both variables are off by default and the
+  profile, ratchets, ceilings and sampling are unchanged (API sampler 0.1, the harness sets none). The capture covers the
+  whole run (160 s from the first to the last export), not only the 90 s measuring window: 26 trace requests (1 198 spans),
+  45 log requests (131 records), 2 metric requests (28 metrics).
+- **Two measures.** _Raw protobuf share_ is the item's bytes over the signal's bytes before gzip. _Wire share_ is the gzip
+  bytes the name adds: the requests gzipped with it, minus the same requests without its spans or records (the marginals
+  overlap a little, so they do not add up exactly). Rank on the wire share: the API writes one `ResourceSpans` per span
+  (a 131-byte resource and a 45-byte scope each time, 39% of the raw trace bytes), and gzip removes most of that.
+- **Tiers.** Only the full tier was run. The harness fixes the API to `D2RMM_ENV=staging` (`apiEnvironment`, `apiArgs`
+  refuse anything else) because provisioning needs the staging endpoints, so a production run is not available without
+  changing the harness. The attribute keys the production tier drops (BattleTag, character name, the OCR read text and
+  names) are 522 bytes of the 327 488 span bytes captured (0.16%): the journey sends no agent readings, so the production
+  tier would carry the same top 10 here. The real difference (what `lobby.record-observation` carries) needs a journey
+  that posts readings.
+- **Caveat.** A small local run, 25 players and about three minutes: absolute bytes are not comparable to the nightly
+  (400 players, the 100-player step); shares are. At 0.1 sampling few traces were kept, so the long tail is thin. The
+  wire total of this run was 98 631 bytes: traces 75 762 (77%), logs 16 508 (17%), metrics 6 361 (6%), against 78% / 21% /
+  2% in the nightly.
+
+**Traces: top 10 span names** (42 distinct names; wire share of 75 762 bytes).
+
+| #   | Span name                   | Spans | Per room | Raw share | Wire share | Mean bytes | Heaviest attribute keys (bytes per span)                          |
+| --- | --------------------------- | ----: | -------: | --------: | ---------: | ---------: | ----------------------------------------------------------------- |
+| 1   | `pg.query:SELECT postgres`  |   264 |     13.9 |     18.6% |      22.1% |        377 | `db.query.text` 144, `server.address` 50, `db.system.name` 32     |
+| 2   | `pg-pool.connect`           |   241 |     12.7 |     12.0% |      11.2% |        266 | `server.address` 50, `db.postgresql.idle.timeout.millis` 42       |
+| 3   | `POST`                      |    50 |      2.6 |      2.9% |       6.0% |        306 | `url.path` 46, `server.address` 45, `network.protocol.version` 35 |
+| 4   | `pg.query:INSERT postgres`  |    55 |      2.9 |      4.4% |       5.7% |        426 | `db.query.text` 193, `server.address` 50                          |
+| 5   | `pg.query:UPDATE postgres`  |    67 |      3.5 |      4.5% |       5.3% |        360 | `db.query.text` 127, `server.address` 50                          |
+| 6   | `pg.query:COMMIT postgres`  |    75 |      3.9 |      3.6% |       3.5% |        260 | `server.address` 50, `db.system.name` 32, `db.namespace` 28       |
+| 7   | `agents.authenticate-agent` |    60 |      3.2 |      2.4% |       3.3% |        218 | `d2r.account.id` 58, `d2r.agent.id` 56                            |
+| 8   | `platform.stream.deliver`   |    69 |      3.6 |      1.7% |       2.9% |        128 | `d2r.stream.kind` 27                                              |
+| 9   | `pg.query:BEGIN postgres`   |    53 |      2.8 |      2.6% |       2.5% |        258 | `server.address` 50, `db.system.name` 32, `db.namespace` 28       |
+| 10  | `pg.query:START postgres`   |    22 |      1.2 |      1.2% |       1.5% |        302 | `db.query.text` 70, `server.address` 50                           |
+
+Grouped by origin, over all 42 names: **the `pg` auto-instrumentation (`pg.query:*` and `pg-pool.connect`) is 781 of the
+1 198 spans (65%) and about 52% of the trace wire bytes** (39 320 of 75 762); the HTTP spans (`POST`, `GET`, `PATCH`) are
+68 spans and 8%; the application's own spans (`agents.*`, `lobby.*`, `matchmaking.*`, `identity.*`, `platform.*`) are 349
+spans and 20%. Per room that is 41 database spans, 4 HTTP spans and 18 application spans.
+
+**Logs: all the records** (2 distinct names; wire share of 16 508 bytes). Every record is the pino request log: one
+`incoming request` and one `request completed` per HTTP request, from the scope `@opentelemetry/instrumentation-pino`, at
+severity `info`, with no event name.
+
+| #   | Log record (scope / severity / body) | Records | Per room | Raw share | Wire share | Mean bytes | Attribute keys (bytes per record) |
+| --- | ------------------------------------ | ------: | -------: | --------: | ---------: | ---------: | --------------------------------- |
+| 1   | pino / info / `request completed`    |      63 |      3.3 |     35.1% |      18.4% |        131 | `responseTime` 27, `reqId` 19     |
+| 2   | pino / info / `incoming request`     |      68 |      3.6 |     29.6% |      12.5% |        102 | `reqId` 19                        |
+
+The rest of the log bytes (35% raw) is the repeated resource and scope. Logs are not sampled, so they scale with request
+count, not with the 0.1 trace ratio.
+
+**Metrics: top 10 of 14** (2 exports; the wire share is not measured per metric, the raw share is of 34 074 bytes before
+gzip, and the whole signal was 6 361 bytes on the wire): `http.server.response.body.size` 32.2%,
+`http.server.request.duration` 32.1%, `db.client.operation.duration` 15.8%, `d2r.queue.wait` 2.9%,
+`room.stage_duration` 2.9%, `d2r.room.time_to_active` 2.7%, `db.client.connection.count` 2.6%,
+`db.client.connection.pending_requests` 1.4%, `d2r.room.final_stage` 1.2%, `db.client.connection.max` 1.2%. The three
+histograms are 80% of the metric bytes, and one export carries them for every route and status.
+
+**What this says (input for T12 and F3, not a decision).**
+
+1. About half of the trace bytes, and about 40% of all telemetry bytes (39 320 of 98 631), are database auto-instrumentation: the query text
+   (`db.query.text`, 70 to 190 bytes on every query span) and the three constant attributes that repeat on every `pg` span
+   (`server.address`, `db.system.name`, `db.namespace`). The pool's `pg-pool.connect` span (12.7 per room) has no business
+   attribute at all. These are the cheapest bytes to remove: dropping `pg-pool.connect`, the transaction-control spans
+   (`BEGIN`, `COMMIT`, `START`) and `db.query.text` is a change to the instrumentation setup, not to the application.
+2. The application's own spans are 20% of the trace wire bytes. The sampler decides how many traces are kept; this
+   split says what each kept trace costs, and most of it is the `pg` spans.
+3. The request log is the whole log signal: two records per request, about 120 bytes each, unsampled. A filter on the pino
+   instrumentation (or logging requests at a lower level in the full tier) removes the 21% of the nightly bytes that logs
+   carry.
+4. The metrics are 2% of the nightly and have no single lever.
+
+Reproduce: the commands above, then compare shares, not bytes.
+
 ## Production backend
 
 The API (`d2rmm-api` on Render) exports its traces, metrics and logs over OTLP/HTTP to **Grafana Cloud** (ADR 013). The
