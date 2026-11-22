@@ -158,7 +158,8 @@ test('a closed phase stays closed: no discovered spec or old open box reopens it
     review: approved,
     mergedToMain: true,
     specRows: [{ feature: 'late', size: 'Medium', dependsOn: [] }],
-    file: (f, n) => (n === 'tasks.md' ? '- [x] T1 — a\n- [ ] T2 — old open box' : null),
+    file: (f, n) =>
+      n === 'tasks.md' ? (f === 'late' ? '- [x] T1 — a\n- [ ] T2 — old open box' : '- [x] T1 — a') : null,
     merged: () => true,
   });
   assert.equal(st.next, 'closed');

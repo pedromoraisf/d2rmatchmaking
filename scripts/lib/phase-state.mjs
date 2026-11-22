@@ -66,11 +66,10 @@ const NEEDS_DESIGN = /^(large|complex)$/i;
  * @param {{ feature: string, size: string }} row
  * @param {{ file: (name: string) => string|null, merged: boolean }} evidence
  */
-export function featureState(row, { file, merged, closed = false }) {
+export function featureState(row, { file, merged }) {
   const tasks = taskCount(file('tasks.md'));
-  // Merged: done unless a task that is not waiting is still open (ADR 029: a box is a promise). In a closed phase
-  // the approved review and the merge settle it: old open boxes no longer reopen anything.
-  if (merged) return { next: !closed && tasks.open - tasks.waiting > 0 ? 'execute' : 'done', tasks };
+  // Merged: done unless a task that is not waiting is still open (ADR 029: a box is a promise).
+  if (merged) return { next: tasks.open - tasks.waiting > 0 ? 'execute' : 'done', tasks };
   if (file('spec.md') === null || file('acceptance.feature') === null) return { next: 'specify', tasks };
   if (NEEDS_DESIGN.test(row.size) && file('design.md') === null) return { next: 'design', tasks };
   if (file('tasks.md') === null || tasks.total === 0) return { next: 'tasks', tasks };
@@ -85,24 +84,26 @@ export function featureState(row, { file, merged, closed = false }) {
  */
 export function derivePhaseState(ev) {
   if (ev.brief === null) return { phase: ev.phase, next: 'kickoff', features: [], runnable: [] };
+  // A phase that the brief's own features show closed (all merged, review approved, phase branch in main) stays
+  // closed: discovered specs and old open boxes of features outside the brief never reopen it.
+  if (ev.specRows?.length) {
+    const declared = derivePhaseState({ ...ev, specRows: [] });
+    if (declared.next === 'closed') return declared;
+  }
   const inBrief = briefFeatures(ev.brief);
   const known = new Set(inBrief.map((r) => r.feature));
-  // A closed phase (approved brief and review, phase branch merged into main) stays closed whatever its task files
-  // say: discovery of undeclared specs and the open-box rule apply only to a phase that is not closed.
-  const closed = APPROVED.test(ev.brief) && ev.review !== null && APPROVED.test(ev.review) && ev.mergedToMain;
-  const rows = closed ? inBrief : [...inBrief, ...(ev.specRows ?? []).filter((r) => !known.has(r.feature))];
+  const rows = [...inBrief, ...(ev.specRows ?? []).filter((r) => !known.has(r.feature))];
   const features = rows.map((row) => ({
     feature: row.feature,
     dependsOn: row.dependsOn,
-    ...featureState(row, { file: (n) => ev.file(row.feature, n), merged: ev.merged(row.feature), closed }),
+    ...featureState(row, { file: (n) => ev.file(row.feature, n), merged: ev.merged(row.feature) }),
   }));
   const done = new Set(features.filter((f) => f.next === 'done').map((f) => f.feature));
   for (const f of features) f.waitingOn = f.dependsOn.filter((d) => !done.has(d));
   const runnable = features.filter((f) => f.next !== 'done' && f.waitingOn.length === 0);
 
   let next;
-  if (closed) next = 'closed';
-  else if (!APPROVED.test(ev.brief)) next = 'awaiting-approval';
+  if (!APPROVED.test(ev.brief)) next = 'awaiting-approval';
   else if (done.size < features.length) next = 'run';
   else if (ev.review === null || !APPROVED.test(ev.review)) next = 'review';
   else if (!ev.mergedToMain) next = 'merge';
