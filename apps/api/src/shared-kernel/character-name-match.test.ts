@@ -74,4 +74,29 @@ describe('matchCharacterName (SNM-02)', () => {
     expect(matchCharacterName('Hammer', ['Hammen'])).toEqual(none);
     expect(matchCharacterName('Zeal', ['Zeak'])).toEqual(none);
   });
+
+  // A table that pins the folds and the length rule over tricky names, so a rewrite of the comparison loops keeps
+  // every answer (INV-06).
+  it.each([
+    ['iIlL1', ['LLiI1'], one(0)],
+    ['iIlL1', ['LLiI0'], none],
+    ['o0O', ['0oO'], one(0)],
+    ['g', ['o'], one(0)],
+    ['o', ['g'], none],
+    ['gEb', ['o0O'], one(0)],
+    ['0', ['g'], none],
+    ['i', ['io'], none],
+    ['io', ['i'], none],
+    ['', [''], one(0)],
+    ['a', [''], none],
+    ['', ['a'], none],
+    ['l0l', ['I0i', 'l0l'], { kind: 'ambiguous' }],
+    ['lol', ['Ilg'], none],
+    ['lgl', ['lol'], one(0)],
+    ['lgl', ['lol', 'lgl'], one(1)],
+    ['Zl', ['Zi', 'Z1'], { kind: 'ambiguous' }],
+    ['ab', ['abc', 'a'], none],
+  ])('table: %j against %j', (read, known, expected) => {
+    expect(matchCharacterName(read, known)).toEqual(expected);
+  });
 });

@@ -41,4 +41,9 @@ describe('matchesEtag', () => {
     expect(matchesEtag('', etag)).toBe(false);
     expect(matchesEtag('"agent-config-v2', etag)).toBe(false);
   });
+
+  it('drops the weak mark only at the start of a tag, never from inside it', () => {
+    expect(matchesEtag('"xW/y"', '"xW/y"')).toBe(true);
+    expect(matchesEtag('"xW/y"', '"xy"')).toBe(false);
+  });
 });

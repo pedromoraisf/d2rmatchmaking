@@ -23,12 +23,8 @@ export class AgentVersion {
   }
 
   isBelow(minimum: AgentVersion): boolean {
-    if (this.major !== minimum.major) {
-      return this.major < minimum.major;
-    }
-    if (this.minor !== minimum.minor) {
-      return this.minor < minimum.minor;
-    }
-    return this.patch < minimum.patch;
+    // The first component that differs decides; all equal is not below.
+    const difference = this.major - minimum.major || this.minor - minimum.minor || this.patch - minimum.patch;
+    return difference < 0;
   }
 }
