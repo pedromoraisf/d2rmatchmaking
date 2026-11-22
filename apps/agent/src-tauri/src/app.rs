@@ -755,9 +755,8 @@ mod tests {
     use d2rmm_agent_core::view::{HotkeyFailure, HotkeyPress, HotkeySlot};
     use d2rmm_agent_domain::typing::{HotkeyChoice, HotkeyPair};
 
-    use d2rmm_agent_adapters::telemetry::{
-        DiagnosticsSwitch, InMemoryDiagnosticsStore, TelemetryTier,
-    };
+    use d2rmm_agent_adapters::telemetry::{DiagnosticsSwitch, TelemetryTier};
+    use d2rmm_agent_core::fakes::InMemoryDiagnosticsStore;
     use d2rmm_agent_core::ports::DiagnosticsStore;
 
     use super::{
