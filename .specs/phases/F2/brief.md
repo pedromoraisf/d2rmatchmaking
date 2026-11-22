@@ -298,3 +298,25 @@ text read from the screen. A new feature `observability-tiers` (agent, site and 
 production redaction) joins F2; its spec and tasks are written by the orchestrator before dispatch.
 
 **Approved**: 2026-11-21 - user: "aprovo."
+
+## Revision 3 — the read rate is measured on real rooms; synthetic variations become a ratchet (2026-11-22)
+
+**Why.** The `ocr-variations` set multiplies each real print into hundreds of synthetic variants (blur, JPEG quality,
+brightness, scale). Several of them are degradations a real capture never produces (strong blur, JPEG q30), and tuning the
+reading modules to read them risks wrong reads on real frames, which the brief already ranks as worse than a refusal. The
+real goal of FR-27 is that real rooms confirm.
+
+**What changes.**
+
+- The exit criterion "Read rate of 95% or more (FR-27, roadmap exit)" reads: _the game name is never read as another
+  room's name (zero wrong confirmations, in `ocr-real` and in every `ocr-variations` run), and at least 95% of the rooms in
+  the maintainer's field log reach "Confirmed by the agent" (at least 20 rooms across normal, nightmare and hell). Proof:
+  the field log, `ocr-real` and the `ocr-variations` wrong ceiling._
+- The `ocr-variations` correct count is a **ratchet**, not a target: every PR keeps it at or above the floor and the wrong
+  count at or below the ceiling. The 95% share of synthetic variations (game name, popups, selection screens) moves to
+  **F3** as a target.
+- The criterion "Character and screen reading" keeps its scenarios and unit tests; its "95% of their variations" part
+  moves to F3 with the rest of the synthetic share.
+- The ratchet floor of `ocr.variations.correct` moves from 5665 to 5727 (the count after #133), approved the same day.
+
+**Approved**: 2026-11-22 - user: "Opção 2" (the read-rate decision) and "Ok" (the ratchet floor 5727)

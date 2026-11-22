@@ -100,3 +100,12 @@ workflows, which only that feature touches. The orchestrator closes each PR afte
 | #78 | dev-tooling group (17 updates)                    | Done: minors and patches (T11), `jsdom` 31, `dependency-cruiser` 18 (its binary was renamed; two harness tests follow), `secretlint` 10.2. Not taken: `typescript` 7 and `secretlint` 14 with its rules 13 (see To confirm). |
 
 No open PR exists for `pnpm/action-setup` 6 or `actions/setup-node` 7; the workflows already pin them.
+
+## Answered by the maintainer (2026-11-22)
+
+| Item                                 | Answer                                                                                                                                                                                                                                        | Applied in                                     |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| assisted-typing T14: clipboard write | "1": `tauri-plugin-clipboard-manager` 2, Windows only, a Rust-only write in one adapter file; no `windows` feature, no `unsafe`, no allow-list change. `cargo deny --locked check` proves the crate in CI. AST-09's exception stays withdrawn | #145 (T14)                                     |
+| The 95% read-rate goal               | "Opção 2": zero wrong confirmations and 95% of real field rooms confirmed close F2; the synthetic `ocr-variations` share becomes a ratchet and its 95% target moves to F3                                                                     | brief Revision 3                               |
+| The ratchet floor                    | "Ok": `ocr.variations.correct` floor 5665 → 5727 (the count after #133)                                                                                                                                                                       | `.quality-baseline.json`                       |
+| The field tests on the game PC       | "Faço depois": the field matrix, live rooms, CPU and the pt-BR select screen wait; the features that need them stop at their field step                                                                                                       | screen-recognition, game-name-reading, capture |
