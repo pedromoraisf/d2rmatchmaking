@@ -148,6 +148,29 @@ test('the agent mutation command mutates the core crate in place, as the nightly
   assert.match(theirs, /\s--in-place(\s|$)/u, 'the nightly passes --in-place for core');
 });
 
+// The adapters' tests read apps/api/src/modules/agents/config/agent-config.json, outside the copy cargo-mutants makes.
+test('the agent mutation command mutates the adapters crate in place, as the nightly does', () => {
+  const ours = packageOf(agentCommands, 'adapters');
+  const theirs = nightlyCommands.filter((line) => flagOf(line, '--package') === 'd2rmm-agent-adapters');
+  assert.match(ours, /\s--in-place(\s|$)/u, 'test:mutation:agent passes --in-place for adapters');
+  assert.ok(theirs.length > 0, 'the nightly mutates the adapters');
+  for (const line of theirs)
+    assert.match(line, /\s--in-place(\s|$)/u, 'the nightly passes --in-place for adapters');
+});
+
+// A mutated target/ must never reach the cache: only entries that mutate a copy may save it.
+test('the nightly never saves the cache of an --in-place mutation entry', () => {
+  const cache = mutationJob.steps.find((step) => String(step.uses ?? '').startsWith('Swatinem/rust-cache'));
+  assert.ok(cache, 'the job restores a Rust cache');
+  assert.equal(cache.with['save-if'], "${{ matrix.in_place == '' }}");
+  for (const entry of mutationJob.strategy.matrix.include)
+    assert.equal(
+      entry.in_place === '--in-place',
+      entry.crate !== 'domain',
+      `${entry.name}: in place exactly for core and adapters`,
+    );
+});
+
 // CRF-27 (ci-and-review-fixes): the shared sampler vector lives in the adapters crate, so cargo-mutants copies it with
 // the crate, and the telemetry package keeps no copy.
 test('the shared sampler vector lives in the adapters crate', () => {
