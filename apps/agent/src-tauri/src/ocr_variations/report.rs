@@ -167,14 +167,18 @@ impl Report {
             .collect()
     }
 
-    /// How many variations were refused for each reason class, in `screenshot` (all when `None`). Reason classes only.
+    /// How many variations were refused for each reason class, in `screenshot` (all when `None`). Reason classes only;
+    /// every `chat-no-phrase:<ops>` is counted under the bare `chat-no-phrase`, as its ops may carry characters that do
+    /// not come from a public string.
     pub fn refusal_reasons(&self, screenshot: Option<&str>) -> BTreeMap<String, usize> {
         let mut counts = BTreeMap::new();
         for result in &self.results {
             if result.verdict.outcome == Outcome::Refused
                 && screenshot.is_none_or(|name| name == result.screenshot)
             {
-                *counts.entry(result.verdict.reason.to_string()).or_insert(0) += 1;
+                *counts
+                    .entry(public_reason_class(&result.verdict.reason).to_string())
+                    .or_insert(0) += 1;
             }
         }
         counts
@@ -621,6 +625,14 @@ impl Report {
     }
 }
 
+/// The reason class safe to print per print: `chat-no-phrase:<ops>` becomes `chat-no-phrase`.
+fn public_reason_class(reason: &str) -> &str {
+    match reason.strip_prefix("chat-no-phrase") {
+        Some(rest) if rest.starts_with(':') => "chat-no-phrase",
+        _ => reason,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -702,6 +714,38 @@ mod tests {
         assert_eq!(
             report.screenshots(),
             [revealed, "maintainer-select-screen.png"]
+        );
+    }
+
+    #[test]
+    fn chat_no_phrase_ops_stay_out_of_the_refusal_lines_and_json() {
+        let with = |screenshot: &str, reason: &str| VariantResult {
+            verdict: Verdict {
+                outcome: Outcome::Refused,
+                reason: reason.to_string().into(),
+            },
+            ..result(screenshot, "x", "tone", Outcome::Refused)
+        };
+        let report = Report {
+            results: vec![
+                with("a.png", "chat-no-phrase:sub(a>b)@3"),
+                with("a.png", "chat-no-phrase:del(c)@1"),
+                with("a.png", "no-card"),
+            ],
+            ..Report::default()
+        };
+        assert_eq!(report.refusal_reasons(None)["chat-no-phrase"], 2);
+        assert_eq!(
+            report.refusal_line(Some("a.png")).as_deref(),
+            Some("refused: chat-no-phrase 2, no-card 1")
+        );
+        let reasons = report.json()["refusal_reasons"].to_string();
+        assert!(reasons.contains("chat-no-phrase"), "{reasons}");
+        assert!(!reasons.contains("sub(a>b)"), "{reasons}");
+        let log = report.log_lines().join("\n");
+        assert!(
+            log.contains("  all prints: refused: chat-no-phrase 2, no-card 1"),
+            "{log}"
         );
     }
 
