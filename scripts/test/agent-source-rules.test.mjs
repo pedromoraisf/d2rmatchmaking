@@ -1011,15 +1011,18 @@ test('tauri.conf.json keeps the hardened shell', () => {
   );
 });
 
-test('the window gets exactly listen, unlisten, get_new_code, get_consent, set_consent and set_hotkey', () => {
+test('the window gets exactly listen, unlisten, get_new_code, get_consent, set_consent, set_hotkey, get_diagnostics and set_diagnostics', () => {
   const capability = readJson(`${agentTauri}/capabilities/main.json`);
   assert.deepEqual(capability.windows, ['main']);
   assert.deepEqual(
     [...capability.permissions].sort(),
     [
       'allow-get-consent',
+      // The player's "send diagnostics" switch (OBT-14, OBT-15): read and save only; it carries no span and no secret.
+      'allow-get-diagnostics',
       'allow-get-new-code',
       'allow-set-consent',
+      'allow-set-diagnostics',
       // Assisted typing (AST-09): the window saves the player's hotkey choice; the command types nothing.
       'allow-set-hotkey',
       'core:event:allow-listen',
